@@ -17,7 +17,7 @@ from typing import Any, Iterable, Iterator
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 from openpyxl import load_workbook
-from sqlalchemy import Integer, and_, cast, delete, extract, func, or_, select
+from sqlalchemy import Integer, cast, delete, extract, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -59,7 +59,6 @@ HEADERS_MAP = {
     "matchedrequest": "matched_request",
     "impression": "impression",
     "click": "click",
-    "clicks": "click",
     "adrequestecpm": "ad_request_ecpm",
     "adimpressionecpm": "ad_impression_ecpm",
     "adimpressionecpmtl": "ad_impression_ecpm",
@@ -228,12 +227,7 @@ class AdStream:
     default_surface: str
 
 
-# Sekme: tek dal değil, proje geneli (Site Revenue ana sayfa ile kıyas).
-STREAM_ALL_BRANCH = "__all__"
-
-
 AD_STREAMS: tuple[AdStream, ...] = (
-    AdStream("doviz:all", "doviz", STREAM_ALL_BRANCH, "Döviz · Tüm site", "dovizcom", "site"),
     AdStream("doviz:desktop", "doviz", "desktop", "Döviz · Desktop", "dovizcom", "web"),
     AdStream("doviz:mweb", "doviz", "mweb", "Döviz · Mobil Web", "dovizcom", "mweb"),
     AdStream("doviz:ios", "doviz", "ios", "Döviz · iOS", "ios", "ios_app"),
@@ -252,30 +246,12 @@ def detect_stream(filename: str) -> AdStream | None:
         return _STREAM_BY_KEY["sinemalar:mweb"]
     if "sinemalar" in low and ("desktop" in low or low.startswith("sinemalardesktop")):
         return _STREAM_BY_KEY["sinemalar:desktop"]
-    if (
-        "m.doviz" in low
-        or "m_doviz" in low
-        or "mdovizcom" in low
-        or "m-doviz" in low
-        or re.search(r"(^|[^a-z])m[^a-z0-9]*doviz", low)
-    ):
+    if "m.doviz" in low or "m_doviz" in low or "mdovizcom" in low:
         return _STREAM_BY_KEY["doviz:mweb"]
-    if "sinemalar" not in low:
-        if (
-            "doviz_ios" in low
-            or "doviz-ios" in low
-            or "dovizios" in low
-            or "iphone" in low
-            or ("ios" in low and "doviz" in low and "android" not in low)
-        ):
-            return _STREAM_BY_KEY["doviz:ios"]
-        if (
-            "doviz_android" in low
-            or "doviz-android" in low
-            or "dovizandroid" in low
-            or ("android" in low and "doviz" in low)
-        ):
-            return _STREAM_BY_KEY["doviz:android"]
+    if "doviz_ios" in low or "doviz-ios" in low:
+        return _STREAM_BY_KEY["doviz:ios"]
+    if "doviz_android" in low or "doviz-android" in low:
+        return _STREAM_BY_KEY["doviz:android"]
     if "dovizcom" in low or "doviz.com" in low:
         return _STREAM_BY_KEY["doviz:desktop"]
     return None
@@ -367,7 +343,7 @@ def _row_fingerprint(
     project: str,
     branch: str,
 ) -> str:
-    """Tekil iş anahtarı — aynı gün/birim/gelir için son yüklenen dosya upsert ile günceller."""
+    """Dal içinde tekilleştirme — kaynak dosya dahil değil (güncelleme duplike etmez)."""
     raw = f"{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -466,8 +442,6 @@ def _row_from_values(
         channel = stream.channel
         surface = _detect_surface(ad_unit, channel)
         if surface == "unknown" and stream.default_surface:
-            surface = stream.default_surface
-        elif stream.branch == "mweb" and surface == "site":
             surface = stream.default_surface
     else:
         project, branch = "", ""
@@ -715,15 +689,6 @@ def _estimate_xlsx_data_rows(data: bytes) -> int:
         return 0
 
 
-def _purge_rows_for_source_file(db: Session, filename: str) -> int:
-    """Aynı dosyanın yeniden yüklemesinde eski satırları kaldır."""
-    if not (filename or "").strip():
-        return 0
-    res = db.execute(delete(AdReportRow).where(AdReportRow.source_file == filename))
-    rc = res.rowcount
-    return len(rc) if isinstance(rc, list) else int(rc or 0)
-
-
 def import_upload_file(
     db: Session,
     data: bytes,
@@ -736,7 +701,6 @@ def import_upload_file(
     stream = detect_stream(filename)
     channel = stream.channel if stream else _detect_channel(filename)
     try:
-        purged = _purge_rows_for_source_file(db, filename)
         if low.endswith(".xlsx") or low.endswith(".xlsm"):
             columns: list[str] = []
             wb = _load_workbook_bytes(data)
@@ -794,7 +758,6 @@ def import_upload_file(
     except Exception:
         db.rollback()
         raise
-    result["purged_rows"] = purged
     result["filename"] = filename
     result["channel"] = channel
     result["columns"] = columns
@@ -852,7 +815,7 @@ def build_upload_batch_summary(per_file: list[dict[str, Any]]) -> dict[str, Any]
     duplicate_period_notes: list[str] = []
     for ov in overlapping_periods:
         duplicate_period_notes.append(
-            f"Aynı dal/dönem için birden fazla dosya (aynı gün/birimde son yüklenen geçerli): {', '.join(ov['files'])}"
+            f"Aynı dal/dönem için birden fazla dosya (veri üst üste birleşir): {', '.join(ov['files'])}"
         )
 
     file_count = len(per_file)
@@ -973,11 +936,8 @@ def iter_bulk_import_events(
                     "pct": int(100 * idx / max(total_files, 1)),
                 }
     with SessionLocal() as db:
-        deduped = dedupe_ad_report_rows(db)
-        db.commit()
         total_rows = count_rows(db)
     summary = build_upload_batch_summary(per_file)
-    summary["deduped_rows"] = deduped
     yield {
         "phase": "batch_done",
         "pct": 100,
@@ -985,7 +945,6 @@ def iter_bulk_import_events(
         "parsed": total_parsed,
         "inserted": total_inserted,
         "total": total_rows,
-        "deduped": deduped,
         "unknown_files": unknown,
         "files": per_file,
         "summary": summary,
@@ -1022,18 +981,14 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
                 LOGGER.warning("Ad bulk file failed: %s — %s", name, exc)
                 per_file.append({"filename": name, "error": str(exc)})
     with SessionLocal() as db:
-        deduped = dedupe_ad_report_rows(db)
-        db.commit()
         total_rows = count_rows(db)
     LOGGER.info(
-        "Ad bulk import done: files=%s parsed=%s total_rows=%s deduped=%s",
+        "Ad bulk import done: files=%s parsed=%s total_rows=%s",
         len(ordered),
         total_parsed,
         total_rows,
-        deduped,
     )
     summary = build_upload_batch_summary(per_file)
-    summary["deduped_rows"] = deduped
     return {
         "files": per_file,
         "file_count": len(ordered),
@@ -1047,51 +1002,6 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
 
 def count_rows(db: Session) -> int:
     return int(db.scalar(select(func.count()).select_from(AdReportRow)) or 0)
-
-
-def dedupe_ad_report_rows(db: Session) -> int:
-    """
-    Aynı proje/dal/tarih/birim/gelir için tek satır bırak.
-    Öncelik: daha yüksek rapor dönemi (com2), sonra net gelir, sonra id.
-    """
-    from collections import defaultdict
-
-    rows = db.execute(
-        select(
-            AdReportRow.id,
-            AdReportRow.project,
-            AdReportRow.branch,
-            AdReportRow.report_date,
-            AdReportRow.ad_unit,
-            AdReportRow.income_type,
-            AdReportRow.source_file,
-            AdReportRow.net_revenue,
-        )
-    ).all()
-    groups: dict[tuple[Any, ...], list[Any]] = defaultdict(list)
-    for r in rows:
-        key = (r[1], r[2], r[3], r[4], r[5])
-        groups[key].append(r)
-    to_delete: list[int] = []
-    for items in groups.values():
-        if len(items) <= 1:
-            continue
-        items.sort(
-            key=lambda item: (
-                _report_period_rank(item[6] or ""),
-                float(item[7] or 0),
-                int(item[0]),
-            ),
-            reverse=True,
-        )
-        to_delete.extend(int(item[0]) for item in items[1:])
-    if not to_delete:
-        return 0
-    for i in range(0, len(to_delete), 4000):
-        chunk = to_delete[i : i + 4000]
-        db.execute(delete(AdReportRow).where(AdReportRow.id.in_(chunk)))
-    db.flush()
-    return len(to_delete)
 
 
 def reset_all(db: Session) -> dict[str, int]:
@@ -1167,35 +1077,26 @@ def facets(db: Session) -> dict[str, Any]:
             if slug not in seen_cols:
                 seen_cols.add(slug)
                 extra_columns.append(str(c))
-    streams_out: list[dict[str, Any]] = []
-    kpi_union: set[str] = set()
-    for meta in AD_STREAMS:
-        sq = select(
+    stream_stats = db.execute(
+        select(
+            AdReportRow.project,
+            AdReportRow.branch,
             func.min(AdReportRow.report_date),
             func.max(AdReportRow.report_date),
             func.count(),
         )
-        for cond in _stream_branch_filters(meta.project, meta.branch):
-            sq = sq.where(cond)
-        hit = db.execute(sq).one()
-        hit_row = (meta.project, meta.branch, hit[0], hit[1], hit[2]) if hit else None
-        hit = hit_row
+        .where(AdReportRow.project != "", AdReportRow.branch != "")
+        .group_by(AdReportRow.project, AdReportRow.branch)
+    ).all()
+    stats_map = {(r[0], r[1]): r for r in stream_stats}
+    streams_out: list[dict[str, Any]] = []
+    kpi_union: set[str] = set()
+    for meta in AD_STREAMS:
+        hit = stats_map.get((meta.project, meta.branch))
         stream_kpis: list[str] = []
         if hit and hit[4]:
             # KPI uygunluğu facets'te ağır JSON taraması yapılmaz — query_summary döner.
             stream_kpis = []
-        rev_sum = 0.0
-        day_cnt = 0
-        if hit and hit[4]:
-            rev_q = select(
-                func.coalesce(func.sum(AdReportRow.net_revenue), 0),
-                func.count(func.distinct(AdReportRow.report_date)),
-            )
-            for cond in _stream_branch_filters(meta.project, meta.branch):
-                rev_q = rev_q.where(cond)
-            rev_row = db.execute(rev_q).one()
-            rev_sum = round(float(rev_row[0] or 0), 2)
-            day_cnt = int(rev_row[1] or 0)
         streams_out.append(
             {
                 "key": meta.key,
@@ -1207,8 +1108,6 @@ def facets(db: Session) -> dict[str, Any]:
                 "min_date": hit[2].isoformat() if hit and hit[2] else None,
                 "max_date": hit[3].isoformat() if hit and hit[3] else None,
                 "row_count": int(hit[4] or 0) if hit else 0,
-                "distinct_days": day_cnt,
-                "total_net_revenue": rev_sum,
                 "has_data": bool(hit and hit[4]),
                 "available_kpis": stream_kpis,
             }
@@ -1343,35 +1242,16 @@ def _week_key_expr(col):
     return func.strftime("%Y-W%W", col)
 
 
-_MWEB_SURFACE_VALUES = ("mweb", "mobile_web", "m_web")
-
-
-def _is_mweb_surface_expr(col_surface):
-    return func.lower(col_surface).in_(list(_MWEB_SURFACE_VALUES))
-
-
-def _ad_unit_mweb_prefix_expr(col_ad_unit):
-    """``m_`` ön eki (LIKE'ta ``_`` joker olmasın diye escape)."""
-    return func.lower(col_ad_unit).like("m\\_%", escape="\\")
-
-
-def _stream_branch_filters(project: str | None, branch: str | None) -> list[Any]:
-    """Dal sekmesi — m.doviz.com (Virgul) = ``m.dovizcom`` yükleme dalı (branch=mweb)."""
-    if not project:
-        return []
-    if not branch or branch == STREAM_ALL_BRANCH:
-        return [AdReportRow.project == project]
-    return [AdReportRow.project == project, AdReportRow.branch == branch]
-
-
 def _area_label_expr(col_branch, col_surface):
     from sqlalchemy import case
 
     return case(
         (col_branch == "android", "android"),
         (col_branch == "ios", "ios"),
-        (_is_mweb_surface_expr(col_surface), "mweb"),
-        (col_branch == "mweb", "mweb"),
+        (
+            func.lower(col_surface).in_(["mweb", "mobile_web", "m_web"]),
+            "mweb",
+        ),
         else_="web",
     )
 
@@ -1407,8 +1287,10 @@ def _apply_filters(
     project: str | None = None,
     branch: str | None = None,
 ):
-    for cond in _stream_branch_filters(project, branch):
-        q = q.where(cond)
+    if project:
+        q = q.where(AdReportRow.project == project)
+    if branch:
+        q = q.where(AdReportRow.branch == branch)
     if start:
         try:
             q = q.where(AdReportRow.report_date >= date.fromisoformat(start[:10]))
@@ -2574,103 +2456,3 @@ def _merge_table_rows(
         merged.append(item)
     merged.sort(key=lambda x: float(x.get("net_revenue") or 0), reverse=True)
     return merged
-
-
-# Virgul m.doviz.com günlük tablo (kullanıcı referansı) — dal=mweb doğrulama için.
-_VIRGUL_MWEB_DAILY_REFERENCE: dict[str, dict[str, float | int]] = {
-    "2025-12-31": {
-        "net_revenue": 86626.87,
-        "impression": 5912777,
-        "ad_request": 11698399,
-        "empower_pageview": 714381,
-    },
-    "2025-12-30": {
-        "net_revenue": 155868.45,
-        "impression": 9747107,
-        "ad_request": 15343578,
-        "empower_pageview": 1033451,
-    },
-}
-
-
-def query_daily_verify(
-    db: Session,
-    *,
-    day: str,
-    project: str = "doviz",
-    branch: str = "mweb",
-) -> dict[str, Any]:
-    """Tek gün özeti + kaynak dosya kırılımı; Virgul referansıyla karşılaştırma."""
-    summary = query_summary(
-        db,
-        start=day,
-        end=day,
-        project=project,
-        branch=branch,
-    )
-    day_row = next(
-        (d for d in (summary.get("by_date") or []) if d.get("date") == day),
-        None,
-    )
-    base = select(AdReportRow)
-    base = _apply_filters(
-        base,
-        start=day,
-        end=day,
-        income_types=[],
-        ad_units=[],
-        platforms=[],
-        channels=[],
-        surfaces=[],
-        sources=[],
-        search=None,
-        project=project,
-        branch=branch,
-    )
-    sub = base.subquery()
-    by_source = db.execute(
-        select(
-            sub.c.source_file,
-            func.count(),
-            func.sum(sub.c.net_revenue),
-            func.sum(sub.c.impression),
-        )
-        .group_by(sub.c.source_file)
-        .order_by(func.sum(sub.c.net_revenue).desc())
-    ).all()
-    ref = _VIRGUL_MWEB_DAILY_REFERENCE.get(day)
-    compare: dict[str, Any] | None = None
-    if ref and day_row:
-        compare = {}
-        for key, theirs in ref.items():
-            ours = day_row.get(key)
-            if ours is None:
-                ours = (summary.get("kpis") or {}).get(key)
-            if ours is None:
-                continue
-            delta = float(ours) - float(theirs)
-            tol = 0.02 if key == "net_revenue" else 1.0
-            compare[key] = {
-                "ours": ours,
-                "virgul": theirs,
-                "delta": round(delta, 2) if key == "net_revenue" else int(delta),
-                "match": abs(delta) < tol,
-            }
-    return {
-        "day": day,
-        "project": project,
-        "branch": branch,
-        "kpis": summary.get("kpis"),
-        "by_date": day_row,
-        "by_source_file": [
-            {
-                "source_file": r[0],
-                "rows": int(r[1] or 0),
-                "net_revenue": round(float(r[2] or 0), 2),
-                "impression": int(r[3] or 0),
-            }
-            for r in by_source
-        ],
-        "virgul_reference": ref,
-        "compare": compare,
-    }

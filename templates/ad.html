@@ -34,23 +34,20 @@
         <p id="mz-upload-progress-reload" class="hidden text-[11px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
       </div>
       <button id="mz-reset" type="button" class="w-full rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400">Tüm veriyi sıfırla</button>
-      <button id="mz-dedupe" type="button" class="w-full rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300">Çift kayıtları temizle</button>
       <p id="mz-status" class="min-h-[1.25rem] text-xs text-slate-500 dark:text-zinc-400" role="status" aria-live="polite"></p>
 
       <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Tarih</p>
-      <div class="mz-date-range flex flex-col gap-2">
-        <input id="mz-start" type="date" class="mz-date-input w-full min-w-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
-        <input id="mz-end" type="date" class="mz-date-input w-full min-w-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+      <div class="grid grid-cols-2 gap-2">
+        <input id="mz-start" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+        <input id="mz-end" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
       </div>
       <select id="mz-preset" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
         <option value="">Özel aralık</option>
         <option value="7d">Son 7 gün</option>
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
-        <option value="last_month">Geçen ay</option>
         <option value="ytd">Bu yıl</option>
         <option value="1y" selected>Son 1 yıl</option>
-        <option value="last_year">Geçen yıl</option>
         <option value="all">Tüm veri</option>
       </select>
 
@@ -64,16 +61,13 @@
           <option value="previous_year">Geçen yıl (aynı tarihler)</option>
           <option value="custom">Özel karşılaştırma aralığı</option>
         </select>
-        <div id="mz-compare-custom" class="mz-date-range mt-2 hidden flex flex-col gap-2">
-          <input id="mz-compare-start" type="date" class="mz-date-input w-full min-w-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black" disabled />
-          <input id="mz-compare-end" type="date" class="mz-date-input w-full min-w-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black" disabled />
+        <div id="mz-compare-custom" class="mt-2 hidden grid grid-cols-2 gap-2">
+          <input id="mz-compare-start" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-black" disabled />
+          <input id="mz-compare-end" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-black" disabled />
         </div>
       </div>
 
-      <div class="flex items-center justify-between gap-2 pt-2">
-        <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
-        <button type="button" id="mz-income-select-all" class="shrink-0 text-[10px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Tümünü seç</button>
-      </div>
+      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
       <div id="mz-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
 
       <div id="mz-cross-filters" class="space-y-2">
@@ -125,15 +119,6 @@
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
       <p id="mz-range-label" class="text-xs text-slate-500 dark:text-zinc-400"></p>
-      <p id="mz-active-filters" class="hidden rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status"></p>
-
-      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-        <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
-          <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
-          <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
-        </div>
-        <div id="mz-chart-line" class="mz-chart-plot min-h-[220px] sm:min-h-[300px]"></div>
-      </div>
 
       <div id="mz-compare-panels-wrap" class="hidden grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <section id="mz-compare-matrix-wrap" class="min-w-0 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
@@ -173,6 +158,14 @@
             </table>
           </div>
         </section>
+      </div>
+
+      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+          <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
+          <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
+        </div>
+        <div id="mz-chart-line" class="mz-chart-plot min-h-[220px] sm:min-h-[300px]"></div>
       </div>
 
       <div id="mz-dual-quality-row" class="compare-dual-quality-row grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -767,29 +760,13 @@
     if (el) el.classList.toggle("hidden", !on);
   }
 
-  function restoreFullCrossFacets() {
-    (state._mzChannelFacetList || []).forEach(function (n) { state.channel.add(n); });
-    (state._mzSurfaceFacetList || []).forEach(function (n) { state.surface.add(n); });
-    (state._mzPlatformFacetList || []).forEach(function (n) { state.platform.add(n); });
-    (state._mzIncomeFacetList || []).forEach(function (n) { state.income.add(n); });
-    (state._mzSourceFacetList || []).forEach(function (n) { state.source.add(n); });
-    state.summaryDrillSlice = null;
-    state._summaryDrillRowKey = null;
-    state._summaryDrillUserPicked = false;
-    filterChips("mz-filter-channel", state._mzChannelFacetList || [], state.channel);
-    filterChips("mz-filter-surface", state._mzSurfaceFacetList || [], state.surface);
-    filterChips("mz-filter-platform", state._mzPlatformFacetList || [], state.platform);
-    filterChips("mz-filter-income", state._mzIncomeFacetList || [], state.income);
-    filterChips("mz-filter-source", state._mzSourceFacetList || [], state.source);
-  }
-
   function updateScopeUi() {
     var cross = document.getElementById("mz-cross-filters");
     if (!cross) return;
     if (state.activeStream) {
-      cross.classList.add("hidden");
+      cross.classList.add("pointer-events-none", "opacity-40");
     } else {
-      cross.classList.remove("hidden");
+      cross.classList.remove("pointer-events-none", "opacity-40");
     }
   }
 
@@ -809,25 +786,20 @@
     var e = document.getElementById("mz-end").value;
     if (s) p.set("start", s);
     if (e) p.set("end", e);
-    if (!state.activeStream) {
-      appendFacetParam(p, "income_types", state.income, state._mzIncomeFacetList || []);
-    }
-    if (state.drillSlice && state.drillSlice.ad_unit) {
-      p.set("ad_units", state.drillSlice.ad_unit);
-    }
+    appendFacetParam(p, "income_types", state.income, state._mzIncomeFacetList || []);
     if (!state.activeStream) {
       appendFacetParam(p, "platforms", state.platform, state._mzPlatformFacetList || []);
       appendFacetParam(p, "channels", state.channel, state._mzChannelFacetList || []);
       appendFacetParam(p, "surfaces", state.surface, state._mzSurfaceFacetList || []);
-      appendFacetParam(p, "sources", state.source, state._mzSourceFacetList || []);
     }
+    appendFacetParam(p, "sources", state.source, state._mzSourceFacetList || []);
     var q = document.getElementById("mz-search").value.trim();
     if (q) p.set("search", q);
     if (state.drillSlice && state.drillSlice.ad_unit) {
       p.set("ad_unit", state.drillSlice.ad_unit);
       if (state.drillSlice.area) p.set("area", state.drillSlice.area);
     }
-    if (!state.activeStream && state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
       p.set("drill_income_type", state.summaryDrillSlice.income_type);
     }
     var preset = document.getElementById("mz-preset").value;
@@ -935,14 +907,6 @@
 
   function isoDateLocal(d) {
     return d.toISOString().slice(0, 10);
-  }
-
-  /** Takvim günü (yerel) — preset’lerde UTC kayması olmasın. */
-  function isoCalendarDate(d) {
-    var y = d.getFullYear();
-    var m = d.getMonth() + 1;
-    var day = d.getDate();
-    return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
   }
 
   function resolveCompareRangeClient(primaryStart, primaryEnd, mode) {
@@ -1064,62 +1028,42 @@
     return pct == null || isNaN(pct) ? null : pct;
   }
 
-  /** Karşılaştırma çubuğu grafiğinde gösterilebilir % (tanımsız veya eksen ölçeğini bozan uç değerler hariç). */
-  function unitDeltaPctChartable(row) {
-    var pct = unitDeltaPct(row);
-    if (pct == null || !isFinite(pct)) return null;
-    if (Math.abs(pct) > 2000) return null;
-    return pct;
-  }
-
-  function hideUnitDeltaChart() {
-    var deltaWrap = document.getElementById("mz-chart-delta-wrap");
-    var deltaEl = document.getElementById("mz-chart-delta-units");
-    if (deltaWrap) deltaWrap.classList.add("hidden");
-    if (deltaEl) {
-      try { Plotly.purge(deltaEl); } catch (_) { /* ignore */ }
-      deltaEl.innerHTML = "";
-    }
-  }
-
   function renderUnitDeltaChart(cmp) {
     var deltaWrap = document.getElementById("mz-chart-delta-wrap");
     var deltaEl = document.getElementById("mz-chart-delta-units");
     if (!deltaWrap || !deltaEl) return;
-    if (!compareEnabled()) {
-      hideUnitDeltaChart();
-      return;
-    }
     if (!cmp || !cmp.by_ad_unit || !cmp.by_ad_unit.length) {
-      hideUnitDeltaChart();
+      deltaWrap.classList.add("hidden");
+      try { Plotly.purge(deltaEl); } catch (_) { /* ignore */ }
       return;
     }
     var chartRows = cmp.by_ad_unit.slice().filter(function (r) {
-      return unitDeltaPctChartable(r) != null;
+      return unitDeltaPct(r) != null;
     }).sort(function (a, b) {
-      return unitDeltaPctChartable(b) - unitDeltaPctChartable(a);
+      return unitDeltaPct(b) - unitDeltaPct(a);
     }).slice(0, 12);
     if (!chartRows.length) {
-      hideUnitDeltaChart();
+      deltaWrap.classList.remove("hidden");
+      try { Plotly.purge(deltaEl); } catch (_) { /* ignore */ }
+      deltaEl.innerHTML = "<p class=\"py-10 text-center text-xs text-slate-500 dark:text-zinc-500\">Bu birimler için karşı dönemde gelir yok veya % fark hesaplanamıyor (yeni birim / isim değişimi).</p>";
       return;
     }
     deltaWrap.classList.remove("hidden");
     deltaEl.innerHTML = "";
     plotChart("mz-chart-delta-units", [{
-      x: chartRows.map(function (r) { return unitDeltaPctChartable(r); }),
+      x: chartRows.map(function (r) { return unitDeltaPct(r); }),
       y: chartRows.map(function (r) { return r.ad_unit; }),
       type: "bar",
       orientation: "h",
       marker: {
         color: chartRows.map(function (r) {
-          return unitDeltaPctChartable(r) >= 0 ? "#10b981" : "#f43f5e";
+          return unitDeltaPct(r) >= 0 ? "#10b981" : "#f43f5e";
         }),
       },
       hovertemplate: "%{y}<br>%{x:.1f}%<extra></extra>",
     }], plotTheme({
       margin: { l: 180, r: 16, t: 24, b: 40 },
       xTitle: "Gelir % fark",
-      xaxis: { ticksuffix: "%" },
       yaxis: { automargin: true },
     }), { minHeight: 280 });
   }
@@ -4123,13 +4067,6 @@
         marker: { color: colors.primary, size: 4 },
         name: def.label,
       });
-      if (timeKey === "date" && series.length) {
-        layoutExtra.xaxis = Object.assign({}, layoutExtra.xaxis || {}, {
-          type: "date",
-          tickformat: "%d.%m.%y",
-          tickangle: series.length > 45 ? -45 : 0,
-        });
-      }
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
     plotChart("mz-chart-line", traces, plotTheme(layoutExtra), { minHeight: 220 });
@@ -5147,25 +5084,11 @@
     if (v === "7d") s.setDate(s.getDate() - 7);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "90d") s.setDate(s.getDate() - 90);
-    else if (v === "last_month") {
-      var monthStart = new Date(d.getFullYear(), d.getMonth() - 1, 1);
-      var monthEnd = new Date(d.getFullYear(), d.getMonth(), 0);
-      start.value = isoCalendarDate(monthStart);
-      end.value = isoCalendarDate(monthEnd);
-      updateComparePeriodBanner(state.lastSummary);
-      return;
-    } else if (v === "ytd") {
+    else if (v === "ytd") {
       s = new Date(d.getFullYear(), 0, 1);
     } else if (v === "1y") s.setFullYear(s.getFullYear() - 1);
-    else if (v === "last_year") {
-      var calY = d.getFullYear() - 1;
-      start.value = calY + "-01-01";
-      end.value = calY + "-12-31";
-      updateComparePeriodBanner(state.lastSummary);
-      return;
-    }
-    start.value = isoCalendarDate(s);
-    end.value = isoCalendarDate(d);
+    start.value = s.toISOString().slice(0, 10);
+    end.value = d.toISOString().slice(0, 10);
     updateComparePeriodBanner(state.lastSummary);
   }
 
@@ -5183,15 +5106,8 @@
             ? "border-slate-300 bg-white text-slate-700 hover:border-indigo-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 midnight:border-zinc-700 midnight:bg-zinc-950"
             : "border-slate-200 bg-slate-50 text-slate-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500");
       btn.textContent = st.label;
-      if (st.has_data && st.total_net_revenue != null) {
-        btn.title =
-          (st.row_count || 0).toLocaleString("tr-TR") + " satır · " +
-          (st.distinct_days || 0).toLocaleString("tr-TR") + " gün · " +
-          Number(st.total_net_revenue).toLocaleString("tr-TR", { maximumFractionDigits: 0 }) + " TL (tüm dönem)";
-      }
       btn.addEventListener("click", function () {
         state.activeStream = st;
-        restoreFullCrossFacets();
         ensureActiveKpi(activeKpiDefs(null));
         renderStreamTabs();
         updateScopeUi();
@@ -5265,7 +5181,6 @@
       filterChips("mz-filter-surface", f.surfaces || [], state.surface);
       filterChips("mz-filter-platform", f.platforms || [], state.platform);
       filterBox("mz-filter-source", f.source_files || [], state.source);
-      if (state.activeStream) restoreFullCrossFacets();
       var imports = f.imports || [];
       var countEl = document.getElementById("mz-imports-count");
       if (countEl) countEl.textContent = String(imports.length);
@@ -5310,49 +5225,6 @@
     }
   }
 
-  function updateActiveFilterBanner() {
-    var el = document.getElementById("mz-active-filters");
-    if (!el) return;
-    var notes = [];
-    var incomeList = state._mzIncomeFacetList || [];
-    if (incomeList.length && state.income.size < incomeList.length) {
-      var excluded = incomeList.filter(function (n) { return !state.income.has(n); });
-      if (excluded.length) {
-        notes.push("Hariç gelir tipleri: " + excluded.join(", "));
-      }
-    }
-    if (!state.activeStream && state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
-      notes.push(
-        "Özet trend grafiği gelir tipi: " + state.summaryDrillSlice.income_type + " (KPI kartları sol panel gelir tipine göre)"
-      );
-    }
-    if (!state.activeStream) {
-      var chList = state._mzChannelFacetList || [];
-      if (chList.length && state.channel.size > 0 && state.channel.size < chList.length) {
-        notes.push("Kanal: " + Array.from(state.channel).join(", "));
-      }
-      var suList = state._mzSurfaceFacetList || [];
-      if (suList.length && state.surface.size > 0 && state.surface.size < suList.length) {
-        notes.push("Yüzey: " + Array.from(state.surface).join(", "));
-      }
-    }
-    if (!state.activeStream) {
-      var srcList = state._mzSourceFacetList || [];
-      if (srcList.length && state.source.size > 0 && state.source.size < srcList.length) {
-        notes.push("Kaynak dosya: " + Array.from(state.source).join(", "));
-      }
-    }
-    if (notes.length) {
-      el.classList.remove("hidden");
-      el.textContent =
-        "KPI’lar filtrelenmiş veriye göre — Virgul paneliyle kıyas için tüm gelir tiplerini ve dosyaları seçin. " +
-        notes.join(" · ");
-    } else {
-      el.classList.add("hidden");
-      el.textContent = "";
-    }
-  }
-
   function updateRangeLabel() {
     var rangeLbl = document.getElementById("mz-range-label");
     if (!rangeLbl) return;
@@ -5363,7 +5235,6 @@
       parts.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
     }
     rangeLbl.textContent = parts.join(" · ");
-    updateActiveFilterBanner();
     updateComparePeriodBanner(state.lastSummary);
   }
 
@@ -5444,14 +5315,6 @@
 
   on("mz-run", "click", function () {
     runQuery({ resetTableDrills: true });
-    debouncedSyncUrl();
-  });
-  on("mz-income-select-all", "click", function () {
-    (state._mzIncomeFacetList || []).forEach(function (n) {
-      state.income.add(n);
-    });
-    filterBox("mz-filter-income", state._mzIncomeFacetList || [], state.income);
-    debouncedRun();
     debouncedSyncUrl();
   });
   on("mz-preset", "change", function () {
@@ -5841,27 +5704,6 @@
 
   on("mz-top-units-refresh", "click", function () {
     renderTopMxUnitsWeek();
-  });
-
-  on("mz-dedupe", "click", async function () {
-    setLoading(true);
-    try {
-      var r = await fetch("/api/mz-analytics/dedupe", { method: "POST" });
-      if (!r.ok) throw new Error("Temizlik başarısız");
-      var d = await r.json();
-      var statusEl = document.getElementById("mz-status");
-      if (statusEl) {
-        statusEl.textContent =
-          "Çift kayıt: " + (d.deduped_rows || 0).toLocaleString("tr-TR") +
-          " satır silindi · DB: " + (d.total || 0).toLocaleString("tr-TR");
-      }
-      await loadFacets();
-      await runQuery({ resetTableDrills: false });
-    } catch (err) {
-      showPageError((err && err.message) || "Temizlik yapılamadı");
-    } finally {
-      setLoading(false);
-    }
   });
 
   on("mz-reset", "click", async function () {

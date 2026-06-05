@@ -48,17 +48,6 @@ def get_ad_analytics_facets(db: Session = Depends(get_db)):
     return store.facets(db)
 
 
-@router.get("/mz-analytics/daily-verify")
-def get_ad_analytics_daily_verify(
-    db: Session = Depends(get_db),
-    day: str = Query(..., description="YYYY-MM-DD"),
-    project: str = Query("doviz"),
-    branch: str = Query("mweb"),
-):
-    """Tek gün toplamları; m.doviz.com Virgul referansıyla yan yana."""
-    return store.query_daily_verify(db, day=day[:10], project=project, branch=branch)
-
-
 @router.get("/mz-analytics/summary")
 def get_ad_analytics_summary(
     db: Session = Depends(get_db),
@@ -159,9 +148,6 @@ async def post_ad_analytics_upload(
             raise HTTPException(status_code=400, detail="Boş dosya")
         if low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
             result = store.import_upload_file(db, raw, filename=name)
-            removed = store.dedupe_ad_report_rows(db)
-            db.commit()
-            result["deduped_rows"] = removed
         else:
             raise HTTPException(status_code=400, detail="Yalnızca .xlsx veya .csv desteklenir")
         if not result.get("parsed"):
@@ -260,18 +246,6 @@ async def post_ad_analytics_upload_bulk_stream(
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-
-@router.post("/mz-analytics/dedupe")
-def post_ad_analytics_dedupe(db: Session = Depends(get_db)):
-    """Çift satırları temizle (eski import + çoklu dosya). Commit sonrası KPI yenilenir."""
-    try:
-        removed = store.dedupe_ad_report_rows(db)
-        db.commit()
-        return {"deduped_rows": removed, "total": store.count_rows(db)}
-    except Exception as exc:  # noqa: BLE001
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/mz-analytics/reset")
