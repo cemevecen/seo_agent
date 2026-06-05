@@ -577,13 +577,24 @@
     .mz-page #mz-sidebar {
       margin-bottom: 1rem;
     }
+    .mz-page #mz-sidebar .mz-date-input {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+      padding-right: 2.35rem;
+    }
+    .mz-page #mz-sidebar input[type="date"].mz-date-input::-webkit-calendar-picker-indicator {
+      margin-left: 0.15rem;
+      opacity: 0.85;
+      cursor: pointer;
+    }
     .mz-page #mz-main {
       min-height: 24rem;
     }
     @media (min-width: 1280px) {
       .mz-page #mz-body-grid {
         display: grid !important;
-        grid-template-columns: 300px minmax(0, 1fr) !important;
+        grid-template-columns: minmax(17.5rem, 320px) minmax(0, 1fr) !important;
         gap: 1rem;
         align-items: start;
       }
