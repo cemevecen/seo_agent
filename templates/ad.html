@@ -5116,9 +5116,8 @@
       return;
     }
     if (!v) return;
-    var d = max ? new Date(String(max).slice(0, 10) + "T12:00:00") : new Date();
-    if (isNaN(d.getTime())) d = new Date();
-    var s = new Date(d.getTime());
+    var d = max ? new Date(max) : new Date();
+    var s = new Date(d);
     if (v === "7d") s.setDate(s.getDate() - 7);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "90d") s.setDate(s.getDate() - 90);
