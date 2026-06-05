@@ -46,8 +46,10 @@
         <option value="7d">Son 7 gün</option>
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
+        <option value="last_month">Geçen ay</option>
         <option value="ytd">Bu yıl</option>
         <option value="1y" selected>Son 1 yıl</option>
+        <option value="last_year">Geçen yıl</option>
         <option value="all">Tüm veri</option>
       </select>
 
@@ -907,6 +909,14 @@
 
   function isoDateLocal(d) {
     return d.toISOString().slice(0, 10);
+  }
+
+  /** Takvim günü (yerel) — preset’lerde UTC kayması olmasın. */
+  function isoCalendarDate(d) {
+    var y = d.getFullYear();
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
   }
 
   function resolveCompareRangeClient(primaryStart, primaryEnd, mode) {
@@ -5084,11 +5094,25 @@
     if (v === "7d") s.setDate(s.getDate() - 7);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "90d") s.setDate(s.getDate() - 90);
-    else if (v === "ytd") {
+    else if (v === "last_month") {
+      var monthStart = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+      var monthEnd = new Date(d.getFullYear(), d.getMonth(), 0);
+      start.value = isoCalendarDate(monthStart);
+      end.value = isoCalendarDate(monthEnd);
+      updateComparePeriodBanner(state.lastSummary);
+      return;
+    } else if (v === "ytd") {
       s = new Date(d.getFullYear(), 0, 1);
     } else if (v === "1y") s.setFullYear(s.getFullYear() - 1);
-    start.value = s.toISOString().slice(0, 10);
-    end.value = d.toISOString().slice(0, 10);
+    else if (v === "last_year") {
+      var calY = d.getFullYear() - 1;
+      start.value = calY + "-01-01";
+      end.value = calY + "-12-31";
+      updateComparePeriodBanner(state.lastSummary);
+      return;
+    }
+    start.value = isoCalendarDate(s);
+    end.value = isoCalendarDate(d);
     updateComparePeriodBanner(state.lastSummary);
   }
 
