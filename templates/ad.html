@@ -121,6 +121,7 @@
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
       <p id="mz-range-label" class="text-xs text-slate-500 dark:text-zinc-400"></p>
+      <p id="mz-active-filters" class="hidden rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status"></p>
 
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -5276,6 +5277,44 @@
     }
   }
 
+  function updateActiveFilterBanner() {
+    var el = document.getElementById("mz-active-filters");
+    if (!el) return;
+    var notes = [];
+    var incomeList = state._mzIncomeFacetList || [];
+    if (
+      incomeList.length &&
+      state.income.size > 0 &&
+      state.income.size < incomeList.length
+    ) {
+      notes.push(
+        "Gelir tipi (yalnızca seçili): " + Array.from(state.income).sort().join(", ")
+      );
+    }
+    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+      notes.push("Özet drill gelir tipi: " + state.summaryDrillSlice.income_type);
+    }
+    if (!state.activeStream) {
+      var chList = state._mzChannelFacetList || [];
+      if (chList.length && state.channel.size > 0 && state.channel.size < chList.length) {
+        notes.push("Kanal: " + Array.from(state.channel).join(", "));
+      }
+      var suList = state._mzSurfaceFacetList || [];
+      if (suList.length && state.surface.size > 0 && state.surface.size < suList.length) {
+        notes.push("Yüzey: " + Array.from(state.surface).join(", "));
+      }
+    }
+    if (notes.length) {
+      el.classList.remove("hidden");
+      el.textContent =
+        "KPI’lar filtrelenmiş veriye göre — gerçek panel toplamıyla kıyas için tüm gelir tiplerini seçin. " +
+        notes.join(" · ");
+    } else {
+      el.classList.add("hidden");
+      el.textContent = "";
+    }
+  }
+
   function updateRangeLabel() {
     var rangeLbl = document.getElementById("mz-range-label");
     if (!rangeLbl) return;
@@ -5286,6 +5325,7 @@
       parts.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
     }
     rangeLbl.textContent = parts.join(" · ");
+    updateActiveFilterBanner();
     updateComparePeriodBanner(state.lastSummary);
   }
 
