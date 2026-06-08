@@ -522,6 +522,8 @@
     loading: false,
     kpiUnion: [],
     kpiAvailable: [],
+    ga4MobileOverlay: null,
+    _ga4MobileOverlayPromise: null,
   };
 
   function showPageError(msg) {
@@ -3348,6 +3350,156 @@
     el.classList.remove("hidden");
   }
 
+  async function ensureGa4MobileOverlay(signal) {
+    if (state.ga4MobileOverlay) return state.ga4MobileOverlay;
+    if (state._ga4MobileOverlayPromise) return state._ga4MobileOverlayPromise;
+    state._ga4MobileOverlayPromise = fetch("/api/mz-analytics/ga4-mobile-overlay", {
+      credentials: "same-origin",
+      signal: signal,
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("GA4 overlay HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        state.ga4MobileOverlay = data;
+        state._ga4MobileOverlayPromise = null;
+        return data;
+      })
+      .catch(function (err) {
+        state._ga4MobileOverlayPromise = null;
+        throw err;
+      });
+    return state._ga4MobileOverlayPromise;
+  }
+
+  function ga4DailyLookup(dailyTrend) {
+    var dates = (dailyTrend && dailyTrend.dates) || [];
+    var sessions = (dailyTrend && dailyTrend.sessions) || [];
+    var users = (dailyTrend && dailyTrend.activeUsers) || [];
+    var byDate = {};
+    for (var i = 0; i < dates.length; i++) {
+      var d = String(dates[i]).slice(0, 10);
+      if (!d) continue;
+      byDate[d] = {
+        sessions: Number(sessions[i]) || 0,
+        users: Number(users[i]) || 0,
+      };
+    }
+    return byDate;
+  }
+
+  function ga4SumInIsoRange(byDate, startIso, endIso) {
+    var s = 0;
+    var u = 0;
+    var any = false;
+    Object.keys(byDate).forEach(function (d) {
+      if (d < startIso || d > endIso) return;
+      s += byDate[d].sessions;
+      u += byDate[d].users;
+      any = true;
+    });
+    return any ? { sessions: s, users: u } : { sessions: null, users: null };
+  }
+
+  function ga4MetricsForBucket(byDate, bucketKey, chartTimeKey) {
+    if (!bucketKey) return { sessions: null, users: null };
+    if (chartTimeKey === "date") {
+      var pt = byDate[String(bucketKey).slice(0, 10)];
+      return pt ? { sessions: pt.sessions, users: pt.users } : { sessions: null, users: null };
+    }
+    if (chartTimeKey === "month") {
+      var monthPrefix = String(bucketKey).slice(0, 7);
+      var ms = 0;
+      var mu = 0;
+      var mAny = false;
+      Object.keys(byDate).forEach(function (d) {
+        if (d.slice(0, 7) !== monthPrefix) return;
+        ms += byDate[d].sessions;
+        mu += byDate[d].users;
+        mAny = true;
+      });
+      return mAny ? { sessions: ms, users: mu } : { sessions: null, users: null };
+    }
+    if (chartTimeKey === "week") {
+      var wk = weekYearAndNum(bucketKey);
+      if (!wk) return { sessions: null, users: null };
+      var wStart = isoWeekStartDate(wk.year, wk.week);
+      var wEndD = new Date(wStart + "T12:00:00");
+      wEndD.setDate(wEndD.getDate() + 6);
+      var wEnd = wEndD.toISOString().slice(0, 10);
+      return ga4SumInIsoRange(byDate, wStart, wEnd);
+    }
+    return { sessions: null, users: null };
+  }
+
+  function appendGa4MobileOverlayTraces(traces, layout, plotX, bucketKeys, chartTimeKey, overlay) {
+    if (!overlay || !plotX || !plotX.length || !bucketKeys || !bucketKeys.length) return false;
+    var specs = [
+      {
+        label: "Android",
+        trend: overlay.android && overlay.android.daily_trend,
+        sessColor: "#4f83e3",
+        userColor: "#0d9488",
+      },
+      {
+        label: "iOS",
+        trend: overlay.ios && overlay.ios.daily_trend,
+        sessColor: "#6366f1",
+        userColor: "#14b8a6",
+      },
+    ];
+    var added = 0;
+    specs.forEach(function (spec) {
+      if (!spec.trend || !(spec.trend.dates || []).length) return;
+      var byDate = ga4DailyLookup(spec.trend);
+      var sessY = [];
+      var userY = [];
+      for (var i = 0; i < plotX.length; i++) {
+        var bk = bucketKeys[i] != null ? bucketKeys[i] : plotX[i];
+        var m = ga4MetricsForBucket(byDate, bk, chartTimeKey);
+        sessY.push(m.sessions);
+        userY.push(m.users);
+      }
+      traces.push({
+        type: "scatter",
+        mode: "lines",
+        name: "GA4 " + spec.label + " Sessions",
+        x: plotX,
+        y: sessY,
+        yaxis: "y2",
+        connectgaps: false,
+        line: { color: spec.sessColor, width: 1.5 },
+        hovertemplate: "%{x}<br>%{fullData.name}: %{y:,.0f}<extra></extra>",
+      });
+      traces.push({
+        type: "scatter",
+        mode: "lines",
+        name: "GA4 " + spec.label + " Users",
+        x: plotX,
+        y: userY,
+        yaxis: "y2",
+        connectgaps: false,
+        line: { color: spec.userColor, width: 1.5, dash: "dot" },
+        hovertemplate: "%{x}<br>%{fullData.name}: %{y:,.0f}<extra></extra>",
+      });
+      added += 2;
+    });
+    if (!added) return false;
+    layout.yaxis2 = Object.assign({}, plotAxis("Sessions / Users"), {
+      overlaying: "y",
+      side: "right",
+      showgrid: false,
+    });
+    layout.margin = Object.assign({}, layout.margin || {}, { r: Math.max((layout.margin && layout.margin.r) || 12, 62) });
+    layout.showlegend = true;
+    if (layout.legend) {
+      layout.legend = Object.assign({}, layout.legend, { y: -0.22, yanchor: "top" });
+    }
+    layout.margin.b = Math.max((layout.margin && layout.margin.b) || 56, 72);
+    return true;
+  }
+
   function filterDrillSeriesByRange(series, chartTimeKey) {
     var r = selectedDateRange();
     if (!r.start && !r.end) return series;
@@ -3608,6 +3760,8 @@
         : null;
       var traces = [];
       var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
+      var plotX = [];
+      var overlayBucketKeys = [];
       var dense = series.length > 96;
       var traceMode = chartType === "bar"
         ? ""
@@ -3668,8 +3822,18 @@
           }
         }
         layout = applyCompareLayout(layout, comparePair.x.length);
+        plotX = comparePair.x.slice();
+        var primaryRowsCmp = filtered.filter(function (r) {
+          return rowInPeriodRange(r, chartTimeKey, selectedDateRange());
+        });
+        overlayBucketKeys = aggregateDrillSeries(primaryRowsCmp, chartTimeKey, metricKey, "primary").map(
+          function (p) { return p.x; }
+        );
+        while (overlayBucketKeys.length < plotX.length) overlayBucketKeys.push(null);
       } else {
         var xs = series.map(function (p) { return p.x; });
+        plotX = xs.slice();
+        overlayBucketKeys = xs.slice();
         var ys = series.map(function (p) {
           var y = Number(p.y);
           return isNaN(y) ? 0 : y;
@@ -3741,6 +3905,21 @@
         });
         if (plotAnnots.length) layout.annotations = plotAnnots;
       }
+      var ga4OverlayOn = false;
+      try {
+        var ga4Overlay = await ensureGa4MobileOverlay(drillSignal);
+        if (drillStale()) return;
+        ga4OverlayOn = appendGa4MobileOverlayTraces(
+          traces,
+          layout,
+          plotX,
+          overlayBucketKeys,
+          chartTimeKey,
+          ga4Overlay
+        );
+      } catch (_ga4OvErr) {
+        ga4OverlayOn = false;
+      }
       if (drillStale()) return;
       await plotDrillChartEl(chartEl, traces, layout);
       if (drillStale()) return;
@@ -3765,8 +3944,9 @@
           (rangeLbl.start || rangeLbl.end)
             ? " · " + (rangeLbl.start || "…") + " — " + (rangeLbl.end || "…")
             : "";
+        var ga4Note = ga4OverlayOn ? " · GA4 android/ios oturum & kullanıcı" : "";
         statusEl.textContent =
-          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + rangeNote + extra + autoNote;
+          series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + rangeNote + extra + autoNote + ga4Note;
       }
     } catch (e) {
       if (e && e.name === "AbortError") return;

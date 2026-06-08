@@ -248,6 +248,64 @@ async def post_ad_analytics_upload_bulk_stream(
     )
 
 
+@router.get("/mz-analytics/ga4-mobile-overlay")
+def get_ga4_mobile_overlay(db: Session = Depends(get_db)):
+    """doviz.com GA4 12 ay günlük trend — android/ios sessions + activeUsers (/ad drill overlay)."""
+    from sqlalchemy import case
+
+    from backend.config import settings
+    from backend.models import Site
+    from backend.services.warehouse import get_latest_ga4_report_snapshot
+
+    site = (
+        db.query(Site)
+        .filter(Site.is_active.is_(True))
+        .filter(Site.domain.ilike("%doviz.com%"))
+        .order_by(
+            case((Site.domain.ilike("www.doviz.com%"), 0), else_=1),
+            Site.id.asc(),
+        )
+        .first()
+    )
+    if site is None:
+        return {"site_id": None, "android": None, "ios": None}
+
+    period_days = int(settings.ga4_trend_12m_period_days)
+
+    def _profile_trend(profile: str) -> dict | None:
+        snap = get_latest_ga4_report_snapshot(
+            db,
+            site_id=site.id,
+            profile=profile,
+            period_days=period_days,
+        )
+        if not snap:
+            return None
+        payload = snap.get("payload") if isinstance(snap.get("payload"), dict) else {}
+        dt = payload.get("daily_trend") if isinstance(payload.get("daily_trend"), dict) else {}
+        dates = dt.get("dates") or []
+        if not dates:
+            return None
+        return {
+            "last_start": snap.get("last_start"),
+            "last_end": snap.get("last_end"),
+            "collected_at": snap.get("collected_at"),
+            "daily_trend": {
+                "dates": dates,
+                "sessions": dt.get("sessions") or [],
+                "activeUsers": dt.get("activeUsers") or [],
+            },
+        }
+
+    return {
+        "site_id": site.id,
+        "domain": site.domain,
+        "period_days": period_days,
+        "android": _profile_trend("android"),
+        "ios": _profile_trend("ios"),
+    }
+
+
 @router.post("/mz-analytics/reset")
 def post_ad_analytics_reset(db: Session = Depends(get_db)):
     try:
