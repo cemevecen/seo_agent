@@ -405,6 +405,10 @@ def page_fetch_asc_analytics(
             bundle_id=bundle, days=period, country=cc,
         )
 
+    from backend.services.store_rollout import fetch_store_rollout
+
+    rollout = fetch_store_rollout(pid)
+
     return _trim(
         {
             "ok": True,
@@ -413,6 +417,7 @@ def page_fetch_asc_analytics(
             "country": cc,
             "analytics": analytics,
             "sales_summary": sales,
+            "store_rollout": rollout,
         },
         max_str=900,
         max_list=25,

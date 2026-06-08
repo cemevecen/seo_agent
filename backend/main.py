@@ -10742,6 +10742,18 @@ def api_app_asc_preview(
     return JSONResponse(intel_json_safe(payload))
 
 
+@app.get("/api/app/store-rollout")
+def api_app_store_rollout(product: str = "doviz"):
+    """iOS phased release + Android production staged rollout yüzdesi (canlı API)."""
+    from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
+    from backend.services.store_rollout import fetch_store_rollout
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"error": "unknown_product"}, status_code=400)
+    return JSONResponse(intel_json_safe(fetch_store_rollout(pid)))
+
+
 @app.get("/api/app/asc-stream")
 async def api_app_asc_stream(
     product: str = "doviz",

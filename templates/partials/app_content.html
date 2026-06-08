@@ -280,6 +280,23 @@
     </div>
   </section>
 
+  <section
+    id="app-rollout-root"
+    class="mt-5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-[#0b0f19] dark:ring-slate-800/80 sm:p-5"
+    aria-label="Mağaza sürüm yayını"
+  >
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">Mağaza sürüm yayını</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Son iOS / Android production sürümünün mağazada yüzde kaç kullanıcıya açık olduğu (staged / phased — canlı API)</p>
+      </div>
+      <button id="app-rollout-refresh" type="button" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">↺ Yenile</button>
+    </div>
+    <div id="app-rollout-content" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <p class="col-span-full text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
+    </div>
+  </section>
+
   <section class="mt-5 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-6" aria-label="ASO Intelligence">
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">ASO Intelligence</h2>
@@ -1182,6 +1199,7 @@
         loadIntel({ cacheOnly: true });
         // Açık store panellerini hemen yenile
         var ascBody = document.getElementById('app-asc-body');
+        loadStoreRollout();
         if (ascBody && !ascBody.hasAttribute('hidden')) loadAscPreview();
         var gpBody = document.getElementById('app-gp-body');
         if (gpBody && !gpBody.hasAttribute('hidden')) loadGpPreview();
@@ -1204,6 +1222,87 @@
       b.className = productTabClass(pid, on);
     });
   }
+
+  // ─── Mağaza sürüm yayını (rollout) ───────────────────────────────────────
+  var rolloutState = { seq: 0, payload: null };
+
+  function rolloutPctBar(pct) {
+    var p = Math.max(0, Math.min(100, Number(pct) || 0));
+    return (
+      '<div class="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">' +
+      '<div class="h-full rounded-full bg-emerald-500 transition-all" style="width:' + p + '%"></div></div>'
+    );
+  }
+
+  function rolloutCard(platformLabel, iconClass, row) {
+    if (!row || !row.ok) {
+      var msg = (row && row.message) ? esc(row.message) : 'Veri yok';
+      return (
+        '<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/50">' +
+        '<p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">' + esc(platformLabel) + '</p>' +
+        '<p class="mt-2 text-sm text-amber-700 dark:text-amber-300">' + msg + '</p></div>'
+      );
+    }
+    var pct = row.rollout_pct;
+    var ver = row.version || '—';
+    var mode = row.rollout_mode || '';
+    var sub = '';
+    if (row.platform === 'ios') {
+      sub = (row.app_store_state || '') + (row.phased_release_state ? ' · phased ' + row.phased_release_state : '');
+      if (row.phased_day) sub += ' · gün ' + row.phased_day;
+    } else {
+      sub = (row.track || 'production') + ' · ' + (row.release_status || mode);
+    }
+    return (
+      '<div class="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">' +
+      '<p class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">' + esc(platformLabel) + ' · canlı</p>' +
+      '<p class="mt-1 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">v' + esc(String(ver).replace(/^v/i, '')) + '</p>' +
+      '<p class="mt-0.5 text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-400">' + pct + '%</p>' +
+      '<p class="text-[10px] text-slate-500 dark:text-slate-400">mağaza yayın kapsamı</p>' +
+      rolloutPctBar(pct) +
+      '<p class="mt-2 text-[10px] leading-snug text-slate-600 dark:text-slate-400">' + esc(sub) + '</p></div>'
+    );
+  }
+
+  function renderStoreRollout(j) {
+    var box = document.getElementById('app-rollout-content');
+    if (!box) return;
+    if (!j) {
+      box.innerHTML = '<p class="col-span-full text-sm text-rose-600 dark:text-rose-400">Yüklenemedi</p>';
+      return;
+    }
+    box.innerHTML =
+      rolloutCard('iOS (App Store)', '', j.ios || {}) +
+      rolloutCard('Android (Google Play)', '', j.android || {});
+  }
+
+  function loadStoreRollout() {
+    var box = document.getElementById('app-rollout-content');
+    if (!box) return;
+    rolloutState.seq += 1;
+    var req = rolloutState.seq;
+    box.innerHTML = '<p class="col-span-full text-sm text-slate-500 dark:text-slate-400">Mağaza API sorgulanıyor…</p>';
+    fetch('/api/app/store-rollout?product=' + encodeURIComponent(state.product), { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (req !== rolloutState.seq) return;
+        if (!x.ok) { renderStoreRollout(null); return; }
+        rolloutState.payload = x.j;
+        renderStoreRollout(x.j);
+      })
+      .catch(function () {
+        if (req !== rolloutState.seq) return;
+        renderStoreRollout(null);
+      });
+  }
+
+  (function bindRollout() {
+    var btn = document.getElementById('app-rollout-refresh');
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', loadStoreRollout);
+    }
+  })();
 
   // ─── App Store Connect: state + helpers ─────────────────────────────────
   var ascState = {
@@ -4079,6 +4178,7 @@
           }
           schedulePlotlyCatchup();
           loadAscPreview();
+          loadStoreRollout();
           // ASO verisi ağır olabildiği için ana ekranı bekletmeden arkada yükle.
           return fetch(asoUrl, Object.assign({ cache: "no-store" }, jsonCred))
             .then(function (r2) {
@@ -4279,6 +4379,7 @@
 
   function boot() {
     loadIntel({ cacheOnly: true });
+    loadStoreRollout();
     if (window.Plotly) return;
     var guard = 0;
     var iv = setInterval(function () {
@@ -4752,6 +4853,7 @@
       active_tab: activeTabBtn ? (activeTabBtn.getAttribute('data-app-tab') || activeTabBtn.textContent || '').trim() : null,
       asc_analytics_live: !!(asc && asc.analytics_live),
       asc_kpis: asc && asc.kpis ? asc.kpis : null,
+      store_rollout: rolloutState.payload || null,
       has_intel_payload: !!state.lastPayload,
       visible_text: parts.join('\n').slice(0, 4500),
     };

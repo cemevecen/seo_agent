@@ -12,6 +12,7 @@ Gerekli ortam değişkenleri:
 Google Play Console'da service account'a şu roller verilmeli:
   - "View app information" (minimum)
   - "View financial data" (gelir için)
+  - "Release to production" veya en azından production track okuma (staged rollout yüzdesi için)
 
 Google Play Reporting API → https://developers.google.com/play/developer/reporting/reference/rest
 """
