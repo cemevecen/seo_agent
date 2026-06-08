@@ -5,7 +5,7 @@
     <div>
       <h1 class="text-lg font-extrabold text-slate-900 dark:text-zinc-100">GA4 · İlk açılış / kampanya</h1>
       <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">
-        GA4 app first_open · mweb banner eventleri · (iOS) App Store indirmeleri
+        GA4 app download · mweb banner eventleri
       </p>
     </div>
     <a href="/ad" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">← Monetizasyon</a>
@@ -45,7 +45,6 @@
       </label>
       <button id="ab-run" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-600">Yenile</button>
     </div>
-    <p id="ab-meta" class="mt-3 text-xs text-slate-500 dark:text-zinc-400"></p>
     <div id="ab-day-insight" class="mt-2 hidden rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-zinc-100" aria-live="polite">
       <p class="font-bold text-indigo-900 dark:text-indigo-200">Seçili gün</p>
       <p id="ab-day-insight-body" class="mt-1 break-words tabular-nums leading-relaxed"></p>
@@ -97,17 +96,6 @@
     </div>
   </div>
 
-  <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-    <h2 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Dönem toplamı — kampanyalar</h2>
-    <div class="overflow-x-auto">
-      <table class="min-w-full text-left text-xs">
-        <thead class="border-b border-slate-200 text-slate-500 dark:border-zinc-700">
-          <tr><th class="px-2 py-2 font-bold">Kampanya</th><th class="px-2 py-2 font-bold">Toplam</th></tr>
-        </thead>
-        <tbody id="ab-table-body" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
-      </table>
-    </div>
-  </div>
   </div>
 </div>
 
@@ -418,10 +406,6 @@
       }), updateDayInsight);
     } else {
       ascWrap.classList.add("hidden");
-      if (data.profile === "ios" && ascC && !ascC.ok && ascC.message) {
-        document.getElementById("ab-error").textContent = "App Store kampanya indirmeleri: " + ascC.message;
-        document.getElementById("ab-error").classList.remove("hidden");
-      }
     }
 
     var mwebWrap = document.getElementById("ab-wrap-mweb");
@@ -456,28 +440,6 @@
       mwebWrap.classList.add("hidden");
     }
 
-    var tbody = document.getElementById("ab-table-body");
-    tbody.innerHTML = "";
-    filterCampaignsWithSignal(data.campaigns).forEach(function (c) {
-      var tr = document.createElement("tr");
-      tr.innerHTML = "<td class=\"px-2 py-1.5 font-medium text-slate-800 dark:text-zinc-100\">" + escapeHtml(c.campaign) + "</td>"
-        + "<td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(c.total) + "</td>";
-      tbody.appendChild(tr);
-    });
-
-    var rangeNote = "";
-    if (data.chart_start && data.start && data.chart_start > data.start) {
-      rangeNote = "Grafikler veri başlangıcı: " + data.chart_start + " (seçilen " + data.start + " öncesi sıfır günler gösterilmez)";
-    }
-    var src = manual ? "Manuel tablo" : "GA4";
-    document.getElementById("ab-meta").textContent = [
-      data.domain || "",
-      data.profile || "",
-      (data.chart_start || data.start) + " → " + (data.chart_end || data.end),
-      rangeNote,
-      data.manual_table_note || "",
-      src + " · " + (data.fetched_at ? new Date(data.fetched_at).toLocaleString("tr-TR") : ""),
-    ].filter(Boolean).join(" · ");
   }
 
   function escapeHtml(s) {
@@ -523,7 +485,6 @@
     q.set("end", document.getElementById("ab-end").value);
     q.set("top_campaigns", document.getElementById("ab-top").value);
     setLoading(true);
-    document.getElementById("ab-meta").textContent = "";
     try {
       var r = await fetch("/api/mz-analytics/ga4-app-banner?" + q.toString(), { credentials: "same-origin" });
       var body = await r.json();
@@ -532,7 +493,6 @@
     } catch (e) {
       errEl.textContent = (e && e.message) || "Veri alınamadı";
       errEl.classList.remove("hidden");
-      document.getElementById("ab-meta").textContent = "";
     } finally {
       setLoading(false);
     }
