@@ -145,7 +145,7 @@ def _render_overview_table(grouped: dict[str, list[SupportInboxThread]]) -> str:
         "<thead><tr style='background:#f1f5f9;'>"
         "<th style='padding:10px 12px;text-align:left;font-size:11px;color:#64748b;'>Sekme</th>"
         "<th style='padding:10px 12px;text-align:left;font-size:11px;color:#64748b;'>Kaynak</th>"
-        "<th style='padding:10px 12px;text-align:right;font-size:11px;color:#64748b;'>Okunmamış</th>"
+        "<th style='padding:10px 12px;text-align:right;font-size:11px;color:#64748b;'>Konuşma</th>"
         "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
     )
 
@@ -162,7 +162,7 @@ def build_inbox_summary_html(
         "max-width:680px;margin:0 auto;'>",
         "<h2 style='color:#1d4ed8;margin:0 0 6px;'>Gelen Kutusu Özeti</h2>",
         f"<p style='color:#64748b;font-size:13px;margin:0 0 16px;'>{now_str} · "
-        f"<b>{total}</b> okunmamış konuşma · sıra: "
+        f"<b>{total}</b> konuşma · sıra: "
         f"{' → '.join(inbox_sync.INBOX_TAB_ORDER)}</p>",
         _render_overview_table(grouped),
     ]
@@ -177,14 +177,14 @@ def build_inbox_summary_html(
             f"<h3 style='margin:0;font-size:15px;font-weight:800;color:{accent};'>"
             f"{html.escape(title)}"
             f"<span style='float:right;font-size:13px;font-weight:700;color:#64748b;'>"
-            f"{count} okunmamış</span></h3>"
+            f"{count} konuşma</span></h3>"
             f"<p style='margin:6px 0 0;font-size:12px;color:#64748b;'>{html.escape(subtitle)}</p>"
             f"</div>"
         )
         if not threads:
             parts.append(
                 "<p style='margin:0;padding:16px;color:#64748b;font-size:13px;'>"
-                "Bu sekmede okunmamış mesaj yok.</p>"
+                "Bu sekmede konuşma yok.</p>"
             )
         else:
             parts.append("<ul style='margin:0;padding:0 16px 8px;'>")
@@ -211,6 +211,11 @@ def build_inbox_summary_html(
 def _group_unread_threads(unread_threads: list[SupportInboxThread]) -> dict[str, list[SupportInboxThread]]:
     grouped: dict[str, list[SupportInboxThread]] = defaultdict(list)
     for thread in unread_threads:
+        if inbox_sync.inbox_thread_is_excluded(
+            subject=thread.subject or "",
+            snippet=thread.snippet or "",
+        ):
+            continue
         route = _normalize_summary_route(thread.route_tag)
         if route == "nstat" and not is_ziyaret_report_subject(thread.subject or ""):
             continue
@@ -219,7 +224,7 @@ def _group_unread_threads(unread_threads: list[SupportInboxThread]) -> dict[str,
 
 
 def run_inbox_summary_email(db: Session) -> bool:
-    """Senkron sonrası 6 sekmeli okunmamış özet e-postası gönderir."""
+    """Senkron sonrası 6 sekmeli gelen kutusu özet e-postası gönderir."""
     if _inbox_summary_email_disabled():
         logger.info("Inbox summary email disabled (INBOX_SUMMARY_EMAIL_ENABLED=false).")
         return False
@@ -245,7 +250,7 @@ def run_inbox_summary_email(db: Session) -> bool:
     total = sum(len(v) for v in grouped.values())
     section_counts = {key: len(grouped.get(key) or []) for key, *_ in INBOX_SUMMARY_SECTIONS}
     chips = " · ".join(f"{k}:{v}" for k, v in section_counts.items() if v > 0)
-    subject = f"Inbox özeti — {total} okunmamış" + (f" ({chips})" if chips else "")
+    subject = f"Inbox özeti — {total} konuşma" + (f" ({chips})" if chips else "")
 
     html_body = build_inbox_summary_html(grouped, db)
     ok = mailer.send_email(subject, html_body)

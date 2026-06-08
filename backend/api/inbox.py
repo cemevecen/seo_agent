@@ -457,7 +457,15 @@ def inbox_threads_list(
         q = q.filter(SupportInboxThread.answered_flag.is_(False))
         if route == inbox_sync.INBOX_ROUTE_NSTAT:
             q = q.filter(SupportInboxThread.subject.ilike("%ziyaret edilen sayfalar%"))
-    rows = q.limit(limit).all()
+    rows = q.limit(limit * 2).all()
+    rows = [
+        t
+        for t in rows
+        if not inbox_sync.inbox_thread_is_excluded(
+            subject=t.subject or "",
+            snippet=t.snippet or "",
+        )
+    ][:limit]
     tid_list = [t.id for t in rows]
     latest_bodies = _latest_message_body_by_thread(db, tid_list)
     items = []

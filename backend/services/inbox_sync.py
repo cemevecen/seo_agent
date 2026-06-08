@@ -118,6 +118,113 @@ _SUPPORT_ADDR_MARKERS = (
     *INBOX_ALL_SHARED_ADDRESSES,
 )
 
+# Instagram / Meta sosyal özetleri (forward ile sinemalar vb. kutusuna düşenler) — inbox’a alınmaz.
+INBOX_SOCIAL_DIGEST_EXCLUDE_MARKERS: tuple[str, ...] = (
+    "see what's been happening on instagram",
+    "others recently added to their stories",
+    "others started following you",
+    "unread messages",
+    "and more in your feed",
+    "see what\u2019s been happening on instagram",
+)
+
+
+def _normalize_inbox_exclusion_haystack(*parts: str) -> str:
+    text = " ".join(p for p in parts if (p or "").strip())
+    text = text.lower().replace("\u2019", "'").replace("\u2018", "'")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def inbox_thread_is_excluded(
+    *,
+    subject: str = "",
+    snippet: str = "",
+    from_addrs: str = "",
+) -> bool:
+    """Instagram digest ve benzeri otomatik bildirimler."""
+    hay = _normalize_inbox_exclusion_haystack(subject, snippet, from_addrs)
+    if not hay:
+        return False
+    for marker in INBOX_SOCIAL_DIGEST_EXCLUDE_MARKERS:
+        if marker in hay:
+            return True
+    if "sinemalarcom" in hay and (
+        "instagram" in hay
+        or "see what" in hay
+        or "stories" in hay
+        or "following you" in hay
+        or "your feed" in hay
+    ):
+        return True
+    if hay.startswith("sinemalarcom,") or hay.startswith("sinemalarcom "):
+        return True
+    from_l = (from_addrs or "").lower()
+    if ("instagram.com" in from_l or "facebookmail.com" in from_l) and any(
+        m in hay for m in INBOX_SOCIAL_DIGEST_EXCLUDE_MARKERS
+    ):
+        return True
+    return False
+
+
+def _thread_from_addrs_from_gmail(full: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for m in full.get("messages") or []:
+        h = _header_map(m)
+        frm = (h.get("from") or "").strip()
+        if frm:
+            parts.append(frm)
+    return " ".join(parts)
+
+
+def _delete_inbox_thread_by_gmail_id(db: Session, gmail_thread_id: str) -> bool:
+    if not gmail_thread_id:
+        return False
+    row = (
+        db.query(SupportInboxThread)
+        .filter(SupportInboxThread.gmail_thread_id == gmail_thread_id)
+        .first()
+    )
+    if row is None:
+        return False
+    db.query(SupportInboxMessage).filter(SupportInboxMessage.thread_id == row.id).delete()
+    db.delete(row)
+    return True
+
+
+def purge_excluded_inbox_threads(db: Session) -> dict[str, int]:
+    """Veritabanındaki daha önce kaydedilmiş sosyal özet konuşmalarını siler."""
+    deleted = 0
+    for row in db.query(SupportInboxThread).all():
+        if inbox_thread_is_excluded(subject=row.subject or "", snippet=row.snippet or ""):
+            db.query(SupportInboxMessage).filter(SupportInboxMessage.thread_id == row.id).delete()
+            db.delete(row)
+            deleted += 1
+    if deleted:
+        db.commit()
+        LOGGER.info("Inbox excluded-thread purge: %d silindi", deleted)
+    return {"deleted": deleted}
+
+
+def _sync_gmail_thread_or_exclude(
+    db: Session,
+    full: dict[str, Any],
+    account_lower: str,
+    service: Any,
+    *,
+    sync_route_hint: str | None = None,
+) -> str:
+    """Kaydet veya hariç tut. Dönüş: ``saved`` | ``excluded``."""
+    tid = str(full.get("id") or "")
+    subj, snip = _thread_subject_snippet_preview(full)
+    from_text = _thread_from_addrs_from_gmail(full)
+    if inbox_thread_is_excluded(subject=subj, snippet=snip, from_addrs=from_text):
+        _delete_inbox_thread_by_gmail_id(db, tid)
+        return "excluded"
+    _upsert_thread_from_gmail(
+        db, full, account_lower, service, sync_route_hint=sync_route_hint
+    )
+    return "saved"
+
 
 def _is_firebase_sender(text: str) -> bool:
     return bool(_FIREBASE_FROM_RE.search(text or ""))
@@ -804,7 +911,19 @@ def iter_sync_inbox_threads(
             continue
         nmsg = sum(1 for m in (full.get("messages") or []) if m.get("id"))
         subj, snip = _thread_subject_snippet_preview(full)
-        _upsert_thread_from_gmail(db, full, account_lower, service)
+        outcome = _sync_gmail_thread_or_exclude(db, full, account_lower, service)
+        if outcome == "excluded":
+            yield {
+                "type": "thread",
+                "step": "skip",
+                "current": i + 1,
+                "total": n,
+                "gmail_thread_id": tid,
+                "subject": subj,
+                "message": f"{i + 1}/{n} — sosyal özet (Instagram); inbox dışı",
+                "pct": max(12, _sync_pct_saved(synced, n)),
+            }
+            continue
         synced += 1
         yield {
             "type": "thread",
@@ -821,11 +940,13 @@ def iter_sync_inbox_threads(
         }
     db.commit()
     repair = repair_misrouted_inbox_threads(db)
+    purged = purge_excluded_inbox_threads(db)
     yield {
         "type": "complete",
         "synced_threads": synced,
         "query": q,
         "repaired_route_tags": repair.get("repaired", 0),
+        "purged_excluded_threads": purged.get("deleted", 0),
         "message": f"Tamamlandı — {synced} konuşma veritabanına yazıldı.",
         "pct": 100,
     }
@@ -944,7 +1065,22 @@ def iter_sync_inbox_all_routes(
             continue
         nmsg = sum(1 for m in (full.get("messages") or []) if m.get("id"))
         subj, snip = _thread_subject_snippet_preview(full)
-        _upsert_thread_from_gmail(db, full, account_lower, service, sync_route_hint=route)
+        outcome = _sync_gmail_thread_or_exclude(
+            db, full, account_lower, service, sync_route_hint=route
+        )
+        if outcome == "excluded":
+            yield {
+                "type": "thread",
+                "step": "skip",
+                "current": i + 1,
+                "total": n,
+                "route": route,
+                "gmail_thread_id": tid,
+                "subject": subj,
+                "message": f"{i + 1}/{n} [{route}] — sosyal özet; inbox dışı",
+                "pct": max(12, _sync_pct_saved(synced, n)),
+            }
+            continue
         synced += 1
         yield {
             "type": "thread",
@@ -962,12 +1098,14 @@ def iter_sync_inbox_all_routes(
         }
     db.commit()
     repair = repair_misrouted_inbox_threads(db)
+    purged = purge_excluded_inbox_threads(db)
     yield {
         "type": "complete",
         "synced_threads": synced,
         "routes": len(routes),
         "route_counts": route_counts,
         "repaired_route_tags": repair.get("repaired", 0),
+        "purged_excluded_threads": purged.get("deleted", 0),
         "message": f"Tamamlandı — {synced} konuşma ({len(routes)} sekme) veritabanına yazıldı.",
         "pct": 100,
     }

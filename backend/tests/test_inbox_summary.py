@@ -55,4 +55,4 @@ def test_summary_html_includes_all_six_sections():
     for _key, title, *_rest in INBOX_SUMMARY_SECTIONS:
         assert title in html_out
     assert "Crash" in html_out
-    assert "Bu sekmede okunmamış mesaj yok." in html_out
+    assert "Bu sekmede konuşma yok." in html_out
