@@ -1666,6 +1666,13 @@ def _norm_ratio_sql(col):
     return case((col > 1, col / 100.0), else_=col)
 
 
+def _round_ctr_pct(ctr: float) -> float:
+    """Aggregate CTR can be far below 0.01%; 3 decimals would show as 0 on KPI cards."""
+    if not ctr:
+        return 0.0
+    return round(ctr, 6)
+
+
 def _extra_json_expr(sub, key: str):
     """Tek JSON anahtarı → Float ifadesi (subquery satırı)."""
     from sqlalchemy import Float, cast
@@ -2044,7 +2051,7 @@ def query_summary(
             "pageview_ecpm": round((d_rev / d_epv * 1000.0) if d_epv > 0 else 0.0, 3),
             "unique_visitor_ecpm": round((d_rev / d_euv * 1000.0) if d_euv > 0 else 0.0, 3),
             "ad_ecpm": round((d_rev / d_impr * 1000.0) if d_impr > 0 else 0.0, 3),
-            "ctr_pct": round((d_clk / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
+            "ctr_pct": _round_ctr_pct((d_clk / d_impr * 100.0) if d_impr > 0 else 0.0),
             "coverage_pct": round((d_cov_w / d_req * 100.0) if d_req > 0 else 0.0, 3),
             "viewability_pct": round((d_view_w / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
             "above_the_fold_ratio_pct": round((d_atf_w / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
@@ -2067,7 +2074,7 @@ def query_summary(
             "ad_ecpm": round(avg_ecpm, 3),
             "viewability_pct": round(viewability_pct, 3),
             "above_the_fold_ratio_pct": round(atf_pct, 3),
-            "ctr_pct": round(ctr, 3),
+            "ctr_pct": _round_ctr_pct(ctr),
             "coverage_pct": round(coverage_pct, 3),
             # geriye uyumluluk
             "impressions": int(impr),

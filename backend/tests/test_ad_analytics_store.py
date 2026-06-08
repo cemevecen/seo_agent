@@ -216,6 +216,27 @@ def test_kpi_available_omits_missing_empower():
         db.commit()
 
 
+def test_aggregate_ctr_sub_percent_precision():
+    init_db()
+    text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        "unit_a,1,45658,Open Auction,1000,800,193290271,858,0,0,0,25.2,0,50\n"
+    )
+    rows = store.parse_csv_text(text, filename="dovizcom1_Report_2026.xlsx")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        summ = store.query_summary(db)
+        assert summ["kpis"]["click"] == 858
+        expected_ctr = 858 / 193_290_271 * 100.0
+        assert summ["kpis"]["ctr_pct"] == round(expected_ctr, 6)
+        assert summ["kpis"]["ctr_pct"] > 0
+        assert summ["kpis"]["coverage_pct"] == 25.2
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
 def test_viewability_coverage_percent_scale():
     init_db()
     text = (
