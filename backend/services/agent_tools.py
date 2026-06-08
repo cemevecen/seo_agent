@@ -1213,7 +1213,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "page_fetch_crashlytics_summary",
-        "description": "Firebase/Crashlytics özeti: fatal/anr/non_fatal, crash-free, top issue'lar.",
+        "description": "Firebase/Crashlytics özeti + trend/kırılım. Firebase sayfasında ZORUNLU; spike/kronik ayrımı ve öncelikli aksiyon için yorumla.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -1221,6 +1221,29 @@ TOOL_DEFINITIONS = [
                 "platform": {"type": "string", "default": "all"},
                 "days": {"type": "integer", "default": 7},
                 "limit_issues": {"type": "integer", "default": 8},
+            },
+        },
+    },
+    {
+        "name": "page_fetch_mz_analytics",
+        "description": "Monetizasyon (/ad) KPI ve kırılımlar. Ad sayfasında ZORUNLU; sonuçları trend, huni darboğazı ve compare deltas ile yorumla — ham tablo dökme.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "branch": {"type": "string"},
+                "stream": {"type": "string"},
+                "start": {"type": "string", "description": "YYYY-MM-DD"},
+                "end": {"type": "string", "description": "YYYY-MM-DD"},
+                "income_types": {"type": "string", "description": "Virgülle ayrılmış gelir tipleri"},
+                "platforms": {"type": "string"},
+                "channels": {"type": "string"},
+                "surfaces": {"type": "string"},
+                "sources": {"type": "string"},
+                "search": {"type": "string"},
+                "compare_mode": {"type": "string"},
+                "compare_start": {"type": "string"},
+                "compare_end": {"type": "string"},
             },
         },
     },
@@ -1341,6 +1364,7 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
         "system_health_check": lambda: system_health_check(),
         "project_structure": lambda: project_structure(),
         "page_fetch_crashlytics_summary": lambda: pct.page_fetch_crashlytics_summary(**inputs),
+        "page_fetch_mz_analytics": lambda: pct.page_fetch_mz_analytics(**inputs),
         "page_fetch_inbox_threads": lambda: pct.page_fetch_inbox_threads(**inputs),
         "page_fetch_inbox_thread": lambda: pct.page_fetch_inbox_thread(**inputs),
         "page_fetch_news_intelligence": lambda: pct.page_fetch_news_intelligence(**inputs),

@@ -134,18 +134,38 @@ kullanıcı admin panelinde bir sayfadayken sohbet eder. her istekte «aktif say
 2. **YASAK:** bölüm/widget adlarını listeleyerek tur atmak («GA4 kartı var», «Search Console bölümü gösteriyor»). kullanıcı zaten ekranda bunları görüyor.
 3. **YASAK:** sayfa özeti sorulurken alakasız araç (github, railway, db) çağırmak.
 4. veri yoksa «dom_snapshot/custom boş, page_fetch_* deniyorum» de; tool sonucundan rakam ver.
-5. cevapta en az 3 somut metrik (site + değer + değişim) olmalı; mümkünse «dikkat çeken» 1 yorum ekle.
+5. cevapta en az 3 somut metrik (site + değer + değişim) olmalı.
+
+### analitik çıkarım — sadece yazmak yetmez (sayfa sorularında zorunlu)
+kullanıcı paneldeyken cevap **rapor değil, analiz** olmalı: rakamları okuduktan sonra ne anlama geldiğini söyle.
+
+**cevap iskeleti (kısa sorularda bile mantığı koru):**
+1. **ölçülen** — seçili filtre/dönem + 3–6 ana KPI (değer; varsa önceki döneme veya ortalamaya göre fark/%).
+2. **gözlem** — trend (yükseliş/düşüş/plato), yoğunluk (hangi gelir tipi/birim/sürüm/cihaz payı), tutarsızlık (CTR düşük ama gelir yüksek gibi).
+3. **çıkarım** — «bu birlikte şunu düşündürür»; nedensellik uydurma, **olasılık** dilini kullan («muhtemelen», «birlikte okununca»). kesin bilmediğin şeyi kesin söyleme.
+4. **risk / fırsat** — 1–2 madde: ne kötüleşirse acil, nerede kaldıraç var.
+5. **öneri** — en fazla 3 öncelikli aksiyon (ölçülebilir: hangi birimi, hangi metrik, hangi hipotez testi).
+
+**yasak:** yalnızca tabloyu veya grafiği sözlü tekrar etmek; «veriler şöyle görünüyor» deyip bitirmek.
+
+**sayfa özelinde ek çıkarım:**
+- **/ad:** gelir ↔ impression ↔ eCPM ↔ coverage/CTR ilişkisi; karşılaştırma açıksa deltas + leaders/losers birimleri; drill diliminde birim bazlı anomali; inventory (request→match→impression) darboğazı.
+- **/firebase:** crash-free trendi + günlük trend; top issue’ların sürüm/cihaz/OS ile hizalanması; yeni spike vs kronik issue ayrımı; kullanıcı etkisi (event_count) önceliği.
+- **home / ga4 / realtime / app / errors:** benzer iskelet; bağlamdaki alarm veya düşüş varsa «neden önemli» + «ilk kontrol».
+
+aktif sayfa bağlamındaki `analysis_hints` satırına da uy.
 
 ### sayfa → araç eşlemesi
 - `/` veya home → **önce** `page_fetch_home_dashboard` (ZORUNLU)
-- /firebase → `page_fetch_crashlytics_summary`
+- /ad (monetizasyon) → **önce** `page_fetch_mz_analytics` (custom.filters içindeki project, branch, start, end, compare_mode; yoksa stream_key)
+- /firebase → `page_fetch_crashlytics_summary` (product, platform, days — custom.filters ile aynı; ekran özeti için dom_snapshot/visible_text)
 - /inbox → `page_fetch_inbox_threads` veya `page_fetch_inbox_thread`
 - /intelligence → `page_fetch_news_intelligence`
 - /app → `page_fetch_app_intel`
 - /errors → `page_fetch_errors_summary`
 - /realtime, /ga4 → `page_fetch_ga4_realtime` veya `page_list_sites`
 
-6. hangi sayfada olduğunu tek cümleyle hatırlat; asıl cevap rakamlarla olsun."""
+6. hangi sayfada olduğunu tek cümleyle hatırlat; asıl cevap rakam + çıkarım + öneri olsun."""
 
 
 def _api_key() -> str:

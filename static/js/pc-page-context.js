@@ -11,6 +11,8 @@
   ].join(',');
 
   var ROUTES = [
+    { prefix: '/ad', page_id: 'ad', label: 'Monetizasyon (Ad)', tool: 'page_fetch_mz_analytics' },
+    { prefix: '/notification', page_id: 'notification', label: 'Notification', tool: null },
     { prefix: '/firebase', page_id: 'firebase', label: 'Firebase', tool: 'page_fetch_crashlytics_summary' },
     { prefix: '/inbox', page_id: 'inbox', label: 'Inbox', tool: 'page_fetch_inbox_threads' },
     { prefix: '/intelligence', page_id: 'intelligence', label: 'NEWS', tool: 'page_fetch_news_intelligence' },
@@ -40,10 +42,15 @@
   ];
 
   var QUICK_BY_PAGE = {
+    ad: [
+      { label: 'Analiz et', msg: 'Seçili filtrelerle monetizasyon verisini analiz et: KPI + trend + gelir/impression/eCPM ilişkisi. Ölçülen→gözlem→çıkarım→risk→en fazla 3 öneri formatında yaz; sadece ekranı tarif etme.' },
+      { label: 'Darboğaz', msg: 'Request→match→impression→click hunisinde ve coverage/CTR ile birlikte darboğaz veya anomali var mı? Olası nedenleri ve test edilebilir aksiyonları sırala.' },
+      { label: 'Karşılaştırma', msg: 'Karşılaştırma açıksa delta ve kazanan/kaybeden birimleri yorumla: hangi birimler geliri çekiyor, hangileri risk; somut öncelik listesi ver.' },
+    ],
     firebase: [
-      { label: 'Ekranı özetle', msg: 'Bu Firebase/Crashlytics ekranındaki verileri özetle. Görünen filtreler ve metrikler ne diyor?' },
-      { label: 'Kritik crash', msg: 'En kritik crash issue hangisi ve ne yapmalıyız?' },
-      { label: 'Deploy', msg: 'Railway son deployment durumu nedir?' },
+      { label: 'Analiz et', msg: 'Crashlytics verisini analiz et: crash-free, günlük trend, top issue ve cihaz/OS kırılımı. Spike mı kronik mi ayır; kullanıcı etkisine göre öncelik ve 3 aksiyon öner.' },
+      { label: 'Sürüm riski', msg: 'Top issue\'lar hangi sürüm/cihaz/OS ile hizalanıyor? Yayın veya hotfix önceliği için çıkarım yap.' },
+      { label: 'Kritik crash', msg: 'En kritik issue için kök neden hipotezleri (kanıtla sınırlı) ve doğrulama adımlarını yaz.' },
     ],
     inbox: [
       { label: 'Sekme özeti', msg: 'Bu inbox sekmesindeki okunmamış ve cevaplanmamış mailleri özetle.' },
@@ -160,7 +167,7 @@
     }
     var q = collectQuery();
     Object.keys(q).forEach(function (k) {
-      if (['product', 'site', 'site_id', 'route', 'source', 'months', 'days', 'platform'].indexOf(k) >= 0) {
+      if (['product', 'site', 'site_id', 'route', 'source', 'months', 'days', 'platform', 'project', 'branch', 'stream', 'start', 'end', 'compare'].indexOf(k) >= 0) {
         filters[k] = q[k];
       }
     });
@@ -186,6 +193,10 @@
     };
     if (custom && custom.thread_id) ctx.thread_id = custom.thread_id;
     if (custom && custom.site_id) ctx.site_id = custom.site_id;
+    if (custom && custom.visible_text) {
+      var merged = (String(custom.visible_text) + '\n---\n' + (ctx.dom_snapshot || '')).trim();
+      ctx.dom_snapshot = merged.length > 9000 ? merged.slice(0, 9000) + '…' : merged;
+    }
     return ctx;
   }
 

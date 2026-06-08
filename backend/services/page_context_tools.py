@@ -20,21 +20,64 @@ def _trim(obj: Any, *, max_str: int = 500, max_list: int = 20) -> Any:
     return obj
 
 
+_PAGE_ANALYSIS_HINTS: dict[str, str] = {
+    "ad": (
+        "monetizasyon: page_fetch_mz_analytics ile KPI + by_date + kırılımları al; "
+        "net_revenue/impression/eCPM/CTR/coverage birlikte yorumla; compare.deltas ve leaders_losers varsa kullan; "
+        "custom.drill ile seçili birim/dilimi analize dahil et."
+    ),
+    "firebase": (
+        "crashlytics: page_fetch_crashlytics_summary (product/platform/days = filters); "
+        "daily_trend + crash_free + top_issues + cihaz/OS ile spike/kronik ayrımı yap; "
+        "visible_text/dom_snapshot sadece ekrandaki sekme/filtre için, sayılar tool'dan."
+    ),
+    "home": "günün özeti: page_fetch_home_dashboard; anomali ve düşüşleri önceliklendir.",
+    "ga4": "trafik: realtime veya site listesi; kaynak/sayfa kayması ve alarm varsa çıkarım.",
+    "realtime": "anlık kullanıcı + alarm; baseline'dan sapmayı yorumla.",
+    "app": "store KPI + yorumlar; rating/şikayet temalarından aksiyon öner.",
+    "errors": "404/5xx hacmi ve URL kalıpları; SEO/teknik kök neden hipotezi.",
+    "inbox": "thread özeti + yanıt önerisi; iş etkisini kısaca değerlendir.",
+    "intelligence": "haber kümesi; ortak tema ve operasyonel etki.",
+}
+
+
+def _analysis_hints_for_context(ctx: dict[str, Any]) -> str:
+    page_id = (ctx.get("page_id") or "").strip().lower()
+    custom = ctx.get("custom") if isinstance(ctx.get("custom"), dict) else {}
+    if custom.get("page"):
+        page_id = str(custom.get("page")).strip().lower()
+    path = (ctx.get("path") or "").strip().lower()
+    if not page_id and path.startswith("/ad"):
+        page_id = "ad"
+    if not page_id and path.startswith("/firebase"):
+        page_id = "firebase"
+    hint = _PAGE_ANALYSIS_HINTS.get(page_id, "")
+    tool = ctx.get("suggested_tool")
+    if tool and not hint:
+        hint = f"önerilen araç: {tool}; sayıları çekip analitik iskelet (ölçülen→gözlem→çıkarım→risk→öneri) ile yanıtla."
+    return hint
+
+
 def format_page_context_for_prompt(ctx: dict[str, Any] | None) -> str:
     """System prompt'a eklenecek sayfa bağlamı metni."""
     if not ctx or not isinstance(ctx, dict):
         return ""
+    hints = _analysis_hints_for_context(ctx)
+    ctx_out = dict(ctx)
+    if hints:
+        ctx_out["analysis_hints"] = hints
     try:
-        blob = json.dumps(_trim(ctx, max_str=1200, max_list=15), ensure_ascii=False, default=str)
+        blob = json.dumps(_trim(ctx_out, max_str=2200, max_list=22), ensure_ascii=False, default=str)
     except Exception:
-        blob = str(ctx)[:8000]
+        blob = str(ctx_out)[:8000]
     if len(blob) > 12000:
         blob = blob[:12000] + "…"
     label = ctx.get("label") or ctx.get("page_id") or ctx.get("path") or "bilinmiyor"
     return (
         f"\n\n## aktif sayfa bağlamı (kullanıcı şu anda «{label}» ekranında)\n"
         "kullanıcı «bu sayfa», «ekranda görünen», «şu filtrelerle» dediğinde önce bu JSON'a bak; "
-        "yetersizse ilgili page_fetch_* aracını çağır.\n"
+        "yetersizse ilgili page_fetch_* aracını çağır. "
+        "yanıt: rakam + trend/yoğunluk çıkarımı + risk/fırsat + en fazla 3 öncelikli öneri.\n"
         f"```json\n{blob}\n```"
     )
 
@@ -92,6 +135,15 @@ def page_fetch_crashlytics_summary(
     issues_flat.sort(key=lambda x: -(int(x.get("event_count") or 0)))
     issues_flat = issues_flat[:lim]
 
+    trend = payload.get("trend") or []
+    if not isinstance(trend, list):
+        trend = []
+    trend_tail = trend[-min(days_i, 21) :]
+
+    devices = payload.get("device_breakdown") or []
+    os_rows = payload.get("os_breakdown") or []
+    versions = payload.get("versions") or payload.get("version_chips") or []
+
     return {
         "ok": True,
         "product": pid,
@@ -102,8 +154,112 @@ def page_fetch_crashlytics_summary(
         "crash_free_sessions_pct": payload.get("crash_free_sessions_pct"),
         "data_days": payload.get("data_days"),
         "top_issues": issues_flat,
-        "version_count": len(payload.get("version_chips") or []),
+        "version_count": len(payload.get("version_chips") or versions or []),
+        "daily_trend": trend_tail,
+        "top_versions": (versions if isinstance(versions, list) else [])[:10],
+        "top_devices": (devices if isinstance(devices, list) else [])[:8],
+        "top_os": (os_rows if isinstance(os_rows, list) else [])[:8],
+        "summary_by_platform": payload.get("summary_by_platform"),
     }
+
+
+def page_fetch_mz_analytics(
+    project: str | None = None,
+    branch: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    income_types: str | None = None,
+    platforms: str | None = None,
+    channels: str | None = None,
+    surfaces: str | None = None,
+    sources: str | None = None,
+    search: str | None = None,
+    compare_mode: str | None = None,
+    compare_start: str | None = None,
+    compare_end: str | None = None,
+    stream: str | None = None,
+) -> dict[str, Any]:
+    """Monetizasyon (/ad) özeti — KPI, günlük trend, gelir tipi ve birim kırılımları."""
+    from backend.services import ad_analytics_store as store
+    from backend.services.ad_analytics_store import AD_STREAMS
+
+    proj = (project or "").strip() or None
+    br = (branch or "").strip() or None
+    sk = (stream or "").strip() or None
+
+    if sk and (not proj or not br):
+        for meta in AD_STREAMS:
+            if meta.key == sk:
+                proj = meta.project
+                br = meta.branch
+                break
+
+    with SessionLocal() as db:
+        if not proj or not br:
+            fac = store.facets(db)
+            for s in fac.get("streams") or []:
+                if s.get("has_data"):
+                    proj = s.get("project")
+                    br = s.get("branch")
+                    if sk and s.get("key") != sk:
+                        continue
+                    break
+
+        if not proj or not br:
+            return {"ok": False, "message": "Reklam verisi veya proje/dal seçimi yok."}
+
+        raw = store.query_summary(
+            db,
+            start=start,
+            end=end,
+            income_types=income_types,
+            platforms=platforms,
+            channels=channels,
+            surfaces=surfaces,
+            sources=sources,
+            search=search,
+            project=proj,
+            branch=br,
+            compare_mode=compare_mode,
+            compare_start=compare_start,
+            compare_end=compare_end,
+        )
+
+    by_date = raw.get("by_date") or []
+    if len(by_date) > 21:
+        by_date = by_date[-21:]
+
+    compare = raw.get("compare")
+    compare_out = None
+    if compare and isinstance(compare, dict):
+        compare_out = {
+            "mode": compare.get("mode"),
+            "range": compare.get("range"),
+            "deltas": compare.get("deltas"),
+            "leaders_losers": compare.get("leaders_losers"),
+        }
+
+    return _trim(
+        {
+            "ok": True,
+            "project": proj,
+            "branch": br,
+            "stream": sk,
+            "range": raw.get("range"),
+            "kpi_available": raw.get("kpi_available"),
+            "kpis": raw.get("kpis"),
+            "funnel": raw.get("funnel"),
+            "by_date": by_date,
+            "by_income_type": (raw.get("by_income_type") or [])[:15],
+            "by_ad_unit": (raw.get("by_ad_unit") or [])[:12],
+            "by_platform": (raw.get("by_platform") or [])[:10],
+            "by_channel": (raw.get("by_channel") or [])[:10],
+            "by_surface": (raw.get("by_surface") or [])[:10],
+            "compare": compare_out,
+        },
+        max_str=800,
+        max_list=22,
+    )
 
 
 def page_fetch_inbox_threads(route: str = "all", limit: int = 15) -> dict[str, Any]:

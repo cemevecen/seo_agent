@@ -6232,6 +6232,60 @@
   }).catch(function (err) {
     showPageError((err && err.message) || "Sayfa başlatılamadı");
   });
+
+  window.__pcPageContext = function () {
+    try {
+      var r = selectedDateRange();
+      var cmpEl = document.getElementById("mz-compare-enabled");
+      var cmpOn = cmpEl && cmpEl.checked;
+      var cmpModeEl = document.getElementById("mz-compare-mode");
+      var parts = [];
+      ["mz-kpi-grid", "mz-compare-period-banner", "mz-compare-panels-wrap", "mz-drill-subtitle", "mz-summary-drill-subtitle", "mz-main"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el || el.classList.contains("hidden")) return;
+        var t = (el.innerText || "").replace(/\s+/g, " ").trim();
+        if (t.length > 40) parts.push("[" + id + "] " + t.slice(0, 1400));
+      });
+      var summ = state.lastSummary || {};
+      var incomeList = state.income.size ? Array.from(state.income) : null;
+      return {
+        page: "ad",
+        filters: {
+          project: state.activeStream && state.activeStream.project,
+          branch: state.activeStream && state.activeStream.branch,
+          stream: state.activeStream && state.activeStream.key,
+          stream_label: state.activeStream && state.activeStream.label,
+          start: r.start,
+          end: r.end,
+          income_types: incomeList,
+          income_types_csv: incomeList ? incomeList.join(",") : null,
+          platforms: state.platform.size ? Array.from(state.platform) : null,
+          channels: state.channel.size ? Array.from(state.channel) : null,
+          surfaces: state.surface.size ? Array.from(state.surface) : null,
+          sources: state.source.size ? Array.from(state.source) : null,
+          search: (document.getElementById("mz-search") && document.getElementById("mz-search").value) || "",
+          compare_enabled: cmpOn,
+          compare_mode: cmpOn && cmpModeEl ? cmpModeEl.value : null,
+          compare_start: cmpOn && document.getElementById("mz-compare-start") ? document.getElementById("mz-compare-start").value : null,
+          compare_end: cmpOn && document.getElementById("mz-compare-end") ? document.getElementById("mz-compare-end").value : null,
+          active_kpi: state.activeKpiKey,
+        },
+        drill: {
+          detail_slice: state.drillSlice,
+          detail_metric: state.drillMetric,
+          summary_slice: state.summaryDrillSlice,
+          summary_metric: state.summaryDrillMetric,
+          detail_unit: state.detailSelectedUnit || null,
+        },
+        kpis: summ.kpis || null,
+        compare_deltas: summ.compare && summ.compare.deltas ? summ.compare.deltas : null,
+        range: summ.range || { start: r.start, end: r.end },
+        visible_text: parts.join("\n").slice(0, 5000),
+      };
+    } catch (e) {
+      return { page: "ad", error: String(e) };
+    }
+  };
 })();
 </script>
 {% endblock %}
