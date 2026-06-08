@@ -47,8 +47,8 @@
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
         <option value="last_month">Geçen ay</option>
-        <option value="ytd">Bu yıl</option>
-        <option value="1y" selected>Son 1 yıl</option>
+        <option value="ytd" selected>Bu yıl</option>
+        <option value="1y">Son 1 yıl</option>
         <option value="last_year">Geçen yıl</option>
         <option value="all">Tüm veri</option>
       </select>
@@ -656,6 +656,20 @@
       u.surfaces || u.sources || u.search || u.compare || u.compare_mode ||
       u.ad_unit || u.drill_income_type || u.project || u.stream
     );
+  }
+
+  function mzUrlSpecifiesStream(u) {
+    return !!(u && (u.stream || u.project));
+  }
+
+  /** Varsayılan sekme: Döviz · Desktop (web); veri yoksa yine bu dal, sonra ilk dolu dal. */
+  function pickDefaultMzStream(streams) {
+    if (!streams || !streams.length) return null;
+    var web = streams.find(function (s) { return s.key === "doviz:desktop"; });
+    if (web) return web;
+    var doviz = streams.find(function (s) { return s.project === "doviz" && s.branch === "desktop"; });
+    if (doviz) return doviz;
+    return streams.find(function (s) { return s.has_data; }) || streams[0];
   }
 
   function splitCsvParam(val) {
@@ -5507,9 +5521,12 @@
       state.streams = f.streams || [];
       state.kpiUnion = f.kpi_union || [];
       if (!state.activeStream && state.streams.length) {
-        state.activeStream = state.streams.find(function (s) { return s.has_data; }) || state.streams[0];
+        state.activeStream = pickDefaultMzStream(state.streams);
       }
       syncActiveStreamFromUrl(mzUrlState);
+      if (!mzUrlSpecifiesStream(mzUrlState) && state.streams.length) {
+        state.activeStream = pickDefaultMzStream(state.streams);
+      }
       renderStreamTabs();
       updateScopeUi();
       var statusEl = document.getElementById("mz-status");
@@ -5523,8 +5540,12 @@
       }
       if (mzUrlBootPending) {
         applyMzUrlStateToForm(mzUrlState);
+        if (!mzUrlState.start && !mzUrlState.end && !mzUrlState.preset) {
+          document.getElementById("mz-preset").value = "ytd";
+          applyPreset();
+        }
       } else {
-        document.getElementById("mz-preset").value = "1y";
+        document.getElementById("mz-preset").value = "ytd";
         applyPreset();
       }
       var incomeList = f.income_types || [];
