@@ -7,9 +7,15 @@ from backend.services.mailer import DEFAULT_ERROR_REPORT_RECIPIENT, error_report
 
 def test_error_report_recipients_filters_gmail():
     with patch("backend.services.mailer.settings") as mock_settings:
+        mock_settings.error_report_mail_to = "cemevecen@gmail.com, cemevecen@nokta.com"
+        assert error_report_recipients() == ["cemevecen@nokta.com"]
+
+
+def test_error_report_ignores_operations_mail_to():
+    with patch("backend.services.mailer.settings") as mock_settings:
         mock_settings.error_report_mail_to = ""
         mock_settings.operations_mail_to = "cemevecen@gmail.com, cemevecen@nokta.com"
-        assert error_report_recipients() == ["cemevecen@nokta.com"]
+        assert error_report_recipients() == [DEFAULT_ERROR_REPORT_RECIPIENT]
 
 
 def test_error_report_recipients_explicit_override():

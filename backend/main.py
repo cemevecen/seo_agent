@@ -13914,7 +13914,7 @@ def _run_error_report_email_job() -> None:
     """404 hata özeti maili — 13:15 ve 23:15'te tüm siteler için tek mail."""
     try:
         from backend.services.error_monitor import get_error_summary, format_error_sources_html
-        from backend.services.mailer import send_email, error_report_recipients
+        from backend.services.mailer import error_report_recipients, send_error_report_email
         from backend.models import Site
 
         with SessionLocal() as db:
@@ -13998,7 +13998,7 @@ def _run_error_report_email_job() -> None:
         )
         subject = f"404 Raporu · {grand_total} URL · {now_str}"
         recipients = error_report_recipients()
-        send_email(subject, html, recipients=recipients)
+        send_error_report_email(subject, html)
         LOGGER.info("404 hata raporu maili gönderildi: %d URL → %s", grand_total, ", ".join(recipients))
     except Exception as exc:
         LOGGER.error("404 hata raporu mail hatası: %s", exc)

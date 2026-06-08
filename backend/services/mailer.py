@@ -83,30 +83,46 @@ from backend.services.smtp_quota import (
 DEFAULT_ERROR_REPORT_RECIPIENT = "cemevecen@nokta.com"
 
 
+def _is_error_report_allowed_recipient(addr: str) -> bool:
+    """404 günlük raporu — yalnızca @nokta.com; Gmail ve diğer alan adları hariç."""
+    a = (addr or "").strip()
+    if not a or "@" not in a:
+        return False
+    local, _, domain = a.rpartition("@")
+    if not local:
+        return False
+    dom = domain.lower()
+    if dom == "gmail.com" or dom.endswith(".gmail.com"):
+        return False
+    return dom == "nokta.com" or dom.endswith(".nokta.com")
+
+
 def error_report_recipients() -> list[str]:
-    """404 günlük raporu alıcıları — yalnızca @nokta.com (MAIL_TO'daki gmail vb. hariç)."""
-    raw = (
-        (settings.error_report_mail_to or "").strip()
-        or (settings.operations_mail_to or "").strip()
-        or DEFAULT_ERROR_REPORT_RECIPIENT
-    )
+    """404 günlük raporu alıcıları — varsayılan cemevecen@nokta.com; OPERATIONS_MAIL_TO/MAIL_TO kullanılmaz."""
+    raw = (settings.error_report_mail_to or "").strip() or DEFAULT_ERROR_REPORT_RECIPIENT
     all_recipients = [item.strip() for item in raw.split(",") if item.strip()]
-    nokta_only = [r for r in all_recipients if r.lower().endswith("@nokta.com")]
-    if nokta_only:
-        if len(nokta_only) < len(all_recipients):
+    allowed = [r for r in all_recipients if _is_error_report_allowed_recipient(r)]
+    if allowed:
+        if len(allowed) < len(all_recipients):
             logging.info(
                 "404 rapor alıcıları @nokta.com ile sınırlandı: %s → %s",
                 ", ".join(all_recipients),
-                ", ".join(nokta_only),
+                ", ".join(allowed),
             )
-        return nokta_only
+        return allowed
     if all_recipients:
         logging.warning(
-            "404 rapor alıcılarında @nokta.com yok (%s); varsayılan kullanılıyor: %s",
+            "404 rapor alıcılarında geçerli @nokta.com yok (%s); varsayılan: %s",
             ", ".join(all_recipients),
             DEFAULT_ERROR_REPORT_RECIPIENT,
         )
     return [DEFAULT_ERROR_REPORT_RECIPIENT]
+
+
+def send_error_report_email(subject: str, html_body: str) -> bool:
+    """Günlük 404 özeti — yalnızca error_report_recipients() listesine gönderir."""
+    recipients = error_report_recipients()
+    return send_email(subject, html_body, recipients=recipients)
 
 
 def _smtp_message_id_host() -> str:

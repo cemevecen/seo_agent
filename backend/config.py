@@ -146,7 +146,7 @@ class Settings(BaseSettings):
     mail_to: str = ""
     operations_mail_to: str = ""
     error_report_mail_to: str = Field(
-        default="",
+        default="cemevecen@nokta.com",
         validation_alias=AliasChoices("ERROR_REPORT_MAIL_TO", "error_report_mail_to"),
     )
     # SMTP günlük kota: Gmail tüketici ~500 mesaj/gün; Workspace ücretli kullanıcı ~2000/gün (Google duyurusu, değişebilir).
