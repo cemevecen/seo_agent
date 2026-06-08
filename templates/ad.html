@@ -3433,16 +3433,25 @@
     return { sessions: null, users: null };
   }
 
+  function ga4OverlayPlatformVisible(platformKey) {
+    var br = state.activeStream && state.activeStream.branch;
+    if (br === "android") return platformKey === "android";
+    if (br === "ios") return platformKey === "ios";
+    return true;
+  }
+
   function appendGa4MobileOverlayTraces(traces, layout, plotX, bucketKeys, chartTimeKey, overlay) {
     if (!overlay || !plotX || !plotX.length || !bucketKeys || !bucketKeys.length) return false;
     var specs = [
       {
+        platformKey: "android",
         label: "Android",
         trend: overlay.android && overlay.android.daily_trend,
         sessColor: "#4f83e3",
         userColor: "#0d9488",
       },
       {
+        platformKey: "ios",
         label: "iOS",
         trend: overlay.ios && overlay.ios.daily_trend,
         sessColor: "#6366f1",
@@ -3461,6 +3470,8 @@
         sessY.push(m.sessions);
         userY.push(m.users);
       }
+      var showPlatform = ga4OverlayPlatformVisible(spec.platformKey);
+      var traceVis = showPlatform ? true : "legendonly";
       traces.push({
         type: "scatter",
         mode: "lines",
@@ -3468,6 +3479,7 @@
         x: plotX,
         y: sessY,
         yaxis: "y2",
+        visible: traceVis,
         connectgaps: false,
         line: { color: spec.sessColor, width: 1.5 },
         hovertemplate: "%{x}<br>%{fullData.name}: %{y:,.0f}<extra></extra>",
@@ -3479,6 +3491,7 @@
         x: plotX,
         y: userY,
         yaxis: "y2",
+        visible: traceVis,
         connectgaps: false,
         line: { color: spec.userColor, width: 1.5, dash: "dot" },
         hovertemplate: "%{x}<br>%{fullData.name}: %{y:,.0f}<extra></extra>",
@@ -3491,12 +3504,26 @@
       side: "right",
       showgrid: false,
     });
-    layout.margin = Object.assign({}, layout.margin || {}, { r: Math.max((layout.margin && layout.margin.r) || 12, 62) });
+    var m = layout.margin || { l: 52, r: 12, t: 28, b: 56 };
+    layout.margin = Object.assign({}, m, {
+      r: Math.max(m.r || 12, 62),
+      t: Math.max(m.t || 28, 72),
+      b: Math.max(m.b || 56, 64),
+    });
     layout.showlegend = true;
-    if (layout.legend) {
-      layout.legend = Object.assign({}, layout.legend, { y: -0.22, yanchor: "top" });
-    }
-    layout.margin.b = Math.max((layout.margin && layout.margin.b) || 56, 72);
+    layout.legend = Object.assign({}, layout.legend || {}, {
+      orientation: "h",
+      x: 0,
+      xanchor: "left",
+      y: 1.02,
+      yanchor: "bottom",
+      bgcolor: "rgba(0,0,0,0)",
+      borderwidth: 0,
+      tracegroupgap: 6,
+      font: plotFont(),
+    });
+    layout.xaxis = Object.assign({}, layout.xaxis || {}, { automargin: true });
+    layout._mzGa4Overlay = true;
     return true;
   }
 
@@ -4163,7 +4190,10 @@
     if (!chartEl || !window.Plotly) {
       return Promise.reject(new Error("Plotly yüklenmedi"));
     }
-    var h = 220;
+    var h = layout && layout._mzGa4Overlay ? 268 : 220;
+    if (layout && layout._mzGa4Overlay) {
+      delete layout._mzGa4Overlay;
+    }
     chartEl.style.minHeight = h + "px";
     chartEl.style.height = h + "px";
     var dark = isDarkTheme();
