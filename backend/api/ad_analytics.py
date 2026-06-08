@@ -370,7 +370,6 @@ def get_ga4_app_banner(
         default_banner_date_range,
         fetch_app_banner_attribution,
         fetch_mweb_banner_events_daily,
-        slice_asc_downloads_daily,
         trim_banner_payload_to_observed_start,
     )
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
@@ -433,23 +432,20 @@ def get_ga4_app_banner(
         bundle = (APP_PRODUCTS.get(proj_key) or {}).get("ios_bundle_id") or ""
         if bundle:
             try:
-                from backend.services.asc_analytics import fetch_analytics_summary
+                from backend.services.asc_campaign_downloads import fetch_banner_campaign_downloads
 
-                from backend.services.timezone_utils import report_calendar_yesterday
-
-                yesterday = report_calendar_yesterday()
-                days_to_start = max(1, (yesterday - start_d).days + 1)
-                span_days = min(365, max((end_d - start_d).days + 1, days_to_start))
-                asc_raw = fetch_analytics_summary(bundle_id=bundle, days=span_days)
-                sliced = slice_asc_downloads_daily(asc_raw, start=start_d, end=end_d)
-                payload["app_store_downloads"] = sliced or {
-                    "ok": False,
-                    "message": "App Store Analytics yanıt vermedi.",
-                }
+                payload["app_store_campaign_downloads"] = fetch_banner_campaign_downloads(
+                    bundle_id=bundle,
+                    start=start_d,
+                    end=end_d,
+                )
             except Exception as exc:  # noqa: BLE001
-                payload["app_store_downloads"] = {"ok": False, "error": str(exc)}
+                payload["app_store_campaign_downloads"] = {"ok": False, "error": str(exc)}
         else:
-            payload["app_store_downloads"] = {"ok": False, "message": "iOS bundle tanımlı değil."}
+            payload["app_store_campaign_downloads"] = {
+                "ok": False,
+                "message": "iOS bundle tanımlı değil.",
+            }
 
     trim_banner_payload_to_observed_start(payload)
     return payload

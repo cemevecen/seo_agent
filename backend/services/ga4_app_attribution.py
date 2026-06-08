@@ -27,22 +27,15 @@ CAMPAIGN_DIMENSION = "firstUserCampaignName"
 _FIRST_OPEN_EVENT = "first_open"
 _REPORT_ROW_LIMIT = 25_000
 
-_MWEB_BANNER_EVENTS: dict[str, tuple[str, ...]] = {
-    "display": (
-        "app_download_banner_display",
-        "app_download_banner_cd_display",
-        "app_download_banner_currency_detail_disp",
-    ),
-    "dismiss": ("app_download_banner_dismiss",),
-    "click": (
-        "app_download_banner_click",
-        "app_download_banner_cd_click",
-        "app_download_banner_currency_detail_click",
-        "app_download_banner_currency_detail_clic",
-    ),
-}
-_MWEB_BANNER_EVENT_NAMES: tuple[str, ...] = tuple(
-    ev for group in _MWEB_BANNER_EVENTS.values() for ev in group
+MWEB_BANNER_EVENT_NAMES: tuple[str, ...] = (
+    "app_download_banner_display",
+    "app_download_banner_cd_display",
+    "app_download_banner_dismiss",
+    "app_download_banner_currency_detail_disp",
+    "app_download_banner_click",
+    "app_download_banner_cd_click",
+    "app_download_banner_currency_detail_clic",
+    "app_download_banner_show",
 )
 
 
@@ -181,15 +174,19 @@ def _first_signal_date(payload: dict[str, Any]) -> str | None:
     for camp in payload.get("campaigns") or []:
         _scan((camp or {}).get("daily"))
     mw = payload.get("mweb_banner") or {}
-    daily = mw.get("daily") if isinstance(mw.get("daily"), dict) else {}
-    for key in ("display", "dismiss", "click"):
-        _scan(daily.get(key))
+    for ev in mw.get("events") or []:
+        _scan((ev or {}).get("daily"))
     asc = payload.get("app_store_downloads") or {}
     if asc.get("ok") and isinstance(asc.get("daily"), dict):
         ad = asc["daily"]
         for d, v in zip(ad.get("dates") or [], ad.get("total_downloads") or []):
             if float(v or 0) > 0:
                 found.append(str(d)[:10])
+    asc_c = payload.get("app_store_campaign_downloads") or {}
+    if asc_c.get("ok"):
+        _scan(asc_c.get("combined_daily"))
+        for c in asc_c.get("campaigns") or []:
+            _scan((c or {}).get("daily"))
     return min(found) if found else None
 
 
@@ -208,9 +205,18 @@ def trim_banner_payload_to_observed_start(payload: dict[str, Any]) -> dict[str, 
     for camp in payload.get("campaigns") or []:
         camp["daily"] = _slice_daily_series(camp.get("daily"), from_date=first)
     mw = payload.get("mweb_banner")
-    if isinstance(mw, dict) and isinstance(mw.get("daily"), dict):
-        for key in ("display", "dismiss", "click"):
-            mw["daily"][key] = _slice_daily_series(mw["daily"].get(key), from_date=first)
+    if isinstance(mw, dict):
+        for ev in mw.get("events") or []:
+            if isinstance(ev, dict):
+                ev["daily"] = _slice_daily_series(ev.get("daily"), from_date=first)
+    asc_c = payload.get("app_store_campaign_downloads")
+    if isinstance(asc_c, dict) and asc_c.get("ok"):
+        if isinstance(asc_c.get("combined_daily"), dict):
+            asc_c["combined_daily"] = _slice_daily_series(asc_c["combined_daily"], from_date=first)
+        for camp in asc_c.get("campaigns") or []:
+            if isinstance(camp, dict):
+                camp["daily"] = _slice_daily_series(camp.get("daily"), from_date=first)
+
     asc = payload.get("app_store_downloads")
     if isinstance(asc, dict) and asc.get("ok") and isinstance(asc.get("daily"), dict):
         ad = asc["daily"]
@@ -317,7 +323,7 @@ def _banner_events_filter() -> FilterExpression:
     return FilterExpression(
         filter=Filter(
             field_name="eventName",
-            in_list_filter=Filter.InListFilter(values=list(_MWEB_BANNER_EVENT_NAMES)),
+            in_list_filter=Filter.InListFilter(values=list(MWEB_BANNER_EVENT_NAMES)),
         )
     )
 
@@ -354,15 +360,7 @@ def fetch_mweb_banner_events_daily(
     )
     resp = ga4_client.run_report(req)
 
-    by_group_date: dict[str, dict[str, float]] = {
-        "display": {},
-        "dismiss": {},
-        "click": {},
-    }
-    event_to_group: dict[str, str] = {}
-    for group, names in _MWEB_BANNER_EVENTS.items():
-        for name in names:
-            event_to_group[name] = group
+    by_event_date: dict[str, dict[str, float]] = {name: {} for name in MWEB_BANNER_EVENT_NAMES}
 
     for row in resp.rows or []:
         dims = row.dimension_values or []
@@ -370,22 +368,31 @@ def fetch_mweb_banner_events_daily(
             continue
         d_iso = _ga4_date_to_iso(str(dims[0].value or ""))
         ev = str(dims[1].value or "").strip()
-        grp = event_to_group.get(ev)
-        if not grp or not d_iso:
+        if ev not in by_event_date or not d_iso:
             continue
         val = float((row.metric_values or [None])[0].value or 0)
-        bucket = by_group_date[grp]
+        bucket = by_event_date[ev]
         bucket[d_iso] = bucket.get(d_iso, 0.0) + val
+
+    events_out: list[dict[str, Any]] = []
+    for name in MWEB_BANNER_EVENT_NAMES:
+        day_map = by_event_date.get(name) or {}
+        total = sum(day_map.values())
+        if total <= 0:
+            continue
+        events_out.append(
+            {
+                "event_name": name,
+                "total": int(round(total)),
+                "daily": _series_from_buckets(day_map, start=start_d, end=end_d),
+            }
+        )
 
     os_label = "iOS + Macintosh" if (profile or "").lower() == "ios" else "Android"
     return {
         "source": "ga4_mweb",
         "operating_systems": os_label,
-        "daily": {
-            "display": _series_from_buckets(by_group_date["display"], start=start_d, end=end_d),
-            "dismiss": _series_from_buckets(by_group_date["dismiss"], start=start_d, end=end_d),
-            "click": _series_from_buckets(by_group_date["click"], start=start_d, end=end_d),
-        },
+        "events": events_out,
     }
 
 
