@@ -1,5 +1,33 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  .app-banner-page .mz-chart-plot .modebar,
+  .app-banner-page .mz-chart-plot .modebar-container { display: none !important; }
+  .app-banner-page .mz-chart-plot a.plotly-logomark { display: none !important; }
+  html.dark .mz-page.app-banner-page .mz-chart-plot .scatterlayers .trace.line .lines path,
+  html.midnight .mz-page.app-banner-page .mz-chart-plot .scatterlayers .trace.line .lines path {
+    stroke: unset !important;
+    stroke-width: 2px !important;
+  }
+  .app-banner-page .mz-chart-plot .hoverlayer {
+    pointer-events: all !important;
+  }
+  .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+  html:not(.dark):not(.midnight) .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+  html.dark .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div,
+  html.midnight .app-banner-page .mz-chart-plot .hoverlayer foreignObject > div {
+    background-color: #000000 !important;
+    color: #fafafa !important;
+  }
+  #ab-series-wrap details > summary::-webkit-details-marker { display: none; }
+  #ab-series-wrap details > summary::marker { content: ""; }
+</style>
 <div class="mx-auto w-full max-w-[1920px] space-y-4 mz-page app-banner-page" data-header-title="Ad · GA4 banner">
   <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
     <div>
@@ -46,8 +74,8 @@
       </label>
       <button id="ab-run" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-600">Veriyi göster</button>
     </div>
-    <div id="ab-day-insight" class="mt-2 hidden rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-zinc-100" aria-live="polite">
-      <p class="font-bold text-indigo-900 dark:text-indigo-200">Seçili gün</p>
+    <div id="ab-day-insight" class="mt-2 hidden select-text rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-100" aria-live="polite">
+      <p class="font-bold text-slate-900 dark:text-zinc-100">Seçili gün</p>
       <p id="ab-day-insight-body" class="mt-1 break-words tabular-nums leading-relaxed"></p>
     </div>
     <p id="ab-error" class="mt-2 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"></p>
@@ -65,7 +93,26 @@
     </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-    <h2 id="ab-chart-camp-title" class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">GA4 app — First opens (toplam + kampanya)</h2>
+    <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+      <h2 id="ab-chart-camp-title" class="text-sm font-bold text-slate-800 dark:text-zinc-100">GA4 app — First opens (toplam + kampanya)</h2>
+      <div id="ab-series-wrap" class="hidden w-full sm:w-auto sm:min-w-[14rem] sm:max-w-md">
+        <details id="ab-series-details" class="rounded-lg border border-slate-200 bg-slate-50 dark:border-zinc-600 dark:bg-zinc-950">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-[11px] font-semibold text-slate-600 dark:text-zinc-400">
+            <span>Grafik serileri</span>
+            <span id="ab-series-count" class="tabular-nums text-slate-500 dark:text-zinc-500"></span>
+          </summary>
+          <div class="border-t border-slate-200 px-3 py-2 dark:border-zinc-700">
+            <input id="ab-series-search" type="search" placeholder="Seri ara…" autocomplete="off" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] dark:border-zinc-600 dark:bg-black dark:text-zinc-100" />
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <button type="button" id="ab-series-all" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">Tümü</button>
+              <button type="button" id="ab-series-mweb" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">Sadece mweb</button>
+              <button type="button" id="ab-series-app" class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">Sadece app</button>
+            </div>
+            <div id="ab-series-list" class="mt-2 max-h-36 space-y-0.5 overflow-y-auto pr-1"></div>
+          </div>
+        </details>
+      </div>
+    </div>
     <div id="ab-chart-campaign" class="mz-chart-plot w-full" style="min-height:400px;height:52vh;max-height:720px;"></div>
   </div>
 
@@ -185,8 +232,8 @@
       hoverlabel: {
         namelength: -1,
         align: "left",
-        bgcolor: dark ? "#18181b" : "#ffffff",
-        bordercolor: dark ? "#52525b" : "#e2e8f0",
+        bgcolor: dark ? "#000000" : "#ffffff",
+        bordercolor: dark ? "#52525b" : "#cbd5e1",
         font: { size: 11, color: dark ? "#fafafa" : "#0f172a" },
       },
     };
@@ -305,6 +352,205 @@
   }
 
   var lastPayload = null;
+  var mainChartState = { allTraces: [], layoutExtra: null, seriesMeta: [] };
+
+  function seriesStorageKey() {
+    return "ab-chart-series:" + document.getElementById("ab-project").value + ":" + document.getElementById("ab-profile").value;
+  }
+
+  function readSeriesSelectionFromStorage(availableNames) {
+    try {
+      var raw = localStorage.getItem(seriesStorageKey());
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      var out = new Set();
+      parsed.forEach(function (n) {
+        if (availableNames.indexOf(n) >= 0) out.add(n);
+      });
+      return out.size ? out : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveSeriesSelectionToStorage(namesSet) {
+    try {
+      localStorage.setItem(seriesStorageKey(), JSON.stringify(Array.from(namesSet)));
+    } catch (_) {}
+  }
+
+  function allSeriesNamesFromMeta(meta) {
+    return meta.map(function (m) { return m.name; });
+  }
+
+  function getCheckedSeriesNames() {
+    var list = document.getElementById("ab-series-list");
+    var out = new Set();
+    list.querySelectorAll('input[type="checkbox"][data-series-name]').forEach(function (cb) {
+      if (cb.checked) out.add(cb.getAttribute("data-series-name"));
+    });
+    return out;
+  }
+
+  function updateSeriesCountLabel() {
+    var meta = mainChartState.seriesMeta;
+    var checked = getCheckedSeriesNames();
+    var el = document.getElementById("ab-series-count");
+    if (el) el.textContent = checked.size + " / " + meta.length;
+  }
+
+  function filterTracesBySeries(traces, namesSet) {
+    if (!namesSet || namesSet.size >= mainChartState.seriesMeta.length) return traces;
+    return traces.filter(function (t) {
+      var n = t.name || "";
+      return namesSet.has(n);
+    });
+  }
+
+  function redrawMainChart() {
+    var names = getCheckedSeriesNames();
+    if (!names.size && mainChartState.seriesMeta.length) {
+      names = new Set([mainChartState.seriesMeta[0].name]);
+      var first = document.getElementById("ab-series-list").querySelector('input[type="checkbox"]');
+      if (first) first.checked = true;
+    }
+    saveSeriesSelectionToStorage(names);
+    updateSeriesCountLabel();
+    var traces = filterTracesBySeries(mainChartState.allTraces, names);
+    var extra = Object.assign({}, mainChartState.layoutExtra || {});
+    var nLegend = names.size;
+    extra.margin = Object.assign({}, (mainChartState.layoutExtra && mainChartState.layoutExtra.margin) || {}, {
+      b: nLegend <= 4 ? 56 : nLegend <= 8 ? 72 : 88,
+    });
+    extra.legend = Object.assign({}, (mainChartState.layoutExtra && mainChartState.layoutExtra.legend) || {}, {
+      y: nLegend <= 4 ? -0.18 : nLegend <= 8 ? -0.24 : -0.32,
+    });
+    if (nLegend <= 1) {
+      extra.showlegend = false;
+    } else {
+      extra.showlegend = true;
+    }
+    drawLine("ab-chart-campaign", traces, plotLayout(extra), updateDayInsight);
+    var details = document.getElementById("ab-series-details");
+    if (details && names.size < mainChartState.seriesMeta.length) details.open = true;
+  }
+
+  function applySeriesPreset(mode) {
+    var meta = mainChartState.seriesMeta;
+    document.getElementById("ab-series-list").querySelectorAll('input[type="checkbox"][data-series-name]').forEach(function (cb) {
+      var name = cb.getAttribute("data-series-name");
+      var item = meta.find(function (m) { return m.name === name; });
+      if (!item) return;
+      if (mode === "all") cb.checked = true;
+      else if (mode === "mweb") cb.checked = item.group === "mweb";
+      else if (mode === "app") cb.checked = item.group !== "mweb";
+    });
+    redrawMainChart();
+  }
+
+  function filterSeriesListBySearch(q) {
+    var needle = String(q || "").trim().toLowerCase();
+    document.getElementById("ab-series-list").querySelectorAll("label[data-series-name]").forEach(function (lab) {
+      var name = (lab.getAttribute("data-series-name") || "").toLowerCase();
+      lab.classList.toggle("hidden", needle.length > 0 && name.indexOf(needle) < 0);
+    });
+  }
+
+  function rebuildSeriesPanel(meta, selectedSet) {
+    var wrap = document.getElementById("ab-series-wrap");
+    var list = document.getElementById("ab-series-list");
+    if (!wrap || !list) return;
+    if (meta.length <= 1) {
+      wrap.classList.add("hidden");
+      list.innerHTML = "";
+      return;
+    }
+    wrap.classList.remove("hidden");
+    list.innerHTML = "";
+    meta.forEach(function (item) {
+      var lab = document.createElement("label");
+      lab.className = "flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[11px] text-slate-700 hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-900";
+      lab.setAttribute("data-series-name", item.name);
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-indigo-600 dark:border-zinc-500";
+      cb.setAttribute("data-series-name", item.name);
+      cb.checked = selectedSet.has(item.name);
+      var span = document.createElement("span");
+      span.className = "min-w-0 flex-1 truncate";
+      span.title = item.name;
+      span.textContent = item.name;
+      var tag = document.createElement("span");
+      tag.className = "shrink-0 rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide " +
+        (item.group === "mweb"
+          ? "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300"
+          : item.group === "campaign"
+            ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+            : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300");
+      tag.textContent = item.group === "mweb" ? "mweb" : item.group === "campaign" ? "kamp." : "app";
+      lab.appendChild(cb);
+      lab.appendChild(span);
+      lab.appendChild(tag);
+      list.appendChild(lab);
+    });
+    var search = document.getElementById("ab-series-search");
+    if (search) search.value = "";
+    updateSeriesCountLabel();
+    var details = document.getElementById("ab-series-details");
+    if (details) details.open = selectedSet.size < meta.length;
+  }
+
+  function buildMainChartTraces(data) {
+    var dates = (data.total_daily && data.total_daily.dates) || [];
+    var traces = [];
+    var meta = [];
+    var campColorIdx = 0;
+    if (hasSeriesSignal(data.total_daily)) {
+      meta.push({ name: "download", group: "total" });
+      pushHoverTraces(traces, {
+        x: dates,
+        y: (data.total_daily && data.total_daily.values) || [],
+        type: "scatter",
+        mode: "lines",
+        name: "download",
+        line: { width: 2.5, color: "#2563eb" },
+      });
+      campColorIdx += 1;
+    }
+    filterCampaignsWithSignal(data.campaigns).forEach(function (c) {
+      var cname = c.campaign || "(not set)";
+      meta.push({ name: cname, group: "campaign" });
+      pushHoverTraces(traces, {
+        x: (c.daily && c.daily.dates) || dates,
+        y: (c.daily && c.daily.values) || [],
+        type: "scatter",
+        mode: "lines",
+        name: cname,
+        line: { width: 1.5, color: COLORS[campColorIdx % COLORS.length] },
+      });
+      campColorIdx += 1;
+    });
+    var mw = data.mweb_banner;
+    var mwebEvents = filterMwebEventsWithSignal(mw && mw.events);
+    var mergeMweb = mwebEvents.length > 0;
+    var dualAxis = mergeMweb && traces.length > 0;
+    if (mergeMweb) {
+      mwebEvents.forEach(function (ev, i) {
+        var ename = shortBannerEventName(ev.event_name);
+        meta.push({ name: ename, group: "mweb" });
+        pushHoverTraces(traces, {
+          x: (ev.daily && ev.daily.dates) || dates,
+          y: (ev.daily && ev.daily.values) || [],
+          type: "scatter",
+          mode: "lines",
+          name: ename,
+          line: { width: 1.4, color: COLORS[(campColorIdx + i) % COLORS.length] },
+        }, dualAxis ? { yaxis: "y2" } : null);
+      });
+    }
+    return { traces: traces, meta: meta, mwebEvents: mwebEvents, mergeMweb: mergeMweb, dualAxis: dualAxis, dates: dates };
+  }
 
   function shortBannerEventName(full) {
     var s = String(full || "").trim();
@@ -355,6 +601,10 @@
     box.classList.remove("hidden");
   }
 
+  function plotlyBannerCfg() {
+    return { responsive: true, displayModeBar: false, autosizable: true };
+  }
+
   function drawLine(elId, traces, layout, onHoverDate) {
     var el = document.getElementById(elId);
     if (!el || !window.Plotly) return;
@@ -363,7 +613,7 @@
       el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-400\">Grafik verisi yok.</p>";
       return;
     }
-    Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: true }).then(function (gd) {
+    Plotly.newPlot(el, traces, layout, plotlyBannerCfg()).then(function (gd) {
       if (!onHoverDate) return;
       function onHover(ev) {
         var pts = ev.points || [];
@@ -393,49 +643,10 @@
     lastPayload = data;
     var label = data.metric_label || "Download";
     var manual = data.data_source === "manual_ios_table";
-    var dates = (data.total_daily && data.total_daily.dates) || [];
-    var campTraces = [];
-    var campColorIdx = 0;
-    if (hasSeriesSignal(data.total_daily)) {
-      pushHoverTraces(campTraces, {
-        x: dates,
-        y: (data.total_daily && data.total_daily.values) || [],
-        type: "scatter",
-        mode: "lines",
-        name: "download",
-        line: { width: 2.5, color: "#2563eb" },
-      });
-      campColorIdx += 1;
-    }
-    filterCampaignsWithSignal(data.campaigns).forEach(function (c) {
-      pushHoverTraces(campTraces, {
-        x: (c.daily && c.daily.dates) || dates,
-        y: (c.daily && c.daily.values) || [],
-        type: "scatter",
-        mode: "lines",
-        name: c.campaign || "(not set)",
-        line: { width: 1.5, color: COLORS[campColorIdx % COLORS.length] },
-      });
-      campColorIdx += 1;
-    });
-
+    var built = buildMainChartTraces(data);
     var mw = data.mweb_banner;
-    var mwebEvents = filterMwebEventsWithSignal(mw && mw.events);
-    var mergeMweb = mwebEvents.length > 0;
-    var dualAxis = mergeMweb && campTraces.length > 0;
-
-    if (mergeMweb) {
-      mwebEvents.forEach(function (ev, i) {
-        pushHoverTraces(campTraces, {
-          x: (ev.daily && ev.daily.dates) || dates,
-          y: (ev.daily && ev.daily.values) || [],
-          type: "scatter",
-          mode: "lines",
-          name: shortBannerEventName(ev.event_name),
-          line: { width: 1.4, color: COLORS[(campColorIdx + i) % COLORS.length] },
-        }, dualAxis ? { yaxis: "y2" } : null);
-      });
-    }
+    var mergeMweb = built.mergeMweb;
+    var dualAxis = built.dualAxis;
 
     var span = chartSpanDates(data);
     var osLabel = (mw && mw.operating_systems) || "";
@@ -464,7 +675,14 @@
       layoutExtra.xaxis = { range: [span.start, span.end], type: "date" };
     }
 
-    drawLine("ab-chart-campaign", campTraces, plotLayout(layoutExtra), updateDayInsight);
+    mainChartState.allTraces = built.traces;
+    mainChartState.seriesMeta = built.meta;
+    mainChartState.layoutExtra = layoutExtra;
+    var names = allSeriesNamesFromMeta(built.meta);
+    var selected = readSeriesSelectionFromStorage(names);
+    if (!selected) selected = new Set(names);
+    rebuildSeriesPanel(built.meta, selected);
+    redrawMainChart();
 
     var ascWrap = document.getElementById("ab-wrap-asc");
     var ascC = data.app_store_campaign_downloads;
@@ -570,6 +788,15 @@
 
   readUrlIntoForm();
   defaultDates();
+  document.getElementById("ab-series-list").addEventListener("change", function (e) {
+    if (e.target && e.target.matches('input[type="checkbox"][data-series-name]')) redrawMainChart();
+  });
+  document.getElementById("ab-series-search").addEventListener("input", function () {
+    filterSeriesListBySearch(document.getElementById("ab-series-search").value);
+  });
+  document.getElementById("ab-series-all").addEventListener("click", function () { applySeriesPreset("all"); });
+  document.getElementById("ab-series-mweb").addEventListener("click", function () { applySeriesPreset("mweb"); });
+  document.getElementById("ab-series-app").addEventListener("click", function () { applySeriesPreset("app"); });
   document.getElementById("ab-run").addEventListener("click", load);
   document.getElementById("ab-preset").addEventListener("change", function () {
     var v = document.getElementById("ab-preset").value;
