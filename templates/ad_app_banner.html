@@ -153,6 +153,14 @@
 
   var lastPayload = null;
 
+  function shortBannerEventName(full) {
+    var s = String(full || "").trim();
+    var prefix = "app_download_banner_";
+    if (s.indexOf(prefix) === 0) return s.slice(prefix.length);
+    if (s === "app_download_banner") return "banner";
+    return s;
+  }
+
   function valueAt(series, dateIso) {
     if (!series || !series.dates || !series.values) return null;
     var i = series.dates.indexOf(dateIso);
@@ -177,7 +185,7 @@
     var mw = lastPayload.mweb_banner;
     (mw && mw.events || []).forEach(function (ev) {
       var v = valueAt(ev.daily, dateIso);
-      if (v != null && v > 0) lines.push(ev.event_name + ": " + formatNum(v));
+      if (v != null && v > 0) lines.push(shortBannerEventName(ev.event_name) + ": " + formatNum(v));
     });
     if (!lines.length) {
       box.classList.add("hidden");
@@ -285,14 +293,14 @@
         "Mobil web — banner eventleri (" + (mw.operating_systems || "") + ")";
       var mwebTraces = mw.events.map(function (ev, i) {
         var tr = document.createElement("tr");
-        tr.innerHTML = "<td class=\"px-2 py-1.5 font-mono text-[10px]\">" + escapeHtml(ev.event_name) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(ev.total) + "</td>";
+        tr.innerHTML = "<td class=\"px-2 py-1.5 font-mono text-[10px]\" title=\"" + escapeHtml(ev.event_name) + "\">" + escapeHtml(shortBannerEventName(ev.event_name)) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(ev.total) + "</td>";
         mwebBody.appendChild(tr);
         return {
           x: (ev.daily && ev.daily.dates) || dates,
           y: (ev.daily && ev.daily.values) || [],
           type: "scatter",
           mode: "lines",
-          name: ev.event_name,
+          name: shortBannerEventName(ev.event_name),
           line: { width: 1.4, color: COLORS[i % COLORS.length] },
         };
       });
