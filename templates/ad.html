@@ -5646,12 +5646,17 @@
     return msg;
   }
 
+  function mzNum(v) {
+    var x = Number(v);
+    return isFinite(x) ? x : 0;
+  }
+
   function syntheticBatchDoneFromSequential(results, errors, fileCount) {
     var parsed = 0;
     var total = 0;
     results.forEach(function (r) {
-      parsed += n(r.parsed);
-      if (r.total != null) total = n(r.total);
+      parsed += mzNum(r.parsed);
+      if (r.total != null) total = mzNum(r.total);
     });
     return {
       phase: "batch_done",
