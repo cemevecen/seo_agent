@@ -351,6 +351,74 @@ def get_ga4_mobile_overlay(
     return out
 
 
+@router.get("/mz-analytics/ga4-app-banner")
+def get_ga4_app_banner(
+    db: Session = Depends(get_db),
+    project: str = Query("doviz"),
+    profile: str = Query("android", description="android | ios"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    top_campaigns: int = Query(10, ge=1, le=25),
+    metric: str = Query(
+        "first_opens",
+        description="first_opens (first_open) | event_count (tüm eventler)",
+    ),
+):
+    """GA4 mobil — günlük first opens / event count, first user campaign kırılımı."""
+    from google.api_core import exceptions as ga_exc
+
+    from backend.services.ga4_app_attribution import (
+        default_banner_date_range,
+        fetch_app_banner_attribution,
+    )
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+
+    prof = (profile or "android").strip().lower()
+    if prof not in ("android", "ios"):
+        raise HTTPException(status_code=400, detail="profile android veya ios olmalı.")
+
+    mode = (metric or "first_opens").strip().lower()
+    if mode not in ("first_opens", "event_count"):
+        raise HTTPException(status_code=400, detail="metric: first_opens veya event_count.")
+
+    if start and end:
+        start_s, end_s = start.strip()[:10], end.strip()[:10]
+    else:
+        start_s, end_s = default_banner_date_range(days=28)
+
+    site = _mz_ga4_site(db, project)
+    if site is None:
+        raise HTTPException(status_code=404, detail="Site bulunamadı.")
+
+    record = get_ga4_credentials_record(db, site.id)
+    properties = load_ga4_properties(record)
+    property_id = str(properties.get(prof) or "").strip()
+    if not property_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"GA4 {prof} property tanımlı değil.",
+        )
+
+    try:
+        payload = fetch_app_banner_attribution(
+            property_id,
+            start=start_s,
+            end=end_s,
+            top_campaigns=top_campaigns,
+            metric_mode=mode,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ga_exc.GoogleAPIError as exc:
+        raise HTTPException(status_code=502, detail=f"GA4 API: {exc.message}") from exc
+
+    payload["site_id"] = site.id
+    payload["domain"] = site.domain
+    payload["project"] = (project or "doviz").strip().lower()
+    payload["profile"] = prof
+    return payload
+
+
 @router.post("/mz-analytics/reset")
 def post_ad_analytics_reset(db: Session = Depends(get_db)):
     try:

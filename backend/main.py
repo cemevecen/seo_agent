@@ -12275,6 +12275,17 @@ def ad_analytics_page(request: Request):
     )
 
 
+@app.get("/ad/app-banner")
+def ad_app_banner_ga4_page(request: Request):
+    """GA4 mobil banner / first user campaign — geniş panel (Exploration android banner)."""
+    return templates.TemplateResponse(
+        request,
+        "ad_app_banner.html",
+        context={"request": request},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
 @app.get("/api/ga4/realtime/{site_id}")
 def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "web"):
     """Tek site için GA4 Realtime karşılaştırma — frontend polling bu endpoint'i çağırır.
