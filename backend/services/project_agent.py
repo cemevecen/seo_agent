@@ -161,7 +161,7 @@ aktif sayfa bağlamındaki `analysis_hints` satırına da uy.
 - /firebase → `page_fetch_crashlytics_summary` (product, platform, days — custom.filters ile aynı; ekran özeti için dom_snapshot/visible_text)
 - /inbox → `page_fetch_inbox_threads` veya `page_fetch_inbox_thread`
 - /intelligence → `page_fetch_news_intelligence`
-- /app → `page_fetch_app_intel`
+- /app → App Store Connect sorularında `page_fetch_asc_analytics`; yorum/sıralama için `page_fetch_app_intel`
 - /errors → `page_fetch_errors_summary`
 - /realtime, /ga4 → `page_fetch_ga4_realtime` veya `page_list_sites`
 

@@ -180,6 +180,10 @@ def _fmt_money(n: float) -> str:
     return f"${n:.2f}"
 
 
+def _fmt_pct(n: float) -> str:
+    return f"{n:.2f}%"
+
+
 def _filter_multiplier(country: str, source: str, device: str) -> float:
     """Filtreye göre veri ölçeğini kıs/genişlet (demo)."""
     m = 1.0
@@ -528,6 +532,16 @@ def build_asc_connect_preview_payload(
             )
             if live:
                 payload = _overlay_live_sales(payload, live)
+            from backend.services import asc_analytics
+
+            analytics = asc_analytics.fetch_analytics_summary(
+                bundle_id=bundle,
+                days=p,
+                country=cc,
+                progress_cb=progress_cb,
+            )
+            if analytics and analytics.get("ok"):
+                payload = _overlay_live_analytics(payload, analytics, sales_live=live)
             subs = asc_client.fetch_subscription_summary(days=p)
             if subs:
                 payload = _overlay_live_subscriptions(payload, subs)
@@ -633,10 +647,98 @@ def _overlay_live_sales(payload: dict[str, Any], live: dict[str, Any]) -> dict[s
         payload["top_versions"] = new_v[:10]
 
     payload["source"] = "live"
+    payload["analytics_live"] = bool(payload.get("analytics_live"))
     payload["source_note"] = (
-        "Canlı veri — App Store Connect Sales raporlarından (24-48 saat gecikme normaldir). "
-        "Impression / dönüşüm / etkileşim alanları Analytics Reports API'ye bağlanana kadar demo kalıyor."
+        "Canlı veri — App Store Connect Sales raporlarından (24-48 saat gecikme normaldir)."
+        + (
+            " Impression / sayfa görüntüleme / dönüşüm / redownload Analytics Reports ile dolduruldu."
+            if payload.get("analytics_live")
+            else " Impression / dönüşüm için Analytics Reports henüz yok veya boş."
+        )
     )
+    return payload
+
+
+def _overlay_live_analytics(
+    payload: dict[str, Any],
+    analytics: dict[str, Any],
+    *,
+    sales_live: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Analytics Reports API — impression, page view, conversion, redownloads."""
+
+    def _kpi(value: float, *, money: bool = False, series: list[float] | None = None, pct: bool = False) -> dict[str, Any]:
+        s = [float(x) for x in (series or [])]
+        label = _fmt_money(value) if money else (_fmt_pct(value) if pct else _fmt_compact(float(value)))
+        return {
+            "value": round(value, 3 if pct else 2),
+            "value_label": label,
+            "delta_pct": _series_delta(s),
+            "series": s,
+            "is_live_analytics": True,
+        }
+
+    imp = int(analytics.get("impressions") or 0)
+    pv = int(analytics.get("product_page_views") or 0)
+    conv = float(analytics.get("conversion_rate_pct") or 0)
+    ft = int(analytics.get("first_time_downloads") or 0)
+    rd = int(analytics.get("redownloads") or 0)
+    tdl = int(analytics.get("total_downloads") or (ft + rd))
+    paying = int(analytics.get("paying_users") or 0)
+
+    imp_s = list(analytics.get("impressions_series") or [])
+    pv_s = list(analytics.get("page_views_series") or [])
+    ft_s = list(analytics.get("first_downloads_series") or [])
+    rd_s = list(analytics.get("redownloads_series") or [])
+    tdl_s = list(analytics.get("total_downloads_series") or [])
+
+    if imp or pv or conv:
+        payload["acquisition"]["impressions"] = _kpi(float(imp), series=imp_s)
+        payload["acquisition"]["product_page_views"] = _kpi(float(pv), series=pv_s)
+        payload["acquisition"]["conversion_rate"] = _kpi(conv, series=[], pct=True)
+        payload["kpis"]["impressions"] = payload["acquisition"]["impressions"]
+        payload["kpis"]["product_page_views"] = payload["acquisition"]["product_page_views"]
+        payload["kpis"]["conversion_rate"] = payload["acquisition"]["conversion_rate"]
+
+    if ft or rd or tdl:
+        if not sales_live or ft:
+            payload["acquisition"]["first_time_downloads"] = _kpi(float(ft or (sales_live or {}).get("first_time_downloads", 0)), series=ft_s or None)
+        payload["acquisition"]["redownloads"] = _kpi(float(rd), series=rd_s)
+        payload["acquisition"]["total_downloads"] = _kpi(float(tdl), series=tdl_s or ft_s)
+        payload["kpis"]["total_downloads"] = payload["acquisition"]["total_downloads"]
+
+    if paying:
+        payload["sales"]["paying_users"] = _kpi(float(paying))
+
+    if tdl_s:
+        pr_series = []
+        if sales_live:
+            pr_series = list(sales_live.get("pr_series") or [])
+        payload["trend_daily"] = [
+            {
+                "i": i,
+                "downloads": round(tdl_s[i] if i < len(tdl_s) else 0),
+                "proceeds": round(pr_series[i] if i < len(pr_series) else 0, 2),
+                "impressions": round(imp_s[i] if i < len(imp_s) else 0),
+                "page_views": round(pv_s[i] if i < len(pv_s) else 0),
+            }
+            for i in range(max(len(tdl_s), len(imp_s), 1))
+        ]
+        payload["trend_daily_is_demo"] = False
+
+    payload["analytics_live"] = True
+    payload["analytics_warnings"] = analytics.get("warnings") or []
+    if payload.get("source") != "live":
+        payload["source"] = "live"
+    notes = [
+        "Canlı Analytics Reports (impression, sayfa görüntüleme, dönüşüm, redownload).",
+    ]
+    if sales_live:
+        notes.append("Sales raporu: indirme/gelir/IAP.")
+    else:
+        notes.append("Sales raporu yok — ASC_VENDOR_NUMBER veya satış verisi gerekir.")
+    notes.append("24-48 saat gecikme normaldir.")
+    payload["source_note"] = " ".join(notes)
     return payload
 
 

@@ -16,7 +16,7 @@
     { prefix: '/firebase', page_id: 'firebase', label: 'Firebase', tool: 'page_fetch_crashlytics_summary' },
     { prefix: '/inbox', page_id: 'inbox', label: 'Inbox', tool: 'page_fetch_inbox_threads' },
     { prefix: '/intelligence', page_id: 'intelligence', label: 'NEWS', tool: 'page_fetch_news_intelligence' },
-    { prefix: '/app', page_id: 'app', label: 'App', tool: 'page_fetch_app_intel' },
+    { prefix: '/app', page_id: 'app', label: 'App', tool: 'page_fetch_asc_analytics' },
     { prefix: '/errors', page_id: 'errors', label: 'Errors', tool: 'page_fetch_errors_summary' },
     { prefix: '/realtime', page_id: 'realtime', label: 'Realtime', tool: 'page_fetch_ga4_realtime' },
     { prefix: '/ga4', page_id: 'ga4', label: 'GA4', tool: 'page_fetch_ga4_realtime' },
@@ -61,7 +61,8 @@
       { label: 'Kaynak analizi', msg: 'Seçili kaynak filtresindeki haberlerin ortak teması ne?' },
     ],
     app: [
-      { label: 'App özeti', msg: 'Bu app intel ekranındaki KPI ve store metriklerini özetle.' },
+      { label: 'ASC analiz', msg: 'App Store Connect verisini analiz et: impression, dönüşüm, indirme, redownload, proceeds. Ölçülen→çıkarım→öneri; sentetik demo kullanma.' },
+      { label: 'Kazanım hunisi', msg: 'Impression → sayfa görüntüleme → indirme ilişkisinde darboğaz ve olası nedenleri yaz.' },
       { label: 'Yorumlar', msg: 'Store yorum analizi ne gösteriyor, öncelikli aksiyon ne?' },
     ],
     ga4: [

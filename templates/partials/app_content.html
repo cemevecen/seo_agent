@@ -1715,7 +1715,7 @@
         pill.classList.remove('hidden');
       } else if (j && j.source) {
         pill.className = 'rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200';
-        pill.textContent = 'Canlı';
+        pill.textContent = j.analytics_live ? 'Canlı · Analytics' : 'Canlı';
         pill.classList.remove('hidden');
       } else {
         pill.classList.add('hidden');
@@ -4732,11 +4732,28 @@
 
   window.__pcPageContext = function () {
     var activeTabBtn = document.querySelector('.app-intel-tab-btn.bg-slate-900, .app-intel-tab-btn.dark\\:bg-slate-100');
+    var asc = ascState.payload || null;
+    var parts = [];
+    if (asc && asc.source_note) parts.push(asc.source_note);
+    var root = document.getElementById('app-asc-content');
+    if (root && !root.classList.contains('hidden')) {
+      var t = (root.innerText || '').replace(/\s+/g, ' ').trim();
+      if (t.length > 50) parts.push('[asc] ' + t.slice(0, 2800));
+    }
     return {
       page: 'app',
-      filters: { product: state.product, period_days: state.period },
+      filters: {
+        product: state.product,
+        period_days: state.period,
+        asc_period: ascState.period,
+        asc_country: ascState.country,
+        asc_tab: ascState.tab,
+      },
       active_tab: activeTabBtn ? (activeTabBtn.getAttribute('data-app-tab') || activeTabBtn.textContent || '').trim() : null,
+      asc_analytics_live: !!(asc && asc.analytics_live),
+      asc_kpis: asc && asc.kpis ? asc.kpis : null,
       has_intel_payload: !!state.lastPayload,
+      visible_text: parts.join('\n').slice(0, 4500),
     };
   };
 

@@ -1280,8 +1280,20 @@ TOOL_DEFINITIONS = [
         },
     },
     {
+        "name": "page_fetch_asc_analytics",
+        "description": "App Store Connect canlı Analytics + Sales: impression, page view, conversion, redownload, proceeds. /app ASC sorularında ZORUNLU.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product": {"type": "string", "default": "doviz"},
+                "period_days": {"type": "integer", "default": 30},
+                "country": {"type": "string", "default": "all"},
+            },
+        },
+    },
+    {
         "name": "page_fetch_app_intel",
-        "description": "App Store / Play intel KPI özeti.",
+        "description": "App Store / Play mağaza yorumları ve intel KPI (ASC indirme grafiği değil).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -1368,6 +1380,7 @@ def execute_tool(name: str, inputs: dict[str, Any]) -> Any:
         "page_fetch_inbox_threads": lambda: pct.page_fetch_inbox_threads(**inputs),
         "page_fetch_inbox_thread": lambda: pct.page_fetch_inbox_thread(**inputs),
         "page_fetch_news_intelligence": lambda: pct.page_fetch_news_intelligence(**inputs),
+        "page_fetch_asc_analytics": lambda: pct.page_fetch_asc_analytics(**inputs),
         "page_fetch_app_intel": lambda: pct.page_fetch_app_intel(**inputs),
         "page_fetch_errors_summary": lambda: pct.page_fetch_errors_summary(**inputs),
         "page_fetch_ga4_realtime": lambda: pct.page_fetch_ga4_realtime(**inputs),

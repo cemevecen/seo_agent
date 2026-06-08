@@ -34,7 +34,10 @@ _PAGE_ANALYSIS_HINTS: dict[str, str] = {
     "home": "günün özeti: page_fetch_home_dashboard; anomali ve düşüşleri önceliklendir.",
     "ga4": "trafik: realtime veya site listesi; kaynak/sayfa kayması ve alarm varsa çıkarım.",
     "realtime": "anlık kullanıcı + alarm; baseline'dan sapmayı yorumla.",
-    "app": "store KPI + yorumlar; rating/şikayet temalarından aksiyon öner.",
+    "app": (
+        "App Store Connect özeti: page_fetch_asc_analytics (impression, conversion, redownload, sales); "
+        "mağaza yorumları için page_fetch_app_intel."
+    ),
     "errors": "404/5xx hacmi ve URL kalıpları; SEO/teknik kök neden hipotezi.",
     "inbox": "thread özeti + yanıt önerisi; iş etkisini kısaca değerlendir.",
     "intelligence": "haber kümesi; ortak tema ve operasyonel etki.",
@@ -371,6 +374,49 @@ def page_fetch_news_intelligence(hours: int = 12, source: str = "", limit: int =
         ]
         sources = sorted({r.source_name for r in rows if r.source_name})
     return {"hours": hrs, "source_filter": src or None, "count": len(items), "sources": sources, "items": items}
+
+
+def page_fetch_asc_analytics(
+    product: str = "doviz",
+    period_days: int = 30,
+    country: str = "all",
+) -> dict[str, Any]:
+    """App Store Connect Analytics + Sales özeti (sentetik değil; API)."""
+    from backend.services import asc_analytics, asc_client
+    from backend.services.app_intel import APP_PRODUCTS
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return {"error": f"bilinmeyen ürün: {pid}"}
+    period = int(period_days)
+    if period not in (0, 1, 7, 14, 30, 90, 365):
+        period = 30
+    cc = (country or "all").strip().lower()
+    bundle = (APP_PRODUCTS[pid].get("ios_bundle_id") or "").strip()
+    if not asc_client.is_configured():
+        return {"ok": False, "message": "ASC_KEY_ID / ISSUER_ID / PRIVATE_KEY tanımlı değil."}
+
+    analytics = asc_analytics.fetch_analytics_summary(bundle_id=bundle, days=period, country=cc)
+    sales = None
+    import os
+
+    if (os.getenv("ASC_VENDOR_NUMBER") or "").strip():
+        sales = asc_client.fetch_daily_sales_summary(
+            bundle_id=bundle, days=period, country=cc,
+        )
+
+    return _trim(
+        {
+            "ok": True,
+            "product": pid,
+            "period_days": period,
+            "country": cc,
+            "analytics": analytics,
+            "sales_summary": sales,
+        },
+        max_str=900,
+        max_list=25,
+    )
 
 
 def page_fetch_app_intel(product: str = "doviz", period_days: int = 30) -> dict[str, Any]:
