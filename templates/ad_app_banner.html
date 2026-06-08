@@ -213,7 +213,7 @@
     }
     var lines = [];
     var fo = valueAt(lastPayload.total_daily, dateIso);
-    if (fo != null && fo > 0) lines.push("Toplam first opens: " + formatNum(fo));
+    if (fo != null && fo > 0) lines.push("download: " + formatNum(fo));
     filterCampaignsWithSignal(lastPayload.campaigns).forEach(function (c) {
       var v = valueAt(c.daily, dateIso);
       if (v != null && v > 0) lines.push((c.campaign || "(not set)") + ": " + formatNum(v));
@@ -279,7 +279,7 @@
         y: (data.total_daily && data.total_daily.values) || [],
         type: "scatter",
         mode: "lines",
-        name: "Toplam first opens",
+        name: "download",
         line: { width: 2.5, color: "#2563eb" },
       }));
     }
