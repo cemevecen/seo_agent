@@ -3,7 +3,35 @@
 from backend.services import mailer
 
 
+def test_compact_batch_chip_page_alarm():
+    raw = "doviz — Fibabanka Altın Fiyatları -9 · Canlı Çeyrek -6"
+    chip = mailer._compact_realtime_batch_chip(raw)
+    assert chip.startswith("doviz ")
+    assert "Fibabanka" in chip
+
+
+def test_compact_batch_chip_mweb_profile():
+    raw = "doviz — Harem Euro Kuru -13 [mweb]"
+    chip = mailer._compact_realtime_batch_chip(raw)
+    assert "doviz/mweb" in chip
+    assert "Harem" in chip
+
+
+def test_combined_subject_phone_preview():
+    items = [
+        ("doviz — Fibabanka Altın -21", "<p></p>"),
+        ("doviz — Harem Euro -13 [mweb]", "<p></p>"),
+        ("sinemalar — Yeni film ↑40 [mweb]", "<p></p>"),
+    ]
+    subj = mailer._combined_realtime_subject(items)
+    assert subj.startswith("3 alarm ·")
+    assert "SEO Realtime" not in subj
+    assert "doviz" in subj
+
+
 def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
+    mailer._last_realtime_batch_sent_at = None
+    monkeypatch.setattr(mailer.settings, "ga4_realtime_email_batch_interval_minutes", 0)
     monkeypatch.setattr(mailer.settings, "ga4_realtime_email_enabled", True)
     monkeypatch.setattr(mailer.settings, "mail_to", "ops@example.com")
     monkeypatch.setattr(mailer.settings, "mail_from", "seo@example.com")
@@ -47,7 +75,8 @@ def test_realtime_batch_single_alarm_sends_seo_realtime_subject(monkeypatch):
     assert mailer.realtime_email_batch_flush() is True
 
     assert len(sent) == 1
-    assert sent[0].startswith("SEO Realtime: 1 alarm")
+    assert "doviz" in sent[0].lower()
+    assert "SEO Realtime:" not in sent[0]
 
 
 def test_realtime_batch_multiple_alarms_sends_single_seo_realtime_subject(monkeypatch):
@@ -60,4 +89,6 @@ def test_realtime_batch_multiple_alarms_sends_single_seo_realtime_subject(monkey
     assert mailer.realtime_email_batch_flush() is True
 
     assert len(sent) == 1
-    assert sent[0].startswith("SEO Realtime: 2 alarm")
+    assert sent[0].startswith("2 alarm ·")
+    assert "doviz" in sent[0].lower()
+    assert "sinemalar" in sent[0].lower()

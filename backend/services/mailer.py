@@ -31,10 +31,80 @@ def _is_seo_realtime_subject(subject: str) -> bool:
     return (subject or "").strip().lower().startswith(_SEO_REALTIME_SUBJECT_PREFIX)
 
 
+def _compact_realtime_batch_chip(raw_subject: str) -> str:
+    """Bölüm konu satırını telefon önizlemesi için kısa özete çevirir."""
+    s = (raw_subject or "").strip()
+    if not s:
+        return ""
+
+    low = s.lower()
+    if "404 spike" in low or "404" in low and "spike" in low:
+        dom = ""
+        for part in re.split(r"\s*·\s*", s):
+            p = part.strip()
+            if "." in p and "404" not in p.lower():
+                dom = p.replace("www.", "").split(".")[0]
+                break
+        spike = re.search(r"(\d+)\s*→\s*(\d+)", s)
+        if dom and spike:
+            return f"{dom} 404 {spike.group(1)}→{spike.group(2)} kul"
+        return "404 spike"
+
+    if "🚨" in s or "kritik" in low:
+        inner = _compact_realtime_batch_chip(re.sub(r"🚨\s*KRİTİK\s*·\s*", "", s, flags=re.I))
+        return f"KRİTİK {inner}" if inner else "KRİTİK"
+
+    prof = ""
+    m_prof = re.search(r"\[([a-z]+)\]\s*$", s, re.I)
+    if m_prof:
+        prof = (m_prof.group(1) or "").lower()
+        s = s[: m_prof.start()].strip()
+
+    site = ""
+    tail = s
+    for sep in (" — ", " - ", " — "):
+        if sep in s:
+            site, tail = s.split(sep, 1)
+            site = site.strip()
+            tail = tail.strip()
+            break
+    if not site:
+        site = s.split(" · ", 1)[0].strip()
+
+    first = tail.split(" · ")[0].strip() if tail else ""
+    if first.startswith("+"):
+        pass
+    rest_n = re.search(r"\s+\+(\d+)\s*$", first)
+    if rest_n:
+        first = first[: rest_n.start()].strip()
+
+    if len(first) > 34:
+        first = first[:32] + "…"
+
+    loc = f"{site}/{prof}" if prof and prof not in ("web", "") else site
+    if first:
+        return f"{loc} {first}".strip()
+    return loc or "alarm"
+
+
 def _combined_realtime_subject(items: list[tuple[str, str]]) -> str:
-    subject_chips = [s[:45] for s, _ in items[:3]]
-    rest_lbl = f" +{len(items) - 3}" if len(items) > 3 else ""
-    return f"SEO Realtime: {len(items)} alarm · {' · '.join(subject_chips)}{rest_lbl}"
+    """Önizlemede site + olay okunur; «SEO Realtime: N alarm» öneki yok."""
+    n = len(items)
+    chips = [_compact_realtime_batch_chip(subj) for subj, _ in items[:4]]
+    chips = [c for c in chips if c]
+    more = max(0, n - len(chips))
+    line = " · ".join(chips)
+    if more > 0:
+        line = f"{line} +{more}" if line else f"+{more}"
+    if n <= 1:
+        return (line or "Realtime alarm")[:120]
+    prefix = f"{n} alarm · "
+    budget = 120 - len(prefix)
+    if budget < 20:
+        return f"{n} alarm"[:120]
+    if len(line) > budget:
+        line = line[: budget - 1] + "…"
+    return f"{prefix}{line}"
 
 
 def realtime_email_batch_begin() -> None:
@@ -110,6 +180,7 @@ def realtime_email_batch_flush() -> bool:
         combined_body,
         thread_kind="combined",
         thread_key="all_sites_batch",
+        is_summary=True,
     )
     if ok:
         _last_realtime_batch_sent_at = time.time()
@@ -450,7 +521,7 @@ def send_realtime_email(
         return True
 
     subj = subject.strip()
-    if not _is_seo_realtime_subject(subj):
+    if not is_summary and not _is_seo_realtime_subject(subj):
         logging.info("SEO Realtime dışı realtime e-postası iptal edildi: %s", subj[:120])
         return False
 
