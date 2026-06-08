@@ -359,7 +359,7 @@
           <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
           <div id="mz-drill-chart" class="mz-chart-plot min-h-[220px] w-full"></div>
           <div id="mz-drill-ga4-chart-wrap" class="mt-3 hidden">
-            <p class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4 — Android &amp; iOS oturum ve kullanıcı (aynı tarih ekseni)</p>
+            <p id="mz-drill-ga4-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4</p>
             <div id="mz-drill-ga4-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
           </div>
           <div id="mz-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
@@ -423,7 +423,7 @@
           <p id="mz-summary-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
           <div id="mz-summary-drill-chart" class="mz-chart-plot min-h-[220px] w-full"></div>
           <div id="mz-summary-drill-ga4-chart-wrap" class="mt-3 hidden">
-            <p class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4 — Android &amp; iOS oturum ve kullanıcı (aynı tarih ekseni)</p>
+            <p id="mz-summary-drill-ga4-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4</p>
             <div id="mz-summary-drill-ga4-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
           </div>
           <div id="mz-summary-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
@@ -3390,6 +3390,8 @@
     var br = state.activeStream && state.activeStream.branch;
     if (br === "desktop") return "web";
     if (br === "mweb") return "mobil web";
+    if (br === "android") return "Android";
+    if (br === "ios") return "iOS";
     return "android/ios";
   }
 
@@ -3534,7 +3536,7 @@
     if (!overlay || !plotX || !plotX.length || !bucketKeys || !bucketKeys.length) return [];
     axisMode = axisMode || "overlay";
     var sessAxis = axisMode === "split" ? "y" : "y2";
-    var userAxis = axisMode === "split" ? "y2" : "y2";
+    var userAxis = axisMode === "split" ? "y" : "y2";
     var specs = ga4OverlayTraceSpecs(overlay);
     var out = [];
     specs.forEach(function (spec) {
@@ -3621,10 +3623,12 @@
     }
   }
 
-  async function renderGa4SplitChart(scope, plotX, bucketKeys, chartTimeKey, overlay) {
+  async function renderGa4SplitChart(scope, plotX, bucketKeys, chartTimeKey, overlay, syncOpts) {
+    syncOpts = syncOpts || {};
     var isSummary = scope === "summary";
     var wrap = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart-wrap" : "mz-drill-ga4-chart-wrap");
     var chartEl = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart" : "mz-drill-ga4-chart");
+    var cap = document.getElementById(isSummary ? "mz-summary-drill-ga4-caption" : "mz-drill-ga4-caption");
     if (!wrap || !chartEl) return false;
     var ga4Traces = buildGa4MobileTraces(plotX, bucketKeys, chartTimeKey, overlay, "split");
     if (!ga4Traces.length) {
@@ -3632,14 +3636,14 @@
       return false;
     }
     wrap.classList.remove("hidden");
+    if (cap) {
+      cap.textContent =
+        "GA4 — " + ga4OverlayStatusLabel() + " oturum ve kullanıcı (tarih hizalı)";
+    }
+    var margin = Object.assign({}, DRILL_STACK_MARGIN, { t: 56 });
     var layout = plotTheme({
-      yTitle: "Sessions",
-      margin: { l: 52, r: 52, t: 56, b: 56 },
-    });
-    layout.yaxis2 = Object.assign({}, plotAxis("Users"), {
-      overlaying: "y",
-      side: "right",
-      showgrid: false,
+      yTitle: "Sessions / Users",
+      margin: margin,
     });
     layout.showlegend = true;
     layout.legend = Object.assign({}, layout.legend || {}, {
@@ -3653,16 +3657,11 @@
       tracegroupgap: 6,
       font: plotFont(),
     });
-    if (chartTimeKey === "date") {
-      layout.xaxis = Object.assign({}, layout.xaxis, {
-        type: "date",
-        tickformat: "%d.%m.%y",
-        automargin: true,
-        tickangle: plotX.length > 48 ? -45 : 0,
-      });
-    } else {
-      layout.xaxis = Object.assign({}, layout.xaxis, { automargin: true });
-    }
+    var dense = !!syncOpts.dense;
+    var xSync =
+      syncOpts.xaxis ||
+      drillStackXaxisSync(layout.xaxis, chartTimeKey, plotX, dense);
+    layout.xaxis = Object.assign({}, xSync, { showticklabels: true });
     layout.title = {
       text: "",
       font: plotFont(),
@@ -4110,16 +4109,24 @@
       try {
         var ga4Overlay = await ensureGa4MobileOverlay(drillSignal);
         if (drillStale()) return;
+        var stackX = drillStackXaxisSync(layout.xaxis, chartTimeKey, plotX, dense);
         if (state.ga4SeparateChart) {
+          layout.margin = Object.assign({}, layout.margin, DRILL_STACK_MARGIN);
           hideGa4SplitChart(scope);
           ga4SplitOn = await renderGa4SplitChart(
             scope,
             plotX,
             overlayBucketKeys,
             chartTimeKey,
-            ga4Overlay
+            ga4Overlay,
+            { xaxis: stackX, dense: dense }
           );
           ga4OverlayOn = ga4SplitOn;
+          if (ga4SplitOn) {
+            layout.xaxis = Object.assign({}, stackX, { showticklabels: false });
+          } else {
+            layout.xaxis = Object.assign({}, layout.xaxis, stackX);
+          }
         } else {
           hideGa4SplitChart(scope);
           ga4OverlayOn = appendGa4MobileOverlayTraces(
@@ -4228,6 +4235,25 @@
 
   function plotFont() {
     return { color: isDarkTheme() ? "#a1a1aa" : "#475569", size: 11 };
+  }
+
+  var DRILL_STACK_MARGIN = { l: 52, r: 12, t: 28, b: 56 };
+
+  function drillStackXaxisSync(baseXaxis, chartTimeKey, plotX, dense) {
+    var ax = Object.assign({}, baseXaxis || {});
+    ax.automargin = false;
+    ax.fixedrange = false;
+    if (chartTimeKey === "date" && (!ax.type || ax.type === "date")) {
+      ax.type = "date";
+      ax.tickformat = "%d.%m.%y";
+      ax.tickangle = dense ? -45 : 0;
+      if (plotX && plotX.length > 1) {
+        ax.range = [plotX[0], plotX[plotX.length - 1]];
+      }
+    } else if (plotX && plotX.length) {
+      if (ax.tickangle == null) ax.tickangle = dense ? -45 : 0;
+    }
+    return ax;
   }
 
   function plotAxis(title) {
