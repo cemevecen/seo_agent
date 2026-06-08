@@ -166,22 +166,55 @@
     return base;
   }
 
-  function hoverTextForSeries(name, values) {
-    return (values || []).map(function (v) {
-      var n = Number(v) || 0;
-      if (n <= 0) return "";
-      return (name || "") + ": " + formatNum(n);
-    });
+  /** Çizgi hover kapalı; yalnızca >0 günlerde görünmez marker → unified hover’da boş satır yok. */
+  function tracesLineWithPointHover(trace) {
+    var t = Object.assign({}, trace);
+    var xs = t.x || [];
+    var ys = t.y || [];
+    var color = (t.line && t.line.color) || "#888";
+    var line = {
+      x: xs,
+      y: ys,
+      type: t.type || "scatter",
+      mode: "lines",
+      name: t.name,
+      line: t.line || { color: color },
+      hoverinfo: "skip",
+    };
+    var hx = [];
+    var hy = [];
+    var htext = [];
+    for (var i = 0; i < ys.length; i++) {
+      var n = Number(ys[i]) || 0;
+      if (n <= 0) continue;
+      hx.push(xs[i]);
+      hy.push(n);
+      htext.push((t.name || "") + ": " + formatNum(n));
+    }
+    if (!hx.length) {
+      return [line];
+    }
+    var markers = {
+      x: hx,
+      y: hy,
+      type: "scatter",
+      mode: "markers",
+      name: t.name,
+      legendgroup: t.name,
+      showlegend: false,
+      marker: { size: 12, color: color, opacity: 0 },
+      hovertext: htext,
+      hoverinfo: "text",
+      hovertemplate: "%{hovertext}<extra></extra>",
+      hoveron: "points",
+    };
+    return [line, markers];
   }
 
-  function traceWithFullHover(trace) {
-    var t = Object.assign({}, trace);
-    var ys = t.y || [];
-    t.hovertext = hoverTextForSeries(t.name, ys);
-    t.hoverinfo = "text";
-    t.hovertemplate = "%{hovertext}<extra></extra>";
-    t.hoveron = "points+fills";
-    return t;
+  function pushHoverTraces(out, trace) {
+    tracesLineWithPointHover(trace).forEach(function (tr) {
+      out.push(tr);
+    });
   }
 
   function dateFromPlotPoint(x) {
@@ -307,24 +340,24 @@
     var dates = (data.total_daily && data.total_daily.dates) || [];
     var campTraces = [];
     if (hasSeriesSignal(data.total_daily)) {
-      campTraces.push(traceWithFullHover({
+      pushHoverTraces(campTraces, {
         x: dates,
         y: (data.total_daily && data.total_daily.values) || [],
         type: "scatter",
         mode: "lines",
         name: "download",
         line: { width: 2.5, color: "#2563eb" },
-      }));
+      });
     }
     filterCampaignsWithSignal(data.campaigns).forEach(function (c, i) {
-      campTraces.push(traceWithFullHover({
+      pushHoverTraces(campTraces, {
         x: (c.daily && c.daily.dates) || dates,
         y: (c.daily && c.daily.values) || [],
         type: "scatter",
         mode: "lines",
         name: c.campaign || "(not set)",
         line: { width: 1.5, color: COLORS[i % COLORS.length] },
-      }));
+      });
     });
     drawLine(
       "ab-chart-campaign",
@@ -344,23 +377,24 @@
     if (data.profile === "ios" && ascC && ascC.ok && ascC.combined_daily && hasSeriesSignal(ascC.combined_daily)) {
       ascWrap.classList.remove("hidden");
       document.getElementById("ab-chart-asc-note").textContent = ascC.note || "";
-      var ascTraces = [traceWithFullHover({
+      var ascTraces = [];
+      pushHoverTraces(ascTraces, {
         x: ascC.combined_daily.dates,
         y: ascC.combined_daily.values,
         type: "scatter",
         mode: "lines",
         name: "Banner kampanyaları (toplam)",
         line: { width: 2.5, color: "#059669" },
-      })];
+      });
       filterCampaignsWithSignal(ascC.campaigns).forEach(function (c, i) {
-        ascTraces.push(traceWithFullHover({
+        pushHoverTraces(ascTraces, {
           x: (c.daily && c.daily.dates) || ascC.combined_daily.dates,
           y: (c.daily && c.daily.values) || [],
           type: "scatter",
           mode: "lines",
           name: c.campaign,
           line: { width: 1.2, color: COLORS[(i + 3) % COLORS.length] },
-        }));
+        });
         var tr = document.createElement("tr");
         tr.innerHTML = "<td class=\"px-2 py-1.5\">" + escapeHtml(c.campaign) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(c.total) + "</td>";
         ascBody.appendChild(tr);
@@ -387,11 +421,12 @@
       document.getElementById("ab-chart-mweb-title").textContent =
         "Mobil web — banner eventleri (" + (mw.operating_systems || "") + ")";
       var mwebEvents = filterMwebEventsWithSignal(mw.events);
-      var mwebTraces = mwebEvents.map(function (ev, i) {
+      var mwebTraces = [];
+      mwebEvents.forEach(function (ev, i) {
         var tr = document.createElement("tr");
         tr.innerHTML = "<td class=\"px-2 py-1.5 font-mono text-[10px]\" title=\"" + escapeHtml(ev.event_name) + "\">" + escapeHtml(shortBannerEventName(ev.event_name)) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(ev.total) + "</td>";
         mwebBody.appendChild(tr);
-        return traceWithFullHover({
+        pushHoverTraces(mwebTraces, {
           x: (ev.daily && ev.daily.dates) || dates,
           y: (ev.daily && ev.daily.values) || [],
           type: "scatter",
