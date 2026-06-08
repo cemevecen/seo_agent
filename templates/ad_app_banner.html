@@ -1,9 +1,5 @@
 {% extends "base.html" %}
 {% block content %}
-<style>
-  /* Sıfır satırlı Plotly kutusu yerine «Seçili gün» paneli */
-  .app-banner-page .hoverlayer { pointer-events: none !important; visibility: hidden !important; }
-</style>
 <div class="mx-auto w-full max-w-[1920px] space-y-4 mz-page app-banner-page" data-header-title="Ad · GA4 banner">
   <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
     <div>
@@ -50,7 +46,7 @@
       <button id="ab-run" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-600">Yenile</button>
     </div>
     <p id="ab-meta" class="mt-3 text-xs text-slate-500 dark:text-zinc-400"></p>
-    <div id="ab-day-insight" class="mt-2 hidden rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-zinc-100">
+    <div id="ab-day-insight" class="mt-2 hidden rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-zinc-100" aria-live="polite">
       <p class="font-bold text-indigo-900 dark:text-indigo-200">Seçili gün</p>
       <p id="ab-day-insight-body" class="mt-1 break-words tabular-nums leading-relaxed"></p>
     </div>
@@ -170,10 +166,37 @@
     return base;
   }
 
+  function hoverTextForSeries(name, values) {
+    return (values || []).map(function (v) {
+      var n = Number(v) || 0;
+      if (n <= 0) return "";
+      return (name || "") + ": " + formatNum(n);
+    });
+  }
+
   function traceWithFullHover(trace) {
     var t = Object.assign({}, trace);
-    t.hoverinfo = "skip";
+    var ys = t.y || [];
+    t.hovertext = hoverTextForSeries(t.name, ys);
+    t.hoverinfo = "text";
+    t.hovertemplate = "%{hovertext}<extra></extra>";
+    t.hoveron = "points+fills";
     return t;
+  }
+
+  function dateFromPlotPoint(x) {
+    if (x == null) return null;
+    if (typeof x === "string") return x.slice(0, 10);
+    if (typeof x === "number" && isFinite(x)) {
+      var d = new Date(x);
+      if (!isNaN(d.getTime())) {
+        return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      }
+    }
+    if (x.getFullYear) {
+      return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+    }
+    return String(x).slice(0, 10);
   }
 
   function filterCampaignsWithSignal(list) {
@@ -232,12 +255,10 @@
       var v = valueAt(ev.daily, dateIso);
       if (v != null && v > 0) lines.push(shortBannerEventName(ev.event_name) + ": " + formatNum(v));
     });
-    if (!lines.length) {
-      box.classList.add("hidden");
-      return;
-    }
     body.innerHTML = "<span class=\"font-semibold\">" + escapeHtml(dateIso) + "</span><br>" +
-      lines.map(function (ln) { return escapeHtml(ln); }).join("<br>");
+      (lines.length
+        ? lines.map(function (ln) { return escapeHtml(ln); }).join("<br>")
+        : "<span class=\"text-slate-500 dark:text-zinc-400\">Bu gün için gösterilecek değer yok.</span>");
     box.classList.remove("hidden");
   }
 
@@ -245,15 +266,25 @@
     var el = document.getElementById(elId);
     if (!el || !window.Plotly) return;
     try { Plotly.purge(el); } catch (_) {}
+    if (!traces.length) {
+      el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-400\">Grafik verisi yok.</p>";
+      return;
+    }
     Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: true }).then(function (gd) {
       if (!onHoverDate) return;
-      gd.on("plotly_hover", function (ev) {
-        var pt = ev.points && ev.points[0];
-        if (pt && pt.x) updateDayInsight(String(pt.x).slice(0, 10));
-      });
-      gd.on("plotly_unhover", function () {
-        document.getElementById("ab-day-insight").classList.add("hidden");
-      });
+      function onHover(ev) {
+        var pts = ev.points || [];
+        var dateIso = null;
+        for (var i = 0; i < pts.length; i++) {
+          dateIso = dateFromPlotPoint(pts[i].x);
+          if (dateIso) break;
+        }
+        if (!dateIso && ev.xvals && ev.xvals.length) {
+          dateIso = dateFromPlotPoint(ev.xvals[0]);
+        }
+        if (dateIso) updateDayInsight(dateIso);
+      }
+      gd.on("plotly_hover", onHover);
     });
   }
 
