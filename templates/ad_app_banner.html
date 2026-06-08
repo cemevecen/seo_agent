@@ -267,9 +267,11 @@
 
   function render(data) {
     lastPayload = data;
-    var label = data.metric_label || "First opens";
-    document.getElementById("ab-chart-camp-title").textContent =
-      "GA4 app — " + label + " (toplam + kampanya, üst " + (data.top_campaigns || 10) + ")";
+    var label = data.metric_label || "Download";
+    var manual = data.data_source === "manual_ios_table";
+    document.getElementById("ab-chart-camp-title").textContent = manual
+      ? "iOS app — download (manuel tablo, üst " + (data.top_campaigns || 10) + " kampanya)"
+      : "GA4 app — " + label + " (toplam + kampanya, üst " + (data.top_campaigns || 10) + ")";
 
     var dates = (data.total_daily && data.total_daily.dates) || [];
     var campTraces = [];
@@ -389,12 +391,14 @@
     if (data.chart_start && data.start && data.chart_start > data.start) {
       rangeNote = "Grafikler veri başlangıcı: " + data.chart_start + " (seçilen " + data.start + " öncesi sıfır günler gösterilmez)";
     }
+    var src = manual ? "Manuel tablo" : "GA4";
     document.getElementById("ab-meta").textContent = [
       data.domain || "",
       data.profile || "",
       (data.chart_start || data.start) + " → " + (data.chart_end || data.end),
       rangeNote,
-      "GA4 · " + (data.fetched_at ? new Date(data.fetched_at).toLocaleString("tr-TR") : ""),
+      data.manual_table_note || "",
+      src + " · " + (data.fetched_at ? new Date(data.fetched_at).toLocaleString("tr-TR") : ""),
     ].filter(Boolean).join(" · ");
   }
 

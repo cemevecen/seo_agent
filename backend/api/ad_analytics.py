@@ -387,30 +387,47 @@ def get_ga4_app_banner(
     if site is None:
         raise HTTPException(status_code=404, detail="Site bulunamadı.")
 
+    proj_key = (project or "doviz").strip().lower()
+    use_ios_manual = prof == "ios" and proj_key == "doviz"
+
     record = get_ga4_credentials_record(db, site.id)
     properties = load_ga4_properties(record)
-    property_id = str(properties.get(prof) or "").strip()
-    if not property_id:
-        raise HTTPException(
-            status_code=404,
-            detail=f"GA4 {prof} property tanımlı değil.",
+
+    if use_ios_manual:
+        from backend.services.doviz_ios_app_banner_manual import (
+            fetch_doviz_ios_app_banner_manual,
         )
 
-    try:
-        payload = fetch_app_banner_attribution(
-            property_id,
-            start=start_s,
-            end=end_s,
-            top_campaigns=top_campaigns,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ga_exc.GoogleAPIError as exc:
-        raise HTTPException(status_code=502, detail=f"GA4 API: {exc.message}") from exc
+        try:
+            payload = fetch_doviz_ios_app_banner_manual(
+                start=start_s,
+                end=end_s,
+                top_campaigns=top_campaigns,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        property_id = str(properties.get(prof) or "").strip()
+        if not property_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"GA4 {prof} property tanımlı değil.",
+            )
+        try:
+            payload = fetch_app_banner_attribution(
+                property_id,
+                start=start_s,
+                end=end_s,
+                top_campaigns=top_campaigns,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ga_exc.GoogleAPIError as exc:
+            raise HTTPException(status_code=502, detail=f"GA4 API: {exc.message}") from exc
 
     payload["site_id"] = site.id
     payload["domain"] = site.domain
-    payload["project"] = (project or "doviz").strip().lower()
+    payload["project"] = proj_key
     payload["profile"] = prof
 
     start_d = date_cls.fromisoformat(start_s)
