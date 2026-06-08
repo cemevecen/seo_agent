@@ -402,43 +402,63 @@ def _streaming_store_key(media_type: str, item_id: int) -> str:
     return f"{media_type}:{item_id}"
 
 
-def _attach_streaming_provider(entry: dict, provider_name: str) -> None:
-    provs = entry.setdefault("providers", [])
-    if provider_name not in provs:
-        provs.append(provider_name)
-    entry["provider_slugs"] = _provider_slugs(provs)
-
-
-def _merge_streaming_movie(
-    store: dict[str, dict],
-    raw: dict,
-    provider_name: str,
-) -> None:
+def _merge_streaming_movie(store: dict[str, dict], raw: dict) -> None:
     key = _streaming_store_key("movie", raw["id"])
     if key not in store:
         store[key] = _enrich(raw)
         store[key]["providers"] = []
-    _attach_streaming_provider(store[key], provider_name)
 
 
-def _merge_streaming_tv(
-    store: dict[str, dict],
-    raw: dict,
-    provider_name: str,
-) -> None:
+def _merge_streaming_tv(store: dict[str, dict], raw: dict) -> None:
     key = _streaming_store_key("tv", raw["id"])
     if key not in store:
         entry = _enrich_tv(raw)
         entry["providers"] = []
         store[key] = entry
-    _attach_streaming_provider(store[key], provider_name)
+
+
+def _fetch_tr_ott_provider_names(media_type: str, tmdb_id: int) -> list[str]:
+    """TR bölgesinde flatrate OTT — yalnızca izlediğimiz sağlayıcı ID'leri."""
+    mt = "tv" if media_type == "tv" else "movie"
+    try:
+        data = _get(f"/{mt}/{tmdb_id}/watch/providers", {"watch_region": "TR"})
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("watch/providers atlandı %s/%s: %s", mt, tmdb_id, exc)
+        return []
+    tr = (data.get("results") or {}).get("TR") or {}
+    order = {str(p["name"]): i for i, p in enumerate(TR_STREAMING_PROVIDERS)}
+    tracked_ids = {int(p["id"]) for p in TR_STREAMING_PROVIDERS}
+    id_to_name = {int(p["id"]): str(p["name"]) for p in TR_STREAMING_PROVIDERS}
+    seen: set[str] = set()
+    names: list[str] = []
+    for prov in tr.get("flatrate") or []:
+        pid = int(prov.get("provider_id") or 0)
+        if pid not in tracked_ids:
+            continue
+        name = id_to_name[pid]
+        if name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    names.sort(key=lambda n: order.get(n, 999))
+    return names
+
+
+def _apply_tr_watch_providers_to_store(store: dict[str, dict]) -> None:
+    """Discover birleşiminden sonra rozetleri TMDB TR watch/providers ile doğrula."""
+    for entry in store.values():
+        mt = entry.get("media_type") or "movie"
+        names = _fetch_tr_ott_provider_names(mt, int(entry["id"]))
+        entry["providers"] = names
+        entry["provider_slugs"] = _provider_slugs(names)
+        time.sleep(0.04)
 
 
 def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     """
-    Her OTT platformu için ayrı TMDB discover (film + dizi).
-    watch_region=TR öncelikli; eksik kalanlar global discover ile tamamlanır.
-    Platform etiketi yalnızca o sorgunun sağlayıcısından gelir (false positive yok).
+    Her OTT platformu için ayrı TMDB discover (film + dizi) — aday havuzu.
+    Kart rozetleri discover etiketi değil; birleşim sonrası watch/providers (TR)
+    flatrate ile doğrulanır (global discover rozet biriktirmez).
     """
     date_from = _current_month_start()
     date_to   = _year_end()
@@ -458,9 +478,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     }
 
     for prov in TR_STREAMING_PROVIDERS:
-        provider_id = int(prov["id"])
-        provider_name = str(prov["name"])
-        pid = str(provider_id)
+        pid = str(int(prov["id"]))
 
         # Film — TR bölgesel yayın tarihi
         for m in _fetch_pages({
@@ -471,9 +489,9 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             "release_date.gte":        date_from,
             "release_date.lte":        date_to,
         }, page_limit=10):
-            _merge_streaming_movie(store, m, provider_name)
+            _merge_streaming_movie(store, m)
 
-        # Film — global keşif (TR'de henüz tarih yoksa)
+        # Film — global keşif (TR vizyon tarihi yoksa; rozet discover'dan eklenmez)
         for m in _fetch_pages({
             **movie_base,
             "with_watch_providers":         pid,
@@ -481,7 +499,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             "primary_release_date.gte":     date_from,
             "primary_release_date.lte":     date_to,
         }, page_limit=6):
-            _merge_streaming_movie(store, m, provider_name)
+            _merge_streaming_movie(store, m)
 
         # Dizi — TR
         for m in _fetch_tv_pages({
@@ -490,15 +508,18 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             "with_watch_providers":    pid,
             "with_watch_monetization_types": "flatrate",
         }, page_limit=8):
-            _merge_streaming_tv(store, m, provider_name)
+            _merge_streaming_tv(store, m)
 
-        # Dizi — global
+        # Dizi — global (aday; rozet API ile)
         for m in _fetch_tv_pages({
             **tv_base,
             "with_watch_providers":         pid,
             "with_watch_monetization_types": "flatrate",
         }, page_limit=5):
-            _merge_streaming_tv(store, m, provider_name)
+            _merge_streaming_tv(store, m)
+
+    if store:
+        _apply_tr_watch_providers_to_store(store)
 
     items = [
         m for m in store.values()
