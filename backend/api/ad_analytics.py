@@ -359,12 +359,8 @@ def get_ga4_app_banner(
     start: str | None = Query(None),
     end: str | None = Query(None),
     top_campaigns: int = Query(10, ge=1, le=25),
-    metric: str = Query(
-        "first_opens",
-        description="first_opens (first_open) | event_count (tüm eventler)",
-    ),
 ):
-    """GA4 mobil — günlük first opens / event count, first user campaign kırılımı."""
+    """GA4 mobil — günlük first_open, first user campaign kırılımı."""
     from google.api_core import exceptions as ga_exc
 
     from datetime import date as date_cls
@@ -375,16 +371,13 @@ def get_ga4_app_banner(
         fetch_app_banner_attribution,
         fetch_mweb_banner_events_daily,
         slice_asc_downloads_daily,
+        trim_banner_payload_to_observed_start,
     )
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
     prof = (profile or "android").strip().lower()
     if prof not in ("android", "ios"):
         raise HTTPException(status_code=400, detail="profile android veya ios olmalı.")
-
-    mode = (metric or "first_opens").strip().lower()
-    if mode not in ("first_opens", "event_count"):
-        raise HTTPException(status_code=400, detail="metric: first_opens veya event_count.")
 
     if start and end:
         start_s, end_s = start.strip()[:10], end.strip()[:10]
@@ -410,7 +403,6 @@ def get_ga4_app_banner(
             start=start_s,
             end=end_s,
             top_campaigns=top_campaigns,
-            metric_mode=mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -459,6 +451,7 @@ def get_ga4_app_banner(
         else:
             payload["app_store_downloads"] = {"ok": False, "message": "iOS bundle tanımlı değil."}
 
+    trim_banner_payload_to_observed_start(payload)
     return payload
 
 

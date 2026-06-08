@@ -135,11 +135,8 @@ def _run_campaign_daily_report(
     *,
     start: str,
     end: str,
-    metric_mode: str,
 ) -> list[Any]:
     pid = property_id if str(property_id).startswith("properties/") else f"properties/{property_id}"
-    mode = (metric_mode or "first_opens").strip().lower()
-    dim_filter = _first_open_filter() if mode == "first_opens" else None
     req = RunReportRequest(
         property=pid,
         dimensions=[
@@ -148,7 +145,7 @@ def _run_campaign_daily_report(
         ],
         metrics=[Metric(name="eventCount")],
         date_ranges=[DateRange(start_date=start, end_date=end)],
-        dimension_filter=dim_filter,
+        dimension_filter=_first_open_filter(),
         limit=_REPORT_ROW_LIMIT,
         order_bys=[
             OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name="date")),
@@ -158,20 +155,95 @@ def _run_campaign_daily_report(
     return list(resp.rows or [])
 
 
+def _slice_daily_series(series: dict[str, list] | None, *, from_date: str) -> dict[str, list]:
+    if not series or not series.get("dates"):
+        return {"dates": [], "values": []}
+    dates = list(series["dates"])
+    values = list(series.get("values") or [])
+    idx = 0
+    while idx < len(dates) and dates[idx] < from_date:
+        idx += 1
+    return {"dates": dates[idx:], "values": values[idx:]}
+
+
+def _first_signal_date(payload: dict[str, Any]) -> str | None:
+    """İlk gerçek veri günü (sıfır doldurulmuş başlangıç hariç)."""
+    found: list[str] = []
+
+    def _scan(series: dict[str, list] | None) -> None:
+        if not series:
+            return
+        for d, v in zip(series.get("dates") or [], series.get("values") or []):
+            if float(v or 0) > 0:
+                found.append(str(d)[:10])
+
+    _scan(payload.get("total_daily"))
+    for camp in payload.get("campaigns") or []:
+        _scan((camp or {}).get("daily"))
+    mw = payload.get("mweb_banner") or {}
+    daily = mw.get("daily") if isinstance(mw.get("daily"), dict) else {}
+    for key in ("display", "dismiss", "click"):
+        _scan(daily.get(key))
+    asc = payload.get("app_store_downloads") or {}
+    if asc.get("ok") and isinstance(asc.get("daily"), dict):
+        ad = asc["daily"]
+        for d, v in zip(ad.get("dates") or [], ad.get("total_downloads") or []):
+            if float(v or 0) > 0:
+                found.append(str(d)[:10])
+    return min(found) if found else None
+
+
+def trim_banner_payload_to_observed_start(payload: dict[str, Any]) -> dict[str, Any]:
+    """Kullanıcı aralığındaki yapay baştaki sıfırları keser; chart_range döner."""
+    req_start = str(payload.get("start") or "")[:10]
+    req_end = str(payload.get("end") or "")[:10]
+    first = _first_signal_date(payload)
+    if not first or (req_start and first <= req_start):
+        payload["chart_start"] = req_start
+        payload["chart_end"] = req_end
+        return payload
+    payload["chart_start"] = first
+    payload["chart_end"] = req_end
+    payload["total_daily"] = _slice_daily_series(payload.get("total_daily"), from_date=first)
+    for camp in payload.get("campaigns") or []:
+        camp["daily"] = _slice_daily_series(camp.get("daily"), from_date=first)
+    mw = payload.get("mweb_banner")
+    if isinstance(mw, dict) and isinstance(mw.get("daily"), dict):
+        for key in ("display", "dismiss", "click"):
+            mw["daily"][key] = _slice_daily_series(mw["daily"].get(key), from_date=first)
+    asc = payload.get("app_store_downloads")
+    if isinstance(asc, dict) and asc.get("ok") and isinstance(asc.get("daily"), dict):
+        ad = asc["daily"]
+        asc["daily"] = {
+            "dates": [d for d in (ad.get("dates") or []) if str(d)[:10] >= first],
+            "total_downloads": [
+                float((ad.get("total_downloads") or [0])[i])
+                for i, d in enumerate(ad.get("dates") or [])
+                if str(d)[:10] >= first
+            ],
+            "first_time_downloads": [
+                float((ad.get("first_time_downloads") or [0])[i])
+                for i, d in enumerate(ad.get("dates") or [])
+                if str(d)[:10] >= first
+            ],
+            "redownloads": [
+                float((ad.get("redownloads") or [0])[i])
+                for i, d in enumerate(ad.get("dates") or [])
+                if str(d)[:10] >= first
+            ],
+        }
+    return payload
+
+
 def fetch_app_banner_attribution(
     property_id: str,
     *,
     start: str,
     end: str,
     top_campaigns: int = 10,
-    metric_mode: str = "first_opens",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """
-    Exploration «android banner» ile uyumlu: günlük toplam + kampanya kırılımı (ilk N).
-
-    metric_mode: first_opens (eventName=first_open) | event_count (tüm eventler).
-    """
+    """Exploration «android banner»: günlük first_open + kampanya kırılımı (ilk N)."""
     if not str(property_id or "").strip():
         raise ValueError("GA4 property tanımlı değil.")
 
@@ -189,7 +261,6 @@ def fetch_app_banner_attribution(
         property_id,
         start=start_d.isoformat(),
         end=end_d.isoformat(),
-        metric_mode=metric_mode,
     )
     total_by_date, by_campaign = _aggregate_rows(
         rows,
@@ -197,9 +268,6 @@ def fetch_app_banner_attribution(
         end=end_d,
         top_n=top_campaigns,
     )
-
-    mode = (metric_mode or "first_opens").strip().lower()
-    metric_label = "First opens" if mode == "first_opens" else "Event count"
 
     campaigns_out: list[dict[str, Any]] = []
     for name, day_map in sorted(
@@ -216,8 +284,8 @@ def fetch_app_banner_attribution(
         )
 
     return {
-        "metric_mode": mode,
-        "metric_label": metric_label,
+        "metric_mode": "first_opens",
+        "metric_label": "First opens",
         "dimension": CAMPAIGN_DIMENSION,
         "dimension_label": "First user campaign",
         "start": start_d.isoformat(),
@@ -346,15 +414,33 @@ def slice_asc_downloads_daily(
             "redownloads": float((asc_summary.get("redownloads_series") or [0])[i] or 0),
         }
     cal_dates = _calendar_dates(start, end)
+    dates_out: list[str] = []
+    td_out: list[float] = []
+    ft_out: list[float] = []
+    rd_out: list[float] = []
+    for d in cal_dates:
+        row = by_date.get(d)
+        if not row:
+            continue
+        if (
+            row.get("total_downloads", 0) <= 0
+            and row.get("first_time_downloads", 0) <= 0
+            and row.get("redownloads", 0) <= 0
+        ):
+            continue
+        dates_out.append(d)
+        td_out.append(float(row.get("total_downloads") or 0))
+        ft_out.append(float(row.get("first_time_downloads") or 0))
+        rd_out.append(float(row.get("redownloads") or 0))
     return {
         "ok": True,
         "source": "app_store_connect",
         "note": "Tüm uygulama Total Downloads (kampanya filtresi yok; ASC Campaigns UI ayrı).",
         "daily": {
-            "dates": cal_dates,
-            "total_downloads": [by_date.get(d, {}).get("total_downloads", 0.0) for d in cal_dates],
-            "first_time_downloads": [by_date.get(d, {}).get("first_time_downloads", 0.0) for d in cal_dates],
-            "redownloads": [by_date.get(d, {}).get("redownloads", 0.0) for d in cal_dates],
+            "dates": dates_out,
+            "total_downloads": td_out,
+            "first_time_downloads": ft_out,
+            "redownloads": rd_out,
         },
         "warnings": asc_summary.get("warnings") or [],
     }
