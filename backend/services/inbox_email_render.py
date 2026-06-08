@@ -10,6 +10,56 @@ from urllib.parse import urlparse
 from backend.services.inbox_visit_report import render_ziyaret_message_html
 
 # Gönderdiğimiz / yaygın multipart placeholder metinleri — HTML varken gösterilmez
+# UTF-8 baytları Latin-1/CP1252 gibi okununca oluşan tipik bozulma (KÃ¼ltÃ¼r → Kültür).
+_MOJIBAKE_MARKER_RE = re.compile(
+    r"Ã[\x80-\xBF]|Ä[\x80-\xBF]|Å[\x80-\xBF]|Â[\x80-\xBF]|â€[™œžŸ]|ï»¿"
+)
+
+
+def _inbox_text_quality(text: str) -> int:
+    score = 0
+    for ch in text:
+        if ch in "şğıüöçŞĞİÜÖÇ":
+            score += 4
+    score -= text.count("Ã") * 3
+    score -= text.count("Ä") * 3
+    score -= text.count("Å") * 3
+    score -= text.count("Â") * 2
+    score -= text.count("\ufffd") * 8
+    return score
+
+
+def repair_utf8_mojibake(text: str) -> str:
+    """UTF-8 içeriğin ISO-8859-1/CP1252 sanılarak okunmasından kaynaklanan metni onar."""
+    if not text:
+        return text
+    out = text
+    for _ in range(3):
+        if not _MOJIBAKE_MARKER_RE.search(out) and "Ã" not in out and "Ä" not in out and "Å" not in out:
+            break
+        fixed: str | None = None
+        for enc in ("latin-1", "cp1252"):
+            try:
+                fixed = out.encode(enc).decode("utf-8")
+                break
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                continue
+        if not fixed or fixed == out:
+            break
+        if _inbox_text_quality(fixed) >= _inbox_text_quality(out):
+            out = fixed
+        else:
+            break
+    return out
+
+
+def normalize_inbox_text(text: str | None) -> str:
+    """Inbox’ta gösterilen / saklanan metin — bozuk charset onarımı."""
+    if not text:
+        return ""
+    return repair_utf8_mojibake(text)
+
+
 _PLACEHOLDER_PLAIN_RE = re.compile(
     r"^(?:this is a plain-text fallback for the html email\.?|"
     r"plain-?text fallback.*|"
@@ -78,6 +128,7 @@ def html_to_plain_text(html_body: str) -> str:
     text = re.sub(r"(?i)</t[dh]\s*>", "\t", text)
     text = _STRIP_TAGS_RE.sub(" ", text)
     text = html.unescape(text)
+    text = normalize_inbox_text(text)
     text = text.replace("\xa0", " ")
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
@@ -95,7 +146,7 @@ def effective_plain_text(body_text: str | None, body_html: str | None) -> str:
         return html_to_plain_text(html_part)
     if is_placeholder_plain_text(plain):
         return html_to_plain_text(html_part) if html_part else ""
-    return plain
+    return normalize_inbox_text(plain)
 
 
 def _safe_url(url: str, *, allow_mailto: bool = True) -> str | None:
@@ -145,7 +196,7 @@ def _sanitize_attrs(tag: str, attr_blob: str) -> str:
 
 def sanitize_email_html(html_body: str) -> str:
     """XSS'siz, kırık link/img azaltılmış HTML — inbox iframe'siz gösterim."""
-    raw = html.unescape((html_body or "").strip())
+    raw = normalize_inbox_text(html.unescape((html_body or "").strip()))
     if not raw:
         return ""
     raw = _SCRIPT_STYLE_RE.sub("", raw)

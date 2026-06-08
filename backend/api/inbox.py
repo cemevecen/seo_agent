@@ -18,7 +18,11 @@ from backend.database import get_db
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.rate_limiter import limiter
 from backend.services import inbox_gmail_auth, inbox_llm, inbox_sync
-from backend.services.inbox_email_render import effective_plain_text, render_inbox_message_html
+from backend.services.inbox_email_render import (
+    effective_plain_text,
+    normalize_inbox_text,
+    render_inbox_message_html,
+)
 from backend.services.inbox_visit_report import (
     is_ziyaret_report_subject,
     ziyaret_thread_preview,
@@ -480,8 +484,8 @@ def inbox_threads_list(
             {
                 "id": t.id,
                 "gmail_thread_id": t.gmail_thread_id,
-                "subject": t.subject,
-                "snippet": (t.snippet or "")[:240],
+                "subject": normalize_inbox_text(t.subject),
+                "snippet": normalize_inbox_text(t.snippet or "")[:240],
                 "message_preview": message_preview,
                 "route_tag": t.route_tag,
                 "gmail_unread": t.gmail_unread,
@@ -521,7 +525,7 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
             "gmail_message_id": m.gmail_message_id,
             "from": m.from_addr,
             "to": m.to_addr,
-            "subject": m.subject,
+            "subject": normalize_inbox_text(m.subject),
             "body_preview": _body_preview(
                 effective_plain_text(m.body_text, body_html)
             ),
@@ -541,8 +545,8 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
         "thread": {
             "id": t.id,
             "gmail_thread_id": t.gmail_thread_id,
-            "subject": t.subject,
-            "snippet": t.snippet,
+            "subject": normalize_inbox_text(t.subject),
+            "snippet": normalize_inbox_text(t.snippet or ""),
             "route_tag": t.route_tag,
             "gmail_unread": t.gmail_unread,
             "answered_flag": t.answered_flag,
@@ -823,7 +827,7 @@ async def inbox_thread_reply_templates(
         focus_payload = {
             "gmail_message_id": focus.gmail_message_id,
             "from": sender,
-            "subject": (focus.subject or t.subject or "").strip(),
+            "subject": normalize_inbox_text((focus.subject or t.subject or "").strip()),
         }
     return {"templates": templates, "provider": used, "focus": focus_payload}
 

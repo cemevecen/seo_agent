@@ -335,21 +335,35 @@ def _part_charset(part: dict[str, Any]) -> str | None:
 
 
 def _decode_bytes(data: bytes, charset: str | None) -> str:
+    from backend.services.inbox_email_render import _inbox_text_quality, repair_utf8_mojibake
+
     encodings: list[str] = []
     if charset:
         encodings.append(charset.strip().lower())
     encodings.extend(["utf-8", "utf-8-sig", "cp1254", "iso-8859-9", "latin-1", "cp1252"])
     seen: set[str] = set()
+    candidates: list[str] = []
     for enc in encodings:
         key = enc.replace("_", "-")
         if key in seen:
             continue
         seen.add(key)
         try:
-            return data.decode(enc)
+            candidates.append(data.decode(enc))
         except (LookupError, UnicodeDecodeError):
             continue
-    return data.decode("utf-8", errors="replace")
+    if not candidates:
+        return repair_utf8_mojibake(data.decode("utf-8", errors="replace"))
+
+    best = candidates[0]
+    best_score = -10_000
+    for raw in candidates:
+        for variant in (raw, repair_utf8_mojibake(raw)):
+            sc = _inbox_text_quality(variant)
+            if sc > best_score:
+                best_score = sc
+                best = variant
+    return best
 
 
 def _decode_b64url(data: str, *, charset: str | None = None) -> str:
@@ -1273,6 +1287,11 @@ def _upsert_thread_from_gmail(
         if not subject0:
             subject0 = h.get("subject") or ""
 
+    from backend.services.inbox_email_render import normalize_inbox_text
+
+    subject0 = normalize_inbox_text(subject0)
+    snippet = normalize_inbox_text(snippet)
+
     computed_tag = _route_tag_from_thread(msgs_raw, route_src, account_lower)
     route_tag = normalize_inbox_route_tag(
         _finalize_route_tag(computed_tag, route_src, sync_route_hint, subject=subject0)
@@ -1337,7 +1356,7 @@ def _upsert_thread_from_gmail(
                 gmail_message_id=mid,
                 from_addr=(h.get("from") or "")[:512],
                 to_addr=to_combined or (h.get("to") or "")[:512],
-                subject=(h.get("subject") or "")[:998],
+                subject=normalize_inbox_text(h.get("subject") or "")[:998],
                 body_text=body,
                 body_html=body_html,
                 internal_ms=ims,

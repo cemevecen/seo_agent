@@ -4,8 +4,10 @@ from backend.services.inbox_email_render import (
     effective_plain_text,
     html_to_plain_text,
     is_placeholder_plain_text,
+    normalize_inbox_text,
     plain_text_for_mailer,
     render_inbox_message_html,
+    repair_utf8_mojibake,
     sanitize_email_html,
 )
 from backend.services.inbox_sync import _decode_bytes
@@ -62,3 +64,34 @@ def test_plain_text_for_mailer_from_html():
 def test_decode_bytes_turkish_cp1254():
     raw = "Gelen kutusu özeti".encode("cp1254")
     assert "özeti" in _decode_bytes(raw, "cp1254")
+
+
+def test_repair_utf8_mojibake_turkish():
+    broken = "KÃ¼ltÃ¼r AvcÄ±larÄ±\nBu projeyi yeniliklerle yeniden baÅŸlatÄ±yoruz."
+    fixed = repair_utf8_mojibake(broken)
+    assert "Kültür Avcıları" in fixed
+    assert "başlatıyoruz" in fixed
+    assert "Ã" not in fixed
+
+
+def test_sanitize_email_html_repairs_mojibake():
+    raw = "<h1>KÃ¼ltÃ¼r AvcÄ±larÄ±</h1><p>baÅŸlatÄ±yoruz</p>"
+    out = sanitize_email_html(raw)
+    assert "Kültür" in out
+    assert "başlat" in out
+
+
+def test_effective_plain_repairs_mojibake():
+    assert "Kültür" in effective_plain_text("KÃ¼ltÃ¼r AvcÄ±larÄ±", "")
+
+
+def test_decode_bytes_utf8_wrong_charset_header():
+    raw = "Kültür Avcıları".encode("utf-8")
+    text = _decode_bytes(raw, "iso-8859-1")
+    assert "Kültür" in text
+    assert "Ã" not in text
+
+
+def test_normalize_inbox_text_idempotent():
+    good = "Kültür Avcıları"
+    assert normalize_inbox_text(good) == good
