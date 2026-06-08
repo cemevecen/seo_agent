@@ -248,29 +248,65 @@ async def post_ad_analytics_upload_bulk_stream(
     )
 
 
-@router.get("/mz-analytics/ga4-mobile-overlay")
-def get_ga4_mobile_overlay(db: Session = Depends(get_db)):
-    """doviz.com GA4 12 ay günlük trend — android/ios sessions + activeUsers (/ad drill overlay)."""
+def _mz_ga4_overlay_profiles(branch: str) -> tuple[str, list[str]]:
+    """Dal → GA4 profilleri. desktop=web, mweb=mobil web; ios/android=uygulama."""
+    br = (branch or "desktop").strip().lower()
+    if br == "desktop":
+        return "web", ["web"]
+    if br == "mweb":
+        return "web", ["mweb"]
+    if br in ("android", "ios"):
+        return "app", ["android", "ios"]
+    return "app", ["android", "ios"]
+
+
+def _mz_ga4_site(db: Session, project: str):
     from sqlalchemy import case
 
-    from backend.config import settings
     from backend.models import Site
-    from backend.services.warehouse import get_latest_ga4_report_snapshot
 
-    site = (
+    pid = (project or "doviz").strip().lower()
+    if pid == "sinemalar":
+        domain_like = "%sinemalar.com%"
+        www_rank = case((Site.domain.ilike("www.sinemalar.com%"), 0), else_=1)
+    else:
+        domain_like = "%doviz.com%"
+        www_rank = case((Site.domain.ilike("www.doviz.com%"), 0), else_=1)
+    return (
         db.query(Site)
         .filter(Site.is_active.is_(True))
-        .filter(Site.domain.ilike("%doviz.com%"))
-        .order_by(
-            case((Site.domain.ilike("www.doviz.com%"), 0), else_=1),
-            Site.id.asc(),
-        )
+        .filter(Site.domain.ilike(domain_like))
+        .order_by(www_rank, Site.id.asc())
         .first()
     )
+
+
+@router.get("/mz-analytics/ga4-mobile-overlay")
+def get_ga4_mobile_overlay(
+    db: Session = Depends(get_db),
+    project: str = Query("doviz"),
+    branch: str = Query("desktop"),
+):
+    """GA4 günlük trend overlay — web/mweb veya android/ios (/ad drill grafikleri)."""
+    from backend.config import settings
+    from backend.services.warehouse import get_latest_ga4_report_snapshot
+
+    site = _mz_ga4_site(db, project)
     if site is None:
-        return {"site_id": None, "android": None, "ios": None}
+        kind, _profiles = _mz_ga4_overlay_profiles(branch)
+        return {
+            "site_id": None,
+            "kind": kind,
+            "project": (project or "doviz").strip().lower(),
+            "branch": (branch or "desktop").strip().lower(),
+            "web": None,
+            "mweb": None,
+            "android": None,
+            "ios": None,
+        }
 
     period_days = int(settings.ga4_trend_12m_period_days)
+    kind, profiles = _mz_ga4_overlay_profiles(branch)
 
     def _profile_trend(profile: str) -> dict | None:
         snap = get_latest_ga4_report_snapshot(
@@ -287,6 +323,7 @@ def get_ga4_mobile_overlay(db: Session = Depends(get_db)):
         if not dates:
             return None
         return {
+            "profile": profile,
             "last_start": snap.get("last_start"),
             "last_end": snap.get("last_end"),
             "collected_at": snap.get("collected_at"),
@@ -297,13 +334,21 @@ def get_ga4_mobile_overlay(db: Session = Depends(get_db)):
             },
         }
 
-    return {
+    out: dict = {
         "site_id": site.id,
         "domain": site.domain,
+        "project": (project or "doviz").strip().lower(),
+        "branch": (branch or "desktop").strip().lower(),
+        "kind": kind,
         "period_days": period_days,
-        "android": _profile_trend("android"),
-        "ios": _profile_trend("ios"),
+        "web": None,
+        "mweb": None,
+        "android": None,
+        "ios": None,
     }
+    for prof in profiles:
+        out[prof] = _profile_trend(prof)
+    return out
 
 
 @router.post("/mz-analytics/reset")

@@ -3381,10 +3381,29 @@
     el.classList.remove("hidden");
   }
 
+  function clearGa4MobileOverlayCache() {
+    state.ga4MobileOverlay = null;
+    state._ga4MobileOverlayPromise = null;
+  }
+
+  function ga4OverlayStatusLabel() {
+    var br = state.activeStream && state.activeStream.branch;
+    if (br === "desktop") return "web";
+    if (br === "mweb") return "mobil web";
+    return "android/ios";
+  }
+
   async function ensureGa4MobileOverlay(signal) {
-    if (state.ga4MobileOverlay) return state.ga4MobileOverlay;
+    var st = state.activeStream || {};
+    var streamKey = st.key || (st.project + ":" + st.branch);
+    if (state.ga4MobileOverlay && state.ga4MobileOverlay._mzStreamKey === streamKey) {
+      return state.ga4MobileOverlay;
+    }
     if (state._ga4MobileOverlayPromise) return state._ga4MobileOverlayPromise;
-    state._ga4MobileOverlayPromise = fetch("/api/mz-analytics/ga4-mobile-overlay", {
+    var q =
+      "/api/mz-analytics/ga4-mobile-overlay?project=" + encodeURIComponent(st.project || "doviz") +
+      "&branch=" + encodeURIComponent(st.branch || "desktop");
+    state._ga4MobileOverlayPromise = fetch(q, {
       credentials: "same-origin",
       signal: signal,
     })
@@ -3393,6 +3412,7 @@
         return r.json();
       })
       .then(function (data) {
+        data._mzStreamKey = streamKey;
         state.ga4MobileOverlay = data;
         state._ga4MobileOverlayPromise = null;
         return data;
@@ -3466,17 +3486,29 @@
 
   function ga4OverlayPlatformVisible(platformKey) {
     var br = state.activeStream && state.activeStream.branch;
+    if (br === "desktop") return platformKey === "web";
+    if (br === "mweb") return platformKey === "mweb";
     if (br === "android") return platformKey === "android";
     if (br === "ios") return platformKey === "ios";
     return true;
   }
 
-  function buildGa4MobileTraces(plotX, bucketKeys, chartTimeKey, overlay, axisMode) {
-    if (!overlay || !plotX || !plotX.length || !bucketKeys || !bucketKeys.length) return [];
-    axisMode = axisMode || "overlay";
-    var sessAxis = axisMode === "split" ? "y" : "y2";
-    var userAxis = axisMode === "split" ? "y2" : "y2";
+  function ga4OverlayTraceSpecs(overlay) {
     var specs = [
+      {
+        platformKey: "web",
+        label: "Web",
+        trend: overlay.web && overlay.web.daily_trend,
+        sessColor: "#2563eb",
+        userColor: "#0891b2",
+      },
+      {
+        platformKey: "mweb",
+        label: "Mobil Web",
+        trend: overlay.mweb && overlay.mweb.daily_trend,
+        sessColor: "#7c3aed",
+        userColor: "#0d9488",
+      },
       {
         platformKey: "android",
         label: "Android",
@@ -3492,6 +3524,18 @@
         userColor: "#14b8a6",
       },
     ];
+    return specs.filter(function (spec) {
+      if (!spec.trend || !(spec.trend.dates || []).length) return false;
+      return ga4OverlayPlatformVisible(spec.platformKey);
+    });
+  }
+
+  function buildGa4MobileTraces(plotX, bucketKeys, chartTimeKey, overlay, axisMode) {
+    if (!overlay || !plotX || !plotX.length || !bucketKeys || !bucketKeys.length) return [];
+    axisMode = axisMode || "overlay";
+    var sessAxis = axisMode === "split" ? "y" : "y2";
+    var userAxis = axisMode === "split" ? "y2" : "y2";
+    var specs = ga4OverlayTraceSpecs(overlay);
     var out = [];
     specs.forEach(function (spec) {
       if (!spec.trend || !(spec.trend.dates || []).length) return;
@@ -4115,10 +4159,11 @@
           (rangeLbl.start || rangeLbl.end)
             ? " · " + (rangeLbl.start || "…") + " — " + (rangeLbl.end || "…")
             : "";
+        var ga4Lbl = ga4OverlayStatusLabel();
         var ga4Note = ga4SplitOn
-          ? " · GA4 ayrı grafik (android/ios)"
+          ? " · GA4 ayrı grafik (" + ga4Lbl + ")"
           : ga4OverlayOn
-            ? " · GA4 android/ios oturum & kullanıcı (üst grafik)"
+            ? " · GA4 " + ga4Lbl + " oturum & kullanıcı (üst grafik)"
             : "";
         statusEl.textContent =
           series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + rangeNote + extra + autoNote + ga4Note;
@@ -5494,6 +5539,7 @@
       btn.textContent = st.label;
       btn.addEventListener("click", function () {
         state.activeStream = st;
+        clearGa4MobileOverlayCache();
         ensureActiveKpi(activeKpiDefs(null));
         renderStreamTabs();
         updateScopeUi();
