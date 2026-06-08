@@ -633,15 +633,15 @@ PAGE_ALARM_RULES: dict[str, dict[str, Any]] = {
     "page_traffic_drop": {
         "label": "Sayfa trafiği düşüşü",
         "direction": "drop",
-        "threshold_pct": 40,
-        "min_users": 15,
+        "threshold_pct": 45,
+        "min_users": 22,
         "severity": "warning",
     },
     "page_traffic_spike": {
         "label": "Sayfa trafiği artışı",
         "direction": "spike",
-        "threshold_pct": 60,
-        "min_users": 15,
+        "threshold_pct": 65,
+        "min_users": 18,
         "severity": "warning",
     },
     "page_disappeared": {
@@ -724,8 +724,60 @@ def _split_alarms_by_sentiment(alarms: list[dict[str, Any]]) -> tuple[list[dict[
     return negatives, positives
 
 
-# Bir maile dahil edilecek azami pozitif/negatif alarm sayısı — istek üzerine 10+10.
-ALARM_EMAIL_TOP_N = 10
+# Bir site+profil mailinde azami pozitif/negatif alarm (konsolide mailde ayrıca batch cap var).
+ALARM_EMAIL_TOP_N = 6
+
+
+def _alarm_user_volumes(alarm: dict[str, Any]) -> tuple[float, float, float]:
+    prev = float(
+        alarm.get("previous_users")
+        or alarm.get("previous_value")
+        or alarm.get("previous_count")
+        or 0
+    )
+    curr = float(
+        alarm.get("current_users")
+        or alarm.get("current_value")
+        or alarm.get("current_count")
+        or 0
+    )
+    return prev, curr, abs(curr - prev)
+
+
+def alarm_worthy_for_email(alarm: dict[str, Any]) -> bool:
+    """Düşük hacimli yüzde oynamalarını postadan eler; spike/404/kritik korunur."""
+    from backend.config import settings
+
+    rid = str(alarm.get("rule_id") or "")
+    sev = str(alarm.get("severity") or "").lower()
+    if sev == "critical" or "404" in rid or rid.startswith("rt_404"):
+        return True
+
+    min_vol = int(getattr(settings, "ga4_realtime_email_min_users_for_mail", 30))
+    min_delta = int(getattr(settings, "ga4_realtime_email_min_abs_user_delta", 12))
+    prev, curr, delta = _alarm_user_volumes(alarm)
+    peak = max(prev, curr)
+
+    if rid in ("page_traffic_drop", "news_traffic_drop"):
+        return peak >= min_vol and delta >= min_delta
+    if rid in ("page_disappeared", "news_disappeared"):
+        return prev >= min_vol
+    if rid == "news_peak_drop":
+        try:
+            peak_u = float(alarm.get("peak_users") or alarm.get("min_peak_users") or 0)
+        except (TypeError, ValueError):
+            peak_u = 0.0
+        return peak_u >= min_vol
+    if rid in ("page_traffic_spike", "news_traffic_spike", "page_new_entry", "news_new_entry"):
+        spike_floor = max(18, min_vol - 8)
+        return curr >= spike_floor or (prev >= spike_floor and delta >= min_delta)
+    if rid.startswith("app_event"):
+        return peak >= 15
+    return True
+
+
+def filter_alarms_for_email(alarms: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [a for a in alarms if alarm_worthy_for_email(a)]
 
 
 def _cap_top_n_each_side(alarms: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2195,8 +2247,9 @@ def check_site_realtime(
             if _alarm_email_suppressed(db, site.id, rule_ids, profile=profile):
                 logger.info("GA4 Realtime: E-posta cooldown aktif, gönderim atlandı (site=%s, profile=%s).", site.domain, profile)
             else:
-                if _send_site_alarm_emails(site.domain, profile, alarms):
-                    _mark_alarms_emailed(db, site.id, rule_ids, profile=profile)
+                mail_alarms = filter_alarms_for_email(alarms)
+                if mail_alarms and _send_site_alarm_emails(site.domain, profile, mail_alarms):
+                    _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in mail_alarms], profile=profile)
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
             site.domain,
@@ -2866,7 +2919,9 @@ def check_page_alarms_for_site(
                 else:
                     to_send.extend(negatives)
             if to_send:
-                if _send_page_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send)):
+                to_send = filter_alarms_for_email(_cap_top_n_each_side(to_send))
+            if to_send:
+                if _send_page_alarm_email(site.domain, profile, to_send):
                     _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in to_send], profile=profile)
 
     return alarms
@@ -3367,8 +3422,10 @@ def check_news_alarms_for_site(
                 else:
                     to_send.extend(negatives)
             if to_send:
+                to_send = filter_alarms_for_email(_cap_top_n_each_side(to_send))
+            if to_send:
                 site_kpi = _get_site_kpi_summary(db, site.id, profile)
-                if _send_news_alarm_email(site.domain, profile, _cap_top_n_each_side(to_send), site_kpi=site_kpi):
+                if _send_news_alarm_email(site.domain, profile, to_send, site_kpi=site_kpi):
                     _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in to_send], profile=profile)
 
     return alarms
@@ -4067,8 +4124,9 @@ def check_app_event_spike_for_site(
 
         if to_send:
             from backend.services.mailer import send_realtime_email
-            # 10 en çok artan + 10 en çok düşen ile sınırla (istek üzerine).
-            to_send = _cap_top_n_each_side(to_send)
+
+            to_send = filter_alarms_for_email(_cap_top_n_each_side(to_send))
+        if to_send:
             profile_label = {"android": "Android", "ios": "iOS"}.get(profile, profile)
             html_body = _html_app_event_alarm_body(site.domain, profile_label, to_send)
             # Konuda negatifi de garantile: 2 pozitif + 1 negatif (varsa) — max 3 chip

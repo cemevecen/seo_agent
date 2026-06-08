@@ -302,7 +302,7 @@ class Settings(BaseSettings):
     # Backend alarm job: 30dk. Tüm realtime alarmları (site/sayfa/haber/404/app) tek bir job
     # döngüsünde toplanıp TEK mail olarak gönderildiğinden, bu aralık aynı zamanda
     # "en erken yarım saatte bir mail" garantisini verir + her kontrolde daha çok veri birikir.
-    ga4_realtime_interval_minutes: int = 30
+    ga4_realtime_interval_minutes: int = 45
     # KPI toplam penceresi: GA4 Realtime UI ile aynı (max 30 dk).
     ga4_realtime_window_minutes: int = 30
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız.
@@ -323,7 +323,13 @@ class Settings(BaseSettings):
     ga4_realtime_page_alert_email: bool = True
     ga4_realtime_news_alert_email: bool = True
     # Aynı site/kural için e-posta tekrar baskılama süresi (dakika). 0 = baskılama yok.
-    ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=30, ge=0, le=480)  # 30dk cooldown
+    ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=90, ge=0, le=480)
+    # Konsolide «SEO Realtime» maili: en az bu kadar dakika arayla (kritik/404 hariç).
+    ga4_realtime_email_batch_interval_minutes: int = Field(default=60, ge=15, le=480)
+    # Sayfa/haber düşüşü maili: önceki veya şimdiki yarıda en az bu kadar aktif kullanıcı + mutlak fark.
+    ga4_realtime_email_min_users_for_mail: int = Field(default=30, ge=5, le=500)
+    ga4_realtime_email_min_abs_user_delta: int = Field(default=12, ge=1, le=200)
+    ga4_realtime_email_batch_max_sections: int = Field(default=8, ge=3, le=25)
     # Realtime «Haberler» sekmesi: unifiedScreenName bu öneklerle başlıyorsa elenir (virgülle). Boş = yerleşik liste.
     ga4_realtime_news_screen_exclude_prefixes: str = ""
 

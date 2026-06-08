@@ -20,6 +20,7 @@ from email.utils import parseaddr
 # Bir job döngüsü içinde gönderilecek tüm realtime mailleri biriktirip
 # tek bir mail olarak gönderir. Alarm tespiti / DB mantığına dokunulmaz.
 _batch_ctx = threading.local()
+_last_realtime_batch_sent_at: float | None = None
 
 
 _SEO_REALTIME_SUBJECT_PREFIX = "seo realtime"
@@ -42,8 +43,24 @@ def realtime_email_batch_begin() -> None:
     _batch_ctx.items = []  # (subject, html_body)
 
 
+def _realtime_batch_is_urgent(items: list[tuple[str, str]]) -> bool:
+    for subj, _body in items:
+        s = (subj or "").lower()
+        if "kritik" in s or "404 spike" in s or "🚨" in subj:
+            return True
+    return False
+
+
+def _prioritize_realtime_batch_items(items: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    urgent = [it for it in items if _realtime_batch_is_urgent([it])]
+    rest = [it for it in items if it not in urgent]
+    return urgent + rest
+
+
 def realtime_email_batch_flush() -> bool:
     """Biriktirilen mailleri tek email olarak gönder; batch'i temizle."""
+    global _last_realtime_batch_sent_at
+
     if not getattr(_batch_ctx, "collecting", False):
         return False
     items: list[tuple[str, str]] = list(getattr(_batch_ctx, "items", []))
@@ -52,7 +69,27 @@ def realtime_email_batch_flush() -> bool:
     if not items:
         return False
 
-    # Tek alarm olsa bile sadece SEO Realtime başlıklı konsolide mail gönderilir.
+    from backend.config import settings
+
+    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 60))
+    urgent = _realtime_batch_is_urgent(items)
+    if min_gap_min > 0 and _last_realtime_batch_sent_at is not None and not urgent:
+        elapsed = time.time() - _last_realtime_batch_sent_at
+        if elapsed < min_gap_min * 60:
+            logging.info(
+                "SEO Realtime konsolide mail ertelendi (%d dk minimum aralık, %d bölüm atlandı).",
+                min_gap_min,
+                len(items),
+            )
+            return False
+
+    total_sections = len(items)
+    max_sections = int(getattr(settings, "ga4_realtime_email_batch_max_sections", 8))
+    omitted = 0
+    if total_sections > max_sections:
+        items = _prioritize_realtime_batch_items(items)[:max_sections]
+        omitted = total_sections - len(items)
+
     combined_subject = _combined_realtime_subject(items)
 
     sep = '<div style="border-top:2px dashed #e2e8f0;margin:22px 0 18px;"></div>'
@@ -60,14 +97,25 @@ def realtime_email_batch_flush() -> bool:
         '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
         'max-width:620px;margin:0 auto;padding:8px 0;">'
         + sep.join(body for _, body in items)
-        + "</div>"
     )
-    return send_realtime_email(
+    if omitted > 0:
+        combined_body += (
+            f'<p style="font-size:11px;color:#94a3b8;margin-top:14px;">'
+            f"+ {omitted} alarm daha — /realtime ve Threshold sekmesinde.</p>"
+        )
+    combined_body += "</div>"
+
+    ok = send_realtime_email(
         combined_subject,
         combined_body,
         thread_kind="combined",
         thread_key="all_sites_batch",
     )
+    if ok:
+        _last_realtime_batch_sent_at = time.time()
+    return ok
+
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
