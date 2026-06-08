@@ -349,11 +349,19 @@
                     <option value="bar">Çubuk</option>
                   </select>
                 </label>
+                <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                  <input id="mz-drill-ga4-separate" type="checkbox" class="rounded border-slate-300 dark:border-zinc-600" />
+                  GA4 ayrı grafik
+                </label>
               </div>
             </div>
           </div>
           <p id="mz-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
           <div id="mz-drill-chart" class="mz-chart-plot min-h-[220px] w-full"></div>
+          <div id="mz-drill-ga4-chart-wrap" class="mt-3 hidden">
+            <p class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4 — Android &amp; iOS oturum ve kullanıcı (aynı tarih ekseni)</p>
+            <div id="mz-drill-ga4-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
+          </div>
           <div id="mz-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
         </div>
       </div>
@@ -405,11 +413,19 @@
                     <option value="bar">Çubuk</option>
                   </select>
                 </label>
+                <label class="flex cursor-pointer items-center gap-1.5 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                  <input id="mz-summary-drill-ga4-separate" type="checkbox" class="rounded border-slate-300 dark:border-zinc-600" />
+                  GA4 ayrı grafik
+                </label>
               </div>
             </div>
           </div>
           <p id="mz-summary-drill-status" class="mb-1 text-[10px] text-slate-500 dark:text-zinc-500"></p>
           <div id="mz-summary-drill-chart" class="mz-chart-plot min-h-[220px] w-full"></div>
+          <div id="mz-summary-drill-ga4-chart-wrap" class="mt-3 hidden">
+            <p class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4 — Android &amp; iOS oturum ve kullanıcı (aynı tarih ekseni)</p>
+            <div id="mz-summary-drill-ga4-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
+          </div>
           <div id="mz-summary-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
         </div>
       </div>
@@ -524,6 +540,7 @@
     kpiAvailable: [],
     ga4MobileOverlay: null,
     _ga4MobileOverlayPromise: null,
+    ga4SeparateChart: false,
   };
 
   function showPageError(msg) {
@@ -3440,8 +3457,11 @@
     return true;
   }
 
-  function appendGa4MobileOverlayTraces(traces, layout, plotX, bucketKeys, chartTimeKey, overlay) {
-    if (!overlay || !plotX || !plotX.length || !bucketKeys || !bucketKeys.length) return false;
+  function buildGa4MobileTraces(plotX, bucketKeys, chartTimeKey, overlay, axisMode) {
+    if (!overlay || !plotX || !plotX.length || !bucketKeys || !bucketKeys.length) return [];
+    axisMode = axisMode || "overlay";
+    var sessAxis = axisMode === "split" ? "y" : "y2";
+    var userAxis = axisMode === "split" ? "y2" : "y2";
     var specs = [
       {
         platformKey: "android",
@@ -3458,7 +3478,7 @@
         userColor: "#14b8a6",
       },
     ];
-    var added = 0;
+    var out = [];
     specs.forEach(function (spec) {
       if (!spec.trend || !(spec.trend.dates || []).length) return;
       var byDate = ga4DailyLookup(spec.trend);
@@ -3472,33 +3492,38 @@
       }
       var showPlatform = ga4OverlayPlatformVisible(spec.platformKey);
       var traceVis = showPlatform ? true : "legendonly";
-      traces.push({
+      out.push({
         type: "scatter",
         mode: "lines",
         name: "GA4 " + spec.label + " Sessions",
         x: plotX,
         y: sessY,
-        yaxis: "y2",
+        yaxis: sessAxis,
         visible: traceVis,
         connectgaps: false,
-        line: { color: spec.sessColor, width: 1.5 },
+        line: { color: spec.sessColor, width: axisMode === "split" ? 2 : 1.5 },
         hovertemplate: "%{x}<br>%{fullData.name}: %{y:,.0f}<extra></extra>",
       });
-      traces.push({
+      out.push({
         type: "scatter",
         mode: "lines",
         name: "GA4 " + spec.label + " Users",
         x: plotX,
         y: userY,
-        yaxis: "y2",
+        yaxis: userAxis,
         visible: traceVis,
         connectgaps: false,
-        line: { color: spec.userColor, width: 1.5, dash: "dot" },
+        line: { color: spec.userColor, width: axisMode === "split" ? 2 : 1.5, dash: "dot" },
         hovertemplate: "%{x}<br>%{fullData.name}: %{y:,.0f}<extra></extra>",
       });
-      added += 2;
     });
-    if (!added) return false;
+    return out;
+  }
+
+  function appendGa4MobileOverlayTraces(traces, layout, plotX, bucketKeys, chartTimeKey, overlay) {
+    var ga4Traces = buildGa4MobileTraces(plotX, bucketKeys, chartTimeKey, overlay, "overlay");
+    if (!ga4Traces.length) return false;
+    ga4Traces.forEach(function (t) { traces.push(t); });
     layout.yaxis2 = Object.assign({}, plotAxis("Sessions / Users"), {
       overlaying: "y",
       side: "right",
@@ -3525,6 +3550,87 @@
     layout.xaxis = Object.assign({}, layout.xaxis || {}, { automargin: true });
     layout._mzGa4Overlay = true;
     return true;
+  }
+
+  function hideGa4SplitChart(scope) {
+    var isSummary = scope === "summary";
+    var wrap = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart-wrap" : "mz-drill-ga4-chart-wrap");
+    var el = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart" : "mz-drill-ga4-chart");
+    if (wrap) wrap.classList.add("hidden");
+    if (el && window.Plotly) {
+      try { Plotly.purge(el); } catch (_) { /* ignore */ }
+      el.innerHTML = "";
+    }
+  }
+
+  async function renderGa4SplitChart(scope, plotX, bucketKeys, chartTimeKey, overlay) {
+    var isSummary = scope === "summary";
+    var wrap = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart-wrap" : "mz-drill-ga4-chart-wrap");
+    var chartEl = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart" : "mz-drill-ga4-chart");
+    if (!wrap || !chartEl) return false;
+    var ga4Traces = buildGa4MobileTraces(plotX, bucketKeys, chartTimeKey, overlay, "split");
+    if (!ga4Traces.length) {
+      hideGa4SplitChart(scope);
+      return false;
+    }
+    wrap.classList.remove("hidden");
+    var layout = plotTheme({
+      yTitle: "Sessions",
+      margin: { l: 52, r: 52, t: 56, b: 56 },
+    });
+    layout.yaxis2 = Object.assign({}, plotAxis("Users"), {
+      overlaying: "y",
+      side: "right",
+      showgrid: false,
+    });
+    layout.showlegend = true;
+    layout.legend = Object.assign({}, layout.legend || {}, {
+      orientation: "h",
+      x: 0,
+      xanchor: "left",
+      y: 1.08,
+      yanchor: "bottom",
+      bgcolor: "rgba(0,0,0,0)",
+      borderwidth: 0,
+      tracegroupgap: 6,
+      font: plotFont(),
+    });
+    if (chartTimeKey === "date") {
+      layout.xaxis = Object.assign({}, layout.xaxis, {
+        type: "date",
+        tickformat: "%d.%m.%y",
+        automargin: true,
+        tickangle: plotX.length > 48 ? -45 : 0,
+      });
+    } else {
+      layout.xaxis = Object.assign({}, layout.xaxis, { automargin: true });
+    }
+    layout.title = {
+      text: "",
+      font: plotFont(),
+    };
+    layout._mzGa4Split = true;
+    await plotDrillChartEl(chartEl, ga4Traces, layout);
+    return true;
+  }
+
+  function syncGa4SeparateCheckboxes() {
+    var v = !!state.ga4SeparateChart;
+    ["mz-drill-ga4-separate", "mz-summary-drill-ga4-separate"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.checked = v;
+    });
+  }
+
+  function setGa4SeparateChart(on) {
+    state.ga4SeparateChart = !!on;
+    syncGa4SeparateCheckboxes();
+    if (state.drillSlice && Object.keys(state.drillSlice).length) {
+      renderTableDrillChart();
+    }
+    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+      renderSummaryDrillChart();
+    }
   }
 
   function filterDrillSeriesByRange(series, chartTimeKey) {
@@ -3661,6 +3767,10 @@
       renderTableDrillChart();
     });
     on("mz-drill-chart-type", "change", function () { renderTableDrillChart(); });
+    on("mz-drill-ga4-separate", "change", function () {
+      setGa4SeparateChart(document.getElementById("mz-drill-ga4-separate").checked);
+    });
+    syncGa4SeparateCheckboxes();
     mountDrillChartTimePills("mz-drill-chart-time", "detail");
   }
 
@@ -3681,6 +3791,10 @@
       renderSummaryDrillChart();
     });
     on("mz-summary-drill-chart-type", "change", function () { renderSummaryDrillChart(); });
+    on("mz-summary-drill-ga4-separate", "change", function () {
+      setGa4SeparateChart(document.getElementById("mz-summary-drill-ga4-separate").checked);
+    });
+    syncGa4SeparateCheckboxes();
     mountDrillChartTimePills("mz-summary-drill-chart-time", "summary");
   }
 
@@ -3705,6 +3819,7 @@
         "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-500\">" +
         (isSummary ? "Trend için özet tabloda bir gelir tipi seçin." : "Trend için detay tabloda bir satır seçin.") +
         "</p>";
+      hideGa4SplitChart(scope);
       return;
     }
     if (!window.Plotly) {
@@ -3933,19 +4048,34 @@
         if (plotAnnots.length) layout.annotations = plotAnnots;
       }
       var ga4OverlayOn = false;
+      var ga4SplitOn = false;
       try {
         var ga4Overlay = await ensureGa4MobileOverlay(drillSignal);
         if (drillStale()) return;
-        ga4OverlayOn = appendGa4MobileOverlayTraces(
-          traces,
-          layout,
-          plotX,
-          overlayBucketKeys,
-          chartTimeKey,
-          ga4Overlay
-        );
+        if (state.ga4SeparateChart) {
+          hideGa4SplitChart(scope);
+          ga4SplitOn = await renderGa4SplitChart(
+            scope,
+            plotX,
+            overlayBucketKeys,
+            chartTimeKey,
+            ga4Overlay
+          );
+          ga4OverlayOn = ga4SplitOn;
+        } else {
+          hideGa4SplitChart(scope);
+          ga4OverlayOn = appendGa4MobileOverlayTraces(
+            traces,
+            layout,
+            plotX,
+            overlayBucketKeys,
+            chartTimeKey,
+            ga4Overlay
+          );
+        }
       } catch (_ga4OvErr) {
         ga4OverlayOn = false;
+        hideGa4SplitChart(scope);
       }
       if (drillStale()) return;
       await plotDrillChartEl(chartEl, traces, layout);
@@ -3971,7 +4101,11 @@
           (rangeLbl.start || rangeLbl.end)
             ? " · " + (rangeLbl.start || "…") + " — " + (rangeLbl.end || "…")
             : "";
-        var ga4Note = ga4OverlayOn ? " · GA4 android/ios oturum & kullanıcı" : "";
+        var ga4Note = ga4SplitOn
+          ? " · GA4 ayrı grafik (android/ios)"
+          : ga4OverlayOn
+            ? " · GA4 android/ios oturum & kullanıcı (üst grafik)"
+            : "";
         statusEl.textContent =
           series.length + " nokta · " + timeNote + " · " + drillSliceLabel(slice) + rangeNote + extra + autoNote + ga4Note;
       }
@@ -4190,9 +4324,13 @@
     if (!chartEl || !window.Plotly) {
       return Promise.reject(new Error("Plotly yüklenmedi"));
     }
-    var h = layout && layout._mzGa4Overlay ? 268 : 220;
+    var h = 220;
     if (layout && layout._mzGa4Overlay) {
+      h = 268;
       delete layout._mzGa4Overlay;
+    } else if (layout && layout._mzGa4Split) {
+      h = 248;
+      delete layout._mzGa4Split;
     }
     chartEl.style.minHeight = h + "px";
     chartEl.style.height = h + "px";
