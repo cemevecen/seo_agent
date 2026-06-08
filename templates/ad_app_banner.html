@@ -301,7 +301,7 @@
     var label = data.metric_label || "Download";
     var manual = data.data_source === "manual_ios_table";
     document.getElementById("ab-chart-camp-title").textContent = manual
-      ? "iOS app — download (manuel tablo, üst " + (data.top_campaigns || 10) + " kampanya)"
+      ? "GA4 app — Download (manuel Total Downloads)"
       : "GA4 app — " + label + " (toplam + kampanya, üst " + (data.top_campaigns || 10) + ")";
 
     var dates = (data.total_daily && data.total_daily.dates) || [];
