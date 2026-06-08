@@ -48,7 +48,7 @@
     <p id="ab-meta" class="mt-3 text-xs text-slate-500 dark:text-zinc-400"></p>
     <div id="ab-day-insight" class="mt-2 hidden rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-zinc-100">
       <p class="font-bold text-indigo-900 dark:text-indigo-200">Seçili gün</p>
-      <p id="ab-day-insight-body" class="mt-1 tabular-nums"></p>
+      <p id="ab-day-insight-body" class="mt-1 break-words tabular-nums leading-relaxed"></p>
     </div>
     <p id="ab-error" class="mt-2 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"></p>
   </div>
@@ -138,7 +138,7 @@
 
   function plotLayout(extra) {
     var dark = isDark();
-    return Object.assign({
+    var base = {
       autosize: true,
       margin: { l: 48, r: 16, t: 8, b: 40 },
       paper_bgcolor: "rgba(0,0,0,0)",
@@ -148,7 +148,30 @@
       yaxis: { gridcolor: dark ? "#3f3f46" : "#e2e8f0", title: extra && extra.yTitle ? extra.yTitle : "" },
       legend: { orientation: "h", y: 1.14, x: 0 },
       hovermode: "x unified",
-    }, extra || {});
+      hoverlabel: {
+        namelength: -1,
+        align: "left",
+        bgcolor: dark ? "#18181b" : "#ffffff",
+        bordercolor: dark ? "#52525b" : "#e2e8f0",
+        font: { size: 11, color: dark ? "#fafafa" : "#0f172a" },
+      },
+    };
+    if (extra) {
+      var lay = Object.assign({}, base, extra);
+      if (extra.margin) lay.margin = Object.assign({}, base.margin, extra.margin);
+      if (extra.legend) lay.legend = Object.assign({}, base.legend, extra.legend);
+      if (extra.hoverlabel) lay.hoverlabel = Object.assign({}, base.hoverlabel, extra.hoverlabel);
+      return lay;
+    }
+    return base;
+  }
+
+  function traceWithFullHover(trace) {
+    var t = Object.assign({}, trace);
+    t.hoverlabel = Object.assign({ namelength: -1 }, trace.hoverlabel || {});
+    t.hovertemplate =
+      (trace.hovertemplate || "<b>%{fullData.name}</b>: %{y:,.0f}<extra></extra>");
+    return t;
   }
 
   var lastPayload = null;
@@ -176,7 +199,11 @@
     }
     var lines = [];
     var fo = valueAt(lastPayload.total_daily, dateIso);
-    if (fo != null && fo > 0) lines.push("GA4 app first opens: " + formatNum(fo));
+    if (fo != null && fo > 0) lines.push("Toplam first opens: " + formatNum(fo));
+    (lastPayload.campaigns || []).forEach(function (c) {
+      var v = valueAt(c.daily, dateIso);
+      if (v != null && v > 0) lines.push((c.campaign || "(not set)") + ": " + formatNum(v));
+    });
     var ascC = lastPayload.app_store_campaign_downloads;
     if (ascC && ascC.ok && ascC.combined_daily) {
       var cdl = valueAt(ascC.combined_daily, dateIso);
@@ -191,7 +218,8 @@
       box.classList.add("hidden");
       return;
     }
-    body.textContent = dateIso + " — " + lines.join(" · ");
+    body.innerHTML = "<span class=\"font-semibold\">" + escapeHtml(dateIso) + "</span><br>" +
+      lines.map(function (ln) { return escapeHtml(ln); }).join("<br>");
     box.classList.remove("hidden");
   }
 
@@ -226,25 +254,34 @@
       "GA4 app — " + label + " (toplam + kampanya, üst " + (data.top_campaigns || 10) + ")";
 
     var dates = (data.total_daily && data.total_daily.dates) || [];
-    var campTraces = [{
+    var campTraces = [traceWithFullHover({
       x: dates,
       y: (data.total_daily && data.total_daily.values) || [],
       type: "scatter",
       mode: "lines",
       name: "Toplam first opens",
       line: { width: 2.5, color: "#2563eb" },
-    }];
+    })];
     (data.campaigns || []).forEach(function (c, i) {
-      campTraces.push({
+      campTraces.push(traceWithFullHover({
         x: (c.daily && c.daily.dates) || dates,
         y: (c.daily && c.daily.values) || [],
         type: "scatter",
         mode: "lines",
         name: c.campaign || "(not set)",
         line: { width: 1.5, color: COLORS[i % COLORS.length] },
-      });
+      }));
     });
-    drawLine("ab-chart-campaign", campTraces, plotLayout({ yTitle: label }), updateDayInsight);
+    drawLine(
+      "ab-chart-campaign",
+      campTraces,
+      plotLayout({
+        yTitle: label,
+        margin: { l: 48, r: 12, t: 8, b: 88 },
+        legend: { orientation: "h", y: -0.28, x: 0, yanchor: "top", traceorder: "normal" },
+      }),
+      updateDayInsight
+    );
 
     var ascWrap = document.getElementById("ab-wrap-asc");
     var ascC = data.app_store_campaign_downloads;
@@ -253,28 +290,32 @@
     if (data.profile === "ios" && ascC && ascC.ok && ascC.combined_daily && hasSeriesSignal(ascC.combined_daily)) {
       ascWrap.classList.remove("hidden");
       document.getElementById("ab-chart-asc-note").textContent = ascC.note || "";
-      var ascTraces = [{
+      var ascTraces = [traceWithFullHover({
         x: ascC.combined_daily.dates,
         y: ascC.combined_daily.values,
         type: "scatter",
         mode: "lines",
         name: "Banner kampanyaları (toplam)",
         line: { width: 2.5, color: "#059669" },
-      }];
+      })];
       (ascC.campaigns || []).forEach(function (c, i) {
-        ascTraces.push({
+        ascTraces.push(traceWithFullHover({
           x: (c.daily && c.daily.dates) || ascC.combined_daily.dates,
           y: (c.daily && c.daily.values) || [],
           type: "scatter",
           mode: "lines",
           name: c.campaign,
           line: { width: 1.2, color: COLORS[(i + 3) % COLORS.length] },
-        });
+        }));
         var tr = document.createElement("tr");
         tr.innerHTML = "<td class=\"px-2 py-1.5\">" + escapeHtml(c.campaign) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(c.total) + "</td>";
         ascBody.appendChild(tr);
       });
-      drawLine("ab-chart-asc", ascTraces, plotLayout({ yTitle: "Downloads", margin: { l: 48, r: 16, t: 8, b: 40 }, legend: { orientation: "h", y: 1.18, x: 0 } }), updateDayInsight);
+      drawLine("ab-chart-asc", ascTraces, plotLayout({
+        yTitle: "Downloads",
+        margin: { l: 48, r: 12, t: 8, b: 88 },
+        legend: { orientation: "h", y: -0.28, x: 0, yanchor: "top" },
+      }), updateDayInsight);
     } else {
       ascWrap.classList.add("hidden");
       if (data.profile === "ios" && ascC && !ascC.ok && ascC.message) {
@@ -295,16 +336,20 @@
         var tr = document.createElement("tr");
         tr.innerHTML = "<td class=\"px-2 py-1.5 font-mono text-[10px]\" title=\"" + escapeHtml(ev.event_name) + "\">" + escapeHtml(shortBannerEventName(ev.event_name)) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(ev.total) + "</td>";
         mwebBody.appendChild(tr);
-        return {
+        return traceWithFullHover({
           x: (ev.daily && ev.daily.dates) || dates,
           y: (ev.daily && ev.daily.values) || [],
           type: "scatter",
           mode: "lines",
           name: shortBannerEventName(ev.event_name),
           line: { width: 1.4, color: COLORS[i % COLORS.length] },
-        };
+        });
       });
-      drawLine("ab-chart-mweb", mwebTraces, plotLayout({ yTitle: "Event count", legend: { orientation: "h", y: 1.2, x: 0 } }), updateDayInsight);
+      drawLine("ab-chart-mweb", mwebTraces, plotLayout({
+        yTitle: "Event count",
+        margin: { l: 48, r: 12, t: 8, b: 96 },
+        legend: { orientation: "h", y: -0.32, x: 0, yanchor: "top" },
+      }), updateDayInsight);
     } else {
       mwebWrap.classList.add("hidden");
     }
