@@ -105,6 +105,8 @@ _MWEB_VALID_CATEGORY_PATHS = (
     "/borsa/borsa-yatirim-fonlari",
     "/tahvil",
     "/pariteler",
+    "/altin-cevirici",
+    "/doviz-cevirici",
 )
 
 _MWEB_VALID_HABER_PATHS = (
@@ -137,6 +139,7 @@ _MWEB_PHANTOM_FIXES = (
     ("/altin/tahvil", "/tahvil"),
     ("/altin/ekonomik-takvim", "/ekonomik-takvim"),
     ("/altin/kur/kapalicarsi/amerikan-dolari", "/kur/kapalicarsi/amerikan-dolari"),
+    ("/altin/altin-cevirici", "/altin-cevirici"),
 )
 
 
@@ -165,6 +168,16 @@ def test_mweb_valid_bureau_paths_unchanged():
         url = _mweb_url(path)
         assert not is_m_doviz_phantom_breadcrumb_url(url)
         assert repair_seo_audit_url(url) == url
+
+
+def test_mweb_altin_cevirici_not_under_altin_prefix():
+    url = ga4_canonical_page_url("m.doviz.com", "/altin-cevirici")
+    assert url == "https://m.doviz.com/altin-cevirici"
+    u = seo_audit_url_from_ga4("m.doviz.com", "/altin-cevirici", ga4_profile="mweb")
+    assert u == "https://m.doviz.com/altin-cevirici"
+    bad = "https://m.doviz.com/altin/altin-cevirici"
+    assert is_m_doviz_phantom_breadcrumb_url(bad)
+    assert repair_seo_audit_url(bad) == "https://m.doviz.com/altin-cevirici"
 
 
 def test_mweb_phantom_category_prefix_stripped():
