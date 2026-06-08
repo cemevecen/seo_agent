@@ -5626,9 +5626,99 @@
     return ev.phase || "";
   }
 
+  function xhrStatusMessage(status, responseText) {
+    if (status === 0) {
+      return (
+        "HTTP 0 — istek sunucuya ulaşmadı veya bağlantı kesildi. " +
+        "Çoklu dosyada sırayla yükleme kullanılıyor; tek dosya >120 MB veya ağ/proxy limiti olabilir."
+      );
+    }
+    if (status === 413) {
+      return "HTTP 413 — toplam dosya boyutu çok büyük (en fazla ~120 MB).";
+    }
+    var msg = (responseText || "").trim() || ("HTTP " + status);
+    try {
+      var errJson = JSON.parse(responseText);
+      if (errJson.detail) {
+        msg = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch (e2) { /* */ }
+    return msg;
+  }
+
+  function syntheticBatchDoneFromSequential(results, errors, fileCount) {
+    var parsed = 0;
+    var total = 0;
+    results.forEach(function (r) {
+      parsed += n(r.parsed);
+      if (r.total != null) total = n(r.total);
+    });
+    return {
+      phase: "batch_done",
+      file_count: fileCount,
+      parsed: parsed,
+      total: total,
+      summary: {
+        file_count: fileCount,
+        ok_count: results.length,
+        failed_count: errors.length,
+        failed: errors,
+        empty_count: 0,
+        empty: [],
+        integrated_rows: parsed,
+        all_ok: errors.length === 0 && parsed > 0,
+        has_errors: errors.length > 0,
+        has_warnings: false,
+        nothing_imported: parsed <= 0,
+      },
+    };
+  }
+
+  async function uploadFilesSequential(fileList) {
+    var nFiles = fileList.length;
+    var results = [];
+    var errors = [];
+    for (var idx = 0; idx < nFiles; idx++) {
+      var f = fileList[idx];
+      var pct = Math.min(95, Math.round((idx / nFiles) * 92) + 2);
+      setUploadProgress(
+        pct,
+        "Yükleniyor",
+        "Dosya " + (idx + 1) + "/" + nFiles + ": " + (f.name || "dosya"),
+        { allowDecrease: true }
+      );
+      var fd = new FormData();
+      fd.append("file", f);
+      var resp = await fetch("/api/mz-analytics/upload", {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+      });
+      if (!resp.ok) {
+        var errText = "";
+        try {
+          errText = await resp.text();
+        } catch (e) { /* */ }
+        errors.push({
+          filename: f.name || "?",
+          reason: xhrStatusMessage(resp.status, errText),
+        });
+        continue;
+      }
+      var data = await resp.json();
+      data.filename = data.filename || f.name;
+      results.push(data);
+    }
+    if (!results.length && errors.length) {
+      throw new Error(errors[0].reason || "Yükleme başarısız");
+    }
+    return syntheticBatchDoneFromSequential(results, errors, nFiles);
+  }
+
   function uploadWithRealtimeProgress(fd, url) {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
+      xhr.timeout = 900000;
       var lastLen = 0;
       var ndjsonBuf = "";
       var finalEvent = null;
@@ -5677,17 +5767,18 @@
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve(finalEvent || {});
           } else {
-            var msg = xhr.responseText || ("HTTP " + xhr.status);
-            try {
-              var errJson = JSON.parse(xhr.responseText);
-              if (errJson.detail) msg = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
-            } catch (e2) { /* */ }
-            reject(new Error(msg));
+            reject(new Error(xhrStatusMessage(xhr.status, xhr.responseText)));
           }
         }
       };
-      xhr.onerror = function () { reject(new Error("Ağ hatası")); };
+      xhr.ontimeout = function () {
+        reject(new Error("Zaman aşımı — dosyalar çok büyük veya işlem uzun sürdü; tekrar deneyin veya dosyaları bölmeyin."));
+      };
+      xhr.onerror = function () {
+        reject(new Error("Ağ hatası — bağlantı kesildi (proxy veya dosya boyutu)."));
+      };
       xhr.open("POST", url);
+      xhr.withCredentials = true;
       xhr.send(fd);
     });
   }
@@ -5699,10 +5790,16 @@
       document.getElementById("mz-status").textContent = "Dosya seçin (.xlsx)";
       return;
     }
+    var fileArr = Array.prototype.slice.call(inp.files);
+    var totalBytes = 0;
+    var j;
+    for (j = 0; j < fileArr.length; j++) {
+      totalBytes += fileArr[j].size || 0;
+    }
+    var useSequential = fileArr.length > 1;
     var fd = new FormData();
-    var i;
-    for (i = 0; i < inp.files.length; i++) {
-      fd.append("files", inp.files[i]);
+    for (j = 0; j < fileArr.length; j++) {
+      fd.append("files", fileArr[j]);
     }
     var url = "/api/mz-analytics/upload-bulk-stream";
     btn.disabled = true;
@@ -5712,13 +5809,41 @@
     document.getElementById("mz-upload-progress-summary").innerHTML = "";
     document.getElementById("mz-upload-progress-reload").classList.add("hidden");
     mzUploadLastPct = 0;
-    setUploadProgress(0, "Hazırlanıyor", inp.files.length + " dosya seçildi", { allowDecrease: true });
+    setUploadProgress(
+      0,
+      "Hazırlanıyor",
+      fileArr.length + " dosya · " + fmt(totalBytes) + " bayt" +
+        (useSequential ? " (sırayla yükleme)" : ""),
+      { allowDecrease: true }
+    );
     document.getElementById("mz-status").textContent = "";
     try {
-      var done = await uploadWithRealtimeProgress(fd, url);
+      var done;
+      if (useSequential) {
+        done = await uploadFilesSequential(fileArr);
+      } else {
+        done = await uploadWithRealtimeProgress(fd, url);
+      }
+      setUploadProgress(100, "Tamamlandı", phaseLabel(done), { allowDecrease: true });
       showUploadFinalSummary(done);
-      scheduleReloadAfterUploadSummary(3);
+      await loadFacets();
+      await runQuery({ resetTableDrills: false });
+      scheduleReloadAfterUploadSummary(useSequential ? 2 : 3);
     } catch (err) {
+      if (!useSequential && fileArr.length > 1) {
+        try {
+          setUploadProgress(2, "Yükleniyor", "Toplu istek başarısız; dosyalar tek tek deneniyor…", { allowDecrease: true });
+          var doneRetry = await uploadFilesSequential(fileArr);
+          setUploadProgress(100, "Tamamlandı", phaseLabel(doneRetry), { allowDecrease: true });
+          showUploadFinalSummary(doneRetry);
+          await loadFacets();
+          await runQuery({ resetTableDrills: false });
+          scheduleReloadAfterUploadSummary(2);
+          return;
+        } catch (err2) {
+          err = err2;
+        }
+      }
       setUploadProgressTheme("err");
       setUploadProgress(0, "Hata", (err && err.message) || "Yükleme başarısız", { allowDecrease: true });
       document.getElementById("mz-status").textContent = (err && err.message) || "Yükleme başarısız";

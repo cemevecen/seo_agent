@@ -631,7 +631,8 @@ app = FastAPI(title="SEO Agent Dashboard")
 try:
     from starlette.formparsers import MultiPartParser
 
-    _MULTIPART_MAX_BYTES = 20 * 1024 * 1024
+    # Reklam raporu: tek xlsx ~10–40 MB; 12 dosya sırayla veya toplu multipart parça limiti
+    _MULTIPART_MAX_BYTES = 128 * 1024 * 1024
     MultiPartParser.max_part_size = _MULTIPART_MAX_BYTES
     if hasattr(MultiPartParser, "max_file_size"):
         MultiPartParser.max_file_size = _MULTIPART_MAX_BYTES
