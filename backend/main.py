@@ -1290,6 +1290,31 @@ def _admin_auth_active() -> bool:
 jinja_env.globals["admin_access_ui"] = _admin_auth_active
 
 
+def _template_is_tmdb_guest_view(request: Request | None) -> bool:
+    if request is None:
+        return False
+    return bool(getattr(request.state, "tmdb_guest_view", False))
+
+
+jinja_env.globals["is_tmdb_guest_view"] = _template_is_tmdb_guest_view
+
+
+def _tmdb_guest_login_response(request: Request, *, redirect_path: str) -> RedirectResponse:
+    from backend.services.tmdb_guest_auth import TMDB_GUEST_COOKIE, guest_cookie_value
+
+    resp = RedirectResponse(url=redirect_path, status_code=303)
+    resp.set_cookie(
+        key=TMDB_GUEST_COOKIE,
+        value=guest_cookie_value(),
+        httponly=True,
+        secure=_admin_auth_cookie_secure(request),
+        samesite="lax",
+        max_age=60 * 60 * 24 * 30,
+        path="/",
+    )
+    return resp
+
+
 @app.middleware("http")
 async def ip_allowlist_middleware(request: Request, call_next):
     # Allowlist IP'ler doğrudan geçer; diğerleri admin parolası ile giriş yapar.
@@ -1319,6 +1344,34 @@ async def ip_allowlist_middleware(request: Request, call_next):
         if path.startswith("/settings") and not _is_settings_authenticated(request):
             return RedirectResponse(url="/admin/settings-login", status_code=303)
         return await call_next(request)
+
+    from backend.services import tmdb_guest_auth as tga
+
+    if tga.guest_access_configured():
+        if path.startswith(tga.TMDB_GUEST_PATH) and request.query_params.get("guest_logout") == "1":
+            dest = "/admin/login"
+            resp = RedirectResponse(url=dest, status_code=303)
+            resp.delete_cookie(tga.TMDB_GUEST_COOKIE, path="/")
+            return resp
+
+        access_key = request.query_params.get("access", "")
+        if path.startswith(tga.TMDB_GUEST_PATH) and access_key:
+            if tga.access_query_matches(access_key):
+                qs = []
+                months = request.query_params.get("months")
+                if months:
+                    qs.append(f"months={months}")
+                redirect_path = tga.TMDB_GUEST_PATH + ("?" + "&".join(qs) if qs else "")
+                return _tmdb_guest_login_response(request, redirect_path=redirect_path)
+            return RedirectResponse(url="/admin/login?guest=invalid", status_code=303)
+
+        if tga.is_tmdb_guest_authenticated(request):
+            if path.startswith("/api/"):
+                return JSONResponse(status_code=403, content={"detail": "Misafir erişimi yalnızca vizyon takvimi."})
+            if not tga.guest_path_allowed(path):
+                return RedirectResponse(url=tga.TMDB_GUEST_PATH, status_code=303)
+            request.state.tmdb_guest_view = True
+            return await call_next(request)
 
     wants_json = request.headers.get("hx-request") == "true" or "application/json" in (
         request.headers.get("accept", "").lower()

@@ -121,6 +121,11 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("INBOX_ACTION_PASSWORD", "inbox_action_password"),
     )
+    # Paylaşımlı TMDB vizyon linki (?access=…) — yalnızca /tmdb-upcoming; admin şifresi gerekmez.
+    tmdb_guest_access_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("TMDB_GUEST_ACCESS_TOKEN", "tmdb_guest_access_token"),
+    )
     # IP allowlist + /admin girişi. Yerelde false yapılabilir. Railway tespit edilirse uygulama yok sayar, her zaman açık kalır.
     admin_auth_enforced: bool = Field(
         default=True,

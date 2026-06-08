@@ -1360,6 +1360,10 @@
               class="header-main-nav flex min-w-0 items-center gap-1 [grid-area:nav] sm:gap-1.5 lg:min-w-0 lg:gap-1.5"
               aria-label="Ana gezinme"
             >
+              {% if is_tmdb_guest_view(request) %}
+              <span class="rounded-full border border-violet-300 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-900 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200 sm:text-xs">Vizyon takvimi</span>
+              <a href="/tmdb-upcoming?guest_logout=1" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Çıkış</a>
+              {% else %}
               <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">home</a>
               <a href="/realtime" data-nav-match="/realtime" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">realtime</a>
               <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">ga4</a>
@@ -1382,6 +1386,7 @@
               <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">ai</a>
               <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">settings</a>
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">external</a>
+              {% endif %}
             </nav>
           </div>
         </div>
@@ -1694,6 +1699,7 @@
     })();
   </script>
 
+  {% if not is_tmdb_guest_view(request) %}
   <!-- ProjectControl AI Ajan — her sayfada görünen yüzen chat widget -->
   <button id="pc-agent-btn"
     onclick="pcAgentToggle()"
@@ -1809,6 +1815,7 @@
       <p class="mt-1.5 text-center text-[10px] text-zinc-600">Enter gönder · Shift+Enter yeni satır</p>
     </div>
   </div>
+  {% endif %}
 
   <script src="/static/js/pc-page-context.js?v=2"></script>
   <script>
