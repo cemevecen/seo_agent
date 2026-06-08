@@ -65,7 +65,7 @@
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <h2 id="ab-chart-camp-title" class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">GA4 app — First opens (toplam + kampanya)</h2>
-    <div id="ab-chart-campaign" class="mz-chart-plot w-full" style="min-height:360px;height:48vh;max-height:640px;"></div>
+    <div id="ab-chart-campaign" class="mz-chart-plot w-full" style="min-height:400px;height:52vh;max-height:720px;"></div>
   </div>
 
   <div id="ab-wrap-asc" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
@@ -140,11 +140,15 @@
     var dark = isDark();
     var base = {
       autosize: true,
-      margin: { l: 48, r: 16, t: 8, b: 40 },
+      margin: { l: 52, r: 16, t: 8, b: 40 },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
       font: { size: 11, color: dark ? "#e4e4e7" : "#334155" },
-      xaxis: { gridcolor: dark ? "#3f3f46" : "#e2e8f0", tickangle: -35 },
+      xaxis: {
+        gridcolor: dark ? "#3f3f46" : "#e2e8f0",
+        tickangle: -35,
+        type: "date",
+      },
       yaxis: { gridcolor: dark ? "#3f3f46" : "#e2e8f0", title: extra && extra.yTitle ? extra.yTitle : "" },
       legend: { orientation: "h", y: 1.14, x: 0 },
       hovermode: "x unified",
@@ -161,13 +165,31 @@
       if (extra.margin) lay.margin = Object.assign({}, base.margin, extra.margin);
       if (extra.legend) lay.legend = Object.assign({}, base.legend, extra.legend);
       if (extra.hoverlabel) lay.hoverlabel = Object.assign({}, base.hoverlabel, extra.hoverlabel);
+      if (extra.xaxis) {
+        lay.xaxis = Object.assign({}, base.xaxis, lay.xaxis, extra.xaxis);
+      }
+      if (extra.yaxis2Title) {
+        lay.yaxis = Object.assign({}, lay.yaxis, { title: extra.yTitle || "Download" });
+        lay.yaxis2 = {
+          title: extra.yaxis2Title,
+          overlaying: "y",
+          side: "right",
+          showgrid: false,
+          gridcolor: dark ? "#3f3f46" : "#e2e8f0",
+          tickfont: { color: dark ? "#a1a1aa" : "#64748b" },
+          titlefont: { color: dark ? "#e4e4e7" : "#334155" },
+        };
+        lay.margin = Object.assign({}, lay.margin, { r: 58 });
+      }
       return lay;
     }
     return base;
   }
 
   /** Çizgi hover kapalı; yalnızca >0 günlerde görünmez marker → unified hover’da boş satır yok. */
-  function tracesLineWithPointHover(trace) {
+  function tracesLineWithPointHover(trace, opts) {
+    opts = opts || {};
+    var yaxis = opts.yaxis === "y2" ? "y2" : "y";
     var t = Object.assign({}, trace);
     var xs = t.x || [];
     var ys = t.y || [];
@@ -178,6 +200,7 @@
       type: t.type || "scatter",
       mode: "lines",
       name: t.name,
+      yaxis: yaxis,
       line: t.line || { color: color },
       hoverinfo: "skip",
     };
@@ -200,6 +223,7 @@
       type: "scatter",
       mode: "markers",
       name: t.name,
+      yaxis: yaxis,
       legendgroup: t.name,
       showlegend: false,
       marker: { size: 12, color: color, opacity: 0 },
@@ -211,10 +235,16 @@
     return [line, markers];
   }
 
-  function pushHoverTraces(out, trace) {
-    tracesLineWithPointHover(trace).forEach(function (tr) {
+  function pushHoverTraces(out, trace, opts) {
+    tracesLineWithPointHover(trace, opts).forEach(function (tr) {
       out.push(tr);
     });
+  }
+
+  function chartSpanDates(data) {
+    var start = (data.chart_start || data.start || "").slice(0, 10);
+    var end = (data.chart_end || data.end || "").slice(0, 10);
+    return { start: start, end: end };
   }
 
   function dateFromPlotPoint(x) {
@@ -333,12 +363,9 @@
     lastPayload = data;
     var label = data.metric_label || "Download";
     var manual = data.data_source === "manual_ios_table";
-    document.getElementById("ab-chart-camp-title").textContent = manual
-      ? "GA4 app — Download (manuel Total Downloads)"
-      : "GA4 app — " + label + " (toplam + kampanya, üst " + (data.top_campaigns || 10) + ")";
-
     var dates = (data.total_daily && data.total_daily.dates) || [];
     var campTraces = [];
+    var campColorIdx = 0;
     if (hasSeriesSignal(data.total_daily)) {
       pushHoverTraces(campTraces, {
         x: dates,
@@ -348,27 +375,66 @@
         name: "download",
         line: { width: 2.5, color: "#2563eb" },
       });
+      campColorIdx += 1;
     }
-    filterCampaignsWithSignal(data.campaigns).forEach(function (c, i) {
+    filterCampaignsWithSignal(data.campaigns).forEach(function (c) {
       pushHoverTraces(campTraces, {
         x: (c.daily && c.daily.dates) || dates,
         y: (c.daily && c.daily.values) || [],
         type: "scatter",
         mode: "lines",
         name: c.campaign || "(not set)",
-        line: { width: 1.5, color: COLORS[i % COLORS.length] },
+        line: { width: 1.5, color: COLORS[campColorIdx % COLORS.length] },
       });
+      campColorIdx += 1;
     });
-    drawLine(
-      "ab-chart-campaign",
-      campTraces,
-      plotLayout({
-        yTitle: label,
-        margin: { l: 48, r: 12, t: 8, b: 88 },
-        legend: { orientation: "h", y: -0.28, x: 0, yanchor: "top", traceorder: "normal" },
-      }),
-      updateDayInsight
-    );
+
+    var mw = data.mweb_banner;
+    var mwebEvents = filterMwebEventsWithSignal(mw && mw.events);
+    var mergeMweb = mwebEvents.length > 0;
+    var dualAxis = mergeMweb && campTraces.length > 0;
+
+    if (mergeMweb) {
+      mwebEvents.forEach(function (ev, i) {
+        pushHoverTraces(campTraces, {
+          x: (ev.daily && ev.daily.dates) || dates,
+          y: (ev.daily && ev.daily.values) || [],
+          type: "scatter",
+          mode: "lines",
+          name: shortBannerEventName(ev.event_name),
+          line: { width: 1.4, color: COLORS[(campColorIdx + i) % COLORS.length] },
+        }, dualAxis ? { yaxis: "y2" } : null);
+      });
+    }
+
+    var span = chartSpanDates(data);
+    var osLabel = (mw && mw.operating_systems) || "";
+    if (mergeMweb && dualAxis) {
+      document.getElementById("ab-chart-camp-title").textContent = manual
+        ? "iOS — download (manuel) + mobil web banner (" + osLabel + ")"
+        : "GA4 app download + mobil web banner (" + osLabel + ")";
+    } else if (mergeMweb && !dualAxis) {
+      document.getElementById("ab-chart-camp-title").textContent =
+        "Mobil web — banner eventleri (" + osLabel + ")";
+    } else {
+      document.getElementById("ab-chart-camp-title").textContent = manual
+        ? "GA4 app — Download (manuel Total Downloads)"
+        : "GA4 app — " + label + " (toplam + kampanya, üst " + (data.top_campaigns || 10) + ")";
+    }
+
+    var layoutExtra = {
+      yTitle: dualAxis ? "Download" : (mergeMweb && !dualAxis ? "Event count" : label),
+      margin: { l: 52, r: dualAxis ? 58 : 12, t: 8, b: mergeMweb ? 100 : 88 },
+      legend: { orientation: "h", y: -0.32, x: 0, yanchor: "top", traceorder: "normal" },
+    };
+    if (dualAxis) {
+      layoutExtra.yaxis2Title = "Event count";
+    }
+    if (span.start && span.end) {
+      layoutExtra.xaxis = { range: [span.start, span.end], type: "date" };
+    }
+
+    drawLine("ab-chart-campaign", campTraces, plotLayout(layoutExtra), updateDayInsight);
 
     var ascWrap = document.getElementById("ab-wrap-asc");
     var ascC = data.app_store_campaign_downloads;
@@ -409,36 +475,10 @@
     }
 
     var mwebWrap = document.getElementById("ab-wrap-mweb");
-    var mw = data.mweb_banner;
-    var mwebBody = document.getElementById("ab-mweb-table-body");
-    mwebBody.innerHTML = "";
-    if (mw && mw.events && mw.events.length) {
-      mwebWrap.classList.remove("hidden");
-      document.getElementById("ab-chart-mweb-title").textContent =
-        "Mobil web — banner eventleri (" + (mw.operating_systems || "") + ")";
-      var mwebEvents = filterMwebEventsWithSignal(mw.events);
-      var mwebTraces = [];
-      mwebEvents.forEach(function (ev, i) {
-        var tr = document.createElement("tr");
-        tr.innerHTML = "<td class=\"px-2 py-1.5 font-mono text-[10px]\" title=\"" + escapeHtml(ev.event_name) + "\">" + escapeHtml(shortBannerEventName(ev.event_name)) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(ev.total) + "</td>";
-        mwebBody.appendChild(tr);
-        pushHoverTraces(mwebTraces, {
-          x: (ev.daily && ev.daily.dates) || dates,
-          y: (ev.daily && ev.daily.values) || [],
-          type: "scatter",
-          mode: "lines",
-          name: shortBannerEventName(ev.event_name),
-          line: { width: 1.4, color: COLORS[i % COLORS.length] },
-        });
-      });
-      drawLine("ab-chart-mweb", mwebTraces, plotLayout({
-        yTitle: "Event count",
-        margin: { l: 48, r: 12, t: 8, b: 96 },
-        legend: { orientation: "h", y: -0.32, x: 0, yanchor: "top" },
-      }), updateDayInsight);
-    } else {
-      mwebWrap.classList.add("hidden");
-    }
+    mwebWrap.classList.add("hidden");
+    try {
+      Plotly.purge(document.getElementById("ab-chart-mweb"));
+    } catch (_) {}
 
   }
 
