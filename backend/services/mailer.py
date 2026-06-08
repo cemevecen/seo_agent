@@ -39,15 +39,9 @@ def _compact_realtime_batch_chip(raw_subject: str) -> str:
 
     low = s.lower()
     if "404 spike" in low or "404" in low and "spike" in low:
-        dom = ""
-        for part in re.split(r"\s*·\s*", s):
-            p = part.strip()
-            if "." in p and "404" not in p.lower():
-                dom = p.replace("www.", "").split(".")[0]
-                break
         spike = re.search(r"(\d+)\s*→\s*(\d+)", s)
-        if dom and spike:
-            return f"{dom} 404 {spike.group(1)}→{spike.group(2)} kul"
+        if spike:
+            return f"404 {spike.group(1)}→{spike.group(2)} kul"
         return "404 spike"
 
     if "🚨" in s or "kritik" in low:
@@ -60,31 +54,26 @@ def _compact_realtime_batch_chip(raw_subject: str) -> str:
         prof = (m_prof.group(1) or "").lower()
         s = s[: m_prof.start()].strip()
 
-    site = ""
     tail = s
     for sep in (" — ", " - ", " — "):
         if sep in s:
-            site, tail = s.split(sep, 1)
-            site = site.strip()
+            _site, tail = s.split(sep, 1)
             tail = tail.strip()
             break
-    if not site:
-        site = s.split(" · ", 1)[0].strip()
 
     first = tail.split(" · ")[0].strip() if tail else ""
-    if first.startswith("+"):
-        pass
     rest_n = re.search(r"\s+\+(\d+)\s*$", first)
     if rest_n:
         first = first[: rest_n.start()].strip()
 
-    if len(first) > 34:
-        first = first[:32] + "…"
+    if len(first) > 38:
+        first = first[:36] + "…"
 
-    loc = f"{site}/{prof}" if prof and prof not in ("web", "") else site
+    if prof and prof not in ("web", "") and first:
+        return f"{first} [{prof}]"
     if first:
-        return f"{loc} {first}".strip()
-    return loc or "alarm"
+        return first
+    return ""
 
 
 def _combined_realtime_subject(items: list[tuple[str, str]]) -> str:
@@ -97,11 +86,11 @@ def _combined_realtime_subject(items: list[tuple[str, str]]) -> str:
     if more > 0:
         line = f"{line} +{more}" if line else f"+{more}"
     if n <= 1:
-        return (line or "Realtime alarm")[:120]
-    prefix = f"{n} alarm · "
+        return (line or "RT")[:120]
+    prefix = f"{n} · "
     budget = 120 - len(prefix)
     if budget < 20:
-        return f"{n} alarm"[:120]
+        return str(n)[:120]
     if len(line) > budget:
         line = line[: budget - 1] + "…"
     return f"{prefix}{line}"

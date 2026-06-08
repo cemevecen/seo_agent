@@ -6,15 +6,16 @@ from backend.services import mailer
 def test_compact_batch_chip_page_alarm():
     raw = "doviz — Fibabanka Altın Fiyatları -9 · Canlı Çeyrek -6"
     chip = mailer._compact_realtime_batch_chip(raw)
-    assert chip.startswith("doviz ")
+    assert "doviz" not in chip.lower()
     assert "Fibabanka" in chip
 
 
 def test_compact_batch_chip_mweb_profile():
     raw = "doviz — Harem Euro Kuru -13 [mweb]"
     chip = mailer._compact_realtime_batch_chip(raw)
-    assert "doviz/mweb" in chip
+    assert "doviz" not in chip.lower()
     assert "Harem" in chip
+    assert "[mweb]" in chip
 
 
 def test_combined_subject_phone_preview():
@@ -24,9 +25,11 @@ def test_combined_subject_phone_preview():
         ("sinemalar — Yeni film ↑40 [mweb]", "<p></p>"),
     ]
     subj = mailer._combined_realtime_subject(items)
-    assert subj.startswith("3 alarm ·")
-    assert "SEO Realtime" not in subj
-    assert "doviz" in subj
+    assert subj.startswith("3 ·")
+    assert "alarm" not in subj.lower()
+    assert "Fibabanka" in subj
+    assert "doviz" not in subj.lower()
+    assert "sinemalar" not in subj.lower()
 
 
 def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
@@ -75,8 +78,8 @@ def test_realtime_batch_single_alarm_sends_seo_realtime_subject(monkeypatch):
     assert mailer.realtime_email_batch_flush() is True
 
     assert len(sent) == 1
-    assert "doviz" in sent[0].lower()
     assert "SEO Realtime:" not in sent[0]
+    assert "alarm" not in sent[0].lower()
 
 
 def test_realtime_batch_multiple_alarms_sends_single_seo_realtime_subject(monkeypatch):
@@ -89,6 +92,5 @@ def test_realtime_batch_multiple_alarms_sends_single_seo_realtime_subject(monkey
     assert mailer.realtime_email_batch_flush() is True
 
     assert len(sent) == 1
-    assert sent[0].startswith("2 alarm ·")
-    assert "doviz" in sent[0].lower()
-    assert "sinemalar" in sent[0].lower()
+    assert sent[0].startswith("2 ·")
+    assert "alarm" not in sent[0].lower()
