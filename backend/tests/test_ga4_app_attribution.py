@@ -70,6 +70,32 @@ def test_trim_leading_zeros():
     assert payload["total_daily"]["dates"] == ["2026-04-08", "2026-04-09"]
 
 
+def test_trim_drops_all_zero_campaigns_in_chart_range():
+    payload = {
+        "start": "2025-11-01",
+        "end": "2026-06-07",
+        "total_daily": {
+            "dates": ["2025-11-01", "2026-04-08"],
+            "values": [0.0, 5.0],
+        },
+        "campaigns": [
+            {
+                "campaign": "active",
+                "total": 5,
+                "daily": {"dates": ["2025-11-01", "2026-04-08"], "values": [0.0, 5.0]},
+            },
+            {
+                "campaign": "dead",
+                "total": 99,
+                "daily": {"dates": ["2025-11-01", "2026-04-08"], "values": [0.0, 0.0]},
+            },
+        ],
+    }
+    trim_banner_payload_to_observed_start(payload)
+    names = [c["campaign"] for c in payload["campaigns"]]
+    assert names == ["active"]
+
+
 def test_series_fill_zeros():
     s = _series_from_buckets({"2026-05-11": 4.0}, start=date(2026, 5, 10), end=date(2026, 5, 11))
     assert s["dates"] == ["2026-05-10", "2026-05-11"]

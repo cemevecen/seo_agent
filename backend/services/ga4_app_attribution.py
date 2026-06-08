@@ -159,6 +159,41 @@ def _slice_daily_series(series: dict[str, list] | None, *, from_date: str) -> di
     return {"dates": dates[idx:], "values": values[idx:]}
 
 
+def _daily_has_signal(series: dict[str, list] | None) -> bool:
+    if not series:
+        return False
+    for v in series.get("values") or []:
+        if float(v or 0) > 0:
+            return True
+    return False
+
+
+def _drop_zero_daily_series(payload: dict[str, Any]) -> None:
+    """Trim sonrası grafik aralığında tamamen sıfır kalan serileri çıkar."""
+    camps = [
+        c
+        for c in (payload.get("campaigns") or [])
+        if isinstance(c, dict) and _daily_has_signal(c.get("daily"))
+    ]
+    payload["campaigns"] = camps
+
+    mw = payload.get("mweb_banner")
+    if isinstance(mw, dict):
+        mw["events"] = [
+            ev
+            for ev in (mw.get("events") or [])
+            if isinstance(ev, dict) and _daily_has_signal(ev.get("daily"))
+        ]
+
+    asc_c = payload.get("app_store_campaign_downloads")
+    if isinstance(asc_c, dict) and asc_c.get("ok"):
+        asc_c["campaigns"] = [
+            c
+            for c in (asc_c.get("campaigns") or [])
+            if isinstance(c, dict) and _daily_has_signal(c.get("daily"))
+        ]
+
+
 def _first_signal_date(payload: dict[str, Any]) -> str | None:
     """İlk gerçek veri günü (sıfır doldurulmuş başlangıç hariç)."""
     found: list[str] = []
@@ -238,6 +273,7 @@ def trim_banner_payload_to_observed_start(payload: dict[str, Any]) -> dict[str, 
                 if str(d)[:10] >= first
             ],
         }
+    _drop_zero_daily_series(payload)
     return payload
 
 

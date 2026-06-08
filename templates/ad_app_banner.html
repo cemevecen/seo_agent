@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  /* Sıfır satırlı Plotly kutusu yerine «Seçili gün» paneli */
+  .app-banner-page .hoverlayer { pointer-events: none !important; visibility: hidden !important; }
+</style>
 <div class="mx-auto w-full max-w-[1920px] space-y-4 mz-page app-banner-page" data-header-title="Ad · GA4 banner">
   <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
     <div>
@@ -168,10 +172,20 @@
 
   function traceWithFullHover(trace) {
     var t = Object.assign({}, trace);
-    t.hoverlabel = Object.assign({ namelength: -1 }, trace.hoverlabel || {});
-    t.hovertemplate =
-      (trace.hovertemplate || "<b>%{fullData.name}</b>: %{y:,.0f}<extra></extra>");
+    t.hoverinfo = "skip";
     return t;
+  }
+
+  function filterCampaignsWithSignal(list) {
+    return (list || []).filter(function (c) {
+      return hasSeriesSignal(c.daily);
+    });
+  }
+
+  function filterMwebEventsWithSignal(list) {
+    return (list || []).filter(function (ev) {
+      return hasSeriesSignal(ev.daily);
+    });
   }
 
   var lastPayload = null;
@@ -200,7 +214,7 @@
     var lines = [];
     var fo = valueAt(lastPayload.total_daily, dateIso);
     if (fo != null && fo > 0) lines.push("Toplam first opens: " + formatNum(fo));
-    (lastPayload.campaigns || []).forEach(function (c) {
+    filterCampaignsWithSignal(lastPayload.campaigns).forEach(function (c) {
       var v = valueAt(c.daily, dateIso);
       if (v != null && v > 0) lines.push((c.campaign || "(not set)") + ": " + formatNum(v));
     });
@@ -208,9 +222,13 @@
     if (ascC && ascC.ok && ascC.combined_daily) {
       var cdl = valueAt(ascC.combined_daily, dateIso);
       if (cdl != null && cdl > 0) lines.push("ASC banner downloads: " + formatNum(cdl));
+      filterCampaignsWithSignal(ascC.campaigns).forEach(function (c) {
+        var v = valueAt(c.daily, dateIso);
+        if (v != null && v > 0) lines.push("ASC " + (c.campaign || "") + ": " + formatNum(v));
+      });
     }
     var mw = lastPayload.mweb_banner;
-    (mw && mw.events || []).forEach(function (ev) {
+    filterMwebEventsWithSignal(mw && mw.events).forEach(function (ev) {
       var v = valueAt(ev.daily, dateIso);
       if (v != null && v > 0) lines.push(shortBannerEventName(ev.event_name) + ": " + formatNum(v));
     });
@@ -254,15 +272,18 @@
       "GA4 app — " + label + " (toplam + kampanya, üst " + (data.top_campaigns || 10) + ")";
 
     var dates = (data.total_daily && data.total_daily.dates) || [];
-    var campTraces = [traceWithFullHover({
-      x: dates,
-      y: (data.total_daily && data.total_daily.values) || [],
-      type: "scatter",
-      mode: "lines",
-      name: "Toplam first opens",
-      line: { width: 2.5, color: "#2563eb" },
-    })];
-    (data.campaigns || []).forEach(function (c, i) {
+    var campTraces = [];
+    if (hasSeriesSignal(data.total_daily)) {
+      campTraces.push(traceWithFullHover({
+        x: dates,
+        y: (data.total_daily && data.total_daily.values) || [],
+        type: "scatter",
+        mode: "lines",
+        name: "Toplam first opens",
+        line: { width: 2.5, color: "#2563eb" },
+      }));
+    }
+    filterCampaignsWithSignal(data.campaigns).forEach(function (c, i) {
       campTraces.push(traceWithFullHover({
         x: (c.daily && c.daily.dates) || dates,
         y: (c.daily && c.daily.values) || [],
@@ -298,7 +319,7 @@
         name: "Banner kampanyaları (toplam)",
         line: { width: 2.5, color: "#059669" },
       })];
-      (ascC.campaigns || []).forEach(function (c, i) {
+      filterCampaignsWithSignal(ascC.campaigns).forEach(function (c, i) {
         ascTraces.push(traceWithFullHover({
           x: (c.daily && c.daily.dates) || ascC.combined_daily.dates,
           y: (c.daily && c.daily.values) || [],
@@ -332,7 +353,8 @@
       mwebWrap.classList.remove("hidden");
       document.getElementById("ab-chart-mweb-title").textContent =
         "Mobil web — banner eventleri (" + (mw.operating_systems || "") + ")";
-      var mwebTraces = mw.events.map(function (ev, i) {
+      var mwebEvents = filterMwebEventsWithSignal(mw.events);
+      var mwebTraces = mwebEvents.map(function (ev, i) {
         var tr = document.createElement("tr");
         tr.innerHTML = "<td class=\"px-2 py-1.5 font-mono text-[10px]\" title=\"" + escapeHtml(ev.event_name) + "\">" + escapeHtml(shortBannerEventName(ev.event_name)) + "</td><td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(ev.total) + "</td>";
         mwebBody.appendChild(tr);
@@ -356,7 +378,7 @@
 
     var tbody = document.getElementById("ab-table-body");
     tbody.innerHTML = "";
-    (data.campaigns || []).forEach(function (c) {
+    filterCampaignsWithSignal(data.campaigns).forEach(function (c) {
       var tr = document.createElement("tr");
       tr.innerHTML = "<td class=\"px-2 py-1.5 font-medium text-slate-800 dark:text-zinc-100\">" + escapeHtml(c.campaign) + "</td>"
         + "<td class=\"px-2 py-1.5 tabular-nums\">" + formatNum(c.total) + "</td>";
