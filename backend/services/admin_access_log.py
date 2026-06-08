@@ -47,6 +47,22 @@ def parse_device_label(user_agent: str) -> str:
     return f"{device} / {browser}"
 
 
+def parse_browser_short(user_agent: str) -> str:
+    """Konu satırı için yalnızca tarayıcı adı."""
+    ua_l = (user_agent or "").lower()
+    if "chrome" in ua_l and "edg" not in ua_l and "opr" not in ua_l:
+        return "Chrome"
+    if "firefox" in ua_l:
+        return "Firefox"
+    if "safari" in ua_l and "chrome" not in ua_l:
+        return "Safari"
+    if "edg" in ua_l:
+        return "Edge"
+    if "opr" in ua_l or "opera" in ua_l:
+        return "Opera"
+    return "Tarayıcı"
+
+
 def format_tr(dt: datetime | None) -> str:
     if not dt:
         return "—"
@@ -157,7 +173,9 @@ def _send_unknown_login_alert(
             "«Bu cihaz benim» ile tanıdık olarak işaretleyin; bir daha uyarı gelmez.</p>"
             "</div>"
         )
-        subject = f"SEO Agent — Tanınmayan admin girişi ({ip or '?'})"
+        browser = parse_browser_short(user_agent)
+        ip_disp = (ip or "?").strip() or "?"
+        subject = f"admin girişi - '{browser}' - '{ip_disp}'"
         return send_admin_security_email(subject, body, [recipient])
     except Exception as exc:
         LOGGER.warning("Admin giriş uyarı e-postası gönderilemedi: %s", exc)

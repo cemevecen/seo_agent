@@ -49,6 +49,23 @@ def test_unknown_device_sends_alert():
     assert row.alert_sent is True
 
 
+def test_unknown_login_alert_subject_format():
+    with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
+        with patch.object(aal.settings, "admin_login_alert_enabled", True):
+            with patch.object(aal.settings, "admin_login_alert_email", "admin@example.com"):
+                ok = aal._send_unknown_login_alert(
+                    ip="78.187.20.15",
+                    device_label="Masaüstü / Firefox",
+                    user_agent="Mozilla/5.0 Firefox",
+                    fingerprint="abc123",
+                    event_type="login_ok",
+                )
+    assert ok is True
+    mock_send.assert_called_once()
+    subject = mock_send.call_args[0][0]
+    assert subject == "admin girişi - 'Firefox' - '78.187.20.15'"
+
+
 def test_enrich_active_session_uses_tr_timezone():
     from datetime import datetime
 
