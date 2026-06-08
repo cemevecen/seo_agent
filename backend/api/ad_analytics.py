@@ -367,9 +367,14 @@ def get_ga4_app_banner(
     """GA4 mobil — günlük first opens / event count, first user campaign kırılımı."""
     from google.api_core import exceptions as ga_exc
 
+    from datetime import date as date_cls
+
+    from backend.services.app_intel import APP_PRODUCTS
     from backend.services.ga4_app_attribution import (
         default_banner_date_range,
         fetch_app_banner_attribution,
+        fetch_mweb_banner_events_daily,
+        slice_asc_downloads_daily,
     )
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
 
@@ -416,6 +421,44 @@ def get_ga4_app_banner(
     payload["domain"] = site.domain
     payload["project"] = (project or "doviz").strip().lower()
     payload["profile"] = prof
+
+    start_d = date_cls.fromisoformat(start_s)
+    end_d = date_cls.fromisoformat(end_s)
+    mweb_pid = str(properties.get("mweb") or "").strip()
+    if mweb_pid:
+        try:
+            payload["mweb_banner"] = fetch_mweb_banner_events_daily(
+                mweb_pid,
+                start=start_s,
+                end=end_s,
+                profile=prof,
+            )
+        except Exception as exc:  # noqa: BLE001
+            payload["mweb_banner"] = {"ok": False, "error": str(exc)}
+
+    if prof == "ios":
+        proj_key = (project or "doviz").strip().lower()
+        bundle = (APP_PRODUCTS.get(proj_key) or {}).get("ios_bundle_id") or ""
+        if bundle:
+            try:
+                from backend.services.asc_analytics import fetch_analytics_summary
+
+                from backend.services.timezone_utils import report_calendar_yesterday
+
+                yesterday = report_calendar_yesterday()
+                days_to_start = max(1, (yesterday - start_d).days + 1)
+                span_days = min(365, max((end_d - start_d).days + 1, days_to_start))
+                asc_raw = fetch_analytics_summary(bundle_id=bundle, days=span_days)
+                sliced = slice_asc_downloads_daily(asc_raw, start=start_d, end=end_d)
+                payload["app_store_downloads"] = sliced or {
+                    "ok": False,
+                    "message": "App Store Analytics yanıt vermedi.",
+                }
+            except Exception as exc:  # noqa: BLE001
+                payload["app_store_downloads"] = {"ok": False, "error": str(exc)}
+        else:
+            payload["app_store_downloads"] = {"ok": False, "message": "iOS bundle tanımlı değil."}
+
     return payload
 
 

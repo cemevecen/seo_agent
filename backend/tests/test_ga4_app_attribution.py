@@ -6,6 +6,7 @@ from backend.services.ga4_app_attribution import (
     _aggregate_rows,
     _ga4_date_to_iso,
     _series_from_buckets,
+    slice_asc_downloads_daily,
 )
 from datetime import date
 
@@ -38,6 +39,19 @@ def test_aggregate_top_campaigns():
     assert total["2026-05-12"] == 103
     assert set(by_camp.keys()) == {"rare", "banner_a"}
     assert "banner_b" not in by_camp
+
+
+def test_slice_asc_downloads():
+    asc = {
+        "ok": True,
+        "dates": ["2026-06-05", "2026-06-06"],
+        "total_downloads_series": [32, 27],
+        "first_downloads_series": [30, 25],
+        "redownloads_series": [2, 2],
+    }
+    out = slice_asc_downloads_daily(asc, start=date(2026, 6, 5), end=date(2026, 6, 6))
+    assert out["ok"] is True
+    assert out["daily"]["total_downloads"] == [32.0, 27.0]
 
 
 def test_series_fill_zeros():

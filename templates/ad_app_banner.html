@@ -53,7 +53,23 @@
       <button id="ab-run" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-600">Yenile</button>
     </div>
     <p id="ab-meta" class="mt-3 text-xs text-slate-500 dark:text-zinc-400"></p>
+    <div id="ab-day-insight" class="mt-2 hidden rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-zinc-100">
+      <p class="font-bold text-indigo-900 dark:text-indigo-200">Seçili gün</p>
+      <p id="ab-day-insight-body" class="mt-1 tabular-nums"></p>
+    </div>
     <p id="ab-error" class="mt-2 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"></p>
+  </div>
+
+  <div id="ab-wrap-asc" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <h2 id="ab-chart-asc-title" class="mb-1 text-sm font-bold text-slate-800 dark:text-zinc-100">App Store — Total Downloads (günlük)</h2>
+    <p id="ab-chart-asc-note" class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400"></p>
+    <div id="ab-chart-asc" class="mz-chart-plot w-full" style="min-height:260px;height:36vh;max-height:440px;"></div>
+  </div>
+
+  <div id="ab-wrap-mweb" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <h2 id="ab-chart-mweb-title" class="mb-1 text-sm font-bold text-slate-800 dark:text-zinc-100">Mobil web banner — display / dismiss / click</h2>
+    <p id="ab-chart-mweb-note" class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">GA4 mweb · app_download_banner_* eventleri</p>
+    <div id="ab-chart-mweb" class="mz-chart-plot w-full" style="min-height:280px;height:38vh;max-height:480px;"></div>
   </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
@@ -141,14 +157,64 @@
     }, extra || {});
   }
 
-  function drawLine(elId, traces, layout) {
+  var lastPayload = null;
+
+  function valueAt(series, dateIso) {
+    if (!series || !series.dates || !series.values) return null;
+    var i = series.dates.indexOf(dateIso);
+    return i >= 0 ? series.values[i] : null;
+  }
+
+  function updateDayInsight(dateIso) {
+    var box = document.getElementById("ab-day-insight");
+    var body = document.getElementById("ab-day-insight-body");
+    if (!lastPayload || !dateIso) {
+      box.classList.add("hidden");
+      return;
+    }
+    var lines = [];
+    var fo = valueAt(lastPayload.total_daily, dateIso);
+    if (fo != null) lines.push("GA4 app first opens: " + formatNum(fo));
+    var asc = lastPayload.app_store_downloads;
+    if (asc && asc.ok && asc.daily) {
+      var td = valueAt({ dates: asc.daily.dates, values: asc.daily.total_downloads }, dateIso);
+      if (td != null) lines.push("App Store total downloads: " + formatNum(td));
+    }
+    var mw = lastPayload.mweb_banner;
+    if (mw && mw.daily) {
+      var disp = valueAt(mw.daily.display, dateIso);
+      var dism = valueAt(mw.daily.dismiss, dateIso);
+      var clk = valueAt(mw.daily.click, dateIso);
+      if (disp != null) lines.push("mweb banner display: " + formatNum(disp));
+      if (dism != null) lines.push("mweb banner dismiss: " + formatNum(dism));
+      if (clk != null) lines.push("mweb banner click: " + formatNum(clk));
+    }
+    if (!lines.length) {
+      box.classList.add("hidden");
+      return;
+    }
+    body.textContent = dateIso + " — " + lines.join(" · ");
+    box.classList.remove("hidden");
+  }
+
+  function drawLine(elId, traces, layout, onHoverDate) {
     var el = document.getElementById(elId);
     if (!el || !window.Plotly) return;
     try { Plotly.purge(el); } catch (_) {}
-    Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: true });
+    Plotly.newPlot(el, traces, layout, { responsive: true, displayModeBar: true }).then(function (gd) {
+      if (!onHoverDate) return;
+      gd.on("plotly_hover", function (ev) {
+        var pt = ev.points && ev.points[0];
+        if (pt && pt.x) updateDayInsight(String(pt.x).slice(0, 10));
+      });
+      gd.on("plotly_unhover", function () {
+        document.getElementById("ab-day-insight").classList.add("hidden");
+      });
+    });
   }
 
   function render(data) {
+    lastPayload = data;
     var label = data.metric_label || "First opens";
     document.getElementById("ab-chart-total-title").textContent = label + " — toplam (günlük)";
     document.getElementById("ab-chart-camp-title").textContent = label + " — First user campaign (günlük, üst " + (data.top_campaigns || 10) + ")";
@@ -161,7 +227,7 @@
       mode: "lines",
       name: "Toplam",
       line: { width: 2, color: "#2563eb" },
-    }], plotLayout({ yTitle: label }));
+    }], plotLayout({ yTitle: label }), updateDayInsight);
 
     var campTraces = (data.campaigns || []).map(function (c, i) {
       return {
@@ -173,7 +239,40 @@
         line: { width: 1.5, color: COLORS[i % COLORS.length] },
       };
     });
-    drawLine("ab-chart-campaign", campTraces, plotLayout({ yTitle: label }));
+    drawLine("ab-chart-campaign", campTraces, plotLayout({ yTitle: label }), updateDayInsight);
+
+    var ascWrap = document.getElementById("ab-wrap-asc");
+    var asc = data.app_store_downloads;
+    if (data.profile === "ios" && asc && asc.ok && asc.daily) {
+      ascWrap.classList.remove("hidden");
+      document.getElementById("ab-chart-asc-note").textContent = asc.note || "";
+      drawLine("ab-chart-asc", [{
+        x: asc.daily.dates,
+        y: asc.daily.total_downloads,
+        type: "scatter",
+        mode: "lines",
+        name: "Total downloads",
+        line: { width: 2, color: "#059669" },
+      }], plotLayout({ yTitle: "Downloads" }), updateDayInsight);
+    } else {
+      ascWrap.classList.add("hidden");
+    }
+
+    var mwebWrap = document.getElementById("ab-wrap-mweb");
+    var mw = data.mweb_banner;
+    if (mw && mw.daily && mw.daily.display) {
+      mwebWrap.classList.remove("hidden");
+      document.getElementById("ab-chart-mweb-title").textContent =
+        "Mobil web banner — display / dismiss / click (" + (mw.operating_systems || "") + ")";
+      var d0 = mw.daily.display.dates || dates;
+      drawLine("ab-chart-mweb", [
+        { x: d0, y: mw.daily.display.values, type: "scatter", mode: "lines", name: "display", line: { color: "#2563eb" } },
+        { x: d0, y: mw.daily.dismiss.values, type: "scatter", mode: "lines", name: "dismiss", line: { color: "#d97706" } },
+        { x: d0, y: mw.daily.click.values, type: "scatter", mode: "lines", name: "click", line: { color: "#059669" } },
+      ], plotLayout({ yTitle: "Event count" }), updateDayInsight);
+    } else {
+      mwebWrap.classList.add("hidden");
+    }
 
     var tbody = document.getElementById("ab-table-body");
     tbody.innerHTML = "";
