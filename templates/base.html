@@ -1094,25 +1094,81 @@
     }
   </style>
   <style id="seo-header-pill-nav">
-    /* Konsept 2: metin zinciri — aktif link ⟨ … ⟩, tek satır, scrollbar yok */
+    /* Logo + aksiyonlar üst satır; nav alt satır (mobil/tablet). lg+ tek satır grid. */
     .header-app-shell {
-      display: flex;
+      display: grid;
+      width: 100%;
       min-width: 0;
+      max-width: 100%;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "headline actions"
+        "nav nav";
+      align-items: center;
+      column-gap: 0.5rem;
+      row-gap: 0.35rem;
+    }
+    .header-top-row {
+      display: contents;
+    }
+    #header-site-title {
+      grid-area: headline;
+    }
+    .header-top-actions {
+      grid-area: actions;
+      justify-self: end;
+    }
+    .header-main-nav {
+      grid-area: nav;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
+    .header-nav-track {
+      display: flex;
       flex-direction: row;
       flex-wrap: nowrap;
       align-items: center;
-      gap: 0.5rem;
-    }
-    .header-top-row {
-      display: flex;
-      min-width: 0;
-      flex-shrink: 0;
-      align-items: center;
       justify-content: flex-start;
-      gap: 0.35rem;
+      gap: 0.25rem;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      touch-action: pan-x;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+      padding-bottom: 0.125rem;
+    }
+    .header-nav-track::-webkit-scrollbar {
+      height: 4px;
+    }
+    .header-nav-track::-webkit-scrollbar-thumb {
+      border-radius: 9999px;
+      background: rgba(100, 116, 139, 0.45);
+    }
+    html.dark .header-nav-track {
+      scrollbar-color: rgba(161, 161, 170, 0.35) transparent;
+    }
+    html.dark .header-nav-track::-webkit-scrollbar-thumb {
+      background: rgba(161, 161, 170, 0.35);
+    }
+    @media (min-width: 1024px) {
+      .header-app-shell {
+        grid-template-columns: auto auto minmax(0, 1fr);
+        grid-template-areas: "headline actions nav";
+        row-gap: 0;
+      }
+      .header-nav-track {
+        justify-content: flex-end;
+        gap: 0.125rem;
+      }
     }
     #header-site-title {
-      flex: 0 0 auto;
       min-width: 0;
     }
     #header-page-refresh {
@@ -1140,7 +1196,6 @@
       }
     }
     .header-top-actions {
-      flex: 0 0 auto;
       align-items: center;
     }
     #pc-ptr-indicator {
@@ -1198,38 +1253,14 @@
     #theme-pill {
       pointer-events: none;
     }
-    .header-main-nav {
-      display: flex;
-      min-width: 0;
-      flex: 1 1 auto;
-      flex-wrap: nowrap;
-      align-items: center;
-      justify-content: flex-start;
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior-x: contain;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
-      gap: 0.125rem;
-    }
-    .header-main-nav::-webkit-scrollbar {
-      height: 4px;
-    }
-    .header-main-nav::-webkit-scrollbar-thumb {
-      border-radius: 9999px;
-      background: rgba(100, 116, 139, 0.45);
-    }
-    html.dark .header-main-nav {
-      scrollbar-color: rgba(161, 161, 170, 0.35) transparent;
-    }
-    html.dark .header-main-nav::-webkit-scrollbar-thumb {
-      background: rgba(161, 161, 170, 0.35);
-    }
     .header-nav-link {
-      flex: 0 0 auto;
+      flex: none;
+      width: auto;
+      max-width: none;
       min-width: max-content;
       padding: 0.35rem 0.45rem;
+      position: relative;
+      z-index: 0;
       border: none;
       background: transparent;
       box-shadow: none;
@@ -1291,32 +1322,23 @@
       font-size: 0.6875rem;
       font-weight: 600;
     }
-    @media (max-width: 639px) {
-      .header-app-shell {
-        flex-wrap: wrap;
-        row-gap: 0.35rem;
-      }
-      .header-main-nav {
-        flex: 1 1 100%;
-        width: 100%;
-        max-width: 100%;
-        padding-bottom: 0.15rem;
-        gap: 0.2rem;
-      }
+    @media (max-width: 1023px) {
       .header-nav-link {
         min-height: 32px;
-        padding-left: 0.4rem;
-        padding-right: 0.4rem;
+        padding-left: 0.45rem;
+        padding-right: 0.45rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        font-size: 0.6875rem;
+      }
+      .header-nav-track {
+        gap: 0.35rem;
+        mask-image: linear-gradient(90deg, transparent 0, #000 0.75rem, #000 calc(100% - 0.75rem), transparent 100%);
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 0.75rem, #000 calc(100% - 0.75rem), transparent 100%);
       }
     }
     @media (min-width: 1024px) {
-      .header-main-nav {
-        justify-content: flex-end;
-        gap: 0.05rem;
-      }
       .header-nav-link {
         font-size: 0.6875rem;
         padding-left: 0.35rem;
@@ -1353,12 +1375,12 @@
             <div class="header-top-row">
               <h2
                 id="header-site-title"
-                class="flex min-w-0 items-center gap-2 leading-tight [grid-area:headline]"
+                class="flex min-w-0 items-center gap-2 leading-tight"
               >
                 <img src="/static/favicon.png?v={{ favicon_v }}" class="h-6 w-6 shrink-0 rounded-md shadow-sm" alt="Logo" />
                 <span id="header-site-title-text" class="sr-only">{{ site_name or "SEO Agent" }}</span>
               </h2>
-              <div class="header-top-actions flex shrink-0 items-center gap-1 [grid-area:theme]">
+              <div class="header-top-actions flex shrink-0 items-center gap-1">
               <button
                 type="button"
                 id="header-page-refresh"
@@ -1391,6 +1413,7 @@
               class="header-main-nav"
               aria-label="Ana gezinme"
             >
+              <div class="header-nav-track" id="header-nav-track">
               {% if is_tmdb_guest_view(request) %}
               <span class="rounded-full border border-violet-300 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-900 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200 sm:text-xs">Vizyon takvimi</span>
               <a href="/tmdb-upcoming?guest_logout=1" class="header-nav-link header-nav-link--guest">Çıkış</a>
@@ -1418,6 +1441,7 @@
               <a href="/settings" data-nav-match="/settings" class="header-nav-link">settings</a>
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
               {% endif %}
+              </div>
             </nav>
           </div>
         </div>
