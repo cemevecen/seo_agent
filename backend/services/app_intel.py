@@ -296,6 +296,7 @@ _IOS_STOREFRONTS: tuple[str, ...] = (
 APP_PRODUCTS: dict[str, dict[str, str]] = {
     "doviz": {
         "label": "Döviz",
+        "crashlytics_bigquery": True,
         "android_package": "com.Doviz",
         # BigQuery’de tablo adı: bundle id noktaları → alt çizgi (örn. com.nokta.Finans.Takip → com_nokta_Finans_Takip).
         # Firebase'deki gerçek iOS bundle id "com.nokta.Finans.Takip" (App Store: "Döviz - Kur, Altın, Borsa, Koin").

@@ -7,6 +7,7 @@ Mağaza sürüm yayın durumu — staged rollout / phased release (canlı API).
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any
 
@@ -43,6 +44,29 @@ def _cache_get(key: str) -> dict[str, Any] | None:
 
 def _cache_set(key: str, data: dict[str, Any]) -> None:
     _CACHE[key] = (time.time(), data)
+
+
+def _android_rollout_error_message(exc: Exception) -> tuple[str, str | None]:
+    """(kısa mesaj, opsiyonel etkinleştirme URL'si)."""
+    raw = str(exc)
+    if "SERVICE_DISABLED" in raw or (
+        "androidpublisher.googleapis.com" in raw and "disabled" in raw.lower()
+    ):
+        url = ""
+        if "activationUrl" in raw:
+            m = re.search(r"https://console\.developers\.google\.com/apis/api/androidpublisher[^\s'\"]+", raw)
+            if m:
+                url = m.group(0)
+        if not url:
+            url = "https://console.developers.google.com/apis/api/androidpublisher.googleapis.com/overview"
+        return (
+            "Google Play Android Developer API bu GCP projesinde kapalı — "
+            "API Library'den etkinleştirin, birkaç dakika bekleyin.",
+            url,
+        )
+    if "403" in raw and "permission" in raw.lower():
+        return ("Play Console API erişim izni yok (service account + uygulama yetkisi).", None)
+    return (raw[:220], None)
 
 
 def _ios_phased_pct(state: str | None, day: int | None) -> tuple[float, str]:
@@ -176,8 +200,20 @@ def fetch_android_rollout(*, package_name: str) -> dict[str, Any]:
         tracks_resp = svc.edits().tracks().list(packageName=package_name, editId=edit_id).execute()
         tracks = tracks_resp.get("tracks") or []
     except Exception as exc:
-        logger.warning("GP tracks list hatası (%s): %s", package_name, exc)
-        return {"ok": False, "live": False, "message": str(exc)[:200]}
+        msg, hint_url = _android_rollout_error_message(exc)
+        if hint_url:
+            logger.info(
+                "GP tracks kullanılamıyor (%s): %s — %s",
+                package_name,
+                msg,
+                hint_url,
+            )
+        else:
+            logger.warning("GP tracks list hatası (%s): %s", package_name, exc)
+        out: dict[str, Any] = {"ok": False, "live": False, "message": msg}
+        if hint_url:
+            out["api_enable_url"] = hint_url
+        return out
     finally:
         if edit_id:
             try:

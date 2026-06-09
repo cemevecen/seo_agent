@@ -374,9 +374,10 @@ def _discover_table_id(platform: str, bundle: str) -> str | None:
             return t_orig
     with _TABLE_DISCOVERY_LOCK:
         _TABLE_DISCOVERY_CACHE[key] = None
-    logger.warning(
+    logger.debug(
         "Crashlytics tablosu bulunamadı: %s; datasette mevcut: %s",
-        key, ", ".join(available[:15]) or "(boş)",
+        key,
+        ", ".join(available[:15]) or "(boş)",
     )
     return None
 
@@ -2034,9 +2035,18 @@ GROUP BY state ORDER BY event_count DESC LIMIT 5
 
 # ── Platform birleştirici ─────────────────────────────────────────────────────
 
+def crashlytics_bigquery_enabled(product_id: str) -> bool:
+    """Firebase → BigQuery Crashlytics export beklenen ürün (ör. doviz; sinemalar değil)."""
+    pid = (product_id or "").strip().lower()
+    meta = APP_PRODUCTS.get(pid)
+    return bool(meta and meta.get("crashlytics_bigquery"))
+
+
 def crashlytics_product_ready(product_id: str) -> bool:
     """BigQuery'de keşfedilmiş Crashlytics tablosu olan ürün."""
     pid = (product_id or "").strip().lower()
+    if not crashlytics_bigquery_enabled(pid):
+        return False
     meta = APP_PRODUCTS.get(pid)
     if not meta:
         return False
@@ -2050,11 +2060,11 @@ def crashlytics_product_ready(product_id: str) -> bool:
 
 
 def list_crashlytics_products() -> list[dict[str, str]]:
-    """Firebase sayfası — yalnızca BQ'da crash tablosu bulunan ürünler."""
+    """Firebase sayfası — yalnızca BQ export tanımlı ve tablosu bulunan ürünler."""
     out = [
         {"id": k, "label": v["label"]}
         for k, v in APP_PRODUCTS.items()
-        if crashlytics_product_ready(k)
+        if crashlytics_bigquery_enabled(k) and crashlytics_product_ready(k)
     ]
     if not out and "doviz" in APP_PRODUCTS:
         return [{"id": "doviz", "label": APP_PRODUCTS["doviz"]["label"]}]
@@ -2190,6 +2200,13 @@ def build_full_payload(
     pid = (product_id or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
         return {"ok": False, "error": "unknown_product"}
+    if not crashlytics_bigquery_enabled(pid):
+        return {
+            "ok": False,
+            "configured": False,
+            "product": pid,
+            "message": "Bu ürün için BigQuery Crashlytics export yapılandırılmamış.",
+        }
     if not any_platform_ready():
         return {"ok": False, "configured": False, "message": "Service account tanımlı değil."}
 
