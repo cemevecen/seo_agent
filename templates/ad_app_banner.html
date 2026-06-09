@@ -631,7 +631,60 @@
   }
 
   var lastPayload = null;
-  var mainChartState = { allTraces: [], layoutExtra: null, seriesMeta: [] };
+  var mainChartState = { allTraces: [], layoutExtra: null, seriesMeta: [], plotGd: null };
+  var abChartResizeObs = null;
+
+  function ensurePlotly(callback) {
+    if (window.Plotly && typeof window.Plotly.newPlot === "function") {
+      callback();
+      return;
+    }
+    var attempts = 0;
+    var el = document.getElementById("ab-chart-campaign");
+    if (el && !el.getAttribute("data-plotly-wait")) {
+      el.setAttribute("data-plotly-wait", "1");
+      el.innerHTML = "<p class=\"flex h-full min-h-[12rem] items-center justify-center text-xs text-slate-500 dark:text-zinc-400\">Grafik yükleniyor…</p>";
+    }
+    (function tick() {
+      attempts += 1;
+      if (window.Plotly && typeof window.Plotly.newPlot === "function") {
+        if (el) el.removeAttribute("data-plotly-wait");
+        callback();
+        return;
+      }
+      if (attempts > 150) {
+        if (el) {
+          el.innerHTML = "<p class=\"py-8 text-center text-xs text-rose-600 dark:text-rose-400\">Grafik kütüphanesi yüklenemedi. Sayfayı yenileyin.</p>";
+        }
+        return;
+      }
+      setTimeout(tick, 40);
+    })();
+  }
+
+  function watchMainChartResize(gd) {
+    var el = document.getElementById("ab-chart-campaign");
+    if (!el || !gd || !window.ResizeObserver) return;
+    if (abChartResizeObs) {
+      try { abChartResizeObs.disconnect(); } catch (_) {}
+    }
+    abChartResizeObs = new ResizeObserver(function () {
+      if (!window.Plotly) return;
+      try { Plotly.Plots.resize(gd); } catch (_) {}
+    });
+    abChartResizeObs.observe(el);
+  }
+
+  function schedulePlotlyResize(gd) {
+    if (!gd || !window.Plotly) return;
+    var run = function () {
+      try { Plotly.Plots.resize(gd); } catch (_) {}
+    };
+    requestAnimationFrame(function () {
+      run();
+      requestAnimationFrame(run);
+    });
+  }
 
   function seriesStorageKey() {
     return "ab-chart-series:" + AB_PROJECT + ":" + document.getElementById("ab-profile").value;
@@ -681,10 +734,20 @@
 
   function filterTracesBySeries(traces, namesSet) {
     if (!namesSet || namesSet.size >= mainChartState.seriesMeta.length) return traces;
-    return traces.filter(function (t) {
+    var filtered = traces.filter(function (t) {
       var n = t.name || "";
       return namesSet.has(n);
     });
+    if (filtered.length) return filtered;
+    var valid = new Set();
+    mainChartState.seriesMeta.forEach(function (m) {
+      if (namesSet.has(m.name)) valid.add(m.name);
+    });
+    if (valid.size) {
+      filtered = traces.filter(function (t) { return valid.has(t.name || ""); });
+      if (filtered.length) return filtered;
+    }
+    return traces;
   }
 
   function redrawMainChart() {
@@ -905,14 +968,25 @@
 
   function drawLine(elId, traces, layout, onHoverDate) {
     var el = document.getElementById(elId);
-    if (!el || !window.Plotly) return;
+    if (!el) return;
+    if (!window.Plotly || typeof window.Plotly.newPlot !== "function") {
+      ensurePlotly(function () { drawLine(elId, traces, layout, onHoverDate); });
+      return;
+    }
+    el.removeAttribute("data-plotly-wait");
     try { Plotly.purge(el); } catch (_) {}
     if (!traces.length) {
       el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-400\">Grafik verisi yok.</p>";
+      mainChartState.plotGd = null;
       return;
     }
     var lay = applyBannerChartBoxSize(el, layout);
     Plotly.newPlot(el, traces, lay, plotlyBannerCfg()).then(function (gd) {
+      if (elId === "ab-chart-campaign") {
+        mainChartState.plotGd = gd;
+        watchMainChartResize(gd);
+        schedulePlotlyResize(gd);
+      }
       if (!onHoverDate) return;
       function onHover(ev) {
         var pts = ev.points || [];
@@ -927,6 +1001,8 @@
         if (dateIso) updateDayInsight(dateIso);
       }
       gd.on("plotly_hover", onHover);
+    }).catch(function () {
+      el.innerHTML = "<p class=\"py-8 text-center text-xs text-rose-600 dark:text-rose-400\">Grafik çizilemedi. «Veriyi göster» ile tekrar deneyin.</p>";
     });
   }
 
@@ -1402,6 +1478,9 @@
       errEl.classList.remove("hidden");
     } finally {
       setLoading(false);
+      if (mainChartState.plotGd) {
+        schedulePlotlyResize(mainChartState.plotGd);
+      }
     }
   }
 
