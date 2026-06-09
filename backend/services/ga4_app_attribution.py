@@ -38,32 +38,6 @@ MWEB_BANNER_EVENT_NAMES: tuple[str, ...] = (
     "app_download_banner_show",
 )
 
-# GA4 firstUserCampaignName — panelde gösterilmeyen (seyrek / anlamsız kırılım).
-BANNER_HIDDEN_FIRST_USER_CAMPAIGN_FRAGMENTS: tuple[str, ...] = (
-    "mdoviz_app_download_banner_currency_detail",
-    "mdoviz app download banner",
-    "mdoviz_app_download_banner",
-    "app_banner_in_web",
-)
-
-
-def _norm_campaign_label(name: str) -> str:
-    return (name or "").strip().lower().replace("%20", " ")
-
-
-def is_hidden_banner_first_user_campaign(name: str) -> bool:
-    """Banner panelinden çıkarılan kampanya adları (grafik, döküm, ASC kırılımı)."""
-    n = _norm_campaign_label(name)
-    if not n:
-        return False
-    for raw in BANNER_HIDDEN_FIRST_USER_CAMPAIGN_FRAGMENTS:
-        frag = _norm_campaign_label(raw)
-        if not frag:
-            continue
-        if n == frag or frag in n or n in frag:
-            return True
-    return False
-
 
 def _ga4_date_to_iso(raw: str) -> str:
     s = (raw or "").strip()
@@ -138,8 +112,6 @@ def _aggregate_rows(
         campaign = str(dims[1].value or "").strip() or "(not set)"
         val = float((row.metric_values or [None])[0].value or 0)
         total_by_date[d_iso] = total_by_date.get(d_iso, 0.0) + val
-        if is_hidden_banner_first_user_campaign(campaign):
-            continue
         bucket = by_campaign_date.setdefault(campaign, {})
         bucket[d_iso] = bucket.get(d_iso, 0.0) + val
         campaign_totals[campaign] = campaign_totals.get(campaign, 0.0) + val
@@ -253,42 +225,8 @@ def _first_signal_date(payload: dict[str, Any]) -> str | None:
     return min(found) if found else None
 
 
-def _strip_hidden_banner_series(payload: dict[str, Any]) -> None:
-    """Gizli kampanyaları payload'dan çıkar; ASC birleşik seriyi yeniden hesapla."""
-    payload["campaigns"] = [
-        c
-        for c in (payload.get("campaigns") or [])
-        if isinstance(c, dict) and not is_hidden_banner_first_user_campaign(c.get("campaign"))
-    ]
-    asc_c = payload.get("app_store_campaign_downloads")
-    if not isinstance(asc_c, dict) or not asc_c.get("ok"):
-        return
-    asc_c["campaigns"] = [
-        c
-        for c in (asc_c.get("campaigns") or [])
-        if isinstance(c, dict) and not is_hidden_banner_first_user_campaign(c.get("campaign"))
-    ]
-    start_s = str(payload.get("start") or "")[:10]
-    end_s = str(payload.get("end") or "")[:10]
-    if not start_s or not end_s:
-        return
-    try:
-        start_d = _parse_iso_date(start_s)
-        end_d = _parse_iso_date(end_s)
-    except ValueError:
-        return
-    combined: dict[str, float] = {}
-    for camp in asc_c.get("campaigns") or []:
-        daily = (camp or {}).get("daily") or {}
-        for d, v in zip(daily.get("dates") or [], daily.get("values") or []):
-            key = str(d)[:10]
-            combined[key] = combined.get(key, 0.0) + float(v or 0)
-    asc_c["combined_daily"] = _series_from_buckets(combined, start=start_d, end=end_d)
-
-
 def trim_banner_payload_to_observed_start(payload: dict[str, Any]) -> dict[str, Any]:
     """Kullanıcı aralığındaki yapay baştaki sıfırları keser; chart_range döner."""
-    _strip_hidden_banner_series(payload)
     req_start = str(payload.get("start") or "")[:10]
     req_end = str(payload.get("end") or "")[:10]
     first = _first_signal_date(payload)
