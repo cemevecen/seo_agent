@@ -53,6 +53,78 @@
   .app-banner-page #ab-day-insight.ab-day-insight--slot {
     min-height: 5.25rem;
   }
+  .app-banner-page .ab-dump-wrap {
+    max-height: min(70vh, 720px);
+    overflow: auto;
+  }
+  .app-banner-page .ab-dump-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8fafc;
+    box-shadow: 0 1px 0 #e2e8f0;
+  }
+  html.dark .app-banner-page .ab-dump-table thead th,
+  html.midnight .app-banner-page .ab-dump-table thead th {
+    background: #09090b;
+    box-shadow: 0 1px 0 #3f3f46;
+  }
+  .app-banner-page .ab-dump-table th.ab-dump-th-date,
+  .app-banner-page .ab-dump-table td.ab-dump-td-date {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 7.5rem;
+  }
+  .app-banner-page .ab-dump-table thead th.ab-dump-th-date {
+    z-index: 3;
+  }
+  .app-banner-page .ab-dump-table td.ab-dump-td-date {
+    background: #ffffff;
+  }
+  html.dark .app-banner-page .ab-dump-table td.ab-dump-td-date,
+  html.midnight .app-banner-page .ab-dump-table td.ab-dump-td-date {
+    background: #18181b;
+  }
+  .app-banner-page .ab-dump-th-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .app-banner-page .ab-dump-th-sort:hover {
+    color: #0f172a;
+  }
+  html.dark .app-banner-page .ab-dump-th-sort:hover,
+  html.midnight .app-banner-page .ab-dump-th-sort:hover {
+    color: #fafafa;
+  }
+  .app-banner-page .ab-dump-th-sort .ab-dump-sort-arrow {
+    margin-left: 0.2rem;
+    font-size: 0.65rem;
+    opacity: 0.35;
+  }
+  .app-banner-page .ab-dump-th-sort.ab-dump-sorted .ab-dump-sort-arrow {
+    opacity: 1;
+    color: #4f46e5;
+  }
+  html.dark .app-banner-page .ab-dump-th-sort.ab-dump-sorted .ab-dump-sort-arrow {
+    color: #818cf8;
+  }
+  .app-banner-page .ab-dump-val--zero {
+    color: #94a3b8;
+  }
+  html.dark .app-banner-page .ab-dump-val--zero,
+  html.midnight .app-banner-page .ab-dump-val--zero {
+    color: #52525b;
+  }
+  .app-banner-page .ab-dump-group-tag {
+    display: block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.65;
+  }
 </style>
 <div class="mx-auto w-full max-w-[1920px] space-y-4 mz-page app-banner-page" data-header-title="Ad · GA4 banner">
   <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -133,6 +205,28 @@
       </div>
     </div>
     <div id="ab-chart-campaign" class="mz-chart-plot ab-chart-plot-fixed w-full" data-chart-h="440"></div>
+  </div>
+
+  <div id="ab-wrap-dump" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+    <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Günlük döküm</h2>
+        <p id="ab-dump-subtitle" class="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400">Grafikteki tüm seriler · tarih satır, metrik sütun</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="flex cursor-pointer items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
+          <input id="ab-dump-active-only" type="checkbox" checked class="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 dark:border-zinc-500" />
+          Yalnızca aktivite olan günler
+        </label>
+        <p id="ab-dump-count" class="text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
+      </div>
+    </div>
+    <div class="ab-dump-wrap rounded-xl border border-slate-200 dark:border-zinc-700">
+      <table id="ab-dump-table" class="ab-dump-table min-w-full border-collapse text-left text-[11px]">
+        <thead id="ab-dump-thead" class="text-slate-600 dark:text-zinc-400"></thead>
+        <tbody id="ab-dump-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+      </table>
+    </div>
   </div>
 
   <div id="ab-wrap-asc" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
@@ -677,6 +771,244 @@
     return false;
   }
 
+  var dailyDumpCache = { dates: [], columns: [], rowData: [] };
+  var abDumpSortState = { key: "date", desc: true };
+
+  function dumpGroupTag(group) {
+    if (group === "mweb") return "mweb";
+    if (group === "campaign") return "kampanya";
+    if (group === "asc") return "ASC";
+    if (group === "app") return "app";
+    return "";
+  }
+
+  function formatDateTrDisplay(iso) {
+    if (!iso) return "—";
+    var p = String(iso).slice(0, 10).split("-");
+    if (p.length < 3) return iso;
+    var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    if (isNaN(d.getTime())) return iso;
+    var wd = d.toLocaleDateString("tr-TR", { weekday: "short" });
+    var main = d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
+    return { main: main, wd: wd, iso: iso.slice(0, 10) };
+  }
+
+  function buildDailyDumpColumns(data) {
+    var cols = [];
+    if (hasSeriesSignal(data.total_daily)) {
+      cols.push({ key: "download", label: "download", group: "app", series: data.total_daily });
+    }
+    filterCampaignsWithSignal(data.campaigns).forEach(function (c) {
+      var name = c.campaign || "(not set)";
+      cols.push({ key: "camp:" + name, label: name, group: "campaign", series: c.daily });
+    });
+    var mw = data.mweb_banner;
+    filterMwebEventsWithSignal(mw && mw.events).forEach(function (ev) {
+      var label = shortBannerEventName(ev.event_name);
+      cols.push({ key: "mweb:" + (ev.event_name || label), label: label, group: "mweb", series: ev.daily });
+    });
+    var ascC = data.app_store_campaign_downloads;
+    if (data.profile === "ios" && ascC && ascC.ok && hasSeriesSignal(ascC.combined_daily)) {
+      cols.push({ key: "asc_total", label: "ASC banner (toplam)", group: "asc", series: ascC.combined_daily });
+      filterCampaignsWithSignal(ascC.campaigns).forEach(function (c) {
+        cols.push({ key: "asc:" + (c.campaign || ""), label: "ASC " + (c.campaign || ""), group: "asc", series: c.daily });
+      });
+    }
+    return cols;
+  }
+
+  function collectDumpDates(data) {
+    var dates = (data.total_daily && data.total_daily.dates) || [];
+    if (dates.length) return dates.slice();
+    var span = chartSpanDates(data);
+    if (!span.start || !span.end) return [];
+    var out = [];
+    var cur = new Date(span.start + "T12:00:00");
+    var endD = new Date(span.end + "T12:00:00");
+    while (cur <= endD) {
+      var y = cur.getFullYear();
+      var m = String(cur.getMonth() + 1).padStart(2, "0");
+      var day = String(cur.getDate()).padStart(2, "0");
+      out.push(y + "-" + m + "-" + day);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }
+
+  function rowHasActivity(values) {
+    for (var i = 0; i < values.length; i++) {
+      if (Number(values[i]) > 0) return true;
+    }
+    return false;
+  }
+
+  function buildDailyDumpRowData(dates, columns) {
+    return dates.map(function (dateIso) {
+      var vals = columns.map(function (col) {
+        var v = valueAt(col.series, dateIso);
+        return v == null ? 0 : Number(v) || 0;
+      });
+      return { date: dateIso, values: vals, active: rowHasActivity(vals) };
+    });
+  }
+
+  function updateAbDumpSortArrows(tbl) {
+    tbl.querySelectorAll("th.ab-dump-th-sort").forEach(function (th) {
+      var key = th.getAttribute("data-sort-key");
+      var arrow = th.querySelector(".ab-dump-sort-arrow");
+      th.classList.remove("ab-dump-sorted");
+      if (!arrow) return;
+      if (key === abDumpSortState.key) {
+        th.classList.add("ab-dump-sorted");
+        arrow.textContent = abDumpSortState.desc ? "↓" : "↑";
+      } else {
+        arrow.textContent = "↕";
+      }
+    });
+  }
+
+  function sortAbDumpRows(rowData, sortKey, desc, columns) {
+    var rows = rowData.slice();
+    rows.sort(function (a, b) {
+      var av;
+      var bv;
+      if (sortKey === "date") {
+        av = a.date;
+        bv = b.date;
+        if (av === bv) return 0;
+        return av < bv ? -1 : 1;
+      }
+      var idx = -1;
+      for (var i = 0; i < columns.length; i++) {
+        if (columns[i].key === sortKey) { idx = i; break; }
+      }
+      if (idx < 0) return 0;
+      av = a.values[idx];
+      bv = b.values[idx];
+      if (av === bv) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+      return av < bv ? -1 : 1;
+    });
+    if (desc) rows.reverse();
+    return rows;
+  }
+
+  function paintAbDumpTableBody(columns, sortedRows, activeOnly) {
+    var tbody = document.getElementById("ab-dump-tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    var shown = 0;
+    var total = sortedRows.length;
+    sortedRows.forEach(function (row) {
+      if (activeOnly && !row.active) return;
+      shown += 1;
+      var tr = document.createElement("tr");
+      tr.className = "hover:bg-slate-50/80 dark:hover:bg-zinc-800/50";
+      tr.setAttribute("data-date", row.date);
+      var fd = formatDateTrDisplay(row.date);
+      var dateTd = document.createElement("td");
+      dateTd.className = "ab-dump-td-date px-3 py-2 font-bold text-slate-900 dark:text-zinc-100";
+      dateTd.setAttribute("data-sort-value", row.date);
+      dateTd.title = row.date;
+      dateTd.innerHTML =
+        "<span class=\"block text-[11px] leading-tight\">" + escapeHtml(fd.main) + "</span>" +
+        "<span class=\"mt-0.5 block text-[9px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400\">" +
+        escapeHtml(fd.wd) + "</span>" +
+        "<span class=\"mt-0.5 block font-mono text-[9px] font-normal text-slate-400 dark:text-zinc-500\">" + escapeHtml(fd.iso) + "</span>";
+      tr.appendChild(dateTd);
+      row.values.forEach(function (n, ci) {
+        var td = document.createElement("td");
+        var num = Number(n) || 0;
+        td.className = "px-2.5 py-2 text-right tabular-nums " + (num > 0 ? "text-slate-800 dark:text-zinc-200" : "ab-dump-val--zero");
+        td.setAttribute("data-sort-value", String(num));
+        td.setAttribute("data-col-key", columns[ci].key);
+        td.textContent = num > 0 ? formatNum(num) : "·";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    var countEl = document.getElementById("ab-dump-count");
+    if (countEl) {
+      var activeN = sortedRows.filter(function (r) { return r.active; }).length;
+      countEl.textContent = activeOnly
+        ? shown + " gün gösteriliyor (" + activeN + " aktivite günü / " + total + " toplam)"
+        : shown + " gün · " + activeN + " aktivite günü";
+    }
+  }
+
+  function renderDailyDump(data) {
+    var wrap = document.getElementById("ab-wrap-dump");
+    var thead = document.getElementById("ab-dump-thead");
+    var tbl = document.getElementById("ab-dump-table");
+    if (!wrap || !thead || !tbl) return;
+    var columns = buildDailyDumpColumns(data);
+    var dates = collectDumpDates(data);
+    if (!columns.length || !dates.length) {
+      wrap.classList.add("hidden");
+      dailyDumpCache = { dates: [], columns: [], rowData: [] };
+      return;
+    }
+    wrap.classList.remove("hidden");
+    dailyDumpCache.dates = dates;
+    dailyDumpCache.columns = columns;
+    dailyDumpCache.rowData = buildDailyDumpRowData(dates, columns);
+
+    var span = chartSpanDates(data);
+    var sub = document.getElementById("ab-dump-subtitle");
+    if (sub && span.start && span.end) {
+      sub.textContent = "Grafikteki tüm seriler · " + span.start + " → " + span.end;
+    }
+
+    thead.innerHTML = "";
+    var headTr = document.createElement("tr");
+    headTr.className = "border-b border-slate-200 dark:border-zinc-700";
+    var thDate = document.createElement("th");
+    thDate.className = "ab-dump-th-date ab-dump-th-sort px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide";
+    thDate.setAttribute("data-sort-key", "date");
+    thDate.setAttribute("data-sort-type", "date");
+    thDate.setAttribute("data-default-desc", "1");
+    thDate.innerHTML = "Tarih <span class=\"ab-dump-sort-arrow\">↓</span>";
+    headTr.appendChild(thDate);
+    columns.forEach(function (col) {
+      var th = document.createElement("th");
+      th.className = "ab-dump-th-sort px-2.5 py-2.5 text-right text-[10px] font-bold leading-tight";
+      th.setAttribute("data-sort-key", col.key);
+      th.setAttribute("data-sort-type", "num");
+      th.setAttribute("data-default-desc", "1");
+      var tag = dumpGroupTag(col.group);
+      th.innerHTML =
+        (tag ? "<span class=\"ab-dump-group-tag\">" + escapeHtml(tag) + "</span>" : "") +
+        "<span class=\"block max-w-[8rem] truncate\" title=\"" + escapeHtml(col.label) + "\">" + escapeHtml(col.label) + "</span>" +
+        "<span class=\"ab-dump-sort-arrow\">↕</span>";
+      headTr.appendChild(th);
+    });
+    thead.appendChild(headTr);
+
+    if (!abDumpSortState.key || (abDumpSortState.key !== "date" && !columns.some(function (c) { return c.key === abDumpSortState.key; }))) {
+      abDumpSortState = { key: "date", desc: true };
+    }
+    var activeOnly = document.getElementById("ab-dump-active-only");
+    var sorted = sortAbDumpRows(dailyDumpCache.rowData, abDumpSortState.key, abDumpSortState.desc, columns);
+    paintAbDumpTableBody(columns, sorted, activeOnly && activeOnly.checked);
+    updateAbDumpSortArrows(tbl);
+
+    if (!tbl.getAttribute("data-dump-wired")) {
+      tbl.setAttribute("data-dump-wired", "1");
+      tbl.addEventListener("click", function (e) {
+        var th = e.target && e.target.closest ? e.target.closest("th.ab-dump-th-sort") : null;
+        if (!th || !tbl.contains(th)) return;
+        var key = th.getAttribute("data-sort-key");
+        var defaultDesc = th.getAttribute("data-default-desc") === "1";
+        abDumpSortState.desc = abDumpSortState.key === key ? !abDumpSortState.desc : defaultDesc;
+        abDumpSortState.key = key;
+        var cols = dailyDumpCache.columns;
+        var sortedRows = sortAbDumpRows(dailyDumpCache.rowData, abDumpSortState.key, abDumpSortState.desc, cols);
+        var ao = document.getElementById("ab-dump-active-only");
+        paintAbDumpTableBody(cols, sortedRows, ao && ao.checked);
+        updateAbDumpSortArrows(tbl);
+      });
+    }
+  }
+
   function render(data) {
     lastPayload = data;
     var label = data.metric_label || "Download";
@@ -721,6 +1053,7 @@
     if (!selected) selected = new Set(names);
     rebuildSeriesPanel(built.meta, selected);
     redrawMainChart();
+    renderDailyDump(data);
     showDayInsightSlot();
     var insightBody = document.getElementById("ab-day-insight-body");
     if (insightBody && !insightBody.innerHTML.trim()) {
@@ -841,6 +1174,14 @@
   document.getElementById("ab-series-mweb").addEventListener("click", function () { applySeriesPreset("mweb"); });
   document.getElementById("ab-series-app").addEventListener("click", function () { applySeriesPreset("app"); });
   document.getElementById("ab-run").addEventListener("click", load);
+  var dumpActiveOnly = document.getElementById("ab-dump-active-only");
+  if (dumpActiveOnly) {
+    dumpActiveOnly.addEventListener("change", function () {
+      if (!dailyDumpCache.rowData.length) return;
+      var sorted = sortAbDumpRows(dailyDumpCache.rowData, abDumpSortState.key, abDumpSortState.desc, dailyDumpCache.columns);
+      paintAbDumpTableBody(dailyDumpCache.columns, sorted, dumpActiveOnly.checked);
+    });
+  }
   document.getElementById("ab-preset").addEventListener("change", function () {
     var v = document.getElementById("ab-preset").value;
     if (v) applyPresetMonths(v);
