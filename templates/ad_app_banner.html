@@ -54,8 +54,20 @@
     min-height: 5.25rem;
   }
   .app-banner-page .ab-dump-wrap {
-    max-height: min(70vh, 720px);
+    container-type: inline-size;
+    container-name: ab-dump;
+    max-height: min(75vh, 820px);
     overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .app-banner-page .ab-dump-table-wrap {
+    min-width: min(100%, max-content);
+  }
+  .app-banner-page .ab-dump-table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
   }
   .app-banner-page .ab-dump-table thead th {
     position: sticky;
@@ -63,6 +75,7 @@
     z-index: 2;
     background: #f8fafc;
     box-shadow: 0 1px 0 #e2e8f0;
+    vertical-align: bottom;
   }
   html.dark .app-banner-page .ab-dump-table thead th,
   html.midnight .app-banner-page .ab-dump-table thead th {
@@ -74,7 +87,8 @@
     position: sticky;
     left: 0;
     z-index: 1;
-    min-width: 7.5rem;
+    min-width: 6.75rem;
+    max-width: 9rem;
   }
   .app-banner-page .ab-dump-table thead th.ab-dump-th-date {
     z-index: 3;
@@ -86,10 +100,28 @@
   html.midnight .app-banner-page .ab-dump-table td.ab-dump-td-date {
     background: #18181b;
   }
+  .app-banner-page .ab-dump-th-metric {
+    min-width: 4.75rem;
+  }
+  .app-banner-page .ab-dump-th-label {
+    display: block;
+    line-height: 1.3;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    text-align: right;
+  }
+  .app-banner-page .ab-dump-th-date .ab-dump-th-label {
+    text-align: left;
+  }
+  .app-banner-page .ab-dump-td-metric {
+    white-space: nowrap;
+    min-width: 3.25rem;
+  }
   .app-banner-page .ab-dump-th-sort {
     cursor: pointer;
     user-select: none;
-    white-space: nowrap;
   }
   .app-banner-page .ab-dump-th-sort:hover {
     color: #0f172a;
@@ -99,9 +131,11 @@
     color: #fafafa;
   }
   .app-banner-page .ab-dump-th-sort .ab-dump-sort-arrow {
-    margin-left: 0.2rem;
+    display: inline-block;
+    margin-left: 0.15rem;
     font-size: 0.65rem;
     opacity: 0.35;
+    vertical-align: middle;
   }
   .app-banner-page .ab-dump-th-sort.ab-dump-sorted .ab-dump-sort-arrow {
     opacity: 1;
@@ -124,6 +158,90 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     opacity: 0.65;
+    margin-bottom: 0.15rem;
+  }
+  .app-banner-page .ab-dump-cards {
+    display: none;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .app-banner-page .ab-dump-card {
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.75rem 0.85rem;
+  }
+  html.dark .app-banner-page .ab-dump-card,
+  html.midnight .app-banner-page .ab-dump-card {
+    border-color: #3f3f46;
+    background: #09090b;
+  }
+  .app-banner-page .ab-dump-card-head {
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  html.dark .app-banner-page .ab-dump-card-head,
+  html.midnight .app-banner-page .ab-dump-card-head {
+    border-color: #3f3f46;
+  }
+  .app-banner-page .ab-dump-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr));
+    gap: 0.35rem 0.65rem;
+  }
+  .app-banner-page .ab-dump-card-metric {
+    min-width: 0;
+  }
+  .app-banner-page .ab-dump-card-metric dt {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #64748b;
+    line-height: 1.25;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  html.dark .app-banner-page .ab-dump-card-metric dt,
+  html.midnight .app-banner-page .ab-dump-card-metric dt {
+    color: #a1a1aa;
+  }
+  .app-banner-page .ab-dump-card-metric dd {
+    margin: 0.1rem 0 0;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+  }
+  html.dark .app-banner-page .ab-dump-card-metric dd,
+  html.midnight .app-banner-page .ab-dump-card-metric dd {
+    color: #fafafa;
+  }
+  .app-banner-page .ab-dump-card-metric--zero dd {
+    color: #94a3b8;
+    font-weight: 500;
+  }
+  @container ab-dump (max-width: 52rem) {
+    .app-banner-page .ab-dump-table {
+      font-size: 10px;
+    }
+  }
+  @media (max-width: 767px) {
+    .app-banner-page .ab-dump-table-wrap {
+      display: none;
+    }
+    .app-banner-page .ab-dump-cards {
+      display: grid;
+    }
+    .app-banner-page .ab-dump-wrap {
+      max-height: none;
+    }
+  }
+  @media (min-width: 768px) {
+    .app-banner-page .ab-dump-cards {
+      display: none !important;
+    }
   }
 </style>
 <div class="mx-auto w-full max-w-[1920px] space-y-4 mz-page app-banner-page" data-header-title="Ad · GA4 banner">
@@ -222,10 +340,13 @@
       </div>
     </div>
     <div class="ab-dump-wrap rounded-xl border border-slate-200 dark:border-zinc-700">
-      <table id="ab-dump-table" class="ab-dump-table min-w-full border-collapse text-left text-[11px]">
-        <thead id="ab-dump-thead" class="text-slate-600 dark:text-zinc-400"></thead>
-        <tbody id="ab-dump-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
-      </table>
+      <div id="ab-dump-cards" class="ab-dump-cards" aria-label="Günlük döküm kart görünümü"></div>
+      <div class="ab-dump-table-wrap">
+        <table id="ab-dump-table" class="ab-dump-table border-collapse text-left text-[11px]">
+          <thead id="ab-dump-thead" class="text-slate-600 dark:text-zinc-400"></thead>
+          <tbody id="ab-dump-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -892,6 +1013,49 @@
     return rows;
   }
 
+  function dumpMetricTitle(col) {
+    var tag = dumpGroupTag(col.group);
+    if (tag) return tag + " · " + col.label;
+    return col.label;
+  }
+
+  function paintAbDumpCards(columns, sortedRows, activeOnly) {
+    var host = document.getElementById("ab-dump-cards");
+    if (!host) return;
+    host.innerHTML = "";
+    sortedRows.forEach(function (row) {
+      if (activeOnly && !row.active) return;
+      var fd = formatDateTrDisplay(row.date);
+      var art = document.createElement("article");
+      art.className = "ab-dump-card";
+      art.setAttribute("data-date", row.date);
+      var head = document.createElement("header");
+      head.className = "ab-dump-card-head";
+      head.innerHTML =
+        "<p class=\"text-sm font-bold text-slate-900 dark:text-zinc-100\">" + escapeHtml(fd.main) + "</p>" +
+        "<p class=\"mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400\">" +
+        escapeHtml(fd.wd) + " · " + escapeHtml(fd.iso) + "</p>";
+      art.appendChild(head);
+      var grid = document.createElement("dl");
+      grid.className = "ab-dump-card-metrics";
+      row.values.forEach(function (n, ci) {
+        var col = columns[ci];
+        var num = Number(n) || 0;
+        var item = document.createElement("div");
+        item.className = "ab-dump-card-metric" + (num > 0 ? "" : " ab-dump-card-metric--zero");
+        var dt = document.createElement("dt");
+        dt.textContent = dumpMetricTitle(col);
+        var dd = document.createElement("dd");
+        dd.textContent = num > 0 ? formatNum(num) : "·";
+        item.appendChild(dt);
+        item.appendChild(dd);
+        grid.appendChild(item);
+      });
+      art.appendChild(grid);
+      host.appendChild(art);
+    });
+  }
+
   function paintAbDumpTableBody(columns, sortedRows, activeOnly) {
     var tbody = document.getElementById("ab-dump-tbody");
     if (!tbody) return;
@@ -918,7 +1082,7 @@
       row.values.forEach(function (n, ci) {
         var td = document.createElement("td");
         var num = Number(n) || 0;
-        td.className = "px-2.5 py-2 text-right tabular-nums " + (num > 0 ? "text-slate-800 dark:text-zinc-200" : "ab-dump-val--zero");
+        td.className = "ab-dump-td-metric px-2.5 py-2 text-right tabular-nums " + (num > 0 ? "text-slate-800 dark:text-zinc-200" : "ab-dump-val--zero");
         td.setAttribute("data-sort-value", String(num));
         td.setAttribute("data-col-key", columns[ci].key);
         td.textContent = num > 0 ? formatNum(num) : "·";
@@ -933,6 +1097,7 @@
         ? shown + " gün gösteriliyor (" + activeN + " aktivite günü / " + total + " toplam)"
         : shown + " gün · " + activeN + " aktivite günü";
     }
+    paintAbDumpCards(columns, sortedRows, activeOnly);
   }
 
   function renderDailyDump(data) {
@@ -966,18 +1131,19 @@
     thDate.setAttribute("data-sort-key", "date");
     thDate.setAttribute("data-sort-type", "date");
     thDate.setAttribute("data-default-desc", "1");
-    thDate.innerHTML = "Tarih <span class=\"ab-dump-sort-arrow\">↓</span>";
+    thDate.innerHTML = "<span class=\"ab-dump-th-label\">Tarih</span><span class=\"ab-dump-sort-arrow\">↓</span>";
     headTr.appendChild(thDate);
     columns.forEach(function (col) {
       var th = document.createElement("th");
-      th.className = "ab-dump-th-sort px-2.5 py-2.5 text-right text-[10px] font-bold leading-tight";
+      th.className = "ab-dump-th-sort ab-dump-th-metric px-2.5 py-2.5 text-right text-[10px] font-bold leading-tight";
       th.setAttribute("data-sort-key", col.key);
       th.setAttribute("data-sort-type", "num");
       th.setAttribute("data-default-desc", "1");
+      th.setAttribute("title", dumpMetricTitle(col));
       var tag = dumpGroupTag(col.group);
       th.innerHTML =
         (tag ? "<span class=\"ab-dump-group-tag\">" + escapeHtml(tag) + "</span>" : "") +
-        "<span class=\"block max-w-[8rem] truncate\" title=\"" + escapeHtml(col.label) + "\">" + escapeHtml(col.label) + "</span>" +
+        "<span class=\"ab-dump-th-label\">" + escapeHtml(col.label) + "</span>" +
         "<span class=\"ab-dump-sort-arrow\">↕</span>";
       headTr.appendChild(th);
     });
