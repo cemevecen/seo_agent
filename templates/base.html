@@ -1205,23 +1205,39 @@
       flex-wrap: nowrap;
       align-items: center;
       justify-content: flex-start;
-      overflow: hidden;
-      gap: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+      gap: 0.125rem;
+    }
+    .header-main-nav::-webkit-scrollbar {
+      height: 4px;
+    }
+    .header-main-nav::-webkit-scrollbar-thumb {
+      border-radius: 9999px;
+      background: rgba(100, 116, 139, 0.45);
+    }
+    html.dark .header-main-nav {
+      scrollbar-color: rgba(161, 161, 170, 0.35) transparent;
+    }
+    html.dark .header-main-nav::-webkit-scrollbar-thumb {
+      background: rgba(161, 161, 170, 0.35);
     }
     .header-nav-link {
-      flex: 1 1 0;
-      min-width: 0;
-      padding: 0.35rem 0.12rem;
+      flex: 0 0 auto;
+      min-width: max-content;
+      padding: 0.35rem 0.45rem;
       border: none;
       background: transparent;
       box-shadow: none;
       text-shadow: none;
       text-align: center;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-size: clamp(0.5625rem, 0.72vw, 0.75rem);
+      font-size: clamp(0.625rem, 2.8vw, 0.75rem);
       font-weight: 500;
       line-height: 1.3;
       letter-spacing: 0.02em;
@@ -1283,12 +1299,28 @@
       .header-main-nav {
         flex: 1 1 100%;
         width: 100%;
+        max-width: 100%;
+        padding-bottom: 0.15rem;
+        gap: 0.2rem;
       }
       .header-nav-link {
-        min-height: 28px;
+        min-height: 32px;
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+      }
+    }
+    @media (min-width: 1024px) {
+      .header-main-nav {
+        justify-content: flex-end;
+        gap: 0.05rem;
+      }
+      .header-nav-link {
+        font-size: 0.6875rem;
+        padding-left: 0.35rem;
+        padding-right: 0.35rem;
       }
     }
   </style>
@@ -1489,6 +1521,9 @@
           if (active) {
             link.setAttribute('aria-current', 'page');
             link.classList.add('nav-active');
+            if (window.matchMedia('(max-width: 1023px)').matches) {
+              link.scrollIntoView({ inline: 'center', block: 'nearest' });
+            }
           } else {
             link.removeAttribute('aria-current');
             link.classList.remove('nav-active');
