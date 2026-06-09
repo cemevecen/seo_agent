@@ -333,12 +333,15 @@
       }
     } else if (hasDot) {
       var dotParts = s.split(".");
-      if (dotParts.length > 1) {
+      if (dotParts.length > 2) {
         var all3Dot = true;
         for (var di = 1; di < dotParts.length; di++) {
           if (!/^\d{3}$/.test(dotParts[di])) { all3Dot = false; break; }
         }
         if (all3Dot) s = dotParts.join("");
+      } else if (dotParts.length === 2 && /^\d{3}$/.test(dotParts[1])) {
+        if (dotParts[0].length > 3) s = dotParts.join("");
+        else s = dotParts[0] + "." + dotParts[1];
       }
     } else if (hasComma) {
       var commaParts = s.split(",");
@@ -555,6 +558,16 @@
     }
   }
 
+  function clearNtSessionCache() {
+    try {
+      Object.keys(sessionStorage).forEach(function (k) {
+        if (k.indexOf("nt_db_rows_v1:") === 0) sessionStorage.removeItem(k);
+      });
+    } catch (e) {
+      /* sessiz */
+    }
+  }
+
   function rowsQueryParams(range) {
     var q = "";
     if (range.start) q += "&start=" + encodeURIComponent(range.start);
@@ -569,6 +582,8 @@
     var preset = String(meta.preset || "1y").toLowerCase();
     if (preset === "all") return { start: "", end: "" };
     end = todayKey();
+    var dataMax = (meta.data_max_date || "").slice(0, 10);
+    if (dataMax && dataMax > end) end = dataMax;
     if (preset === "1w") start = minusDays(end, 7);
     else if (preset === "1m") start = minusMonths(end, 1);
     else if (preset === "3m") start = minusMonths(end, 3);
@@ -744,12 +759,7 @@
     });
   }
   function rawListRows() {
-    var rows = getFilteredRows();
-    var endCap = selectedEndDate() || todayKey();
-    return rows.filter(function (r) {
-      var d = dayKey(r.date);
-      return d && d <= endCap;
-    });
+    return getFilteredRows();
   }
 
   function renderKpis(rows) {
@@ -1077,9 +1087,11 @@
     if (rawListView === "preview") {
       chunk = sorted.slice(0, RAW_PREVIEW_SIZE);
       if (hint) {
-        var cap = selectedEndDate() || todayKey();
+        var cap = selectedEndDate();
         hint.textContent = sorted.length
-          ? ("Son " + RAW_PREVIEW_SIZE + " kayıt (güncelden eskiye) · " + cap + " ve öncesi · toplam " + fmt(sorted.length))
+          ? ("Son " + RAW_PREVIEW_SIZE + " kayıt (güncelden eskiye)"
+            + (cap ? (" · " + cap + " ve öncesi") : " · tüm tarihler")
+            + " · toplam " + fmt(sorted.length))
           : "";
       }
       if (pageInfo) pageInfo.textContent = "";
@@ -1341,6 +1353,7 @@
         }
         status(msg + " Veriler yenileniyor…");
         if (data.updated_at) ntDbUpdatedAt = data.updated_at;
+        clearNtSessionCache();
         if (fileInput) fileInput.value = "";
         return loadServerState()
           .then(function (full) {

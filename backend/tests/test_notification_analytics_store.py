@@ -39,3 +39,24 @@ def test_merge_rows_same_id_different_date():
     b = [{"id": "99", "text": "Headline", "date": "2026-02-01T00:00:00"}]
     merged = _merge_rows(a, b)
     assert len(merged) == 2
+
+
+def test_parse_csv_european_decimal_click():
+    csv = (
+        "id,text,date,android app click,android app ctr\n"
+        "1,Hello,09.06.2026,84.295,3.877\n"
+    )
+    rows = parse_csv_text(csv)
+    assert len(rows) == 1
+    assert rows[0]["platforms"]["android"]["click"] == 84.295
+    assert rows[0]["platforms"]["android"]["ctr"] == 3.877
+
+
+def test_rows_date_bounds():
+    from backend.services.notification_analytics_store import _rows_date_bounds
+
+    rows = [
+        {"date": "2026-06-05T10:00:00"},
+        {"date": "2026-06-09T12:24:00"},
+    ]
+    assert _rows_date_bounds(rows) == ("2026-06-05", "2026-06-09")

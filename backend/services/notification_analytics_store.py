@@ -34,8 +34,13 @@ def _n(value: Any) -> float:
             s = s.replace(",", "")
     elif has_dot:
         parts = s.split(".")
-        if len(parts) > 1 and all(re.fullmatch(r"\d{3}", p) for p in parts[1:]):
+        if len(parts) > 2 and all(re.fullmatch(r"\d{3}", p) for p in parts[1:]):
             s = "".join(parts)
+        elif len(parts) == 2 and re.fullmatch(r"\d{3}", parts[1]):
+            if len(parts[0]) > 3:
+                s = "".join(parts)
+            else:
+                s = parts[0] + "." + parts[1]
     elif has_comma:
         parts = s.split(",")
         if len(parts) > 1 and all(re.fullmatch(r"\d{3}", p) for p in parts[1:]):
@@ -237,6 +242,13 @@ def _row_day_key(iso: str | None) -> str:
     return str(iso or "")[:10]
 
 
+def _rows_date_bounds(rows: list[dict]) -> tuple[str | None, str | None]:
+    days = sorted({_row_day_key(r.get("date")) for r in rows} - {""})
+    if not days:
+        return None, None
+    return days[0], days[-1]
+
+
 def filter_rows_by_date(
     rows: list[dict],
     *,
@@ -292,6 +304,7 @@ def workspace_rows_chunk(
 def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
     row = _get_workspace(db)
     rows = _load_rows(row)
+    _min_d, _max_d = _rows_date_bounds(rows)
     out: dict[str, Any] = {
         "ok": True,
         "last_id": int(row.last_id or 0),
@@ -299,6 +312,8 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "end": row.filter_end or "",
         "preset": row.preset or "1y",
         "row_count": len(rows),
+        "data_min_date": _min_d or "",
+        "data_max_date": _max_d or "",
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
     if include_rows:
@@ -391,6 +406,10 @@ def upload_csv_text(db: Session, csv_text: str) -> dict:
             added += 1
             existing_keys.add(key)
     merged = _merge_rows(existing, parsed)
+    min_day, max_day = _rows_date_bounds(merged)
+    fe = (row.filter_end or "").strip()[:10]
+    if fe and max_day and max_day > fe:
+        row.filter_end = max_day
     row.rows_json = json.dumps(merged, ensure_ascii=False)
     row.last_id = max(int(row.last_id or 0), _highest_id(merged))
     row.updated_at = datetime.utcnow()
@@ -400,6 +419,8 @@ def upload_csv_text(db: Session, csv_text: str) -> dict:
         "added": added,
         "updated": updated,
         "parsed": len(parsed),
+        "data_min_date": min_day or "",
+        "data_max_date": max_day or "",
         "message": f"{len(parsed)} satır işlendi: {added} yeni, {updated} güncellendi.",
     }
 
