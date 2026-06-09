@@ -1014,14 +1014,43 @@ text-slate-500 dark:text-slate-400
       });
     }
 
+    function ensurePlotlyThen(callback) {
+      if (window.Plotly && typeof window.Plotly.newPlot === 'function') {
+        callback();
+        return;
+      }
+      var attempts = 0;
+      (function tick() {
+        attempts += 1;
+        if (window.Plotly && typeof window.Plotly.newPlot === 'function') {
+          callback();
+          return;
+        }
+        if (attempts > 150) {
+          callback();
+          return;
+        }
+        window.setTimeout(tick, 40);
+      })();
+    }
+
+    function plotlyLoadFailedHtml() {
+      return '<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 px-4 py-6 text-center text-xs text-amber-700 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-300">Grafik kütüphanesi (Plotly) yüklenemedi. Sayfayı yenileyin veya internet bağlantınızı kontrol edin.</div>';
+    }
+
     function renderCruxChart(elementId) {
       const element = document.getElementById(elementId);
       if (!element) {
         return;
       }
       if (typeof Plotly === 'undefined') {
-        // Plotly CDN/script yüklenememiş — kullanıcıya boş alan yerine açıklama göster
-        element.innerHTML = '<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 px-4 py-6 text-center text-xs text-amber-700 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-300">Grafik kütüphanesi (Plotly) yüklenemedi. Sayfayı yenileyin veya internet bağlantınızı kontrol edin.</div>';
+        ensurePlotlyThen(function () {
+          if (typeof Plotly === 'undefined') {
+            element.innerHTML = plotlyLoadFailedHtml();
+            return;
+          }
+          renderCruxChart(elementId);
+        });
         return;
       }
       if (element.dataset.chartReady === '1') {

@@ -300,3 +300,13 @@ def test_build_heatmap_calendar():
     hm = store._build_heatmap_calendar(days)
     assert len(hm) == 2
     assert hm[0]["dow_label"] in store._DOW_LABELS
+
+
+def test_facets_returns_bounds_and_row_count():
+    init_db()
+    with SessionLocal() as db:
+        out = store.facets(db)
+    assert "min_date" in out
+    assert "max_date" in out
+    assert isinstance(out["total_rows"], int)
+    assert isinstance(out["streams"], list)

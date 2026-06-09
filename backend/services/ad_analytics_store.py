@@ -1040,6 +1040,11 @@ def date_bounds(db: Session) -> dict[str, str | None]:
     }
 
 
+def _global_date_bounds_and_count(db: Session) -> tuple[str | None, str | None, int]:
+    bounds = date_bounds(db)
+    return bounds["min_date"], bounds["max_date"], count_rows(db)
+
+
 def facets(db: Session) -> dict[str, Any]:
     global _facets_cache_payload, _facets_cache_at
     now = time.monotonic()
