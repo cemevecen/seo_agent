@@ -31,6 +31,16 @@ LOGGER = logging.getLogger(__name__)
 
 _IMPORT_BATCH_SIZE = 400
 
+_FACETS_CACHE_TTL_SEC = 90.0
+_facets_cache_payload: dict[str, Any] | None = None
+_facets_cache_at: float = 0.0
+
+
+def invalidate_facets_cache() -> None:
+    global _facets_cache_payload, _facets_cache_at
+    _facets_cache_payload = None
+    _facets_cache_at = 0.0
+
 
 def _load_workbook_bytes(data: bytes):
     """Ad platformu xlsx dosyalarında openpyxl 'no default style' uyarısı zararsızdır."""
