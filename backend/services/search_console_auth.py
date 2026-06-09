@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
+from fastapi import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+from backend.config import is_railway_runtime, settings
+
+LOGGER = logging.getLogger(__name__)
 from backend.models import CollectorRun, SiteCredential
 from backend.services.crypto import decrypt_text, encrypt_text
 
@@ -28,45 +32,96 @@ def oauth_is_configured() -> bool:
     return bool(settings.google_client_id.strip() and settings.google_client_secret.strip())
 
 
+def _request_public_origin(request: Request | None) -> str | None:
+    if request is None:
+        return None
+    try:
+        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+        host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+        if not host:
+            return None
+        return f"{proto}://{host}"
+    except Exception:
+        return None
+
+
+def _configured_sc_redirect_is_localhost(configured: str) -> bool:
+    c = (configured or "").strip().lower()
+    return not c or c.startswith("http://127.0.0.1") or c.startswith("http://localhost")
+
+
+def get_search_console_oauth_redirect_uri(*, request: Request | None = None) -> str:
+    """OAuth redirect URI — Railway'de istek host'undan türetilir (env localhost/uyumsuz ise)."""
+    configured = (settings.google_oauth_redirect_uri or "").strip()
+    origin = _request_public_origin(request)
+    if origin and is_railway_runtime():
+        from_request = f"{origin}/api/search-console/oauth/callback"
+        if _configured_sc_redirect_is_localhost(configured):
+            return from_request
+        if configured:
+            cfg_host = urlparse(configured).netloc
+            req_host = urlparse(origin).netloc
+            if cfg_host and req_host and cfg_host != req_host:
+                LOGGER.warning(
+                    "GOOGLE_OAUTH_REDIRECT_URI host (%s) istek host (%s) ile uyuşmuyor; istek kullanılıyor.",
+                    cfg_host,
+                    req_host,
+                )
+                return from_request
+            return configured
+        return from_request
+    if configured:
+        return configured
+    if origin:
+        return f"{origin}/api/search-console/oauth/callback"
+    return "http://127.0.0.1:8012/api/search-console/oauth/callback"
+
+
 def get_oauth_redirect_uri() -> str:
-    return settings.google_oauth_redirect_uri.strip() or "http://127.0.0.1:8012/api/search-console/oauth/callback"
+    return get_search_console_oauth_redirect_uri()
 
 
-def build_oauth_flow(state: str | None = None) -> Flow:
+def build_oauth_flow(state: str | None = None, *, request: Request | None = None) -> Flow:
+    redirect = get_search_console_oauth_redirect_uri(request=request)
     client_config = {
         "web": {
             "client_id": settings.google_client_id.strip(),
             "client_secret": settings.google_client_secret.strip(),
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [get_oauth_redirect_uri()],
+            "redirect_uris": [redirect],
         }
     }
     return Flow.from_client_config(
         client_config,
         scopes=SEARCH_CONSOLE_SCOPES,
-        redirect_uri=get_oauth_redirect_uri(),
+        redirect_uri=redirect,
         state=state,
     )
 
 
-def encode_oauth_state(site_id: int, return_path: str = "/settings") -> str:
+def encode_oauth_state(
+    site_id: int,
+    return_path: str = "/settings",
+    *,
+    request: Request | None = None,
+) -> str:
     safe_return_path = return_path if return_path.startswith("/") else "/settings"
     payload = {
         "site_id": site_id,
         "issued_at": datetime.utcnow().isoformat(),
-        "redirect_host": urlparse(get_oauth_redirect_uri()).netloc,
+        "redirect_host": urlparse(get_search_console_oauth_redirect_uri(request=request)).netloc,
         "return_path": safe_return_path,
     }
     return encrypt_text(json.dumps(payload))
 
 
-def decode_oauth_state(state: str) -> dict:
+def decode_oauth_state(state: str, *, request: Request | None = None) -> dict:
     payload = json.loads(decrypt_text(state))
     issued_at = datetime.fromisoformat(payload["issued_at"])
     if issued_at < datetime.utcnow() - timedelta(minutes=15):
         raise ValueError("OAuth state zaman aşımına uğradı.")
-    if payload.get("redirect_host") != urlparse(get_oauth_redirect_uri()).netloc:
+    if payload.get("redirect_host") != urlparse(get_search_console_oauth_redirect_uri(request=request)).netloc:
         raise ValueError("OAuth state geçersiz host içeriyor.")
     return_path = str(payload.get("return_path") or "/settings")
     payload["return_path"] = return_path if return_path.startswith("/") else "/settings"
@@ -138,6 +193,21 @@ def delete_oauth_credentials(db: Session, site_id: int) -> bool:
 def _is_oauth_revoked_error(message: str | None) -> bool:
     text = str(message or "").lower()
     return any(marker in text for marker in _OAUTH_REVOKED_MARKERS)
+
+
+def format_search_console_error_for_ui(message: str | None) -> str:
+    """Kullanıcıya gösterilecek SC hata metni (OAuth invalid_grant vb.)."""
+    raw = str(message or "").strip()
+    if not raw:
+        return ""
+    if _is_oauth_revoked_error(raw):
+        return (
+            "Google OAuth oturumu sona ermiş veya iptal edilmiş (invalid_grant). "
+            "«Bağlantıyı Kaldır» → «Google ile Bağlan» ile Search Console erişimi olan hesapla yeniden yetkilendirin. "
+            "Google Cloud OAuth istemcisinde redirect URI: "
+            f"{get_oauth_redirect_uri()}"
+        )
+    return raw
 
 
 def _oauth_saved_at(record: SiteCredential | None) -> datetime | None:

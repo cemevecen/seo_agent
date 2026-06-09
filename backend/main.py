@@ -88,6 +88,7 @@ from backend.services.search_console_auth import (
     decode_oauth_state,
     delete_oauth_credentials,
     encode_oauth_state,
+    format_search_console_error_for_ui,
     get_search_console_connection_status,
     get_search_console_credentials_record,
     load_google_credentials,
@@ -2414,7 +2415,7 @@ def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
         "status": status,
         "last_run_status": str(last_run.status or "").upper() if last_run and last_run.status else "NEVER",
         "last_run_at": _format_optional_datetime(last_run.requested_at if last_run else None),
-        "last_run_error": str(last_run.error_message or "") if last_run else "",
+        "last_run_error": format_search_console_error_for_ui(last_run.error_message if last_run else ""),
         "cooldown_active": cooldown_active,
         "manual_mode_label": f"{schedule_label} otomatik + manuel",
         "report": _search_console_report_payload(db, site_id=site.id),
@@ -13609,7 +13610,7 @@ def search_console_disconnect_from_header(request: Request, site_id: int):
 
 
 @app.get("/api/search-console/oauth/start/{site_id}")
-def search_console_oauth_start(site_id: int, next: str = "/settings"):
+def search_console_oauth_start(request: Request, site_id: int, next: str = "/settings"):
     if not oauth_is_configured():
         return HTMLResponse("Google OAuth ayarlari eksik. GOOGLE_CLIENT_ID ve GOOGLE_CLIENT_SECRET gerekli.", status_code=400)
 
@@ -13618,8 +13619,8 @@ def search_console_oauth_start(site_id: int, next: str = "/settings"):
         if site is None:
             return HTMLResponse("Site bulunamadi.", status_code=404)
 
-    state = encode_oauth_state(site_id, return_path=next)
-    flow = build_oauth_flow(state=state)
+    state = encode_oauth_state(site_id, return_path=next, request=request)
+    flow = build_oauth_flow(state=state, request=request)
     authorization_url, _ = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
     return RedirectResponse(authorization_url, status_code=302)
 
@@ -13635,7 +13636,7 @@ def search_console_oauth_callback(request: Request):
         return HTMLResponse("OAuth state eksik.", status_code=400)
 
     try:
-        payload = decode_oauth_state(state)
+        payload = decode_oauth_state(state, request=request)
     except ValueError as exc:
         return HTMLResponse(str(exc), status_code=400)
 
@@ -13648,7 +13649,7 @@ def search_console_oauth_callback(request: Request):
             return HTMLResponse("Site bulunamadi.", status_code=404)
 
         try:
-            flow = build_oauth_flow(state=state)
+            flow = build_oauth_flow(state=state, request=request)
             flow.fetch_token(authorization_response=str(request.url))
         except Exception as exc:
             return HTMLResponse(
