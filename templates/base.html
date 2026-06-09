@@ -1094,19 +1094,22 @@
     }
   </style>
   <style id="seo-header-pill-nav">
-    /* Mobil: üst satır başlık + tema, alt satır yatay kaydırmalı menü */
+    /* Konsept 2: metin zinciri — aktif link ⟨ … ⟩, tek satır, scrollbar yok */
     .header-app-shell {
       display: flex;
       min-width: 0;
-      flex-direction: column;
-      gap: 0.45rem;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 0.5rem;
     }
     .header-top-row {
       display: flex;
       min-width: 0;
+      flex-shrink: 0;
       align-items: center;
       justify-content: flex-start;
-      gap: 0.5rem;
+      gap: 0.35rem;
     }
     #header-site-title {
       flex: 0 0 auto;
@@ -1198,103 +1201,91 @@
     .header-main-nav {
       display: flex;
       min-width: 0;
-      flex-wrap: wrap;
-      row-gap: 0.35rem;
-      column-gap: 0.25rem;
-    }
-    @media (min-width: 1024px) {
-      .header-main-nav {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-      }
-      .header-main-nav::-webkit-scrollbar {
-        display: none;
-      }
+      flex: 1 1 auto;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-start;
+      overflow: hidden;
+      gap: 0;
     }
     .header-nav-link {
-      border-color: rgba(15, 23, 42, 0.12);
-      color: #334155;
-      background: linear-gradient(118deg, rgba(248, 250, 252, 0.98), rgba(226, 232, 240, 0.9));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 0.35rem 0.12rem;
+      border: none;
+      background: transparent;
+      box-shadow: none;
       text-shadow: none;
-      max-width: none;
-      overflow-wrap: anywhere;
-      word-break: normal;
       text-align: center;
       white-space: nowrap;
-      flex: 0 0 auto;
-      transition: background 0.24s ease, transform 0.24s ease, color 0.24s ease, border-color 0.24s ease;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: clamp(0.5rem, 0.68vw, 0.6875rem);
+      font-weight: 400;
+      line-height: 1.25;
+      letter-spacing: 0.02em;
+      color: #64748b;
+      text-decoration: none;
+      transition: color 0.15s ease;
     }
     .header-nav-link:hover {
-      background: linear-gradient(118deg, rgba(241, 245, 249, 1), rgba(203, 213, 225, 0.95));
-      transform: translateY(-1px);
+      color: #334155;
+      transform: none;
     }
     .header-nav-link.nav-active {
-      background: #ffffff;
       color: #0f172a;
-      text-shadow: none;
-      border-color: rgba(15, 23, 42, 0.16);
-      box-shadow: 0 4px 14px -8px rgba(15, 23, 42, 0.22);
+      font-weight: 500;
     }
-    html.dark .header-nav-link {
-      border-color: rgba(63, 63, 70, 0.6);
-      color: #a1a1aa;
-      background: linear-gradient(118deg, rgba(24, 24, 27, 0.95), rgba(39, 39, 42, 0.72));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    .header-nav-link.nav-active::before {
+      content: "(";
+      margin-right: 0.02em;
+      font-weight: 400;
+      color: #94a3b8;
     }
-    html.dark .header-nav-link:hover {
-      background: linear-gradient(118deg, rgba(39, 39, 42, 0.98), rgba(63, 63, 70, 0.72));
+    .header-nav-link.nav-active::after {
+      content: ")";
+      margin-left: 0.02em;
+      font-weight: 400;
+      color: #94a3b8;
+    }
+    html.dark .header-nav-link,
+    html.midnight .header-nav-link {
+      color: #71717a;
+    }
+    html.dark .header-nav-link:hover,
+    html.midnight .header-nav-link:hover {
       color: #d4d4d8;
     }
-    html.dark .header-nav-link.nav-active {
-      background: #fafafa;
-      color: #09090b;
-      border-color: rgba(255, 255, 255, 0.18);
-      box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.65);
-      text-shadow: none;
+    html.dark .header-nav-link.nav-active,
+    html.midnight .header-nav-link.nav-active {
+      color: #fafafa;
     }
-    .header-main-nav {
-      justify-content: flex-start;
+    html.dark .header-nav-link.nav-active::before,
+    html.dark .header-nav-link.nav-active::after,
+    html.midnight .header-nav-link.nav-active::before,
+    html.midnight .header-nav-link.nav-active::after {
+      color: #52525b;
     }
-    @media (min-width: 1024px) {
+    .header-nav-link.header-nav-link--guest {
+      flex: 0 0 auto;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+      font-family: inherit;
+      font-size: 0.6875rem;
+      font-weight: 600;
+    }
+    @media (max-width: 639px) {
       .header-app-shell {
-        display: grid;
-        align-items: center;
-        column-gap: 0.5rem;
-        row-gap: 0;
-        grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
-        grid-template-areas: "headline theme nav";
-      }
-      .header-top-row {
-        display: contents;
+        flex-wrap: wrap;
+        row-gap: 0.35rem;
       }
       .header-main-nav {
-        justify-content: flex-end;
+        flex: 1 1 100%;
+        width: 100%;
       }
-      .header-top-actions {
-        justify-self: start;
-        width: fit-content;
-        max-width: 100%;
-      }
-      #header-site-title {
-        max-width: 14rem;
-      }
-    }
-    @media (max-width: 380px) {
       .header-nav-link {
-        font-size: 0.625rem;
-        line-height: 1.15;
-        padding: 0.25rem 0.4rem;
-      }
-    }
-    /* Touch hedef sağlığı: mobilde min 32px yükseklik (WCAG / Material) */
-    @media (max-width: 639px) {
-      .header-nav-link {
-        min-height: 32px;
+        min-height: 28px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -1319,7 +1310,7 @@
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
       <header class="px-3 py-1.5 sm:px-5 sm:py-2 md:px-6 md:py-2">
         <div
-          class="header-card-midnight mx-auto w-full min-w-0 max-w-[1800px] rounded-xl border border-slate-300/90 bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200 px-2.5 py-1.5 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.14)] ring-1 ring-slate-300/50 transition-colors duration-300 sm:px-3 sm:py-2 dark:border-slate-600/40 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 dark:shadow-[0_10px_28px_-16px_rgba(0,0,0,0.45)] dark:ring-0"
+          class="header-card-midnight mx-auto w-full min-w-0 max-w-[1800px] rounded-xl border border-slate-300/80 bg-slate-100/95 px-2.5 py-1.5 transition-colors duration-300 sm:px-3 sm:py-1.5 dark:border-zinc-700/80 dark:bg-zinc-900/95"
         >
           <div class="header-app-shell">
             <div class="header-top-row">
@@ -1360,35 +1351,35 @@
             </div>
             <nav
               id="header-main-nav"
-              class="header-main-nav flex min-w-0 items-center gap-1 [grid-area:nav] sm:gap-1.5 lg:min-w-0 lg:gap-1.5"
+              class="header-main-nav"
               aria-label="Ana gezinme"
             >
               {% if is_tmdb_guest_view(request) %}
               <span class="rounded-full border border-violet-300 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-900 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200 sm:text-xs">Vizyon takvimi</span>
-              <a href="/tmdb-upcoming?guest_logout=1" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">Çıkış</a>
+              <a href="/tmdb-upcoming?guest_logout=1" class="header-nav-link header-nav-link--guest">Çıkış</a>
               {% else %}
-              <a href="/" data-nav-match="/" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">home</a>
-              <a href="/realtime" data-nav-match="/realtime" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">realtime</a>
-              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">ga4</a>
-              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">console</a>
-              <a href="/firebase" data-nav-match="/firebase" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">firebase</a>
-              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">alerts</a>
-              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">speed</a>
-              <a href="/app" data-nav-match="/app" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">app</a>
+              <a href="/" data-nav-match="/" class="header-nav-link">home</a>
+              <a href="/realtime" data-nav-match="/realtime" class="header-nav-link">realtime</a>
+              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link">ga4</a>
+              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link">console</a>
+              <a href="/firebase" data-nav-match="/firebase" class="header-nav-link">firebase</a>
+              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link">alerts</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link">speed</a>
+              <a href="/app" data-nav-match="/app" class="header-nav-link">app</a>
 
-              <a href="/errors" data-nav-match="/errors" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">errors</a>
-              <a href="/seo-audit" data-nav-match="/seo-audit" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">seo</a>
-              <a href="/backlinks" data-nav-match="/backlinks" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">backlinks</a>
-              <a href="/notification" data-nav-match="/notification" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">notification</a>
-              <a href="/ad" data-nav-match="/ad" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">ad</a>
-              <a href="/boards" data-nav-match="/boards" class="header-nav-link rounded-full border border-blue-500 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 dark:border-blue-500/50 dark:bg-blue-900/30 dark:text-blue-400 sm:px-2.5 sm:text-xs">gitlab</a>
-              <a href="/policy" data-nav-match="/policy" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">policy</a>
-              <a href="/inbox" data-nav-match="/inbox" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">inbox</a>
-              <a href="/intelligence" data-nav-match="/intelligence" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">news</a>
-              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">movie</a>
-              <a href="/ai" data-nav-match="/ai" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">ai</a>
-              <a href="/settings" data-nav-match="/settings" class="header-nav-link rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">settings</a>
-              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden rounded-full border px-2 py-1 text-[11px] font-semibold sm:px-2.5 sm:text-xs">external</a>
+              <a href="/errors" data-nav-match="/errors" class="header-nav-link">errors</a>
+              <a href="/seo-audit" data-nav-match="/seo-audit" class="header-nav-link">seo</a>
+              <a href="/backlinks" data-nav-match="/backlinks" class="header-nav-link">backlinks</a>
+              <a href="/notification" data-nav-match="/notification" class="header-nav-link">notification</a>
+              <a href="/ad" data-nav-match="/ad" class="header-nav-link">ad</a>
+              <a href="/boards" data-nav-match="/boards" class="header-nav-link">gitlab</a>
+              <a href="/policy" data-nav-match="/policy" class="header-nav-link">policy</a>
+              <a href="/inbox" data-nav-match="/inbox" class="header-nav-link">inbox</a>
+              <a href="/intelligence" data-nav-match="/intelligence" class="header-nav-link">news</a>
+              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" class="header-nav-link">movie</a>
+              <a href="/ai" data-nav-match="/ai" class="header-nav-link">ai</a>
+              <a href="/settings" data-nav-match="/settings" class="header-nav-link">settings</a>
+              <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
               {% endif %}
             </nav>
           </div>
