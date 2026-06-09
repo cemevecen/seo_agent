@@ -6,6 +6,7 @@ from backend.services.ga4_app_attribution import (
     _aggregate_rows,
     _ga4_date_to_iso,
     _series_from_buckets,
+    is_hidden_banner_first_user_campaign,
     slice_asc_downloads_daily,
     trim_banner_payload_to_observed_start,
 )
@@ -40,6 +41,49 @@ def test_aggregate_top_campaigns():
     assert total["2026-05-12"] == 103
     assert set(by_camp.keys()) == {"rare", "banner_a"}
     assert "banner_b" not in by_camp
+
+
+def test_hidden_banner_campaigns_excluded_from_breakdown():
+    assert is_hidden_banner_first_user_campaign("mdoviz_app_download_banner_currency_detail")
+    assert is_hidden_banner_first_user_campaign("mdoviz app download banner")
+    assert is_hidden_banner_first_user_campaign("app_banner_in_web")
+    assert not is_hidden_banner_first_user_campaign("(direct)")
+
+    start = date(2026, 5, 11)
+    end = date(2026, 5, 11)
+    rows = [
+        _row("20260511", "mdoviz app download banner", 50),
+        _row("20260511", "(direct)", 10),
+    ]
+    total, by_camp = _aggregate_rows(rows, start=start, end=end, top_n=5)
+    assert total["2026-05-11"] == 60
+    assert set(by_camp.keys()) == {"(direct)"}
+
+
+def test_trim_strips_hidden_campaigns_from_payload():
+    payload = {
+        "start": "2026-05-01",
+        "end": "2026-05-02",
+        "total_daily": {
+            "dates": ["2026-05-01"],
+            "values": [5.0],
+        },
+        "campaigns": [
+            {
+                "campaign": "mdoviz_app_download_banner",
+                "total": 3,
+                "daily": {"dates": ["2026-05-01"], "values": [3.0]},
+            },
+            {
+                "campaign": "(direct)",
+                "total": 2,
+                "daily": {"dates": ["2026-05-01"], "values": [2.0]},
+            },
+        ],
+    }
+    trim_banner_payload_to_observed_start(payload)
+    names = [c["campaign"] for c in payload["campaigns"]]
+    assert names == ["(direct)"]
 
 
 def test_slice_asc_downloads():
