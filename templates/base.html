@@ -642,10 +642,13 @@
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
     }
+    .mz-page #mz-main {
+      overflow-anchor: none;
+    }
     .mz-page .mz-chart-plot {
       width: 100%;
       min-width: 0;
-      flex: 1 1 auto;
+      flex: 0 0 auto;
       min-height: 12rem;
       height: clamp(12rem, 28vw, 20rem);
       overflow: hidden;

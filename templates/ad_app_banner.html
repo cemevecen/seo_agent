@@ -27,6 +27,32 @@
   }
   #ab-series-wrap details > summary::-webkit-details-marker { display: none; }
   #ab-series-wrap details > summary::marker { content: ""; }
+  .app-banner-page .ab-chart-plot-fixed {
+    flex: 0 0 auto;
+    overflow: hidden;
+  }
+  .app-banner-page #ab-chart-campaign.ab-chart-plot-fixed {
+    height: 440px;
+    min-height: 440px;
+    max-height: 440px;
+  }
+  @media (max-width: 639px) {
+    .app-banner-page #ab-chart-campaign.ab-chart-plot-fixed {
+      height: 360px;
+      min-height: 360px;
+      max-height: 360px;
+    }
+  }
+  .app-banner-page #ab-chart-asc {
+    height: 320px;
+    min-height: 320px;
+    max-height: 320px;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .app-banner-page #ab-day-insight.ab-day-insight--slot {
+    min-height: 5.25rem;
+  }
 </style>
 <div class="mx-auto w-full max-w-[1920px] space-y-4 mz-page app-banner-page" data-header-title="Ad · GA4 banner">
   <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -67,7 +93,7 @@
       </label>
       <button id="ab-run" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-600">Veriyi göster</button>
     </div>
-    <div id="ab-day-insight" class="mt-2 hidden select-text rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-100" aria-live="polite">
+    <div id="ab-day-insight" class="ab-day-insight--slot mt-2 hidden select-text rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs leading-relaxed text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-100" aria-live="polite">
       <p class="font-bold text-slate-900 dark:text-zinc-100">Seçili gün</p>
       <p id="ab-day-insight-body" class="mt-1 break-words tabular-nums leading-relaxed"></p>
     </div>
@@ -106,13 +132,13 @@
         </details>
       </div>
     </div>
-    <div id="ab-chart-campaign" class="mz-chart-plot w-full" style="min-height:400px;height:52vh;max-height:720px;"></div>
+    <div id="ab-chart-campaign" class="mz-chart-plot ab-chart-plot-fixed w-full" data-chart-h="440"></div>
   </div>
 
   <div id="ab-wrap-asc" class="hidden rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
     <h2 id="ab-chart-asc-title" class="mb-1 text-sm font-bold text-slate-800 dark:text-zinc-100">App Store — banner kampanyaları (Total Downloads)</h2>
     <p id="ab-chart-asc-note" class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400"></p>
-    <div id="ab-chart-asc" class="mz-chart-plot w-full" style="min-height:260px;height:36vh;max-height:440px;"></div>
+    <div id="ab-chart-asc" class="mz-chart-plot w-full" data-chart-h="320"></div>
     <div class="mt-3 overflow-x-auto">
       <table class="min-w-full text-left text-xs">
         <thead class="border-b border-slate-200 text-slate-500 dark:border-zinc-700">
@@ -558,13 +584,17 @@
     return i >= 0 ? series.values[i] : null;
   }
 
+  function showDayInsightSlot() {
+    var box = document.getElementById("ab-day-insight");
+    if (!box) return;
+    box.classList.remove("hidden");
+  }
+
   function updateDayInsight(dateIso) {
     var box = document.getElementById("ab-day-insight");
     var body = document.getElementById("ab-day-insight-body");
-    if (!lastPayload || !dateIso) {
-      box.classList.add("hidden");
-      return;
-    }
+    if (!lastPayload || !dateIso) return;
+    showDayInsightSlot();
     var lines = [];
     var fo = valueAt(lastPayload.total_daily, dateIso);
     if (fo != null && fo > 0) lines.push("download: " + formatNum(fo));
@@ -590,7 +620,22 @@
       (lines.length
         ? lines.map(function (ln) { return escapeHtml(ln); }).join("<br>")
         : "<span class=\"text-slate-500 dark:text-zinc-400\">Bu gün için gösterilecek değer yok.</span>");
-    box.classList.remove("hidden");
+  }
+
+  function bannerChartPixelHeight(el) {
+    if (!el) return 440;
+    var attr = parseInt(el.getAttribute("data-chart-h"), 10);
+    if (attr >= 200) return attr;
+    if (window.matchMedia("(max-width: 639px)").matches) return 360;
+    return 440;
+  }
+
+  function applyBannerChartBoxSize(el, layout) {
+    var h = bannerChartPixelHeight(el);
+    el.style.height = h + "px";
+    el.style.minHeight = h + "px";
+    el.style.maxHeight = h + "px";
+    return Object.assign({}, layout, { height: h, autosize: false });
   }
 
   function plotlyBannerCfg() {
@@ -605,7 +650,8 @@
       el.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500 dark:text-zinc-400\">Grafik verisi yok.</p>";
       return;
     }
-    Plotly.newPlot(el, traces, layout, plotlyBannerCfg()).then(function (gd) {
+    var lay = applyBannerChartBoxSize(el, layout);
+    Plotly.newPlot(el, traces, lay, plotlyBannerCfg()).then(function (gd) {
       if (!onHoverDate) return;
       function onHover(ev) {
         var pts = ev.points || [];
@@ -675,6 +721,11 @@
     if (!selected) selected = new Set(names);
     rebuildSeriesPanel(built.meta, selected);
     redrawMainChart();
+    showDayInsightSlot();
+    var insightBody = document.getElementById("ab-day-insight-body");
+    if (insightBody && !insightBody.innerHTML.trim()) {
+      insightBody.innerHTML = "<span class=\"text-slate-500 dark:text-zinc-400\">Grafikte bir güne gelin.</span>";
+    }
 
     var ascWrap = document.getElementById("ab-wrap-asc");
     var ascC = data.app_store_campaign_downloads;
