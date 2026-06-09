@@ -599,7 +599,8 @@
         <div class="bl-import-fields">
           <div class="min-w-0">
             <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">CSV dosyası</label>
-            <input id="bl-file" type="file" accept=".csv,text/csv" class="mt-1 w-full text-xs sm:text-sm" />
+            <input id="bl-file" type="file" class="mt-1 w-full text-xs sm:text-sm" />
+            <p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">GSC <code class="text-[10px]">.csv</code> — Firefox’ta dosya seçicide «Aç» gri kalırsa uzantı kısıtı yok; herhangi bir dosya seçilebilir.</p>
           </div>
           <div class="min-w-0">
             <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Google Sheets URL</label>
@@ -3008,6 +3009,10 @@
         };
         setProgress(4, "Import başlıyor", "Kaynak seçiliyor");
         if (f) {
+          var fname = (f.name || "").toLowerCase();
+          if (fname && !/\.(csv|tsv|txt)$/.test(fname)) {
+            throw new Error("Lütfen GSC export (.csv) dosyası seçin.");
+          }
           setProgress(10, "Dosya okunuyor", f.name || "CSV");
           var fileText = await readCsvFileAsText(f);
           if (fileText.length > 15000000) throw new Error("Dosya çok büyük (max ~15MB).");
