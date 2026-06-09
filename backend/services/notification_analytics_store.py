@@ -233,6 +233,23 @@ def _load_rows(row: NotificationAnalyticsWorkspace) -> list[dict]:
         return []
 
 
+def workspace_rows_chunk(db: Session, *, offset: int, limit: int) -> dict:
+    row = _get_workspace(db)
+    rows = _load_rows(row)
+    total = len(rows)
+    start = max(0, int(offset))
+    end = min(total, start + int(limit))
+    chunk = rows[start:end]
+    return {
+        "ok": True,
+        "rows": chunk,
+        "offset": start,
+        "limit": int(limit),
+        "total": total,
+        "has_more": end < total,
+    }
+
+
 def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
     row = _get_workspace(db)
     rows = _load_rows(row)

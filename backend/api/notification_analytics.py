@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -28,8 +28,20 @@ class UploadCsvBody(BaseModel):
 
 
 @router.get("/notification-analytics/state")
-def get_notification_analytics_state(db: Session = Depends(get_db)):
-    return store.workspace_state(db)
+def get_notification_analytics_state(
+    include_rows: bool = Query(True, description="false ise yalnızca özet meta (satırlar ayrı chunk ile)"),
+    db: Session = Depends(get_db),
+):
+    return store.workspace_state(db, include_rows=include_rows)
+
+
+@router.get("/notification-analytics/rows")
+def get_notification_analytics_rows(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(2500, ge=1, le=10000),
+    db: Session = Depends(get_db),
+):
+    return store.workspace_rows_chunk(db, offset=offset, limit=limit)
 
 
 @router.put("/notification-analytics/state")

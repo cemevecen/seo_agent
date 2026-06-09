@@ -627,6 +627,10 @@ jinja_env.filters["ai_brief_html_paragraphs"] = _ai_brief_html_paragraphs
 templates = Jinja2Templates(env=jinja_env)
 app = FastAPI(title="SEO Agent Dashboard")
 
+from starlette.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Starlette varsayılan multipart parça limiti 1MB; büyük GSC CSV importları için artır.
 try:
     from starlette.formparsers import MultiPartParser

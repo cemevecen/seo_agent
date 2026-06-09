@@ -479,8 +479,12 @@
     });
   }
 
-  function applyServerState(data) {
-    rowsCache = Array.isArray(data.rows) ? data.rows : [];
+  function applyServerState(data, opts) {
+    if (Array.isArray(data.rows)) {
+      rowsCache = data.rows;
+    } else if (!opts || !opts.keepRows) {
+      rowsCache = [];
+    }
     serverLastId = n(data.last_id);
     if (data.start !== undefined) {
       document.getElementById("nt-start-date").value = data.start || "";
@@ -518,10 +522,44 @@
     });
   }
 
+  var NT_ROWS_CHUNK = 2500;
+
+  function loadRowsInChunks(total) {
+    var offset = 0;
+    rowsCache = [];
+    function step() {
+      status(
+        "Veriler yükleniyor… " +
+          Math.min(offset, total).toLocaleString("tr-TR") +
+          " / " +
+          total.toLocaleString("tr-TR")
+      );
+      return apiFetch(
+        "/api/notification-analytics/rows?offset=" + offset + "&limit=" + NT_ROWS_CHUNK
+      ).then(function (chunk) {
+        if (chunk.rows && chunk.rows.length) {
+          rowsCache = rowsCache.concat(chunk.rows);
+        }
+        offset += NT_ROWS_CHUNK;
+        if (chunk.has_more) return step();
+        return chunk;
+      });
+    }
+    return step();
+  }
+
   function loadServerState() {
-    return apiFetch("/api/notification-analytics/state").then(function (data) {
-      applyServerState(data);
-      return data;
+    return apiFetch("/api/notification-analytics/state?include_rows=false").then(function (meta) {
+      applyServerState(meta, { keepRows: false });
+      var total = n(meta.row_count);
+      if (!total) {
+        serverReady = true;
+        return meta;
+      }
+      return loadRowsInChunks(total).then(function () {
+        serverReady = true;
+        return Object.assign({}, meta, { rows: rowsCache });
+      });
     });
   }
 
