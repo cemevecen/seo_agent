@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -61,6 +61,24 @@ def post_notification_analytics_append(body: AppendRowsBody, db: Session = Depen
 def post_notification_analytics_upload(body: UploadCsvBody, db: Session = Depends(get_db)):
     try:
         return store.upload_csv_text(db, body.csv_text or "")
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/notification-analytics/upload-file")
+async def post_notification_analytics_upload_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="Boş dosya.")
+        text = raw.decode("utf-8-sig", errors="replace")
+        return store.upload_csv_text(db, text)
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=500, detail=str(exc)) from exc

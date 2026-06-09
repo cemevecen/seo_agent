@@ -19,3 +19,11 @@ def test_merge_rows_dedupes():
     b = [{"id": "1", "text": "A", "date": "2026-01-01T00:00:00"}]
     merged = _merge_rows(a, b)
     assert len(merged) == 1
+
+
+def test_merge_rows_same_id_different_date():
+    """Aynı bildirim id, farklı tarih → iki ayrı kayıt (upload’ta ikisi de kalmalı)."""
+    a = [{"id": "99", "text": "Headline", "date": "2026-01-01T00:00:00"}]
+    b = [{"id": "99", "text": "Headline", "date": "2026-02-01T00:00:00"}]
+    merged = _merge_rows(a, b)
+    assert len(merged) == 2

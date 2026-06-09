@@ -7,7 +7,7 @@
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-12">
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
           <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV dosyası</label>
-          <input id="nt-csv-file" type="file" accept=".csv,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+          <input id="nt-csv-file" type="file" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
         </div>
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1158,36 +1158,35 @@
   document.getElementById("nt-add-data").addEventListener("click", function () {
     var fileInput = document.getElementById("nt-csv-file");
     var file = fileInput && fileInput.files && fileInput.files[0];
-    if (!file) { status("Önce bir CSV dosyası seçin."); return; }
+    if (!file) {
+      status("Önce bir CSV dosyası seçin.");
+      return;
+    }
     var btn = document.getElementById("nt-add-data");
     if (btn) btn.disabled = true;
-    status("CSV yükleniyor…");
-    var reader = new FileReader();
-    reader.onload = function (ev) {
-      var csvText = ev.target && ev.target.result ? ev.target.result : "";
-      apiFetch("/api/notification-analytics/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ csv_text: csvText }),
+    status("CSV yükleniyor… (" + file.name + ")");
+    var fd = new FormData();
+    fd.append("file", file, file.name || "upload.csv");
+    apiFetch("/api/notification-analytics/upload-file", {
+      method: "POST",
+      body: fd,
+    })
+      .then(function (data) {
+        applyServerState(data);
+        var msg = data.message || "Yükleme tamamlandı.";
+        if (data.parsed === 0 && !data.added && !data.updated) {
+          msg = data.message || "CSV okunamadı veya satır çıkarılamadı.";
+        }
+        status(msg + " Toplam kayıt: " + (data.row_count != null ? data.row_count : rowsCache.length));
+        rawPage = 0;
+        redrawAll();
       })
-        .then(function (data) {
-          applyServerState(data);
-          status((data.message || "Yükleme tamamlandı.") + " Toplam: " + (data.row_count || rowsCache.length));
-          rawPage = 0;
-          redrawAll();
-        })
-        .catch(function (err) {
-          status((err && err.detail) || "CSV sunucuya kaydedilemedi.");
-        })
-        .finally(function () {
-          if (btn) btn.disabled = false;
-        });
-    };
-    reader.onerror = function () {
-      status("CSV dosyası okunamadı.");
-      if (btn) btn.disabled = false;
-    };
-    reader.readAsText(file, "utf-8");
+      .catch(function (err) {
+        status((err && err.detail) || "CSV sunucuya kaydedilemedi.");
+      })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
   });
   document.getElementById("nt-clear-file").addEventListener("click", function () { document.getElementById("nt-csv-file").value = ""; status("Dosya seçimi temizlendi."); });
   document.getElementById("nt-reset-all").addEventListener("click", function () {

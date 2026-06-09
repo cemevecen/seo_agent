@@ -181,11 +181,14 @@ def _highest_id(rows: list[dict]) -> int:
     return best
 
 
+def _row_key(row: dict) -> str:
+    return f"{row.get('id') or ''}|{row.get('text')}|{row.get('date')}"
+
+
 def _merge_rows(existing: list[dict], incoming: list[dict]) -> list[dict]:
     merged: dict[str, dict] = {}
     for row in existing + incoming:
-        key = f"{row.get('id') or ''}|{row.get('text')}|{row.get('date')}"
-        merged[key] = row
+        merged[_row_key(row)] = row
     return sorted(merged.values(), key=lambda r: r.get("date") or "")
 
 
@@ -276,10 +279,44 @@ def append_rows(db: Session, incoming: list[dict]) -> dict:
 
 
 def upload_csv_text(db: Session, csv_text: str) -> dict:
+    """CSV satırlarını id|text|date anahtarıyla birleştirir (mevcut ID'ler de güncellenir)."""
     parsed = parse_csv_text(csv_text)
     if not parsed:
-        return {**workspace_state(db), "added": 0, "message": "CSV parse edilemedi."}
-    return append_rows(db, parsed)
+        return {
+            **workspace_state(db),
+            "added": 0,
+            "updated": 0,
+            "parsed": 0,
+            "message": "CSV parse edilemedi. En az «text» ve «date» sütunları ve veri satırları gerekli.",
+        }
+    row = _get_workspace(db)
+    existing = _load_rows(row)
+    existing_keys = {_row_key(r) for r in existing}
+    added = 0
+    updated = 0
+    seen_incoming: set[str] = set()
+    for item in parsed:
+        key = _row_key(item)
+        if key in seen_incoming:
+            continue
+        seen_incoming.add(key)
+        if key in existing_keys:
+            updated += 1
+        else:
+            added += 1
+            existing_keys.add(key)
+    merged = _merge_rows(existing, parsed)
+    row.rows_json = json.dumps(merged, ensure_ascii=False)
+    row.last_id = max(int(row.last_id or 0), _highest_id(merged))
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    return {
+        **workspace_state(db),
+        "added": added,
+        "updated": updated,
+        "parsed": len(parsed),
+        "message": f"{len(parsed)} satır işlendi: {added} yeni, {updated} güncellendi.",
+    }
 
 
 def reset_workspace(db: Session) -> dict:
