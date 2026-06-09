@@ -539,7 +539,25 @@
       flex: 0 0 auto;
       margin-top: 0;
     }
-    .bl-toolbar-col--import .bl-import-actions #bl-import-status {
+    .bl-file-drop-zone {
+    margin-top: 0.25rem;
+    border: 1px dashed rgb(203 213 225);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  html.dark .bl-file-drop-zone {
+    border-color: rgb(63 63 70);
+  }
+  .bl-file-drop-zone.bl-file-drop-zone--active {
+    border-color: rgb(99 102 241);
+    background: rgb(238 242 255 / 0.65);
+  }
+  html.dark .bl-file-drop-zone.bl-file-drop-zone--active {
+    background: rgb(49 46 129 / 0.25);
+    border-color: rgb(129 140 248);
+  }
+  .bl-toolbar-col--import .bl-import-actions #bl-import-status {
       margin-top: 0;
       flex: 1 1 8rem;
       min-width: 0;
@@ -599,8 +617,14 @@
         <div class="bl-import-fields">
           <div class="min-w-0">
             <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">CSV dosyası</label>
-            <input id="bl-file" type="file" class="mt-1 w-full text-xs sm:text-sm" />
-            <p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">GSC <code class="text-[10px]">.csv</code> — Firefox’ta dosya seçicide «Aç» gri kalırsa uzantı kısıtı yok; herhangi bir dosya seçilebilir.</p>
+            <div id="bl-file-drop" class="bl-file-drop-zone">
+              <input id="bl-file" type="file" class="w-full text-xs sm:text-sm" />
+              <p id="bl-file-drop-hint" class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+                GSC <code class="text-[10px]">.csv</code> — dosyayı buraya <strong class="font-semibold">sürükleyip bırakın</strong> veya yukarıdan seçin.
+                iCloud Masaüstü’nde «Aç» gri kalıyorsa dosyayı Finder’da indirin veya <strong class="font-semibold">İndirilenler</strong>e kopyalayın.
+              </p>
+              <p id="bl-file-picked" class="mt-0.5 hidden text-[10px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
+            </div>
           </div>
           <div class="min-w-0">
             <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Google Sheets URL</label>
@@ -1040,6 +1064,59 @@
   var BL_DASHBOARD_LOAD_MIN_MS = 320;
   var blDashboardLoadSeq = 0;
   var blDashboardLottieStarted = false;
+  var blPendingImportFile = null;
+
+  function blAssignFileToInput(file) {
+    var input = document.getElementById("bl-file");
+    if (!input || !file) return;
+    blPendingImportFile = file;
+    try {
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+    } catch (_) { /* drop / bazı tarayıcılar: blPendingImportFile kullanılır */ }
+    var picked = document.getElementById("bl-file-picked");
+    if (picked) {
+      picked.textContent = "Seçili: " + (file.name || "dosya");
+      picked.classList.remove("hidden");
+    }
+  }
+
+  function blGetImportFile() {
+    var input = document.getElementById("bl-file");
+    if (input && input.files && input.files[0]) return input.files[0];
+    return blPendingImportFile;
+  }
+
+  function wireBlFileDrop() {
+    var zone = document.getElementById("bl-file-drop");
+    var input = document.getElementById("bl-file");
+    if (!zone || !input) return;
+    input.addEventListener("change", function () {
+      if (input.files && input.files[0]) blAssignFileToInput(input.files[0]);
+    });
+    ["dragenter", "dragover"].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.add("bl-file-drop-zone--active");
+      });
+    });
+    zone.addEventListener("dragleave", function (e) {
+      e.preventDefault();
+      if (e.target === zone || !zone.contains(e.relatedTarget)) {
+        zone.classList.remove("bl-file-drop-zone--active");
+      }
+    });
+    zone.addEventListener("drop", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.remove("bl-file-drop-zone--active");
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || !files[0]) return;
+      blAssignFileToInput(files[0]);
+    });
+  }
 
   function blDashboardLoadingEls() {
     return {
@@ -2998,7 +3075,7 @@
     }
     try {
       await runBacklinkImportWithOverlay(async function (setProgress) {
-        var f = document.getElementById("bl-file").files[0];
+        var f = blGetImportFile();
         var sheets = document.getElementById("bl-sheets-url").value.trim();
         var payload = {
           site_id: sid,
@@ -3049,6 +3126,7 @@
     }
   });
   }
+  wireBlFileDrop();
   initBlDomainsTableSort();
   wireBlFilters();
   wireBlTopSitesList();
