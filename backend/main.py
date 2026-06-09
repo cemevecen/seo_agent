@@ -88,8 +88,9 @@ from backend.services.search_console_auth import (
     decode_oauth_state,
     delete_oauth_credentials,
     encode_oauth_state,
-    format_search_console_error_for_ui,
     get_search_console_connection_status,
+    oauth_saved_at_for_site,
+    search_console_last_run_error_for_ui,
     get_search_console_credentials_record,
     load_google_credentials,
     oauth_is_configured,
@@ -2415,7 +2416,12 @@ def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
         "status": status,
         "last_run_status": str(last_run.status or "").upper() if last_run and last_run.status else "NEVER",
         "last_run_at": _format_optional_datetime(last_run.requested_at if last_run else None),
-        "last_run_error": format_search_console_error_for_ui(last_run.error_message if last_run else ""),
+        "last_run_error": search_console_last_run_error_for_ui(
+            error_message=last_run.error_message if last_run else "",
+            requires_reauth=bool(connection.get("requires_reauth")),
+            oauth_saved_at=oauth_saved_at_for_site(db, site.id),
+            run_requested_at=last_run.requested_at if last_run else None,
+        ),
         "cooldown_active": cooldown_active,
         "manual_mode_label": f"{schedule_label} otomatik + manuel",
         "report": _search_console_report_payload(db, site_id=site.id),
@@ -13656,8 +13662,43 @@ def search_console_oauth_callback(request: Request):
                 f"OAuth token alınamadı: {exc}",
                 status_code=400,
             )
-        save_oauth_credentials(db, site.id, flow.credentials)
-    return RedirectResponse(str(payload.get("return_path") or "/settings"), status_code=302)
+        creds = flow.credentials
+        if not creds.refresh_token:
+            return HTMLResponse(
+                "Google yeni refresh token vermedi. Önce «Bağlantıyı Kaldır», ardından tekrar "
+                "«Google ile Bağlan» (tüm izinleri onaylayın).",
+                status_code=400,
+            )
+        save_oauth_credentials(db, site.id, creds)
+        connected_site_id = site.id
+
+    import threading as _sc_oauth_threading
+
+    def _sc_collect_after_oauth(site_id: int) -> None:
+        import time as _t
+
+        _t.sleep(0.8)
+        try:
+            with SessionLocal() as bg_db:
+                bg_site = bg_db.query(Site).filter(Site.id == site_id).first()
+                if bg_site is None:
+                    return
+                collect_search_console_metrics(bg_db, bg_site, send_notifications=False)
+                bg_db.commit()
+                LOGGER.info("Search Console OAuth sonrası otomatik çekim bitti site_id=%s", site_id)
+        except Exception as exc:
+            LOGGER.warning("Search Console OAuth sonrası çekim başarısız site_id=%s: %s", site_id, exc)
+
+    _sc_oauth_threading.Thread(
+        target=_sc_collect_after_oauth,
+        args=(connected_site_id,),
+        daemon=True,
+        name=f"sc-oauth-collect-{connected_site_id}",
+    ).start()
+
+    return_path = str(payload.get("return_path") or "/settings")
+    sep = "&" if "?" in return_path else "?"
+    return RedirectResponse(f"{return_path}{sep}sc_oauth_ok=1", status_code=302)
 
 
 @app.post("/api/search-console/oauth/disconnect/{site_id}")

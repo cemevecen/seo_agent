@@ -195,6 +195,14 @@ def _is_oauth_revoked_error(message: str | None) -> bool:
     return any(marker in text for marker in _OAUTH_REVOKED_MARKERS)
 
 
+def _dt_naive_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.replace(tzinfo=None)
+    return dt
+
+
 def format_search_console_error_for_ui(message: str | None) -> str:
     """Kullanıcıya gösterilecek SC hata metni (OAuth invalid_grant vb.)."""
     raw = str(message or "").strip()
@@ -208,6 +216,25 @@ def format_search_console_error_for_ui(message: str | None) -> str:
             f"{get_oauth_redirect_uri()}"
         )
     return raw
+
+
+def search_console_last_run_error_for_ui(
+    *,
+    error_message: str | None,
+    requires_reauth: bool,
+    oauth_saved_at: datetime | None,
+    run_requested_at: datetime | None,
+) -> str:
+    """Son collector hatası — OAuth yeniden bağlandıysa eski invalid_grant gösterme."""
+    raw = str(error_message or "").strip()
+    if not raw:
+        return ""
+    if _is_oauth_revoked_error(raw) and not requires_reauth:
+        saved = _dt_naive_utc(oauth_saved_at)
+        run_at = _dt_naive_utc(run_requested_at)
+        if saved and (run_at is None or run_at < saved):
+            return ""
+    return format_search_console_error_for_ui(raw)
 
 
 def _oauth_saved_at(record: SiteCredential | None) -> datetime | None:
@@ -246,10 +273,22 @@ def _site_requires_oauth_reconnect(db: Session, site_id: int, oauth_record: Site
     if saved_at is None:
         # Eski SiteCredential JSON'unda saved_at yok; invalid_grant yine de yeniden bağlanma gerektirir.
         return True
-    run_at = latest_run.requested_at
+    run_at = _dt_naive_utc(latest_run.requested_at)
+    saved = _dt_naive_utc(saved_at)
     if not run_at:
         return True
-    return run_at >= saved_at
+    if not saved:
+        return True
+    return run_at >= saved
+
+
+def oauth_saved_at_for_site(db: Session, site_id: int) -> datetime | None:
+    record = (
+        db.query(SiteCredential)
+        .filter(SiteCredential.site_id == site_id, SiteCredential.credential_type == OAUTH_CREDENTIAL_TYPE)
+        .first()
+    )
+    return _oauth_saved_at(record)
 
 
 def get_search_console_connection_status(db: Session, site_id: int) -> dict[str, str | bool]:
@@ -339,7 +378,9 @@ def get_sc_connections_batch(db: "Session", site_ids: list[int]) -> "dict[int, d
         elif not saved_at:
             requires_reauth = True
         else:
-            requires_reauth = run_at is None or run_at >= saved_at
+            run_naive = _dt_naive_utc(run_at)
+            saved_naive = _dt_naive_utc(saved_at)
+            requires_reauth = run_naive is None or (saved_naive is not None and run_naive >= saved_naive)
         if OAUTH_CREDENTIAL_TYPE in types:
             result[sid] = {
                 "connected": True,
