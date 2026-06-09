@@ -802,6 +802,15 @@
             <tbody id="bl-domains-body" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
           </table>
         </div>
+        <div id="bl-domains-more-wrap" class="mt-2 hidden text-center">
+          <button
+            type="button"
+            id="bl-domains-more-btn"
+            class="rounded-lg border border-indigo-300 px-4 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-50 dark:border-indigo-600 dark:text-indigo-200 dark:hover:bg-indigo-950/40"
+          >
+            Daha fazla göster
+          </button>
+        </div>
       </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-6">
@@ -995,8 +1004,11 @@
     return "<strong>Toplam link:</strong> " + total + extra;
   }
 
-  function renderDiffDomainBlock(title, domains, tone) {
+  function renderDiffDomainBlock(title, domains, tone, totalCount) {
     if (!domains || !domains.length) return "";
+    var total = totalCount != null && !isNaN(totalCount) ? parseInt(totalCount, 10) : domains.length;
+    var showCap = 400;
+    var slice = domains.length > showCap ? domains.slice(0, showCap) : domains;
     var isLost = tone === "lost";
     var border = isLost
       ? "border-rose-200 dark:border-rose-800"
@@ -1007,7 +1019,7 @@
     var head = isLost
       ? "text-rose-800 dark:text-rose-200"
       : "text-emerald-800 dark:text-emerald-200";
-    var items = domains
+    var items = slice
       .map(function (d) {
         return (
           '<li class="break-all font-mono text-[10px] text-slate-700 dark:text-slate-300">' +
@@ -1016,6 +1028,14 @@
         );
       })
       .join("");
+    var moreNote =
+      total > slice.length
+        ? '<p class="mt-2 text-[10px] text-slate-500">Liste performans için ' +
+          slice.length +
+          " gösteriliyor (toplam " +
+          total +
+          ").</p>"
+        : "";
     return (
       '<details class="bl-diff-domain-details rounded-xl border ' +
       border +
@@ -1027,11 +1047,13 @@
       '">' +
       esc(title) +
       " (" +
-      domains.length +
+      total +
       ")</summary>" +
       '<ul class="mt-2 max-h-64 list-disc space-y-0.5 overflow-y-auto pl-5 marker:text-slate-400">' +
       items +
-      "</ul></details>"
+      "</ul>" +
+      moreNote +
+      "</details>"
     );
   }
 
@@ -1096,6 +1118,9 @@
   var BL_LOTTIE_DASHBOARD = "https://assets2.lottiefiles.com/packages/lf20_p8bfn5ty.json";
   var BL_IMPORT_SUCCESS_MIN_MS = 500;
   var BL_DASHBOARD_LOAD_MIN_MS = 320;
+  var BL_DOMAINS_TABLE_RENDER_CAP = 400;
+  var blDomainsTableRenderLimit = BL_DOMAINS_TABLE_RENDER_CAP;
+  var blDomainsPayloadTruncated = false;
   var blDashboardLoadSeq = 0;
   var blDashboardLottieStarted = false;
   var blPendingImportFile = null;
@@ -1186,6 +1211,14 @@
         els.player.play();
       } catch (e) {}
     }
+  }
+
+  function blYieldToMain() {
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(resolve);
+      });
+    });
   }
 
   function blHideDashboardLoading() {
@@ -2549,6 +2582,15 @@
       total > 0
         ? "Gösterilen " + shown + " / " + total + " domain (filtre sonrası)."
         : "";
+    if (blDomainsPayloadTruncated && total > 0) {
+      base += " Sunucu listesi üst sınırda; tablo en yüksek hacimli domainlerle sınırlı.";
+    }
+    if (shown < total && blDomainsTableRenderLimit < total) {
+      base +=
+        " Tabloda ilk " +
+        blDomainsTableRenderLimit +
+        " satır; «Daha fazla göster» ile genişletin.";
+    }
     if (picked && base) {
       base += " Domain seçimi: " + picked + " site.";
     } else if (picked) {
@@ -2587,12 +2629,16 @@
     if ((diff.new_domains || []).length) {
       var newTitle =
         diff.diff_kind === "target_pages" ? "Yeni sayfalar (Top external/internal)" : "Yeni domainler";
-      parts.push(renderDiffDomainBlock(newTitle, diff.new_domains, "new"));
+      parts.push(
+        renderDiffDomainBlock(newTitle, diff.new_domains, "new", diff.new_domains_count)
+      );
     }
     if ((diff.lost_domains || []).length) {
       var lostTitle =
         diff.diff_kind === "target_pages" ? "Kayıp sayfalar (Top external/internal)" : "Kayıp domainler";
-      parts.push(renderDiffDomainBlock(lostTitle, diff.lost_domains, "lost"));
+      parts.push(
+        renderDiffDomainBlock(lostTitle, diff.lost_domains, "lost", diff.lost_domains_count)
+      );
     }
     if (!parts.length) {
       wrap.classList.add("hidden");
@@ -2908,21 +2954,44 @@
     wireBlMobileSort();
     var tbody = document.getElementById("bl-domains-body");
     var cards = document.getElementById("bl-domains-cards");
-    var emptyMsg = '<p class="px-1 py-4 text-sm text-slate-500">Import sonrası domain listesi burada görünür.</p>';
+    var moreWrap = document.getElementById("bl-domains-more-wrap");
     if (!domains.length) {
       if (tbody) {
         tbody.innerHTML =
           '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Bu filtre için domain yok. Filtreleri gevşetin veya yeni import ekleyin.</td></tr>';
       }
       if (cards) cards.innerHTML = '<p class="text-sm text-slate-500">Bu filtre için domain yok.</p>';
+      if (moreWrap) moreWrap.classList.add("hidden");
       return;
     }
     var sorted = sortBlDomains(domains);
-    if (tbody) tbody.innerHTML = sorted.map(renderDomainRow).join("");
-    if (cards) cards.innerHTML = sorted.map(renderDomainCard).join("");
+    var limit = Math.max(1, blDomainsTableRenderLimit || BL_DOMAINS_TABLE_RENDER_CAP);
+    var page = sorted.slice(0, limit);
+    if (tbody) tbody.innerHTML = page.map(renderDomainRow).join("");
+    if (cards) cards.innerHTML = page.map(renderDomainCard).join("");
+    if (moreWrap) {
+      if (sorted.length > page.length) {
+        moreWrap.classList.remove("hidden");
+        var btn = document.getElementById("bl-domains-more-btn");
+        if (btn) {
+          btn.textContent =
+            "Daha fazla göster (" + page.length + " / " + sorted.length + ")";
+        }
+      } else {
+        moreWrap.classList.add("hidden");
+      }
+    }
     syncBlMobileSortSelect();
     wireBlActionSelects();
     wireBlShowAllLinks();
+  }
+
+  async function blMaybeHideDashboardLoader(mySeq, showLoader, t0) {
+    if (mySeq !== blDashboardLoadSeq || !showLoader) return;
+    var elapsed = Date.now() - t0;
+    var wait = BL_DASHBOARD_LOAD_MIN_MS - elapsed;
+    if (wait > 0) await blWaitMs(wait);
+    if (mySeq === blDashboardLoadSeq) blHideDashboardLoading();
   }
 
   async function loadDashboard(opts) {
@@ -2938,101 +3007,112 @@
       );
     }
     try {
-    document.getElementById("bl-disavow-link").href = disavowHref();
-    var rtParam = encodeURIComponent(reportType());
-    var r = await fetch(
-      "/api/backlinks/dashboard?site_id=" +
-        sid +
-        "&report_type=" +
-        rtParam +
-        "&_=" +
-        Date.now(),
-      { credentials: "same-origin", cache: "no-store" }
-    );
-    var d = await r.json();
-    if (mySeq !== blDashboardLoadSeq) return;
-    if (!r.ok) {
-      showBanner(d.detail || "Dashboard yüklenemedi.");
-      return;
-    }
-    syncBlSiteChipsUi(sid);
-    var rt = blNormalizeReportType(d.report_type || reportType());
-    syncBlReportTypeChipsUi(rt);
-    document.getElementById("bl-banner").classList.add("hidden");
-    var ac = d.action_counts || {};
-    document.getElementById("bl-st-domains").textContent = String(d.domain_total || 0);
-    document.getElementById("bl-st-disavow").textContent = String(ac.disavow || 0);
-    document.getElementById("bl-st-review").textContent = String(ac.review || 0);
-    var mediaEl = document.getElementById("bl-st-media");
-    if (mediaEl) {
-      var cc = d.category_counts || {};
-      mediaEl.textContent = String((cc.media || 0) + (cc.mostly_clean || 0));
-    }
-    blTopSiteOpen = {};
-    blTopPageOpen = {};
-    blTopSitesExpanded = false;
-    blTopPagesExpanded = false;
-    if (rt === "top_target_pages") blTopPagesFilter = "external";
-    else if (
-      rt === "latest_links" &&
-      (d.top_rankings || {}).pages_gsc_report_type === "top_target_pages"
-    ) {
-      blTopPagesFilter = "external";
-    } else blTopPagesFilter = "all";
-    applyBlReportTypeView(Object.assign({}, d, { report_type: rt }));
-    renderTopRankings(d.top_rankings || {}, rt);
-    document.getElementById("bl-st-new").textContent = String((d.diff && d.diff.new_domains && d.diff.new_domains.length) || 0);
-    var lostEl = document.getElementById("bl-st-lost");
-    if (lostEl) {
-      lostEl.textContent = String((d.diff && d.diff.lost_domains && d.diff.lost_domains.length) || 0);
-    }
-    var diff = d.diff || {};
-    blDiffData = {
-      new_domains: diff.new_domains || [],
-      lost_domains: diff.lost_domains || [],
-      new_links: diff.new_links || [],
-      lost_links: diff.lost_links || [],
-    };
-    renderDiffPanels(diff);
-    var agg = d.aggregate || {};
-    var diffHintEl = document.getElementById("bl-diff-hint");
-    if (diffHintEl) {
-      diffHintEl.textContent = "";
-      diffHintEl.classList.add("hidden");
-    }
-    var aggHintEl = document.getElementById("bl-aggregate-hint");
-    if (aggHintEl) {
-      aggHintEl.textContent = "";
-      aggHintEl.classList.add("hidden");
-    }
-    renderImportSteps(d.imports || []);
-    blDomainsCache = d.domains || [];
-    if (isBlTargetReportType(rt)) {
-      blDomainsCache = [];
-      var tbody = document.getElementById("bl-domains-body");
-      if (tbody) {
-        tbody.innerHTML =
-          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Hedef sayfa listesi yukarıdaki özet bölümünde. Domain risk tablosu yalnızca link rapor türlerinde kullanılır.</td></tr>';
+      document.getElementById("bl-disavow-link").href = disavowHref();
+      var rtParam = encodeURIComponent(reportType());
+      var r = await fetch(
+        "/api/backlinks/dashboard?site_id=" +
+          sid +
+          "&report_type=" +
+          rtParam +
+          "&_=" +
+          Date.now(),
+        { credentials: "same-origin", cache: "no-store" }
+      );
+      var d = await r.json();
+      if (mySeq !== blDashboardLoadSeq) return;
+      if (!r.ok) {
+        showBanner(d.detail || "Dashboard yüklenemedi.");
+        await blMaybeHideDashboardLoader(mySeq, showLoader, t0);
+        return;
       }
-    }
-    pruneBlDomainPick();
-    updateBlDomainPickerSummary();
-    var panel = document.getElementById("bl-domain-picker-panel");
-    if (panel && !panel.classList.contains("hidden")) {
-      renderBlDomainPickerList();
-    }
-    if (!isBlTargetReportType(rt)) {
-      refreshDomainsView();
-    } else {
-      updateBlFilterCount(0, 0);
-    }
-    } finally {
-      if (mySeq === blDashboardLoadSeq && showLoader) {
-        var elapsed = Date.now() - t0;
-        var wait = BL_DASHBOARD_LOAD_MIN_MS - elapsed;
-        if (wait > 0) await blWaitMs(wait);
-        if (mySeq === blDashboardLoadSeq) blHideDashboardLoading();
+      syncBlSiteChipsUi(sid);
+      var rt = blNormalizeReportType(d.report_type || reportType());
+      syncBlReportTypeChipsUi(rt);
+      document.getElementById("bl-banner").classList.add("hidden");
+      var ac = d.action_counts || {};
+      document.getElementById("bl-st-domains").textContent = String(d.domain_total || 0);
+      document.getElementById("bl-st-disavow").textContent = String(ac.disavow || 0);
+      document.getElementById("bl-st-review").textContent = String(ac.review || 0);
+      var mediaEl = document.getElementById("bl-st-media");
+      if (mediaEl) {
+        var cc = d.category_counts || {};
+        mediaEl.textContent = String((cc.media || 0) + (cc.mostly_clean || 0));
       }
+      var diff = d.diff || {};
+      document.getElementById("bl-st-new").textContent = String(
+        diff.new_domains_count != null ? diff.new_domains_count : (diff.new_domains || []).length
+      );
+      var lostEl = document.getElementById("bl-st-lost");
+      if (lostEl) {
+        lostEl.textContent = String(
+          diff.lost_domains_count != null ? diff.lost_domains_count : (diff.lost_domains || []).length
+        );
+      }
+      blDomainsTableRenderLimit = BL_DOMAINS_TABLE_RENDER_CAP;
+      blDomainsPayloadTruncated = !!d.domains_truncated;
+
+      await blMaybeHideDashboardLoader(mySeq, showLoader, t0);
+      if (mySeq !== blDashboardLoadSeq) return;
+      await blYieldToMain();
+      if (mySeq !== blDashboardLoadSeq) return;
+
+      blTopSiteOpen = {};
+      blTopPageOpen = {};
+      blTopSitesExpanded = false;
+      blTopPagesExpanded = false;
+      if (rt === "top_target_pages") blTopPagesFilter = "external";
+      else if (
+        rt === "latest_links" &&
+        (d.top_rankings || {}).pages_gsc_report_type === "top_target_pages"
+      ) {
+        blTopPagesFilter = "external";
+      } else blTopPagesFilter = "all";
+      applyBlReportTypeView(Object.assign({}, d, { report_type: rt }));
+      renderTopRankings(d.top_rankings || {}, rt);
+      blDiffData = {
+        new_domains: diff.new_domains || [],
+        lost_domains: diff.lost_domains || [],
+        new_links: diff.new_links || [],
+        lost_links: diff.lost_links || [],
+      };
+      renderDiffPanels(diff);
+      var diffHintEl = document.getElementById("bl-diff-hint");
+      if (diffHintEl) {
+        diffHintEl.textContent = "";
+        diffHintEl.classList.add("hidden");
+      }
+      var aggHintEl = document.getElementById("bl-aggregate-hint");
+      if (aggHintEl) {
+        aggHintEl.textContent = "";
+        aggHintEl.classList.add("hidden");
+      }
+      renderImportSteps(d.imports || []);
+      blDomainsCache = d.domains || [];
+      if (isBlTargetReportType(rt)) {
+        blDomainsCache = [];
+        var tbody = document.getElementById("bl-domains-body");
+        if (tbody) {
+          tbody.innerHTML =
+            '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Hedef sayfa listesi yukarıdaki özet bölümünde. Domain risk tablosu yalnızca link rapor türlerinde kullanılır.</td></tr>';
+        }
+      }
+      pruneBlDomainPick();
+      updateBlDomainPickerSummary();
+      var panel = document.getElementById("bl-domain-picker-panel");
+      if (panel && !panel.classList.contains("hidden")) {
+        renderBlDomainPickerList();
+      }
+      if (!isBlTargetReportType(rt)) {
+        refreshDomainsView();
+      } else {
+        updateBlFilterCount(0, 0);
+      }
+    } catch (err) {
+      if (mySeq === blDashboardLoadSeq) {
+        showBanner(String((err && err.message) || err || "Dashboard yüklenemedi"));
+        blHideDashboardLoading();
+      }
+      throw err;
     }
   }
   document.getElementById("bl-refresh-btn").addEventListener("click", function () {
@@ -3045,6 +3125,15 @@
   });
   wireBlReportTypeChips();
   wireBlSiteChips();
+  (function wireBlDomainsMore() {
+    var btn = document.getElementById("bl-domains-more-btn");
+    if (!btn || btn.dataset.wired === "1") return;
+    btn.dataset.wired = "1";
+    btn.addEventListener("click", function () {
+      blDomainsTableRenderLimit += BL_DOMAINS_TABLE_RENDER_CAP;
+      refreshDomainsView();
+    });
+  })();
   syncBlReportTypeChipsUi("latest_links");
   syncBlSiteChipsUi(siteId());
   blEnsureDashboardLottie();

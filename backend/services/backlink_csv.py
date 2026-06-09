@@ -47,6 +47,9 @@ REPORT_TYPE_LABELS: dict[str, str] = {
 
 GSC_TARGET_AGG_ANCHOR_PREFIX = "gsc_agg:"
 _GSC_TARGET_AGG_REPORT_TYPES = frozenset({"top_target_pages", "top_target_pages_internal"})
+# Dashboard JSON + UI: sınırsız domain listesi tarayıcıyı kilitleyebilir.
+_DASHBOARD_DOMAINS_PAYLOAD_CAP = 3500
+_DIFF_DOMAINS_PAYLOAD_CAP = 800
 
 _HEADER_ALIASES: dict[str, list[str]] = {
     "source_url": [
@@ -1369,10 +1372,9 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "diff_kind": "target_pages" if is_target_mode else "link_domains",
     }
 
-    import_ids = [i.id for i in imports]
-    if import_ids and not is_target_mode:
-        rows = db.query(BacklinkRow).filter(BacklinkRow.import_id.in_(import_ids)).all()
-        for r in rows:
+    if latest and not is_target_mode:
+        latest_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all()
+        for r in latest_rows:
             dom = (r.domain or "").lower()
             if not dom:
                 continue
@@ -1392,8 +1394,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
             keys = url_keys_by_domain.setdefault(dom, set())
             _merge_row_into_domain_bucket(bucket, r, url_keys=keys)
 
-        if latest and previous:
-            latest_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all()
+        if previous:
             prev_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == previous.id).all()
             latest_entries = _link_entries_from_rows(latest_rows)
             prev_entries = _link_entries_from_rows(prev_rows)
@@ -1405,8 +1406,12 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
             }
             latest_domains = {e["domain"] for e in latest_entries}
             prev_domains = {e["domain"] for e in prev_entries}
-            diff["new_domains"] = sorted(latest_domains - prev_domains)
-            diff["lost_domains"] = sorted(prev_domains - latest_domains)
+            new_d = sorted(latest_domains - prev_domains)
+            lost_d = sorted(prev_domains - latest_domains)
+            diff["new_domains_count"] = len(new_d)
+            diff["lost_domains_count"] = len(lost_d)
+            diff["new_domains"] = new_d[:_DIFF_DOMAINS_PAYLOAD_CAP]
+            diff["lost_domains"] = lost_d[:_DIFF_DOMAINS_PAYLOAD_CAP]
             diff["new_links"] = [
                 latest_fps[k] for k in sorted(latest_fps.keys() - prev_fps.keys())
             ][:300]
@@ -1421,12 +1426,12 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         prev_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == previous.id).all()
         latest_map = _gsc_target_key_display_map(latest_rows, site_domain=site_domain)
         prev_map = _gsc_target_key_display_map(prev_rows, site_domain=site_domain)
-        diff["new_domains"] = sorted(
-            latest_map[k] for k in sorted(set(latest_map) - set(prev_map))
-        )
-        diff["lost_domains"] = sorted(
-            prev_map[k] for k in sorted(set(prev_map) - set(latest_map))
-        )
+        new_pages = sorted(latest_map[k] for k in sorted(set(latest_map) - set(prev_map)))
+        lost_pages = sorted(prev_map[k] for k in sorted(set(prev_map) - set(latest_map)))
+        diff["new_domains_count"] = len(new_pages)
+        diff["lost_domains_count"] = len(lost_pages)
+        diff["new_domains"] = new_pages[:_DIFF_DOMAINS_PAYLOAD_CAP]
+        diff["lost_domains"] = lost_pages[:_DIFF_DOMAINS_PAYLOAD_CAP]
         diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
         diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
 
@@ -1517,7 +1522,8 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "diff": diff,
         "action_counts": action_counts,
         "category_counts": category_counts,
-        "domains": domains_out,
+        "domains": domains_out[:_DASHBOARD_DOMAINS_PAYLOAD_CAP],
+        "domains_truncated": len(domains_out) > _DASHBOARD_DOMAINS_PAYLOAD_CAP,
         "domain_total": domain_total,
         "top_rankings": build_top_backlink_rankings(
             db, site_id=site_id, limit=100, report_type=rt
