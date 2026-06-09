@@ -995,6 +995,46 @@
     return "<strong>Toplam link:</strong> " + total + extra;
   }
 
+  function renderDiffDomainBlock(title, domains, tone) {
+    if (!domains || !domains.length) return "";
+    var isLost = tone === "lost";
+    var border = isLost
+      ? "border-rose-200 dark:border-rose-800"
+      : "border-emerald-200 dark:border-emerald-800";
+    var bg = isLost
+      ? "bg-rose-50/50 dark:border-rose-900 dark:bg-rose-950/30"
+      : "bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/30";
+    var head = isLost
+      ? "text-rose-800 dark:text-rose-200"
+      : "text-emerald-800 dark:text-emerald-200";
+    var items = domains
+      .map(function (d) {
+        return (
+          '<li class="break-all font-mono text-[10px] text-slate-700 dark:text-slate-300">' +
+          esc(d) +
+          "</li>"
+        );
+      })
+      .join("");
+    return (
+      '<details class="bl-diff-domain-details rounded-xl border ' +
+      border +
+      " " +
+      bg +
+      ' p-3">' +
+      '<summary class="cursor-pointer select-none text-xs font-bold uppercase ' +
+      head +
+      '">' +
+      esc(title) +
+      " (" +
+      domains.length +
+      ")</summary>" +
+      '<ul class="mt-2 max-h-64 list-disc space-y-0.5 overflow-y-auto pl-5 marker:text-slate-400">' +
+      items +
+      "</ul></details>"
+    );
+  }
+
   function renderDiffLinkBlock(title, items, tone) {
     if (!items || !items.length) return "";
     var border =
@@ -1745,29 +1785,7 @@
     var slice = items.slice(0, Math.min(limit, items.length));
     blUpdateTopPagesFilterUi();
     blUpdateTopPagesSectionTitle();
-    if (metaEl) {
-      var src = blTopRankingsCache.pages_source || "";
-      var rtList = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
-      if (totalAll && src === "gsc_top_target_pages") {
-        var linkKindLabel =
-          rtList === "top_target_pages_internal" ? "Top internal links" : "Top external links";
-        var gscNote =
-          rtList === "latest_links"
-            ? " · Latest links görünümü · veri: Top external links importu"
-            : "";
-        metaEl.textContent =
-          totalAll +
-          " sayfa · " +
-          linkKindLabel +
-          " · satıra tıklayınca özet ve URL’ler" +
-          gscNote +
-          (blTopPagesFilter !== "all" ? " · filtre: " + blTopPagesFilter : "");
-      } else if (totalAll) {
-        metaEl.textContent = totalAll + " hedef · satıra tıklayınca bağlantı URL’leri · iç/dış";
-      } else {
-        metaEl.textContent = "";
-      }
-    }
+    if (metaEl) metaEl.textContent = "";
     if (!slice.length) {
       var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
       var emptyMsg = "Henüz veri yok.";
@@ -2569,32 +2587,12 @@
     if ((diff.new_domains || []).length) {
       var newTitle =
         diff.diff_kind === "target_pages" ? "Yeni sayfalar (Top external/internal)" : "Yeni domainler";
-      parts.push(
-        '<section class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">' +
-          '<h3 class="text-xs font-bold uppercase text-emerald-800 dark:text-emerald-200">' +
-          newTitle +
-          " (" +
-          diff.new_domains.length +
-          ")</h3>" +
-          '<p class="mt-1 break-all font-mono text-[10px] text-slate-700 dark:text-slate-300">' +
-          esc(diff.new_domains.join(", ")) +
-          "</p></section>"
-      );
+      parts.push(renderDiffDomainBlock(newTitle, diff.new_domains, "new"));
     }
     if ((diff.lost_domains || []).length) {
       var lostTitle =
         diff.diff_kind === "target_pages" ? "Kayıp sayfalar (Top external/internal)" : "Kayıp domainler";
-      parts.push(
-        '<section class="rounded-xl border border-rose-200 bg-rose-50/50 p-3 dark:border-rose-900 dark:bg-rose-950/30">' +
-          '<h3 class="text-xs font-bold uppercase text-rose-800 dark:text-rose-200">' +
-          lostTitle +
-          " (" +
-          diff.lost_domains.length +
-          ")</h3>" +
-          '<p class="mt-1 break-all font-mono text-[10px] text-slate-700 dark:text-slate-300">' +
-          esc(diff.lost_domains.join(", ")) +
-          "</p></section>"
-      );
+      parts.push(renderDiffDomainBlock(lostTitle, diff.lost_domains, "lost"));
     }
     if (!parts.length) {
       wrap.classList.add("hidden");

@@ -1405,8 +1405,8 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
             }
             latest_domains = {e["domain"] for e in latest_entries}
             prev_domains = {e["domain"] for e in prev_entries}
-            diff["new_domains"] = sorted(latest_domains - prev_domains)[:200]
-            diff["lost_domains"] = sorted(prev_domains - latest_domains)[:200]
+            diff["new_domains"] = sorted(latest_domains - prev_domains)
+            diff["lost_domains"] = sorted(prev_domains - latest_domains)
             diff["new_links"] = [
                 latest_fps[k] for k in sorted(latest_fps.keys() - prev_fps.keys())
             ][:300]
@@ -1423,10 +1423,10 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         prev_map = _gsc_target_key_display_map(prev_rows, site_domain=site_domain)
         diff["new_domains"] = sorted(
             latest_map[k] for k in sorted(set(latest_map) - set(prev_map))
-        )[:200]
+        )
         diff["lost_domains"] = sorted(
             prev_map[k] for k in sorted(set(prev_map) - set(latest_map))
-        )[:200]
+        )
         diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
         diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
 
