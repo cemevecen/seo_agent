@@ -1293,9 +1293,16 @@
     }
   </style>
   <!-- HTMX CDN -->
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.htmx && window.htmx.config) {
+        window.htmx.config.timeout = 55000;
+      }
+    });
+  </script>
   <!-- Plotly: önce yerel (Railway/CDN engeli); olmazsa CDN -->
-  <script src="/static/vendor/plotly-2.35.2.min.js" onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
+  <script src="/static/vendor/plotly-2.35.2.min.js" defer onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
 </head>

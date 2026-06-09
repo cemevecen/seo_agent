@@ -7054,13 +7054,10 @@ def _home_crashlytics_card(product_id: str) -> dict:
 
     payload = cbq.peek_cached_payload(pid, days=7, platform_filter="all")
     if not payload:
-        if cbq.is_cache_warm(pid):
-            payload = cbq.build_full_payload(pid, days=7, platform_filter="all")
-        else:
-            cbq.prewarm_cache(pid)
-            out["warming"] = True
-            out["message"] = "Crashlytics verisi arka planda yükleniyor…"
-            return out
+        cbq.prewarm_cache(pid)
+        out["warming"] = True
+        out["message"] = "Crashlytics verisi arka planda yükleniyor…"
+        return out
 
     if not payload or payload.get("ok") is False:
         out["message"] = (payload or {}).get("message") or "BigQuery verisi yok"
@@ -7552,14 +7549,11 @@ def home_summary_payload(db) -> dict:
                 "site_id": site_id,
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name,
-                "realtime": _home_load_realtime_for_site(db, site_id, rt_profs),
                 "ga4_sessions_7d": _home_load_ga4_sessions_for_site(db, site_id, ga4_profs),
                 "search_console_7d": sc_devices,
                 "position_drops_7d": _home_position_drops_for_site(db, site_id, limit=5),
             }
         )
-        if site_id == 1:
-            sites_out[-1]["crashlytics_7d"] = _home_crashlytics_card("doviz")
     return {
         "page": "home",
         "title": "Günün Özeti",
