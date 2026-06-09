@@ -31,8 +31,10 @@ MWEB_BANNER_EVENT_NAMES: tuple[str, ...] = (
     "app_download_banner_display",
     "app_download_banner_cd_display",
     "app_download_banner_dismiss",
+    "app_download_banner_currency_detail_disp",
     "app_download_banner_click",
     "app_download_banner_cd_click",
+    "app_download_banner_currency_detail_clic",
     "app_download_banner_show",
 )
 
