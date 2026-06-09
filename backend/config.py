@@ -139,6 +139,15 @@ class Settings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("ADMIN_LOGIN_ALERT_ENABLED", "admin_login_alert_enabled"),
     )
+    admin_login_alert_nav_delay_seconds: int = Field(
+        default=90,
+        ge=0,
+        le=300,
+        validation_alias=AliasChoices(
+            "ADMIN_LOGIN_ALERT_NAV_DELAY_SECONDS",
+            "admin_login_alert_nav_delay_seconds",
+        ),
+    )
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""

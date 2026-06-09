@@ -37,7 +37,7 @@ def test_unknown_device_sends_alert():
     db.query.return_value.first.return_value = MagicMock()  # has trusted devices
 
     with patch.object(aal, "is_trusted", return_value=False):
-        with patch.object(aal, "_send_unknown_login_alert", return_value=True) as mock_alert:
+        with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
             with patch.object(aal, "_trim_old_events"):
                 row = aal.record_access_event(
                     db,
@@ -50,20 +50,38 @@ def test_unknown_device_sends_alert():
 
 
 def test_unknown_login_alert_subject_format():
-    with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
-        with patch.object(aal.settings, "admin_login_alert_enabled", True):
-            with patch.object(aal.settings, "admin_login_alert_email", "admin@example.com"):
-                ok = aal._send_unknown_login_alert(
-                    ip="78.187.20.15",
-                    device_label="Masaüstü / Firefox",
-                    user_agent="Mozilla/5.0 Firefox",
-                    fingerprint="abc123",
-                    event_type="login_ok",
-                )
+    with patch.object(aal, "_lookup_ip_geo", return_value={}):
+        with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
+            with patch.object(aal.settings, "admin_login_alert_enabled", True):
+                with patch.object(aal.settings, "admin_login_alert_email", "admin@example.com"):
+                    ok = aal._deliver_unknown_login_alert(
+                        ip="78.187.20.15",
+                        device_label="Masaüstü / Firefox",
+                        user_agent="Mozilla/5.0 Firefox",
+                        fingerprint="abc123",
+                        event_type="login_ok",
+                        nav_paths=[{"at_tr": "12:00:01", "label": "Home", "path": "/"}],
+                    )
     assert ok is True
     mock_send.assert_called_once()
     subject = mock_send.call_args[0][0]
+    body = mock_send.call_args[0][1]
     assert subject == "admin girişi - 'Firefox' - '78.187.20.15'"
+    assert "Menü / sayfa gezintisi" in body
+    assert "Home" in body
+
+
+def test_admin_path_label_and_nav():
+    assert aal.admin_path_label("/realtime") == "Realtime"
+    assert aal.admin_path_label("/ad/app-banner") == "Ad · GA4 banner"
+    assert aal.should_track_admin_path("/api/home/realtime") is False
+    assert aal.should_track_admin_path("/ga4") is True
+    fp = "testfp"
+    aal.begin_nav_watch(fp, meta={"ip": "1.1.1.1"})
+    aal.record_admin_nav(fp, "/realtime")
+    aal.record_admin_nav(fp, "/realtime")
+    bucket = aal._pop_nav_watch(fp)
+    assert bucket and len(bucket["paths"]) == 1
 
 
 def test_enrich_active_session_uses_tr_timezone():

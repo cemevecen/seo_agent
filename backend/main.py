@@ -1145,10 +1145,14 @@ def _record_session(request: Request) -> None:
         _active_sessions[key] = {
             "ip": ip,
             "device": _parse_device(ua),
-            "user_agent": ua[:120],
+            "user_agent": ua[:512],
             "first_seen": now,
             "last_seen": now,
         }
+    from backend.services import admin_access_log as aal
+
+    fp = aal.device_fingerprint(ip, ua)
+    aal.record_admin_nav(fp, (request.url.path or ""))
 
 
 def _get_active_sessions(request: Request | None = None) -> list[dict]:
@@ -8988,6 +8992,8 @@ def _admin_password_login_submit(request: Request, password: str):
                 event_type="login_fail",
                 ip=client_ip,
                 user_agent=client_ua,
+                referer=(request.headers.get("referer") or "")[:512],
+                accept_language=(request.headers.get("accept-language") or "")[:120],
             )
             return JSONResponse(status_code=401, content={"ok": False, "detail": "Şifre hatalı."})
         row = _admin_auth_row(db)
@@ -8997,6 +9003,8 @@ def _admin_password_login_submit(request: Request, password: str):
             event_type="login_ok",
             ip=client_ip,
             user_agent=client_ua,
+            referer=(request.headers.get("referer") or "")[:512],
+            accept_language=(request.headers.get("accept-language") or "")[:120],
         )
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
@@ -9084,6 +9092,8 @@ def settings_login_submit(request: Request, password: str = Form(default="")):
                 event_type="settings_ok",
                 ip=client_ip,
                 user_agent=client_ua,
+                referer=(request.headers.get("referer") or "")[:512],
+                accept_language=(request.headers.get("accept-language") or "")[:120],
             )
         # Başarılı: çerezi set et
         secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
