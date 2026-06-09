@@ -1293,13 +1293,11 @@
     }
   </style>
   <!-- HTMX CDN -->
-  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      if (window.htmx && window.htmx.config) {
-        window.htmx.config.timeout = 55000;
-      }
-    });
+    if (window.htmx && window.htmx.config) {
+      window.htmx.config.timeout = 55000;
+    }
   </script>
   <!-- Plotly: önce yerel (Railway/CDN engeli); olmazsa CDN -->
   <script src="/static/vendor/plotly-2.35.2.min.js" defer onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
@@ -1856,8 +1854,9 @@
       return id;
     })();
 
-    // Sayfa yüklenince geçmiş geçmişi restore et
+    // Sayfa yüklenince geçmişi restore et (ana veri isteklerinden sonra)
     (function () {
+      function restoreAgentHistory() {
       fetch('/api/agent/history/' + _pcSessionId)
         .then(function(r){ return r.json(); })
         .then(function(data) {
@@ -1882,9 +1881,15 @@
           var scrollEl = document.getElementById('pc-agent-messages');
           if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         }).catch(function(){});
+      }
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(restoreAgentHistory, { timeout: 5000 });
+      } else {
+        setTimeout(restoreAgentHistory, 2000);
+      }
     })();
 
-    // Alert badge — her 2 dakikada poll
+    // Alert badge — her 2 dakikada poll (ilk kontrol gecikmeli)
     (function () {
       function checkAlerts() {
         fetch('/api/agent/alerts').then(function(r){ return r.json(); }).then(function(data) {
@@ -1899,7 +1904,7 @@
           }
         }).catch(function(){});
       }
-      checkAlerts();
+      setTimeout(checkAlerts, 2500);
       setInterval(checkAlerts, 120000);
     })();
 

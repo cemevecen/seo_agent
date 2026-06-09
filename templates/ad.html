@@ -5742,10 +5742,12 @@
       renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);
-      await refreshDetailTable();
-      await refreshSummaryTable();
-      await renderTopMxUnitsWeek();
       finalizeMzTrendAndSparks(sum);
+      await Promise.all([
+        refreshDetailTable(),
+        refreshSummaryTable(),
+        renderTopMxUnitsWeek(),
+      ]);
       if (state.drillSlice && Object.keys(state.drillSlice).length) {
         scheduleDetailDrillChart();
       }

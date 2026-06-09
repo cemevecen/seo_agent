@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import re
+import time
 import warnings
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -755,6 +756,8 @@ def import_upload_file(
         _upsert_catalog(db, filename, channel, columns, result.get("parsed", 0), stream=stream)
         if commit:
             db.commit()
+            if int(result.get("parsed") or 0) > 0:
+                invalidate_facets_cache()
     except Exception:
         db.rollback()
         raise
@@ -989,6 +992,8 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
         total_rows,
     )
     summary = build_upload_batch_summary(per_file)
+    if total_parsed > 0:
+        invalidate_facets_cache()
     return {
         "files": per_file,
         "file_count": len(ordered),
@@ -1026,6 +1031,11 @@ def date_bounds(db: Session) -> dict[str, str | None]:
 
 
 def facets(db: Session) -> dict[str, Any]:
+    global _facets_cache_payload, _facets_cache_at
+    now = time.monotonic()
+    if _facets_cache_payload is not None and (now - _facets_cache_at) < _FACETS_CACHE_TTL_SEC:
+        return _facets_cache_payload
+
     income = [
         r[0]
         for r in db.execute(
@@ -1137,7 +1147,8 @@ def facets(db: Session) -> dict[str, Any]:
                 }
             )
 
-    return {
+    gmin, gmax, total_rows = _global_date_bounds_and_count(db)
+    payload = {
         "streams": streams_out,
         "kpi_union": sorted(kpi_union, key=lambda k: {x: i for i, x in enumerate(KPI_METRIC_KEYS)}.get(k, 999)),
         "import_audit": import_audit,
@@ -1156,9 +1167,13 @@ def facets(db: Session) -> dict[str, Any]:
             }
             for c in catalogs
         ],
-        **date_bounds(db),
-        "total_rows": count_rows(db),
+        "min_date": gmin,
+        "max_date": gmax,
+        "total_rows": total_rows,
     }
+    _facets_cache_payload = payload
+    _facets_cache_at = now
+    return payload
 
 
 def _parse_filter_list(raw: str | None) -> list[str]:
