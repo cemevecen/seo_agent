@@ -43,6 +43,24 @@ def _flag(value: Any, *, cached: bool, stale: bool) -> Any:
     return value
 
 
+def get_cached_only(
+    key: str,
+    ttl: float,
+    *,
+    last_good_ttl: float = DEFAULT_LAST_GOOD_TTL,
+) -> Any | None:
+    """TTL veya last-good içindeyse değeri döndürür; aksi halde None (producer çağırmaz)."""
+    now = time.time()
+    with _LOCK:
+        fresh = _FRESH.get(key)
+        if fresh and (now - fresh[0]) < ttl and not fresh[2]:
+            return _flag(fresh[1], cached=True, stale=False)
+        lg = _LAST_GOOD.get(key)
+        if lg is not None and (now - lg[0]) < last_good_ttl:
+            return _flag(lg[1], cached=True, stale=True)
+    return None
+
+
 def get_or_call(
     key: str,
     ttl: float,

@@ -7267,32 +7267,56 @@ def _home_site_filter_ids(site: str | None) -> set[int] | None:
 
 
 def _home_load_realtime_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
-    """Realtime sayfası ile aynı cache + GA4 yolu; spark trend DB snapshot'larından."""
-    from backend.services.ga4_realtime import fetch_realtime_profile_bundle
+    """Tek site — profiller paralel (her iş parçacığı kendi DB oturumu)."""
+    from backend.services.ga4_realtime import fetch_home_realtime_profile_bundle
 
     site_obj = _home_get_site(db, site_id)
     if site_obj is None:
         return []
     window = settings.ga4_realtime_window_minutes
-    out = []
-    for prof_key, prof_label in profiles:
-        bundle = fetch_realtime_profile_bundle(
-            db,
-            site_obj,
-            profile=prof_key,
-            window_minutes=window,
-            trend_limit=_HOME_REALTIME_TREND_LIMIT,
-            skip_alarms=True,
-        )
-        out.append(_home_build_realtime_profile(site_id, prof_key, prof_label, bundle))
-    return out
+
+    def _one(prof_key: str, prof_label: str) -> dict:
+        from backend.database import SessionLocal
+
+        with SessionLocal() as worker_db:
+            worker_site = _home_get_site(worker_db, site_id)
+            if worker_site is None:
+                return _home_build_realtime_profile(site_id, prof_key, prof_label, {"error": "site", "trend": []})
+            bundle = fetch_home_realtime_profile_bundle(
+                worker_db,
+                worker_site,
+                profile=prof_key,
+                window_minutes=window,
+                trend_limit=_HOME_REALTIME_TREND_LIMIT,
+            )
+            return _home_build_realtime_profile(site_id, prof_key, prof_label, bundle)
+
+    if len(profiles) <= 1:
+        return [_one(pk, pl) for pk, pl in profiles]
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    order = {pk: i for i, (pk, _) in enumerate(profiles)}
+    by_key: dict[str, dict] = {}
+    max_workers = min(8, len(profiles))
+    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="home-rt") as pool:
+        futs = {pool.submit(_one, pk, pl): pk for pk, pl in profiles}
+        for fut in as_completed(futs):
+            pk = futs[fut]
+            try:
+                by_key[pk] = fut.result()
+            except Exception:
+                pl = next(pl for p, pl in profiles if p == pk)
+                by_key[pk] = _home_build_realtime_profile(site_id, pk, pl, {"error": "worker", "trend": []})
+
+    return [by_key[pk] for pk, _ in sorted(profiles, key=lambda t: order[t[0]])]
 
 
 @app.get("/api/home/realtime", response_class=HTMLResponse)
 def api_home_realtime(request: Request, site: str | None = None):
-    sites_out = []
     _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
+        sites_out = []
         for site_id, profs in [(1, _HOME_DOVIZ_PROFILES), (2, _HOME_SINEMA_PROFILES)]:
             if _site_filter is not None and site_id not in _site_filter:
                 continue

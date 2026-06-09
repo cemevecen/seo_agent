@@ -234,7 +234,7 @@
   {% set _placeholder_tall  = '<div class="mt-4 h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>' %}
 
   {# Anlık aktif kullanıcı — Günün Özeti başlığının hemen altında, tek container / tek row #}
-  <section hx-get="/api/home/realtime" hx-trigger="load, every {{ ga4_realtime_ui_poll_seconds | default(60) }}s" hx-swap="innerHTML" hx-timeout="55000"
+  <section id="home-realtime-section" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
       <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
@@ -242,6 +242,34 @@
     </div>
     {{ _placeholder_short | safe }}
   </section>
+  <script>
+  (function () {
+    var section = document.getElementById('home-realtime-section');
+    if (!section) return;
+    var pollSec = parseInt(section.getAttribute('data-poll-seconds'), 10);
+    if (!pollSec || pollSec < 5) pollSec = 60;
+    var pollTimer = null;
+    var warmRefreshDone = false;
+
+    function loadHomeRealtime() {
+      fetch('/api/home/realtime', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+        .then(function (html) { section.innerHTML = html; })
+        .catch(function () {});
+    }
+
+    loadHomeRealtime();
+    if (!warmRefreshDone) {
+      warmRefreshDone = true;
+      window.setTimeout(loadHomeRealtime, 3500);
+    }
+    pollTimer = window.setInterval(loadHomeRealtime, pollSec * 1000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') loadHomeRealtime();
+    });
+    window.__pcHomeRealtimeReload = loadHomeRealtime;
+  })();
+  </script>
 
   {# Ana içerik: dikey divider içeren wrapper #}
   <div class="relative mt-5">

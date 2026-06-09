@@ -2459,6 +2459,111 @@ def fetch_realtime_profile_bundle(
     return result
 
 
+def bundle_from_snapshot_trend(trend: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """DB snapshot trend'inden anlık KPI (GA4 beklemeden ana sayfa ilk boyama)."""
+    if not trend:
+        return None
+    last = trend[-1]
+    cur = float(last.get("active_users") or 0)
+    prev_raw = last.get("active_users_prev")
+    prev = float(prev_raw if prev_raw is not None else cur)
+    if prev <= 0:
+        pct = 100.0 if cur > 0 else 0.0
+    else:
+        pct = round((cur - prev) / prev * 100.0, 1)
+    return {
+        "total": {"activeUsers": cur},
+        "comparison": {
+            "activeUsers": {"current": cur, "previous": prev, "change_pct": pct},
+        },
+        "cached": True,
+        "stale": True,
+        "from_snapshot": True,
+    }
+
+
+def _schedule_home_realtime_kpi_refresh(
+    site_id: int,
+    profile: str,
+    *,
+    window_minutes: int,
+    trend_limit: int,
+) -> None:
+    """Soğuk cache'te snapshot gösterildikten sonra GA4 KPI cache'ini doldur."""
+    import threading
+
+    from backend.database import SessionLocal
+
+    def _run() -> None:
+        try:
+            with SessionLocal() as db:
+                site = db.query(Site).filter(Site.id == site_id).first()
+                if site is None:
+                    return
+                fetch_realtime_profile_bundle(
+                    db,
+                    site,
+                    profile=profile,
+                    window_minutes=window_minutes,
+                    trend_limit=trend_limit,
+                    skip_alarms=True,
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Home realtime arka plan refresh başarısız (site=%s profile=%s).",
+                site_id,
+                profile,
+            )
+
+    threading.Thread(target=_run, daemon=True, name=f"home-rt-{site_id}-{profile}").start()
+
+
+def fetch_home_realtime_profile_bundle(
+    db: Session,
+    site: Any,
+    *,
+    profile: str = "web",
+    window_minutes: int | None = None,
+    trend_limit: int = 72,
+) -> dict[str, Any]:
+    """Ana sayfa realtime: bellek cache → snapshot → (gerekirse) GA4; miss'te snapshot + arka plan refresh."""
+    from backend.config import settings
+    from backend.services.realtime_cache import get_cached_only
+
+    w = window_minutes if window_minutes is not None else settings.ga4_realtime_window_minutes
+    sid = int(site.id)
+    prof = (profile or "web").strip()
+    trend = get_recent_snapshots(db, sid, profile=prof, limit=trend_limit)
+    cache_key = f"rt:kpi:{sid}:{prof}:{w}"
+
+    cached = get_cached_only(
+        cache_key,
+        settings.ga4_realtime_kpi_cache_seconds,
+        last_good_ttl=settings.ga4_realtime_last_good_seconds,
+    )
+    if cached is not None:
+        result = dict(cached)
+        result["trend"] = trend
+        return result
+
+    snap_bundle = bundle_from_snapshot_trend(trend)
+    if snap_bundle is not None:
+        _schedule_home_realtime_kpi_refresh(
+            sid, prof, window_minutes=w, trend_limit=trend_limit
+        )
+        snap_bundle["trend"] = trend
+        return snap_bundle
+
+    return fetch_realtime_profile_bundle(
+        db,
+        site,
+        profile=prof,
+        window_minutes=w,
+        trend_limit=trend_limit,
+        skip_alarms=True,
+    )
+
+
 def active_users_kpi_from_realtime_result(result: dict[str, Any]) -> tuple[float, str | None, str, float]:
     """realtime.html ``_renderKpis`` ile aynı activeUsers mantığı (toplam + comparison.change_pct)."""
     trend = result.get("trend") or []
