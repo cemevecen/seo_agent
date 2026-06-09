@@ -523,54 +523,140 @@
   }
 
   var NT_ROWS_CHUNK = 2500;
+  var ntDbUpdatedAt = "";
 
-  function loadRowsInChunks(total) {
+  function ntSessionCacheKey(updatedAt, range) {
+    return (
+      "nt_db_rows_v1:" +
+      String(updatedAt || "") +
+      ":" +
+      (range.start || "") +
+      ":" +
+      (range.end || "")
+    );
+  }
+
+  function readSessionRows(key) {
+    try {
+      var raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeSessionRows(key, rows) {
+    try {
+      sessionStorage.setItem(key, JSON.stringify(rows));
+    } catch (e) {
+      /* quota — sessiz */
+    }
+  }
+
+  function rowsQueryParams(range) {
+    var q = "";
+    if (range.start) q += "&start=" + encodeURIComponent(range.start);
+    if (range.end) q += "&end=" + encodeURIComponent(range.end);
+    return q;
+  }
+
+  function effectiveDateRangeFromMeta(meta) {
+    var start = (meta.start || "").slice(0, 10);
+    var end = (meta.end || "").slice(0, 10);
+    if (start || end) return { start: start, end: end };
+    var preset = String(meta.preset || "1y").toLowerCase();
+    if (preset === "all") return { start: "", end: "" };
+    end = todayKey();
+    if (preset === "1w") start = minusDays(end, 7);
+    else if (preset === "1m") start = minusMonths(end, 1);
+    else if (preset === "3m") start = minusMonths(end, 3);
+    else if (preset === "6m") start = minusMonths(end, 6);
+    else if (preset === "2y") start = minusYears(end, 2);
+    else if (preset === "3y") start = minusYears(end, 3);
+    else if (preset === "4y") start = minusYears(end, 4);
+    else start = minusYears(end, 1);
+    return { start: start, end: end };
+  }
+
+  function loadRowsInChunks(range, updatedAt) {
+    var cacheKey = ntSessionCacheKey(updatedAt, range);
+    var cached = readSessionRows(cacheKey);
+    if (cached && cached.length) {
+      rowsCache = cached;
+      status(cached.length.toLocaleString("tr-TR") + " kayıt (oturum önbelleği, veritabanı).");
+      return Promise.resolve({ total: cached.length, from_cache: true });
+    }
     var offset = 0;
     rowsCache = [];
+    var rq = rowsQueryParams(range);
     function step() {
-      status(
-        "Veriler yükleniyor… " +
-          Math.min(offset, total).toLocaleString("tr-TR") +
-          " / " +
-          total.toLocaleString("tr-TR")
-      );
       return apiFetch(
-        "/api/notification-analytics/rows?offset=" + offset + "&limit=" + NT_ROWS_CHUNK
+        "/api/notification-analytics/rows?offset=" +
+          offset +
+          "&limit=" +
+          NT_ROWS_CHUNK +
+          rq
       ).then(function (chunk) {
+        var total = n(chunk.total);
+        status(
+          "Kayıtlı veri okunuyor (veritabanı)… " +
+            Math.min(offset + (chunk.rows ? chunk.rows.length : 0), total).toLocaleString("tr-TR") +
+            " / " +
+            total.toLocaleString("tr-TR")
+        );
         if (chunk.rows && chunk.rows.length) {
           rowsCache = rowsCache.concat(chunk.rows);
         }
         offset += NT_ROWS_CHUNK;
         if (chunk.has_more) return step();
+        writeSessionRows(cacheKey, rowsCache);
         return chunk;
       });
     }
     return step();
   }
 
+  function reloadRowsForCurrentFilters(skipStatus) {
+    var range = {
+      start: selectedStartDate() || "",
+      end: selectedEndDate() || "",
+    };
+    if (!skipStatus) {
+      status("Tarih aralığına göre veritabanından yenileniyor…");
+    }
+    return loadRowsInChunks(range, ntDbUpdatedAt).then(function () {
+      redrawAll();
+    });
+  }
+
   function loadServerState() {
     return apiFetch("/api/notification-analytics/state?include_rows=false").then(function (meta) {
+      ntDbUpdatedAt = meta.updated_at || "";
       applyServerState(meta, { keepRows: false });
-      var total = n(meta.row_count);
-      if (!total) {
+      var totalAll = n(meta.row_count);
+      if (!totalAll) {
+        rowsCache = [];
         serverReady = true;
         return meta;
       }
-      return loadRowsInChunks(total).then(function () {
+      var range = effectiveDateRangeFromMeta(meta);
+      return loadRowsInChunks(range, ntDbUpdatedAt).then(function () {
         serverReady = true;
         return Object.assign({}, meta, { rows: rowsCache });
       });
     });
   }
 
-  function migrateLocalStorageIfEmpty() {
+  function migrateLocalStorageIfEmpty(serverRowCount) {
     var localRows;
     try {
       localRows = JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
     } catch (e) {
       localRows = [];
     }
-    if (!Array.isArray(localRows) || !localRows.length || rowsCache.length) {
+    if (!Array.isArray(localRows) || !localRows.length || rowsCache.length || n(serverRowCount) > 0) {
       return Promise.resolve();
     }
     var lastLocal = n(localStorage.getItem(LAST_ID_KEY) || 0);
@@ -645,8 +731,17 @@
   function selectedStartDate() { var val = document.getElementById("nt-start-date").value; return val || null; }
   function selectedEndDate() { var val = document.getElementById("nt-end-date").value; return val || null; }
   function getFilteredRows() {
-    var rows = readRows(); var start = selectedStartDate(); var end = selectedEndDate();
-    return rows.filter(function (r) { var d = dayKey(r.date); if (start && d < start) return false; if (end && d > end) return false; return true; });
+    /* Satırlar sunucuda tarih filtresiyle yüklendi; ek istemci filtresi yedek. */
+    var rows = readRows();
+    var start = selectedStartDate();
+    var end = selectedEndDate();
+    if (!start && !end) return rows;
+    return rows.filter(function (r) {
+      var d = dayKey(r.date);
+      if (start && d < start) return false;
+      if (end && d > end) return false;
+      return true;
+    });
   }
   function rawListRows() {
     var rows = getFilteredRows();
@@ -1106,7 +1201,10 @@
       document.getElementById("nt-end-date").value = "";
       rawPage = 0;
       if (!skipServerSave && serverReady) {
-        savePrefsOnly({ start: "", end: "", preset: "all" }).then(function () { redrawAll(); });
+        savePrefsOnly({ start: "", end: "", preset: "all" }).then(function (data) {
+          if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+          return reloadRowsForCurrentFilters(true);
+        });
         return;
       }
       redrawAll();
@@ -1126,7 +1224,10 @@
     document.getElementById("nt-end-date").value = end;
     rawPage = 0;
     if (!skipServerSave && serverReady) {
-      savePrefsOnly({ start: start, end: end, preset: preset || "1y" }).then(function () { redrawAll(); });
+      savePrefsOnly({ start: start, end: end, preset: preset || "1y" }).then(function (data) {
+        if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+        return reloadRowsForCurrentFilters(true);
+      });
       return;
     }
     redrawAll();
@@ -1239,12 +1340,17 @@
           msg = data.message || "CSV okunamadı veya satır çıkarılamadı.";
         }
         status(msg + " Veriler yenileniyor…");
+        if (data.updated_at) ntDbUpdatedAt = data.updated_at;
+        if (fileInput) fileInput.value = "";
         return loadServerState()
           .then(function (full) {
-            applyServerState(full);
             status(msg + " Toplam kayıt: " + (full.row_count != null ? full.row_count : rowsCache.length));
             rawPage = 0;
-            redrawAll();
+            if (!full.start && !full.end) {
+              applyPresetRange(full.preset || "1y", true);
+            } else {
+              redrawAll();
+            }
           })
           .catch(function (loadErr) {
             if (data.row_count != null) {
@@ -1283,9 +1389,12 @@
     var endVal = document.getElementById("nt-end-date").value || "";
     rawPage = 0;
     savePrefsOnly({ start: startVal, end: endVal })
+      .then(function (data) {
+        if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+        return reloadRowsForCurrentFilters(true);
+      })
       .then(function () {
-        status("Tarih aralığı uygulandı (paylaşımlı).");
-        redrawAll();
+        status("Tarih aralığı uygulandı (veritabanından yüklendi).");
       })
       .catch(function (err) {
         status((err && err.detail) || "Tarih kaydedilemedi.");
@@ -1301,10 +1410,10 @@
   renderMetricPills();
   renderListPlatformPills();
 
-  status("Veriler sunucudan yükleniyor…");
+  status("Kayıtlı veri hazırlanıyor (veritabanı)…");
   loadServerState()
     .then(function (data) {
-      return migrateLocalStorageIfEmpty().then(function () { return data; });
+      return migrateLocalStorageIfEmpty(data.row_count).then(function () { return data; });
     })
     .then(function (data) {
       if (!data.start && !data.end) {
@@ -1314,7 +1423,8 @@
       }
       status(
         rowsCache.length
-          ? rowsCache.length + " kayıt yüklendi (paylaşımlı veritabanı)."
+          ? rowsCache.length.toLocaleString("tr-TR") +
+            " kayıt gösteriliyor (veritabanı; CSV yalnızca «CSV yükle ve ekle» ile güncellenir)."
           : "Henüz kayıt yok — CSV yükleyin."
       );
     })

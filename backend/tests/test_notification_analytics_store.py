@@ -1,6 +1,10 @@
 """Notification analytics paylaşımlı store."""
 
-from backend.services.notification_analytics_store import _merge_rows, parse_csv_text
+from backend.services.notification_analytics_store import (
+    _merge_rows,
+    filter_rows_by_date,
+    parse_csv_text,
+)
 
 
 def test_parse_csv_minimal():
@@ -19,6 +23,14 @@ def test_merge_rows_dedupes():
     b = [{"id": "1", "text": "A", "date": "2026-01-01T00:00:00"}]
     merged = _merge_rows(a, b)
     assert len(merged) == 1
+
+
+def test_filter_rows_by_date():
+    rows = [
+        {"id": "1", "text": "A", "date": "2026-01-15T00:00:00"},
+        {"id": "2", "text": "B", "date": "2026-03-01T00:00:00"},
+    ]
+    assert len(filter_rows_by_date(rows, start="2026-02-01", end="2026-12-31")) == 1
 
 
 def test_merge_rows_same_id_different_date():

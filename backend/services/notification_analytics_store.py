@@ -233,20 +233,59 @@ def _load_rows(row: NotificationAnalyticsWorkspace) -> list[dict]:
         return []
 
 
-def workspace_rows_chunk(db: Session, *, offset: int, limit: int) -> dict:
+def _row_day_key(iso: str | None) -> str:
+    return str(iso or "")[:10]
+
+
+def filter_rows_by_date(
+    rows: list[dict],
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> list[dict]:
+    """Tarih aralığı (YYYY-MM-DD); boş = filtre yok."""
+    s = (start or "").strip()[:10] or None
+    e = (end or "").strip()[:10] or None
+    if not s and not e:
+        return rows
+    out: list[dict] = []
+    for r in rows:
+        d = _row_day_key(r.get("date"))
+        if not d:
+            continue
+        if s and d < s:
+            continue
+        if e and d > e:
+            continue
+        out.append(r)
+    return out
+
+
+def workspace_rows_chunk(
+    db: Session,
+    *,
+    offset: int,
+    limit: int,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict:
     row = _get_workspace(db)
-    rows = _load_rows(row)
+    all_rows = _load_rows(row)
+    rows = filter_rows_by_date(all_rows, start=start, end=end)
     total = len(rows)
-    start = max(0, int(offset))
-    end = min(total, start + int(limit))
-    chunk = rows[start:end]
+    off = max(0, int(offset))
+    end_idx = min(total, off + int(limit))
+    chunk = rows[off:end_idx]
     return {
         "ok": True,
         "rows": chunk,
-        "offset": start,
+        "offset": off,
         "limit": int(limit),
         "total": total,
-        "has_more": end < total,
+        "total_unfiltered": len(all_rows),
+        "has_more": end_idx < total,
+        "filter_start": (start or "")[:10],
+        "filter_end": (end or "")[:10],
     }
 
 

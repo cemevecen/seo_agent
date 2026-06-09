@@ -39,9 +39,11 @@ def get_notification_analytics_state(
 def get_notification_analytics_rows(
     offset: int = Query(0, ge=0),
     limit: int = Query(2500, ge=1, le=10000),
+    start: str | None = Query(None, description="YYYY-MM-DD (dahil)"),
+    end: str | None = Query(None, description="YYYY-MM-DD (dahil)"),
     db: Session = Depends(get_db),
 ):
-    return store.workspace_rows_chunk(db, offset=offset, limit=limit)
+    return store.workspace_rows_chunk(db, offset=offset, limit=limit, start=start, end=end)
 
 
 @router.put("/notification-analytics/state")
