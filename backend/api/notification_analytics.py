@@ -75,7 +75,9 @@ async def post_notification_analytics_upload_file(
         raw = await file.read()
         if not raw:
             raise HTTPException(status_code=400, detail="Boş dosya.")
-        text = raw.decode("utf-8-sig", errors="replace")
+        text = store.decode_csv_bytes(raw)
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Dosya boş veya okunamadı.")
         return store.upload_csv_text(db, text)
     except HTTPException:
         raise

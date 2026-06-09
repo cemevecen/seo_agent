@@ -109,9 +109,33 @@ def parse_csv_text(text: str) -> list[dict]:
         return -1
 
     idx = {
-        "id": pick(["id"]),
-        "text": pick(["text", "title", "headline"]),
-        "date": pick(["date", "datetime", "timestamp"]),
+        "id": pick(["id", "bildirimid", "notificationid"]),
+        "text": pick(
+            [
+                "text",
+                "title",
+                "headline",
+                "baslik",
+                "icerik",
+                "metin",
+                "bildirimmetni",
+                "notificationtext",
+                "message",
+                "content",
+            ]
+        ),
+        "date": pick(
+            [
+                "date",
+                "datetime",
+                "timestamp",
+                "tarih",
+                "gonderimtarihi",
+                "sentat",
+                "publishdate",
+                "gun",
+            ]
+        ),
         "ai": pick(["androidappimpression"]),
         "ac": pick(["androidappclick"]),
         "atr": pick(["androidappctr"]),
@@ -209,12 +233,11 @@ def _load_rows(row: NotificationAnalyticsWorkspace) -> list[dict]:
         return []
 
 
-def workspace_state(db: Session) -> dict:
+def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
     row = _get_workspace(db)
     rows = _load_rows(row)
-    return {
+    out: dict[str, Any] = {
         "ok": True,
-        "rows": rows,
         "last_id": int(row.last_id or 0),
         "start": row.filter_start or "",
         "end": row.filter_end or "",
@@ -222,6 +245,9 @@ def workspace_state(db: Session) -> dict:
         "row_count": len(rows),
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+    if include_rows:
+        out["rows"] = rows
+    return out
 
 
 def save_workspace(
@@ -283,11 +309,14 @@ def upload_csv_text(db: Session, csv_text: str) -> dict:
     parsed = parse_csv_text(csv_text)
     if not parsed:
         return {
-            **workspace_state(db),
+            **workspace_state(db, include_rows=False),
             "added": 0,
             "updated": 0,
             "parsed": 0,
-            "message": "CSV parse edilemedi. En az «text» ve «date» sütunları ve veri satırları gerekli.",
+            "message": (
+                "CSV parse edilemedi. Başlık satırında metin (text/title/başlık) ve tarih (date/tarih) "
+                "sütunları ve en az bir veri satırı gerekli."
+            ),
         }
     row = _get_workspace(db)
     existing = _load_rows(row)
@@ -311,12 +340,24 @@ def upload_csv_text(db: Session, csv_text: str) -> dict:
     row.updated_at = datetime.utcnow()
     db.commit()
     return {
-        **workspace_state(db),
+        **workspace_state(db, include_rows=False),
         "added": added,
         "updated": updated,
         "parsed": len(parsed),
         "message": f"{len(parsed)} satır işlendi: {added} yeni, {updated} güncellendi.",
     }
+
+
+def decode_csv_bytes(raw: bytes) -> str:
+    """UTF-8 / Windows Türkçe CSV kodlamalarını dene."""
+    if not raw:
+        return ""
+    for enc in ("utf-8-sig", "utf-8", "cp1254", "iso-8859-9", "latin-1"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
 
 
 def reset_workspace(db: Session) -> dict:

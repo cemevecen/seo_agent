@@ -436,6 +436,28 @@
   function getLastId() { return n(serverLastId); }
   function setLastId(v) { serverLastId = n(v); }
 
+  function formatApiDetail(response, data, text) {
+    if (data && data.detail) {
+      if (typeof data.detail === "string") return data.detail;
+      if (Array.isArray(data.detail)) {
+        return data.detail
+          .map(function (d) {
+            return (d && (d.msg || d.message)) || JSON.stringify(d);
+          })
+          .join(" · ");
+      }
+    }
+    if (response.status === 401 || response.status === 403) {
+      return "Oturum gerekli — sayfayı yenileyip tekrar giriş yapın.";
+    }
+    if (response.status === 413) return "Dosya çok büyük.";
+    var t = String(text || "").trim();
+    if (t.indexOf("<!") === 0 || t.indexOf("<html") === 0) {
+      return "Sunucu HTML döndü (HTTP " + response.status + "). Oturum süresi dolmuş olabilir.";
+    }
+    return "HTTP " + response.status;
+  }
+
   function apiFetch(path, options) {
     return fetch(path, Object.assign({ credentials: "same-origin" }, options || {})).then(function (response) {
       return response.text().then(function (text) {
@@ -443,11 +465,13 @@
         try {
           data = text ? JSON.parse(text) : {};
         } catch (e) {
-          throw new Error("Sunucu yanıtı okunamadı.");
+          var parseErr = new Error("api_error");
+          parseErr.detail = formatApiDetail(response, null, text);
+          throw parseErr;
         }
         if (!response.ok) {
           var err = new Error("api_error");
-          err.detail = (data && data.detail) || ("HTTP " + response.status);
+          err.detail = formatApiDetail(response, data, text);
           throw err;
         }
         return data;
@@ -1172,17 +1196,29 @@
       body: fd,
     })
       .then(function (data) {
-        applyServerState(data);
         var msg = data.message || "Yükleme tamamlandı.";
         if (data.parsed === 0 && !data.added && !data.updated) {
           msg = data.message || "CSV okunamadı veya satır çıkarılamadı.";
         }
-        status(msg + " Toplam kayıt: " + (data.row_count != null ? data.row_count : rowsCache.length));
-        rawPage = 0;
-        redrawAll();
+        status(msg + " Veriler yenileniyor…");
+        return loadServerState()
+          .then(function (full) {
+            applyServerState(full);
+            status(msg + " Toplam kayıt: " + (full.row_count != null ? full.row_count : rowsCache.length));
+            rawPage = 0;
+            redrawAll();
+          })
+          .catch(function (loadErr) {
+            if (data.row_count != null) {
+              serverLastId = n(data.last_id);
+              status(msg + " (liste yenilenemedi: " + ((loadErr && loadErr.detail) || "sunucu") + ")");
+            } else {
+              throw loadErr;
+            }
+          });
       })
       .catch(function (err) {
-        status((err && err.detail) || "CSV sunucuya kaydedilemedi.");
+        status((err && err.detail) || (err && err.message) || "CSV sunucuya kaydedilemedi.");
       })
       .finally(function () {
         if (btn) btn.disabled = false;
