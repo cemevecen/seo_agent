@@ -624,9 +624,9 @@
 
   function bannerChartPixelHeight(el) {
     if (!el) return 440;
+    if (el.id === "ab-chart-campaign" && window.matchMedia("(max-width: 639px)").matches) return 360;
     var attr = parseInt(el.getAttribute("data-chart-h"), 10);
     if (attr >= 200) return attr;
-    if (window.matchMedia("(max-width: 639px)").matches) return 360;
     return 440;
   }
 
