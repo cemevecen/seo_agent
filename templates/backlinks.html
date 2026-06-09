@@ -575,7 +575,6 @@
     <div class="bl-toolbar-grid">
       <section class="bl-toolbar-col min-w-0">
         <h2>Site</h2>
-        <p class="bl-toolbar-hint">Mülk seçimi</p>
         <input type="hidden" id="bl-site" value="{% if default_site_id %}{{ default_site_id }}{% endif %}" />
         <div id="bl-site-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="Site">
           {% for s in sites %}
@@ -596,7 +595,6 @@
 
       <section class="bl-toolbar-col min-w-0">
         <h2>Rapor türü</h2>
-        <p class="bl-toolbar-hint">Görünüm ve import ayrımı</p>
         <input type="hidden" id="bl-report-type" value="latest_links" />
         <div id="bl-report-type-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="Rapor türü">
           <button type="button" role="tab" class="bl-report-type-chip" data-value="latest_links" aria-selected="true" title="GSC Latest links CSV">
@@ -619,10 +617,6 @@
             <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">CSV dosyası</label>
             <div id="bl-file-drop" class="bl-file-drop-zone">
               <input id="bl-file" type="file" class="w-full text-xs sm:text-sm" />
-              <p id="bl-file-drop-hint" class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-                GSC <code class="text-[10px]">.csv</code> — dosyayı buraya <strong class="font-semibold">sürükleyip bırakın</strong> veya yukarıdan seçin.
-                iCloud Masaüstü’nde «Aç» gri kalıyorsa dosyayı Finder’da indirin veya <strong class="font-semibold">İndirilenler</strong>e kopyalayın.
-              </p>
               <p id="bl-file-picked" class="mt-0.5 hidden text-[10px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
             </div>
           </div>
@@ -1617,9 +1611,6 @@
         '<div class="bl-top-page-preview ml-5 border-l-2 border-indigo-200 pl-2 dark:border-indigo-800">';
       if (samples.length) {
         html += renderSampleLinksList(samples);
-      } else if (row.incoming_links_gsc && refTotal === 0) {
-        html +=
-          '<p class="text-[10px] leading-snug text-slate-500 dark:text-slate-400">Bu hedef için link satırı (Latest links vb.) importu yok; yalnızca GSC özet sayıları görünür.</p>';
       } else {
         html += '<span class="text-slate-400">Örnek bağlantı URL’si yok.</span>';
       }
