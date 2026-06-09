@@ -60,14 +60,19 @@
     overflow: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    width: 100%;
   }
   .app-banner-page .ab-dump-table-wrap {
-    min-width: min(100%, max-content);
+    width: 100%;
+    min-width: 0;
   }
   .app-banner-page .ab-dump-table {
-    width: max-content;
-    min-width: 100%;
-    table-layout: auto;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  .app-banner-page .ab-dump-table col.ab-dump-col-date {
+    width: clamp(5.25rem, 8.5%, 7.5rem);
   }
   .app-banner-page .ab-dump-table thead th {
     position: sticky;
@@ -75,7 +80,8 @@
     z-index: 2;
     background: #f8fafc;
     box-shadow: 0 1px 0 #e2e8f0;
-    vertical-align: bottom;
+    vertical-align: top;
+    padding: 0.45rem 0.35rem;
   }
   html.dark .app-banner-page .ab-dump-table thead th,
   html.midnight .app-banner-page .ab-dump-table thead th {
@@ -87,8 +93,7 @@
     position: sticky;
     left: 0;
     z-index: 1;
-    min-width: 6.75rem;
-    max-width: 9rem;
+    width: clamp(5.25rem, 8.5%, 7.5rem);
   }
   .app-banner-page .ab-dump-table thead th.ab-dump-th-date {
     z-index: 3;
@@ -101,11 +106,31 @@
     background: #18181b;
   }
   .app-banner-page .ab-dump-th-metric {
-    min-width: 4.75rem;
+    min-width: 0;
+  }
+  .app-banner-page .ab-dump-th-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.12rem;
+    width: 100%;
+    min-width: 0;
+  }
+  .app-banner-page .ab-dump-th-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.2rem;
+    width: 100%;
+    min-width: 0;
+  }
+  .app-banner-page .ab-dump-th-date .ab-dump-th-row {
+    justify-content: flex-start;
   }
   .app-banner-page .ab-dump-th-label {
-    display: block;
-    line-height: 1.3;
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.25;
     white-space: normal;
     word-break: break-word;
     overflow-wrap: anywhere;
@@ -114,10 +139,14 @@
   }
   .app-banner-page .ab-dump-th-date .ab-dump-th-label {
     text-align: left;
+    flex: 0 1 auto;
   }
   .app-banner-page .ab-dump-td-metric {
     white-space: nowrap;
-    min-width: 3.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    font-size: inherit;
   }
   .app-banner-page .ab-dump-th-sort {
     cursor: pointer;
@@ -131,11 +160,10 @@
     color: #fafafa;
   }
   .app-banner-page .ab-dump-th-sort .ab-dump-sort-arrow {
-    display: inline-block;
-    margin-left: 0.15rem;
-    font-size: 0.65rem;
+    flex: 0 0 auto;
+    font-size: 0.6rem;
+    line-height: 1;
     opacity: 0.35;
-    vertical-align: middle;
   }
   .app-banner-page .ab-dump-th-sort.ab-dump-sorted .ab-dump-sort-arrow {
     opacity: 1;
@@ -224,7 +252,25 @@
   }
   @container ab-dump (max-width: 52rem) {
     .app-banner-page .ab-dump-table {
+      font-size: 9px;
+    }
+    .app-banner-page .ab-dump-table thead th {
+      padding: 0.35rem 0.2rem;
+    }
+  }
+  @container ab-dump (min-width: 52rem) {
+    .app-banner-page .ab-dump-table {
       font-size: 10px;
+    }
+  }
+  @container ab-dump (min-width: 90rem) {
+    .app-banner-page .ab-dump-table {
+      font-size: 11px;
+    }
+    .app-banner-page .ab-dump-td-metric {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
     }
   }
   @media (max-width: 767px) {
@@ -1019,6 +1065,38 @@
     return col.label;
   }
 
+  function dumpHeaderCellHtml(label, tag, sortArrow) {
+    var tagHtml = tag
+      ? "<span class=\"ab-dump-group-tag\">" + escapeHtml(tag) + "</span>"
+      : "";
+    return (
+      "<div class=\"ab-dump-th-inner\">" +
+      tagHtml +
+      "<div class=\"ab-dump-th-row\">" +
+      "<span class=\"ab-dump-th-label\">" + escapeHtml(label) + "</span>" +
+      "<span class=\"ab-dump-sort-arrow\">" + (sortArrow || "↕") + "</span>" +
+      "</div></div>"
+    );
+  }
+
+  function syncDumpColgroup(tbl, columnCount) {
+    if (!tbl) return;
+    var old = tbl.querySelector("colgroup");
+    if (old) old.remove();
+    var cg = document.createElement("colgroup");
+    var cDate = document.createElement("col");
+    cDate.className = "ab-dump-col-date";
+    cg.appendChild(cDate);
+    for (var i = 0; i < columnCount; i++) {
+      var c = document.createElement("col");
+      c.className = "ab-dump-col-metric";
+      cg.appendChild(c);
+    }
+    var thead = tbl.querySelector("thead");
+    if (thead) tbl.insertBefore(cg, thead);
+    else tbl.insertBefore(cg, tbl.firstChild);
+  }
+
   function paintAbDumpCards(columns, sortedRows, activeOnly) {
     var host = document.getElementById("ab-dump-cards");
     if (!host) return;
@@ -1070,7 +1148,7 @@
       tr.setAttribute("data-date", row.date);
       var fd = formatDateTrDisplay(row.date);
       var dateTd = document.createElement("td");
-      dateTd.className = "ab-dump-td-date px-3 py-2 font-bold text-slate-900 dark:text-zinc-100";
+      dateTd.className = "ab-dump-td-date px-2 py-2 font-bold text-slate-900 dark:text-zinc-100";
       dateTd.setAttribute("data-sort-value", row.date);
       dateTd.title = row.date;
       dateTd.innerHTML =
@@ -1082,7 +1160,8 @@
       row.values.forEach(function (n, ci) {
         var td = document.createElement("td");
         var num = Number(n) || 0;
-        td.className = "ab-dump-td-metric px-2.5 py-2 text-right tabular-nums " + (num > 0 ? "text-slate-800 dark:text-zinc-200" : "ab-dump-val--zero");
+        td.className = "ab-dump-td-metric px-1.5 py-2 text-right tabular-nums " + (num > 0 ? "text-slate-800 dark:text-zinc-200" : "ab-dump-val--zero");
+        td.setAttribute("title", num > 0 ? formatNum(num) : "");
         td.setAttribute("data-sort-value", String(num));
         td.setAttribute("data-col-key", columns[ci].key);
         td.textContent = num > 0 ? formatNum(num) : "·";
@@ -1124,27 +1203,25 @@
     }
 
     thead.innerHTML = "";
+    syncDumpColgroup(tbl, columns.length);
     var headTr = document.createElement("tr");
     headTr.className = "border-b border-slate-200 dark:border-zinc-700";
     var thDate = document.createElement("th");
-    thDate.className = "ab-dump-th-date ab-dump-th-sort px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide";
+    thDate.className = "ab-dump-th-date ab-dump-th-sort text-[10px] font-bold uppercase tracking-wide";
     thDate.setAttribute("data-sort-key", "date");
     thDate.setAttribute("data-sort-type", "date");
     thDate.setAttribute("data-default-desc", "1");
-    thDate.innerHTML = "<span class=\"ab-dump-th-label\">Tarih</span><span class=\"ab-dump-sort-arrow\">↓</span>";
+    thDate.innerHTML = dumpHeaderCellHtml("Tarih", "", "↓");
     headTr.appendChild(thDate);
     columns.forEach(function (col) {
       var th = document.createElement("th");
-      th.className = "ab-dump-th-sort ab-dump-th-metric px-2.5 py-2.5 text-right text-[10px] font-bold leading-tight";
+      th.className = "ab-dump-th-sort ab-dump-th-metric text-[10px] font-bold leading-tight";
       th.setAttribute("data-sort-key", col.key);
       th.setAttribute("data-sort-type", "num");
       th.setAttribute("data-default-desc", "1");
       th.setAttribute("title", dumpMetricTitle(col));
       var tag = dumpGroupTag(col.group);
-      th.innerHTML =
-        (tag ? "<span class=\"ab-dump-group-tag\">" + escapeHtml(tag) + "</span>" : "") +
-        "<span class=\"ab-dump-th-label\">" + escapeHtml(col.label) + "</span>" +
-        "<span class=\"ab-dump-sort-arrow\">↕</span>";
+      th.innerHTML = dumpHeaderCellHtml(col.label, tag, "↕");
       headTr.appendChild(th);
     });
     thead.appendChild(headTr);
