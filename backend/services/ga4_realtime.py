@@ -293,21 +293,6 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f'</div>'
         )
 
-    # Özet — preview'da ilk satırda okunur
-    summary_parts = []
-    for a in alarms:
-        cur = int(a.get("current_value", 0))
-        prev = int(a.get("previous_value", 0))
-        delta = cur - prev
-        sign = "+" if delta >= 0 else ""
-        metric_short = {"activeUsers": "kul", "screenPageViews": "gör"}.get(str(a.get("metric", "")), "")
-        if prev > 0:
-            pct_a = float(a.get("change_pct", 0.0))
-            summary_parts.append(f"{prev}→{cur} ({pct_a:+.0f}%) {metric_short}".strip())
-        else:
-            summary_parts.append(f"{cur} {metric_short}".strip())
-    summary_line = html.escape(" · ".join(summary_parts))
-
     # Sürücü Analizi (Eğer varsa)
     driver_html = ""
     first_alarm = alarms[0] if alarms else {}
@@ -318,8 +303,7 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
 
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
-            <p style="font-size:15px;font-weight:700;margin:0 0 2px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
-            <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 10px;">{summary_line}</p>
+            <p style="font-size:15px;font-weight:700;margin:0 0 10px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
             {''.join(cards)}
             {driver_html}
             <p style="color:#94a3b8;font-size:11px;margin-top:14px;">SEO Agent · GA4 Realtime (otomatik)</p>
@@ -403,19 +387,9 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f'</div>'
         )
 
-    # Özet satırı — preview'da görünür
-    chips = []
-    for a in alarms[:10]:
-        t = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=18)
-        c = int(a.get("current_users", 0))
-        p2 = int(a.get("previous_users", 0))
-        d = c - p2
-        chips.append(f"{t} {'+' if d >= 0 else ''}{d}")
-    summary = html.escape(" · ".join(chips) + (f" +{len(alarms)-10}" if len(alarms) > 10 else ""))
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
-            <p style="font-size:15px;font-weight:700;margin:0 0 2px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {html.escape(profile_label)}</span></p>
-            <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 10px;">{summary}</p>
+            <p style="font-size:15px;font-weight:700;margin:0 0 10px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {html.escape(profile_label)}</span></p>
             {''.join(cards)}
             <p style="color:#94a3b8;font-size:11px;margin-top:14px;">SEO Agent · GA4 Realtime sayfa listesi (otomatik)</p>
         </div>
@@ -503,12 +477,6 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f'</div>'
         )
 
-    # Özet satırı — preview'da görünür (sıralı ilk 10)
-    entries = [_rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=20) for a in alarms]
-    summary_line = " · ".join(f for f in entries if f and f != "—")
-    n = len(alarms)
-    head = html.escape(f"{n} haber · {summary_line}")
-
     # Genel trafik özeti banner'ı
     kpi_html = ""
     kpi = site_kpi or {}
@@ -569,8 +537,7 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
             {_preheader(preheader_str)}
-            <p style="font-size:15px;font-weight:700;margin:0 0 4px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
-            <p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px;">{head}</p>
+            <p style="font-size:15px;font-weight:700;margin:0 0 12px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
             {kpi_html}
             {''.join(cards)}
             <p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · GA4 Realtime haberler (otomatik)</p>
@@ -4117,8 +4084,7 @@ def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dic
     return (
         f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:600px;color:#0f172a;">'
         f'{_preheader(preheader)}'
-        f'<p style="font-size:15px;font-weight:700;margin:0 0 4px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>'
-        f'<p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px;">{len(alarms)} event ani değişim</p>'
+        f'<p style="font-size:15px;font-weight:700;margin:0 0 12px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>'
         f'{"".join(cards)}'
         f'<p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · Uygulama event alarmı (otomatik)</p>'
         f'</div>'
