@@ -3514,13 +3514,15 @@
     state._ga4MobileOverlayPromise = null;
   }
 
-  /** Karşı platform çizgisi — yığılmış alan / gelir tipi yeşilleriyle karışmaması için. */
+  /** Karşı dal çizgileri — her zaman düz, ince, kırmızı tonları. */
   var PEER_BRANCH_COLORS = {
-    android: "#e11d48",
-    ios: "#0891b2",
-    desktop: "#4f46e5",
-    mweb: "#ea580c",
+    android: "#dc2626",
+    ios: "#ef4444",
+    desktop: "#b91c1c",
+    mweb: "#f43f5e",
   };
+  var PEER_LINE_WIDTH = 1.25;
+  var PEER_LINE_ALT_COLORS = ["#f87171", "#fca5a5", "#be123c", "#fb7185", "#e11d48"];
 
   /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
   var PEER_STREAM_BY_KEY = {
@@ -3586,9 +3588,15 @@
     return "";
   }
 
-  function peerOverlayLineColor() {
+  function peerOverlayLineColor(variant) {
     var k = peerBranchKey();
-    return (k && PEER_BRANCH_COLORS[k]) || "#f59e0b";
+    var base = (k && PEER_BRANCH_COLORS[k]) || "#e11d48";
+    if (!variant) return base;
+    return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || base;
+  }
+
+  function peerOverlayLineStyle(variant) {
+    return { color: peerOverlayLineColor(variant), width: PEER_LINE_WIDTH };
   }
 
   function anyPeerOverlayOn() {
@@ -3852,7 +3860,7 @@
       x: plotX,
       y: ys,
       connectgaps: false,
-      line: { color: peerOverlayLineColor(), width: 2, dash: "dash" },
+      line: peerOverlayLineStyle(),
     };
     if (yaxis) tr.yaxis = yaxis;
     traces.push(tr);
@@ -4764,7 +4772,7 @@
                     x: peerXs,
                     y: peerYs,
                     connectgaps: true,
-                    line: { color: peerOverlayLineColor(), width: lineW },
+                    line: Object.assign({}, peerOverlayLineStyle(), { width: lineW || PEER_LINE_WIDTH }),
                   });
                 }
                 await plotPeerSplitChart(peerChartKey, peerOnlyTraces, { yTitle: mDef.axis || "" }, {
@@ -4790,7 +4798,7 @@
                     x: peerXs,
                     y: peerYs,
                     connectgaps: true,
-                    line: { color: peerOverlayLineColor(), width: lineW, dash: "dash" },
+                    line: Object.assign({}, peerOverlayLineStyle(), { width: lineW || PEER_LINE_WIDTH }),
                   });
                 }
               }
@@ -5200,7 +5208,7 @@
               type: "scatter",
               mode: "lines",
               name: peerBranchLabel() + " · " + def.label,
-              line: { color: peerOverlayLineColor(), width: 2 },
+              line: peerOverlayLineStyle(),
               connectgaps: false,
             }],
             { yTitle: def.axis || "" },
@@ -5486,7 +5494,7 @@
             y: peerYs,
             type: "scatter",
             mode: "lines",
-            line: { width: 1.25, color: peerOverlayLineColor(), dash: "dash" },
+            line: peerOverlayLineStyle(),
             connectgaps: false,
           });
         }
@@ -5644,7 +5652,7 @@
           mode: "lines",
           name: peerBranchLabel() + " · Net gelir",
           yaxis: "y",
-          line: { color: peerOverlayLineColor(), width: 2 },
+          line: peerOverlayLineStyle(0),
           connectgaps: false,
         },
         {
@@ -5654,7 +5662,7 @@
           mode: "lines",
           name: peerBranchLabel() + " · Gösterim",
           yaxis: "y2",
-          line: { color: peerOverlayLineColor(), width: 2, dash: "dot" },
+          line: peerOverlayLineStyle(1),
           connectgaps: false,
         },
       ];
@@ -5733,7 +5741,7 @@
           name: peerBranchLabel() + " · " + q.label,
           type: "scatter",
           mode: "lines",
-          line: { color: peerOverlayLineColor(), width: 2, dash: idx ? "dot" : "solid" },
+          line: peerOverlayLineStyle(idx),
           connectgaps: false,
         });
       });
