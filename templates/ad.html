@@ -3507,7 +3507,12 @@
   }
 
   /** Karşı platform çizgisi — yığılmış alan / gelir tipi yeşilleriyle karışmaması için. */
-  var PEER_BRANCH_COLORS = { android: "#e11d48", ios: "#0891b2" };
+  var PEER_BRANCH_COLORS = {
+    android: "#e11d48",
+    ios: "#0891b2",
+    desktop: "#4f46e5",
+    mweb: "#ea580c",
+  };
 
   var PEER_SPLIT_DOM = {
     stacked: {
@@ -3538,6 +3543,8 @@
     var br = state.activeStream && state.activeStream.branch;
     if (br === "android") return "ios";
     if (br === "ios") return "android";
+    if (br === "desktop") return "mweb";
+    if (br === "mweb") return "desktop";
     return null;
   }
 
@@ -3545,6 +3552,8 @@
     var k = peerBranchKey();
     if (k === "ios") return "iOS";
     if (k === "android") return "Android";
+    if (k === "desktop") return "Desktop";
+    if (k === "mweb") return "Mobil web";
     return "";
   }
 
