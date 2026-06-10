@@ -3870,13 +3870,14 @@
     host.classList.remove("hidden");
     var label = peerBranchLabel();
     var showSeparate = chartKey !== "kpi" && chartKey !== "month";
-    if (host.dataset.peerKey === chartKey && host.querySelector("[data-peer-overlay]")) {
+    var mountToken = chartKey + "|" + (peerTargetStreamKey() || "");
+    if (host.dataset.peerMountToken === mountToken && host.querySelector("[data-peer-overlay]")) {
       host.querySelector("[data-peer-overlay]").checked = !!state.peerOverlay[chartKey];
       var sep = host.querySelector("[data-peer-separate]");
       if (sep) sep.checked = !!state.peerSeparate[chartKey];
       return;
     }
-    host.dataset.peerKey = chartKey;
+    host.dataset.peerMountToken = mountToken;
     host.className = (hostId.indexOf("mz-peer-toggle-kpi") >= 0 ? "flex flex-wrap justify-end gap-1.5 " : "") +
       "flex flex-wrap items-center gap-1.5 shrink-0";
     var chip =
