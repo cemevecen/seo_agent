@@ -175,6 +175,10 @@
           </div>
         </div>
         <div id="mz-chart-line" class="mz-chart-plot" data-mz-chart-h="300"></div>
+        <div id="mz-chart-line-peer-wrap" class="mt-3 hidden">
+          <p id="mz-chart-line-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
+          <div id="mz-chart-line-peer" class="mz-chart-plot" data-mz-chart-h="220"></div>
+        </div>
       </div>
 
       <div id="mz-dual-quality-row" class="compare-dual-quality-row grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -184,6 +188,10 @@
             <div id="mz-peer-toggle-dual" class="hidden shrink-0"></div>
           </div>
           <div id="mz-chart-dual" class="mz-chart-plot" data-mz-chart-h="280"></div>
+          <div id="mz-chart-dual-peer-wrap" class="mt-3 hidden">
+            <p id="mz-chart-dual-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
+            <div id="mz-chart-dual-peer" class="mz-chart-plot" data-mz-chart-h="220"></div>
+          </div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -191,6 +199,10 @@
             <div id="mz-peer-toggle-quality" class="hidden shrink-0"></div>
           </div>
           <div id="mz-chart-quality" class="mz-chart-plot" data-mz-chart-h="280"></div>
+          <div id="mz-chart-quality-peer-wrap" class="mt-3 hidden">
+            <p id="mz-chart-quality-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
+            <div id="mz-chart-quality-peer" class="mz-chart-plot" data-mz-chart-h="220"></div>
+          </div>
         </div>
       </div>
 
@@ -203,6 +215,10 @@
           </div>
         </div>
         <div id="mz-chart-stacked-income" class="mz-chart-plot" data-mz-chart-h="300"></div>
+        <div id="mz-chart-stacked-peer-wrap" class="mt-3 hidden">
+          <p id="mz-chart-stacked-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
+          <div id="mz-chart-stacked-peer" class="mz-chart-plot" data-mz-chart-h="240"></div>
+        </div>
       </div>
 
       <div class="mz-charts-row-3">
@@ -379,6 +395,10 @@
             <p id="mz-drill-ga4-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4</p>
             <div id="mz-drill-ga4-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
           </div>
+          <div id="mz-drill-peer-chart-wrap" class="mt-3 hidden">
+            <p id="mz-drill-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
+            <div id="mz-drill-peer-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
+          </div>
           <div id="mz-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
         </div>
       </div>
@@ -443,6 +463,10 @@
           <div id="mz-summary-drill-ga4-chart-wrap" class="mt-3 hidden">
             <p id="mz-summary-drill-ga4-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">GA4</p>
             <div id="mz-summary-drill-ga4-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
+          </div>
+          <div id="mz-summary-drill-peer-chart-wrap" class="mt-3 hidden">
+            <p id="mz-summary-drill-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
+            <div id="mz-summary-drill-peer-chart" class="mz-chart-plot min-h-[200px] w-full"></div>
           </div>
           <div id="mz-summary-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
         </div>
@@ -568,6 +592,17 @@
       drillDetail: false,
       drillSummary: false,
     },
+    peerSeparate: {
+      kpi: false,
+      line: false,
+      dual: false,
+      quality: false,
+      stacked: false,
+      drillDetail: false,
+      drillSummary: false,
+    },
+    peerBranchAvailable: false,
+    peerStackedAvailable: false,
     peerSummary: null,
     _peerSummaryKey: "",
     _peerSummaryPromise: null,
@@ -2854,7 +2889,8 @@
 
   async function refreshChartLine() {
     if (!window.Plotly || !state.lastSummary) return;
-    var peerSum = state.peerOverlay.line ? await ensurePeerSummary() : null;
+    var peerSum =
+      state.peerOverlay.line || state.peerSeparate.line ? await ensurePeerSummary() : null;
     var cfg = state.breakdowns.chartLine;
     var cmp = compareBlock(state.lastSummary);
     var dim = cfg.bdTime || "date";
@@ -2917,7 +2953,8 @@
 
   async function refreshChartStacked() {
     if (!window.Plotly || !state.lastSummary) return;
-    var peerSum = state.peerOverlay.stacked ? await ensurePeerSummary() : null;
+    var needPeer = state.peerOverlay.stacked || state.peerSeparate.stacked;
+    var peerSum = needPeer ? await ensurePeerSummary() : null;
     var cfg = state.breakdowns.chartStacked;
     var seriesKey = cfg.stackedDim || "income_type";
     var timeKey = cfg.bdTime || "date";
@@ -2972,15 +3009,30 @@
       if (revAligned && revAligned.length) {
         stackedLayout = applyCompareLayout(stackedLayout, xAxis.length);
       }
-      if (peerSum && !revAligned) {
-        var peerDates = dates;
-        appendPeerScatterTrace(
-          stackTraces,
-          peerDates,
-          "net_revenue",
-          peerSum,
-          peerBranchLabel() + " · toplam"
-        );
+      var peerSplit = peerSum && !revAligned && state.peerSeparate.stacked && state.peerStackedAvailable;
+      if (peerSplit) {
+        var peerStackTraces = stackedIncomeTracesFromSummary(peerSum, dates, dates, null, "peer");
+        if (peerStackTraces.length) {
+          stackedLayout.xaxis = Object.assign({}, stackedLayout.xaxis || {}, { showticklabels: false });
+          await plotPeerSplitChart("stacked", peerStackTraces, { yTitle: "TL" }, {
+            xaxis: Object.assign({}, stackedLayout.xaxis, { showticklabels: true }),
+            yTitle: "TL",
+            minHeight: 240,
+          });
+        } else {
+          hidePeerSplitChart("stacked");
+        }
+      } else {
+        hidePeerSplitChart("stacked");
+        if (peerSum && !revAligned && state.peerOverlay.stacked) {
+          appendPeerScatterTrace(
+            stackTraces,
+            dates,
+            "net_revenue",
+            peerSum,
+            peerBranchLabel() + " · toplam"
+          );
+        }
       }
       plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, { minHeight: 240 });
       return;
@@ -3428,7 +3480,33 @@
     state._ga4MobileOverlayPromise = null;
   }
 
-  var PEER_BRANCH_COLORS = { android: "#22c55e", ios: "#a855f7" };
+  /** Karşı platform çizgisi — yığılmış alan / gelir tipi yeşilleriyle karışmaması için. */
+  var PEER_BRANCH_COLORS = { android: "#e11d48", ios: "#0891b2" };
+
+  var PEER_SPLIT_DOM = {
+    stacked: {
+      wrap: "mz-chart-stacked-peer-wrap",
+      el: "mz-chart-stacked-peer",
+      cap: "mz-chart-stacked-peer-caption",
+    },
+    dual: { wrap: "mz-chart-dual-peer-wrap", el: "mz-chart-dual-peer", cap: "mz-chart-dual-peer-caption" },
+    quality: {
+      wrap: "mz-chart-quality-peer-wrap",
+      el: "mz-chart-quality-peer",
+      cap: "mz-chart-quality-peer-caption",
+    },
+    line: { wrap: "mz-chart-line-peer-wrap", el: "mz-chart-line-peer", cap: "mz-chart-line-peer-caption" },
+    drillDetail: {
+      wrap: "mz-drill-peer-chart-wrap",
+      el: "mz-drill-peer-chart",
+      cap: "mz-drill-peer-caption",
+    },
+    drillSummary: {
+      wrap: "mz-summary-drill-peer-chart-wrap",
+      el: "mz-summary-drill-peer-chart",
+      cap: "mz-summary-drill-peer-caption",
+    },
+  };
 
   function peerBranchKey() {
     var br = state.activeStream && state.activeStream.branch;
@@ -3454,10 +3532,17 @@
     return !!(o.kpi || o.line || o.dual || o.quality || o.stacked || o.drillDetail || o.drillSummary);
   }
 
+  function anyPeerSeparateOn() {
+    var o = state.peerSeparate || {};
+    return !!(o.kpi || o.line || o.dual || o.quality || o.stacked || o.drillDetail || o.drillSummary);
+  }
+
   function clearPeerSummaryCache() {
     state.peerSummary = null;
     state._peerSummaryKey = "";
     state._peerSummaryPromise = null;
+    state.peerBranchAvailable = false;
+    state.peerStackedAvailable = false;
   }
 
   function resetPeerOverlayToggles() {
@@ -3470,8 +3555,148 @@
       drillDetail: false,
       drillSummary: false,
     };
+    state.peerSeparate = {
+      kpi: false,
+      line: false,
+      dual: false,
+      quality: false,
+      stacked: false,
+      drillDetail: false,
+      drillSummary: false,
+    };
     clearPeerSummaryCache();
+    Object.keys(PEER_SPLIT_DOM).forEach(hidePeerSplitChart);
     mountAllPeerBranchToggles();
+  }
+
+  function peerStreamForBranch() {
+    var pk = peerBranchKey();
+    if (!pk || !state.activeStream) return null;
+    return (state.streams || []).find(function (s) {
+      return s.project === state.activeStream.project && s.branch === pk;
+    });
+  }
+
+  function peerSummaryHasSignal(peerSum) {
+    if (!peerSum) return false;
+    var rows = filterSeriesBySelectedRange(peerSum.by_date || [], "date");
+    return rows.some(function (d) {
+      return Number(d.net_revenue || 0) > 0 || Number(d.impression || 0) > 0;
+    });
+  }
+
+  function peerStackedHasSignal(peerSum) {
+    if (!peerSum || !state.lastSummary) return false;
+    var dates = filterSeriesBySelectedRange(state.lastSummary.by_date || [], "date").map(function (d) {
+      return d.date;
+    });
+    if (!dates.length) return false;
+    return (peerSum.by_date_income_type || []).some(function (r) {
+      return dates.indexOf(r.date) >= 0 && Number(r.net_revenue || 0) > 0;
+    });
+  }
+
+  async function refreshPeerBranchAvailability() {
+    state.peerBranchAvailable = false;
+    state.peerStackedAvailable = false;
+    if (!peerBranchKey()) {
+      mountAllPeerBranchToggles();
+      return;
+    }
+    var st = peerStreamForBranch();
+    if (!st || !st.has_data) {
+      mountAllPeerBranchToggles();
+      return;
+    }
+    var peerSum = await ensurePeerSummary();
+    state.peerBranchAvailable = peerSummaryHasSignal(peerSum);
+    state.peerStackedAvailable = peerStackedHasSignal(peerSum);
+    if (!state.peerBranchAvailable) {
+      Object.keys(state.peerOverlay).forEach(function (k) {
+        state.peerOverlay[k] = false;
+        state.peerSeparate[k] = false;
+      });
+      Object.keys(PEER_SPLIT_DOM).forEach(hidePeerSplitChart);
+    }
+    mountAllPeerBranchToggles();
+  }
+
+  function peerChartToggleVisible(chartKey) {
+    if (!peerBranchKey()) return false;
+    if (chartKey === "stacked") return !!state.peerStackedAvailable;
+    if (chartKey === "drillDetail" || chartKey === "drillSummary") {
+      return !!state.peerBranchAvailable;
+    }
+    return !!state.peerBranchAvailable;
+  }
+
+  function hidePeerSplitChart(chartKey) {
+    var dom = PEER_SPLIT_DOM[chartKey];
+    if (!dom) return;
+    var wrap = document.getElementById(dom.wrap);
+    var el = document.getElementById(dom.el);
+    if (wrap) wrap.classList.add("hidden");
+    if (el && window.Plotly) {
+      try { Plotly.purge(el); } catch (_) { /* ignore */ }
+      el.innerHTML = "";
+    }
+  }
+
+  function peerSplitCaptionText() {
+    return peerBranchLabel() + " — aynı tarih aralığı ve filtreler";
+  }
+
+  async function plotPeerSplitChart(chartKey, traces, layout, syncOpts) {
+    syncOpts = syncOpts || {};
+    var dom = PEER_SPLIT_DOM[chartKey];
+    if (!dom || !traces || !traces.length) {
+      hidePeerSplitChart(chartKey);
+      return false;
+    }
+    var wrap = document.getElementById(dom.wrap);
+    var chartEl = document.getElementById(dom.el);
+    var cap = document.getElementById(dom.cap);
+    if (!wrap || !chartEl) return false;
+    wrap.classList.remove("hidden");
+    if (cap) cap.textContent = peerSplitCaptionText();
+    var lay = plotTheme(Object.assign({ margin: Object.assign({}, DRILL_STACK_MARGIN) }, layout || {}));
+    if (syncOpts.xaxis) {
+      lay.xaxis = Object.assign({}, syncOpts.xaxis, { showticklabels: true });
+    }
+    if (syncOpts.yTitle) lay.yaxis = Object.assign({}, lay.yaxis, { title: syncOpts.yTitle });
+    await plotChart(chartEl, traces, lay, { minHeight: syncOpts.minHeight || 220 });
+    return true;
+  }
+
+  function stackedIncomeTracesFromSummary(sum, dates, xAxis, revAligned, stackgroupName) {
+    var stackRows = (sum.by_date_income_type || []).filter(function (r) {
+      return dates.indexOf(r.date) >= 0;
+    });
+    var incomeTypes = [];
+    stackRows.forEach(function (r) {
+      if (incomeTypes.indexOf(r.income_type) < 0) incomeTypes.push(r.income_type);
+    });
+    if (!incomeTypes.length) return [];
+    var sg = stackgroupName || "one";
+    return incomeTypes.map(function (it) {
+      return {
+        x: xAxis,
+        y: revAligned && revAligned.length
+          ? revAligned.map(function (row) {
+            var pd = String(row.primary_date || "").slice(0, 10);
+            var hit = stackRows.find(function (r) { return r.date === pd && r.income_type === it; });
+            return hit ? hit.net_revenue : 0;
+          })
+          : dates.map(function (dt) {
+            var hit = stackRows.find(function (r) { return r.date === dt && r.income_type === it; });
+            return hit ? hit.net_revenue : 0;
+          }),
+        name: it,
+        type: "scatter",
+        mode: "lines",
+        stackgroup: sg,
+      };
+    });
   }
 
   function qsForPeerBranch() {
@@ -3558,30 +3783,62 @@
   function mountPeerBranchToggle(hostId, chartKey) {
     var host = document.getElementById(hostId);
     if (!host) return;
-    var pk = peerBranchKey();
-    if (!pk) {
+    if (!peerChartToggleVisible(chartKey)) {
       host.innerHTML = "";
       host.classList.add("hidden");
+      if (!state.peerOverlay[chartKey] && !state.peerSeparate[chartKey]) hidePeerSplitChart(chartKey);
       return;
     }
     host.classList.remove("hidden");
     var label = peerBranchLabel();
-    if (host.dataset.peerKey === chartKey && host.querySelector("input")) {
-      host.querySelector("input").checked = !!state.peerOverlay[chartKey];
+    var showSeparate = chartKey !== "kpi";
+    if (host.dataset.peerKey === chartKey && host.querySelector("[data-peer-overlay]")) {
+      host.querySelector("[data-peer-overlay]").checked = !!state.peerOverlay[chartKey];
+      var sep = host.querySelector("[data-peer-separate]");
+      if (sep) sep.checked = !!state.peerSeparate[chartKey];
       return;
     }
     host.dataset.peerKey = chartKey;
+    host.className = (hostId.indexOf("mz-peer-toggle-kpi") >= 0 ? "flex flex-wrap justify-end gap-1.5 " : "") +
+      "flex flex-wrap items-center gap-1.5 shrink-0";
+    var chip =
+      "rounded-md border px-2 py-1 text-[10px] font-semibold dark:border-zinc-600";
     host.innerHTML =
-      "<label class=\"flex cursor-pointer items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50/80 px-2 py-1 text-[10px] font-semibold text-violet-900 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-200\">" +
-      "<input type=\"checkbox\" class=\"rounded border-violet-300 dark:border-violet-700\" />" +
-      "<span>+" + label + "</span></label>";
-    var input = host.querySelector("input");
-    input.checked = !!state.peerOverlay[chartKey];
-    input.addEventListener("change", function () {
-      state.peerOverlay[chartKey] = input.checked;
-      clearPeerSummaryCache();
+      "<label class=\"flex cursor-pointer items-center gap-1.5 " + chip +
+      " border-rose-200 bg-rose-50/90 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200\">" +
+      "<input type=\"checkbox\" data-peer-overlay class=\"rounded border-rose-300\" />" +
+      "<span>+" + label + "</span></label>" +
+      (showSeparate
+        ? "<label class=\"flex cursor-pointer items-center gap-1.5 " + chip +
+          " border-sky-200 bg-sky-50/90 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200\">" +
+          "<input type=\"checkbox\" data-peer-separate class=\"rounded border-sky-300\" />" +
+          "<span>" + label + " ayrı grafik</span></label>"
+        : "");
+    var overlayInput = host.querySelector("[data-peer-overlay]");
+    var separateInput = host.querySelector("[data-peer-separate]");
+    overlayInput.checked = !!state.peerOverlay[chartKey];
+    if (separateInput) separateInput.checked = !!state.peerSeparate[chartKey];
+    overlayInput.addEventListener("change", function () {
+      state.peerOverlay[chartKey] = overlayInput.checked;
+      if (overlayInput.checked && separateInput) {
+        state.peerSeparate[chartKey] = false;
+        separateInput.checked = false;
+        hidePeerSplitChart(chartKey);
+      }
       onPeerOverlayToggle(chartKey);
     });
+    if (separateInput) {
+      separateInput.addEventListener("change", function () {
+        state.peerSeparate[chartKey] = separateInput.checked;
+        if (separateInput.checked) {
+          state.peerOverlay[chartKey] = false;
+          overlayInput.checked = false;
+        } else {
+          hidePeerSplitChart(chartKey);
+        }
+        onPeerOverlayToggle(chartKey);
+      });
+    }
   }
 
   function mountAllPeerBranchToggles() {
@@ -3595,7 +3852,7 @@
   }
 
   async function onPeerOverlayToggle(chartKey) {
-    if (anyPeerOverlayOn()) await ensurePeerSummary();
+    if (anyPeerOverlayOn() || anyPeerSeparateOn()) await ensurePeerSummary();
     if (chartKey === "kpi") scheduleKpiSparklines(state.lastSummary);
     else if (chartKey === "line") refreshChartLine();
     else if (chartKey === "dual" || chartKey === "quality") {
@@ -4391,8 +4648,10 @@
         ga4OverlayOn = false;
         hideGa4SplitChart(scope);
       }
-      var peerDrillOn = isSummary ? state.peerOverlay.drillSummary : state.peerOverlay.drillDetail;
-      if (peerDrillOn && peerBranchKey() && !comparePair) {
+      var peerChartKey = isSummary ? "drillSummary" : "drillDetail";
+      var peerOverlayDrill = isSummary ? state.peerOverlay.drillSummary : state.peerOverlay.drillDetail;
+      var peerSeparateDrill = isSummary ? state.peerSeparate.drillSummary : state.peerSeparate.drillDetail;
+      if ((peerOverlayDrill || peerSeparateDrill) && peerBranchKey() && !comparePair && state.peerBranchAvailable) {
         try {
           var peerDrill = await fetchPeerDrillChartData(scope, chartTimeKey, cfg, slice, drillSignal);
           if (!drillStale() && peerDrill && peerDrill.filtered && peerDrill.filtered.length) {
@@ -4403,28 +4662,67 @@
                 var y = Number(p.y);
                 return isNaN(y) ? 0 : y;
               });
-              if (chartType === "bar") {
-                traces.push({
-                  type: "bar",
-                  name: peerBranchLabel() + " · " + mDef.label,
-                  x: peerXs,
-                  y: peerYs,
-                  marker: { color: peerOverlayLineColor(), opacity: 0.55 },
+              if (peerSeparateDrill) {
+                var stackXPeer = drillStackXaxisSync(layout.xaxis, chartTimeKey, plotX, dense);
+                layout.xaxis = Object.assign({}, stackXPeer, { showticklabels: false });
+                var peerOnlyTraces = [];
+                if (chartType === "bar") {
+                  peerOnlyTraces.push({
+                    type: "bar",
+                    name: peerBranchLabel() + " · " + mDef.label,
+                    x: peerXs,
+                    y: peerYs,
+                    marker: { color: peerOverlayLineColor() },
+                  });
+                } else {
+                  peerOnlyTraces.push({
+                    type: "scatter",
+                    mode: traceMode || "lines",
+                    name: peerBranchLabel() + " · " + mDef.label,
+                    x: peerXs,
+                    y: peerYs,
+                    connectgaps: true,
+                    line: { color: peerOverlayLineColor(), width: lineW },
+                  });
+                }
+                await plotPeerSplitChart(peerChartKey, peerOnlyTraces, { yTitle: mDef.axis || "" }, {
+                  xaxis: Object.assign({}, stackXPeer, { showticklabels: true }),
+                  yTitle: mDef.axis || "",
+                  minHeight: 200,
                 });
               } else {
-                traces.push({
-                  type: "scatter",
-                  mode: traceMode || "lines",
-                  name: peerBranchLabel() + " · " + mDef.label,
-                  x: peerXs,
-                  y: peerYs,
-                  connectgaps: true,
-                  line: { color: peerOverlayLineColor(), width: lineW, dash: "dash" },
-                });
+                hidePeerSplitChart(peerChartKey);
+                if (chartType === "bar") {
+                  traces.push({
+                    type: "bar",
+                    name: peerBranchLabel() + " · " + mDef.label,
+                    x: peerXs,
+                    y: peerYs,
+                    marker: { color: peerOverlayLineColor(), opacity: 0.55 },
+                  });
+                } else {
+                  traces.push({
+                    type: "scatter",
+                    mode: traceMode || "lines",
+                    name: peerBranchLabel() + " · " + mDef.label,
+                    x: peerXs,
+                    y: peerYs,
+                    connectgaps: true,
+                    line: { color: peerOverlayLineColor(), width: lineW, dash: "dash" },
+                  });
+                }
               }
+            } else {
+              hidePeerSplitChart(peerChartKey);
             }
+          } else {
+            hidePeerSplitChart(peerChartKey);
           }
-        } catch (_peerDrillErr) { /* ignore */ }
+        } catch (_peerDrillErr) {
+          hidePeerSplitChart(peerChartKey);
+        }
+      } else {
+        hidePeerSplitChart(isSummary ? "drillSummary" : "drillDetail");
       }
       if (drillStale()) return;
       await plotDrillChartEl(chartEl, traces, layout);
@@ -4802,10 +5100,42 @@
       });
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
-    if (state.peerOverlay.line && peerSum && timeKey === "date" && !cmp) {
+    if (peerSum && timeKey === "date" && !cmp) {
       var seriesPeer = filterSeriesBySelectedRange(byDate, timeKey);
       var peerX = seriesPeer.map(function (x) { return x.date; });
-      appendPeerScatterTrace(traces, peerX, kpiKey, peerSum, peerBranchLabel());
+      if (state.peerSeparate.line) {
+        hidePeerSplitChart("line");
+        var peerYs = peerMetricYForPlotX(peerSum, peerX, kpiKey);
+        if (peerYs.some(function (v) { return v != null && v !== 0; })) {
+          var lineLay = plotTheme(layoutExtra);
+          lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
+          plotChart("mz-chart-line", traces, lineLay, { minHeight: 220 });
+          plotPeerSplitChart(
+            "line",
+            [{
+              x: peerX,
+              y: peerYs,
+              type: "scatter",
+              mode: "lines",
+              name: peerBranchLabel() + " · " + def.label,
+              line: { color: peerOverlayLineColor(), width: 2 },
+              connectgaps: false,
+            }],
+            { yTitle: def.axis || "" },
+            {
+              xaxis: Object.assign({}, lineLay.xaxis, { type: "date", showticklabels: true }),
+              yTitle: def.axis || "",
+            }
+          );
+          return;
+        }
+      } else if (state.peerOverlay.line) {
+        appendPeerScatterTrace(traces, peerX, kpiKey, peerSum, peerBranchLabel());
+      } else {
+        hidePeerSplitChart("line");
+      }
+    } else {
+      hidePeerSplitChart("line");
     }
     plotChart("mz-chart-line", traces, plotTheme(layoutExtra), { minHeight: 220 });
   }
@@ -5094,7 +5424,11 @@
 
   function renderExtendedCharts(sum) {
     if (!window.Plotly) return Promise.resolve();
-    var peerNeeded = state.peerOverlay.dual || state.peerOverlay.quality;
+    var peerNeeded =
+      state.peerOverlay.dual ||
+      state.peerOverlay.quality ||
+      state.peerSeparate.dual ||
+      state.peerSeparate.quality;
     var peerPromise = peerNeeded ? ensurePeerSummary() : Promise.resolve(null);
     return peerPromise.then(function (peerSum) {
     var cmp = compareBlock(sum);
@@ -5175,11 +5509,46 @@
         },
       ];
     }
-    if (peerSum && !revAligned && !impAligned && state.peerOverlay.dual) {
-      appendPeerScatterTrace(dualTraces, dates, "net_revenue", peerSum, peerBranchLabel() + " · Net gelir", "y");
-      appendPeerScatterTrace(dualTraces, dates, "impression", peerSum, peerBranchLabel() + " · Gösterim", "y2");
+    var dualLay = plotTheme(dualLayoutExtra);
+    if (peerSum && !revAligned && !impAligned && state.peerSeparate.dual) {
+      var dualPeerTraces = [
+        {
+          x: dates,
+          y: peerMetricYForPlotX(peerSum, dates, "net_revenue"),
+          type: "scatter",
+          mode: "lines",
+          name: peerBranchLabel() + " · Net gelir",
+          yaxis: "y",
+          line: { color: peerOverlayLineColor(), width: 2 },
+          connectgaps: false,
+        },
+        {
+          x: dates,
+          y: peerMetricYForPlotX(peerSum, dates, "impression"),
+          type: "scatter",
+          mode: "lines",
+          name: peerBranchLabel() + " · Gösterim",
+          yaxis: "y2",
+          line: { color: peerOverlayLineColor(), width: 2, dash: "dot" },
+          connectgaps: false,
+        },
+      ];
+      dualLay.xaxis = Object.assign({}, dualLay.xaxis || {}, { showticklabels: false });
+      plotPeerSplitChart("dual", dualPeerTraces, {
+        yaxis: { title: "TL" },
+        yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
+      }, {
+        xaxis: Object.assign({}, dualLay.xaxis, { type: "date", showticklabels: true }),
+        minHeight: 220,
+      });
+    } else {
+      hidePeerSplitChart("dual");
+      if (peerSum && !revAligned && !impAligned && state.peerOverlay.dual) {
+        appendPeerScatterTrace(dualTraces, dates, "net_revenue", peerSum, peerBranchLabel() + " · Net gelir", "y");
+        appendPeerScatterTrace(dualTraces, dates, "impression", peerSum, peerBranchLabel() + " · Gösterim", "y2");
+      }
     }
-    plotChart("mz-chart-dual", dualTraces, plotTheme(dualLayoutExtra), { minHeight: revAligned && impAligned ? 320 : 220 });
+    plotChart("mz-chart-dual", dualTraces, dualLay, { minHeight: revAligned && impAligned ? 320 : 220 });
 
     var qualityKeys = [
       { key: "viewability_pct", label: "Viewability %", idx: 0 },
@@ -5229,12 +5598,35 @@
         });
       });
     }
-    if (peerSum && !qualityAligned && state.peerOverlay.quality) {
-      qualityKeys.forEach(function (q) {
-        appendPeerScatterTrace(qualityTraces, dates, q.key, peerSum, peerBranchLabel() + " · " + q.label);
+    var qualityLay = plotTheme(qualityLayoutExtra);
+    if (peerSum && !qualityAligned && state.peerSeparate.quality) {
+      var qPeerTraces = [];
+      qualityKeys.forEach(function (q, idx) {
+        qPeerTraces.push({
+          x: dates,
+          y: peerMetricYForPlotX(peerSum, dates, q.key),
+          name: peerBranchLabel() + " · " + q.label,
+          type: "scatter",
+          mode: "lines",
+          line: { color: peerOverlayLineColor(), width: 2, dash: idx ? "dot" : "solid" },
+          connectgaps: false,
+        });
       });
+      qualityLay.xaxis = Object.assign({}, qualityLay.xaxis || {}, { showticklabels: false });
+      plotPeerSplitChart("quality", qPeerTraces, { yTitle: "%" }, {
+        xaxis: Object.assign({}, qualityLay.xaxis, { type: "date", showticklabels: true }),
+        yTitle: "%",
+        minHeight: 220,
+      });
+    } else {
+      hidePeerSplitChart("quality");
+      if (peerSum && !qualityAligned && state.peerOverlay.quality) {
+        qualityKeys.forEach(function (q) {
+          appendPeerScatterTrace(qualityTraces, dates, q.key, peerSum, peerBranchLabel() + " · " + q.label);
+        });
+      }
     }
-    plotChart("mz-chart-quality", qualityTraces, plotTheme(qualityLayoutExtra), { minHeight: qualityAligned ? 320 : 220 });
+    plotChart("mz-chart-quality", qualityTraces, qualityLay, { minHeight: qualityAligned ? 320 : 220 });
 
     var hm = sum.heatmap_calendar || [];
     if (hm.length) {
