@@ -3522,6 +3522,16 @@
     mweb: "#ea580c",
   };
 
+  /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
+  var PEER_STREAM_BY_KEY = {
+    "doviz:android": "doviz:ios",
+    "doviz:ios": "doviz:android",
+    "doviz:desktop": "doviz:mweb",
+    "doviz:mweb": "doviz:desktop",
+    "sinemalar:desktop": "sinemalar:mweb",
+    "sinemalar:mweb": "sinemalar:desktop",
+  };
+
   var PEER_SPLIT_DOM = {
     stacked: {
       wrap: "mz-chart-stacked-peer-wrap",
@@ -3547,20 +3557,31 @@
     },
   };
 
+  function peerTargetStreamKey() {
+    var k = state.activeStream && state.activeStream.key;
+    return k ? PEER_STREAM_BY_KEY[k] || null : null;
+  }
+
+  function peerStreamForBranch() {
+    var pk = peerTargetStreamKey();
+    if (!pk) return null;
+    return (state.streams || []).find(function (s) { return s.key === pk; }) || null;
+  }
+
   function peerBranchKey() {
-    var br = state.activeStream && state.activeStream.branch;
-    if (br === "android") return "ios";
-    if (br === "ios") return "android";
-    if (br === "desktop") return "mweb";
-    if (br === "mweb") return "desktop";
-    return null;
+    var st = peerStreamForBranch();
+    if (st && st.branch) return st.branch;
+    var pk = peerTargetStreamKey();
+    if (!pk) return null;
+    var parts = String(pk).split(":");
+    return parts.length >= 2 ? parts[1] : null;
   }
 
   function peerBranchLabel() {
     var k = peerBranchKey();
     if (k === "ios") return "iOS";
     if (k === "android") return "Android";
-    if (k === "desktop") return "Desktop";
+    if (k === "desktop") return "Web";
     if (k === "mweb") return "Mobil web";
     return "";
   }
@@ -3609,14 +3630,6 @@
     clearPeerSummaryCache();
     Object.keys(PEER_SPLIT_DOM).forEach(hidePeerSplitChart);
     mountAllPeerBranchToggles();
-  }
-
-  function peerStreamForBranch() {
-    var pk = peerBranchKey();
-    if (!pk || !state.activeStream) return null;
-    return (state.streams || []).find(function (s) {
-      return s.project === state.activeStream.project && s.branch === pk;
-    });
   }
 
   function peerSummaryHasSignal(peerSum) {
@@ -3763,8 +3776,9 @@
 
   function qsForPeerBranch(opts) {
     opts = opts || {};
+    var targetKey = peerTargetStreamKey();
     var pk = peerBranchKey();
-    if (!pk || !state.activeStream) return null;
+    if (!targetKey || !pk || !state.activeStream) return null;
     var p = qs();
     if (opts.stripDrill !== false) {
       p.delete("ad_unit");
@@ -3772,16 +3786,9 @@
       p.delete("area");
       p.delete("drill_income_type");
     }
-    p.set("branch", pk);
     p.set("project", state.activeStream.project || "doviz");
-    var st = (state.streams || []).find(function (s) {
-      return s.project === state.activeStream.project && s.branch === pk;
-    });
-    if (st && st.key) {
-      p.set("stream", st.key);
-    } else {
-      p.set("stream", state.activeStream.project + ":" + pk);
-    }
+    p.set("branch", pk);
+    p.set("stream", targetKey);
     return p;
   }
 
@@ -3936,7 +3943,8 @@
 
   async function fetchPeerDrillChartData(scope, chartTimeKey, cfg, slice, signal) {
     var pk = peerBranchKey();
-    if (!pk) return null;
+    var peerSt = peerStreamForBranch();
+    if (!pk || !peerSt) return null;
     var limit = drillChartFetchLimit(chartTimeKey);
     var attempts = drillChartFetchAttempts(scope, cfg, chartTimeKey, slice);
     var last = null;
@@ -3945,11 +3953,9 @@
       var chartCfg = attempts[i];
       var safeCfg = ensureBdCfg(chartCfg);
       var p = qsForDrillSlice(slice || null);
+      p.set("project", state.activeStream.project || "doviz");
       p.set("branch", pk);
-      var st = (state.streams || []).find(function (s) {
-        return s.project === state.activeStream.project && s.branch === pk;
-      });
-      if (st) p.set("stream", st.key);
+      if (peerSt.key) p.set("stream", peerSt.key);
       var tb = breakdownStrFrom(safeCfg);
       var url =
         "/api/mz-analytics/table?" + p.toString() + "&breakdown=" + encodeURIComponent(tb) + "&limit=" + limit;
@@ -6605,6 +6611,8 @@
       renderCompareMatrix(sum);
       finalizeMzTrendAndSparks(sum);
       await refreshPeerBranchAvailability();
+      if (state.peerOverlay.month) refreshChartMonth();
+      if (state.peerOverlay.kpi) scheduleKpiSparklines(sum);
       if (state.peerOverlay.line || state.peerSeparate.line) refreshChartLine();
       if (state.peerOverlay.stacked || state.peerSeparate.stacked) refreshChartStacked();
       if (state.peerOverlay.dual || state.peerSeparate.dual || state.peerOverlay.quality || state.peerSeparate.quality) {
