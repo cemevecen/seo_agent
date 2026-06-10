@@ -10456,6 +10456,8 @@ def doviz_assets_page(request: Request):
     with SessionLocal() as db:
         latest = get_latest_run(db)
     payload = (latest or {}).get("payload") or {}
+    issue_state = payload.get("issue_state") or {}
+    open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
     return templates.TemplateResponse(
         request,
         "doviz_assets.html",
@@ -10463,9 +10465,11 @@ def doviz_assets_page(request: Request):
             "request": request,
             "sites": get_sidebar_sites(),
             "run": latest,
+            "scan_at_tr": payload.get("scan_at_tr") or (latest or {}).get("collected_at_tr"),
             "alerts": payload.get("alerts") or [],
             "missing": payload.get("prices_missing") or [],
             "catalog_removed": payload.get("catalog_removed") or [],
+            "open_issues": open_issues,
         },
     )
 

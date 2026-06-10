@@ -23,3 +23,34 @@ def test_catalog_excludes_merkez_bankasi():
     from backend.services.doviz_asset_monitor import _excluded_slugs
 
     assert "merkez-bankasi" in _excluded_slugs()
+
+
+def test_build_issue_state_preserves_first_seen():
+    from backend.services.doviz_asset_monitor import _build_issue_state
+
+    first = "2026-06-01T10:00:00Z"
+    scan = "2026-06-10T12:00:00Z"
+    prev = {
+        "kuveyt-turk|m.doviz.com": {
+            "first_seen_at": first,
+            "first_seen_tr": "01.06.2026 13:00",
+        }
+    }
+    missing = [{"slug": "kuveyt-turk", "host": "m.doviz.com", "http_status": 200}]
+    state = _build_issue_state(
+        scan_iso=scan,
+        prices_missing=missing,
+        catalog_removed=[],
+        prev_issue_state=prev,
+    )
+    row = state["kuveyt-turk|m.doviz.com"]
+    assert row["first_seen_at"] == first
+    assert row["last_seen_at"] == scan
+    assert row["first_seen_tr"] == "01.06.2026 13:00"
+
+
+def test_format_ts_tr_empty():
+    from backend.services.doviz_asset_monitor import format_ts_tr
+
+    assert format_ts_tr(None) == "—"
+    assert format_ts_tr("2026-06-10T10:30:00Z")[:10] == "10.06.2026"

@@ -10,7 +10,9 @@
         </p>
         {% if run %}
         <p class="mt-2 text-[11px] text-slate-600 dark:text-zinc-400">
-          Son tarama: {{ run.collected_at }} · Katalog: {{ run.catalog_count }} · Uyarı: {{ run.alert_count }}
+          Son tarama: <span class="font-medium">{{ scan_at_tr or run.collected_at_tr or run.collected_at }}</span>
+          · Katalog: {{ run.catalog_count }} · Bu tur uyarı: {{ run.alert_count }}
+          {% if open_issues %} · Açık sorun: {{ open_issues|length }}{% endif %}
         </p>
         {% else %}
         <p class="mt-2 text-[11px] text-amber-700 dark:text-amber-300">Henüz tarama yok. «Şimdi tara» ile başlatın.</p>
@@ -27,7 +29,11 @@
     <h3 class="text-sm font-bold text-rose-950 dark:text-rose-100">Aktif uyarılar ({{ alerts|length }})</h3>
     <ul class="mt-2 space-y-1 text-xs text-rose-900 dark:text-rose-200">
       {% for a in alerts %}
-      <li><span class="font-semibold">{{ a.kind }}</span> — {{ a.message }}{% if a.url %} · <a class="underline" href="{{ a.url }}" target="_blank" rel="noopener">sayfa</a>{% endif %}</li>
+      <li>
+        <span class="font-semibold">{{ a.kind }}</span> — {{ a.message }}
+        {% if a.first_seen_tr %}<span class="text-rose-800/80 dark:text-rose-300/90"> · ilk {{ a.first_seen_tr }}{% if a.last_seen_tr %} · son {{ a.last_seen_tr }}{% endif %}</span>{% endif %}
+        {% if a.url %} · <a class="underline" href="{{ a.url }}" target="_blank" rel="noopener">sayfa</a>{% endif %}
+      </li>
       {% endfor %}
     </ul>
   </div>
@@ -38,13 +44,15 @@
     <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Fiyat satırı yok ({{ missing|length }})</h3>
     <div class="mt-2 overflow-x-auto">
       <table class="w-full text-left text-xs">
-        <thead class="text-slate-500"><tr><th class="py-1 pr-2">Slug</th><th class="py-1 pr-2">Host</th><th class="py-1">HTTP</th></tr></thead>
+        <thead class="text-slate-500"><tr><th class="py-1 pr-2">Slug</th><th class="py-1 pr-2">Host</th><th class="py-1 pr-2">HTTP</th><th class="py-1 pr-2">İlk tespit</th><th class="py-1">Son kontrol</th></tr></thead>
         <tbody>
           {% for p in missing %}
           <tr class="border-t border-slate-100 dark:border-zinc-800">
             <td class="py-1.5 pr-2 font-mono">{{ p.slug }}</td>
             <td class="py-1.5 pr-2">{{ p.host }}</td>
-            <td class="py-1.5">{{ p.http_status }}</td>
+            <td class="py-1.5 pr-2">{{ p.http_status }}</td>
+            <td class="py-1.5 pr-2 whitespace-nowrap">{{ p.first_seen_tr or '—' }}</td>
+            <td class="py-1.5 whitespace-nowrap">{{ p.last_seen_tr or '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -56,7 +64,16 @@
   {% if catalog_removed %}
   <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
     <h3 class="text-sm font-bold text-amber-950 dark:text-amber-100">Katalogdan kalkanlar</h3>
-    <p class="mt-1 font-mono text-xs text-amber-900 dark:text-amber-200">{{ catalog_removed|join(', ') }}</p>
+    <ul class="mt-2 space-y-1 text-xs text-amber-900 dark:text-amber-200">
+      {% set cat_rows = open_issues|selectattr('kind', 'equalto', 'catalog_removed')|list if open_issues else [] %}
+      {% if cat_rows %}
+      {% for i in cat_rows %}
+      <li class="font-mono">{{ i.slug }} · ilk {{ i.first_seen_tr or '—' }} · son {{ i.last_seen_tr or '—' }}</li>
+      {% endfor %}
+      {% else %}
+      <li class="font-mono">{{ catalog_removed|join(', ') }}</li>
+      {% endif %}
+    </ul>
   </div>
   {% endif %}
 </div>

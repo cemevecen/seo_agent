@@ -6,8 +6,9 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -116,6 +117,120 @@ def probe_bank_on_host(slug: str, host: str) -> ProbeResult:
     )
 
 
+def _tz() -> ZoneInfo:
+    name = getattr(settings, "report_calendar_timezone", None) or "Europe/Istanbul"
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return ZoneInfo("Europe/Istanbul")
+
+
+def _iso_utc(dt: datetime | None = None) -> str:
+    d = dt or datetime.utcnow()
+    return d.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def format_ts_tr(iso_z: str | None) -> str:
+    """UTC ISO → TR okunur damga (panel / mail)."""
+    if not iso_z:
+        return "—"
+    raw = str(iso_z).strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local = dt.astimezone(_tz())
+        return local.strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return str(iso_z)[:19]
+
+
+def _probe_key(slug: str, host: str) -> str:
+    return f"{slug}|{host}"
+
+
+def _build_issue_state(
+    *,
+    scan_iso: str,
+    prices_missing: list[dict[str, Any]],
+    catalog_removed: list[str],
+    prev_issue_state: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Açık sorunlar: first_seen korunur, last_seen güncellenir."""
+    out: dict[str, dict[str, Any]] = {}
+    for p in prices_missing:
+        key = _probe_key(p["slug"], p["host"])
+        prev = prev_issue_state.get(key) or {}
+        first = prev.get("first_seen_at") or scan_iso
+        out[key] = {
+            "key": key,
+            "kind": "prices_empty",
+            "slug": p["slug"],
+            "host": p["host"],
+            "url": p.get("url") or "",
+            "http_status": p.get("http_status"),
+            "first_seen_at": first,
+            "last_seen_at": scan_iso,
+            "first_seen_tr": format_ts_tr(first),
+            "last_seen_tr": format_ts_tr(scan_iso),
+            "open": True,
+        }
+    for slug in catalog_removed:
+        key = f"catalog:{slug}"
+        prev = prev_issue_state.get(key) or {}
+        first = prev.get("first_seen_at") or scan_iso
+        out[key] = {
+            "key": key,
+            "kind": "catalog_removed",
+            "slug": slug,
+            "host": "",
+            "url": "",
+            "first_seen_at": first,
+            "last_seen_at": scan_iso,
+            "first_seen_tr": format_ts_tr(first),
+            "last_seen_tr": format_ts_tr(scan_iso),
+            "open": True,
+        }
+    return out
+
+
+def _attach_issue_timestamps(items: list[dict[str, Any]], issue_state: dict[str, dict[str, Any]], scan_iso: str) -> None:
+    for p in items:
+        key = _probe_key(p.get("slug", ""), p.get("host", ""))
+        hit = issue_state.get(key)
+        if hit:
+            p["first_seen_at"] = hit["first_seen_at"]
+            p["last_seen_at"] = hit["last_seen_at"]
+            p["first_seen_tr"] = hit["first_seen_tr"]
+            p["last_seen_tr"] = hit["last_seen_tr"]
+        else:
+            p["first_seen_at"] = scan_iso
+            p["last_seen_at"] = scan_iso
+            p["first_seen_tr"] = format_ts_tr(scan_iso)
+            p["last_seen_tr"] = format_ts_tr(scan_iso)
+
+
+def _attach_alert_timestamps(alerts: list[dict[str, Any]], issue_state: dict[str, dict[str, Any]], scan_iso: str) -> None:
+    for a in alerts:
+        key = _probe_key(a.get("slug", ""), a.get("host", ""))
+        if a.get("kind") == "catalog_removed":
+            key = f"catalog:{a.get('slug', '')}"
+        hit = issue_state.get(key)
+        if hit:
+            a["first_seen_at"] = hit["first_seen_at"]
+            a["last_seen_at"] = hit["last_seen_at"]
+            a["first_seen_tr"] = hit["first_seen_tr"]
+            a["last_seen_tr"] = hit["last_seen_tr"]
+        else:
+            a["detected_at"] = scan_iso
+            a["detected_tr"] = format_ts_tr(scan_iso)
+            a["first_seen_at"] = scan_iso
+            a["last_seen_at"] = scan_iso
+            a["first_seen_tr"] = format_ts_tr(scan_iso)
+            a["last_seen_tr"] = format_ts_tr(scan_iso)
+        a["scan_tr"] = format_ts_tr(scan_iso)
+
+
 def _probe_hosts() -> list[str]:
     raw = (settings.doviz_asset_monitor_probe_hosts or "m.doviz.com,altin.doviz.com").strip()
     return [h.strip() for h in raw.split(",") if h.strip()]
@@ -216,7 +331,21 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
             }
         )
 
+    scan_iso = _iso_utc()
+    prev_issue_state = prev_payload.get("issue_state") or {}
+    issue_state = _build_issue_state(
+        scan_iso=scan_iso,
+        prices_missing=prices_missing,
+        catalog_removed=catalog_removed if not is_baseline else [],
+        prev_issue_state=prev_issue_state,
+    )
+    _attach_issue_timestamps(prices_missing, issue_state, scan_iso)
+    _attach_issue_timestamps(prices_lost, issue_state, scan_iso)
+    _attach_alert_timestamps(alerts, issue_state, scan_iso)
+
     payload = {
+        "scan_at": scan_iso,
+        "scan_at_tr": format_ts_tr(scan_iso),
         "catalog_url": settings.doviz_asset_monitor_catalog_url,
         "catalog_slugs": catalog,
         "slug_set": slug_set,
@@ -226,6 +355,8 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
         "prices_lost": prices_lost,
         "prices_missing": prices_missing,
         "alerts": alerts,
+        "issue_state": issue_state,
+        "last_email_at": prev_payload.get("last_email_at"),
     }
 
     run = DovizAssetMonitorRun(
@@ -238,27 +369,90 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
     db.commit()
     db.refresh(run)
 
+    open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
+    if _should_send_asset_email(alerts, open_issues, prev_payload, scan_iso):
+        payload["last_email_at"] = scan_iso
+        run.payload_json = json.dumps(payload, ensure_ascii=False)
+        db.commit()
+        _notify_alerts(alerts, payload, scan_iso=scan_iso, open_issues=open_issues)
+
+    return {
+        "run_id": run.id,
+        "scan_at": scan_iso,
+        "scan_at_tr": format_ts_tr(scan_iso),
+        "catalog_count": len(catalog),
+        "alert_count": len(alerts),
+        "open_issue_count": len(open_issues),
+        "alerts": alerts,
+    }
+
+
+def _hours_since(iso_z: str) -> float:
+    try:
+        raw = str(iso_z).strip().replace("Z", "+00:00")
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - dt.astimezone(timezone.utc)
+        return delta.total_seconds() / 3600.0
+    except Exception:
+        return 999.0
+
+
+def _should_send_asset_email(
+    alerts: list[dict[str, Any]],
+    open_issues: list[dict[str, Any]],
+    prev_payload: dict[str, Any],
+    scan_iso: str,
+) -> bool:
     if alerts:
-        _notify_alerts(alerts, payload)
+        return True
+    if not open_issues:
+        return False
+    if not settings.doviz_asset_monitor_open_issues_email:
+        return False
+    if not settings.doviz_asset_monitor_email_enabled or not settings.outbound_email_enabled:
+        return False
+    last = prev_payload.get("last_email_at")
+    cooldown = float(settings.doviz_asset_monitor_email_cooldown_hours or 6)
+    if not last:
+        return True
+    return _hours_since(last) >= cooldown
 
-    return {"run_id": run.id, "catalog_count": len(catalog), "alert_count": len(alerts), "alerts": alerts}
 
-
-def _notify_alerts(alerts: list[dict[str, Any]], payload: dict[str, Any]) -> None:
+def _notify_alerts(
+    alerts: list[dict[str, Any]],
+    payload: dict[str, Any],
+    *,
+    scan_iso: str,
+    open_issues: list[dict[str, Any]],
+) -> None:
     from backend.services.agent_tools import create_alert
 
+    scan_tr = format_ts_tr(scan_iso)
     critical = [a for a in alerts if a.get("severity") == "critical"]
     title_slugs = ", ".join({a.get("slug", "?") for a in critical[:5]})
     if not title_slugs:
-        title_slugs = ", ".join({a.get("slug", "?") for a in alerts[:5]})
+        title_slugs = ", ".join({a.get("slug", "?") for a in (alerts or open_issues)[:5]})
 
     summary_lines = [a.get("message", "") for a in alerts[:25]]
+    if not summary_lines and open_issues:
+        summary_lines = [
+            f"{i.get('slug')} @ {i.get('host') or 'katalog'} (ilk: {i.get('first_seen_tr')})"
+            for i in open_issues[:6]
+        ]
     create_alert(
         alert_type="doviz_asset_monitor",
         severity="critical" if critical else "warning",
         title=f"Döviz varlık/banka: {title_slugs}",
-        summary=" · ".join(summary_lines[:6]),
-        detail={"alerts": alerts, "catalog_removed": payload.get("catalog_removed"), "prices_lost": payload.get("prices_lost")},
+        summary=f"Tarama {scan_tr} · " + " · ".join(summary_lines[:6]),
+        detail={
+            "alerts": alerts,
+            "open_issues": open_issues,
+            "scan_at": scan_iso,
+            "catalog_removed": payload.get("catalog_removed"),
+            "prices_lost": payload.get("prices_lost"),
+        },
     )
 
     if not settings.doviz_asset_monitor_email_enabled:
@@ -268,22 +462,48 @@ def _notify_alerts(alerts: list[dict[str, Any]], payload: dict[str, Any]) -> Non
 
     from backend.services.mailer import send_email
 
-    rows = "".join(
-        f"<tr><td>{html_esc(a.get('kind',''))}</td><td><b>{html_esc(a.get('slug',''))}</b></td>"
-        f"<td>{html_esc(a.get('host',''))}</td><td>{html_esc(a.get('message',''))}</td></tr>"
-        for a in alerts[:40]
+    def _row_alert(a: dict[str, Any]) -> str:
+        return (
+            f"<tr><td>{html_esc(a.get('kind', ''))}</td>"
+            f"<td><b>{html_esc(a.get('slug', ''))}</b></td>"
+            f"<td>{html_esc(a.get('host', ''))}</td>"
+            f"<td>{html_esc(a.get('first_seen_tr') or format_ts_tr(a.get('first_seen_at')))}</td>"
+            f"<td>{html_esc(a.get('last_seen_tr') or format_ts_tr(a.get('last_seen_at')))}</td>"
+            f"<td>{html_esc(a.get('message', ''))}</td></tr>"
+        )
+
+    def _row_open(i: dict[str, Any]) -> str:
+        return (
+            f"<tr><td>{html_esc(i.get('kind', ''))}</td>"
+            f"<td><b>{html_esc(i.get('slug', ''))}</b></td>"
+            f"<td>{html_esc(i.get('host', ''))}</td>"
+            f"<td>{html_esc(i.get('first_seen_tr', ''))}</td>"
+            f"<td>{html_esc(i.get('last_seen_tr', ''))}</td>"
+            f"<td>Devam ediyor</td></tr>"
+        )
+
+    alert_rows = "".join(_row_alert(a) for a in alerts[:40])
+    open_rows = "".join(_row_open(i) for i in open_issues[:40])
+    th = (
+        "<tr><th>Tür</th><th>Slug</th><th>Host</th>"
+        "<th>İlk tespit (TR)</th><th>Son kontrol (TR)</th><th>Not</th></tr>"
     )
+    sections = []
+    if alerts:
+        sections.append(f"<h3>Bu taramada yeni uyarı ({len(alerts)})</h3><table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;font-size:13px\">{th}{alert_rows}</table>")
+    if open_issues:
+        sections.append(
+            f"<h3>Açık sorunlar ({len(open_issues)})</h3>"
+            f"<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;font-size:13px\">{th}{open_rows}</table>"
+        )
     body = f"""
     <h2>Döviz varlık izleme</h2>
-    <p>Katalog: {payload.get('catalog_count', len(payload.get('catalog_slugs') or []))} banka ·
-    Uyarı: {len(alerts)}</p>
-    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:13px">
-    <tr><th>Tür</th><th>Slug</th><th>Host</th><th>Mesaj</th></tr>
-    {rows}
-    </table>
+    <p><b>Tarama:</b> {html_esc(scan_tr)} (UTC {html_esc(scan_iso[:19])}Z)<br/>
+    Katalog: {len(payload.get('catalog_slugs') or [])} banka</p>
+    {"".join(sections)}
     <p><a href="https://projectcontrol.up.railway.app/doviz-varliklar">Panel: Döviz varlıklar</a></p>
     """
-    subject = f"[Döviz varlık] {len(alerts)} uyarı — {title_slugs[:80]}"
+    subject = f"[Döviz varlık] {scan_tr} — {len(alerts)} yeni, {len(open_issues)} açık — {title_slugs[:60]}"
     try:
         send_email(subject, body)
     except Exception as exc:
@@ -306,6 +526,7 @@ def get_latest_run(db: Session) -> dict[str, Any] | None:
     return {
         "id": row.id,
         "collected_at": row.collected_at.isoformat() + "Z",
+        "collected_at_tr": format_ts_tr(row.collected_at.isoformat() + "Z"),
         "catalog_count": row.catalog_count,
         "alert_count": row.alert_count,
         "payload": json.loads(row.payload_json or "{}"),
