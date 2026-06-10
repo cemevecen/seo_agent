@@ -266,10 +266,7 @@
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
             <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Aylık gelir (çubuk)</h2>
-            <div class="flex flex-wrap items-center justify-end gap-2">
-              <div id="mz-peer-toggle-month" class="hidden shrink-0"></div>
-              <div id="mz-bd-toolbar-month" class="mz-bd-toolbar" data-bd-scope="chartMonth" data-bd-mode="time"></div>
-            </div>
+            <div id="mz-bd-toolbar-month" class="mz-bd-toolbar" data-bd-scope="chartMonth" data-bd-mode="time"></div>
           </div>
           <div id="mz-chart-bar-month" class="mz-chart-plot" data-mz-chart-h="280"></div>
         </div>
@@ -591,7 +588,6 @@
       dual: false,
       quality: false,
       stacked: false,
-      month: false,
       drillDetail: false,
       drillSummary: false,
     },
@@ -2942,16 +2938,12 @@
 
   async function refreshChartMonth() {
     if (!window.Plotly || !state.lastSummary) return;
-    var peerSum = null;
-    if (state.peerOverlay.month && peerBranchKey() && state.peerBranchAvailable) {
-      peerSum = await ensurePeerSummary();
-    }
     var cfg = state.breakdowns.chartMonth;
     var cmp = compareBlock(state.lastSummary);
     if (cfg.bdTime === "month" && !cfg.bdArea && !cfg.bdDims.size) {
       var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (state.lastSummary.by_month || []);
       mo = sortChartRowsChronological(mo, "month");
-      groupedBarPlot("mz-chart-bar-month", mo, "month", cmp, peerSum);
+      groupedBarPlot("mz-chart-bar-month", mo, "month", cmp);
       return;
     }
     try {
@@ -2959,10 +2951,10 @@
       var dim = cfg.bdTime || "month";
       var limit = dim === "date" ? 400 : dim === "week" ? 120 : 36;
       var rows = rowsForChartDim(data.rows, dim, true).slice(0, limit);
-      groupedBarPlot("mz-chart-bar-month", rows, dim, !!data.compare_range, peerSum);
+      groupedBarPlot("mz-chart-bar-month", rows, dim, !!data.compare_range);
     } catch (e) {
       var fallbackMo = sortChartRowsChronological(state.lastSummary.by_month || [], "month");
-      groupedBarPlot("mz-chart-bar-month", fallbackMo, "month", cmp, peerSum);
+      groupedBarPlot("mz-chart-bar-month", fallbackMo, "month", cmp);
     }
   }
 
@@ -3572,7 +3564,7 @@
 
   function anyPeerOverlayOn() {
     var o = state.peerOverlay || {};
-    return !!(o.kpi || o.line || o.dual || o.quality || o.stacked || o.month || o.drillDetail || o.drillSummary);
+    return !!(o.kpi || o.line || o.dual || o.quality || o.stacked || o.drillDetail || o.drillSummary);
   }
 
   function anyPeerSeparateOn() {
@@ -3593,7 +3585,6 @@
       dual: false,
       quality: false,
       stacked: false,
-      month: false,
       drillDetail: false,
       drillSummary: false,
     };
@@ -3862,7 +3853,7 @@
     }
     host.classList.remove("hidden");
     var label = peerBranchLabel();
-    var showSeparate = chartKey !== "kpi" && chartKey !== "month";
+    var showSeparate = chartKey !== "kpi";
     if (host.dataset.peerKey === chartKey && host.querySelector("[data-peer-overlay]")) {
       host.querySelector("[data-peer-overlay]").checked = !!state.peerOverlay[chartKey];
       var sep = host.querySelector("[data-peer-separate]");
@@ -3918,7 +3909,6 @@
     mountPeerBranchToggle("mz-peer-toggle-dual", "dual");
     mountPeerBranchToggle("mz-peer-toggle-quality", "quality");
     mountPeerBranchToggle("mz-peer-toggle-stacked", "stacked");
-    mountPeerBranchToggle("mz-peer-toggle-month", "month");
     mountPeerBranchToggle("mz-peer-toggle-drill-summary", "drillSummary");
   }
 
@@ -3928,8 +3918,7 @@
     else if (chartKey === "line") refreshChartLine();
     else if (chartKey === "dual" || chartKey === "quality") {
       if (state.lastSummary) renderExtendedCharts(state.lastSummary).then(scheduleMzChartsResize);
-    }     else if (chartKey === "stacked") refreshChartStacked();
-    else if (chartKey === "month") refreshChartMonth();
+    } else if (chartKey === "stacked") refreshChartStacked();
     else if (chartKey === "drillDetail") renderTableDrillChart();
     else if (chartKey === "drillSummary") renderSummaryDrillChart();
   }
@@ -5215,30 +5204,7 @@
     plotChart("mz-chart-line", traces, plotTheme(layoutExtra), { minHeight: 220 });
   }
 
-  function peerBarYsForLabels(peerSum, labels, labelKey) {
-    if (!peerSum || !labels || !labels.length) return null;
-    var lookup = {};
-    if (labelKey === "month") {
-      (peerSum.by_month || []).forEach(function (r) {
-        lookup[String(r.month || "").slice(0, 7)] = Number(r.net_revenue) || 0;
-      });
-    } else if (labelKey === "date") {
-      filterSeriesBySelectedRange(peerSum.by_date || [], "date").forEach(function (r) {
-        var k = String(r.date || "").slice(0, 10);
-        if (k) lookup[k] = Number(r.net_revenue) || 0;
-      });
-    } else {
-      return null;
-    }
-    var ys = labels.map(function (lbl) {
-      var k = labelKey === "month" ? String(lbl).slice(0, 7) : String(lbl).slice(0, 10);
-      return lookup[k] != null ? lookup[k] : 0;
-    });
-    if (!ys.some(function (v) { return v > 0; })) return null;
-    return ys;
-  }
-
-  function groupedBarPlot(elId, rows, labelKey, cmp, peerSum) {
+  function groupedBarPlot(elId, rows, labelKey, cmp) {
     var colors = compareColors();
     var labels = rows.map(function (x) { return x[labelKey]; });
     var periodLabels = comparePeriodChartLabels(state.lastSummary);
@@ -5259,26 +5225,6 @@
       });
     }
     var barLayout = { yTitle: "TL", barmode: cmp ? "group" : "relative" };
-    var peerYs =
-      state.peerOverlay.month && peerSum ? peerBarYsForLabels(peerSum, labels, labelKey) : null;
-    if (peerYs) {
-      var peerTrace = {
-        x: labels,
-        y: peerYs,
-        type: "bar",
-        name: peerBranchLabel() + " · Net gelir",
-        marker: { color: peerOverlayLineColor(), opacity: 0.55 },
-      };
-      if (cmp) {
-        traces[0].offsetgroup = "mz-primary";
-        traces[1].offsetgroup = "mz-compare";
-        peerTrace.offsetgroup = "mz-primary";
-        barLayout.barmode = "group";
-      } else {
-        barLayout.barmode = "overlay";
-      }
-      traces.push(peerTrace);
-    }
     if (cmp) barLayout = applyCompareLayout(barLayout, labels.length);
     plotChart(elId, traces, plotTheme(barLayout), { minHeight: 220 });
   }
