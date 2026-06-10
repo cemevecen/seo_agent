@@ -3541,8 +3541,6 @@
     state.peerSummary = null;
     state._peerSummaryKey = "";
     state._peerSummaryPromise = null;
-    state.peerBranchAvailable = false;
-    state.peerStackedAvailable = false;
   }
 
   function resetPeerOverlayToggles() {
@@ -3579,8 +3577,15 @@
 
   function peerSummaryHasSignal(peerSum) {
     if (!peerSum) return false;
+    var kpiRev = peerSum.kpis && Number(peerSum.kpis.net_revenue);
+    if (!isNaN(kpiRev) && kpiRev > 0) return true;
     var rows = filterSeriesBySelectedRange(peerSum.by_date || [], "date");
-    return rows.some(function (d) {
+    if (rows.some(function (d) {
+      return Number(d.net_revenue || 0) > 0 || Number(d.impression || 0) > 0;
+    })) {
+      return true;
+    }
+    return (peerSum.by_date || []).some(function (d) {
       return Number(d.net_revenue || 0) > 0 || Number(d.impression || 0) > 0;
     });
   }
@@ -3604,13 +3609,25 @@
       return;
     }
     var st = peerStreamForBranch();
-    if (!st || !st.has_data) {
+    var streamOk = !!(st && st.has_data && Number(st.row_count || 0) > 0);
+    if (!streamOk) {
+      Object.keys(state.peerOverlay).forEach(function (k) {
+        state.peerOverlay[k] = false;
+        state.peerSeparate[k] = false;
+      });
+      Object.keys(PEER_SPLIT_DOM).forEach(hidePeerSplitChart);
       mountAllPeerBranchToggles();
       return;
     }
     var peerSum = await ensurePeerSummary();
-    state.peerBranchAvailable = peerSummaryHasSignal(peerSum);
-    state.peerStackedAvailable = peerStackedHasSignal(peerSum);
+    state.peerBranchAvailable = streamOk;
+    if (peerSum && !peerSummaryHasSignal(peerSum)) {
+      state.peerBranchAvailable = false;
+    }
+    state.peerStackedAvailable = !!(peerSum && peerStackedHasSignal(peerSum));
+    if (!state.peerStackedAvailable && state.peerBranchAvailable) {
+      state.peerStackedAvailable = state.peerBranchAvailable;
+    }
     if (!state.peerBranchAvailable) {
       Object.keys(state.peerOverlay).forEach(function (k) {
         state.peerOverlay[k] = false;
@@ -3699,17 +3716,26 @@
     });
   }
 
-  function qsForPeerBranch() {
+  function qsForPeerBranch(opts) {
+    opts = opts || {};
     var pk = peerBranchKey();
     if (!pk || !state.activeStream) return null;
     var p = qs();
+    if (opts.stripDrill !== false) {
+      p.delete("ad_unit");
+      p.delete("ad_units");
+      p.delete("area");
+      p.delete("drill_income_type");
+    }
     p.set("branch", pk);
+    p.set("project", state.activeStream.project || "doviz");
     var st = (state.streams || []).find(function (s) {
       return s.project === state.activeStream.project && s.branch === pk;
     });
-    if (st) {
-      p.set("project", st.project);
+    if (st && st.key) {
       p.set("stream", st.key);
+    } else {
+      p.set("stream", state.activeStream.project + ":" + pk);
     }
     return p;
   }
@@ -6453,6 +6479,12 @@
       renderCharts(sum);
       renderCompareMatrix(sum);
       finalizeMzTrendAndSparks(sum);
+      await refreshPeerBranchAvailability();
+      if (state.peerOverlay.line || state.peerSeparate.line) refreshChartLine();
+      if (state.peerOverlay.stacked || state.peerSeparate.stacked) refreshChartStacked();
+      if (state.peerOverlay.dual || state.peerSeparate.dual || state.peerOverlay.quality || state.peerSeparate.quality) {
+        renderExtendedCharts(sum).then(scheduleMzChartsResize);
+      }
       await Promise.all([
         refreshDetailTable(),
         refreshSummaryTable(),
