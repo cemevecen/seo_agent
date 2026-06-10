@@ -385,7 +385,6 @@
                   <input id="mz-drill-ga4-separate" type="checkbox" class="rounded border-slate-300 dark:border-zinc-600" />
                   GA4 ayrı grafik
                 </label>
-                <span id="mz-peer-toggle-drill-detail" class="hidden"></span>
               </div>
             </div>
           </div>
@@ -2792,16 +2791,40 @@
     refreshDetailTable().catch(function (err) { showPageError(err.message); });
   }
 
-  function rowsForChartDim(rows, dimKey) {
+  function sortChartRowsChronological(rows, dimKey) {
+    var key = dimKey;
+    return (rows || []).slice().sort(function (a, b) {
+      var va = a[key] != null ? String(a[key]) : "";
+      var vb = b[key] != null ? String(b[key]) : "";
+      if (key === "week") {
+        var wa = weekYearAndNum(va);
+        var wb = weekYearAndNum(vb);
+        if (wa && wb) {
+          if (wa.year !== wb.year) return wa.year - wb.year;
+          return wa.week - wb.week;
+        }
+      }
+      if (key === "date" || key === "month") {
+        return va.localeCompare(vb);
+      }
+      return b.net_revenue - a.net_revenue;
+    });
+  }
+
+  function rowsForChartDim(rows, dimKey, sortChronological) {
     var labelKey = dimKey;
-    return (rows || []).map(function (r) {
+    var out = (rows || []).map(function (r) {
       var o = {};
       o[labelKey] = r[labelKey] != null ? String(r[labelKey]) : "—";
       o.net_revenue = r.net_revenue || 0;
       o.impression = r.impression || 0;
       o.net_revenue_compare = r.net_revenue_compare;
       return o;
-    }).sort(function (a, b) { return b.net_revenue - a.net_revenue; });
+    });
+    if (sortChronological || labelKey === "date" || labelKey === "week" || labelKey === "month") {
+      return sortChartRowsChronological(out, labelKey);
+    }
+    return out.sort(function (a, b) { return b.net_revenue - a.net_revenue; });
   }
 
   var TABLE_SUM_ADD_KEYS = [
@@ -2919,16 +2942,19 @@
     var cmp = compareBlock(state.lastSummary);
     if (cfg.bdTime === "month" && !cfg.bdArea && !cfg.bdDims.size) {
       var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (state.lastSummary.by_month || []);
+      mo = sortChartRowsChronological(mo, "month");
       groupedBarPlot("mz-chart-bar-month", mo, "month", cmp);
       return;
     }
     try {
       var data = await fetchTableForScope("chartMonth", 80);
       var dim = cfg.bdTime || "month";
-      var rows = rowsForChartDim(data.rows, dim).slice(0, 36);
+      var limit = dim === "date" ? 400 : dim === "week" ? 120 : 36;
+      var rows = rowsForChartDim(data.rows, dim, true).slice(0, limit);
       groupedBarPlot("mz-chart-bar-month", rows, dim, !!data.compare_range);
     } catch (e) {
-      groupedBarPlot("mz-chart-bar-month", state.lastSummary.by_month || [], "month", cmp);
+      var fallbackMo = sortChartRowsChronological(state.lastSummary.by_month || [], "month");
+      groupedBarPlot("mz-chart-bar-month", fallbackMo, "month", cmp);
     }
   }
 
@@ -3641,7 +3667,8 @@
   function peerChartToggleVisible(chartKey) {
     if (!peerBranchKey()) return false;
     if (chartKey === "stacked") return !!state.peerStackedAvailable;
-    if (chartKey === "drillDetail" || chartKey === "drillSummary") {
+    if (chartKey === "drillDetail") return false;
+    if (chartKey === "drillSummary") {
       return !!state.peerBranchAvailable;
     }
     return !!state.peerBranchAvailable;
@@ -3873,7 +3900,6 @@
     mountPeerBranchToggle("mz-peer-toggle-dual", "dual");
     mountPeerBranchToggle("mz-peer-toggle-quality", "quality");
     mountPeerBranchToggle("mz-peer-toggle-stacked", "stacked");
-    mountPeerBranchToggle("mz-peer-toggle-drill-detail", "drillDetail");
     mountPeerBranchToggle("mz-peer-toggle-drill-summary", "drillSummary");
   }
 
@@ -4674,10 +4700,13 @@
         ga4OverlayOn = false;
         hideGa4SplitChart(scope);
       }
-      var peerChartKey = isSummary ? "drillSummary" : "drillDetail";
-      var peerOverlayDrill = isSummary ? state.peerOverlay.drillSummary : state.peerOverlay.drillDetail;
-      var peerSeparateDrill = isSummary ? state.peerSeparate.drillSummary : state.peerSeparate.drillDetail;
-      if ((peerOverlayDrill || peerSeparateDrill) && peerBranchKey() && !comparePair && state.peerBranchAvailable) {
+      if (!isSummary) {
+        hidePeerSplitChart("drillDetail");
+      }
+      var peerChartKey = "drillSummary";
+      var peerOverlayDrill = isSummary && state.peerOverlay.drillSummary;
+      var peerSeparateDrill = isSummary && state.peerSeparate.drillSummary;
+      if (isSummary && (peerOverlayDrill || peerSeparateDrill) && peerBranchKey() && !comparePair && state.peerBranchAvailable) {
         try {
           var peerDrill = await fetchPeerDrillChartData(scope, chartTimeKey, cfg, slice, drillSignal);
           if (!drillStale() && peerDrill && peerDrill.filtered && peerDrill.filtered.length) {
@@ -4747,8 +4776,8 @@
         } catch (_peerDrillErr) {
           hidePeerSplitChart(peerChartKey);
         }
-      } else {
-        hidePeerSplitChart(isSummary ? "drillSummary" : "drillDetail");
+      } else if (isSummary) {
+        hidePeerSplitChart("drillSummary");
       }
       if (drillStale()) return;
       await plotDrillChartEl(chartEl, traces, layout);
