@@ -15074,7 +15074,12 @@ def page_boards(request: Request):
     ]
     return templates.TemplateResponse(
         request, "pages/boards.html",
-        context={"request": request, "projects": projects, "token": token}
+        context={
+            "request": request,
+            "projects": projects,
+            "token": token,
+            "default_board_project": "ios/doviz",
+        },
     )
 
 @app.get("/api/boards/content")

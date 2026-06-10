@@ -223,6 +223,7 @@
       token: '{{ token }}',
       baseUrl: 'https://git.nokta.com/api/v4',
       configProjects: {{ projects | tojson | safe }},
+      defaultProjectPath: {{ default_board_project | tojson }},
       activeProject: null,
       projectData: {},
       vpnStatus: 'checking',
@@ -302,7 +303,10 @@
         this.configProjects.forEach(p => {
           this.projectData[p.path] = { loading: false, loaded: false, error: null, board: null, lists: [], issues: [] };
         });
-        if (this.configProjects.length > 0) this.activeProject = this.configProjects[0].path;
+        if (this.configProjects.length > 0) {
+          const preferred = this.configProjects.find((p) => p.path === this.defaultProjectPath);
+          this.activeProject = (preferred || this.configProjects[0]).path;
+        }
         this.checkVpn();
         this.configProjects.forEach(p => this.fetchProjectData(p.path));
       },
