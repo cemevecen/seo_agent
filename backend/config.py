@@ -400,14 +400,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXCLUDE_SLUGS", "doviz_asset_monitor_exclude_slugs"),
     )
     doviz_asset_monitor_open_issues_email: bool = Field(
-        default=True,
+        default=False,
         validation_alias=AliasChoices(
             "DOVIZ_ASSET_MONITOR_OPEN_ISSUES_EMAIL",
             "doviz_asset_monitor_open_issues_email",
         ),
     )
     doviz_asset_monitor_email_cooldown_hours: float = Field(
-        default=6.0,
+        default=1.0,
         ge=0.5,
         le=168.0,
         validation_alias=AliasChoices(

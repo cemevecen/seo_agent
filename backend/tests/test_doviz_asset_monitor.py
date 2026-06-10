@@ -54,3 +54,25 @@ def test_format_ts_tr_empty():
 
     assert format_ts_tr(None) == "—"
     assert format_ts_tr("2026-06-10T10:30:00Z")[:10] == "10.06.2026"
+
+
+def test_should_send_asset_email_only_on_new_alerts():
+    from backend.services.doviz_asset_monitor import _should_send_asset_email
+
+    assert _should_send_asset_email([], {}) is False
+    assert _should_send_asset_email([], {"last_email_at": "2020-01-01T00:00:00Z"}) is False
+
+
+def test_should_send_asset_email_respects_hourly_cooldown(monkeypatch):
+    from datetime import datetime, timezone
+
+    from backend.services import doviz_asset_monitor as mod
+
+    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_email_enabled", True)
+    monkeypatch.setattr(mod.settings, "outbound_email_enabled", True)
+    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_email_cooldown_hours", 1.0)
+
+    recent = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    alerts = [{"slug": "x", "kind": "prices_empty"}]
+    assert mod._should_send_asset_email(alerts, {"last_email_at": recent}) is False
+    assert mod._should_send_asset_email(alerts, {"last_email_at": "2020-01-01T00:00:00Z"}) is True

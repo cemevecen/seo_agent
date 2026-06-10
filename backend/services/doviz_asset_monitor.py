@@ -289,10 +289,15 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
         if prev_prices.get(key) and not p["has_price_rows"]:
             prices_lost.append(p)
 
+    prev_issue_state_early = prev_payload.get("issue_state") or {}
+
     alerts: list[dict[str, Any]] = []
     is_baseline = prev is None
     if not is_baseline:
         for slug in catalog_removed:
+            key = f"catalog:{slug}"
+            if key in prev_issue_state_early:
+                continue
             alerts.append(
                 {
                     "kind": "catalog_removed",
@@ -317,9 +322,12 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
     for p in prices_missing:
         if p["slug"] in catalog_removed:
             continue
+        key = _probe_key(p["slug"], p["host"])
         if is_baseline:
             if p["slug"] not in watch:
                 continue
+        elif key in prev_issue_state_early:
+            continue
         alerts.append(
             {
                 "kind": "prices_empty",
@@ -370,11 +378,18 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
     db.refresh(run)
 
     open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
-    if _should_send_asset_email(alerts, open_issues, prev_payload, scan_iso):
+    if alerts:
+        _record_monitor_alerts(alerts, payload, scan_iso=scan_iso, open_issues=open_issues)
+    if _should_send_asset_email(alerts, prev_payload):
         payload["last_email_at"] = scan_iso
         run.payload_json = json.dumps(payload, ensure_ascii=False)
         db.commit()
-        _notify_alerts(alerts, payload, scan_iso=scan_iso, open_issues=open_issues)
+        _send_asset_monitor_email(alerts, payload, scan_iso=scan_iso)
+    elif alerts:
+        logger.info(
+            "Döviz varlık maili atlandı: yeni uyarı var ama saatlik cooldown aktif (son mail %s).",
+            prev_payload.get("last_email_at"),
+        )
 
     return {
         "run_id": run.id,
@@ -401,26 +416,21 @@ def _hours_since(iso_z: str) -> float:
 
 def _should_send_asset_email(
     alerts: list[dict[str, Any]],
-    open_issues: list[dict[str, Any]],
     prev_payload: dict[str, Any],
-    scan_iso: str,
 ) -> bool:
-    if alerts:
-        return True
-    if not open_issues:
-        return False
-    if not settings.doviz_asset_monitor_open_issues_email:
+    """Yalnızca bu turda yeni uyarı varsa; en fazla cooldown saatte bir mail."""
+    if not alerts:
         return False
     if not settings.doviz_asset_monitor_email_enabled or not settings.outbound_email_enabled:
         return False
     last = prev_payload.get("last_email_at")
-    cooldown = float(settings.doviz_asset_monitor_email_cooldown_hours or 6)
-    if not last:
-        return True
-    return _hours_since(last) >= cooldown
+    cooldown = float(settings.doviz_asset_monitor_email_cooldown_hours or 1)
+    if last and _hours_since(last) < cooldown:
+        return False
+    return True
 
 
-def _notify_alerts(
+def _record_monitor_alerts(
     alerts: list[dict[str, Any]],
     payload: dict[str, Any],
     *,
@@ -433,14 +443,8 @@ def _notify_alerts(
     critical = [a for a in alerts if a.get("severity") == "critical"]
     title_slugs = ", ".join({a.get("slug", "?") for a in critical[:5]})
     if not title_slugs:
-        title_slugs = ", ".join({a.get("slug", "?") for a in (alerts or open_issues)[:5]})
-
+        title_slugs = ", ".join({a.get("slug", "?") for a in alerts[:5]})
     summary_lines = [a.get("message", "") for a in alerts[:25]]
-    if not summary_lines and open_issues:
-        summary_lines = [
-            f"{i.get('slug')} @ {i.get('host') or 'katalog'} (ilk: {i.get('first_seen_tr')})"
-            for i in open_issues[:6]
-        ]
     create_alert(
         alert_type="doviz_asset_monitor",
         severity="critical" if critical else "warning",
@@ -455,12 +459,23 @@ def _notify_alerts(
         },
     )
 
-    if not settings.doviz_asset_monitor_email_enabled:
-        return
-    if not settings.outbound_email_enabled:
+
+def _send_asset_monitor_email(
+    alerts: list[dict[str, Any]],
+    payload: dict[str, Any],
+    *,
+    scan_iso: str,
+) -> None:
+    if not settings.doviz_asset_monitor_email_enabled or not settings.outbound_email_enabled:
         return
 
     from backend.services.mailer import send_email
+
+    scan_tr = format_ts_tr(scan_iso)
+    critical = [a for a in alerts if a.get("severity") == "critical"]
+    title_slugs = ", ".join({a.get("slug", "?") for a in critical[:5]})
+    if not title_slugs:
+        title_slugs = ", ".join({a.get("slug", "?") for a in alerts[:5]})
 
     def _row_alert(a: dict[str, Any]) -> str:
         return (
@@ -472,38 +487,24 @@ def _notify_alerts(
             f"<td>{html_esc(a.get('message', ''))}</td></tr>"
         )
 
-    def _row_open(i: dict[str, Any]) -> str:
-        return (
-            f"<tr><td>{html_esc(i.get('kind', ''))}</td>"
-            f"<td><b>{html_esc(i.get('slug', ''))}</b></td>"
-            f"<td>{html_esc(i.get('host', ''))}</td>"
-            f"<td>{html_esc(i.get('first_seen_tr', ''))}</td>"
-            f"<td>{html_esc(i.get('last_seen_tr', ''))}</td>"
-            f"<td>Devam ediyor</td></tr>"
-        )
-
     alert_rows = "".join(_row_alert(a) for a in alerts[:40])
-    open_rows = "".join(_row_open(i) for i in open_issues[:40])
     th = (
         "<tr><th>Tür</th><th>Slug</th><th>Host</th>"
         "<th>İlk tespit (TR)</th><th>Son kontrol (TR)</th><th>Not</th></tr>"
     )
-    sections = []
-    if alerts:
-        sections.append(f"<h3>Bu taramada yeni uyarı ({len(alerts)})</h3><table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;font-size:13px\">{th}{alert_rows}</table>")
-    if open_issues:
-        sections.append(
-            f"<h3>Açık sorunlar ({len(open_issues)})</h3>"
-            f"<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;font-size:13px\">{th}{open_rows}</table>"
-        )
+    section = (
+        f"<h3>Bu taramada yeni uyarı ({len(alerts)})</h3>"
+        f'<table border="1" cellpadding="6" cellspacing="0" '
+        f'style="border-collapse:collapse;font-size:13px">{th}{alert_rows}</table>'
+    )
     body = f"""
     <h2>Döviz varlık izleme</h2>
     <p><b>Tarama:</b> {html_esc(scan_tr)} (UTC {html_esc(scan_iso[:19])}Z)<br/>
     Katalog: {len(payload.get('catalog_slugs') or [])} banka</p>
-    {"".join(sections)}
+    {section}
     <p><a href="https://projectcontrol.up.railway.app/doviz-varliklar">Panel: Döviz varlıklar</a></p>
     """
-    subject = f"[Döviz varlık] {scan_tr} — {len(alerts)} yeni, {len(open_issues)} açık — {title_slugs[:60]}"
+    subject = f"[Döviz varlık] {scan_tr} — {len(alerts)} yeni — {title_slugs[:60]}"
     try:
         send_email(subject, body)
     except Exception as exc:
