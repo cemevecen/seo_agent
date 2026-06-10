@@ -395,6 +395,10 @@ class Settings(BaseSettings):
         default="kuveyt-turk",
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXTRA_SLUGS", "doviz_asset_monitor_extra_slugs"),
     )
+    doviz_asset_monitor_exclude_slugs: str = Field(
+        default="merkez-bankasi",
+        validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXCLUDE_SLUGS", "doviz_asset_monitor_exclude_slugs"),
+    )
 
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 

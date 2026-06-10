@@ -26,6 +26,19 @@ _BANK_SLUG_RE = re.compile(
 _TR_ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.I | re.S)
 _NUMERIC_CELL_RE = re.compile(r"\d[\d.,]{2,}")
 
+# altin.doviz.com menüsünde banka altını değil (TCMB / haber köprüsü).
+_CATALOG_SLUG_EXCLUDE = frozenset({"merkez-bankasi"})
+
+
+def _excluded_slugs() -> set[str]:
+    raw = (getattr(settings, "doviz_asset_monitor_exclude_slugs", None) or "merkez-bankasi").strip()
+    out = set(_CATALOG_SLUG_EXCLUDE)
+    for part in raw.split(","):
+        s = part.strip().lower()
+        if s:
+            out.add(s)
+    return out
+
 
 @dataclass(frozen=True)
 class ProbeResult:
@@ -74,7 +87,9 @@ def discover_bank_slugs_from_catalog(catalog_url: str | None = None) -> list[str
     if status != 200 or not html:
         logger.warning("Döviz katalog çekilemedi: %s status=%s", url, status)
         return []
-    return sorted({m.group(1).lower() for m in _BANK_SLUG_RE.finditer(html)})
+    slugs = sorted({m.group(1).lower() for m in _BANK_SLUG_RE.finditer(html)})
+    ex = _excluded_slugs()
+    return [s for s in slugs if s not in ex]
 
 
 def probe_bank_on_host(slug: str, host: str) -> ProbeResult:
@@ -115,7 +130,8 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
         for s in (settings.doviz_asset_monitor_extra_slugs or "").split(",")
         if s.strip()
     ]
-    slug_set = sorted(set(catalog) | set(extra))
+    ex = _excluded_slugs()
+    slug_set = sorted((set(catalog) | set(extra)) - ex)
 
     probes: list[dict[str, Any]] = []
     for slug in slug_set:

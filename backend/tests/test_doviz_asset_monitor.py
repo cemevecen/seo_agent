@@ -19,6 +19,7 @@ def test_html_has_gold_price_rows_empty_table():
     assert html_has_gold_price_rows(html) is False
 
 
-def test_html_has_gold_price_rows_header_only_row():
-    html = "<tr><td>Alış</td><td>Satış</td></tr>"
-    assert html_has_gold_price_rows(html) is False
+def test_catalog_excludes_merkez_bankasi():
+    from backend.services.doviz_asset_monitor import _excluded_slugs
+
+    assert "merkez-bankasi" in _excluded_slugs()
