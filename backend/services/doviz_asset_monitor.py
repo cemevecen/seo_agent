@@ -1,0 +1,307 @@
+"""Döviz banka altını / varlık kataloğu ve fiyat satırı izleme (web → app sinyali)."""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+from sqlalchemy.orm import Session
+
+from backend.config import settings
+from backend.models import DovizAssetMonitorRun
+
+logger = logging.getLogger(__name__)
+
+_FETCH_UA = "Mozilla/5.0 (compatible; SeoAgent-DovizAssetMonitor/1.0)"
+_BANK_SLUG_RE = re.compile(
+    r'href="(?:https://(?:altin|m)\.doviz\.com)?/([a-z0-9][a-z0-9\-]*bank[a-z0-9\-]*|kuveyt-turk)"',
+    re.I,
+)
+_TR_ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.I | re.S)
+_NUMERIC_CELL_RE = re.compile(r"\d[\d.,]{2,}")
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    slug: str
+    host: str
+    url: str
+    http_status: int
+    has_price_rows: bool
+    error: str = ""
+
+
+def _fetch_text(url: str, *, timeout: int = 25) -> tuple[int, str]:
+    req = Request(url, headers={"User-Agent": _FETCH_UA, "Accept": "text/html,*/*"})
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            body = resp.read()
+            charset = getattr(resp.headers, "get_content_charset", lambda: None)() or "utf-8"
+            return int(resp.status), body.decode(charset, errors="replace")
+    except HTTPError as exc:
+        try:
+            raw = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            raw = ""
+        return int(exc.code), raw
+    except URLError as exc:
+        return 0, str(exc.reason or exc)
+
+
+def html_has_gold_price_rows(html: str) -> bool:
+    """Banka altın tablosunda sayısal alış/satış satırı var mı (başlık satırları hariç)."""
+    if not html:
+        return False
+    for tr in _TR_ROW_RE.findall(html):
+        low = tr.lower()
+        if "alış" in low or "satış" in low or "satis" in low:
+            if low.count("<td") <= 1:
+                continue
+        if _NUMERIC_CELL_RE.search(tr):
+            return True
+    return False
+
+
+def discover_bank_slugs_from_catalog(catalog_url: str | None = None) -> list[str]:
+    url = (catalog_url or settings.doviz_asset_monitor_catalog_url or "https://altin.doviz.com/").strip()
+    status, html = _fetch_text(url)
+    if status != 200 or not html:
+        logger.warning("Döviz katalog çekilemedi: %s status=%s", url, status)
+        return []
+    return sorted({m.group(1).lower() for m in _BANK_SLUG_RE.finditer(html)})
+
+
+def probe_bank_on_host(slug: str, host: str) -> ProbeResult:
+    host = host.strip().lower()
+    if host == "m.doviz.com":
+        path = f"/altin/{slug}"
+    elif host == "altin.doviz.com":
+        path = f"/{slug}"
+    else:
+        path = f"/altin/{slug}"
+    url = f"https://{host}{path}"
+    status, html = _fetch_text(url)
+    err = ""
+    if status == 0:
+        err = html[:200]
+    has_rows = status == 200 and html_has_gold_price_rows(html)
+    return ProbeResult(
+        slug=slug,
+        host=host,
+        url=url,
+        http_status=status,
+        has_price_rows=has_rows,
+        error=err,
+    )
+
+
+def _probe_hosts() -> list[str]:
+    raw = (settings.doviz_asset_monitor_probe_hosts or "m.doviz.com,altin.doviz.com").strip()
+    return [h.strip() for h in raw.split(",") if h.strip()]
+
+
+def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
+    """Katalog + fiyat sondası; önceki çalışmayla diff; uyarı üret."""
+    hosts = _probe_hosts()
+    catalog = discover_bank_slugs_from_catalog()
+    extra = [
+        s.strip().lower()
+        for s in (settings.doviz_asset_monitor_extra_slugs or "").split(",")
+        if s.strip()
+    ]
+    slug_set = sorted(set(catalog) | set(extra))
+
+    probes: list[dict[str, Any]] = []
+    for slug in slug_set:
+        for host in hosts:
+            pr = probe_bank_on_host(slug, host)
+            probes.append(
+                {
+                    "slug": pr.slug,
+                    "host": pr.host,
+                    "url": pr.url,
+                    "http_status": pr.http_status,
+                    "has_price_rows": pr.has_price_rows,
+                    "error": pr.error,
+                }
+            )
+
+    prev = (
+        db.query(DovizAssetMonitorRun)
+        .order_by(DovizAssetMonitorRun.collected_at.desc())
+        .offset(1)
+        .first()
+    )
+    prev_payload = json.loads(prev.payload_json) if prev and prev.payload_json else {}
+    prev_catalog = set(prev_payload.get("catalog_slugs") or [])
+    prev_prices: dict[str, bool] = {}
+    for p in prev_payload.get("probes") or []:
+        key = f"{p.get('slug')}|{p.get('host')}"
+        prev_prices[key] = bool(p.get("has_price_rows"))
+
+    curr_catalog = set(catalog)
+    catalog_removed = sorted(prev_catalog - curr_catalog) if prev_catalog else []
+    catalog_added = sorted(curr_catalog - prev_catalog) if prev_catalog else []
+
+    prices_lost: list[dict[str, Any]] = []
+    prices_missing: list[dict[str, Any]] = []
+    for p in probes:
+        key = f"{p['slug']}|{p['host']}"
+        if p["http_status"] == 200 and not p["has_price_rows"]:
+            prices_missing.append(p)
+        if prev_prices.get(key) and not p["has_price_rows"]:
+            prices_lost.append(p)
+
+    alerts: list[dict[str, Any]] = []
+    is_baseline = prev is None
+    if not is_baseline:
+        for slug in catalog_removed:
+            alerts.append(
+                {
+                    "kind": "catalog_removed",
+                    "severity": "critical",
+                    "slug": slug,
+                    "message": f"Katalogdan kalktı: {slug} (altin.doviz.com indeks)",
+                }
+            )
+    if not is_baseline:
+        for p in prices_lost:
+            alerts.append(
+                {
+                    "kind": "prices_lost",
+                    "severity": "critical",
+                    "slug": p["slug"],
+                    "host": p["host"],
+                    "url": p["url"],
+                    "message": f"Fiyat satırları kayboldu: {p['slug']} @ {p['host']}",
+                }
+            )
+    watch = set(extra)
+    for p in prices_missing:
+        if p["slug"] in catalog_removed:
+            continue
+        if is_baseline:
+            if p["slug"] not in watch:
+                continue
+        alerts.append(
+            {
+                "kind": "prices_empty",
+                "severity": "warning",
+                "slug": p["slug"],
+                "host": p["host"],
+                "url": p["url"],
+                "message": f"Sayfa var, fiyat yok: {p['slug']} @ {p['host']}",
+            }
+        )
+
+    payload = {
+        "catalog_url": settings.doviz_asset_monitor_catalog_url,
+        "catalog_slugs": catalog,
+        "slug_set": slug_set,
+        "probes": probes,
+        "catalog_added": catalog_added,
+        "catalog_removed": catalog_removed,
+        "prices_lost": prices_lost,
+        "prices_missing": prices_missing,
+        "alerts": alerts,
+    }
+
+    run = DovizAssetMonitorRun(
+        collected_at=datetime.utcnow(),
+        catalog_count=len(catalog),
+        alert_count=len(alerts),
+        payload_json=json.dumps(payload, ensure_ascii=False),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    if alerts:
+        _notify_alerts(alerts, payload)
+
+    return {"run_id": run.id, "catalog_count": len(catalog), "alert_count": len(alerts), "alerts": alerts}
+
+
+def _notify_alerts(alerts: list[dict[str, Any]], payload: dict[str, Any]) -> None:
+    from backend.services.agent_tools import create_alert
+
+    critical = [a for a in alerts if a.get("severity") == "critical"]
+    title_slugs = ", ".join({a.get("slug", "?") for a in critical[:5]})
+    if not title_slugs:
+        title_slugs = ", ".join({a.get("slug", "?") for a in alerts[:5]})
+
+    summary_lines = [a.get("message", "") for a in alerts[:25]]
+    create_alert(
+        alert_type="doviz_asset_monitor",
+        severity="critical" if critical else "warning",
+        title=f"Döviz varlık/banka: {title_slugs}",
+        summary=" · ".join(summary_lines[:6]),
+        detail={"alerts": alerts, "catalog_removed": payload.get("catalog_removed"), "prices_lost": payload.get("prices_lost")},
+    )
+
+    if not settings.doviz_asset_monitor_email_enabled:
+        return
+    if not settings.outbound_email_enabled:
+        return
+
+    from backend.services.mailer import send_email
+
+    rows = "".join(
+        f"<tr><td>{html_esc(a.get('kind',''))}</td><td><b>{html_esc(a.get('slug',''))}</b></td>"
+        f"<td>{html_esc(a.get('host',''))}</td><td>{html_esc(a.get('message',''))}</td></tr>"
+        for a in alerts[:40]
+    )
+    body = f"""
+    <h2>Döviz varlık izleme</h2>
+    <p>Katalog: {payload.get('catalog_count', len(payload.get('catalog_slugs') or []))} banka ·
+    Uyarı: {len(alerts)}</p>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:13px">
+    <tr><th>Tür</th><th>Slug</th><th>Host</th><th>Mesaj</th></tr>
+    {rows}
+    </table>
+    <p><a href="https://projectcontrol.up.railway.app/doviz-varliklar">Panel: Döviz varlıklar</a></p>
+    """
+    subject = f"[Döviz varlık] {len(alerts)} uyarı — {title_slugs[:80]}"
+    try:
+        send_email(subject, body)
+    except Exception as exc:
+        logger.warning("Döviz varlık maili gönderilemedi: %s", exc)
+
+
+def html_esc(s: str) -> str:
+    return (
+        str(s or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def get_latest_run(db: Session) -> dict[str, Any] | None:
+    row = db.query(DovizAssetMonitorRun).order_by(DovizAssetMonitorRun.collected_at.desc()).first()
+    if not row:
+        return None
+    return {
+        "id": row.id,
+        "collected_at": row.collected_at.isoformat() + "Z",
+        "catalog_count": row.catalog_count,
+        "alert_count": row.alert_count,
+        "payload": json.loads(row.payload_json or "{}"),
+    }
+
+
+def cleanup_old_runs(db: Session, *, keep_days: int = 30) -> int:
+    cutoff = datetime.utcnow() - timedelta(days=max(1, keep_days))
+    deleted = (
+        db.query(DovizAssetMonitorRun)
+        .filter(DovizAssetMonitorRun.collected_at < cutoff)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return int(deleted or 0)

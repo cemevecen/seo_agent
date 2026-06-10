@@ -956,6 +956,18 @@ class NotificationAnalyticsWorkspace(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class DovizAssetMonitorRun(Base):
+    """Döviz banka altını katalog + fiyat satırı sondası (web/app veri kaybı)."""
+
+    __tablename__ = "doviz_asset_monitor_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    catalog_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    alert_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+
+
 class AiTalkAlert(Base):
     """Proaktif izleme uyarıları."""
     __tablename__ = "ai_talk_alerts"

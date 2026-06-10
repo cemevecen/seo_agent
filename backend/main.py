@@ -3552,6 +3552,32 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         misfire_grace_time=1800,
     )
 
+    if settings.doviz_asset_monitor_enabled:
+        from apscheduler.triggers.interval import IntervalTrigger as _DovizAssetTrigger
+
+        def _run_doviz_asset_monitor_job():
+            try:
+                from backend.services.doviz_asset_monitor import cleanup_old_runs, run_doviz_asset_monitor
+
+                with SessionLocal() as db:
+                    run_doviz_asset_monitor(db)
+                    cleanup_old_runs(db, keep_days=30)
+            except Exception as _dz_exc:
+                logging.getLogger(__name__).warning("Döviz varlık izleme hatası: %s", _dz_exc)
+
+        dz_iv = max(5, int(settings.doviz_asset_monitor_interval_minutes))
+        scheduler.add_job(
+            _run_doviz_asset_monitor_job,
+            trigger=_DovizAssetTrigger(minutes=dz_iv, timezone=timezone),
+            id="doviz-asset-monitor",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=max(600, dz_iv * 60),
+        )
+        job_count += 1
+        LOGGER.info("Döviz varlık izleme aktif: her %d dk.", dz_iv)
+
     # AI Talk proaktif izleme — her 30 dakikada bir
     from apscheduler.triggers.interval import IntervalTrigger as _AiMonitorTrigger
     def _run_proactive_monitor():
@@ -10420,6 +10446,46 @@ def api_seo_audit_changes(site_id: int, days: int = 7):
     from backend.services.meta_audit import get_changes
     with SessionLocal() as db:
         return {"changes": get_changes(db, site_id, days=days)}
+
+
+@app.get("/doviz-varliklar")
+def doviz_assets_page(request: Request):
+    """Döviz banka altını katalog / fiyat kaybı izleme paneli."""
+    from backend.services.doviz_asset_monitor import get_latest_run
+
+    with SessionLocal() as db:
+        latest = get_latest_run(db)
+    payload = (latest or {}).get("payload") or {}
+    return templates.TemplateResponse(
+        request,
+        "doviz_assets.html",
+        context={
+            "request": request,
+            "sites": get_sidebar_sites(),
+            "run": latest,
+            "alerts": payload.get("alerts") or [],
+            "missing": payload.get("prices_missing") or [],
+            "catalog_removed": payload.get("catalog_removed") or [],
+        },
+    )
+
+
+@app.post("/api/doviz-asset-monitor/run")
+def api_doviz_asset_monitor_run():
+    from backend.services.doviz_asset_monitor import cleanup_old_runs, run_doviz_asset_monitor
+
+    with SessionLocal() as db:
+        out = run_doviz_asset_monitor(db)
+        cleanup_old_runs(db, keep_days=30)
+    return JSONResponse(out)
+
+
+@app.get("/api/doviz-asset-monitor/latest")
+def api_doviz_asset_monitor_latest():
+    from backend.services.doviz_asset_monitor import get_latest_run
+
+    with SessionLocal() as db:
+        return JSONResponse(get_latest_run(db) or {})
 
 
 @app.get("/errors")

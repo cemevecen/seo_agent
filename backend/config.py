@@ -368,6 +368,34 @@ class Settings(BaseSettings):
     # Gecelik cleanup sonrası tam DB VACUUM ANALYZE (Postgres). Varsayılan kapalı.
     db_retention_run_vacuum: bool = False
 
+    # Döviz banka altını / varlık katalog + fiyat satırı izleme (web → app veri kaybı).
+    doviz_asset_monitor_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_ENABLED", "doviz_asset_monitor_enabled"),
+    )
+    doviz_asset_monitor_interval_minutes: int = Field(
+        default=30,
+        ge=5,
+        le=1440,
+        validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_INTERVAL_MINUTES", "doviz_asset_monitor_interval_minutes"),
+    )
+    doviz_asset_monitor_email_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EMAIL_ENABLED", "doviz_asset_monitor_email_enabled"),
+    )
+    doviz_asset_monitor_catalog_url: str = Field(
+        default="https://altin.doviz.com/",
+        validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_CATALOG_URL", "doviz_asset_monitor_catalog_url"),
+    )
+    doviz_asset_monitor_probe_hosts: str = Field(
+        default="m.doviz.com,altin.doviz.com",
+        validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_PROBE_HOSTS", "doviz_asset_monitor_probe_hosts"),
+    )
+    doviz_asset_monitor_extra_slugs: str = Field(
+        default="kuveyt-turk",
+        validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXTRA_SLUGS", "doviz_asset_monitor_extra_slugs"),
+    )
+
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
     @model_validator(mode="after")

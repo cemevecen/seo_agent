@@ -7,7 +7,9 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">Hata İzleme</h2>
-        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Son <span id="days-label">{{ days }}</span> gün</p>
+        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Son <span id="days-label">{{ days }}</span> gün ·
+          <a href="/doviz-varliklar" class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Döviz varlık/banka</a>
+        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select onchange="window.location='/errors?site_id='+this.value+'&days={{ days }}'"
