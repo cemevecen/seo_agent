@@ -6283,6 +6283,41 @@
     });
   }
 
+  function applyStreamCalendarBounds(st) {
+    var startEl = document.getElementById("mz-start");
+    var endEl = document.getElementById("mz-end");
+    if (!startEl || !endEl || !st || !st.min_date) return;
+    startEl.setAttribute("data-min", st.min_date);
+    endEl.setAttribute("data-max", st.max_date || st.min_date);
+  }
+
+  /** Sekme değişince preset veya özel tarih aralığını koru; yalnızca yeni dalın min/max’ına kırp. */
+  function preserveDateRangeForStream(st) {
+    applyStreamCalendarBounds(st);
+    var presetEl = document.getElementById("mz-preset");
+    if (presetEl && presetEl.value) {
+      applyPreset();
+      return;
+    }
+    var startEl = document.getElementById("mz-start");
+    var endEl = document.getElementById("mz-end");
+    var minD = (startEl.getAttribute("data-min") || "").slice(0, 10);
+    var maxD = (endEl.getAttribute("data-max") || "").slice(0, 10);
+    var startV = (startEl.value || "").slice(0, 10);
+    var endV = (endEl.value || "").slice(0, 10);
+    if (!endV && maxD) endEl.value = maxD;
+    endV = (endEl.value || "").slice(0, 10);
+    if (maxD && endV && endV > maxD) endEl.value = maxD;
+    if (minD && endV && endV < minD) endEl.value = minD;
+    endV = (endEl.value || "").slice(0, 10);
+    if (minD && startV && startV < minD) startEl.value = minD;
+    if (maxD && startV && startV > maxD) startEl.value = maxD;
+    startV = (startEl.value || "").slice(0, 10);
+    if (startV && endV && startV > endV) startEl.value = endV;
+    if (!startV && minD) startEl.value = minD;
+    updateComparePeriodBanner(state.lastSummary);
+  }
+
   function applyPreset() {
     var v = document.getElementById("mz-preset").value;
     var end = document.getElementById("mz-end");
@@ -6342,12 +6377,7 @@
         ensureActiveKpi(activeKpiDefs(null));
         renderStreamTabs();
         updateScopeUi();
-        if (st.min_date) {
-          document.getElementById("mz-start").setAttribute("data-min", st.min_date);
-          document.getElementById("mz-end").setAttribute("data-max", st.max_date || st.min_date);
-        }
-        document.getElementById("mz-preset").value = "1y";
-        applyPreset();
+        preserveDateRangeForStream(st);
         loadDetailFavorites();
         renderDetailFavorites();
         syncUrlNow();
@@ -6377,8 +6407,7 @@
       var statusEl = document.getElementById("mz-status");
       if (statusEl) statusEl.textContent = "DB: " + (f.total_rows || 0).toLocaleString("tr-TR") + " satır";
       if (state.activeStream && state.activeStream.min_date) {
-        document.getElementById("mz-start").setAttribute("data-min", state.activeStream.min_date);
-        document.getElementById("mz-end").setAttribute("data-max", state.activeStream.max_date);
+        applyStreamCalendarBounds(state.activeStream);
       } else if (f.min_date) {
         document.getElementById("mz-start").setAttribute("data-min", f.min_date);
         document.getElementById("mz-end").setAttribute("data-max", f.max_date);
@@ -6389,9 +6418,13 @@
           document.getElementById("mz-preset").value = "ytd";
           applyPreset();
         }
-      } else {
+        state._mzDateRangeInitialized = true;
+      } else if (!state._mzDateRangeInitialized) {
         document.getElementById("mz-preset").value = "ytd";
         applyPreset();
+        state._mzDateRangeInitialized = true;
+      } else if (state.activeStream) {
+        preserveDateRangeForStream(state.activeStream);
       }
       var incomeList = f.income_types || [];
       state._mzIncomeFacetList = incomeList;
