@@ -123,6 +123,7 @@
       <div id="mz-kpi-grid" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
+      <div id="mz-peer-toggle-kpi" class="hidden flex flex-wrap justify-end"></div>
       <p id="mz-range-label" class="text-xs text-slate-500 dark:text-zinc-400"></p>
 
       <div id="mz-compare-panels-wrap" class="hidden grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
@@ -168,18 +169,27 @@
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
           <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
-          <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <div id="mz-peer-toggle-line" class="hidden shrink-0"></div>
+            <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
+          </div>
         </div>
         <div id="mz-chart-line" class="mz-chart-plot" data-mz-chart-h="300"></div>
       </div>
 
       <div id="mz-dual-quality-row" class="compare-dual-quality-row grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük — gelir ve gösterim (çift eksen)</h2>
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük — gelir ve gösterim (çift eksen)</h2>
+            <div id="mz-peer-toggle-dual" class="hidden shrink-0"></div>
+          </div>
           <div id="mz-chart-dual" class="mz-chart-plot" data-mz-chart-h="280"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
-          <h2 class="mb-2 text-sm font-bold text-slate-700 dark:text-zinc-100">Kalite metrikleri (günlük)</h2>
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Kalite metrikleri (günlük)</h2>
+            <div id="mz-peer-toggle-quality" class="hidden shrink-0"></div>
+          </div>
           <div id="mz-chart-quality" class="mz-chart-plot" data-mz-chart-h="280"></div>
         </div>
       </div>
@@ -187,7 +197,10 @@
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
           <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi — zaman (yığılmış alan)</h2>
-          <div id="mz-bd-toolbar-stacked" class="mz-bd-toolbar" data-bd-scope="chartStacked" data-bd-mode="stacked"></div>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <div id="mz-peer-toggle-stacked" class="hidden shrink-0"></div>
+            <div id="mz-bd-toolbar-stacked" class="mz-bd-toolbar" data-bd-scope="chartStacked" data-bd-mode="stacked"></div>
+          </div>
         </div>
         <div id="mz-chart-stacked-income" class="mz-chart-plot" data-mz-chart-h="300"></div>
       </div>
@@ -356,6 +369,7 @@
                   <input id="mz-drill-ga4-separate" type="checkbox" class="rounded border-slate-300 dark:border-zinc-600" />
                   GA4 ayrı grafik
                 </label>
+                <span id="mz-peer-toggle-drill-detail" class="hidden"></span>
               </div>
             </div>
           </div>
@@ -420,6 +434,7 @@
                   <input id="mz-summary-drill-ga4-separate" type="checkbox" class="rounded border-slate-300 dark:border-zinc-600" />
                   GA4 ayrı grafik
                 </label>
+                <span id="mz-peer-toggle-drill-summary" class="hidden"></span>
               </div>
             </div>
           </div>
@@ -544,6 +559,18 @@
     ga4MobileOverlay: null,
     _ga4MobileOverlayPromise: null,
     ga4SeparateChart: false,
+    peerOverlay: {
+      kpi: false,
+      line: false,
+      dual: false,
+      quality: false,
+      stacked: false,
+      drillDetail: false,
+      drillSummary: false,
+    },
+    peerSummary: null,
+    _peerSummaryKey: "",
+    _peerSummaryPromise: null,
   };
 
   function showPageError(msg) {
@@ -2827,6 +2854,7 @@
 
   async function refreshChartLine() {
     if (!window.Plotly || !state.lastSummary) return;
+    var peerSum = state.peerOverlay.line ? await ensurePeerSummary() : null;
     var cfg = state.breakdowns.chartLine;
     var cmp = compareBlock(state.lastSummary);
     var dim = cfg.bdTime || "date";
@@ -2835,7 +2863,7 @@
       "date"
     );
     if (dim === "date" && !cfg.bdArea && !cfg.bdDims.size) {
-      renderLineChart(byDate, state.activeKpiKey, cmp, "date");
+      renderLineChart(byDate, state.activeKpiKey, cmp, "date", peerSum);
       return;
     }
     try {
@@ -2843,9 +2871,9 @@
       var data = await fetchTableForScope("chartLine", fetchLimit);
       var pseudo = aggregateTableRowsByDim(data.rows, dim);
       pseudo = filterSeriesForChartView(pseudo, dim, state.lastSummary);
-      renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, cmp, dim);
+      renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, cmp, dim, peerSum);
     } catch (e) {
-      renderLineChart(byDate, state.activeKpiKey, cmp, "date");
+      renderLineChart(byDate, state.activeKpiKey, cmp, "date", peerSum);
     }
   }
 
@@ -2889,6 +2917,7 @@
 
   async function refreshChartStacked() {
     if (!window.Plotly || !state.lastSummary) return;
+    var peerSum = state.peerOverlay.stacked ? await ensurePeerSummary() : null;
     var cfg = state.breakdowns.chartStacked;
     var seriesKey = cfg.stackedDim || "income_type";
     var timeKey = cfg.bdTime || "date";
@@ -2942,6 +2971,16 @@
       var stackedLayout = plotTheme({ yTitle: "TL" });
       if (revAligned && revAligned.length) {
         stackedLayout = applyCompareLayout(stackedLayout, xAxis.length);
+      }
+      if (peerSum && !revAligned) {
+        var peerDates = dates;
+        appendPeerScatterTrace(
+          stackTraces,
+          peerDates,
+          "net_revenue",
+          peerSum,
+          peerBranchLabel() + " · toplam"
+        );
       }
       plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, { minHeight: 240 });
       return;
@@ -3387,6 +3426,212 @@
   function clearGa4MobileOverlayCache() {
     state.ga4MobileOverlay = null;
     state._ga4MobileOverlayPromise = null;
+  }
+
+  var PEER_BRANCH_COLORS = { android: "#22c55e", ios: "#a855f7" };
+
+  function peerBranchKey() {
+    var br = state.activeStream && state.activeStream.branch;
+    if (br === "android") return "ios";
+    if (br === "ios") return "android";
+    return null;
+  }
+
+  function peerBranchLabel() {
+    var k = peerBranchKey();
+    if (k === "ios") return "iOS";
+    if (k === "android") return "Android";
+    return "";
+  }
+
+  function peerOverlayLineColor() {
+    var k = peerBranchKey();
+    return (k && PEER_BRANCH_COLORS[k]) || "#f59e0b";
+  }
+
+  function anyPeerOverlayOn() {
+    var o = state.peerOverlay || {};
+    return !!(o.kpi || o.line || o.dual || o.quality || o.stacked || o.drillDetail || o.drillSummary);
+  }
+
+  function clearPeerSummaryCache() {
+    state.peerSummary = null;
+    state._peerSummaryKey = "";
+    state._peerSummaryPromise = null;
+  }
+
+  function resetPeerOverlayToggles() {
+    state.peerOverlay = {
+      kpi: false,
+      line: false,
+      dual: false,
+      quality: false,
+      stacked: false,
+      drillDetail: false,
+      drillSummary: false,
+    };
+    clearPeerSummaryCache();
+    mountAllPeerBranchToggles();
+  }
+
+  function qsForPeerBranch() {
+    var pk = peerBranchKey();
+    if (!pk || !state.activeStream) return null;
+    var p = qs();
+    p.set("branch", pk);
+    var st = (state.streams || []).find(function (s) {
+      return s.project === state.activeStream.project && s.branch === pk;
+    });
+    if (st) {
+      p.set("project", st.project);
+      p.set("stream", st.key);
+    }
+    return p;
+  }
+
+  function peerSummaryCacheKey() {
+    var p = qsForPeerBranch();
+    return p ? p.toString() : "";
+  }
+
+  async function ensurePeerSummary(signal) {
+    if (!peerBranchKey()) return null;
+    var key = peerSummaryCacheKey();
+    if (state._peerSummaryKey === key && state.peerSummary) return state.peerSummary;
+    if (state._peerSummaryPromise) return state._peerSummaryPromise;
+    var p = qsForPeerBranch();
+    if (!p) return null;
+    state._peerSummaryPromise = fetch("/api/mz-analytics/summary?" + p.toString(), {
+      credentials: "same-origin",
+      signal: signal,
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("peer summary " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        state.peerSummary = data;
+        state._peerSummaryKey = key;
+        state._peerSummaryPromise = null;
+        return data;
+      })
+      .catch(function () {
+        state._peerSummaryPromise = null;
+        return null;
+      });
+    return state._peerSummaryPromise;
+  }
+
+  function peerMetricYForPlotX(peerSum, plotX, metricKey) {
+    if (!peerSum || !plotX || !plotX.length) return [];
+    var lookup = {};
+    filterSeriesBySelectedRange(peerSum.by_date || [], "date").forEach(function (d) {
+      lookup[String(d.date).slice(0, 10)] = d[metricKey];
+    });
+    return plotX.map(function (x) {
+      var iso = String(x).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return null;
+      var v = lookup[iso];
+      if (v == null || isNaN(v)) return null;
+      return Number(v);
+    });
+  }
+
+  function appendPeerScatterTrace(traces, plotX, metricKey, peerSum, label, yaxis) {
+    if (!state.peerSummary && !peerSum) return;
+    var src = peerSum || state.peerSummary;
+    var ys = peerMetricYForPlotX(src, plotX, metricKey);
+    if (!ys.some(function (v) { return v != null && v !== 0; })) return;
+    var tr = {
+      type: "scatter",
+      mode: "lines",
+      name: (label || peerBranchLabel()) + " · " + (KPI_DEFS.find(function (d) { return d.key === metricKey; }) || {}).label,
+      x: plotX,
+      y: ys,
+      connectgaps: false,
+      line: { color: peerOverlayLineColor(), width: 2, dash: "dash" },
+    };
+    if (yaxis) tr.yaxis = yaxis;
+    traces.push(tr);
+  }
+
+  function mountPeerBranchToggle(hostId, chartKey) {
+    var host = document.getElementById(hostId);
+    if (!host) return;
+    var pk = peerBranchKey();
+    if (!pk) {
+      host.innerHTML = "";
+      host.classList.add("hidden");
+      return;
+    }
+    host.classList.remove("hidden");
+    var label = peerBranchLabel();
+    if (host.dataset.peerKey === chartKey && host.querySelector("input")) {
+      host.querySelector("input").checked = !!state.peerOverlay[chartKey];
+      return;
+    }
+    host.dataset.peerKey = chartKey;
+    host.innerHTML =
+      "<label class=\"flex cursor-pointer items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50/80 px-2 py-1 text-[10px] font-semibold text-violet-900 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-200\">" +
+      "<input type=\"checkbox\" class=\"rounded border-violet-300 dark:border-violet-700\" />" +
+      "<span>+" + label + "</span></label>";
+    var input = host.querySelector("input");
+    input.checked = !!state.peerOverlay[chartKey];
+    input.addEventListener("change", function () {
+      state.peerOverlay[chartKey] = input.checked;
+      clearPeerSummaryCache();
+      onPeerOverlayToggle(chartKey);
+    });
+  }
+
+  function mountAllPeerBranchToggles() {
+    mountPeerBranchToggle("mz-peer-toggle-kpi", "kpi");
+    mountPeerBranchToggle("mz-peer-toggle-line", "line");
+    mountPeerBranchToggle("mz-peer-toggle-dual", "dual");
+    mountPeerBranchToggle("mz-peer-toggle-quality", "quality");
+    mountPeerBranchToggle("mz-peer-toggle-stacked", "stacked");
+    mountPeerBranchToggle("mz-peer-toggle-drill-detail", "drillDetail");
+    mountPeerBranchToggle("mz-peer-toggle-drill-summary", "drillSummary");
+  }
+
+  async function onPeerOverlayToggle(chartKey) {
+    if (anyPeerOverlayOn()) await ensurePeerSummary();
+    if (chartKey === "kpi") scheduleKpiSparklines(state.lastSummary);
+    else if (chartKey === "line") refreshChartLine();
+    else if (chartKey === "dual" || chartKey === "quality") {
+      if (state.lastSummary) renderExtendedCharts(state.lastSummary).then(scheduleMzChartsResize);
+    } else if (chartKey === "stacked") refreshChartStacked();
+    else if (chartKey === "drillDetail") renderTableDrillChart();
+    else if (chartKey === "drillSummary") renderSummaryDrillChart();
+  }
+
+  async function fetchPeerDrillChartData(scope, chartTimeKey, cfg, slice, signal) {
+    var pk = peerBranchKey();
+    if (!pk) return null;
+    var limit = drillChartFetchLimit(chartTimeKey);
+    var attempts = drillChartFetchAttempts(scope, cfg, chartTimeKey, slice);
+    var last = null;
+    for (var i = 0; i < attempts.length; i++) {
+      if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
+      var chartCfg = attempts[i];
+      var safeCfg = ensureBdCfg(chartCfg);
+      var p = qsForDrillSlice(slice || null);
+      p.set("branch", pk);
+      var st = (state.streams || []).find(function (s) {
+        return s.project === state.activeStream.project && s.branch === pk;
+      });
+      if (st) p.set("stream", st.key);
+      var tb = breakdownStrFrom(safeCfg);
+      var url =
+        "/api/mz-analytics/table?" + p.toString() + "&breakdown=" + encodeURIComponent(tb) + "&limit=" + limit;
+      var data = await fetchJsonWithRetry(url, { signal: signal }, { tries: 3, delayMs: 400 });
+      if (!data) continue;
+      var breakdown = data.breakdown || [];
+      var filtered = drillRowsForChart(scope, data.rows || [], slice, breakdown);
+      last = { data: data, filtered: filtered, breakdown: breakdown, chartCfg: chartCfg };
+      if (breakdown.indexOf(chartTimeKey) >= 0 && filtered.length) return last;
+    }
+    return last;
   }
 
   function ga4OverlayStatusLabel() {
@@ -4146,6 +4391,41 @@
         ga4OverlayOn = false;
         hideGa4SplitChart(scope);
       }
+      var peerDrillOn = isSummary ? state.peerOverlay.drillSummary : state.peerOverlay.drillDetail;
+      if (peerDrillOn && peerBranchKey() && !comparePair) {
+        try {
+          var peerDrill = await fetchPeerDrillChartData(scope, chartTimeKey, cfg, slice, drillSignal);
+          if (!drillStale() && peerDrill && peerDrill.filtered && peerDrill.filtered.length) {
+            var peerSeries = drillSeriesForMetric(peerDrill.filtered, chartTimeKey, metricKey);
+            if (peerSeries.length) {
+              var peerXs = peerSeries.map(function (p) { return p.x; });
+              var peerYs = peerSeries.map(function (p) {
+                var y = Number(p.y);
+                return isNaN(y) ? 0 : y;
+              });
+              if (chartType === "bar") {
+                traces.push({
+                  type: "bar",
+                  name: peerBranchLabel() + " · " + mDef.label,
+                  x: peerXs,
+                  y: peerYs,
+                  marker: { color: peerOverlayLineColor(), opacity: 0.55 },
+                });
+              } else {
+                traces.push({
+                  type: "scatter",
+                  mode: traceMode || "lines",
+                  name: peerBranchLabel() + " · " + mDef.label,
+                  x: peerXs,
+                  y: peerYs,
+                  connectgaps: true,
+                  line: { color: peerOverlayLineColor(), width: lineW, dash: "dash" },
+                });
+              }
+            }
+          }
+        } catch (_peerDrillErr) { /* ignore */ }
+      }
       if (drillStale()) return;
       await plotDrillChartEl(chartEl, traces, layout);
       if (drillStale()) return;
@@ -4454,7 +4734,7 @@
       });
   }
 
-  function renderLineChart(byDate, kpiKey, cmp, timeKey) {
+  function renderLineChart(byDate, kpiKey, cmp, timeKey, peerSum) {
     if (!window.Plotly) return;
     timeKey = timeKey || "date";
     var def =
@@ -4521,6 +4801,11 @@
         name: def.label,
       });
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
+    }
+    if (state.peerOverlay.line && peerSum && timeKey === "date" && !cmp) {
+      var seriesPeer = filterSeriesBySelectedRange(byDate, timeKey);
+      var peerX = seriesPeer.map(function (x) { return x.date; });
+      appendPeerScatterTrace(traces, peerX, kpiKey, peerSum, peerBranchLabel());
     }
     plotChart("mz-chart-line", traces, plotTheme(layoutExtra), { minHeight: 220 });
   }
@@ -4671,6 +4956,7 @@
 
   function renderCharts(sum) {
     if (!window.Plotly) return;
+    mountAllPeerBranchToggles();
     state.lastByDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var cmp = compareBlock(sum);
     var surf = (cmp && cmp.by_surface && cmp.by_surface.length) ? cmp.by_surface : (sum.by_surface || []);
@@ -4683,7 +4969,7 @@
     scheduleMzChartsResize();
   }
 
-  function renderKpiSparkline(elId, byDate, key, cmp) {
+  function renderKpiSparkline(elId, byDate, key, cmp, peerSum) {
     if (!window.Plotly) return;
     var el = typeof elId === "string" ? document.getElementById(elId) : elId;
     if (!el || !el.isConnected) return;
@@ -4737,6 +5023,19 @@
         fill: "tozeroy",
         fillcolor: dark ? "rgba(129,140,248,0.15)" : "rgba(99,102,241,0.12)",
       });
+      if (state.peerOverlay.kpi && peerSum && !cmp) {
+        var peerYs = peerMetricYForPlotX(peerSum, xs, key);
+        if (peerYs.some(function (v) { return v != null && v !== 0; })) {
+          traces.push({
+            x: xs,
+            y: peerYs,
+            type: "scatter",
+            mode: "lines",
+            line: { width: 1.25, color: peerOverlayLineColor(), dash: "dash" },
+            connectgaps: false,
+          });
+        }
+      }
     }
 
     try { Plotly.purge(el); } catch (e) { /* ignore */ }
@@ -4758,17 +5057,20 @@
     if (byDate.length < 2 && !(compareEnabled() && compareBlock(s))) return;
     var cmp = compareEnabled() ? compareBlock(s) : null;
     var defs = activeKpiDefs(s);
-    var i = 0;
-    function step() {
-      if (i >= defs.length) {
-        return;
+    var peerPromise = state.peerOverlay.kpi ? ensurePeerSummary() : Promise.resolve(null);
+    peerPromise.then(function (peerSum) {
+      var i = 0;
+      function step() {
+        if (i >= defs.length) {
+          return;
+        }
+        var def = defs[i++];
+        var node = document.getElementById("mz-spark-" + def.key);
+        if (node) renderKpiSparkline(node, byDate, def.key, cmp, peerSum);
+        setTimeout(step, 12);
       }
-      var def = defs[i++];
-      var node = document.getElementById("mz-spark-" + def.key);
-      if (node) renderKpiSparkline(node, byDate, def.key, cmp);
-      setTimeout(step, 12);
-    }
-    step();
+      step();
+    });
   }
 
   function finalizeMzTrendAndSparks(sum) {
@@ -4792,6 +5094,9 @@
 
   function renderExtendedCharts(sum) {
     if (!window.Plotly) return Promise.resolve();
+    var peerNeeded = state.peerOverlay.dual || state.peerOverlay.quality;
+    var peerPromise = peerNeeded ? ensurePeerSummary() : Promise.resolve(null);
+    return peerPromise.then(function (peerSum) {
     var cmp = compareBlock(sum);
     var colors = compareColors();
     var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
@@ -4870,6 +5175,10 @@
         },
       ];
     }
+    if (peerSum && !revAligned && !impAligned && state.peerOverlay.dual) {
+      appendPeerScatterTrace(dualTraces, dates, "net_revenue", peerSum, peerBranchLabel() + " · Net gelir", "y");
+      appendPeerScatterTrace(dualTraces, dates, "impression", peerSum, peerBranchLabel() + " · Gösterim", "y2");
+    }
     plotChart("mz-chart-dual", dualTraces, plotTheme(dualLayoutExtra), { minHeight: revAligned && impAligned ? 320 : 220 });
 
     var qualityKeys = [
@@ -4920,6 +5229,11 @@
         });
       });
     }
+    if (peerSum && !qualityAligned && state.peerOverlay.quality) {
+      qualityKeys.forEach(function (q) {
+        appendPeerScatterTrace(qualityTraces, dates, q.key, peerSum, peerBranchLabel() + " · " + q.label);
+      });
+    }
     plotChart("mz-chart-quality", qualityTraces, plotTheme(qualityLayoutExtra), { minHeight: qualityAligned ? 320 : 220 });
 
     var hm = sum.heatmap_calendar || [];
@@ -4960,6 +5274,7 @@
     renderUnitDeltaChart(cmp);
 
     return Promise.resolve();
+    });
   }
 
   function renderLeadersLosers(sum) {
@@ -5576,6 +5891,7 @@
       btn.addEventListener("click", function () {
         state.activeStream = st;
         clearGa4MobileOverlayCache();
+        resetPeerOverlayToggles();
         ensureActiveKpi(activeKpiDefs(null));
         renderStreamTabs();
         updateScopeUi();
@@ -5681,6 +5997,7 @@
       }
       var rangeLbl = document.getElementById("mz-range-label");
       if (rangeLbl) rangeLbl.textContent = lbl.join(" · ");
+      mountAllPeerBranchToggles();
       var auditEl = document.getElementById("mz-import-audit");
       var audit = f.import_audit || [];
       if (auditEl) {
@@ -5730,6 +6047,7 @@
     }
     setLoading(true);
     showPageError("");
+    clearPeerSummaryCache();
     try {
       var base = qs().toString();
       var sumR = await fetch("/api/mz-analytics/summary?" + base);
