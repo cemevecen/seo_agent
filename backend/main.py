@@ -10489,45 +10489,14 @@ def api_seo_audit_changes(site_id: int, days: int = 7):
 @app.get("/doviz-varliklar")
 def doviz_assets_page(request: Request):
     """Döviz banka altını katalog / fiyat kaybı izleme paneli."""
-    from backend.services.doviz_asset_csv_manifest import (
-        csv_run_summary,
-        get_latest_csv_run,
-        get_csv_scan_progress,
-        manifest_upload_info,
-    )
-    from backend.services.doviz_asset_monitor import get_latest_run
+    from backend.services.doviz_asset_page_context import build_doviz_asset_monitor_context
 
     with SessionLocal() as db:
-        latest = get_latest_run(db, run_kind="catalog")
-        csv_latest = get_latest_csv_run(db)
-        manifest = manifest_upload_info(db)
-    payload = (latest or {}).get("payload") or {}
-    csv_payload = (csv_latest or {}).get("payload") or {}
-    csv_summary = (csv_latest or {}).get("summary") or csv_run_summary(csv_payload)
-    csv_progress = get_csv_scan_progress()
-    issue_state = payload.get("issue_state") or {}
-    open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
-    csv_failures = csv_summary.get("failures_preview") or csv_payload.get("failures") or []
+        ctx = build_doviz_asset_monitor_context(db)
     return templates.TemplateResponse(
         request,
         "doviz_assets.html",
-        context={
-            "request": request,
-            "sites": get_sidebar_sites(),
-            "run": latest,
-            "csv_run": csv_latest,
-            "csv_summary": csv_summary,
-            "csv_progress": csv_progress,
-            "manifest": manifest,
-            "scan_at_tr": payload.get("scan_at_tr") or (latest or {}).get("collected_at_tr"),
-            "csv_scan_at_tr": csv_summary.get("scan_at_tr") or csv_payload.get("scan_at_tr") or (csv_latest or {}).get("collected_at_tr"),
-            "alerts": payload.get("alerts") or [],
-            "missing": payload.get("prices_missing") or [],
-            "catalog_removed": payload.get("catalog_removed") or [],
-            "open_issues": open_issues,
-            "csv_failures": csv_failures[:100],
-            "csv_failure_total": csv_summary.get("failure_total") or len(csv_failures),
-        },
+        context={"request": request, "sites": get_sidebar_sites(), **ctx},
     )
 
 
@@ -10624,10 +10593,13 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
 
     with SessionLocal() as db:
         from backend.models import Site
+        from backend.services.doviz_asset_page_context import build_doviz_asset_monitor_context
+
         external_ids = _external_site_ids(db)
         _raw_sites = [s for s in db.query(Site).order_by(Site.domain).all() if s.id not in external_ids]
         all_sites = sorted(_raw_sites, key=lambda s: (0 if "doviz" in (s.domain or "").lower() else 1, s.domain or ""))
         all_sites_list = [{"id": s.id, "domain": s.domain, "display_name": s.display_name} for s in all_sites]
+        doviz_ctx = build_doviz_asset_monitor_context(db)
 
     if not site_id and all_sites_list:
         site_id = all_sites_list[0]["id"]
@@ -10644,6 +10616,8 @@ def errors_page(request: Request, site_id: int | None = None, days: int = 7):
             "selected_site_id": site_id,
             "selected_site_domain": selected_site_domain,
             "days": days,
+            "show_doviz_full_page_link": True,
+            **doviz_ctx,
         },
     )
 

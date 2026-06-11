@@ -7,11 +7,21 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">Hata İzleme</h2>
-        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Son <span id="days-label">{{ days }}</span> gün ·
-          <a href="/doviz-varliklar" class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400">Döviz varlık/banka</a>
-        </p>
+        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Son <span id="days-label">{{ days }}</span> gün · GA4 hatalı URL kayıtları</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <a
+          href="#doviz-asset-panel"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-500 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+        >
+          Döviz varlık / CSV
+          {% if manifest.url_count %}
+          <span class="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">{{ manifest.url_count }} URL</span>
+          {% endif %}
+        </a>
+        <a href="/doviz-varliklar" class="hidden sm:inline-flex rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+          Tam sayfa ↗
+        </a>
         <select onchange="window.location='/errors?site_id='+this.value+'&days={{ days }}'"
                 class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400">
           {% for s in all_sites %}
@@ -54,6 +64,9 @@
     </div>
     {% endfor %}
   </div>
+
+  {% set show_doviz_full_page_link = true %}
+  {% include "partials/doviz_asset_monitor_panel.html" %}
 
   {# Hata tablosu #}
   <div class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
@@ -554,4 +567,13 @@ html.dark .period-chip-active {
   border-color: #52525b;
 }
 </style>
+{% include "partials/doviz_asset_monitor_scripts.html" %}
+<script>
+if (window.location.hash === "#doviz-asset-panel") {
+  requestAnimationFrame(function () {
+    var el = document.getElementById("doviz-asset-panel");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+</script>
 {% endblock %}

@@ -1,0 +1,119 @@
+<script>
+(function () {
+  function pollCsvStatus() {
+    fetch("/api/doviz-asset-monitor/csv-scan-status", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var p = data.progress || {};
+        var wrap = document.getElementById("dz-csv-progress-wrap");
+        var bar = document.getElementById("dz-csv-progress-bar");
+        var txt = document.getElementById("dz-csv-progress-text");
+        var runBtn = document.getElementById("dz-csv-run");
+        if (p.running) {
+          if (wrap) wrap.classList.remove("hidden");
+          var done = p.done || 0;
+          var total = p.total || 0;
+          var pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 5;
+          if (bar) bar.style.width = pct + "%";
+          if (txt) txt.textContent = done + " / " + total + " URL kontrol edildi";
+          if (runBtn) {
+            runBtn.disabled = true;
+            runBtn.textContent = "Taranıyor… " + done + "/" + total;
+          }
+          setTimeout(pollCsvStatus, 2000);
+        } else {
+          if (wrap) wrap.classList.add("hidden");
+          if (runBtn) {
+            runBtn.disabled = false;
+            runBtn.textContent = "CSV listesini şimdi tara";
+          }
+          if (p.finished_at && window.__dzCsvPollReload !== p.finished_at) {
+            window.__dzCsvPollReload = p.finished_at;
+            window.location.reload();
+          }
+        }
+      })
+      .catch(function () {});
+  }
+
+  if ({{ 'true' if csv_progress.running else 'false' }}) {
+    pollCsvStatus();
+  }
+
+  var form = document.getElementById("dz-csv-upload");
+  var uploadBtn = document.getElementById("dz-csv-upload-btn");
+  var msg = document.getElementById("dz-csv-upload-msg");
+  if (form) {
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var inp = form.querySelector('input[type="file"]');
+      if (!inp || !inp.files || !inp.files[0]) {
+        msg.textContent = "Önce bir CSV dosyası seçin.";
+        msg.className = "mt-2 text-xs text-amber-700 dark:text-amber-300";
+        msg.classList.remove("hidden");
+        return;
+      }
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "Yükleniyor…";
+      msg.classList.add("hidden");
+      var fd = new FormData();
+      fd.append("file", inp.files[0]);
+      fetch("/api/doviz-asset-monitor/upload-csv", { method: "POST", body: fd, credentials: "same-origin" })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok) throw new Error((x.j && x.j.error) || "Yükleme başarısız");
+          msg.textContent = "Kaydedildi: " + x.j.url_count + " URL.";
+          msg.className = "mt-2 text-xs text-emerald-700 dark:text-emerald-300";
+          msg.classList.remove("hidden");
+          setTimeout(function () { window.location.reload(); }, 800);
+        })
+        .catch(function (e) {
+          msg.textContent = e.message || "Hata";
+          msg.className = "mt-2 text-xs text-rose-700 dark:text-rose-300";
+          msg.classList.remove("hidden");
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "Yükle ve kaydet";
+        });
+    });
+  }
+
+  var csvRun = document.getElementById("dz-csv-run");
+  if (csvRun) {
+    csvRun.addEventListener("click", function () {
+      csvRun.disabled = true;
+      csvRun.textContent = "Başlatılıyor…";
+      fetch("/api/doviz-asset-monitor/run-csv", { method: "POST", credentials: "same-origin" })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
+        .then(function (x) {
+          if (x.status === 409 || (x.j && x.j.reason === "already_running")) {
+            pollCsvStatus();
+            return;
+          }
+          if (!x.j || !x.j.started) throw new Error("Tarama başlatılamadı");
+          pollCsvStatus();
+        })
+        .catch(function () {
+          alert("CSV tarama başlatılamadı");
+          csvRun.disabled = false;
+          csvRun.textContent = "CSV listesini şimdi tara";
+        });
+    });
+  }
+
+  var btn = document.getElementById("dz-asset-run");
+  if (btn) {
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      btn.textContent = "Taranıyor…";
+      fetch("/api/doviz-asset-monitor/run", { method: "POST", credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = "Katalog tara";
+          alert("Tarama başarısız");
+        });
+    });
+  }
+})();
+</script>
