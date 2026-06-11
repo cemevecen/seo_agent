@@ -369,6 +369,7 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
 
     run = DovizAssetMonitorRun(
         collected_at=datetime.utcnow(),
+        run_kind="catalog",
         catalog_count=len(catalog),
         alert_count=len(alerts),
         payload_json=json.dumps(payload, ensure_ascii=False),
@@ -520,8 +521,11 @@ def html_esc(s: str) -> str:
     )
 
 
-def get_latest_run(db: Session) -> dict[str, Any] | None:
-    row = db.query(DovizAssetMonitorRun).order_by(DovizAssetMonitorRun.collected_at.desc()).first()
+def get_latest_run(db: Session, *, run_kind: str = "catalog") -> dict[str, Any] | None:
+    q = db.query(DovizAssetMonitorRun).order_by(DovizAssetMonitorRun.collected_at.desc())
+    if run_kind:
+        q = q.filter(DovizAssetMonitorRun.run_kind == run_kind)
+    row = q.first()
     if not row:
         return None
     return {

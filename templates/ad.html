@@ -942,7 +942,40 @@
     var p = new URLSearchParams();
     if (r.start) p.set("start", r.start);
     if (r.end) p.set("end", r.end);
+    if (state.activeStream) {
+      if (state.activeStream.project) p.set("project", state.activeStream.project);
+      if (state.activeStream.branch) p.set("branch", state.activeStream.branch);
+    }
     return p;
+  }
+
+  function mzLabProjectLabel(project) {
+    if (project === "sinemalar") return "Sinemalar";
+    return "Döviz";
+  }
+
+  function mzLabApplyCardTitles(preview) {
+    if (!preview) return;
+    var mode = preview.peer_mode || "app";
+    var proj = mzLabProjectLabel(preview.project || "doviz");
+    var titles = {
+      "1":
+        mode === "web"
+          ? "Tek bakış (Web vs mobil web)"
+          : "Uygulama tek bakış (iOS vs Android)",
+      "4":
+        mode === "web"
+          ? proj + " web yüzeyleri (desktop · mweb)"
+          : proj + " yüzey haritası (web · mweb · app)",
+      "5":
+        mode === "web"
+          ? "Kalite metrikleri (Web ↔ mobil web)"
+          : "Kalite metrikleri (iOS ↔ Android)",
+    };
+    Object.keys(titles).forEach(function (n) {
+      var h = document.querySelector('.mz-app-lab-card[data-mz-lab="' + n + '"] h3');
+      if (h) h.textContent = titles[n];
+    });
   }
 
   function mzLabRenderTable(headers, rows, opts) {
@@ -994,16 +1027,20 @@
         mzLabPctBadge(ecpmD),
       ];
     }
-    var ios = s1.ios || {};
-    var and = s1.android || {};
+    var leftLabel = s1.left_label || "iOS";
+    var rightLabel = s1.right_label || "Android";
+    var left = s1.left || s1.ios || {};
+    var right = s1.right || s1.android || {};
     return mzLabRenderTable(
       ["Platform", "Net gelir", "Δ gelir", "Gösterim", "eCPM", "Δ eCPM"],
-      [row("iOS", ios), row("Android", and)]
+      [row(leftLabel, left), row(rightLabel, right)]
     );
   }
 
   function renderMzAppLabSection3(s3) {
     var tableOpts = { wrapUnitCol: true };
+    var leftLabel = s3.left_label || "iOS";
+    var rightLabel = s3.right_label || "Android";
     function unitTable(title, units) {
       if (!units || !units.length) return "";
       var rows = units.map(function (u) {
@@ -1023,9 +1060,9 @@
         "</div>"
       );
     }
-    var iosBlock = unitTable("Düşük eCPM (iOS)", s3.ios_low_ecpm_units);
-    var andBlock = unitTable("Düşük eCPM (Android)", s3.android_low_ecpm_units);
-    var losers = s3.ios_losers || [];
+    var leftBlock = unitTable("Düşük eCPM (" + leftLabel + ")", s3.left_low_ecpm_units || s3.ios_low_ecpm_units);
+    var rightBlock = unitTable("Düşük eCPM (" + rightLabel + ")", s3.right_low_ecpm_units || s3.android_low_ecpm_units);
+    var losers = s3.left_losers || s3.ios_losers || [];
     var losersBlock = "";
     if (losers.length) {
       var lr = losers.slice(0, 6).map(function (u) {
@@ -1033,14 +1070,16 @@
       });
       losersBlock =
         '<div class="mz-lab-3-panel min-w-0">' +
-        '<p class="mb-1 font-bold text-slate-600 dark:text-zinc-300">iOS gelir düşüşü (önceki dönem)</p>' +
+        '<p class="mb-1 font-bold text-slate-600 dark:text-zinc-300">' +
+        leftLabel +
+        " gelir düşüşü (önceki dönem)</p>" +
         mzLabRenderTable(["Birim", "Δ%", "Gelir"], lr, tableOpts) +
         "</div>";
     }
     return (
       '<div class="grid grid-cols-1 gap-4 md:grid-cols-2">' +
-      iosBlock +
-      andBlock +
+      leftBlock +
+      rightBlock +
       (losersBlock ? '<div class="min-w-0 md:col-span-2">' + losersBlock + "</div>" : "") +
       "</div>"
     );
@@ -1050,17 +1089,25 @@
     var rows = (s4.branches || []).map(function (b) {
       return [b.label, mzLabMoney(b.net_revenue), fmt(b.share_pct, 1) + "%", fmt(b.impression, 0), fmt(b.ad_ecpm, 3)];
     });
+    var shareLabel = s4.secondary_share_label || "native app payı";
+    var sharePct =
+      s4.secondary_share_pct != null ? s4.secondary_share_pct : s4.mobile_app_share_pct != null ? s4.mobile_app_share_pct : 0;
     var head =
       '<p class="mb-2 font-semibold">Toplam: <span class="text-indigo-700 dark:text-indigo-300">' +
       mzLabMoney(s4.total_net_revenue) +
-      "</span> · native app payı: <span class=\"font-bold\">" +
-      fmt(s4.mobile_app_share_pct, 1) +
+      "</span> · " +
+      shareLabel +
+      ': <span class="font-bold">' +
+      fmt(sharePct, 1) +
       "%</span></p>";
     return head + mzLabRenderTable(["Yüzey", "Net gelir", "Pay", "Gösterim", "eCPM"], rows);
   }
 
   function renderMzAppLabSection5(s5) {
+    var leftLabel = s5.left_label || "iOS";
+    var rightLabel = s5.right_label || "Android";
     function line(label, o) {
+      o = o || {};
       return [
         label,
         fmt(o.coverage_pct, 2) + "%",
@@ -1072,11 +1119,16 @@
     }
     return mzLabRenderTable(
       ["", "Coverage", "Viewability", "CTR", "eCPM", "Δ eCPM"],
-      [line("iOS", s5.ios || {}), line("Android", s5.android || {})]
+      [
+        line(leftLabel, s5.left || s5.ios),
+        line(rightLabel, s5.right || s5.android),
+      ]
     );
   }
 
   function renderMzAppLabSection6(s6) {
+    var leftLabel = s6.left_label || "iOS";
+    var rightLabel = s6.right_label || "Android";
     function block(label, a) {
       if (!a || !a.ok) return "<p><b>" + label + ":</b> " + ((a && a.message) || "—") + "</p>";
       var warn = a.delta_pct != null && a.delta_pct <= -15;
@@ -1098,10 +1150,10 @@
     return (
       '<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">' +
       '<div class="min-w-0">' +
-      block("iOS", s6.ios) +
+      block(leftLabel, s6.left || s6.ios) +
       "</div>" +
       '<div class="min-w-0">' +
-      block("Android", s6.android) +
+      block(rightLabel, s6.right || s6.android) +
       "</div>" +
       "</div>"
     );
@@ -1136,8 +1188,10 @@
       return;
     }
 
+    mzLabApplyCardTitles(preview);
+
     var el1 = document.getElementById("mz-lab-1");
-    if (el1) el1.innerHTML = renderMzAppLabSection1(preview.section_1_app_snapshot || {});
+    if (el1) el1.innerHTML = renderMzAppLabSection1(preview.section_1_peer_snapshot || {});
     var el3 = document.getElementById("mz-lab-3");
     if (el3) el3.innerHTML = renderMzAppLabSection3(preview.section_3_format_health || {});
     var el4 = document.getElementById("mz-lab-4");

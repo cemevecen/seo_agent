@@ -3578,6 +3578,38 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         job_count += 1
         LOGGER.info("Döviz varlık izleme aktif: her %d dk.", dz_iv)
 
+    if settings.doviz_asset_csv_manifest_enabled:
+        from apscheduler.triggers.interval import IntervalTrigger as _DovizCsvTrigger
+
+        def _run_doviz_csv_manifest_job():
+            try:
+                from backend.services.doviz_asset_csv_manifest import (
+                    cleanup_old_csv_runs,
+                    manifest_url_count,
+                    run_doviz_asset_csv_manifest,
+                )
+
+                with SessionLocal() as db:
+                    if manifest_url_count(db) < 1:
+                        return
+                    run_doviz_asset_csv_manifest(db)
+                    cleanup_old_csv_runs(db, keep_days=14)
+            except Exception as _csv_exc:
+                logging.getLogger(__name__).warning("Döviz CSV manifest tarama hatası: %s", _csv_exc)
+
+        csv_iv = max(15, int(settings.doviz_asset_csv_manifest_interval_minutes))
+        scheduler.add_job(
+            _run_doviz_csv_manifest_job,
+            trigger=_DovizCsvTrigger(minutes=csv_iv, timezone=timezone),
+            id="doviz-asset-csv-manifest",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=max(900, csv_iv * 60),
+        )
+        job_count += 1
+        LOGGER.info("Döviz CSV manifest tarama aktif: her %d dk.", csv_iv)
+
     # AI Talk proaktif izleme — her 30 dakikada bir
     from apscheduler.triggers.interval import IntervalTrigger as _AiMonitorTrigger
     def _run_proactive_monitor():
@@ -10451,13 +10483,18 @@ def api_seo_audit_changes(site_id: int, days: int = 7):
 @app.get("/doviz-varliklar")
 def doviz_assets_page(request: Request):
     """Döviz banka altını katalog / fiyat kaybı izleme paneli."""
+    from backend.services.doviz_asset_csv_manifest import get_latest_csv_run, manifest_upload_info
     from backend.services.doviz_asset_monitor import get_latest_run
 
     with SessionLocal() as db:
-        latest = get_latest_run(db)
+        latest = get_latest_run(db, run_kind="catalog")
+        csv_latest = get_latest_csv_run(db)
+        manifest = manifest_upload_info(db)
     payload = (latest or {}).get("payload") or {}
+    csv_payload = (csv_latest or {}).get("payload") or {}
     issue_state = payload.get("issue_state") or {}
     open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
+    csv_failures = csv_payload.get("failures") or []
     return templates.TemplateResponse(
         request,
         "doviz_assets.html",
@@ -10465,13 +10502,60 @@ def doviz_assets_page(request: Request):
             "request": request,
             "sites": get_sidebar_sites(),
             "run": latest,
+            "csv_run": csv_latest,
+            "manifest": manifest,
             "scan_at_tr": payload.get("scan_at_tr") or (latest or {}).get("collected_at_tr"),
+            "csv_scan_at_tr": csv_payload.get("scan_at_tr") or (csv_latest or {}).get("collected_at_tr"),
             "alerts": payload.get("alerts") or [],
             "missing": payload.get("prices_missing") or [],
             "catalog_removed": payload.get("catalog_removed") or [],
             "open_issues": open_issues,
+            "csv_failures": csv_failures[:100],
+            "csv_failure_total": len(csv_failures),
         },
     )
+
+
+@app.post("/api/doviz-asset-monitor/upload-csv")
+async def api_doviz_asset_monitor_upload_csv(file: UploadFile = File(...)):
+    from backend.services.doviz_asset_csv_manifest import parse_urls_from_csv_text, replace_manifest_urls
+
+    raw = await file.read()
+    if len(raw) > 5_000_000:
+        return JSONResponse({"ok": False, "error": "Dosya 5 MB sınırını aşıyor."}, status_code=400)
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1", errors="replace")
+    urls = parse_urls_from_csv_text(text)
+    if not urls:
+        return JSONResponse({"ok": False, "error": "Geçerli doviz.com URL bulunamadı."}, status_code=400)
+    with SessionLocal() as db:
+        meta = replace_manifest_urls(db, urls, source_label=file.filename or "upload.csv")
+    return JSONResponse({"ok": True, **meta})
+
+
+@app.post("/api/doviz-asset-monitor/run-csv")
+def api_doviz_asset_monitor_run_csv():
+    from backend.services.doviz_asset_csv_manifest import cleanup_old_csv_runs, run_doviz_asset_csv_manifest
+
+    with SessionLocal() as db:
+        out = run_doviz_asset_csv_manifest(db)
+        cleanup_old_csv_runs(db, keep_days=14)
+    return JSONResponse(out)
+
+
+@app.get("/api/doviz-asset-monitor/manifest")
+def api_doviz_asset_monitor_manifest():
+    from backend.services.doviz_asset_csv_manifest import get_latest_csv_run, manifest_upload_info
+
+    with SessionLocal() as db:
+        return JSONResponse(
+            {
+                "manifest": manifest_upload_info(db),
+                "latest_csv_run": get_latest_csv_run(db),
+            }
+        )
 
 
 @app.post("/api/doviz-asset-monitor/run")

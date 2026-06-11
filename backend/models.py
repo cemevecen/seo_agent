@@ -956,6 +956,16 @@ class NotificationAnalyticsWorkspace(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class DovizAssetMonitorUrl(Base):
+    """CSV manifest — saatlik taranan Döviz URL listesi."""
+
+    __tablename__ = "doviz_asset_monitor_urls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False, unique=True, index=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class DovizAssetMonitorRun(Base):
     """Döviz banka altını katalog + fiyat satırı sondası (web/app veri kaybı)."""
 
@@ -963,6 +973,7 @@ class DovizAssetMonitorRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    run_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="catalog", index=True)
     catalog_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     alert_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")

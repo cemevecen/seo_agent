@@ -415,6 +415,49 @@ class Settings(BaseSettings):
             "doviz_asset_monitor_email_cooldown_hours",
         ),
     )
+    doviz_asset_csv_manifest_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "DOVIZ_ASSET_CSV_MANIFEST_ENABLED",
+            "doviz_asset_csv_manifest_enabled",
+        ),
+    )
+    doviz_asset_csv_manifest_interval_minutes: int = Field(
+        default=60,
+        ge=15,
+        le=1440,
+        validation_alias=AliasChoices(
+            "DOVIZ_ASSET_CSV_MANIFEST_INTERVAL_MINUTES",
+            "doviz_asset_csv_manifest_interval_minutes",
+        ),
+    )
+    doviz_asset_csv_manifest_workers: int = Field(
+        default=10,
+        ge=1,
+        le=32,
+        validation_alias=AliasChoices(
+            "DOVIZ_ASSET_CSV_MANIFEST_WORKERS",
+            "doviz_asset_csv_manifest_workers",
+        ),
+    )
+    doviz_asset_csv_manifest_fetch_timeout: int = Field(
+        default=15,
+        ge=5,
+        le=60,
+        validation_alias=AliasChoices(
+            "DOVIZ_ASSET_CSV_MANIFEST_FETCH_TIMEOUT",
+            "doviz_asset_csv_manifest_fetch_timeout",
+        ),
+    )
+    doviz_asset_csv_manifest_max_emails_per_issue: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        validation_alias=AliasChoices(
+            "DOVIZ_ASSET_CSV_MANIFEST_MAX_EMAILS_PER_ISSUE",
+            "doviz_asset_csv_manifest_max_emails_per_issue",
+        ),
+    )
 
     model_config = SettingsConfigDict(env_file=str(ENV_PATH), env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 

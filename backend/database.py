@@ -280,4 +280,40 @@ def ensure_indexes() -> None:
                 "ON ad_report_rows(project, branch, report_date)"
             )
         )
+
+        def _ensure_doviz_asset_run_col(name: str, sqlite_ddl: str, pg_ddl: str) -> None:
+            try:
+                if _IS_SQLITE:
+                    rc = conn.execute(
+                        _txt(
+                            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='doviz_asset_monitor_runs'"
+                        )
+                    )
+                    if not rc.fetchone():
+                        return
+                    cols = {
+                        row[1]
+                        for row in conn.execute(_txt("PRAGMA table_info(doviz_asset_monitor_runs)")).fetchall()
+                    }
+                    if name not in cols:
+                        conn.execute(_txt(f"ALTER TABLE doviz_asset_monitor_runs ADD COLUMN {name} {sqlite_ddl}"))
+                else:
+                    try:
+                        conn.execute(
+                            _txt(
+                                f"ALTER TABLE doviz_asset_monitor_runs ADD COLUMN IF NOT EXISTS {name} {pg_ddl}"
+                            )
+                        )
+                    except Exception:  # noqa: BLE001
+                        conn.execute(_txt(f"ALTER TABLE doviz_asset_monitor_runs ADD COLUMN {name} {pg_ddl}"))
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("doviz_asset_monitor_runs ADD COLUMN %s atlandı: %s", name, exc)
+
+        _ensure_doviz_asset_run_col("run_kind", "VARCHAR(32) NOT NULL DEFAULT 'catalog'", "VARCHAR(32) NOT NULL DEFAULT 'catalog'")
+        conn.execute(
+            _txt(
+                "CREATE INDEX IF NOT EXISTS ix_doviz_asset_runs_kind_collected "
+                "ON doviz_asset_monitor_runs(run_kind, collected_at DESC)"
+            )
+        )
         conn.commit()

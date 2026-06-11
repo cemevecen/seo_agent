@@ -473,9 +473,17 @@ def get_app_lab_preview(
     db: Session = Depends(get_db),
     start: str | None = Query(None),
     end: str | None = Query(None),
+    project: str | None = Query(None),
+    branch: str | None = Query(None),
 ):
-    """Döviz app monetizasyon önizleme kartları (/ad sayfa altı)."""
-    return store.query_app_lab_preview(db, start=start, end=end)
+    """Monetizasyon lab önizleme kartları (/ad sayfa altı; aktif stream peer moduna göre)."""
+    return store.query_app_lab_preview(
+        db,
+        start=start,
+        end=end,
+        project=(project or "doviz").strip().lower(),
+        branch=(branch or "desktop").strip().lower(),
+    )
 
 
 @router.post("/mz-analytics/reset")

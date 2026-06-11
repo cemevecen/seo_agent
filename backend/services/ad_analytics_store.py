@@ -2508,13 +2508,14 @@ def _snapshot_branch(
     *,
     start: str | None,
     end: str | None,
+    project: str,
     branch: str,
 ) -> dict[str, Any]:
     data = query_summary(
         db,
         start=start,
         end=end,
-        project="doviz",
+        project=project,
         branch=branch,
         compare_mode="previous_period",
     )
@@ -2556,20 +2557,37 @@ def _revenue_week_anomaly(by_date: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def query_app_lab_preview(
+def _quality_peer_from_snap(snap: dict[str, Any]) -> dict[str, Any]:
+    kp = snap.get("kpis") or {}
+    deltas = snap.get("deltas") or {}
+
+    def _delta_pct(key: str) -> float | None:
+        hit = deltas.get(key) or {}
+        if hit.get("pct") is None:
+            return None
+        return float(hit["pct"])
+
+    return {
+        "coverage_pct": kp.get("coverage_pct"),
+        "viewability_pct": kp.get("viewability_pct"),
+        "ctr_pct": kp.get("ctr_pct"),
+        "ad_ecpm": kp.get("ad_ecpm"),
+        "delta_ad_ecpm_pct": _delta_pct("ad_ecpm"),
+    }
+
+
+def _surface_rows_for_branches(
     db: Session,
     *,
-    start: str | None = None,
-    end: str | None = None,
-) -> dict[str, Any]:
-    """/ad sayfası altı — numaralı app monetizasyon önizleme blokları (Döviz)."""
-    ios = _snapshot_branch(db, start=start, end=end, branch="ios")
-    android = _snapshot_branch(db, start=start, end=end, branch="android")
-
+    start: str | None,
+    end: str | None,
+    project: str,
+    branches: tuple[str, ...],
+) -> tuple[list[dict[str, Any]], float]:
     surface_rows: list[dict[str, Any]] = []
     total_rev = 0.0
-    for br in ("desktop", "mweb", "ios", "android"):
-        snap = _snapshot_branch(db, start=start, end=end, branch=br)
+    for br in branches:
+        snap = _snapshot_branch(db, start=start, end=end, project=project, branch=br)
         kp = snap.get("kpis") or {}
         rev = float(kp.get("net_revenue") or 0)
         total_rev += rev
@@ -2584,65 +2602,89 @@ def query_app_lab_preview(
         )
     for row in surface_rows:
         row["share_pct"] = round(row["net_revenue"] / total_rev * 100.0, 1) if total_rev > 0 else 0.0
+    return surface_rows, total_rev
 
-    def _delta_pct(deltas: dict, key: str) -> float | None:
-        hit = deltas.get(key) or {}
-        if hit.get("pct") is None:
-            return None
-        return float(hit["pct"])
+
+def query_app_lab_preview(
+    db: Session,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+    project: str = "doviz",
+    branch: str = "desktop",
+) -> dict[str, Any]:
+    """/ad sayfası altı — peer önizleme (web↔mweb veya iOS↔Android, aktif projeye göre)."""
+    project = (project or "doviz").strip().lower()
+    branch = (branch or "desktop").strip().lower()
+    peer_mode = "app" if branch in ("ios", "android") else "web"
+
+    if peer_mode == "web":
+        left = _snapshot_branch(db, start=start, end=end, project=project, branch="desktop")
+        right = _snapshot_branch(db, start=start, end=end, project=project, branch="mweb")
+        left_label = _BRANCH_LABELS["desktop"]
+        right_label = _BRANCH_LABELS["mweb"]
+        surface_branches: tuple[str, ...] = ("desktop", "mweb")
+    else:
+        left = _snapshot_branch(db, start=start, end=end, project=project, branch="ios")
+        right = _snapshot_branch(db, start=start, end=end, project=project, branch="android")
+        left_label = _BRANCH_LABELS["ios"]
+        right_label = _BRANCH_LABELS["android"]
+        if project == "doviz":
+            surface_branches = ("desktop", "mweb", "ios", "android")
+        else:
+            surface_branches = ("desktop", "mweb")
+
+    surface_rows, total_rev = _surface_rows_for_branches(
+        db, start=start, end=end, project=project, branches=surface_branches
+    )
+
+    section_4: dict[str, Any] = {
+        "total_net_revenue": round(total_rev, 2),
+        "branches": surface_rows,
+    }
+    if peer_mode == "web":
+        mweb_rev = next((r["net_revenue"] for r in surface_rows if r["branch"] == "mweb"), 0.0)
+        section_4["secondary_share_label"] = "mweb payı"
+        section_4["secondary_share_pct"] = round(mweb_rev / total_rev * 100.0, 1) if total_rev > 0 else 0.0
+    else:
+        ios_rev = float((left.get("kpis") or {}).get("net_revenue") or 0)
+        and_rev = float((right.get("kpis") or {}).get("net_revenue") or 0)
+        section_4["secondary_share_label"] = "native app payı"
+        section_4["secondary_share_pct"] = round((ios_rev + and_rev) / total_rev * 100.0, 1) if total_rev > 0 else 0.0
 
     return {
-        "project": "doviz",
+        "project": project,
+        "branch": branch,
+        "peer_mode": peer_mode,
         "range": {"start": start, "end": end},
-        "section_1_app_snapshot": {
-            "ios": ios,
-            "android": android,
-            "ios_vs_android_revenue": {
-                "ios": float((ios.get("kpis") or {}).get("net_revenue") or 0),
-                "android": float((android.get("kpis") or {}).get("net_revenue") or 0),
-            },
+        "section_1_peer_snapshot": {
+            "peer_mode": peer_mode,
+            "left": left,
+            "right": right,
+            "left_label": left_label,
+            "right_label": right_label,
         },
         "section_3_format_health": {
-            "ios_low_ecpm_units": _low_ecpm_ad_units(ios.get("by_ad_unit_scatter") or []),
-            "android_low_ecpm_units": _low_ecpm_ad_units(android.get("by_ad_unit_scatter") or []),
-            "ios_income_mix": ios.get("by_income_type") or [],
-            "android_income_mix": android.get("by_income_type") or [],
-            "ios_losers": (ios.get("leaders_losers") or {}).get("losers") or [],
+            "left_low_ecpm_units": _low_ecpm_ad_units(left.get("by_ad_unit_scatter") or []),
+            "right_low_ecpm_units": _low_ecpm_ad_units(right.get("by_ad_unit_scatter") or []),
+            "left_income_mix": left.get("by_income_type") or [],
+            "right_income_mix": right.get("by_income_type") or [],
+            "left_losers": (left.get("leaders_losers") or {}).get("losers") or [],
+            "left_label": left_label,
+            "right_label": right_label,
         },
-        "section_4_surface_map": {
-            "total_net_revenue": round(total_rev, 2),
-            "branches": surface_rows,
-            "mobile_app_share_pct": round(
-                (
-                    float((ios.get("kpis") or {}).get("net_revenue") or 0)
-                    + float((android.get("kpis") or {}).get("net_revenue") or 0)
-                )
-                / total_rev
-                * 100.0,
-                1,
-            )
-            if total_rev > 0
-            else 0.0,
-        },
+        "section_4_surface_map": section_4,
         "section_5_quality_peer": {
-            "ios": {
-                "coverage_pct": (ios.get("kpis") or {}).get("coverage_pct"),
-                "viewability_pct": (ios.get("kpis") or {}).get("viewability_pct"),
-                "ctr_pct": (ios.get("kpis") or {}).get("ctr_pct"),
-                "ad_ecpm": (ios.get("kpis") or {}).get("ad_ecpm"),
-                "delta_ad_ecpm_pct": _delta_pct(ios.get("deltas") or {}, "ad_ecpm"),
-            },
-            "android": {
-                "coverage_pct": (android.get("kpis") or {}).get("coverage_pct"),
-                "viewability_pct": (android.get("kpis") or {}).get("viewability_pct"),
-                "ctr_pct": (android.get("kpis") or {}).get("ctr_pct"),
-                "ad_ecpm": (android.get("kpis") or {}).get("ad_ecpm"),
-                "delta_ad_ecpm_pct": _delta_pct(android.get("deltas") or {}, "ad_ecpm"),
-            },
+            "left": _quality_peer_from_snap(left),
+            "right": _quality_peer_from_snap(right),
+            "left_label": left_label,
+            "right_label": right_label,
         },
         "section_6_anomaly_hints": {
-            "ios": _revenue_week_anomaly(ios.get("by_date") or []),
-            "android": _revenue_week_anomaly(android.get("by_date") or []),
+            "left": _revenue_week_anomaly(left.get("by_date") or []),
+            "right": _revenue_week_anomaly(right.get("by_date") or []),
+            "left_label": left_label,
+            "right_label": right_label,
             "note": "Son 7 gün gelir vs önceki 7 gün (seçili aralığın sonu).",
         },
     }
