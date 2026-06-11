@@ -485,15 +485,6 @@
           <div id="mz-lab-1" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
         </div>
 
-        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="2">
-          <div class="mb-2 flex items-center gap-2">
-            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-sm font-black text-white">2</span>
-            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Banner → gelir köprüsü (GA4)</h3>
-          </div>
-          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">First open + mweb banner olayları vs app reklam geliri (aynı aralık).</p>
-          <div id="mz-lab-2" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
-        </div>
-
         <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="3">
           <div class="mb-2 flex items-center gap-2">
             <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-sm font-black text-white">3</span>
@@ -530,14 +521,6 @@
           <div id="mz-lab-6" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
         </div>
 
-        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="8">
-          <div class="mb-2 flex items-center gap-2">
-            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-700 text-sm font-black text-white">8</span>
-            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">GA4 oturum / kullanıcı ↔ gelir</h3>
-          </div>
-          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Overlay trend toplamı · kabaca TL / 1K active user (proxy ARPDAU).</p>
-          <div id="mz-lab-8" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
-        </div>
       </section>
     </div>
   </div>
@@ -964,22 +947,6 @@
     return p;
   }
 
-  function mzLabSumSeriesValues(series) {
-    if (!series || !series.values) return 0;
-    return (series.values || []).reduce(function (a, b) {
-      return a + Number(b || 0);
-    }, 0);
-  }
-
-  function mzLabSumGa4Users(trend) {
-    if (!trend || !trend.daily_trend) return null;
-    var arr = trend.daily_trend.activeUsers || trend.daily_trend.sessions || [];
-    if (!arr.length) return null;
-    return arr.reduce(function (a, b) {
-      return a + Number(b || 0);
-    }, 0);
-  }
-
   function mzLabRenderTable(headers, rows) {
     if (!rows || !rows.length) return '<p class="text-slate-400">Veri yok.</p>';
     var h = headers.map(function (x) {
@@ -1112,103 +1079,12 @@
     return block("iOS", s6.ios) + block("Android", s6.android) + '<p class="mt-1 text-[10px] text-slate-500">' + (s6.note || "") + "</p>";
   }
 
-  async function fetchMzAppBanner(profile) {
-    var q = mzLabQsDates();
-    q.set("project", "doviz");
-    q.set("profile", profile);
-    q.set("top_campaigns", "5");
-    try {
-      var r = await fetch("/api/mz-analytics/ga4-app-banner?" + q.toString(), { credentials: "same-origin" });
-      if (!r.ok) return { error: "HTTP " + r.status };
-      return await r.json();
-    } catch (e) {
-      return { error: String(e && e.message ? e.message : e) };
-    }
-  }
-
-  async function fetchMzGa4Overlay(branch) {
-    var q = new URLSearchParams();
-    q.set("project", "doviz");
-    q.set("branch", branch);
-    try {
-      var r = await fetch("/api/mz-analytics/ga4-mobile-overlay?" + q.toString(), { credentials: "same-origin" });
-      if (!r.ok) return { error: "HTTP " + r.status };
-      return await r.json();
-    } catch (e) {
-      return { error: String(e && e.message ? e.message : e) };
-    }
-  }
-
-  function renderMzAppLabSection2(bIos, bAnd, preview) {
-    if ((bIos && bIos.error) && (bAnd && bAnd.error)) {
-      return '<p class="text-amber-700 dark:text-amber-300">GA4 banner verisi alınamadı: ' + (bIos.error || bAnd.error) + "</p>";
-    }
-    var iosRev = ((preview.section_1_app_snapshot || {}).ios || {}).kpis || {};
-    var andRev = ((preview.section_1_app_snapshot || {}).android || {}).kpis || {};
-    function mwebEventTotal(mweb, needle) {
-      if (!mweb || !mweb.events) return null;
-      var sum = 0;
-      var found = false;
-      mweb.events.forEach(function (ev) {
-        var n = (ev.event_name || "").toLowerCase();
-        if (n.indexOf(needle) >= 0) {
-          sum += Number(ev.total || 0);
-          found = true;
-        }
-      });
-      return found ? sum : null;
-    }
-    function row(profile, banner, revKpis) {
-      var fo = banner && !banner.error ? mzLabSumSeriesValues(banner.total_daily) : null;
-      var mweb = banner && banner.mweb_banner && !banner.mweb_banner.error ? banner.mweb_banner : null;
-      var disp = mwebEventTotal(mweb, "display");
-      var clicks = mwebEventTotal(mweb, "click");
-      return [
-        profile,
-        fo != null ? fmt(fo, 0) : "—",
-        disp != null ? fmt(disp, 0) : "—",
-        clicks != null ? fmt(clicks, 0) : "—",
-        mzLabMoney((revKpis || {}).net_revenue),
-      ];
-    }
-    return mzLabRenderTable(
-      ["Profil", "First open", "mweb banner gösterim", "mweb tıklama", "App reklam geliri"],
-      [
-        row("iOS", bIos, iosRev),
-        row("Android", bAnd, andRev),
-      ]
-    );
-  }
-
-  function renderMzAppLabSection8(ovIos, ovAnd, preview) {
-    function block(label, branch, overlay, revKpis) {
-      if (overlay && overlay.error) return "<p><b>" + label + ":</b> " + overlay.error + "</p>";
-      var prof = branch === "ios" ? overlay.ios : overlay.android;
-      var users = mzLabSumGa4Users(prof);
-      var rev = Number((revKpis || {}).net_revenue || 0);
-      var per1k = users > 0 ? (rev / users) * 1000 : null;
-      return (
-        "<p><b>" +
-        label +
-        ":</b> GA4 active user toplamı (trend penceresi): " +
-        (users != null ? fmt(users, 0) : "—") +
-        " · reklam geliri: " +
-        mzLabMoney(rev) +
-        " · ~" +
-        (per1k != null ? fmt(per1k, 2) + " TL / 1K kullanıcı" : "—") +
-        "</p>"
-      );
-    }
-    var s1 = preview.section_1_app_snapshot || {};
-    return block("iOS", "ios", ovIos, ((s1.ios || {}).kpis || {})) + block("Android", "android", ovAnd, ((s1.android || {}).kpis || {}));
-  }
-
   var mzAppLabToken = 0;
 
   async function renderMzAppLabPreview() {
     var token = ++mzAppLabToken;
 
-    var ids = ["mz-lab-1", "mz-lab-2", "mz-lab-3", "mz-lab-4", "mz-lab-5", "mz-lab-6", "mz-lab-8"];
+    var ids = ["mz-lab-1", "mz-lab-3", "mz-lab-4", "mz-lab-5", "mz-lab-6"];
     ids.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.textContent = "Yükleniyor…";
@@ -1242,19 +1118,6 @@
     if (el5) el5.innerHTML = renderMzAppLabSection5(preview.section_5_quality_peer || {});
     var el6 = document.getElementById("mz-lab-6");
     if (el6) el6.innerHTML = renderMzAppLabSection6(preview.section_6_anomaly_hints || {});
-
-    var ga4 = await Promise.all([
-      fetchMzAppBanner("ios"),
-      fetchMzAppBanner("android"),
-      fetchMzGa4Overlay("ios"),
-      fetchMzGa4Overlay("android"),
-    ]);
-    if (token !== mzAppLabToken) return;
-
-    var el2 = document.getElementById("mz-lab-2");
-    if (el2) el2.innerHTML = renderMzAppLabSection2(ga4[0], ga4[1], preview);
-    var el8 = document.getElementById("mz-lab-8");
-    if (el8) el8.innerHTML = renderMzAppLabSection8(ga4[2], ga4[3], preview);
   }
 
   function qs() {
