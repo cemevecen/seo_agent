@@ -4958,14 +4958,19 @@
         if (chartType === "bar") {
           traces.push({ type: "bar", x: xs, y: ys, name: mDef.label, marker: { color: lineColor } });
         } else {
-          mzPushMeanSplitTraces(traces, xs, ys, {
+          var trace = {
+            type: "scatter",
             mode: traceMode,
-            lineWidth: lineW,
-            markerSize: markerSize || undefined,
+            x: xs,
+            y: ys,
             name: mDef.label,
-            showlegend: true,
             connectgaps: true,
-          });
+            line: { color: lineColor, width: lineW },
+          };
+          if (markerSize) {
+            trace.marker = { color: lineColor, size: markerSize, line: { width: 0 } };
+          }
+          traces.push(trace);
         }
         if (chartTimeKey === "date") {
           layout.xaxis = Object.assign({}, layout.xaxis, {
@@ -5526,12 +5531,14 @@
         var v = x[kpiKey];
         return v != null && !isNaN(v) ? Number(v) : 0;
       });
-      mzPushMeanSplitTraces(traces, labels, vals, {
-        lineWidth: 2,
+      traces.push({
+        x: labels,
+        y: vals,
+        type: "scatter",
         mode: series.length > 120 ? "lines" : "lines+markers",
-        markerSize: series.length > 120 ? 0 : 4,
+        line: { color: colors.primary, width: 2 },
+        marker: { color: colors.primary, size: 4 },
         name: def.label,
-        showlegend: true,
       });
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
@@ -5962,26 +5969,26 @@
       ];
       dualLayoutExtra = applyCompareLayout(dualLayoutExtra, dx.length, { legendY: 1.18, marginT: 64 });
     } else {
-      dualTraces = [];
-      mzPushMeanSplitTraces(
-        dualTraces,
-        dates,
-        byDate.map(function (d) { return d.net_revenue; }),
-        { lineWidth: 2, yaxis: "y", name: "Net gelir", showlegend: true, baseTrace: { yaxis: "y" } }
-      );
-      mzPushMeanSplitTraces(
-        dualTraces,
-        dates,
-        byDate.map(function (d) { return d.impression; }),
+      dualTraces = [
         {
-          lineWidth: 2,
-          yaxis: "y2",
-          lineDash: "dot",
+          x: dates,
+          y: byDate.map(function (d) { return d.net_revenue; }),
+          type: "scatter",
+          mode: "lines",
+          name: "Net gelir",
+          yaxis: "y",
+          line: { color: colors.rev, width: 2 },
+        },
+        {
+          x: dates,
+          y: byDate.map(function (d) { return d.impression; }),
+          type: "scatter",
+          mode: "lines",
           name: "Gösterim",
-          showlegend: true,
-          baseTrace: { yaxis: "y2" },
-        }
-      );
+          yaxis: "y2",
+          line: { color: colors.imp, width: 2, dash: "dot" },
+        },
+      ];
     }
     var dualLay = plotTheme(dualLayoutExtra);
     if (peerSum && !revAligned && !impAligned && state.peerSeparate.dual) {
@@ -6062,12 +6069,14 @@
       qualityLayoutExtra = applyCompareLayout(qualityLayoutExtra, qx.length, { legendY: 1.22, marginT: 72 });
     } else {
       qualityKeys.forEach(function (q) {
-        mzPushMeanSplitTraces(
-          qualityTraces,
-          dates,
-          byDate.map(function (d) { return d[q.key]; }),
-          { lineWidth: 2, name: q.label, showlegend: true }
-        );
+        qualityTraces.push({
+          x: dates,
+          y: byDate.map(function (d) { return d[q.key]; }),
+          name: q.label,
+          type: "scatter",
+          mode: "lines",
+          line: { color: qualityPalette[q.idx], width: 2 },
+        });
       });
     }
     var qualityLay = plotTheme(qualityLayoutExtra);
