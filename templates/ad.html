@@ -475,14 +475,6 @@
       </div>
 
       <section id="mz-app-lab" class="mt-8 space-y-4 border-t-2 border-dashed border-indigo-300 pt-6 dark:border-indigo-800">
-        <div class="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/30">
-          <h2 class="text-base font-extrabold text-indigo-950 dark:text-indigo-100">App monetizasyon laboratuvarı (önizleme)</h2>
-          <p class="mt-1 text-[11px] leading-relaxed text-indigo-900/90 dark:text-indigo-200/90">
-            Döviz · seçili tarih aralığı · her kutu numaralı. «1 kalsın», «3 kaldır» diyerek hangi blokları tutacağımızı seçebilirsin.
-            Veriler sidebar filtrelerinden bağımsız (Döviz iOS/Android + tüm yüzeyler).
-          </p>
-          <p id="mz-app-lab-range" class="mt-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
-        </div>
 
         <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="1">
           <div class="mb-2 flex items-center gap-2">
@@ -536,15 +528,6 @@
           </div>
           <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Seçili aralığın son 7 gün geliri vs önceki 7 gün — mail uyarısı için taslak.</p>
           <div id="mz-lab-6" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
-        </div>
-
-        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="7">
-          <div class="mb-2 flex items-center gap-2">
-            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-sm font-black text-white">7</span>
-            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Store + reklam (kampanya indirme)</h3>
-          </div>
-          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">App Store Connect kampanya indirmeleri (iOS) + app geliri.</p>
-          <div id="mz-lab-7" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
         </div>
 
         <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="8">
@@ -1197,28 +1180,6 @@
     );
   }
 
-  function renderMzAppLabSection7(bIos, preview) {
-    var asc = bIos && bIos.app_store_campaign_downloads;
-    var rev = (((preview.section_1_app_snapshot || {}).ios || {}).kpis || {}).net_revenue;
-    if (!asc || asc.ok === false) {
-      return '<p class="text-slate-500">' + ((asc && (asc.error || asc.message)) || "ASC kampanya indirme verisi yok (iOS).") + "</p><p class=\"mt-1\">iOS reklam geliri: " + mzLabMoney(rev) + "</p>";
-    }
-    var daily = asc.daily || {};
-    var td = daily.total_downloads || [];
-    var totalDl = td.reduce(function (a, b) {
-      return a + Number(b || 0);
-    }, 0);
-    var head =
-      "<p class=\"mb-2\">ASC toplam indirme (aralık): <b>" +
-      fmt(totalDl, 0) +
-      "</b> · iOS reklam geliri: " +
-      mzLabMoney(rev) +
-      "</p><p class=\"text-[10px] text-slate-500\">" +
-      (asc.note || "") +
-      "</p>";
-    return head;
-  }
-
   function renderMzAppLabSection8(ovIos, ovAnd, preview) {
     function block(label, branch, overlay, revKpis) {
       if (overlay && overlay.error) return "<p><b>" + label + ":</b> " + overlay.error + "</p>";
@@ -1246,11 +1207,8 @@
 
   async function renderMzAppLabPreview() {
     var token = ++mzAppLabToken;
-    var rangeEl = document.getElementById("mz-app-lab-range");
-    var r = selectedDateRange();
-    if (rangeEl) rangeEl.textContent = "Aralık: " + (r.start || "—") + " → " + (r.end || "—");
 
-    var ids = ["mz-lab-1", "mz-lab-2", "mz-lab-3", "mz-lab-4", "mz-lab-5", "mz-lab-6", "mz-lab-7", "mz-lab-8"];
+    var ids = ["mz-lab-1", "mz-lab-2", "mz-lab-3", "mz-lab-4", "mz-lab-5", "mz-lab-6", "mz-lab-8"];
     ids.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.textContent = "Yükleniyor…";
@@ -1295,8 +1253,6 @@
 
     var el2 = document.getElementById("mz-lab-2");
     if (el2) el2.innerHTML = renderMzAppLabSection2(ga4[0], ga4[1], preview);
-    var el7 = document.getElementById("mz-lab-7");
-    if (el7) el7.innerHTML = renderMzAppLabSection7(ga4[0], preview);
     var el8 = document.getElementById("mz-lab-8");
     if (el8) el8.innerHTML = renderMzAppLabSection8(ga4[2], ga4[3], preview);
   }
