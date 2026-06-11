@@ -516,7 +516,7 @@
             <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-sm font-black text-white">3</span>
             <h3 class="min-w-0 text-sm font-bold leading-snug text-slate-800 dark:text-zinc-100">Format / birim sağlığı</h3>
           </div>
-          <div id="mz-lab-3" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+          <div id="mz-lab-3" class="mz-lab-3-root min-w-0 text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
         </div>
 
       </section>
@@ -945,18 +945,25 @@
     return p;
   }
 
-  function mzLabRenderTable(headers, rows) {
+  function mzLabRenderTable(headers, rows, opts) {
+    opts = opts || {};
     if (!rows || !rows.length) return '<p class="text-slate-400">Veri yok.</p>';
     var h = headers.map(function (x) {
-      return "<th class=\"px-2 py-1 text-left font-bold\">" + x + "</th>";
+      return "<th class=\"px-2 py-1 text-left font-bold whitespace-nowrap\">" + x + "</th>";
     }).join("");
+    var unitCol = opts.wrapUnitCol && headers[0] === "Birim";
     var body = rows
       .map(function (cells) {
         return (
           "<tr class=\"border-t border-slate-100 dark:border-zinc-800\">" +
           cells
-            .map(function (c) {
-              return "<td class=\"px-2 py-1\">" + c + "</td>";
+            .map(function (c, ci) {
+              var td =
+                "px-2 py-1 align-top " +
+                (unitCol && ci === 0
+                  ? "min-w-0 max-w-[11rem] break-words sm:max-w-[14rem]"
+                  : "whitespace-nowrap");
+              return "<td class=\"" + td + "\">" + c + "</td>";
             })
             .join("") +
           "</tr>"
@@ -964,7 +971,7 @@
       })
       .join("");
     return (
-      '<div class="overflow-x-auto"><table class="min-w-full text-left text-[11px]"><thead><tr>' +
+      '<div class="mz-lab-table-scroll -mx-1 overflow-x-auto px-1"><table class="w-full min-w-[280px] text-left text-[11px]"><thead><tr>' +
       h +
       "</tr></thead><tbody>" +
       body +
@@ -996,33 +1003,47 @@
   }
 
   function renderMzAppLabSection3(s3) {
-    var parts = [];
+    var tableOpts = { wrapUnitCol: true };
     function unitTable(title, units) {
       if (!units || !units.length) return "";
       var rows = units.map(function (u) {
         return [
-          (u.ad_unit || "—").slice(0, 48),
+          u.ad_unit || "—",
           fmt(u.impression, 0),
           fmt(u.ad_ecpm, 3),
           mzLabMoney(u.net_revenue),
         ];
       });
-      return "<p class=\"mt-2 font-bold text-slate-600 dark:text-zinc-300\">" + title + "</p>" + mzLabRenderTable(["Birim", "Gösterim", "eCPM", "Gelir"], rows);
+      return (
+        '<div class="mz-lab-3-panel min-w-0">' +
+        '<p class="mb-1 font-bold text-slate-600 dark:text-zinc-300">' +
+        title +
+        "</p>" +
+        mzLabRenderTable(["Birim", "Gösterim", "eCPM", "Gelir"], rows, tableOpts) +
+        "</div>"
+      );
     }
-    parts.push(unitTable("Düşük eCPM (iOS)", s3.ios_low_ecpm_units));
-    parts.push(unitTable("Düşük eCPM (Android)", s3.android_low_ecpm_units));
+    var iosBlock = unitTable("Düşük eCPM (iOS)", s3.ios_low_ecpm_units);
+    var andBlock = unitTable("Düşük eCPM (Android)", s3.android_low_ecpm_units);
     var losers = s3.ios_losers || [];
+    var losersBlock = "";
     if (losers.length) {
       var lr = losers.slice(0, 6).map(function (u) {
-        return [
-          (u.ad_unit || "—").slice(0, 40),
-          mzLabPctBadge(u.net_revenue_delta_pct),
-          mzLabMoney(u.net_revenue),
-        ];
+        return [u.ad_unit || "—", mzLabPctBadge(u.net_revenue_delta_pct), mzLabMoney(u.net_revenue)];
       });
-      parts.push("<p class=\"mt-3 font-bold text-slate-600 dark:text-zinc-300\">iOS gelir düşüşü (önceki dönem)</p>" + mzLabRenderTable(["Birim", "Δ%", "Gelir"], lr));
+      losersBlock =
+        '<div class="mz-lab-3-panel min-w-0">' +
+        '<p class="mb-1 font-bold text-slate-600 dark:text-zinc-300">iOS gelir düşüşü (önceki dönem)</p>' +
+        mzLabRenderTable(["Birim", "Δ%", "Gelir"], lr, tableOpts) +
+        "</div>";
     }
-    return parts.join("");
+    return (
+      '<div class="grid grid-cols-1 gap-4 md:grid-cols-2">' +
+      iosBlock +
+      andBlock +
+      (losersBlock ? '<div class="min-w-0 md:col-span-2">' + losersBlock + "</div>" : "") +
+      "</div>"
+    );
   }
 
   function renderMzAppLabSection4(s4) {
