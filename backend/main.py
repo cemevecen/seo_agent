@@ -7082,7 +7082,7 @@ def dashboard_measure_site(request: Request, site_id: int):
 _HOME_SITE_DOMAINS = {1: ("doviz.com", "Döviz"), 2: ("www.sinemalar.com", "Sinemalar")}
 _HOME_DOVIZ_PROFILES = [("web", "Web"), ("mweb", "MWeb"), ("ios", "iOS"), ("android", "Android")]
 _HOME_SINEMA_PROFILES = [("web", "Web"), ("mweb", "MWeb")]
-_HOME_REALTIME_TREND_LIMIT = 72
+_HOME_REALTIME_TREND_LIMIT = 120
 
 
 def _home_format_int(n: float) -> str:
@@ -12537,7 +12537,11 @@ def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "we
 
     GA4 Realtime token kotasını korumak için sonuç kısa süreli (TTL) cache'lenir;
     429/hata anında son başarılı CANLI sonuç (stale) döndürülür."""
-    from backend.services.ga4_realtime import fetch_realtime_profile_bundle, get_recent_alarms
+    from backend.services.ga4_realtime import (
+        REALTIME_TREND_LIMIT_DEFAULT,
+        fetch_realtime_profile_bundle,
+        get_recent_alarms,
+    )
 
     w = window if window is not None else settings.ga4_realtime_window_minutes
     with SessionLocal() as db:
@@ -12546,22 +12550,38 @@ def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "we
             return JSONResponse({"error": "site_not_found"}, status_code=404)
 
         result = fetch_realtime_profile_bundle(
-            db, site, profile=profile, window_minutes=w, trend_limit=72, skip_alarms=True
+            db,
+            site,
+            profile=profile,
+            window_minutes=w,
+            trend_limit=REALTIME_TREND_LIMIT_DEFAULT,
+            skip_alarms=True,
         )
         result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
     return JSONResponse(result)
 
 
 @app.get("/api/ga4/realtime/{site_id}/trend")
-def api_ga4_realtime_trend(site_id: int, profile: str = "web", limit: int = 72):
+def api_ga4_realtime_trend(
+    site_id: int,
+    profile: str = "web",
+    limit: int | None = None,
+):
     """Son N snapshot — mini trend grafiği için (API çağırmadan sadece DB okur)."""
-    from backend.services.ga4_realtime import get_recent_snapshots
+    from backend.services.ga4_realtime import (
+        REALTIME_TREND_LIMIT_DEFAULT,
+        REALTIME_TREND_LIMIT_MAX,
+        get_recent_snapshots,
+    )
 
+    req_limit = REALTIME_TREND_LIMIT_DEFAULT if limit is None else limit
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return JSONResponse({"error": "site_not_found"}, status_code=404)
-        snapshots = get_recent_snapshots(db, site_id, profile=profile, limit=min(limit, 120))
+        snapshots = get_recent_snapshots(
+            db, site_id, profile=profile, limit=min(req_limit, REALTIME_TREND_LIMIT_MAX)
+        )
     return JSONResponse({"site_id": site_id, "profile": profile, "trend": snapshots})
 
 

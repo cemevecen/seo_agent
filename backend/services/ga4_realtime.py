@@ -813,6 +813,11 @@ def _realtime_rules_threshold_pct_for_domain(
 # Varsayılan pencere boyutu (dakika)
 DEFAULT_WINDOW_MINUTES = 10
 
+# DB snapshot trend — gerçek kayıtlar; sentetik interpolasyon yok
+REALTIME_TREND_LIMIT_DEFAULT = 288  # ~4.8 saat @ 60 sn poll
+REALTIME_TREND_LIMIT_MAX = 480  # ~8 saat @ 60 sn poll
+REALTIME_HOME_TREND_LIMIT = 120  # ana sayfa mini spark
+
 
 def _build_client() -> BetaAnalyticsDataClient:
     info = load_ga4_service_account_info()
@@ -2399,7 +2404,7 @@ def fetch_realtime_profile_bundle(
     *,
     profile: str = "web",
     window_minutes: int | None = None,
-    trend_limit: int = 72,
+    trend_limit: int = REALTIME_TREND_LIMIT_DEFAULT,
     skip_alarms: bool = True,
 ) -> dict[str, Any]:
     """Realtime sayfası ve ana sayfa KPI/spark için ortak veri yolu (TTL cache + trend)."""
@@ -2491,7 +2496,7 @@ def fetch_home_realtime_profile_bundle(
     *,
     profile: str = "web",
     window_minutes: int | None = None,
-    trend_limit: int = 72,
+    trend_limit: int = REALTIME_HOME_TREND_LIMIT,
 ) -> dict[str, Any]:
     """Ana sayfa realtime: bellek cache → snapshot → (gerekirse) GA4; miss'te snapshot + arka plan refresh."""
     from backend.config import settings

@@ -1410,6 +1410,7 @@
     var dark = isDarkTheme();
     return {
       primary: dark ? "#818cf8" : "#4f46e5",
+      sparkCompare: dark ? "#38bdf8" : "#0284c7",
       compare: dark ? "#fb7185" : "#e11d48",
       rev: dark ? "#34d399" : "#059669",
       revCmp: dark ? "#fbbf24" : "#d97706",
@@ -5818,7 +5819,7 @@
           y: compareYs,
           type: "scatter",
           mode: "lines",
-          line: { width: 1.25, color: colors.compare, dash: "dot" },
+          line: { width: 1.25, color: colors.sparkCompare, dash: "dot" },
           connectgaps: false,
         });
       }

@@ -1076,6 +1076,7 @@
   var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
   var PAGES_INTERVAL_MS = 1 * 60000;   // 1 dakika — KPI ile eşzamanlı
   var WINDOW = {{ window_minutes }};
+  var RT_TREND_LIMIT = 288;
   /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi */
   var LIST_WINDOW = 30;
   /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
@@ -1300,7 +1301,7 @@
   function rtFetchTrend(siteId, profile) {
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
-    fetch('/api/ga4/realtime/' + siteId + '/trend?profile=' + encodeURIComponent(profile) + '&limit=96', {
+    fetch('/api/ga4/realtime/' + siteId + '/trend?profile=' + encodeURIComponent(profile) + '&limit=' + RT_TREND_LIMIT, {
       credentials: 'same-origin',
       cache: 'no-store',
     })
