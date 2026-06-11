@@ -70,18 +70,6 @@ def test_dedupe_news_rows_keeps_newest_first():
     assert out[1].headline == "Başka haber"
 
 
-def test_extract_item_image_url_from_description():
-    root = ET.fromstring(
-        """<rss><channel><item>
-        <title>X</title><link>http://a</link>
-        <description><![CDATA[<p>Özet</p><img src="https://cdn.example.com/cover.jpg" alt="">]]></description>
-        </item></channel></rss>"""
-    )
-    item = root.find(".//item")
-    url = ni._extract_item_image_url(item, "rss", item.findtext("description") or "")
-    assert url == "https://cdn.example.com/cover.jpg"
-
-
 def test_retention_hours_is_twelve():
     assert ni.RETENTION_HOURS == 12
 

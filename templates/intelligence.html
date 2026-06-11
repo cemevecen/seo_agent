@@ -80,18 +80,8 @@
     color: #a5b4fc !important;
   }
 
-  .rt-intel-thumb {
-    background: linear-gradient(145deg, #e2e8f0, #f1f5f9);
-  }
-  html.dark .rt-intel-thumb {
-    background: linear-gradient(145deg, #27272a, #18181b);
-  }
-  .rt-intel-img-fallback {
-    letter-spacing: 0.02em;
-  }
   html.dark .rt-intel-card .rt-time {
-    color: #d4d4d8 !important;
-    background: rgba(9, 9, 11, 0.72);
+    color: #71717a !important;
   }
   html.dark .rt-intel-card .rt-excerpt {
     color: #71717a !important;
@@ -270,25 +260,10 @@
       return _intelEscHtml(s).replace(/'/g, '&#39;');
     }
 
-    function _intelSourceInitial(name) {
-      const n = String(name || '').trim();
-      if (!n) return '?';
-      const m = n.match(/[A-Za-zÇĞİÖŞÜçğıöşü0-9]/);
-      return m ? m[0].toLocaleUpperCase('tr-TR') : n.charAt(0).toLocaleUpperCase('tr-TR');
-    }
-
     function _intelPlainText(html) {
       const tmp = document.createElement('div');
       tmp.innerHTML = html || '';
       return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
-    }
-
-    function _intelExtractImageUrl(item) {
-      const direct = (item.image_url || '').trim();
-      if (direct) return direct;
-      const raw = (item.content || '').toString();
-      const m = raw.match(/<img[^>]+src=["']([^"']+)["']/i);
-      return m ? m[1].trim() : '';
     }
 
     function _intelExcerptText(rawContent, headline) {
@@ -314,10 +289,8 @@
         : (d.toLocaleDateString('tr-TR', {day:'numeric', month:'short'}) + ' ' + hhmm);
       const sourceName = String(item.source_name || '').trim();
       const sourceTitle = sourceName ? `Kaynak: ${sourceName}` : '';
-      const initial = _intelSourceInitial(sourceName);
-      const imgUrl = _intelExtractImageUrl(item);
       const newBadge = isNew
-        ? '<span class="absolute left-2 top-2 z-[2] inline-flex items-center rounded border border-emerald-200 bg-emerald-50/95 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/90 dark:text-emerald-300">YENİ</span>'
+        ? '<span class="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">YENİ</span>'
         : '';
 
       const excerpt = _intelExcerptText(item.content, item.headline);
@@ -325,26 +298,12 @@
         ? `<p class="rt-excerpt mt-2 text-[11px] leading-snug text-slate-500 dark:text-zinc-500 line-clamp-3">${_intelEscHtml(excerpt)}</p>`
         : '';
 
-      let thumbHtml = '';
-      if (imgUrl) {
-        thumbHtml = `<div class="rt-intel-thumb relative aspect-[16/10] w-full overflow-hidden rounded-xl">
-          <img src="${_intelEscAttr(imgUrl)}" alt="" class="h-full w-full object-cover" loading="lazy" decoding="async"
-            onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden');">
-          <div class="rt-intel-img-fallback hidden absolute inset-0 flex items-center justify-center text-4xl font-black text-slate-500 dark:text-zinc-400">${_intelEscHtml(initial)}</div>
-          <span class="rt-time absolute right-2 top-2 z-[2] rounded-md px-1.5 py-0.5 text-[10px] tabular-nums text-slate-600 dark:text-zinc-300 bg-white/85 dark:bg-zinc-950/75">${timeStr}</span>
+      return `<article class="group rt-intel-card flex flex-col gap-2 overflow-hidden rounded-2xl border p-4 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}" data-published-at="${item.published_at || ''}" title="${_intelEscAttr(sourceTitle)}">
+        <div class="flex items-center justify-end gap-2">
           ${newBadge}
-        </div>`;
-      } else {
-        thumbHtml = `<div class="rt-intel-thumb relative aspect-[16/10] w-full overflow-hidden rounded-xl flex items-center justify-center">
-          <span class="rt-intel-img-fallback text-4xl font-black text-slate-500 dark:text-zinc-400">${_intelEscHtml(initial)}</span>
-          <span class="rt-time absolute right-2 top-2 z-[2] rounded-md px-1.5 py-0.5 text-[10px] tabular-nums text-slate-600 dark:text-zinc-300 bg-white/85 dark:bg-zinc-950/75">${timeStr}</span>
-          ${newBadge}
-        </div>`;
-      }
-
-      return `<article class="group rt-intel-card flex flex-col overflow-hidden rounded-2xl border p-3 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}" data-published-at="${item.published_at || ''}" title="${_intelEscAttr(sourceTitle)}">
-        ${thumbHtml}
-        <div class="min-w-0 pt-3">
+          <span class="rt-time shrink-0 text-[10px] tabular-nums text-slate-500 dark:text-zinc-500">${timeStr}</span>
+        </div>
+        <div class="min-w-0">
           <h3 class="text-[13.5px] font-semibold text-slate-800 dark:text-[#b0b0b8] leading-snug line-clamp-4">
             <a href="${_intelEscAttr(item.url)}" target="_blank" rel="noopener noreferrer" class="transition-colors hover:text-indigo-700 dark:hover:text-[#9090b8]">${_intelEscHtml(item.headline)}</a>
           </h3>
