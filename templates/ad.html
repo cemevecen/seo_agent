@@ -473,6 +473,89 @@
           <div id="mz-summary-drill-insights" class="mz-drill-insights-panel mt-2 hidden rounded-lg border px-2.5 py-2 text-[10px] leading-relaxed"></div>
         </div>
       </div>
+
+      <section id="mz-app-lab" class="mt-8 space-y-4 border-t-2 border-dashed border-indigo-300 pt-6 dark:border-indigo-800">
+        <div class="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/30">
+          <h2 class="text-base font-extrabold text-indigo-950 dark:text-indigo-100">App monetizasyon laboratuvarı (önizleme)</h2>
+          <p class="mt-1 text-[11px] leading-relaxed text-indigo-900/90 dark:text-indigo-200/90">
+            Döviz · seçili tarih aralığı · her kutu numaralı. «1 kalsın», «3 kaldır» diyerek hangi blokları tutacağımızı seçebilirsin.
+            Veriler sidebar filtrelerinden bağımsız (Döviz iOS/Android + tüm yüzeyler).
+          </p>
+          <p id="mz-app-lab-range" class="mt-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="1">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-600 text-sm font-black text-white">1</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Uygulama tek bakış (iOS vs Android)</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Net gelir, gösterim, eCPM · önceki döneme % (aynı uzunluk).</p>
+          <div id="mz-lab-1" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="2">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-sm font-black text-white">2</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Banner → gelir köprüsü (GA4)</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">First open + mweb banner olayları vs app reklam geliri (aynı aralık).</p>
+          <div id="mz-lab-2" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="3">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-sm font-black text-white">3</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Format / birim sağlığı</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Düşük eCPM birimler, gelir tipi kırılımı, önceki döneme göre düşen birimler (iOS).</p>
+          <div id="mz-lab-3" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="4">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-sm font-black text-white">4</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Döviz yüzey haritası (web · mweb · app)</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Dört dalın gelir payı ve toplam.</p>
+          <div id="mz-lab-4" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="5">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-600 text-sm font-black text-white">5</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Kalite metrikleri (iOS ↔ Android)</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Coverage, viewability, CTR, eCPM yan yana.</p>
+          <div id="mz-lab-5" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="6">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-rose-600 text-sm font-black text-white">6</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Anomali ipuçları (7+7 gün)</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Seçili aralığın son 7 gün geliri vs önceki 7 gün — mail uyarısı için taslak.</p>
+          <div id="mz-lab-6" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="7">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-sm font-black text-white">7</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Store + reklam (kampanya indirme)</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">App Store Connect kampanya indirmeleri (iOS) + app geliri.</p>
+          <div id="mz-lab-7" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+
+        <div class="mz-app-lab-card rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-mz-lab="8">
+          <div class="mb-2 flex items-center gap-2">
+            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-700 text-sm font-black text-white">8</span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">GA4 oturum / kullanıcı ↔ gelir</h3>
+          </div>
+          <p class="mb-2 text-[10px] text-slate-500 dark:text-zinc-400">Overlay trend toplamı · kabaca TL / 1K active user (proxy ARPDAU).</p>
+          <div id="mz-lab-8" class="text-xs text-slate-700 dark:text-zinc-300">Yükleniyor…</div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -876,6 +959,346 @@
   function fmt(n, dec) {
     if (n == null || isNaN(n)) return "0";
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: dec == null ? 2 : dec });
+  }
+
+  function mzLabPctBadge(pct) {
+    if (pct == null || isNaN(pct)) return '<span class="text-slate-400">—</span>';
+    var n = Number(pct);
+    var cls = n >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400";
+    var sign = n > 0 ? "+" : "";
+    return '<span class="font-semibold ' + cls + '">' + sign + fmt(n, 1) + "%</span>";
+  }
+
+  function mzLabMoney(n) {
+    return fmt(n, 2) + " TL";
+  }
+
+  function mzLabQsDates() {
+    var r = selectedDateRange();
+    var p = new URLSearchParams();
+    if (r.start) p.set("start", r.start);
+    if (r.end) p.set("end", r.end);
+    return p;
+  }
+
+  function mzLabSumSeriesValues(series) {
+    if (!series || !series.values) return 0;
+    return (series.values || []).reduce(function (a, b) {
+      return a + Number(b || 0);
+    }, 0);
+  }
+
+  function mzLabSumGa4Users(trend) {
+    if (!trend || !trend.daily_trend) return null;
+    var arr = trend.daily_trend.activeUsers || trend.daily_trend.sessions || [];
+    if (!arr.length) return null;
+    return arr.reduce(function (a, b) {
+      return a + Number(b || 0);
+    }, 0);
+  }
+
+  function mzLabRenderTable(headers, rows) {
+    if (!rows || !rows.length) return '<p class="text-slate-400">Veri yok.</p>';
+    var h = headers.map(function (x) {
+      return "<th class=\"px-2 py-1 text-left font-bold\">" + x + "</th>";
+    }).join("");
+    var body = rows
+      .map(function (cells) {
+        return (
+          "<tr class=\"border-t border-slate-100 dark:border-zinc-800\">" +
+          cells
+            .map(function (c) {
+              return "<td class=\"px-2 py-1\">" + c + "</td>";
+            })
+            .join("") +
+          "</tr>"
+        );
+      })
+      .join("");
+    return (
+      '<div class="overflow-x-auto"><table class="min-w-full text-left text-[11px]"><thead><tr>' +
+      h +
+      "</tr></thead><tbody>" +
+      body +
+      "</tbody></table></div>"
+    );
+  }
+
+  function renderMzAppLabSection1(s1) {
+    function row(platform, snap) {
+      var k = (snap && snap.kpis) || {};
+      var d = (snap && snap.deltas) || {};
+      var revD = d.net_revenue && d.net_revenue.pct;
+      var ecpmD = d.ad_ecpm && d.ad_ecpm.pct;
+      return [
+        "<b>" + platform + "</b>",
+        mzLabMoney(k.net_revenue),
+        mzLabPctBadge(revD),
+        fmt(k.impression, 0),
+        fmt(k.ad_ecpm, 3),
+        mzLabPctBadge(ecpmD),
+      ];
+    }
+    var ios = s1.ios || {};
+    var and = s1.android || {};
+    return mzLabRenderTable(
+      ["Platform", "Net gelir", "Δ gelir", "Gösterim", "eCPM", "Δ eCPM"],
+      [row("iOS", ios), row("Android", and)]
+    );
+  }
+
+  function renderMzAppLabSection3(s3) {
+    var parts = [];
+    function unitTable(title, units) {
+      if (!units || !units.length) return "<p class=\"mt-2 text-slate-400\">" + title + ": kayıt yok</p>";
+      var rows = units.map(function (u) {
+        return [
+          (u.ad_unit || "—").slice(0, 48),
+          fmt(u.impression, 0),
+          fmt(u.ad_ecpm, 3),
+          mzLabMoney(u.net_revenue),
+        ];
+      });
+      return "<p class=\"mt-2 font-bold text-slate-600 dark:text-zinc-300\">" + title + "</p>" + mzLabRenderTable(["Birim", "Gösterim", "eCPM", "Gelir"], rows);
+    }
+    parts.push(unitTable("Düşük eCPM (iOS)", s3.ios_low_ecpm_units));
+    parts.push(unitTable("Düşük eCPM (Android)", s3.android_low_ecpm_units));
+    var losers = s3.ios_losers || [];
+    if (losers.length) {
+      var lr = losers.slice(0, 6).map(function (u) {
+        return [
+          (u.ad_unit || "—").slice(0, 40),
+          mzLabPctBadge(u.net_revenue_delta_pct),
+          mzLabMoney(u.net_revenue),
+        ];
+      });
+      parts.push("<p class=\"mt-3 font-bold text-slate-600 dark:text-zinc-300\">iOS gelir düşüşü (önceki dönem)</p>" + mzLabRenderTable(["Birim", "Δ%", "Gelir"], lr));
+    }
+    return parts.join("");
+  }
+
+  function renderMzAppLabSection4(s4) {
+    var rows = (s4.branches || []).map(function (b) {
+      return [b.label, mzLabMoney(b.net_revenue), fmt(b.share_pct, 1) + "%", fmt(b.impression, 0), fmt(b.ad_ecpm, 3)];
+    });
+    var head =
+      '<p class="mb-2 font-semibold">Toplam: <span class="text-indigo-700 dark:text-indigo-300">' +
+      mzLabMoney(s4.total_net_revenue) +
+      "</span> · native app payı: <span class=\"font-bold\">" +
+      fmt(s4.mobile_app_share_pct, 1) +
+      "%</span></p>";
+    return head + mzLabRenderTable(["Yüzey", "Net gelir", "Pay", "Gösterim", "eCPM"], rows);
+  }
+
+  function renderMzAppLabSection5(s5) {
+    function line(label, o) {
+      return [
+        label,
+        fmt(o.coverage_pct, 2) + "%",
+        fmt(o.viewability_pct, 2) + "%",
+        fmt(o.ctr_pct, 3) + "%",
+        fmt(o.ad_ecpm, 3),
+        mzLabPctBadge(o.delta_ad_ecpm_pct),
+      ];
+    }
+    return mzLabRenderTable(
+      ["", "Coverage", "Viewability", "CTR", "eCPM", "Δ eCPM"],
+      [line("iOS", s5.ios || {}), line("Android", s5.android || {})]
+    );
+  }
+
+  function renderMzAppLabSection6(s6) {
+    function block(label, a) {
+      if (!a || !a.ok) return "<p><b>" + label + ":</b> " + ((a && a.message) || "—") + "</p>";
+      var warn = a.delta_pct != null && a.delta_pct <= -15;
+      return (
+        "<p class=\"" +
+        (warn ? "rounded-lg border border-rose-200 bg-rose-50/80 px-2 py-1 dark:border-rose-900/40" : "") +
+        "\"><b>" +
+        label +
+        ":</b> son 7 gün " +
+        mzLabMoney(a.last7_revenue) +
+        " · önceki 7 gün " +
+        mzLabMoney(a.prev7_revenue) +
+        " · " +
+        mzLabPctBadge(a.delta_pct) +
+        (warn ? " <span class=\"font-bold text-rose-700\">(uyarı eşiği −15%)</span>" : "") +
+        "</p>"
+      );
+    }
+    return block("iOS", s6.ios) + block("Android", s6.android) + '<p class="mt-1 text-[10px] text-slate-500">' + (s6.note || "") + "</p>";
+  }
+
+  async function fetchMzAppBanner(profile) {
+    var q = mzLabQsDates();
+    q.set("project", "doviz");
+    q.set("profile", profile);
+    q.set("top_campaigns", "5");
+    try {
+      var r = await fetch("/api/mz-analytics/ga4-app-banner?" + q.toString(), { credentials: "same-origin" });
+      if (!r.ok) return { error: "HTTP " + r.status };
+      return await r.json();
+    } catch (e) {
+      return { error: String(e && e.message ? e.message : e) };
+    }
+  }
+
+  async function fetchMzGa4Overlay(branch) {
+    var q = new URLSearchParams();
+    q.set("project", "doviz");
+    q.set("branch", branch);
+    try {
+      var r = await fetch("/api/mz-analytics/ga4-mobile-overlay?" + q.toString(), { credentials: "same-origin" });
+      if (!r.ok) return { error: "HTTP " + r.status };
+      return await r.json();
+    } catch (e) {
+      return { error: String(e && e.message ? e.message : e) };
+    }
+  }
+
+  function renderMzAppLabSection2(bIos, bAnd, preview) {
+    if ((bIos && bIos.error) && (bAnd && bAnd.error)) {
+      return '<p class="text-amber-700 dark:text-amber-300">GA4 banner verisi alınamadı: ' + (bIos.error || bAnd.error) + "</p>";
+    }
+    var iosRev = ((preview.section_1_app_snapshot || {}).ios || {}).kpis || {};
+    var andRev = ((preview.section_1_app_snapshot || {}).android || {}).kpis || {};
+    function mwebEventTotal(mweb, needle) {
+      if (!mweb || !mweb.events) return null;
+      var sum = 0;
+      var found = false;
+      mweb.events.forEach(function (ev) {
+        var n = (ev.event_name || "").toLowerCase();
+        if (n.indexOf(needle) >= 0) {
+          sum += Number(ev.total || 0);
+          found = true;
+        }
+      });
+      return found ? sum : null;
+    }
+    function row(profile, banner, revKpis) {
+      var fo = banner && !banner.error ? mzLabSumSeriesValues(banner.total_daily) : null;
+      var mweb = banner && banner.mweb_banner && !banner.mweb_banner.error ? banner.mweb_banner : null;
+      var disp = mwebEventTotal(mweb, "display");
+      var clicks = mwebEventTotal(mweb, "click");
+      return [
+        profile,
+        fo != null ? fmt(fo, 0) : "—",
+        disp != null ? fmt(disp, 0) : "—",
+        clicks != null ? fmt(clicks, 0) : "—",
+        mzLabMoney((revKpis || {}).net_revenue),
+      ];
+    }
+    return mzLabRenderTable(
+      ["Profil", "First open", "mweb banner gösterim", "mweb tıklama", "App reklam geliri"],
+      [
+        row("iOS", bIos, iosRev),
+        row("Android", bAnd, andRev),
+      ]
+    );
+  }
+
+  function renderMzAppLabSection7(bIos, preview) {
+    var asc = bIos && bIos.app_store_campaign_downloads;
+    var rev = (((preview.section_1_app_snapshot || {}).ios || {}).kpis || {}).net_revenue;
+    if (!asc || asc.ok === false) {
+      return '<p class="text-slate-500">' + ((asc && (asc.error || asc.message)) || "ASC kampanya indirme verisi yok (iOS).") + "</p><p class=\"mt-1\">iOS reklam geliri: " + mzLabMoney(rev) + "</p>";
+    }
+    var daily = asc.daily || {};
+    var td = daily.total_downloads || [];
+    var totalDl = td.reduce(function (a, b) {
+      return a + Number(b || 0);
+    }, 0);
+    var head =
+      "<p class=\"mb-2\">ASC toplam indirme (aralık): <b>" +
+      fmt(totalDl, 0) +
+      "</b> · iOS reklam geliri: " +
+      mzLabMoney(rev) +
+      "</p><p class=\"text-[10px] text-slate-500\">" +
+      (asc.note || "") +
+      "</p>";
+    return head;
+  }
+
+  function renderMzAppLabSection8(ovIos, ovAnd, preview) {
+    function block(label, branch, overlay, revKpis) {
+      if (overlay && overlay.error) return "<p><b>" + label + ":</b> " + overlay.error + "</p>";
+      var prof = branch === "ios" ? overlay.ios : overlay.android;
+      var users = mzLabSumGa4Users(prof);
+      var rev = Number((revKpis || {}).net_revenue || 0);
+      var per1k = users > 0 ? (rev / users) * 1000 : null;
+      return (
+        "<p><b>" +
+        label +
+        ":</b> GA4 active user toplamı (trend penceresi): " +
+        (users != null ? fmt(users, 0) : "—") +
+        " · reklam geliri: " +
+        mzLabMoney(rev) +
+        " · ~" +
+        (per1k != null ? fmt(per1k, 2) + " TL / 1K kullanıcı" : "—") +
+        "</p>"
+      );
+    }
+    var s1 = preview.section_1_app_snapshot || {};
+    return block("iOS", "ios", ovIos, ((s1.ios || {}).kpis || {})) + block("Android", "android", ovAnd, ((s1.android || {}).kpis || {}));
+  }
+
+  var mzAppLabToken = 0;
+
+  async function renderMzAppLabPreview() {
+    var token = ++mzAppLabToken;
+    var rangeEl = document.getElementById("mz-app-lab-range");
+    var r = selectedDateRange();
+    if (rangeEl) rangeEl.textContent = "Aralık: " + (r.start || "—") + " → " + (r.end || "—");
+
+    var ids = ["mz-lab-1", "mz-lab-2", "mz-lab-3", "mz-lab-4", "mz-lab-5", "mz-lab-6", "mz-lab-7", "mz-lab-8"];
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = "Yükleniyor…";
+    });
+
+    var q = mzLabQsDates();
+    var preview = null;
+    try {
+      var pr = await fetch("/api/mz-analytics/app-lab-preview?" + q.toString(), { credentials: "same-origin" });
+      if (pr.ok) preview = await pr.json();
+    } catch (e) {
+      preview = null;
+    }
+    if (token !== mzAppLabToken) return;
+
+    if (!preview) {
+      ids.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = "Önizleme API yanıt vermedi.";
+      });
+      return;
+    }
+
+    var el1 = document.getElementById("mz-lab-1");
+    if (el1) el1.innerHTML = renderMzAppLabSection1(preview.section_1_app_snapshot || {});
+    var el3 = document.getElementById("mz-lab-3");
+    if (el3) el3.innerHTML = renderMzAppLabSection3(preview.section_3_format_health || {});
+    var el4 = document.getElementById("mz-lab-4");
+    if (el4) el4.innerHTML = renderMzAppLabSection4(preview.section_4_surface_map || {});
+    var el5 = document.getElementById("mz-lab-5");
+    if (el5) el5.innerHTML = renderMzAppLabSection5(preview.section_5_quality_peer || {});
+    var el6 = document.getElementById("mz-lab-6");
+    if (el6) el6.innerHTML = renderMzAppLabSection6(preview.section_6_anomaly_hints || {});
+
+    var ga4 = await Promise.all([
+      fetchMzAppBanner("ios"),
+      fetchMzAppBanner("android"),
+      fetchMzGa4Overlay("ios"),
+      fetchMzGa4Overlay("android"),
+    ]);
+    if (token !== mzAppLabToken) return;
+
+    var el2 = document.getElementById("mz-lab-2");
+    if (el2) el2.innerHTML = renderMzAppLabSection2(ga4[0], ga4[1], preview);
+    var el7 = document.getElementById("mz-lab-7");
+    if (el7) el7.innerHTML = renderMzAppLabSection7(ga4[0], preview);
+    var el8 = document.getElementById("mz-lab-8");
+    if (el8) el8.innerHTML = renderMzAppLabSection8(ga4[2], ga4[3], preview);
   }
 
   function qs() {
@@ -6638,6 +7061,7 @@
       if (state.summaryDrillSlice && Object.keys(state.summaryDrillSlice).length) {
         renderSummaryDrillChart();
       }
+      renderMzAppLabPreview().catch(function () {});
     } catch (err) {
       var msg = (err && err.message) || "Veri yüklenemedi";
       document.getElementById("mz-status").textContent = msg;

@@ -468,6 +468,16 @@ def get_ga4_app_banner(
     return payload
 
 
+@router.get("/mz-analytics/app-lab-preview")
+def get_app_lab_preview(
+    db: Session = Depends(get_db),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+):
+    """Döviz app monetizasyon önizleme kartları (/ad sayfa altı)."""
+    return store.query_app_lab_preview(db, start=start, end=end)
+
+
 @router.post("/mz-analytics/reset")
 def post_ad_analytics_reset(db: Session = Depends(get_db)):
     try:

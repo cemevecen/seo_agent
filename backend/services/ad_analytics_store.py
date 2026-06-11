@@ -2493,3 +2493,156 @@ def _merge_table_rows(
         merged.append(item)
     merged.sort(key=lambda x: float(x.get("net_revenue") or 0), reverse=True)
     return merged
+
+
+_BRANCH_LABELS = {
+    "desktop": "Web (desktop)",
+    "mweb": "Mobil web",
+    "ios": "iOS app",
+    "android": "Android app",
+}
+
+
+def _snapshot_branch(
+    db: Session,
+    *,
+    start: str | None,
+    end: str | None,
+    branch: str,
+) -> dict[str, Any]:
+    data = query_summary(
+        db,
+        start=start,
+        end=end,
+        project="doviz",
+        branch=branch,
+        compare_mode="previous_period",
+    )
+    kpis = data.get("kpis") or {}
+    deltas = (data.get("compare") or {}).get("deltas") or {}
+    return {
+        "branch": branch,
+        "label": _BRANCH_LABELS.get(branch, branch),
+        "kpis": kpis,
+        "deltas": deltas,
+        "by_income_type": data.get("by_income_type") or [],
+        "by_ad_unit_scatter": data.get("by_ad_unit_scatter") or [],
+        "by_date": data.get("by_date") or [],
+        "leaders_losers": (data.get("compare") or {}).get("leaders_losers") or {},
+    }
+
+
+def _low_ecpm_ad_units(scatter: list[dict[str, Any]], *, min_impressions: int = 50, limit: int = 8) -> list[dict[str, Any]]:
+    rows = [u for u in scatter if int(u.get("impression") or 0) >= min_impressions]
+    rows.sort(key=lambda x: float(x.get("ad_ecpm") or 0))
+    return rows[:limit]
+
+
+def _revenue_week_anomaly(by_date: list[dict[str, Any]]) -> dict[str, Any]:
+    days = sorted(by_date or [], key=lambda x: str(x.get("date") or ""))
+    if len(days) < 14:
+        return {
+            "ok": False,
+            "message": "Son 14 günlük günlük seri yok (aralığı genişletin).",
+        }
+    last7 = sum(float(d.get("net_revenue") or 0) for d in days[-7:])
+    prev7 = sum(float(d.get("net_revenue") or 0) for d in days[-14:-7])
+    delta_pct = ((last7 - prev7) / prev7 * 100.0) if prev7 > 0 else None
+    return {
+        "ok": True,
+        "last7_revenue": round(last7, 2),
+        "prev7_revenue": round(prev7, 2),
+        "delta_pct": round(delta_pct, 1) if delta_pct is not None else None,
+    }
+
+
+def query_app_lab_preview(
+    db: Session,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
+    """/ad sayfası altı — numaralı app monetizasyon önizleme blokları (Döviz)."""
+    ios = _snapshot_branch(db, start=start, end=end, branch="ios")
+    android = _snapshot_branch(db, start=start, end=end, branch="android")
+
+    surface_rows: list[dict[str, Any]] = []
+    total_rev = 0.0
+    for br in ("desktop", "mweb", "ios", "android"):
+        snap = _snapshot_branch(db, start=start, end=end, branch=br)
+        kp = snap.get("kpis") or {}
+        rev = float(kp.get("net_revenue") or 0)
+        total_rev += rev
+        surface_rows.append(
+            {
+                "branch": br,
+                "label": _BRANCH_LABELS.get(br, br),
+                "net_revenue": round(rev, 2),
+                "impression": int(kp.get("impression") or 0),
+                "ad_ecpm": round(float(kp.get("ad_ecpm") or 0), 3),
+            }
+        )
+    for row in surface_rows:
+        row["share_pct"] = round(row["net_revenue"] / total_rev * 100.0, 1) if total_rev > 0 else 0.0
+
+    def _delta_pct(deltas: dict, key: str) -> float | None:
+        hit = deltas.get(key) or {}
+        if hit.get("pct") is None:
+            return None
+        return float(hit["pct"])
+
+    return {
+        "project": "doviz",
+        "range": {"start": start, "end": end},
+        "section_1_app_snapshot": {
+            "ios": ios,
+            "android": android,
+            "ios_vs_android_revenue": {
+                "ios": float((ios.get("kpis") or {}).get("net_revenue") or 0),
+                "android": float((android.get("kpis") or {}).get("net_revenue") or 0),
+            },
+        },
+        "section_3_format_health": {
+            "ios_low_ecpm_units": _low_ecpm_ad_units(ios.get("by_ad_unit_scatter") or []),
+            "android_low_ecpm_units": _low_ecpm_ad_units(android.get("by_ad_unit_scatter") or []),
+            "ios_income_mix": ios.get("by_income_type") or [],
+            "android_income_mix": android.get("by_income_type") or [],
+            "ios_losers": (ios.get("leaders_losers") or {}).get("losers") or [],
+        },
+        "section_4_surface_map": {
+            "total_net_revenue": round(total_rev, 2),
+            "branches": surface_rows,
+            "mobile_app_share_pct": round(
+                (
+                    float((ios.get("kpis") or {}).get("net_revenue") or 0)
+                    + float((android.get("kpis") or {}).get("net_revenue") or 0)
+                )
+                / total_rev
+                * 100.0,
+                1,
+            )
+            if total_rev > 0
+            else 0.0,
+        },
+        "section_5_quality_peer": {
+            "ios": {
+                "coverage_pct": (ios.get("kpis") or {}).get("coverage_pct"),
+                "viewability_pct": (ios.get("kpis") or {}).get("viewability_pct"),
+                "ctr_pct": (ios.get("kpis") or {}).get("ctr_pct"),
+                "ad_ecpm": (ios.get("kpis") or {}).get("ad_ecpm"),
+                "delta_ad_ecpm_pct": _delta_pct(ios.get("deltas") or {}, "ad_ecpm"),
+            },
+            "android": {
+                "coverage_pct": (android.get("kpis") or {}).get("coverage_pct"),
+                "viewability_pct": (android.get("kpis") or {}).get("viewability_pct"),
+                "ctr_pct": (android.get("kpis") or {}).get("ctr_pct"),
+                "ad_ecpm": (android.get("kpis") or {}).get("ad_ecpm"),
+                "delta_ad_ecpm_pct": _delta_pct(android.get("deltas") or {}, "ad_ecpm"),
+            },
+        },
+        "section_6_anomaly_hints": {
+            "ios": _revenue_week_anomaly(ios.get("by_date") or []),
+            "android": _revenue_week_anomaly(android.get("by_date") or []),
+            "note": "Son 7 gün gelir vs önceki 7 gün (seçili aralığın sonu).",
+        },
+    }

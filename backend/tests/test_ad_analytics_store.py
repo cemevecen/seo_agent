@@ -59,6 +59,20 @@ def test_channel_and_surface_from_filename_and_ad_unit():
     assert rows[1]["surface"] == "web"
 
 
+def test_revenue_week_anomaly_requires_14_days():
+    days = [{"date": f"2026-01-{i:02d}", "net_revenue": 10.0} for i in range(1, 11)]
+    out = store._revenue_week_anomaly(days)
+    assert out["ok"] is False
+
+
+def test_revenue_week_anomaly_delta():
+    days = [{"date": f"2026-01-{i:02d}", "net_revenue": 10.0 if i <= 7 else (5.0 if i <= 14 else 1.0)} for i in range(1, 21)]
+    out = store._revenue_week_anomaly(days)
+    assert out["ok"] is True
+    assert out["last7_revenue"] == 7.0
+    assert out["prev7_revenue"] == 70.0
+
+
 def test_resolve_compare_range_previous_period():
     start, end = store.resolve_compare_range("2026-01-10", "2026-01-16", "previous_period")
     assert start == "2026-01-03"
