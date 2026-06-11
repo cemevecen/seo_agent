@@ -3587,13 +3587,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
                     cleanup_old_csv_runs,
                     manifest_url_count,
                     run_doviz_asset_csv_manifest,
+                    set_csv_scan_progress,
                 )
 
                 with SessionLocal() as db:
                     if manifest_url_count(db) < 1:
                         return
-                    run_doviz_asset_csv_manifest(db)
+                    set_csv_scan_progress(running=True, done=0, total=0, started_at=None, error=None)
+                    run_doviz_asset_csv_manifest(
+                        db,
+                        on_progress=lambda done, total: set_csv_scan_progress(done=done, total=total),
+                    )
                     cleanup_old_csv_runs(db, keep_days=14)
+                    set_csv_scan_progress(running=False)
             except Exception as _csv_exc:
                 logging.getLogger(__name__).warning("Döviz CSV manifest tarama hatası: %s", _csv_exc)
 
@@ -10483,7 +10489,12 @@ def api_seo_audit_changes(site_id: int, days: int = 7):
 @app.get("/doviz-varliklar")
 def doviz_assets_page(request: Request):
     """Döviz banka altını katalog / fiyat kaybı izleme paneli."""
-    from backend.services.doviz_asset_csv_manifest import get_latest_csv_run, manifest_upload_info
+    from backend.services.doviz_asset_csv_manifest import (
+        csv_run_summary,
+        get_latest_csv_run,
+        get_csv_scan_progress,
+        manifest_upload_info,
+    )
     from backend.services.doviz_asset_monitor import get_latest_run
 
     with SessionLocal() as db:
@@ -10492,9 +10503,11 @@ def doviz_assets_page(request: Request):
         manifest = manifest_upload_info(db)
     payload = (latest or {}).get("payload") or {}
     csv_payload = (csv_latest or {}).get("payload") or {}
+    csv_summary = (csv_latest or {}).get("summary") or csv_run_summary(csv_payload)
+    csv_progress = get_csv_scan_progress()
     issue_state = payload.get("issue_state") or {}
     open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
-    csv_failures = csv_payload.get("failures") or []
+    csv_failures = csv_summary.get("failures_preview") or csv_payload.get("failures") or []
     return templates.TemplateResponse(
         request,
         "doviz_assets.html",
@@ -10503,15 +10516,17 @@ def doviz_assets_page(request: Request):
             "sites": get_sidebar_sites(),
             "run": latest,
             "csv_run": csv_latest,
+            "csv_summary": csv_summary,
+            "csv_progress": csv_progress,
             "manifest": manifest,
             "scan_at_tr": payload.get("scan_at_tr") or (latest or {}).get("collected_at_tr"),
-            "csv_scan_at_tr": csv_payload.get("scan_at_tr") or (csv_latest or {}).get("collected_at_tr"),
+            "csv_scan_at_tr": csv_summary.get("scan_at_tr") or csv_payload.get("scan_at_tr") or (csv_latest or {}).get("collected_at_tr"),
             "alerts": payload.get("alerts") or [],
             "missing": payload.get("prices_missing") or [],
             "catalog_removed": payload.get("catalog_removed") or [],
             "open_issues": open_issues,
             "csv_failures": csv_failures[:100],
-            "csv_failure_total": len(csv_failures),
+            "csv_failure_total": csv_summary.get("failure_total") or len(csv_failures),
         },
     )
 
@@ -10537,12 +10552,37 @@ async def api_doviz_asset_monitor_upload_csv(file: UploadFile = File(...)):
 
 @app.post("/api/doviz-asset-monitor/run-csv")
 def api_doviz_asset_monitor_run_csv():
-    from backend.services.doviz_asset_csv_manifest import cleanup_old_csv_runs, run_doviz_asset_csv_manifest
+    from backend.services.doviz_asset_csv_manifest import start_csv_manifest_scan_background
+
+    out = start_csv_manifest_scan_background()
+    code = 200 if out.get("started") else 409
+    return JSONResponse(out, status_code=code)
+
+
+@app.get("/api/doviz-asset-monitor/csv-scan-status")
+def api_doviz_asset_monitor_csv_scan_status():
+    from backend.services.doviz_asset_csv_manifest import (
+        csv_run_summary,
+        get_csv_scan_progress,
+        get_latest_csv_run,
+        manifest_upload_info,
+    )
 
     with SessionLocal() as db:
-        out = run_doviz_asset_csv_manifest(db)
-        cleanup_old_csv_runs(db, keep_days=14)
-    return JSONResponse(out)
+        latest = get_latest_csv_run(db)
+        manifest = manifest_upload_info(db)
+    progress = get_csv_scan_progress()
+    summary = (latest or {}).get("summary") if latest else None
+    if not summary and latest:
+        summary = csv_run_summary((latest or {}).get("payload"))
+    return JSONResponse(
+        {
+            "progress": progress,
+            "manifest": manifest,
+            "latest": latest,
+            "summary": summary,
+        }
+    )
 
 
 @app.get("/api/doviz-asset-monitor/manifest")

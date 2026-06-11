@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
@@ -27,6 +29,68 @@ logger = logging.getLogger(__name__)
 RUN_KIND = "csv_manifest"
 _URL_LINE_RE = re.compile(r"https?://[^\s,\"]+", re.I)
 _MAX_URL_LEN = 2048
+
+_scan_lock = threading.Lock()
+_scan_progress: dict[str, Any] = {
+    "running": False,
+    "done": 0,
+    "total": 0,
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+    "last_result": None,
+}
+
+
+def get_csv_scan_progress() -> dict[str, Any]:
+    with _scan_lock:
+        return dict(_scan_progress)
+
+
+def _set_scan_progress(**kwargs: Any) -> None:
+    with _scan_lock:
+        _scan_progress.update(kwargs)
+
+
+def set_csv_scan_progress(**kwargs: Any) -> None:
+    """Scheduler / dış çağrılar için."""
+    _set_scan_progress(**kwargs)
+
+
+def start_csv_manifest_scan_background() -> dict[str, Any]:
+    """1251 URL gibi uzun taramalar — HTTP timeout olmadan arka planda."""
+    with _scan_lock:
+        if _scan_progress.get("running"):
+            return {"started": False, "reason": "already_running", "progress": dict(_scan_progress)}
+
+    def _worker() -> None:
+        from backend.database import SessionLocal
+
+        _set_scan_progress(
+            running=True,
+            done=0,
+            total=0,
+            started_at=_iso_utc(),
+            finished_at=None,
+            error=None,
+            last_result=None,
+        )
+        try:
+            with SessionLocal() as db:
+                url_n = manifest_url_count(db)
+                _set_scan_progress(total=url_n)
+                result = run_doviz_asset_csv_manifest(
+                    db,
+                    on_progress=lambda done, total: _set_scan_progress(done=done, total=total),
+                )
+                cleanup_old_csv_runs(db, keep_days=14)
+            _set_scan_progress(last_result=result, finished_at=_iso_utc(), running=False)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("CSV manifest arka plan taraması hatası")
+            _set_scan_progress(error=str(exc)[:500], finished_at=_iso_utc(), running=False)
+
+    threading.Thread(target=_worker, daemon=True, name="doviz-csv-manifest-scan").start()
+    return {"started": True, "progress": get_csv_scan_progress()}
 
 
 def parse_urls_from_csv_text(text: str) -> list[str]:
@@ -137,12 +201,20 @@ def probe_manifest_url(url: str, *, timeout: int | None = None) -> dict[str, Any
     }
 
 
-def _probe_all_urls(urls: list[str]) -> list[dict[str, Any]]:
+def _probe_all_urls(
+    urls: list[str],
+    *,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> list[dict[str, Any]]:
     workers = max(1, int(settings.doviz_asset_csv_manifest_workers or 10))
     timeout = int(settings.doviz_asset_csv_manifest_fetch_timeout or 15)
     results: list[dict[str, Any]] = []
+    total = len(urls)
+    if on_progress:
+        on_progress(0, total)
     if not urls:
         return results
+    done = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futs = {pool.submit(probe_manifest_url, u, timeout=timeout): u for u in urls}
         for fut in as_completed(futs):
@@ -162,8 +234,67 @@ def _probe_all_urls(urls: list[str]) -> list[dict[str, Any]]:
                         "message": f"Probe hatası: {u}",
                     }
                 )
+            done += 1
+            if on_progress and (done == total or done % 25 == 0):
+                on_progress(done, total)
+    if on_progress:
+        on_progress(total, total)
     results.sort(key=lambda x: str(x.get("url") or ""))
     return results
+
+
+def _summarize_probes(probes: list[dict[str, Any]]) -> dict[str, Any]:
+    by_kind: dict[str, int] = {}
+    by_host: dict[str, int] = {}
+    for p in probes:
+        k = str(p.get("kind") or "unknown")
+        by_kind[k] = by_kind.get(k, 0) + 1
+        h = str(p.get("host") or "")
+        if h:
+            by_host[h] = by_host.get(h, 0) + 1
+    sample_ok = [
+        {"url": p["url"], "http_status": p.get("http_status"), "host": p.get("host")}
+        for p in probes
+        if p.get("ok")
+    ][:25]
+    top_hosts = sorted(by_host.items(), key=lambda x: -x[1])[:12]
+    return {
+        "by_kind": by_kind,
+        "hosts_top": [{"host": h, "count": c} for h, c in top_hosts],
+        "sample_ok": sample_ok,
+    }
+
+
+def csv_run_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """Panel/API — tam probe listesi olmadan özet."""
+    p = payload or {}
+    failures = p.get("failures") or []
+    url_count = int(p.get("url_count") or 0)
+    failure_count = int(p.get("failure_count") if p.get("failure_count") is not None else len(failures))
+    ok_count = p.get("ok_count")
+    if ok_count is None and url_count:
+        ok_count = max(0, url_count - failure_count)
+    elif ok_count is None:
+        ok_count = 0
+    by_kind = p.get("by_kind") or {}
+    if not by_kind and failures:
+        for f in failures:
+            k = str(f.get("kind") or "unknown")
+            by_kind[k] = by_kind.get(k, 0) + 1
+        if ok_count:
+            by_kind["ok"] = int(ok_count)
+    return {
+        "scan_at_tr": p.get("scan_at_tr"),
+        "url_count": url_count,
+        "ok_count": int(ok_count),
+        "failure_count": failure_count,
+        "duration_seconds": p.get("duration_seconds"),
+        "by_kind": by_kind,
+        "hosts_top": p.get("hosts_top") or [],
+        "sample_ok": p.get("sample_ok") or [],
+        "failures_preview": failures[:100],
+        "failure_total": len(failures),
+    }
 
 
 def _build_csv_issue_state(
@@ -237,7 +368,11 @@ def _get_prev_csv_payload(db: Session) -> dict[str, Any]:
         return {}
 
 
-def run_doviz_asset_csv_manifest(db: Session) -> dict[str, Any]:
+def run_doviz_asset_csv_manifest(
+    db: Session,
+    *,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> dict[str, Any]:
     """DB'deki URL listesini tarar; boş/hatalı sayfalar için mail (issue başına max 2)."""
     urls = [r.url for r in db.query(DovizAssetMonitorUrl).order_by(DovizAssetMonitorUrl.id).all()]
     if not urls:
@@ -248,9 +383,14 @@ def run_doviz_asset_csv_manifest(db: Session) -> dict[str, Any]:
             "url_count": 0,
         }
 
-    probes = _probe_all_urls(urls)
+    t0 = time.monotonic()
+    if on_progress:
+        on_progress(0, len(urls))
+    probes = _probe_all_urls(urls, on_progress=on_progress)
+    duration_seconds = round(time.monotonic() - t0, 1)
     failures = [p for p in probes if not p.get("ok")]
     ok_count = len(probes) - len(failures)
+    summary = _summarize_probes(probes)
 
     prev_payload = _get_prev_csv_payload(db)
     prev_issue_state = prev_payload.get("issue_state") or {}
@@ -280,7 +420,10 @@ def run_doviz_asset_csv_manifest(db: Session) -> dict[str, Any]:
         "url_count": len(urls),
         "ok_count": ok_count,
         "failure_count": len(failures),
-        "probes": probes,
+        "duration_seconds": duration_seconds,
+        "by_kind": summary["by_kind"],
+        "hosts_top": summary["hosts_top"],
+        "sample_ok": summary["sample_ok"],
         "failures": failures,
         "issue_state": issue_state,
         "mail_items": mail_items,
@@ -312,7 +455,9 @@ def run_doviz_asset_csv_manifest(db: Session) -> dict[str, Any]:
         "url_count": len(urls),
         "ok_count": ok_count,
         "failure_count": len(failures),
+        "duration_seconds": duration_seconds,
         "emailed_count": len(mail_items),
+        "by_kind": summary["by_kind"],
         "failures": failures[:50],
     }
 
@@ -367,13 +512,15 @@ def get_latest_csv_run(db: Session) -> dict[str, Any] | None:
     )
     if not row:
         return None
+    payload = json.loads(row.payload_json or "{}")
     return {
         "id": row.id,
         "collected_at": row.collected_at.isoformat() + "Z",
         "collected_at_tr": format_ts_tr(row.collected_at.isoformat() + "Z"),
         "url_count": row.catalog_count,
         "failure_count": row.alert_count,
-        "payload": json.loads(row.payload_json or "{}"),
+        "payload": payload,
+        "summary": csv_run_summary(payload),
     }
 
 

@@ -5,22 +5,22 @@
   <div class="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 dark:border-indigo-900/50 dark:bg-indigo-950/20">
     <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-100">CSV URL manifest</h2>
     <p class="mt-1 text-xs text-slate-600 dark:text-zinc-400">
-      Tek seferlik CSV yükleyin; URL’ler veritabanına kaydedilir. Liste
-      <span class="font-semibold">saatlik</span> taranır. HTTP hata veya boş fiyat tablosu için e-posta gider
-      (aynı URL için en fazla <span class="font-semibold">2</span> kez).
+      CSV’deki URL’ler veritabanında tutulur; liste saatlik taranır. HTTP hata veya boş fiyat tablosu için mail gider
+      (aynı URL en fazla 2 kez).
     </p>
     <p class="mt-2 text-[11px] text-slate-600 dark:text-zinc-400">
       Kayıtlı URL: <span class="font-bold">{{ manifest.url_count or 0 }}</span>
-      {% if manifest.uploaded_at_tr %}
-      · Son yükleme: {{ manifest.uploaded_at_tr }}
-      {% endif %}
-      {% if csv_scan_at_tr %}
-      · Son CSV tarama: {{ csv_scan_at_tr }}
-      {% if csv_run %}
-      · Sorunlu: {{ csv_run.failure_count or csv_failure_total or 0 }} / {{ csv_run.url_count or manifest.url_count }}
-      {% endif %}
-      {% endif %}
+      {% if manifest.uploaded_at_tr %} · Son yükleme: {{ manifest.uploaded_at_tr }}{% endif %}
     </p>
+
+    <div id="dz-csv-progress-wrap" class="mt-3 {% if not csv_progress.running %}hidden{% endif %} rounded-xl border border-indigo-300 bg-white/80 p-3 dark:border-indigo-800 dark:bg-zinc-900/80">
+      <p class="text-xs font-semibold text-indigo-900 dark:text-indigo-200">Tarama sürüyor…</p>
+      <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-700">
+        <div id="dz-csv-progress-bar" class="h-full bg-indigo-600 transition-all duration-300" style="width: 0%"></div>
+      </div>
+      <p id="dz-csv-progress-text" class="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">0 / 0</p>
+    </div>
+
     <form id="dz-csv-upload" class="mt-4 flex flex-wrap items-end gap-3" enctype="multipart/form-data">
       <label class="block min-w-0 flex-1 text-xs font-medium text-slate-700 dark:text-zinc-300">
         CSV dosyası (satır başına bir URL)
@@ -29,7 +29,6 @@
           name="file"
           accept=".csv,text/csv,text/plain"
           class="mt-1 block w-full max-w-md text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
-          required
         />
       </label>
       <button type="submit" id="dz-csv-upload-btn" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500">
@@ -42,10 +41,62 @@
     <p id="dz-csv-upload-msg" class="mt-2 hidden text-xs"></p>
   </div>
 
-  {% if manifest.url_count and csv_failures %}
+  {% if manifest.url_count %}
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">
-      CSV — sorunlu sayfalar ({{ csv_failure_total }}{% if csv_failure_total > 100 %}, ilk 100{% endif %})
+    <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Son CSV tarama özeti</h3>
+    {% if csv_summary and csv_summary.url_count %}
+    <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="rounded-xl bg-slate-50 px-3 py-2 dark:bg-zinc-800/80">
+        <p class="text-[10px] uppercase tracking-wide text-slate-500">Zaman</p>
+        <p class="text-xs font-semibold text-slate-800 dark:text-zinc-100">{{ csv_scan_at_tr or '—' }}</p>
+      </div>
+      <div class="rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-950/40">
+        <p class="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Sağlıklı</p>
+        <p class="text-lg font-black text-emerald-800 dark:text-emerald-200">{{ csv_summary.ok_count or 0 }}</p>
+      </div>
+      <div class="rounded-xl bg-rose-50 px-3 py-2 dark:bg-rose-950/40">
+        <p class="text-[10px] uppercase tracking-wide text-rose-700 dark:text-rose-300">Sorunlu</p>
+        <p class="text-lg font-black text-rose-800 dark:text-rose-200">{{ csv_summary.failure_count or 0 }}</p>
+      </div>
+      <div class="rounded-xl bg-slate-50 px-3 py-2 dark:bg-zinc-800/80">
+        <p class="text-[10px] uppercase tracking-wide text-slate-500">Süre</p>
+        <p class="text-xs font-semibold text-slate-800 dark:text-zinc-100">{% if csv_summary.duration_seconds %}{{ csv_summary.duration_seconds }} sn{% else %}—{% endif %}</p>
+      </div>
+    </div>
+    {% if csv_summary.by_kind %}
+    <p class="mt-3 text-[11px] text-slate-600 dark:text-zinc-400">
+      Dağılım:
+      {% for k, v in csv_summary.by_kind.items() %}
+      <span class="mr-2 inline-block rounded bg-slate-100 px-1.5 py-0.5 font-mono dark:bg-zinc-800">{{ k }}: {{ v }}</span>
+      {% endfor %}
+    </p>
+    {% endif %}
+    {% if csv_summary.failure_count == 0 %}
+    <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
+      Son turda {{ csv_summary.url_count }} URL tarandı; sorunlu sayfa bulunmadı (HTTP 200 + fiyat tablosu var).
+    </p>
+    {% endif %}
+    {% else %}
+    <p class="mt-2 text-xs text-amber-800 dark:text-amber-200">Henüz tamamlanmış CSV taraması yok. «CSV listesini şimdi tara» ile başlatın (1250 URL birkaç dakika sürebilir).</p>
+    {% endif %}
+
+    {% if csv_summary.sample_ok %}
+    <details class="mt-4 text-xs">
+      <summary class="cursor-pointer font-semibold text-indigo-700 dark:text-indigo-300">Örnek taranan URL’ler ({{ csv_summary.sample_ok|length }})</summary>
+      <ul class="mt-2 max-h-48 space-y-0.5 overflow-auto font-mono text-[10px] text-slate-600 dark:text-zinc-400">
+        {% for s in csv_summary.sample_ok %}
+        <li><span class="text-slate-400">{{ s.http_status }}</span> · <a class="text-indigo-600 underline dark:text-indigo-400" href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if manifest.url_count and csv_failures %}
+  <div class="rounded-2xl border border-rose-200 bg-white p-4 dark:border-rose-900/40 dark:bg-zinc-900">
+    <h3 class="text-sm font-bold text-rose-950 dark:text-rose-100">
+      Sorunlu sayfalar ({{ csv_failure_total }}{% if csv_failure_total > 100 %}, ilk 100{% endif %})
     </h3>
     <div class="mt-2 max-h-[420px] overflow-auto">
       <table class="w-full text-left text-[11px]">
@@ -79,13 +130,12 @@
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-100">Banka katalog izleme (altın)</h2>
         <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">
-          altin.doviz.com kataloğu + mweb/altin host fiyat tablosu. Katalogdan düşen veya fiyat satırı boşalan bankalar uyarı üretir.
+          altin.doviz.com kataloğu + mweb/altin host fiyat tablosu.
         </p>
         {% if run %}
         <p class="mt-2 text-[11px] text-slate-600 dark:text-zinc-400">
           Son tarama: <span class="font-medium">{{ scan_at_tr or run.collected_at_tr or run.collected_at }}</span>
           · Katalog: {{ run.catalog_count }} · Bu tur uyarı: {{ run.alert_count }}
-          {% if open_issues %} · Açık sorun: {{ open_issues|length }}{% endif %}
         </p>
         {% else %}
         <p class="mt-2 text-[11px] text-amber-700 dark:text-amber-300">Henüz katalog taraması yok.</p>
@@ -104,7 +154,6 @@
       {% for a in alerts %}
       <li>
         <span class="font-semibold">{{ a.kind }}</span> — {{ a.message }}
-        {% if a.first_seen_tr %}<span class="text-rose-800/80 dark:text-rose-300/90"> · ilk {{ a.first_seen_tr }}{% if a.last_seen_tr %} · son {{ a.last_seen_tr }}{% endif %}</span>{% endif %}
         {% if a.url %} · <a class="underline" href="{{ a.url }}" target="_blank" rel="noopener">sayfa</a>{% endif %}
       </li>
       {% endfor %}
@@ -117,15 +166,13 @@
     <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Katalog — fiyat satırı yok ({{ missing|length }})</h3>
     <div class="mt-2 overflow-x-auto">
       <table class="w-full text-left text-xs">
-        <thead class="text-slate-500"><tr><th class="py-1 pr-2">Slug</th><th class="py-1 pr-2">Host</th><th class="py-1 pr-2">HTTP</th><th class="py-1 pr-2">İlk tespit</th><th class="py-1">Son kontrol</th></tr></thead>
+        <thead class="text-slate-500"><tr><th class="py-1 pr-2">Slug</th><th class="py-1 pr-2">Host</th><th class="py-1 pr-2">HTTP</th></tr></thead>
         <tbody>
           {% for p in missing %}
           <tr class="border-t border-slate-100 dark:border-zinc-800">
             <td class="py-1.5 pr-2 font-mono">{{ p.slug }}</td>
             <td class="py-1.5 pr-2">{{ p.host }}</td>
             <td class="py-1.5 pr-2">{{ p.http_status }}</td>
-            <td class="py-1.5 pr-2 whitespace-nowrap">{{ p.first_seen_tr or '—' }}</td>
-            <td class="py-1.5 whitespace-nowrap">{{ p.last_seen_tr or '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -133,83 +180,124 @@
     </div>
   </div>
   {% endif %}
-
-  {% if catalog_removed %}
-  <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <h3 class="text-sm font-bold text-amber-950 dark:text-amber-100">Katalogdan kalkanlar</h3>
-    <ul class="mt-2 space-y-1 text-xs text-amber-900 dark:text-amber-200">
-      {% set cat_rows = open_issues|selectattr('kind', 'equalto', 'catalog_removed')|list if open_issues else [] %}
-      {% if cat_rows %}
-      {% for i in cat_rows %}
-      <li class="font-mono">{{ i.slug }} · ilk {{ i.first_seen_tr or '—' }} · son {{ i.last_seen_tr or '—' }}</li>
-      {% endfor %}
-      {% else %}
-      <li class="font-mono">{{ catalog_removed|join(', ') }}</li>
-      {% endif %}
-    </ul>
-  </div>
-  {% endif %}
 </div>
 <script>
 (function () {
-  var form = document.getElementById('dz-csv-upload');
-  var uploadBtn = document.getElementById('dz-csv-upload-btn');
-  var msg = document.getElementById('dz-csv-upload-msg');
+  function pollCsvStatus() {
+    fetch("/api/doviz-asset-monitor/csv-scan-status", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var p = data.progress || {};
+        var wrap = document.getElementById("dz-csv-progress-wrap");
+        var bar = document.getElementById("dz-csv-progress-bar");
+        var txt = document.getElementById("dz-csv-progress-text");
+        var runBtn = document.getElementById("dz-csv-run");
+        if (p.running) {
+          if (wrap) wrap.classList.remove("hidden");
+          var done = p.done || 0;
+          var total = p.total || 0;
+          var pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 5;
+          if (bar) bar.style.width = pct + "%";
+          if (txt) txt.textContent = done + " / " + total + " URL kontrol edildi";
+          if (runBtn) {
+            runBtn.disabled = true;
+            runBtn.textContent = "Taranıyor… " + done + "/" + total;
+          }
+          setTimeout(pollCsvStatus, 2000);
+        } else {
+          if (wrap) wrap.classList.add("hidden");
+          if (runBtn) {
+            runBtn.disabled = false;
+            runBtn.textContent = "CSV listesini şimdi tara";
+          }
+          if (p.finished_at && window.__dzCsvPollReload !== p.finished_at) {
+            window.__dzCsvPollReload = p.finished_at;
+            window.location.reload();
+          }
+        }
+      })
+      .catch(function () {});
+  }
+
+  if ({{ 'true' if csv_progress.running else 'false' }}) {
+    pollCsvStatus();
+  }
+
+  var form = document.getElementById("dz-csv-upload");
+  var uploadBtn = document.getElementById("dz-csv-upload-btn");
+  var msg = document.getElementById("dz-csv-upload-msg");
   if (form) {
-    form.addEventListener('submit', function (ev) {
+    form.addEventListener("submit", function (ev) {
       ev.preventDefault();
-      var inp = form.querySelector('input[type=file]');
-      if (!inp || !inp.files || !inp.files[0]) return;
+      var inp = form.querySelector('input[type="file"]');
+      if (!inp || !inp.files || !inp.files[0]) {
+        msg.textContent = "Önce bir CSV dosyası seçin.";
+        msg.className = "mt-2 text-xs text-amber-700 dark:text-amber-300";
+        msg.classList.remove("hidden");
+        return;
+      }
       uploadBtn.disabled = true;
-      uploadBtn.textContent = 'Yükleniyor…';
-      msg.classList.add('hidden');
+      uploadBtn.textContent = "Yükleniyor…";
+      msg.classList.add("hidden");
       var fd = new FormData();
-      fd.append('file', inp.files[0]);
-      fetch('/api/doviz-asset-monitor/upload-csv', { method: 'POST', body: fd, credentials: 'same-origin' })
+      fd.append("file", inp.files[0]);
+      fetch("/api/doviz-asset-monitor/upload-csv", { method: "POST", body: fd, credentials: "same-origin" })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (x) {
-          if (!x.ok) throw new Error((x.j && x.j.error) || 'Yükleme başarısız');
-          msg.textContent = 'Kaydedildi: ' + x.j.url_count + ' URL.';
-          msg.className = 'mt-2 text-xs text-emerald-700 dark:text-emerald-300';
-          msg.classList.remove('hidden');
+          if (!x.ok) throw new Error((x.j && x.j.error) || "Yükleme başarısız");
+          msg.textContent = "Kaydedildi: " + x.j.url_count + " URL.";
+          msg.className = "mt-2 text-xs text-emerald-700 dark:text-emerald-300";
+          msg.classList.remove("hidden");
           setTimeout(function () { window.location.reload(); }, 800);
         })
         .catch(function (e) {
-          msg.textContent = e.message || 'Hata';
-          msg.className = 'mt-2 text-xs text-rose-700 dark:text-rose-300';
-          msg.classList.remove('hidden');
+          msg.textContent = e.message || "Hata";
+          msg.className = "mt-2 text-xs text-rose-700 dark:text-rose-300";
+          msg.classList.remove("hidden");
           uploadBtn.disabled = false;
-          uploadBtn.textContent = 'Yükle ve kaydet';
+          uploadBtn.textContent = "Yükle ve kaydet";
         });
     });
   }
 
-  var csvRun = document.getElementById('dz-csv-run');
+  var csvRun = document.getElementById("dz-csv-run");
   if (csvRun) {
-    csvRun.addEventListener('click', function () {
+    csvRun.addEventListener("click", function () {
       csvRun.disabled = true;
-      csvRun.textContent = 'Taranıyor… (birkaç dakika sürebilir)';
-      fetch('/api/doviz-asset-monitor/run-csv', { method: 'POST', credentials: 'same-origin' })
+      csvRun.textContent = "Başlatılıyor…";
+      fetch("/api/doviz-asset-monitor/run-csv", { method: "POST", credentials: "same-origin" })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
+        .then(function (x) {
+          if (x.status === 409 || (x.j && x.j.reason === "already_running")) {
+            pollCsvStatus();
+            return;
+          }
+          if (!x.j || !x.j.started) throw new Error("Tarama başlatılamadı");
+          pollCsvStatus();
+        })
+        .catch(function () {
+          alert("CSV tarama başlatılamadı");
+          csvRun.disabled = false;
+          csvRun.textContent = "CSV listesini şimdi tara";
+        });
+    });
+  }
+
+  var btn = document.getElementById("dz-asset-run");
+  if (btn) {
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      btn.textContent = "Taranıyor…";
+      fetch("/api/doviz-asset-monitor/run", { method: "POST", credentials: "same-origin" })
         .then(function (r) { return r.json(); })
         .then(function () { window.location.reload(); })
         .catch(function () {
-          csvRun.disabled = false;
-          csvRun.textContent = 'CSV listesini şimdi tara';
-          alert('CSV tarama başarısız');
+          btn.disabled = false;
+          btn.textContent = "Katalog tara";
+          alert("Tarama başarısız");
         });
     });
   }
-
-  var btn = document.getElementById('dz-asset-run');
-  if (!btn) return;
-  btn.addEventListener('click', function () {
-    btn.disabled = true;
-    btn.textContent = 'Taranıyor…';
-    fetch('/api/doviz-asset-monitor/run', { method: 'POST', credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function () { window.location.reload(); })
-      .catch(function () { btn.disabled = false; btn.textContent = 'Katalog tara'; alert('Tarama başarısız'); });
-  });
 })();
 </script>
 {% endblock %}
