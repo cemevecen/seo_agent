@@ -80,14 +80,21 @@
     color: #a5b4fc !important;
   }
 
-  /* Kaynak adı */
-  html.dark .rt-intel-card .rt-source-name {
-    color: #5c5c6e !important;
+  .rt-intel-thumb {
+    background: linear-gradient(145deg, #e2e8f0, #f1f5f9);
   }
-
-  /* Saat */
+  html.dark .rt-intel-thumb {
+    background: linear-gradient(145deg, #27272a, #18181b);
+  }
+  .rt-intel-img-fallback {
+    letter-spacing: 0.02em;
+  }
   html.dark .rt-intel-card .rt-time {
-    color: #46464e !important;
+    color: #d4d4d8 !important;
+    background: rgba(9, 9, 11, 0.72);
+  }
+  html.dark .rt-intel-card .rt-excerpt {
+    color: #71717a !important;
   }
 </style>
 
@@ -251,6 +258,51 @@
       btn.innerHTML = _syncSvg + ' Güncelle';
     }
 
+    function _intelEscHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function _intelEscAttr(s) {
+      return _intelEscHtml(s).replace(/'/g, '&#39;');
+    }
+
+    function _intelSourceInitial(name) {
+      const n = String(name || '').trim();
+      if (!n) return '?';
+      const m = n.match(/[A-Za-zÇĞİÖŞÜçğıöşü0-9]/);
+      return m ? m[0].toLocaleUpperCase('tr-TR') : n.charAt(0).toLocaleUpperCase('tr-TR');
+    }
+
+    function _intelPlainText(html) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html || '';
+      return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function _intelExtractImageUrl(item) {
+      const direct = (item.image_url || '').trim();
+      if (direct) return direct;
+      const raw = (item.content || '').toString();
+      const m = raw.match(/<img[^>]+src=["']([^"']+)["']/i);
+      return m ? m[1].trim() : '';
+    }
+
+    function _intelExcerptText(rawContent, headline) {
+      const text = _intelPlainText(rawContent);
+      if (!text) return '';
+      const head = String(headline || '').trim().toLowerCase();
+      if (text.toLowerCase() === head) return '';
+      const parts = text.match(/[^.!?…]+[.!?…]+(?:\s|$)|[^.!?…]+$/g) || [text];
+      let out = parts.slice(0, 2).join(' ').trim();
+      if (!out) return '';
+      if (out.length > 260) out = out.slice(0, 260).replace(/\s+\S*$/, '') + '…';
+      return out;
+    }
+
     function _buildNewsCard(item, isNew) {
       const d = new Date(item.published_at);
       const now = new Date();
@@ -260,58 +312,45 @@
       const timeStr = isToday ? hhmm
         : isYesterday ? ('dün ' + hhmm)
         : (d.toLocaleDateString('tr-TR', {day:'numeric', month:'short'}) + ' ' + hhmm);
-      let faviconUrl = '/static/favicon.png';
-      try {
-        const rawUrl = item.source_url || item.url || '';
-        const parsed = new URL(rawUrl);
-        const host = parsed.hostname;
-        if (host && host !== 'news.google.com') {
-          faviconUrl = `https://www.google.com/s2/favicons?domain=${host}&sz=64`;
-        } else if (item.url) {
-          const art = new URL(item.url);
-          if (art.hostname && art.hostname !== 'news.google.com') {
-            faviconUrl = `https://www.google.com/s2/favicons?domain=${art.hostname}&sz=64`;
-          }
-        }
-      } catch(e) {}
+      const sourceName = String(item.source_name || '').trim();
+      const sourceTitle = sourceName ? `Kaynak: ${sourceName}` : '';
+      const initial = _intelSourceInitial(sourceName);
+      const imgUrl = _intelExtractImageUrl(item);
       const newBadge = isNew
-        ? '<span class="ml-1.5 inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">YENİ</span>'
+        ? '<span class="absolute left-2 top-2 z-[2] inline-flex items-center rounded border border-emerald-200 bg-emerald-50/95 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/90 dark:text-emerald-300">YENİ</span>'
         : '';
 
-      // Açıklama (description): HTML tag'lerini sıyır, &nbsp; vb. kodları normalize et,
-      // ~110 karaktere kırp ve sonuna … ekle. Boşsa veya başlıkla aynıysa gösterme.
-      let excerptHtml = '';
-      const rawContent = (item.content || '').toString();
-      if (rawContent) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = rawContent;
-        let text = (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
-        if (text && text.toLowerCase() !== (item.headline || '').toLowerCase()) {
-          if (text.length > 110) text = text.slice(0, 110).replace(/\s+\S*$/, '') + '…';
-          // Güvenlik: textContent ile DOM'a yazdığımız için XSS yok; metinden HTML üretiyoruz.
-          const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          excerptHtml = `<p class="rt-excerpt text-slate-500 dark:text-zinc-500 line-clamp-2" style="font-size:9px;line-height:1.35;margin-top:4px;">${esc}</p>`;
-        }
+      const excerpt = _intelExcerptText(item.content, item.headline);
+      const excerptHtml = excerpt
+        ? `<p class="rt-excerpt mt-2 text-[11px] leading-snug text-slate-500 dark:text-zinc-500 line-clamp-3">${_intelEscHtml(excerpt)}</p>`
+        : '';
+
+      let thumbHtml = '';
+      if (imgUrl) {
+        thumbHtml = `<div class="rt-intel-thumb relative aspect-[16/10] w-full overflow-hidden rounded-xl">
+          <img src="${_intelEscAttr(imgUrl)}" alt="" class="h-full w-full object-cover" loading="lazy" decoding="async"
+            onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden');">
+          <div class="rt-intel-img-fallback hidden absolute inset-0 flex items-center justify-center text-4xl font-black text-slate-500 dark:text-zinc-400">${_intelEscHtml(initial)}</div>
+          <span class="rt-time absolute right-2 top-2 z-[2] rounded-md px-1.5 py-0.5 text-[10px] tabular-nums text-slate-600 dark:text-zinc-300 bg-white/85 dark:bg-zinc-950/75">${timeStr}</span>
+          ${newBadge}
+        </div>`;
+      } else {
+        thumbHtml = `<div class="rt-intel-thumb relative aspect-[16/10] w-full overflow-hidden rounded-xl flex items-center justify-center">
+          <span class="rt-intel-img-fallback text-4xl font-black text-slate-500 dark:text-zinc-400">${_intelEscHtml(initial)}</span>
+          <span class="rt-time absolute right-2 top-2 z-[2] rounded-md px-1.5 py-0.5 text-[10px] tabular-nums text-slate-600 dark:text-zinc-300 bg-white/85 dark:bg-zinc-950/75">${timeStr}</span>
+          ${newBadge}
+        </div>`;
       }
 
-      return `<div class="group rt-intel-card flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-4 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}" data-published-at="${item.published_at || ''}">
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2 min-w-0">
-            <div class="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 p-0.5 dark:bg-zinc-800/60">
-              <img src="${faviconUrl}" class="h-full w-full object-contain" onerror="this.src='/static/favicon.png'">
-            </div>
-            <span class="rt-source-name text-[10px] font-bold text-slate-400 truncate uppercase tracking-wider">${item.source_name}</span>
-            ${newBadge}
-          </div>
-          <span class="rt-time text-[10px] text-slate-500 dark:text-zinc-500 shrink-0">${timeStr}</span>
-        </div>
-        <div class="min-w-0">
-          <h3 class="text-[13.5px] font-semibold text-slate-800 dark:text-[#b0b0b8] leading-snug line-clamp-5">
-            <a href="${item.url}" target="_blank" class="transition-colors hover:text-indigo-700 dark:hover:text-[#9090b8]">${item.headline}</a>
+      return `<article class="group rt-intel-card flex flex-col overflow-hidden rounded-2xl border p-3 transition-all duration-200${isNew ? ' ring-1 ring-emerald-800/40' : ''}" data-published-at="${item.published_at || ''}" title="${_intelEscAttr(sourceTitle)}">
+        ${thumbHtml}
+        <div class="min-w-0 pt-3">
+          <h3 class="text-[13.5px] font-semibold text-slate-800 dark:text-[#b0b0b8] leading-snug line-clamp-4">
+            <a href="${_intelEscAttr(item.url)}" target="_blank" rel="noopener noreferrer" class="transition-colors hover:text-indigo-700 dark:hover:text-[#9090b8]">${_intelEscHtml(item.headline)}</a>
           </h3>
           ${excerptHtml}
         </div>
-      </div>`;
+      </article>`;
     }
 
     function rtFetchNewsIntelligence() {

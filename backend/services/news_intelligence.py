@@ -322,6 +322,33 @@ def extract_item_fields(
     return title, link, pub_date_str, description, source_name, source_url
 
 
+def _extract_item_image_url(item: ET.Element, fmt: str, description: str) -> str | None:
+    """RSS/Atom item veya açıklama HTML'inden kapak görseli."""
+    desc = description or ""
+    if fmt == "rss":
+        for el in item.iter():
+            tag = el.tag or ""
+            if not (tag.endswith("}content") or tag.endswith("}thumbnail")):
+                continue
+            url = (el.get("url") or "").strip()
+            if not url:
+                continue
+            medium = (el.get("medium") or "").lower()
+            mime = (el.get("type") or "").lower()
+            if tag.endswith("}thumbnail") or medium == "image" or mime.startswith("image"):
+                return url
+        enc = item.find("enclosure")
+        if enc is not None:
+            enc_url = (enc.get("url") or "").strip()
+            enc_type = (enc.get("type") or "").lower()
+            if enc_url and enc_type.startswith("image"):
+                return enc_url
+    m = re.search(r"""<img[^>]+src=["']([^"']+)["']""", desc, re.I)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
 def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
     """Çok kanallı RSS üzerinden haberleri çeker ve DB ile senkronize eder."""
     logger.info("Starting Multi-Channel News Intelligence sync (reset=%s)...", reset)
@@ -460,7 +487,7 @@ def fetch_and_sync_news_intelligence(db: Session, reset: bool = False):
                     title, link, pub_date_str, description, source_name, source_url = extract_item_fields(
                         item, feed_fmt, ch_title=ch_title, ch_link=ch_link
                     )
-                    image_url = None
+                    image_url = _extract_item_image_url(item, feed_fmt, description or "")
 
                     title = title.strip()
                     link = link.strip()
