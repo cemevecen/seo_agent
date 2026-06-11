@@ -9,10 +9,6 @@
       </a>
       {% endif %}
     </div>
-    <p class="mt-1 text-xs text-slate-600 dark:text-zinc-400">
-      CSV’deki URL’ler veritabanında tutulur; liste saatlik taranır. HTTP hata veya boş fiyat tablosu için mail gider
-      (aynı URL en fazla 2 kez).
-    </p>
     <p class="mt-2 text-[11px] text-slate-600 dark:text-zinc-400">
       Kayıtlı URL: <span class="font-bold">{{ manifest.url_count or 0 }}</span>
       {% if manifest.uploaded_at_tr %} · Son yükleme: {{ manifest.uploaded_at_tr }}{% endif %}
