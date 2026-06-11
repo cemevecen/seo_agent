@@ -3840,15 +3840,15 @@
     state._ga4MobileOverlayPromise = null;
   }
 
-  /** Karşı dal çizgileri — her zaman düz, ince, kırmızı tonları. */
+  /** Karşı dal overlay — düz ince çizgi; mavi ton (mean-split kırmızı düşüşle karışmasın). */
   var PEER_BRANCH_COLORS = {
-    android: "#dc2626",
-    ios: "#ef4444",
-    desktop: "#b91c1c",
-    mweb: "#f43f5e",
+    android: "#0ea5e9",
+    ios: "#38bdf8",
+    desktop: "#0284c7",
+    mweb: "#60a5fa",
   };
   var PEER_LINE_WIDTH = 1.25;
-  var PEER_LINE_ALT_COLORS = ["#f87171", "#fca5a5", "#be123c", "#fb7185", "#e11d48"];
+  var PEER_LINE_ALT_COLORS = ["#38bdf8", "#7dd3fc", "#0284c7", "#0ea5e9", "#2563eb"];
 
   /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
   var PEER_STREAM_BY_KEY = {
@@ -3915,8 +3915,10 @@
   }
 
   function peerOverlayLineColor(variant) {
+    var dark = isDarkTheme();
     var k = peerBranchKey();
-    var base = (k && PEER_BRANCH_COLORS[k]) || "#e11d48";
+    var fallback = dark ? "#38bdf8" : "#0284c7";
+    var base = (k && PEER_BRANCH_COLORS[k]) || fallback;
     if (!variant) return base;
     return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || base;
   }
@@ -4186,7 +4188,7 @@
       x: plotX,
       y: ys,
       connectgaps: false,
-      line: peerOverlayLineStyle(),
+      line: Object.assign({}, peerOverlayLineStyle(), { dash: "dot" }),
     };
     if (yaxis) tr.yaxis = yaxis;
     traces.push(tr);
@@ -4219,7 +4221,7 @@
     host.innerHTML =
       "<label class=\"flex cursor-pointer items-center gap-1.5 " + chip +
       " border-rose-200 bg-rose-50/90 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200\">" +
-      "<input type=\"checkbox\" data-peer-overlay class=\"rounded border-rose-300\" />" +
+      "<input type=\"checkbox\" data-peer-overlay class=\"rounded border-sky-400 dark:border-sky-600\" />" +
       "<span>+" + label + "</span></label>" +
       (showSeparate
         ? "<label class=\"flex cursor-pointer items-center gap-1.5 " + chip +
@@ -5843,7 +5845,7 @@
             y: peerYs,
             type: "scatter",
             mode: "lines",
-            line: peerOverlayLineStyle(),
+            line: Object.assign({}, peerOverlayLineStyle(), { dash: "dot" }),
             connectgaps: false,
           });
         }
