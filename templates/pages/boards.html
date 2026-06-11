@@ -163,7 +163,7 @@
                 :data-virtual="lst.isVirtual"
                 :data-closed="lst.isClosed"
                 :data-project="activeProject"
-                x-effect="initSortable($el)"
+                x-init="initSortable($el)"
               >
                 <template x-for="issue in getIssuesForList(activeProject, lst)" :key="issue.id">
                   <div 
@@ -349,9 +349,10 @@
         return allIssues;
       },
 
-      async fetchProjectData(path) {
+      async fetchProjectData(path, force) {
         const pd = this.projectData[path];
-        if (pd.loading || pd.loaded) return; // Zaten çekiliyor veya çekildi
+        if (pd.loading) return;
+        if (pd.loaded && !force) return;
         
         pd.loading = true;
         pd.error = null;
@@ -425,7 +426,13 @@
           headers: { 'PRIVATE-TOKEN': this.token }
         });
         if (!res.ok) throw new Error('Sıralama kaydedilemedi');
-        return await res.json();
+        const text = await res.text();
+        if (!text || !text.trim()) return null;
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
       },
 
       getReorderParamsFromList(listEl, issueIid, projectPath) {
@@ -440,20 +447,66 @@
         };
 
         const params = {};
-        if (idx > 0) params.move_before_id = globalId(items[idx - 1]);
-        if (idx < items.length - 1) params.move_after_id = globalId(items[idx + 1]);
+        if (idx > 0) {
+          const beforeId = globalId(items[idx - 1]);
+          if (beforeId != null) params.move_before_id = beforeId;
+        }
+        if (idx < items.length - 1) {
+          const afterId = globalId(items[idx + 1]);
+          if (afterId != null) params.move_after_id = afterId;
+        }
         return params;
+      },
+
+      sortIssuesByPosition(issues) {
+        return issues.slice().sort((a, b) => {
+          const pa = a.relative_position ?? Number.MAX_SAFE_INTEGER;
+          const pb = b.relative_position ?? Number.MAX_SAFE_INTEGER;
+          if (pa !== pb) return pa - pb;
+          return (a.id || 0) - (b.id || 0);
+        });
       },
 
       applyIssueUpdate(pd, updated) {
         if (!updated || updated.iid == null) return;
         const idx = pd.issues.findIndex(i => i.iid == updated.iid);
         if (idx >= 0) pd.issues[idx] = { ...pd.issues[idx], ...updated };
-        pd.issues.sort((a, b) => {
-          const pa = a.relative_position ?? Number.MAX_SAFE_INTEGER;
-          const pb = b.relative_position ?? Number.MAX_SAFE_INTEGER;
-          return pa - pb;
+        pd.issues = this.sortIssuesByPosition(pd.issues);
+      },
+
+      /** Sortable DOM sırasını Alpine state'e yansıt (x-for yeniden çiziminde geri sıçramayı önler). */
+      applyColumnOrderFromListEl(listEl, projectPath) {
+        const pd = this.projectData[projectPath];
+        if (!pd || !listEl) return;
+        const iids = [...listEl.querySelectorAll('[data-id]')].map((el) => String(el.dataset.id));
+        if (iids.length < 2) return;
+
+        const byIid = {};
+        pd.issues.forEach((iss) => {
+          byIid[String(iss.iid)] = iss;
         });
+        const ordered = iids.map((iid) => byIid[iid]).filter(Boolean);
+        if (ordered.length < 2) return;
+
+        for (let i = 0; i < ordered.length; i++) {
+          const cur = ordered[i];
+          const prev = ordered[i - 1];
+          const next = ordered[i + 1];
+          const prevPos = prev != null ? Number(prev.relative_position) : null;
+          const nextPos = next != null ? Number(next.relative_position) : null;
+          let pos;
+          if (prevPos == null || !Number.isFinite(prevPos)) {
+            pos = (Number.isFinite(nextPos) ? nextPos : 0) - 1024;
+          } else if (nextPos == null || !Number.isFinite(nextPos)) {
+            pos = prevPos + 1024;
+          } else if (prevPos === nextPos) {
+            pos = prevPos + (i + 1) * 0.001;
+          } else {
+            pos = prevPos + (nextPos - prevPos) / 2;
+          }
+          cur.relative_position = pos;
+        }
+        pd.issues = this.sortIssuesByPosition(pd.issues);
       },
 
       async syncIssuePosition(projectPath, listEl, issueIid) {
@@ -517,18 +570,23 @@
         const pd = this.projectData[path];
         if (!pd || !pd.loaded) return [];
 
+        let filtered;
         if (lst.isClosed) {
-          return pd.issues.filter(issue => issue.state === 'closed');
+          filtered = pd.issues.filter((issue) => issue.state === 'closed');
+        } else {
+          const openedIssues = pd.issues.filter((issue) => issue.state === 'opened');
+          if (lst.isVirtual) {
+            const boardLabels = pd.board.lists.map((l) => l.label.name);
+            filtered = openedIssues.filter(
+              (issue) => !issue.labels.some((label) => boardLabels.includes(label))
+            );
+          } else {
+            filtered = openedIssues.filter(
+              (issue) => issue.labels && issue.labels.includes(lst.label.name)
+            );
+          }
         }
-
-        const openedIssues = pd.issues.filter(issue => issue.state === 'opened');
-
-        if (lst.isVirtual) {
-          const boardLabels = pd.board.lists.map(l => l.label.name);
-          return openedIssues.filter(issue => !issue.labels.some(label => boardLabels.includes(label)));
-        }
-
-        return openedIssues.filter(issue => issue.labels && issue.labels.includes(lst.label.name));
+        return this.sortIssuesByPosition(filtered);
       },
 
       initSortable(el) {
@@ -559,6 +617,13 @@
             const isFromClosed = fromList.dataset.closed === "true";
             const fromLabel = fromList.dataset.label;
             const toLabel = toList.dataset.label;
+            const oldIndex = evt.oldIndex;
+            const newIndex = evt.newIndex;
+            const reorderedInColumn = !crossColumn && oldIndex !== newIndex;
+
+            if (reorderedInColumn || crossColumn) {
+              this.applyColumnOrderFromListEl(toList, projectPath);
+            }
 
             try {
               if (crossColumn) {
@@ -596,11 +661,13 @@
                 }
               }
 
-              await this.syncIssuePosition(projectPath, toList, issueIid);
+              if (reorderedInColumn || crossColumn) {
+                await this.syncIssuePosition(projectPath, toList, issueIid);
+              }
             } catch (e) {
               alert("Taşıma işlemi kaydedilemedi: " + e.message);
               pd.loaded = false;
-              this.fetchProjectData(projectPath);
+              await this.fetchProjectData(projectPath, true);
             }
           }
         });
