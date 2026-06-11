@@ -7267,6 +7267,42 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
             parts.append("C %.2f %.2f %.2f %.2f %.2f %.2f" % (c1x, prev_y, c2x, y, x, y))
         path_d = " ".join(parts)
 
+    mean_v = sum(clean) / len(clean)
+
+    def _polyline_path_d(pts: list[tuple[float, float]]) -> str:
+        if not pts:
+            return ""
+        if len(pts) == 1:
+            x, y = pts[0]
+            return "M %.2f %.2f" % (x, y)
+        segs = ["M %.2f %.2f" % pts[0]]
+        for x, y in pts[1:]:
+            segs.append("L %.2f %.2f" % (x, y))
+        return " ".join(segs)
+
+    line_segments: list[dict] = []
+    seg_pts: list[tuple[float, float]] = [points[0]]
+    seg_above = clean[0] >= mean_v
+    for idx in range(1, len(clean)):
+        v0, v1 = clean[idx - 1], clean[idx]
+        p0, p1 = points[idx - 1], points[idx]
+        above0 = v0 >= mean_v
+        above1 = v1 >= mean_v
+        if above0 != above1 and v1 != v0:
+            t = (mean_v - v0) / (v1 - v0)
+            t = max(0.0, min(1.0, t))
+            cx = p0[0] + t * (p1[0] - p0[0])
+            cy = p0[1] + t * (p1[1] - p0[1])
+            seg_pts.append((round(cx, 2), round(cy, 2)))
+            line_segments.append({"above": seg_above, "path_d": _polyline_path_d(seg_pts)})
+            seg_pts = [(round(cx, 2), round(cy, 2)), p1]
+            seg_above = above1
+        else:
+            seg_pts.append(p1)
+            seg_above = above1
+    if len(seg_pts) >= 2:
+        line_segments.append({"above": seg_above, "path_d": _polyline_path_d(seg_pts)})
+
     first_x, _first_y = points[0]
     last_x, _last_y = points[-1]
     baseline = height - pad
@@ -7277,6 +7313,8 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
         "has_points": True,
         "path_d": path_d,
         "area_path": area_path,
+        "line_segments": line_segments,
+        "mean_value": mean_v,
         "end_x": points[-1][0],
         "end_y": points[-1][1],
         "last_value_fmt": _home_format_int(last_value),

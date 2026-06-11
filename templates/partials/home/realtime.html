@@ -41,8 +41,12 @@
                     </linearGradient>
                   </defs>
                   <path class="home-rt-spark-area" d="{{ prof.spark.area_path }}" fill="url(#home-rt-area-{{ site.site_id }}-{{ prof.key }})"></path>
+                  {% for seg in prof.spark.line_segments or [] %}
+                  <path class="home-rt-spark-line" d="{{ seg.path_d }}" fill="none" stroke="{% if seg.above %}var(--home-rt-mean-above){% else %}var(--home-rt-mean-below){% endif %}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
+                  {% else %}
                   <path class="home-rt-spark-line" d="{{ prof.spark.path_d }}" pathLength="120" fill="none" stroke="url(#home-rt-line-{{ site.site_id }}-{{ prof.key }})" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
-                  <path class="home-rt-spark-comet" d="{{ prof.spark.path_d }}" pathLength="120" fill="none" stroke="var(--home-rt-comet)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                  {% endfor %}
+                  <path class="home-rt-spark-comet" d="{{ prof.spark.path_d }}" pathLength="120" fill="none" stroke="var(--home-rt-comet)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"></path>
                   <circle class="home-rt-spark-dot" cx="{{ prof.spark.end_x }}" cy="{{ prof.spark.end_y }}" r="3.2"></circle>
                 </svg>
               {% else %}

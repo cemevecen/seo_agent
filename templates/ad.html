@@ -524,6 +524,7 @@
   </div>
 </div>
 
+<script src="/static/js/mz_mean_split_traces.js?v=1"></script>
 <script>
 (function () {
   /* CSS'den bağımsız layout zorlaması — element inline style, tüm CSS kurallarından üstün */
@@ -4957,19 +4958,14 @@
         if (chartType === "bar") {
           traces.push({ type: "bar", x: xs, y: ys, name: mDef.label, marker: { color: lineColor } });
         } else {
-          var trace = {
-            type: "scatter",
+          mzPushMeanSplitTraces(traces, xs, ys, {
             mode: traceMode,
-            x: xs,
-            y: ys,
+            lineWidth: lineW,
+            markerSize: markerSize || undefined,
             name: mDef.label,
+            showlegend: true,
             connectgaps: true,
-            line: { color: lineColor, width: lineW },
-          };
-          if (markerSize) {
-            trace.marker = { color: lineColor, size: markerSize, line: { width: 0 } };
-          }
-          traces.push(trace);
+          });
         }
         if (chartTimeKey === "date") {
           layout.xaxis = Object.assign({}, layout.xaxis, {
@@ -5304,6 +5300,33 @@
     return { responsive: true, displayModeBar: false, autosizable: true };
   }
 
+  function mzPushMeanSplitTraces(traces, xs, ys, opts) {
+    opts = opts || {};
+    if (typeof window.mzMeanSplitLineTraces !== "function") {
+      traces.push(
+        Object.assign(
+          {
+            x: xs,
+            y: ys,
+            type: "scatter",
+            mode: opts.mode || "lines",
+            line: { color: opts.fallbackColor || "#6366f1", width: opts.lineWidth || 2 },
+          },
+          opts.baseTrace || {}
+        )
+      );
+      return;
+    }
+    var split = window.mzMeanSplitLineTraces(
+      xs,
+      ys,
+      Object.assign({ dark: isDarkTheme() }, opts)
+    );
+    split.forEach(function (t) {
+      traces.push(t);
+    });
+  }
+
   function chartPlotHeight(el, fallback) {
     if (!el) return fallback || 240;
     var fixedAttr = el.getAttribute("data-mz-chart-h");
@@ -5503,14 +5526,12 @@
         var v = x[kpiKey];
         return v != null && !isNaN(v) ? Number(v) : 0;
       });
-      traces.push({
-        x: labels,
-        y: vals,
-        type: "scatter",
+      mzPushMeanSplitTraces(traces, labels, vals, {
+        lineWidth: 2,
         mode: series.length > 120 ? "lines" : "lines+markers",
-        line: { color: colors.primary, width: 2 },
-        marker: { color: colors.primary, size: 4 },
+        markerSize: series.length > 120 ? 0 : 4,
         name: def.label,
+        showlegend: true,
       });
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
@@ -5800,15 +5821,11 @@
       xs = plainSlice.map(function (d) { return d.date; });
       var ys = plainSlice.map(function (d) { return d[key] != null ? d[key] : 0; });
       if (!ys.some(function (v) { return v !== 0; })) return;
-      var color = dark ? "#a5b4fc" : "#6366f1";
-      traces.push({
-        x: xs,
-        y: ys,
-        type: "scatter",
+      mzPushMeanSplitTraces(traces, xs, ys, {
+        lineWidth: 1.5,
+        fill: true,
+        hoverinfo: "skip",
         mode: "lines",
-        line: { width: 1.5, color: color },
-        fill: "tozeroy",
-        fillcolor: dark ? "rgba(129,140,248,0.15)" : "rgba(99,102,241,0.12)",
       });
       if (state.peerOverlay.kpi && peerSum && !cmp) {
         var peerYs = peerMetricYForPlotX(peerSum, xs, key);
@@ -5945,26 +5962,26 @@
       ];
       dualLayoutExtra = applyCompareLayout(dualLayoutExtra, dx.length, { legendY: 1.18, marginT: 64 });
     } else {
-      dualTraces = [
+      dualTraces = [];
+      mzPushMeanSplitTraces(
+        dualTraces,
+        dates,
+        byDate.map(function (d) { return d.net_revenue; }),
+        { lineWidth: 2, yaxis: "y", name: "Net gelir", showlegend: true, baseTrace: { yaxis: "y" } }
+      );
+      mzPushMeanSplitTraces(
+        dualTraces,
+        dates,
+        byDate.map(function (d) { return d.impression; }),
         {
-          x: dates,
-          y: byDate.map(function (d) { return d.net_revenue; }),
-          type: "scatter",
-          mode: "lines",
-          name: "Net gelir",
-          yaxis: "y",
-          line: { color: colors.rev, width: 2 },
-        },
-        {
-          x: dates,
-          y: byDate.map(function (d) { return d.impression; }),
-          type: "scatter",
-          mode: "lines",
-          name: "Gösterim",
+          lineWidth: 2,
           yaxis: "y2",
-          line: { color: colors.imp, width: 2, dash: "dot" },
-        },
-      ];
+          lineDash: "dot",
+          name: "Gösterim",
+          showlegend: true,
+          baseTrace: { yaxis: "y2" },
+        }
+      );
     }
     var dualLay = plotTheme(dualLayoutExtra);
     if (peerSum && !revAligned && !impAligned && state.peerSeparate.dual) {
@@ -6045,14 +6062,12 @@
       qualityLayoutExtra = applyCompareLayout(qualityLayoutExtra, qx.length, { legendY: 1.22, marginT: 72 });
     } else {
       qualityKeys.forEach(function (q) {
-        qualityTraces.push({
-          x: dates,
-          y: byDate.map(function (d) { return d[q.key]; }),
-          name: q.label,
-          type: "scatter",
-          mode: "lines",
-          line: { color: qualityPalette[q.idx], width: 2 },
-        });
+        mzPushMeanSplitTraces(
+          qualityTraces,
+          dates,
+          byDate.map(function (d) { return d[q.key]; }),
+          { lineWidth: 2, name: q.label, showlegend: true }
+        );
       });
     }
     var qualityLay = plotTheme(qualityLayoutExtra);
