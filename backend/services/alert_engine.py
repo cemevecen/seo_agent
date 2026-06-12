@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from html import escape
 import re
 import time
+from typing import Any
 
 from sqlalchemy.exc import OperationalError
 
@@ -409,6 +410,79 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
     except Exception:
         LOGGER.exception("Top 50 keyword değişim hesaplaması başarısız.")
         return {"top_50": [], "all_queries": [], "dropped_queries": []}
+
+
+def list_sc_position_drops_7d(
+    db: Session,
+    site: Site,
+    *,
+    limit: int = 12,
+    min_diff: float = 0.1,
+) -> dict[str, Any]:
+    """Ana sayfa + alerts ile aynı SC motoru: top 50, M+Web ağırlıklı pozisyon, etki sırası.
+
+    Sıralama: (pozisyon farkı) × max(tıklama, 1) — kritik düşüş + trafik.
+    """
+    from backend.services.timezone_utils import format_local_datetime
+    from backend.services.warehouse import get_latest_search_console_rows
+
+    data = _get_top_50_keywords_with_changes(db, site)
+    top_50 = data.get("top_50") or []
+    drops: list[dict[str, Any]] = []
+
+    for row in top_50:
+        prev = float(row.get("previous_position") or 0.0)
+        cur = float(row.get("position") or 0.0)
+        if prev <= 0 or cur <= prev:
+            continue
+        diff = cur - prev
+        if diff < min_diff:
+            continue
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        impact = diff * max(clicks, 1.0)
+        drops.append(
+            {
+                "query": str(row.get("query") or ""),
+                "pos_prev": f"{prev:.1f}",
+                "pos_cur": f"{cur:.1f}",
+                "diff_fmt": f"{diff:.1f}",
+                "diff": diff,
+                "clicks": clicks,
+                "clicks_fmt": _format_number(clicks),
+                "impressions_fmt": _format_number(impressions),
+                "impact": impact,
+            }
+        )
+
+    drops.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
+    drops = drops[: max(1, int(limit))]
+
+    as_of_raw = None
+    try:
+        cur_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+        for r in cur_rows:
+            ca = r.get("collected_at")
+            if ca is None:
+                continue
+            if as_of_raw is None or ca > as_of_raw:
+                as_of_raw = ca
+    except Exception:
+        as_of_raw = None
+
+    as_of_label = (
+        format_local_datetime(as_of_raw, fmt="%d.%m.%Y %H:%M", include_suffix=True)
+        if as_of_raw is not None
+        else None
+    )
+
+    return {
+        "drops": drops,
+        "as_of_label": as_of_label,
+        "scope_label": "Top 50 sorgu · Mobil+Web (gösterim ağırlıklı pozisyon)",
+        "period_label": "Son 7 gün vs önceki 7 gün",
+        "sort_label": "Sıra: pozisyon farkı × tıklama",
+    }
 
 
 def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog]:

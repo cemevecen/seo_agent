@@ -1,20 +1,37 @@
-<div class="flex items-center justify-between gap-3">
-  <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">En Kritik Pozisyon Düşüşleri · 7g</h3>
-  <a href="/search-console" hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+{% set block = sites[0] if sites and sites[0] else none %}
+<div class="flex items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Pozisyon düşüşü · Top 50 · 7g</h3>
+    {% if block and block.scope_label %}
+      <p class="mt-0.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">{{ block.scope_label }}</p>
+    {% endif %}
+    {% if block and block.as_of_label %}
+      <p class="mt-0.5 text-[10px] tabular-nums text-slate-400 dark:text-slate-500">Veri: {{ block.as_of_label }}</p>
+    {% endif %}
+  </div>
+  <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
+     hx-get="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
+     hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+     class="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Uyarılar →</a>
 </div>
-{% if sites and sites[0] and sites[0].drops %}
-  <ul class="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
-    {% for d in sites[0].drops %}
-      <li class="flex items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
+{% if block and block.drops %}
+  <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+    {% for d in block.drops %}
+      <li class="flex items-start justify-between gap-2 py-2 first:pt-0 last:pb-0">
         <span class="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300" title="{{ d.query }}">{{ d.query }}</span>
-        <span class="shrink-0 text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">
-          <span>{{ d.pos_prev }} → {{ d.pos_cur }}</span>
-          <span class="ml-1 text-rose-600 dark:text-rose-400">+{{ d.diff_fmt }}</span>
+        <span class="shrink-0 text-right text-[11px] font-medium tabular-nums text-slate-500 dark:text-slate-400">
+          <span class="block whitespace-nowrap">{{ d.pos_prev }} → {{ d.pos_cur }}
+            <span class="text-rose-600 dark:text-rose-400">+{{ d.diff_fmt }}</span></span>
+          {% if d.clicks_fmt %}
+            <span class="mt-0.5 block text-[10px] font-normal text-slate-400 dark:text-slate-500">{{ d.clicks_fmt }} tık · 7g</span>
+          {% endif %}
         </span>
       </li>
     {% endfor %}
   </ul>
+  {% if block.sort_label %}
+    <p class="mt-2 text-[10px] text-slate-400 dark:text-slate-500">{{ block.sort_label }}</p>
+  {% endif %}
 {% else %}
-  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Kritik düşüş yok</p>
+  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Top 50 içinde anlamlı düşüş yok</p>
 {% endif %}

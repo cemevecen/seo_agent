@@ -7571,74 +7571,14 @@ def api_home_sc_summary(request: Request, site: str | None = None):
     )
 
 
-def _home_position_drops_for_site(db, site_id: int, limit: int = 5) -> list[dict]:
-    """current_7d vs previous_7d MOBILE pozisyon farkı en kötü (artış) ilk N sorgu."""
-    from sqlalchemy import func as _func
-    latest_cur = (
-        db.query(_func.max(SearchConsoleQuerySnapshot.collected_at))
-        .filter(
-            SearchConsoleQuerySnapshot.site_id == site_id,
-            SearchConsoleQuerySnapshot.data_scope == "current_7d",
-            SearchConsoleQuerySnapshot.device == "MOBILE",
-        )
-        .scalar()
-    )
-    latest_prev = (
-        db.query(_func.max(SearchConsoleQuerySnapshot.collected_at))
-        .filter(
-            SearchConsoleQuerySnapshot.site_id == site_id,
-            SearchConsoleQuerySnapshot.data_scope == "previous_7d",
-            SearchConsoleQuerySnapshot.device == "MOBILE",
-        )
-        .scalar()
-    )
-    if not latest_cur or not latest_prev:
-        return []
-    cur_rows = (
-        db.query(SearchConsoleQuerySnapshot.query, SearchConsoleQuerySnapshot.position, SearchConsoleQuerySnapshot.clicks)
-        .filter(
-            SearchConsoleQuerySnapshot.site_id == site_id,
-            SearchConsoleQuerySnapshot.data_scope == "current_7d",
-            SearchConsoleQuerySnapshot.device == "MOBILE",
-            SearchConsoleQuerySnapshot.collected_at == latest_cur,
-        )
-        .all()
-    )
-    prev_rows = (
-        db.query(SearchConsoleQuerySnapshot.query, SearchConsoleQuerySnapshot.position)
-        .filter(
-            SearchConsoleQuerySnapshot.site_id == site_id,
-            SearchConsoleQuerySnapshot.data_scope == "previous_7d",
-            SearchConsoleQuerySnapshot.device == "MOBILE",
-            SearchConsoleQuerySnapshot.collected_at == latest_prev,
-        )
-        .all()
-    )
-    prev_map = {(r[0] or "").strip().lower(): float(r[1] or 0.0) for r in prev_rows if r[0]}
-    candidates: list[dict] = []
-    for q, pos_cur, clicks in cur_rows:
-        if not q:
-            continue
-        key = q.strip().lower()
-        if key not in prev_map:
-            continue
-        pos_prev = prev_map[key]
-        pos_cur_f = float(pos_cur or 0.0)
-        if pos_prev <= 0 or pos_cur_f <= 0:
-            continue
-        diff = pos_cur_f - pos_prev  # pozitif = düşüş (kötü)
-        if diff < 1.0:
-            continue
-        impact = diff * max(float(clicks or 0.0), 1.0)
-        candidates.append({
-            "query": q,
-            "pos_cur": f"{pos_cur_f:.1f}",
-            "pos_prev": f"{pos_prev:.1f}",
-            "diff_fmt": f"{diff:.1f}",
-            "impact": impact,
-        })
-    candidates.sort(key=lambda x: x["impact"], reverse=True)
-    return candidates[:limit]
+def _home_position_drops_for_site(db, site_id: int, limit: int = 12) -> dict:
+    """SC top 50 · M+Web ağırlıklı pozisyon — alert motoru ile aynı kaynak."""
+    from backend.services.alert_engine import list_sc_position_drops_7d
+
+    site_obj = _home_get_site(db, site_id)
+    if site_obj is None:
+        return {"drops": []}
+    return list_sc_position_drops_7d(db, site_obj, limit=limit)
 
 
 def home_summary_payload(db) -> dict:
@@ -7660,7 +7600,7 @@ def home_summary_payload(db) -> dict:
                 "display_name": site_obj.display_name,
                 "ga4_sessions_7d": _home_load_ga4_sessions_for_site(db, site_id, ga4_profs),
                 "search_console_7d": sc_devices,
-                "position_drops_7d": _home_position_drops_for_site(db, site_id, limit=5),
+                "position_drops_7d": (_home_position_drops_for_site(db, site_id, limit=8).get("drops") or []),
             }
         )
     return {
@@ -7689,11 +7629,17 @@ def api_home_position_drops(request: Request, site: str | None = None):
             site_obj = _home_get_site(db, site_id)
             if site_obj is None:
                 continue
+            drop_payload = _home_position_drops_for_site(db, site_id, limit=12)
             sites_out.append({
                 "site_id": site_id,
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name,
-                "drops": _home_position_drops_for_site(db, site_id, limit=8),
+                "drops": drop_payload.get("drops") or [],
+                "as_of_label": drop_payload.get("as_of_label"),
+                "scope_label": drop_payload.get("scope_label"),
+                "period_label": drop_payload.get("period_label"),
+                "sort_label": drop_payload.get("sort_label"),
+                "alerts_href": f"/alerts?domain={site_obj.domain}&focus=position",
             })
     return templates.TemplateResponse(
         request, "partials/home/position_drops.html",

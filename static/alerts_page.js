@@ -418,10 +418,42 @@ function bindMainDelegation() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+function _applyAlertsUrlParams() {
+  var params;
+  try {
+    params = new URLSearchParams(window.location.search);
+  } catch (e) {
+    return;
+  }
+  var focus = (params.get('focus') || '').trim().toLowerCase();
+  if (focus === 'position') {
+    _alertType = 'position';
+    setActiveTypeTab('position');
+  } else if (focus === 'ctr') {
+    _alertType = 'ctr';
+    setActiveTypeTab('ctr');
+  } else if (focus === 'impression') {
+    _alertType = 'impression';
+    setActiveTypeTab('impression');
+  }
+  var domain = (params.get('domain') || '').trim();
+  if (domain) {
+    var filterSelect = document.getElementById('site-filter');
+    if (filterSelect) {
+      var found = false;
+      Array.prototype.forEach.call(filterSelect.options, function (opt) {
+        if (opt.value === domain) found = true;
+      });
+      if (found) filterSelect.value = domain;
+    }
+  }
+}
+
 function initAlertsPage() {
   if (!document.getElementById('alerts-view')) return;
   bindMainDelegation();
   bindRefreshButton();
+  _applyAlertsUrlParams();
   setActiveTypeTab(_alertType);
   setActivePeriodTab(_alertPeriod);
   applyAlertsFilters();
