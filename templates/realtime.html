@@ -638,6 +638,13 @@
   html.dark .rt-spark-line-dot {
     fill: rgb(251 191 36);
   }
+  .rt-spark-line-sparse {
+    fill: rgb(100 116 139);
+    font-weight: 600;
+  }
+  html.dark .rt-spark-line-sparse {
+    fill: rgb(161 161 170);
+  }
   .rt-spark-mini-bar {
     flex: 1 1 0;
     min-width: 2px;
@@ -1025,7 +1032,7 @@
               <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Aktif kullanıcı</p>
               <div class="text-right leading-tight">
                 <p class="text-xl font-black tabular-nums text-slate-900 dark:text-zinc-50" data-rt-spark-last-val>—</p>
-                <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">son bucket</p>
+                <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500" data-rt-spark-last-label>son ölçüm</p>
               </div>
             </div>
             <div class="rt-spark-plot h-24 w-full min-h-[4.5rem] px-1.5 pb-2" data-rt-chart aria-label="Aktif kullanıcı — dakikalık mini sütunlar">
@@ -1650,29 +1657,49 @@
         empty: false,
       });
     }
-    if (rangeKey === '15m' || rangeKey === '1h') {
-      var prev = null;
-      for (var fi = 0; fi < out.length; fi++) {
-        if (!out[fi].empty) {
-          prev = out[fi];
-        } else if (prev) {
-          out[fi] = {
-            v: prev.v,
-            pv: prev.pv,
-            bucketCount: 0,
-            carried: true,
-            label: out[fi].label,
-            tStart: out[fi].tStart,
-            tEnd: '',
-            empty: false,
-            vmin: prev.vmin != null ? prev.vmin : prev.v,
-            vmax: prev.vmax != null ? prev.vmax : prev.v,
-            vavg: prev.vavg != null ? prev.vavg : prev.v,
-          };
-        }
-      }
-    }
     return out;
+  }
+
+  /** 15dk/1s çizgi: yalnızca gerçek DB snapshot’ları (dakika ızgarası / forward-fill yok). */
+  function _sparkLineSeriesFromPoints(trendPoints, rangeKey) {
+    var rangeMs = RT_TREND_RANGE_MS[rangeKey] || RT_TREND_RANGE_MS['1h'];
+    var lastMs = trendPoints[trendPoints.length - 1].ts.getTime();
+    var rangeStartMs = lastMs - rangeMs;
+    var pts = trendPoints.filter(function (p) {
+      return p.ts.getTime() >= rangeStartMs - 1000;
+    });
+    if (!pts.length) pts = trendPoints.slice();
+    var users = pts.map(function (p) { return Number(p.users) || 0; });
+    var mn = Math.min.apply(null, users);
+    var mx = Math.max.apply(null, users.concat([1]));
+    if (mx - mn < Math.max(mx * 0.04, 80)) {
+      var mid = (mx + mn) / 2;
+      var pad = Math.max(mx * 0.06, 120);
+      mn = Math.max(0, mid - pad);
+      mx = mid + pad;
+    } else {
+      mn = Math.max(0, mn - (mx - mn) * 0.08);
+      mx = mx + (mx - mn) * 0.05;
+    }
+    var display = pts.map(function (p) {
+      return {
+        v: Number(p.users) || 0,
+        pv: Number(p.pv) || 0,
+        label: _sparkFmtClock(p.ts),
+        tStart: _sparkFmtClock(p.ts),
+        bucketCount: 1,
+        empty: false,
+        tMs: p.ts.getTime(),
+      };
+    });
+    return {
+      points: pts,
+      display: display,
+      mn: mn,
+      mx: mx,
+      rangeStartMs: rangeStartMs,
+      rangeEndMs: lastMs,
+    };
   }
 
   function _sparkBarTipHtml(d) {
@@ -1701,66 +1728,89 @@
     return rangeKey === '15m' || rangeKey === '1h';
   }
 
-  function _sparkLineSvgHtml(display, mx) {
-    var n = display.length;
+  function _sparkY(v, mn, mx, padY, innerH) {
+    var span = Math.max(mx - mn, 1);
+    var norm = (Number(v) - mn) / span;
+    if (norm < 0) norm = 0;
+    if (norm > 1) norm = 1;
+    return padY + innerH - norm * innerH;
+  }
+
+  function _sparkLineSvgHtmlTime(series) {
+    var pts = series.points || [];
+    var n = pts.length;
     if (n < 1) return '';
-    var w = Math.max(n - 1, 1);
+    var w = 100;
     var h = 100;
     var padY = 6;
     var innerH = h - padY * 2;
-    var pts = [];
-    var areaMid = [];
+    var mn = series.mn;
+    var mx = series.mx;
+    var t0 = series.rangeStartMs;
+    var t1 = series.rangeEndMs;
+    var span = Math.max(t1 - t0, 60000);
+    var xy = [];
     for (var i = 0; i < n; i++) {
-      var v = Math.max(0, Number(display[i].v) || 0);
-      var x = n === 1 ? 0 : (i / (n - 1)) * w;
-      var y = padY + innerH - (v / mx) * innerH;
-      pts.push(x.toFixed(3) + ',' + y.toFixed(3));
-      areaMid.push(x.toFixed(3) + ',' + y.toFixed(3));
+      var p = pts[i];
+      var v = Number(p.users) || 0;
+      var x = ((p.ts.getTime() - t0) / span) * w;
+      var y = _sparkY(v, mn, mx, padY, innerH);
+      xy.push({ x: x, y: y, v: v, i: i });
     }
+    var linePts = xy.map(function (o) { return o.x.toFixed(3) + ',' + o.y.toFixed(3); });
     var baseY = (h - padY).toFixed(3);
-    var areaD =
-      'M0,' +
-      baseY +
-      ' L' +
-      areaMid.join(' L') +
-      ' L' +
-      w +
-      ',' +
-      baseY +
-      ' Z';
+    var areaD = 'M' + xy[0].x.toFixed(3) + ',' + baseY;
+    for (var a = 0; a < xy.length; a++) {
+      areaD += ' L' + xy[a].x.toFixed(3) + ',' + xy[a].y.toFixed(3);
+    }
+    areaD += ' L' + xy[xy.length - 1].x.toFixed(3) + ',' + baseY + ' Z';
     var hits = '';
-    for (var j = 0; j < n; j++) {
-      var vj = Math.max(0, Number(display[j].v) || 0);
-      var xj = n === 1 ? 0 : (j / (n - 1)) * w;
-      var yj = padY + innerH - (vj / mx) * innerH;
+    for (var j = 0; j < xy.length; j++) {
       hits +=
         '<circle class="rt-spark-line-hit" data-rt-bar-i="' +
         j +
         '" cx="' +
-        xj.toFixed(3) +
+        xy[j].x.toFixed(3) +
         '" cy="' +
-        yj.toFixed(3) +
+        xy[j].y.toFixed(3) +
         '" r="8" fill="transparent"></circle>' +
         '<circle class="rt-spark-line-dot" data-rt-bar-i="' +
         j +
         '" cx="' +
-        xj.toFixed(3) +
+        xy[j].x.toFixed(3) +
         '" cy="' +
-        yj.toFixed(3) +
+        xy[j].y.toFixed(3) +
         '" r="2.2"></circle>';
     }
+    var poly =
+      n === 1
+        ? ''
+        : '<polyline class="rt-spark-line-stroke" points="' + linePts.join(' ') + '"></polyline>';
+    if (n === 1) {
+      hits +=
+        '<circle class="rt-spark-line-dot is-hovered" cx="' +
+        xy[0].x.toFixed(3) +
+        '" cy="' +
+        xy[0].y.toFixed(3) +
+        '" r="2.8" fill="rgb(217 119 6)"></circle>';
+    }
+    var sparse =
+      n < 4
+        ? '<text x="2" y="12" class="rt-spark-line-sparse" font-size="7">n=' +
+          n +
+          ' ölçüm</text>'
+        : '';
     return (
       '<svg class="rt-spark-line-svg" viewBox="0 0 ' +
       w +
       ' ' +
       h +
-      '" preserveAspectRatio="none" role="img" aria-label="Aktif kullanıcı çizgi grafiği">' +
+      '" preserveAspectRatio="none" role="img" aria-label="Aktif kullanıcı — gerçek snapshot çizgisi">' +
+      sparse +
       '<path class="rt-spark-line-area" d="' +
       areaD +
       '"></path>' +
-      '<polyline class="rt-spark-line-stroke" points="' +
-      pts.join(' ') +
-      '"></polyline>' +
+      poly +
       hits +
       '</svg>'
     );
@@ -1926,16 +1976,26 @@
     var lastU = trendPoints[trendPoints.length - 1].users;
     var lastValEl = box.querySelector('[data-rt-spark-last-val]');
     if (lastValEl) lastValEl.textContent = _fmt(lastU);
-    var display = _sparkBarsForDisplay(trendPoints, rangeKey);
-    var mx = Math.max.apply(
-      null,
-      display.map(function (d) { return d.v; }).concat([1])
-    );
-    box._rtSparkDisplay = display;
     var useLine = _sparkUsesLine(rangeKey);
+    var display;
+    var mx;
+    if (useLine) {
+      var series = _sparkLineSeriesFromPoints(trendPoints, rangeKey);
+      display = series.display;
+      mx = series.mx;
+      box._rtSparkLineSeries = series;
+    } else {
+      display = _sparkBarsForDisplay(trendPoints, rangeKey);
+      mx = Math.max.apply(
+        null,
+        display.map(function (d) { return d.v; }).concat([1])
+      );
+      box._rtSparkLineSeries = null;
+    }
+    box._rtSparkDisplay = display;
     barsEl.classList.toggle('rt-spark-line-mode', useLine);
     if (useLine) {
-      barsEl.innerHTML = _sparkLineSvgHtml(display, mx);
+      barsEl.innerHTML = _sparkLineSvgHtmlTime(box._rtSparkLineSeries);
     } else {
       barsEl.innerHTML = display
         .map(function (d, i) {
