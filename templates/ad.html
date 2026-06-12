@@ -5834,6 +5834,38 @@
     scheduleMzChartsResize();
   }
 
+  function mzSparkFillRgba(hex, alpha) {
+    var h = String(hex || "").replace("#", "");
+    if (h.length === 3) {
+      h = h
+        .split("")
+        .map(function (c) {
+          return c + c;
+        })
+        .join("");
+    }
+    if (h.length !== 6) return "rgba(2,132,199," + alpha + ")";
+    var r = parseInt(h.slice(0, 2), 16);
+    var g = parseInt(h.slice(2, 4), 16);
+    var b = parseInt(h.slice(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+
+  /** Karşı dönem / peer: yalnızca ince dolgu — çizgi yok (KPI spark kuralı). */
+  function mzSparkOverlayFillTrace(xs, ys, colorHex, dark) {
+    return {
+      x: xs,
+      y: ys,
+      type: "scatter",
+      mode: "lines",
+      line: { width: 0, color: "rgba(0,0,0,0)" },
+      fill: "tozeroy",
+      fillcolor: mzSparkFillRgba(colorHex, dark ? 0.26 : 0.2),
+      connectgaps: false,
+      hoverinfo: "skip",
+    };
+  }
+
   function renderKpiSparkline(elId, byDate, key, cmp, peerSum) {
     if (!window.Plotly) return;
     var el = typeof elId === "string" ? document.getElementById(elId) : elId;
@@ -5853,50 +5885,33 @@
           !compareYs.some(function (v) { return v != null && v !== 0; })) {
         return;
       }
-      traces.push({
-        x: xs,
-        y: primaryYs,
-        type: "scatter",
-        mode: "lines",
-        line: { width: 1.5, color: colors.primary },
-        fill: "tozeroy",
-        fillcolor: dark ? "rgba(129,140,248,0.15)" : "rgba(99,102,241,0.12)",
-      });
       if (compareYs.some(function (v) { return v != null && v !== 0; })) {
-        traces.push({
-          x: xs,
-          y: compareYs,
-          type: "scatter",
-          mode: "lines",
-          line: { width: 1.25, color: colors.sparkCompare, dash: "dot" },
-          connectgaps: false,
-        });
+        traces.push(mzSparkOverlayFillTrace(xs, compareYs, colors.sparkCompare, dark));
       }
+      mzPushMeanSplitTraces(traces, xs, primaryYs, {
+        lineWidth: 1.5,
+        fill: true,
+        hoverinfo: "skip",
+        mode: "lines",
+      });
     } else {
       if (!byDate || byDate.length < 2) return;
       var plainSlice = byDate.slice(-14);
       xs = plainSlice.map(function (d) { return d.date; });
       var ys = plainSlice.map(function (d) { return d[key] != null ? d[key] : 0; });
       if (!ys.some(function (v) { return v !== 0; })) return;
+      if (state.peerOverlay.kpi && peerSum && !cmp) {
+        var peerYs = peerMetricYForPlotX(peerSum, xs, key);
+        if (peerYs.some(function (v) { return v != null && v !== 0; })) {
+          traces.push(mzSparkOverlayFillTrace(xs, peerYs, peerOverlayLineColor(), dark));
+        }
+      }
       mzPushMeanSplitTraces(traces, xs, ys, {
         lineWidth: 1.5,
         fill: true,
         hoverinfo: "skip",
         mode: "lines",
       });
-      if (state.peerOverlay.kpi && peerSum && !cmp) {
-        var peerYs = peerMetricYForPlotX(peerSum, xs, key);
-        if (peerYs.some(function (v) { return v != null && v !== 0; })) {
-          traces.push({
-            x: xs,
-            y: peerYs,
-            type: "scatter",
-            mode: "lines",
-            line: Object.assign({}, peerOverlayLineStyle(), { dash: "dot" }),
-            connectgaps: false,
-          });
-        }
-      }
     }
 
     try { Plotly.purge(el); } catch (e) { /* ignore */ }
