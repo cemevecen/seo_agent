@@ -925,7 +925,7 @@
         <div class="rt-404-section hidden mt-2 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-800/40 dark:bg-amber-950/20"
              data-rt-404-section>
           <div class="flex flex-wrap items-center justify-between gap-1.5">
-            <div class="flex items-center gap-2">
+            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <span class="relative flex h-2 w-2">
                 <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
                 <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
@@ -935,7 +935,16 @@
               <span class="text-[10px] text-amber-600 dark:text-amber-500">kullanıcı şu an 404 sayfasında</span>
               <span class="text-[10px] text-amber-600/80 dark:text-amber-500/80" data-rt-404-sub></span>
             </div>
-            <span class="rt-404-severity text-[10px] font-bold uppercase" data-rt-404-severity></span>
+            <div class="flex shrink-0 items-center gap-1.5">
+              <span class="rt-404-severity text-[10px] font-bold uppercase" data-rt-404-severity></span>
+              <button
+                type="button"
+                data-rt-404-dismiss
+                class="inline-flex h-6 w-6 items-center justify-center rounded-md text-base leading-none text-amber-800/70 transition hover:bg-amber-200/70 hover:text-amber-950 dark:text-amber-300/80 dark:hover:bg-amber-900/50 dark:hover:text-amber-100"
+                aria-label="404 uyarısını gizle"
+                title="Gizle (kullanıcı sayısı artarsa veya kritik olursa tekrar görünür)"
+              >×</button>
+            </div>
           </div>
           <div class="mt-2 space-y-0.5" data-rt-404-pages></div>
         </div>
@@ -2737,11 +2746,72 @@
   }
 
   /* ── 404 Spike monitoring ── */
+  var RT_404_DISMISS_KEY = 'rt_404_dismiss_v1';
+
+  function _rt404DismissMap() {
+    try {
+      var raw = localStorage.getItem(RT_404_DISMISS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function _rt404DismissId(siteId, profile) {
+    return String(siteId) + '|' + String(profile || 'web');
+  }
+
+  function _save404Dismiss(siteId, profile, data) {
+    if (!data || !data.severity) return;
+    var map = _rt404DismissMap();
+    map[_rt404DismissId(siteId, profile)] = {
+      total: (data.total_404_users) || 0,
+      severity: data.severity,
+      at: Date.now(),
+    };
+    try {
+      localStorage.setItem(RT_404_DISMISS_KEY, JSON.stringify(map));
+    } catch (e) { /* ignore */ }
+  }
+
+  function _is404Dismissed(siteId, profile, data) {
+    if (!data || !data.severity) return false;
+    var rec = _rt404DismissMap()[_rt404DismissId(siteId, profile)];
+    if (!rec) return false;
+    var total = (data.total_404_users) || 0;
+    if (data.severity === 'critical' && rec.severity !== 'critical') return false;
+    if (total > (rec.total || 0)) return false;
+    return rec.severity === data.severity && total === (rec.total || 0);
+  }
+
+  function _wire404Dismiss(box) {
+    var btn = box.querySelector('[data-rt-404-dismiss]');
+    if (!btn || btn._rt404DismissWired) return;
+    btn._rt404DismissWired = true;
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var siteId = box.getAttribute('data-rt-site-id');
+      var profile = box.getAttribute('data-rt-profile');
+      var data = box._rt404LastData;
+      if (data && data.severity) _save404Dismiss(siteId, profile, data);
+      var sec = box.querySelector('[data-rt-404-section]');
+      if (sec) sec.classList.add('hidden');
+    });
+  }
+
   function _render404Section(box, data) {
     var sec = box.querySelector('[data-rt-404-section]');
     if (!sec) return;
+    box._rt404LastData = data;
+    _wire404Dismiss(box);
+    var siteId = box.getAttribute('data-rt-site-id');
+    var profile = box.getAttribute('data-rt-profile');
     var total = (data && data.total_404_users) || 0;
     if (total === 0 || !data || !data.severity) {
+      sec.classList.add('hidden');
+      return;
+    }
+    if (_is404Dismissed(siteId, profile, data)) {
       sec.classList.add('hidden');
       return;
     }
