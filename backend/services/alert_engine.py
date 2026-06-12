@@ -479,8 +479,9 @@ def list_sc_position_drops_7d(
 
     drops.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
     drops = drops[:row_limit]
-    while len(drops) < row_limit:
-        drops.append({"is_pad": True})
+    if drops:
+        while len(drops) < row_limit:
+            drops.append({"is_pad": True})
 
     as_of_raw = None
     try:
