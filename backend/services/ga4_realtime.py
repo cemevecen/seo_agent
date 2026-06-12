@@ -816,6 +816,9 @@ DEFAULT_WINDOW_MINUTES = 10
 # DB snapshot trend — gerçek kayıtlar; sentetik interpolasyon yok
 REALTIME_TREND_LIMIT_DEFAULT = 288  # ~4.8 saat @ 60 sn poll
 REALTIME_TREND_LIMIT_MAX = 480  # ~8 saat @ 60 sn poll
+REALTIME_TREND_HOURS_DEFAULT = 24.0  # realtime sayfa 24s sekmesi — yalnızca DB okur
+REALTIME_TREND_HOURS_MAX = 48.0
+REALTIME_TREND_ROWS_MAX = 1440  # 24s @ ~1 dk örnekleme üst sınırı
 REALTIME_HOME_TREND_LIMIT = 120  # ana sayfa mini spark
 
 
@@ -2371,22 +2374,16 @@ def get_recent_snapshots(
     site_id: int,
     *,
     profile: str = "web",
-    limit: int = 30,
+    limit: int | None = 30,
+    hours: float | None = None,
 ) -> list[dict[str, Any]]:
-    """Son N snapshot kaydını döner (mini trend grafiği için)."""
+    """Snapshot trendi — son N kayıt veya son X saat (GA4 çağrısı yok)."""
     from backend.models import RealtimeSnapshot
 
     prof = (profile or "web").strip()
-    rows = (
-        db.query(RealtimeSnapshot)
-        .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == prof)
-        .order_by(RealtimeSnapshot.collected_at.desc())
-        .limit(limit)
-        .all()
-    )
-    result = []
-    for row in reversed(rows):
-        result.append({
+
+    def _row_dict(row: RealtimeSnapshot) -> dict[str, Any]:
+        return {
             "collected_at": _utc_db_datetime_iso_z(row.collected_at),
             "active_users": row.active_users_current,
             "active_users_prev": row.active_users_previous,
@@ -2394,8 +2391,34 @@ def get_recent_snapshots(
             "pageviews_prev": row.pageviews_previous,
             "alarm_count": row.alarm_count,
             "window_minutes": row.window_minutes,
-        })
-    return result
+        }
+
+    if hours is not None and hours > 0:
+        h = min(float(hours), REALTIME_TREND_HOURS_MAX)
+        cutoff = datetime.utcnow() - timedelta(hours=h)
+        rows = (
+            db.query(RealtimeSnapshot)
+            .filter(
+                RealtimeSnapshot.site_id == site_id,
+                RealtimeSnapshot.profile == prof,
+                RealtimeSnapshot.collected_at >= cutoff,
+            )
+            .order_by(RealtimeSnapshot.collected_at.asc())
+            .limit(REALTIME_TREND_ROWS_MAX)
+            .all()
+        )
+        return [_row_dict(row) for row in rows]
+
+    lim = REALTIME_TREND_LIMIT_DEFAULT if limit is None else int(limit)
+    lim = min(max(lim, 1), REALTIME_TREND_LIMIT_MAX)
+    rows = (
+        db.query(RealtimeSnapshot)
+        .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == prof)
+        .order_by(RealtimeSnapshot.collected_at.desc())
+        .limit(lim)
+        .all()
+    )
+    return [_row_dict(row) for row in reversed(rows)]
 
 
 def fetch_realtime_profile_bundle(
@@ -2405,6 +2428,7 @@ def fetch_realtime_profile_bundle(
     profile: str = "web",
     window_minutes: int | None = None,
     trend_limit: int = REALTIME_TREND_LIMIT_DEFAULT,
+    trend_hours: float | None = None,
     skip_alarms: bool = True,
 ) -> dict[str, Any]:
     """Realtime sayfası ve ana sayfa KPI/spark için ortak veri yolu (TTL cache + trend)."""
@@ -2427,7 +2451,10 @@ def fetch_realtime_profile_bundle(
             last_good_ttl=settings.ga4_realtime_last_good_seconds,
         )
     )
-    result["trend"] = get_recent_snapshots(db, sid, profile=prof, limit=trend_limit)
+    if trend_hours is not None and trend_hours > 0:
+        result["trend"] = get_recent_snapshots(db, sid, profile=prof, hours=trend_hours)
+    else:
+        result["trend"] = get_recent_snapshots(db, sid, profile=prof, limit=trend_limit)
     return result
 
 
@@ -2532,6 +2559,7 @@ def fetch_home_realtime_profile_bundle(
         profile=prof,
         window_minutes=w,
         trend_limit=trend_limit,
+        trend_hours=None,
         skip_alarms=True,
     )
 

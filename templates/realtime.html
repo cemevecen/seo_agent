@@ -1390,10 +1390,20 @@
   }
   window.rtFetchProfile = rtFetchProfile;
 
+  function _rtTrendApiQuery(box) {
+    var rangeKey = box ? _rtTrendRangeForBox(box) : '24h';
+    if (rangeKey === '24h') {
+      return 'hours=24';
+    }
+    return 'limit=' + RT_TREND_LIMIT;
+  }
+
   function rtFetchTrend(siteId, profile) {
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
-    fetch('/api/ga4/realtime/' + siteId + '/trend?profile=' + encodeURIComponent(profile) + '&limit=' + RT_TREND_LIMIT, {
+    fetch(
+      '/api/ga4/realtime/' + siteId + '/trend?profile=' + encodeURIComponent(profile) + '&' + _rtTrendApiQuery(box),
+      {
       credentials: 'same-origin',
       cache: 'no-store',
     })
@@ -1402,7 +1412,8 @@
       })
       .then(function (d) {
         if (!d || d.error || !d.trend) return;
-        _renderChart(box, siteId, profile, d.trend || []);
+        box._rtTrendFull = d.trend || [];
+        _renderChart(box, siteId, profile, box._rtTrendFull);
       })
       .catch(function () {});
   }
@@ -1714,9 +1725,7 @@
           localStorage.setItem(RT_TREND_RANGE_LS, key);
         } catch (eSave) { /* ignore */ }
         _syncRtYfTabs(box, key);
-        if (box._rtTrendFull && box._rtTrendFull.length) {
-          _renderChart(box, siteId, profile, box._rtTrendFull);
-        }
+        rtFetchTrend(siteId, profile);
       });
     });
   }

@@ -12538,7 +12538,7 @@ def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "we
     GA4 Realtime token kotasını korumak için sonuç kısa süreli (TTL) cache'lenir;
     429/hata anında son başarılı CANLI sonuç (stale) döndürülür."""
     from backend.services.ga4_realtime import (
-        REALTIME_TREND_LIMIT_DEFAULT,
+        REALTIME_TREND_HOURS_DEFAULT,
         fetch_realtime_profile_bundle,
         get_recent_alarms,
     )
@@ -12554,7 +12554,7 @@ def api_ga4_realtime(site_id: int, window: int | None = None, profile: str = "we
             site,
             profile=profile,
             window_minutes=w,
-            trend_limit=REALTIME_TREND_LIMIT_DEFAULT,
+            trend_hours=REALTIME_TREND_HOURS_DEFAULT,
             skip_alarms=True,
         )
         result["recent_alarms"] = get_recent_alarms(db, site_id, limit=10)
@@ -12566,22 +12566,29 @@ def api_ga4_realtime_trend(
     site_id: int,
     profile: str = "web",
     limit: int | None = None,
+    hours: float | None = None,
 ):
-    """Son N snapshot — mini trend grafiği için (API çağırmadan sadece DB okur)."""
+    """Snapshot trendi — mini grafik (yalnızca DB; GA4 kotası harcanmaz)."""
     from backend.services.ga4_realtime import (
+        REALTIME_TREND_HOURS_DEFAULT,
+        REALTIME_TREND_HOURS_MAX,
         REALTIME_TREND_LIMIT_DEFAULT,
         REALTIME_TREND_LIMIT_MAX,
         get_recent_snapshots,
     )
 
-    req_limit = REALTIME_TREND_LIMIT_DEFAULT if limit is None else limit
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
             return JSONResponse({"error": "site_not_found"}, status_code=404)
-        snapshots = get_recent_snapshots(
-            db, site_id, profile=profile, limit=min(req_limit, REALTIME_TREND_LIMIT_MAX)
-        )
+        if hours is not None and hours > 0:
+            h = min(float(hours), REALTIME_TREND_HOURS_MAX)
+            snapshots = get_recent_snapshots(db, site_id, profile=profile, hours=h)
+        else:
+            req_limit = REALTIME_TREND_LIMIT_DEFAULT if limit is None else limit
+            snapshots = get_recent_snapshots(
+                db, site_id, profile=profile, limit=min(req_limit, REALTIME_TREND_LIMIT_MAX)
+            )
     return JSONResponse({"site_id": site_id, "profile": profile, "trend": snapshots})
 
 
@@ -14089,7 +14096,7 @@ def _run_db_retention_cleanup() -> dict:
 
 def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
     """APScheduler: periyodik GA4 Realtime karşılaştırma & alarm kontrolü.
-    00:00–07:00 arası çalışmaz (kota tasarrufu); bu saatler dışında çalışır."""
+    00:00–06:00 arası yalnızca KPI snapshot (alarm/sayfa/haber yok); gündüz tam döngü."""
     from datetime import datetime as _dt
     from zoneinfo import ZoneInfo as _ZoneInfo
     tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
@@ -14097,10 +14104,6 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
     hour = now_local.hour
     is_night = (0 <= hour < 6)
     
-    if is_night and not force_run:
-        LOGGER.info("GA4 Realtime Job: Gece modu aktif (saat %d), kontrol atlanıyor.", hour)
-        return {"status": "skipped", "reason": "night_mode"}
-
     LOGGER.info(">>> GA4 Realtime Job HEARTBEAT: Kontrol döngüsü BAŞLADI (local_time=%s, force=%s)", now_local.isoformat(), force_run)
     try:
         from backend.services.ga4_realtime import (
@@ -14123,13 +14126,13 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         # Alarm tespiti / DB mantığına dokunulmaz; sadece gönderim batche alınır.
         realtime_email_batch_begin()
 
-        # 1. Site-level KPI alarmları
+        # 1. Site-level KPI (gece: yalnızca snapshot, alarm/mail yok — 24s grafik boşluğu azalır)
         with SessionLocal() as db:
             results = run_all_sites_realtime_check(
                 db,
                 window_minutes=settings.ga4_realtime_window_minutes,
                 skip_alarms=is_night,
-                skip_emails=is_night,   # gece modunda email gönderme, alarm kayıt yok
+                skip_emails=is_night,
             )
 
         for res in results:
@@ -14137,9 +14140,12 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
                 total_site_alarms += len(res["alarms"])
 
         if is_night and not force_run:
-            realtime_email_batch_flush()  # batch'i temizle (gece modunda gönderme)
-            LOGGER.info("GA4 Realtime: Gece modu — sadece trend verileri güncellendi.")
-            return {"total_alarms": 0, "status": "night_mode_passive"}
+            realtime_email_batch_flush()
+            LOGGER.info(
+                "GA4 Realtime: Gece modu — %d KPI snapshot güncellendi (alarm/sayfa/haber atlandı).",
+                len(results),
+            )
+            return {"total_alarms": 0, "status": "night_mode_snapshot_only", "site_check_count": len(results)}
 
         # 2. Sayfa bazlı alarmlar
         if settings.ga4_realtime_page_alerts_enabled:
