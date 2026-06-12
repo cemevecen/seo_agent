@@ -511,6 +511,57 @@ def list_sc_position_drops_7d(
     }
 
 
+def list_live_position_alert_rows(
+    db: Session,
+    *,
+    domain: str | None = None,
+    site_ids: tuple[int, ...] = (1, 2),
+) -> list[dict[str, Any]]:
+    """/alerts alt listesi — üstteki canlı pozisyon düşüşleri ile aynı satırlar ve sıra."""
+    dom = (domain or "").strip()
+    rows_out: list[dict[str, Any]] = []
+    for site_id in site_ids:
+        site_obj = db.query(Site).filter(Site.id == site_id).first()
+        if site_obj is None:
+            continue
+        if dom and site_obj.domain != dom:
+            continue
+        payload = list_sc_position_drops_7d(db, site_obj)
+        as_of_label = payload.get("as_of_label")
+        for idx, drop in enumerate(payload.get("drops") or []):
+            if drop.get("is_pad"):
+                continue
+            diff = float(drop.get("diff") or 0.0)
+            impact = float(drop.get("impact") or 0.0)
+            rows_out.append(
+                {
+                    "id": f"live-pos-{site_id}-{idx}",
+                    "alert_id": None,
+                    "domain": site_obj.domain,
+                    "alert_type": "search_console_position_drop",
+                    "message": "",
+                    "display_title": "",
+                    "display_query": str(drop.get("query") or ""),
+                    "display_metric": (
+                        f"Pozisyon {drop.get('pos_prev')} → {drop.get('pos_cur')} | "
+                        f"Fark <span class=\"text-rose-600 dark:text-rose-400\">+{drop.get('diff_fmt')}</span>"
+                        f" · {drop.get('clicks_fmt') or '0'} tık · 7g"
+                    ),
+                    "display_tone": "sky",
+                    "display_device_code": "",
+                    "triggered_at": as_of_label or "Canlı SC",
+                    "triggered_at_iso": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+                    "sent_mail": None,
+                    "metric_type": "Pozisyon",
+                    "is_external": False,
+                    "delta_numeric": diff,
+                    "sort_score": impact,
+                    "is_live_position": True,
+                }
+            )
+    return rows_out
+
+
 def _detect_top50_drops(db: Session, site: Site, now: datetime) -> list[AlertLog]:
     """Top 50 keywords'teki position, impression, CTR drops'ı detekt et."""
     created_logs = []

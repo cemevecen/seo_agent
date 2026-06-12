@@ -8882,13 +8882,20 @@ def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
 @app.get("/api/alerts/live-position-drops", response_class=HTMLResponse)
 def api_alerts_live_position_drops(request: Request, domain: str | None = None):
     """Canlı SC pozisyon listesi (ana sayfa ile aynı) — site filtresine göre fragment."""
+    from backend.services.alert_engine import list_live_position_alert_rows
+
     dom = (domain or "").strip() or None
     with SessionLocal() as db:
         live_sites = _live_position_drop_sites(db, dom)
+        live_position_alert_rows = list_live_position_alert_rows(db, domain=dom)
     return templates.TemplateResponse(
         request,
-        "partials/alerts/live_position_cards.html",
-        context={"request": request, "live_position_sites": live_sites},
+        "partials/alerts/live_position_refresh_bundle.html",
+        context={
+            "request": request,
+            "live_position_sites": live_sites,
+            "live_position_alert_rows": live_position_alert_rows,
+        },
     )
 
 
@@ -8898,12 +8905,17 @@ def alerts_page(request: Request):
     with SessionLocal() as db:
         external_domains = _external_site_domains(db)
         domain_q = (request.query_params.get("domain") or "").strip() or None
+        from backend.services.alert_engine import list_live_position_alert_rows
+
         alert_rows = get_recent_alerts(db, limit=100, include_external=True, only_latest_sc_scan=False)
+        alert_rows = [a for a in alert_rows if a.get("metric_type") != "Pozisyon"]
+        live_position_alert_rows = list_live_position_alert_rows(db, domain=domain_q)
         threshold_payload = _build_threshold_alerts_payload(db, days=7)
         payload = {
             "site_name": "Alerts",
             "sites": get_sidebar_sites(),
             "recent_alerts": alert_rows,
+            "live_position_alert_rows": live_position_alert_rows,
             "live_position_sites": _live_position_drop_sites(db, domain_q),
             "sc_scan_note": _sc_alert_scan_note(db),
             "selected_alert_id": request.query_params.get("selected_alert", "").strip(),

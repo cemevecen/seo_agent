@@ -20,8 +20,11 @@ function reloadLivePositionGrid() {
   if (!wrap) return;
   var filterSelect = document.getElementById('site-filter');
   var domain = filterSelect ? String(filterSelect.value || '').trim() : '';
+  var eventsHost = document.getElementById('alerts-live-position-events');
   if (domain === '__external__') {
     wrap.innerHTML = '';
+    if (eventsHost) eventsHost.innerHTML = '';
+    applyAlertsFilters();
     return;
   }
   var url = '/api/alerts/live-position-drops';
@@ -31,7 +34,14 @@ function reloadLivePositionGrid() {
       return r.text();
     })
     .then(function (html) {
-      wrap.innerHTML = html;
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(html, 'text/html');
+      var gridInner = doc.getElementById('alerts-live-position-grid-inner');
+      if (gridInner && wrap) wrap.innerHTML = gridInner.innerHTML;
+      else if (wrap) wrap.innerHTML = html;
+      var eventsInner = doc.getElementById('alerts-live-position-events-inner');
+      if (eventsInner && eventsHost) eventsHost.innerHTML = eventsInner.innerHTML;
+      applyAlertsFilters();
     })
     .catch(function () {});
 }
@@ -58,7 +68,10 @@ function applyAlertsFilters() {
     var isExternal = card.getAttribute('data-is-external') === 'true';
     var triggeredRaw = card.getAttribute('data-triggered-at') || '';
     var triggeredAt = triggeredRaw ? new Date(triggeredRaw) : null;
-    var periodOk = !triggeredAt || isNaN(triggeredAt) || triggeredAt >= cutoff;
+    var isLivePos = card.getAttribute('data-live-position') === '1';
+    var periodOk = isLivePos
+      ? _alertPeriod === 7
+      : !triggeredAt || isNaN(triggeredAt) || triggeredAt >= cutoff;
 
     var domainOk;
     if (selectedDomain === '__external__') {
@@ -93,7 +106,10 @@ function applyAlertsFilters() {
     var isExternal = card.getAttribute('data-is-external') === 'true';
     var triggeredRaw = card.getAttribute('data-triggered-at') || '';
     var triggeredAt = triggeredRaw ? new Date(triggeredRaw) : null;
-    var periodOk = !triggeredAt || isNaN(triggeredAt) || triggeredAt >= cutoff;
+    var isLivePos = card.getAttribute('data-live-position') === '1';
+    var periodOk = isLivePos
+      ? _alertPeriod === 7
+      : !triggeredAt || isNaN(triggeredAt) || triggeredAt >= cutoff;
 
     var domainOk;
     if (selectedDomain === '__external__') {
