@@ -599,14 +599,49 @@
   }
   .rt-spark-mini-bar {
     flex: 1 1 0;
-    min-width: 3px;
+    min-width: 2px;
     width: 0;
     border-radius: 2px 2px 0 0;
     background: rgb(217 119 6);
     align-self: flex-end;
+    cursor: crosshair;
+    transition: filter 0.12s ease, opacity 0.12s ease;
+  }
+  .rt-spark-mini-bar:hover,
+  .rt-spark-mini-bar.is-hovered {
+    filter: brightness(1.12);
+    opacity: 1;
   }
   html.dark .rt-spark-mini-bar {
     background: rgb(251 191 36);
+  }
+  .rt-spark-plot {
+    position: relative;
+  }
+  .rt-spark-bar-tip {
+    position: absolute;
+    z-index: 30;
+    pointer-events: none;
+    max-width: 14rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 10px;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+    color: rgb(15 23 42);
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid rgb(226 232 240);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+    white-space: pre-line;
+  }
+  html.dark .rt-spark-bar-tip {
+    color: rgb(244 244 245);
+    background: rgba(24, 24, 27, 0.96);
+    border-color: rgb(63 63 70);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+  .rt-spark-bar-tip.hidden {
+    display: none;
   }
   .rt-spark-inner.rt-yf-surface {
     border-radius: 0.5rem;
@@ -954,6 +989,7 @@
             </div>
             <div class="rt-spark-plot h-24 w-full min-h-[4.5rem] px-1.5 pb-2" data-rt-chart aria-label="Aktif kullanıcı — dakikalık mini sütunlar">
               <div class="rt-spark-mini-bars" data-rt-spark-bars></div>
+              <div class="rt-spark-bar-tip hidden" data-rt-spark-tip role="tooltip"></div>
             </div>
           </div>
         </div>
@@ -1479,15 +1515,25 @@
   }
 
   var RT_SPARK_BAR_PX = 76;
-  var RT_SPARK_MAX_BARS = { '15m': 30, '1h': 48, '24h': 72 };
+  /** 15dk / 1s: her snapshot; 24s: seyreltme */
+  var RT_SPARK_MAX_BARS = { '15m': 10000, '1h': 10000, '24h': 80 };
 
-  /** Çok snapshot’ta seyrelt; az veride tüm genişliği doldur (max-width yok). */
-  function _sparkBarsForDisplay(users, hoverTexts, rangeKey) {
+  /** Çok snapshot’ta seyrelt (yalnızca 24s); kova içi min/max/ort. */
+  function _sparkBarsForDisplay(users, hoverTexts, pageviews, rangeKey) {
     if (!users.length) return [];
-    var maxBars = RT_SPARK_MAX_BARS[rangeKey] || 72;
+    var maxBars = RT_SPARK_MAX_BARS[rangeKey] || 80;
     if (users.length <= maxBars) {
       return users.map(function (v, i) {
-        return { v: v, tip: hoverTexts[i] || '' };
+        return {
+          v: v,
+          tip: hoverTexts[i] || '',
+          pv: pageviews[i],
+          bucketCount: 1,
+          vmin: v,
+          vmax: v,
+          tStart: hoverTexts[i] || '',
+          tEnd: hoverTexts[i] || '',
+        };
       });
     }
     var out = [];
@@ -1500,17 +1546,112 @@
       if (i0 >= n) break;
       i1 = Math.min(i1, n);
       var peak = 0;
+      var vmin = Infinity;
+      var vmax = -Infinity;
+      var sum = 0;
+      var cnt = 0;
       var tip = hoverTexts[i0] || '';
+      var tEnd = hoverTexts[i1 - 1] || tip;
+      var pvPeak = 0;
       for (var j = i0; j < i1; j++) {
         var u = Number(users[j]) || 0;
+        sum += u;
+        cnt += 1;
+        if (u < vmin) vmin = u;
+        if (u > vmax) vmax = u;
         if (u >= peak) {
           peak = u;
           tip = hoverTexts[j] || tip;
         }
+        var pv = Number(pageviews[j]) || 0;
+        if (pv >= pvPeak) pvPeak = pv;
       }
-      out.push({ v: peak, tip: tip });
+      if (!isFinite(vmin)) vmin = 0;
+      if (!isFinite(vmax)) vmax = peak;
+      out.push({
+        v: peak,
+        tip: tip,
+        pv: pvPeak,
+        bucketCount: cnt,
+        vmin: vmin,
+        vmax: vmax,
+        vavg: cnt ? sum / cnt : peak,
+        tStart: hoverTexts[i0] || '',
+        tEnd: tEnd,
+      });
     }
     return out;
+  }
+
+  function _sparkBarTipHtml(d) {
+    var v = Number(d.v) || 0;
+    var lines = [];
+    if (d.bucketCount > 1) {
+      lines.push((d.tStart || d.tip || '—') + ' – ' + (d.tEnd || '—'));
+      lines.push(d.bucketCount + ' ölçüm · tepe ' + _fmt(v) + ' kullanıcı');
+      lines.push('min ' + _fmt(d.vmin) + ' · ort ' + _fmt(Math.round(d.vavg || v)) + ' · max ' + _fmt(d.vmax));
+    } else {
+      lines.push(d.tip || d.tStart || '—');
+      lines.push(_fmt(v) + ' aktif kullanıcı');
+    }
+    if (d.pv != null && !isNaN(d.pv) && d.pv > 0) {
+      lines.push(_fmt(d.pv) + ' görüntüleme');
+    }
+    return lines.join('\n');
+  }
+
+  function _wireSparkBarTips(box) {
+    var barsEl = box.querySelector('[data-rt-spark-bars]');
+    var tipEl = box.querySelector('[data-rt-spark-tip]');
+    var plotEl = box.querySelector('[data-rt-chart]');
+    if (!barsEl || !tipEl || !plotEl) return;
+    if (barsEl._rtTipWired) return;
+    barsEl._rtTipWired = true;
+    function hide() {
+      tipEl.classList.add('hidden');
+      barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
+        b.classList.remove('is-hovered');
+      });
+    }
+    function place(clientX, clientY) {
+      var rect = plotEl.getBoundingClientRect();
+      var x = clientX - rect.left + 8;
+      var y = clientY - rect.top - 8;
+      if (x > rect.width - 120) x = rect.width - 120;
+      if (y < 4) y = 4;
+      if (y > rect.height - 48) y = rect.height - 48;
+      tipEl.style.left = x + 'px';
+      tipEl.style.top = y + 'px';
+    }
+    barsEl.addEventListener(
+      'mouseover',
+      function (ev) {
+        var bar = ev.target.closest('.rt-spark-mini-bar');
+        if (!bar || !barsEl.contains(bar)) return;
+        barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
+          b.classList.remove('is-hovered');
+        });
+        bar.classList.add('is-hovered');
+        var idx = parseInt(bar.getAttribute('data-rt-bar-i') || '-1', 10);
+        var disp = box._rtSparkDisplay || [];
+        var row = idx >= 0 && disp[idx] ? disp[idx] : null;
+        tipEl.textContent = row ? _sparkBarTipHtml(row) : '';
+        tipEl.classList.remove('hidden');
+        place(ev.clientX, ev.clientY);
+      },
+      true
+    );
+    barsEl.addEventListener(
+      'mousemove',
+      function (ev) {
+        if (tipEl.classList.contains('hidden')) return;
+        var bar = ev.target.closest('.rt-spark-mini-bar');
+        if (!bar) return;
+        place(ev.clientX, ev.clientY);
+      },
+      true
+    );
+    barsEl.addEventListener('mouseleave', hide, true);
   }
 
   function _filterTrendForRange(trend, rangeKey) {
@@ -1525,7 +1666,7 @@
       return d && d.getTime() >= cutoff;
     });
     if (out.length >= 2) return out;
-    var take = rangeKey === '15m' ? 4 : rangeKey === '1h' ? 12 : trend.length;
+    var take = rangeKey === '15m' ? 24 : rangeKey === '1h' ? 72 : trend.length;
     return trend.slice(-Math.min(trend.length, Math.max(2, take)));
   }
 
@@ -1582,6 +1723,7 @@
     var xLabels = [];
     var hoverTexts = [];
     var users = [];
+    var pageviews = [];
     trend.forEach(function (t, i) {
       var d = _parseSnapshotTs(t.collected_at);
       if (!d) return;
@@ -1592,6 +1734,7 @@
       var mm = String(d.getMinutes()).padStart(2, '0');
       hoverTexts.push(DD + '.' + MM + ' ' + hh + ':' + mm);
       users.push(Number(t.active_users) || 0);
+      pageviews.push(Number(t.pageviews) || 0);
     });
     if (!xLabels.length) {
       barsEl.innerHTML = '';
@@ -1622,26 +1765,28 @@
     var lastU = users[users.length - 1];
     var lastValEl = box.querySelector('[data-rt-spark-last-val]');
     if (lastValEl) lastValEl.textContent = _fmt(lastU);
-    var display = _sparkBarsForDisplay(users, hoverTexts, rangeKey);
+    var display = _sparkBarsForDisplay(users, hoverTexts, pageviews, rangeKey);
     var mx = Math.max.apply(
       null,
       display.map(function (d) { return d.v; }).concat([1])
     );
+    box._rtSparkDisplay = display;
     barsEl.innerHTML = display
-      .map(function (d) {
+      .map(function (d, i) {
         var v = Number(d.v) || 0;
         var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
         hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
-        var tip = (d.tip || '') + ' · ' + _fmt(v) + ' kullanıcı';
         return (
           '<div class="rt-spark-mini-bar" style="height:' +
           hPx +
-          'px" title="' +
-          _esc(tip) +
+          'px" data-rt-bar-i="' +
+          i +
           '"></div>'
         );
       })
       .join('');
+    barsEl._rtTipWired = false;
+    _wireSparkBarTips(box);
 
     if (isSinemalar && pulseEl && revChanged) {
       pulseEl.classList.remove('is-on');
