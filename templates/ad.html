@@ -56,6 +56,7 @@
       </div>
       <select id="mz-preset" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
         <option value="">Özel aralık</option>
+        <option value="yesterday">Dün</option>
         <option value="7d">Son 7 gün</option>
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
@@ -6822,6 +6823,19 @@
     if (!v) return;
     var d = max ? new Date(max) : new Date();
     var s = new Date(d);
+    if (v === "yesterday") {
+      var y = new Date();
+      y.setDate(y.getDate() - 1);
+      var day = isoCalendarDate(y);
+      var minD = (start.getAttribute("data-min") || "").slice(0, 10);
+      var maxD = (max || "").slice(0, 10);
+      if (maxD && day > maxD) day = maxD;
+      if (minD && day < minD) day = minD;
+      start.value = day;
+      end.value = day;
+      updateComparePeriodBanner(state.lastSummary);
+      return;
+    }
     if (v === "7d") s.setDate(s.getDate() - 7);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "90d") s.setDate(s.getDate() - 90);
