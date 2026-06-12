@@ -978,7 +978,7 @@
             <div class="rt-yf-chrome flex flex-wrap items-center gap-1 border-b border-slate-200/80 pb-1 dark:border-zinc-700/60" data-rt-yf-chrome>
               <button type="button" class="rt-yf-tab" data-rt-yf-range="15m" title="Son 15 dakika">15dk</button>
               <button type="button" class="rt-yf-tab" data-rt-yf-range="1h" title="Son 1 saat">1s</button>
-              <button type="button" class="rt-yf-tab is-active" data-rt-yf-range="24h" title="Son 24 saat (mevcut veri)">24s</button>
+              <button type="button" class="rt-yf-tab is-active" data-rt-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
             </div>
             <div class="flex items-start justify-between gap-2 px-1.5 pt-2 pb-0.5">
               <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Aktif kullanıcı</p>
@@ -1515,87 +1515,107 @@
   }
 
   var RT_SPARK_BAR_PX = 76;
-  /** 15dk / 1s: her snapshot; 24s: seyreltme */
-  var RT_SPARK_MAX_BARS = { '15m': 10000, '1h': 10000, '24h': 80 };
 
-  /** Çok snapshot’ta seyrelt (yalnızca 24s); kova içi min/max/ort. */
-  function _sparkBarsForDisplay(users, hoverTexts, pageviews, rangeKey) {
-    if (!users.length) return [];
-    var maxBars = RT_SPARK_MAX_BARS[rangeKey] || 80;
-    if (users.length <= maxBars) {
-      return users.map(function (v, i) {
-        return {
-          v: v,
-          tip: hoverTexts[i] || '',
-          pv: pageviews[i],
-          bucketCount: 1,
-          vmin: v,
-          vmax: v,
-          tStart: hoverTexts[i] || '',
-          tEnd: hoverTexts[i] || '',
-        };
-      });
-    }
+  function _sparkFmtClock(d) {
+    var DD = String(d.getDate()).padStart(2, '0');
+    var MM = String(d.getMonth() + 1).padStart(2, '0');
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    return DD + '.' + MM + ' ' + hh + ':' + mm;
+  }
+
+  function _sparkBucketMs(rangeKey) {
+    if (rangeKey === '15m' || rangeKey === '1h') return 60 * 1000;
+    return 15 * 60 * 1000;
+  }
+
+  function _sparkBucketLabel(t0Ms, bucketMs) {
+    var d0 = new Date(t0Ms);
+    var d1 = new Date(t0Ms + bucketMs - 60000);
+    return _sparkFmtClock(d0) + ' – ' + _sparkFmtClock(d1);
+  }
+
+  /** Sabit duvar saati dilimleri: 15dk/1s → 1 dk, 24s → 15 dk (snapshot sayısına göre değil). */
+  function _sparkBarsForDisplay(trendPoints, rangeKey) {
+    if (!trendPoints.length) return [];
+    var bucketMs = _sparkBucketMs(rangeKey);
+    var lastMs = trendPoints[trendPoints.length - 1].ts.getTime();
+    var rangeMs = RT_TREND_RANGE_MS[rangeKey] || RT_TREND_RANGE_MS['24h'];
+    var rangeStartMs = lastMs - rangeMs;
+    var gridStart = Math.floor(rangeStartMs / bucketMs) * bucketMs;
+    var gridEnd = Math.floor(lastMs / bucketMs) * bucketMs;
+
+    var map = {};
+    trendPoints.forEach(function (p) {
+      var key = Math.floor(p.ts.getTime() / bucketMs) * bucketMs;
+      if (!map[key]) map[key] = { users: [], pv: [] };
+      map[key].users.push(Number(p.users) || 0);
+      map[key].pv.push(Number(p.pv) || 0);
+    });
+
     var out = [];
-    var n = users.length;
-    var bucket = n / maxBars;
-    for (var b = 0; b < maxBars; b++) {
-      var i0 = Math.floor(b * bucket);
-      var i1 = Math.floor((b + 1) * bucket);
-      if (i1 <= i0) i1 = i0 + 1;
-      if (i0 >= n) break;
-      i1 = Math.min(i1, n);
+    for (var t = gridStart; t <= gridEnd; t += bucketMs) {
+      var label = _sparkBucketLabel(t, bucketMs);
+      var slot = map[t];
+      if (!slot || !slot.users.length) {
+        out.push({
+          v: 0,
+          pv: 0,
+          bucketCount: 0,
+          empty: true,
+          label: label,
+          tStart: label,
+          tEnd: '',
+        });
+        continue;
+      }
+      var users = slot.users;
       var peak = 0;
       var vmin = Infinity;
       var vmax = -Infinity;
       var sum = 0;
-      var cnt = 0;
-      var tip = hoverTexts[i0] || '';
-      var tEnd = hoverTexts[i1 - 1] || tip;
       var pvPeak = 0;
-      for (var j = i0; j < i1; j++) {
-        var u = Number(users[j]) || 0;
+      for (var j = 0; j < users.length; j++) {
+        var u = users[j];
         sum += u;
-        cnt += 1;
         if (u < vmin) vmin = u;
         if (u > vmax) vmax = u;
-        if (u >= peak) {
-          peak = u;
-          tip = hoverTexts[j] || tip;
-        }
-        var pv = Number(pageviews[j]) || 0;
+        if (u >= peak) peak = u;
+        var pv = Number(slot.pv[j]) || 0;
         if (pv >= pvPeak) pvPeak = pv;
       }
       if (!isFinite(vmin)) vmin = 0;
-      if (!isFinite(vmax)) vmax = peak;
       out.push({
         v: peak,
-        tip: tip,
         pv: pvPeak,
-        bucketCount: cnt,
+        bucketCount: users.length,
         vmin: vmin,
         vmax: vmax,
-        vavg: cnt ? sum / cnt : peak,
-        tStart: hoverTexts[i0] || '',
-        tEnd: tEnd,
+        vavg: sum / users.length,
+        label: label,
+        tStart: label,
+        tEnd: '',
+        empty: false,
       });
     }
     return out;
   }
 
   function _sparkBarTipHtml(d) {
+    if (d.empty || !d.bucketCount) {
+      return (d.label || '—') + '\nölçüm yok';
+    }
     var v = Number(d.v) || 0;
     var lines = [];
+    lines.push(d.label || d.tStart || '—');
     if (d.bucketCount > 1) {
-      lines.push((d.tStart || d.tip || '—') + ' – ' + (d.tEnd || '—'));
-      lines.push(d.bucketCount + ' ölçüm · tepe ' + _fmt(v) + ' kullanıcı');
+      lines.push(d.bucketCount + ' ölçüm · tepe ' + _fmt(v));
       lines.push('min ' + _fmt(d.vmin) + ' · ort ' + _fmt(Math.round(d.vavg || v)) + ' · max ' + _fmt(d.vmax));
     } else {
-      lines.push(d.tip || d.tStart || '—');
       lines.push(_fmt(v) + ' aktif kullanıcı');
     }
     if (d.pv != null && !isNaN(d.pv) && d.pv > 0) {
-      lines.push(_fmt(d.pv) + ' görüntüleme');
+      lines.push(_fmt(d.pv) + ' görüntüleme (tepe)');
     }
     return lines.join('\n');
   }
@@ -1720,30 +1740,19 @@
       if (emptyLast) emptyLast.textContent = '—';
       return;
     }
-    var xLabels = [];
-    var hoverTexts = [];
-    var users = [];
-    var pageviews = [];
-    trend.forEach(function (t, i) {
+    var trendPoints = [];
+    trend.forEach(function (t) {
       var d = _parseSnapshotTs(t.collected_at);
       if (!d) return;
-      xLabels.push(String(i));
-      var DD = String(d.getDate()).padStart(2, '0');
-      var MM = String(d.getMonth() + 1).padStart(2, '0');
-      var hh = String(d.getHours()).padStart(2, '0');
-      var mm = String(d.getMinutes()).padStart(2, '0');
-      hoverTexts.push(DD + '.' + MM + ' ' + hh + ':' + mm);
-      users.push(Number(t.active_users) || 0);
-      pageviews.push(Number(t.pageviews) || 0);
+      trendPoints.push({
+        ts: d,
+        users: Number(t.active_users) || 0,
+        pv: Number(t.pageviews) || 0,
+      });
     });
-    if (!xLabels.length) {
+    if (!trendPoints.length) {
       barsEl.innerHTML = '';
       return;
-    }
-    if (xLabels.length === 1 && users.length === 1) {
-      xLabels = [xLabels[0] + '_1', xLabels[0] + '_2'];
-      hoverTexts = [hoverTexts[0], hoverTexts[0]];
-      users = [users[0], users[0]];
     }
     var lastTs =
       trend.length && trend[trend.length - 1] && trend[trend.length - 1].collected_at
@@ -1754,18 +1763,18 @@
       '-' +
       String(profile) +
       '-' +
-      String(xLabels.length) +
+      String(trendPoints.length) +
       '-' +
       lastTs +
       '-' +
-      String(users[users.length - 1] || 0);
+      String(trendPoints[trendPoints.length - 1].users || 0);
     var prevRev = el.getAttribute('data-last-rev') || '';
     var revChanged = prevRev !== dataRevision;
     el.setAttribute('data-last-rev', dataRevision);
-    var lastU = users[users.length - 1];
+    var lastU = trendPoints[trendPoints.length - 1].users;
     var lastValEl = box.querySelector('[data-rt-spark-last-val]');
     if (lastValEl) lastValEl.textContent = _fmt(lastU);
-    var display = _sparkBarsForDisplay(users, hoverTexts, pageviews, rangeKey);
+    var display = _sparkBarsForDisplay(trendPoints, rangeKey);
     var mx = Math.max.apply(
       null,
       display.map(function (d) { return d.v; }).concat([1])
@@ -1774,6 +1783,13 @@
     barsEl.innerHTML = display
       .map(function (d, i) {
         var v = Number(d.v) || 0;
+        if (d.empty || v <= 0) {
+          return (
+            '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:0;min-height:0;opacity:0" data-rt-bar-i="' +
+            i +
+            '"></div>'
+          );
+        }
         var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
         hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
         return (
