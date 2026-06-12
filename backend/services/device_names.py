@@ -162,6 +162,8 @@ DEVICE_NAMES: dict[str, str] = {
     "SM-M135G": "Galaxy M13",
     "SM-M145F": "Galaxy M14 5G",
     "SM-M145R": "Galaxy M14 5G",
+    "SM-M146B": "Galaxy M14 5G",
+    "SM-M146U": "Galaxy M14 5G",
     "SM-M155F": "Galaxy M15 5G",
     "SM-M165F": "Galaxy M16 5G",
     "SM-M235F": "Galaxy M23 5G",
@@ -208,8 +210,12 @@ DEVICE_NAMES: dict[str, str] = {
     # ── Samsung Galaxy Note serisi ───────────────────────────────────────────
     "SM-N950F": "Galaxy Note 8",
     "SM-N960F": "Galaxy Note 9",
+    "SM-N770F": "Galaxy Note 10 Lite",
+    "SM-N770X": "Galaxy Note 10 Lite",
     "SM-N970F": "Galaxy Note 10",
     "SM-N975F": "Galaxy Note 10+",
+    "SM-N9750": "Galaxy Note 10+",
+    "SM-N975U": "Galaxy Note 10+",
     "SM-N976B": "Galaxy Note 10+ 5G",
     "SM-N976N": "Galaxy Note 10+ 5G",
     "SM-N980F": "Galaxy Note 20",
@@ -231,6 +237,17 @@ DEVICE_NAMES: dict[str, str] = {
     "SM-F936B": "Galaxy Z Fold4",
     "SM-F946B": "Galaxy Z Fold5",
     "SM-F956B": "Galaxy Z Fold6",
+    "SM-F966B": "Galaxy Z Fold7",
+    "SM-F966N": "Galaxy Z Fold7",
+    "SM-F966U": "Galaxy Z Fold7",
+
+    # ── Samsung Galaxy Tab ───────────────────────────────────────────────────
+    "SM-P610": "Galaxy Tab S6 Lite",
+    "SM-P613": "Galaxy Tab S6 Lite",
+    "SM-P615": "Galaxy Tab S6 Lite",
+    "SM-P619": "Galaxy Tab S6 Lite",
+    "SM-P620": "Galaxy Tab S7",
+    "SM-P625": "Galaxy Tab S7 FE",
 
     # ── Google Pixel ─────────────────────────────────────────────────────────
     "Pixel 3":   "Pixel 3",
@@ -360,9 +377,12 @@ DEVICE_NAMES: dict[str, str] = {
     "M1908C3JGG": "Redmi Note 8",
     "M2004J19C":  "Redmi Note 9",
     "M2003J15SC": "Redmi Note 9 Pro",
+    "M2101K7AG": "Redmi Note 10 5G",
     "M2101K7BG":  "Redmi Note 10",
     "M2101K7BNY": "Redmi Note 10 Pro",
     "M2101K7BNI": "Redmi Note 10 Pro",
+    "2303CRA44A": "Redmi 12C",
+    "2303CRA44G": "Redmi 12C",
     "22071212AG": "Redmi Note 11",
     "22071219AG": "Redmi Note 11S",
     "2201116SG":  "Redmi Note 11 Pro",
@@ -630,6 +650,8 @@ DEVICE_NAMES: dict[str, str] = {
     "BVL-AN10": "Honor X6",
 
     # ── TECNO ────────────────────────────────────────────────────────────────
+    "KM9": "Camon 30 5G",
+    "TECNO KM9": "Camon 30 5G",
     "TECNO LI7": "TECNO Camon 30 Pro",
     "LI7": "TECNO Camon 30 Pro",
     "TECNO LG8n": "TECNO Camon 20 Pro 5G",
@@ -666,7 +688,13 @@ DEVICE_NAMES: dict[str, str] = {
     "TECNO BB2": "TECNO POP 4",
     "TECNO LE6p": "TECNO POP 6 Pro",
 
+    # ── General Mobile (Türkiye) ─────────────────────────────────────────────
+    "G318": "GM 9",
+    "GM G318": "GM 9",
+
     # ── Motorola ─────────────────────────────────────────────────────────────
+    "moto g85 5G": "Moto G85 5G",
+    "Moto g85 5G": "Moto G85 5G",
     "XT2041-4": "Moto G8 Power",
     "XT2043-7": "Moto G9 Play",
     "XT2053-5": "Moto G8 Power Lite",
@@ -1008,26 +1036,49 @@ DEVICE_NAMES: dict[str, str] = {
 }
 
 
-def get_display_name(manufacturer: str, model: str) -> str:
-    """Cihaz kodunu pazarlama adına çevir. Bulunamazsa boş string döner."""
-    model_clean = (model or "").strip()
+def _lookup_model_code(model_clean: str) -> str:
     if not model_clean:
         return ""
-
-    # 1) Doğrudan eşleşme
     name = DEVICE_NAMES.get(model_clean) or DEVICE_NAMES.get(model_clean.upper(), "")
     if name:
         return name
-
-    # 2) Samsung SM-XXXXXSUFFIX → SM-XXXXXF / SM-XXXXXB dene (bölgesel suffix farklılıkları)
-    #    Örn. SM-M325FV → SM-M325F, SM-A336BU → SM-A336B, SM-G991N → SM-G991B
     import re
+
     m = re.match(r"(SM-[A-Z]\d{3}[A-Z])([A-Z0-9]*)$", model_clean.upper())
     if m:
-        base = m.group(1)  # SM-M325F kısmı
-        for candidate in (base + "F", base + "B", base + "G", base):
+        base = m.group(1)
+        for candidate in (base + "F", base + "B", base + "G", base + "0", base):
             name = DEVICE_NAMES.get(candidate, "")
             if name:
                 return name
+    return ""
+
+
+def get_display_name(manufacturer: str, model: str) -> str:
+    """Cihaz kodunu pazarlama adına çevir. Bulunamazsa boş string döner."""
+    model_clean = (model or "").strip()
+    if not model_clean or model_clean in ("—", "bilinmiyor"):
+        return ""
+
+    man = (manufacturer or "").strip()
+    candidates = [model_clean]
+    if man and model_clean.lower().startswith(man.lower()):
+        candidates.append(model_clean[len(man) :].strip())
+    parts = model_clean.split()
+    if len(parts) >= 2 and parts[0].lower() == parts[1].lower():
+        candidates.append(" ".join(parts[1:]))
+    if man:
+        candidates.append(f"{man} {model_clean}".strip())
+        candidates.append(model_clean.replace(man, "", 1).strip())
+
+    seen: set[str] = set()
+    for cand in candidates:
+        key = cand.strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        name = _lookup_model_code(key)
+        if name:
+            return name
 
     return ""
