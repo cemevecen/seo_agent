@@ -597,6 +597,47 @@
     gap: 1px;
     box-sizing: border-box;
   }
+  .rt-spark-mini-bars.rt-spark-line-mode {
+    display: block;
+    gap: 0;
+  }
+  .rt-spark-line-svg {
+    display: block;
+    width: 100%;
+    height: 4.75rem;
+    overflow: visible;
+  }
+  .rt-spark-line-area {
+    fill: rgba(217, 119, 6, 0.14);
+  }
+  html.dark .rt-spark-line-area {
+    fill: rgba(251, 191, 36, 0.12);
+  }
+  .rt-spark-line-stroke {
+    fill: none;
+    stroke: rgb(217 119 6);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  html.dark .rt-spark-line-stroke {
+    stroke: rgb(251 191 36);
+  }
+  .rt-spark-line-hit {
+    cursor: crosshair;
+  }
+  .rt-spark-line-dot.is-hovered {
+    opacity: 1;
+  }
+  .rt-spark-line-dot {
+    fill: rgb(217 119 6);
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    pointer-events: none;
+  }
+  html.dark .rt-spark-line-dot {
+    fill: rgb(251 191 36);
+  }
   .rt-spark-mini-bar {
     flex: 1 1 0;
     min-width: 2px;
@@ -1656,6 +1697,75 @@
     return lines.join('\n');
   }
 
+  function _sparkUsesLine(rangeKey) {
+    return rangeKey === '15m' || rangeKey === '1h';
+  }
+
+  function _sparkLineSvgHtml(display, mx) {
+    var n = display.length;
+    if (n < 1) return '';
+    var w = Math.max(n - 1, 1);
+    var h = 100;
+    var padY = 6;
+    var innerH = h - padY * 2;
+    var pts = [];
+    var areaMid = [];
+    for (var i = 0; i < n; i++) {
+      var v = Math.max(0, Number(display[i].v) || 0);
+      var x = n === 1 ? 0 : (i / (n - 1)) * w;
+      var y = padY + innerH - (v / mx) * innerH;
+      pts.push(x.toFixed(3) + ',' + y.toFixed(3));
+      areaMid.push(x.toFixed(3) + ',' + y.toFixed(3));
+    }
+    var baseY = (h - padY).toFixed(3);
+    var areaD =
+      'M0,' +
+      baseY +
+      ' L' +
+      areaMid.join(' L') +
+      ' L' +
+      w +
+      ',' +
+      baseY +
+      ' Z';
+    var hits = '';
+    for (var j = 0; j < n; j++) {
+      var vj = Math.max(0, Number(display[j].v) || 0);
+      var xj = n === 1 ? 0 : (j / (n - 1)) * w;
+      var yj = padY + innerH - (vj / mx) * innerH;
+      hits +=
+        '<circle class="rt-spark-line-hit" data-rt-bar-i="' +
+        j +
+        '" cx="' +
+        xj.toFixed(3) +
+        '" cy="' +
+        yj.toFixed(3) +
+        '" r="8" fill="transparent"></circle>' +
+        '<circle class="rt-spark-line-dot" data-rt-bar-i="' +
+        j +
+        '" cx="' +
+        xj.toFixed(3) +
+        '" cy="' +
+        yj.toFixed(3) +
+        '" r="2.2"></circle>';
+    }
+    return (
+      '<svg class="rt-spark-line-svg" viewBox="0 0 ' +
+      w +
+      ' ' +
+      h +
+      '" preserveAspectRatio="none" role="img" aria-label="Aktif kullanıcı çizgi grafiği">' +
+      '<path class="rt-spark-line-area" d="' +
+      areaD +
+      '"></path>' +
+      '<polyline class="rt-spark-line-stroke" points="' +
+      pts.join(' ') +
+      '"></polyline>' +
+      hits +
+      '</svg>'
+    );
+  }
+
   function _wireSparkBarTips(box) {
     var barsEl = box.querySelector('[data-rt-spark-bars]');
     var tipEl = box.querySelector('[data-rt-spark-tip]');
@@ -1665,7 +1775,10 @@
     barsEl._rtTipWired = true;
     function hide() {
       tipEl.classList.add('hidden');
-      barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
+      barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered, .rt-spark-line-hit.is-hovered').forEach(function (b) {
+        b.classList.remove('is-hovered');
+      });
+      barsEl.querySelectorAll('.rt-spark-line-dot.is-hovered').forEach(function (b) {
         b.classList.remove('is-hovered');
       });
     }
@@ -1682,13 +1795,18 @@
     barsEl.addEventListener(
       'mouseover',
       function (ev) {
-        var bar = ev.target.closest('.rt-spark-mini-bar');
+        var bar = ev.target.closest('.rt-spark-mini-bar, .rt-spark-line-hit');
         if (!bar || !barsEl.contains(bar)) return;
-        barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
+        barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered, .rt-spark-line-hit.is-hovered').forEach(function (b) {
+          b.classList.remove('is-hovered');
+        });
+        barsEl.querySelectorAll('.rt-spark-line-dot.is-hovered').forEach(function (b) {
           b.classList.remove('is-hovered');
         });
         bar.classList.add('is-hovered');
         var idx = parseInt(bar.getAttribute('data-rt-bar-i') || '-1', 10);
+        var dot = barsEl.querySelector('.rt-spark-line-dot[data-rt-bar-i="' + idx + '"]');
+        if (dot) dot.classList.add('is-hovered');
         var disp = box._rtSparkDisplay || [];
         var row = idx >= 0 && disp[idx] ? disp[idx] : null;
         tipEl.textContent = row ? _sparkBarTipHtml(row) : '';
@@ -1701,7 +1819,7 @@
       'mousemove',
       function (ev) {
         if (tipEl.classList.contains('hidden')) return;
-        var bar = ev.target.closest('.rt-spark-mini-bar');
+        var bar = ev.target.closest('.rt-spark-mini-bar, .rt-spark-line-hit');
         if (!bar) return;
         place(ev.clientX, ev.clientY);
       },
@@ -1814,27 +1932,33 @@
       display.map(function (d) { return d.v; }).concat([1])
     );
     box._rtSparkDisplay = display;
-    barsEl.innerHTML = display
-      .map(function (d, i) {
-        var v = Number(d.v) || 0;
-        if (d.empty || v <= 0) {
+    var useLine = _sparkUsesLine(rangeKey);
+    barsEl.classList.toggle('rt-spark-line-mode', useLine);
+    if (useLine) {
+      barsEl.innerHTML = _sparkLineSvgHtml(display, mx);
+    } else {
+      barsEl.innerHTML = display
+        .map(function (d, i) {
+          var v = Number(d.v) || 0;
+          if (d.empty || v <= 0) {
+            return (
+              '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:0;min-height:0;opacity:0" data-rt-bar-i="' +
+              i +
+              '"></div>'
+            );
+          }
+          var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
+          hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
           return (
-            '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:0;min-height:0;opacity:0" data-rt-bar-i="' +
+            '<div class="rt-spark-mini-bar" style="height:' +
+            hPx +
+            'px" data-rt-bar-i="' +
             i +
             '"></div>'
           );
-        }
-        var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
-        hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
-        return (
-          '<div class="rt-spark-mini-bar" style="height:' +
-          hPx +
-          'px" data-rt-bar-i="' +
-          i +
-          '"></div>'
-        );
-      })
-      .join('');
+        })
+        .join('');
+    }
     barsEl._rtTipWired = false;
     _wireSparkBarTips(box);
 
