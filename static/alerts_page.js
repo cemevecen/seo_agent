@@ -18,17 +18,8 @@ var _compCache = {};
 function reloadLivePositionGrid() {
   var wrap = document.getElementById('alerts-live-position-grid');
   if (!wrap) return;
-  var filterSelect = document.getElementById('site-filter');
-  var domain = filterSelect ? String(filterSelect.value || '').trim() : '';
   var eventsHost = document.getElementById('alerts-live-position-events');
-  if (domain === '__external__') {
-    wrap.innerHTML = '';
-    if (eventsHost) eventsHost.innerHTML = '';
-    applyAlertsFilters();
-    return;
-  }
   var url = '/api/alerts/live-position-drops';
-  if (domain) url += '?domain=' + encodeURIComponent(domain);
   fetch(url, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
     .then(function (r) {
       return r.text();
@@ -451,7 +442,6 @@ function bindMainDelegation() {
     if (e.target.id !== 'site-filter') return;
     var view = document.getElementById('alerts-view');
     if (!view || !view.contains(e.target)) return;
-    reloadLivePositionGrid();
     applyAlertsFilters();
   });
 }

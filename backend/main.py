@@ -8909,14 +8909,14 @@ def alerts_page(request: Request):
 
         alert_rows = get_recent_alerts(db, limit=100, include_external=True, only_latest_sc_scan=False)
         alert_rows = [a for a in alert_rows if a.get("metric_type") != "Pozisyon"]
-        live_position_alert_rows = list_live_position_alert_rows(db, domain=domain_q)
+        live_position_alert_rows = list_live_position_alert_rows(db, domain=None)
         threshold_payload = _build_threshold_alerts_payload(db, days=7)
         payload = {
             "site_name": "Alerts",
             "sites": get_sidebar_sites(),
             "recent_alerts": alert_rows,
             "live_position_alert_rows": live_position_alert_rows,
-            "live_position_sites": _live_position_drop_sites(db, domain_q),
+            "live_position_sites": _live_position_drop_sites(db, None),
             "sc_scan_note": _sc_alert_scan_note(db),
             "selected_alert_id": request.query_params.get("selected_alert", "").strip(),
             "has_external_sites": bool(external_domains),
