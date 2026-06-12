@@ -50,6 +50,12 @@
     var segY = [ys[0]];
     var segSide = valueSide(ys[0], mean);
 
+    function baselineYs() {
+      var out = [];
+      for (var bi = 0; bi < segX.length; bi++) out.push(mean);
+      return out;
+    }
+
     function flush() {
       if (segX.length < 2) {
         segX = [];
@@ -57,26 +63,88 @@
         return;
       }
       var color = segSide === "above" ? green : red;
-      var trace = {
-        x: segX.slice(),
-        y: segY.slice(),
-        type: "scatter",
-        mode: mode,
-        connectgaps: opts.connectgaps !== false,
-        line: { color: color, width: width, dash: opts.lineDash || undefined },
-        showlegend: opts.showlegend === true && traces.length === 0,
-      };
-      if (opts.name && traces.length === 0) trace.name = opts.name;
-      if (opts.yaxis) trace.yaxis = opts.yaxis;
+      var fillColor = segSide === "above" ? greenFill : redFill;
+      var xCopy = segX.slice();
+      var yCopy = segY.slice();
+      var baseCopy = baselineYs();
+
       if (opts.fill) {
-        trace.fill = "tozeroy";
-        trace.fillcolor = segSide === "above" ? greenFill : redFill;
+        /* Yahoo tarzı: yeşilde orta çizginin üstü, kırmızıda altı dolu */
+        if (segSide === "above") {
+          traces.push({
+            x: xCopy,
+            y: baseCopy,
+            type: "scatter",
+            mode: "lines",
+            line: { width: 0, color: "rgba(0,0,0,0)" },
+            hoverinfo: "skip",
+            showlegend: false,
+          });
+          var aboveTrace = {
+            x: xCopy,
+            y: yCopy,
+            type: "scatter",
+            mode: mode,
+            connectgaps: opts.connectgaps !== false,
+            line: { color: color, width: width, dash: opts.lineDash || undefined },
+            fill: "tonexty",
+            fillcolor: fillColor,
+            showlegend: opts.showlegend === true && traces.length === 0,
+          };
+          if (opts.name && traces.length === 0) aboveTrace.name = opts.name;
+          if (opts.yaxis) aboveTrace.yaxis = opts.yaxis;
+          if (opts.markerSize) {
+            aboveTrace.marker = { color: color, size: opts.markerSize, line: { width: 0 } };
+          }
+          if (opts.hoverinfo) aboveTrace.hoverinfo = opts.hoverinfo;
+          traces.push(aboveTrace);
+        } else {
+          var belowLine = {
+            x: xCopy,
+            y: yCopy,
+            type: "scatter",
+            mode: mode,
+            connectgaps: opts.connectgaps !== false,
+            line: { color: color, width: width, dash: opts.lineDash || undefined },
+            showlegend: opts.showlegend === true && traces.length === 0,
+          };
+          if (opts.name && traces.length === 0) belowLine.name = opts.name;
+          if (opts.yaxis) belowLine.yaxis = opts.yaxis;
+          if (opts.markerSize) {
+            belowLine.marker = { color: color, size: opts.markerSize, line: { width: 0 } };
+          }
+          if (opts.hoverinfo) belowLine.hoverinfo = opts.hoverinfo;
+          traces.push(belowLine);
+          traces.push({
+            x: xCopy,
+            y: baseCopy,
+            type: "scatter",
+            mode: "lines",
+            line: { width: 0, color: "rgba(0,0,0,0)" },
+            fill: "tonexty",
+            fillcolor: fillColor,
+            hoverinfo: "skip",
+            showlegend: false,
+          });
+        }
+      } else {
+        var trace = {
+          x: xCopy,
+          y: yCopy,
+          type: "scatter",
+          mode: mode,
+          connectgaps: opts.connectgaps !== false,
+          line: { color: color, width: width, dash: opts.lineDash || undefined },
+          showlegend: opts.showlegend === true && traces.length === 0,
+        };
+        if (opts.name && traces.length === 0) trace.name = opts.name;
+        if (opts.yaxis) trace.yaxis = opts.yaxis;
+        if (opts.markerSize) {
+          trace.marker = { color: color, size: opts.markerSize, line: { width: 0 } };
+        }
+        if (opts.hoverinfo) trace.hoverinfo = opts.hoverinfo;
+        traces.push(trace);
       }
-      if (opts.markerSize) {
-        trace.marker = { color: color, size: opts.markerSize, line: { width: 0 } };
-      }
-      if (opts.hoverinfo) trace.hoverinfo = opts.hoverinfo;
-      traces.push(trace);
       segX = [];
       segY = [];
     }

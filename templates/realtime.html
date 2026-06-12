@@ -2,7 +2,7 @@
 
 {% block content %}
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
-<script src="/static/js/mz_mean_split_traces.js?v=1"></script>
+<script src="/static/js/mz_mean_split_traces.js?v=2"></script>
 <style>
   .rt-profile-box{transition:box-shadow .2s,border-color .2s}
   .rt-profile-box:hover{box-shadow:0 2px 16px rgba(0,0,0,.18)}
@@ -1528,8 +1528,7 @@
         type: 'scatter',
         mode: 'lines',
         line: { color: green, width: 2 },
-        fill: 'tozeroy',
-        fillcolor: isDark ? 'rgba(52,211,153,0.2)' : 'rgba(16,185,129,0.2)',
+        fill: false,
         hovertemplate: '%{text}<br>%{y:.0f} kullanıcı<extra></extra>',
         showlegend: false,
       });
