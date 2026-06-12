@@ -435,7 +435,6 @@ def _latest_stored_category_rank(product_id: str, platform: str) -> dict[str, An
         ch = str(r.chart or "").strip().lower()
         # Eski sürümler paket-id ile Play aramasından #1 üretip DB'ye yazıyordu; kategori sırası değil.
         if platform == "android" and ch in (
-            "details_page",
             "category_dom_only",
             "store_search_package",
         ):
@@ -489,13 +488,6 @@ def _append_rank_snapshot(
         return
     rank_val = rank_info.get("rank")
     if rank_val is None:
-        return
-    if (
-        platform == "android"
-        and str(rank_info.get("chart") or "").lower() == "details_page"
-        and _skip_android_playwright_rank()
-    ):
-        logger.debug("Android details_page sırası DB'ye yazılmıyor (Play kapalı / HTTP güvenilmez)")
         return
     if str(rank_info.get("rank_basis") or "") == "env_override":
         return
@@ -1866,16 +1858,30 @@ def get_last_forced_refresh_at(product_id: str) -> str | None:
     return str(v) if v else None
 
 
-def _android_cached_category_rank_is_obsolete(cr: Any) -> bool:
-    """Yalnızca batchexecute + category_top veya env_override güvenilir; HTTP/DB/eski DOM birleşimi True döner."""
+def _android_category_rank_chart_rejected(chart: Any) -> bool:
+    ch = str(chart or "").strip().lower()
+    return ch in ("store_search_package", "category_dom_only")
+
+
+def _android_category_rank_is_displayable(cr: Any) -> bool:
     if not isinstance(cr, dict) or cr.get("rank") is None:
         return False
-    if str(cr.get("chart") or "").strip().lower() == "store_search_package":
+    return not _android_category_rank_chart_rejected(cr.get("chart"))
+
+
+def _android_cached_category_rank_is_obsolete(cr: Any) -> bool:
+    """Eski yanlış kaynaklar (arama #1, DOM-only) yeniden hesaplanır; Play detay sayfası (#N Finans) geçerlidir."""
+    if not isinstance(cr, dict) or cr.get("rank") is None:
+        return False
+    if _android_category_rank_chart_rejected(cr.get("chart")):
         return True
     rb = str(cr.get("rank_basis") or "")
-    if rb == "batchexecute" and str(cr.get("chart") or "") == "category_top":
-        return False
     if rb == "env_override":
+        return False
+    ch = str(cr.get("chart") or "").strip().lower()
+    if ch in ("category_top", "details_page", "operator_override"):
+        return False
+    if rb == "batchexecute":
         return False
     return True
 
@@ -1955,14 +1961,8 @@ def _recompute_android_category_rank_only(
         )
 
     a_rank = _bounded_rank_call(_android_rank_job, _store_rank_call_budget_sec())
-    if isinstance(a_rank, dict) and a_rank.get("rank") is not None:
-        if _skip_android_playwright_rank() and str(a_rank.get("chart") or "").lower() == "details_page":
-            logger.info(
-                "app_intel: Android HTTP sırası (details_page) atlandı — Playwright kapalı ortamda güvenilmez olabilir (%s)",
-                product_id,
-            )
-        else:
-            meta = {**meta, "category_rank": a_rank}
+    if _android_category_rank_is_displayable(a_rank):
+        meta = {**meta, "category_rank": a_rank}
 
     cr_a = meta.get("category_rank")
     if allow_db_fallback and not (isinstance(cr_a, dict) and cr_a.get("rank") is not None):
@@ -1975,6 +1975,62 @@ def _recompute_android_category_rank_only(
         # Operatör .env ile verdiği sıra, headless'taki kısmi liste / yanlış pozitiflerden önceliklidir.
         meta = {**meta, "category_rank": ov}
     return meta
+
+
+def ensure_android_category_rank_on_raw(
+    product_id: str,
+    raw: dict[str, Any],
+    *,
+    allow_live_fetch: bool = True,
+) -> dict[str, Any]:
+    """Cache-only payload'ta Android SIRA boşsa Play detay sayfası metnini çeker (100+ sıra dahil)."""
+    spec = APP_PRODUCTS.get(product_id)
+    if not spec or not isinstance(raw, dict):
+        return raw
+    android = raw.get("android")
+    if not isinstance(android, dict):
+        return raw
+    meta = android.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+
+    ov = _android_rank_env_override(product_id)
+    if ov:
+        meta = {**meta, "category_rank": ov}
+        return {**raw, "android": {**android, "meta": meta}}
+
+    cr = meta.get("category_rank")
+    if _android_category_rank_is_displayable(cr):
+        return raw
+
+    if allow_live_fetch:
+
+        def _http_rank_job() -> dict[str, Any] | None:
+            return _fetch_android_rank_http_fallback(
+                spec["android_package"],
+                country="tr",
+                lang="tr",
+                category_id=str(meta.get("genreId") or "") or None,
+                genre_name_hint=(str(meta.get("genre") or "").strip() or None),
+            )
+
+        fetched = _bounded_rank_call(_http_rank_job, _store_rank_call_budget_sec())
+        if _android_category_rank_is_displayable(fetched):
+            meta = {**meta, "category_rank": fetched}
+            at_iso = str(raw.get("fetched_at") or datetime.now(tz=_UTC).isoformat())
+            _append_rank_snapshot(
+                product_id,
+                "android",
+                {**fetched, "category_name": meta.get("genre")},
+                at_iso=at_iso,
+            )
+
+    if not _android_category_rank_is_displayable(meta.get("category_rank")):
+        fb = _latest_stored_category_rank(product_id, "android")
+        if fb:
+            meta = {**meta, "category_rank": fb}
+
+    return {**raw, "android": {**android, "meta": meta}}
 
 
 def _refresh_obsolete_android_rank_in_payload(

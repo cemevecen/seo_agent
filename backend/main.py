@@ -7796,6 +7796,12 @@ def api_home_app_release(request: Request):
             raw = _home_app_raw_from_db(db, product_id)
 
     if raw and not raw.get("error"):
+        try:
+            from backend.services.app_intel import ensure_android_category_rank_on_raw
+
+            raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=True)
+        except Exception:
+            LOGGER.debug("Home app-release Android sıra zenginleştirmesi atlandı", exc_info=True)
         for key, label, version_key, date_key in [
             ("android", "Android · Play", "play_version", "play_last_updated_at"),
             ("ios", "iOS · App Store", "version", "currentVersionReleaseDate"),
