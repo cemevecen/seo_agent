@@ -1392,9 +1392,9 @@
 
   function _rtTrendApiQuery(box) {
     var rangeKey = box ? _rtTrendRangeForBox(box) : '24h';
-    if (rangeKey === '24h') {
-      return 'hours=24';
-    }
+    if (rangeKey === '24h') return 'hours=24';
+    if (rangeKey === '1h') return 'hours=1';
+    if (rangeKey === '15m') return 'hours=0.25';
     return 'limit=' + RT_TREND_LIMIT;
   }
 
@@ -1609,11 +1609,36 @@
         empty: false,
       });
     }
+    if (rangeKey === '15m' || rangeKey === '1h') {
+      var prev = null;
+      for (var fi = 0; fi < out.length; fi++) {
+        if (!out[fi].empty) {
+          prev = out[fi];
+        } else if (prev) {
+          out[fi] = {
+            v: prev.v,
+            pv: prev.pv,
+            bucketCount: 0,
+            carried: true,
+            label: out[fi].label,
+            tStart: out[fi].tStart,
+            tEnd: '',
+            empty: false,
+            vmin: prev.vmin != null ? prev.vmin : prev.v,
+            vmax: prev.vmax != null ? prev.vmax : prev.v,
+            vavg: prev.vavg != null ? prev.vavg : prev.v,
+          };
+        }
+      }
+    }
     return out;
   }
 
   function _sparkBarTipHtml(d) {
     if (d.empty || !d.bucketCount) {
+      if (d.carried) {
+        return (d.label || '—') + '\nara dakika · son ölçüm ' + _fmt(d.v);
+      }
       return (d.label || '—') + '\nölçüm yok';
     }
     var v = Number(d.v) || 0;

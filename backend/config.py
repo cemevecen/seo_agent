@@ -308,10 +308,9 @@ class Settings(BaseSettings):
 
     # GA4 Realtime monitoring (anlık karşılaştırma & alarm)
     ga4_realtime_enabled: bool = True
-    # Backend alarm job: 30dk. Tüm realtime alarmları (site/sayfa/haber/404/app) tek bir job
-    # döngüsünde toplanıp TEK mail olarak gönderildiğinden, bu aralık aynı zamanda
-    # "en erken yarım saatte bir mail" garantisini verir + her kontrolde daha çok veri birikir.
-    ga4_realtime_interval_minutes: int = 45
+    # Backend alarm + KPI snapshot job. Grafik için en az ~10 dk'da bir nokta gerekir;
+    # tam alarm taraması yine batch mail ile sınırlıdır.
+    ga4_realtime_interval_minutes: int = 10
     # KPI toplam penceresi: GA4 Realtime UI ile aynı (max 30 dk).
     ga4_realtime_window_minutes: int = 30
     # Realtime sayfası açıkken GA4 KPI çekimi (tarayıcı). Job aralığından bağımsız.

@@ -2237,6 +2237,33 @@ def check_site_realtime(
     return result
 
 
+CHART_SNAPSHOT_MIN_INTERVAL_SEC = 50
+
+
+def _maybe_record_chart_snapshot(db: Session, site_id: int, profile: str, result: dict[str, Any]) -> None:
+    """TTL cache'ten dönen KPI için de trend noktası yazar (sayfa ~60 sn poll, GA4 her seferinde değil)."""
+    if result.get("error"):
+        return
+    from sqlalchemy import desc
+
+    from backend.models import RealtimeSnapshot
+
+    now = datetime.utcnow()
+    last = (
+        db.query(RealtimeSnapshot)
+        .filter(RealtimeSnapshot.site_id == site_id, RealtimeSnapshot.profile == profile)
+        .order_by(desc(RealtimeSnapshot.collected_at))
+        .first()
+    )
+    if last is not None and last.collected_at is not None:
+        ca = last.collected_at
+        if ca.tzinfo is not None:
+            ca = ca.replace(tzinfo=None)
+        if (now - ca).total_seconds() < CHART_SNAPSHOT_MIN_INTERVAL_SEC:
+            return
+    _save_snapshot(db, site_id, profile, result)
+
+
 def _save_snapshot(db: Session, site_id: int, profile: str, result: dict[str, Any]) -> None:
     """Realtime kontrol sonucunu DB'ye kaydeder."""
     import json as _json
@@ -2451,6 +2478,7 @@ def fetch_realtime_profile_bundle(
             last_good_ttl=settings.ga4_realtime_last_good_seconds,
         )
     )
+    _maybe_record_chart_snapshot(db, sid, prof, result)
     if trend_hours is not None and trend_hours > 0:
         result["trend"] = get_recent_snapshots(db, sid, profile=prof, hours=trend_hours)
     else:
