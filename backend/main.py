@@ -7571,14 +7571,15 @@ def api_home_sc_summary(request: Request, site: str | None = None):
     )
 
 
-def _home_position_drops_for_site(db, site_id: int, limit: int = 12) -> dict:
-    """SC top 50 · M+Web ağırlıklı pozisyon — alert motoru ile aynı kaynak."""
-    from backend.services.alert_engine import list_sc_position_drops_7d
+def _home_position_drops_for_site(db, site_id: int, limit: int | None = None) -> dict:
+    """SC M+Web ağırlıklı pozisyon — alert motoru ile aynı kaynak."""
+    from backend.services.alert_engine import HOME_POSITION_DROPS_ROW_LIMIT, list_sc_position_drops_7d
 
     site_obj = _home_get_site(db, site_id)
     if site_obj is None:
         return {"drops": []}
-    return list_sc_position_drops_7d(db, site_obj, limit=limit)
+    lim = HOME_POSITION_DROPS_ROW_LIMIT if limit is None else limit
+    return list_sc_position_drops_7d(db, site_obj, limit=lim)
 
 
 def home_summary_payload(db) -> dict:
@@ -7629,7 +7630,7 @@ def api_home_position_drops(request: Request, site: str | None = None):
             site_obj = _home_get_site(db, site_id)
             if site_obj is None:
                 continue
-            drop_payload = _home_position_drops_for_site(db, site_id, limit=12)
+            drop_payload = _home_position_drops_for_site(db, site_id)
             sites_out.append({
                 "site_id": site_id,
                 "domain": site_obj.domain,

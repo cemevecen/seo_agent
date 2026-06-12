@@ -412,51 +412,75 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
         return {"top_50": [], "all_queries": [], "dropped_queries": []}
 
 
+HOME_POSITION_DROPS_ROW_LIMIT = 12
+
+
+def _position_drop_from_row(row: dict, *, min_diff: float) -> dict[str, Any] | None:
+    prev = float(row.get("previous_position") or 0.0)
+    cur = float(row.get("position") or 0.0)
+    if prev <= 0 or cur <= prev:
+        return None
+    diff = cur - prev
+    if diff < min_diff:
+        return None
+    clicks = float(row.get("clicks") or 0.0)
+    impressions = float(row.get("impressions") or 0.0)
+    impact = diff * max(clicks, 1.0)
+    return {
+        "query": str(row.get("query") or ""),
+        "pos_prev": f"{prev:.1f}",
+        "pos_cur": f"{cur:.1f}",
+        "diff_fmt": f"{diff:.1f}",
+        "diff": diff,
+        "clicks": clicks,
+        "clicks_fmt": _format_number(clicks),
+        "impressions_fmt": _format_number(impressions),
+        "impact": impact,
+    }
+
+
 def list_sc_position_drops_7d(
     db: Session,
     site: Site,
     *,
-    limit: int = 12,
+    limit: int = HOME_POSITION_DROPS_ROW_LIMIT,
     min_diff: float = 0.1,
 ) -> dict[str, Any]:
-    """Ana sayfa + alerts ile aynı SC motoru: top 50, M+Web ağırlıklı pozisyon, etki sırası.
+    """Ana sayfa: M+Web ağırlıklı pozisyon düşüşleri, etki sırası.
 
-    Sıralama: (pozisyon farkı) × max(tıklama, 1) — kritik düşüş + trafik.
+    Önce top 50 havuzuna bakılır; satır sayısı dolmazsa tüm sorgulara genişletilir
+  (döviz/sinemalar kartlarında aynı satır limiti).
     """
     from backend.services.timezone_utils import format_local_datetime
     from backend.services.warehouse import get_latest_search_console_rows
 
     data = _get_top_50_keywords_with_changes(db, site)
-    top_50 = data.get("top_50") or []
-    drops: list[dict[str, Any]] = []
+    row_limit = max(1, int(limit))
+    seen_queries: set[str] = set()
+    ordered_rows: list[dict] = []
+    for row in (data.get("top_50") or []):
+        q = str(row.get("query") or "").strip().lower()
+        if not q or q in seen_queries:
+            continue
+        seen_queries.add(q)
+        ordered_rows.append(row)
+    for row in data.get("all_queries") or []:
+        q = str(row.get("query") or "").strip().lower()
+        if not q or q in seen_queries:
+            continue
+        seen_queries.add(q)
+        ordered_rows.append(row)
 
-    for row in top_50:
-        prev = float(row.get("previous_position") or 0.0)
-        cur = float(row.get("position") or 0.0)
-        if prev <= 0 or cur <= prev:
-            continue
-        diff = cur - prev
-        if diff < min_diff:
-            continue
-        clicks = float(row.get("clicks") or 0.0)
-        impressions = float(row.get("impressions") or 0.0)
-        impact = diff * max(clicks, 1.0)
-        drops.append(
-            {
-                "query": str(row.get("query") or ""),
-                "pos_prev": f"{prev:.1f}",
-                "pos_cur": f"{cur:.1f}",
-                "diff_fmt": f"{diff:.1f}",
-                "diff": diff,
-                "clicks": clicks,
-                "clicks_fmt": _format_number(clicks),
-                "impressions_fmt": _format_number(impressions),
-                "impact": impact,
-            }
-        )
+    drops: list[dict[str, Any]] = []
+    for row in ordered_rows:
+        item = _position_drop_from_row(row, min_diff=min_diff)
+        if item:
+            drops.append(item)
 
     drops.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
-    drops = drops[: max(1, int(limit))]
+    drops = drops[:row_limit]
+    while len(drops) < row_limit:
+        drops.append({"is_pad": True})
 
     as_of_raw = None
     try:
@@ -479,7 +503,8 @@ def list_sc_position_drops_7d(
     return {
         "drops": drops,
         "as_of_label": as_of_label,
-        "scope_label": "Top 50 sorgu · Mobil+Web (gösterim ağırlıklı pozisyon)",
+        "scope_label": "Mobil+Web (gösterim ağırlıklı) · önce Top 50, sonra diğer sorgular",
+        "row_limit": row_limit,
         "period_label": "Son 7 gün vs önceki 7 gün",
         "sort_label": "Sıra: pozisyon farkı × tıklama",
     }

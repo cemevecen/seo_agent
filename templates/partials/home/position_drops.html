@@ -17,6 +17,9 @@
 {% if block and block.drops %}
   <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
     {% for d in block.drops %}
+      {% if d.is_pad %}
+      <li class="py-2 first:pt-0 last:pb-0" aria-hidden="true"><span class="block h-[2.35rem]"></span></li>
+      {% else %}
       <li class="flex items-start justify-between gap-2 py-2 first:pt-0 last:pb-0">
         <span class="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300" title="{{ d.query }}">{{ d.query }}</span>
         <span class="shrink-0 text-right text-[11px] font-medium tabular-nums text-slate-500 dark:text-slate-400">
@@ -27,6 +30,7 @@
           {% endif %}
         </span>
       </li>
+      {% endif %}
     {% endfor %}
   </ul>
   {% if block.sort_label %}
