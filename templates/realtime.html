@@ -554,6 +554,18 @@
     padding: 2px 6px;
     border-radius: 4px;
     color: rgb(100 116 139);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    line-height: 1.2;
+  }
+  .rt-yf-tab:hover:not(.is-active) {
+    background: rgb(241 245 249);
+    color: rgb(51 65 85);
+  }
+  html.dark .rt-yf-tab:hover:not(.is-active) {
+    background: rgb(39 39 42);
+    color: rgb(228 228 231);
   }
   html.dark .rt-yf-tab {
     color: rgb(161 161 170);
@@ -912,9 +924,9 @@
           <div class="rt-spark-inner rt-yf-surface">
             <div class="rt-spark-live-pulse" data-rt-spark-pulse aria-hidden="true"></div>
             <div class="rt-yf-chrome flex flex-wrap items-center gap-1" data-rt-yf-chrome>
-              <span class="rt-yf-tab" aria-hidden="true">15dk</span>
-              <span class="rt-yf-tab" aria-hidden="true">1s</span>
-              <span class="rt-yf-tab is-active" aria-hidden="true">24s</span>
+              <button type="button" class="rt-yf-tab" data-rt-yf-range="15m" title="Son 15 dakika">15dk</button>
+              <button type="button" class="rt-yf-tab" data-rt-yf-range="1h" title="Son 1 saat">1s</button>
+              <button type="button" class="rt-yf-tab is-active" data-rt-yf-range="24h" title="Son 24 saat (mevcut veri)">24s</button>
               <span class="rt-yf-pct ml-auto" data-rt-yf-pct>—</span>
             </div>
             <div class="rt-spark-plot h-32 w-full min-h-[124px]" data-rt-chart aria-label="Aktif kullanıcı sparkline (Yahoo Finance tarzı)"></div>
@@ -1094,6 +1106,8 @@
   var PAGES_INTERVAL_MS = 1 * 60000;   // 1 dakika — KPI ile eşzamanlı
   var WINDOW = {{ window_minutes }};
   var RT_TREND_LIMIT = 288;
+  var RT_TREND_RANGE_MS = { '15m': 15 * 60 * 1000, '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 };
+  var RT_TREND_RANGE_LS = 'rt_spark_range_v1';
   /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi */
   var LIST_WINDOW = 30;
   /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
@@ -1430,6 +1444,62 @@
     });
   }
 
+  function _rtTrendRangeForBox(box) {
+    if (box && box._rtTrendRange && RT_TREND_RANGE_MS[box._rtTrendRange]) return box._rtTrendRange;
+    try {
+      var saved = localStorage.getItem(RT_TREND_RANGE_LS);
+      if (saved && RT_TREND_RANGE_MS[saved]) return saved;
+    } catch (eLs) { /* ignore */ }
+    return '24h';
+  }
+
+  function _filterTrendForRange(trend, rangeKey) {
+    if (!trend || !trend.length) return [];
+    var ms = RT_TREND_RANGE_MS[rangeKey] || RT_TREND_RANGE_MS['24h'];
+    var lastPt = trend[trend.length - 1];
+    var last = lastPt ? _parseSnapshotTs(lastPt.collected_at) : null;
+    if (!last) return trend.slice();
+    var cutoff = last.getTime() - ms;
+    var out = trend.filter(function (t) {
+      var d = _parseSnapshotTs(t.collected_at);
+      return d && d.getTime() >= cutoff;
+    });
+    if (out.length >= 2) return out;
+    var take = rangeKey === '15m' ? 4 : rangeKey === '1h' ? 12 : trend.length;
+    return trend.slice(-Math.min(trend.length, Math.max(2, take)));
+  }
+
+  function _syncRtYfTabs(box, activeKey) {
+    var chrome = box.querySelector('[data-rt-yf-chrome]');
+    if (!chrome) return;
+    chrome.querySelectorAll('[data-rt-yf-range]').forEach(function (btn) {
+      var on = btn.getAttribute('data-rt-yf-range') === activeKey;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function _wireRtYfTabs(box, siteId, profile) {
+    if (box._rtYfTabsWired) return;
+    box._rtYfTabsWired = true;
+    var chrome = box.querySelector('[data-rt-yf-chrome]');
+    if (!chrome) return;
+    chrome.querySelectorAll('[data-rt-yf-range]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-rt-yf-range');
+        if (!key || !RT_TREND_RANGE_MS[key]) return;
+        box._rtTrendRange = key;
+        try {
+          localStorage.setItem(RT_TREND_RANGE_LS, key);
+        } catch (eSave) { /* ignore */ }
+        _syncRtYfTabs(box, key);
+        if (box._rtTrendFull && box._rtTrendFull.length) {
+          _renderChart(box, siteId, profile, box._rtTrendFull);
+        }
+      });
+    });
+  }
+
   function _rtYahooMeanSplitTraces(xLabels, users, hoverTexts, isDark) {
     var green = isDark ? '#34d399' : '#10b981';
     var red = isDark ? '#fb7185' : '#ef4444';
@@ -1471,6 +1541,12 @@
     if (!window.Plotly) return;
     var el = box.querySelector('[data-rt-chart]');
     if (!el) return;
+    if (trend && trend.length) box._rtTrendFull = trend;
+    var rangeKey = _rtTrendRangeForBox(box);
+    box._rtTrendRange = rangeKey;
+    _wireRtYfTabs(box, siteId, profile);
+    _syncRtYfTabs(box, rangeKey);
+    trend = _filterTrendForRange(box._rtTrendFull || trend || [], rangeKey);
     var domain = String(box.getAttribute('data-rt-domain') || '').toLowerCase();
     var isSinemalar = domain.indexOf('sinemalar.com') !== -1;
     var pulseEl = box.querySelector('[data-rt-spark-pulse]');
