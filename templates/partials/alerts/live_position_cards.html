@@ -1,0 +1,7 @@
+{% for site_block in live_position_sites %}
+  <section class="min-w-0 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+    {% with sites=[site_block], hide_nav_link=true %}
+      {% include "partials/home/position_drops.html" %}
+    {% endwith %}
+  </section>
+{% endfor %}

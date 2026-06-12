@@ -7582,6 +7582,54 @@ def _home_position_drops_for_site(db, site_id: int, limit: int | None = None) ->
     return list_sc_position_drops_7d(db, site_obj, limit=lim)
 
 
+def _live_position_drop_sites(db, domain: str | None = None) -> list[dict]:
+    """Ana sayfa ile aynı canlı pozisyon listesi — /alerts üst bölümü."""
+    dom = (domain or "").strip()
+    out: list[dict] = []
+    for site_id in (1, 2):
+        site_obj = _home_get_site(db, site_id)
+        if site_obj is None:
+            continue
+        if dom and site_obj.domain != dom:
+            continue
+        drop_payload = _home_position_drops_for_site(db, site_id)
+        out.append(
+            {
+                "site_id": site_id,
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name or site_obj.domain,
+                "drops": drop_payload.get("drops") or [],
+                "as_of_label": drop_payload.get("as_of_label"),
+                "scope_label": drop_payload.get("scope_label"),
+                "period_label": drop_payload.get("period_label"),
+                "sort_label": drop_payload.get("sort_label"),
+                "alerts_href": f"/alerts?domain={site_obj.domain}&focus=position",
+            }
+        )
+    return out
+
+
+def _sc_alert_scan_note(db) -> str:
+    """Son SC uyarı taraması zamanı — olay kayıtları için bağlam."""
+    from backend.services.alert_engine import get_latest_search_console_alert_run
+    from backend.services.timezone_utils import format_local_datetime
+
+    parts: list[str] = []
+    for site_id in (1, 2):
+        site_obj = _home_get_site(db, site_id)
+        if site_obj is None:
+            continue
+        run = get_latest_search_console_alert_run(db, site_id)
+        if run is None or run.finished_at is None:
+            parts.append(f"{site_obj.display_name or site_obj.domain}: tarama kaydı yok")
+            continue
+        ts = format_local_datetime(run.finished_at, fmt="%d.%m.%Y %H:%M", include_suffix=True)
+        parts.append(f"{site_obj.display_name or site_obj.domain}: son uyarı taraması {ts}")
+    if not parts:
+        return "Son uyarı taraması kaydı yok — «Yenile» ile olay kayıtları güncellenir."
+    return " · ".join(parts)
+
+
 def home_summary_payload(db) -> dict:
     """Ana sayfa (Günün Özeti) — AI Talk için yapılandırılmış metrik özeti."""
     sites_out: list[dict] = []
@@ -8825,17 +8873,33 @@ def _build_threshold_alerts_payload(db, *, days: int = 7) -> dict:
     }
 
 
+@app.get("/api/alerts/live-position-drops", response_class=HTMLResponse)
+def api_alerts_live_position_drops(request: Request, domain: str | None = None):
+    """Canlı SC pozisyon listesi (ana sayfa ile aynı) — site filtresine göre fragment."""
+    dom = (domain or "").strip() or None
+    with SessionLocal() as db:
+        live_sites = _live_position_drop_sites(db, dom)
+    return templates.TemplateResponse(
+        request,
+        "partials/alerts/live_position_cards.html",
+        context={"request": request, "live_position_sites": live_sites},
+    )
+
+
 @app.get("/alerts")
 def alerts_page(request: Request):
-    # Son alarm kayıtlarını listeler — Search Console + Threshold (Realtime + 404) iki sekmeli.
+    # Search Console: üstte canlı snapshot listesi; altta AlertLog olay kayıtları.
     with SessionLocal() as db:
         external_domains = _external_site_domains(db)
-        alert_rows = get_recent_alerts(db, limit=100, include_external=True, only_latest_sc_scan=True)
+        domain_q = (request.query_params.get("domain") or "").strip() or None
+        alert_rows = get_recent_alerts(db, limit=100, include_external=True, only_latest_sc_scan=False)
         threshold_payload = _build_threshold_alerts_payload(db, days=7)
         payload = {
             "site_name": "Alerts",
             "sites": get_sidebar_sites(),
             "recent_alerts": alert_rows,
+            "live_position_sites": _live_position_drop_sites(db, domain_q),
+            "sc_scan_note": _sc_alert_scan_note(db),
             "selected_alert_id": request.query_params.get("selected_alert", "").strip(),
             "has_external_sites": bool(external_domains),
             **threshold_payload,

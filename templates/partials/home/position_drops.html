@@ -1,7 +1,11 @@
 {% set block = sites[0] if sites and sites[0] else none %}
+{% set hide_nav_link = hide_nav_link | default(false) %}
 <div class="flex items-start justify-between gap-3">
   <div class="min-w-0">
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Pozisyon düşüşü · Top 50 · 7g</h3>
+    {% if block and block.display_name %}
+      <p class="text-[10px] font-semibold uppercase tracking-wider {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-rose-600 dark:text-rose-300{% endif %}">{{ block.display_name }}</p>
+    {% endif %}
+    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100{% if block and block.display_name %} mt-0.5{% endif %}">Pozisyon düşüşü · Top 50 · 7g</h3>
     {% if block and block.scope_label %}
       <p class="mt-0.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">{{ block.scope_label }}</p>
     {% endif %}
@@ -9,10 +13,12 @@
       <p class="mt-0.5 text-[10px] tabular-nums text-slate-400 dark:text-slate-500">Veri: {{ block.as_of_label }}</p>
     {% endif %}
   </div>
+  {% if not hide_nav_link %}
   <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
      hx-get="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
      hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
      class="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Uyarılar →</a>
+  {% endif %}
 </div>
 {% set _real_drops = (block.drops | rejectattr('is_pad') | list) if block and block.drops else [] %}
 {% if _real_drops %}

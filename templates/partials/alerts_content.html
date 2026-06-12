@@ -178,10 +178,12 @@
   {# Sekme 1 — Search Console                                              #}
   {# ────────────────────────────────────────────────────────────────── #}
   <div data-alerts-panel="search-console" class="space-y-3">
-    {# ── Satır 1: Başlık + Dönem + Filtre + Yenile ── #}
+    {% include "partials/alerts/live_position_section.html" %}
+
+    {# ── Olay kayıtları: Başlık + Dönem + Filtre + Yenile ── #}
     <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
       <div class="flex min-w-0 flex-wrap items-center gap-3">
-        <h3 class="shrink-0 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Son Uyarılar</h3>
+        <h3 class="shrink-0 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Olay kayıtları</h3>
         <div class="flex items-center gap-1 border-l border-slate-200 pl-3 dark:border-slate-700">
           <button type="button"
             class="alert-period-tab rounded-full px-3 py-1 text-xs font-semibold transition-colors"
@@ -212,6 +214,10 @@
         </button>
       </div>
     </div>
+
+    <p class="px-1 text-xs text-slate-500 dark:text-slate-400">
+      Aşağıdaki kartlar <strong class="font-semibold text-slate-600 dark:text-slate-300">AlertLog</strong> kaydıdır (eşik tetiklenince yazılır; «Yenile» sonrası güncellenir). Güncel sıralama için yukarıdaki canlı listeyi kullanın.
+    </p>
 
     {# ── Satır 2: Tip chip'leri ── #}
     <div id="alerts-type-filter-row" class="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5">

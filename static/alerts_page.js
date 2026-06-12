@@ -14,6 +14,28 @@ var _alertType = 'all';
 var _alertPeriod = 7;
 var _compCache = {};
 
+// ─── Canlı SC pozisyon (ana sayfa ile aynı) ───────────────────────────────────
+function reloadLivePositionGrid() {
+  var wrap = document.getElementById('alerts-live-position-grid');
+  if (!wrap) return;
+  var filterSelect = document.getElementById('site-filter');
+  var domain = filterSelect ? String(filterSelect.value || '').trim() : '';
+  if (domain === '__external__') {
+    wrap.innerHTML = '';
+    return;
+  }
+  var url = '/api/alerts/live-position-drops';
+  if (domain) url += '?domain=' + encodeURIComponent(domain);
+  fetch(url, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+    .then(function (r) {
+      return r.text();
+    })
+    .then(function (html) {
+      wrap.innerHTML = html;
+    })
+    .catch(function () {});
+}
+
 // ─── Filter ───────────────────────────────────────────────────────────────────
 function applyAlertsFilters() {
   var container = document.getElementById('alerts-container');
@@ -413,6 +435,7 @@ function bindMainDelegation() {
     if (e.target.id !== 'site-filter') return;
     var view = document.getElementById('alerts-view');
     if (!view || !view.contains(e.target)) return;
+    reloadLivePositionGrid();
     applyAlertsFilters();
   });
 }
@@ -447,6 +470,7 @@ function _applyAlertsUrlParams() {
       if (found) filterSelect.value = domain;
     }
   }
+  reloadLivePositionGrid();
 }
 
 function initAlertsPage() {

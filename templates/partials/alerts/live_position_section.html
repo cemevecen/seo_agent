@@ -1,0 +1,17 @@
+<div id="alerts-live-position-wrap" class="rounded-2xl bg-gradient-to-br from-sky-50/80 via-white to-white p-4 ring-1 ring-sky-200/80 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 dark:ring-slate-700 sm:p-5">
+  <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+    <div>
+      <h3 class="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">Canlı pozisyon düşüşleri</h3>
+      <p class="mt-0.5 max-w-xl text-xs text-slate-600 dark:text-slate-400">
+        Ana sayfa ile aynı liste — güncel Search Console snapshot (7g karşılaştırma). Aşağıdaki kartlar ise son uyarı taramasında kaydedilen olaylardır.
+      </p>
+      {% if sc_scan_note %}
+        <p class="mt-1 text-[10px] text-slate-500 dark:text-slate-500">{{ sc_scan_note }}</p>
+      {% endif %}
+    </div>
+    <span class="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">Canlı</span>
+  </div>
+  <div id="alerts-live-position-grid" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    {% include "partials/alerts/live_position_cards.html" %}
+  </div>
+</div>
