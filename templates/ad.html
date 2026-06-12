@@ -750,6 +750,37 @@
     p.set(key, Array.from(selectedSet).join(","));
   }
 
+  /** Önceki yüklemede tüm kaynaklar seçiliyse yeni dosya (günlük ekleme) otomatik dahil edilir. */
+  function facetHadAllSelected(set, prevList) {
+    if (!prevList || !prevList.length) return true;
+    return prevList.every(function (n) { return set.has(n); });
+  }
+
+  function absorbNewFacetItems(set, newList, prevList) {
+    if (!set || !newList || !newList.length) return;
+    if (facetHadAllSelected(set, prevList)) {
+      newList.forEach(function (n) { set.add(n); });
+    }
+  }
+
+  /** Günlük veri sonrası bitiş tarihi eski max’taydıysa yeni max’a uzat. */
+  function extendRangeEndIfPinnedToMax(st, prevMaxIso) {
+    if (!st || !st.max_date) return;
+    var endEl = document.getElementById("mz-end");
+    if (!endEl) return;
+    var newMax = String(st.max_date).slice(0, 10);
+    var prevMax = String(prevMaxIso != null ? prevMaxIso : state._mzLastStreamMaxDate || "").slice(0, 10);
+    var presetEl = document.getElementById("mz-preset");
+    if (presetEl && presetEl.value) return;
+    var endV = (endEl.value || "").slice(0, 10);
+    if (prevMax && endV === prevMax && newMax > prevMax) {
+      endEl.value = newMax;
+    } else if (endV && newMax && endV > newMax) {
+      endEl.value = newMax;
+    }
+    state._mzLastStreamMaxDate = newMax;
+  }
+
   function parseMzUrlState(search) {
     var sp = new URLSearchParams(search || "");
     return {
@@ -6832,9 +6863,15 @@
     });
   }
 
-  async function loadFacets() {
+  async function loadFacets(opts) {
+    opts = opts || {};
     try {
-      var r = await fetch("/api/mz-analytics/facets");
+      var bust = opts.cacheBust ? "?_=" + Date.now() : "";
+      var prevStreamMax =
+        state.activeStream && state.activeStream.max_date
+          ? String(state.activeStream.max_date).slice(0, 10)
+          : state._mzLastStreamMaxDate || "";
+      var r = await fetch("/api/mz-analytics/facets" + bust);
       if (!r.ok) throw new Error("Filtreler yüklenemedi (HTTP " + r.status + ")");
       var f = await r.json();
       showPageError("");
@@ -6870,8 +6907,14 @@
         state._mzDateRangeInitialized = true;
       } else if (state.activeStream) {
         preserveDateRangeForStream(state.activeStream);
+        extendRangeEndIfPinnedToMax(state.activeStream, prevStreamMax);
       }
       var incomeList = f.income_types || [];
+      var prevIncome = state._mzIncomeFacetList || [];
+      var prevSources = state._mzSourceFacetList || [];
+      var prevPlatforms = state._mzPlatformFacetList || [];
+      var prevChannels = state._mzChannelFacetList || [];
+      var prevSurfaces = state._mzSurfaceFacetList || [];
       state._mzIncomeFacetList = incomeList;
       state._mzPlatformFacetList = f.platforms || [];
       state._mzChannelFacetList = f.channels || [];
@@ -6891,6 +6934,11 @@
         pruneFacetSet(state.channel, f.channels || []);
         pruneFacetSet(state.surface, f.surfaces || []);
         pruneFacetSet(state.source, f.source_files || []);
+        absorbNewFacetItems(state.income, incomeList, prevIncome);
+        absorbNewFacetItems(state.platform, f.platforms || [], prevPlatforms);
+        absorbNewFacetItems(state.channel, f.channels || [], prevChannels);
+        absorbNewFacetItems(state.surface, f.surfaces || [], prevSurfaces);
+        absorbNewFacetItems(state.source, f.source_files || [], prevSources);
       }
       filterBox("mz-filter-income", incomeList, state.income);
       filterChips("mz-filter-channel", f.channels || [], state.channel);
@@ -7598,7 +7646,7 @@
           (data.parsed || 0) + " satır eklendi/güncellendi · toplam " + (data.total || "—") + " satır";
       }
       inp.value = "";
-      await loadFacets();
+      await loadFacets({ cacheBust: true });
       await runQuery({ resetTableDrills: false });
     } catch (err) {
       if (status) status.textContent = (err && err.message) || "Günlük ekleme başarısız";
