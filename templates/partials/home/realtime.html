@@ -14,8 +14,7 @@
       {% for site in sites %}
         {% for prof in site.profiles %}
           {% set _p = prof.delta_pct | default(0) | float %}
-          <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2 py-2.5 xl:px-2.5"
-               style="--home-rt-duration: {{ prof.spark_motion.duration }}s; --home-rt-delay: {{ prof.spark_motion.delay }}s;">
+          <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2 py-2.5 xl:px-2.5">
             <div class="relative z-[1] min-w-0">
               <p class="truncate text-[10px] font-semibold uppercase tracking-wider {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-rose-600 dark:text-rose-300{% endif %}">{{ site.display_name or site.domain }}</p>
               <p class="mt-0.5 truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
@@ -29,24 +28,12 @@
             <div class="home-rt-spark relative z-[1] mt-2 h-9" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime sparkline">
               {% if prof.spark and prof.spark.has_points %}
                 <svg class="home-rt-spark-svg h-full w-full overflow-visible" viewBox="0 0 128 38" preserveAspectRatio="none" role="img">
-                  <defs>
-                    <linearGradient id="home-rt-line-{{ site.site_id }}-{{ prof.key }}" x1="0" y1="0" x2="128" y2="0" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="var(--home-rt-c1)" stop-opacity="0.45" />
-                      <stop offset="52%" stop-color="var(--home-rt-c2)" stop-opacity="0.95" />
-                      <stop offset="100%" stop-color="var(--home-rt-c3)" stop-opacity="0.85" />
-                    </linearGradient>
-                    <linearGradient id="home-rt-area-{{ site.site_id }}-{{ prof.key }}" x1="0" y1="0" x2="0" y2="38" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="var(--home-rt-c2)" stop-opacity="0.24" />
-                      <stop offset="100%" stop-color="var(--home-rt-c2)" stop-opacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path class="home-rt-spark-area" d="{{ prof.spark.area_path }}" fill="url(#home-rt-area-{{ site.site_id }}-{{ prof.key }})"></path>
+                  <path class="home-rt-spark-area" d="{{ prof.spark.area_path }}" fill="var(--home-rt-spark-area-fill)"></path>
                   {% for seg in prof.spark.line_segments or [] %}
                   <path class="home-rt-spark-line" d="{{ seg.path_d }}" fill="none" stroke="{% if seg.above %}var(--home-rt-mean-above){% else %}var(--home-rt-mean-below){% endif %}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
                   {% else %}
-                  <path class="home-rt-spark-line" d="{{ prof.spark.path_d }}" pathLength="120" fill="none" stroke="url(#home-rt-line-{{ site.site_id }}-{{ prof.key }})" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
+                  <path class="home-rt-spark-line" d="{{ prof.spark.path_d }}" fill="none" stroke="var(--home-rt-mean-above)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
                   {% endfor %}
-                  <path class="home-rt-spark-comet" d="{{ prof.spark.path_d }}" pathLength="120" fill="none" stroke="var(--home-rt-comet)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"></path>
                 </svg>
               {% else %}
                 <div class="home-rt-spark-empty flex h-full items-end gap-1">

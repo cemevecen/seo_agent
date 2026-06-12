@@ -7206,20 +7206,6 @@ def _home_pct_delta(cur: float, prev: float) -> tuple[str, str, float]:
     return (f"{sign}{pct:.1f}%", tone, round(pct, 2))
 
 
-def _home_spark_motion(site_id: int, profile: str) -> dict:
-    """Small timing variations keep adjacent realtime sparklines from moving in sync."""
-    motion_map = {
-        (1, "web"): (5.8, -0.2),
-        (1, "mweb"): (7.2, -1.4),
-        (1, "android"): (6.4, -2.1),
-        (1, "ios"): (8.0, -0.8),
-        (2, "web"): (6.7, -1.1),
-        (2, "mweb"): (7.7, -2.7),
-    }
-    duration, delay = motion_map.get((site_id, profile), (7.0, -0.5))
-    return {"duration": duration, "delay": delay}
-
-
 def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38, pad: int = 3) -> dict:
     clean: list[float] = []
     for value in values:
@@ -7254,21 +7240,6 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
         y = pad + inner_h - ((value - min_v) / span * inner_h)
         points.append((round(x, 2), round(y, 2)))
 
-    if len(points) == 2:
-        path_d = "M %.2f %.2f L %.2f %.2f" % (points[0][0], points[0][1], points[1][0], points[1][1])
-    else:
-        parts = ["M %.2f %.2f" % points[0]]
-        for idx in range(1, len(points)):
-            prev_x, prev_y = points[idx - 1]
-            x, y = points[idx]
-            dx = x - prev_x
-            c1x = prev_x + dx * 0.42
-            c2x = x - dx * 0.42
-            parts.append("C %.2f %.2f %.2f %.2f %.2f %.2f" % (c1x, prev_y, c2x, y, x, y))
-        path_d = " ".join(parts)
-
-    mean_v = sum(clean) / len(clean)
-
     def _polyline_path_d(pts: list[tuple[float, float]]) -> str:
         if not pts:
             return ""
@@ -7279,6 +7250,9 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
         for x, y in pts[1:]:
             segs.append("L %.2f %.2f" % (x, y))
         return " ".join(segs)
+
+    path_d = _polyline_path_d(points)
+    mean_v = sum(clean) / len(clean)
 
     line_segments: list[dict] = []
     seg_pts: list[tuple[float, float]] = [points[0]]
@@ -7333,7 +7307,6 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
         "delta_tone": "flat",
         "delta_pct": 0.0,
         "spark": {"has_points": False},
-        "spark_motion": _home_spark_motion(site_id, prof_key),
     }
     trend = bundle.get("trend") or []
     if bundle.get("error") and not trend:
@@ -7352,7 +7325,6 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
         "delta_tone": tone,
         "delta_pct": delta_pct,
         "spark": spark,
-        "spark_motion": _home_spark_motion(site_id, prof_key),
     }
 
 
