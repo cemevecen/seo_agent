@@ -1107,6 +1107,86 @@ def date_bounds(db: Session) -> dict[str, str | None]:
     }
 
 
+_FAV_APP_BRANCHES = frozenset({"ios", "android"})
+_FAV_TOP_WEB = 15
+_FAV_TOP_APP = 3
+
+
+def suggested_detail_favorites(db: Session, *, period_days: int = 30) -> dict[str, Any]:
+    """Dal başına son N günde net gelire göre önerilen Mx birimi favorileri."""
+    days = max(1, min(int(period_days or 30), 366))
+    streams_out: dict[str, Any] = {}
+    range_start: date | None = None
+    range_end: date | None = None
+
+    for meta in AD_STREAMS:
+        top_n = _FAV_TOP_APP if meta.branch in _FAV_APP_BRANCHES else _FAV_TOP_WEB
+        dmax = db.execute(
+            select(func.max(AdReportRow.report_date)).where(
+                AdReportRow.project == meta.project,
+                AdReportRow.branch == meta.branch,
+            )
+        ).scalar()
+        if not dmax:
+            streams_out[meta.key] = {
+                "stream_key": meta.key,
+                "label": meta.label,
+                "project": meta.project,
+                "branch": meta.branch,
+                "top_n": top_n,
+                "start": None,
+                "end": None,
+                "units": [],
+            }
+            continue
+        dstart = dmax - timedelta(days=days - 1)
+        tbl = query_table(
+            db,
+            start=dstart.isoformat(),
+            end=dmax.isoformat(),
+            project=meta.project,
+            branch=meta.branch,
+            breakdown="ad_unit",
+            limit=top_n + 10,
+        )
+        rows = sorted(
+            tbl.get("rows") or [],
+            key=lambda r: float(r.get("net_revenue") or 0),
+            reverse=True,
+        )
+        units: list[str] = []
+        seen: set[str] = set()
+        for row in rows:
+            unit = (row.get("ad_unit") or "").strip()
+            if not unit or unit in seen:
+                continue
+            seen.add(unit)
+            units.append(unit)
+            if len(units) >= top_n:
+                break
+        streams_out[meta.key] = {
+            "stream_key": meta.key,
+            "label": meta.label,
+            "project": meta.project,
+            "branch": meta.branch,
+            "top_n": top_n,
+            "start": dstart.isoformat(),
+            "end": dmax.isoformat(),
+            "units": units,
+        }
+        if range_end is None or dmax > range_end:
+            range_end = dmax
+        if range_start is None or dstart < range_start:
+            range_start = dstart
+
+    return {
+        "period_days": days,
+        "start": range_start.isoformat() if range_start else None,
+        "end": range_end.isoformat() if range_end else None,
+        "streams": streams_out,
+    }
+
+
 def _global_date_bounds_and_count(db: Session) -> tuple[str | None, str | None, int]:
     bounds = date_bounds(db)
     return bounds["min_date"], bounds["max_date"], count_rows(db)

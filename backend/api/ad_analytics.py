@@ -48,6 +48,15 @@ def get_ad_analytics_facets(db: Session = Depends(get_db)):
     return store.facets(db)
 
 
+@router.get("/mz-analytics/suggested-favorites")
+def get_ad_analytics_suggested_favorites(
+    db: Session = Depends(get_db),
+    period_days: int = Query(30, ge=1, le=366),
+):
+    """Dal başına son dönemde en çok gelir getiren Mx birimleri (favori önerisi)."""
+    return store.suggested_detail_favorites(db, period_days=period_days)
+
+
 @router.get("/mz-analytics/summary")
 def get_ad_analytics_summary(
     db: Session = Depends(get_db),

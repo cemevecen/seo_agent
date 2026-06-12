@@ -353,7 +353,13 @@
         </div>
         <div id="mz-detail-favorites-wrap" class="mb-3 hidden">
           <p class="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Favori Mx birimleri</p>
+          <p id="mz-detail-favorites-hint" class="mb-1 hidden text-[10px] text-slate-500 dark:text-zinc-500">Son 30 gün net gelire göre (web/mweb: 15 birim, uygulama: 3)</p>
           <div id="mz-detail-favorites" class="flex flex-wrap gap-1.5"></div>
+          <div id="mz-detail-favorites-actions" class="mt-1.5 hidden">
+            <button id="mz-detail-favorites-revert" type="button" class="text-[10px] font-semibold text-indigo-700 underline decoration-indigo-300 hover:text-indigo-900 dark:text-indigo-300 dark:decoration-indigo-700 dark:hover:text-indigo-100">
+              Önceki favorilerime dön
+            </button>
+          </div>
         </div>
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <div class="flex flex-wrap items-center gap-2">
@@ -2579,14 +2585,102 @@
   }
 
   var MZ_DETAIL_FAV_PREFIX = "mz_detail_unit_favorites:";
+  var MZ_DETAIL_FAV_BACKUP_KEY = "mz_detail_unit_favorites_user_backup_v1";
+  var MZ_DETAIL_FAV_AUTO_FLAG = "mz_detail_favorites_revenue_top_v1";
+
+  function detailFavoritesKeyForStream(st) {
+    if (!st) return MZ_DETAIL_FAV_PREFIX + "default";
+    return MZ_DETAIL_FAV_PREFIX + (st.project || "") + ":" + (st.branch || "");
+  }
 
   function detailFavoritesStorageKey() {
-    var parts = [];
-    if (state.activeStream) {
-      parts.push(state.activeStream.project || "");
-      parts.push(state.activeStream.branch || "");
+    return detailFavoritesKeyForStream(state.activeStream);
+  }
+
+  function backupDetailFavoritesToSide() {
+    var backup = { saved_at: new Date().toISOString(), streams: {} };
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf(MZ_DETAIL_FAV_PREFIX) !== 0) continue;
+        if (k.indexOf("backup") >= 0) continue;
+        var raw = localStorage.getItem(k);
+        if (!raw) continue;
+        backup.streams[k] = JSON.parse(raw);
+      }
+      if (Object.keys(backup.streams).length) {
+        localStorage.setItem(MZ_DETAIL_FAV_BACKUP_KEY, JSON.stringify(backup));
+      }
+    } catch (_) { /* ignore */ }
+    return backup;
+  }
+
+  function updateDetailFavoritesRevertUi() {
+    var actions = document.getElementById("mz-detail-favorites-actions");
+    var hint = document.getElementById("mz-detail-favorites-hint");
+    var hasBackup = false;
+    try {
+      hasBackup = !!localStorage.getItem(MZ_DETAIL_FAV_BACKUP_KEY);
+    } catch (_) { /* ignore */ }
+    if (actions) actions.classList.toggle("hidden", !hasBackup);
+    if (hint) {
+      var autoOn = false;
+      try {
+        autoOn = !!localStorage.getItem(MZ_DETAIL_FAV_AUTO_FLAG);
+      } catch (_) { /* ignore */ }
+      hint.classList.toggle("hidden", !autoOn);
     }
-    return MZ_DETAIL_FAV_PREFIX + (parts.join(":") || "default");
+  }
+
+  function restoreDetailFavoritesBackup() {
+    try {
+      var raw = localStorage.getItem(MZ_DETAIL_FAV_BACKUP_KEY);
+      if (!raw) return;
+      var backup = JSON.parse(raw);
+      Object.keys(backup.streams || {}).forEach(function (k) {
+        localStorage.setItem(k, JSON.stringify(backup.streams[k]));
+      });
+      localStorage.removeItem(MZ_DETAIL_FAV_AUTO_FLAG);
+      loadDetailFavorites();
+      renderDetailFavorites();
+      updateDetailFavoritesRevertUi();
+      refreshDetailUnitSelect();
+      updateDetailFavoriteButton();
+      if (state._topUnitsRows && state._topUnitsRows.length) renderTopUnitsChips(state._topUnitsRows);
+    } catch (_) { /* ignore */ }
+  }
+
+  async function maybeApplyRevenueTopDetailFavorites() {
+    try {
+      if (localStorage.getItem(MZ_DETAIL_FAV_AUTO_FLAG)) {
+        updateDetailFavoritesRevertUi();
+        return;
+      }
+    } catch (_) {
+      return;
+    }
+    try {
+      var r = await fetch("/api/mz-analytics/suggested-favorites?period_days=30", { credentials: "same-origin" });
+      if (!r.ok) return;
+      var data = await r.json();
+      backupDetailFavoritesToSide();
+      var streams = data.streams || {};
+      Object.keys(streams).forEach(function (sk) {
+        var block = streams[sk];
+        if (!block) return;
+        var st = (state.streams || []).find(function (s) { return s.key === sk; });
+        if (!st) {
+          st = { project: block.project, branch: block.branch };
+        }
+        localStorage.setItem(detailFavoritesKeyForStream(st), JSON.stringify(block.units || []));
+      });
+      localStorage.setItem(MZ_DETAIL_FAV_AUTO_FLAG, data.end || new Date().toISOString());
+      loadDetailFavorites();
+      renderDetailFavorites();
+      updateDetailFavoritesRevertUi();
+      refreshDetailUnitSelect();
+      if (state._topUnitsRows && state._topUnitsRows.length) renderTopUnitsChips(state._topUnitsRows);
+    } catch (_) { /* ignore */ }
   }
 
   function loadDetailFavorites() {
@@ -7013,6 +7107,7 @@
           auditEl.textContent = "";
         }
       }
+      await maybeApplyRevenueTopDetailFavorites();
     } catch (err) {
       showPageError((err && err.message) || "Filtreler yüklenemedi");
       var statusEl = document.getElementById("mz-status");
@@ -7698,6 +7793,11 @@
   updateSummaryDrillSubtitle();
   loadDetailFavorites();
   renderDetailFavorites();
+  updateDetailFavoritesRevertUi();
+  on("mz-detail-favorites-revert", "click", function () {
+    if (!confirm("Önceki favori listene dönülsün mü? (Son 30 gün önerisi kaldırılır)")) return;
+    restoreDetailFavoritesBackup();
+  });
 
   window.addEventListener("resize", scheduleMzChartsResize);
 

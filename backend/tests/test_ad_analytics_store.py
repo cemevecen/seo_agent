@@ -353,3 +353,14 @@ def test_facets_returns_bounds_and_row_count():
     assert "max_date" in out
     assert isinstance(out["total_rows"], int)
     assert isinstance(out["streams"], list)
+
+
+def test_suggested_detail_favorites_stream_keys_and_top_n():
+    init_db()
+    with SessionLocal() as db:
+        out = store.suggested_detail_favorites(db, period_days=30)
+    assert out["period_days"] == 30
+    assert len(out["streams"]) == len(store.AD_STREAMS)
+    assert out["streams"]["doviz:desktop"]["top_n"] == 15
+    assert out["streams"]["doviz:android"]["top_n"] == 3
+    assert isinstance(out["streams"]["doviz:desktop"]["units"], list)
