@@ -45,6 +45,35 @@ def test_xlsx_turkish_headers():
     assert len(rows) == 1
 
 
+def test_incremental_append_upserts_same_day():
+    init_db()
+    d = date(2026, 6, 10)
+    serial = _excel_serial(d)
+    base = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"web_unit_1,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,10\n"
+    )
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_append_to_stream(
+            db,
+            base.encode("utf-8"),
+            stream_key="doviz:desktop",
+            original_filename="gunluk.csv",
+        )
+        store.import_append_to_stream(
+            db,
+            base.replace(",10\n", ",15\n").encode("utf-8"),
+            stream_key="doviz:desktop",
+            original_filename="gunluk2.csv",
+        )
+        n = db.query(AdReportRow).filter(AdReportRow.report_date == d).count()
+        rev = db.query(AdReportRow).filter(AdReportRow.report_date == d).one().net_revenue
+    assert n == 1
+    assert rev == 15.0
+
+
 def test_channel_and_surface_from_filename_and_ad_unit():
     rows = store.parse_csv_text(
         "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"

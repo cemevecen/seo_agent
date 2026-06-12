@@ -24,6 +24,16 @@
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="mz-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
       <button id="mz-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">Yükle ve birleştir</button>
+      <details class="mt-2 rounded-lg border border-emerald-200/90 bg-emerald-50/50 p-2.5 dark:border-emerald-900/50 dark:bg-emerald-950/25 midnight:border-emerald-900/40">
+        <summary class="cursor-pointer text-xs font-semibold text-emerald-900 dark:text-emerald-200">Günlük ekle (üzerine birleşir)</summary>
+        <p class="mt-2 text-[10px] leading-snug text-emerald-900/80 dark:text-emerald-200/80">
+          Tam 1+2 dosyasını yeniden yüklemen gerekmez. Üstteki sekmedeki dala yalnızca <strong>yeni günlerin</strong> export’unu yükle;
+          aynı tarih + reklam birimi + gelir tipi varsa güncellenir, eski günler kalır.
+        </p>
+        <input id="mz-append-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" class="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs dark:border-emerald-900 dark:bg-black dark:text-zinc-200" />
+        <button id="mz-append-upload" type="button" class="mt-2 w-full rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">Seçili dala ekle</button>
+        <p id="mz-append-stream-hint" class="mt-1.5 text-[10px] text-emerald-800/90 dark:text-emerald-300/90">Dal: —</p>
+      </details>
       <div id="mz-upload-progress" class="hidden space-y-1.5 rounded-lg border border-indigo-200 bg-indigo-50/80 p-2.5 dark:border-indigo-900/60 dark:bg-indigo-950/30" data-upload-theme="active">
         <div class="flex items-center justify-between gap-2 text-[11px] font-semibold text-indigo-900 dark:text-indigo-200">
           <span id="mz-upload-progress-title">Yükleniyor</span>
@@ -918,6 +928,12 @@
       cross.classList.add("pointer-events-none", "opacity-40");
     } else {
       cross.classList.remove("pointer-events-none", "opacity-40");
+    }
+    var hint = document.getElementById("mz-append-stream-hint");
+    if (hint) {
+      hint.textContent = state.activeStream
+        ? "Dal: " + state.activeStream.label + " (" + state.activeStream.key + ")"
+        : "Dal: önce üstten bir sekme seçin (Döviz Desktop vb.)";
     }
   }
 
@@ -6890,8 +6906,9 @@
           imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi.</span>";
         } else {
           imp.innerHTML = imports.map(function (x) {
+            var inc = x.incremental ? " <span class=\"text-emerald-600 dark:text-emerald-400\">+günlük</span>" : "";
             return "<span class=\"rounded-full border border-slate-200 px-2 py-0.5 dark:border-zinc-600 midnight:border-zinc-700\">" +
-              x.channel + " · " + x.source_file + " · " + x.row_count + " satır</span>";
+              x.channel + " · " + x.source_file + " · " + x.row_count + " satır" + inc + "</span>";
           }).join("");
           if ((f.extra_columns || []).length) {
             imp.innerHTML += "<span class=\"w-full text-[10px] text-slate-400\">Ek sütunlar: " +
@@ -7547,6 +7564,47 @@
 
   on("mz-top-units-refresh", "click", function () {
     renderTopMxUnitsWeek();
+  });
+
+  on("mz-append-upload", "click", async function () {
+    var inp = document.getElementById("mz-append-file");
+    var btn = document.getElementById("mz-append-upload");
+    var status = document.getElementById("mz-status");
+    if (!state.activeStream || !state.activeStream.key) {
+      if (status) status.textContent = "Günlük ekleme için üstten bir dal sekmesi seçin.";
+      return;
+    }
+    if (!inp || !inp.files || !inp.files.length) {
+      if (status) status.textContent = "Günlük export dosyası seçin (.xlsx / .csv).";
+      return;
+    }
+    var f = inp.files[0];
+    var fd = new FormData();
+    fd.append("file", f);
+    var url =
+      "/api/mz-analytics/append?stream_key=" + encodeURIComponent(state.activeStream.key);
+    btn.disabled = true;
+    if (status) status.textContent = "Günlük veri birleştiriliyor…";
+    try {
+      var resp = await fetch(url, { method: "POST", body: fd, credentials: "same-origin" });
+      if (!resp.ok) {
+        var errText = "";
+        try { errText = await resp.text(); } catch (e) { /* */ }
+        throw new Error(xhrStatusMessage(resp.status, errText));
+      }
+      var data = await resp.json();
+      if (status) {
+        status.textContent =
+          (data.parsed || 0) + " satır eklendi/güncellendi · toplam " + (data.total || "—") + " satır";
+      }
+      inp.value = "";
+      await loadFacets();
+      await runQuery({ resetTableDrills: false });
+    } catch (err) {
+      if (status) status.textContent = (err && err.message) || "Günlük ekleme başarısız";
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   on("mz-reset", "click", async function () {

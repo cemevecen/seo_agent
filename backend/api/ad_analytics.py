@@ -135,6 +135,42 @@ def get_ad_analytics_table(
     )
 
 
+@router.post("/mz-analytics/append")
+async def post_ad_analytics_append(
+    file: UploadFile = File(...),
+    stream_key: str = Query(..., description="Örn. doviz:desktop, doviz:mweb, doviz:ios"),
+    db: Session = Depends(get_db),
+):
+    """Küçük günlük/haftalık dosyayı mevcut verinin üzerine birleştirir (upsert)."""
+    name = (file.filename or "append.csv").strip()
+    low = name.lower()
+    if not low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
+        raise HTTPException(status_code=400, detail="Yalnızca .xlsx veya .csv desteklenir")
+    sk = (stream_key or "").strip()
+    if store.resolve_stream("", sk) is None:
+        raise HTTPException(status_code=400, detail=f"Bilinmeyen dal: {stream_key}")
+    try:
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="Boş dosya")
+        result = store.import_append_to_stream(
+            db,
+            raw,
+            stream_key=sk,
+            original_filename=name,
+            commit=True,
+        )
+        if not result.get("parsed"):
+            detail = result.get("parse_error") or result.get("warning") or "Dosyadan satır okunamadı"
+            raise HTTPException(status_code=400, detail=detail)
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/mz-analytics/upload")
 async def post_ad_analytics_upload(
     file: UploadFile = File(...),

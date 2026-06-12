@@ -486,7 +486,32 @@ def _locate_header_in_rows(
     return None
 
 
-def iter_xlsx_rows(data: bytes, *, filename: str = "upload.xlsx") -> Iterator[dict[str, Any]]:
+def resolve_stream(filename: str, stream_key: str | None = None) -> AdStream | None:
+    if stream_key:
+        return _STREAM_BY_KEY.get(stream_key.strip())
+    return detect_stream(filename)
+
+
+def incremental_catalog_filename(stream_key: str, original_filename: str) -> str:
+    """Katalogda benzersiz; dal `_increment_` ile işaretlenir."""
+    low = (original_filename or "append.csv").lower()
+    if low.endswith((".xlsx", ".xlsm")):
+        ext = ".xlsx"
+    elif low.endswith(".txt"):
+        ext = ".txt"
+    else:
+        ext = ".csv"
+    sk = (stream_key or "unknown").replace(":", "_")
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return f"{sk}_increment_{ts}{ext}"
+
+
+def iter_xlsx_rows(
+    data: bytes,
+    *,
+    filename: str = "upload.xlsx",
+    stream: AdStream | None = None,
+) -> Iterator[dict[str, Any]]:
     wb = _load_workbook_bytes(data)
     try:
         ws = wb.active
@@ -499,7 +524,7 @@ def iter_xlsx_rows(data: bytes, *, filename: str = "upload.xlsx") -> Iterator[di
             )
             return
         col_map, extras_idx, rows_iter, _header_labels = located
-        stream = detect_stream(filename)
+        stream = stream or detect_stream(filename)
         channel = stream.channel if stream else _detect_channel(filename)
         for row in rows_iter:
             if not row:
@@ -513,11 +538,21 @@ def iter_xlsx_rows(data: bytes, *, filename: str = "upload.xlsx") -> Iterator[di
         wb.close()
 
 
-def parse_xlsx_bytes(data: bytes, *, filename: str = "upload.xlsx") -> list[dict[str, Any]]:
-    return list(iter_xlsx_rows(data, filename=filename))
+def parse_xlsx_bytes(
+    data: bytes,
+    *,
+    filename: str = "upload.xlsx",
+    stream: AdStream | None = None,
+) -> list[dict[str, Any]]:
+    return list(iter_xlsx_rows(data, filename=filename, stream=stream))
 
 
-def parse_csv_text(text: str, *, filename: str = "upload.csv") -> list[dict[str, Any]]:
+def parse_csv_text(
+    text: str,
+    *,
+    filename: str = "upload.csv",
+    stream: AdStream | None = None,
+) -> list[dict[str, Any]]:
     raw = (text or "").strip()
     if not raw:
         return []
@@ -534,7 +569,7 @@ def parse_csv_text(text: str, *, filename: str = "upload.csv") -> list[dict[str,
     col_map, extras_idx = _map_header_row(header_row)
     if "ad_unit" not in col_map or "income_type" not in col_map:
         return []
-    stream = detect_stream(filename)
+    stream = stream or detect_stream(filename)
     channel = stream.channel if stream else _detect_channel(filename)
     out: list[dict[str, Any]] = []
     for cols in reader:
@@ -707,9 +742,12 @@ def import_upload_file(
     filename: str,
     commit: bool = True,
     progress_cb: ProgressCallback | None = None,
+    stream_key: str | None = None,
 ) -> dict[str, Any]:
     low = filename.lower()
-    stream = detect_stream(filename)
+    stream = resolve_stream(filename, stream_key)
+    if stream_key and not stream:
+        raise ValueError(f"Bilinmeyen dal: {stream_key}")
     channel = stream.channel if stream else _detect_channel(filename)
     try:
         if low.endswith(".xlsx") or low.endswith(".xlsm"):
@@ -730,7 +768,7 @@ def import_upload_file(
             row_est = _estimate_xlsx_data_rows(data)
             result = import_rows(
                 db,
-                iter_xlsx_rows(data, filename=filename),
+                iter_xlsx_rows(data, filename=filename, stream=stream),
                 commit=False,
                 progress_cb=progress_cb,
                 row_estimate=row_est or None,
@@ -756,7 +794,7 @@ def import_upload_file(
                 columns = [c.strip() for c in lines[0].split(delim)]
             result = import_rows(
                 db,
-                parse_csv_text(text, filename=filename),
+                parse_csv_text(text, filename=filename, stream=stream),
                 commit=False,
                 progress_cb=progress_cb,
                 row_estimate=max(0, len(lines) - 1) if lines else None,
@@ -779,10 +817,39 @@ def import_upload_file(
         result["project"] = stream.project
         result["branch"] = stream.branch
         result["period"] = _report_period_rank(filename)
+        result["incremental"] = "_increment_" in (filename or "").lower()
     else:
         result["stream_key"] = None
         result["warning"] = "Dosya adından dal tanınamadı"
     return result
+
+
+def import_append_to_stream(
+    db: Session,
+    data: bytes,
+    *,
+    stream_key: str,
+    original_filename: str,
+    commit: bool = True,
+) -> dict[str, Any]:
+    """Yalnızca yeni günler içeren küçük dosyayı seçili dala ekler (aynı gün+ad unit güncellenir)."""
+    catalog_name = incremental_catalog_filename(stream_key, original_filename)
+    out = import_upload_file(
+        db,
+        data,
+        filename=catalog_name,
+        commit=commit,
+        stream_key=stream_key,
+    )
+    out["incremental"] = True
+    out["original_filename"] = original_filename
+    if out.get("parsed", 0) <= 0:
+        out["warning"] = (
+            out.get("warning")
+            or out.get("parse_error")
+            or "Satır okunamadı — Ad Unit, Date/Tarih ve Income Type sütunları gerekli."
+        )
+    return out
 
 
 def build_upload_batch_summary(per_file: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1179,6 +1246,7 @@ def facets(db: Session) -> dict[str, Any]:
                 "channel": c.channel,
                 "row_count": c.row_count,
                 "columns": json.loads(c.columns_json or "[]"),
+                "incremental": "_increment_" in (c.source_file or "").lower(),
             }
             for c in catalogs
         ],
