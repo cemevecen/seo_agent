@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from backend.database import SessionLocal, engine
-from backend.models import AdReportCatalog, AdReportRow
+from backend.models import AdReportCatalog, AdReportRow, AdReportRowArchive
 
 _IS_PG = "postgresql" in str(engine.url)
 
@@ -675,10 +675,96 @@ _UPSERT_UPDATE_COLS = (
 )
 
 
+def _archive_row_snapshot(db: Session, row: AdReportRow) -> None:
+    payload = {
+        "fingerprint": row.fingerprint,
+        "source_file": row.source_file,
+        "project": row.project,
+        "branch": row.branch,
+        "platform": row.platform,
+        "channel": row.channel,
+        "surface": row.surface,
+        "ad_unit": row.ad_unit,
+        "month_key": row.month_key,
+        "report_date": row.report_date.isoformat(),
+        "income_type": row.income_type,
+        "ad_request": row.ad_request,
+        "matched_request": row.matched_request,
+        "impression": row.impression,
+        "click": row.click,
+        "ad_request_ecpm": row.ad_request_ecpm,
+        "ad_impression_ecpm": row.ad_impression_ecpm,
+        "ctr": row.ctr,
+        "coverage": row.coverage,
+        "viewability": row.viewability,
+        "net_revenue": row.net_revenue,
+        "extra_metrics": row.extra_metrics,
+    }
+    db.merge(
+        AdReportRowArchive(
+            fingerprint=row.fingerprint,
+            source_file=row.source_file,
+            payload_json=json.dumps(payload, ensure_ascii=False),
+            archived_at=datetime.utcnow(),
+        )
+    )
+
+
+def _archive_superseded_rows(db: Session, batch: list[dict[str, Any]]) -> None:
+    if not batch:
+        return
+    fps = {r["fingerprint"] for r in batch}
+    incoming = {r["fingerprint"]: r for r in batch}
+    for old in db.execute(
+        select(AdReportRow).where(AdReportRow.fingerprint.in_(fps))
+    ).scalars():
+        new = incoming.get(old.fingerprint)
+        if not new or new.get("source_file") == old.source_file:
+            continue
+        _archive_row_snapshot(db, old)
+
+
+def _restore_rows_from_archive(
+    db: Session,
+    deleted_file: str,
+    fingerprints: list[str],
+    active_catalog_files: set[str],
+) -> int:
+    restored = 0
+    for fp in fingerprints:
+        exists = db.scalar(
+            select(func.count())
+            .select_from(AdReportRow)
+            .where(AdReportRow.fingerprint == fp)
+        )
+        if exists:
+            continue
+        archives = db.execute(
+            select(AdReportRowArchive).where(
+                AdReportRowArchive.fingerprint == fp,
+                AdReportRowArchive.source_file != deleted_file,
+            )
+        ).scalars().all()
+        if not archives:
+            continue
+        in_catalog = [a for a in archives if a.source_file in active_catalog_files]
+        pool = in_catalog if in_catalog else list(archives)
+        best = max(pool, key=lambda a: (_report_period_rank(a.source_file), a.source_file))
+        payload = json.loads(best.payload_json or "{}")
+        rd = payload.get("report_date")
+        if isinstance(rd, str):
+            payload["report_date"] = date.fromisoformat(rd)
+        payload.pop("id", None)
+        db.add(AdReportRow(**payload))
+        restored += 1
+    return restored
+
+
 def _flush_batch(db: Session, batch: list[dict[str, Any]]) -> tuple[int, int]:
     """Upsert: aynı gün+ad_unit+gelir tipi güncellenir (duplike satır oluşmaz)."""
     if not batch:
         return 0, 0
+    _archive_superseded_rows(db, batch)
     if _IS_PG:
         stmt = pg_insert(AdReportRow).values(batch)
         stmt = stmt.on_conflict_do_update(
@@ -1131,10 +1217,62 @@ def count_rows(db: Session) -> int:
 def reset_all(db: Session) -> dict[str, int]:
     deleted_rows = count_rows(db)
     db.execute(delete(AdReportRow))
+    db.execute(delete(AdReportRowArchive))
     db.execute(delete(AdReportCatalog))
     db.commit()
     invalidate_facets_cache()
     return {"total": 0, "deleted_rows": deleted_rows}
+
+
+def delete_source_file(db: Session, source_file: str) -> dict[str, Any]:
+    """Tek yüklenen dosyayı ve satırlarını DB'den kaldır; üstüne yazılmış günler önceki dosyadan geri gelir."""
+    name = (source_file or "").strip()
+    if not name:
+        raise ValueError("source_file gerekli")
+    row_count = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AdReportRow)
+            .where(AdReportRow.source_file == name)
+        )
+        or 0
+    )
+    catalog = db.execute(
+        select(AdReportCatalog).where(AdReportCatalog.source_file == name)
+    ).scalars().first()
+    if row_count == 0 and catalog is None:
+        raise ValueError(f"Dosya bulunamadı: {name}")
+    active_catalog = {
+        str(x)
+        for x in db.execute(select(AdReportCatalog.source_file)).scalars().all()
+        if x
+    }
+    affected_fps = [
+        str(fp)
+        for fp in db.execute(
+            select(AdReportRow.fingerprint).where(AdReportRow.source_file == name)
+        ).scalars().all()
+        if fp
+    ]
+    db.execute(delete(AdReportRow).where(AdReportRow.source_file == name))
+    restored_rows = _restore_rows_from_archive(
+        db,
+        name,
+        affected_fps,
+        active_catalog - {name},
+    )
+    if catalog is not None:
+        db.delete(catalog)
+    db.execute(delete(AdReportRowArchive).where(AdReportRowArchive.source_file == name))
+    db.commit()
+    invalidate_facets_cache()
+    total_rows = count_rows(db)
+    return {
+        "source_file": name,
+        "deleted_rows": row_count,
+        "restored_rows": restored_rows,
+        "total_rows": total_rows,
+    }
 
 
 def date_bounds(db: Session) -> dict[str, str | None]:

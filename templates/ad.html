@@ -31,7 +31,8 @@
           <strong>2</strong> = 01.01–31.05.2026,
           <strong>3+</strong> = sonraki aylar. Örnek: <code class="text-[10px]">dovizweb1.xlsx</code>,
           <code class="text-[10px]">dovizweb2.xlsx</code>, <code class="text-[10px]">dovizmweb3.xlsx</code>.
-          Aynı gün üst üste gelirse büyük numara kazanır; hesaplama mantığı değişmez.
+          Aynı gün üst üste gelirse büyük numara kazanır. Dosya yanındaki × ile tekil silebilirsin;
+          aynı isimle yeniden yüklersen duplike olmaz, hesaplama aynı kalır.
         </p>
       </details>
       <details class="mt-2 rounded-lg border border-emerald-200/90 bg-emerald-50/50 p-2.5 dark:border-emerald-900/50 dark:bg-emerald-950/25 midnight:border-emerald-900/40">
@@ -696,6 +697,9 @@
     peerSummary: null,
     _peerSummaryKey: "",
     _peerSummaryPromise: null,
+    _mzImportFiles: [],
+    _mzDeleteBusy: false,
+    _mzDeletePendingFile: "",
   };
 
   function showPageError(msg) {
@@ -7100,9 +7104,14 @@
         } else {
           imp.innerHTML = imports.map(function (x) {
             var inc = x.incremental ? " <span class=\"text-emerald-600 dark:text-emerald-400\">+günlük</span>" : "";
-            return "<span class=\"rounded-full border border-slate-200 px-2 py-0.5 dark:border-zinc-600 midnight:border-zinc-700\">" +
-              x.channel + " · " + x.source_file + " · " + x.row_count + " satır" + inc + "</span>";
+            var fileAttr = mzHtmlAttr(x.source_file || "");
+            return "<span class=\"inline-flex items-center gap-1 rounded-full border border-slate-200 py-0.5 pl-2 pr-1 dark:border-zinc-600 midnight:border-zinc-700\">" +
+              "<span>" + x.channel + " · " + x.source_file + " · " + x.row_count + " satır" + inc + "</span>" +
+              "<button type=\"button\" class=\"mz-import-delete shrink-0 cursor-pointer rounded-full border border-transparent p-0.5 text-slate-500 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 dark:text-zinc-300 dark:hover:border-rose-800 dark:hover:bg-rose-950/50 dark:hover:text-rose-400\" " +
+              "title=\"Dosyayı sil\" aria-label=\"Dosyayı sil: " + fileAttr + "\" data-source-file=\"" + fileAttr + "\">×</button>" +
+              "</span>";
           }).join("");
+          state._mzImportFiles = imports;
           if ((f.extra_columns || []).length) {
             imp.innerHTML += "<span class=\"w-full text-[10px] text-slate-400\">Ek sütunlar: " +
               f.extra_columns.join(", ") + "</span>";
@@ -7930,6 +7939,93 @@
       modal.style.display = "flex";
       confirmBtn.focus();
     });
+  }
+
+  function mzHtmlAttr(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/\u0000/g, "");
+  }
+
+  function mzResolveImportSourceFile(btn) {
+    if (!btn) return "";
+    var fromAttr = btn.getAttribute("data-source-file");
+    if (fromAttr) return fromAttr;
+    var chip = btn.closest("span");
+    if (!chip) return "";
+    var label = chip.querySelector("span");
+    if (!label) return "";
+    var text = label.textContent || "";
+    var parts = text.split(" · ");
+    if (parts.length >= 2) return parts[1].trim();
+    return "";
+  }
+
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target && ev.target.closest ? ev.target.closest(".mz-import-delete") : null;
+    if (!btn) return;
+    var importsRoot = document.getElementById("mz-imports");
+    if (!importsRoot || !importsRoot.contains(btn)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var statusEl = document.getElementById("mz-status");
+    if (state._mzDeleteBusy) {
+      if (statusEl) statusEl.textContent = "Önceki silme işlemi devam ediyor…";
+      return;
+    }
+    var sourceFile = mzResolveImportSourceFile(btn);
+    if (!sourceFile) {
+      if (statusEl) statusEl.textContent = "Dosya adı okunamadı; sayfayı yenileyip tekrar deneyin.";
+      return;
+    }
+    state._mzDeletePendingFile = sourceFile;
+    mzConfirmTwoStep({
+      title: "Dosyayı sil",
+      step1: "Bu dosyayı silmek istiyor musunuz?",
+      detail: sourceFile,
+      step2Warn: "Son onay: dosya veritabanından tamamen kaldırılacak; üstüne yazılmış günler önceki dosyadan geri gelir.",
+      confirmFinal: "Evet, sil",
+    }).then(function (ok) {
+      if (!ok || state._mzDeletePendingFile !== sourceFile) return;
+      runMzImportDelete(sourceFile, btn);
+    });
+  }, true);
+
+  async function runMzImportDelete(sourceFile, btn) {
+    if (state._mzDeleteBusy) return;
+    state._mzDeleteBusy = true;
+    if (btn) btn.disabled = true;
+    var statusEl = document.getElementById("mz-status");
+    try {
+      var r = await fetch("/api/mz-analytics/delete-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_file: sourceFile }),
+        credentials: "same-origin",
+      });
+      var payload = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Silme başarısız (HTTP " + r.status + ")"));
+      if (state.source && state.source.delete) state.source.delete(sourceFile);
+      if (statusEl) {
+        var msg = "Silindi: " + sourceFile + " (" + (payload.deleted_rows || 0).toLocaleString("tr-TR") + " satır)";
+        if (payload.restored_rows) {
+          msg += " · " + payload.restored_rows.toLocaleString("tr-TR") + " satır önceki dosyadan geri yüklendi";
+        }
+        statusEl.textContent = msg;
+      }
+      showPageError("");
+      await loadFacets({ cacheBust: true });
+      await runQuery({ resetTableDrills: true });
+    } catch (err) {
+      if (btn) btn.disabled = false;
+      if (statusEl) statusEl.textContent = (err && err.message) || "Silme başarısız";
+      showPageError((err && err.message) || "Silme başarısız");
+    } finally {
+      state._mzDeleteBusy = false;
+      state._mzDeletePendingFile = "";
+    }
   }
 
   initBreakdownToolbars();

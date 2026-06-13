@@ -382,6 +382,103 @@ def test_reset_all_clears_db_and_facets():
         assert store.count_rows(db) == 0
 
 
+def test_delete_source_file_removes_rows_and_catalog():
+    init_db()
+    d = date(2026, 6, 10)
+    serial = _excel_serial(d)
+    csv_a = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"web_unit_a,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,10\n"
+    )
+    csv_b = csv_a.replace("web_unit_a", "web_unit_b").replace(",10\n", ",20\n")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_upload_file(db, csv_a.encode("utf-8"), filename="dovizweb1.csv", commit=True)
+        store.import_upload_file(db, csv_b.encode("utf-8"), filename="dovizweb2.csv", commit=True)
+        assert store.count_rows(db) == 2
+        out = store.delete_source_file(db, "dovizweb1.csv")
+        assert out["deleted_rows"] == 1
+        assert store.count_rows(db) == 1
+        remaining = db.query(AdReportRow).one()
+        assert remaining.source_file == "dovizweb2.csv"
+        assert remaining.net_revenue == 20.0
+
+
+def test_delete_overwritten_file_restores_previous_period():
+    init_db()
+    d = date(2026, 6, 10)
+    serial = _excel_serial(d)
+    csv = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"web_unit_x,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,10\n"
+    )
+    csv2 = csv.replace(",10\n", ",99\n")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_upload_file(db, csv.encode("utf-8"), filename="dovizweb1.csv", commit=True)
+        store.import_upload_file(db, csv2.encode("utf-8"), filename="dovizweb2.csv", commit=True)
+        row = db.query(AdReportRow).one()
+        assert row.source_file == "dovizweb2.csv"
+        assert row.net_revenue == 99.0
+        out = store.delete_source_file(db, "dovizweb2.csv")
+        assert out["deleted_rows"] == 1
+        assert out["restored_rows"] == 1
+        restored = db.query(AdReportRow).one()
+        assert restored.source_file == "dovizweb1.csv"
+        assert restored.net_revenue == 10.0
+
+
+def test_delete_and_reupload_same_file():
+    init_db()
+    d = date(2026, 6, 11)
+    serial = _excel_serial(d)
+    csv = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"web_unit_y,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,42\n"
+    )
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_upload_file(db, csv.encode("utf-8"), filename="dovizweb1.csv", commit=True)
+        store.delete_source_file(db, "dovizweb1.csv")
+        assert store.count_rows(db) == 0
+        store.import_upload_file(db, csv.encode("utf-8"), filename="dovizweb1.csv", commit=True)
+        row = db.query(AdReportRow).one()
+        assert row.net_revenue == 42.0
+
+
+def test_delete_file3_restores_file2_then_reupload_file3():
+    """dovizandroid3 sil → android2 geri gelir; yeni android3 yüklenince duplike olmaz."""
+    init_db()
+    d = date(2026, 6, 10)
+    serial = _excel_serial(d)
+    csv = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"app_unit,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,10\n"
+    )
+    csv2 = csv.replace(",10\n", ",50\n")
+    csv3 = csv.replace(",10\n", ",80\n")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_upload_file(db, csv.encode("utf-8"), filename="dovizandroid1.csv", commit=True)
+        store.import_upload_file(db, csv2.encode("utf-8"), filename="dovizandroid2.csv", commit=True)
+        store.import_upload_file(db, csv3.encode("utf-8"), filename="dovizandroid3.csv", commit=True)
+        row = db.query(AdReportRow).one()
+        assert row.net_revenue == 80.0
+        store.delete_source_file(db, "dovizandroid3.csv")
+        row = db.query(AdReportRow).one()
+        assert row.source_file == "dovizandroid2.csv"
+        assert row.net_revenue == 50.0
+        store.import_upload_file(db, csv3.replace(",80\n", ",95\n").encode("utf-8"), filename="dovizandroid3.csv", commit=True)
+        row = db.query(AdReportRow).one()
+        assert row.source_file == "dovizandroid3.csv"
+        assert row.net_revenue == 95.0
+        assert store.count_rows(db) == 1
+
+
 def test_suggested_detail_favorites_stream_keys_and_top_n():
     init_db()
     with SessionLocal() as db:

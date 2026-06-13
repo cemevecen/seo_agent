@@ -929,6 +929,17 @@ class AdReportRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AdReportRowArchive(Base):
+    """Bir dosya başka bir dosyayla üstüne yazmadan önce saklanan satır anlık görüntüsü."""
+
+    __tablename__ = "ad_report_row_archives"
+
+    fingerprint: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source_file: Mapped[str] = mapped_column(String(255), primary_key=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    archived_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AdReportCatalog(Base):
     """Yüklenen rapor başlıkları — yeni sütunlar için esnek şema kaydı."""
 

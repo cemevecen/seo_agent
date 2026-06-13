@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -538,6 +538,23 @@ def get_app_lab_preview(
 def post_ad_analytics_reset(db: Session = Depends(get_db)):
     try:
         return store.reset_all(db)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/mz-analytics/delete-import")
+def post_ad_analytics_delete_import(
+    db: Session = Depends(get_db),
+    body: dict = Body(...),
+):
+    source_file = str(body.get("source_file") or "").strip()
+    if not source_file:
+        raise HTTPException(status_code=400, detail="source_file gerekli")
+    try:
+        return store.delete_source_file(db, source_file)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
