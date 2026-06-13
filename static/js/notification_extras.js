@@ -5,6 +5,18 @@
   "use strict";
 
   var DOW_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+  var HEATMAP_HOUR_START = 7;
+  var HEATMAP_HOUR_END = 23;
+  var HEATMAP_COLORSCALE = [
+    [0, "#14532d"],
+    [0.14, "#22c55e"],
+    [0.28, "#86efac"],
+    [0.42, "#fde047"],
+    [0.57, "#eab308"],
+    [0.71, "#f97316"],
+    [0.85, "#ef4444"],
+    [1, "#7f1d1d"],
+  ];
 
   function dowIndex(iso) {
     var dt = new Date(iso);
@@ -208,10 +220,12 @@
       return;
     }
     var metric = (global.document.getElementById("nt-heatmap-metric") || {}).value || "total";
+    var hStart = HEATMAP_HOUR_START;
+    var hEnd = HEATMAP_HOUR_END;
     var grid = {};
     for (var d = 0; d < 7; d++) {
       grid[d] = {};
-      for (var h = 0; h < 24; h++) grid[d][h] = 0;
+      for (var h = hStart; h <= hEnd; h++) grid[d][h] = 0;
     }
     (rows || []).forEach(function (r) {
       var iso = String(r.date || "");
@@ -220,6 +234,7 @@
       if (dow < 0) return;
       var dt = new Date(iso);
       var hour = dt.getHours();
+      if (hour < hStart || hour > hEnd) return;
       var val = 0;
       if (metric === "total") val = rowTotalClick(r);
       else {
@@ -231,10 +246,12 @@
     var z = [];
     var y = DOW_LABELS.slice();
     var x = [];
-    for (var hi = 0; hi < 24; hi++) x.push(hi + ":00");
+    for (var hi = hStart; hi <= hEnd; hi++) {
+      x.push((hi < 10 ? "0" : "") + hi + ":00");
+    }
     for (var di = 0; di < 7; di++) {
       var row = [];
-      for (var hj = 0; hj < 24; hj++) row.push(grid[di][hj]);
+      for (var hj = hStart; hj <= hEnd; hj++) row.push(grid[di][hj]);
       z.push(row);
     }
     var dark = global.document.documentElement.classList.contains("dark");
@@ -243,14 +260,16 @@
       x: x,
       y: y,
       z: z,
-      colorscale: dark ? "Viridis" : "Blues",
+      colorscale: HEATMAP_COLORSCALE,
+      zmin: 0,
       hoverongaps: false,
+      colorbar: { tickfont: { size: 9, color: dark ? "#a1a1aa" : "#475569" } },
     }], {
       margin: { l: 50, r: 10, t: 10, b: 40 },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
       font: { color: dark ? "#a1a1aa" : "#475569", size: 10 },
-      xaxis: { title: "Saat" },
+      xaxis: { title: "Saat (07:00–23:00)", tickangle: -45 },
       yaxis: { title: "Gün" },
     }, { responsive: true, displayModeBar: false });
   }
