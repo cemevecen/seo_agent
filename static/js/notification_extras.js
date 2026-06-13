@@ -790,8 +790,8 @@
     }).join("");
   }
 
-  function trafficExtraWrap(num, title, innerHtml, wide) {
-    return '<section class="nt-traffic-extra' + (wide ? " nt-traffic-extra-wide" : "") + ' rounded-lg border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/60" data-nt-extra="' + num + '">'
+  function trafficExtraWrap(num, title, innerHtml) {
+    return '<section class="nt-traffic-extra rounded-lg border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/60" data-nt-extra="' + num + '">'
       + '<p class="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">'
       + '<span class="inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-slate-200 px-1 text-[9px] font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">' + num + "</span>"
       + (nt().escapeHtml ? nt().escapeHtml(title) : title) + "</p>"
@@ -832,21 +832,15 @@
     return base + "&page=!" + encodeURIComponent(pageUrl);
   }
 
-  function buildTrafficExtrasHtml(data, row) {
+  function buildTrafficBottomExtrasHtml(data, row, startNum) {
     var sum = data.summary || {};
     var ga4 = data.ga4 || {};
-    var gscQueries = sum.gsc_queries || (data.gsc && data.gsc.queries) || [];
-    var wideParts = [];
-    var rowParts = [];
-    var extraNum = 0;
-    if (gscQueries.length) {
-      extraNum += 1;
-      wideParts.push(trafficExtraWrap(extraNum, "GSC arama sorguları", buildGscQueriesTableHtml(gscQueries), true));
-    }
+    var parts = [];
+    var extraNum = startNum || 1;
     if (row) {
       var p = row.platforms || {};
       extraNum += 1;
-      rowParts.push(trafficExtraWrap(extraNum, "Platform CTR (CSV)", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
+      parts.push(trafficExtraWrap(extraNum, "Platform CTR (CSV)", '<div class="nt-traffic-ctr-grid text-[9px]">'
         + ["desktop", "mobileweb", "android", "ios"].map(function (k) {
           var z = p[k] || {};
           var c = nt().nCount ? nt().nCount(z.click) : 0;
@@ -862,7 +856,7 @@
       var primary = urls[0];
       var gscPageUrl = buildGscPerformancePageUrl(data, primary);
       extraNum += 1;
-      rowParts.push(trafficExtraWrap(extraNum, "Hızlı linkler", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
+      parts.push(trafficExtraWrap(extraNum, "Hızlı linkler", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
         + '<a class="rounded border border-emerald-200 px-2 py-1 text-emerald-800 underline dark:border-emerald-800 dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(primary) : primary) + '" target="_blank" rel="noopener">Haber</a>'
         + '<a class="rounded border border-slate-200 px-2 py-1 text-slate-700 underline dark:border-slate-600 dark:text-slate-300" href="/ga4" target="_blank" rel="noopener">GA4 panel</a>'
         + '<a class="rounded border border-sky-200 px-2 py-1 text-sky-800 underline dark:border-sky-800 dark:text-sky-300" href="/search-console" target="_blank" rel="noopener">Search Console</a>'
@@ -901,13 +895,13 @@
       }).join("");
       if (rows6) {
         extraNum += 1;
-        rowParts.push(trafficExtraWrap(extraNum, "Kaynak × platform (oturum)", '<table class="nt-gsc-queries-table text-[9px]"><thead><tr class="text-slate-500"><th>Kaynak</th><th>WEB</th><th>MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
+        parts.push(trafficExtraWrap(extraNum, "Kaynak × platform (oturum)", '<table class="nt-gsc-queries-table w-full text-[9px]"><thead><tr class="text-slate-500"><th>Kaynak</th><th>WEB</th><th>MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
       }
     }
     var phases = sum.ga4_day_phases || ga4.day_phases || [];
     if (phases.length) {
       extraNum += 1;
-      rowParts.push(trafficExtraWrap(extraNum, "Gönderim günü vs sonrası", '<div class="space-y-0.5 text-[9px]">' + phases.map(function (ph) {
+      parts.push(trafficExtraWrap(extraNum, "Gönderim günü vs sonrası", '<div class="space-y-0.5 text-[9px]">' + phases.map(function (ph) {
         return '<p><span class="text-slate-600 dark:text-slate-400">' + (ph.label || ph.key) + ":</span> "
           + '<span class="font-semibold">' + (nt().fmtCount ? nt().fmtCount(ph.sessions) : ph.sessions) + " oturum · "
           + (nt().fmtCount ? nt().fmtCount(ph.views) : ph.views) + " gör.</span></p>";
@@ -916,19 +910,15 @@
     var eng = sum.ga4_engagement || ga4.engagement || {};
     if (eng.sessions) {
       extraNum += 1;
-      rowParts.push(trafficExtraWrap(extraNum, "GA4 engagement", '<div class="flex flex-wrap gap-x-3 gap-y-1 text-[9px]">'
+      parts.push(trafficExtraWrap(extraNum, "GA4 engagement", '<div class="flex flex-wrap gap-x-3 gap-y-1 text-[9px]">'
         + '<span><span class="text-slate-500">Eng. rate</span> <strong>' + Number(eng.engagement_rate_pct != null ? eng.engagement_rate_pct : (Number(eng.engagement_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
         + '<span><span class="text-slate-500">Bounce</span> <strong>' + Number(eng.bounce_rate_pct != null ? eng.bounce_rate_pct : (Number(eng.bounce_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
         + '<span><span class="text-slate-500">Ort. oturum</span> <strong>' + Math.round(Number(eng.avg_session_duration_sec || 0)) + " sn</strong></span>"
         + '<span><span class="text-slate-500">Engaged</span> <strong>' + (nt().fmtCount ? nt().fmtCount(eng.engaged_sessions || 0) : (eng.engaged_sessions || 0)) + "</strong></span>"
         + "</div>"));
     }
-    if (!wideParts.length && !rowParts.length) return "";
-    var html = wideParts.join("");
-    if (rowParts.length) {
-      html += '<div class="nt-traffic-extras-row">' + rowParts.join("") + "</div>";
-    }
-    return '<div class="nt-traffic-extras">' + html + "</div>";
+    if (!parts.length) return "";
+    return '<div class="nt-traffic-bottom">' + parts.join("") + "</div>";
   }
 
   function renderInlineDrill(row, rootEl) {
@@ -1077,22 +1067,32 @@
     var gscNote = (gscClicks === 0 && gscImpr > 0)
       ? '<p class="mt-1 text-[9px] text-sky-700/80 dark:text-sky-300/80">0 click = Google arama sonuçlarından tıklama yok. Bildirim trafiği GSC’de görünmez.</p>'
       : "";
-    body.innerHTML = '<div class="nt-traffic-cards">'
-      + '<div class="nt-traffic-card rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'
+    var gscQueries = sum.gsc_queries || (data.gsc && data.gsc.queries) || [];
+    var gscQueriesHtml = gscQueries.length
+      ? trafficExtraWrap(1, "GSC arama sorguları", buildGscQueriesTableHtml(gscQueries))
+      : "";
+    var bottomStartNum = gscQueries.length ? 1 : 0;
+    body.innerHTML = '<div class="nt-traffic-grid">'
+      + '<div class="nt-traffic-panel nt-traffic-panel-ga4 rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'
       + '<p class="font-bold text-emerald-800 dark:text-emerald-300">GA4</p>'
       + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_views || 0) : (sum.ga4_views || 0)) + ' <span class="text-xs font-normal">görüntüleme</span></p>'
       + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " oturum · " + ga4Detail + "</p>"
       + ga4SourceHtml + "</div>"
-      + '<div class="nt-traffic-card rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
+      + '<div class="nt-traffic-gsc-col">'
+      + '<div class="nt-traffic-panel nt-traffic-panel-gsc rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
       + '<p class="font-bold text-sky-800 dark:text-sky-300">Search Console <span class="text-[9px] font-normal">(organik arama)</span></p>'
       + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(gscClicks) : gscClicks) + ' <span class="text-xs font-normal">click</span></p>'
       + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gscImpr) : gscImpr) + " impr · poz " + Number(gscPos || 0).toFixed(1)
       + " · " + gscRangeLabel
       + (gsc30.clicks ? " · 30g depo " + (nt().fmtCount ? nt().fmtCount(gsc30.clicks) : gsc30.clicks) + " click" : "") + "</p>"
       + gscNote + gscPagesHtml + "</div>"
+      + gscQueriesHtml
       + "</div>"
-      + buildTrafficExtrasHtml(data, row)
-      + (urlHtml ? '<div class="mt-2"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>" : '<p class="mt-2 text-[10px] text-slate-500">Bu bildirim için GA4/GSC URL eşleşmesi bulunamadı. Başlık ve gönderim tarihi ile tekrar denendi.</p>');
+      + buildTrafficBottomExtrasHtml(data, row, bottomStartNum)
+      + (urlHtml
+        ? '<div class="nt-traffic-urls"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>"
+        : '<p class="nt-traffic-urls text-[10px] text-slate-500">Bu bildirim için GA4/GSC URL eşleşmesi bulunamadı. Başlık ve gönderim tarihi ile tekrar denendi.</p>')
+      + "</div>";
   }
 
   function loadContentTraffic(row, targets) {
