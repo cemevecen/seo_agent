@@ -129,14 +129,14 @@
   </div>
 
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+    <div class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
       <h3 class="text-sm font-bold text-emerald-700 dark:text-emerald-400">En çok (Top 50)</h3>
-      <div id="nt-most-list" class="mt-2 space-y-2 text-sm"></div>
+      <div id="nt-most-list" class="mt-2 min-w-0 space-y-2 text-sm"></div>
       <button type="button" id="nt-most-expand" class="mt-3 hidden w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60">Top 50'yi gör / genişlet</button>
     </div>
-    <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+    <div class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
       <h3 class="text-sm font-bold text-rose-700 dark:text-rose-400">En az (Top 50)</h3>
-      <div id="nt-least-list" class="mt-2 space-y-2 text-sm"></div>
+      <div id="nt-least-list" class="mt-2 min-w-0 space-y-2 text-sm"></div>
       <button type="button" id="nt-least-expand" class="mt-3 hidden w-full rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200 dark:hover:bg-rose-950/60">Top 50'yi gör / genişlet</button>
     </div>
   </div>
@@ -247,6 +247,30 @@
       color: rgb(30 41 59) !important;
     }
     html.dark .notification-page .nt-cross-top-table .nt-cross-title { color: rgb(212 212 216) !important; }
+    .notification-page .nt-top-list-item { min-width: 0; max-width: 100%; }
+    .notification-page .nt-top-list-headline {
+      display: flex;
+      min-width: 0;
+      max-width: 100%;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
+    .notification-page .nt-top-list-headline .nt-top-list-num { flex-shrink: 0; }
+    .notification-page .nt-top-list-headline .nt-top-list-title {
+      min-width: 0;
+      flex: 1 1 0%;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block;
+    }
+    .notification-page .nt-top-list-meta {
+      margin-top: 0.25rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .notification-page .nt-cross-top-table .nt-cross-total {
       width: 5.25rem;
       min-width: 5.25rem !important;
@@ -1388,10 +1412,15 @@
     el.innerHTML = shown.map(function (x, idx) {
       var drillAttr = ' data-nt-drill data-nt-drill-id="' + escapeHtml(x.id || "").replace(/"/g, "&quot;") + '" data-nt-drill-date="' + escapeHtml(x.latestDate || "") + '"';
       if (!x.id) drillAttr += ' data-nt-drill-text="' + escapeHtml(x.headline || "").replace(/"/g, "&quot;") + '"';
-      return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">'
-        + '<p class="text-xs font-semibold text-slate-700 dark:text-slate-200">' + (idx + 1) + '. <button type="button" class="text-left font-semibold text-indigo-700 underline dark:text-indigo-300"' + drillAttr + '>' + escapeHtml(x.headline) + '</button></p>'
-        + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmtCount(x.clicks) + ' click' + (selectedListPlatform === "ios" ? "" : (' · ' + fmtCount(x.impressions) + ' impr')) + ' · ' + fmt(x.rows) + ' kayıt</span></p>'
-        + '</div>';
+      var title = escapeHtml(x.headline || "");
+      var titleTip = title.replace(/"/g, "&quot;");
+      return '<div class="nt-top-list-item min-w-0 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">'
+        + '<p class="nt-top-list-headline text-xs font-semibold text-slate-700 dark:text-slate-200">'
+        + '<span class="nt-top-list-num tabular-nums">' + (idx + 1) + ".</span>"
+        + '<button type="button" class="nt-top-list-title text-left font-semibold text-indigo-700 underline dark:text-indigo-300"' + drillAttr + ' title="' + titleTip + '">' + title + "</button>"
+        + "</p>"
+        + '<p class="nt-top-list-meta text-xs ' + cls + '">' + metricNumberText(x.metric) + " " + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + " · " + (x.latestDate || "-") + " · " + fmtCount(x.clicks) + " click" + (selectedListPlatform === "ios" ? "" : (" · " + fmtCount(x.impressions) + " impr")) + " · " + fmt(x.rows) + " kayıt</span></p>"
+        + "</div>";
     }).join("");
     if (!toggle) return;
     if (items.length <= TOP_LIST_DEFAULT) {
@@ -1430,7 +1459,7 @@
     var effectiveField = rawListView === "preview" ? "date" : rawSortField;
     var effectiveDir = rawListView === "preview" ? "desc" : rawSortDir;
     var sorted = rows.slice().sort(function (a, b) {
-      var col = RAW_COLUMNS.find(function (c) { return c.key === effectiveField; }) || RAW_COLUMNS[2];
+      var col = RAW_COLUMNS.find(function (c) { return c.key === effectiveField; }) || RAW_COLUMNS[0];
       var av = rawValue(a, col.key);
       var bv = rawValue(b, col.key);
       var dir = effectiveDir === "asc" ? 1 : -1;
