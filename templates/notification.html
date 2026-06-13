@@ -332,7 +332,6 @@
     { key: "android_ctr", label: "android app ctr", type: "number" },
     { key: "android_impression", label: "android app impression", type: "number" },
     { key: "ios_click", label: "ios app click", type: "number" },
-    { key: "ios_impression", label: "ios app impression", type: "number" },
     { key: "desktop_impression", label: "desktop impression", type: "number" },
     { key: "desktop_click", label: "desktop click", type: "number" },
     { key: "mobileweb_impression", label: "mobile web impression", type: "number" },
@@ -457,12 +456,17 @@
     if (metric === "ctr") return "ctr";
     return "click";
   }
-  function metricValueFromPlatformData(z, metric) {
+  function platformImpression(platformKey, z) {
+    if (platformKey === "ios") return 0;
+    return nCount((z || {}).impression);
+  }
+  function metricValueFromPlatformData(z, metric, platformKey) {
     if (!z) return 0;
     var clickVal = nCount(z.click);
-    var imprVal = nCount(z.impression);
+    var imprVal = platformImpression(platformKey, z);
     if (metric === "impression") return imprVal;
     if (metric === "ctr") {
+      if (platformKey === "ios") return n(z.ctr);
       if (imprVal > 0) return (clickVal / imprVal) * 100;
       return n(z.ctr);
     }
@@ -889,7 +893,7 @@
     var idx = {
       id: pick(["id"]), text: pick(["text", "title", "headline"]), date: pick(["date", "datetime", "timestamp"]),
       ai: pick(["androidappimpression"]), ac: pick(["androidappclick"]), atr: pick(["androidappctr"]),
-      ii: pick(["iosappimpression"]), ic: pick(["iosappclick"]), itr: pick(["iosappctr"]),
+      ic: pick(["iosappclick"]), itr: pick(["iosappctr"]),
       di: pick(["desktopimpression"]), dc: pick(["desktopclick"]), dtr: pick(["desktopctr"]),
       mi: pick(["mobilewebimpression"]), mc: pick(["mobilewebclick"]), mtr: pick(["mobilewebctr"])
     };
@@ -905,7 +909,7 @@
         date: iso,
         platforms: {
           android: { impression: n(cols[idx.ai]), click: n(cols[idx.ac]), ctr: n(cols[idx.atr]) },
-          ios: { impression: n(cols[idx.ii]), click: n(cols[idx.ic]), ctr: n(cols[idx.itr]) },
+          ios: { click: n(cols[idx.ic]), ctr: n(cols[idx.itr]) },
           desktop: { impression: n(cols[idx.di]), click: n(cols[idx.dc]), ctr: n(cols[idx.dtr]) },
           mobileweb: { impression: n(cols[idx.mi]), click: n(cols[idx.mc]), ctr: n(cols[idx.mtr]) }
         }
@@ -944,7 +948,8 @@
       headlines[r.text] = 1;
       PLATFORM_KEYS.forEach(function (p) {
         var z = (r.platforms && r.platforms[p.key]) || {};
-        totalClicks += nCount(z.click); totalImpr += nCount(z.impression);
+        totalClicks += nCount(z.click);
+        totalImpr += platformImpression(p.key, z);
       });
     });
     document.getElementById("nt-kpi-rows").textContent = fmt(rows.length);
@@ -959,14 +964,15 @@
       if (!byDay[k]) byDay[k] = { day: k, android: 0, ios: 0, desktop: 0, mobileweb: 0, android_click: 0, ios_click: 0, desktop_click: 0, mobileweb_click: 0, android_impr: 0, ios_impr: 0, desktop_impr: 0, mobileweb_impr: 0 };
       PLATFORM_KEYS.forEach(function (p) {
         var z = ((r.platforms || {})[p.key] || {});
-        byDay[k][p.key] += metricValueFromPlatformData(z, selectedMetric);
+        byDay[k][p.key] += metricValueFromPlatformData(z, selectedMetric, p.key);
         byDay[k][p.key + "_click"] += nCount(z.click);
-        byDay[k][p.key + "_impr"] += nCount(z.impression);
+        if (p.key !== "ios") byDay[k][p.key + "_impr"] += nCount(z.impression);
       });
     });
     if (selectedMetric === "ctr") {
       Object.keys(byDay).forEach(function (k) {
         PLATFORM_KEYS.forEach(function (p) {
+          if (p.key === "ios") return;
           var c = n(byDay[k][p.key + "_click"]);
           var i = n(byDay[k][p.key + "_impr"]);
           byDay[k][p.key] = i > 0 ? (c / i) * 100 : n(byDay[k][p.key]);
@@ -1048,9 +1054,9 @@
     rows.forEach(function (r) {
       PLATFORM_KEYS.forEach(function (p) {
         var z = ((r.platforms || {})[p.key] || {});
-        weights[p.key] += metricValueFromPlatformData(z, selectedMetric);
+        weights[p.key] += metricValueFromPlatformData(z, selectedMetric, p.key);
         clickTotals[p.key] += nCount(z.click);
-        imprTotals[p.key] += nCount(z.impression);
+        if (p.key !== "ios") imprTotals[p.key] += nCount(z.impression);
       });
     });
     if (selectedMetric === "ctr") {
@@ -1086,7 +1092,7 @@
     var list = rows.map(function (r) {
       var z = ((r.platforms || {})[dataKey] || {});
       var clicks = nCount(z.click);
-      var impressions = nCount(z.impression);
+      var impressions = platformImpression(dataKey, z);
       var metric = selectedMetric === "ctr"
         ? (impressions > 0 ? (clicks / impressions) * 100 : 0)
         : (selectedMetric === "impression" ? impressions : clicks);
@@ -1201,7 +1207,7 @@
     el.innerHTML = shown.map(function (x, idx) {
       return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">'
         + '<p class="text-xs font-semibold text-slate-700 dark:text-slate-200">' + (idx + 1) + '. ' + escapeHtml(x.headline) + '</p>'
-        + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmt(x.clicks) + ' click · ' + fmt(x.impressions) + ' impr · ' + fmt(x.rows) + ' kayıt</span></p>'
+        + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmtCount(x.clicks) + ' click' + (selectedListPlatform === "ios" ? "" : (' · ' + fmtCount(x.impressions) + ' impr')) + ' · ' + fmt(x.rows) + ' kayıt</span></p>'
         + '</div>';
     }).join("");
     if (!toggle) return;
@@ -1309,7 +1315,6 @@
     }
     if (key === "android_impression") return nCount((p.android || {}).impression);
     if (key === "ios_click") return nCount((p.ios || {}).click);
-    if (key === "ios_impression") return nCount((p.ios || {}).impression);
     if (key === "desktop_impression") return nCount((p.desktop || {}).impression);
     if (key === "desktop_click") return nCount((p.desktop || {}).click);
     if (key === "mobileweb_impression") return nCount((p.mobileweb || {}).impression);
@@ -1370,6 +1375,7 @@
       readRows: readRows,
       getFilteredRows: getFilteredRows,
       aggregateByDay: aggregateByDay,
+      platformImpression: platformImpression,
       metricValueFromPlatformData: metricValueFromPlatformData,
       mapListPlatformToDataKey: mapListPlatformToDataKey,
       getListPlatform: function () { return selectedListPlatform; },

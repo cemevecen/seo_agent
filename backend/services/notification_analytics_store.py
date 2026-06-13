@@ -179,7 +179,6 @@ def parse_csv_text(text: str) -> list[dict]:
         "ai": pick(["androidappimpression"]),
         "ac": pick(["androidappclick"]),
         "atr": pick(["androidappctr"]),
-        "ii": pick(["iosappimpression"]),
         "ic": pick(["iosappclick"]),
         "itr": pick(["iosappctr"]),
         "di": pick(["desktopimpression"]),
@@ -212,7 +211,6 @@ def parse_csv_text(text: str) -> list[dict]:
                     "ctr": _n(col(cols, idx["atr"])),
                 },
                 "ios": {
-                    "impression": _n_count(col(cols, idx["ii"])),
                     "click": _n_count(col(cols, idx["ic"])),
                     "ctr": _n(col(cols, idx["itr"])),
                 },
@@ -229,7 +227,7 @@ def parse_csv_text(text: str) -> list[dict]:
             },
         }
         if item["text"]:
-            out.append(item)
+            out.append(_sanitize_row(item))
     return out
 
 
@@ -249,10 +247,22 @@ def _row_key(row: dict) -> str:
     return f"{row.get('id') or ''}|{row.get('text')}|{row.get('date')}"
 
 
+def _sanitize_row(row: dict) -> dict:
+    """iOS yalnızca click tutulur; impression alanı kullanılmaz."""
+    platforms = row.get("platforms")
+    if not isinstance(platforms, dict):
+        return row
+    ios = platforms.get("ios")
+    if not isinstance(ios, dict) or "impression" not in ios:
+        return row
+    clean_ios = {k: v for k, v in ios.items() if k != "impression"}
+    return {**row, "platforms": {**platforms, "ios": clean_ios}}
+
+
 def _merge_rows(existing: list[dict], incoming: list[dict]) -> list[dict]:
     merged: dict[str, dict] = {}
     for row in existing + incoming:
-        merged[_row_key(row)] = row
+        merged[_row_key(row)] = _sanitize_row(row)
     return sorted(merged.values(), key=lambda r: r.get("date") or "")
 
 
@@ -268,7 +278,7 @@ def _get_workspace(db: Session) -> NotificationAnalyticsWorkspace:
 def _load_rows(row: NotificationAnalyticsWorkspace) -> list[dict]:
     try:
         data = json.loads(row.rows_json or "[]")
-        return data if isinstance(data, list) else []
+        return [_sanitize_row(r) for r in data if isinstance(r, dict)]
     except json.JSONDecodeError:
         return []
 

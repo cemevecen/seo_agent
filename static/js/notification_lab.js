@@ -91,8 +91,8 @@
       var rowClicks = 0;
       nt.PLATFORM_KEYS.forEach(function (plat) {
         var z = p[plat.key] || {};
-        var c = nt.n(z.click);
-        var im = nt.n(z.impression);
+        var c = nt.nCount ? nt.nCount(z.click) : nt.n(z.click);
+        var im = nt.platformImpression ? nt.platformImpression(plat.key, z) : (plat.key === "ios" ? 0 : (nt.nCount ? nt.nCount(z.impression) : nt.n(z.impression)));
         by[h].clicks += c;
         by[h].impressions += im;
         rowClicks += c;
@@ -126,7 +126,8 @@
       if (!h) return;
       if (!by[h]) by[h] = { headline: h, clicks: 0, impressions: 0, rows: 0, lastDay: "", daily: {} };
       var z = ((r.platforms || {})[pk] || {});
-      var c = nt.n(z.click), im = nt.n(z.impression);
+      var c = nt.nCount ? nt.nCount(z.click) : nt.n(z.click);
+      var im = pk === "ios" ? 0 : (nt.nCount ? nt.nCount(z.impression) : nt.n(z.impression));
       by[h].clicks += c;
       by[h].impressions += im;
       by[h].rows += 1;

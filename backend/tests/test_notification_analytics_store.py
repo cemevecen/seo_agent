@@ -65,6 +65,17 @@ def test_parse_csv_reference_row_format():
     assert p["android"]["impression"] == 48521.0
     assert p["android"]["click"] == 423.0
     assert p["ios"]["click"] == 336.0
+    assert "impression" not in p["ios"]
+
+
+def test_ios_impression_column_ignored():
+    csv = (
+        "id,text,date,ios app impression,ios app click\n"
+        "1,Test,01.03.2026,99.999,42\n"
+    )
+    rows = parse_csv_text(csv)
+    assert rows[0]["platforms"]["ios"]["click"] == 42.0
+    assert "impression" not in rows[0]["platforms"]["ios"]
 
 
 def test_rows_date_bounds():
