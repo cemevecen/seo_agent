@@ -112,9 +112,11 @@ def post_notification_analytics_reset(db: Session = Depends(get_db)):
 
 @router.get("/notification-analytics/traffic")
 def get_notification_analytics_traffic(
-    content_id: str = Query(..., description="Bildirim içerik ID (ör. 705471)"),
+    content_id: str = Query(..., description="Bildirim içerik ID"),
+    headline: str | None = Query(None, description="Bildirim başlığı (GA4/GSC eşleme yedek)"),
+    send_date: str | None = Query(None, description="Gönderim tarihi YYYY-MM-DD"),
     site_id: int = Query(1, ge=1, description="GA4/GSC site ID"),
-    days: int = Query(7, ge=1, le=90),
+    days: int = Query(14, ge=1, le=90, description="Gönderim tarihinden itibaren pencere (gün)"),
     live: bool = Query(True, description="GA4 canlı çekim; GSC DB boşsa canlı"),
     db: Session = Depends(get_db),
 ):
@@ -124,6 +126,8 @@ def get_notification_analytics_traffic(
         return resolve_content_traffic(
             db,
             content_id=content_id,
+            headline=headline,
+            send_date=send_date,
             site_id=site_id,
             days=days,
             live=live,

@@ -401,7 +401,12 @@
     var gsc7 = (gsc.scopes && gsc.scopes.current_7d_pages) || (gsc.scopes && gsc.scopes.live) || {};
     var gsc30 = (gsc.scopes && gsc.scopes.current_30d_pages) || {};
     if (meta) {
-      meta.textContent = "İçerik ID " + data.article_id + " · " + (data.site_domain || "") + " · son " + (data.days || 7) + " gün GA4";
+      var dr = data.date_range || {};
+      var rangeTxt = (dr.start && dr.end) ? (dr.start + " – " + dr.end) : ("son " + (data.days || 14) + " gün");
+      var matchTxt = sum.match_method === "headline" ? " · başlık eşleşmesi" : (sum.match_method === "path_id" ? " · URL ID eşleşmesi" : "");
+      meta.textContent = "Bildirim ID " + data.content_id
+        + (data.resolved_article_id && data.resolved_article_id !== data.article_id ? (" → makale " + data.resolved_article_id) : "")
+        + " · " + (data.site_domain || "") + " · " + rangeTxt + matchTxt;
     }
     var urlHtml = (sum.matched_urls || []).slice(0, 5).map(function (u) {
       return '<a class="block truncate text-emerald-800 underline dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(u) : u) + '" target="_blank" rel="noopener">' + (nt().escapeHtml ? nt().escapeHtml(u) : u) + "</a>";
@@ -424,7 +429,7 @@
       + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gsc7.impressions || sum.gsc_impressions_7d || 0) : (gsc7.impressions || sum.gsc_impressions_7d || 0)) + " impr · poz " + Number(gsc7.position || 0).toFixed(1)
       + (gsc30.clicks ? " · 30g " + (nt().fmtCount ? nt().fmtCount(gsc30.clicks) : gsc30.clicks) + " click" : "") + "</p></div>"
       + "</div>"
-      + (urlHtml ? '<div class="mt-2"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>" : '<p class="mt-2 text-[10px] text-slate-500">Bu ID için GA4/GSC URL eşleşmesi bulunamadı.</p>');
+      + (urlHtml ? '<div class="mt-2"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>" : '<p class="mt-2 text-[10px] text-slate-500">Bu bildirim için GA4/GSC URL eşleşmesi bulunamadı. Başlık ve gönderim tarihi ile tekrar denendi.</p>');
   }
 
   function loadContentTraffic(row) {
@@ -438,13 +443,19 @@
       return;
     }
     var daysEl = global.document.getElementById("nt-traffic-days");
-    var days = daysEl && daysEl.value ? parseInt(daysEl.value, 10) : 7;
+    var days = daysEl && daysEl.value ? parseInt(daysEl.value, 10) : 14;
+    var sendDay = nt().dayKey ? nt().dayKey(row.date) : String(row.date || "").slice(0, 10);
+    var headline = encodeURIComponent(String(row.text || "").trim());
     var token = ++trafficLoadToken;
     var panel = global.document.getElementById("nt-content-traffic");
     var body = global.document.getElementById("nt-content-traffic-body");
     if (panel) panel.classList.remove("hidden");
     if (body) body.innerHTML = '<p class="text-xs text-slate-500">GA4 / GSC trafik yükleniyor…</p>';
-    apiFetch("/api/notification-analytics/traffic?content_id=" + encodeURIComponent(cid) + "&days=" + days + "&site_id=1")
+    var q = "/api/notification-analytics/traffic?content_id=" + encodeURIComponent(cid)
+      + "&days=" + days + "&site_id=1";
+    if (sendDay) q += "&send_date=" + encodeURIComponent(sendDay);
+    if (row.text) q += "&headline=" + headline;
+    apiFetch(q)
       .then(function (data) {
         if (token !== trafficLoadToken) return;
         lastContentTrafficPayload = data;

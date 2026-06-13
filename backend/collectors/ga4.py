@@ -1239,21 +1239,82 @@ def fetch_ga4_landing_pages(
 
 
 def article_id_path_filter(field_name: str, article_id: str) -> FilterExpression | None:
-    """pagePath / landingPage — haber makalesi ID'si ile biten URL'ler (ör. .../705471)."""
+    """pagePath — haber makalesi ID'si içeren URL'ler (ör. .../705471)."""
     aid = re.sub(r"\D", "", str(article_id or "").strip())
     if not aid:
         return None
-    pattern = rf"/{re.escape(aid)}(?:/amp)?(?:[/?#]|$)"
     return FilterExpression(
         filter=Filter(
             field_name=str(field_name or "pagePath"),
             string_filter=Filter.StringFilter(
-                match_type=Filter.StringFilter.MatchType.PARTIAL_REGEXP,
-                value=pattern,
+                match_type=Filter.StringFilter.MatchType.CONTAINS,
+                value=f"/{aid}",
                 case_sensitive=False,
             ),
         ),
     )
+
+
+def fetch_ga4_news_detail_pages_metrics(
+    *,
+    property_id: str,
+    start: str,
+    end: str,
+    limit: int = 500,
+) -> list[dict]:
+    """Tarih aralığında haber detay sayfaları (path + title + views + sessions)."""
+    if not str(property_id or "").strip() or not start or not end:
+        return []
+    news_filt = _landing_news_include_filter("pagePath")
+    client = _client()
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [
+            Dimension(name="hostName"),
+            Dimension(name="pagePath"),
+            Dimension(name="pageTitle"),
+        ],
+        "metrics": [Metric(name="screenPageViews"), Metric(name="sessions")],
+        "date_ranges": [DateRange(start_date=start, end_date=end)],
+        "limit": max(10, min(int(limit or 500), 500)),
+        "order_bys": [
+            OrderBy(metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"), desc=True),
+        ],
+    }
+    if news_filt is not None:
+        req_kwargs["dimension_filter"] = news_filt
+    try:
+        response = client.run_report(
+            RunReportRequest(**req_kwargs),
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning("GA4 haber detay listesi başarısız property=%s", property_id, exc_info=True)
+        return []
+    rows: list[dict] = []
+    for row in response.rows or []:
+        if len(row.dimension_values) < 3:
+            continue
+        host = str(row.dimension_values[0].value or "").strip()
+        path = str(row.dimension_values[1].value or "").strip()
+        title = str(row.dimension_values[2].value or "").strip()
+        if not path or not _is_news_article_path(path):
+            continue
+        views = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        sessions = float(row.metric_values[1].value or 0.0) if len(row.metric_values or []) > 1 else 0.0
+        page_url = ga4_canonical_page_url(host, path)
+        ph = host if host.lower() not in ("(not set)", "not set") else ""
+        rows.append(
+            {
+                "page": path,
+                "page_host": ph,
+                "page_url": page_url,
+                "page_title": title,
+                "views": views,
+                "sessions": sessions,
+            }
+        )
+    return rows
 
 
 def fetch_ga4_article_paths_metrics(
@@ -1261,13 +1322,18 @@ def fetch_ga4_article_paths_metrics(
     property_id: str,
     article_id: str,
     days: int = 7,
+    start: str | None = None,
+    end: str | None = None,
 ) -> list[dict]:
     """Tek dönem: makale ID'sine uyan tüm pagePath satırları (screenPageViews + sessions)."""
     aid = re.sub(r"\D", "", str(article_id or "").strip())
     if not aid or not str(property_id or "").strip():
         return []
-    safe_days = max(1, min(int(days or 7), 90))
-    (last_start, last_end), _ = _calendar_windows(safe_days)
+    if start and end:
+        last_start, last_end = start, end
+    else:
+        safe_days = max(1, min(int(days or 7), 90))
+        (last_start, last_end), _ = _calendar_windows(safe_days)
     filt = article_id_path_filter("pagePath", aid)
     if filt is None:
         return []

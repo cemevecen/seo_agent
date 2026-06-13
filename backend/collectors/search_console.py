@@ -532,6 +532,55 @@ def fetch_search_console_pages_for_article(
     return _normalize_search_console_rows(rows, forced_device=device, property_url=site_url)
 
 
+def fetch_search_console_for_page_urls(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    page_urls: list[str],
+    *,
+    device: str | None = None,
+) -> list[dict]:
+    """Belirli landing URL'leri için GSC metrikleri (equals filtresi)."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for raw_url in page_urls or []:
+        url = str(raw_url or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        filters: list[dict] = [
+            {
+                "dimension": "page",
+                "operator": "equals",
+                "expression": url,
+            }
+        ]
+        if device:
+            filters.append(
+                {
+                    "dimension": "device",
+                    "operator": "equals",
+                    "expression": str(device).upper(),
+                }
+            )
+        body: dict = {
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "dimensions": ["page"] if device else ["page", "device"],
+            "rowLimit": 10,
+            "startRow": 0,
+            "dimensionFilterGroups": [{"filters": filters}],
+        }
+        try:
+            response = service.searchanalytics().query(siteUrl=site_url, body=body).execute()
+            rows = response.get("rows", []) or []
+            out.extend(_normalize_search_console_rows(rows, forced_device=device, property_url=site_url))
+        except Exception:
+            LOGGER.debug("GSC page equals sorgusu atlandı: %s", url, exc_info=True)
+    return out
+
+
 def _fetch_search_console_query_rows(
     service,
     site_url: str,
