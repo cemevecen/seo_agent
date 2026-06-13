@@ -44,8 +44,11 @@ def _filter_kwargs(
 
 
 @router.get("/mz-analytics/facets")
-def get_ad_analytics_facets(db: Session = Depends(get_db)):
-    return store.facets(db)
+def get_ad_analytics_facets(
+    db: Session = Depends(get_db),
+    _: str | None = Query(None, alias="_"),
+):
+    return store.facets(db, skip_cache=_ is not None)
 
 
 @router.get("/mz-analytics/suggested-favorites")

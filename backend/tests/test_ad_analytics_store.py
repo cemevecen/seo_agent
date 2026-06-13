@@ -355,6 +355,33 @@ def test_facets_returns_bounds_and_row_count():
     assert isinstance(out["streams"], list)
 
 
+def test_reset_all_clears_db_and_facets():
+    init_db()
+    d = date(2026, 6, 10)
+    csv_text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"web_unit_1,1,{_excel_serial(d)},Open Auction,1,1,1,0,0,0,0,0,0,10\n"
+    )
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_append_to_stream(
+            db,
+            csv_text.encode("utf-8"),
+            stream_key="doviz:desktop",
+            original_filename="dovizweb1.csv",
+        )
+        warm = store.facets(db)
+        assert warm["total_rows"] > 0
+        assert len(warm["imports"]) > 0
+        store.reset_all(db)
+        fresh = store.facets(db)
+        assert fresh["total_rows"] == 0
+        assert fresh["imports"] == []
+        assert fresh["source_files"] == []
+        assert store.count_rows(db) == 0
+
+
 def test_suggested_detail_favorites_stream_keys_and_top_n():
     init_db()
     with SessionLocal() as db:

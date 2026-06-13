@@ -7827,6 +7827,10 @@
       if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Sıfırlama başarısız (HTTP " + r.status + ")"));
       if (statusEl) statusEl.textContent = "Tüm veri silindi.";
       showPageError("");
+      var deleted = payload && payload.deleted_rows != null ? Number(payload.deleted_rows) : null;
+      if (statusEl && deleted != null && !isNaN(deleted)) {
+        statusEl.textContent = "Tüm veri silindi · " + deleted.toLocaleString("tr-TR") + " satır kaldırıldı.";
+      }
       await loadFacets({ cacheBust: true });
       await runQuery({ resetTableDrills: true });
     } catch (err) {

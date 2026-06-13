@@ -1129,10 +1129,12 @@ def count_rows(db: Session) -> int:
 
 
 def reset_all(db: Session) -> dict[str, int]:
+    deleted_rows = count_rows(db)
     db.execute(delete(AdReportRow))
     db.execute(delete(AdReportCatalog))
     db.commit()
-    return {"total": 0}
+    invalidate_facets_cache()
+    return {"total": 0, "deleted_rows": deleted_rows}
 
 
 def date_bounds(db: Session) -> dict[str, str | None]:
@@ -1234,10 +1236,14 @@ def _global_date_bounds_and_count(db: Session) -> tuple[str | None, str | None, 
     return bounds["min_date"], bounds["max_date"], count_rows(db)
 
 
-def facets(db: Session) -> dict[str, Any]:
+def facets(db: Session, *, skip_cache: bool = False) -> dict[str, Any]:
     global _facets_cache_payload, _facets_cache_at
     now = time.monotonic()
-    if _facets_cache_payload is not None and (now - _facets_cache_at) < _FACETS_CACHE_TTL_SEC:
+    if (
+        not skip_cache
+        and _facets_cache_payload is not None
+        and (now - _facets_cache_at) < _FACETS_CACHE_TTL_SEC
+    ):
         return _facets_cache_payload
 
     income = [
