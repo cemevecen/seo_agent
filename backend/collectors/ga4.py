@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date, datetime, timedelta
+from typing import Any
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
@@ -1424,6 +1425,122 @@ def fetch_ga4_article_aggregate_metrics(
     sessions = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
     views = float(row.metric_values[1].value or 0.0) if len(row.metric_values or []) > 1 else 0.0
     return {"views": views, "sessions": sessions}
+
+
+def _ga4_api_date_to_iso(raw: str) -> str:
+    s = str(raw or "").strip()
+    if len(s) == 8 and s.isdigit():
+        return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
+    return s[:10] if s else ""
+
+
+def fetch_ga4_article_daily_metrics(
+    *,
+    property_id: str,
+    article_id: str,
+    start: str,
+    end: str,
+) -> list[dict[str, Any]]:
+    """Makale ID filtresiyle günlük oturum + görüntüleme."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid or not str(property_id or "").strip() or not start or not end:
+        return []
+    filt = article_id_path_filter("pagePath", aid)
+    if filt is None:
+        return []
+    client = _client()
+    try:
+        rows = _run_dim_metrics_single_range(
+            client,
+            property_id,
+            "date",
+            start=start,
+            end=end,
+            limit=90,
+            dimension_filter=filt,
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning(
+            "GA4 makale günlük metrik başarısız property=%s article=%s",
+            property_id,
+            aid,
+            exc_info=True,
+        )
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        iso = _ga4_api_date_to_iso(str(row.get("dimension") or ""))
+        if not iso:
+            continue
+        out.append(
+            {
+                "date": iso,
+                "sessions": float(row.get("sessions") or 0.0),
+                "views": float(row.get("views") or 0.0),
+            }
+        )
+    out.sort(key=lambda item: str(item.get("date") or ""))
+    return out
+
+
+def fetch_ga4_article_engagement_metrics(
+    *,
+    property_id: str,
+    article_id: str,
+    start: str,
+    end: str,
+) -> dict[str, float]:
+    """Makale landing: engagement oturum metrikleri."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid or not str(property_id or "").strip() or not start or not end:
+        return {}
+    filt = article_id_path_filter("pagePath", aid)
+    if filt is None:
+        return {}
+    client = _client()
+    try:
+        response = client.run_report(
+            RunReportRequest(
+                property=f"properties/{property_id}",
+                metrics=[
+                    Metric(name="sessions"),
+                    Metric(name="engagedSessions"),
+                    Metric(name="engagementRate"),
+                    Metric(name="bounceRate"),
+                    Metric(name="averageSessionDuration"),
+                ],
+                date_ranges=[DateRange(start_date=start, end_date=end)],
+                dimension_filter=filt,
+            ),
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning(
+            "GA4 makale engagement başarısız property=%s article=%s",
+            property_id,
+            aid,
+            exc_info=True,
+        )
+        return {}
+    if not response.rows:
+        return {}
+    row = response.rows[0]
+    mv = row.metric_values or []
+
+    def _mv(idx: int) -> float:
+        if idx >= len(mv):
+            return 0.0
+        return float(mv[idx].value or 0.0)
+
+    sessions = _mv(0)
+    return {
+        "sessions": sessions,
+        "engaged_sessions": _mv(1),
+        "engagement_rate": _mv(2),
+        "bounce_rate": _mv(3),
+        "avg_session_duration_sec": _mv(4),
+    }
 
 
 def _run_dim_metrics_single_range(

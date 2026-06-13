@@ -5,9 +5,11 @@ from unittest.mock import MagicMock, patch
 from backend.services.notification_content_traffic import (
     _aggregate_source_breakdown,
     _classify_traffic_bucket,
+    _compute_day_phases,
     _fetch_ga4_live,
     _filter_urls_for_article,
     _headline_match_score,
+    _merge_daily_rows,
     _merge_gsc_page_rows,
     normalize_article_id,
     page_url_matches_article_id,
@@ -51,6 +53,8 @@ def test_resolve_traffic_date_range_from_send_date():
 
 
 @patch("backend.services.ga4_page_urls.enrich_ga4_page_rows")
+@patch("backend.collectors.ga4.fetch_ga4_article_engagement_metrics")
+@patch("backend.collectors.ga4.fetch_ga4_article_daily_metrics")
 @patch("backend.collectors.ga4.fetch_ga4_article_traffic_sources")
 @patch("backend.collectors.ga4.fetch_ga4_article_aggregate_metrics")
 @patch("backend.collectors.ga4.fetch_ga4_news_detail_pages_metrics")
@@ -62,6 +66,8 @@ def test_ga4_web_mweb_use_separate_headline_pools(
     mock_pool,
     mock_aggregate,
     mock_sources,
+    mock_daily,
+    mock_engagement,
     mock_enrich,
 ):
     mock_status.return_value = {
@@ -71,6 +77,8 @@ def test_ga4_web_mweb_use_separate_headline_pools(
     mock_paths.return_value = []
     mock_aggregate.return_value = {"views": 0.0, "sessions": 0.0}
     mock_sources.return_value = {"channels": [], "source_medium": []}
+    mock_daily.return_value = []
+    mock_engagement.return_value = {}
     mock_pool.side_effect = [
         [
             {
@@ -175,3 +183,27 @@ def test_merge_gsc_page_rows_aggregates_devices():
     row = next(iter(acc.values()))
     assert row["impressions"] == 888
     assert row["clicks"] == 0
+
+
+def test_merge_daily_rows_sums_by_date():
+    acc: dict[str, dict] = {}
+    _merge_daily_rows(acc, [{"date": "2026-05-20", "sessions": 10, "views": 12}])
+    _merge_daily_rows(acc, [{"date": "2026-05-20", "sessions": 5, "views": 8}])
+    _merge_daily_rows(acc, [{"date": "2026-05-21", "sessions": 3, "views": 4}])
+    assert acc["2026-05-20"]["sessions"] == 15.0
+    assert acc["2026-05-20"]["views"] == 20.0
+    assert acc["2026-05-21"]["sessions"] == 3.0
+
+
+def test_compute_day_phases_buckets():
+    daily = [
+        {"date": "2026-05-20", "sessions": 100, "views": 120},
+        {"date": "2026-05-21", "sessions": 30, "views": 40},
+        {"date": "2026-05-23", "sessions": 20, "views": 25},
+        {"date": "2026-05-25", "sessions": 10, "views": 12},
+    ]
+    phases = _compute_day_phases(daily, "2026-05-20")
+    by_key = {p["key"]: p for p in phases}
+    assert by_key["send_day"]["sessions"] == 100.0
+    assert by_key["day_1_3"]["sessions"] == 50.0
+    assert by_key["day_4_plus"]["sessions"] == 10.0

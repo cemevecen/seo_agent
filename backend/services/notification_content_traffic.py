@@ -183,6 +183,80 @@ def _merge_source_rows(
         acc[key]["views"] += float(row.get("views") or 0.0)
 
 
+def _merge_daily_rows(acc: dict[str, dict[str, Any]], rows: list[dict[str, Any]]) -> None:
+    for row in rows or []:
+        day = str(row.get("date") or "").strip()
+        if not day:
+            continue
+        if day not in acc:
+            acc[day] = {"date": day, "sessions": 0.0, "views": 0.0}
+        acc[day]["sessions"] += float(row.get("sessions") or 0.0)
+        acc[day]["views"] += float(row.get("views") or 0.0)
+
+
+def _parse_iso_day(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(str(raw)[:10])
+    except ValueError:
+        return None
+
+
+def _compute_day_phases(daily: list[dict[str, Any]], send_date: str | None) -> list[dict[str, Any]]:
+    send = _parse_iso_day(send_date)
+    if not send or not daily:
+        return []
+    phases = {
+        "send_day": {"key": "send_day", "label": "Gönderim günü", "sessions": 0.0, "views": 0.0},
+        "day_1_3": {"key": "day_1_3", "label": "Gün 1–3", "sessions": 0.0, "views": 0.0},
+        "day_4_plus": {"key": "day_4_plus", "label": "Gün 4+", "sessions": 0.0, "views": 0.0},
+    }
+    for row in daily:
+        day = _parse_iso_day(str(row.get("date") or ""))
+        if not day:
+            continue
+        delta = (day - send).days
+        bucket = phases["send_day"] if delta <= 0 else (phases["day_1_3"] if delta <= 3 else phases["day_4_plus"])
+        bucket["sessions"] += float(row.get("sessions") or 0.0)
+        bucket["views"] += float(row.get("views") or 0.0)
+    return [
+        {**p, "sessions": round(p["sessions"], 2), "views": round(p["views"], 2)}
+        for p in (phases["send_day"], phases["day_1_3"], phases["day_4_plus"])
+    ]
+
+
+def _merge_engagement_metrics(a: dict[str, float], b: dict[str, float]) -> dict[str, float]:
+    if not a:
+        return dict(b or {})
+    if not b:
+        return dict(a or {})
+    sa = float(a.get("sessions") or 0.0)
+    sb = float(b.get("sessions") or 0.0)
+    total = sa + sb
+    if total <= 0:
+        return dict(a)
+
+    def _w(key: str) -> float:
+        return (float(a.get(key) or 0.0) * sa + float(b.get(key) or 0.0) * sb) / total
+
+    return {
+        "sessions": round(total, 2),
+        "engaged_sessions": round(float(a.get("engaged_sessions") or 0.0) + float(b.get("engaged_sessions") or 0.0), 2),
+        "engagement_rate": round(_w("engagement_rate"), 4),
+        "bounce_rate": round(_w("bounce_rate"), 4),
+        "avg_session_duration_sec": round(_w("avg_session_duration_sec"), 2),
+    }
+
+
+def _bucket_sessions(ga4: dict[str, Any] | None, bucket_key: str) -> float:
+    sb = (ga4 or {}).get("source_breakdown") or {}
+    for row in sb.get("buckets") or []:
+        if str(row.get("key") or "") == bucket_key:
+            return float(row.get("sessions") or 0.0)
+    return 0.0
+
+
 def normalize_article_id(raw: str | None) -> str:
     s = re.sub(r"[\s\u00a0.,·']", "", str(raw or "").strip())
     if s.isdigit():
@@ -400,9 +474,11 @@ def _fetch_gsc_live(
         build_search_console_service_and_targets,
         fetch_search_console_for_page_urls,
         fetch_search_console_pages_for_article,
+        fetch_search_console_queries_for_article,
     )
 
     pages_map: dict[str, dict[str, Any]] = {}
+    queries_map: dict[str, dict[str, Any]] = {}
     try:
         _site, service, targets = build_search_console_service_and_targets(db, site_id)
         for target in targets:
@@ -428,15 +504,53 @@ def _fetch_gsc_live(
             )
             _merge_gsc_page_rows(pages_map, url_rows, article_id=article_id)
             _merge_gsc_page_rows(pages_map, contains_rows, article_id=article_id)
+            for qrow in fetch_search_console_queries_for_article(
+                service,
+                property_url,
+                start,
+                end,
+                article_id,
+                device=device,
+            ):
+                q = str(qrow.get("query") or "").strip()
+                if not q:
+                    continue
+                if q not in queries_map:
+                    queries_map[q] = {
+                        "query": q,
+                        "clicks": float(qrow.get("clicks") or 0.0),
+                        "impressions": float(qrow.get("impressions") or 0.0),
+                        "position": float(qrow.get("position") or 0.0),
+                    }
+                else:
+                    old = queries_map[q]
+                    old_impr = float(old.get("impressions") or 0.0)
+                    new_impr = float(qrow.get("impressions") or 0.0)
+                    total_impr = old_impr + new_impr
+                    if total_impr > 0:
+                        old["position"] = (
+                            (float(old.get("position") or 0.0) * old_impr)
+                            + (float(qrow.get("position") or 0.0) * new_impr)
+                        ) / total_impr
+                    old["clicks"] = float(old.get("clicks") or 0.0) + float(qrow.get("clicks") or 0.0)
+                    old["impressions"] = total_impr
     except Exception as exc:
         LOGGER.warning("GSC live article fetch başarısız site=%s id=%s: %s", site_id, article_id, exc)
-        return {"scopes": {}, "pages": [], "source": "live_error", "error": str(exc)}
+        return {"scopes": {}, "pages": [], "queries": [], "source": "live_error", "error": str(exc)}
 
     pages = sorted(
         pages_map.values(),
         key=lambda item: float(item.get("impressions") or 0.0),
         reverse=True,
     )
+    queries = sorted(
+        queries_map.values(),
+        key=lambda item: float(item.get("impressions") or 0.0),
+        reverse=True,
+    )
+    for q in queries:
+        impr = float(q.get("impressions") or 0.0)
+        q["ctr"] = round((float(q.get("clicks") or 0.0) / impr * 100.0), 2) if impr > 0 else 0.0
     totals = _aggregate_gsc_rows(pages)
     return {
         "scopes": {
@@ -460,6 +574,7 @@ def _fetch_gsc_live(
             for p in pages
             if p.get("url")
         ],
+        "queries": queries[:20],
         "source": "live",
     }
 
@@ -472,9 +587,12 @@ def _fetch_ga4_live(
     start: str,
     end: str,
     days: int,
+    send_date: str | None = None,
 ) -> dict[str, Any]:
     from backend.collectors.ga4 import (
         fetch_ga4_article_aggregate_metrics,
+        fetch_ga4_article_daily_metrics,
+        fetch_ga4_article_engagement_metrics,
         fetch_ga4_article_paths_metrics,
         fetch_ga4_article_traffic_sources,
         fetch_ga4_news_detail_pages_metrics,
@@ -569,6 +687,8 @@ def _fetch_ga4_live(
     channel_acc: dict[str, dict[str, Any]] = {}
     sm_acc: dict[str, dict[str, Any]] = {}
     source_breakdown_profiles: dict[str, dict[str, Any]] = {}
+    daily_acc: dict[str, dict[str, Any]] = {}
+    engagement_merged: dict[str, float] = {}
     if final_id:
         for pf in ("web", "mweb"):
             prop = str(properties.get(pf) or "").strip()
@@ -590,6 +710,24 @@ def _fetch_ga4_live(
                 )
                 _merge_source_rows(channel_acc, br.get("channels") or [], field="channel")
                 _merge_source_rows(sm_acc, br.get("source_medium") or [], field="source_medium")
+                _merge_daily_rows(
+                    daily_acc,
+                    fetch_ga4_article_daily_metrics(
+                        property_id=prop,
+                        article_id=final_id,
+                        start=start,
+                        end=end,
+                    ),
+                )
+                engagement_merged = _merge_engagement_metrics(
+                    engagement_merged,
+                    fetch_ga4_article_engagement_metrics(
+                        property_id=prop,
+                        article_id=final_id,
+                        start=start,
+                        end=end,
+                    ),
+                )
             except Exception as exc:
                 LOGGER.warning(
                     "GA4 kaynak kırılımı başarısız site=%s profile=%s: %s",
@@ -602,6 +740,17 @@ def _fetch_ga4_live(
         list(channel_acc.values()),
         list(sm_acc.values()),
     )
+    daily = sorted(daily_acc.values(), key=lambda item: str(item.get("date") or ""))
+    for row in daily:
+        row["sessions"] = round(float(row.get("sessions") or 0.0), 2)
+        row["views"] = round(float(row.get("views") or 0.0), 2)
+    day_phases = _compute_day_phases(daily, send_date or start)
+    if engagement_merged:
+        engagement_merged = {
+            **engagement_merged,
+            "engagement_rate_pct": round(float(engagement_merged.get("engagement_rate") or 0.0) * 100.0, 2),
+            "bounce_rate_pct": round(float(engagement_merged.get("bounce_rate") or 0.0) * 100.0, 2),
+        }
 
     return {
         "profiles": profiles,
@@ -615,6 +764,9 @@ def _fetch_ga4_live(
         "date_range": {"start": start, "end": end},
         "source_breakdown": source_breakdown,
         "source_breakdown_profiles": source_breakdown_profiles,
+        "daily": daily,
+        "day_phases": day_phases,
+        "engagement": engagement_merged,
     }
 
 
@@ -659,6 +811,7 @@ def resolve_content_traffic(
             start,
             end,
             safe_days,
+            send_date=send_date or range_meta.get("send_date") or start,
         )
 
     resolved_aid = str((ga4 or {}).get("resolved_article_id") or aid)
@@ -671,11 +824,12 @@ def resolve_content_traffic(
 
     gsc: dict[str, Any]
     live_scope = (gsc_live_payload.get("scopes") or {}).get("live") or {}
-    has_live = bool(gsc_live_payload.get("pages")) or bool(live_scope)
+    has_live = bool(gsc_live_payload.get("pages")) or bool(live_scope) or bool(gsc_live_payload.get("queries"))
     if live and has_live:
         gsc = {
             "scopes": {**(gsc_db.get("scopes") or {}), **(gsc_live_payload.get("scopes") or {})},
             "pages": gsc_live_payload.get("pages") or [],
+            "queries": gsc_live_payload.get("queries") or [],
             "source": gsc_live_payload.get("source") or "live",
         }
     elif gsc_db.get("pages"):
@@ -738,6 +892,12 @@ def resolve_content_traffic(
             "gsc_impressions_30d": gsc_30.get("impressions", 0),
             "gsc_page_count": live_page_count or len(gsc_pages),
             "gsc_pages": gsc_pages[:12],
+            "gsc_queries": (gsc.get("queries") or [])[:15],
+            "ga4_daily": (ga4 or {}).get("daily") or [],
+            "ga4_day_phases": (ga4 or {}).get("day_phases") or [],
+            "ga4_engagement": (ga4 or {}).get("engagement") or {},
+            "ga4_notification_sessions": _bucket_sessions(ga4, "notification"),
+            "ga4_organic_sessions": _bucket_sessions(ga4, "organic"),
             "match_method": (ga4 or {}).get("match_method") or "none",
             "matched_urls": matched_urls,
         },

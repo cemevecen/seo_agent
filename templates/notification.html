@@ -1131,15 +1131,19 @@
     var row = match.length ? match[0] : null;
     if (!row) { cards.classList.add("hidden"); if (window.NTExtras && NTExtras.clearContentTraffic) NTExtras.clearContentTraffic(); return; }
     cards.classList.remove("hidden");
-    var pc = rowPlatformClicksLocal(row);
-    cards.innerHTML = [
-      { k: "Web", v: pc.desktop },
-      { k: "MWeb", v: pc.mobileweb },
-      { k: "Android", v: pc.android },
-      { k: "iOS", v: pc.ios }
-    ].map(function (x) {
-      return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-center dark:border-slate-700 dark:bg-slate-900"><p class="text-[10px] font-bold uppercase text-slate-500">' + x.k + '</p><p class="text-lg font-black text-indigo-700 dark:text-indigo-300">' + fmtCount(x.v) + "</p></div>";
-    }).join("");
+    if (window.NTExtras && NTExtras.renderDrillMiniCards) {
+      NTExtras.renderDrillMiniCards(row, cards);
+    } else {
+      var pc = rowPlatformClicksLocal(row);
+      cards.innerHTML = [
+        { k: "Web", v: pc.desktop },
+        { k: "MWeb", v: pc.mobileweb },
+        { k: "Android", v: pc.android },
+        { k: "iOS", v: pc.ios }
+      ].map(function (x) {
+        return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-center dark:border-slate-700 dark:bg-slate-900"><p class="text-[10px] font-bold uppercase text-slate-500">' + x.k + '</p><p class="text-lg font-black text-indigo-700 dark:text-indigo-300">' + fmtCount(x.v) + "</p></div>";
+      }).join("");
+    }
     if (window.NTExtras && NTExtras.loadContentTraffic) NTExtras.loadContentTraffic(row);
   }
   function rowPlatformClicksLocal(r) {

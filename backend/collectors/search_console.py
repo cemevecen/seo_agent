@@ -581,6 +581,65 @@ def fetch_search_console_for_page_urls(
     return out
 
 
+def fetch_search_console_queries_for_article(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    article_id: str,
+    *,
+    device: str | None = None,
+    max_rows: int = 20,
+) -> list[dict]:
+    """Makale URL'sine uyan arama sorguları (query dimension)."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid:
+        return []
+    lim = max(5, min(int(max_rows or 20), 50))
+    filters: list[dict] = [
+        {
+            "dimension": "page",
+            "operator": "contains",
+            "expression": f"/{aid}",
+        }
+    ]
+    if device:
+        filters.append(
+            {
+                "dimension": "device",
+                "operator": "equals",
+                "expression": str(device).upper(),
+            }
+        )
+    body: dict = {
+        "startDate": start_date.isoformat(),
+        "endDate": end_date.isoformat(),
+        "dimensions": ["query"],
+        "rowLimit": lim,
+        "startRow": 0,
+        "dimensionFilterGroups": [{"filters": filters}],
+    }
+    try:
+        response = service.searchanalytics().query(siteUrl=site_url, body=body).execute()
+    except Exception:
+        LOGGER.debug("GSC query fetch atlandı article=%s", aid, exc_info=True)
+        return []
+    rows = response.get("rows", []) or []
+    normalized = _normalize_search_console_rows(rows, forced_device=device, property_url=site_url)
+    normalized.sort(key=lambda item: float(item.get("impressions") or 0.0), reverse=True)
+    return [
+        {
+            "query": str(r.get("query") or ""),
+            "clicks": float(r.get("clicks") or 0.0),
+            "impressions": float(r.get("impressions") or 0.0),
+            "ctr": float(r.get("ctr") or 0.0),
+            "position": float(r.get("position") or 0.0),
+        }
+        for r in normalized
+        if r.get("query")
+    ]
+
+
 def _fetch_search_console_query_rows(
     service,
     site_url: str,
