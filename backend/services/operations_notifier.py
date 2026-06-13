@@ -79,9 +79,10 @@ class ScheduledSystemSpec:
 
 
 def operations_recipients() -> list[str]:
+    from backend.services.mailer import normalize_outbound_recipients
+
     raw = str(settings.operations_mail_to or DEFAULT_OPERATIONS_RECIPIENT).strip()
-    recipients = [item.strip() for item in raw.split(",") if item.strip()]
-    return recipients or [DEFAULT_OPERATIONS_RECIPIENT]
+    return normalize_outbound_recipients(raw_setting=raw, default=DEFAULT_OPERATIONS_RECIPIENT)
 
 
 def _safe_float(value) -> float | None:

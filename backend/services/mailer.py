@@ -189,20 +189,70 @@ from backend.services.smtp_quota import (
 )
 
 DEFAULT_ERROR_REPORT_RECIPIENT = "cemevecen@nokta.com"
+DEFAULT_MAIL_RECIPIENT = "cemevecen@nokta.com"
+
+
+def _recipient_domain(addr: str) -> str:
+    a = (addr or "").strip()
+    if "@" not in a:
+        return ""
+    return a.rpartition("@")[2].lower()
+
+
+def _is_gmail_recipient(addr: str) -> bool:
+    dom = _recipient_domain(addr)
+    return dom == "gmail.com" or dom.endswith(".gmail.com") or dom == "googlemail.com"
+
+
+def _is_nokta_recipient(addr: str) -> bool:
+    dom = _recipient_domain(addr)
+    return dom == "nokta.com" or dom.endswith(".nokta.com")
+
+
+def normalize_outbound_recipients(
+    recipients: list[str] | None = None,
+    *,
+    raw_setting: str | None = None,
+    default: str = DEFAULT_MAIL_RECIPIENT,
+) -> list[str]:
+    """Gmail alıcılarını çıkarır; liste boş kalırsa varsayılan @nokta.com döner."""
+    src: list[str] = []
+    if recipients:
+        src.extend(item.strip() for item in recipients if item and str(item).strip())
+    elif raw_setting:
+        src.extend(item.strip() for item in str(raw_setting).split(",") if item.strip())
+
+    out: list[str] = []
+    seen: set[str] = set()
+    dropped_gmail: list[str] = []
+    for addr in src:
+        if _is_gmail_recipient(addr):
+            dropped_gmail.append(addr)
+            continue
+        key = addr.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(addr)
+
+    if dropped_gmail:
+        logging.info("Gmail alıcıları çıkarıldı: %s", ", ".join(dropped_gmail))
+
+    if not out:
+        return [default]
+    return out
+
+
+def default_mail_recipients() -> list[str]:
+    """MAIL_TO — Gmail hariç; boş/ yalnız Gmail ise cemevecen@nokta.com."""
+    return normalize_outbound_recipients(raw_setting=settings.mail_to)
 
 
 def _is_error_report_allowed_recipient(addr: str) -> bool:
     """404 günlük raporu — yalnızca @nokta.com; Gmail ve diğer alan adları hariç."""
-    a = (addr or "").strip()
-    if not a or "@" not in a:
+    if _is_gmail_recipient(addr):
         return False
-    local, _, domain = a.rpartition("@")
-    if not local:
-        return False
-    dom = domain.lower()
-    if dom == "gmail.com" or dom.endswith(".gmail.com"):
-        return False
-    return dom == "nokta.com" or dom.endswith(".nokta.com")
+    return _is_nokta_recipient(addr)
 
 
 def error_report_recipients() -> list[str]:
@@ -272,7 +322,7 @@ def is_realtime_mail_ready() -> bool:
     """GA4 Realtime site/KPI alarm postası gönderilebilir mi (SMTP + alıcı + email bayrağı)."""
     if not settings.ga4_realtime_email_enabled:
         return False
-    default_recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    default_recipient_list = default_mail_recipients()
     return _smtp_configured() and bool(default_recipient_list)
 
 
@@ -282,7 +332,7 @@ def is_page_alarm_mail_ready() -> bool:
         return False
     if not settings.ga4_realtime_page_alert_email:
         return False
-    default_recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    default_recipient_list = default_mail_recipients()
     return _smtp_configured() and bool(default_recipient_list)
 
 
@@ -292,7 +342,7 @@ def is_news_realtime_mail_ready() -> bool:
         return False
     if not settings.ga4_realtime_news_alert_email:
         return False
-    default_recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    default_recipient_list = default_mail_recipients()
     return _smtp_configured() and bool(default_recipient_list)
 
 
@@ -300,7 +350,7 @@ def is_mail_configured() -> bool:
     # Varsayilan alicilar ile SMTP alanlari hazir degilse mail gönderimi sessizce pas geçilir.
     if not settings.outbound_email_enabled:
         return False
-    default_recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    default_recipient_list = default_mail_recipients()
     return _smtp_configured() and bool(default_recipient_list)
 
 
@@ -419,18 +469,19 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
 
 def send_admin_security_email(subject: str, html_body: str, recipients: list[str]) -> bool:
     """Admin güvenlik uyarıları — outbound_email_enabled kapalı olsa da SMTP/Gmail ile dener."""
-    if not recipients:
+    recipient_list = normalize_outbound_recipients(recipients)
+    if not recipient_list:
         return False
     if not _smtp_configured():
         logging.warning("Admin güvenlik e-postası gönderilemedi: SMTP yapılandırması eksik")
         return False
-    if not smtp_recipients_allowed(len(recipients)):
+    if not smtp_recipients_allowed(len(recipient_list)):
         return False
 
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = settings.mail_from
-    message["To"] = ", ".join(recipients)
+    message["To"] = ", ".join(recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
     message.set_content(plain_text_for_mailer(html_body, subject=subject))
@@ -453,7 +504,7 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     if not settings.outbound_email_enabled:
         logging.debug("outbound_email_enabled=false; e-posta gönderilmedi: %s", subject[:80])
         return False
-    recipient_list = recipients or [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
     if not _smtp_configured() or not recipient_list:
         if not _smtp_configured():
             logging.warning("SMTP is not configured. Skipping email sending.")
@@ -518,7 +569,7 @@ def send_realtime_email(
         logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_email_enabled=False")
         return False
 
-    recipient_list = recipients or [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
     if not _smtp_configured():
         logging.warning("GA4 Realtime e-postası gönderilemedi: SMTP yapılandırması eksik (Host/User/Pass/From kontrol edin)")
         return False
@@ -580,7 +631,7 @@ def send_realtime_news_email(
         logging.warning("GA4 Realtime haber e-postası gönderilemedi: ga4_realtime_news_alert_email=False")
         return False
 
-    recipient_list = recipients or [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+    recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
     if not _smtp_configured():
         logging.warning("GA4 Realtime haber e-postası gönderilemedi: SMTP yapılandırması eksik")
         return False

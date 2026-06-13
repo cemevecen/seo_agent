@@ -14706,12 +14706,12 @@ def admin_vacuum():
 def admin_test_realtime_mail(db: Session = Depends(get_db)):
     """Realtime e-posta sistemini teşhis eder ve test mailleri gönderir."""
     try:
-        from backend.services.mailer import is_realtime_mail_ready, send_realtime_email, _smtp_configured
+        from backend.services.mailer import default_mail_recipients, is_realtime_mail_ready, send_realtime_email, _smtp_configured
         from backend.services import inbox_gmail_auth
         from backend.services.ga4_realtime import send_realtime_summary_email, get_recent_alarms
         from backend.models import Site as SiteModel
 
-        recipient_list = [item.strip() for item in settings.mail_to.split(",") if item.strip()]
+        recipient_list = default_mail_recipients()
 
         inbox_creds = inbox_gmail_auth.load_inbox_credentials(db)
         inbox_row = inbox_gmail_auth.get_inbox_credential_row(db)

@@ -366,12 +366,13 @@ def _deliver_unknown_login_alert(
     accept_language: str = "",
     nav_paths: list[dict[str, str]] | None = None,
 ) -> bool:
-    recipient = (settings.admin_login_alert_email or "").strip()
-    if not recipient or not settings.admin_login_alert_enabled:
+    from backend.services.mailer import normalize_outbound_recipients, send_admin_security_email
+
+    recipients = normalize_outbound_recipients([(settings.admin_login_alert_email or "").strip()])
+    if not recipients or not settings.admin_login_alert_enabled:
         return False
     try:
         from backend.database import SessionLocal
-        from backend.services.mailer import send_admin_security_email
 
         when = format_tr(datetime.utcnow())
         et = _event_label(event_type)
@@ -496,7 +497,7 @@ def _deliver_unknown_login_alert(
         browser = parse_browser_short(user_agent)
         ip_disp = (ip or "?").strip() or "?"
         subject = f"admin girişi - '{browser}' - '{ip_disp}'"
-        return send_admin_security_email(subject, body, [recipient])
+        return send_admin_security_email(subject, body, recipients)
     except Exception as exc:
         LOGGER.warning("Admin giriş uyarı e-postası gönderilemedi: %s", exc)
         return False

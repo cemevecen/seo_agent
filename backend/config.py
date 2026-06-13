@@ -152,8 +152,14 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     mail_from: str = ""
-    mail_to: str = ""
-    operations_mail_to: str = ""
+    mail_to: str = Field(
+        default="cemevecen@nokta.com",
+        validation_alias=AliasChoices("MAIL_TO", "mail_to"),
+    )
+    operations_mail_to: str = Field(
+        default="cemevecen@nokta.com",
+        validation_alias=AliasChoices("OPERATIONS_MAIL_TO", "operations_mail_to"),
+    )
     error_report_mail_to: str = Field(
         default="cemevecen@nokta.com",
         validation_alias=AliasChoices("ERROR_REPORT_MAIL_TO", "error_report_mail_to"),
