@@ -220,10 +220,12 @@ def _compute_day_phases(daily: list[dict[str, Any]], send_date: str | None) -> l
         bucket = phases["send_day"] if delta <= 0 else (phases["day_1_3"] if delta <= 3 else phases["day_4_plus"])
         bucket["sessions"] += float(row.get("sessions") or 0.0)
         bucket["views"] += float(row.get("views") or 0.0)
-    return [
+    out = [
         {**p, "sessions": round(p["sessions"], 2), "views": round(p["views"], 2)}
         for p in (phases["send_day"], phases["day_1_3"], phases["day_4_plus"])
+        if float(p["sessions"]) > 0 or float(p["views"]) > 0
     ]
+    return out
 
 
 def _merge_engagement_metrics(a: dict[str, float], b: dict[str, float]) -> dict[str, float]:
@@ -462,6 +464,97 @@ def _lookup_gsc_from_db(db: Session, site_id: int, article_id: str, urls: list[s
     return out
 
 
+def _merge_gsc_query_rows(acc: dict[str, dict[str, Any]], rows: list[dict[str, Any]]) -> None:
+    for qrow in rows or []:
+        q = str(qrow.get("query") or "").strip()
+        if not q:
+            continue
+        if q not in acc:
+            acc[q] = {
+                "query": q,
+                "clicks": float(qrow.get("clicks") or 0.0),
+                "impressions": float(qrow.get("impressions") or 0.0),
+                "position": float(qrow.get("position") or 0.0),
+            }
+            continue
+        old = acc[q]
+        old_impr = float(old.get("impressions") or 0.0)
+        new_impr = float(qrow.get("impressions") or 0.0)
+        total_impr = old_impr + new_impr
+        if total_impr > 0:
+            old["position"] = (
+                (float(old.get("position") or 0.0) * old_impr)
+                + (float(qrow.get("position") or 0.0) * new_impr)
+            ) / total_impr
+        old["clicks"] = float(old.get("clicks") or 0.0) + float(qrow.get("clicks") or 0.0)
+        old["impressions"] = total_impr
+
+
+def _finalize_gsc_queries(queries_map: dict[str, dict[str, Any]], *, limit: int = 20) -> list[dict[str, Any]]:
+    queries = sorted(
+        queries_map.values(),
+        key=lambda item: float(item.get("impressions") or 0.0),
+        reverse=True,
+    )
+    for q in queries:
+        impr = float(q.get("impressions") or 0.0)
+        q["ctr"] = round((float(q.get("clicks") or 0.0) / impr * 100.0), 2) if impr > 0 else 0.0
+    return queries[:limit]
+
+
+def _fetch_gsc_queries_live(
+    db: Session,
+    site_id: int,
+    article_id: str,
+    start: date,
+    end: date,
+) -> dict[str, Any]:
+    """Yalnızca makaleye ait GSC arama sorguları (sayfa fetch başarısız olsa bile)."""
+    from backend.collectors.search_console import (
+        build_search_console_service_and_targets,
+        fetch_search_console_queries_for_article,
+    )
+
+    queries_map: dict[str, dict[str, Any]] = {}
+    primary_property = ""
+    try:
+        _site, service, targets = build_search_console_service_and_targets(db, site_id)
+    except Exception as exc:
+        LOGGER.warning("GSC query-only fetch bağlantı hatası site=%s: %s", site_id, exc)
+        return {"queries": [], "property_url": "", "source": "live_error", "error": str(exc)}
+
+    for target in targets:
+        property_url = str(target.get("property_url") or "")
+        if property_url and not primary_property:
+            primary_property = property_url
+        device = str(target.get("device") or "").upper() or None
+        try:
+            _merge_gsc_query_rows(
+                queries_map,
+                fetch_search_console_queries_for_article(
+                    service,
+                    property_url,
+                    start,
+                    end,
+                    article_id,
+                    device=device,
+                ),
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "GSC query-only fetch başarısız site=%s property=%s: %s",
+                site_id,
+                property_url,
+                exc,
+            )
+
+    return {
+        "queries": _finalize_gsc_queries(queries_map),
+        "property_url": primary_property,
+        "source": "live" if queries_map else "live_empty",
+    }
+
+
 def _fetch_gsc_live(
     db: Session,
     site_id: int,
@@ -479,11 +572,21 @@ def _fetch_gsc_live(
 
     pages_map: dict[str, dict[str, Any]] = {}
     queries_map: dict[str, dict[str, Any]] = {}
+    primary_property = ""
+    service = None
+    targets: list[dict[str, Any]] = []
     try:
         _site, service, targets = build_search_console_service_and_targets(db, site_id)
-        for target in targets:
-            property_url = str(target.get("property_url") or "")
-            device = str(target.get("device") or "").upper() or None
+    except Exception as exc:
+        LOGGER.warning("GSC live article fetch başarısız site=%s id=%s: %s", site_id, article_id, exc)
+        return {"scopes": {}, "pages": [], "queries": [], "property_url": "", "source": "live_error", "error": str(exc)}
+
+    for target in targets:
+        property_url = str(target.get("property_url") or "")
+        if property_url and not primary_property:
+            primary_property = property_url
+        device = str(target.get("device") or "").upper() or None
+        try:
             url_rows: list[dict] = []
             if urls:
                 url_rows = fetch_search_console_for_page_urls(
@@ -504,53 +607,31 @@ def _fetch_gsc_live(
             )
             _merge_gsc_page_rows(pages_map, url_rows, article_id=article_id)
             _merge_gsc_page_rows(pages_map, contains_rows, article_id=article_id)
-            for qrow in fetch_search_console_queries_for_article(
-                service,
+            _merge_gsc_query_rows(
+                queries_map,
+                fetch_search_console_queries_for_article(
+                    service,
+                    property_url,
+                    start,
+                    end,
+                    article_id,
+                    device=device,
+                ),
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "GSC live target fetch başarısız site=%s property=%s: %s",
+                site_id,
                 property_url,
-                start,
-                end,
-                article_id,
-                device=device,
-            ):
-                q = str(qrow.get("query") or "").strip()
-                if not q:
-                    continue
-                if q not in queries_map:
-                    queries_map[q] = {
-                        "query": q,
-                        "clicks": float(qrow.get("clicks") or 0.0),
-                        "impressions": float(qrow.get("impressions") or 0.0),
-                        "position": float(qrow.get("position") or 0.0),
-                    }
-                else:
-                    old = queries_map[q]
-                    old_impr = float(old.get("impressions") or 0.0)
-                    new_impr = float(qrow.get("impressions") or 0.0)
-                    total_impr = old_impr + new_impr
-                    if total_impr > 0:
-                        old["position"] = (
-                            (float(old.get("position") or 0.0) * old_impr)
-                            + (float(qrow.get("position") or 0.0) * new_impr)
-                        ) / total_impr
-                    old["clicks"] = float(old.get("clicks") or 0.0) + float(qrow.get("clicks") or 0.0)
-                    old["impressions"] = total_impr
-    except Exception as exc:
-        LOGGER.warning("GSC live article fetch başarısız site=%s id=%s: %s", site_id, article_id, exc)
-        return {"scopes": {}, "pages": [], "queries": [], "source": "live_error", "error": str(exc)}
+                exc,
+            )
 
     pages = sorted(
         pages_map.values(),
         key=lambda item: float(item.get("impressions") or 0.0),
         reverse=True,
     )
-    queries = sorted(
-        queries_map.values(),
-        key=lambda item: float(item.get("impressions") or 0.0),
-        reverse=True,
-    )
-    for q in queries:
-        impr = float(q.get("impressions") or 0.0)
-        q["ctr"] = round((float(q.get("clicks") or 0.0) / impr * 100.0), 2) if impr > 0 else 0.0
+    queries = _finalize_gsc_queries(queries_map)
     totals = _aggregate_gsc_rows(pages)
     return {
         "scopes": {
@@ -574,7 +655,8 @@ def _fetch_gsc_live(
             for p in pages
             if p.get("url")
         ],
-        "queries": queries[:20],
+        "queries": queries,
+        "property_url": primary_property,
         "source": "live",
     }
 
@@ -818,24 +900,37 @@ def resolve_content_traffic(
     resolved_urls = _filter_urls_for_article((ga4 or {}).get("urls") or [], resolved_aid)
 
     gsc_db = _lookup_gsc_from_db(db, sid, resolved_aid, resolved_urls)
-    gsc_live_payload: dict[str, Any] = {"scopes": {}, "pages": [], "source": "skipped"}
+    gsc_live_payload: dict[str, Any] = {"scopes": {}, "pages": [], "queries": [], "property_url": "", "source": "skipped"}
     if live:
         gsc_live_payload = _fetch_gsc_live(db, sid, resolved_aid, start_d, end_d, resolved_urls)
 
+    live_queries = (gsc_live_payload.get("queries") or []) if live else []
+    live_pages = (gsc_live_payload.get("pages") or []) if live else []
+    live_scopes = (gsc_live_payload.get("scopes") or {}) if live else {}
+    gsc_property_url = str(gsc_live_payload.get("property_url") or "")
+    if live and not live_queries and resolved_aid:
+        query_only = _fetch_gsc_queries_live(db, sid, resolved_aid, start_d, end_d)
+        live_queries = query_only.get("queries") or live_queries
+        gsc_property_url = gsc_property_url or str(query_only.get("property_url") or "")
+
     gsc: dict[str, Any]
-    live_scope = (gsc_live_payload.get("scopes") or {}).get("live") or {}
-    has_live = bool(gsc_live_payload.get("pages")) or bool(live_scope) or bool(gsc_live_payload.get("queries"))
-    if live and has_live:
+    live_scope = live_scopes.get("live") or {}
+    has_live_pages = bool(live_pages) or bool(live_scope)
+    has_live_data = has_live_pages or bool(live_queries)
+    if live and has_live_data:
         gsc = {
-            "scopes": {**(gsc_db.get("scopes") or {}), **(gsc_live_payload.get("scopes") or {})},
-            "pages": gsc_live_payload.get("pages") or [],
-            "queries": gsc_live_payload.get("queries") or [],
-            "source": gsc_live_payload.get("source") or "live",
+            "scopes": {**(gsc_db.get("scopes") or {}), **live_scopes},
+            "pages": live_pages or gsc_db.get("pages") or [],
+            "queries": live_queries,
+            "source": gsc_live_payload.get("source") if has_live_pages else (gsc_db.get("source") or "db"),
+            "queries_source": "live" if live_queries else "none",
         }
     elif gsc_db.get("pages"):
-        gsc = gsc_db
+        gsc = {**gsc_db, "queries": live_queries, "queries_source": "live" if live_queries else "none"}
     else:
         gsc = gsc_live_payload if live else gsc_db
+        if isinstance(gsc, dict) and live_queries:
+            gsc = {**gsc, "queries": live_queries, "queries_source": "live"}
 
     primary_gsc = gsc.get("scopes") or {}
     gsc_window = primary_gsc.get("live") or {}
@@ -893,6 +988,7 @@ def resolve_content_traffic(
             "gsc_page_count": live_page_count or len(gsc_pages),
             "gsc_pages": gsc_pages[:12],
             "gsc_queries": (gsc.get("queries") or [])[:15],
+            "gsc_property_url": gsc_property_url,
             "ga4_daily": (ga4 or {}).get("daily") or [],
             "ga4_day_phases": (ga4 or {}).get("day_phases") or [],
             "ga4_engagement": (ga4 or {}).get("engagement") or {},

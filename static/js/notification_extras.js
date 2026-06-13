@@ -822,6 +822,18 @@
     };
   }
 
+  function buildGscPerformancePageUrl(data, pageUrl) {
+    var sum = (data && data.summary) || {};
+    var propertyUrl = sum.gsc_property_url || (data.gsc && data.gsc.property_url) || "";
+    if (!propertyUrl && data.site_domain) {
+      propertyUrl = "sc-domain:" + String(data.site_domain || "").replace(/^www\./i, "");
+    }
+    if (!propertyUrl || !pageUrl) return "";
+    var base = "https://search.google.com/search-console/performance/search-analytics?resource_id="
+      + encodeURIComponent(propertyUrl) + "&hl=tr";
+    return base + "&page=!" + encodeURIComponent(pageUrl);
+  }
+
   function buildTrafficExtrasHtml(data, row) {
     var sum = data.summary || {};
     var ga4 = data.ga4 || {};
@@ -841,8 +853,10 @@
     if (row) {
       var nc = rowPlatformClicks(row);
       var csvTotal = nc.desktop + nc.mobileweb + nc.android + nc.ios;
+      var csvWebMweb = nc.desktop + nc.mobileweb;
       parts.push(trafficExtraWrap(3, "Huni özeti", '<div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] sm:grid-cols-3">'
-        + '<div><span class="text-slate-500">CSV bildirim</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(csvTotal) : csvTotal) + " tık</strong></div>"
+        + '<div><span class="text-slate-500">CSV tık (tüm platform)</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(csvTotal) : csvTotal) + " tık</strong>"
+        + '<br><span class="text-[8px] text-slate-400">WEB+MWEB: ' + (nt().fmtCount ? nt().fmtCount(csvWebMweb) : csvWebMweb) + "</span></div>"
         + '<div><span class="text-slate-500">GA4 oturum</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + "</strong></div>"
         + '<div><span class="text-slate-500">GA4 bildirim</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.ga4_notification_sessions || 0) : (sum.ga4_notification_sessions || 0)) + " oturum</strong></div>"
         + '<div><span class="text-slate-500">GA4 organik</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.ga4_organic_sessions || 0) : (sum.ga4_organic_sessions || 0)) + " oturum</strong></div>"
@@ -865,18 +879,29 @@
     var urls = sum.matched_urls || [];
     if (urls.length) {
       var primary = urls[0];
-      var encUrl = encodeURIComponent(primary);
+      var gscPageUrl = buildGscPerformancePageUrl(data, primary);
       parts.push(trafficExtraWrap(5, "Hızlı linkler", '<div class="flex flex-wrap gap-2 text-[9px]">'
         + '<a class="rounded border border-emerald-200 px-2 py-1 text-emerald-800 underline dark:border-emerald-800 dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(primary) : primary) + '" target="_blank" rel="noopener">Haber</a>'
         + '<a class="rounded border border-slate-200 px-2 py-1 text-slate-700 underline dark:border-slate-600 dark:text-slate-300" href="/ga4" target="_blank" rel="noopener">GA4 panel</a>'
         + '<a class="rounded border border-sky-200 px-2 py-1 text-sky-800 underline dark:border-sky-800 dark:text-sky-300" href="/search-console" target="_blank" rel="noopener">Search Console</a>'
-        + '<a class="rounded border border-sky-100 px-2 py-1 text-sky-700 underline dark:border-sky-900 dark:text-sky-300" href="https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain%3A' + encodeURIComponent((data.site_domain || "").replace(/^www\./, "")) + "&page=*" + encUrl + '" target="_blank" rel="noopener">GSC URL</a>'
+        + (gscPageUrl
+          ? '<a class="rounded border border-sky-100 px-2 py-1 text-sky-700 underline dark:border-sky-900 dark:text-sky-300" href="' + (nt().escapeHtml ? nt().escapeHtml(gscPageUrl) : gscPageUrl) + '" target="_blank" rel="noopener">GSC URL</a>'
+          : "")
         + "</div>"));
     }
     var sbProfiles = ga4.source_breakdown_profiles || {};
     if (sbProfiles.web || sbProfiles.mweb) {
-      var keys = ["notification", "organic", "direct", "referral", "paid", "other"];
-      var labels = { notification: "Bildirim", organic: "Organik", direct: "Direkt", referral: "Referral", paid: "Ücretli", other: "Diğer" };
+      var keys = ["notification", "organic", "direct", "referral", "paid", "social", "email", "other"];
+      var labels = {
+        notification: "Bildirim",
+        organic: "Organik",
+        direct: "Direkt",
+        referral: "Referral",
+        paid: "Ücretli",
+        social: "Sosyal",
+        email: "E-posta",
+        other: "Diğer",
+      };
       var rows6 = keys.map(function (key) {
         var w = 0; var m = 0;
         ["web", "mweb"].forEach(function (pf) {
@@ -1154,7 +1179,7 @@
         } else if (token !== trafficLoadToken) {
           return;
         }
-        if (!inline) lastContentTrafficPayload = data;
+        lastContentTrafficPayload = data;
         renderContentTraffic(data, {
           bodyEl: body,
           metaEl: meta,

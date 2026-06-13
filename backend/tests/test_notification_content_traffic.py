@@ -8,9 +8,11 @@ from backend.services.notification_content_traffic import (
     _compute_day_phases,
     _fetch_ga4_live,
     _filter_urls_for_article,
+    _finalize_gsc_queries,
     _headline_match_score,
     _merge_daily_rows,
     _merge_gsc_page_rows,
+    _merge_gsc_query_rows,
     normalize_article_id,
     page_url_matches_article_id,
     resolve_traffic_date_range,
@@ -207,3 +209,21 @@ def test_compute_day_phases_buckets():
     assert by_key["send_day"]["sessions"] == 100.0
     assert by_key["day_1_3"]["sessions"] == 50.0
     assert by_key["day_4_plus"]["sessions"] == 10.0
+
+
+def test_compute_day_phases_hides_zero_buckets():
+    daily = [{"date": "2026-05-20", "sessions": 50, "views": 60}]
+    phases = _compute_day_phases(daily, "2026-05-20")
+    assert len(phases) == 1
+    assert phases[0]["key"] == "send_day"
+
+
+def test_merge_gsc_query_rows_and_finalize():
+    acc: dict[str, dict] = {}
+    _merge_gsc_query_rows(acc, [{"query": "altın fiyat", "clicks": 2, "impressions": 100, "position": 5.0}])
+    _merge_gsc_query_rows(acc, [{"query": "altın fiyat", "clicks": 1, "impressions": 50, "position": 7.0}])
+    out = _finalize_gsc_queries(acc)
+    assert len(out) == 1
+    assert out[0]["clicks"] == 3.0
+    assert out[0]["impressions"] == 150.0
+    assert out[0]["ctr"] == 2.0
