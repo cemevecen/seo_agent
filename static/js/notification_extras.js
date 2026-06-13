@@ -819,8 +819,14 @@
     var sum = data.summary || {};
     var ga4 = data.ga4 || {};
     var gsc = data.gsc || {};
-    var gsc7 = (gsc.scopes && gsc.scopes.current_7d_pages) || (gsc.scopes && gsc.scopes.live) || {};
+    var gsc7 = (gsc.scopes && gsc.scopes.live) || (gsc.scopes && gsc.scopes.current_7d_pages) || {};
     var gsc30 = (gsc.scopes && gsc.scopes.current_30d_pages) || {};
+    var gscClicks = sum.gsc_clicks != null ? sum.gsc_clicks : (gsc7.clicks || sum.gsc_clicks_7d || 0);
+    var gscImpr = sum.gsc_impressions != null ? sum.gsc_impressions : (gsc7.impressions || sum.gsc_impressions_7d || 0);
+    var gscPos = sum.gsc_position != null ? sum.gsc_position : (gsc7.position || 0);
+    var gscStart = sum.gsc_start || gsc7.start_date || (data.date_range && data.date_range.start) || "";
+    var gscEnd = sum.gsc_end || gsc7.end_date || (data.date_range && data.date_range.end) || "";
+    var gscRangeLabel = (gscStart && gscEnd) ? (gscStart + " – " + gscEnd) : "seçili pencere";
     if (meta) {
       var dr = data.date_range || {};
       var rangeTxt = (dr.start && dr.end) ? (dr.start + " – " + dr.end) : ("son " + (data.days || 14) + " gün");
@@ -850,9 +856,10 @@
       + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " oturum · " + ga4Detail + "</p></div>"
       + '<div class="rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
       + '<p class="font-bold text-sky-800 dark:text-sky-300">Search Console</p>'
-      + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(gsc7.clicks || sum.gsc_clicks_7d || 0) : (gsc7.clicks || sum.gsc_clicks_7d || 0)) + ' <span class="text-xs font-normal">click (7g)</span></p>'
-      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gsc7.impressions || sum.gsc_impressions_7d || 0) : (gsc7.impressions || sum.gsc_impressions_7d || 0)) + " impr · poz " + Number(gsc7.position || 0).toFixed(1)
-      + (gsc30.clicks ? " · 30g " + (nt().fmtCount ? nt().fmtCount(gsc30.clicks) : gsc30.clicks) + " click" : "") + "</p></div>"
+      + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(gscClicks) : gscClicks) + ' <span class="text-xs font-normal">click</span></p>'
+      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gscImpr) : gscImpr) + " impr · poz " + Number(gscPos || 0).toFixed(1)
+      + " · " + gscRangeLabel
+      + (gsc30.clicks ? " · 30g depo " + (nt().fmtCount ? nt().fmtCount(gsc30.clicks) : gsc30.clicks) + " click" : "") + "</p></div>"
       + "</div>"
       + (urlHtml ? '<div class="mt-2"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>" : '<p class="mt-2 text-[10px] text-slate-500">Bu bildirim için GA4/GSC URL eşleşmesi bulunamadı. Başlık ve gönderim tarihi ile tekrar denendi.</p>');
   }

@@ -172,10 +172,24 @@ def _match_ga4_by_headline(
     return [p for _, p in scored[:8]]
 
 
+def _filter_urls_for_article(urls: list[str], article_id: str) -> list[str]:
+    """Yalnızca çözümlenen makale ID'sini taşıyan landing URL'leri."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in urls or []:
+        u = str(raw or "").strip()
+        if not u or u in seen:
+            continue
+        if page_url_matches_article_id(u, article_id):
+            seen.add(u)
+            out.append(u)
+    return out
+
+
 def _lookup_gsc_from_db(db: Session, site_id: int, article_id: str, urls: list[str]) -> dict[str, Any]:
     out: dict[str, Any] = {"scopes": {}, "pages": [], "source": "db"}
     seen_urls: set[str] = set()
-    url_set = {u for u in urls if u}
+    _ = urls  # DB snapshot satırları URL listesiyle değil makale ID ile eşleşir
     for scope in _GSC_PAGE_SCOPES:
         try:
             rows = get_latest_search_console_rows(db, site_id=site_id, data_scope=scope)
@@ -184,7 +198,7 @@ def _lookup_gsc_from_db(db: Session, site_id: int, article_id: str, urls: list[s
         matched = []
         for r in rows:
             q = str(r.get("query") or "")
-            if q in url_set or page_url_matches_article_id(q, article_id):
+            if page_url_matches_article_id(q, article_id):
                 matched.append(r)
         if not matched:
             continue
@@ -426,22 +440,40 @@ def resolve_content_traffic(
             safe_days,
         )
 
-    resolved_urls = list((ga4 or {}).get("urls") or [])
     resolved_aid = str((ga4 or {}).get("resolved_article_id") or aid)
+    resolved_urls = _filter_urls_for_article((ga4 or {}).get("urls") or [], resolved_aid)
 
     gsc_db = _lookup_gsc_from_db(db, sid, resolved_aid, resolved_urls)
+    gsc_live_payload: dict[str, Any] = {"scopes": {}, "pages": [], "source": "skipped"}
+    if live:
+        gsc_live_payload = _fetch_gsc_live(db, sid, resolved_aid, start_d, end_d, resolved_urls)
+
     gsc: dict[str, Any]
-    if gsc_db.get("pages"):
+    live_scope = (gsc_live_payload.get("scopes") or {}).get("live") or {}
+    has_live = bool(gsc_live_payload.get("pages")) or bool(live_scope)
+    if live and has_live:
+        gsc = {
+            "scopes": {**(gsc_db.get("scopes") or {}), **(gsc_live_payload.get("scopes") or {})},
+            "pages": gsc_live_payload.get("pages") or [],
+            "source": gsc_live_payload.get("source") or "live",
+        }
+    elif gsc_db.get("pages"):
         gsc = gsc_db
-    elif live:
-        gsc = _fetch_gsc_live(db, sid, resolved_aid, start_d, end_d, resolved_urls)
     else:
-        gsc = gsc_db
+        gsc = gsc_live_payload if live else gsc_db
 
     primary_gsc = gsc.get("scopes") or {}
-    gsc_live = primary_gsc.get("live") or {}
-    gsc_7 = primary_gsc.get("current_7d_pages") or gsc_live or {}
+    gsc_window = primary_gsc.get("live") or {}
+    gsc_db_7 = primary_gsc.get("current_7d_pages") or {}
     gsc_30 = primary_gsc.get("current_30d_pages") or {}
+    if not gsc_window and gsc_db_7:
+        gsc_window = gsc_db_7
+
+    matched_urls = list(
+        dict.fromkeys(
+            resolved_urls + [p.get("url") for p in (gsc.get("pages") or []) if p.get("url")]
+        )
+    )
 
     return {
         "content_id": content_id,
@@ -457,15 +489,17 @@ def resolve_content_traffic(
         "summary": {
             "ga4_views": (ga4 or {}).get("totals", {}).get("views", 0),
             "ga4_sessions": (ga4 or {}).get("totals", {}).get("sessions", 0),
-            "gsc_clicks_7d": gsc_7.get("clicks", 0),
-            "gsc_impressions_7d": gsc_7.get("impressions", 0),
+            "gsc_clicks": gsc_window.get("clicks", 0),
+            "gsc_impressions": gsc_window.get("impressions", 0),
+            "gsc_position": gsc_window.get("position", 0),
+            "gsc_start": gsc_window.get("start_date") or start,
+            "gsc_end": gsc_window.get("end_date") or end,
+            "gsc_source": gsc.get("source") or ("live" if primary_gsc.get("live") else "db"),
+            "gsc_clicks_7d": gsc_db_7.get("clicks", gsc_window.get("clicks", 0)),
+            "gsc_impressions_7d": gsc_db_7.get("impressions", gsc_window.get("impressions", 0)),
             "gsc_clicks_30d": gsc_30.get("clicks", 0),
             "gsc_impressions_30d": gsc_30.get("impressions", 0),
             "match_method": (ga4 or {}).get("match_method") or "none",
-            "matched_urls": list(
-                dict.fromkeys(
-                    resolved_urls + [p.get("url") for p in (gsc.get("pages") or []) if p.get("url")]
-                )
-            ),
+            "matched_urls": matched_urls,
         },
     }

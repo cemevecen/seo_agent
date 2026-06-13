@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from backend.services.notification_content_traffic import (
     _fetch_ga4_live,
+    _filter_urls_for_article,
     _headline_match_score,
     normalize_article_id,
     page_url_matches_article_id,
@@ -99,3 +100,15 @@ def test_ga4_web_mweb_use_separate_headline_pools(
     assert out["totals"]["views"] == 3595.0
     assert out["match_method"] == "headline"
     assert out["resolved_article_id"] == "873945"
+
+
+def test_filter_urls_for_article_excludes_wrong_ids():
+    urls = [
+        "https://haber.doviz.com/merkez-bankasi/882951",
+        "https://haber.doviz.com/baska-haber/882249",
+        "https://m.doviz.com/haber/x/882951/amp",
+    ]
+    out = _filter_urls_for_article(urls, "882951")
+    assert len(out) == 2
+    assert all("882951" in u for u in out)
+    assert not any("882249" in u for u in out)
