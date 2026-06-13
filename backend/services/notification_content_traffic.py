@@ -22,6 +22,129 @@ _DEFAULT_SITE_ID = 1
 _GSC_PAGE_SCOPES = ("current_7d_pages", "current_30d_pages", "previous_7d_pages", "previous_30d_pages")
 _HEADLINE_MATCH_MIN = 0.55
 
+_SOURCE_BUCKET_ORDER = (
+    "notification",
+    "organic",
+    "direct",
+    "referral",
+    "paid",
+    "social",
+    "email",
+    "other",
+)
+_SOURCE_BUCKET_LABELS = {
+    "notification": "Bildirim / Push",
+    "organic": "Organik arama",
+    "direct": "Direkt",
+    "referral": "Referral",
+    "paid": "Ücretli reklam",
+    "social": "Sosyal medya",
+    "email": "E-posta",
+    "other": "Diğer",
+}
+_NOTIFICATION_SOURCE_TOKENS = (
+    "notification",
+    "push",
+    "firebase",
+    "fcm",
+    "onesignal",
+    "gelirortak",
+    "bloomreach",
+    "mobile push",
+    "app push",
+)
+
+
+def _classify_traffic_bucket(*, channel: str = "", source_medium: str = "") -> str:
+    ch = (channel or "").strip().lower()
+    sm = (source_medium or "").strip().lower()
+    if any(t in sm for t in _NOTIFICATION_SOURCE_TOKENS) or "push" in ch:
+        return "notification"
+    if ch == "organic search" or ("organic" in sm and "paid" not in sm and "cpc" not in sm):
+        return "organic"
+    if ch == "direct" or sm in ("(direct) / (none)", "(direct)/(none)"):
+        return "direct"
+    if ch == "referral" or " / referral" in sm or sm.endswith("/referral"):
+        return "referral"
+    if "paid" in ch or "cpc" in sm or "ppc" in sm or "/paid" in sm:
+        return "paid"
+    if ch in ("organic social", "social") or "social" in sm:
+        return "social"
+    if ch == "email" or "email" in sm:
+        return "email"
+    return "other"
+
+
+def _aggregate_source_breakdown(
+    channel_rows: list[dict[str, Any]],
+    source_medium_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    buckets: dict[str, dict[str, Any]] = {
+        key: {"key": key, "label": _SOURCE_BUCKET_LABELS[key], "sessions": 0.0, "views": 0.0}
+        for key in _SOURCE_BUCKET_ORDER
+    }
+    if source_medium_rows:
+        for row in source_medium_rows:
+            bucket = _classify_traffic_bucket(source_medium=str(row.get("source_medium") or ""))
+            buckets[bucket]["sessions"] += float(row.get("sessions") or 0.0)
+            buckets[bucket]["views"] += float(row.get("views") or 0.0)
+    else:
+        for row in channel_rows:
+            bucket = _classify_traffic_bucket(channel=str(row.get("channel") or ""))
+            buckets[bucket]["sessions"] += float(row.get("sessions") or 0.0)
+            buckets[bucket]["views"] += float(row.get("views") or 0.0)
+
+    channels = sorted(channel_rows, key=lambda item: float(item.get("sessions") or 0.0), reverse=True)
+    source_medium = sorted(
+        source_medium_rows,
+        key=lambda item: float(item.get("sessions") or 0.0),
+        reverse=True,
+    )
+    buckets_out = [
+        {
+            **buckets[key],
+            "sessions": round(buckets[key]["sessions"], 2),
+            "views": round(buckets[key]["views"], 2),
+        }
+        for key in _SOURCE_BUCKET_ORDER
+        if buckets[key]["sessions"] > 0 or buckets[key]["views"] > 0
+    ]
+    return {
+        "buckets": buckets_out,
+        "channels": [
+            {
+                "channel": str(r.get("channel") or ""),
+                "sessions": round(float(r.get("sessions") or 0.0), 2),
+                "views": round(float(r.get("views") or 0.0), 2),
+            }
+            for r in channels
+        ],
+        "source_medium": [
+            {
+                "source_medium": str(r.get("source_medium") or ""),
+                "sessions": round(float(r.get("sessions") or 0.0), 2),
+                "views": round(float(r.get("views") or 0.0), 2),
+            }
+            for r in source_medium[:20]
+        ],
+    }
+
+
+def _merge_source_rows(
+    acc: dict[str, dict[str, Any]],
+    rows: list[dict[str, Any]],
+    *,
+    field: str,
+) -> None:
+    for row in rows or []:
+        key = str(row.get(field) or "").strip()
+        if not key:
+            continue
+        if key not in acc:
+            acc[key] = {field: key, "sessions": 0.0, "views": 0.0}
+        acc[key]["sessions"] += float(row.get("sessions") or 0.0)
+        acc[key]["views"] += float(row.get("views") or 0.0)
+
 
 def normalize_article_id(raw: str | None) -> str:
     s = re.sub(r"[\s\u00a0.,·']", "", str(raw or "").strip())
@@ -313,6 +436,7 @@ def _fetch_ga4_live(
 ) -> dict[str, Any]:
     from backend.collectors.ga4 import (
         fetch_ga4_article_paths_metrics,
+        fetch_ga4_article_traffic_sources,
         fetch_ga4_news_detail_pages_metrics,
     )
     from backend.services.ga4_page_urls import enrich_ga4_page_rows
@@ -384,6 +508,39 @@ def _fetch_ga4_live(
             "sessions": round(pf_sessions, 2),
         }
 
+    final_id = resolved_article_id or article_id
+    channel_acc: dict[str, dict[str, Any]] = {}
+    sm_acc: dict[str, dict[str, Any]] = {}
+    if final_id:
+        for pf in ("web", "mweb"):
+            prop = str(properties.get(pf) or "").strip()
+            if not prop:
+                continue
+            pt = profile_totals.get(pf) or {}
+            if float(pt.get("views") or 0) <= 0 and float(pt.get("sessions") or 0) <= 0:
+                continue
+            try:
+                br = fetch_ga4_article_traffic_sources(
+                    property_id=prop,
+                    article_id=final_id,
+                    start=start,
+                    end=end,
+                )
+                _merge_source_rows(channel_acc, br.get("channels") or [], field="channel")
+                _merge_source_rows(sm_acc, br.get("source_medium") or [], field="source_medium")
+            except Exception as exc:
+                LOGGER.warning(
+                    "GA4 kaynak kırılımı başarısız site=%s profile=%s: %s",
+                    site_id,
+                    pf,
+                    exc,
+                )
+
+    source_breakdown = _aggregate_source_breakdown(
+        list(channel_acc.values()),
+        list(sm_acc.values()),
+    )
+
     return {
         "profiles": profiles,
         "profile_totals": profile_totals,
@@ -394,6 +551,7 @@ def _fetch_ga4_live(
         "match_method": match_method,
         "resolved_article_id": resolved_article_id,
         "date_range": {"start": start, "end": end},
+        "source_breakdown": source_breakdown,
     }
 
 

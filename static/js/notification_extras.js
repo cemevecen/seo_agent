@@ -849,11 +849,44 @@
       var label = pf === "web" ? "WEB" : "MWEB";
       return '<span class="mr-2">' + label + ": " + (nt().fmtCount ? nt().fmtCount(v) : v) + " görüntüleme</span>";
     }).join("");
+    var ga4SourceHtml = (function () {
+      var sb = ga4.source_breakdown;
+      if (!sb || !sb.buckets || !sb.buckets.length) return "";
+      var totalS = sb.buckets.reduce(function (a, b) { return a + Number(b.sessions || 0); }, 0) || 1;
+      var bucketHtml = sb.buckets.map(function (b) {
+        var pct = Math.min(100, Math.round((Number(b.sessions || 0) / totalS) * 100));
+        var label = b.label || b.key || "";
+        return '<div class="mb-1.5">'
+          + '<div class="flex items-center justify-between gap-2 text-[10px]">'
+          + '<span class="truncate text-slate-600 dark:text-slate-400">' + (nt().escapeHtml ? nt().escapeHtml(label) : label) + "</span>"
+          + '<span class="shrink-0 font-semibold text-slate-700 dark:text-slate-200">'
+          + (nt().fmtCount ? nt().fmtCount(b.sessions) : b.sessions) + " oturum"
+          + (b.views ? " · " + (nt().fmtCount ? nt().fmtCount(b.views) : b.views) + " gör." : "")
+          + "</span></div>"
+          + '<div class="h-1 rounded-full bg-slate-200 dark:bg-slate-700"><div class="h-1 rounded-full bg-emerald-600" style="width:' + Math.max(pct, 2) + '%"></div></div>'
+          + "</div>";
+      }).join("");
+      var topSm = (sb.source_medium || []).slice(0, 8);
+      var smHtml = topSm.length
+        ? '<details class="mt-1"><summary class="cursor-pointer text-[10px] text-emerald-700 dark:text-emerald-400">Kaynak / medium (' + topSm.length + ")</summary>"
+          + '<div class="mt-1 space-y-0.5">' + topSm.map(function (r) {
+            var sm = r.source_medium || "";
+            return '<div class="flex justify-between gap-2 text-[9px] text-slate-500 dark:text-slate-400">'
+              + '<span class="truncate">' + (nt().escapeHtml ? nt().escapeHtml(sm) : sm) + "</span>"
+              + '<span class="shrink-0 font-medium">' + (nt().fmtCount ? nt().fmtCount(r.sessions) : r.sessions)
+              + (r.views ? " · " + (nt().fmtCount ? nt().fmtCount(r.views) : r.views) : "") + "</span></div>";
+          }).join("") + "</div></details>"
+        : "";
+      return '<div class="mt-2 border-t border-emerald-100 pt-2 dark:border-emerald-900">'
+        + '<p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Trafik kaynağı</p>'
+        + bucketHtml + smHtml + "</div>";
+    })();
     body.innerHTML = '<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">'
       + '<div class="rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'
       + '<p class="font-bold text-emerald-800 dark:text-emerald-300">GA4</p>'
       + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_views || 0) : (sum.ga4_views || 0)) + ' <span class="text-xs font-normal">görüntüleme</span></p>'
-      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " oturum · " + ga4Detail + "</p></div>"
+      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " oturum · " + ga4Detail + "</p>"
+      + ga4SourceHtml + "</div>"
       + '<div class="rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
       + '<p class="font-bold text-sky-800 dark:text-sky-300">Search Console</p>'
       + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(gscClicks) : gscClicks) + ' <span class="text-xs font-normal">click</span></p>'

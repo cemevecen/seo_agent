@@ -3,6 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 from backend.services.notification_content_traffic import (
+    _aggregate_source_breakdown,
+    _classify_traffic_bucket,
     _fetch_ga4_live,
     _filter_urls_for_article,
     _headline_match_score,
@@ -48,6 +50,7 @@ def test_resolve_traffic_date_range_from_send_date():
 
 
 @patch("backend.services.ga4_page_urls.enrich_ga4_page_rows")
+@patch("backend.collectors.ga4.fetch_ga4_article_traffic_sources")
 @patch("backend.collectors.ga4.fetch_ga4_news_detail_pages_metrics")
 @patch("backend.collectors.ga4.fetch_ga4_article_paths_metrics")
 @patch("backend.services.notification_content_traffic.get_ga4_connection_status")
@@ -55,6 +58,7 @@ def test_ga4_web_mweb_use_separate_headline_pools(
     mock_status,
     mock_paths,
     mock_pool,
+    mock_sources,
     mock_enrich,
 ):
     mock_status.return_value = {
@@ -62,6 +66,7 @@ def test_ga4_web_mweb_use_separate_headline_pools(
         "properties": {"web": "111", "mweb": "222"},
     }
     mock_paths.return_value = []
+    mock_sources.return_value = {"channels": [], "source_medium": []}
     mock_pool.side_effect = [
         [
             {
@@ -112,3 +117,29 @@ def test_filter_urls_for_article_excludes_wrong_ids():
     assert len(out) == 2
     assert all("882951" in u for u in out)
     assert not any("882249" in u for u in out)
+
+
+def test_classify_traffic_bucket():
+    assert _classify_traffic_bucket(channel="Organic Search") == "organic"
+    assert _classify_traffic_bucket(channel="Direct") == "direct"
+    assert _classify_traffic_bucket(channel="Referral") == "referral"
+    assert _classify_traffic_bucket(source_medium="firebase / push") == "notification"
+    assert _classify_traffic_bucket(source_medium="google / cpc") == "paid"
+
+
+def test_aggregate_source_breakdown_merges_source_medium():
+    out = _aggregate_source_breakdown(
+        [{"channel": "Organic Search", "sessions": 10, "views": 12}],
+        [
+            {"source_medium": "google / organic", "sessions": 80, "views": 95},
+            {"source_medium": "(direct) / (none)", "sessions": 40, "views": 42},
+            {"source_medium": "firebase / push", "sessions": 25, "views": 30},
+            {"source_medium": "twitter.com / referral", "sessions": 5, "views": 6},
+        ],
+    )
+    by_key = {b["key"]: b for b in out["buckets"]}
+    assert by_key["organic"]["sessions"] == 80
+    assert by_key["direct"]["sessions"] == 40
+    assert by_key["notification"]["sessions"] == 25
+    assert by_key["referral"]["sessions"] == 5
+    assert out["source_medium"][0]["source_medium"] == "google / organic"

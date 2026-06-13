@@ -1385,6 +1385,111 @@ def fetch_ga4_article_paths_metrics(
     return rows
 
 
+def _run_dim_metrics_single_range(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
+    dimension_name: str,
+    *,
+    start: str,
+    end: str,
+    limit: int,
+    dimension_filter: FilterExpression | None = None,
+    timeout: float | None = None,
+) -> list[dict[str, float | str]]:
+    """Tek dönem: boyut başına oturum + görüntüleme."""
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [Dimension(name=dimension_name)],
+        "metrics": [Metric(name="sessions"), Metric(name="screenPageViews")],
+        "date_ranges": [DateRange(start_date=start, end_date=end)],
+        "limit": max(10, min(int(limit), 250)),
+        "order_bys": [OrderBy(metric=OrderBy.MetricOrderBy(metric_name="sessions"), desc=True)],
+    }
+    if dimension_filter is not None:
+        req_kwargs["dimension_filter"] = dimension_filter
+    response = client.run_report(
+        RunReportRequest(**req_kwargs),
+        timeout=timeout or _GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+    )
+    rows: list[dict[str, float | str]] = []
+    for row in response.rows or []:
+        dim = str(row.dimension_values[0].value or "")
+        sessions = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        views = float(row.metric_values[1].value or 0.0) if len(row.metric_values or []) > 1 else 0.0
+        rows.append({"dimension": dim, "sessions": sessions, "views": views})
+    return rows
+
+
+def fetch_ga4_article_traffic_sources(
+    *,
+    property_id: str,
+    article_id: str,
+    start: str,
+    end: str,
+    limit: int = 50,
+) -> dict[str, list[dict]]:
+    """Makale pagePath filtresiyle oturum kaynağı (kanal + source/medium)."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid or not str(property_id or "").strip() or not start or not end:
+        return {"channels": [], "source_medium": []}
+    filt = article_id_path_filter("pagePath", aid)
+    if filt is None:
+        return {"channels": [], "source_medium": []}
+
+    client = _client()
+    lim = max(10, min(int(limit or 50), 100))
+    empty: dict[str, list[dict]] = {"channels": [], "source_medium": []}
+    try:
+        ch_rows = _run_dim_metrics_single_range(
+            client,
+            property_id,
+            "sessionDefaultChannelGroup",
+            start=start,
+            end=end,
+            limit=lim,
+            dimension_filter=filt,
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+        sm_rows = _run_dim_metrics_single_range(
+            client,
+            property_id,
+            "sessionSourceMedium",
+            start=start,
+            end=end,
+            limit=lim,
+            dimension_filter=filt,
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning(
+            "GA4 makale kaynak kırılımı başarısız property=%s article=%s",
+            property_id,
+            aid,
+            exc_info=True,
+        )
+        return empty
+
+    channels = [
+        {
+            "channel": str(r["dimension"]),
+            "sessions": float(r["sessions"]),
+            "views": float(r["views"]),
+        }
+        for r in ch_rows
+        if float(r.get("sessions") or 0) > 0 or float(r.get("views") or 0) > 0
+    ]
+    source_medium = [
+        {
+            "source_medium": str(r["dimension"]),
+            "sessions": float(r["sessions"]),
+            "views": float(r["views"]),
+        }
+        for r in sm_rows
+        if float(r.get("sessions") or 0) > 0 or float(r.get("views") or 0) > 0
+    ]
+    return {"channels": channels, "source_medium": source_medium}
+
+
 def fetch_ga4_news_landing_pages_total(
     *,
     property_id: str,
