@@ -299,6 +299,17 @@
       <button type="button" id="nt-drill-clear" class="ml-2 font-bold text-indigo-700 underline dark:text-indigo-300">Filtreyi kaldır</button>
     </div>
     <div id="nt-drill-mini-cards" class="mt-2 hidden grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+    <div id="nt-content-traffic" class="mt-3 hidden rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-xs font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">GA4 / GSC trafik (içerik linki)</h3>
+        <select id="nt-traffic-days" class="rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[10px] dark:border-emerald-800 dark:bg-slate-900 dark:text-slate-300">
+          <option value="7" selected>Son 7 gün</option>
+          <option value="30">Son 30 gün</option>
+        </select>
+      </div>
+      <p id="nt-content-traffic-meta" class="mt-1 text-[10px] text-slate-500 dark:text-slate-400"></p>
+      <div id="nt-content-traffic-body" class="mt-2 space-y-2 text-xs"></div>
+    </div>
     <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
       <input id="nt-filter-q" type="search" placeholder="Başlık ara…" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
       <input id="nt-filter-id" type="text" placeholder="Bildirim ID" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
@@ -397,6 +408,7 @@
       rawPage = 0;
       renderRawRows(rawListRows());
       if (window.NTExtras && NTExtras.renderPlatformCompare) NTExtras.renderPlatformCompare(null);
+      if (window.NTExtras && NTExtras.clearContentTraffic) NTExtras.clearContentTraffic();
     }
   };
   var PLATFORM_KEYS = [
@@ -1079,7 +1091,7 @@
       return true;
     });
     var row = match.length ? match[0] : null;
-    if (!row) { cards.classList.add("hidden"); return; }
+    if (!row) { cards.classList.add("hidden"); if (window.NTExtras && NTExtras.clearContentTraffic) NTExtras.clearContentTraffic(); return; }
     cards.classList.remove("hidden");
     var pc = rowPlatformClicksLocal(row);
     cards.innerHTML = [
@@ -1091,6 +1103,7 @@
       return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-center dark:border-slate-700 dark:bg-slate-900"><p class="text-[10px] font-bold uppercase text-slate-500">' + x.k + '</p><p class="text-lg font-black text-indigo-700 dark:text-indigo-300">' + fmtCount(x.v) + "</p></div>";
     }).join("");
     if (window.NTExtras && NTExtras.renderPlatformCompare) NTExtras.renderPlatformCompare(row);
+    if (window.NTExtras && NTExtras.loadContentTraffic) NTExtras.loadContentTraffic(row);
   }
   function rowPlatformClicksLocal(r) {
     var p = r.platforms || {};

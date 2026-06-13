@@ -1238,6 +1238,87 @@ def fetch_ga4_landing_pages(
     return rows[:cap]
 
 
+def article_id_path_filter(field_name: str, article_id: str) -> FilterExpression | None:
+    """pagePath / landingPage — haber makalesi ID'si ile biten URL'ler (ör. .../705471)."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid:
+        return None
+    pattern = rf"/{re.escape(aid)}(?:/amp)?(?:[/?#]|$)"
+    return FilterExpression(
+        filter=Filter(
+            field_name=str(field_name or "pagePath"),
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.PARTIAL_REGEXP,
+                value=pattern,
+                case_sensitive=False,
+            ),
+        ),
+    )
+
+
+def fetch_ga4_article_paths_metrics(
+    *,
+    property_id: str,
+    article_id: str,
+    days: int = 7,
+) -> list[dict]:
+    """Tek dönem: makale ID'sine uyan tüm pagePath satırları (screenPageViews + sessions)."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid or not str(property_id or "").strip():
+        return []
+    safe_days = max(1, min(int(days or 7), 90))
+    (last_start, last_end), _ = _calendar_windows(safe_days)
+    filt = article_id_path_filter("pagePath", aid)
+    if filt is None:
+        return []
+
+    client = _client()
+    views_map = _run_landing_host_path_metric_single_range(
+        client,
+        property_id,
+        metric_name="screenPageViews",
+        path_dimension="pagePath",
+        start=last_start,
+        end=last_end,
+        limit=50,
+        dimension_filter=filt,
+        timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+    )
+    sess_map = _run_landing_host_path_metric_single_range(
+        client,
+        property_id,
+        metric_name="sessions",
+        path_dimension="pagePath",
+        start=last_start,
+        end=last_end,
+        limit=50,
+        dimension_filter=filt,
+        timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+    )
+    keys = set(views_map) | set(sess_map)
+    rows: list[dict] = []
+    for key in keys:
+        host, sep, path = key.partition("\x1f")
+        if not sep:
+            path = host
+            host = ""
+        host = host.strip()
+        path = path.strip()
+        page_url = ga4_canonical_page_url(host, path)
+        ph = host if host.lower() not in ("(not set)", "not set") else ""
+        rows.append(
+            {
+                "page": path,
+                "page_host": ph,
+                "page_url": page_url,
+                "views": float(views_map.get(key, 0.0)),
+                "sessions": float(sess_map.get(key, 0.0)),
+            }
+        )
+    rows.sort(key=lambda item: float(item.get("views") or 0.0), reverse=True)
+    return rows
+
+
 def fetch_ga4_news_landing_pages_total(
     *,
     property_id: str,

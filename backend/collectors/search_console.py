@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
@@ -455,6 +456,80 @@ def _fetch_search_console_rows_limited(
         start_row += page_size
 
     return all_rows[:max_rows]
+
+
+def build_search_console_service_and_targets(db: Session, site_id: int):
+    """Site için Search Console API istemcisi + property hedefleri."""
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if site is None:
+        raise ValueError("Site bulunamadi.")
+
+    credential = get_search_console_credentials_record(db, site.id)
+    if credential is None:
+        raise ValueError("Search Console baglantisi yok.")
+
+    credential_data = load_google_credentials(credential)
+    if credential.credential_type == "search_console_oauth":
+        credentials = credential_data
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(GoogleAuthRequest())
+    else:
+        credentials = service_account.Credentials.from_service_account_info(
+            credential_data,
+            scopes=SEARCH_CONSOLE_SCOPES,
+        )
+
+    service = build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+    targets = _resolve_search_console_targets(service, site)
+    return site, service, targets
+
+
+def fetch_search_console_pages_for_article(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    article_id: str,
+    *,
+    device: str | None = None,
+    max_rows: int = 100,
+) -> list[dict]:
+    """page boyutunda makale ID'si içeren URL satırları."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid:
+        return []
+    page_size = max(10, min(int(max_rows), 250))
+    body: dict = {
+        "startDate": start_date.isoformat(),
+        "endDate": end_date.isoformat(),
+        "dimensions": ["page"] if device else ["page", "device"],
+        "rowLimit": page_size,
+        "startRow": 0,
+        "dimensionFilterGroups": [
+            {
+                "filters": [
+                    {
+                        "dimension": "page",
+                        "operator": "contains",
+                        "expression": f"/{aid}",
+                    }
+                ]
+            }
+        ],
+    }
+    if device:
+        body["dimensionFilterGroups"][0]["filters"].append(
+            {
+                "dimension": "device",
+                "expression": str(device).upper(),
+            }
+        )
+    response = service.searchanalytics().query(siteUrl=site_url, body=body).execute()
+    rows = response.get("rows", []) or []
+    return _normalize_search_console_rows(rows, forced_device=device, property_url=site_url)
 
 
 def _fetch_search_console_query_rows(

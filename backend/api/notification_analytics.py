@@ -110,6 +110,28 @@ def post_notification_analytics_reset(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.get("/notification-analytics/traffic")
+def get_notification_analytics_traffic(
+    content_id: str = Query(..., description="Bildirim içerik ID (ör. 705471)"),
+    site_id: int = Query(1, ge=1, description="GA4/GSC site ID"),
+    days: int = Query(7, ge=1, le=90),
+    live: bool = Query(True, description="GA4 canlı çekim; GSC DB boşsa canlı"),
+    db: Session = Depends(get_db),
+):
+    try:
+        from backend.services.notification_content_traffic import resolve_content_traffic
+
+        return resolve_content_traffic(
+            db,
+            content_id=content_id,
+            site_id=site_id,
+            days=days,
+            live=live,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.get("/notification-analytics/alerts/evaluate")
 def get_notification_analytics_alerts_evaluate(
     send_email: bool = Query(False, description="true ise operasyon e-postası gönder"),

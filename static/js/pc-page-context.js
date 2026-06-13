@@ -85,8 +85,9 @@
     notification: [
       { label: 'Bu ekranı özetle', msg: 'Notification Analytics ekranındaki KPI, dönem karşılaştırması ve platform dağılımını özetle. Ölçülen→çıkarım→en fazla 3 aksiyon formatında yaz.' },
       { label: 'Android vs Web', msg: 'Seçili tarih aralığında Android+iOS (app) ile Desktop+MWeb (web) click performansını karşılaştır; hangisi öne çıkıyor, neden olabilir?' },
+      { label: 'GA4/GSC trafik', msg: 'Drill-down ile seçili bildirimin içerik ID karşılığını GA4 (görüntüleme/oturum) ve Search Console (click/gösterim/pozisyon) ile yorumla. Bildirim click ile organik trafik arasındaki farkı değerlendir.' },
       { label: 'Alarm yorumla', msg: 'Notification alarmlar panelindeki durumu yorumla: click düşüşü veya CTR medyan altı var mı, olası nedenler ve kontrol listesi ver.' },
-      { label: 'Top bildirimler', msg: 'Cross-platform Top 20 ve en çok/en az listelerinden öne çıkan bildirimleri analiz et; tekrar eden başlıklar ve platform farklarına dikkat et.' },
+      { label: 'Top bildirimler', msg: 'Cross-platform Top 20 ve en çok/en az listelerinden öne çıkan bildirimleri analiz et; tekrar eden başlıklar, platform farkları ve varsa GA4/GSC trafik verisine dikkat et.' },
     ],
   };
 

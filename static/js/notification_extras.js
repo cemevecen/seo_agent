@@ -43,7 +43,9 @@
   }
   var lastAlertPayload = null;
   var lastComparePayload = null;
+  var lastContentTrafficPayload = null;
   var selectedCompareRow = null;
+  var trafficLoadToken = 0;
 
   function nt() {
     return global.NT || {};
@@ -373,6 +375,100 @@
     });
   }
 
+  function clearContentTraffic() {
+    lastContentTrafficPayload = null;
+    var panel = global.document.getElementById("nt-content-traffic");
+    var body = global.document.getElementById("nt-content-traffic-body");
+    var meta = global.document.getElementById("nt-content-traffic-meta");
+    if (panel) panel.classList.add("hidden");
+    if (body) body.innerHTML = "";
+    if (meta) meta.textContent = "";
+  }
+
+  function renderContentTraffic(data) {
+    var panel = global.document.getElementById("nt-content-traffic");
+    var body = global.document.getElementById("nt-content-traffic-body");
+    var meta = global.document.getElementById("nt-content-traffic-meta");
+    if (!panel || !body) return;
+    if (!data || !data.article_id) {
+      clearContentTraffic();
+      return;
+    }
+    panel.classList.remove("hidden");
+    var sum = data.summary || {};
+    var ga4 = data.ga4 || {};
+    var gsc = data.gsc || {};
+    var gsc7 = (gsc.scopes && gsc.scopes.current_7d_pages) || (gsc.scopes && gsc.scopes.live) || {};
+    var gsc30 = (gsc.scopes && gsc.scopes.current_30d_pages) || {};
+    if (meta) {
+      meta.textContent = "İçerik ID " + data.article_id + " · " + (data.site_domain || "") + " · son " + (data.days || 7) + " gün GA4";
+    }
+    var urlHtml = (sum.matched_urls || []).slice(0, 5).map(function (u) {
+      return '<a class="block truncate text-emerald-800 underline dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(u) : u) + '" target="_blank" rel="noopener">' + (nt().escapeHtml ? nt().escapeHtml(u) : u) + "</a>";
+    }).join("");
+    var ga4Profiles = ga4.profiles || {};
+    var ga4Detail = ["web", "mweb"].map(function (pf) {
+      var rows = ga4Profiles[pf] || [];
+      if (!rows.length) return "";
+      var v = rows.reduce(function (a, r) { return a + Number(r.views || 0); }, 0);
+      return '<span class="mr-2">' + pf.toUpperCase() + ": " + (nt().fmtCount ? nt().fmtCount(v) : v) + " görüntüleme</span>";
+    }).join("");
+    body.innerHTML = '<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">'
+      + '<div class="rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'
+      + '<p class="font-bold text-emerald-800 dark:text-emerald-300">GA4</p>'
+      + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_views || 0) : (sum.ga4_views || 0)) + ' <span class="text-xs font-normal">görüntüleme</span></p>'
+      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " oturum · " + ga4Detail + "</p></div>"
+      + '<div class="rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
+      + '<p class="font-bold text-sky-800 dark:text-sky-300">Search Console</p>'
+      + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(gsc7.clicks || sum.gsc_clicks_7d || 0) : (gsc7.clicks || sum.gsc_clicks_7d || 0)) + ' <span class="text-xs font-normal">click (7g)</span></p>'
+      + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gsc7.impressions || sum.gsc_impressions_7d || 0) : (gsc7.impressions || sum.gsc_impressions_7d || 0)) + " impr · poz " + Number(gsc7.position || 0).toFixed(1)
+      + (gsc30.clicks ? " · 30g " + (nt().fmtCount ? nt().fmtCount(gsc30.clicks) : gsc30.clicks) + " click" : "") + "</p></div>"
+      + "</div>"
+      + (urlHtml ? '<div class="mt-2"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>" : '<p class="mt-2 text-[10px] text-slate-500">Bu ID için GA4/GSC URL eşleşmesi bulunamadı.</p>');
+  }
+
+  function loadContentTraffic(row) {
+    if (!row) {
+      clearContentTraffic();
+      return;
+    }
+    var cid = nt().idString ? nt().idString(row) : String(row.id || "");
+    if (!cid || !/^\d+$/.test(cid.replace(/\D/g, "").slice(0, 20))) {
+      clearContentTraffic();
+      return;
+    }
+    var daysEl = global.document.getElementById("nt-traffic-days");
+    var days = daysEl && daysEl.value ? parseInt(daysEl.value, 10) : 7;
+    var token = ++trafficLoadToken;
+    var panel = global.document.getElementById("nt-content-traffic");
+    var body = global.document.getElementById("nt-content-traffic-body");
+    if (panel) panel.classList.remove("hidden");
+    if (body) body.innerHTML = '<p class="text-xs text-slate-500">GA4 / GSC trafik yükleniyor…</p>';
+    apiFetch("/api/notification-analytics/traffic?content_id=" + encodeURIComponent(cid) + "&days=" + days + "&site_id=1")
+      .then(function (data) {
+        if (token !== trafficLoadToken) return;
+        lastContentTrafficPayload = data;
+        renderContentTraffic(data);
+      })
+      .catch(function () {
+        if (token !== trafficLoadToken) return;
+        if (body) body.innerHTML = '<p class="text-xs text-rose-600">Trafik verisi yüklenemedi.</p>';
+      });
+  }
+
+  function bindTrafficDays() {
+    var sel = global.document.getElementById("nt-traffic-days");
+    if (!sel) return;
+    sel.addEventListener("change", function () {
+      if (selectedCompareRow) loadContentTraffic(selectedCompareRow);
+      else if (global.NTDrill && global.NTDrill.get()) {
+        var f = global.NTDrill.get();
+        var row = findDrillRow(f.id, f.text, f.date);
+        if (row) loadContentTraffic(row);
+      }
+    });
+  }
+
   function buildPageContext() {
     var rows = nt().getFilteredRows ? nt().getFilteredRows() : [];
     var stats = aggregatePeriod(rows);
@@ -398,11 +494,16 @@
         platforms: rowPlatformClicks(selectedCompareRow),
       } : null,
       cross_top_sample: (global.cachedCrossTopList || []).slice(0, 5),
+      content_traffic: lastContentTrafficPayload,
     };
     ctx.visible_text = "Notification KPI: " + stats.clicks + " click, " + stats.impressions + " impression, "
       + rows.length + " kayıt. App " + stats.app + " / Web " + stats.web + " click.";
     if (lastComparePayload && lastComparePayload.current) {
       ctx.visible_text += " Dönem karşılaştırma yüklendi.";
+    }
+    if (lastContentTrafficPayload && lastContentTrafficPayload.summary) {
+      var ts = lastContentTrafficPayload.summary;
+      ctx.visible_text += " Seçili içerik GA4 " + (ts.ga4_views || 0) + " görüntüleme, GSC " + (ts.gsc_clicks_7d || 0) + " click (7g).";
     }
     if (lastAlertPayload && lastAlertPayload.alerts && lastAlertPayload.alerts.length) {
       ctx.visible_text += " Aktif alarm: " + lastAlertPayload.alerts.map(function (a) { return a.title; }).join("; ");
@@ -423,6 +524,9 @@
     buildPageContext: buildPageContext,
     rowPlatformClicks: rowPlatformClicks,
     rowTotalClick: rowTotalClick,
+    loadContentTraffic: loadContentTraffic,
+    clearContentTraffic: clearContentTraffic,
+    renderContentTraffic: renderContentTraffic,
   };
 
   global.addEventListener("nt-redraw", onRedraw);
@@ -430,6 +534,7 @@
   bindDrill();
   bindAlertsButton();
   bindHeatmapMetric();
+  bindTrafficDays();
 
   global.__pcPageContext = function () {
     return buildPageContext();
