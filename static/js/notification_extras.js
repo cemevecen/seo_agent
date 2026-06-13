@@ -7,16 +7,18 @@
   var DOW_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
   var HEATMAP_HOUR_START = 7;
   var HEATMAP_HOUR_END = 23;
+  // Düşük click → kırmızı, yüksek click → koyu yeşil (önemli saatler belirgin)
   var HEATMAP_COLORSCALE = [
-    [0, "#14532d"],
-    [0.14, "#22c55e"],
-    [0.28, "#86efac"],
+    [0, "#7f1d1d"],
+    [0.14, "#ef4444"],
+    [0.28, "#f97316"],
     [0.42, "#fde047"],
     [0.57, "#eab308"],
-    [0.71, "#f97316"],
-    [0.85, "#ef4444"],
-    [1, "#7f1d1d"],
+    [0.71, "#86efac"],
+    [0.85, "#22c55e"],
+    [1, "#14532d"],
   ];
+  var HEATMAP_NO_DATA = null;
 
   function dowIndex(iso) {
     var dt = new Date(iso);
@@ -535,7 +537,7 @@
     var grid = {};
     for (var d = 0; d < 7; d++) {
       grid[d] = {};
-      for (var h = hStart; h <= hEnd; h++) grid[d][h] = 0;
+      for (var h = hStart; h <= hEnd; h++) grid[d][h] = HEATMAP_NO_DATA;
     }
     (rows || []).forEach(function (r) {
       var iso = String(r.date || "");
@@ -545,6 +547,7 @@
       var dt = new Date(iso);
       var hour = dt.getHours();
       if (hour < hStart || hour > hEnd) return;
+      if (grid[dow][hour] === HEATMAP_NO_DATA) grid[dow][hour] = 0;
       var val = 0;
       if (metric === "total") val = rowTotalClick(r);
       else {
@@ -556,15 +559,23 @@
     var z = [];
     var y = DOW_LABELS.slice();
     var x = [];
+    var zFlat = [];
     for (var hi = hStart; hi <= hEnd; hi++) {
       x.push((hi < 10 ? "0" : "") + hi + ":00");
     }
     for (var di = 0; di < 7; di++) {
       var row = [];
-      for (var hj = hStart; hj <= hEnd; hj++) row.push(grid[di][hj]);
+      for (var hj = hStart; hj <= hEnd; hj++) {
+        var cell = grid[di][hj];
+        row.push(cell);
+        if (cell !== HEATMAP_NO_DATA && cell !== null) zFlat.push(cell);
+      }
       z.push(row);
     }
+    var zmax = zFlat.length ? Math.max.apply(null, zFlat) : 1;
+    if (zmax <= 0) zmax = 1;
     var dark = global.document.documentElement.classList.contains("dark");
+    var noDataGray = dark ? "#3f3f46" : "#d4d4d8";
     Plotly.newPlot(el, [{
       type: "heatmap",
       x: x,
@@ -572,12 +583,13 @@
       z: z,
       colorscale: HEATMAP_COLORSCALE,
       zmin: 0,
+      zmax: zmax,
       hoverongaps: false,
       colorbar: { tickfont: { size: 9, color: dark ? "#a1a1aa" : "#475569" } },
     }], {
       margin: { l: 50, r: 10, t: 10, b: 40 },
       paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: noDataGray,
       font: { color: dark ? "#a1a1aa" : "#475569", size: 10 },
       xaxis: { title: "Saat (07:00–23:00)", tickangle: -45 },
       yaxis: { title: "Gün" },
