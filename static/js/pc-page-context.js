@@ -82,6 +82,12 @@
       { label: 'Verileri özetle', msg: 'Ana sayfadaki Günün Özeti verilerini sayılarla özetle: doviz ve sinemalar için anlık kullanıcı, GA4 session, Search Console tıklama/gösterim, kritik pozisyon düşüşleri.' },
       { label: 'Dikkat çeken', msg: 'Bugün dikkat çeken tek en önemli metrik hangisi ve neden?' },
     ],
+    notification: [
+      { label: 'Bu ekranı özetle', msg: 'Notification Analytics ekranındaki KPI, dönem karşılaştırması ve platform dağılımını özetle. Ölçülen→çıkarım→en fazla 3 aksiyon formatında yaz.' },
+      { label: 'Android vs Web', msg: 'Seçili tarih aralığında Android+iOS (app) ile Desktop+MWeb (web) click performansını karşılaştır; hangisi öne çıkıyor, neden olabilir?' },
+      { label: 'Alarm yorumla', msg: 'Notification alarmlar panelindeki durumu yorumla: click düşüşü veya CTR medyan altı var mı, olası nedenler ve kontrol listesi ver.' },
+      { label: 'Top bildirimler', msg: 'Cross-platform Top 20 ve en çok/en az listelerinden öne çıkan bildirimleri analiz et; tekrar eden başlıklar ve platform farklarına dikkat et.' },
+    ],
   };
 
   function matchRoute(path) {

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.services import notification_analytics_store as store
+from backend.services.notification_analytics_alerts import evaluate_notification_analytics_alerts
 
 router = APIRouter(tags=["notification-analytics"])
 
@@ -106,4 +107,24 @@ def post_notification_analytics_reset(db: Session = Depends(get_db)):
         return store.reset_workspace(db)
     except Exception as exc:  # noqa: BLE001
         db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/notification-analytics/alerts/evaluate")
+def get_notification_analytics_alerts_evaluate(
+    send_email: bool = Query(False, description="true ise operasyon e-postası gönder"),
+    db: Session = Depends(get_db),
+):
+    try:
+        return evaluate_notification_analytics_alerts(db, send_email=send_email)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/notification-analytics/alerts/check")
+def post_notification_analytics_alerts_check(db: Session = Depends(get_db)):
+    """Manuel alarm kontrolü — e-posta + AI Talk alert."""
+    try:
+        return evaluate_notification_analytics_alerts(db, send_email=True)
+    except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc

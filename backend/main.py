@@ -3635,6 +3635,27 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         misfire_grace_time=600,
     )
 
+    def _run_notification_analytics_alerts() -> None:
+        try:
+            from backend.services.notification_analytics_alerts import evaluate_notification_analytics_alerts
+
+            with SessionLocal() as db:
+                evaluate_notification_analytics_alerts(db, send_email=True)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning("Notification analytics alert job: %s", exc)
+
+    from apscheduler.triggers.cron import CronTrigger as _NtAlertCron
+
+    scheduler.add_job(
+        _run_notification_analytics_alerts,
+        trigger=_NtAlertCron(hour=8, minute=15),
+        id="notification-analytics-alerts",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+
     return scheduler
 
 
