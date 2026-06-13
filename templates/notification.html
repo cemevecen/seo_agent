@@ -296,6 +296,51 @@
     html.dark .notification-page .nt-cross-drill-detail td {
       border-bottom-color: rgb(67 56 202 / 0.35) !important;
     }
+    .notification-page .nt-traffic-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+      gap: 0.5rem;
+      align-items: start;
+    }
+    .notification-page .nt-traffic-card {
+      height: auto;
+      min-height: 0;
+      align-self: start;
+    }
+    .notification-page .nt-traffic-extras {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+      gap: 0.5rem;
+      align-items: start;
+    }
+    .notification-page .nt-traffic-extra {
+      height: auto;
+      min-height: 0;
+      align-self: start;
+    }
+    .notification-page .nt-traffic-extra-wide {
+      grid-column: 1 / -1;
+    }
+    .notification-page .nt-gsc-queries-table {
+      width: max-content;
+      max-width: 100%;
+      border-collapse: collapse;
+    }
+    .notification-page .nt-gsc-queries-table th,
+    .notification-page .nt-gsc-queries-table td {
+      padding: 0.125rem 0.5rem 0.125rem 0;
+      text-align: left;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .notification-page .nt-gsc-queries-table th:first-child,
+    .notification-page .nt-gsc-queries-table td:first-child {
+      max-width: 11rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding-right: 0.75rem;
+    }
   </style>
   <details id="nt-ham-list-details" open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Ham içerik listesi</summary>

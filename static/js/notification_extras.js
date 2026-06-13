@@ -790,36 +790,31 @@
     }).join("");
   }
 
-  var trafficDailyChartSeq = 0;
-
-  function trafficExtraWrap(num, title, innerHtml) {
-    return '<section class="nt-traffic-extra rounded-lg border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/60" data-nt-extra="' + num + '">'
+  function trafficExtraWrap(num, title, innerHtml, wide) {
+    return '<section class="nt-traffic-extra' + (wide ? " nt-traffic-extra-wide" : "") + ' rounded-lg border border-slate-200 bg-white/80 p-2 dark:border-slate-700 dark:bg-slate-900/60" data-nt-extra="' + num + '">'
       + '<p class="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">'
       + '<span class="inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-slate-200 px-1 text-[9px] font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">' + num + "</span>"
       + (nt().escapeHtml ? nt().escapeHtml(title) : title) + "</p>"
       + innerHtml + "</section>";
   }
 
-  function buildTrafficBenchmark(row) {
-    if (!row || !nt().getFilteredRows) return null;
-    var myTotal = rowTotalClick(row);
-    var myId = nt().idString ? nt().idString(row) : String(row.id || "");
-    var myDay = nt().dayKey ? nt().dayKey(row.date) : "";
-    var totals = (nt().getFilteredRows() || []).filter(function (r) {
-      if (myId && nt().idString && nt().idString(r) === myId && nt().dayKey && nt().dayKey(r.date) === myDay) return false;
-      return true;
-    }).map(function (r) { return rowTotalClick(r); }).filter(function (v) { return v > 0; }).sort(function (a, b) { return a - b; });
-    if (!totals.length) return { myTotal: myTotal, median: 0, p75: 0, count: 0, pctVsMedian: 0 };
-    var mid = Math.floor(totals.length / 2);
-    var median = totals.length % 2 ? totals[mid] : (totals[mid - 1] + totals[mid]) / 2;
-    var p75 = totals[Math.min(totals.length - 1, Math.floor(totals.length * 0.75))];
-    return {
-      myTotal: myTotal,
-      median: median,
-      p75: p75,
-      count: totals.length,
-      pctVsMedian: median > 0 ? Math.round((myTotal / median) * 100) : 0,
-    };
+  function buildGscQueriesTableHtml(queries) {
+    if (!queries || !queries.length) return "";
+    var esc = nt().escapeHtml ? nt().escapeHtml.bind(nt()) : function (s) { return s; };
+    var fmt = nt().fmtCount ? nt().fmtCount.bind(nt()) : function (v) { return v; };
+    var rows = queries.map(function (q) {
+      return "<tr>"
+        + '<td title="' + esc(q.query || "") + '">' + esc(q.query || "") + "</td>"
+        + "<td>" + fmt(q.clicks || 0) + "</td>"
+        + "<td>" + fmt(q.impressions || 0) + "</td>"
+        + "<td>" + Number(q.position || 0).toFixed(1) + "</td>"
+        + "</tr>";
+    }).join("");
+    return '<div class="max-h-40 overflow-auto">'
+      + '<table class="nt-gsc-queries-table text-[9px] text-slate-600 dark:text-slate-400">'
+      + "<thead><tr class=\"text-slate-500\">"
+      + "<th>Sorgu</th><th>Click</th><th>Impr</th><th>Poz</th>"
+      + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
   }
 
   function buildGscPerformancePageUrl(data, pageUrl) {
@@ -839,48 +834,31 @@
     var ga4 = data.ga4 || {};
     var gscQueries = sum.gsc_queries || (data.gsc && data.gsc.queries) || [];
     var parts = [];
-    var daily = sum.ga4_daily || ga4.daily || [];
-    if (daily.length) {
-      var chartId = "nt-traffic-daily-" + (++trafficDailyChartSeq);
-      parts.push(trafficExtraWrap(1, "Günlük GA4 trend", '<div id="' + chartId + '" class="h-28 w-full" data-nt-daily-chart="' + chartId + '"></div>'
-        + '<p class="mt-1 text-[9px] text-slate-500">' + daily.length + " gün · toplam " + (nt().fmtCount ? nt().fmtCount(daily.reduce(function (a, d) { return a + Number(d.views || 0); }, 0)) : 0) + " görüntüleme</p>"));
-    }
+    var extraNum = 0;
     if (gscQueries.length) {
-      parts.push(trafficExtraWrap(2, "GSC arama sorguları", '<div class="max-h-32 space-y-1 overflow-y-auto">' + gscQueries.map(function (q) {
-        return '<div class="flex justify-between gap-2 text-[9px] text-slate-600 dark:text-slate-400"><span class="truncate">' + (nt().escapeHtml ? nt().escapeHtml(q.query) : q.query) + '</span><span class="shrink-0">' + (nt().fmtCount ? nt().fmtCount(q.clicks) : q.clicks) + " click · " + (nt().fmtCount ? nt().fmtCount(q.impressions) : q.impressions) + " impr · poz " + Number(q.position || 0).toFixed(1) + "</span></div>";
-      }).join("") + "</div>"));
-    }
-    if (row) {
-      var nc = rowPlatformClicks(row);
-      var csvTotal = nc.desktop + nc.mobileweb + nc.android + nc.ios;
-      var csvWebMweb = nc.desktop + nc.mobileweb;
-      parts.push(trafficExtraWrap(3, "Huni özeti", '<div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] sm:grid-cols-3">'
-        + '<div><span class="text-slate-500">CSV tık (tüm platform)</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(csvTotal) : csvTotal) + " tık</strong>"
-        + '<br><span class="text-[8px] text-slate-400">WEB+MWEB: ' + (nt().fmtCount ? nt().fmtCount(csvWebMweb) : csvWebMweb) + "</span></div>"
-        + '<div><span class="text-slate-500">GA4 oturum</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + "</strong></div>"
-        + '<div><span class="text-slate-500">GA4 bildirim</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.ga4_notification_sessions || 0) : (sum.ga4_notification_sessions || 0)) + " oturum</strong></div>"
-        + '<div><span class="text-slate-500">GA4 organik</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.ga4_organic_sessions || 0) : (sum.ga4_organic_sessions || 0)) + " oturum</strong></div>"
-        + '<div><span class="text-slate-500">GSC organik</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.gsc_clicks || 0) : (sum.gsc_clicks || 0)) + " click</strong></div>"
-        + '<div><span class="text-slate-500">GA4 görüntüleme</span><br><strong>' + (nt().fmtCount ? nt().fmtCount(sum.ga4_views || 0) : (sum.ga4_views || 0)) + "</strong></div>"
-        + "</div>"));
+      extraNum += 1;
+      parts.push(trafficExtraWrap(extraNum, "GSC arama sorguları", buildGscQueriesTableHtml(gscQueries), true));
     }
     if (row) {
       var p = row.platforms || {};
-      parts.push(trafficExtraWrap(4, "Platform CTR (CSV)", '<div class="grid grid-cols-2 gap-1 text-[9px] sm:grid-cols-4">'
+      extraNum += 1;
+      parts.push(trafficExtraWrap(extraNum, "Platform CTR (CSV)", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
         + ["desktop", "mobileweb", "android", "ios"].map(function (k) {
           var z = p[k] || {};
           var c = nt().nCount ? nt().nCount(z.click) : 0;
           var im = k === "ios" ? 0 : (nt().nCount ? nt().nCount(z.impression) : 0);
           var label = k === "desktop" ? "Web" : (k === "mobileweb" ? "MWeb" : (k === "android" ? "Android" : "iOS"));
           var ctr = im > 0 ? ((c / im) * 100).toFixed(2) + "%" : "—";
-          return '<div class="rounded border border-slate-100 px-1.5 py-1 dark:border-slate-800"><span class="font-bold">' + label + "</span><br>" + (nt().fmtCount ? nt().fmtCount(c) : c) + " click · CTR " + ctr + (im ? "<br>" + (nt().fmtCount ? nt().fmtCount(im) : im) + " impr" : "") + "</div>";
+          return '<div class="rounded border border-slate-100 px-1.5 py-1 dark:border-slate-800"><span class="font-bold">' + label + "</span> "
+            + (nt().fmtCount ? nt().fmtCount(c) : c) + " click · CTR " + ctr + (im ? " · " + (nt().fmtCount ? nt().fmtCount(im) : im) + " impr" : "") + "</div>";
         }).join("") + "</div>"));
     }
     var urls = sum.matched_urls || [];
     if (urls.length) {
       var primary = urls[0];
       var gscPageUrl = buildGscPerformancePageUrl(data, primary);
-      parts.push(trafficExtraWrap(5, "Hızlı linkler", '<div class="flex flex-wrap gap-2 text-[9px]">'
+      extraNum += 1;
+      parts.push(trafficExtraWrap(extraNum, "Hızlı linkler", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
         + '<a class="rounded border border-emerald-200 px-2 py-1 text-emerald-800 underline dark:border-emerald-800 dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(primary) : primary) + '" target="_blank" rel="noopener">Haber</a>'
         + '<a class="rounded border border-slate-200 px-2 py-1 text-slate-700 underline dark:border-slate-600 dark:text-slate-300" href="/ga4" target="_blank" rel="noopener">GA4 panel</a>'
         + '<a class="rounded border border-sky-200 px-2 py-1 text-sky-800 underline dark:border-sky-800 dark:text-sky-300" href="/search-console" target="_blank" rel="noopener">Search Console</a>'
@@ -915,64 +893,34 @@
           }
         });
         if (!w && !m) return "";
-        return '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="py-0.5 pr-2">' + labels[key] + '</td><td class="py-0.5 text-right">' + (nt().fmtCount ? nt().fmtCount(w) : w) + '</td><td class="py-0.5 text-right">' + (nt().fmtCount ? nt().fmtCount(m) : m) + "</td></tr>";
+        return '<tr class="border-t border-slate-100 dark:border-slate-800"><td class="py-0.5 pr-2">' + labels[key] + '</td><td class="py-0.5 pr-2 tabular-nums">' + (nt().fmtCount ? nt().fmtCount(w) : w) + '</td><td class="py-0.5 tabular-nums">' + (nt().fmtCount ? nt().fmtCount(m) : m) + "</td></tr>";
       }).join("");
       if (rows6) {
-        parts.push(trafficExtraWrap(6, "Kaynak × platform (oturum)", '<table class="w-full text-[9px]"><thead><tr class="text-slate-500"><th class="text-left font-normal">Kaynak</th><th class="text-right font-normal">WEB</th><th class="text-right font-normal">MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
+        extraNum += 1;
+        parts.push(trafficExtraWrap(extraNum, "Kaynak × platform (oturum)", '<table class="nt-gsc-queries-table text-[9px]"><thead><tr class="text-slate-500"><th>Kaynak</th><th>WEB</th><th>MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
       }
     }
     var phases = sum.ga4_day_phases || ga4.day_phases || [];
     if (phases.length) {
-      parts.push(trafficExtraWrap(7, "Gönderim günü vs sonrası", '<div class="space-y-1">' + phases.map(function (ph) {
-        return '<div class="flex justify-between gap-2 text-[9px]"><span class="text-slate-600 dark:text-slate-400">' + (ph.label || ph.key) + '</span><span class="font-semibold">' + (nt().fmtCount ? nt().fmtCount(ph.sessions) : ph.sessions) + " oturum · " + (nt().fmtCount ? nt().fmtCount(ph.views) : ph.views) + " gör.</span></div>";
+      extraNum += 1;
+      parts.push(trafficExtraWrap(extraNum, "Gönderim günü vs sonrası", '<div class="space-y-0.5 text-[9px]">' + phases.map(function (ph) {
+        return '<p><span class="text-slate-600 dark:text-slate-400">' + (ph.label || ph.key) + ":</span> "
+          + '<span class="font-semibold">' + (nt().fmtCount ? nt().fmtCount(ph.sessions) : ph.sessions) + " oturum · "
+          + (nt().fmtCount ? nt().fmtCount(ph.views) : ph.views) + " gör.</span></p>";
       }).join("") + "</div>"));
     }
     var eng = sum.ga4_engagement || ga4.engagement || {};
     if (eng.sessions) {
-      parts.push(trafficExtraWrap(8, "GA4 engagement", '<div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] sm:grid-cols-4">'
-        + '<div>Engagement rate<br><strong>' + Number(eng.engagement_rate_pct != null ? eng.engagement_rate_pct : (Number(eng.engagement_rate || 0) * 100)).toFixed(1) + "%</strong></div>"
-        + '<div>Bounce rate<br><strong>' + Number(eng.bounce_rate_pct != null ? eng.bounce_rate_pct : (Number(eng.bounce_rate || 0) * 100)).toFixed(1) + "%</strong></div>"
-        + '<div>Ort. oturum<br><strong>' + Math.round(Number(eng.avg_session_duration_sec || 0)) + " sn</strong></div>"
-        + '<div>Engaged sess.<br><strong>' + (nt().fmtCount ? nt().fmtCount(eng.engaged_sessions || 0) : (eng.engaged_sessions || 0)) + "</strong></div>"
-        + "</div>"));
-    }
-    var bench = buildTrafficBenchmark(row);
-    if (bench && bench.count > 0) {
-      parts.push(trafficExtraWrap(9, "Benchmark (seçili aralık)", '<div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px] sm:grid-cols-4">'
-        + '<div>Bu bildirim<br><strong>' + (nt().fmtCount ? nt().fmtCount(bench.myTotal) : bench.myTotal) + " click</strong></div>"
-        + '<div>Medyan<br><strong>' + (nt().fmtCount ? nt().fmtCount(Math.round(bench.median)) : Math.round(bench.median)) + " click</strong></div>"
-        + '<div>P75<br><strong>' + (nt().fmtCount ? nt().fmtCount(Math.round(bench.p75)) : Math.round(bench.p75)) + " click</strong></div>"
-        + '<div>vs medyan<br><strong>%' + bench.pctVsMedian + "</strong> · n=" + bench.count + "</div>"
+      extraNum += 1;
+      parts.push(trafficExtraWrap(extraNum, "GA4 engagement", '<div class="flex flex-wrap gap-x-3 gap-y-1 text-[9px]">'
+        + '<span><span class="text-slate-500">Eng. rate</span> <strong>' + Number(eng.engagement_rate_pct != null ? eng.engagement_rate_pct : (Number(eng.engagement_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
+        + '<span><span class="text-slate-500">Bounce</span> <strong>' + Number(eng.bounce_rate_pct != null ? eng.bounce_rate_pct : (Number(eng.bounce_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
+        + '<span><span class="text-slate-500">Ort. oturum</span> <strong>' + Math.round(Number(eng.avg_session_duration_sec || 0)) + " sn</strong></span>"
+        + '<span><span class="text-slate-500">Engaged</span> <strong>' + (nt().fmtCount ? nt().fmtCount(eng.engaged_sessions || 0) : (eng.engaged_sessions || 0)) + "</strong></span>"
         + "</div>"));
     }
     if (!parts.length) return "";
-    return '<div class="nt-traffic-extras mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2">' + parts.join("") + "</div>";
-  }
-
-  function renderTrafficDailyCharts(rootEl, data) {
-    if (!rootEl || !global.Plotly) return;
-    var daily = ((data.summary || {}).ga4_daily || (data.ga4 || {}).daily || []);
-    rootEl.querySelectorAll("[data-nt-daily-chart]").forEach(function (el) {
-      var id = el.getAttribute("data-nt-daily-chart");
-      if (!id || !daily.length) return;
-      var xs = daily.map(function (d) { return d.date; });
-      var views = daily.map(function (d) { return Number(d.views || 0); });
-      var sessions = daily.map(function (d) { return Number(d.sessions || 0); });
-      try {
-        Plotly.newPlot(id, [
-          { x: xs, y: views, type: "scatter", mode: "lines+markers", name: "Görüntüleme", line: { color: "#059669", width: 2 } },
-          { x: xs, y: sessions, type: "scatter", mode: "lines", name: "Oturum", line: { color: "#6366f1", width: 1.5, dash: "dot" } },
-        ], {
-          margin: { l: 36, r: 8, t: 4, b: 28 },
-          paper_bgcolor: "rgba(0,0,0,0)",
-          plot_bgcolor: "rgba(0,0,0,0)",
-          height: 112,
-          xaxis: { tickfont: { size: 9 } },
-          yaxis: { tickfont: { size: 9 } },
-          showlegend: false,
-        }, { displayModeBar: false, responsive: true });
-      } catch (e) { /* ignore */ }
-    });
+    return '<div class="nt-traffic-extras mt-3">' + parts.join("") + "</div>";
   }
 
   function renderInlineDrill(row, rootEl) {
@@ -1121,13 +1069,13 @@
     var gscNote = (gscClicks === 0 && gscImpr > 0)
       ? '<p class="mt-1 text-[9px] text-sky-700/80 dark:text-sky-300/80">0 click = Google arama sonuçlarından tıklama yok. Bildirim trafiği GSC’de görünmez.</p>'
       : "";
-    body.innerHTML = '<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">'
-      + '<div class="rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'
+    body.innerHTML = '<div class="nt-traffic-cards">'
+      + '<div class="nt-traffic-card rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'
       + '<p class="font-bold text-emerald-800 dark:text-emerald-300">GA4</p>'
       + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_views || 0) : (sum.ga4_views || 0)) + ' <span class="text-xs font-normal">görüntüleme</span></p>'
       + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(sum.ga4_sessions || 0) : (sum.ga4_sessions || 0)) + " oturum · " + ga4Detail + "</p>"
       + ga4SourceHtml + "</div>"
-      + '<div class="rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
+      + '<div class="nt-traffic-card rounded-lg border border-sky-200 bg-white p-2 dark:border-sky-900 dark:bg-slate-900">'
       + '<p class="font-bold text-sky-800 dark:text-sky-300">Search Console <span class="text-[9px] font-normal">(organik arama)</span></p>'
       + '<p class="mt-1 text-lg font-black">' + (nt().fmtCount ? nt().fmtCount(gscClicks) : gscClicks) + ' <span class="text-xs font-normal">click</span></p>'
       + '<p class="text-[10px] text-slate-500">' + (nt().fmtCount ? nt().fmtCount(gscImpr) : gscImpr) + " impr · poz " + Number(gscPos || 0).toFixed(1)
@@ -1137,7 +1085,6 @@
       + "</div>"
       + buildTrafficExtrasHtml(data, row)
       + (urlHtml ? '<div class="mt-2"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>" : '<p class="mt-2 text-[10px] text-slate-500">Bu bildirim için GA4/GSC URL eşleşmesi bulunamadı. Başlık ve gönderim tarihi ile tekrar denendi.</p>');
-    renderTrafficDailyCharts(body, data);
   }
 
   function loadContentTraffic(row, targets) {
