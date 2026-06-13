@@ -8,6 +8,7 @@ from backend.services.notification_content_traffic import (
     _fetch_ga4_live,
     _filter_urls_for_article,
     _headline_match_score,
+    _merge_gsc_page_rows,
     normalize_article_id,
     page_url_matches_article_id,
     resolve_traffic_date_range,
@@ -51,6 +52,7 @@ def test_resolve_traffic_date_range_from_send_date():
 
 @patch("backend.services.ga4_page_urls.enrich_ga4_page_rows")
 @patch("backend.collectors.ga4.fetch_ga4_article_traffic_sources")
+@patch("backend.collectors.ga4.fetch_ga4_article_aggregate_metrics")
 @patch("backend.collectors.ga4.fetch_ga4_news_detail_pages_metrics")
 @patch("backend.collectors.ga4.fetch_ga4_article_paths_metrics")
 @patch("backend.services.notification_content_traffic.get_ga4_connection_status")
@@ -58,6 +60,7 @@ def test_ga4_web_mweb_use_separate_headline_pools(
     mock_status,
     mock_paths,
     mock_pool,
+    mock_aggregate,
     mock_sources,
     mock_enrich,
 ):
@@ -66,6 +69,7 @@ def test_ga4_web_mweb_use_separate_headline_pools(
         "properties": {"web": "111", "mweb": "222"},
     }
     mock_paths.return_value = []
+    mock_aggregate.return_value = {"views": 0.0, "sessions": 0.0}
     mock_sources.return_value = {"channels": [], "source_medium": []}
     mock_pool.side_effect = [
         [
@@ -143,3 +147,31 @@ def test_aggregate_source_breakdown_merges_source_medium():
     assert by_key["notification"]["sessions"] == 25
     assert by_key["referral"]["sessions"] == 5
     assert out["source_medium"][0]["source_medium"] == "google / organic"
+
+
+def test_merge_gsc_page_rows_aggregates_devices():
+    acc: dict[str, dict] = {}
+    _merge_gsc_page_rows(
+        acc,
+        [
+            {
+                "query": "https://www.doviz.com/haber/x/882951",
+                "device": "DESKTOP",
+                "clicks": 0,
+                "impressions": 500,
+                "position": 8.0,
+            },
+            {
+                "query": "https://www.doviz.com/haber/x/882951",
+                "device": "MOBILE",
+                "clicks": 0,
+                "impressions": 388,
+                "position": 9.0,
+            },
+        ],
+        article_id="882951",
+    )
+    assert len(acc) == 1
+    row = next(iter(acc.values()))
+    assert row["impressions"] == 888
+    assert row["clicks"] == 0

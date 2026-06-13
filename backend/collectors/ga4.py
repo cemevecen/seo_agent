@@ -1385,6 +1385,47 @@ def fetch_ga4_article_paths_metrics(
     return rows
 
 
+def fetch_ga4_article_aggregate_metrics(
+    *,
+    property_id: str,
+    article_id: str,
+    start: str,
+    end: str,
+) -> dict[str, float]:
+    """Makale ID filtresiyle tek satır oturum + görüntüleme (path satırları toplanmaz)."""
+    aid = re.sub(r"\D", "", str(article_id or "").strip())
+    if not aid or not str(property_id or "").strip() or not start or not end:
+        return {"views": 0.0, "sessions": 0.0}
+    filt = article_id_path_filter("pagePath", aid)
+    if filt is None:
+        return {"views": 0.0, "sessions": 0.0}
+    client = _client()
+    try:
+        response = client.run_report(
+            RunReportRequest(
+                property=f"properties/{property_id}",
+                metrics=[Metric(name="sessions"), Metric(name="screenPageViews")],
+                date_ranges=[DateRange(start_date=start, end_date=end)],
+                dimension_filter=filt,
+            ),
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning(
+            "GA4 makale toplam metrik başarısız property=%s article=%s",
+            property_id,
+            aid,
+            exc_info=True,
+        )
+        return {"views": 0.0, "sessions": 0.0}
+    if not response.rows:
+        return {"views": 0.0, "sessions": 0.0}
+    row = response.rows[0]
+    sessions = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+    views = float(row.metric_values[1].value or 0.0) if len(row.metric_values or []) > 1 else 0.0
+    return {"views": views, "sessions": sessions}
+
+
 def _run_dim_metrics_single_range(
     client: BetaAnalyticsDataClient,
     property_id: str,
@@ -1426,7 +1467,7 @@ def fetch_ga4_article_traffic_sources(
     article_id: str,
     start: str,
     end: str,
-    limit: int = 50,
+    limit: int = 100,
 ) -> dict[str, list[dict]]:
     """Makale pagePath filtresiyle oturum kaynağı (kanal + source/medium)."""
     aid = re.sub(r"\D", "", str(article_id or "").strip())

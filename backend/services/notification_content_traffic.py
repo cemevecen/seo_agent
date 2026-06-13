@@ -125,9 +125,46 @@ def _aggregate_source_breakdown(
                 "sessions": round(float(r.get("sessions") or 0.0), 2),
                 "views": round(float(r.get("views") or 0.0), 2),
             }
-            for r in source_medium[:20]
+            for r in source_medium
         ],
     }
+
+
+def _merge_gsc_page_rows(
+    acc: dict[str, dict[str, Any]],
+    rows: list[dict[str, Any]],
+    *,
+    article_id: str,
+) -> None:
+    for row in rows or []:
+        url = str(row.get("query") or row.get("url") or "").strip()
+        if not url or not page_url_matches_article_id(url, article_id):
+            continue
+        key = url.rstrip("/")
+        clicks = float(row.get("clicks") or 0.0)
+        impressions = float(row.get("impressions") or 0.0)
+        if key not in acc:
+            acc[key] = {
+                "url": url,
+                "device": str(row.get("device") or "ALL"),
+                "clicks": clicks,
+                "impressions": impressions,
+                "ctr": float(row.get("ctr") or 0.0),
+                "position": float(row.get("position") or 0.0),
+                "scope": str(row.get("scope") or "live"),
+            }
+            continue
+        bucket = acc[key]
+        old_impr = float(bucket.get("impressions") or 0.0)
+        total_impr = old_impr + impressions
+        if total_impr > 0:
+            bucket["position"] = (
+                (float(bucket.get("position") or 0.0) * old_impr)
+                + (float(row.get("position") or 0.0) * impressions)
+            ) / total_impr
+        bucket["clicks"] = float(bucket.get("clicks") or 0.0) + clicks
+        bucket["impressions"] = total_impr
+        bucket["ctr"] = (bucket["clicks"] / total_impr) if total_impr > 0 else 0.0
 
 
 def _merge_source_rows(
@@ -365,14 +402,15 @@ def _fetch_gsc_live(
         fetch_search_console_pages_for_article,
     )
 
-    pages: list[dict] = []
+    pages_map: dict[str, dict[str, Any]] = {}
     try:
         _site, service, targets = build_search_console_service_and_targets(db, site_id)
         for target in targets:
             property_url = str(target.get("property_url") or "")
             device = str(target.get("device") or "").upper() or None
+            url_rows: list[dict] = []
             if urls:
-                rows = fetch_search_console_for_page_urls(
+                url_rows = fetch_search_console_for_page_urls(
                     service,
                     property_url,
                     start,
@@ -380,24 +418,25 @@ def _fetch_gsc_live(
                     urls,
                     device=device,
                 )
-                pages.extend(rows)
-            else:
-                rows = fetch_search_console_pages_for_article(
-                    service,
-                    property_url,
-                    start,
-                    end,
-                    article_id,
-                    device=device,
-                )
-                for row in rows:
-                    url = str(row.get("query") or "")
-                    if page_url_matches_article_id(url, article_id):
-                        pages.append(row)
+            contains_rows = fetch_search_console_pages_for_article(
+                service,
+                property_url,
+                start,
+                end,
+                article_id,
+                device=device,
+            )
+            _merge_gsc_page_rows(pages_map, url_rows, article_id=article_id)
+            _merge_gsc_page_rows(pages_map, contains_rows, article_id=article_id)
     except Exception as exc:
         LOGGER.warning("GSC live article fetch başarısız site=%s id=%s: %s", site_id, article_id, exc)
         return {"scopes": {}, "pages": [], "source": "live_error", "error": str(exc)}
 
+    pages = sorted(
+        pages_map.values(),
+        key=lambda item: float(item.get("impressions") or 0.0),
+        reverse=True,
+    )
     totals = _aggregate_gsc_rows(pages)
     return {
         "scopes": {
@@ -410,16 +449,16 @@ def _fetch_gsc_live(
         },
         "pages": [
             {
-                "url": str(p.get("query") or ""),
+                "url": str(p.get("url") or ""),
                 "device": p.get("device") or "ALL",
                 "clicks": float(p.get("clicks") or 0.0),
                 "impressions": float(p.get("impressions") or 0.0),
                 "ctr": float(p.get("ctr") or 0.0),
                 "position": float(p.get("position") or 0.0),
-                "scope": "live",
+                "scope": p.get("scope") or "live",
             }
             for p in pages
-            if p.get("query")
+            if p.get("url")
         ],
         "source": "live",
     }
@@ -435,6 +474,7 @@ def _fetch_ga4_live(
     days: int,
 ) -> dict[str, Any]:
     from backend.collectors.ga4 import (
+        fetch_ga4_article_aggregate_metrics,
         fetch_ga4_article_paths_metrics,
         fetch_ga4_article_traffic_sources,
         fetch_ga4_news_detail_pages_metrics,
@@ -491,15 +531,32 @@ def _fetch_ga4_live(
             LOGGER.warning("GA4 article fetch başarısız site=%s profile=%s: %s", site_id, pf, exc)
             enriched = []
         profiles[pf] = enriched
-        pf_views = 0.0
-        pf_sessions = 0.0
+        lookup_for_totals = resolved_article_id or article_id
+        agg = {"views": 0.0, "sessions": 0.0}
+        if prop and lookup_for_totals and (by_id or enriched):
+            try:
+                agg = fetch_ga4_article_aggregate_metrics(
+                    property_id=prop,
+                    article_id=lookup_for_totals,
+                    start=start,
+                    end=end,
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "GA4 makale toplam metrik başarısız site=%s profile=%s: %s",
+                    site_id,
+                    pf,
+                    exc,
+                )
+        pf_views = float(agg.get("views") or 0.0)
+        pf_sessions = float(agg.get("sessions") or 0.0)
+        if pf_views <= 0 and pf_sessions <= 0:
+            for row in enriched:
+                pf_views += float(row.get("views") or 0.0)
+                pf_sessions += float(row.get("sessions") or 0.0)
+        totals["views"] += pf_views
+        totals["sessions"] += pf_sessions
         for row in enriched:
-            v = float(row.get("views") or 0.0)
-            s = float(row.get("sessions") or 0.0)
-            pf_views += v
-            pf_sessions += s
-            totals["views"] += v
-            totals["sessions"] += s
             u = str(row.get("page_url") or row.get("page") or "")
             if u and u not in urls:
                 urls.append(u)
@@ -511,6 +568,7 @@ def _fetch_ga4_live(
     final_id = resolved_article_id or article_id
     channel_acc: dict[str, dict[str, Any]] = {}
     sm_acc: dict[str, dict[str, Any]] = {}
+    source_breakdown_profiles: dict[str, dict[str, Any]] = {}
     if final_id:
         for pf in ("web", "mweb"):
             prop = str(properties.get(pf) or "").strip()
@@ -525,6 +583,10 @@ def _fetch_ga4_live(
                     article_id=final_id,
                     start=start,
                     end=end,
+                )
+                source_breakdown_profiles[pf] = _aggregate_source_breakdown(
+                    br.get("channels") or [],
+                    br.get("source_medium") or [],
                 )
                 _merge_source_rows(channel_acc, br.get("channels") or [], field="channel")
                 _merge_source_rows(sm_acc, br.get("source_medium") or [], field="source_medium")
@@ -552,6 +614,7 @@ def _fetch_ga4_live(
         "resolved_article_id": resolved_article_id,
         "date_range": {"start": start, "end": end},
         "source_breakdown": source_breakdown,
+        "source_breakdown_profiles": source_breakdown_profiles,
     }
 
 
@@ -624,7 +687,23 @@ def resolve_content_traffic(
     gsc_window = primary_gsc.get("live") or {}
     gsc_db_7 = primary_gsc.get("current_7d_pages") or {}
     gsc_30 = primary_gsc.get("current_30d_pages") or {}
-    if not gsc_window and gsc_db_7:
+    gsc_pages = gsc.get("pages") or []
+    live_page_count = int((gsc_window or {}).get("page_count") or 0)
+    if live and gsc_pages and (not gsc_window or not float(gsc_window.get("impressions") or 0)):
+        gsc_window = _aggregate_gsc_rows(
+            [
+                {
+                    "clicks": p.get("clicks"),
+                    "impressions": p.get("impressions"),
+                    "position": p.get("position"),
+                }
+                for p in gsc_pages
+            ]
+        )
+        gsc_window["start_date"] = start
+        gsc_window["end_date"] = end
+        gsc_window["page_count"] = len(gsc_pages)
+    elif not gsc_window and gsc_db_7:
         gsc_window = gsc_db_7
 
     matched_urls = list(
@@ -657,6 +736,8 @@ def resolve_content_traffic(
             "gsc_impressions_7d": gsc_db_7.get("impressions", gsc_window.get("impressions", 0)),
             "gsc_clicks_30d": gsc_30.get("clicks", 0),
             "gsc_impressions_30d": gsc_30.get("impressions", 0),
+            "gsc_page_count": live_page_count or len(gsc_pages),
+            "gsc_pages": gsc_pages[:12],
             "match_method": (ga4 or {}).get("match_method") or "none",
             "matched_urls": matched_urls,
         },
