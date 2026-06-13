@@ -4,7 +4,43 @@
 (function (global) {
   "use strict";
 
-  var DOW_LABELS = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
+  var DOW_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+
+  function dowIndex(iso) {
+    var dt = new Date(iso);
+    if (isNaN(dt.getTime())) return -1;
+    return (dt.getDay() + 6) % 7;
+  }
+
+  function effectivePrimaryRange(rows) {
+    var range = primaryDateRange();
+    if (range.start && range.end) return range;
+    if (!rows || !rows.length) return range;
+    var days = rows.map(function (r) {
+      return nt().dayKey ? nt().dayKey(r.date) : String(r.date || "").slice(0, 10);
+    }).filter(Boolean).sort();
+    if (!days.length) return range;
+    return { start: days[0], end: days[days.length - 1] };
+  }
+
+  function findDrillRow(id, text, date) {
+    var all = nt().readRows ? nt().readRows() : [];
+    var i;
+    if (id) {
+      for (i = 0; i < all.length; i++) {
+        var r = all[i];
+        if (nt().idString && nt().idString(r) !== id) continue;
+        if (date && nt().dayKey && nt().dayKey(r.date) !== date) continue;
+        return r;
+      }
+    }
+    if (text) {
+      for (i = 0; i < all.length; i++) {
+        if (String(all[i].text || "").trim() === String(text || "").trim()) return all[i];
+      }
+    }
+    return null;
+  }
   var lastAlertPayload = null;
   var lastComparePayload = null;
   var selectedCompareRow = null;
@@ -106,7 +142,7 @@
   function renderPeriodCompare(primaryRows) {
     var el = global.document.getElementById("nt-period-compare");
     if (!el) return;
-    var range = primaryDateRange();
+    var range = effectivePrimaryRange(primaryRows);
     var prev = previousPeriodRange(range.start, range.end);
     if (!prev) {
       el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Dönem karşılaştırması için başlangıç ve bitiş tarihi seçin.</p>';
@@ -165,6 +201,10 @@
   function renderHeatmap(rows) {
     var el = global.document.getElementById("nt-heatmap");
     if (!el || !global.Plotly) return;
+    if (!rows || !rows.length) {
+      el.innerHTML = '<p class="flex h-full items-center justify-center text-xs text-slate-500">Heatmap için veri yok.</p>';
+      return;
+    }
     var metric = (global.document.getElementById("nt-heatmap-metric") || {}).value || "total";
     var grid = {};
     for (var d = 0; d < 7; d++) {
@@ -174,9 +214,9 @@
     (rows || []).forEach(function (r) {
       var iso = String(r.date || "");
       if (!iso) return;
+      var dow = dowIndex(iso);
+      if (dow < 0) return;
       var dt = new Date(iso);
-      if (isNaN(dt.getTime())) return;
-      var dow = dt.getDay();
       var hour = dt.getHours();
       var val = 0;
       if (metric === "total") val = rowTotalClick(r);
@@ -299,25 +339,12 @@
       var id = btn.getAttribute("data-nt-drill-id") || "";
       var text = btn.getAttribute("data-nt-drill-text") || "";
       var date = btn.getAttribute("data-nt-drill-date") || "";
-      global.NTDrill.set({ id: id, text: text, date: date });
-      var row = null;
-      var all = nt().readRows ? nt().readRows() : [];
-      for (var i = 0; i < all.length; i++) {
-        var r = all[i];
-        if (id && nt().idString && nt().idString(r) === id && (!date || nt().dayKey(r.date) === date)) {
-          row = r;
-          break;
-        }
-      }
-      if (!row && text) {
-        for (var j = 0; j < all.length; j++) {
-          if (String(all[j].text || "").trim() === text.trim()) {
-            row = all[j];
-            break;
-          }
-        }
-      }
-      renderPlatformCompare(row);
+      var row = findDrillRow(id, text, date);
+      global.NTDrill.set({
+        id: id,
+        text: row ? String(row.text || "") : text,
+        date: date || (row && nt().dayKey ? nt().dayKey(row.date) : "")
+      });
       var raw = global.document.getElementById("nt-raw-list");
       if (raw && raw.scrollIntoView) raw.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -349,9 +376,9 @@
   function buildPageContext() {
     var rows = nt().getFilteredRows ? nt().getFilteredRows() : [];
     var stats = aggregatePeriod(rows);
-    return {
+    var ctx = {
       page: "notification",
-      filters: primaryDateRange(),
+      filters: effectivePrimaryRange(rows),
       drill: global.NTDrill ? global.NTDrill.get() : null,
       kpis: {
         row_count: rows.length,
@@ -372,6 +399,20 @@
       } : null,
       cross_top_sample: (global.cachedCrossTopList || []).slice(0, 5),
     };
+    ctx.visible_text = "Notification KPI: " + stats.clicks + " click, " + stats.impressions + " impression, "
+      + rows.length + " kayıt. App " + stats.app + " / Web " + stats.web + " click.";
+    if (lastComparePayload && lastComparePayload.current) {
+      ctx.visible_text += " Dönem karşılaştırma yüklendi.";
+    }
+    if (lastAlertPayload && lastAlertPayload.alerts && lastAlertPayload.alerts.length) {
+      ctx.visible_text += " Aktif alarm: " + lastAlertPayload.alerts.map(function (a) { return a.title; }).join("; ");
+    }
+    return ctx;
+  }
+
+  function bootInitialRender() {
+    if (!nt().getFilteredRows) return;
+    onRedraw({ detail: { rows: nt().getFilteredRows() } });
   }
 
   global.NTExtras = {
@@ -385,6 +426,7 @@
   };
 
   global.addEventListener("nt-redraw", onRedraw);
+  global.addEventListener("nt-data-ready", bootInitialRender);
   bindDrill();
   bindAlertsButton();
   bindHeatmapMetric();
@@ -393,11 +435,14 @@
     return buildPageContext();
   };
 
-  if (global.document.readyState === "loading") {
-    global.document.addEventListener("DOMContentLoaded", function () {
-      renderAlertsPanel();
-    });
-  } else {
+  function initExtras() {
     renderAlertsPanel();
+    bootInitialRender();
+  }
+
+  if (global.document.readyState === "loading") {
+    global.document.addEventListener("DOMContentLoaded", initExtras);
+  } else {
+    initExtras();
   }
 })(window);

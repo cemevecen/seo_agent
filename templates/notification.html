@@ -1027,8 +1027,8 @@
     if (ntDrillFilter) {
       out = out.filter(function (r) {
         if (ntDrillFilter.id && idString(r) !== ntDrillFilter.id) return false;
-        if (ntDrillFilter.text && String(r.text || "").trim() !== ntDrillFilter.text.trim()) return false;
         if (ntDrillFilter.date && dayKey(r.date) !== ntDrillFilter.date) return false;
+        if (!ntDrillFilter.id && ntDrillFilter.text && String(r.text || "").trim() !== ntDrillFilter.text.trim()) return false;
         return true;
       });
     }
@@ -1072,7 +1072,12 @@
     banner.classList.remove("hidden");
     txt.textContent = "Drill-down: " + (ntDrillFilter.id ? "ID " + ntDrillFilter.id + " · " : "") + (ntDrillFilter.text || "").slice(0, 60) + (ntDrillFilter.date ? " · " + ntDrillFilter.date : "");
     if (!cards) return;
-    var match = applyRawFilters(getFilteredRows());
+    var match = getFilteredRows().filter(function (r) {
+      if (ntDrillFilter.id && idString(r) !== ntDrillFilter.id) return false;
+      if (ntDrillFilter.date && dayKey(r.date) !== ntDrillFilter.date) return false;
+      if (!ntDrillFilter.id && ntDrillFilter.text && String(r.text || "").trim() !== ntDrillFilter.text.trim()) return false;
+      return true;
+    });
     var row = match.length ? match[0] : null;
     if (!row) { cards.classList.add("hidden"); return; }
     cards.classList.remove("hidden");
@@ -1325,7 +1330,7 @@
       + "</tr></thead>";
     var body = shown.map(function (x, idx) {
       var title = escapeHtml(x.headline);
-      var drill = ' data-nt-drill data-nt-drill-id="' + escapeHtml(x.id || "").replace(/"/g, "&quot;") + '" data-nt-drill-text="' + title.replace(/"/g, "&quot;") + '" data-nt-drill-date="' + escapeHtml(x.sendDay || "") + '"';
+      var drill = ' data-nt-drill data-nt-drill-id="' + escapeHtml(x.id || "").replace(/"/g, "&quot;") + '" data-nt-drill-date="' + escapeHtml(x.sendDay || "") + '"';
       return "<tr class=\"cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30\"" + drill + ">"
         + '<td class="nt-cross-num">' + (idx + 1) + "</td>"
         + '<td class="nt-cross-id">' + escapeHtml(x.id || "-") + "</td>"
@@ -1363,7 +1368,8 @@
     var limit = expanded ? TOP_LIST_MAX : TOP_LIST_DEFAULT;
     var shown = items.slice(0, limit);
     el.innerHTML = shown.map(function (x, idx) {
-      var drillAttr = ' data-nt-drill data-nt-drill-id="' + escapeHtml(x.id || "").replace(/"/g, "&quot;") + '" data-nt-drill-text="' + escapeHtml(x.headline || "").replace(/"/g, "&quot;") + '" data-nt-drill-date="' + escapeHtml(x.latestDate || "") + '"';
+      var drillAttr = ' data-nt-drill data-nt-drill-id="' + escapeHtml(x.id || "").replace(/"/g, "&quot;") + '" data-nt-drill-date="' + escapeHtml(x.latestDate || "") + '"';
+      if (!x.id) drillAttr += ' data-nt-drill-text="' + escapeHtml(x.headline || "").replace(/"/g, "&quot;") + '"';
       return '<div class="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">'
         + '<p class="text-xs font-semibold text-slate-700 dark:text-slate-200">' + (idx + 1) + '. <button type="button" class="text-left font-semibold text-indigo-700 underline dark:text-indigo-300"' + drillAttr + '>' + escapeHtml(x.headline) + '</button></p>'
         + '<p class="text-xs ' + cls + '">' + metricNumberText(x.metric) + ' ' + metricLabel(selectedMetric) + '<span class="text-slate-400"> · ' + platformLabel + ' · ' + (x.latestDate || "-") + ' · ' + fmtCount(x.clicks) + ' click' + (selectedListPlatform === "ios" ? "" : (' · ' + fmtCount(x.impressions) + ' impr')) + ' · ' + fmt(x.rows) + ' kayıt</span></p>'
@@ -1552,6 +1558,7 @@
       idString: idString
     };
     window.dispatchEvent(new CustomEvent("nt-redraw", { detail: { rows: rows } }));
+    window.dispatchEvent(new CustomEvent("nt-data-ready", { detail: { rows: rows } }));
   }
   function applyPresetRange(preset, skipServerSave) {
     if (isNtCustomPreset(preset)) return;
@@ -1765,15 +1772,20 @@
 
   var filterApply = document.getElementById("nt-filter-apply");
   if (filterApply) {
-    filterApply.addEventListener("click", function () {
-      ntRawSearch.q = (document.getElementById("nt-filter-q") || {}).value || "";
-      ntRawSearch.id = (document.getElementById("nt-filter-id") || {}).value || "";
-      ntRawSearch.platform = (document.getElementById("nt-filter-platform") || {}).value || "";
-      ntRawSearch.minClick = nCount((document.getElementById("nt-filter-min-click") || {}).value);
-      rawPage = 0;
-      renderRawRows(rawListRows());
-      status("Ham liste filtresi uygulandı · " + fmt(rawListRows().length) + " kayıt");
+    filterApply.addEventListener("click", applyRawSearchFilter);
+    ["nt-filter-q", "nt-filter-id", "nt-filter-min-click"].forEach(function (id) {
+      var inp = document.getElementById(id);
+      if (inp) inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") applyRawSearchFilter(); });
     });
+  }
+  function applyRawSearchFilter() {
+    ntRawSearch.q = (document.getElementById("nt-filter-q") || {}).value || "";
+    ntRawSearch.id = (document.getElementById("nt-filter-id") || {}).value || "";
+    ntRawSearch.platform = (document.getElementById("nt-filter-platform") || {}).value || "";
+    ntRawSearch.minClick = nCount((document.getElementById("nt-filter-min-click") || {}).value);
+    rawPage = 0;
+    renderRawRows(rawListRows());
+    status("Ham liste filtresi uygulandı · " + fmt(rawListRows().length) + " kayıt");
   }
   var drillClear = document.getElementById("nt-drill-clear");
   if (drillClear) drillClear.addEventListener("click", function () { window.NTDrill.clear(); });
