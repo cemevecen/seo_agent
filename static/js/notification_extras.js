@@ -520,7 +520,6 @@
     renderPeriodCompare: renderPeriodCompare,
     renderHeatmap: renderHeatmap,
     renderPlatformCompare: renderPlatformCompare,
-    renderAlertsPanel: renderAlertsPanel,
     buildPageContext: buildPageContext,
     rowPlatformClicks: rowPlatformClicks,
     rowTotalClick: rowTotalClick,
@@ -532,7 +531,6 @@
   global.addEventListener("nt-redraw", onRedraw);
   global.addEventListener("nt-data-ready", bootInitialRender);
   bindDrill();
-  bindAlertsButton();
   bindHeatmapMetric();
   bindTrafficDays();
 
@@ -541,7 +539,6 @@
   };
 
   function initExtras() {
-    renderAlertsPanel();
     bootInitialRender();
   }
 
