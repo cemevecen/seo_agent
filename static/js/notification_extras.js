@@ -60,6 +60,7 @@
   var lastContentTrafficPayload = null;
   var trafficLoadToken = 0;
   var inlineTrafficLoadToken = 0;
+  var NT_TRAFFIC_LOTTIE = "https://assets7.lottiefiles.com/packages/lf20_t9gkkhz4.json";
 
   function nt() {
     return global.NT || {};
@@ -697,11 +698,62 @@
     });
   }
 
+  function ntTrafficLottieReady() {
+    return !!(global.customElements && global.customElements.get("lottie-player"));
+  }
+
+  function ntStopTrafficLottie(container) {
+    if (!container) return;
+    var player = container.querySelector("lottie-player.nt-traffic-lottie");
+    if (!player) return;
+    try {
+      if (typeof player.stop === "function") player.stop();
+      else if (typeof player.pause === "function") player.pause();
+    } catch (e) { /* lottie-player DOM kaldırılırken hata vermesin */ }
+  }
+
+  function ntTrafficLoadingHtml() {
+    if (ntTrafficLottieReady()) {
+      return '<div class="nt-traffic-loading flex flex-col items-center justify-center gap-1 py-2">'
+        + '<lottie-player class="nt-traffic-lottie" src="' + NT_TRAFFIC_LOTTIE + '" background="transparent" speed="1" loop autoplay'
+        + ' style="width:96px;height:96px"></lottie-player>'
+        + '<p class="text-xs font-medium text-emerald-700 dark:text-emerald-300">GA4 / GSC trafik yükleniyor…</p>'
+        + '<p class="text-[10px] text-slate-500 dark:text-slate-400">Search Console ve Analytics eşleşmesi alınıyor</p>'
+        + "</div>";
+    }
+    return '<div class="nt-traffic-loading flex flex-col items-center justify-center gap-2 py-3">'
+      + '<div class="h-10 w-10 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" aria-hidden="true"></div>'
+      + '<p class="text-xs text-slate-500 dark:text-slate-400">GA4 / GSC trafik yükleniyor…</p>'
+      + "</div>";
+  }
+
+  function ntShowTrafficLoading(body) {
+    if (!body) return;
+    ntStopTrafficLottie(body);
+    body.innerHTML = ntTrafficLoadingHtml();
+    if (ntTrafficLottieReady()) return;
+    var waits = 0;
+    var timer = global.setInterval(function () {
+      waits += 1;
+      if (!body.isConnected) {
+        global.clearInterval(timer);
+        return;
+      }
+      if (ntTrafficLottieReady() && body.querySelector(".nt-traffic-loading") && !body.querySelector("lottie-player")) {
+        body.innerHTML = ntTrafficLoadingHtml();
+        global.clearInterval(timer);
+      } else if (waits >= 30) {
+        global.clearInterval(timer);
+      }
+    }, 100);
+  }
+
   function clearContentTraffic() {
     lastContentTrafficPayload = null;
     var panel = global.document.getElementById("nt-content-traffic");
     var body = global.document.getElementById("nt-content-traffic-body");
     var meta = global.document.getElementById("nt-content-traffic-meta");
+    if (body) ntStopTrafficLottie(body);
     if (panel) panel.classList.add("hidden");
     if (body) body.innerHTML = "";
     if (meta) meta.textContent = "";
@@ -710,6 +762,7 @@
   function clearInlineDrillTraffic() {
     inlineTrafficLoadToken++;
     global.document.querySelectorAll(".nt-inline-traffic-body").forEach(function (el) {
+      ntStopTrafficLottie(el);
       el.innerHTML = "";
     });
     global.document.querySelectorAll(".nt-inline-traffic-meta").forEach(function (el) {
@@ -752,6 +805,7 @@
     var meta = targets.metaEl || global.document.getElementById("nt-content-traffic-meta");
     var inline = !!targets.inline;
     if (!body) return;
+    ntStopTrafficLottie(body);
     if (!data || !data.article_id) {
       if (inline) {
         if (body) body.innerHTML = '<p class="text-[10px] text-slate-500">Geçerli içerik ID bulunamadı.</p>';
@@ -829,7 +883,7 @@
     var body = targets.bodyEl || global.document.getElementById("nt-content-traffic-body");
     var meta = targets.metaEl || global.document.getElementById("nt-content-traffic-meta");
     if (!inline && panel) panel.classList.remove("hidden");
-    if (body) body.innerHTML = '<p class="text-xs text-slate-500">GA4 / GSC trafik yükleniyor…</p>';
+    if (body) ntShowTrafficLoading(body);
     if (meta && inline) meta.textContent = "";
     var q = "/api/notification-analytics/traffic?content_id=" + encodeURIComponent(cid)
       + "&days=" + days + "&site_id=1";
@@ -856,7 +910,10 @@
         } else if (token !== trafficLoadToken) {
           return;
         }
-        if (body) body.innerHTML = '<p class="text-xs text-rose-600">Trafik verisi yüklenemedi.</p>';
+        if (body) {
+          ntStopTrafficLottie(body);
+          body.innerHTML = '<p class="text-xs text-rose-600">Trafik verisi yüklenemedi.</p>';
+        }
       });
   }
 
