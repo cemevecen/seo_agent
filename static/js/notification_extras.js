@@ -61,6 +61,7 @@
   var trafficLoadToken = 0;
   var inlineTrafficLoadToken = 0;
   var NT_TRAFFIC_LOTTIE = "https://assets7.lottiefiles.com/packages/lf20_t9gkkhz4.json";
+  var NT_TRAFFIC_LOTTIE_PX = 240;
 
   function nt() {
     return global.NT || {};
