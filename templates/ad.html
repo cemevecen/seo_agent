@@ -1221,12 +1221,30 @@
   function renderMzAppLabSection6(s6) {
     var leftLabel = s6.left_label || "iOS";
     var rightLabel = s6.right_label || "Android";
+    var cardBase =
+      "rounded-lg border px-2 py-1.5 text-slate-800 dark:text-zinc-200 midnight:text-zinc-200";
+    var cardNeutral =
+      cardBase +
+      " border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-900/70 midnight:border-zinc-800 midnight:bg-zinc-950/60";
+    var cardWarn =
+      cardBase +
+      " border-rose-200 bg-rose-50/80 dark:border-rose-900/50 dark:bg-rose-950/45 midnight:border-rose-900/40 midnight:bg-rose-950/35";
     function block(label, a) {
-      if (!a || !a.ok) return "<p><b>" + label + ":</b> " + ((a && a.message) || "—") + "</p>";
+      if (!a || !a.ok) {
+        return (
+          "<p class=\"" +
+          cardNeutral +
+          "\"><b>" +
+          label +
+          ":</b> " +
+          ((a && a.message) || "—") +
+          "</p>"
+        );
+      }
       var warn = a.delta_pct != null && a.delta_pct <= -15;
       return (
         "<p class=\"" +
-        (warn ? "rounded-lg border border-rose-200 bg-rose-50/80 px-2 py-1 dark:border-rose-900/40" : "") +
+        (warn ? cardWarn : cardNeutral) +
         "\"><b>" +
         label +
         ":</b> son 7 gün " +
@@ -1235,7 +1253,9 @@
         mzLabMoney(a.prev7_revenue) +
         " · " +
         mzLabPctBadge(a.delta_pct) +
-        (warn ? ' <span class="font-bold text-rose-700">−15%</span>' : "") +
+        (warn
+          ? ' <span class="font-bold text-rose-700 dark:text-rose-300 midnight:text-rose-300">−15%</span>'
+          : "") +
         "</p>"
       );
     }
