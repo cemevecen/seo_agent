@@ -296,30 +296,58 @@
     html.dark .notification-page .nt-cross-drill-detail td {
       border-bottom-color: rgb(67 56 202 / 0.35) !important;
     }
-    .notification-page .nt-traffic-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+    .notification-page .nt-traffic-body {
+      display: flex;
+      flex-direction: column;
       gap: 0.5rem;
-      align-items: start;
+      align-items: stretch;
+    }
+    .notification-page .nt-traffic-body > * {
+      flex: 0 0 auto;
+      min-height: 0;
+    }
+    .notification-page .nt-traffic-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: flex-start;
+      align-content: flex-start;
     }
     .notification-page .nt-traffic-card {
-      height: auto;
-      min-height: 0;
-      align-self: start;
+      flex: 1 1 18rem;
+      max-width: 100%;
+      height: fit-content;
+      align-self: flex-start;
     }
     .notification-page .nt-traffic-extras {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+      display: flex;
+      flex-direction: column;
       gap: 0.5rem;
-      align-items: start;
+      align-items: flex-start;
+      width: 100%;
+    }
+    .notification-page .nt-traffic-extras-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: flex-start;
+      align-content: flex-start;
+      width: 100%;
     }
     .notification-page .nt-traffic-extra {
-      height: auto;
-      min-height: 0;
-      align-self: start;
+      flex: 0 1 auto;
+      width: fit-content;
+      max-width: 100%;
+      height: fit-content;
+      align-self: flex-start;
     }
     .notification-page .nt-traffic-extra-wide {
-      grid-column: 1 / -1;
+      width: fit-content;
+      max-width: 100%;
+    }
+    .notification-page .nt-gsc-queries-scroll {
+      overflow: auto;
+      max-height: 10rem;
     }
     .notification-page .nt-gsc-queries-table {
       width: max-content;
@@ -360,7 +388,7 @@
         </select>
       </div>
       <p id="nt-content-traffic-meta" class="mt-1 text-[10px] text-slate-500 dark:text-slate-400"></p>
-      <div id="nt-content-traffic-body" class="mt-2 space-y-2 text-xs"></div>
+      <div id="nt-content-traffic-body" class="nt-traffic-body mt-2 text-xs"></div>
     </div>
     <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
       <input id="nt-filter-q" type="search" placeholder="Başlık ara…" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
@@ -1437,7 +1465,7 @@
       + '<option value="30">Gönderim +30 gün</option>'
       + "</select></div>"
       + '<p class="nt-inline-traffic-meta mt-1 text-[10px] text-slate-500 dark:text-slate-400"></p>'
-      + '<div class="nt-inline-traffic-body mt-2 space-y-2 text-xs"></div>'
+      + '<div class="nt-inline-traffic-body nt-traffic-body mt-2 text-xs"></div>'
       + "</div></div>";
   }
   function refreshCrossTopDrillContent() {

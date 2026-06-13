@@ -810,11 +810,14 @@
         + "<td>" + Number(q.position || 0).toFixed(1) + "</td>"
         + "</tr>";
     }).join("");
-    return '<div class="max-h-40 overflow-auto">'
-      + '<table class="nt-gsc-queries-table text-[9px] text-slate-600 dark:text-slate-400">'
+    var table = '<table class="nt-gsc-queries-table text-[9px] text-slate-600 dark:text-slate-400">'
       + "<thead><tr class=\"text-slate-500\">"
       + "<th>Sorgu</th><th>Click</th><th>Impr</th><th>Poz</th>"
-      + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+      + "</tr></thead><tbody>" + rows + "</tbody></table>";
+    if (queries.length > 8) {
+      return '<div class="nt-gsc-queries-scroll">' + table + "</div>";
+    }
+    return table;
   }
 
   function buildGscPerformancePageUrl(data, pageUrl) {
@@ -833,16 +836,17 @@
     var sum = data.summary || {};
     var ga4 = data.ga4 || {};
     var gscQueries = sum.gsc_queries || (data.gsc && data.gsc.queries) || [];
-    var parts = [];
+    var wideParts = [];
+    var rowParts = [];
     var extraNum = 0;
     if (gscQueries.length) {
       extraNum += 1;
-      parts.push(trafficExtraWrap(extraNum, "GSC arama sorguları", buildGscQueriesTableHtml(gscQueries), true));
+      wideParts.push(trafficExtraWrap(extraNum, "GSC arama sorguları", buildGscQueriesTableHtml(gscQueries), true));
     }
     if (row) {
       var p = row.platforms || {};
       extraNum += 1;
-      parts.push(trafficExtraWrap(extraNum, "Platform CTR (CSV)", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
+      rowParts.push(trafficExtraWrap(extraNum, "Platform CTR (CSV)", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
         + ["desktop", "mobileweb", "android", "ios"].map(function (k) {
           var z = p[k] || {};
           var c = nt().nCount ? nt().nCount(z.click) : 0;
@@ -858,7 +862,7 @@
       var primary = urls[0];
       var gscPageUrl = buildGscPerformancePageUrl(data, primary);
       extraNum += 1;
-      parts.push(trafficExtraWrap(extraNum, "Hızlı linkler", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
+      rowParts.push(trafficExtraWrap(extraNum, "Hızlı linkler", '<div class="flex flex-wrap gap-1.5 text-[9px]">'
         + '<a class="rounded border border-emerald-200 px-2 py-1 text-emerald-800 underline dark:border-emerald-800 dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(primary) : primary) + '" target="_blank" rel="noopener">Haber</a>'
         + '<a class="rounded border border-slate-200 px-2 py-1 text-slate-700 underline dark:border-slate-600 dark:text-slate-300" href="/ga4" target="_blank" rel="noopener">GA4 panel</a>'
         + '<a class="rounded border border-sky-200 px-2 py-1 text-sky-800 underline dark:border-sky-800 dark:text-sky-300" href="/search-console" target="_blank" rel="noopener">Search Console</a>'
@@ -897,13 +901,13 @@
       }).join("");
       if (rows6) {
         extraNum += 1;
-        parts.push(trafficExtraWrap(extraNum, "Kaynak × platform (oturum)", '<table class="nt-gsc-queries-table text-[9px]"><thead><tr class="text-slate-500"><th>Kaynak</th><th>WEB</th><th>MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
+        rowParts.push(trafficExtraWrap(extraNum, "Kaynak × platform (oturum)", '<table class="nt-gsc-queries-table text-[9px]"><thead><tr class="text-slate-500"><th>Kaynak</th><th>WEB</th><th>MWEB</th></tr></thead><tbody>' + rows6 + "</tbody></table>"));
       }
     }
     var phases = sum.ga4_day_phases || ga4.day_phases || [];
     if (phases.length) {
       extraNum += 1;
-      parts.push(trafficExtraWrap(extraNum, "Gönderim günü vs sonrası", '<div class="space-y-0.5 text-[9px]">' + phases.map(function (ph) {
+      rowParts.push(trafficExtraWrap(extraNum, "Gönderim günü vs sonrası", '<div class="space-y-0.5 text-[9px]">' + phases.map(function (ph) {
         return '<p><span class="text-slate-600 dark:text-slate-400">' + (ph.label || ph.key) + ":</span> "
           + '<span class="font-semibold">' + (nt().fmtCount ? nt().fmtCount(ph.sessions) : ph.sessions) + " oturum · "
           + (nt().fmtCount ? nt().fmtCount(ph.views) : ph.views) + " gör.</span></p>";
@@ -912,15 +916,19 @@
     var eng = sum.ga4_engagement || ga4.engagement || {};
     if (eng.sessions) {
       extraNum += 1;
-      parts.push(trafficExtraWrap(extraNum, "GA4 engagement", '<div class="flex flex-wrap gap-x-3 gap-y-1 text-[9px]">'
+      rowParts.push(trafficExtraWrap(extraNum, "GA4 engagement", '<div class="flex flex-wrap gap-x-3 gap-y-1 text-[9px]">'
         + '<span><span class="text-slate-500">Eng. rate</span> <strong>' + Number(eng.engagement_rate_pct != null ? eng.engagement_rate_pct : (Number(eng.engagement_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
         + '<span><span class="text-slate-500">Bounce</span> <strong>' + Number(eng.bounce_rate_pct != null ? eng.bounce_rate_pct : (Number(eng.bounce_rate || 0) * 100)).toFixed(1) + "%</strong></span>"
         + '<span><span class="text-slate-500">Ort. oturum</span> <strong>' + Math.round(Number(eng.avg_session_duration_sec || 0)) + " sn</strong></span>"
         + '<span><span class="text-slate-500">Engaged</span> <strong>' + (nt().fmtCount ? nt().fmtCount(eng.engaged_sessions || 0) : (eng.engaged_sessions || 0)) + "</strong></span>"
         + "</div>"));
     }
-    if (!parts.length) return "";
-    return '<div class="nt-traffic-extras mt-3">' + parts.join("") + "</div>";
+    if (!wideParts.length && !rowParts.length) return "";
+    var html = wideParts.join("");
+    if (rowParts.length) {
+      html += '<div class="nt-traffic-extras-row">' + rowParts.join("") + "</div>";
+    }
+    return '<div class="nt-traffic-extras">' + html + "</div>";
   }
 
   function renderInlineDrill(row, rootEl) {
