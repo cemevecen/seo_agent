@@ -548,6 +548,19 @@
       </section>
     </div>
   </div>
+
+  <div id="mz-confirm-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 p-4 dark:bg-black/70" role="dialog" aria-modal="true" aria-labelledby="mz-confirm-modal-title" style="display:none">
+    <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+      <h3 id="mz-confirm-modal-title" class="text-sm font-bold text-slate-900 dark:text-zinc-100">Onay</h3>
+      <p id="mz-confirm-modal-step" class="mt-2 text-xs text-slate-600 dark:text-zinc-300"></p>
+      <p id="mz-confirm-modal-file" class="mt-2 hidden break-all rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-mono text-slate-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"></p>
+      <p id="mz-confirm-modal-warn" class="mt-2 hidden text-xs font-semibold text-rose-700 dark:text-rose-300"></p>
+      <div class="mt-4 flex justify-end gap-2">
+        <button id="mz-confirm-modal-cancel" type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800">Vazgeç</button>
+        <button id="mz-confirm-modal-confirm" type="button" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500">Devam</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="/static/js/mz_mean_split_traces.js?v=2"></script>
@@ -7788,12 +7801,132 @@
     }
   });
 
-  on("mz-reset", "click", async function () {
-    if (!confirm("Tüm reklam verisi silinsin mi?")) return;
-    await fetch("/api/mz-analytics/reset", { method: "POST" });
-    await loadFacets();
-    await runQuery({ resetTableDrills: true });
+  on("mz-reset", "click", function () {
+    mzConfirmTwoStep({
+      title: "Tüm veriyi sıfırla",
+      step1: "Tüm reklam verisi silinsin mi?",
+      step2Warn: "Son onay: tüm dosyalar ve satırlar kalıcı olarak silinecek.",
+      confirmFinal: "Evet, sıfırla",
+    }).then(function (ok) {
+      if (!ok) return;
+      runMzResetAll();
+    });
   });
+
+  async function runMzResetAll() {
+    var statusEl = document.getElementById("mz-status");
+    var resetBtn = document.getElementById("mz-reset");
+    if (resetBtn) resetBtn.disabled = true;
+    try {
+      if (statusEl) statusEl.textContent = "Tüm veri sıfırlanıyor…";
+      var r = await fetch("/api/mz-analytics/reset", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      var payload = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Sıfırlama başarısız (HTTP " + r.status + ")"));
+      if (statusEl) statusEl.textContent = "Tüm veri silindi.";
+      showPageError("");
+      await loadFacets({ cacheBust: true });
+      await runQuery({ resetTableDrills: true });
+    } catch (err) {
+      if (statusEl) statusEl.textContent = (err && err.message) || "Sıfırlama başarısız";
+      showPageError((err && err.message) || "Sıfırlama başarısız");
+    } finally {
+      if (resetBtn) resetBtn.disabled = false;
+    }
+  }
+
+  function mzApiErrorDetail(payload, fallback) {
+    if (!payload) return fallback;
+    var d = payload.detail;
+    if (typeof d === "string" && d) return d;
+    if (Array.isArray(d) && d.length) {
+      return d.map(function (x) { return x.msg || x.message || String(x); }).join("; ");
+    }
+    return payload.message || fallback;
+  }
+
+  function mzConfirmTwoStep(opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var modal = document.getElementById("mz-confirm-modal");
+      var titleEl = document.getElementById("mz-confirm-modal-title");
+      var stepEl = document.getElementById("mz-confirm-modal-step");
+      var fileEl = document.getElementById("mz-confirm-modal-file");
+      var warnEl = document.getElementById("mz-confirm-modal-warn");
+      var cancelBtn = document.getElementById("mz-confirm-modal-cancel");
+      var confirmBtn = document.getElementById("mz-confirm-modal-confirm");
+      if (!modal || !titleEl || !stepEl || !fileEl || !warnEl || !cancelBtn || !confirmBtn) {
+        resolve(window.confirm(String(opts.step1 || "Onaylıyor musunuz?")) &&
+          window.confirm(String(opts.step2Warn || "Son onay?")));
+        return;
+      }
+      if (modal.parentNode !== document.body) {
+        document.body.appendChild(modal);
+      }
+      var step = 1;
+      var settled = false;
+      function finish(ok) {
+        if (settled) return;
+        settled = true;
+        modal.style.display = "none";
+        cancelBtn.removeEventListener("click", onCancel);
+        confirmBtn.removeEventListener("click", onConfirm);
+        modal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKey);
+        resolve(!!ok);
+      }
+      function renderStep() {
+        titleEl.textContent = opts.title || "Onay";
+        stepEl.textContent = step === 1 ? (opts.step1 || "Devam edilsin mi?") : "Son onay";
+        if (opts.detail) {
+          fileEl.textContent = opts.detail;
+          fileEl.classList.remove("hidden");
+        } else {
+          fileEl.textContent = "";
+          fileEl.classList.add("hidden");
+        }
+        if (step === 1) {
+          warnEl.classList.add("hidden");
+          confirmBtn.textContent = "Devam";
+          confirmBtn.className = "rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500";
+        } else {
+          warnEl.textContent = opts.step2Warn || "Bu işlem geri alınamaz.";
+          warnEl.classList.remove("hidden");
+          confirmBtn.textContent = opts.confirmFinal || "Evet, onayla";
+          confirmBtn.className = "rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500";
+        }
+      }
+      function onCancel(ev) {
+        if (ev) ev.preventDefault();
+        finish(false);
+      }
+      function onConfirm(ev) {
+        if (ev) ev.preventDefault();
+        if (step === 1) {
+          step = 2;
+          renderStep();
+          confirmBtn.focus();
+          return;
+        }
+        finish(true);
+      }
+      function onBackdrop(ev) {
+        if (ev.target === modal) onCancel(ev);
+      }
+      function onKey(ev) {
+        if (ev.key === "Escape") onCancel(ev);
+      }
+      cancelBtn.addEventListener("click", onCancel);
+      confirmBtn.addEventListener("click", onConfirm);
+      modal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKey);
+      renderStep();
+      modal.style.display = "flex";
+      confirmBtn.focus();
+    });
+  }
 
   initBreakdownToolbars();
   initDrillControls();
