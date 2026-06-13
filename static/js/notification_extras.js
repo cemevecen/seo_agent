@@ -895,8 +895,11 @@
         var mwebGa4 = ga4NotifBucket(ga4, "mweb");
         var csvWebTotal = nc.desktop + nc.mobileweb;
         var ga4NotifTotal = (webGa4 ? Number(webGa4.sessions || 0) : 0) + (mwebGa4 ? Number(mwebGa4.sessions || 0) : 0);
-        notifCompare = '<div class="mb-2 rounded-lg border border-amber-100 bg-amber-50/70 p-2 text-[9px] leading-relaxed text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">'
+        notifCompare = '<div class="nt-traffic-compare-box mb-2 rounded-lg border border-amber-100 bg-amber-50/70 p-2 text-[9px] leading-relaxed text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">'
+          + '<div class="flex items-center justify-between gap-1">'
           + '<p class="font-bold uppercase tracking-wide">Bildirim tıklaması vs GA4</p>'
+          + '<button type="button" class="nt-traffic-compare-info-btn inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-300/80 bg-white/80 text-[10px] font-bold leading-none text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-900/50" aria-expanded="false" aria-label="Metrik açıklaması" title="Metrik açıklaması">i</button>'
+          + "</div>"
           + '<p class="mt-1">CSV (bu gönderim): WEB ' + (nt().fmtCount ? nt().fmtCount(nc.desktop) : nc.desktop)
           + " + MWEB " + (nt().fmtCount ? nt().fmtCount(nc.mobileweb) : nc.mobileweb)
           + " = <strong>" + (nt().fmtCount ? nt().fmtCount(csvWebTotal) : csvWebTotal) + " tık</strong>"
@@ -906,7 +909,7 @@
           + " + MWEB " + (mwebGa4 ? (nt().fmtCount ? nt().fmtCount(mwebGa4.sessions) : mwebGa4.sessions) : "0")
           + " = <strong>" + (nt().fmtCount ? nt().fmtCount(ga4NotifTotal) : ga4NotifTotal) + "</strong>"
           + " · " + gscRangeLabel + " penceresi</p>"
-          + '<p class="mt-1 text-amber-800/80 dark:text-amber-200/80">CSV = push tıklaması (tek bildirim). GA4 = makale sayfasına gelen oturumlar (3 gün, aynı URL’ye başka bildirimler ve tekrar ziyaretler dahil olabilir).</p>'
+          + '<p class="nt-traffic-compare-tip hidden mt-1 rounded border border-amber-200/80 bg-white/70 px-2 py-1 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">CSV = push tıklaması (tek bildirim). GA4 = makale sayfasına gelen oturumlar (3 gün, aynı URL’ye başka bildirimler ve tekrar ziyaretler dahil olabilir).</p>'
           + "</div>";
       }
       return notifCompare + '<div class="mt-2 border-t border-emerald-100 pt-2 dark:border-emerald-900">'
@@ -915,7 +918,8 @@
     })();
     var gscPages = sum.gsc_pages || gsc.pages || [];
     var gscPagesHtml = gscPages.length
-      ? '<details class="mt-2"><summary class="cursor-pointer text-[10px] font-bold uppercase text-sky-700 dark:text-sky-300">GSC sayfa kırılımı (' + gscPages.length + ")</summary>"
+      ? '<div class="mt-2">'
+        + '<p class="text-[10px] font-bold uppercase text-sky-700 dark:text-sky-300">GSC sayfa kırılımı (' + gscPages.length + ")</p>"
         + '<div class="mt-1 max-h-36 space-y-1 overflow-y-auto">' + gscPages.map(function (p) {
           var u = p.url || "";
           return '<div class="rounded border border-sky-100 px-2 py-1 text-[9px] dark:border-sky-900">'
@@ -923,7 +927,7 @@
             + '<p class="text-slate-500">' + (nt().fmtCount ? nt().fmtCount(p.clicks || 0) : (p.clicks || 0)) + " click · "
             + (nt().fmtCount ? nt().fmtCount(p.impressions || 0) : (p.impressions || 0)) + " impr · poz "
             + Number(p.position || 0).toFixed(1) + "</p></div>";
-        }).join("") + "</div></details>"
+        }).join("") + "</div></div>"
       : (gscImpr > 0 && !gscPages.length
         ? '<p class="mt-2 text-[9px] text-slate-500">GSC toplam görünür ama sayfa satırı yok — URL eşleşmesi kontrol ediliyor.</p>'
         : "");
@@ -1020,6 +1024,24 @@
     });
   }
 
+  function bindTrafficCompareInfo() {
+    if (bindTrafficCompareInfo._bound) return;
+    bindTrafficCompareInfo._bound = true;
+    global.document.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest(".nt-traffic-compare-info-btn") : null;
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var box = btn.closest(".nt-traffic-compare-box");
+      if (!box) return;
+      var tip = box.querySelector(".nt-traffic-compare-tip");
+      if (!tip) return;
+      var willShow = tip.classList.contains("hidden");
+      tip.classList.toggle("hidden");
+      btn.setAttribute("aria-expanded", willShow ? "true" : "false");
+    });
+  }
+
   function buildPageContext() {
     var rows = nt().getFilteredRows ? nt().getFilteredRows() : [];
     var stats = aggregatePeriod(rows);
@@ -1079,6 +1101,7 @@
   bindDrill();
   bindHeatmapMetric();
   bindTrafficDays();
+  bindTrafficCompareInfo();
 
   global.__pcPageContext = function () {
     return buildPageContext();
