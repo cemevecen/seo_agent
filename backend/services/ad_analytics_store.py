@@ -253,24 +253,66 @@ _STREAM_BY_KEY = {s.key: s for s in AD_STREAMS}
 def detect_stream(filename: str) -> AdStream | None:
     """Dosya adından proje + dal (6 akış)."""
     low = (filename or "").lower().replace(" ", "")
+    stem = low.rsplit(".", 1)[0] if "." in low else low
     if "m.sinemalar" in low or "m_sinemalar" in low:
         return _STREAM_BY_KEY["sinemalar:mweb"]
-    if "sinemalar" in low and ("desktop" in low or low.startswith("sinemalardesktop")):
+    if stem.startswith("sinemalarmweb") or "sinemalar_mweb" in low:
+        return _STREAM_BY_KEY["sinemalar:mweb"]
+    if stem.startswith("sinemalarweb") or (
+        "sinemalar" in low and ("desktop" in low or low.startswith("sinemalardesktop"))
+    ):
         return _STREAM_BY_KEY["sinemalar:desktop"]
     if "m.doviz" in low or "m_doviz" in low or "mdovizcom" in low:
         return _STREAM_BY_KEY["doviz:mweb"]
-    if "doviz_ios" in low or "doviz-ios" in low:
-        return _STREAM_BY_KEY["doviz:ios"]
+    if stem.startswith("dovizmweb"):
+        return _STREAM_BY_KEY["doviz:mweb"]
     if "doviz_android" in low or "doviz-android" in low:
         return _STREAM_BY_KEY["doviz:android"]
+    if stem.startswith("dovizandroid"):
+        return _STREAM_BY_KEY["doviz:android"]
+    if "doviz_ios" in low or "doviz-ios" in low:
+        return _STREAM_BY_KEY["doviz:ios"]
+    if stem.startswith("dovizios"):
+        return _STREAM_BY_KEY["doviz:ios"]
+    if stem.startswith("dovizweb"):
+        return _STREAM_BY_KEY["doviz:desktop"]
     if "dovizcom" in low or "doviz.com" in low:
         return _STREAM_BY_KEY["doviz:desktop"]
     return None
 
 
+_COMPACT_STREAM_PREFIXES: tuple[str, ...] = (
+    "sinemalarmweb",
+    "sinemalarweb",
+    "dovizmweb",
+    "dovizandroid",
+    "dovizios",
+    "dovizweb",
+)
+
+_COMPACT_PERIOD_RE = re.compile(r"^(\d+)")
+
+
+def _compact_period_rank(stem: str) -> int | None:
+    """dovizweb3.xlsx → 3; dovizweb1_report_… → 1."""
+    for prefix in _COMPACT_STREAM_PREFIXES:
+        if not stem.startswith(prefix):
+            continue
+        rest = stem[len(prefix) :]
+        m = _COMPACT_PERIOD_RE.match(rest)
+        if m:
+            return int(m.group(1))
+        return None
+    return None
+
+
 def _report_period_rank(filename: str) -> int:
-    """2025 dosyası=1, 2026 güncel dosyası=2 (son import üstüne yazar)."""
-    low = (filename or "").lower()
+    """Kompakt ad: sondaki sıra (1=2025 taban, 2=2026 devam, 3+=aylık). Küçük numara önce import, büyük üstüne yazar."""
+    low = (filename or "").lower().replace(" ", "")
+    stem = low.rsplit(".", 1)[0] if "." in low else low
+    compact = _compact_period_rank(stem)
+    if compact is not None:
+        return compact
     if (
         "_2_report" in low
         or "com2_report" in low

@@ -24,6 +24,16 @@
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="mz-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
       <button id="mz-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">Yükle ve birleştir</button>
+      <details class="mt-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
+        <summary class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-zinc-200">Dosya adlandırma (1 · 2 · 3 …)</summary>
+        <p class="mt-2 text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
+          Her dal için sıra numarası kullan: <strong>1</strong> = 2025 tam yıl,
+          <strong>2</strong> = 01.01–31.05.2026,
+          <strong>3+</strong> = sonraki aylar. Örnek: <code class="text-[10px]">dovizweb1.xlsx</code>,
+          <code class="text-[10px]">dovizweb2.xlsx</code>, <code class="text-[10px]">dovizmweb3.xlsx</code>.
+          Aynı gün üst üste gelirse büyük numara kazanır; hesaplama mantığı değişmez.
+        </p>
+      </details>
       <details class="mt-2 rounded-lg border border-emerald-200/90 bg-emerald-50/50 p-2.5 dark:border-emerald-900/50 dark:bg-emerald-950/25 midnight:border-emerald-900/40">
         <summary class="cursor-pointer text-xs font-semibold text-emerald-900 dark:text-emerald-200">Günlük ekle (üzerine birleşir)</summary>
         <p class="mt-2 text-[10px] leading-snug text-emerald-900/80 dark:text-emerald-200/80">
