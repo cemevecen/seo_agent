@@ -1,6 +1,9 @@
 """Notification içerik ID → URL eşleme testleri."""
 
+from unittest.mock import MagicMock, patch
+
 from backend.services.notification_content_traffic import (
+    _fetch_ga4_live,
     _headline_match_score,
     normalize_article_id,
     page_url_matches_article_id,
@@ -41,3 +44,58 @@ def test_resolve_traffic_date_range_from_send_date():
     assert start == "2026-05-20"
     assert meta["mode"] == "send_date"
     assert meta["send_date"] == "2026-05-20"
+
+
+@patch("backend.services.ga4_page_urls.enrich_ga4_page_rows")
+@patch("backend.collectors.ga4.fetch_ga4_news_detail_pages_metrics")
+@patch("backend.collectors.ga4.fetch_ga4_article_paths_metrics")
+@patch("backend.services.notification_content_traffic.get_ga4_connection_status")
+def test_ga4_web_mweb_use_separate_headline_pools(
+    mock_status,
+    mock_paths,
+    mock_pool,
+    mock_enrich,
+):
+    mock_status.return_value = {
+        "connected": True,
+        "properties": {"web": "111", "mweb": "222"},
+    }
+    mock_paths.return_value = []
+    mock_pool.side_effect = [
+        [
+            {
+                "page": "/haber/borsada-devre-kesici/873945",
+                "page_title": "Borsada devre kesici çalıştı",
+                "views": 2705.0,
+                "sessions": 2100.0,
+            }
+        ],
+        [
+            {
+                "page": "/haber/borsada-devre-kesici/873945",
+                "page_title": "Borsada devre kesici çalıştı",
+                "views": 890.0,
+                "sessions": 720.0,
+            }
+        ],
+    ]
+    mock_enrich.side_effect = lambda rows, **kwargs: list(rows or [])
+
+    out = _fetch_ga4_live(
+        MagicMock(),
+        1,
+        "3453741",
+        "Borsada devre kesici çalıştı",
+        "2026-05-21",
+        "2026-06-03",
+        14,
+    )
+
+    assert mock_pool.call_count == 2
+    assert mock_pool.call_args_list[0].kwargs["property_id"] == "111"
+    assert mock_pool.call_args_list[1].kwargs["property_id"] == "222"
+    assert out["profile_totals"]["web"]["views"] == 2705.0
+    assert out["profile_totals"]["mweb"]["views"] == 890.0
+    assert out["totals"]["views"] == 3595.0
+    assert out["match_method"] == "headline"
+    assert out["resolved_article_id"] == "873945"

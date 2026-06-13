@@ -740,11 +740,15 @@
       return '<a class="block truncate text-emerald-800 underline dark:text-emerald-300" href="' + (nt().escapeHtml ? nt().escapeHtml(u) : u) + '" target="_blank" rel="noopener">' + (nt().escapeHtml ? nt().escapeHtml(u) : u) + "</a>";
     }).join("");
     var ga4Profiles = ga4.profiles || {};
+    var ga4ProfileTotals = ga4.profile_totals || {};
     var ga4Detail = ["web", "mweb"].map(function (pf) {
-      var rows = ga4Profiles[pf] || [];
-      if (!rows.length) return "";
-      var v = rows.reduce(function (a, r) { return a + Number(r.views || 0); }, 0);
-      return '<span class="mr-2">' + pf.toUpperCase() + ": " + (nt().fmtCount ? nt().fmtCount(v) : v) + " görüntüleme</span>";
+      var pt = ga4ProfileTotals[pf];
+      var v = pt && pt.views != null
+        ? Number(pt.views)
+        : (ga4Profiles[pf] || []).reduce(function (a, r) { return a + Number(r.views || 0); }, 0);
+      if (!v && !(ga4Profiles[pf] || []).length) return "";
+      var label = pf === "web" ? "WEB" : "MWEB";
+      return '<span class="mr-2">' + label + ": " + (nt().fmtCount ? nt().fmtCount(v) : v) + " görüntüleme</span>";
     }).join("");
     body.innerHTML = '<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">'
       + '<div class="rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-900">'

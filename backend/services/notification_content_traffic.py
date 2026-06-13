@@ -306,53 +306,73 @@ def _fetch_ga4_live(
     ga4_status = get_ga4_connection_status(db, site_id)
     properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
     profiles: dict[str, list[dict]] = {}
+    profile_totals: dict[str, dict[str, float]] = {
+        "web": {"views": 0.0, "sessions": 0.0},
+        "mweb": {"views": 0.0, "sessions": 0.0},
+    }
     totals = {"views": 0.0, "sessions": 0.0}
     urls: list[str] = []
     match_method = "none"
     resolved_article_id = article_id
-    headline_pool: list[dict] = []
 
     for pf in ("web", "mweb"):
         prop = str(properties.get(pf) or "").strip()
         if not prop:
+            profiles[pf] = []
             continue
         try:
+            lookup_id = resolved_article_id or article_id
             by_id = fetch_ga4_article_paths_metrics(
                 property_id=prop,
-                article_id=article_id,
+                article_id=lookup_id,
                 start=start,
                 end=end,
             )
-            if by_id:
-                match_method = "path_id"
-            if not headline_pool:
+            pf_match = "path_id" if by_id else "none"
+            if not by_id and headline:
+                # Her GA4 property kendi haber havuzundan eşleşmeli — web havuzunu mweb'e kopyalamayın.
                 headline_pool = fetch_ga4_news_detail_pages_metrics(
                     property_id=prop,
                     start=start,
                     end=end,
                 )
-            if not by_id and headline and headline_pool:
                 by_headline = _match_ga4_by_headline(headline_pool, headline)
                 if by_headline:
                     by_id = by_headline
-                    match_method = "headline"
+                    pf_match = "headline"
                     path_id = extract_article_id_from_path(str(by_headline[0].get("page") or ""))
                     if path_id:
                         resolved_article_id = path_id
+            if pf_match != "none":
+                if match_method == "none":
+                    match_method = pf_match
+                elif match_method == "headline" and pf_match == "path_id":
+                    match_method = "path_id"
             enriched = enrich_ga4_page_rows(by_id, keep_news_articles=True)
         except Exception as exc:
             LOGGER.warning("GA4 article fetch başarısız site=%s profile=%s: %s", site_id, pf, exc)
             enriched = []
         profiles[pf] = enriched
+        pf_views = 0.0
+        pf_sessions = 0.0
         for row in enriched:
-            totals["views"] += float(row.get("views") or 0.0)
-            totals["sessions"] += float(row.get("sessions") or 0.0)
+            v = float(row.get("views") or 0.0)
+            s = float(row.get("sessions") or 0.0)
+            pf_views += v
+            pf_sessions += s
+            totals["views"] += v
+            totals["sessions"] += s
             u = str(row.get("page_url") or row.get("page") or "")
             if u and u not in urls:
                 urls.append(u)
+        profile_totals[pf] = {
+            "views": round(pf_views, 2),
+            "sessions": round(pf_sessions, 2),
+        }
 
     return {
         "profiles": profiles,
+        "profile_totals": profile_totals,
         "totals": {k: round(v, 2) for k, v in totals.items()},
         "urls": urls,
         "source": "live",
