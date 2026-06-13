@@ -65,18 +65,6 @@
     <div id="nt-period-compare" class="mt-3"></div>
   </div>
 
-  <div id="nt-platform-compare" class="hidden rounded-2xl border border-indigo-200 bg-indigo-50/30 p-4 dark:border-indigo-900 dark:bg-indigo-950/20">
-    <div class="flex flex-wrap items-start justify-between gap-2">
-      <div>
-        <h2 class="text-sm font-bold text-indigo-800 dark:text-indigo-300">Platform karşılaştırması</h2>
-        <p id="nt-platform-compare-meta" class="mt-1 text-xs text-slate-600 dark:text-slate-400"></p>
-      </div>
-      <button type="button" id="nt-platform-compare-close" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold dark:border-slate-600">Kapat</button>
-    </div>
-    <div id="nt-platform-compare-chart" class="mt-3 h-[240px] w-full"></div>
-    <div id="nt-platform-appweb" class="mt-2 h-[180px] w-full"></div>
-  </div>
-
   <div class="space-y-4">
     <div id="nt-trend-section" class="w-full min-w-0 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
       <h2 class="text-sm font-bold text-slate-700 dark:text-slate-200">Platform click trend</h2>
@@ -441,7 +429,6 @@
       updateDrillBanner();
       rawPage = 0;
       renderRawRows(rawListRows());
-      if (window.NTExtras && NTExtras.renderPlatformCompare) NTExtras.renderPlatformCompare(null);
       if (window.NTExtras && NTExtras.clearContentTraffic) NTExtras.clearContentTraffic();
     }
   };
@@ -1136,7 +1123,6 @@
     ].map(function (x) {
       return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-center dark:border-slate-700 dark:bg-slate-900"><p class="text-[10px] font-bold uppercase text-slate-500">' + x.k + '</p><p class="text-lg font-black text-indigo-700 dark:text-indigo-300">' + fmtCount(x.v) + "</p></div>";
     }).join("");
-    if (window.NTExtras && NTExtras.renderPlatformCompare) NTExtras.renderPlatformCompare(row);
     if (window.NTExtras && NTExtras.loadContentTraffic) NTExtras.loadContentTraffic(row);
   }
   function rowPlatformClicksLocal(r) {
@@ -1940,8 +1926,6 @@
   }
   var drillClear = document.getElementById("nt-drill-clear");
   if (drillClear) drillClear.addEventListener("click", function () { window.NTDrill.clear(); });
-  var platClose = document.getElementById("nt-platform-compare-close");
-  if (platClose) platClose.addEventListener("click", function () { window.NTDrill.clear(); });
 
   var savedListPlatform = localStorage.getItem(LIST_PLATFORM_KEY) || "web";
   selectedListPlatform = savedListPlatform;
@@ -1977,7 +1961,7 @@
     });
 
   window.addEventListener("resize", function () {
-    ["nt-trend-clicks-app", "nt-trend-clicks-web", "nt-weight-clicks", "nt-heatmap", "nt-platform-compare-chart"].forEach(function (id) {
+    ["nt-trend-clicks-app", "nt-trend-clicks-web", "nt-weight-clicks", "nt-heatmap"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el && window.Plotly) Plotly.Plots.resize(el);
     });

@@ -58,7 +58,6 @@
   var lastAlertPayload = null;
   var lastComparePayload = null;
   var lastContentTrafficPayload = null;
-  var selectedCompareRow = null;
   var trafficLoadToken = 0;
   var inlineTrafficLoadToken = 0;
 
@@ -596,55 +595,10 @@
     }, { responsive: true, displayModeBar: false });
   }
 
-  function renderPlatformCompare(row) {
-    var panel = global.document.getElementById("nt-platform-compare");
-    var chart = global.document.getElementById("nt-platform-compare-chart");
-    var meta = global.document.getElementById("nt-platform-compare-meta");
-    if (!panel || !chart) return;
-    if (!row) {
-      panel.classList.add("hidden");
-      selectedCompareRow = null;
-      return;
-    }
-    selectedCompareRow = row;
-    panel.classList.remove("hidden");
-    var pc = rowPlatformClicks(row);
-    var labels = ["Web", "MWeb", "Android", "iOS", "App toplam", "Web toplam"];
-    var values = [pc.desktop, pc.mobileweb, pc.android, pc.ios, pc.android + pc.ios, pc.desktop + pc.mobileweb];
-    if (meta) {
-      meta.textContent = (nt().idString ? nt().idString(row) : row.id) + " · " + (row.text || "").slice(0, 80) + " · " + (nt().dayKey ? nt().dayKey(row.date) : "");
-    }
-    if (!global.Plotly) return;
-    var dark = global.document.documentElement.classList.contains("dark");
-    Plotly.newPlot(chart, [{
-      type: "bar",
-      x: labels.slice(0, 4),
-      y: values.slice(0, 4),
-      name: "Click",
-      marker: { color: ["#6366f1", "#f59e0b", "#22c55e", "#ef4444"] },
-      text: values.slice(0, 4).map(function (v) { return (nt().fmtCount ? nt().fmtCount(v) : v); }),
-      textposition: "auto",
-    }], {
-      margin: { l: 40, r: 20, t: 20, b: 40 },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
-      font: { color: dark ? "#a1a1aa" : "#475569" },
-      yaxis: { title: "Click" },
-    }, { responsive: true, displayModeBar: false });
-    var appWebEl = global.document.getElementById("nt-platform-appweb");
-    if (appWebEl) {
-      Plotly.newPlot(appWebEl, [{
-        type: "bar",
-        x: ["App (A+iOS)", "Web (D+M)"],
-        y: [values[4], values[5]],
-        marker: { color: ["#22c55e", "#6366f1"] },
-      }], {
-        margin: { l: 40, r: 10, t: 10, b: 40 },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: dark ? "#a1a1aa" : "#475569" },
-      }, { responsive: true, displayModeBar: false });
-    }
+  function onRedraw(ev) {
+    var rows = (ev && ev.detail && ev.detail.rows) || (nt().getFilteredRows ? nt().getFilteredRows() : []);
+    renderPeriodCompare(rows);
+    renderHeatmap(rows);
   }
 
   function renderAlertsPanel() {
@@ -665,13 +619,6 @@
     }).catch(function () {
       el.innerHTML = '<p class="text-xs text-slate-500">Alarm durumu okunamadı.</p>';
     });
-  }
-
-  function onRedraw(ev) {
-    var rows = (ev && ev.detail && ev.detail.rows) || (nt().getFilteredRows ? nt().getFilteredRows() : []);
-    renderPeriodCompare(rows);
-    renderHeatmap(rows);
-    if (selectedCompareRow) renderPlatformCompare(selectedCompareRow);
   }
 
   function bindDrill() {
@@ -915,8 +862,7 @@
     var sel = global.document.getElementById("nt-traffic-days");
     if (!sel) return;
     sel.addEventListener("change", function () {
-      if (selectedCompareRow) loadContentTraffic(selectedCompareRow);
-      else if (global.NTDrill && global.NTDrill.get()) {
+      if (global.NTDrill && global.NTDrill.get()) {
         var f = global.NTDrill.get();
         var row = findDrillRow(f.id, f.text, f.date);
         if (row) loadContentTraffic(row);
@@ -940,15 +886,9 @@
         app_clicks: stats.app,
         web_clicks: stats.web,
       },
+      cross_top_sample: (global.cachedCrossTopList || []).slice(0, 5),
       period_compare: lastComparePayload,
       alerts: lastAlertPayload,
-      selected_notification: selectedCompareRow ? {
-        id: nt().idString ? nt().idString(selectedCompareRow) : selectedCompareRow.id,
-        text: selectedCompareRow.text,
-        date: selectedCompareRow.date,
-        platforms: rowPlatformClicks(selectedCompareRow),
-      } : null,
-      cross_top_sample: (global.cachedCrossTopList || []).slice(0, 5),
       content_traffic: lastContentTrafficPayload,
     };
     ctx.visible_text = "Notification KPI: " + stats.clicks + " click, " + stats.impressions + " impression, "
@@ -974,7 +914,6 @@
   global.NTExtras = {
     renderPeriodCompare: renderPeriodCompare,
     renderHeatmap: renderHeatmap,
-    renderPlatformCompare: renderPlatformCompare,
     buildPageContext: buildPageContext,
     rowPlatformClicks: rowPlatformClicks,
     rowTotalClick: rowTotalClick,
