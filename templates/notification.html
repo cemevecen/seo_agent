@@ -3,7 +3,7 @@
 <div class="mx-auto w-full max-w-7xl space-y-5 notification-page" data-header-title="Notification Analytics">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-300">Notification Analytics</h1>
-    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70">
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70 nt-filter-panel">
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-12">
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
           <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV dosyası</label>
@@ -13,11 +13,11 @@
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div class="space-y-1.5">
               <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Başlangıç tarihi</label>
-              <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900" />
+              <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
             </div>
             <div class="space-y-1.5">
               <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bitiş tarihi</label>
-              <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900" />
+              <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
             </div>
           </div>
           <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Filtreyi uygula</button>
@@ -25,6 +25,7 @@
         <div class="min-w-0 space-y-1.5 xl:col-span-2">
           <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
           <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+            <option value="custom">Özel aralık</option>
             <option value="all">Tümü</option>
             <option value="1w">Son 1 hafta</option>
             <option value="1m">Son 1 ay</option>
@@ -90,6 +91,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</span>
         <select id="nt-range-preset-secondary" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+          <option value="custom">Özel aralık</option>
           <option value="all">Tümü</option>
           <option value="1w">Son 1 hafta</option>
           <option value="1m">Son 1 ay</option>
@@ -424,8 +426,11 @@
         : "nt-pill rounded-full border px-3 py-1 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800";
     });
   }
+  function isNtCustomPreset(preset) {
+    return !preset || preset === "custom";
+  }
   function setPresetSelectors(preset) {
-    var val = preset || "1y";
+    var val = isNtCustomPreset(preset) ? "custom" : (preset || "1y");
     var primary = document.getElementById("nt-range-preset");
     var secondary = document.getElementById("nt-range-preset-secondary");
     if (primary) primary.value = val;
@@ -495,7 +500,9 @@
     if (data.end !== undefined) {
       document.getElementById("nt-end-date").value = data.end || "";
     }
-    if (data.preset) {
+    if (data.start || data.end) {
+      setPresetSelectors("custom");
+    } else if (data.preset) {
       setPresetSelectors(data.preset);
     }
     serverReady = true;
@@ -1207,6 +1214,7 @@
     window.dispatchEvent(new CustomEvent("nt-redraw", { detail: { rows: rows } }));
   }
   function applyPresetRange(preset, skipServerSave) {
+    if (isNtCustomPreset(preset)) return;
     setPresetSelectors(preset);
     if (preset === "all") {
       document.getElementById("nt-start-date").value = "";
@@ -1330,6 +1338,10 @@
   document.getElementById("nt-range-preset-secondary").addEventListener("change", function () {
     setPresetSelectors(document.getElementById("nt-range-preset-secondary").value);
   });
+  ["nt-start-date", "nt-end-date"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", function () { setPresetSelectors("custom"); });
+  });
   document.getElementById("nt-add-data").addEventListener("click", function () {
     var fileInput = document.getElementById("nt-csv-file");
     var file = fileInput && fileInput.files && fileInput.files[0];
@@ -1388,6 +1400,7 @@
     }
     apiFetch("/api/notification-analytics/reset", { method: "POST" })
       .then(function (data) {
+        clearNtSessionCache();
         applyServerState(data);
         rawPage = 0;
         status("Birikmiş veri sunucudan silindi.");
@@ -1400,8 +1413,9 @@
   document.getElementById("nt-apply-date").addEventListener("click", function () {
     var startVal = document.getElementById("nt-start-date").value || "";
     var endVal = document.getElementById("nt-end-date").value || "";
+    setPresetSelectors("custom");
     rawPage = 0;
-    savePrefsOnly({ start: startVal, end: endVal })
+    savePrefsOnly({ start: startVal, end: endVal, preset: "custom" })
       .then(function (data) {
         if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
         return reloadRowsForCurrentFilters(true);
@@ -1429,10 +1443,11 @@
       return migrateLocalStorageIfEmpty(data.row_count).then(function () { return data; });
     })
     .then(function (data) {
-      if (!data.start && !data.end) {
-        applyPresetRange(data.preset || "1y", true);
-      } else {
+      if (data.start || data.end) {
+        setPresetSelectors("custom");
         redrawAll();
+      } else {
+        applyPresetRange(data.preset || "1y", true);
       }
       status(
         rowsCache.length
@@ -1447,8 +1462,10 @@
     });
 
   window.addEventListener("resize", function () {
-    var el = document.getElementById("nt-trend-clicks");
-    if (el && window.Plotly) Plotly.Plots.resize(el);
+    ["nt-trend-clicks", "nt-weight-clicks"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && window.Plotly) Plotly.Plots.resize(el);
+    });
   });
 
   // Tema (açık/midnight) değişince grafikleri yeni renk paletiyle yeniden çiz.

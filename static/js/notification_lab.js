@@ -123,6 +123,7 @@
     var by = {};
     rows.forEach(function (r) {
       var h = r.text || "";
+      if (!h) return;
       if (!by[h]) by[h] = { headline: h, clicks: 0, impressions: 0, rows: 0, lastDay: "", daily: {} };
       var z = ((r.platforms || {})[pk] || {});
       var c = nt.n(z.click), im = nt.n(z.impression);
@@ -281,7 +282,8 @@
     if (!el) return;
     if (!rows.length) { emptyMsg(el); return; }
     var pk = nt.mapListPlatformToDataKey(nt.getListPlatform());
-    var platLabel = nt.getListPlatform() === "web" ? "Web (Desktop)" : nt.getListPlatform();
+    var platLabels = { web: "Web (Desktop)", mobileweb: "Mobile Web", android: "Android", ios: "iOS" };
+    var platLabel = platLabels[nt.getListPlatform()] || nt.getListPlatform();
     var byDay = nt.aggregateByDay(rows);
     var days = byDay.map(function (d) { return d.day; }).sort();
     var end = days[days.length - 1] || nt.todayKey();
@@ -365,8 +367,6 @@
   function wireControls() {
     var nt = api();
     if (!nt) return;
-    var pivotBtn = document.getElementById("nt-lab-pivot-run");
-    if (pivotBtn) pivotBtn.addEventListener("click", function () { runPivot(nt, nt.getFilteredRows()); });
     var paretoN = document.getElementById("nt-lab-pareto-n");
     if (paretoN) paretoN.addEventListener("change", function () { renderPareto(nt, nt.getFilteredRows()); });
   }
