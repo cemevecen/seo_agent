@@ -254,115 +254,12 @@
     listRender(oEl, opp, subLine);
   }
 
-  var NT_LOTTIE_TREND = "https://assets3.lottiefiles.com/packages/lf20_khttgaxc.json";
-  var NT_LOTTIE_ALERT = "https://assets1.lottiefiles.com/packages/lf20_qp1spzqv.json";
-
-  function insightItemsTake3(items, filler) {
-    var out = items.slice(0, 3);
-    while (out.length < 3) out.push(filler);
-    return out;
-  }
-
-  function insightPanelHtml(nt, panel) {
-    var list = panel.items.map(function (t) {
-      return "<li>" + nt.escapeHtml(t) + "</li>";
-    }).join("");
-    return '<section class="nt-insight-panel nt-insight-panel--' + panel.kind + '" role="region" aria-label="' + nt.escapeHtml(panel.title) + '">'
-      + '<div class="nt-insight-panel-head">'
-      + '<div class="nt-insight-panel-media" aria-hidden="true">'
-      + '<lottie-player class="nt-insight-lottie" src="' + panel.lottie + '" background="transparent" speed="1" loop autoplay></lottie-player>'
-      + "</div>"
-      + '<h4 class="nt-insight-panel-title">' + nt.escapeHtml(panel.title) + "</h4>"
-      + "</div>"
-      + '<ul class="nt-insight-panel-list">' + list + "</ul>"
-      + "</section>";
-  }
-
-  function renderInsights(nt, rows) {
-    var el = document.getElementById("nt-lab-insights");
-    if (!el) return;
-    if (!rows.length) { emptyMsg(el); return; }
-    var pk = nt.mapListPlatformToDataKey(nt.getListPlatform());
-    var platLabels = { web: "Web (Desktop)", mobileweb: "Mobile Web", android: "Android", ios: "iOS" };
-    var platLabel = platLabels[nt.getListPlatform()] || nt.getListPlatform();
-    var byDay = nt.aggregateByDay(rows);
-    var days = byDay.map(function (d) { return d.day; }).sort();
-    var end = days[days.length - 1] || nt.todayKey();
-    var last7 = days.filter(function (d) { return d >= nt.minusDays(end, 6); });
-    var prev7 = days.filter(function (d) { return d >= nt.minusDays(end, 13) && d <= nt.minusDays(end, 7); });
-    function sumDays(dayList, field) {
-      return dayList.reduce(function (s, d) {
-        var row = byDay.find(function (x) { return x.day === d; });
-        return s + (row ? nt.n(row[field]) : 0);
-      }, 0);
-    }
-    var cLast = sumDays(last7, pk + "_click");
-    var cPrev = sumDays(prev7, pk + "_click");
-    var ch = pctChange(cLast, cPrev);
-    var stats = buildHeadlineStats(nt, rows);
-    var top = stats.slice().sort(function (a, b) { return b.clicks - a.clicks; })[0];
-    var totalClicks = stats.reduce(function (s, x) { return s + x.clicks; }, 0);
-    var shareTop = totalClicks > 0 && top ? (top.clicks / totalClicks) * 100 : 0;
-
-    var platformLast7 = nt.PLATFORM_KEYS.map(function (p) {
-      return {
-        label: p.label,
-        val: sumDays(last7, p.key + "_click"),
-        prev: sumDays(prev7, p.key + "_click")
-      };
-    }).sort(function (a, b) { return b.val - a.val; });
-    var leadPlat = platformLast7[0] || { label: "-", val: 0, prev: 0 };
-    var leadCh = pctChange(leadPlat.val, leadPlat.prev);
-
-    var trendMain;
-    if (ch >= 10) trendMain = platLabel + " click son 7 günde %" + ch.toFixed(1) + " arttı (" + nt.fmt(cLast) + " vs " + nt.fmt(cPrev) + ").";
-    else if (ch <= -10) trendMain = platLabel + " click son 7 günde %" + Math.abs(ch).toFixed(1) + " azaldı (" + nt.fmt(cLast) + " vs " + nt.fmt(cPrev) + ").";
-    else trendMain = platLabel + " click son 7 günde stabil (Δ %" + ch.toFixed(1) + ", " + nt.fmt(cLast) + " vs " + nt.fmt(cPrev) + ").";
-
-    var trendItems = insightItemsTake3([
-      trendMain,
-      "En aktif platform (son 7 gün): " + leadPlat.label + " · " + nt.fmt(leadPlat.val) + " click (Δ %" + leadCh.toFixed(1) + ").",
-      "Son 7 gün günlük ortalama: " + nt.fmt(last7.length ? Math.round(cLast / last7.length) : 0) + " click · aralık " + (days[0] || "-") + " – " + end + "."
-    ], "Trend verisi hesaplanıyor.");
-
-    var kritikPool = [];
-    if (Math.abs(ch) >= 25) {
-      kritikPool.push("Ani click hareketi: 7 günlük değişim %" + ch.toFixed(1) + " — kampanya / içerik değişimini kontrol edin.");
-    }
-    if (shareTop >= 35 && top) {
-      kritikPool.push("Trafik konsantrasyonu: lider başlık toplam click'in %" + shareTop.toFixed(1) + "'ini taşıyor.");
-    }
-    if (rows.length < 30) {
-      kritikPool.push("Örneklem düşük: filtrede yalnızca " + nt.fmt(rows.length) + " kayıt — daha geniş tarih aralığı önerilir.");
-    }
-    if (Math.abs(ch) >= 15 && Math.abs(ch) < 25) {
-      kritikPool.push("Click değişimi yükseliyor: Δ %" + ch.toFixed(1) + " (kritik eşiğe yakın).");
-    }
-    if (!kritikPool.length) {
-      kritikPool.push("Kritik eşik tetiklenmedi: click, konsantrasyon ve hacim normal görünüyor.");
-    }
-    var kritikItems = insightItemsTake3(kritikPool, "Ek kritik uyarı yok.");
-
-    el.innerHTML = insightPanelHtml(nt, {
-      kind: "trend",
-      title: "Trend",
-      lottie: NT_LOTTIE_TREND,
-      items: trendItems
-    }) + insightPanelHtml(nt, {
-      kind: "alert",
-      title: "Kritik",
-      lottie: NT_LOTTIE_ALERT,
-      items: kritikItems
-    });
-  }
-
   function renderLab(detail) {
     var nt = api();
     if (!nt) return;
     var rows = (detail && detail.rows) ? detail.rows : nt.getFilteredRows();
     renderPareto(nt, rows);
     renderQualityOpportunity(nt, rows);
-    renderInsights(nt, rows);
   }
 
   function wireControls() {
