@@ -105,9 +105,10 @@
 
   function ntCompareSparkColors() {
     var dark = ntIsDark();
+    // Seçili = yeşil, önceki = turuncu — mavi/mor tonları üst üste karışmasın diye.
     return {
-      primary: dark ? "#818cf8" : "#4f46e5",
-      compare: dark ? "#38bdf8" : "#0284c7",
+      primary: dark ? "#34d399" : "#059669",
+      compare: dark ? "#fb923c" : "#ea580c",
     };
   }
 
@@ -117,9 +118,9 @@
       y: ys,
       type: "scatter",
       mode: "lines",
-      line: { width: 0, color: "rgba(0,0,0,0)" },
+      line: { width: 1, color: colorHex, dash: "dot" },
       fill: "tozeroy",
-      fillcolor: ntSparkFillRgba(colorHex, dark ? 0.26 : 0.2),
+      fillcolor: ntSparkFillRgba(colorHex, dark ? 0.2 : 0.16),
       connectgaps: false,
       hoverinfo: "skip",
     };
@@ -131,9 +132,9 @@
       y: ys,
       type: "scatter",
       mode: "lines",
-      line: { width: 1.5, color: colorHex },
+      line: { width: 2, color: colorHex },
       fill: "tozeroy",
-      fillcolor: ntSparkFillRgba(colorHex, dark ? 0.22 : 0.14),
+      fillcolor: ntSparkFillRgba(colorHex, dark ? 0.24 : 0.18),
       connectgaps: false,
       hoverinfo: "skip",
     };
@@ -270,9 +271,9 @@
           type: "scatter",
           mode: "lines",
           name: "Seçili dönem",
-          line: { color: colors.primary, width: 2.5 },
+          line: { color: colors.primary, width: 2.75 },
           fill: "tozeroy",
-          fillcolor: ntSparkFillRgba(colors.primary, dark ? 0.15 : 0.1),
+          fillcolor: ntSparkFillRgba(colors.primary, dark ? 0.18 : 0.12),
           hovertemplate: "%{x}<br>%{y:,}<extra>Seçili</extra>",
         });
         global.Plotly.newPlot(trendEl, traces, {
@@ -302,13 +303,14 @@
       var barColors = ntIsDark()
         ? ["#7176c4", "#bf8f4a", "#4ade80", "#f87171"]
         : ["#6366f1", "#f59e0b", "#22c55e", "#ef4444"];
+      var prevBar = ntIsDark() ? "rgba(251,146,60,0.35)" : "rgba(234,88,12,0.35)";
       global.Plotly.newPlot(platEl, [
         {
           x: labels,
           y: prevY,
           type: "bar",
           name: "Önceki",
-          marker: { color: ntIsDark() ? "rgba(113,113,122,0.45)" : "rgba(148,163,184,0.55)" },
+          marker: { color: prevBar },
           hovertemplate: "%{x}<br>%{y:,}<extra>Önceki</extra>",
         },
         {
@@ -510,11 +512,11 @@
         + '<div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">'
         + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
         + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Günlük click trendi</p>'
-        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Mor: seçili · mavi noktalı: önceki dönem (gün hizalı)</p>'
+        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Yeşil: seçili · turuncu noktalı: önceki dönem (gün hizalı)</p>'
         + '<div id="nt-period-trend-chart" class="mt-2 h-[180px] w-full"></div></div>'
         + '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
         + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Platform click karşılaştırması</p>'
-        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Gri: önceki · renkli: seçili dönem</p>'
+        + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Turuncu: önceki · renkli: seçili dönem</p>'
         + '<div id="nt-period-platform-chart" class="mt-2 h-[180px] w-full"></div></div>'
         + "</div>";
       scheduleNtPeriodCharts(curDaily, prevDaily);
