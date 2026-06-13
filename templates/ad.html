@@ -66,11 +66,12 @@
         <input id="mz-end" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
       </div>
       <select id="mz-preset" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
-        <option value="">Özel aralık</option>
+        <option value="custom">Özel aralık</option>
         <option value="yesterday">Dün</option>
         <option value="7d">Son 7 gün</option>
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
+        <option value="this_month">Bu ay</option>
         <option value="last_month">Geçen ay</option>
         <option value="ytd" selected>Bu yıl</option>
         <option value="1y">Son 1 yıl</option>
@@ -796,6 +797,16 @@
     }
   }
 
+  function isMzCustomPreset(presetVal) {
+    return !presetVal || presetVal === "custom";
+  }
+
+  function setMzPreset(value) {
+    var presetEl = document.getElementById("mz-preset");
+    if (!presetEl) return;
+    presetEl.value = value || "custom";
+  }
+
   /** Günlük veri sonrası bitiş tarihi eski max’taydıysa yeni max’a uzat. */
   function extendRangeEndIfPinnedToMax(st, prevMaxIso) {
     if (!st || !st.max_date) return;
@@ -804,7 +815,7 @@
     var newMax = String(st.max_date).slice(0, 10);
     var prevMax = String(prevMaxIso != null ? prevMaxIso : state._mzLastStreamMaxDate || "").slice(0, 10);
     var presetEl = document.getElementById("mz-preset");
-    if (presetEl && presetEl.value) return;
+    if (presetEl && !isMzCustomPreset(presetEl.value)) return;
     var endV = (endEl.value || "").slice(0, 10);
     if (prevMax && endV === prevMax && newMax > prevMax) {
       endEl.value = newMax;
@@ -871,8 +882,8 @@
     state._mzApplyingUrl = true;
     if (u.start) document.getElementById("mz-start").value = u.start;
     if (u.end) document.getElementById("mz-end").value = u.end;
-    if (u.start || u.end) document.getElementById("mz-preset").value = "";
-    else if (u.preset) document.getElementById("mz-preset").value = u.preset;
+    if (u.start || u.end) setMzPreset("custom");
+    else if (u.preset) setMzPreset(u.preset);
     if (u.search) document.getElementById("mz-search").value = u.search;
     if (u.compare) document.getElementById("mz-compare-enabled").checked = true;
     if (u.compare_mode) document.getElementById("mz-compare-mode").value = u.compare_mode;
@@ -1311,7 +1322,7 @@
       p.set("drill_income_type", state.summaryDrillSlice.income_type);
     }
     var preset = document.getElementById("mz-preset").value;
-    if (preset) p.set("preset", preset);
+    if (preset && !isMzCustomPreset(preset)) p.set("preset", preset);
     appendCompareQs(p);
     if (compareEnabled()) p.set("compare", "1");
     return p;
@@ -6907,7 +6918,7 @@
   function preserveDateRangeForStream(st) {
     applyStreamCalendarBounds(st);
     var presetEl = document.getElementById("mz-preset");
-    if (presetEl && presetEl.value) {
+    if (presetEl && !isMzCustomPreset(presetEl.value)) {
       applyPreset();
       return;
     }
@@ -6935,12 +6946,13 @@
     var end = document.getElementById("mz-end");
     var start = document.getElementById("mz-start");
     var max = end.getAttribute("data-max") || end.value;
+    if (isMzCustomPreset(v)) return;
     if (v === "all") {
       start.value = document.getElementById("mz-start").getAttribute("data-min") || "";
       end.value = max || "";
+      updateComparePeriodBanner(state.lastSummary);
       return;
     }
-    if (!v) return;
     var d = max ? new Date(max) : new Date();
     var s = new Date(d);
     if (v === "yesterday") {
@@ -6959,7 +6971,13 @@
     if (v === "7d") s.setDate(s.getDate() - 7);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "90d") s.setDate(s.getDate() - 90);
-    else if (v === "last_month") {
+    else if (v === "this_month") {
+      var thisMonthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+      start.value = isoCalendarDate(thisMonthStart);
+      end.value = isoCalendarDate(d);
+      updateComparePeriodBanner(state.lastSummary);
+      return;
+    } else if (v === "last_month") {
       var monthStart = new Date(d.getFullYear(), d.getMonth() - 1, 1);
       var monthEnd = new Date(d.getFullYear(), d.getMonth(), 0);
       start.value = isoCalendarDate(monthStart);
@@ -7161,7 +7179,7 @@
 
   async function runQuery(opts) {
     opts = opts || {};
-    if (document.getElementById("mz-preset").value) applyPreset();
+    if (!isMzCustomPreset(document.getElementById("mz-preset").value)) applyPreset();
     if (opts.resetTableDrills) {
       state._drillUserPicked = false;
       state._summaryDrillUserPicked = false;
@@ -7256,12 +7274,12 @@
     debouncedSyncUrl();
   });
   on("mz-start", "change", function () {
-    document.getElementById("mz-preset").value = "";
+    setMzPreset("custom");
     debouncedRun();
     debouncedSyncUrl();
   });
   on("mz-end", "change", function () {
-    document.getElementById("mz-preset").value = "";
+    setMzPreset("custom");
     debouncedRun();
     debouncedSyncUrl();
   });
