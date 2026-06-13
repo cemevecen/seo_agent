@@ -662,8 +662,6 @@
         text: drillRow ? String(drillRow.text || "") : drillText,
         date: drillDate || (drillRow && nt().dayKey ? nt().dayKey(drillRow.date) : "")
       });
-      var raw = global.document.getElementById("nt-raw-list");
-      if (raw && raw.scrollIntoView) raw.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     var crossList = global.document.getElementById("nt-cross-top-list");
     if (crossList) {
@@ -998,6 +996,9 @@
           inline: inline,
           row: row,
         });
+        if (!inline && global.scrollHamDrillIntoView && global.NTDrill && global.NTDrill.get()) {
+          global.setTimeout(function () { global.scrollHamDrillIntoView(); }, 150);
+        }
       })
       .catch(function () {
         if (inline) {
