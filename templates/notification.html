@@ -270,6 +270,18 @@
   </div>
 </div>
 
+<div id="nt-confirm-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 p-4 dark:bg-black/70" role="dialog" aria-modal="true" aria-labelledby="nt-confirm-modal-title" style="display:none">
+  <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+    <h3 id="nt-confirm-modal-title" class="text-sm font-bold text-slate-900 dark:text-slate-100">Onay</h3>
+    <p id="nt-confirm-modal-step" class="mt-2 text-xs text-slate-600 dark:text-slate-300"></p>
+    <p id="nt-confirm-modal-warn" class="mt-2 hidden text-xs font-semibold text-rose-700 dark:text-rose-300"></p>
+    <div class="mt-4 flex justify-end gap-2">
+      <button id="nt-confirm-modal-cancel" type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Vazgeç</button>
+      <button id="nt-confirm-modal-confirm" type="button" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500">Devam</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   var STORE_KEY = "notification_analytics_rows_v1";
@@ -572,6 +584,112 @@
       });
     } catch (e) {
       /* sessiz */
+    }
+  }
+
+  function clearNtLegacyLocalStorage() {
+    try {
+      localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem(LAST_ID_KEY);
+      localStorage.removeItem(START_KEY);
+      localStorage.removeItem(END_KEY);
+      localStorage.removeItem("notification_analytics_preset_v1");
+    } catch (e) {
+      /* sessiz */
+    }
+  }
+
+  function ntConfirmTwoStep(opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var modal = document.getElementById("nt-confirm-modal");
+      var titleEl = document.getElementById("nt-confirm-modal-title");
+      var stepEl = document.getElementById("nt-confirm-modal-step");
+      var warnEl = document.getElementById("nt-confirm-modal-warn");
+      var cancelBtn = document.getElementById("nt-confirm-modal-cancel");
+      var confirmBtn = document.getElementById("nt-confirm-modal-confirm");
+      if (!modal || !titleEl || !stepEl || !warnEl || !cancelBtn || !confirmBtn) {
+        resolve(window.confirm(String(opts.step1 || "Onaylıyor musunuz?")) &&
+          window.confirm(String(opts.step2Warn || "Son onay?")));
+        return;
+      }
+      if (modal.parentNode !== document.body) {
+        document.body.appendChild(modal);
+      }
+      var step = 1;
+      var settled = false;
+      function finish(ok) {
+        if (settled) return;
+        settled = true;
+        modal.style.display = "none";
+        cancelBtn.removeEventListener("click", onCancel);
+        confirmBtn.removeEventListener("click", onConfirm);
+        modal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKey);
+        resolve(!!ok);
+      }
+      function renderStep() {
+        titleEl.textContent = opts.title || "Onay";
+        stepEl.textContent = step === 1 ? (opts.step1 || "Devam edilsin mi?") : "Son onay";
+        if (step === 1) {
+          warnEl.classList.add("hidden");
+          confirmBtn.textContent = "Devam";
+          confirmBtn.className = "rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500";
+        } else {
+          warnEl.textContent = opts.step2Warn || "Bu işlem geri alınamaz.";
+          warnEl.classList.remove("hidden");
+          confirmBtn.textContent = opts.confirmFinal || "Evet, onayla";
+          confirmBtn.className = "rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500";
+        }
+      }
+      function onCancel(ev) {
+        if (ev) ev.preventDefault();
+        finish(false);
+      }
+      function onConfirm(ev) {
+        if (ev) ev.preventDefault();
+        if (step === 1) {
+          step = 2;
+          renderStep();
+          confirmBtn.focus();
+          return;
+        }
+        finish(true);
+      }
+      function onBackdrop(ev) {
+        if (ev.target === modal) onCancel(ev);
+      }
+      function onKey(ev) {
+        if (ev.key === "Escape") onCancel(ev);
+      }
+      cancelBtn.addEventListener("click", onCancel);
+      confirmBtn.addEventListener("click", onConfirm);
+      modal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKey);
+      renderStep();
+      modal.style.display = "flex";
+      confirmBtn.focus();
+    });
+  }
+
+  async function runNtResetAll() {
+    var resetBtn = document.getElementById("nt-reset-all");
+    if (resetBtn) resetBtn.disabled = true;
+    try {
+      status("Birikmiş veri sıfırlanıyor…");
+      var data = await apiFetch("/api/notification-analytics/reset", { method: "POST" });
+      clearNtSessionCache();
+      clearNtLegacyLocalStorage();
+      rowsCache = [];
+      if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+      applyServerState(data);
+      rawPage = 0;
+      status("Birikmiş veri silindi · 0 kayıt");
+      redrawAll();
+    } catch (err) {
+      status((err && err.detail) || (err && err.message) || "Sıfırlama başarısız.");
+    } finally {
+      if (resetBtn) resetBtn.disabled = false;
     }
   }
 
@@ -1395,20 +1513,15 @@
   });
   document.getElementById("nt-clear-file").addEventListener("click", function () { document.getElementById("nt-csv-file").value = ""; status("Dosya seçimi temizlendi."); });
   document.getElementById("nt-reset-all").addEventListener("click", function () {
-    if (!window.confirm("Tüm birikmiş notification verisi silinsin mi? Bu işlem tüm kullanıcılar için geçerlidir.")) {
-      return;
-    }
-    apiFetch("/api/notification-analytics/reset", { method: "POST" })
-      .then(function (data) {
-        clearNtSessionCache();
-        applyServerState(data);
-        rawPage = 0;
-        status("Birikmiş veri sunucudan silindi.");
-        redrawAll();
-      })
-      .catch(function (err) {
-        status((err && err.detail) || "Sıfırlama başarısız.");
-      });
+    ntConfirmTwoStep({
+      title: "Tüm birikimi sıfırla",
+      step1: "Tüm birikmiş notification verisi silinsin mi?",
+      step2Warn: "Son onay: tüm kayıtlar kalıcı olarak silinir (tüm kullanıcılar için).",
+      confirmFinal: "Evet, sıfırla",
+    }).then(function (ok) {
+      if (!ok) return;
+      runNtResetAll();
+    });
   });
   document.getElementById("nt-apply-date").addEventListener("click", function () {
     var startVal = document.getElementById("nt-start-date").value || "";
