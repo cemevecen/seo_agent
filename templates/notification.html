@@ -122,7 +122,7 @@
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <h3 class="text-sm font-bold text-indigo-700 dark:text-indigo-300">4 platform toplam click (Top 20)</h3>
-    <p id="nt-cross-top-range" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Desktop + Mobile Web + Android + iOS click toplamına göre içerik sıralaması · seçili tarih aralığı</p>
+    <p id="nt-cross-top-range" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Her bildirim gönderimi (id + tarih); Web + MWeb + Android + iOS click toplamı · seçili tarih aralığı</p>
     <div id="nt-cross-top-list" class="nt-cross-top-wrap mt-3 text-xs"></div>
     <button type="button" id="nt-cross-top-expand" class="mt-3 hidden w-full rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Top 50'yi gör / genişlet</button>
   </div>
@@ -207,6 +207,14 @@
       background: rgb(24 24 27);
     }
     .notification-page .nt-cross-top-table .nt-cross-num { width: 2.5rem; min-width: 2.5rem !important; text-align: right; }
+    .notification-page .nt-cross-top-table .nt-cross-id {
+      width: 5.5rem;
+      min-width: 5.5rem !important;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: rgb(100 116 139) !important;
+    }
+    html.dark .notification-page .nt-cross-top-table .nt-cross-id { color: rgb(161 161 170) !important; }
     .notification-page .nt-cross-top-table .nt-cross-title {
       width: 18rem;
       min-width: 18rem !important;
@@ -371,7 +379,49 @@
     var x = Number(s);
     return isNaN(x) ? 0 : x;
   }
+  function nCount(v) {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === "number") return isNaN(v) ? 0 : v;
+    var s = String(v).trim();
+    if (!s) return 0;
+    s = s.replace(/[%\s]/g, "");
+    var hasDot = s.indexOf(".") >= 0;
+    var hasComma = s.indexOf(",") >= 0;
+    if (hasDot && hasComma) {
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+        s = s.replace(/\./g, "").replace(",", ".");
+      } else {
+        s = s.replace(/,/g, "");
+      }
+    }
+    if (hasDot) {
+      var dotParts = s.split(".");
+      if (dotParts.length >= 2) {
+        var allDigit = true;
+        var all3AfterFirst = true;
+        for (var di = 0; di < dotParts.length; di++) {
+          if (!/^\d+$/.test(dotParts[di])) { allDigit = false; break; }
+          if (di > 0 && !/^\d{3}$/.test(dotParts[di])) all3AfterFirst = false;
+        }
+        if (allDigit && all3AfterFirst) return Number(dotParts.join(""));
+      }
+    }
+    if (hasComma) {
+      var commaParts = s.split(",");
+      if (commaParts.length >= 2) {
+        var all3Comma = true;
+        for (var ci = 1; ci < commaParts.length; ci++) {
+          if (!/^\d{3}$/.test(commaParts[ci])) { all3Comma = false; break; }
+        }
+        if (all3Comma) return Number(commaParts.join(""));
+      }
+      s = s.replace(",", ".");
+    }
+    var x = Number(s);
+    return isNaN(x) ? 0 : x;
+  }
   function fmt(v) { return n(v).toLocaleString("tr-TR"); }
+  function fmtCount(v) { return Math.round(nCount(v)).toLocaleString("tr-TR"); }
   function normalizeId(raw) {
     return String(raw == null ? "" : raw).trim().replace(/[\s\u00A0]/g, "").replace(/[.,·']/g, "");
   }
@@ -409,8 +459,8 @@
   }
   function metricValueFromPlatformData(z, metric) {
     if (!z) return 0;
-    var clickVal = n(z.click);
-    var imprVal = n(z.impression);
+    var clickVal = nCount(z.click);
+    var imprVal = nCount(z.impression);
     if (metric === "impression") return imprVal;
     if (metric === "ctr") {
       if (imprVal > 0) return (clickVal / imprVal) * 100;
@@ -420,6 +470,7 @@
   }
   function metricNumberText(v) {
     if (selectedMetric === "ctr") return n(v).toFixed(2);
+    if (selectedMetric === "impression" || selectedMetric === "click") return fmtCount(v);
     return fmt(v);
   }
   function renderMetricPills() {
@@ -893,13 +944,13 @@
       headlines[r.text] = 1;
       PLATFORM_KEYS.forEach(function (p) {
         var z = (r.platforms && r.platforms[p.key]) || {};
-        totalClicks += n(z.click); totalImpr += n(z.impression);
+        totalClicks += nCount(z.click); totalImpr += nCount(z.impression);
       });
     });
     document.getElementById("nt-kpi-rows").textContent = fmt(rows.length);
     document.getElementById("nt-kpi-headlines").textContent = fmt(Object.keys(headlines).length);
-    document.getElementById("nt-kpi-clicks").textContent = fmt(totalClicks);
-    document.getElementById("nt-kpi-impr").textContent = fmt(totalImpr);
+    document.getElementById("nt-kpi-clicks").textContent = fmtCount(totalClicks);
+    document.getElementById("nt-kpi-impr").textContent = fmtCount(totalImpr);
   }
   function aggregateByDay(rows) {
     var byDay = {};
@@ -909,8 +960,8 @@
       PLATFORM_KEYS.forEach(function (p) {
         var z = ((r.platforms || {})[p.key] || {});
         byDay[k][p.key] += metricValueFromPlatformData(z, selectedMetric);
-        byDay[k][p.key + "_click"] += n(z.click);
-        byDay[k][p.key + "_impr"] += n(z.impression);
+        byDay[k][p.key + "_click"] += nCount(z.click);
+        byDay[k][p.key + "_impr"] += nCount(z.impression);
       });
     });
     if (selectedMetric === "ctr") {
@@ -998,8 +1049,8 @@
       PLATFORM_KEYS.forEach(function (p) {
         var z = ((r.platforms || {})[p.key] || {});
         weights[p.key] += metricValueFromPlatformData(z, selectedMetric);
-        clickTotals[p.key] += n(z.click);
-        imprTotals[p.key] += n(z.impression);
+        clickTotals[p.key] += nCount(z.click);
+        imprTotals[p.key] += nCount(z.impression);
       });
     });
     if (selectedMetric === "ctr") {
@@ -1034,8 +1085,8 @@
     var platformLabel = selectedListPlatform === "web" ? "Web (Desktop)" : selectedListPlatform === "mobileweb" ? "Mobile Web" : selectedListPlatform === "android" ? "Android" : "iOS";
     var list = rows.map(function (r) {
       var z = ((r.platforms || {})[dataKey] || {});
-      var clicks = n(z.click);
-      var impressions = n(z.impression);
+      var clicks = nCount(z.click);
+      var impressions = nCount(z.impression);
       var metric = selectedMetric === "ctr"
         ? (impressions > 0 ? (clicks / impressions) * 100 : 0)
         : (selectedMetric === "impression" ? impressions : clicks);
@@ -1055,25 +1106,23 @@
     renderCrossPlatformTop(rows);
   }
   function buildCrossPlatformRanking(rows) {
-    var by = {};
-    rows.forEach(function (r) {
-      var h = String(r.text || "").trim();
-      if (!h) return;
-      if (!by[h]) {
-        by[h] = { headline: h, totalClick: 0, desktop: 0, mobileweb: 0, android: 0, ios: 0, rows: 0, lastDay: "" };
-      }
+    return rows.map(function (r) {
       var p = r.platforms || {};
-      by[h].desktop += n((p.desktop || {}).click);
-      by[h].mobileweb += n((p.mobileweb || {}).click);
-      by[h].android += n((p.android || {}).click);
-      by[h].ios += n((p.ios || {}).click);
-      by[h].totalClick = by[h].desktop + by[h].mobileweb + by[h].android + by[h].ios;
-      by[h].rows += 1;
-      var d = dayKey(r.date);
-      if (!by[h].lastDay || d > by[h].lastDay) by[h].lastDay = d;
-    });
-    return Object.keys(by).map(function (k) { return by[k]; })
-      .filter(function (x) { return x.totalClick > 0; })
+      var desktop = nCount((p.desktop || {}).click);
+      var mobileweb = nCount((p.mobileweb || {}).click);
+      var android = nCount((p.android || {}).click);
+      var ios = nCount((p.ios || {}).click);
+      return {
+        id: idString(r),
+        headline: String(r.text || "").trim(),
+        sendDay: dayKey(r.date),
+        totalClick: desktop + mobileweb + android + ios,
+        desktop: desktop,
+        mobileweb: mobileweb,
+        android: android,
+        ios: ios
+      };
+    }).filter(function (x) { return x.headline && x.totalClick > 0; })
       .sort(function (a, b) { return b.totalClick - a.totalClick; })
       .slice(0, CROSS_TOP_MAX);
   }
@@ -1084,7 +1133,7 @@
       var start = selectedStartDate();
       var end = selectedEndDate();
       var rangeTxt = (start || end) ? ((start || "…") + " – " + (end || "…")) : "Tüm tarihler";
-      rangeEl.textContent = "Desktop + Mobile Web + Android + iOS toplam click · " + rangeTxt;
+      rangeEl.textContent = "Her bildirim gönderimi (id + tarih) · Web + MWeb + Android + iOS click · " + rangeTxt;
     }
     paintCrossTopList(crossTopExpanded);
   }
@@ -1102,25 +1151,27 @@
     var shown = items.slice(0, limit);
     var head = "<thead><tr>"
       + '<th class="nt-cross-num">#</th>'
+      + '<th class="nt-cross-id">ID</th>'
       + '<th class="nt-cross-title">İçerik</th>'
       + '<th class="nt-cross-total">Toplam</th>'
       + '<th class="nt-cross-p">Web</th>'
       + '<th class="nt-cross-p">MWeb</th>'
       + '<th class="nt-cross-p">Android</th>'
       + '<th class="nt-cross-p">iOS</th>'
-      + '<th class="nt-cross-day">Son gün</th>'
+      + '<th class="nt-cross-day">Gönderim</th>'
       + "</tr></thead>";
     var body = shown.map(function (x, idx) {
       var title = escapeHtml(x.headline);
       return "<tr>"
         + '<td class="nt-cross-num">' + (idx + 1) + "</td>"
+        + '<td class="nt-cross-id">' + escapeHtml(x.id || "-") + "</td>"
         + '<td class="nt-cross-title" title="' + title.replace(/"/g, "&quot;") + '">' + title + "</td>"
-        + '<td class="nt-cross-total">' + fmt(x.totalClick) + "</td>"
-        + '<td class="nt-cross-p">' + fmt(x.desktop) + "</td>"
-        + '<td class="nt-cross-p">' + fmt(x.mobileweb) + "</td>"
-        + '<td class="nt-cross-p">' + fmt(x.android) + "</td>"
-        + '<td class="nt-cross-p">' + fmt(x.ios) + "</td>"
-        + '<td class="nt-cross-day">' + escapeHtml(x.lastDay || "-") + "</td>"
+        + '<td class="nt-cross-total">' + fmtCount(x.totalClick) + "</td>"
+        + '<td class="nt-cross-p">' + fmtCount(x.desktop) + "</td>"
+        + '<td class="nt-cross-p">' + fmtCount(x.mobileweb) + "</td>"
+        + '<td class="nt-cross-p">' + fmtCount(x.android) + "</td>"
+        + '<td class="nt-cross-p">' + fmtCount(x.ios) + "</td>"
+        + '<td class="nt-cross-day">' + escapeHtml(x.sendDay || "-") + "</td>"
         + "</tr>";
     }).join("");
     el.innerHTML = '<div class="nt-cross-top-wrap rounded-lg border border-slate-200 dark:border-slate-700">'
@@ -1251,18 +1302,18 @@
     if (key === "id") return idString(row);
     if (key === "text") return row.text || "";
     if (key === "date") return dayKey(row.date);
-    if (key === "android_click") return n((p.android || {}).click);
+    if (key === "android_click") return nCount((p.android || {}).click);
     if (key === "android_ctr") {
-      var ac = n((p.android || {}).click); var ai = n((p.android || {}).impression);
+      var ac = nCount((p.android || {}).click); var ai = nCount((p.android || {}).impression);
       return ai > 0 ? (ac / ai) * 100 : n((p.android || {}).ctr);
     }
-    if (key === "android_impression") return n((p.android || {}).impression);
-    if (key === "ios_click") return n((p.ios || {}).click);
-    if (key === "ios_impression") return n((p.ios || {}).impression);
-    if (key === "desktop_impression") return n((p.desktop || {}).impression);
-    if (key === "desktop_click") return n((p.desktop || {}).click);
-    if (key === "mobileweb_impression") return n((p.mobileweb || {}).impression);
-    if (key === "mobileweb_click") return n((p.mobileweb || {}).click);
+    if (key === "android_impression") return nCount((p.android || {}).impression);
+    if (key === "ios_click") return nCount((p.ios || {}).click);
+    if (key === "ios_impression") return nCount((p.ios || {}).impression);
+    if (key === "desktop_impression") return nCount((p.desktop || {}).impression);
+    if (key === "desktop_click") return nCount((p.desktop || {}).click);
+    if (key === "mobileweb_impression") return nCount((p.mobileweb || {}).impression);
+    if (key === "mobileweb_click") return nCount((p.mobileweb || {}).click);
     return "";
   }
   function truncateChars(text, maxLen) {
@@ -1290,7 +1341,10 @@
     if (key === "id") return idString(row);
     var val = rawValue(row, key);
     if (key === "android_ctr") return n(val).toFixed(2);
-    if (type === "number") return fmt(val);
+    if (type === "number") {
+      if (key.indexOf("_click") >= 0 || key.indexOf("_impression") >= 0) return fmtCount(val);
+      return fmt(val);
+    }
     return String(val || "");
   }
   function rawCellHtml(row, col) {
@@ -1322,7 +1376,9 @@
       getMetric: function () { return selectedMetric; },
       PLATFORM_KEYS: PLATFORM_KEYS,
       n: n,
+      nCount: nCount,
       fmt: fmt,
+      fmtCount: fmtCount,
       escapeHtml: escapeHtml,
       dayKey: dayKey,
       todayKey: todayKey,

@@ -17,6 +17,7 @@ WORKSPACE_ID = 1
 
 
 def _n(value: Any) -> float:
+    """Oran / CTR — ondalık korunur (3,877 → 3.877)."""
     if value is None:
         return 0.0
     if isinstance(value, (int, float)):
@@ -47,6 +48,40 @@ def _n(value: Any) -> float:
             s = "".join(parts)
         else:
             s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _n_count(value: Any) -> float:
+    """Click / impression — tam sayı; 48.521 → 48521, 1.670 → 1670."""
+    if value is None:
+        return 0.0
+    if isinstance(value, (int, float)):
+        f = float(value)
+        return f if f == f else 0.0
+    s = str(value).strip()
+    if not s:
+        return 0.0
+    s = re.sub(r"[%\s]", "", s)
+    has_dot = "." in s
+    has_comma = "," in s
+    if has_dot and has_comma:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    if has_dot:
+        parts = s.split(".")
+        if len(parts) >= 2 and all(re.fullmatch(r"\d+", p) for p in parts):
+            if all(re.fullmatch(r"\d{3}", p) for p in parts[1:]):
+                return float("".join(parts))
+    if has_comma:
+        parts = s.split(",")
+        if len(parts) >= 2 and all(re.fullmatch(r"\d{3}", p) for p in parts[1:]):
+            return float("".join(parts))
+        s = s.replace(",", ".")
     try:
         return float(s)
     except ValueError:
@@ -172,23 +207,23 @@ def parse_csv_text(text: str) -> list[dict]:
             "date": iso,
             "platforms": {
                 "android": {
-                    "impression": _n(col(cols, idx["ai"])),
-                    "click": _n(col(cols, idx["ac"])),
+                    "impression": _n_count(col(cols, idx["ai"])),
+                    "click": _n_count(col(cols, idx["ac"])),
                     "ctr": _n(col(cols, idx["atr"])),
                 },
                 "ios": {
-                    "impression": _n(col(cols, idx["ii"])),
-                    "click": _n(col(cols, idx["ic"])),
+                    "impression": _n_count(col(cols, idx["ii"])),
+                    "click": _n_count(col(cols, idx["ic"])),
                     "ctr": _n(col(cols, idx["itr"])),
                 },
                 "desktop": {
-                    "impression": _n(col(cols, idx["di"])),
-                    "click": _n(col(cols, idx["dc"])),
+                    "impression": _n_count(col(cols, idx["di"])),
+                    "click": _n_count(col(cols, idx["dc"])),
                     "ctr": _n(col(cols, idx["dtr"])),
                 },
                 "mobileweb": {
-                    "impression": _n(col(cols, idx["mi"])),
-                    "click": _n(col(cols, idx["mc"])),
+                    "impression": _n_count(col(cols, idx["mi"])),
+                    "click": _n_count(col(cols, idx["mc"])),
                     "ctr": _n(col(cols, idx["mtr"])),
                 },
             },

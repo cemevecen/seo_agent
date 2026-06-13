@@ -41,15 +41,30 @@ def test_merge_rows_same_id_different_date():
     assert len(merged) == 2
 
 
-def test_parse_csv_european_decimal_click():
+def test_parse_csv_turkish_thousands_click():
     csv = (
         "id,text,date,android app click,android app ctr\n"
         "1,Hello,09.06.2026,84.295,3.877\n"
     )
     rows = parse_csv_text(csv)
     assert len(rows) == 1
-    assert rows[0]["platforms"]["android"]["click"] == 84.295
+    assert rows[0]["platforms"]["android"]["click"] == 84295.0
     assert rows[0]["platforms"]["android"]["ctr"] == 3.877
+
+
+def test_parse_csv_reference_row_format():
+    csv = (
+        "id,text,date,android app impression,android app ctr,ios app impression,"
+        "ios app ctr,android app click,ios app click\n"
+        "9133656,Akaryakıt fiyatlarına çifte indirim geliyor,09.04.2026 09:38,"
+        "48.521,12.434,8.633,14.822,423,336\n"
+    )
+    rows = parse_csv_text(csv)
+    assert len(rows) == 1
+    p = rows[0]["platforms"]
+    assert p["android"]["impression"] == 48521.0
+    assert p["android"]["click"] == 423.0
+    assert p["ios"]["click"] == 336.0
 
 
 def test_rows_date_bounds():
