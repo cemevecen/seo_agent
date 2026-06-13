@@ -298,8 +298,8 @@
       var curY = keys.map(function (k) { return cur.platform[k]; });
       var prevY = keys.map(function (k) { return prev.platform[k]; });
       var barColors = ntIsDark()
-        ? ["#7176c4", "#bf8f4a", "#4f9d72", "#4793a6"]
-        : ["#6366f1", "#f59e0b", "#22c55e", "#06b6d4"];
+        ? ["#7176c4", "#bf8f4a", "#4ade80", "#f87171"]
+        : ["#6366f1", "#f59e0b", "#22c55e", "#ef4444"];
       global.Plotly.newPlot(platEl, [
         {
           x: labels,
@@ -608,7 +608,7 @@
       x: labels.slice(0, 4),
       y: values.slice(0, 4),
       name: "Click",
-      marker: { color: ["#6366f1", "#f59e0b", "#22c55e", "#06b6d4"] },
+      marker: { color: ["#6366f1", "#f59e0b", "#22c55e", "#ef4444"] },
       text: values.slice(0, 4).map(function (v) { return (nt().fmtCount ? nt().fmtCount(v) : v); }),
       textposition: "auto",
     }], {

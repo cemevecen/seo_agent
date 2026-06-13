@@ -1175,10 +1175,10 @@
   }
   function ntIsDark() { return document.documentElement.classList.contains("dark"); }
   function ntChartColors() {
-    // Dark modda mat/soft tonlar; light modda canlı tonlar. Neon parlaklık dark'ta kırılır.
+    // Android yeşil, iOS kırmızı — app trend grafiğinde net ayrım için.
     return ntIsDark()
-      ? { android: "#4f9d72", ios: "#4793a6", desktop: "#7176c4", mobileweb: "#bf8f4a" }
-      : { android: "#22c55e", ios: "#06b6d4", desktop: "#6366f1", mobileweb: "#f59e0b" };
+      ? { android: "#4ade80", ios: "#f87171", desktop: "#7176c4", mobileweb: "#bf8f4a" }
+      : { android: "#22c55e", ios: "#ef4444", desktop: "#6366f1", mobileweb: "#f59e0b" };
   }
   function ntFont() { return { color: ntIsDark() ? "#a1a1aa" : "#475569" }; }
   function ntAxisLayout(title) {
