@@ -58,6 +58,7 @@
   var lastContentTrafficPayload = null;
   var selectedCompareRow = null;
   var trafficLoadToken = 0;
+  var inlineTrafficLoadToken = 0;
 
   function nt() {
     return global.NT || {};
@@ -663,21 +664,53 @@
 
   function bindDrill() {
     global.document.addEventListener("click", function (ev) {
+      var closeBtn = ev.target && ev.target.closest ? ev.target.closest("[data-nt-cross-drill-close]") : null;
+      if (closeBtn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (nt().setCrossTopDrill) nt().setCrossTopDrill(null);
+        return;
+      }
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-nt-drill]") : null;
-      if (!btn || !global.NTDrill) return;
+      if (!btn) return;
+      var inCrossTop = btn.closest("#nt-cross-top-list");
+      if (inCrossTop) {
+        ev.preventDefault();
+        var id = btn.getAttribute("data-nt-drill-id") || "";
+        var text = btn.getAttribute("data-nt-drill-text") || "";
+        var date = btn.getAttribute("data-nt-drill-date") || "";
+        var row = findDrillRow(id, text, date);
+        if (nt().setCrossTopDrill) {
+          nt().setCrossTopDrill({
+            id: id,
+            text: row ? String(row.text || "") : text,
+            date: date || (row && nt().dayKey ? nt().dayKey(row.date) : "")
+          });
+        }
+        return;
+      }
+      if (!global.NTDrill) return;
       ev.preventDefault();
-      var id = btn.getAttribute("data-nt-drill-id") || "";
-      var text = btn.getAttribute("data-nt-drill-text") || "";
-      var date = btn.getAttribute("data-nt-drill-date") || "";
-      var row = findDrillRow(id, text, date);
+      var drillId = btn.getAttribute("data-nt-drill-id") || "";
+      var drillText = btn.getAttribute("data-nt-drill-text") || "";
+      var drillDate = btn.getAttribute("data-nt-drill-date") || "";
+      var drillRow = findDrillRow(drillId, drillText, drillDate);
       global.NTDrill.set({
-        id: id,
-        text: row ? String(row.text || "") : text,
-        date: date || (row && nt().dayKey ? nt().dayKey(row.date) : "")
+        id: drillId,
+        text: drillRow ? String(drillRow.text || "") : drillText,
+        date: drillDate || (drillRow && nt().dayKey ? nt().dayKey(drillRow.date) : "")
       });
       var raw = global.document.getElementById("nt-raw-list");
       if (raw && raw.scrollIntoView) raw.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+    var crossList = global.document.getElementById("nt-cross-top-list");
+    if (crossList) {
+      crossList.addEventListener("change", function (ev) {
+        var sel = ev.target;
+        if (!sel || !sel.classList || !sel.classList.contains("nt-inline-traffic-days")) return;
+        if (nt().refreshCrossTopDrillContent) nt().refreshCrossTopDrillContent();
+      });
+    }
   }
 
   function bindAlertsButton() {
@@ -713,16 +746,61 @@
     if (meta) meta.textContent = "";
   }
 
-  function renderContentTraffic(data) {
-    var panel = global.document.getElementById("nt-content-traffic");
-    var body = global.document.getElementById("nt-content-traffic-body");
-    var meta = global.document.getElementById("nt-content-traffic-meta");
-    if (!panel || !body) return;
+  function clearInlineDrillTraffic() {
+    inlineTrafficLoadToken++;
+    global.document.querySelectorAll(".nt-inline-traffic-body").forEach(function (el) {
+      el.innerHTML = "";
+    });
+    global.document.querySelectorAll(".nt-inline-traffic-meta").forEach(function (el) {
+      el.textContent = "";
+    });
+    global.document.querySelectorAll(".nt-inline-drill-cards").forEach(function (el) {
+      el.innerHTML = "";
+    });
+  }
+
+  function renderDrillMiniCards(row, containerEl) {
+    if (!containerEl || !row) return;
+    var pc = rowPlatformClicks(row);
+    containerEl.innerHTML = [
+      { k: "Web", v: pc.desktop },
+      { k: "MWeb", v: pc.mobileweb },
+      { k: "Android", v: pc.android },
+      { k: "iOS", v: pc.ios },
+    ].map(function (x) {
+      return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-center dark:border-slate-700 dark:bg-slate-900">'
+        + '<p class="text-[10px] font-bold uppercase text-slate-500">' + x.k + '</p>'
+        + '<p class="text-lg font-black text-indigo-700 dark:text-indigo-300">' + (nt().fmtCount ? nt().fmtCount(x.v) : x.v) + "</p></div>";
+    }).join("");
+  }
+
+  function renderInlineDrill(row, rootEl) {
+    if (!rootEl || !row) return;
+    var cards = rootEl.querySelector(".nt-inline-drill-cards");
+    renderDrillMiniCards(row, cards);
+    var bodyEl = rootEl.querySelector(".nt-inline-traffic-body");
+    var metaEl = rootEl.querySelector(".nt-inline-traffic-meta");
+    var daysEl = rootEl.querySelector(".nt-inline-traffic-days");
+    loadContentTraffic(row, { bodyEl: bodyEl, metaEl: metaEl, daysEl: daysEl, inline: true });
+  }
+
+  function renderContentTraffic(data, targets) {
+    targets = targets || {};
+    var panel = targets.panelEl || global.document.getElementById("nt-content-traffic");
+    var body = targets.bodyEl || global.document.getElementById("nt-content-traffic-body");
+    var meta = targets.metaEl || global.document.getElementById("nt-content-traffic-meta");
+    var inline = !!targets.inline;
+    if (!body) return;
     if (!data || !data.article_id) {
-      clearContentTraffic();
+      if (inline) {
+        if (body) body.innerHTML = '<p class="text-[10px] text-slate-500">Geçerli içerik ID bulunamadı.</p>';
+        if (meta) meta.textContent = "";
+      } else {
+        clearContentTraffic();
+      }
       return;
     }
-    panel.classList.remove("hidden");
+    if (!inline && panel) panel.classList.remove("hidden");
     var sum = data.summary || {};
     var ga4 = data.ga4 || {};
     var gsc = data.gsc || {};
@@ -764,37 +842,59 @@
       + (urlHtml ? '<div class="mt-2"><p class="text-[10px] font-bold uppercase text-slate-500">Eşleşen URL</p>' + urlHtml + "</div>" : '<p class="mt-2 text-[10px] text-slate-500">Bu bildirim için GA4/GSC URL eşleşmesi bulunamadı. Başlık ve gönderim tarihi ile tekrar denendi.</p>');
   }
 
-  function loadContentTraffic(row) {
+  function loadContentTraffic(row, targets) {
+    targets = targets || {};
+    var inline = !!targets.inline;
     if (!row) {
-      clearContentTraffic();
+      if (inline) clearInlineDrillTraffic();
+      else clearContentTraffic();
       return;
     }
     var cid = nt().idString ? nt().idString(row) : String(row.id || "");
     if (!cid || !/^\d+$/.test(cid.replace(/\D/g, "").slice(0, 20))) {
-      clearContentTraffic();
+      if (inline) {
+        if (targets.bodyEl) targets.bodyEl.innerHTML = '<p class="text-[10px] text-slate-500">Geçerli bildirim ID yok.</p>';
+      } else {
+        clearContentTraffic();
+      }
       return;
     }
-    var daysEl = global.document.getElementById("nt-traffic-days");
+    var daysEl = targets.daysEl || global.document.getElementById("nt-traffic-days");
     var days = daysEl && daysEl.value ? parseInt(daysEl.value, 10) : 14;
     var sendDay = nt().dayKey ? nt().dayKey(row.date) : String(row.date || "").slice(0, 10);
     var headline = encodeURIComponent(String(row.text || "").trim());
-    var token = ++trafficLoadToken;
-    var panel = global.document.getElementById("nt-content-traffic");
-    var body = global.document.getElementById("nt-content-traffic-body");
-    if (panel) panel.classList.remove("hidden");
+    var token = inline ? ++inlineTrafficLoadToken : ++trafficLoadToken;
+    var panel = targets.panelEl || global.document.getElementById("nt-content-traffic");
+    var body = targets.bodyEl || global.document.getElementById("nt-content-traffic-body");
+    var meta = targets.metaEl || global.document.getElementById("nt-content-traffic-meta");
+    if (!inline && panel) panel.classList.remove("hidden");
     if (body) body.innerHTML = '<p class="text-xs text-slate-500">GA4 / GSC trafik yükleniyor…</p>';
+    if (meta && inline) meta.textContent = "";
     var q = "/api/notification-analytics/traffic?content_id=" + encodeURIComponent(cid)
       + "&days=" + days + "&site_id=1";
     if (sendDay) q += "&send_date=" + encodeURIComponent(sendDay);
     if (row.text) q += "&headline=" + headline;
     apiFetch(q)
       .then(function (data) {
-        if (token !== trafficLoadToken) return;
-        lastContentTrafficPayload = data;
-        renderContentTraffic(data);
+        if (inline) {
+          if (token !== inlineTrafficLoadToken) return;
+        } else if (token !== trafficLoadToken) {
+          return;
+        }
+        if (!inline) lastContentTrafficPayload = data;
+        renderContentTraffic(data, {
+          bodyEl: body,
+          metaEl: meta,
+          panelEl: panel,
+          inline: inline,
+        });
       })
       .catch(function () {
-        if (token !== trafficLoadToken) return;
+        if (inline) {
+          if (token !== inlineTrafficLoadToken) return;
+        } else if (token !== trafficLoadToken) {
+          return;
+        }
         if (body) body.innerHTML = '<p class="text-xs text-rose-600">Trafik verisi yüklenemedi.</p>';
       });
   }
@@ -868,6 +968,8 @@
     rowTotalClick: rowTotalClick,
     loadContentTraffic: loadContentTraffic,
     clearContentTraffic: clearContentTraffic,
+    clearInlineDrillTraffic: clearInlineDrillTraffic,
+    renderInlineDrill: renderInlineDrill,
     renderContentTraffic: renderContentTraffic,
   };
 
