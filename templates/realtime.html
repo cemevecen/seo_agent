@@ -1422,7 +1422,7 @@
   var WINDOW = {{ window_minutes }};
   var RT_TREND_LIMIT = 288;
   var RT_TREND_RANGE_MS = { '15m': 15 * 60 * 1000, '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 };
-  var RT_TREND_RANGE_LS = 'rt_spark_range_v1';
+  var RT_TREND_RANGE_DEFAULT = '24h';
   /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi */
   var LIST_WINDOW = 30;
   /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
@@ -1772,11 +1772,7 @@
 
   function _rtTrendRangeForBox(box) {
     if (box && box._rtTrendRange && RT_TREND_RANGE_MS[box._rtTrendRange]) return box._rtTrendRange;
-    try {
-      var saved = localStorage.getItem(RT_TREND_RANGE_LS);
-      if (saved && RT_TREND_RANGE_MS[saved]) return saved;
-    } catch (eLs) { /* ignore */ }
-    return '24h';
+    return RT_TREND_RANGE_DEFAULT;
   }
 
   var RT_SPARK_BAR_PX = 76;
@@ -2241,9 +2237,6 @@
         var key = btn.getAttribute('data-rt-yf-range');
         if (!key || !RT_TREND_RANGE_MS[key]) return;
         box._rtTrendRange = key;
-        try {
-          localStorage.setItem(RT_TREND_RANGE_LS, key);
-        } catch (eSave) { /* ignore */ }
         _syncRtYfTabs(box, key);
         rtFetchTrend(siteId, profile);
       });
@@ -3570,6 +3563,10 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     rtInitViewMode();
+    document.querySelectorAll('[data-rt-profile-box]').forEach(function (box) {
+      box._rtTrendRange = RT_TREND_RANGE_DEFAULT;
+      _syncRtYfTabs(box, RT_TREND_RANGE_DEFAULT);
+    });
     _initRtAlarmSitePills();
     _startPolling();
     _restoreRealtimeScroll();
