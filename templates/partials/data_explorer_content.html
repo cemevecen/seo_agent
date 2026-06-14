@@ -392,6 +392,54 @@ text-slate-500 dark:text-slate-400
     </div>
   </div>
 
+  {% set sched = data_explorer_scheduler_health or {} %}
+  <section class="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:px-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Otomatik yenileme kaydı</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Zamanlanmış PSI + CrUX çekimlerinin son durumu (manuel «PSI + CrUX Yenile» burada listelenmez).</p>
+      </div>
+      <div class="flex flex-wrap gap-2 text-[11px] sm:text-xs">
+        <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
+          Scheduler: {% if sched.scheduler_running %}aktif{% else %}pasif / job yok{% endif %}
+        </span>
+        {% if sched.next_run and sched.next_run != '—' %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+          Sonraki plan: {{ sched.next_run|e }}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% if data_explorer_auto_refresh_log %}
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-full text-left text-xs sm:text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            <th class="py-2 pr-3 font-semibold">Sistem</th>
+            <th class="py-2 pr-3 font-semibold">Durum</th>
+            <th class="py-2 pr-3 font-semibold">Bitiş</th>
+            <th class="py-2 font-semibold">Tetik</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for row in data_explorer_auto_refresh_log %}
+          <tr class="text-slate-700 dark:text-slate-200">
+            <td class="py-2 pr-3 font-medium whitespace-nowrap">{{ row.label|e }}</td>
+            <td class="py-2 pr-3 whitespace-nowrap">
+              <span class="rounded-full border px-2 py-0.5 text-[10px] font-semibold {% if row.status_ok %}border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300{% elif row.status == 'failed' %}border-rose-300 text-rose-700 dark:border-rose-700 dark:text-rose-300{% else %}border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300{% endif %}" {% if row.error %}title="{{ row.error|e }}"{% endif %}>{{ row.status_label|e }}</span>
+            </td>
+            <td class="py-2 pr-3 tabular-nums whitespace-nowrap">{{ row.finished_at|e }}</td>
+            <td class="py-2 whitespace-nowrap text-slate-500 dark:text-slate-400">{{ row.trigger_label|e }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="mt-3 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">Henüz zamanlanmış otomatik çekim kaydı yok. İlk günlük job ({{ data_explorer_schedule|default('07:00') }} TSİ) sonrasında burada görünür.</p>
+    {% endif %}
+  </section>
+
   {% if sites %}
   <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:px-5">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">

@@ -393,6 +393,7 @@ def collect_crux_history(
     max_identifier_attempts: int | None = None,
     form_factors: tuple[str, ...] | None = None,
     include_current: bool = True,
+    trigger_source: str = "system",
 ) -> dict:
     target_url = _normalize_url(site.domain)
     collected_at = datetime.utcnow()
@@ -414,6 +415,7 @@ def collect_crux_history(
             strategy=local_key,
             target_url=target_url,
             requested_at=collected_at,
+            trigger_source=trigger_source,
         )
         try:
             raw_history_payload, history_summary = _fetch_crux_history(

@@ -748,9 +748,21 @@ def admin_scheduler_status():
         "scheduler_running": SCHEDULER is not None and bool(getattr(SCHEDULER, "running", False)),
         "job_count": len(jobs),
         "jobs": jobs,
+        "data_explorer": _data_explorer_scheduler_health(),
         "inbox_sync_interval_minutes": settings.inbox_scheduled_sync_interval_minutes,
         "ga4_scheduled_kpi_period_days": settings.ga4_scheduled_kpi_period_days,
     }
+
+
+@app.get("/api/admin/run-daily-refresh-now")
+def admin_run_daily_refresh_now():
+    """Günlük PSI + CrUX + crawler yenilemesini MANUEL tetikler (zamanlanmış job ile aynı akış)."""
+    try:
+        _run_daily_refresh_job()
+        return {"status": "ok", "message": "Günlük site yenilemesi tamamlandı."}
+    except Exception as exc:
+        LOGGER.exception("admin run-daily-refresh-now")
+        return {"status": "error", "message": str(exc)}
 
 
 @app.get("/api/admin/run-news-intelligence-now")
@@ -1566,16 +1578,158 @@ def _resolve_site_by_domain(db, domain: str) -> Site | None:
     return None
 
 
+def _collector_run_trigger_source(run: CollectorRun | None) -> str:
+    if run is None:
+        return ""
+    try:
+        data = json.loads(run.summary_json or "{}")
+    except json.JSONDecodeError:
+        return "legacy"
+    if not isinstance(data, dict):
+        return "legacy"
+    ts = str(data.get("trigger_source") or "").strip().lower()
+    if ts in ("manual", "system", "onboarding"):
+        return ts
+    return "legacy"
+
+
+def _collector_run_counts_as_scheduled(run: CollectorRun | None) -> bool:
+    ts = _collector_run_trigger_source(run)
+    return ts in ("system", "legacy")
+
+
+_COLLECTOR_STATUS_LABELS = {
+    "success": "Başarılı",
+    "failed": "Başarısız",
+    "stale": "Eski veri",
+    "no_data": "Veri yok",
+    "started": "Devam ediyor",
+    "skipped": "Atlandı",
+}
+
+
+def _collector_status_label(status: str | None) -> str:
+    key = str(status or "").strip().lower()
+    return _COLLECTOR_STATUS_LABELS.get(key, key or "—")
+
+
+def _latest_scheduled_provider_run(
+    db,
+    *,
+    site_id: int,
+    provider: str,
+    strategy: str | None = None,
+    success_only: bool = False,
+) -> CollectorRun | None:
+    query = db.query(CollectorRun).filter(
+        CollectorRun.site_id == site_id,
+        CollectorRun.provider == provider,
+    )
+    if strategy is not None:
+        query = query.filter(CollectorRun.strategy == strategy)
+    candidates = query.order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc()).limit(80).all()
+    for run in candidates:
+        if not _collector_run_counts_as_scheduled(run):
+            continue
+        if success_only and str(run.status or "").lower() != "success":
+            continue
+        return run
+    return None
+
+
 def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
     times: list[datetime] = []
-    for provider in ("pagespeed", "crux_history"):
-        run = _latest_provider_run(db, site_id=site_id, provider=provider)
+    for provider, strategy in (("pagespeed", None), ("crux_history", None)):
+        run = _latest_scheduled_provider_run(
+            db,
+            site_id=site_id,
+            provider=provider,
+            strategy=strategy,
+            success_only=True,
+        )
         finished = getattr(run, "finished_at", None) if run else None
         if isinstance(finished, datetime):
             times.append(finished)
     if not times:
         return "Henüz otomatik yenileme kaydı yok"
     return format_local_datetime(max(times), fallback="Henüz otomatik yenileme kaydı yok")
+
+
+def _build_data_explorer_auto_refresh_log(db, site_id: int, *, limit: int = 12) -> list[dict]:
+    provider_labels = {
+        ("pagespeed", "mobile"): "PSI · Mobil",
+        ("pagespeed", "desktop"): "PSI · Masaüstü",
+        ("crux_history", "mobile"): "CrUX · Mobil",
+        ("crux_history", "desktop"): "CrUX · Masaüstü",
+    }
+    rows: list[dict] = []
+    for (provider, strategy), label in provider_labels.items():
+        runs = (
+            db.query(CollectorRun)
+            .filter(
+                CollectorRun.site_id == site_id,
+                CollectorRun.provider == provider,
+                CollectorRun.strategy == strategy,
+            )
+            .order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
+            .limit(40)
+            .all()
+        )
+        per_label = 0
+        for run in runs:
+            if not _collector_run_counts_as_scheduled(run):
+                continue
+            finished = run.finished_at or run.requested_at
+            rows.append(
+                {
+                    "label": label,
+                    "provider": provider,
+                    "strategy": strategy,
+                    "status": str(run.status or ""),
+                    "status_label": _collector_status_label(run.status),
+                    "status_ok": str(run.status or "").lower() == "success",
+                    "finished_at": format_local_datetime(finished, fallback="—"),
+                    "trigger_label": "Zamanlanmış" if _collector_run_trigger_source(run) == "system" else "Zamanlanmış (eski kayıt)",
+                    "error": (run.error_message or "").strip()[:160],
+                    "_sort": finished,
+                }
+            )
+            per_label += 1
+            if per_label >= 3:
+                break
+    rows.sort(key=lambda row: row.get("_sort") or datetime.min, reverse=True)
+    for row in rows:
+        row.pop("_sort", None)
+    return rows[:limit]
+
+
+def _data_explorer_scheduler_health() -> dict:
+    next_run_label = "—"
+    job_registered = False
+    if SCHEDULER is not None:
+        job = SCHEDULER.get_job("daily-site-refresh")
+        if job is not None:
+            job_registered = True
+            nxt = job.next_run_time
+            if nxt is not None:
+                next_run_label = format_local_datetime(
+                    nxt if nxt.tzinfo else nxt.replace(tzinfo=ZoneInfo("UTC")),
+                    fallback="—",
+                )
+    scheduler_ok = (
+        SCHEDULER is not None
+        and bool(getattr(SCHEDULER, "running", False))
+        and settings.scheduled_refresh_enabled
+        and job_registered
+    )
+    return {
+        "enabled": bool(settings.scheduled_refresh_enabled),
+        "schedule": _data_explorer_nightly_schedule(),
+        "scheduler_running": scheduler_ok,
+        "job_registered": job_registered,
+        "next_run": next_run_label,
+        "monitor_enabled": bool(settings.scheduled_refresh_monitor_enabled),
+    }
 
 
 def _dashboard_spotlight_card_limit(domain: str | None) -> int:
@@ -2573,6 +2727,7 @@ def _collect_pagespeed_external_fast(db, site: Site) -> dict:
         request_timeout=12,
         max_retries=1,
         retry_backoff_seconds=1.0,
+        trigger_source="onboarding",
     )
 
 
@@ -2584,6 +2739,7 @@ def _collect_crux_external_fast(db, site: Site) -> dict:
         max_identifier_attempts=1,
         form_factors=("mobile",),
         include_current=False,
+        trigger_source="onboarding",
     )
 
 
@@ -3085,6 +3241,7 @@ def _run_daily_refresh_job() -> None:
                     include_crawler=True,
                     include_search_console=False,
                     force=True,
+                    trigger_source="system",
                 )
                 db.commit()
                 if isinstance(results.get("pagespeed"), dict):
@@ -3093,7 +3250,7 @@ def _run_daily_refresh_job() -> None:
                     crawler_batch.append((site, results["crawler"]))
 
                 try:
-                    crux_result = collect_crux_history(db, site)
+                    crux_result = collect_crux_history(db, site, trigger_source="system")
                     db.commit()
                     crux_batch.append((site, crux_result))
                 except Exception as exc:  # noqa: BLE001
@@ -3889,6 +4046,7 @@ def _refresh_site_detail_measurements(
     force: bool = False,
     send_notifications: bool = False,
     bypass_pagespeed_quota: bool = False,
+    trigger_source: str = "system",
 ) -> dict[str, dict]:
     # LIVE_REFRESH yalnızca otomatik tetikleri kapatır; manuel/API `force=True` ile PSI vb. yine çalışır (Railway).
     if not settings.live_refresh_enabled and not force:
@@ -3919,6 +4077,7 @@ def _refresh_site_detail_measurements(
                     site,
                     send_notifications=send_notifications,
                     bypass_quota=bypass_pagespeed_quota,
+                    trigger_source=trigger_source,
                 )
             except Exception as exc:  # noqa: BLE001
                 results["pagespeed"] = {"errors": {"exception": str(exc)}}
@@ -5722,6 +5881,8 @@ def _data_explorer_context(domain: str) -> dict:
             "error_widget": error_widget,
             "data_explorer_schedule": schedule_str,
             "data_explorer_last_auto_refresh": _data_explorer_last_auto_refresh_label(db, site.id),
+            "data_explorer_auto_refresh_log": _build_data_explorer_auto_refresh_log(db, site.id),
+            "data_explorer_scheduler_health": _data_explorer_scheduler_health(),
             "psi_lighthouse_last_updated": format_local_datetime(
                 psi_collected,
                 fallback="Henüz PSI/Lighthouse ölçümü yok",
@@ -7156,10 +7317,11 @@ def dashboard_measure_site(request: Request, site_id: int):
                 force=True,
                 send_notifications=True,
                 bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
+                trigger_source="manual",
             )
             if not search_console_connected:
                 try:
-                    results["crux_history"] = collect_crux_history(db, site)
+                    results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
                 except Exception as exc:  # noqa: BLE001
                     results["crux_history"] = {"state": "failed", "error": str(exc)}
             db.commit()
@@ -8798,6 +8960,7 @@ def api_refresh_data_explorer(request: Request, domain: str):
             force=True,
             send_notifications=True,
             bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
+            trigger_source="manual",
         )
         ps = results.get("pagespeed")
         if isinstance(ps, dict) and ps.get("blocked"):
@@ -8811,7 +8974,7 @@ def api_refresh_data_explorer(request: Request, domain: str):
                 status_code=429,
             )
         try:
-            results["crux_history"] = collect_crux_history(db, site)
+            results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
         except Exception as exc:  # noqa: BLE001
             results["crux_history"] = {"state": "failed", "error": str(exc)}
         try:
@@ -8854,9 +9017,10 @@ def api_refresh_site_metrics(request: Request, domain: str):
             force=True,
             send_notifications=True,
             bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
+            trigger_source="manual",
         )
         try:
-            results["crux_history"] = collect_crux_history(db, site)
+            results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
         except Exception as exc:  # noqa: BLE001
             results["crux_history"] = {"state": "failed", "error": str(exc)}
         if search_console_connected:

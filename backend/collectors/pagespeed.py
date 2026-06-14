@@ -1263,6 +1263,7 @@ def collect_pagespeed_metrics(
     retry_backoff_seconds: float | None = None,
     send_notifications: bool = False,
     bypass_quota: bool = False,
+    trigger_source: str = "system",
 ) -> dict:
     """Mobile ve desktop performans verilerini toplayıp Metric tablosuna kaydeder."""
     if not bypass_quota:
@@ -1295,6 +1296,7 @@ def collect_pagespeed_metrics(
             strategy=strategy,
             target_url=resolve_pagespeed_target_url(site, strategy),
             requested_at=collected_at,
+            trigger_source=trigger_source,
         )
         try:
             target_url = resolve_pagespeed_target_url(site, strategy)

@@ -32,6 +32,7 @@ def start_collector_run(
     strategy: str = "all",
     target_url: str = "",
     requested_at: datetime | None = None,
+    trigger_source: str = "system",
 ) -> CollectorRun:
     run = CollectorRun(
         site_id=site_id,
@@ -39,7 +40,7 @@ def start_collector_run(
         strategy=strategy,
         status="started",
         target_url=target_url,
-        summary_json="{}",
+        summary_json=json.dumps({"trigger_source": str(trigger_source or "system").strip().lower()}),
         requested_at=requested_at or datetime.utcnow(),
     )
     db.add(run)
@@ -57,11 +58,21 @@ def finish_collector_run(
     summary: dict | None = None,
     row_count: int = 0,
 ) -> None:
+    prior: dict = {}
+    try:
+        prior = json.loads(run.summary_json or "{}")
+        if not isinstance(prior, dict):
+            prior = {}
+    except json.JSONDecodeError:
+        prior = {}
+    merged = {**prior, **(summary or {})}
+    if "trigger_source" not in merged and prior.get("trigger_source"):
+        merged["trigger_source"] = prior["trigger_source"]
     run.status = status
     run.finished_at = finished_at or datetime.utcnow()
     run.error_message = error_message or ""
     run.row_count = int(row_count or 0)
-    run.summary_json = json.dumps(summary or {}, ensure_ascii=True)
+    run.summary_json = json.dumps(merged, ensure_ascii=True)
     db.add(run)
 
 
