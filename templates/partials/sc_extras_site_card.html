@@ -129,9 +129,6 @@
       · ilk {{ sc_preview_limit }} gösteriliyor
       {% endif %}
     </p>
-    {% if not sc_show_position %}
-    <p class="mb-3 text-[11px] text-slate-400 dark:text-slate-500">Pozisyon sütunu yok — Google Discover / Google News API bu metriği döndürmez (arama sorgusu olmadığı için).</p>
-    {% endif %}
     {% if sc_all_rows %}
       <div class="sc-extra-table-wrap rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table>
         <table class="sc-extra-table w-full text-left text-[11px] sm:text-xs" data-sc-cols="{{ sc_table_cols }}"{% if sc_view_item.secondary_col %} data-sc-has-secondary{% endif %}{% if sc_show_position %} data-sc-has-position{% endif %}>
