@@ -44,7 +44,7 @@ TREND_ITEMS: tuple[TrendItem, ...] = (
         "rakip-gap",
         "Rakip Gap",
         "Keşif",
-        "Rakip domainlerden geniş tarama — bizde olmayan başlıklar ve topic boşlukları.",
+        "Son saatlerde öne çıkan haberler ve içerik fırsatları.",
         3,
     ),
     TrendItem(

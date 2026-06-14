@@ -274,16 +274,14 @@ def trend_rakip_gap(db: Session, site_id: int) -> dict[str, Any]:
             break
 
     gap_count = sum(1 for r in rows_6h if not r.is_in_our_site)
-    out["summary"] = (
-        f"{out.get('vertical_label') or ''} · 6s tarama: {len(rows_6h)} sinyal, {gap_count} rakip/bizde-yok. "
-        f"Rakipler: {', '.join(competitors) or '—'}."
-    )
+    label = (out.get("vertical_label") or "").strip()
+    out["summary"] = label
     out["metrics"] = [
         {"label": "6s sinyal", "value": str(len(rows_6h))},
         {"label": "Gap", "value": str(gap_count)},
         {"label": "Rakip", "value": str(len(competitors))},
     ]
-    out["sections"] = sections + [{"title": "Topic boşlukları (6s)", "items": missing}]
+    out["sections"] = sections + [{"title": "Öne çıkan konular (6s)", "items": missing}]
     return out
 
 
