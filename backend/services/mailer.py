@@ -458,6 +458,19 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
                     try:
                         delete_inbox_credentials(session)
                         logging.warning("Gmail OAuth token kalıcı olarak geçersiz, silindi. Yeniden bağlanma gerekiyor.")
+                        try:
+                            from backend.services.connection_alerts import notify_oauth_connection_event
+
+                            notify_oauth_connection_event(
+                                session,
+                                notification_key="inbox:gmail",
+                                integration="Gmail Inbox",
+                                title="Gelen kutusu",
+                                detail="Gmail OAuth token iptal edildi veya süresi doldu.",
+                                action="https://projectcontrol.up.railway.app/inbox — Gmail yeniden bağla",
+                            )
+                        except Exception:
+                            logging.exception("Gmail OAuth kopma maili gönderilemedi")
                     except Exception:
                         pass
                 else:

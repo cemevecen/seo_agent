@@ -1640,6 +1640,19 @@ def collect_search_console_metrics(
                 collector_run.id,
                 err_text,
             )
+            try:
+                from backend.services.connection_alerts import notify_oauth_connection_event
+
+                notify_oauth_connection_event(
+                    db,
+                    notification_key=f"search_console:site:{site.id}",
+                    integration="Search Console",
+                    title=site.domain or f"Site #{site.id}",
+                    detail=err_text[:500],
+                    action="https://projectcontrol.up.railway.app/settings — OAuth yeniden bağla",
+                )
+            except Exception:
+                LOGGER.exception("Search Console OAuth kopma maili gönderilemedi")
         finish_collector_run(
             db,
             collector_run,

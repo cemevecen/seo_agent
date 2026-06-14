@@ -3467,6 +3467,20 @@ def _run_scheduled_refresh_monitor_job() -> None:
         LOGGER.warning("Scheduled refresh monitor sent operations email: %s", subject)
 
 
+def _run_oauth_connection_monitor_job() -> None:
+    if not settings.oauth_connection_alert_enabled:
+        return
+    try:
+        from backend.services.connection_alerts import notify_oauth_connection_broken_scan
+
+        with SessionLocal() as db:
+            sent = notify_oauth_connection_broken_scan(db)
+        for subject in sent:
+            LOGGER.warning("OAuth connection monitor sent alert: %s", subject)
+    except Exception:
+        LOGGER.exception("OAuth connection monitor job failed")
+
+
 def _run_ai_daily_brief_scheduled() -> None:
     try:
         from backend.services.ai_daily_brief import run_ai_daily_brief_job
@@ -3681,6 +3695,19 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             trigger="interval",
             minutes=max(5, int(settings.scheduled_refresh_monitor_interval_minutes)),
             id="scheduled-refresh-monitor",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+        job_count += 1
+
+    if settings.oauth_connection_alert_enabled:
+        scheduler.add_job(
+            _run_oauth_connection_monitor_job,
+            trigger="interval",
+            minutes=max(5, int(settings.scheduled_refresh_monitor_interval_minutes)),
+            id="oauth-connection-monitor",
             replace_existing=True,
             max_instances=1,
             coalesce=True,

@@ -221,6 +221,9 @@ def save_inbox_credentials(db: Session, credentials: Credentials, account_email:
         row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(row)
+    from backend.services.connection_alerts import clear_oauth_connection_alert
+
+    clear_oauth_connection_alert(db, "inbox:gmail")
     return row
 
 

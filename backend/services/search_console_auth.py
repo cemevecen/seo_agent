@@ -155,6 +155,9 @@ def save_oauth_credentials(db: Session, site_id: int, credentials: Credentials) 
         record.encrypted_data = encrypted
     db.commit()
     db.refresh(record)
+    from backend.services.connection_alerts import clear_oauth_connection_alert
+
+    clear_oauth_connection_alert(db, f"search_console:site:{site_id}")
     return record
 
 

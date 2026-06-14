@@ -1230,11 +1230,17 @@
       var r = await fetch("/api/inbox/sync-stream", {
         method: "POST",
         credentials: "same-origin",
-        headers: { Accept: "application/x-ndjson" },
+        headers: { Accept: "text/event-stream, application/x-ndjson" },
       });
       if (!r.ok) {
         var errText = await r.text();
-        throw new Error(errText.slice(0, 500) || r.statusText || "HTTP " + r.status);
+        var errMsg = errText.slice(0, 500) || r.statusText || "HTTP " + r.status;
+        try {
+          var errJson = JSON.parse(errText);
+          if (errJson && errJson.detail) errMsg = String(errJson.detail);
+        } catch (_) {}
+        if (r.status === 401 || r.status === 403) errMsg = "Yetki gerekli — şifre modalını tamamlayın veya oturumu yenileyin.";
+        throw new Error(errMsg);
       }
       var reader = r.body && r.body.getReader ? r.body.getReader() : null;
       if (!reader) throw new Error("Tarayıcı akış okumasını desteklemiyor.");

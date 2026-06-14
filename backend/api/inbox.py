@@ -420,6 +420,9 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
     _require_inbox_action_auth(request)
     def ndjson_iter():
         try:
+            yield (json.dumps({"type": "started", "pct": 1, "message": "Sunucuya bağlandı…"}, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            )
             for evt in inbox_sync.iter_sync_inbox_all_routes(
                 db,
                 max_threads_per_route=inbox_sync.INBOX_SYNC_MAX_THREADS,
@@ -437,8 +440,9 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
     headers = {
         "Cache-Control": "no-store, no-transform",
         "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
     }
-    return StreamingResponse(ndjson_iter(), media_type="application/x-ndjson", headers=headers)
+    return StreamingResponse(ndjson_iter(), media_type="text/event-stream", headers=headers)
 
 
 @router.get("/threads")

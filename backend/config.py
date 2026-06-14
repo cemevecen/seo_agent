@@ -243,6 +243,10 @@ class Settings(BaseSettings):
     scheduled_refresh_monitor_enabled: bool = True
     scheduled_refresh_monitor_interval_minutes: int = 15
     scheduled_refresh_monitor_grace_minutes: int = 45
+    oauth_connection_alert_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("OAUTH_CONNECTION_ALERT_ENABLED", "oauth_connection_alert_enabled"),
+    )
     # Genel uygulama e-postaları: SEO Alert, operasyon özeti, günlük AI özet, GA4 haftalık özet vb.
     # False iken bu kanallar SMTP kullanmaz. GA4 Realtime alarm postası ayrı bayrakla (ga4_realtime_email_enabled) gönderilir.
     outbound_email_enabled: bool = False

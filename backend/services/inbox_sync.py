@@ -983,7 +983,19 @@ def iter_sync_inbox_all_routes(
     creds = inbox_gmail_auth.load_inbox_credentials(db)
     if creds is None:
         raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+    yield {
+        "type": "phase",
+        "phase": "auth_refresh",
+        "message": "Gmail token yenileniyor…",
+        "pct": 3,
+    }
     creds = _ensure_fresh_creds(db, creds)
+    yield {
+        "type": "phase",
+        "phase": "auth_ready",
+        "message": "Gmail bağlantısı hazır…",
+        "pct": 4,
+    }
     row = inbox_gmail_auth.get_inbox_credential_row(db)
     account_lower = (row.account_email if row else "").strip().lower()
     service = _gmail_service(creds)
@@ -1076,6 +1088,17 @@ def iter_sync_inbox_all_routes(
             full = service.users().threads().get(userId="me", id=tid, format="full").execute()
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("gmail thread get failed %s: %s", tid, exc)
+            yield {
+                "type": "thread",
+                "step": "skip",
+                "current": i + 1,
+                "total": n,
+                "route": route,
+                "gmail_thread_id": tid,
+                "message": f"{i + 1}/{n} [{route}] — atlandı (Gmail hatası)",
+                "error": str(exc)[:200],
+                "pct": max(12, _sync_pct_saved(synced, n)),
+            }
             continue
         nmsg = sum(1 for m in (full.get("messages") or []) if m.get("id"))
         subj, snip = _thread_subject_snippet_preview(full)
@@ -1111,6 +1134,12 @@ def iter_sync_inbox_all_routes(
             "pct": _sync_pct_saved(synced, n),
         }
     db.commit()
+    yield {
+        "type": "phase",
+        "phase": "finalize",
+        "message": "Kayıtlar düzeltiliyor…",
+        "pct": 98,
+    }
     repair = repair_misrouted_inbox_threads(db)
     purged = purge_excluded_inbox_threads(db)
     yield {
