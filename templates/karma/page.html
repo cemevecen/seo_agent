@@ -104,6 +104,7 @@
   }
 
   function render(data) {
+    var promptStore = [];
     summaryEl.textContent = data.summary || '';
     summaryEl.classList.toggle('hidden', !data.summary);
 
@@ -117,11 +118,16 @@
     }
 
     sectionsEl.innerHTML = (data.sections || []).map(function (sec) {
-      var items = (sec.items || []).map(function (it) {
+        var items = (sec.items || []).map(function (it) {
         var inner = '<div class="flex flex-wrap items-start justify-between gap-2"><div class="min-w-0 flex-1">';
         if (it.href) inner += '<a href="' + esc(it.href) + '" target="_blank" rel="noopener" class="font-semibold text-sm text-indigo-700 hover:underline dark:text-indigo-300">' + esc(it.title) + '</a>';
         else inner += '<div class="font-semibold text-sm text-slate-800 dark:text-zinc-100">' + esc(it.title) + '</div>';
         if (it.subtitle) inner += '<div class="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">' + esc(it.subtitle) + '</div>';
+        if (it.meta && it.meta.prompt) {
+          var pi = promptStore.length;
+          promptStore.push(String(it.meta.prompt));
+          inner += '<button type="button" class="karma-ai-prompt mt-2 rounded-md border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-800 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200" data-prompt-idx="' + pi + '">AI Talk\'ta aç</button>';
+        }
         inner += '</div>';
         if (it.badge) inner += '<span class="karma-badge">' + esc(it.badge) + '</span>';
         inner += '</div>';
@@ -129,6 +135,7 @@
       }).join('');
       return '<div><h2 class="karma-section-title">' + esc(sec.title) + '</h2>' + (items || '<p class="text-xs text-slate-400">Veri yok</p>') + '</div>';
     }).join('');
+    sectionsEl._karmaPromptStore = promptStore;
 
     if (data.actions && data.actions.length) {
       actionsEl.innerHTML = data.actions.map(function (a) {
@@ -160,6 +167,24 @@
 
   if (siteSelect) siteSelect.addEventListener('change', load);
   document.getElementById('karma-refresh').addEventListener('click', load);
+  sectionsEl.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('.karma-ai-prompt') : null;
+    if (!btn) return;
+    var idx = parseInt(btn.getAttribute('data-prompt-idx') || '-1', 10);
+    var store = sectionsEl._karmaPromptStore || [];
+    var prompt = idx >= 0 ? store[idx] : '';
+    if (!prompt) return;
+    if (typeof window.pcAgentToggle === 'function') {
+      var panel = document.getElementById('pc-agent-panel');
+      if (panel && panel.classList.contains('hidden')) window.pcAgentToggle();
+    }
+    var inp = document.getElementById('pc-agent-input');
+    if (inp) {
+      inp.value = prompt;
+      if (typeof window.pcAgentAutoResize === 'function') window.pcAgentAutoResize(inp);
+      inp.focus();
+    }
+  });
   load();
 })();
 </script>

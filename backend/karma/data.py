@@ -457,19 +457,116 @@ def karma_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
     return out
 
 
+def _push_platform_totals(row: dict) -> tuple[float, float, float]:
+    """(clicks, impressions, ctr%) — tüm platformlar."""
+    platforms = row.get("platforms") or {}
+    clicks = 0.0
+    impressions = 0.0
+    for plat in platforms.values():
+        if not isinstance(plat, dict):
+            continue
+        clicks += float(plat.get("click") or 0)
+        impressions += float(plat.get("impression") or 0)
+    ctr = (clicks / impressions * 100.0) if impressions > 0 else 0.0
+    return clicks, impressions, ctr
+
+
+def _article_id_from_push_text(text: str) -> str:
+    m = re.search(r"/(\d{5,})", text or "")
+    if m:
+        return m.group(1)
+    m = re.search(r"\b(\d{6,})\b", text or "")
+    return m.group(1) if m else ""
+
+
 def karma_push_roi(db: Session, site_id: int) -> dict[str, Any]:
+    from backend.services.notification_analytics_store import filter_rows_by_date, workspace_state
+    from backend.services.notification_content_traffic import resolve_content_traffic
+
     site = _site_or_404(db, site_id)
     out = _base_payload("push-roi", site)
-    out["summary"] = "Firebase push + GA4 event korelasyonu — notification modülü ile genişletilebilir."
-    out["sections"] = [
-        {
-            "title": "Push konuları (placeholder)",
-            "items": [
-                {"title": "Faiz kararı canlı", "subtitle": "Tahmini yüksek geri dönüş", "badge": "ROI A"},
-                {"title": "Kur alarmı", "subtitle": "Orta geri dönüş", "badge": "ROI B"},
-            ],
-        }
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=90)).strftime("%Y-%m-%d")
+
+    ws = workspace_state(db, include_rows=True)
+    rows = filter_rows_by_date(ws.get("rows") or [], start=start)
+    if not rows:
+        out["summary"] = "Notification Analytics'te kayıt yok — CSV yükleyin veya API'den çekin."
+        out["sections"] = [
+            {
+                "title": "Push ROI",
+                "items": [{"title": "Veri yok", "subtitle": "notification sayfasından veri aktarın", "badge": "—"}],
+            }
+        ]
+        out["actions"] = [{"label": "Notification", "href": "/notification"}]
+        return out
+
+    scored: list[tuple[float, dict]] = []
+    for row in rows:
+        clicks, impressions, ctr = _push_platform_totals(row)
+        if clicks <= 0 and impressions <= 0:
+            continue
+        score = clicks * 1.0 + ctr * 8.0 + min(impressions / 5000.0, 3.0)
+        scored.append((score, {**row, "_clicks": clicks, "_impressions": impressions, "_ctr": ctr}))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = [r for _, r in scored[:20]]
+
+    ga4_items: list[dict] = []
+    for row in top[:5]:
+        aid = _article_id_from_push_text(row.get("text") or "")
+        if not aid:
+            continue
+        try:
+            traffic = resolve_content_traffic(
+                db,
+                content_id=aid,
+                headline=str(row.get("text") or ""),
+                send_date=(row.get("date") or "")[:10],
+                site_id=site_id,
+                days=7,
+                live=True,
+            )
+            ga4 = traffic.get("ga4") or {}
+            totals = ga4.get("totals") or {}
+            sessions = float(totals.get("sessions") or ga4.get("sessions") or 0)
+            if sessions > 0:
+                ga4_items.append(
+                    {
+                        "title": f"ID {aid} · {sessions:.0f} oturum (7g)",
+                        "subtitle": (row.get("text") or "")[:80],
+                        "badge": "GA4",
+                    }
+                )
+        except Exception:
+            continue
+
+    items = []
+    for row in top[:15]:
+        day = (row.get("date") or "")[:10]
+        items.append(
+            {
+                "title": (row.get("text") or "?")[:100],
+                "subtitle": f"{day} · {row['_clicks']:.0f} click · {row['_impressions']:.0f} impr · CTR {row['_ctr']:.2f}%",
+                "badge": "yüksek ROI" if row["_ctr"] >= 3 else "orta" if row["_ctr"] >= 1 else "düşük",
+                "meta": {"push_id": row.get("id"), "article_id": _article_id_from_push_text(row.get("text") or "")},
+            }
+        )
+
+    avg_ctr = sum(r["_ctr"] for r in top) / len(top) if top else 0.0
+    out["summary"] = (
+        f"Son 90 günde {len(rows)} push; en iyi {len(top)} konu ortalama CTR %{avg_ctr:.2f}. "
+        f"{len(ga4_items)} tanesi GA4 oturumu ile eşleşti."
+    )
+    out["metrics"] = [
+        {"label": "Push kaydı", "value": str(len(rows))},
+        {"label": "Ölçülen", "value": str(len(scored))},
+        {"label": "Ort. CTR", "value": f"{avg_ctr:.2f}%"},
     ]
+    sections = [{"title": "Push konuları (click + CTR skoru)", "items": items}]
+    if ga4_items:
+        sections.append({"title": "Push → GA4 oturum (7g)", "items": ga4_items})
+    out["sections"] = sections
     out["actions"] = [{"label": "Notification", "href": "/notification"}, {"label": "Firebase", "href": "/firebase"}]
     return out
 
@@ -498,36 +595,196 @@ def karma_serp_tracker(db: Session, site_id: int) -> dict[str, Any]:
 
 
 def karma_programmatic_seo(db: Session, site_id: int) -> dict[str, Any]:
+    from backend.models import LighthouseAuditRecord, UrlAuditRecord
+    from backend.services.meta_audit import get_audit_issues, get_audit_summary
+
     site = _site_or_404(db, site_id)
     out = _base_payload("programmatic-seo", site)
-    out["summary"] = "Şablon / otomatik sayfa kalite guardrail — SEO audit ile entegre."
-    out["sections"] = [
+    summary = get_audit_summary(db, site_id)
+    total = int(summary.get("total_pages") or 0)
+    issue_counts = summary.get("issue_counts") or {}
+    score_counts = summary.get("score_counts") or {}
+
+    thin_rows = (
+        db.query(UrlAuditRecord)
+        .filter(UrlAuditRecord.site_id == site_id, UrlAuditRecord.seo_score == "poor")
+        .order_by(desc(UrlAuditRecord.search_impressions))
+        .limit(8)
+        .all()
+    )
+    dup_titles = int(summary.get("duplicate_title_groups") or 0)
+    dup_descs = int(summary.get("duplicate_desc_groups") or 0)
+
+    lh_fails = (
+        db.query(LighthouseAuditRecord)
+        .filter(
+            LighthouseAuditRecord.site_id == site_id,
+            LighthouseAuditRecord.audit_state.in_(("fail", "failed")),
+        )
+        .order_by(desc(LighthouseAuditRecord.collected_at))
+        .limit(8)
+        .all()
+    )
+
+    guard_items = [
         {
-            "title": "Kontrol listesi",
-            "items": [
-                {"title": "Thin content", "subtitle": "Kelime sayısı < eşik", "badge": "risk"},
-                {"title": "Duplicate title", "subtitle": "Aynı title hash", "badge": "risk"},
-                {"title": "Crawl budget", "subtitle": "Faceted URL patlaması", "badge": "izle"},
-            ],
+            "title": "Thin / poor SEO skoru",
+            "subtitle": f"{score_counts.get('poor', 0)} URL · örnek {len(thin_rows)}",
+            "badge": "risk" if score_counts.get("poor") else "ok",
+        },
+        {
+            "title": "Duplicate title grupları",
+            "subtitle": f"{dup_titles} grup tespit edildi",
+            "badge": "risk" if dup_titles else "ok",
+        },
+        {
+            "title": "Duplicate description",
+            "subtitle": f"{dup_descs} grup",
+            "badge": "risk" if dup_descs else "ok",
+        },
+        {
+            "title": "Noindex sayfalar",
+            "subtitle": f"{issue_counts.get('noindex', 0)} URL",
+            "badge": "izle" if issue_counts.get("noindex") else "ok",
+        },
+    ]
+
+    sample_issues = get_audit_issues(db, site_id, filter_key="poor", limit=10)
+    issue_items = [
+        {
+            "title": (r.get("url") or "")[-80:],
+            "subtitle": ", ".join(r.get("issues") or [])[:90] or "poor",
+            "badge": r.get("seo_score") or "poor",
+            "href": r.get("url"),
         }
+        for r in sample_issues
+    ]
+
+    lh_items = [
+        {
+            "title": (a.title_tr or a.title_en or a.audit_id)[:90],
+            "subtitle": f"{a.section_title_tr or a.section_key} · {a.strategy}",
+            "badge": a.priority or a.audit_state,
+        }
+        for a in lh_fails
+    ]
+
+    thin_items = [
+        {
+            "title": (r.url or "")[-80:],
+            "subtitle": f"imp {int(r.search_impressions)} · issues {r.issue_count}",
+            "badge": "thin",
+            "href": r.url,
+        }
+        for r in thin_rows
+    ]
+
+    out["summary"] = (
+        f"SEO audit: {total} URL tarandı — {score_counts.get('poor', 0)} poor, "
+        f"{dup_titles} duplicate title grubu, {len(lh_fails)} Lighthouse fail."
+    )
+    out["metrics"] = [
+        {"label": "URL", "value": str(total)},
+        {"label": "Poor", "value": str(score_counts.get("poor", 0))},
+        {"label": "Dup title", "value": str(dup_titles)},
+    ]
+    out["sections"] = [
+        {"title": "Programmatic guardrail", "items": guard_items},
+        {"title": "Poor URL örnekleri", "items": issue_items or thin_items},
+        {"title": "Lighthouse fail audit", "items": lh_items or [{"title": "Fail kaydı yok", "subtitle": "PSI temiz"}]},
     ]
     out["actions"] = [{"label": "SEO Audit", "href": "/seo-audit"}]
     return out
 
 
+_COUNTRY_LABELS: dict[str, str] = {
+    "TUR": "Türkiye",
+    "USA": "ABD",
+    "GBR": "GB",
+    "DEU": "Almanya",
+    "NLD": "Hollanda",
+    "AZE": "Azerbaycan",
+    "KAZ": "Kazakistan",
+    "FRA": "Fransa",
+    "RUS": "Rusya",
+    "IRQ": "Irak",
+    "SAU": "Suudi Arabistan",
+    "ARE": "BAE",
+}
+
+
+def _is_latin_query(q: str) -> bool:
+    q = (q or "").strip()
+    if not q or re.search(r"[çğıöşüÇĞİÖŞÜ]", q):
+        return False
+    return bool(re.search(r"[a-zA-Z]{4,}", q))
+
+
 def karma_international(db: Session, site_id: int) -> dict[str, Any]:
+    from backend.collectors.search_console import get_top_countries, get_top_queries
+
     site = _site_or_404(db, site_id)
     out = _base_payload("international", site)
-    out["summary"] = "TR/EN içerik fırsatı — GSC country segment (genişletilebilir)."
-    out["sections"] = [
+    is_sinemalar = "sinemalar" in (site.domain or "").lower()
+
+    countries = get_top_countries(db, site, limit=12)
+    queries = get_top_queries(db, site, limit=40, device="all")
+    en_queries = [q for q in queries if _is_latin_query(str(q.get("query") or ""))]
+
+    country_items = []
+    total_imp = sum(c.get("impressions", 0) for c in countries) or 1.0
+    for c in countries:
+        cc = c.get("country") or "?"
+        share = c.get("impressions", 0) / total_imp * 100.0
+        label = _COUNTRY_LABELS.get(cc, cc)
+        badge = "TR" if cc == "TUR" else "EN fırsat" if cc in {"USA", "GBR", "DEU", "NLD"} else "global"
+        country_items.append(
+            {
+                "title": f"{label} ({cc})",
+                "subtitle": f"{int(c.get('impressions', 0))} imp · {int(c.get('clicks', 0))} click · pay %{share:.1f}",
+                "badge": badge,
+            }
+        )
+
+    en_items = [
         {
-            "title": "Lokalizasyon adayları",
-            "items": [
-                {"title": "Global finans terimleri", "subtitle": "EN arama hacmi yüksek", "badge": "EN"},
-                {"title": "Film / oyuncu isimleri", "subtitle": "sinemalar EN", "badge": "EN"},
-            ],
+            "title": str(q.get("query") or ""),
+            "subtitle": f"poz {float(q.get('position', 0)):.1f} · {int(q.get('impressions', 0))} imp",
+            "badge": "EN sorgu",
         }
+        for q in sorted(en_queries, key=lambda x: -float(x.get("impressions") or 0))[:12]
     ]
+
+    if not country_items:
+        country_items = [
+            {
+                "title": "GSC country verisi alınamadı",
+                "subtitle": "Search Console bağlantısı veya kota kontrol edin",
+                "badge": "—",
+            }
+        ]
+
+    if is_sinemalar and not en_items:
+        en_items = [
+            {"title": "movie / cast EN queries", "subtitle": "GSC Latin sorgu bekleniyor", "badge": "sinemalar"},
+        ]
+
+    tr_share = next((c.get("impressions", 0) for c in countries if c.get("country") == "TUR"), 0)
+    tr_pct = tr_share / total_imp * 100.0 if countries else 0.0
+    out["summary"] = (
+        f"GSC ülke segmenti: {len(countries)} ülke · TR payı %{tr_pct:.0f}. "
+        f"{len(en_items)} Latin/EN sorgu adayı."
+    )
+    out["metrics"] = [
+        {"label": "Ülke", "value": str(len(countries))},
+        {"label": "TR pay", "value": f"{tr_pct:.0f}%"},
+        {"label": "EN sorgu", "value": str(len(en_items))},
+    ]
+    out["sections"] = [
+        {"title": "Ülke kırılımı (28g GSC)", "items": country_items},
+        {"title": "Lokalizasyon / EN sorgu adayları", "items": en_items},
+    ]
+    out["actions"] = [{"label": "Search Console", "href": "/search-console"}]
     return out
 
 
@@ -637,39 +894,245 @@ def karma_morning_brief(db: Session, site_id: int) -> dict[str, Any]:
     return out
 
 
+def _crux_verdict(metric_key: str, value: float) -> str:
+    thresholds = {
+        "largest_contentful_paint": (2500, 4000),
+        "interaction_to_next_paint": (200, 500),
+        "cumulative_layout_shift": (0.1, 0.25),
+        "first_contentful_paint": (1800, 3000),
+        "experimental_time_to_first_byte": (800, 1800),
+    }
+    good, ni = thresholds.get(metric_key, (0, 0))
+    if value <= good:
+        return "good"
+    if value <= ni:
+        return "ni"
+    return "poor"
+
+
+def _fmt_cwv(metric_key: str, value: float) -> str:
+    if metric_key == "cumulative_layout_shift":
+        return f"{value:.2f}"
+    if value >= 1000:
+        return f"{value / 1000:.1f}s"
+    return f"{int(round(value))}ms"
+
+
 def karma_cwv_trafik(db: Session, site_id: int) -> dict[str, Any]:
+    from backend.models import RealtimePageSnapshot
+    from backend.services.warehouse import get_latest_crux_snapshot
+
     site = _site_or_404(db, site_id)
     out = _base_payload("cwv-trafik", site)
     domain = site.domain or ""
-    out["summary"] = f"Lighthouse skorları vs trafik — {domain} data explorer."
-    out["sections"] = [
-        {
-            "title": "CWV şablonları",
-            "items": [
-                {"title": "Ana sayfa", "subtitle": "LCP / INP / CLS", "badge": "speed"},
-                {"title": "Haber detay", "subtitle": "Template LCP", "badge": "speed"},
-            ],
-        }
+
+    mobile = get_latest_crux_snapshot(db, site_id=site_id, form_factor="mobile") or {}
+    desktop = get_latest_crux_snapshot(db, site_id=site_id, form_factor="desktop") or {}
+    mob_current = (mobile.get("summary") or {}).get("current") or {}
+    desk_current = (desktop.get("summary") or {}).get("current") or {}
+
+    metric_labels = {
+        "largest_contentful_paint": "LCP",
+        "interaction_to_next_paint": "INP",
+        "cumulative_layout_shift": "CLS",
+        "first_contentful_paint": "FCP",
+        "experimental_time_to_first_byte": "TTFB",
+    }
+
+    cwv_items = []
+    poor_count = 0
+    for key, label in metric_labels.items():
+        mob = mob_current.get(key) or {}
+        desk = desk_current.get(key) or {}
+        mob_val = mob.get("latest")
+        desk_val = desk.get("latest")
+        if mob_val is None and desk_val is None:
+            continue
+        primary = mob_val if mob_val is not None else desk_val
+        verdict = _crux_verdict(key, float(primary or 0))
+        if verdict == "poor":
+            poor_count += 1
+        cwv_items.append(
+            {
+                "title": f"{label} · mobil {_fmt_cwv(key, float(mob_val or 0))} / desktop {_fmt_cwv(key, float(desk_val or 0))}",
+                "subtitle": f"CrUX p75 · good share mob %{float(mob.get('good_share') or 0):.0f}",
+                "badge": verdict,
+            }
+        )
+
+    latest_rt = (
+        db.query(RealtimePageSnapshot.collected_at)
+        .filter(RealtimePageSnapshot.site_id == site_id, RealtimePageSnapshot.profile == "web")
+        .order_by(desc(RealtimePageSnapshot.collected_at))
+        .limit(1)
+        .scalar()
+    )
+    traffic_items = []
+    total_active = 0
+    if latest_rt:
+        pages = (
+            db.query(RealtimePageSnapshot)
+            .filter(
+                RealtimePageSnapshot.site_id == site_id,
+                RealtimePageSnapshot.profile == "web",
+                RealtimePageSnapshot.collected_at == latest_rt,
+            )
+            .order_by(desc(RealtimePageSnapshot.active_users))
+            .limit(10)
+            .all()
+        )
+        for p in pages:
+            users = int(p.active_users or 0)
+            total_active += users
+            traffic_items.append(
+                {
+                    "title": p.page_path or "?",
+                    "subtitle": f"{users} aktif kullanıcı (şimdi)",
+                    "badge": "trafik",
+                }
+            )
+
+    if not cwv_items:
+        cwv_items = [{"title": "CrUX verisi yok", "subtitle": "Data Explorer yenilemesi gerekebilir", "badge": "—"}]
+
+    mob_collected = (mobile.get("collected_at") or "")[:10]
+    out["summary"] = (
+        f"CrUX ({mob_collected or '—'}) · {poor_count} kötü metrik. "
+        f"Anlık web trafik: {total_active} aktif kullanıcı (top sayfalar)."
+    )
+    out["metrics"] = [
+        {"label": "Kötü CWV", "value": str(poor_count)},
+        {"label": "Aktif", "value": str(total_active)},
+        {"label": "Domain", "value": domain.split(".")[0] if domain else "—"},
     ]
-    out["actions"] = [{"label": "Speed / Explorer", "href": f"/data-explorer/{domain}"}]
+    out["sections"] = [
+        {"title": "Core Web Vitals (CrUX)", "items": cwv_items},
+        {"title": "Anlık trafik (top sayfa)", "items": traffic_items},
+    ]
+    out["actions"] = [{"label": "Data Explorer", "href": f"/data-explorer/{domain}"}, {"label": "Realtime", "href": "/realtime"}]
     return out
 
 
 def karma_ai_action(db: Session, site_id: int) -> dict[str, Any]:
+    from backend.collectors.search_console import get_top_queries
+    from backend.services.meta_audit import get_audit_issues
+
     site = _site_or_404(db, site_id)
     out = _base_payload("ai-action", site)
-    out["summary"] = "AI Talk promptları → GitLab issue / brief / KPI takip köprüsü."
-    out["sections"] = [
+    domain = site.domain or ""
+
+    gap = next((r for r in _intel_recent(db) if not r.is_in_our_site), None)
+    alarm_row = (
+        db.query(RealtimeAlarmLog)
+        .filter(RealtimeAlarmLog.site_id == site_id)
+        .order_by(desc(RealtimeAlarmLog.triggered_at))
+        .limit(1)
+        .first()
+    )
+    decay_q = None
+    for q in get_top_queries(db, site, limit=30, device="all"):
+        if float(q.get("delta") or 0) < -1:
+            decay_q = q
+            break
+    audit = (get_audit_issues(db, site_id, filter_key="poor", limit=1) or [None])[0]
+
+    prompts: list[dict] = []
+
+    if gap:
+        prompts.append(
+            {
+                "title": "Gap haber brief",
+                "subtitle": (gap.headline or "")[:80],
+                "badge": "brief",
+                "meta": {
+                    "prompt": (
+                        f"{domain} için şu gap habere editoryal brief yaz:\n"
+                        f"Başlık: {gap.headline}\nKaynak: {gap.source_name}\n"
+                        f"H1, anahtar kelimeler, iç link önerisi ve yayın aciliyeti ver."
+                    )
+                },
+            }
+        )
+
+    if decay_q:
+        qtext = str(decay_q.get("query") or "")
+        prompts.append(
+            {
+                "title": "Decay sorgu aksiyonu",
+                "subtitle": qtext[:80],
+                "badge": "SEO",
+                "meta": {
+                    "prompt": (
+                        f"GSC'te '{qtext}' sorgusu pozisyon kaybediyor (Δ {float(decay_q.get('delta', 0)):.1f}). "
+                        f"Hangi sayfayı güncellemeli, merge mi 301 mi — kısa aksiyon planı yaz."
+                    )
+                },
+            }
+        )
+
+    if alarm_row:
+        prompts.append(
+            {
+                "title": "Realtime alarm analizi",
+                "subtitle": (alarm_row.message or alarm_row.rule_id or "")[:80],
+                "badge": "alarm",
+                "meta": {
+                    "prompt": (
+                        f"Realtime alarm: {alarm_row.message or alarm_row.rule_id}. "
+                        f"Metric: {alarm_row.metric}. Olası kök neden ve editör/teknik aksiyon listesi üret."
+                    )
+                },
+            }
+        )
+
+    if audit:
+        prompts.append(
+            {
+                "title": "SEO audit düzeltme",
+                "subtitle": (audit.get("url") or "")[-70:],
+                "badge": "teknik",
+                "meta": {
+                    "prompt": (
+                        f"SEO audit poor URL: {audit.get('url')}\n"
+                        f"Sorunlar: {', '.join(audit.get('issues') or [])}\n"
+                        f"Öncelikli düzeltme adımlarını madde madde yaz."
+                    )
+                },
+            }
+        )
+
+    prompts.append(
         {
-            "title": "Hızlı promptlar",
-            "items": [
-                {"title": "Bu gap haber için brief yaz", "subtitle": "AI Talk", "badge": "prompt"},
-                {"title": "Boards'a issue aç", "subtitle": "GitLab", "badge": "aksiyon", "href": "/boards"},
-                {"title": "Realtime KPI izle", "subtitle": "Yayın sonrası", "badge": "takip", "href": "/realtime"},
-            ],
+            "title": "Sabah brifingi üret",
+            "subtitle": f"{domain} — editör + SEO + teknik",
+            "badge": "günlük",
+            "meta": {
+                "prompt": (
+                    f"Bugün {domain} için kısa sabah brifingi: gap haberler, GSC düşüşleri, "
+                    f"realtime alarmlar ve teknik öncelikler — 3 bölüm halinde."
+                )
+            },
         }
-    ]
-    out["actions"] = [{"label": "AI Talk", "href": "/ai"}]
+    )
+
+    prompts.append(
+        {
+            "title": "GitLab issue taslağı",
+            "subtitle": "Boards'a yapıştırılacak format",
+            "badge": "issue",
+            "href": "/boards",
+            "meta": {
+                "prompt": (
+                    f"{domain} karma modülünden tespit edilen en kritik 1 SEO/içerik konusu için "
+                    f"GitLab issue başlığı, açıklama ve kabul kriterleri yaz."
+                )
+            },
+        }
+    )
+
+    out["summary"] = f"{len(prompts)} bağlama duyarlı AI Talk promptu — site verisinden üretildi."
+    out["sections"] = [{"title": "Hızlı promptlar (AI Talk)", "items": prompts}]
+    out["actions"] = [{"label": "AI Talk", "href": "/ai"}, {"label": "Boards", "href": "/boards"}]
     return out
 
 

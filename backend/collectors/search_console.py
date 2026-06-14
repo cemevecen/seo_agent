@@ -2332,3 +2332,81 @@ def get_top_queries(db: Session, site: Site, limit: int = 10, device: str = "all
         query_count += 1
     
     return result
+
+
+def fetch_search_console_by_country(
+    service,
+    site_url: str,
+    start_date: date,
+    end_date: date,
+    *,
+    limit: int = 25,
+) -> list[dict]:
+    """GSC country boyutu — uluslararası fırsat analizi."""
+    page_size = max(5, min(int(limit), 250))
+    body: dict = {
+        "startDate": start_date.isoformat(),
+        "endDate": end_date.isoformat(),
+        "dimensions": ["country"],
+        "rowLimit": page_size,
+        "startRow": 0,
+    }
+    try:
+        response = service.searchanalytics().query(siteUrl=site_url, body=body).execute()
+    except Exception:
+        LOGGER.debug("GSC country sorgusu başarısız: %s", site_url, exc_info=True)
+        return []
+    rows = response.get("rows", []) or []
+    out: list[dict] = []
+    for row in rows:
+        keys = row.get("keys") or []
+        country = str(keys[0] if keys else "").upper()
+        clicks = float(row.get("clicks") or 0)
+        impressions = float(row.get("impressions") or 0)
+        ctr = float(row.get("ctr") or 0)
+        if impressions <= 0 and clicks <= 0:
+            continue
+        out.append(
+            {
+                "country": country,
+                "clicks": clicks,
+                "impressions": impressions,
+                "ctr": ctr * 100.0 if ctr <= 1 else ctr,
+                "position": float(row.get("position") or 0),
+            }
+        )
+    out.sort(key=lambda x: -x["impressions"])
+    return out[:limit]
+
+
+def get_top_countries(db: Session, site: Site, limit: int = 15) -> list[dict]:
+    """Site için son 28 gün ülke kırılımı (canlı GSC)."""
+    try:
+        _, service, targets = build_search_console_service_and_targets(db, site.id)
+    except Exception:
+        return []
+
+    end_date = report_calendar_yesterday()
+    start_date = end_date - timedelta(days=27)
+    merged: dict[str, dict] = {}
+    for target in targets:
+        property_url = str(target.get("property_url") or "")
+        if not property_url:
+            continue
+        for row in fetch_search_console_by_country(
+            service, property_url, start_date, end_date, limit=max(limit, 25)
+        ):
+            cc = row["country"]
+            if cc not in merged:
+                merged[cc] = {**row}
+            else:
+                merged[cc]["clicks"] += row["clicks"]
+                merged[cc]["impressions"] += row["impressions"]
+                merged[cc]["ctr"] = (
+                    merged[cc]["clicks"] / merged[cc]["impressions"] * 100.0
+                    if merged[cc]["impressions"] > 0
+                    else 0.0
+                )
+
+    result = sorted(merged.values(), key=lambda x: -x["impressions"])
+    return result[:limit]
