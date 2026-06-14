@@ -1,10 +1,11 @@
 {% if lazy_site_ids %}
   <div class="grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2 xl:items-start" data-sc-extras-root>
     {% for site_id, display_name in lazy_site_ids %}
+      {% set delay_ms = loop.index0 * 250 %}
       <div
         id="sc-extra-card-{{ site_id }}"
         hx-get="/search-console/extras/{{ sc_view }}/site/{{ site_id }}"
-        hx-trigger="load, revealed"
+        hx-trigger="revealed{% if delay_ms %} delay:{{ delay_ms }}ms{% endif %}"
         hx-swap="outerHTML"
         class="animate-pulse rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/95"
       >

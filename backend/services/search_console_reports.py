@@ -212,6 +212,8 @@ def fetch_sc_analytics_report(
     dimensions = list(spec.get("dimensions") or [])
     search_type = spec.get("search_type")
     site, service, targets = build_search_console_service_and_targets(db, site_id)
+    if not targets:
+        raise ValueError("Search Console property bulunamadi.")
     end_date = report_calendar_yesterday()
     span = max(1, min(int(days), 90))
     start_date = end_date - timedelta(days=span - 1)
@@ -221,25 +223,34 @@ def fetch_sc_analytics_report(
 
     # Discover / Google News: cihaz filtresi ve çift sorgu genelde hata verir; tek property sorgusu.
     if search_type:
-        property_url = str((targets[0] or {}).get("property_url") or "")
-        try:
-            raw = _fetch_analytics_raw(
-                service,
-                property_url,
-                start_date,
-                end_date,
-                dimensions=dimensions,
-                search_type=search_type,
-                row_limit=row_limit,
-                device=None,
-            )
-            collected = _normalize_dimension_rows(
-                raw,
-                dimensions,
-                property_url=property_url,
-            )
-        except Exception as exc:
-            raise ValueError(str(exc)[:400]) from exc
+        seen_props: set[str] = set()
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            if not property_url or property_url in seen_props:
+                continue
+            seen_props.add(property_url)
+            try:
+                raw = _fetch_analytics_raw(
+                    service,
+                    property_url,
+                    start_date,
+                    end_date,
+                    dimensions=dimensions,
+                    search_type=search_type,
+                    row_limit=row_limit,
+                    device=None,
+                )
+                collected.extend(
+                    _normalize_dimension_rows(
+                        raw,
+                        dimensions,
+                        property_url=property_url,
+                    )
+                )
+            except Exception as exc:
+                errors.append(f"{property_url}: {exc}")
+        if not collected and errors:
+            raise ValueError(errors[0][:400])
     else:
         for target in targets:
             property_url = str(target.get("property_url") or "")

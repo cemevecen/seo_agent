@@ -13592,53 +13592,76 @@ def search_console_extras_site_card(request: Request, view_slug: str, site_id: i
     spec = SC_VIEW_SPECS[view_slug]
     if spec.get("kind") == "performance":
         return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
-    with SessionLocal() as db:
-        site = db.query(Site).filter(Site.id == site_id).first()
-        if site is None:
-            return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
-        connection = get_search_console_connection_status(db, site.id)
-        report: dict[str, Any] | None = None
-        error: str | None = None
-        kind = str(spec.get("kind") or "")
-        if kind == "analytics":
-            try:
-                report = fetch_sc_analytics_report(
-                    db,
-                    site.id,
-                    str(spec.get("report_key") or ""),
-                )
-            except Exception as exc:
-                logging.exception("sc_extras analytics site_id=%s view=%s", site_id, view_slug)
-                error = str(exc)[:400]
-        elif kind == "sitemaps":
-            try:
-                report = fetch_sc_sitemaps(db, site.id)
-            except Exception as exc:
-                logging.exception("sc_extras sitemaps site_id=%s", site_id)
-                error = str(exc)[:400]
-        elif kind == "inspection":
-            from backend.collectors.url_inspection import _normalize_url
+    try:
+        with SessionLocal() as db:
+            site = db.query(Site).filter(Site.id == site_id).first()
+            if site is None:
+                return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
+            site_id_val = site.id
+            display_name = site.display_name
+            domain = site.domain
+            connection = get_search_console_connection_status(db, site.id)
+            report: dict[str, Any] | None = None
+            error: str | None = None
+            kind = str(spec.get("kind") or "")
+            if kind == "analytics":
+                try:
+                    report = fetch_sc_analytics_report(
+                        db,
+                        site.id,
+                        str(spec.get("report_key") or ""),
+                    )
+                except Exception as exc:
+                    logging.exception("sc_extras analytics site_id=%s view=%s", site_id, view_slug)
+                    error = str(exc)[:400]
+            elif kind == "sitemaps":
+                try:
+                    report = fetch_sc_sitemaps(db, site.id)
+                except Exception as exc:
+                    logging.exception("sc_extras sitemaps site_id=%s", site_id)
+                    error = str(exc)[:400]
+            elif kind == "inspection":
+                from backend.collectors.url_inspection import _normalize_url
 
-            report = {
-                "default_url": _normalize_url(site.domain),
-            }
-    return templates.TemplateResponse(
-        request,
-        "partials/sc_extras_site_card.html",
-        context={
-            "request": request,
-            "site_id": site.id,
-            "display_name": site.display_name,
-            "domain": site.domain,
-            "connection": connection,
-            "oauth_ready": oauth_is_configured(),
-            "sc_view": view_slug,
-            "sc_view_item": spec,
-            "report": report,
-            "error": error,
-        },
-        headers=_SC_HTML_NO_CACHE_HEADERS,
-    )
+                report = {
+                    "default_url": _normalize_url(site.domain),
+                }
+        return templates.TemplateResponse(
+            request,
+            "partials/sc_extras_site_card.html",
+            context={
+                "request": request,
+                "site_id": site_id_val,
+                "display_name": display_name,
+                "domain": domain,
+                "connection": connection,
+                "oauth_ready": oauth_is_configured(),
+                "sc_view": view_slug,
+                "sc_view_item": spec,
+                "report": report,
+                "error": error,
+            },
+            headers=_SC_HTML_NO_CACHE_HEADERS,
+        )
+    except Exception as exc:
+        logging.exception("sc_extras_site_card fatal site_id=%s view=%s", site_id, view_slug)
+        return templates.TemplateResponse(
+            request,
+            "partials/sc_extras_site_card.html",
+            context={
+                "request": request,
+                "site_id": site_id,
+                "display_name": f"Site #{site_id}",
+                "domain": "",
+                "connection": {"connected": False, "label": "—"},
+                "oauth_ready": oauth_is_configured(),
+                "sc_view": view_slug,
+                "sc_view_item": spec,
+                "report": None,
+                "error": str(exc)[:400],
+            },
+            headers=_SC_HTML_NO_CACHE_HEADERS,
+        )
 
 
 @app.post("/search-console/extras/url-inspection/site/{site_id}", response_class=HTMLResponse)

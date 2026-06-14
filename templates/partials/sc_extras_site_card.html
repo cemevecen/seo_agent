@@ -118,9 +118,9 @@
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in report.rows %}
             <tr class="text-slate-700 dark:text-slate-200">
-              <td class="max-w-[14rem] truncate px-3 py-2 font-medium" title="{{ row[sc_view_item.primary_col] }}">
-                {% if sc_view_item.primary_col == 'page' %}
-                  <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row.page|ga4_row_page_label }}</a>
+              <td class="max-w-[14rem] truncate px-3 py-2 font-medium" title="{{ row.page or row[sc_view_item.primary_col] }}">
+                {% if sc_view_item.primary_col == 'page' and row.page %}
+                  <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row | ga4_row_page_label(domain) }}</a>
                 {% else %}
                   {{ row[sc_view_item.primary_col] or '—' }}
                 {% endif %}
@@ -130,8 +130,8 @@
               {% endif %}
               <td class="px-3 py-2 text-right tabular-nums">{{ row.clicks|tr_int }}</td>
               <td class="px-3 py-2 text-right tabular-nums">{{ row.impressions|tr_int }}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{{ (row.ctr * 100)|max_two_decimals }}%</td>
-              <td class="px-3 py-2 text-right tabular-nums">{{ row.position|max_two_decimals }}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ ((row.ctr or 0) * 100)|max_two_decimals }}%</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ (row.position or 0)|max_two_decimals }}</td>
             </tr>
             {% endfor %}
           </tbody>
