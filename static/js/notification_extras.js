@@ -62,6 +62,8 @@
   var inlineTrafficLoadToken = 0;
   var NT_TRAFFIC_LOTTIE = "https://assets7.lottiefiles.com/packages/lf20_t9gkkhz4.json";
   var NT_TRAFFIC_LOTTIE_PX = 240;
+  /** GA4+GSC traffic API ortalama yanıt süresine göre geri sayım (sn). */
+  var NT_TRAFFIC_COUNTDOWN_SEC = 10;
 
   function nt() {
     return global.NT || {};
@@ -703,6 +705,7 @@
 
   function ntStopTrafficLottie(container) {
     if (!container) return;
+    ntClearTrafficCountdown(container);
     var player = container.querySelector("lottie-player.nt-traffic-lottie");
     if (!player) return;
     try {
@@ -711,18 +714,55 @@
     } catch (e) { /* lottie-player DOM kaldırılırken hata vermesin */ }
   }
 
+  function ntClearTrafficCountdown(body) {
+    if (!body) return;
+    if (body._ntTrafficCountdownTimer) {
+      global.clearInterval(body._ntTrafficCountdownTimer);
+      body._ntTrafficCountdownTimer = null;
+    }
+  }
+
+  function ntStartTrafficCountdown(body) {
+    ntClearTrafficCountdown(body);
+    if (!body) return;
+    var el = body.querySelector(".nt-traffic-countdown");
+    if (!el) return;
+    var left = NT_TRAFFIC_COUNTDOWN_SEC;
+    function paint() {
+      if (!body.isConnected) {
+        ntClearTrafficCountdown(body);
+        return;
+      }
+      if (left <= 0) {
+        el.textContent = "biraz daha…";
+        ntClearTrafficCountdown(body);
+        return;
+      }
+      el.textContent = String(left);
+      left -= 1;
+    }
+    paint();
+    body._ntTrafficCountdownTimer = global.setInterval(paint, 1000);
+  }
+
   function ntTrafficLoadingHtml() {
+    var countdownLine = '<p class="text-[10px] text-slate-500 dark:text-slate-400">Tahmini süre: '
+      + '<span class="nt-traffic-countdown inline-flex min-w-[1.25rem] items-center justify-center rounded-md bg-emerald-100/80 px-1.5 py-0.5 tabular-nums text-xs font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">'
+      + NT_TRAFFIC_COUNTDOWN_SEC
+      + "</span> sn</p>";
     if (ntTrafficLottieReady()) {
       return '<div class="nt-traffic-loading flex flex-col items-center justify-center gap-1 py-2">'
         + '<lottie-player class="nt-traffic-lottie" src="' + NT_TRAFFIC_LOTTIE + '" background="transparent" speed="1" loop autoplay'
         + ' style="width:' + NT_TRAFFIC_LOTTIE_PX + "px;height:" + NT_TRAFFIC_LOTTIE_PX + 'px"></lottie-player>'
         + '<p class="text-xs font-medium text-emerald-700 dark:text-emerald-300">GA4 / GSC trafik yükleniyor…</p>'
         + '<p class="text-[10px] text-slate-500 dark:text-slate-400">Search Console ve Analytics eşleşmesi alınıyor</p>'
+        + countdownLine
         + "</div>";
     }
     return '<div class="nt-traffic-loading flex flex-col items-center justify-center gap-2 py-3">'
       + '<div class="h-10 w-10 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" aria-hidden="true"></div>'
       + '<p class="text-xs text-slate-500 dark:text-slate-400">GA4 / GSC trafik yükleniyor…</p>'
+      + countdownLine
       + "</div>";
   }
 
@@ -730,16 +770,19 @@
     if (!body) return;
     ntStopTrafficLottie(body);
     body.innerHTML = ntTrafficLoadingHtml();
+    ntStartTrafficCountdown(body);
     if (ntTrafficLottieReady()) return;
     var waits = 0;
     var timer = global.setInterval(function () {
       waits += 1;
       if (!body.isConnected) {
         global.clearInterval(timer);
+        ntClearTrafficCountdown(body);
         return;
       }
       if (ntTrafficLottieReady() && body.querySelector(".nt-traffic-loading") && !body.querySelector("lottie-player")) {
         body.innerHTML = ntTrafficLoadingHtml();
+        ntStartTrafficCountdown(body);
         global.clearInterval(timer);
       } else if (waits >= 30) {
         global.clearInterval(timer);
