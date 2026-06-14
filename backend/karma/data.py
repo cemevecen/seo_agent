@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from backend.karma.config import REFRESH_SEC, TREND_BY_SLUG, trend_competitors_for_domain
+from backend.karma.config import REFRESH_SEC, TREND_BY_SLUG
 from backend.karma.vertical import (
     VERTICAL_LABELS,
     brief_deadline_label,
@@ -60,7 +60,6 @@ def _base_payload(slug: str, site: Site) -> dict[str, Any]:
         "site": {"id": site.id, "domain": domain, "display_name": site.display_name or domain},
         "vertical": vertical.value if vertical else None,
         "vertical_label": VERTICAL_LABELS.get(vertical, "") if vertical else "",
-        "competitors": trend_competitors_for_domain(domain),
         "summary": "",
         "metrics": [],
         "sections": [],
@@ -311,74 +310,6 @@ def trend_query_haber(db: Session, site_id: int) -> dict[str, Any]:
         {"title": "Anlık top sayfalar (içerik fırsatı)", "items": page_items},
     ]
     out["actions"] = [{"label": "Search Console", "href": "/search-console"}, {"label": "News", "href": "/intelligence"}]
-    return out
-
-
-def trend_rakip_gap(db: Session, site_id: int) -> dict[str, Any]:
-    site = _site_or_404(db, site_id)
-    out = _base_payload("rakip-gap", site)
-    competitors = out["competitors"]
-    rows_6h = intel_recent(db, hours=6, limit=300, site=site)
-    rows_24h = intel_recent(db, hours=24, limit=400, site=site)
-    now = utcnow()
-
-    comp_items: dict[str, list[NewsIntelligenceItem]] = {c: [] for c in competitors}
-    comp_velocity: Counter[str] = Counter()
-    for row in rows_6h:
-        src = (row.source_url or row.source_name or "").lower()
-        for comp in competitors:
-            key = comp.replace("www.", "")
-            if key in src or key in (row.source_name or "").lower():
-                comp_items[comp].append(row)
-                comp_velocity[comp] += 1
-
-    sections = []
-    for comp in competitors:
-        comp_rows = sorted(comp_items.get(comp) or [], key=lambda r: r.published_at or now, reverse=True)
-        sections.append(
-            {
-                "title": f"{comp} · {comp_velocity.get(comp, 0)} haber (6s)",
-                "items": [
-                    {
-                        "title": r.headline,
-                        "subtitle": f"{age_minutes(r.published_at, now=now):.0f} dk · {r.source_name}",
-                        "badge": "BİZDE YOK" if not r.is_in_our_site else "bizde",
-                        "href": r.url,
-                    }
-                    for r in comp_rows[:10]
-                ]
-                or [{"title": "Son 6 saatte eşleşme yok", "subtitle": "Feed genişletiliyor", "badge": "—"}],
-            }
-        )
-
-    our_tokens = Counter(tokenize(" ".join(r.headline for r in rows_24h if r.is_in_our_site)))
-    missing = []
-    for row in rows_6h:
-        if row.is_in_our_site:
-            continue
-        for tok in tokenize(row.headline)[:6]:
-            if our_tokens.get(tok, 0) == 0:
-                missing.append(
-                    {
-                        "title": tok,
-                        "subtitle": row.headline[:90],
-                        "badge": f"{age_minutes(row.published_at, now=now):.0f} dk",
-                        "href": row.url,
-                    }
-                )
-                break
-        if len(missing) >= 15:
-            break
-
-    gap_count = sum(1 for r in rows_6h if not r.is_in_our_site)
-    label = (out.get("vertical_label") or "").strip()
-    out["summary"] = label
-    out["metrics"] = [
-        {"label": "6s sinyal", "value": str(len(rows_6h))},
-        {"label": "Gap", "value": str(gap_count)},
-        {"label": "Rakip", "value": str(len(competitors))},
-    ]
-    out["sections"] = sections + [{"title": "Öne çıkan konular (6s)", "items": missing}]
     return out
 
 
@@ -823,7 +754,6 @@ def trend_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
 _HANDLERS = {
     "trend-radar": trend_trend_radar,
     "query-haber": trend_query_haber,
-    "rakip-gap": trend_rakip_gap,
     "seasonality": trend_seasonality,
     "anomaly-tree": trend_anomaly_tree,
     "brief-generator": trend_brief_generator,
