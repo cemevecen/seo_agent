@@ -61,6 +61,8 @@ SC_VIEW_SPECS: dict[str, dict[str, Any]] = {
         "group": "Analiz",
         "order": 5,
         "report_key": "page_query",
+        "property_aggregate": True,
+        "row_limit_default": 100,
         "dimensions": ["page", "query"],
         "primary_col": "page",
         "secondary_col": "query",
@@ -211,6 +213,9 @@ def fetch_sc_analytics_report(
 
     dimensions = list(spec.get("dimensions") or [])
     search_type = spec.get("search_type")
+    property_aggregate = bool(search_type or spec.get("property_aggregate"))
+    cap = int(spec.get("row_limit_default") or row_limit or 250)
+    safe_limit = max(1, min(int(row_limit), cap))
     site, service, targets = build_search_console_service_and_targets(db, site_id)
     if not targets:
         raise ValueError("Search Console property bulunamadi.")
@@ -221,8 +226,7 @@ def fetch_sc_analytics_report(
     collected: list[dict] = []
     errors: list[str] = []
 
-    # Discover / Google News: cihaz filtresi ve çift sorgu genelde hata verir; tek property sorgusu.
-    if search_type:
+    if property_aggregate:
         seen_props: set[str] = set()
         for target in targets:
             property_url = str(target.get("property_url") or "")
@@ -237,7 +241,7 @@ def fetch_sc_analytics_report(
                     end_date,
                     dimensions=dimensions,
                     search_type=search_type,
-                    row_limit=row_limit,
+                    row_limit=safe_limit,
                     device=None,
                 )
                 collected.extend(
@@ -263,7 +267,7 @@ def fetch_sc_analytics_report(
                     end_date,
                     dimensions=dimensions,
                     search_type=search_type,
-                    row_limit=row_limit,
+                    row_limit=safe_limit,
                     device=device,
                 )
                 collected.extend(
@@ -290,7 +294,7 @@ def fetch_sc_analytics_report(
         "dimensions": dimensions,
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
-        "rows": merged[: max(1, min(int(row_limit), 500))],
+        "rows": merged[: max(1, min(int(safe_limit), 500))],
         "row_count": len(merged),
     }
 

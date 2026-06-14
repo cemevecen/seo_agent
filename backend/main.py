@@ -416,6 +416,27 @@ def _filter_ga4_iso_ddmmyyyy(value) -> str:
         return s[:10] if s else "—"
 
 
+def _sc_extra_page_label(url, domain="") -> str:
+    """SC extras tablolarinda URL'den kisa path etiketi."""
+    from urllib.parse import urlparse
+
+    u = str(url or "").strip()
+    if not u:
+        return "—"
+    try:
+        p = urlparse(u)
+        path = p.path or "/"
+        if p.query:
+            path = f"{path}?{p.query}"
+        host = (p.netloc or "").lower()
+        dom = str(domain or "").lower().replace("www.", "")
+        if dom and (host == dom or host == f"www.{dom}" or dom in host):
+            return path
+        return u
+    except Exception:
+        return u
+
+
 jinja_env.filters["exact"] = _format_exact
 jinja_env.filters["max_two_decimals"] = _format_max_two_decimals
 jinja_env.filters["exact_signed"] = _format_exact_signed
@@ -430,6 +451,7 @@ jinja_env.filters["ga4_iso_ddmmyy"] = _filter_ga4_iso_ddmmyy
 jinja_env.filters["ga4_iso_ddmmyyyy"] = _filter_ga4_iso_ddmmyyyy
 jinja_env.filters["ga4_row_page_href"] = _ga4_row_page_href
 jinja_env.filters["ga4_row_page_label"] = _ga4_row_page_label
+jinja_env.filters["sc_extra_page_label"] = _sc_extra_page_label
 jinja_env.filters["ga4_row_news_display_text"] = _ga4_row_news_display_text
 
 

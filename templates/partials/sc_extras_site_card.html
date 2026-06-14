@@ -118,20 +118,20 @@
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in report.rows %}
             <tr class="text-slate-700 dark:text-slate-200">
-              <td class="max-w-[14rem] truncate px-3 py-2 font-medium" title="{{ row.page or row[sc_view_item.primary_col] }}">
-                {% if sc_view_item.primary_col == 'page' and row.page %}
-                  <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row | ga4_row_page_label(domain) }}</a>
+              <td class="max-w-[14rem] truncate px-3 py-2 font-medium" title="{{ row.get('page') or row.get(sc_view_item.primary_col) or '' }}">
+                {% if sc_view_item.primary_col == 'page' and row.get('page') %}
+                  <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row.page | sc_extra_page_label(domain) }}</a>
                 {% else %}
-                  {{ row[sc_view_item.primary_col] or '—' }}
+                  {{ row.get(sc_view_item.primary_col) or '—' }}
                 {% endif %}
               </td>
               {% if sc_view_item.secondary_col %}
-              <td class="max-w-[12rem] truncate px-3 py-2" title="{{ row[sc_view_item.secondary_col] }}">{{ row[sc_view_item.secondary_col] or '—' }}</td>
+              <td class="max-w-[12rem] truncate px-3 py-2" title="{{ row.get(sc_view_item.secondary_col) or '' }}">{{ row.get(sc_view_item.secondary_col) or '—' }}</td>
               {% endif %}
-              <td class="px-3 py-2 text-right tabular-nums">{{ row.clicks|tr_int }}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{{ row.impressions|tr_int }}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{{ ((row.ctr or 0) * 100)|max_two_decimals }}%</td>
-              <td class="px-3 py-2 text-right tabular-nums">{{ (row.position or 0)|max_two_decimals }}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ (row.get('clicks') or 0)|tr_int }}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ (row.get('impressions') or 0)|tr_int }}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ ((row.get('ctr') or 0) * 100)|max_two_decimals }}%</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ (row.get('position') or 0)|max_two_decimals }}</td>
             </tr>
             {% endfor %}
           </tbody>
