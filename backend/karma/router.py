@@ -12,9 +12,10 @@ router = APIRouter(tags=["trend"])
 
 
 def _trend_sites(db: Session) -> list[dict]:
+    from backend.karma.vertical import vertical_for_domain
     from backend.main import _internal_site_selector_rows
 
-    return _internal_site_selector_rows(db)
+    return [row for row in _internal_site_selector_rows(db) if vertical_for_domain(row.get("domain"))]
 
 
 def _default_site_id(sites: list[dict]) -> int:

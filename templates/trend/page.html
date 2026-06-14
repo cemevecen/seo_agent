@@ -11,6 +11,7 @@
         <span id="trend-live-at" class="text-[10px] font-medium text-slate-400"></span>
       </div>
       <h1 class="text-xl font-black text-slate-900 dark:text-zinc-100 sm:text-2xl">{{ trend_item.title }}</h1>
+      <p id="trend-vertical-label" class="mt-1 hidden text-[11px] font-bold uppercase tracking-wide text-violet-600 dark:text-violet-400"></p>
       <p class="mt-1 max-w-2xl text-sm text-slate-500 dark:text-zinc-400">{{ trend_item.description }}</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -111,6 +112,7 @@
   var actionsEl = document.getElementById('trend-actions');
   var liveAtEl = document.getElementById('trend-live-at');
   var liveDot = document.getElementById('trend-live-dot');
+  var verticalLabelEl = document.getElementById('trend-vertical-label');
   var autoCb = document.getElementById('trend-auto');
   var refreshSec = 30;
   var timer = null;
@@ -131,6 +133,14 @@
     if (data.refresh_sec) refreshSec = data.refresh_sec;
     summaryEl.textContent = data.summary || '';
     summaryEl.classList.toggle('hidden', !data.summary);
+    if (verticalLabelEl) {
+      if (data.vertical_label) {
+        verticalLabelEl.textContent = data.vertical_label;
+        verticalLabelEl.classList.remove('hidden');
+      } else {
+        verticalLabelEl.classList.add('hidden');
+      }
+    }
     if (liveAtEl && data.live_at) {
       try {
         liveAtEl.textContent = '· ' + new Date(data.live_at).toLocaleTimeString('tr-TR');

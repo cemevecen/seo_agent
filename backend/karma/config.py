@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.karma.vertical import ContentVertical, vertical_for_domain
+
 
 @dataclass(frozen=True)
 class TrendItem:
@@ -106,10 +108,10 @@ REFRESH_SEC = 30
 
 
 def trend_competitors_for_domain(domain: str) -> list[str]:
-    d = (domain or "").lower().strip()
-    if "sinemalar" in d:
+    v = vertical_for_domain(domain)
+    if v == ContentVertical.ENTERTAINMENT:
         return TREND_COMPETITORS["www.sinemalar.com"]
-    if "doviz" in d:
+    if v == ContentVertical.FINANCE:
         return TREND_COMPETITORS["doviz.com"]
     return []
 

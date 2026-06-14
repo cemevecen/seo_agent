@@ -11,6 +11,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from backend.models import NewsIntelligenceItem, RealtimeAlarmLog, RealtimePageSnapshot, RealtimeSnapshot, Site
+from backend.karma.vertical import ContentVertical, intel_row_matches_vertical, vertical_for_site
 
 
 def utcnow() -> datetime:
@@ -40,21 +41,37 @@ def intel_recent(
     hours: int = 12,
     minutes: int | None = None,
     limit: int = 200,
+    site: Site | None = None,
+    vertical: ContentVertical | None = None,
 ) -> list[NewsIntelligenceItem]:
     from backend.menu_excluded import is_menu_excluded_label
+
+    vertical = vertical or vertical_for_site(site)
+    if site is not None and vertical is None:
+        return []
 
     if minutes is not None:
         cutoff = utcnow() - timedelta(minutes=minutes)
     else:
         cutoff = utcnow() - timedelta(hours=hours)
+    fetch_limit = limit * 4 if vertical else limit * 2
     rows = (
         db.query(NewsIntelligenceItem)
         .filter(NewsIntelligenceItem.published_at >= cutoff)
         .order_by(desc(NewsIntelligenceItem.published_at))
-        .limit(limit * 2)
+        .limit(fetch_limit)
         .all()
     )
-    return [r for r in rows if not is_menu_excluded_label(r.source_name)][:limit]
+    out: list[NewsIntelligenceItem] = []
+    for r in rows:
+        if is_menu_excluded_label(r.source_name):
+            continue
+        if vertical and not intel_row_matches_vertical(r, vertical):
+            continue
+        out.append(r)
+        if len(out) >= limit:
+            break
+    return out
 
 
 def site_pulse(db: Session, site_id: int) -> dict[str, Any]:
@@ -150,7 +167,13 @@ def alarm_spike_patterns(db: Session, site_id: int, *, days: int = 30) -> dict[s
     return {"total": len(rows), "top_hours": top_hours, "top_days": top_days}
 
 
-def score_intel_row(row: NewsIntelligenceItem, topic_counter: Counter[str], *, now: datetime | None = None) -> float:
+def score_intel_row(
+    row: NewsIntelligenceItem,
+    topic_counter: Counter[str],
+    *,
+    now: datetime | None = None,
+    vertical: ContentVertical | None = None,
+) -> float:
     now = now or utcnow()
     age_m = age_minutes(row.published_at, now=now)
     recency = max(0.3, 4.0 - age_m / 30.0)
@@ -164,6 +187,8 @@ def score_intel_row(row: NewsIntelligenceItem, topic_counter: Counter[str], *, n
         score += 1.5
     if age_m <= 60 and not row.is_in_our_site:
         score += 1.0
+    if vertical == ContentVertical.ENTERTAINMENT and age_m <= 120:
+        score += 0.5
     return score
 
 
@@ -217,8 +242,9 @@ def match_query_intel(query: str, intel_rows: list[NewsIntelligenceItem]) -> tup
 
 
 def editorial_calendar_events(domain: str) -> list[tuple[str, str, str]]:
-    is_sinemalar = "sinemalar" in (domain or "").lower()
-    if is_sinemalar:
+    from backend.karma.vertical import vertical_for_domain, ContentVertical
+
+    if vertical_for_domain(domain) == ContentVertical.ENTERTAINMENT:
         return [
             ("Ocak", "Oscar sezonu, kış filmleri", "Yılın filmleri / ödül listeleri"),
             ("Şubat", "Sevgililer günü vizyon", "Romantik komedi / özel liste"),

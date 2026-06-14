@@ -8,6 +8,13 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from backend.karma.config import REFRESH_SEC, TREND_BY_SLUG, trend_competitors_for_domain
+from backend.karma.vertical import (
+    VERTICAL_LABELS,
+    brief_deadline_label,
+    brief_internal_links_hint,
+    headline_variants,
+    vertical_for_site,
+)
 from backend.karma.realtime_helpers import (
     age_minutes,
     alarm_spike_patterns,
@@ -39,6 +46,7 @@ def _site_or_404(db: Session, site_id: int) -> Site:
 def _base_payload(slug: str, site: Site) -> dict[str, Any]:
     item = TREND_BY_SLUG[slug]
     domain = site.domain or ""
+    vertical = vertical_for_site(site)
     now = utcnow()
     return {
         "slug": slug,
@@ -46,6 +54,8 @@ def _base_payload(slug: str, site: Site) -> dict[str, Any]:
         "description": item.description,
         "group": item.group,
         "site": {"id": site.id, "domain": domain, "display_name": site.display_name or domain},
+        "vertical": vertical.value if vertical else None,
+        "vertical_label": VERTICAL_LABELS.get(vertical, "") if vertical else "",
         "competitors": trend_competitors_for_domain(domain),
         "summary": "",
         "metrics": [],
@@ -68,19 +78,20 @@ def _alarm_item(a: RealtimeAlarmLog) -> dict[str, Any]:
 def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
     site = _site_or_404(db, site_id)
     out = _base_payload("trend-radar", site)
+    vertical = vertical_for_site(site)
     now = utcnow()
     pulse = site_pulse(db, site_id)
     drivers = drivers_for_profiles(db, site_id)
 
-    intel_30m = intel_recent(db, minutes=30, limit=80)
-    intel_6h = intel_recent(db, hours=6, limit=250)
+    intel_30m = intel_recent(db, minutes=30, limit=80, site=site)
+    intel_6h = intel_recent(db, hours=6, limit=250, site=site)
     topic_counter: Counter[str] = Counter()
     for row in intel_6h:
         t = (row.topic or row.category or "").strip()
         if t:
             topic_counter[t] += 1
 
-    scored = [(score_intel_row(r, topic_counter, now=now), r) for r in intel_6h]
+    scored = [(score_intel_row(r, topic_counter, now=now, vertical=vertical), r) for r in intel_6h]
     scored.sort(key=lambda x: x[0], reverse=True)
     alarms = alarms_recent(db, site_id, hours=3, limit=25)
 
@@ -127,6 +138,7 @@ def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
     gaps_30m = sum(1 for r in intel_30m if not r.is_in_our_site)
 
     out["summary"] = (
+        f"{out.get('vertical_label') or 'Trend'} · "
         f"Anlık {pulse.get('total_current', 0):.0f} aktif kullanıcı (Δ {pulse.get('total_delta', 0):+.0f}). "
         f"Son 30 dk: {len(intel_30m)} haber, {gaps_30m} gap. {len(alarms)} alarm (3s)."
     )
@@ -156,7 +168,7 @@ def trend_query_haber(db: Session, site_id: int) -> dict[str, Any]:
     site = _site_or_404(db, site_id)
     out = _base_payload("query-haber", site)
     queries = get_top_queries(db, site, limit=60, device="all")
-    intel = intel_recent(db, hours=6, limit=300)
+    intel = intel_recent(db, hours=6, limit=300, site=site)
     rising, _ = gsc_rising_and_decay(queries)
 
     items_gap = []
@@ -190,7 +202,7 @@ def trend_query_haber(db: Session, site_id: int) -> dict[str, Any]:
         for p in rt_pages[:8]
     ]
 
-    out["summary"] = f"{len(items_gap)} yükselen sorguda haber gap; {len(items_ok)} kapsanan. GSC + intelligence 6s penceresi."
+    out["summary"] = f"{out.get('vertical_label') or ''} · {len(items_gap)} yükselen sorguda haber gap; {len(items_ok)} kapsanan."
     out["metrics"] = [
         {"label": "Yükselen", "value": str(len(rising))},
         {"label": "Gap", "value": str(len(items_gap))},
@@ -209,8 +221,8 @@ def trend_rakip_gap(db: Session, site_id: int) -> dict[str, Any]:
     site = _site_or_404(db, site_id)
     out = _base_payload("rakip-gap", site)
     competitors = out["competitors"]
-    rows_6h = intel_recent(db, hours=6, limit=300)
-    rows_24h = intel_recent(db, hours=24, limit=400)
+    rows_6h = intel_recent(db, hours=6, limit=300, site=site)
+    rows_24h = intel_recent(db, hours=24, limit=400, site=site)
     now = utcnow()
 
     comp_items: dict[str, list[NewsIntelligenceItem]] = {c: [] for c in competitors}
@@ -262,7 +274,10 @@ def trend_rakip_gap(db: Session, site_id: int) -> dict[str, Any]:
             break
 
     gap_count = sum(1 for r in rows_6h if not r.is_in_our_site)
-    out["summary"] = f"6s tarama: {len(rows_6h)} sinyal, {gap_count} rakip/bizde-yok. Rakipler: {', '.join(competitors) or '—'}."
+    out["summary"] = (
+        f"{out.get('vertical_label') or ''} · 6s tarama: {len(rows_6h)} sinyal, {gap_count} rakip/bizde-yok. "
+        f"Rakipler: {', '.join(competitors) or '—'}."
+    )
     out["metrics"] = [
         {"label": "6s sinyal", "value": str(len(rows_6h))},
         {"label": "Gap", "value": str(gap_count)},
@@ -373,8 +388,9 @@ def trend_brief_generator(db: Session, site_id: int) -> dict[str, Any]:
 
     site = _site_or_404(db, site_id)
     out = _base_payload("brief-generator", site)
+    vertical = vertical_for_site(site)
     now = utcnow()
-    intel = intel_recent(db, hours=4, limit=150)
+    intel = intel_recent(db, hours=4, limit=150, site=site)
     topic_counter: Counter[str] = Counter()
     for r in intel:
         t = (r.topic or r.category or "").strip()
@@ -382,7 +398,7 @@ def trend_brief_generator(db: Session, site_id: int) -> dict[str, Any]:
             topic_counter[t] += 1
 
     gaps = [r for r in intel if not r.is_in_our_site]
-    gaps_scored = sorted(gaps, key=lambda r: score_intel_row(r, topic_counter, now=now), reverse=True)
+    gaps_scored = sorted(gaps, key=lambda r: score_intel_row(r, topic_counter, now=now, vertical=vertical), reverse=True)
 
     queries = get_top_queries(db, site, limit=30, device="all")
     rising, _ = gsc_rising_and_decay(queries)
@@ -401,10 +417,10 @@ def trend_brief_generator(db: Session, site_id: int) -> dict[str, Any]:
         brief = {
             "h1": r.headline[:95],
             "keywords": ", ".join(kws[:6]),
-            "angle": r.topic or r.category or "Genel",
+            "angle": r.topic or r.category or ("Vizyon" if vertical else "Genel"),
             "urgency": urgency,
-            "deadline": f"{max(15, int(90 - age_m))} dk içinde yayın hedefi",
-            "internal_links": "Ana sayfa + kategori + canlı widget",
+            "deadline": brief_deadline_label(urgency, age_m, vertical),
+            "internal_links": brief_internal_links_hint(vertical),
             "gsc": gsc_hint,
         }
         items.append(
@@ -417,7 +433,7 @@ def trend_brief_generator(db: Session, site_id: int) -> dict[str, Any]:
             }
         )
 
-    out["summary"] = f"{len(items)} acil brief — gap haberler + GSC fırsat + trafik bağlamı (4s pencere)."
+    out["summary"] = f"{out.get('vertical_label') or ''} · {len(items)} acil brief — gap + GSC fırsat (4s)."
     out["metrics"] = [
         {"label": "Brief", "value": str(len(items))},
         {"label": "Acil", "value": str(sum(1 for i in items if i.get("meta", {}).get("urgency") == "ACİL"))},
@@ -430,14 +446,15 @@ def trend_brief_generator(db: Session, site_id: int) -> dict[str, Any]:
 def trend_headline_lab(db: Session, site_id: int) -> dict[str, Any]:
     site = _site_or_404(db, site_id)
     out = _base_payload("headline-lab", site)
+    vertical = vertical_for_site(site)
     now = utcnow()
-    rows = intel_recent(db, hours=3, limit=40)
+    rows = intel_recent(db, hours=3, limit=40, site=site)
     topic_counter: Counter[str] = Counter()
     for r in rows:
         t = (r.topic or r.category or "").strip()
         if t:
             topic_counter[t] += 1
-    top_rows = sorted(rows, key=lambda r: score_intel_row(r, topic_counter, now=now), reverse=True)[:10]
+    top_rows = sorted(rows, key=lambda r: score_intel_row(r, topic_counter, now=now, vertical=vertical), reverse=True)[:10]
 
     items = []
     for r in top_rows:
@@ -445,13 +462,7 @@ def trend_headline_lab(db: Session, site_id: int) -> dict[str, Any]:
         if not base:
             continue
         age_m = age_minutes(r.published_at, now=now)
-        variants = [
-            base,
-            f"SON DAKİKA: {base}" if len(base) < 65 else base,
-            f"{base} | Güncel gelişmeler",
-            base.rstrip(".!") + " — Detaylar ve analiz",
-            f"{base} ({age_m:.0f} dk önce)" if age_m < 120 else base,
-        ]
+        variants = headline_variants(base, vertical, age_m=age_m)
         for i, v in enumerate(variants[:5]):
             score = max(35, 98 - i * 10 - abs(len(v) - 62) // 2 - (10 if "SON DAKİKA" in v and i > 0 else 0))
             items.append(
@@ -463,7 +474,7 @@ def trend_headline_lab(db: Session, site_id: int) -> dict[str, Any]:
                 }
             )
 
-    out["summary"] = f"Son 3 saatin top {len(top_rows)} haberinden {len(items)} başlık varyantı."
+    out["summary"] = f"{out.get('vertical_label') or ''} · Son 3 saatin top {len(top_rows)} haberinden {len(items)} başlık varyantı."
     out["sections"] = [{"title": "Headline varyantları (CTR heuristic)", "items": items}]
     return out
 
@@ -506,7 +517,7 @@ def trend_ic_link(db: Session, site_id: int) -> dict[str, Any]:
                 "badge": "hedef",
             }
         )
-    gaps = [r for r in intel_recent(db, hours=2, limit=30) if not r.is_in_our_site]
+    gaps = [r for r in intel_recent(db, hours=2, limit=30, site=site) if not r.is_in_our_site]
     for r in gaps[:5]:
         targets.append(
             {
@@ -600,7 +611,7 @@ def trend_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
 
     site = _site_or_404(db, site_id)
     out = _base_payload("topic-cluster", site)
-    rows = intel_recent(db, hours=12, limit=400)
+    rows = intel_recent(db, hours=12, limit=400, site=site)
     queries = get_top_queries(db, site, limit=50, device="all")
     pages = top_pages_rt(db, site_id, "web", 30)
 
@@ -644,7 +655,7 @@ def trend_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
 
     weak = [i for i in intel_items if i["badge"] == "boşluk" or "gap" in i["subtitle"] and int(i["subtitle"].split("gap ")[-1]) > 2]
 
-    out["summary"] = f"12s cluster: {len(intel_clusters)} topic, {len(gsc_clusters)} GSC token, {len(path_clusters)} path segment."
+    out["summary"] = f"{out.get('vertical_label') or ''} · 12s cluster: {len(intel_clusters)} topic, {len(gsc_clusters)} GSC token."
     out["metrics"] = [
         {"label": "Topic", "value": str(len(intel_clusters))},
         {"label": "Zayıf/gap", "value": str(len(weak))},

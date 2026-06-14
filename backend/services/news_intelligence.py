@@ -201,13 +201,27 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=openai+google+microsoft+apple+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=uzay+nasa+spacex+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
+    "Sinema & Eğlence": [
+        "https://news.google.com/rss/search?q=film+vizyon+fragman+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=sinema+türk+filmleri+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=dizi+netflix+disney+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=box+office+gişe+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=oscar+cannes+film+festivali+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=oyuncu+yönetmen+sinema+haber+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=marvel+dc+star+wars+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+    ],
 }
 
 # Feed başına işlenecek maksimum item sayısı
 MAX_ITEMS_PER_FEED = 30
 
 # Filtreleme Anahtar Kelimeleri (Sadece etiketleme için kullanılır, engelleme yapmaz)
-FILTER_KEYWORDS = ["döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası", "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim", "startup", "inovasyon", "gündem", "haber"]
+FILTER_KEYWORDS = [
+    "döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası",
+    "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim",
+    "startup", "inovasyon", "gündem", "haber",
+    "film", "sinema", "dizi", "vizyon", "fragman", "oyuncu", "netflix", "gişe",
+]
 
 # Negatif Filtre: Bu kelimeleri içeren başlıklar "haber" sayılmaz ve elenir
 EXCLUDE_KEYWORDS = [
