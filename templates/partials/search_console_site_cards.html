@@ -6,7 +6,7 @@
         <div
           id="sc-card-{{ site_id }}"
           hx-get="/search-console/site/{{ site_id }}"
-          hx-trigger="load, revealed"
+          hx-trigger="revealed once"
           hx-swap="outerHTML"
         >
           {% include "partials/sc_extras_loading_card.html" %}

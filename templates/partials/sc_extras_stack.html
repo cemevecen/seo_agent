@@ -15,12 +15,14 @@
     <div
       class="sc-extra-section-body min-h-[6rem]"
       hx-get="/search-console/site-list?view={{ item.slug }}&mode=lazy"
-      hx-trigger="revealed"
+      hx-trigger="revealed once"
       hx-swap="innerHTML"
     >
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {% for _ in [0, 1] %}
-        {% include "partials/sc_extras_loading_card.html" %}
+        <div class="flex min-h-[10rem] items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/95">
+          <p class="text-xs font-medium text-slate-400 dark:text-slate-500">Siteler hazırlanıyor…</p>
+        </div>
         {% endfor %}
       </div>
     </div>
