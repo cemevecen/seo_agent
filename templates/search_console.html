@@ -2,27 +2,6 @@
 
 {% block content %}
 <style>
-  .trend-subnav-wrap { margin-bottom: 1rem; border-bottom: 1px solid rgb(226 232 240); padding-bottom: 0.5rem; }
-  html.dark .trend-subnav-wrap { border-color: rgba(63,63,70,.55); }
-  .trend-subnav-groups { display: flex; flex-direction: column; gap: 0.5rem; }
-  .trend-subnav-group-label {
-    font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
-    color: rgb(100 116 139); padding: 0 0.25rem;
-  }
-  html.dark .trend-subnav-group-label { color: rgb(161 161 170); }
-  .trend-subnav-track {
-    display: flex; flex-wrap: nowrap; gap: 0.35rem; overflow-x: auto;
-    -webkit-overflow-scrolling: touch; padding-bottom: 0.15rem;
-  }
-  .trend-subnav-link {
-    flex-shrink: 0; border-radius: 999px; padding: 0.3rem 0.65rem;
-    font-size: 10px; font-weight: 700; white-space: nowrap;
-    border: 1px solid rgb(226 232 240); color: rgb(71 85 105);
-    background: rgb(255 255 255); text-decoration: none;
-  }
-  html.dark .trend-subnav-link { border-color: rgb(63 63 70); color: rgb(212 212 216); background: rgb(24 24 27); }
-  .trend-subnav-link.is-active { background: rgb(79 70 229); border-color: rgb(79 70 229); color: #fff; }
-  html.dark .trend-subnav-link.is-active { background: rgb(99 102 241); border-color: rgb(99 102 241); }
   .sc-extra-section { scroll-margin-top: 7rem; }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
@@ -1927,48 +1906,12 @@
     document.addEventListener('seo-theme-change', relayoutSearchConsoleTrendChartsTheme);
   }
 
-  (function initScPageSubnav() {
-    var links = document.querySelectorAll('.sc-page-subnav-link[data-sc-nav]');
-    if (!links.length) return;
-
-    function setActive(slug) {
-      links.forEach(function (a) {
-        a.classList.toggle('is-active', a.getAttribute('data-sc-nav') === slug);
-      });
-    }
-
-    links.forEach(function (a) {
-      a.addEventListener('click', function () {
-        var slug = a.getAttribute('data-sc-nav');
-        if (slug) setActive(slug);
-      });
-    });
-
-    var sections = document.querySelectorAll('.sc-extra-section[id^="sc-"]');
-    if (sections.length && 'IntersectionObserver' in window) {
-      var obs = new IntersectionObserver(
-        function (entries) {
-          entries.forEach(function (entry) {
-            if (entry.isIntersecting && entry.intersectionRatio > 0.2) {
-              var id = entry.target.id || '';
-              if (id.indexOf('sc-') === 0) setActive(id.slice(3));
-            }
-          });
-        },
-        { rootMargin: '-20% 0px -55% 0px', threshold: [0.2, 0.5] }
-      );
-      sections.forEach(function (s) { obs.observe(s); });
-    }
-
+  (function scHashScroll() {
     var hash = (window.location.hash || '').replace(/^#sc-/, '');
-    if (hash) {
-      setActive(hash);
-      var target = document.getElementById('sc-' + hash);
-      if (target) {
-        window.setTimeout(function () { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
-      }
-    } else {
-      setActive('performance');
+    if (!hash) return;
+    var target = document.getElementById('sc-' + hash);
+    if (target) {
+      window.setTimeout(function () { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
     }
   })();
 </script>

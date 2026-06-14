@@ -123,8 +123,6 @@ from backend.services.search_console_reports import (
     fetch_sc_sitemaps,
     inspect_sc_url,
     sc_extra_views_for_nav,
-    sc_view_groups,
-    sc_views_for_nav,
 )
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
@@ -13532,8 +13530,6 @@ def _search_console_page_context() -> dict[str, Any]:
         "oauth_ready": oauth_is_configured(),
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         "site_list_mode": "lazy",
-        "sc_views": sc_views_for_nav(),
-        "sc_groups": sc_view_groups(),
         "sc_extra_views": sc_extra_views_for_nav(),
     }
 
