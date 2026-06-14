@@ -1314,6 +1314,30 @@
     html.midnight .header-nav-link.nav-active::after {
       color: #52525b;
     }
+    .header-nav-dropdown { position: relative; flex-shrink: 0; }
+    .header-nav-dropdown-trigger { cursor: pointer; }
+    .header-nav-dropdown-menu {
+      display: none; position: absolute; top: calc(100% + 6px); right: 0; left: auto; z-index: 90;
+      min-width: 14rem; max-width: min(18rem, 92vw); max-height: 70vh; overflow-y: auto;
+      border-radius: 0.75rem; border: 1px solid rgb(226 232 240);
+      background: rgb(255 255 255); padding: 0.35rem; box-shadow: 0 12px 32px rgba(0,0,0,.12);
+    }
+    html.dark .header-nav-dropdown-menu, html.midnight .header-nav-dropdown-menu {
+      border-color: rgb(63 63 70); background: rgb(24 24 27);
+    }
+    .header-nav-dropdown.is-open .header-nav-dropdown-menu { display: block; }
+    .header-nav-dropdown-group {
+      padding: 0.35rem 0.5rem 0.1rem; font-size: 9px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .1em; color: rgb(100 116 139);
+    }
+    html.dark .header-nav-dropdown-group { color: rgb(113 113 122); }
+    .header-nav-dropdown-menu a {
+      display: block; border-radius: 0.5rem; padding: 0.35rem 0.5rem;
+      font-size: 11px; font-weight: 600; color: rgb(51 65 85); text-decoration: none;
+    }
+    html.dark .header-nav-dropdown-menu a { color: rgb(212 212 216); }
+    .header-nav-dropdown-menu a:hover { background: rgb(241 245 249); }
+    html.dark .header-nav-dropdown-menu a:hover { background: rgb(39 39 42); }
     .header-nav-link.header-nav-link--guest {
       flex: 0 0 auto;
       padding-left: 0.5rem;
@@ -1438,6 +1462,24 @@
               <a href="/intelligence" data-nav-match="/intelligence" class="header-nav-link">news</a>
               <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" class="header-nav-link">movie</a>
               <a href="/ai" data-nav-match="/ai" class="header-nav-link">ai</a>
+              <div class="header-nav-dropdown" id="header-karma-dropdown" data-nav-match="/karma">
+                <button type="button" class="header-nav-link header-nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">karma ▾</button>
+                <div class="header-nav-dropdown-menu" role="menu">
+                  {% set karma_nav = [
+                    ("Trend", [("trend-radar","Trend Radar"),("query-haber","Query → Haber"),("rakip-gap","Rakip Gap"),("seasonality","Seasonality"),("anomaly-tree","Anomaly Ağacı")]),
+                    ("İçerik", [("brief-generator","Brief"),("headline-lab","Headline Lab"),("ic-link","İç Link"),("content-decay","Decay"),("topic-cluster","Topic Cluster")]),
+                    ("Dağıtım", [("push-roi","Push ROI"),("serp-tracker","SERP"),("programmatic-seo","Prog. SEO"),("international","International")]),
+                    ("Operasyon", [("editorial-sla","Editoryal SLA"),("war-room","War Room"),("post-mortem","Post-mortem"),("morning-brief","Sabah Brifingi")]),
+                    ("Kalite", [("cwv-trafik","CWV ↔ Trafik"),("ai-action","AI → Aksiyon")])
+                  ] %}
+                  {% for group_name, links in karma_nav %}
+                  <div class="header-nav-dropdown-group">{{ group_name }}</div>
+                  {% for slug, label in links %}
+                  <a href="/karma/{{ slug }}" role="menuitem">{{ label }}</a>
+                  {% endfor %}
+                  {% endfor %}
+                </div>
+              </div>
               <a href="/settings" data-nav-match="/settings" class="header-nav-link">settings</a>
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
               {% endif %}
@@ -1553,7 +1595,36 @@
             link.classList.remove('nav-active');
           }
         });
+        nav.querySelectorAll('.header-nav-dropdown[data-nav-match]').forEach(function (wrap) {
+          var rule = (wrap.getAttribute('data-nav-match') || '').toLowerCase();
+          var on = rule && (path === rule || path.startsWith(rule + '/'));
+          wrap.querySelectorAll('.header-nav-dropdown-trigger').forEach(function (btn) {
+            if (on) {
+              btn.classList.add('nav-active');
+              btn.setAttribute('aria-current', 'page');
+            } else {
+              btn.classList.remove('nav-active');
+              btn.removeAttribute('aria-current');
+            }
+          });
+        });
       }
+
+      (function initKarmaDropdown() {
+        var wrap = document.getElementById('header-karma-dropdown');
+        if (!wrap) return;
+        var btn = wrap.querySelector('.header-nav-dropdown-trigger');
+        if (!btn) return;
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var open = wrap.classList.toggle('is-open');
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        document.addEventListener('click', function () {
+          wrap.classList.remove('is-open');
+          btn.setAttribute('aria-expanded', 'false');
+        });
+      })();
 
       /* HTMX afterSwap target genelde #content degil; swap edilen cocuk dugumdur. */
       document.body.addEventListener('htmx:afterSwap', function () {

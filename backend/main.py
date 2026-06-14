@@ -931,6 +931,10 @@ app.include_router(backlinks_router, prefix="/api")
 app.include_router(notification_analytics_router, prefix="/api")
 app.include_router(ad_analytics_router, prefix="/api")
 
+from backend.karma.router import router as karma_router
+
+app.include_router(karma_router)
+
 PERIOD_DAYS_MAP = {
     "daily": 1,
     "weekly": 7,
