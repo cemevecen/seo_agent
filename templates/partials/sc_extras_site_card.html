@@ -4,12 +4,12 @@
   data-sc-extra-card
 >
   <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-    <div>
+    <div class="min-w-0">
       <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{{ sc_view_item.group }}</p>
       <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">{{ display_name or domain }}</h2>
-      <p class="text-xs text-slate-500 dark:text-slate-400">{{ domain }}</p>
+      <p class="truncate text-xs text-slate-500 dark:text-slate-400">{{ domain }}</p>
     </div>
-    <div class="text-xs font-semibold {% if connection.connected %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">
+    <div class="shrink-0 text-xs font-semibold {% if connection.connected %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">
       {{ connection.label or ('Bağlı' if connection.connected else 'Bağlantı yok') }}
     </div>
   </div>
@@ -59,22 +59,22 @@
         {{ sc_sitemap_rows|length|tr_int }} kayıt
         {% if sc_sitemap_rows|length > sc_preview_limit %} · ilk {{ sc_preview_limit }} gösteriliyor{% endif %}
       </p>
-      <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table>
-        <table class="min-w-full text-left text-xs">
-          <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+      <div class="sc-extra-table-wrap overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table>
+        <table class="sc-extra-table w-full min-w-0 text-left text-[11px] sm:text-xs" data-sc-cols="5">
+          <thead class="bg-slate-50 text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px] dark:bg-slate-800/80 dark:text-slate-400">
             <tr>
-              <th class="px-3 py-2">Sitemap</th>
-              <th class="px-3 py-2">Durum</th>
-              <th class="px-3 py-2">Uyarı</th>
-              <th class="px-3 py-2">Hata</th>
-              <th class="px-3 py-2">Son gönderim</th>
+              <th class="sc-extra-th px-2 py-1.5 sm:px-3 sm:py-2">Sitemap</th>
+              <th class="sc-extra-th px-2 py-1.5 sm:px-3 sm:py-2">Durum</th>
+              <th class="sc-extra-th px-2 py-1.5 sm:px-3 sm:py-2">Uyarı</th>
+              <th class="sc-extra-th px-2 py-1.5 sm:px-3 sm:py-2">Hata</th>
+              <th class="sc-extra-th px-2 py-1.5 sm:px-3 sm:py-2">Son gönderim</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in sc_sitemap_rows %}
             <tr class="text-slate-700 dark:text-slate-200{% if loop.index > sc_preview_limit %} hidden{% endif %}"{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
-              <td class="max-w-[16rem] truncate px-3 py-2 font-medium" title="{{ row.path }}">{{ row.path or '—' }}</td>
-              <td class="px-3 py-2">
+              <td class="sc-extra-td px-2 py-1.5 font-medium sm:px-3 sm:py-2" title="{{ row.path }}">{{ row.path or '—' }}</td>
+              <td class="sc-extra-td px-2 py-1.5 sm:px-3 sm:py-2">
                 {% if row.error %}
                   <span class="text-red-600 dark:text-red-400">Hata</span>
                 {% elif row.isPending %}
@@ -83,9 +83,9 @@
                   OK
                 {% endif %}
               </td>
-              <td class="px-3 py-2 tabular-nums">{{ row.warnings|default(0)|tr_int }}</td>
-              <td class="px-3 py-2 tabular-nums">{{ row.errors|default(0)|tr_int }}</td>
-              <td class="px-3 py-2 whitespace-nowrap">{{ row.lastSubmitted or '—' }}</td>
+              <td class="sc-extra-td sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ row.warnings|default(0)|tr_int }}</td>
+              <td class="sc-extra-td sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ row.errors|default(0)|tr_int }}</td>
+              <td class="sc-extra-td sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ row.lastSubmitted or '—' }}</td>
             </tr>
             {% if row.error %}
             <tr class="{% if loop.index > sc_preview_limit %}hidden{% endif %}"{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
@@ -113,6 +113,9 @@
     {% set sc_preview_limit = 15 %}
     {% set sc_all_rows = report.rows or [] %}
     {% set sc_show_position = sc_view_item.get('position_supported', True) %}
+    {% set sc_table_cols = 4 %}
+    {% if sc_view_item.secondary_col %}{% set sc_table_cols = sc_table_cols + 1 %}{% endif %}
+    {% if sc_show_position %}{% set sc_table_cols = sc_table_cols + 1 %}{% endif %}
     <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
       {{ report.start_date|ga4_iso_ddmmyyyy }} – {{ report.end_date|ga4_iso_ddmmyyyy }}
       · {{ report.row_count|tr_int }} satır
@@ -125,26 +128,26 @@
     <p class="mb-3 text-[11px] text-slate-400 dark:text-slate-500">Pozisyon sütunu yok — Google Discover / Google News API bu metriği döndürmez (arama sorgusu olmadığı için).</p>
     {% endif %}
     {% if sc_all_rows %}
-      <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table>
-        <table class="min-w-full text-left text-xs">
-          <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+      <div class="sc-extra-table-wrap overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700" data-sc-extra-table>
+        <table class="sc-extra-table w-full min-w-0 text-left text-[11px] sm:text-xs" data-sc-cols="{{ sc_table_cols }}"{% if sc_view_item.secondary_col %} data-sc-has-secondary{% endif %}{% if sc_show_position %} data-sc-has-position{% endif %}>
+          <thead class="bg-slate-50 text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px] dark:bg-slate-800/80 dark:text-slate-400">
             <tr>
-              <th class="px-3 py-2">{{ sc_view_item.primary_label or 'Boyut' }}</th>
+              <th class="sc-extra-th px-2 py-1.5 sm:px-3 sm:py-2">{{ sc_view_item.primary_label or 'Boyut' }}</th>
               {% if sc_view_item.secondary_col %}
-              <th class="px-3 py-2">{{ sc_view_item.secondary_label or 'Sorgu' }}</th>
+              <th class="sc-extra-th px-2 py-1.5 sm:px-3 sm:py-2">{{ sc_view_item.secondary_label or 'Sorgu' }}</th>
               {% endif %}
-              <th class="px-3 py-2 text-right">Tıklama</th>
-              <th class="px-3 py-2 text-right">Gösterim</th>
-              <th class="px-3 py-2 text-right">CTR</th>
+              <th class="sc-extra-th sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2">Tıklama</th>
+              <th class="sc-extra-th sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2">Gösterim</th>
+              <th class="sc-extra-th sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2">CTR</th>
               {% if sc_show_position %}
-              <th class="px-3 py-2 text-right">Pozisyon</th>
+              <th class="sc-extra-th sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2">Pozisyon</th>
               {% endif %}
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in sc_all_rows %}
             <tr class="text-slate-700 dark:text-slate-200{% if loop.index > sc_preview_limit %} hidden{% endif %}"{% if loop.index > sc_preview_limit %} data-sc-extra-row-more{% endif %}>
-              <td class="max-w-[14rem] truncate px-3 py-2 font-medium" title="{{ row.get('page') or row.get(sc_view_item.primary_col) or '' }}">
+              <td class="sc-extra-td px-2 py-1.5 font-medium sm:px-3 sm:py-2" title="{{ row.get('page') or row.get(sc_view_item.primary_col) or '' }}">
                 {% if sc_view_item.primary_col == 'page' and row.get('page') %}
                   <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row.page | sc_extra_page_label(domain) }}</a>
                 {% else %}
@@ -152,13 +155,13 @@
                 {% endif %}
               </td>
               {% if sc_view_item.secondary_col %}
-              <td class="max-w-[12rem] truncate px-3 py-2" title="{{ row.get(sc_view_item.secondary_col) or '' }}">{{ row.get(sc_view_item.secondary_col) or '—' }}</td>
+              <td class="sc-extra-td px-2 py-1.5 sm:px-3 sm:py-2" title="{{ row.get(sc_view_item.secondary_col) or '' }}">{{ row.get(sc_view_item.secondary_col) or '—' }}</td>
               {% endif %}
-              <td class="px-3 py-2 text-right tabular-nums">{{ (row.get('clicks') or 0)|tr_int }}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{{ (row.get('impressions') or 0)|tr_int }}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{{ ((row.get('ctr') or 0) * 100)|max_two_decimals }}%</td>
+              <td class="sc-extra-td sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ (row.get('clicks') or 0)|tr_int }}</td>
+              <td class="sc-extra-td sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ (row.get('impressions') or 0)|tr_int }}</td>
+              <td class="sc-extra-td sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ ((row.get('ctr') or 0) * 100)|max_two_decimals }}%</td>
               {% if sc_show_position %}
-              <td class="px-3 py-2 text-right tabular-nums">{% if row.get('position') %}{{ row.position|max_two_decimals }}{% else %}—{% endif %}</td>
+              <td class="sc-extra-td sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{% if row.get('position') %}{{ row.position|max_two_decimals }}{% else %}—{% endif %}</td>
               {% endif %}
             </tr>
             {% endfor %}

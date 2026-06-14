@@ -4,6 +4,7 @@ from backend.services.search_console_reports import (
     SC_VIEW_SPECS,
     _merge_rows_by_key,
     _normalize_dimension_rows,
+    sc_extra_card_should_render,
     sc_extra_views_for_nav,
     sc_view_groups,
     sc_views_for_nav,
@@ -46,3 +47,32 @@ def test_normalize_and_merge_rows():
     assert merged[0]["impressions"] == 15
     assert merged[0]["page"] == "a"
     assert merged[0]["query"] == "q1"
+
+
+def test_sc_extra_card_should_render():
+    spec_analytics = SC_VIEW_SPECS["news"]
+    spec_inspection = SC_VIEW_SPECS["url-inspection"]
+    connected = {"connected": True}
+    disconnected = {"connected": False}
+
+    assert sc_extra_card_should_render(spec_analytics, connection=disconnected, report=None, error=None) is False
+    assert sc_extra_card_should_render(
+        spec_analytics,
+        connection=connected,
+        report={"rows": []},
+        error=None,
+    ) is False
+    assert sc_extra_card_should_render(
+        spec_analytics,
+        connection=connected,
+        report={"rows": [{"page": "/x", "clicks": 1}]},
+        error=None,
+    ) is True
+    assert sc_extra_card_should_render(
+        spec_analytics,
+        connection=connected,
+        report={"rows": []},
+        error="API timeout",
+    ) is True
+    assert sc_extra_card_should_render(spec_inspection, connection=connected, report={}, error=None) is True
+    assert sc_extra_card_should_render(spec_inspection, connection=disconnected, report={}, error=None) is False

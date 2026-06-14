@@ -5,7 +5,7 @@
       <div
         id="sc-extra-card-{{ site_id }}"
         hx-get="/search-console/extras/{{ sc_view }}/site/{{ site_id }}"
-        hx-trigger="revealed once{% if delay_ms %} delay:{{ delay_ms }}ms{% endif %}"
+        hx-trigger="load delay:{{ delay_ms }}ms once"
         hx-swap="outerHTML"
       >
         {% include "partials/sc_extras_loading_card.html" %}

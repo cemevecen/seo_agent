@@ -122,6 +122,7 @@ from backend.services.search_console_reports import (
     fetch_sc_analytics_report,
     fetch_sc_sitemaps,
     inspect_sc_url,
+    sc_extra_card_should_render,
     sc_extra_views_for_nav,
 )
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
@@ -13644,6 +13645,13 @@ def search_console_extras_site_card(request: Request, view_slug: str, site_id: i
                 report = {
                     "default_url": _normalize_url(site.domain),
                 }
+            if not sc_extra_card_should_render(
+                spec,
+                connection=connection,
+                report=report,
+                error=error,
+            ):
+                return HTMLResponse("", headers=_SC_HTML_NO_CACHE_HEADERS)
         return templates.TemplateResponse(
             request,
             "partials/sc_extras_site_card.html",

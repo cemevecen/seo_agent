@@ -105,6 +105,29 @@ def sc_extra_views_for_nav() -> list[dict[str, Any]]:
     return [v for v in sc_views_for_nav() if v.get("kind") != "performance"]
 
 
+def sc_extra_card_should_render(
+    spec: dict[str, Any],
+    *,
+    connection: dict[str, Any] | None,
+    report: dict[str, Any] | None,
+    error: str | None,
+) -> bool:
+    """Bağlantı yok / veri yok kartları sayfada gösterme (HTMX boş yanıt)."""
+    if error:
+        return True
+    kind = str(spec.get("kind") or "")
+    if kind == "inspection":
+        return bool((connection or {}).get("connected"))
+    if not (connection or {}).get("connected"):
+        return False
+    if kind == "analytics":
+        return len((report or {}).get("rows") or []) > 0
+    if kind == "sitemaps":
+        items = (report or {}).get("sitemaps") or []
+        return any(str(s.get("path") or "").strip() for s in items)
+    return False
+
+
 def _normalize_dimension_rows(
     rows: list[dict],
     dimensions: list[str],

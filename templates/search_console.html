@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
 <style>
   .sc-extra-section { scroll-margin-top: 7rem; }
   .sc-extras-lottie-host {
@@ -10,11 +10,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-  lottie-player.sc-extras-lottie {
-    width: 96px;
-    height: 96px;
-    display: block;
   }
   .sc-extras-lottie-fallback {
     width: 40px;
@@ -26,6 +21,48 @@
   }
   @keyframes sc-extras-spin {
     to { transform: rotate(360deg); }
+  }
+  /* SC extras tablolar — fixed layout, responsive truncate */
+  .sc-extra-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sc-extra-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  .sc-extra-th,
+  .sc-extra-td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .sc-extra-th-num,
+  .sc-extra-td-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .sc-extra-table[data-sc-cols="4"] .sc-extra-th:first-child,
+  .sc-extra-table[data-sc-cols="4"] .sc-extra-td:first-child { width: 46%; }
+  .sc-extra-table[data-sc-cols="4"] .sc-extra-th:nth-child(n + 2),
+  .sc-extra-table[data-sc-cols="4"] .sc-extra-td:nth-child(n + 2) { width: 18%; }
+  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-th:first-child,
+  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-td:first-child { width: 40%; }
+  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-th:nth-child(n + 2),
+  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-td:nth-child(n + 2) { width: 15%; }
+  .sc-extra-table[data-sc-cols="6"] .sc-extra-th:first-child,
+  .sc-extra-table[data-sc-cols="6"] .sc-extra-td:first-child { width: 26%; }
+  .sc-extra-table[data-sc-cols="6"] .sc-extra-th:nth-child(2),
+  .sc-extra-table[data-sc-cols="6"] .sc-extra-td:nth-child(2) { width: 24%; }
+  .sc-extra-table[data-sc-cols="6"] .sc-extra-th:nth-child(n + 3),
+  .sc-extra-table[data-sc-cols="6"] .sc-extra-td:nth-child(n + 3) { width: 12.5%; }
+  @media (max-width: 640px) {
+    .sc-extra-table { font-size: 10px; }
+    .sc-extra-th, .sc-extra-td { padding-left: 0.35rem; padding-right: 0.35rem; }
   }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
@@ -1792,29 +1829,8 @@
 
   var SC_EXTRAS_LOTTIE_SRC = 'https://assets1.lottiefiles.com/packages/lf20_poqmycwy.json';
 
-  function scLottiePlayerReady() {
-    return typeof customElements !== 'undefined' && !!customElements.get('lottie-player');
-  }
-
-  function scWaitForLottiePlayer(maxMs) {
-    return new Promise(function (resolve) {
-      if (scLottiePlayerReady()) {
-        resolve(true);
-        return;
-      }
-      var start = Date.now();
-      (function tick() {
-        if (scLottiePlayerReady()) {
-          resolve(true);
-          return;
-        }
-        if (Date.now() - start > maxMs) {
-          resolve(false);
-          return;
-        }
-        window.requestAnimationFrame(tick);
-      })();
-    });
+  function scLottieReady() {
+    return typeof lottie !== 'undefined' && typeof lottie.loadAnimation === 'function';
   }
 
   function initScExtrasLottie(root) {
@@ -1830,38 +1846,52 @@
     if (!pending.length) {
       return;
     }
-    scWaitForLottiePlayer(10000).then(function (ready) {
-      pending.forEach(function (host) {
-        if (!host || !host.isConnected) {
-          return;
-        }
-        host.textContent = '';
-        if (!ready) {
-          var fallback = document.createElement('div');
-          fallback.className = 'sc-extras-lottie-fallback';
-          fallback.setAttribute('aria-hidden', 'true');
-          host.appendChild(fallback);
-          return;
-        }
-        var player = document.createElement('lottie-player');
-        player.className = 'sc-extras-lottie';
-        player.setAttribute('src', SC_EXTRAS_LOTTIE_SRC);
-        player.setAttribute('background', 'transparent');
-        player.setAttribute('speed', '1');
-        player.setAttribute('loop', '');
-        player.setAttribute('autoplay', '');
-        host.appendChild(player);
-        window.requestAnimationFrame(function () {
-          try {
-            if (typeof player.play === 'function') {
-              player.play();
-            }
-          } catch (ignore) {}
+    pending.forEach(function (host) {
+      if (!host || !host.isConnected) {
+        return;
+      }
+      host.textContent = '';
+      if (!scLottieReady()) {
+        var fallback = document.createElement('div');
+        fallback.className = 'sc-extras-lottie-fallback';
+        fallback.setAttribute('aria-hidden', 'true');
+        host.appendChild(fallback);
+        return;
+      }
+      try {
+        lottie.loadAnimation({
+          container: host,
+          renderer: 'svg',
+          loop: true,
+          autoplay: true,
+          path: SC_EXTRAS_LOTTIE_SRC,
         });
-      });
+      } catch (ignore) {
+        var fb = document.createElement('div');
+        fb.className = 'sc-extras-lottie-fallback';
+        host.appendChild(fb);
+      }
     });
   }
   window.initScExtrasLottie = initScExtrasLottie;
+
+  function scExtrasSyncEmptyRoot(root) {
+    if (!root || !root.matches || !root.matches('[data-sc-extras-root]')) {
+      return;
+    }
+    if (root.querySelector('[id^="sc-extra-card-"][hx-get]')) {
+      return;
+    }
+    if (root.querySelector('[data-sc-extra-card]')) {
+      return;
+    }
+    if (root.querySelector('[data-sc-empty]')) {
+      return;
+    }
+    root.innerHTML =
+      '<p class="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400" data-sc-empty>Bu görünümde hiçbir sitede veri bulunamadı.</p>';
+  }
+  window.scExtrasSyncEmptyRoot = scExtrasSyncEmptyRoot;
 
   window.addEventListener('resize', function () {
     window.requestAnimationFrame(function () {
@@ -1872,6 +1902,15 @@
   document.body.addEventListener('htmx:afterSwap', function (event) {
     if (event.target) {
       initScExtrasLottie(event.target);
+      var extrasRoot =
+        (event.target.matches && event.target.matches('[data-sc-extras-root]') && event.target) ||
+        (event.target.querySelector && event.target.querySelector('[data-sc-extras-root]')) ||
+        (event.target.closest && event.target.closest('[data-sc-extras-root]'));
+      if (extrasRoot) {
+        window.setTimeout(function () {
+          scExtrasSyncEmptyRoot(extrasRoot);
+        }, 80);
+      }
     }
     if (event.target && event.target.id === 'search-console-site-list') {
       scHtmxNestedPending = 0;
