@@ -671,35 +671,13 @@
   html.dark .rt-spark-line-stroke {
     stroke: rgb(74 222 128);
   }
-  /* 15dk / 1s — lollipop (#12) */
-  .rt-spark-line-stem {
-    stroke: rgb(22 163 74);
-    stroke-width: 0.85;
-    stroke-linecap: round;
-    opacity: 0.52;
-    transition: opacity 0.12s ease;
+  /* 15dk / 1s — grid + area (#11) */
+  .rt-spark-line-grid {
+    stroke: rgba(148, 163, 184, 0.45);
+    stroke-width: 0.55;
   }
-  html.dark .rt-spark-line-stem {
-    stroke: rgb(74 222 128);
-  }
-  .rt-spark-line-stem.is-hovered {
-    opacity: 0.95;
-    stroke-width: 1.05;
-  }
-  .rt-spark-mini-bars.rt-spark-line-lollipop .rt-spark-line-dot {
-    opacity: 1;
-    fill: rgb(22 163 74);
-    r: 2.6;
-  }
-  html.dark .rt-spark-mini-bars.rt-spark-line-lollipop .rt-spark-line-dot {
-    fill: rgb(74 222 128);
-  }
-  .rt-spark-mini-bars.rt-spark-line-lollipop .rt-spark-line-dot.is-hovered {
-    fill: rgb(21 128 61);
-    filter: brightness(1.15);
-  }
-  html.dark .rt-spark-mini-bars.rt-spark-line-lollipop .rt-spark-line-dot.is-hovered {
-    fill: rgb(134 239 172);
+  html.dark .rt-spark-line-grid {
+    stroke: rgba(113, 113, 122, 0.38);
   }
   .rt-spark-line-hit {
     cursor: crosshair;
@@ -2119,22 +2097,40 @@
       var y = _sparkY(v, mn, mx, padY, innerH);
       xy.push({ x: x, y: y, v: v, i: i });
     }
+    var linePts = xy.map(function (o) { return o.x.toFixed(3) + ',' + o.y.toFixed(3); });
     var baseY = (h - padY).toFixed(3);
-    var stems = '';
+    var areaD = 'M' + xy[0].x.toFixed(3) + ',' + baseY;
+    for (var a = 0; a < xy.length; a++) {
+      areaD += ' L' + xy[a].x.toFixed(3) + ',' + xy[a].y.toFixed(3);
+    }
+    areaD += ' L' + xy[xy.length - 1].x.toFixed(3) + ',' + baseY + ' Z';
+    var grid = '';
+    for (var gi = 1; gi < 4; gi++) {
+      var gy = padY + (innerH / 4) * gi;
+      grid +=
+        '<line class="rt-spark-line-grid" x1="0" y1="' +
+        gy.toFixed(3) +
+        '" x2="' +
+        w +
+        '" y2="' +
+        gy.toFixed(3) +
+        '"></line>';
+    }
+    for (var gj = 1; gj < 5; gj++) {
+      var gx = (w / 5) * gj;
+      grid +=
+        '<line class="rt-spark-line-grid" x1="' +
+        gx.toFixed(3) +
+        '" y1="' +
+        padY +
+        '" x2="' +
+        gx.toFixed(3) +
+        '" y2="' +
+        baseY +
+        '"></line>';
+    }
     var hits = '';
     for (var j = 0; j < xy.length; j++) {
-      stems +=
-        '<line class="rt-spark-line-stem" data-rt-bar-i="' +
-        j +
-        '" x1="' +
-        xy[j].x.toFixed(3) +
-        '" y1="' +
-        baseY +
-        '" x2="' +
-        xy[j].x.toFixed(3) +
-        '" y2="' +
-        xy[j].y.toFixed(3) +
-        '"></line>';
       hits +=
         '<circle class="rt-spark-line-hit" data-rt-bar-i="' +
         j +
@@ -2143,15 +2139,25 @@
         '" cy="' +
         xy[j].y.toFixed(3) +
         '" r="8" fill="transparent"></circle>' +
-        '<circle class="rt-spark-line-dot' +
-        (n === 1 ? ' is-hovered' : '') +
-        '" data-rt-bar-i="' +
+        '<circle class="rt-spark-line-dot" data-rt-bar-i="' +
         j +
         '" cx="' +
         xy[j].x.toFixed(3) +
         '" cy="' +
         xy[j].y.toFixed(3) +
-        '" r="2.6"></circle>';
+        '" r="2.2"></circle>';
+    }
+    var poly =
+      n === 1
+        ? ''
+        : '<polyline class="rt-spark-line-stroke" points="' + linePts.join(' ') + '"></polyline>';
+    if (n === 1) {
+      hits +=
+        '<circle class="rt-spark-line-dot is-hovered" cx="' +
+        xy[0].x.toFixed(3) +
+        '" cy="' +
+        xy[0].y.toFixed(3) +
+        '" r="2.8"></circle>';
     }
     var sparse =
       n < 4
@@ -2164,9 +2170,13 @@
       w +
       ' ' +
       h +
-      '" preserveAspectRatio="none" role="img" aria-label="Aktif kullanıcı — lollipop snapshot">' +
+      '" preserveAspectRatio="none" role="img" aria-label="Aktif kullanıcı — grid area snapshot">' +
       sparse +
-      stems +
+      grid +
+      '<path class="rt-spark-line-area" d="' +
+      areaD +
+      '"></path>' +
+      poly +
       hits +
       '</svg>'
     );
@@ -2184,7 +2194,7 @@
       barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered, .rt-spark-line-hit.is-hovered').forEach(function (b) {
         b.classList.remove('is-hovered');
       });
-      barsEl.querySelectorAll('.rt-spark-line-dot.is-hovered, .rt-spark-line-stem.is-hovered').forEach(function (b) {
+      barsEl.querySelectorAll('.rt-spark-line-dot.is-hovered').forEach(function (b) {
         b.classList.remove('is-hovered');
       });
     }
@@ -2206,15 +2216,13 @@
         barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered, .rt-spark-line-hit.is-hovered').forEach(function (b) {
           b.classList.remove('is-hovered');
         });
-        barsEl.querySelectorAll('.rt-spark-line-dot.is-hovered, .rt-spark-line-stem.is-hovered').forEach(function (b) {
+        barsEl.querySelectorAll('.rt-spark-line-dot.is-hovered').forEach(function (b) {
           b.classList.remove('is-hovered');
         });
         bar.classList.add('is-hovered');
         var idx = parseInt(bar.getAttribute('data-rt-bar-i') || '-1', 10);
         var dot = barsEl.querySelector('.rt-spark-line-dot[data-rt-bar-i="' + idx + '"]');
         if (dot) dot.classList.add('is-hovered');
-        var stem = barsEl.querySelector('.rt-spark-line-stem[data-rt-bar-i="' + idx + '"]');
-        if (stem) stem.classList.add('is-hovered');
         var disp = box._rtSparkDisplay || [];
         var row = idx >= 0 && disp[idx] ? disp[idx] : null;
         tipEl.textContent = row ? _sparkBarTipHtml(row) : '';
@@ -2354,7 +2362,6 @@
     }
     box._rtSparkDisplay = display;
     barsEl.classList.toggle('rt-spark-line-mode', useLine);
-    barsEl.classList.toggle('rt-spark-line-lollipop', useLine);
     if (useLine) {
       barsEl.innerHTML = _sparkLineSvgHtmlTime(box._rtSparkLineSeries);
     } else {
