@@ -46,6 +46,37 @@
     </div>
   </div>
 
+  {# Otomatik yenileme durumu #}
+  {% set sched = seo_audit_scheduler_health or {} %}
+  <section class="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-zinc-900 dark:ring-0 sm:px-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-zinc-500">Otomatik tarama</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-zinc-400">
+          Günlük GA4 top URL meta denetimi (manuel «Tara» burada sayılmaz).
+          {% if seo_audit_last_auto_run and seo_audit_last_auto_run != '—' %}
+          Son otomatik: <span class="font-medium text-slate-800 dark:text-zinc-300">{{ seo_audit_last_auto_run|e }}</span>
+          {% endif %}
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2 text-[11px] sm:text-xs">
+        <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
+          Scheduler: {% if sched.scheduler_running %}aktif{% else %}pasif / job yok{% endif %}
+        </span>
+        {% if sched.enabled and sched.schedule %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          Plan: {{ sched.schedule }} TSİ
+        </span>
+        {% endif %}
+        {% if sched.next_run and sched.next_run != '—' %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+          Sonraki: {{ sched.next_run|e }}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
   {# Özet Kartlar #}
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
     {% set sc = summary.score_counts %}
@@ -516,6 +547,23 @@ function _renderDuplicates(data) {
   }
   el.innerHTML = _section('Tekrar Eden Title', titles) + _section('Tekrar Eden Description', descs);
 }
+
+(function resumeAuditPollingIfRunning() {
+  if (!_siteId) return;
+  fetch('/api/seo-audit/' + _siteId + '/status', {credentials: 'same-origin'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.running) return;
+      var btn = document.getElementById('run-btn');
+      var spin = document.getElementById('run-spin');
+      var label = document.getElementById('run-label');
+      if (btn) btn.disabled = true;
+      if (spin) spin.style.animation = 'spin 0.8s linear infinite';
+      if (label) label.textContent = 'Taranıyor…';
+      _startPolling();
+    })
+    .catch(function() {});
+})();
 </script>
 
 <style>

@@ -263,6 +263,11 @@ class Settings(BaseSettings):
     # DB'den /errors tablosuna yüklenecek kayıt üst sınırı (summary API).
     ga4_error_pages_display_limit: int = Field(default=10000, ge=200, le=100000)
 
+    # SEO audit — GA4 top 250 web + mweb meta tag taraması (TSİ)
+    seo_audit_scheduled_enabled: bool = True
+    seo_audit_scheduled_hour: int = 3
+    seo_audit_scheduled_minute: int = 0
+
     # Inbox Gmail → DB (e-posta göndermez).
     inbox_scheduled_sync_enabled: bool = True
     inbox_scheduled_sync_interval_minutes: int = Field(default=5, ge=2, le=60)
