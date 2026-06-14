@@ -4,15 +4,17 @@ from backend.services.search_console_reports import (
     SC_VIEW_SPECS,
     _merge_rows_by_key,
     _normalize_dimension_rows,
+    sc_extra_views_for_nav,
     sc_view_groups,
     sc_views_for_nav,
 )
 
 
-def test_sc_view_specs_has_performance_and_six_extras():
+def test_sc_view_specs_has_performance_and_extras():
     assert "performance" in SC_VIEW_SPECS
+    assert "countries" not in SC_VIEW_SPECS
     slugs = {v["slug"] for v in SC_VIEW_SPECS.values()}
-    for expected in ("discover", "news", "appearance", "page-query", "countries", "url-inspection", "sitemaps"):
+    for expected in ("discover", "news", "appearance", "page-query", "url-inspection", "sitemaps"):
         assert expected in slugs
 
 
@@ -26,6 +28,8 @@ def test_sc_views_for_nav_sorted():
     orders = [int(i["order"]) for i in items]
     assert orders == sorted(orders)
     assert items[0]["slug"] == "performance"
+    assert items[-1]["slug"] == "sitemaps"
+    assert len(sc_extra_views_for_nav()) == len(items) - 1
 
 
 def test_normalize_and_merge_rows():

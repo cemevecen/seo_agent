@@ -67,30 +67,19 @@ SC_VIEW_SPECS: dict[str, dict[str, Any]] = {
         "primary_label": "Sayfa",
         "secondary_label": "Sorgu",
     },
-    "countries": {
-        "title": "Ülkeler",
-        "slug": "countries",
-        "kind": "analytics",
-        "group": "Analiz",
-        "order": 6,
-        "report_key": "countries",
-        "dimensions": ["country"],
-        "primary_col": "country",
-        "primary_label": "Ülke",
-    },
     "url-inspection": {
         "title": "URL Inspection",
         "slug": "url-inspection",
         "kind": "inspection",
         "group": "İndeks",
-        "order": 7,
+        "order": 6,
     },
     "sitemaps": {
         "title": "Sitemapler",
         "slug": "sitemaps",
         "kind": "sitemaps",
         "group": "İndeks",
-        "order": 8,
+        "order": 7,
     },
 }
 
@@ -106,6 +95,10 @@ def sc_view_groups() -> list[str]:
 
 def sc_views_for_nav() -> list[dict[str, Any]]:
     return sorted(SC_VIEW_SPECS.values(), key=lambda s: int(s.get("order") or 0))
+
+
+def sc_extra_views_for_nav() -> list[dict[str, Any]]:
+    return [v for v in sc_views_for_nav() if v.get("kind") != "performance"]
 
 
 def _normalize_dimension_rows(
@@ -224,27 +217,57 @@ def fetch_sc_analytics_report(
     start_date = end_date - timedelta(days=span - 1)
 
     collected: list[dict] = []
-    for target in targets:
-        property_url = str(target.get("property_url") or "")
-        device = str(target.get("device") or "").upper() or None
-        raw = _fetch_analytics_raw(
-            service,
-            property_url,
-            start_date,
-            end_date,
-            dimensions=dimensions,
-            search_type=search_type,
-            row_limit=row_limit,
-            device=device,
-        )
-        collected.extend(
-            _normalize_dimension_rows(
+    errors: list[str] = []
+
+    # Discover / Google News: cihaz filtresi ve çift sorgu genelde hata verir; tek property sorgusu.
+    if search_type:
+        property_url = str((targets[0] or {}).get("property_url") or "")
+        try:
+            raw = _fetch_analytics_raw(
+                service,
+                property_url,
+                start_date,
+                end_date,
+                dimensions=dimensions,
+                search_type=search_type,
+                row_limit=row_limit,
+                device=None,
+            )
+            collected = _normalize_dimension_rows(
                 raw,
                 dimensions,
                 property_url=property_url,
-                forced_device=device,
             )
-        )
+        except Exception as exc:
+            raise ValueError(str(exc)[:400]) from exc
+    else:
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            device = str(target.get("device") or "").upper() or None
+            try:
+                raw = _fetch_analytics_raw(
+                    service,
+                    property_url,
+                    start_date,
+                    end_date,
+                    dimensions=dimensions,
+                    search_type=search_type,
+                    row_limit=row_limit,
+                    device=device,
+                )
+                collected.extend(
+                    _normalize_dimension_rows(
+                        raw,
+                        dimensions,
+                        property_url=property_url,
+                        forced_device=device,
+                    )
+                )
+            except Exception as exc:
+                errors.append(f"{device or 'ALL'}: {exc}")
+
+        if not collected and errors:
+            raise ValueError(errors[0][:400])
 
     merged = _merge_rows_by_key(collected, dimensions)
     return {

@@ -23,6 +23,7 @@
   html.dark .trend-subnav-link { border-color: rgb(63 63 70); color: rgb(212 212 216); background: rgb(24 24 27); }
   .trend-subnav-link.is-active { background: rgb(79 70 229); border-color: rgb(79 70 229); color: #fff; }
   html.dark .trend-subnav-link.is-active { background: rgb(99 102 241); border-color: rgb(99 102 241); }
+  .sc-extra-section { scroll-margin-top: 7rem; }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
     min-width: 0 !important;
@@ -84,19 +85,8 @@
 </style>
 <div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
-    {% include "partials/sc_subnav.html" %}
-
-    {% if sc_view_item and sc_view != 'performance' %}
-    <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
-      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">{{ sc_view_item.group }}</p>
-      <h1 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{{ sc_view_item.title }}</h1>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Canlı Search Console API · son 28 gün (analytics görünümleri)</p>
-    </div>
-    {% endif %}
-
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-2">
-        {% if sc_view == 'performance' or not sc_view %}
         <button
           id="refresh-search-console-sites-button"
           type="button"
@@ -105,7 +95,6 @@
         >
           Tüm Siteleri Yenile
         </button>
-        {% endif %}
       </div>
     </div>
 
@@ -163,7 +152,12 @@
       </div>
     </div>
 
-    <div id="search-console-site-list" hx-get="/search-console/site-list?mode={{ site_list_mode or 'lazy' }}&view={{ sc_view or 'performance' }}" hx-trigger="load" hx-swap="innerHTML">
+    <section id="sc-performance" class="sc-extra-section scroll-mt-28">
+      <div class="mb-3 border-b border-slate-200 pb-2 dark:border-slate-700">
+        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Performans</p>
+        <h2 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">1. Arama sonuçları</h2>
+      </div>
+    <div id="search-console-site-list" hx-get="/search-console/site-list?mode={{ site_list_mode or 'lazy' }}" hx-trigger="load" hx-swap="innerHTML">
       <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" aria-hidden="true">
         {% for _ in [0, 1] %}
           <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shadow-sm">
@@ -188,6 +182,9 @@
         {% endfor %}
       </div>
     </div>
+    </section>
+
+    {% include "partials/sc_extras_stack.html" %}
 
     <dialog id="sc-cwv-lightbox" class="rounded-2xl bg-slate-950 p-3 text-slate-100 shadow-2xl ring-1 ring-white/15" aria-labelledby="sc-cwv-lightbox-title">
       <p id="sc-cwv-lightbox-title" class="sr-only">Core Web Vitals ekran görüntüsü</p>
@@ -1929,5 +1926,50 @@
     window.__scPlotlyThemeBound = true;
     document.addEventListener('seo-theme-change', relayoutSearchConsoleTrendChartsTheme);
   }
+
+  (function initScPageSubnav() {
+    var links = document.querySelectorAll('.sc-page-subnav-link[data-sc-nav]');
+    if (!links.length) return;
+
+    function setActive(slug) {
+      links.forEach(function (a) {
+        a.classList.toggle('is-active', a.getAttribute('data-sc-nav') === slug);
+      });
+    }
+
+    links.forEach(function (a) {
+      a.addEventListener('click', function () {
+        var slug = a.getAttribute('data-sc-nav');
+        if (slug) setActive(slug);
+      });
+    });
+
+    var sections = document.querySelectorAll('.sc-extra-section[id^="sc-"]');
+    if (sections.length && 'IntersectionObserver' in window) {
+      var obs = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.2) {
+              var id = entry.target.id || '';
+              if (id.indexOf('sc-') === 0) setActive(id.slice(3));
+            }
+          });
+        },
+        { rootMargin: '-20% 0px -55% 0px', threshold: [0.2, 0.5] }
+      );
+      sections.forEach(function (s) { obs.observe(s); });
+    }
+
+    var hash = (window.location.hash || '').replace(/^#sc-/, '');
+    if (hash) {
+      setActive(hash);
+      var target = document.getElementById('sc-' + hash);
+      if (target) {
+        window.setTimeout(function () { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
+      }
+    } else {
+      setActive('performance');
+    }
+  })();
 </script>
 {% endblock %}

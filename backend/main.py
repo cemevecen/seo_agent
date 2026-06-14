@@ -122,6 +122,7 @@ from backend.services.search_console_reports import (
     fetch_sc_analytics_report,
     fetch_sc_sitemaps,
     inspect_sc_url,
+    sc_extra_views_for_nav,
     sc_view_groups,
     sc_views_for_nav,
 )
@@ -13502,36 +13503,25 @@ def backlinks_page(request: Request):
     )
 
 
-def _search_console_page_context(view_slug: str) -> dict[str, Any]:
-    slug = str(view_slug or "performance").strip() or "performance"
-    if slug not in SC_VIEW_SPECS:
-        raise ValueError(f"Gecersiz Search Console gorunumu: {slug}")
-    spec = SC_VIEW_SPECS[slug]
-    title_suffix = "" if slug == "performance" else f" · {spec.get('title') or slug}"
+def _search_console_page_context() -> dict[str, Any]:
     return {
-        "site_name": f"Search Console{title_suffix}",
+        "site_name": "Search Console",
         "sites": get_sidebar_sites(),
         "oauth_ready": oauth_is_configured(),
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         "site_list_mode": "lazy",
-        "sc_view": slug,
-        "sc_view_item": spec,
         "sc_views": sc_views_for_nav(),
         "sc_groups": sc_view_groups(),
+        "sc_extra_views": sc_extra_views_for_nav(),
     }
 
 
 @app.get("/search-console")
-def search_console_index():
-    return RedirectResponse(url="/search-console/performance", status_code=302)
-
-
-@app.get("/search-console/performance")
-def search_console_performance_page(request: Request):
+def search_console_page(request: Request):
     return templates.TemplateResponse(
         request,
         "search_console.html",
-        context={"request": request, **_search_console_page_context("performance")},
+        context={"request": request, **_search_console_page_context()},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
@@ -13589,8 +13579,6 @@ def search_console_site_list(request: Request):
             "lazy_mode": True,
             "lazy_site_ids": lazy_site_ids,
             "oauth_ready": oauth_is_configured(),
-            "sc_view": view,
-            "sc_view_item": view_spec,
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
@@ -14492,19 +14480,20 @@ def search_console_oauth_disconnect(request: Request, site_id: int):
     )
 
 
+@app.get("/search-console/performance")
+def search_console_legacy_performance():
+    return RedirectResponse(url="/search-console", status_code=301)
+
+
 @app.get("/search-console/{view_slug}")
-def search_console_view_page(request: Request, view_slug: str):
+def search_console_legacy_view(view_slug: str):
     slug = str(view_slug or "").strip()
-    if slug == "performance":
-        return RedirectResponse(url="/search-console/performance", status_code=302)
-    if slug not in SC_VIEW_SPECS:
-        return HTMLResponse("Gorunum bulunamadi.", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
-    return templates.TemplateResponse(
-        request,
-        "search_console.html",
-        context={"request": request, **_search_console_page_context(slug)},
-        headers=_SC_HTML_NO_CACHE_HEADERS,
-    )
+    if slug == "countries":
+        return RedirectResponse(url="/search-console", status_code=301)
+    if slug in SC_VIEW_SPECS:
+        fragment = "" if slug == "performance" else f"#sc-{slug}"
+        return RedirectResponse(url=f"/search-console{fragment}", status_code=301)
+    return HTMLResponse("Gorunum bulunamadi.", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
 
 
 def _run_db_retention_cleanup() -> dict:

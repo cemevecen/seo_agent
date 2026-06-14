@@ -1,0 +1,37 @@
+<div class="mt-10 space-y-12 border-t border-slate-200 pt-8 dark:border-slate-700">
+  {% include "partials/sc_subnav.html" %}
+
+  {% for item in sc_extra_views %}
+  <section id="sc-{{ item.slug }}" class="sc-extra-section scroll-mt-28">
+    <div class="mb-4 border-b border-slate-200 pb-3 dark:border-slate-700">
+      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{{ item.group }}</p>
+      <h2 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{{ item.order }}. {{ item.title }}</h2>
+      {% if item.kind == 'analytics' %}
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Canlı Search Console API · son 28 gün</p>
+      {% elif item.kind == 'inspection' %}
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">URL Inspection API · site başına inceleme formu</p>
+      {% elif item.kind == 'sitemaps' %}
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Search Console sitemap listesi</p>
+      {% endif %}
+    </div>
+    <div
+      class="sc-extra-section-body min-h-[6rem]"
+      hx-get="/search-console/site-list?view={{ item.slug }}&mode=lazy"
+      hx-trigger="revealed"
+      hx-swap="innerHTML"
+    >
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {% for _ in [0, 1] %}
+        <div class="animate-pulse rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900/95">
+          <div class="mb-3 h-5 w-40 rounded bg-slate-200 dark:bg-slate-700"></div>
+          <div class="space-y-2">
+            <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700"></div>
+            <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
