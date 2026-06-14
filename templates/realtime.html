@@ -1035,6 +1035,7 @@
   html.dark .rt-site-total-val { color: rgb(224 231 255); }
   .rt-site-total-chip--pv .rt-site-total-val { color: rgb(30 41 59); }
   html.dark .rt-site-total-chip--pv .rt-site-total-val { color: rgb(228 228 231); }
+  .rt-site-totals--partial .rt-site-total-val { opacity: 0.65; }
   html.dark .realtime-root [data-rt-kpi] {
     border-color: rgba(82, 82, 91, 0.45) !important;
   }
@@ -1644,24 +1645,19 @@
     return String(Math.round(n));
   }
 
-  function _rtMainKpiFromData(data, key) {
-    if (!data) return null;
-    var total = data.total || {};
-    if (total[key] != null) return Number(total[key]) || 0;
-    var comp = (data.comparison || {})[key];
-    if (comp && comp.current != null) return Number(comp.current) || 0;
-    var cw = (data.current || {})[key];
-    if (cw != null) return Number(cw) || 0;
-    return null;
+  /** Site toplamları — kartlardaki K yuvarlamasıyla karışmasın diye tam sayı. */
+  function _fmtExact(n) {
+    if (n == null || isNaN(n)) return '—';
+    return Math.round(Number(n)).toLocaleString('tr-TR');
   }
 
-  function _rtStoreProfileKpis(box, data) {
-    if (!box) return;
-    var au = _rtMainKpiFromData(data, 'activeUsers');
-    var pv = _rtMainKpiFromData(data, 'screenPageViews');
+  var _RT_PROFILE_LABELS = { web: 'Desktop', mweb: 'Mobile Web', android: 'Android', ios: 'iOS' };
+
+  function _rtStoreProfileKpis(box, kpis) {
+    if (!box || !kpis) return;
     box._rtKpis = {
-      activeUsers: au,
-      screenPageViews: pv,
+      activeUsers: kpis.activeUsers != null ? Number(kpis.activeUsers) : null,
+      screenPageViews: kpis.screenPageViews != null ? Number(kpis.screenPageViews) : null,
     };
     var sid = box.getAttribute('data-rt-site-id');
     if (sid) _rtUpdateSiteTotals(sid);
@@ -1672,24 +1668,48 @@
     if (!siteEl) return;
     var auEl = siteEl.querySelector('[data-rt-site-total-au]');
     var pvEl = siteEl.querySelector('[data-rt-site-total-pv]');
+    var totalsWrap = siteEl.querySelector('[data-rt-site-totals]');
+    var boxes = siteEl.querySelectorAll('[data-rt-profile-box]');
+    var expected = boxes.length;
     var sumAu = 0;
     var sumPv = 0;
     var haveAu = 0;
     var havePv = 0;
-    siteEl.querySelectorAll('[data-rt-profile-box]').forEach(function (box) {
+    var auParts = [];
+    var pvParts = [];
+    boxes.forEach(function (box) {
       var k = box._rtKpis;
       if (!k) return;
+      var prof = box.getAttribute('data-rt-profile') || '';
+      var label = _RT_PROFILE_LABELS[prof] || prof;
       if (k.activeUsers != null) {
         sumAu += k.activeUsers;
         haveAu += 1;
+        auParts.push(label + ' ' + _fmtExact(k.activeUsers));
       }
       if (k.screenPageViews != null) {
         sumPv += k.screenPageViews;
         havePv += 1;
+        pvParts.push(label + ' ' + _fmtExact(k.screenPageViews));
       }
     });
-    if (auEl) auEl.textContent = haveAu ? _fmt(sumAu) : '—';
-    if (pvEl) pvEl.textContent = havePv ? _fmt(sumPv) : '—';
+    var allAu = haveAu >= expected && expected > 0;
+    var allPv = havePv >= expected && expected > 0;
+    if (auEl) {
+      auEl.textContent = haveAu ? _fmtExact(sumAu) : '—';
+      auEl.setAttribute('title', allAu
+        ? auParts.join(' + ') + ' = ' + _fmtExact(sumAu)
+        : (haveAu ? haveAu + '/' + expected + ' profil yüklendi' : 'Henüz veri yok'));
+    }
+    if (pvEl) {
+      pvEl.textContent = havePv ? _fmtExact(sumPv) : '—';
+      pvEl.setAttribute('title', allPv
+        ? pvParts.join(' + ') + ' = ' + _fmtExact(sumPv)
+        : (havePv ? havePv + '/' + expected + ' profil yüklendi' : 'Henüz veri yok'));
+    }
+    if (totalsWrap) {
+      totalsWrap.classList.toggle('rt-site-totals--partial', !allAu || !allPv);
+    }
   }
 
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
@@ -1791,11 +1811,13 @@
   function _fillKpisFromTrend(box, trend) {
     if (!trend || !trend.length) return;
     var last = trend[trend.length - 1];
+    var stored = { activeUsers: null, screenPageViews: null };
     var map = { activeUsers: last.active_users, screenPageViews: last.pageviews };
     box.querySelectorAll('[data-rt-kpi]').forEach(function (kpiBox) {
       var key = kpiBox.getAttribute('data-rt-kpi');
       var v = map[key];
       if (v == null) return;
+      stored[key] = Number(v) || 0;
       var valEl = kpiBox.querySelector('[data-rt-val]');
       var halvesEl = kpiBox.querySelector('[data-rt-halves]');
       var pctEl = kpiBox.querySelector('[data-rt-pct]');
@@ -1810,9 +1832,7 @@
         pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat';
       }
     });
-    _rtStoreProfileKpis(box, {
-      total: { activeUsers: map.activeUsers, screenPageViews: map.screenPageViews },
-    });
+    _rtStoreProfileKpis(box, stored);
   }
 
   function _renderKpis(box, data) {
@@ -1820,6 +1840,7 @@
     var total = data.total || {};
     var curWin = data.current || {};
     var prevWin = data.previous || {};
+    var stored = { activeUsers: null, screenPageViews: null };
     box.querySelectorAll('[data-rt-kpi]').forEach(function (kpiBox) {
       var key = kpiBox.getAttribute('data-rt-kpi');
       var c = comp[key];
@@ -1842,6 +1863,7 @@
       var halvesEl = kpiBox.querySelector('[data-rt-halves]');
       var pctEl = kpiBox.querySelector('[data-rt-pct]');
       var mainVal = (total[key] != null) ? total[key] : c.current;
+      stored[key] = Number(mainVal) || 0;
       if (valEl) valEl.textContent = _fmt(mainVal);
       if (valEl && key === 'activeUsers') {
         valEl.setAttribute(
@@ -1885,7 +1907,7 @@
         }
       }
     });
-    _rtStoreProfileKpis(box, data);
+    _rtStoreProfileKpis(box, stored);
   }
 
   function _rtTrendRangeForBox(box) {
