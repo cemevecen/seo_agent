@@ -7,11 +7,23 @@ from typing import Any
 import httpx
 from sqlalchemy.orm import Session
 
-from backend.models import GitlabBoardIssueOrder
+from backend.models import GitlabBoardIssueOrder, GitlabBoardProjectSettings
 
 LOGGER = logging.getLogger(__name__)
 
 GITLAB_URL = "https://git.nokta.com/api/v4"
+
+BOARD_SORT_MODES: dict[str, dict[str, str]] = {
+    "manual": {"label": "Manuel (sürükle-bırak)", "gitlab_order_by": "relative_position"},
+    "relative_position": {"label": "GitLab board sırası", "gitlab_order_by": "relative_position"},
+    "updated_at_desc": {"label": "Son güncelleme (yeni üstte)", "gitlab_order_by": "updated_at"},
+    "updated_at_asc": {"label": "Son güncelleme (eski üstte)", "gitlab_order_by": "updated_at"},
+    "created_at_desc": {"label": "Oluşturulma (yeni üstte)", "gitlab_order_by": "created_at"},
+    "created_at_asc": {"label": "Oluşturulma (eski üstte)", "gitlab_order_by": "created_at"},
+    "weight_desc": {"label": "Ağırlık / öncelik (yüksek üstte)", "gitlab_order_by": "weight"},
+}
+
+DEFAULT_BOARD_SORT_MODE = "manual"
 
 
 def get_gitlab_token() -> str:
@@ -118,6 +130,87 @@ def save_board_column_order(
             )
         )
     db.commit()
+
+
+def normalize_board_sort_mode(sort_mode: str | None) -> str:
+    mode = (sort_mode or "").strip()
+    if mode in BOARD_SORT_MODES:
+        return mode
+    return DEFAULT_BOARD_SORT_MODE
+
+
+def get_board_project_settings(db: Session, project_path: str) -> dict[str, Any]:
+    project_path = (project_path or "").strip()
+    row = (
+        db.query(GitlabBoardProjectSettings)
+        .filter(GitlabBoardProjectSettings.project_path == project_path)
+        .first()
+    )
+    mode = normalize_board_sort_mode(row.sort_mode if row else DEFAULT_BOARD_SORT_MODE)
+    return {
+        "project_path": project_path,
+        "sort_mode": mode,
+        "sort_modes": [
+            {"id": key, "label": meta["label"]}
+            for key, meta in BOARD_SORT_MODES.items()
+        ],
+    }
+
+
+def save_board_project_settings(db: Session, project_path: str, sort_mode: str) -> dict[str, Any]:
+    project_path = (project_path or "").strip()
+    mode = normalize_board_sort_mode(sort_mode)
+    if not project_path:
+        return {"project_path": "", "sort_mode": mode}
+    row = (
+        db.query(GitlabBoardProjectSettings)
+        .filter(GitlabBoardProjectSettings.project_path == project_path)
+        .first()
+    )
+    now = datetime.utcnow()
+    if row:
+        row.sort_mode = mode
+        row.updated_at = now
+    else:
+        db.add(
+            GitlabBoardProjectSettings(
+                project_path=project_path,
+                sort_mode=mode,
+                updated_at=now,
+            )
+        )
+    db.commit()
+    return {"project_path": project_path, "sort_mode": mode}
+
+
+async def sync_open_issues_order_to_gitlab(
+    project_path: str,
+    ordered: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Açık issue listesini GitLab relative_position ile hizalar (soldan sağa, üstten alta)."""
+    if not ordered:
+        return {"ok": True, "synced": 0}
+    synced = 0
+    prev_id: int | None = None
+    for item in ordered:
+        try:
+            iid = int(item.get("iid"))
+            global_id = int(item.get("id"))
+        except (TypeError, ValueError):
+            continue
+        params: dict[str, int] = {}
+        if prev_id is not None:
+            params["move_after_id"] = prev_id
+        if not params:
+            prev_id = global_id
+            continue
+        updated = await reorder_issue_async(project_path, iid, **params)
+        if updated is None:
+            LOGGER.warning("GitLab sync-sort failed for %s#%s", project_path, iid)
+        else:
+            synced += 1
+        prev_id = global_id
+    return {"ok": True, "synced": synced, "total": len(ordered)}
 
 
 async def reorder_issue_async(

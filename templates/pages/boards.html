@@ -15,6 +15,21 @@
         </svg>
         Yenile
       </button>
+      <div x-show="activeProject" class="flex flex-wrap items-center gap-2 sm:ml-2">
+        <label class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" for="board-sort-mode">Madde sırası</label>
+        <select
+          id="board-sort-mode"
+          class="max-w-[14rem] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-blue-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+          :value="getSortMode(activeProject)"
+          @change="onSortModeChange(activeProject, $event.target.value)"
+          :disabled="!activeProject || (syncingSort[activeProject]) || (projectData[activeProject] && projectData[activeProject].loading)"
+        >
+          <template x-for="opt in sortModeOptions" :key="opt.id">
+            <option :value="opt.id" x-text="opt.label" :selected="getSortMode(activeProject) === opt.id"></option>
+          </template>
+        </select>
+        <span x-show="syncingSort[activeProject]" class="text-xs text-blue-600 dark:text-blue-400">GitLab'e aktarılıyor…</span>
+      </div>
     </div>
     <span class="inline-flex items-center gap-2 text-[12px] font-semibold">
       <template x-if="vpnStatus === 'checking'">
@@ -228,6 +243,17 @@
       activeProject: null,
       projectData: {},
       boardOrders: {},
+      boardSortSettings: {},
+      syncingSort: {},
+      sortModeOptions: [
+        { id: 'manual', label: 'Manuel (sürükle-bırak)' },
+        { id: 'relative_position', label: 'GitLab board sırası' },
+        { id: 'updated_at_desc', label: 'Son güncelleme (yeni üstte)' },
+        { id: 'updated_at_asc', label: 'Son güncelleme (eski üstte)' },
+        { id: 'created_at_desc', label: 'Oluşturulma (yeni üstte)' },
+        { id: 'created_at_asc', label: 'Oluşturulma (eski üstte)' },
+        { id: 'weight_desc', label: 'Ağırlık / öncelik (yüksek üstte)' },
+      ],
       vpnStatus: 'checking',
 
       tabTheme(project) {
@@ -331,17 +357,23 @@
         return 'https://git.nokta.com' + (url.startsWith('/') ? '' : '/') + url;
       },
 
-      async fetchAllIssues(encodedPath, state) {
+      async fetchAllIssues(encodedPath, state, projectPath) {
         let allIssues = [];
         let page = 1;
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
         const updatedAfter = oneYearAgo.toISOString();
-        const orderBy = state === 'opened' ? 'relative_position' : 'updated_at';
+        let orderBy = 'updated_at';
+        let sort = 'desc';
+        if (state === 'opened') {
+          const fetchParams = this.gitlabFetchOrderForProject(projectPath);
+          orderBy = fetchParams.order_by;
+          sort = fetchParams.sort;
+        }
 
         while (true) {
           const res = await fetch(
-            `${this.baseUrl}/projects/${encodedPath}/issues?state=${state}&updated_after=${updatedAfter}&order_by=${orderBy}&sort=asc&per_page=100&page=${page}`,
+            `${this.baseUrl}/projects/${encodedPath}/issues?state=${state}&updated_after=${updatedAfter}&order_by=${orderBy}&sort=${sort}&per_page=100&page=${page}`,
             { headers: { 'PRIVATE-TOKEN': this.token } }
           );
           if (!res.ok) throw new Error(`Issues fetch failed (${state})`);
@@ -351,6 +383,183 @@
           page++;
         }
         return allIssues;
+      },
+
+      gitlabFetchOrderForProject(path) {
+        const mode = this.getSortMode(path);
+        const map = {
+          manual: { order_by: 'relative_position', sort: 'asc' },
+          relative_position: { order_by: 'relative_position', sort: 'asc' },
+          updated_at_desc: { order_by: 'updated_at', sort: 'desc' },
+          updated_at_asc: { order_by: 'updated_at', sort: 'asc' },
+          created_at_desc: { order_by: 'created_at', sort: 'desc' },
+          created_at_asc: { order_by: 'created_at', sort: 'asc' },
+          weight_desc: { order_by: 'weight', sort: 'desc' },
+        };
+        return map[mode] || map.manual;
+      },
+
+      getSortMode(path) {
+        return (this.boardSortSettings[path] || {}).sort_mode || 'manual';
+      },
+
+      setSortMode(path, mode) {
+        if (!this.boardSortSettings[path]) this.boardSortSettings[path] = {};
+        this.boardSortSettings[path].sort_mode = mode || 'manual';
+      },
+
+      async loadBoardSortSettings(path) {
+        try {
+          const res = await fetch('/api/boards/sort-settings?project_path=' + encodeURIComponent(path), {
+            credentials: 'same-origin',
+            cache: 'no-store',
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          this.setSortMode(path, data.sort_mode || 'manual');
+          if (data.sort_modes && data.sort_modes.length) {
+            this.sortModeOptions = data.sort_modes;
+          }
+        } catch (e) {
+          console.warn('Board sort settings load failed', e);
+        }
+      },
+
+      async saveBoardSortSettings(path, mode) {
+        const res = await fetch('/api/boards/sort-settings', {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_path: path, sort_mode: mode }),
+        });
+        if (!res.ok) throw new Error('Sıralama ayarı kaydedilemedi');
+        const data = await res.json();
+        this.setSortMode(path, data.sort_mode || mode);
+      },
+
+      parseIssueDate(value) {
+        if (!value) return 0;
+        const t = Date.parse(value);
+        return isNaN(t) ? 0 : t;
+      },
+
+      sortIssuesByMode(issues, mode) {
+        const copy = issues.slice();
+        if (mode === 'manual') {
+          return copy;
+        }
+        if (mode === 'relative_position') {
+          return this.sortIssuesByPosition(copy);
+        }
+        if (mode === 'updated_at_desc') {
+          return copy.sort((a, b) => this.parseIssueDate(b.updated_at) - this.parseIssueDate(a.updated_at));
+        }
+        if (mode === 'updated_at_asc') {
+          return copy.sort((a, b) => this.parseIssueDate(a.updated_at) - this.parseIssueDate(b.updated_at));
+        }
+        if (mode === 'created_at_desc') {
+          return copy.sort((a, b) => this.parseIssueDate(b.created_at) - this.parseIssueDate(a.created_at));
+        }
+        if (mode === 'created_at_asc') {
+          return copy.sort((a, b) => this.parseIssueDate(a.created_at) - this.parseIssueDate(b.created_at));
+        }
+        if (mode === 'weight_desc') {
+          return copy.sort((a, b) => {
+            const wa = a.weight != null ? Number(a.weight) : -1;
+            const wb = b.weight != null ? Number(b.weight) : -1;
+            if (wb !== wa) return wb - wa;
+            return this.parseIssueDate(b.updated_at) - this.parseIssueDate(a.updated_at);
+          });
+        }
+        return this.sortIssuesByPosition(copy);
+      },
+
+      sortIssuesForDisplay(path, listKey, issues) {
+        if (listKey === '__closed__') {
+          return this.sortIssuesByMode(issues, 'updated_at_desc');
+        }
+        const mode = this.getSortMode(path);
+        if (mode === 'manual') {
+          return this.sortIssuesWithSavedOrder(path, listKey, issues);
+        }
+        return this.sortIssuesByMode(issues, mode);
+      },
+
+      getRawIssuesForList(path, lst) {
+        const pd = this.projectData[path];
+        if (!pd || !pd.loaded) return [];
+
+        if (lst.isClosed) {
+          return pd.issues.filter((issue) => issue.state === 'closed');
+        }
+        const openedIssues = pd.issues.filter((issue) => issue.state === 'opened');
+        if (lst.isVirtual) {
+          const boardLabels = pd.board.lists.map((l) => l.label.name);
+          return openedIssues.filter(
+            (issue) => !issue.labels.some((label) => boardLabels.includes(label))
+          );
+        }
+        return openedIssues.filter(
+          (issue) => issue.labels && issue.labels.includes(lst.label.name)
+        );
+      },
+
+      async persistColumnOrdersFromDisplay(path) {
+        const pd = this.projectData[path];
+        if (!pd || !pd.loaded) return;
+        for (const lst of pd.lists) {
+          const lk = this.listKey(lst);
+          const sorted = this.sortIssuesForDisplay(path, lk, this.getRawIssuesForList(path, lst));
+          await this.saveColumnOrder(path, lk, sorted.map((i) => i.iid));
+        }
+      },
+
+      async applySortToGitLab(path) {
+        const pd = this.projectData[path];
+        if (!pd || !pd.loaded) return;
+        if (!this.syncingSort) this.syncingSort = {};
+        this.syncingSort[path] = true;
+        try {
+          const openLists = pd.lists.filter((l) => !l.isClosed);
+          const ordered = [];
+          const seen = new Set();
+          for (const lst of openLists) {
+            const issues = this.sortIssuesForDisplay(path, this.listKey(lst), this.getRawIssuesForList(path, lst));
+            for (const issue of issues) {
+              if (seen.has(issue.iid)) continue;
+              seen.add(issue.iid);
+              ordered.push({ iid: issue.iid, id: issue.id });
+            }
+          }
+          await this.persistColumnOrdersFromDisplay(path);
+          if (this.getSortMode(path) === 'manual' || !ordered.length) return;
+          const res = await fetch('/api/boards/sync-sort', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_path: path, ordered }),
+          });
+          if (!res.ok) throw new Error('GitLab sıralaması güncellenemedi');
+        } finally {
+          this.syncingSort[path] = false;
+        }
+      },
+
+      async onSortModeChange(path, mode) {
+        if (!path || !mode) return;
+        const prev = this.getSortMode(path);
+        if (mode === prev) return;
+        try {
+          await this.saveBoardSortSettings(path, mode);
+          if (mode !== 'manual') {
+            await this.applySortToGitLab(path);
+          } else {
+            await this.persistColumnOrdersFromDisplay(path);
+          }
+        } catch (e) {
+          alert('Sıralama ayarı uygulanamadı: ' + (e.message || e));
+          await this.loadBoardSortSettings(path);
+        }
       },
 
       listKey(lst) {
@@ -427,11 +636,12 @@
         const headers = { 'PRIVATE-TOKEN': this.token };
 
         try {
-          const [boardsRes, openedIssues, closedIssues, _orders] = await Promise.all([
+          const [boardsRes, openedIssues, closedIssues, _orders, _sort] = await Promise.all([
             fetch(`${this.baseUrl}/projects/${encodedPath}/boards`, { headers }),
-            this.fetchAllIssues(encodedPath, 'opened'),
-            this.fetchAllIssues(encodedPath, 'closed'),
+            this.fetchAllIssues(encodedPath, 'opened', path),
+            this.fetchAllIssues(encodedPath, 'closed', path),
             this.loadBoardOrders(path),
+            this.loadBoardSortSettings(path),
           ]);
 
           if (!boardsRes.ok) throw new Error(`GitLab API Hatası: ${boardsRes.statusText}`);
@@ -610,26 +820,7 @@
       },
 
       getIssuesForList(path, lst) {
-        const pd = this.projectData[path];
-        if (!pd || !pd.loaded) return [];
-
-        let filtered;
-        if (lst.isClosed) {
-          filtered = pd.issues.filter((issue) => issue.state === 'closed');
-        } else {
-          const openedIssues = pd.issues.filter((issue) => issue.state === 'opened');
-          if (lst.isVirtual) {
-            const boardLabels = pd.board.lists.map((l) => l.label.name);
-            filtered = openedIssues.filter(
-              (issue) => !issue.labels.some((label) => boardLabels.includes(label))
-            );
-          } else {
-            filtered = openedIssues.filter(
-              (issue) => issue.labels && issue.labels.includes(lst.label.name)
-            );
-          }
-        }
-        return this.sortIssuesWithSavedOrder(path, this.listKey(lst), filtered);
+        return this.sortIssuesForDisplay(path, this.listKey(lst), this.getRawIssuesForList(path, lst));
       },
 
       initSortable(el) {
@@ -719,6 +910,11 @@
               await this.saveColumnOrder(projectPath, toListKey, toIids);
               if (crossColumn && fromListKey && fromIids) {
                 await this.saveColumnOrder(projectPath, fromListKey, fromIids);
+              }
+              if (this.getSortMode(projectPath) === 'manual' && (reorderedInColumn || crossColumn)) {
+                /* Manuel modda sürükleme zaten GitLab reorder ile senkron */
+              } else if (this.getSortMode(projectPath) !== 'manual') {
+                await this.saveBoardSortSettings(projectPath, 'manual');
               }
             } catch (e) {
               alert("Taşıma işlemi kaydedilemedi: " + e.message);

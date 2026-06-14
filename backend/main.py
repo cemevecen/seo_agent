@@ -15660,9 +15660,12 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 from backend.services.gitlab_board import (
     fetch_project_board_async,
     get_board_column_orders,
+    get_board_project_settings,
     move_issue_async,
     reorder_issue_async,
     save_board_column_order,
+    save_board_project_settings,
+    sync_open_issues_order_to_gitlab,
     update_issue_async,
 )
 
@@ -15721,6 +15724,43 @@ async def api_boards_save_order(request: Request, db: Session = Depends(get_db))
 
     save_board_column_order(db, project_path, list_key, issue_iids)
     return JSONResponse({"ok": True, "project_path": project_path, "list_key": list_key, "count": len(issue_iids)})
+
+
+@app.get("/api/boards/sort-settings")
+def api_boards_sort_settings(project_path: str, db: Session = Depends(get_db)):
+    """Proje için madde sıralama modu."""
+    return JSONResponse(get_board_project_settings(db, project_path))
+
+
+@app.put("/api/boards/sort-settings")
+async def api_boards_save_sort_settings(request: Request, db: Session = Depends(get_db)):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    project_path = str(body.get("project_path") or "").strip()
+    sort_mode = str(body.get("sort_mode") or "").strip()
+    if not project_path:
+        return JSONResponse({"error": "missing_project"}, status_code=400)
+    saved = save_board_project_settings(db, project_path, sort_mode)
+    return JSONResponse({"ok": True, **saved})
+
+
+@app.post("/api/boards/sync-sort")
+async def api_boards_sync_sort(request: Request):
+    """Seçili sıralamayı GitLab relative_position olarak uygular."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    project_path = str(body.get("project_path") or "").strip()
+    ordered = body.get("ordered") or []
+    if not project_path:
+        return JSONResponse({"error": "missing_project"}, status_code=400)
+    if not isinstance(ordered, list):
+        return JSONResponse({"error": "ordered_must_be_list"}, status_code=400)
+    result = await sync_open_issues_order_to_gitlab(project_path, ordered)
+    return JSONResponse(result)
 
 
 @app.post("/api/boards/reorder")

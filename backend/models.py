@@ -1007,6 +1007,17 @@ class GitlabBoardIssueOrder(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class GitlabBoardProjectSettings(Base):
+    """GitLab board proje başına madde sıralama modu."""
+
+    __tablename__ = "gitlab_board_project_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_path: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    sort_mode: Mapped[str] = mapped_column(String(64), nullable=False, default="manual")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AiTalkAlert(Base):
     """Proaktif izleme uyarıları."""
     __tablename__ = "ai_talk_alerts"
