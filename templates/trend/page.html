@@ -12,7 +12,6 @@
       </div>
       <h1 class="text-xl font-black text-slate-900 dark:text-zinc-100 sm:text-2xl">{{ trend_item.title }}</h1>
       <p id="trend-vertical-label" class="mt-1 hidden text-[11px] font-bold uppercase tracking-wide text-violet-600 dark:text-violet-400"></p>
-      <p class="mt-1 max-w-2xl text-sm text-slate-500 dark:text-zinc-400">{{ trend_item.description }}</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <label class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Site</label>
@@ -49,7 +48,7 @@
   <div id="trend-loading" class="hidden py-12 text-center text-sm text-slate-400">Yükleniyor…</div>
   <div id="trend-error" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"></div>
 
-  <div id="trend-summary" class="mb-4 hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300"></div>
+  <div id="trend-summary" class="trend-summary mb-4 hidden rounded-xl border px-4 py-3 text-sm"></div>
 
   <div id="trend-metrics" class="mb-5 hidden grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
 
@@ -115,6 +114,15 @@
   html.dark .trend-badge { background: rgb(39 39 42); color: rgb(161 161 170); }
   .trend-badge.is-critical { background: rgb(254 226 226); color: rgb(185 28 28); }
   html.dark .trend-badge.is-critical { background: rgb(69 10 10); color: rgb(252 165 165); }
+  .trend-summary {
+    border-color: rgb(226 232 240); background: rgb(248 250 252); color: rgb(51 65 85);
+  }
+  html.dark .trend-summary {
+    border-color: rgb(63 63 70); background: rgb(24 24 27); color: rgb(212 212 216);
+  }
+  html.dark #trend-error {
+    border-color: rgba(127, 29, 29, 0.5); background: rgba(69, 10, 10, 0.4); color: rgb(254 202 202);
+  }
 
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
