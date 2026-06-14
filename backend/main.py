@@ -12708,6 +12708,23 @@ def api_ga4_realtime_trend(
     return JSONResponse({"site_id": site_id, "profile": profile, "trend": snapshots})
 
 
+@app.get("/api/ga4/realtime/{site_id}/trend-combined")
+def api_ga4_realtime_trend_combined(site_id: int, hours: float = 24):
+    """Site geneli toplam trend — profillerin 15 dk dilim toplamı (yalnızca DB)."""
+    from backend.services.ga4_realtime import REALTIME_TREND_HOURS_DEFAULT, get_combined_site_snapshots
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        trend = get_combined_site_snapshots(
+            db,
+            site_id,
+            hours=hours if hours > 0 else REALTIME_TREND_HOURS_DEFAULT,
+        )
+    return JSONResponse({"site_id": site_id, "hours": hours, "trend": trend})
+
+
 @app.get("/api/ga4/realtime/{site_id}/alarms")
 def api_ga4_realtime_alarms(site_id: int, limit: int = 20):
     """Son N alarm kaydı."""

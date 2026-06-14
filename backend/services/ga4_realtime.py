@@ -2420,6 +2420,82 @@ def get_recent_snapshots(
     return [_row_dict(row) for row in reversed(rows)]
 
 
+def get_combined_site_snapshots(
+    db: Session,
+    site_id: int,
+    *,
+    hours: float = REALTIME_TREND_HOURS_DEFAULT,
+    profiles: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Tüm profillerin 15 dk dilimlerinde toplam aktif + görüntüleme trendi (yalnızca DB)."""
+    from collections import defaultdict
+
+    from backend.models import RealtimeSnapshot
+
+    h = min(float(hours), REALTIME_TREND_HOURS_MAX)
+    cutoff = datetime.utcnow() - timedelta(hours=h)
+    bucket_ms = 15 * 60 * 1000
+
+    if profiles is None:
+        found = {
+            r[0]
+            for r in db.query(RealtimeSnapshot.profile)
+            .filter(
+                RealtimeSnapshot.site_id == site_id,
+                RealtimeSnapshot.collected_at >= cutoff,
+            )
+            .distinct()
+            .all()
+        }
+        profiles = [p for p in ("web", "mweb", "ios", "android") if p in found]
+    else:
+        profiles = [str(p).strip() for p in profiles if str(p).strip()]
+
+    nested: dict[int, dict[str, dict[str, float]]] = defaultdict(dict)
+
+    for prof in profiles:
+        rows = (
+            db.query(RealtimeSnapshot)
+            .filter(
+                RealtimeSnapshot.site_id == site_id,
+                RealtimeSnapshot.profile == prof,
+                RealtimeSnapshot.collected_at >= cutoff,
+            )
+            .order_by(RealtimeSnapshot.collected_at.asc())
+            .limit(REALTIME_TREND_ROWS_MAX)
+            .all()
+        )
+        for row in rows:
+            if not row.collected_at:
+                continue
+            ca = row.collected_at
+            ts_ms = int(
+                (ca.replace(tzinfo=timezone.utc) if ca.tzinfo is None else ca.astimezone(timezone.utc)).timestamp()
+                * 1000
+            )
+            key = (ts_ms // bucket_ms) * bucket_ms
+            au = float(row.active_users_current or 0)
+            pv = float(row.pageviews_current or 0)
+            slot = nested[key].get(prof)
+            if slot is None or au >= slot["active_users"]:
+                nested[key][prof] = {"active_users": au, "pageviews": pv}
+
+    out: list[dict[str, Any]] = []
+    for key in sorted(nested.keys()):
+        prof_map = nested[key]
+        total_au = sum(v["active_users"] for v in prof_map.values())
+        total_pv = sum(v["pageviews"] for v in prof_map.values())
+        dt = datetime.utcfromtimestamp(key / 1000.0)
+        out.append(
+            {
+                "collected_at": _utc_db_datetime_iso_z(dt),
+                "active_users": int(round(total_au)),
+                "pageviews": int(round(total_pv)),
+            }
+        )
+    return out
+
+
 def fetch_realtime_profile_bundle(
     db: Session,
     site: Any,

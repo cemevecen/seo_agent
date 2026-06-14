@@ -1036,6 +1036,112 @@
   .rt-site-total-chip--pv .rt-site-total-val { color: rgb(30 41 59); }
   html.dark .rt-site-total-chip--pv .rt-site-total-val { color: rgb(228 228 231); }
   .rt-site-totals--partial .rt-site-total-val { opacity: 0.65; }
+  .rt-site-sparks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-bottom: 1.25rem;
+  }
+  .rt-site-spark-row {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 8.5rem) minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: stretch;
+    min-height: 5.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255);
+    padding: 0.45rem 0.55rem;
+    overflow: hidden;
+  }
+  html.dark .rt-site-spark-row {
+    background: var(--rt-d-split);
+    border-color: rgba(63, 63, 70, 0.55);
+  }
+  .rt-site-spark-meta {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0.15rem 0.25rem;
+    border-right: 1px dashed rgb(226 232 240);
+  }
+  html.dark .rt-site-spark-meta { border-right-color: rgba(63, 63, 70, 0.45); }
+  .rt-site-spark-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(79 70 229);
+  }
+  html.dark .rt-site-spark-label { color: rgb(165 180 252); }
+  .rt-site-spark-row--pv .rt-site-spark-label { color: rgb(100 116 139); }
+  html.dark .rt-site-spark-row--pv .rt-site-spark-label { color: rgb(161 161 170); }
+  .rt-site-spark-sublabel {
+    margin-top: 0.1rem;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgb(148 163 184);
+  }
+  .rt-site-spark-last {
+    margin-top: 0.35rem;
+    font-size: 1.05rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    color: rgb(30 41 59);
+  }
+  html.dark .rt-site-spark-last { color: rgb(244 244 245); }
+  .rt-site-spark-plot {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.35rem;
+    align-items: stretch;
+    min-width: 0;
+  }
+  .rt-site-spark-y {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0.15rem 0;
+    font-size: 9px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgb(148 163 184);
+    text-align: right;
+    min-width: 1.75rem;
+  }
+  .rt-site-spark-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .rt-site-spark-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    flex: 1;
+    min-height: 4.25rem;
+    padding-top: 0.15rem;
+  }
+  .rt-site-spark-bars .rt-spark-mini-bar {
+    flex: 1 1 0;
+    min-width: 2px;
+    max-width: 14px;
+    border-radius: 2px 2px 0 0;
+  }
+  .rt-site-spark-x {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.25rem;
+    margin-top: 0.2rem;
+    font-size: 9px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgb(148 163 184);
+  }
   html.dark .realtime-root [data-rt-kpi] {
     border-color: rgba(82, 82, 91, 0.45) !important;
   }
@@ -1227,6 +1333,36 @@
         <div class="rt-site-total-chip rt-site-total-chip--pv">
           <p class="rt-site-total-label">Toplam görüntüleme</p>
           <p class="rt-site-total-val" data-rt-site-total-pv>—</p>
+        </div>
+      </div>
+    </div>
+    <div class="rt-site-sparks hidden" data-rt-site-sparks="{{ site.id }}">
+      <div class="rt-site-spark-row">
+        <div class="rt-site-spark-meta">
+          <p class="rt-site-spark-label">Toplam aktif</p>
+          <p class="rt-site-spark-sublabel">24 saat</p>
+          <p class="rt-site-spark-last" data-rt-site-spark-au-last>—</p>
+        </div>
+        <div class="rt-site-spark-plot" data-rt-site-spark-au-chart>
+          <div class="rt-site-spark-y" data-rt-site-spark-au-y></div>
+          <div class="rt-site-spark-main">
+            <div class="rt-site-spark-bars" data-rt-site-spark-au-bars role="img" aria-label="Site geneli toplam aktif — 24 saat"></div>
+            <div class="rt-site-spark-x" data-rt-site-spark-au-x></div>
+          </div>
+        </div>
+      </div>
+      <div class="rt-site-spark-row rt-site-spark-row--pv">
+        <div class="rt-site-spark-meta">
+          <p class="rt-site-spark-label">Toplam görüntüleme</p>
+          <p class="rt-site-spark-sublabel">24 saat</p>
+          <p class="rt-site-spark-last" data-rt-site-spark-pv-last>—</p>
+        </div>
+        <div class="rt-site-spark-plot" data-rt-site-spark-pv-chart>
+          <div class="rt-site-spark-y" data-rt-site-spark-pv-y></div>
+          <div class="rt-site-spark-main">
+            <div class="rt-site-spark-bars" data-rt-site-spark-pv-bars role="img" aria-label="Site geneli toplam görüntüleme — 24 saat"></div>
+            <div class="rt-site-spark-x" data-rt-site-spark-pv-x></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1621,6 +1757,10 @@
         rtFetchProfile(sid, prof);
       }
     });
+    document.querySelectorAll('[data-rt-site]').forEach(function (el) {
+      var sid = parseInt(el.getAttribute('data-rt-site'), 10);
+      if (!isNaN(sid)) rtFetchSiteCombinedTrend(sid);
+    });
   }
 
   function _startLiveCountdown() {
@@ -1711,6 +1851,116 @@
       totalsWrap.classList.toggle('rt-site-totals--partial', !allAu || !allPv);
     }
   }
+
+  function _renderSiteSparkMetric(siteEl, trend, metric) {
+    var suffix = metric === 'pv' ? 'pv' : 'au';
+    var barsEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-bars]');
+    var yEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-y]');
+    var xEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-x]');
+    var lastEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-last]');
+    if (!barsEl) return;
+    var rangeKey = '24h';
+    var trendPoints = [];
+    (trend || []).forEach(function (t) {
+      var d = _parseSnapshotTs(t.collected_at);
+      if (!d) return;
+      trendPoints.push({
+        ts: d,
+        users: Number(t.active_users) || 0,
+        pv: Number(t.pageviews) || 0,
+      });
+    });
+    if (!trendPoints.length) {
+      barsEl.innerHTML = '';
+      if (yEl) yEl.innerHTML = '';
+      if (xEl) xEl.innerHTML = '';
+      if (lastEl) lastEl.textContent = '—';
+      return;
+    }
+    var display = _sparkBarsForDisplay(trendPoints, rangeKey);
+    if (metric === 'pv') {
+      display = display.map(function (d) {
+        var copy = {};
+        for (var k in d) if (Object.prototype.hasOwnProperty.call(d, k)) copy[k] = d[k];
+        copy.v = Number(d.pv) || 0;
+        return copy;
+      });
+    }
+    var mx = Math.max.apply(
+      null,
+      display.map(function (d) { return Number(d.v) || 0; }).concat([1])
+    );
+    var barPx = 68;
+    barsEl.innerHTML = display
+      .map(function (d, i) {
+        var v = Number(d.v) || 0;
+        if (d.empty || v <= 0) {
+          return (
+            '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;background:' +
+            _sparkBarFill(0, mx) +
+            ';opacity:0.45" title="' +
+            _attr(d.label || '') +
+            '"></div>'
+          );
+        }
+        var hPx = Math.round((v / mx) * barPx);
+        hPx = Math.max(3, Math.min(barPx, hPx));
+        var tip = (d.label || '') + ': ' + _fmtExact(v);
+        return (
+          '<div class="rt-spark-mini-bar" style="height:' +
+          hPx +
+          'px;background:' +
+          _sparkBarFill(v, mx) +
+          '" title="' +
+          _attr(tip) +
+          '"></div>'
+        );
+      })
+      .join('');
+    if (yEl) {
+      yEl.innerHTML = _sparkYAxisTicks(mx)
+        .slice()
+        .reverse()
+        .map(function (v) { return '<span>' + _fmt(v) + '</span>'; })
+        .join('');
+    }
+    if (xEl) {
+      xEl.innerHTML = _sparkXAxisLabels({ display: display, rangeKey: rangeKey, useLine: false })
+        .map(function (l) { return '<span>' + l + '</span>'; })
+        .join('');
+    }
+    var last = trendPoints[trendPoints.length - 1];
+    if (lastEl) {
+      lastEl.textContent = _fmtExact(metric === 'pv' ? last.pv : last.users);
+    }
+  }
+
+  function _renderSiteCombinedSparks(siteId, trend) {
+    var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
+    if (!siteEl) return;
+    var wrap = siteEl.querySelector('[data-rt-site-sparks]');
+    if (!trend || !trend.length) {
+      if (wrap) wrap.classList.add('hidden');
+      return;
+    }
+    if (wrap) wrap.classList.remove('hidden');
+    _renderSiteSparkMetric(siteEl, trend, 'au');
+    _renderSiteSparkMetric(siteEl, trend, 'pv');
+  }
+
+  function rtFetchSiteCombinedTrend(siteId) {
+    fetch('/api/ga4/realtime/' + encodeURIComponent(siteId) + '/trend-combined?hours=24', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || d.error) return;
+        _renderSiteCombinedSparks(siteId, d.trend || []);
+      })
+      .catch(function () {});
+  }
+  window.rtFetchSiteCombinedTrend = rtFetchSiteCombinedTrend;
 
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
   /** HTML attribute (title=…) için güvenli kaçış */
@@ -3099,6 +3349,10 @@
       rtFetchTopEvents(sidInt, prof);
     });
     _fetchGlobalAlarms();
+    document.querySelectorAll('[data-rt-site]').forEach(function (el) {
+      var sid = parseInt(el.getAttribute('data-rt-site'), 10);
+      if (!isNaN(sid)) rtFetchSiteCombinedTrend(sid);
+    });
   }
   window.rtCheckAll = rtCheckAll;
 
@@ -3538,6 +3792,7 @@
 
   function _startPolling() {
     var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]'));
+    var siteIdsSeen = {};
     boxes.forEach(function (box, idx) {
       var sid = box.getAttribute('data-rt-site-id');
       var prof = box.getAttribute('data-rt-profile');
@@ -3545,6 +3800,10 @@
       var sidInt = parseInt(sid, 10);
 
       setTimeout(function () { rtFetchProfile(sidInt, prof); }, idx * 400);
+      if (sid && !siteIdsSeen[sid]) {
+        siteIdsSeen[sid] = true;
+        setTimeout(function () { rtFetchSiteCombinedTrend(sidInt); }, idx * 400 + 80);
+      }
       setTimeout(function () {
         rtFetchTopPages(sidInt, prof);
         rtFetchTopEvents(sidInt, prof);
@@ -3577,6 +3836,10 @@
       try {
         _fetchGlobalAlarms();
       } catch (eVis) {}
+      document.querySelectorAll('[data-rt-site]').forEach(function (el) {
+        var sid = parseInt(el.getAttribute('data-rt-site'), 10);
+        if (!isNaN(sid)) rtFetchSiteCombinedTrend(sid);
+      });
     });
 
     document.addEventListener('seo-theme-change', function () {
