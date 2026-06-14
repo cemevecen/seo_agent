@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from collections import Counter, defaultdict
 from datetime import timedelta
 from typing import Any
@@ -76,6 +77,97 @@ def _alarm_item(a: RealtimeAlarmLog) -> dict[str, Any]:
         "badge": a.severity or "alarm",
         "href": "/realtime",
     }
+
+
+def _parse_iso_date(value: str | None) -> date | None:
+    raw = (value or "")[:10]
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _entertainment_vizyon_sections(*, horizon_days: int = 21, limit: int = 10) -> list[dict[str, Any]]:
+    """Sinemalar trend-radar: TMDB vizyon + platform takvimi."""
+    try:
+        from backend.services.tmdb import get_combined_upcoming
+
+        data = get_combined_upcoming(months_ahead=2) or {}
+    except Exception:
+        return []
+
+    today = date.today()
+    horizon = today + timedelta(days=horizon_days)
+
+    def in_window(item: dict) -> bool:
+        rd = _parse_iso_date(item.get("release_date"))
+        return rd is not None and today <= rd <= horizon
+
+    theatrical = [m for m in (data.get("theatrical") or []) if in_window(m)]
+    theatrical.sort(key=lambda m: m.get("release_date") or "9999")
+
+    streaming = [m for m in (data.get("streaming") or []) if in_window(m)]
+    streaming.sort(key=lambda m: (m.get("release_date") or "9999", -(m.get("popularity") or 0)))
+
+    tv = [m for m in (data.get("tv_series") or []) if in_window(m)]
+    tv.sort(key=lambda m: (m.get("release_date") or "9999", -(m.get("popularity") or 0)))
+
+    sections: list[dict[str, Any]] = []
+
+    if theatrical:
+        sections.append(
+            {
+                "title": "🎬 Sinema vizyon takvimi",
+                "items": [
+                    {
+                        "title": m.get("title") or "Film",
+                        "subtitle": f"{(m.get('release_date') or '')[:10]} · pop {m.get('popularity', 0)}",
+                        "badge": "vizyon",
+                        "href": m.get("tmdb_url") or "",
+                    }
+                    for m in theatrical[:limit]
+                ],
+            }
+        )
+
+    if streaming:
+        sections.append(
+            {
+                "title": "📺 Platform yayınları (film & dizi)",
+                "items": [
+                    {
+                        "title": m.get("title") or "İçerik",
+                        "subtitle": (
+                            f"{(m.get('release_date') or '')[:10]}"
+                            f" · {', '.join((m.get('providers') or [])[:3]) or 'platform'}"
+                        ),
+                        "badge": (m.get("media_type") or "movie")[:6],
+                        "href": m.get("tmdb_url") or "",
+                    }
+                    for m in streaming[:limit]
+                ],
+            }
+        )
+
+    if tv:
+        sections.append(
+            {
+                "title": "📡 Dizi takvimi",
+                "items": [
+                    {
+                        "title": m.get("title") or "Dizi",
+                        "subtitle": f"{(m.get('release_date') or '')[:10]} · pop {m.get('popularity', 0)}",
+                        "badge": "dizi",
+                        "href": m.get("tmdb_url") or "",
+                    }
+                    for m in tv[:limit]
+                ],
+            }
+        )
+
+    return sections
 
 
 def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
@@ -161,6 +253,8 @@ def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
             "items": [{"title": t, "subtitle": f"{c} sinyal", "badge": "hot" if c >= 4 else "topic"} for t, c in topic_counter.most_common(10)],
         },
     ]
+    if vertical == ContentVertical.ENTERTAINMENT:
+        out["sections"].extend(_entertainment_vizyon_sections())
     out["actions"] = [{"label": "Realtime", "href": "/realtime"}, {"label": "News", "href": "/intelligence"}]
     return out
 

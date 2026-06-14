@@ -173,6 +173,18 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=altın+ons+fiyat+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=kripto+bitcoin+ethereum+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=fed+ecb+para+politikası+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=petrol+doğalgaz+enerji+fiyat+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+    ],
+    "Politika & Ekonomi": [
+        "https://news.google.com/rss/search?q=türkiye+siyaset+ekonomi+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=politika+meclis+hükümet+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=dünya+gündem+ekonomi+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=diplomasi+yaptırım+ticaret+savaşı+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=seçim+ankara+cumhurbaşkan+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+    ],
+    "Meteoroloji": [
+        "https://news.google.com/rss/search?q=hava+durumu+meteoroloji+mgm+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=sel+deprem+fırtına+iklim+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Dünya": [
         "https://www.cnnturk.com/feed/rss/all/news",
@@ -185,6 +197,7 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=avrupa+abd+rusya+çin+when:3h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=nato+g7+bm+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=ukrayna+orta+doğu+when:3h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=dünya+ekonomi+merkez+bankası+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
     "Teknoloji": [
         # Google News TR
@@ -209,6 +222,10 @@ CATEGORY_SOURCES = {
         "https://news.google.com/rss/search?q=oscar+cannes+film+festivali+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=oyuncu+yönetmen+sinema+haber+when:6h&hl=tr&gl=TR&ceid=TR:tr",
         "https://news.google.com/rss/search?q=marvel+dc+star+wars+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=exxen+blutv+gain+puhutv+tabii+dizi+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=netflix+disney+amazon+prime+platform+yayın+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=vizyon+takvimi+film+dizi+sezon+when:6h&hl=tr&gl=TR&ceid=TR:tr",
+        "https://news.google.com/rss/search?q=eğlence+sektörü+sinema+sektörü+when:6h&hl=tr&gl=TR&ceid=TR:tr",
     ],
 }
 
@@ -219,8 +236,10 @@ MAX_ITEMS_PER_FEED = 30
 FILTER_KEYWORDS = [
     "döviz", "finans", "ekonomi", "iş dünyası", "borsa", "faiz", "enflasyon", "merkez bankası",
     "şirket", "yatırım", "dolar", "euro", "piyasa", "yapay zeka", "teknoloji", "yazılım", "bilim",
-    "startup", "inovasyon", "gündem", "haber",
-    "film", "sinema", "dizi", "vizyon", "fragman", "oyuncu", "netflix", "gişe",
+    "startup", "inovasyon", "gündem", "haber", "siyaset", "politika", "diplomasi", "dünya",
+    "hava durumu", "meteoroloji", "petrol", "enerji",
+    "film", "sinema", "dizi", "vizyon", "fragman", "oyuncu", "netflix", "gişe", "exxen", "blutv",
+    "platform", "sezon",
 ]
 
 # Negatif Filtre: Bu kelimeleri içeren başlıklar "haber" sayılmaz ve elenir
@@ -228,7 +247,7 @@ EXCLUDE_KEYWORDS = [
     "canlı grafik", "hisse senedi canlı", "fiyatı canlı", "bist:", 
     "teknik analiz", "günlük bülten", "sabah bülteni", "akşam bülteni", 
     "varant bülteni", "foreks haber", "cnbc-e haber", "piyasa ekranı",
-    "reklam", "sponsorlu", "yol durumu", "hava durumu", "namaz vakitleri",
+    "reklam", "sponsorlu", "yol durumu", "namaz vakitleri",
     "astroloji", "burç", "gün sonu bülteni", "piyasa özeti", "piyasa bülteni",
     "ekonomi takvimi", "ajanda", "şifreli kanal", "yayın akışı", "izle", "canlı izle"
 ]
