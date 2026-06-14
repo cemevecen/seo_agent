@@ -13078,15 +13078,25 @@ def api_ga4_realtime_insights(site_id: int, profile: str = "web", limit: int = 4
 
 @app.get("/api/ga4/realtime/{site_id}/top-pages")
 def api_ga4_realtime_top_pages(
-    site_id: int, profile: str = "web", window: int = 30, limit: int = 10,
+    site_id: int,
+    profile: str = "web",
+    window: int = 30,
+    limit: int = 10,
     type: str = "pages",
+    range: str | None = None,
 ):
     """Realtime top sayfalar/linkler — sayfa bazlı aktif kullanıcı ve sayfa görüntüleme."""
-    from backend.services.ga4_realtime import fetch_realtime_top_pages_with_app_fallback
+    from backend.services.ga4_realtime import (
+        aggregate_page_snapshots_over_window,
+        fetch_realtime_top_pages_with_app_fallback,
+        parse_realtime_list_range,
+        REALTIME_LIST_RANGE_LABELS,
+    )
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
     from backend.services.realtime_cache import get_or_call
 
     sort_by = "screenPageViews" if type == "views" else "activeUsers"
+    mode, list_minutes, range_key = parse_realtime_list_range(range, window=window)
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -13101,13 +13111,29 @@ def api_ga4_realtime_top_pages(
     cap = min(limit, 25)
 
     def _produce():
+        if mode == "snapshots":
+            with SessionLocal() as db:
+                result = aggregate_page_snapshots_over_window(
+                    db,
+                    site_id=site_id,
+                    profile=profile,
+                    window_minutes=list_minutes,
+                    limit=cap,
+                    sort_by=sort_by,
+                )
+                result["site_id"] = site_id
+                result["profile"] = profile
+                result["type"] = type
+                result["range"] = range_key
+                return result
+
         # GA4 Realtime «Pages» ile aynı: önce 30 dk toplam (compare kapalı), gerekirse karşılaştırmalı dene.
         for compare in (False, True):
             try:
                 result = fetch_realtime_top_pages_with_app_fallback(
                     property_id,
                     profile=profile,
-                    window_minutes=min(window, 30),
+                    window_minutes=min(list_minutes, 30),
                     limit=cap,
                     sort_by=sort_by,
                     compare_previous=compare,
@@ -13115,6 +13141,9 @@ def api_ga4_realtime_top_pages(
                 result["site_id"] = site_id
                 result["profile"] = profile
                 result["type"] = type
+                result["range"] = range_key
+                result["range_label"] = REALTIME_LIST_RANGE_LABELS.get(range_key, f"{list_minutes} dk")
+                result["data_source"] = "ga4"
                 return result
             except Exception as exc:
                 LOGGER.warning(
@@ -13186,7 +13215,7 @@ def api_ga4_realtime_top_pages(
             }
 
     result = get_or_call(
-        f"rt:pages:{site_id}:{profile}:{window}:{type}",
+        f"rt:pages:{site_id}:{profile}:{range_key}:{type}",
         settings.ga4_realtime_list_cache_seconds,
         _produce,
         # db_snapshot da "canlı değil" sayılır: canlı son-iyi varsa o tercih edilir,
@@ -13204,9 +13233,15 @@ def api_ga4_realtime_top_news(
     window: int = 30,
     limit: int = 12,
     type: str = "pages",
+    range: str | None = None,
 ):
     """Realtime haber sayfaları — pagePath+pageTitle; yalnızca web/mweb (GA4 haber path kuralları)."""
-    from backend.services.ga4_realtime import fetch_realtime_top_news_pages
+    from backend.services.ga4_realtime import (
+        aggregate_news_snapshots_over_window,
+        fetch_realtime_top_news_pages,
+        parse_realtime_list_range,
+        REALTIME_LIST_RANGE_LABELS,
+    )
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
     from backend.services.realtime_cache import get_or_call
 
@@ -13216,6 +13251,7 @@ def api_ga4_realtime_top_news(
         )
 
     sort_by = "screenPageViews" if type == "views" else "activeUsers"
+    mode, list_minutes, range_key = parse_realtime_list_range(range, window=window)
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -13229,18 +13265,38 @@ def api_ga4_realtime_top_news(
         site_domain_str = (site.domain or "").strip()
 
     def _produce():
+        if mode == "snapshots":
+            with SessionLocal() as db:
+                result = aggregate_news_snapshots_over_window(
+                    db,
+                    site_id=site_id,
+                    profile=profile,
+                    site_domain=site_domain_str,
+                    window_minutes=list_minutes,
+                    limit=min(limit, 25),
+                    sort_by=sort_by,
+                )
+                result["site_id"] = site_id
+                result["profile"] = profile
+                result["type"] = type
+                result["range"] = range_key
+                return result
+
         # 1) Canlı GA4
         try:
             result = fetch_realtime_top_news_pages(
                 property_id,
                 site_domain=site_domain_str,
-                window_minutes=min(window, 30),
+                window_minutes=min(list_minutes, 30),
                 limit=min(limit, 25),
                 sort_by=sort_by,
             )
             result["site_id"] = site_id
             result["profile"] = profile
             result["type"] = type
+            result["range"] = range_key
+            result["range_label"] = REALTIME_LIST_RANGE_LABELS.get(range_key, f"{list_minutes} dk")
+            result["data_source"] = "ga4"
             return result
         except Exception as exc:
             LOGGER.warning("Top news canlı API başarısız, DB snapshot'a düşülüyor [site=%s, profile=%s]: %s", site_id, profile, exc)
@@ -13319,7 +13375,7 @@ def api_ga4_realtime_top_news(
             }
 
     result = get_or_call(
-        f"rt:news:{site_id}:{profile}:{window}:{type}",
+        f"rt:news:{site_id}:{profile}:{range_key}:{type}",
         settings.ga4_realtime_list_cache_seconds,
         _produce,
         is_error=lambda r: bool(r.get("error")) or r.get("source") == "db_snapshot",

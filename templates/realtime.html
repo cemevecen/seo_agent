@@ -1632,8 +1632,9 @@
   var RT_TREND_LIMIT = 288;
   var RT_TREND_RANGE_MS = { '15m': 15 * 60 * 1000, '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 };
   var RT_TREND_RANGE_DEFAULT = '24h';
-  /* Top sayfalar / haberler (web) + iOS/Android etkinlik listesi */
-  var LIST_WINDOW = 30;
+  var RT_LIST_RANGE_LABELS = { '15m': '15 dk', '1h': '1 saat', '24h': '24 saat' };
+  /** iOS/Android etkinlik listesi — GA4 Realtime üst sınırı (dk) */
+  var RT_EVENTS_LIST_WINDOW = 30;
   /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
   var RT_EVENTS_PAGE_SIZE = 10;
   var _pageTimers = {};
@@ -2197,6 +2198,23 @@
     return RT_TREND_RANGE_DEFAULT;
   }
 
+  function _rtListRangeLabel(rangeKey, data) {
+    if (data && data.range_label) return data.range_label;
+    return RT_LIST_RANGE_LABELS[rangeKey] || '30 dk';
+  }
+
+  function _rtUpdateListTimestamp(tsEl, data, rangeKey) {
+    if (!tsEl) return;
+    var dt = data && data.fetched_at ? new Date(data.fetched_at) : new Date();
+    var rangeLbl = _rtListRangeLabel(rangeKey, data);
+    var src = data && data.data_source === 'snapshots' ? ' · snapshot zirve' : '';
+    tsEl.textContent =
+      'son ' + rangeLbl + src + ' · güncelleme: ' +
+      dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    if (data && data.metric_scope) tsEl.setAttribute('title', String(data.metric_scope));
+    else tsEl.removeAttribute('title');
+  }
+
   var RT_SPARK_BAR_PX = 76;
 
   function _sparkBarFill(v, mx) {
@@ -2661,6 +2679,7 @@
         box._rtTrendRange = key;
         _syncRtYfTabs(box, key);
         rtFetchTrend(siteId, profile);
+        rtFetchTopPages(siteId, profile);
       });
     });
   }
@@ -2797,7 +2816,8 @@
     var listEl = box.querySelector('[data-rt-news-list]');
     var tsEl = box.querySelector('[data-rt-news-ts]');
     if (!listEl) return;
-    fetch('/api/ga4/realtime/' + siteId + '/top-news?profile=' + encodeURIComponent(profile) + '&window=' + LIST_WINDOW + '&limit=12&type=pages', {
+    var rangeKey = _rtTrendRangeForBox(box);
+    fetch('/api/ga4/realtime/' + siteId + '/top-news?profile=' + encodeURIComponent(profile) + '&range=' + encodeURIComponent(rangeKey) + '&limit=12&type=pages', {
       credentials: 'same-origin',
       cache: 'no-store',
     })
@@ -2811,11 +2831,7 @@
           return !_isRealtimeNoiseTitle(p && p.page);
         });
         _renderNewsList(listEl, rows, d.comparison_enabled !== false);
-        if (tsEl) {
-          var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-          tsEl.removeAttribute('title');
-        }
+        _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
         listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
@@ -2876,8 +2892,9 @@
     var tsEl = box.querySelector(isViews ? '[data-rt-views-ts]' : '[data-rt-pages-ts]');
     var domain = box.getAttribute('data-rt-domain') || '';
     if (!listEl) return;
+    var rangeKey = _rtTrendRangeForBox(box);
 
-    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&window=' + LIST_WINDOW + '&limit=10&type=' + type)
+    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&range=' + encodeURIComponent(rangeKey) + '&limit=10&type=' + type)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages || !d.pages.length) {
@@ -2888,12 +2905,7 @@
           return !_isRealtimeNoiseTitle(p && p.page);
         });
         _renderTopPages(listEl, rows, isViews, domain);
-        if (tsEl) {
-          var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
-          tsEl.textContent =
-            'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-          tsEl.removeAttribute('title');
-        }
+        _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
         if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
@@ -2906,7 +2918,7 @@
     var listEl = box.querySelector('[data-rt-events-list]');
     var tsEl = box.querySelector('[data-rt-events-ts]');
     var key = siteId + '|' + profile;
-    fetch('/api/ga4/realtime/' + siteId + '/top-events?profile=' + profile + '&window=' + LIST_WINDOW + '&limit=200')
+    fetch('/api/ga4/realtime/' + siteId + '/top-events?profile=' + profile + '&window=' + RT_EVENTS_LIST_WINDOW + '&limit=200')
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.events) {

@@ -3266,6 +3266,213 @@ def get_peak_news_snapshots(
     return {row.screen_title: int(row.peak_users or 0) for row in rows}
 
 
+REALTIME_LIST_RANGE_MINUTES: dict[str, int] = {
+    "15m": 15,
+    "1h": 60,
+    "24h": 24 * 60,
+}
+
+REALTIME_LIST_RANGE_LABELS: dict[str, str] = {
+    "15m": "15 dk",
+    "1h": "1 saat",
+    "24h": "24 saat",
+}
+
+
+def parse_realtime_list_range(
+    range_key: str | None,
+    *,
+    window: int | None = None,
+) -> tuple[str, int, str]:
+    """Sayfa/haber listesi penceresi: (mode, minutes, range_key). mode = ga4 | snapshots."""
+    rk = (range_key or "").strip().lower()
+    if rk in REALTIME_LIST_RANGE_MINUTES:
+        minutes = REALTIME_LIST_RANGE_MINUTES[rk]
+        mode = "ga4" if rk == "15m" else "snapshots"
+        return mode, minutes, rk
+    w = max(1, min(int(window or 30), 30))
+    return "ga4", w, "15m"
+
+
+def aggregate_page_snapshots_over_window(
+    db: Session,
+    *,
+    site_id: int,
+    profile: str,
+    window_minutes: int,
+    limit: int,
+    sort_by: str = "activeUsers",
+) -> dict[str, Any]:
+    """DB snapshot’larından pencere içi zirve aktif kullanıcı / görüntüleme ile top sayfa."""
+    from backend.models import RealtimePageSnapshot
+    from sqlalchemy import func as sqlfunc
+
+    minutes = max(15, min(int(window_minutes), 24 * 60))
+    now = datetime.utcnow()
+    cutoff = now - timedelta(minutes=minutes)
+    prev_cutoff = cutoff - timedelta(minutes=minutes)
+
+    curr_rows = (
+        db.query(
+            RealtimePageSnapshot.page_path,
+            sqlfunc.max(RealtimePageSnapshot.active_users).label("peak_au"),
+            sqlfunc.max(RealtimePageSnapshot.pageviews).label("peak_pv"),
+        )
+        .filter(
+            RealtimePageSnapshot.site_id == site_id,
+            RealtimePageSnapshot.profile == profile,
+            RealtimePageSnapshot.collected_at >= cutoff,
+        )
+        .group_by(RealtimePageSnapshot.page_path)
+        .all()
+    )
+
+    prev_map: dict[str, Any] = {}
+    prev_rows = (
+        db.query(
+            RealtimePageSnapshot.page_path,
+            sqlfunc.max(RealtimePageSnapshot.active_users).label("peak_au"),
+            sqlfunc.max(RealtimePageSnapshot.pageviews).label("peak_pv"),
+        )
+        .filter(
+            RealtimePageSnapshot.site_id == site_id,
+            RealtimePageSnapshot.profile == profile,
+            RealtimePageSnapshot.collected_at >= prev_cutoff,
+            RealtimePageSnapshot.collected_at < cutoff,
+        )
+        .group_by(RealtimePageSnapshot.page_path)
+        .all()
+    )
+    for row in prev_rows:
+        prev_map[str(row.page_path or "")] = row
+
+    sort_key = sort_by if sort_by in ("activeUsers", "screenPageViews") else "activeUsers"
+    pages: list[dict[str, Any]] = []
+    for row in curr_rows:
+        path_str = str(row.page_path or "")
+        prev = prev_map.get(path_str)
+        pages.append(
+            {
+                "page": path_str,
+                "page_paths": [path_str] if path_str.startswith("/") else [],
+                "activeUsers": float(row.peak_au or 0),
+                "screenPageViews": float(row.peak_pv or 0),
+                "activeUsers_previous": float(prev.peak_au) if prev else None,
+                "screenPageViews_previous": float(prev.peak_pv) if prev else None,
+            }
+        )
+    pages.sort(key=lambda p: float(p.get(sort_key) or 0), reverse=True)
+    cap = max(1, min(int(limit), 100))
+    pages = pages[:cap]
+
+    rk = next((k for k, v in REALTIME_LIST_RANGE_MINUTES.items() if v == minutes), "custom")
+    return {
+        "pages": pages,
+        "window_minutes": minutes,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "comparison_enabled": bool(prev_map),
+        "data_source": "snapshots",
+        "metric_scope": f"snapshot_peak_{minutes}m",
+        "range": rk,
+        "range_label": REALTIME_LIST_RANGE_LABELS.get(rk, f"{minutes} dk"),
+    }
+
+
+def aggregate_news_snapshots_over_window(
+    db: Session,
+    *,
+    site_id: int,
+    profile: str,
+    site_domain: str,
+    window_minutes: int,
+    limit: int,
+    sort_by: str = "activeUsers",
+) -> dict[str, Any]:
+    """DB haber snapshot’larından pencere içi zirve metriklerle top haber listesi."""
+    from backend.models import RealtimeNewsSnapshot
+    from backend.services.realtime_news_paths import (
+        is_realtime_news_path,
+        realtime_news_page_link,
+        unified_screen_news_article_title,
+        _normalize_news_tab_title,
+    )
+    from sqlalchemy import func as sqlfunc
+
+    minutes = max(15, min(int(window_minutes), 24 * 60))
+    now = datetime.utcnow()
+    cutoff = now - timedelta(minutes=minutes)
+    prev_cutoff = cutoff - timedelta(minutes=minutes)
+
+    def _peak_rows(since: datetime, until: datetime | None = None) -> dict[str, dict[str, float]]:
+        q = db.query(
+            RealtimeNewsSnapshot.screen_title,
+            sqlfunc.max(RealtimeNewsSnapshot.active_users).label("peak_au"),
+            sqlfunc.max(RealtimeNewsSnapshot.pageviews).label("peak_pv"),
+        ).filter(
+            RealtimeNewsSnapshot.site_id == site_id,
+            RealtimeNewsSnapshot.profile == profile,
+            RealtimeNewsSnapshot.collected_at >= since,
+        )
+        if until is not None:
+            q = q.filter(RealtimeNewsSnapshot.collected_at < until)
+        out: dict[str, dict[str, float]] = {}
+        for row in q.group_by(RealtimeNewsSnapshot.screen_title).all():
+            title = str(row.screen_title or "").strip()
+            if not title:
+                continue
+            if title.startswith("/"):
+                if not is_realtime_news_path(title, site_domain=site_domain):
+                    continue
+            else:
+                art = unified_screen_news_article_title(title, site_domain=site_domain)
+                if not art:
+                    continue
+            out[title] = {
+                "activeUsers": float(row.peak_au or 0),
+                "screenPageViews": float(row.peak_pv or 0),
+            }
+        return out
+
+    curr_map = _peak_rows(cutoff)
+    prev_map = _peak_rows(prev_cutoff, cutoff)
+
+    sort_key = sort_by if sort_by in ("activeUsers", "screenPageViews") else "activeUsers"
+    pages: list[dict[str, Any]] = []
+    for raw_title, metrics in curr_map.items():
+        title = raw_title
+        if not title.startswith("/"):
+            title = _normalize_news_tab_title(title)
+        link = realtime_news_page_link(raw_title, site_domain=site_domain)
+        prev = prev_map.get(raw_title) or {}
+        pages.append(
+            {
+                "page": title,
+                "page_path": raw_title if raw_title.startswith("/") else "",
+                "activeUsers": metrics.get("activeUsers", 0),
+                "screenPageViews": metrics.get("screenPageViews", 0),
+                "activeUsers_previous": prev.get("activeUsers"),
+                "screenPageViews_previous": prev.get("screenPageViews"),
+                "link_url": link,
+            }
+        )
+    pages.sort(key=lambda p: float(p.get(sort_key) or 0), reverse=True)
+    cap = max(1, min(int(limit), 100))
+    pages = pages[:cap]
+
+    rk = next((k for k, v in REALTIME_LIST_RANGE_MINUTES.items() if v == minutes), "custom")
+    return {
+        "pages": pages,
+        "window_minutes": minutes,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "comparison_enabled": bool(prev_map),
+        "data_source": "snapshots",
+        "metric_scope": f"snapshot_peak_{minutes}m",
+        "range": rk,
+        "range_label": REALTIME_LIST_RANGE_LABELS.get(rk, f"{minutes} dk"),
+        "breakdown": "news_snapshots",
+    }
+
+
 def get_previous_news_snapshots(
     db: Session,
     site_id: int,
