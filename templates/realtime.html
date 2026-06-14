@@ -594,7 +594,7 @@
     align-items: flex-end;
     width: 100%;
     height: 4.75rem;
-    gap: 1px;
+    gap: 0;
     box-sizing: border-box;
   }
   .rt-spark-chart-body {
@@ -2000,18 +2000,24 @@
     return out;
   }
 
-  /** 15dk/1s çizgi: yalnızca gerçek DB snapshot’ları (dakika ızgarası / forward-fill yok). */
+  /** 15dk/1s: dakika ızgarası + forward-fill, aralıksız tam genişlik. */
   function _sparkLineSeriesFromPoints(trendPoints, rangeKey) {
-    var rangeMs = RT_TREND_RANGE_MS[rangeKey] || RT_TREND_RANGE_MS['1h'];
-    var lastMs = trendPoints[trendPoints.length - 1].ts.getTime();
-    var rangeStartMs = lastMs - rangeMs;
-    var pts = trendPoints.filter(function (p) {
-      return p.ts.getTime() >= rangeStartMs - 1000;
+    var display = _sparkBarsForDisplay(trendPoints, rangeKey);
+    if (!display.length) {
+      return {
+        points: [],
+        display: [],
+        mn: 0,
+        mx: 1,
+        rangeStartMs: 0,
+        rangeEndMs: 0,
+      };
+    }
+    var values = display.map(function (d) {
+      return d.empty ? 0 : Number(d.v) || 0;
     });
-    if (!pts.length) pts = trendPoints.slice();
-    var users = pts.map(function (p) { return Number(p.users) || 0; });
-    var mn = Math.min.apply(null, users);
-    var mx = Math.max.apply(null, users.concat([1]));
+    var mn = Math.min.apply(null, values);
+    var mx = Math.max.apply(null, values.concat([1]));
     if (mx - mn < Math.max(mx * 0.04, 80)) {
       var mid = (mx + mn) / 2;
       var pad = Math.max(mx * 0.06, 120);
@@ -2021,15 +2027,12 @@
       mn = Math.max(0, mn - (mx - mn) * 0.08);
       mx = mx + (mx - mn) * 0.05;
     }
-    var display = pts.map(function (p) {
+    var bucketMs = _sparkBucketMs(rangeKey);
+    var pts = display.map(function (d) {
       return {
-        v: Number(p.users) || 0,
-        pv: Number(p.pv) || 0,
-        label: _sparkFmtClock(p.ts),
-        tStart: _sparkFmtClock(p.ts),
-        bucketCount: 1,
-        empty: false,
-        tMs: p.ts.getTime(),
+        ts: new Date(d.tMs || 0),
+        users: d.empty ? 0 : Number(d.v) || 0,
+        pv: d.empty ? 0 : Number(d.pv) || 0,
       };
     });
     return {
@@ -2037,8 +2040,8 @@
       display: display,
       mn: mn,
       mx: mx,
-      rangeStartMs: rangeStartMs,
-      rangeEndMs: lastMs,
+      rangeStartMs: display[0].tMs,
+      rangeEndMs: display[display.length - 1].tMs + bucketMs,
     };
   }
 
@@ -2086,14 +2089,11 @@
     var innerH = h - padY * 2;
     var mn = series.mn;
     var mx = series.mx;
-    var t0 = series.rangeStartMs;
-    var t1 = series.rangeEndMs;
-    var span = Math.max(t1 - t0, 60000);
     var xy = [];
     for (var i = 0; i < n; i++) {
       var p = pts[i];
       var v = Number(p.users) || 0;
-      var x = ((p.ts.getTime() - t0) / span) * w;
+      var x = n === 1 ? w / 2 : (i / (n - 1)) * w;
       var y = _sparkY(v, mn, mx, padY, innerH);
       xy.push({ x: x, y: y, v: v, i: i });
     }
