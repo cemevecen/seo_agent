@@ -990,6 +990,23 @@ class DovizAssetMonitorRun(Base):
     payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
 
 
+class GitlabBoardIssueOrder(Base):
+    """GitLab board sütun içi manuel sıra — refresh sonrası korunur."""
+
+    __tablename__ = "gitlab_board_issue_orders"
+    __table_args__ = (
+        UniqueConstraint("project_path", "list_key", "issue_iid", name="uq_gitlab_board_order"),
+        Index("ix_gitlab_board_order_proj_list", "project_path", "list_key", "sort_index"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_path: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    list_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    issue_iid: Mapped[int] = mapped_column(Integer, nullable=False)
+    sort_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AiTalkAlert(Base):
     """Proaktif izleme uyarıları."""
     __tablename__ = "ai_talk_alerts"

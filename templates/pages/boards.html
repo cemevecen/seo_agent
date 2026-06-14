@@ -162,6 +162,7 @@
                 :data-label="lst.label.name"
                 :data-virtual="lst.isVirtual"
                 :data-closed="lst.isClosed"
+                :data-list-key="listKey(lst)"
                 :data-project="activeProject"
                 x-init="initSortable($el)"
               >
@@ -226,6 +227,7 @@
       defaultProjectPath: {{ default_board_project | tojson }},
       activeProject: null,
       projectData: {},
+      boardOrders: {},
       vpnStatus: 'checking',
 
       tabTheme(project) {
@@ -329,24 +331,88 @@
         return 'https://git.nokta.com' + (url.startsWith('/') ? '' : '/') + url;
       },
 
-      async fetchAllIssues(encodedPath) {
+      async fetchAllIssues(encodedPath, state) {
         let allIssues = [];
         let page = 1;
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
         const updatedAfter = oneYearAgo.toISOString();
+        const orderBy = state === 'opened' ? 'relative_position' : 'updated_at';
 
         while (true) {
-          const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues?updated_after=${updatedAfter}&order_by=relative_position&sort=asc&per_page=100&page=${page}`, {
-            headers: { 'PRIVATE-TOKEN': this.token }
-          });
-          if (!res.ok) throw new Error("Issues fetch failed");
+          const res = await fetch(
+            `${this.baseUrl}/projects/${encodedPath}/issues?state=${state}&updated_after=${updatedAfter}&order_by=${orderBy}&sort=asc&per_page=100&page=${page}`,
+            { headers: { 'PRIVATE-TOKEN': this.token } }
+          );
+          if (!res.ok) throw new Error(`Issues fetch failed (${state})`);
           const data = await res.json();
           allIssues = allIssues.concat(data);
           if (data.length < 100) break;
           page++;
         }
         return allIssues;
+      },
+
+      listKey(lst) {
+        if (!lst) return '';
+        if (lst.isClosed) return '__closed__';
+        if (lst.isVirtual) return '__open__';
+        return (lst.label && lst.label.name) ? lst.label.name : String(lst.id || '');
+      },
+
+      async loadBoardOrders(path) {
+        try {
+          const res = await fetch('/api/boards/order?project_path=' + encodeURIComponent(path), {
+            credentials: 'same-origin',
+            cache: 'no-store',
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          this.boardOrders[path] = data.orders || {};
+        } catch (e) {
+          console.warn('Board order load failed', e);
+        }
+      },
+
+      async saveColumnOrder(path, listKey, issueIids) {
+        if (!path || !listKey) return;
+        const iids = (issueIids || []).map((x) => parseInt(x, 10)).filter((n) => !isNaN(n));
+        if (!this.boardOrders[path]) this.boardOrders[path] = {};
+        this.boardOrders[path][listKey] = iids;
+
+        const res = await fetch('/api/boards/order', {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_path: path,
+            list_key: listKey,
+            issue_iids: iids,
+          }),
+        });
+        if (!res.ok) throw new Error('Sütun sırası kaydedilemedi');
+      },
+
+      sortIssuesWithSavedOrder(path, listKey, issues) {
+        const saved = (this.boardOrders[path] || {})[listKey];
+        if (!saved || !saved.length) {
+          return this.sortIssuesByPosition(issues);
+        }
+        const rank = {};
+        saved.forEach((iid, i) => {
+          rank[String(iid)] = i;
+        });
+        return issues.slice().sort((a, b) => {
+          const ra = rank[String(a.iid)];
+          const rb = rank[String(b.iid)];
+          if (ra != null && rb != null) return ra - rb;
+          if (ra != null) return -1;
+          if (rb != null) return 1;
+          const pa = a.relative_position ?? Number.MAX_SAFE_INTEGER;
+          const pb = b.relative_position ?? Number.MAX_SAFE_INTEGER;
+          if (pa !== pb) return pa - pb;
+          return (a.id || 0) - (b.id || 0);
+        });
       },
 
       async fetchProjectData(path, force) {
@@ -361,9 +427,11 @@
         const headers = { 'PRIVATE-TOKEN': this.token };
 
         try {
-          const [boardsRes, allIssues] = await Promise.all([
+          const [boardsRes, openedIssues, closedIssues, _orders] = await Promise.all([
             fetch(`${this.baseUrl}/projects/${encodedPath}/boards`, { headers }),
-            this.fetchAllIssues(encodedPath)
+            this.fetchAllIssues(encodedPath, 'opened'),
+            this.fetchAllIssues(encodedPath, 'closed'),
+            this.loadBoardOrders(path),
           ]);
 
           if (!boardsRes.ok) throw new Error(`GitLab API Hatası: ${boardsRes.statusText}`);
@@ -403,7 +471,7 @@
           });
           
           pd.lists = actualLists;
-          pd.issues = allIssues;
+          pd.issues = openedIssues.concat(closedIssues);
           pd.loaded = true;
 
         } catch (err) {
@@ -415,24 +483,23 @@
         }
       },
 
-      async reorderIssue(encodedPath, issueIid, { move_after_id, move_before_id } = {}) {
-        const qs = new URLSearchParams();
-        if (move_after_id != null) qs.set('move_after_id', move_after_id);
-        if (move_before_id != null) qs.set('move_before_id', move_before_id);
-        if (!qs.toString()) return null;
+      async reorderIssueViaBackend(projectPath, issueIid, { move_after_id, move_before_id } = {}) {
+        const body = {
+          project_path: projectPath,
+          issue_iid: parseInt(issueIid, 10),
+        };
+        if (move_after_id != null) body.move_after_id = move_after_id;
+        if (move_before_id != null) body.move_before_id = move_before_id;
 
-        const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}/reorder?${qs}`, {
-          method: 'PUT',
-          headers: { 'PRIVATE-TOKEN': this.token }
+        const res = await fetch('/api/boards/reorder', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error('Sıralama kaydedilemedi');
-        const text = await res.text();
-        if (!text || !text.trim()) return null;
-        try {
-          return JSON.parse(text);
-        } catch {
-          return null;
-        }
+        const data = await res.json();
+        return data.issue || null;
       },
 
       getReorderParamsFromList(listEl, issueIid, projectPath) {
@@ -474,48 +541,17 @@
         pd.issues = this.sortIssuesByPosition(pd.issues);
       },
 
-      /** Sortable DOM sırasını Alpine state'e yansıt (x-for yeniden çiziminde geri sıçramayı önler). */
-      applyColumnOrderFromListEl(listEl, projectPath) {
-        const pd = this.projectData[projectPath];
-        if (!pd || !listEl) return;
-        const iids = [...listEl.querySelectorAll('[data-id]')].map((el) => String(el.dataset.id));
-        if (iids.length < 2) return;
-
-        const byIid = {};
-        pd.issues.forEach((iss) => {
-          byIid[String(iss.iid)] = iss;
-        });
-        const ordered = iids.map((iid) => byIid[iid]).filter(Boolean);
-        if (ordered.length < 2) return;
-
-        for (let i = 0; i < ordered.length; i++) {
-          const cur = ordered[i];
-          const prev = ordered[i - 1];
-          const next = ordered[i + 1];
-          const prevPos = prev != null ? Number(prev.relative_position) : null;
-          const nextPos = next != null ? Number(next.relative_position) : null;
-          let pos;
-          if (prevPos == null || !Number.isFinite(prevPos)) {
-            pos = (Number.isFinite(nextPos) ? nextPos : 0) - 1024;
-          } else if (nextPos == null || !Number.isFinite(nextPos)) {
-            pos = prevPos + 1024;
-          } else if (prevPos === nextPos) {
-            pos = prevPos + (i + 1) * 0.001;
-          } else {
-            pos = prevPos + (nextPos - prevPos) / 2;
-          }
-          cur.relative_position = pos;
-        }
-        pd.issues = this.sortIssuesByPosition(pd.issues);
+      /** Sortable DOM sırasını iid listesine çevir. */
+      iidsFromListEl(listEl) {
+        return [...listEl.querySelectorAll('[data-id]')].map((el) => parseInt(el.dataset.id, 10)).filter((n) => !isNaN(n));
       },
 
       async syncIssuePosition(projectPath, listEl, issueIid) {
-        const encodedPath = encodeURIComponent(projectPath);
         const params = this.getReorderParamsFromList(listEl, issueIid, projectPath);
-        if (!params || (!params.move_after_id && !params.move_before_id)) return;
-
-        const updated = await this.reorderIssue(encodedPath, issueIid, params);
+        if (!params || (!params.move_after_id && !params.move_before_id)) return null;
+        const updated = await this.reorderIssueViaBackend(projectPath, issueIid, params);
         if (updated) this.applyIssueUpdate(this.projectData[projectPath], updated);
+        return updated;
       },
 
       async createIssue(path, lst) {
@@ -547,14 +583,21 @@
           const pd = this.projectData[path];
           pd.issues.push(newIssue);
 
-          const columnIssues = this.getIssuesForList(path, lst).filter(i => i.iid !== newIssue.iid);
-          if (columnIssues.length > 0) {
-            const updated = await this.reorderIssue(encodedPath, newIssue.iid, {
-              move_after_id: columnIssues[0].id
-            });
-            if (updated) this.applyIssueUpdate(pd, updated);
-          } else {
-            this.applyIssueUpdate(pd, newIssue);
+          const lk = this.listKey(lst);
+          const existingIids = this.getIssuesForList(path, lst)
+            .filter((i) => i.iid !== newIssue.iid)
+            .map((i) => i.iid);
+          const newOrder = [newIssue.iid, ...existingIids];
+          await this.saveColumnOrder(path, lk, newOrder);
+
+          if (existingIids.length > 0) {
+            const first = pd.issues.find((i) => i.iid === existingIids[0]);
+            if (first && first.id) {
+              const updated = await this.reorderIssueViaBackend(path, newIssue.iid, {
+                move_after_id: first.id,
+              });
+              if (updated) this.applyIssueUpdate(pd, updated);
+            }
           }
           
           lst.newIssueTitle = '';
@@ -586,7 +629,7 @@
             );
           }
         }
-        return this.sortIssuesByPosition(filtered);
+        return this.sortIssuesWithSavedOrder(path, this.listKey(lst), filtered);
       },
 
       initSortable(el) {
@@ -608,7 +651,6 @@
             const issueIid = itemEl.dataset.id;
             const projectPath = toList.dataset.project;
             const pd = this.projectData[projectPath];
-            const encodedPath = encodeURIComponent(projectPath);
             const crossColumn = fromList !== toList;
 
             const isToVirtual = toList.dataset.virtual === "true";
@@ -617,52 +659,66 @@
             const isFromClosed = fromList.dataset.closed === "true";
             const fromLabel = fromList.dataset.label;
             const toLabel = toList.dataset.label;
+            const toListKey = toList.dataset.listKey || '';
+            const fromListKey = fromList.dataset.listKey || '';
             const oldIndex = evt.oldIndex;
             const newIndex = evt.newIndex;
             const reorderedInColumn = !crossColumn && oldIndex !== newIndex;
 
-            if (reorderedInColumn || crossColumn) {
-              this.applyColumnOrderFromListEl(toList, projectPath);
-            }
+            const toIids = this.iidsFromListEl(toList);
+            const fromIids = crossColumn ? this.iidsFromListEl(fromList) : null;
+            const reorderParams = (reorderedInColumn || crossColumn)
+              ? this.getReorderParamsFromList(toList, issueIid, projectPath)
+              : null;
 
             try {
               if (crossColumn) {
-                let payload = {};
+                const payload = {
+                  project_path: projectPath,
+                  issue_iid: parseInt(issueIid, 10),
+                  from_label: isFromVirtual || isFromClosed ? '' : fromLabel,
+                  to_label: isToVirtual || isToClosed ? '' : toLabel,
+                };
+                if (isToClosed && !isFromClosed) payload.state_event = 'close';
+                else if (!isToClosed && isFromClosed) payload.state_event = 'reopen';
 
-                if (isToClosed && !isFromClosed) {
-                  payload.state_event = 'close';
-                } else if (!isToClosed && isFromClosed) {
-                  payload.state_event = 'reopen';
-                }
-
-                const addLabels = !isToVirtual && !isToClosed ? toLabel : "";
-                const removeLabels = !isFromVirtual && !isFromClosed ? fromLabel : "";
-
-                if (addLabels) payload.add_labels = addLabels;
-                if (removeLabels) payload.remove_labels = removeLabels;
-
-                const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}`, {
-                  method: 'PUT',
-                  headers: { 'PRIVATE-TOKEN': this.token, 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload)
+                const res = await fetch('/api/boards/move', {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
                 });
+                if (!res.ok) throw new Error('Durum/etiket güncellenemedi');
 
-                if (!res.ok) throw new Error("Update failed");
-
-                const issueIndex = pd.issues.findIndex(i => i.iid == issueIid);
-                if (issueIndex > -1) {
-                  if (payload.state_event === 'close') pd.issues[issueIndex].state = 'closed';
-                  if (payload.state_event === 'reopen') pd.issues[issueIndex].state = 'opened';
-
-                  let labels = pd.issues[issueIndex].labels;
-                  if (removeLabels) labels = labels.filter(l => l !== removeLabels);
-                  if (addLabels && !labels.includes(addLabels)) labels.push(addLabels);
-                  pd.issues[issueIndex].labels = labels;
+                const moveData = await res.json();
+                const updated = moveData.issue;
+                if (updated) {
+                  const issueIndex = pd.issues.findIndex(i => String(i.iid) === String(issueIid));
+                  if (issueIndex > -1) {
+                    pd.issues[issueIndex] = { ...pd.issues[issueIndex], ...updated };
+                  }
+                } else {
+                  const issueIndex = pd.issues.findIndex(i => String(i.iid) === String(issueIid));
+                  if (issueIndex > -1) {
+                    if (payload.state_event === 'close') pd.issues[issueIndex].state = 'closed';
+                    if (payload.state_event === 'reopen') pd.issues[issueIndex].state = 'opened';
+                    let labels = pd.issues[issueIndex].labels || [];
+                    const removeLabels = payload.from_label;
+                    const addLabels = payload.to_label;
+                    if (removeLabels) labels = labels.filter(l => l !== removeLabels);
+                    if (addLabels && !labels.includes(addLabels)) labels.push(addLabels);
+                    pd.issues[issueIndex].labels = labels;
+                  }
                 }
               }
 
-              if (reorderedInColumn || crossColumn) {
-                await this.syncIssuePosition(projectPath, toList, issueIid);
+              if (reorderParams && (reorderParams.move_after_id || reorderParams.move_before_id)) {
+                await this.reorderIssueViaBackend(projectPath, issueIid, reorderParams);
+              }
+
+              await this.saveColumnOrder(projectPath, toListKey, toIids);
+              if (crossColumn && fromListKey && fromIids) {
+                await this.saveColumnOrder(projectPath, fromListKey, fromIids);
               }
             } catch (e) {
               alert("Taşıma işlemi kaydedilemedi: " + e.message);

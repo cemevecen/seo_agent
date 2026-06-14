@@ -15243,7 +15243,14 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # --- GITLAB BOARDS ---
 
-from backend.services.gitlab_board import fetch_project_board_async, move_issue_async
+from backend.services.gitlab_board import (
+    fetch_project_board_async,
+    get_board_column_orders,
+    move_issue_async,
+    reorder_issue_async,
+    save_board_column_order,
+    update_issue_async,
+)
 
 @app.get("/boards", response_class=HTMLResponse)
 def page_boards(request: Request):
@@ -15275,24 +15282,103 @@ async def api_boards_content(request: Request, project_path: str):
         context={"request": request, "data": data, "project_path": project_path}
     )
 
+@app.get("/api/boards/order")
+def api_boards_order(project_path: str, db: Session = Depends(get_db)):
+    """Kayıtlı board sütun sıraları."""
+    orders = get_board_column_orders(db, project_path)
+    return JSONResponse({"project_path": project_path, "orders": orders})
+
+
+@app.put("/api/boards/order")
+async def api_boards_save_order(request: Request, db: Session = Depends(get_db)):
+    """Sütun içi issue sırasını kalıcı kaydet."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+
+    project_path = str(body.get("project_path") or "").strip()
+    list_key = str(body.get("list_key") or "").strip()
+    issue_iids = body.get("issue_iids") or []
+    if not project_path or not list_key:
+        return JSONResponse({"error": "missing_project_or_list"}, status_code=400)
+    if not isinstance(issue_iids, list):
+        return JSONResponse({"error": "issue_iids_must_be_list"}, status_code=400)
+
+    save_board_column_order(db, project_path, list_key, issue_iids)
+    return JSONResponse({"ok": True, "project_path": project_path, "list_key": list_key, "count": len(issue_iids)})
+
+
+@app.post("/api/boards/reorder")
+async def api_boards_reorder(request: Request):
+    """GitLab relative_position reorder proxy."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+
+    project_path = str(body.get("project_path") or "").strip()
+    issue_iid = body.get("issue_iid")
+    if not project_path or issue_iid is None:
+        return JSONResponse({"error": "missing_fields"}, status_code=400)
+
+    move_after_id = body.get("move_after_id")
+    move_before_id = body.get("move_before_id")
+    updated = await reorder_issue_async(
+        project_path,
+        int(issue_iid),
+        move_after_id=int(move_after_id) if move_after_id is not None else None,
+        move_before_id=int(move_before_id) if move_before_id is not None else None,
+    )
+    if updated is None and (move_after_id is not None or move_before_id is not None):
+        return JSONResponse({"error": "reorder_failed"}, status_code=502)
+    return JSONResponse({"ok": True, "issue": updated})
+
+
 @app.post("/api/boards/move")
 async def api_boards_move(request: Request):
-    """Sürükle-bırak işlemi sonrası etiketleri günceller."""
-    form = await request.form()
-    project_path = str(form.get("project_path"))
-    issue_iid_str = form.get("issue_iid")
-    if not issue_iid_str:
-        return Response(status_code=400)
-    issue_iid = int(issue_iid_str)
-    from_label = str(form.get("from_label", ""))
-    to_label = str(form.get("to_label", ""))
-    
-    add_labels = [to_label] if to_label and to_label != "null" else []
-    remove_labels = [from_label] if from_label and from_label != "null" else []
-    
-    success = await move_issue_async(project_path, issue_iid, add_labels, remove_labels)
-    # Başarılıysa sadece 200 döneriz, UI zaten SortableJS ile güncellendi
-    return Response(status_code=200 if success else 400)
+    """Sürükle-bırak: etiket + durum güncellemesi."""
+    content_type = (request.headers.get("content-type") or "").lower()
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "invalid_json"}, status_code=400)
+        project_path = str(body.get("project_path") or "").strip()
+        issue_iid = body.get("issue_iid")
+        from_label = str(body.get("from_label") or "")
+        to_label = str(body.get("to_label") or "")
+        state_event = body.get("state_event")
+    else:
+        form = await request.form()
+        project_path = str(form.get("project_path") or "").strip()
+        issue_iid_str = form.get("issue_iid")
+        if not issue_iid_str:
+            return JSONResponse({"error": "missing_issue_iid"}, status_code=400)
+        issue_iid = int(issue_iid_str)
+        from_label = str(form.get("from_label", ""))
+        to_label = str(form.get("to_label", ""))
+        state_event = form.get("state_event")
+
+    if not project_path or issue_iid is None:
+        return JSONResponse({"error": "missing_fields"}, status_code=400)
+
+    add_labels = [to_label] if to_label and to_label not in ("null", "__open__", "__closed__") else []
+    remove_labels = [from_label] if from_label and from_label not in ("null", "__open__", "__closed__") else []
+    state_ev = str(state_event).strip() if state_event else None
+    if state_ev not in ("close", "reopen"):
+        state_ev = None
+
+    updated = await update_issue_async(
+        project_path,
+        int(issue_iid),
+        add_labels=add_labels or None,
+        remove_labels=remove_labels or None,
+        state_event=state_ev,
+    )
+    if updated is None:
+        return JSONResponse({"error": "update_failed"}, status_code=502)
+    return JSONResponse({"ok": True, "issue": updated})
 
 
 
