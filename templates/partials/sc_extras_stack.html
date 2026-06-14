@@ -20,13 +20,7 @@
     >
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {% for _ in [0, 1] %}
-        <div class="animate-pulse rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900/95">
-          <div class="mb-3 h-5 w-40 rounded bg-slate-200 dark:bg-slate-700"></div>
-          <div class="space-y-2">
-            <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700"></div>
-            <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700"></div>
-          </div>
-        </div>
+        {% include "partials/sc_extras_loading_card.html" %}
         {% endfor %}
       </div>
     </div>
