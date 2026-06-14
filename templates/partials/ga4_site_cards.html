@@ -5,6 +5,7 @@
       {% for site_id, display_name, domain in lazy_site_ids %}
         <div
           id="ga4-card-{{ site_id }}"
+          data-site-id="{{ site_id }}"
           hx-get="/ga4/site/{{ site_id }}"
           hx-trigger="load, revealed"
           hx-swap="outerHTML"

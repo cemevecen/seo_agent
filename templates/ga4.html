@@ -119,7 +119,7 @@
     50% { transform: scaleY(1.08); opacity: 1; }
   }
 </style>
-<div data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
+<div id="ga4-page" data-ga4-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}" data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-3">
@@ -1562,6 +1562,73 @@
     });
   }
 
+  function ga4GetGlobalFocus() {
+    var page = document.getElementById('ga4-page');
+    return (page && page.dataset.ga4GlobalFocus) || '';
+  }
+
+  function ga4SplitCardsInGrid(grid) {
+    if (!grid || !grid.querySelectorAll) {
+      return [];
+    }
+    var direct = grid.querySelectorAll(':scope > [data-site-id]');
+    if (direct.length) {
+      return direct;
+    }
+    return grid.querySelectorAll('[data-ga4-site-card]');
+  }
+
+  function ga4ApplyFocusToGrid(grid, focusId) {
+    if (!grid || !grid.querySelectorAll) {
+      return;
+    }
+    var fid = focusId ? String(focusId) : '';
+    grid.dataset.ga4Focus = fid;
+    grid.classList.toggle('ga4-split--focused', Boolean(fid));
+    var cards = ga4SplitCardsInGrid(grid);
+    cards.forEach(function (card) {
+      var sid = String(card.getAttribute('data-site-id') || '');
+      var expandBtn = card.querySelector('[data-ga4-focus-toggle]');
+      var resetBtn = card.querySelector('[data-ga4-split-reset]');
+      if (fid && sid === fid) {
+        card.classList.remove('hidden');
+        card.classList.add('xl:col-span-2');
+        if (expandBtn) expandBtn.classList.add('hidden');
+        if (resetBtn) resetBtn.classList.remove('hidden');
+      } else if (fid) {
+        card.classList.add('hidden');
+        card.classList.remove('xl:col-span-2');
+        if (expandBtn) expandBtn.classList.add('hidden');
+        if (resetBtn) resetBtn.classList.add('hidden');
+      } else {
+        card.classList.remove('hidden', 'xl:col-span-2');
+        if (expandBtn) expandBtn.classList.remove('hidden');
+        if (resetBtn) resetBtn.classList.add('hidden');
+      }
+    });
+    window.setTimeout(function () {
+      initGa4Tables(grid);
+      fitGa4Text(grid);
+      renderGa4TrendCharts(grid);
+    }, 40);
+  }
+
+  function ga4ApplyGlobalFocus(focusId) {
+    var fid;
+    if (focusId !== undefined) {
+      fid = focusId ? String(focusId) : '';
+      var page = document.getElementById('ga4-page');
+      if (page) {
+        page.dataset.ga4GlobalFocus = fid;
+      }
+    } else {
+      fid = ga4GetGlobalFocus();
+    }
+    document.querySelectorAll('[data-ga4-split-root]').forEach(function (grid) {
+      ga4ApplyFocusToGrid(grid, fid);
+    });
+  }
+
   function initGa4SplitView(root) {
     // querySelectorAll yalnızca alt öğeleri döner; HTMX lazy swap sonrası closest(grid)
     // ile kökün kendisi verildiğinde boş liste oluşuyordu (Railway'de split tıklanmıyordu).
@@ -1574,86 +1641,26 @@
       grids = Array.prototype.slice.call(root.querySelectorAll('[data-ga4-split-root]'));
     }
     grids.forEach(function (grid) {
-      // Lazy kartlar HTMX ile sonradan geldiğinde, grid daha önce bound olduysa
-      // yeni eklenen split butonları event alamayabiliyor. applyFocus'u grid'e
-      // bağlayıp butonları idempotent şekilde tek tek bind edelim.
       if (grid.dataset.ga4SplitBound !== '1') {
         grid.dataset.ga4SplitBound = '1';
-      }
-
-      if (!grid.__ga4ApplyFocus) {
-        grid.__ga4ApplyFocus = function applyFocus(focusId) {
-        var fid = focusId ? String(focusId) : '';
-        grid.dataset.ga4Focus = fid;
-        grid.classList.toggle('ga4-split--focused', Boolean(fid));
-        var cards = grid.querySelectorAll('[data-ga4-site-card]');
-        cards.forEach(function (card) {
-          var sid = String(card.getAttribute('data-site-id') || '');
-          var expandBtn = card.querySelector('[data-ga4-focus-toggle]');
-          var resetBtn = card.querySelector('[data-ga4-split-reset]');
-          if (fid && sid === fid) {
-            card.classList.remove('hidden');
-            card.classList.add('xl:col-span-2');
-            if (expandBtn) {
-              expandBtn.classList.add('hidden');
-            }
-            if (resetBtn) {
-              resetBtn.classList.remove('hidden');
-            }
-          } else if (fid) {
-            card.classList.add('hidden');
-            card.classList.remove('xl:col-span-2');
-            if (expandBtn) {
-              expandBtn.classList.add('hidden');
-            }
-            if (resetBtn) {
-              resetBtn.classList.add('hidden');
-            }
-          } else {
-            card.classList.remove('hidden', 'xl:col-span-2');
-            if (expandBtn) {
-              expandBtn.classList.remove('hidden');
-            }
-            if (resetBtn) {
-              resetBtn.classList.add('hidden');
-            }
+        grid.addEventListener('click', function (e) {
+          var ft = e.target.closest('[data-ga4-focus-toggle]');
+          if (ft && grid.contains(ft)) {
+            e.preventDefault();
+            e.stopPropagation();
+            ga4ApplyGlobalFocus(ft.getAttribute('data-ga4-focus-toggle'));
+            return;
+          }
+          var rs = e.target.closest('[data-ga4-split-reset]');
+          if (rs && grid.contains(rs)) {
+            e.preventDefault();
+            e.stopPropagation();
+            ga4ApplyGlobalFocus('');
           }
         });
-        window.setTimeout(function () {
-          initGa4Tables(grid);
-          fitGa4Text(grid);
-          renderGa4TrendCharts(grid);
-        }, 40);
-        };
       }
-
-      var applyFocus = grid.__ga4ApplyFocus;
-
-      grid.querySelectorAll('[data-ga4-focus-toggle]').forEach(function (btn) {
-        if (btn.dataset.ga4SplitBtnBound === '1') {
-          return;
-        }
-        btn.dataset.ga4SplitBtnBound = '1';
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          applyFocus(btn.getAttribute('data-ga4-focus-toggle'));
-        });
-      });
-      grid.querySelectorAll('[data-ga4-split-reset]').forEach(function (btn) {
-        if (btn.dataset.ga4SplitBtnBound === '1') {
-          return;
-        }
-        btn.dataset.ga4SplitBtnBound = '1';
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          applyFocus('');
-        });
-      });
-
-      applyFocus(grid.dataset.ga4Focus || '');
     });
+    ga4ApplyGlobalFocus();
   }
 
   function initGa4Panels(root) {
@@ -1695,12 +1702,7 @@
     if (swappedEl && swappedEl.hasAttribute && swappedEl.hasAttribute('data-ga4-site-card')) {
       window.setTimeout(function () {
         initGa4Panels(swappedEl);
-        // Kartlar lazily swap olunca split root daha önce bound olsa bile bu kartın
-        // split/focus butonları event alamayabilir. En yakın grid üzerinden tekrar bind et.
-        var grid = swappedEl.closest && swappedEl.closest('[data-ga4-split-root]');
-        if (grid) {
-          initGa4SplitView(grid);
-        }
+        ga4ApplyGlobalFocus();
       }, 50);
     }
     // Pages / Haberler / Kaynak tabloları HTMX ile yüklendi — sort butonlarını etkinleştir

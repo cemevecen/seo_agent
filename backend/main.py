@@ -1936,6 +1936,22 @@ def _default_internal_site_id(rows: list[dict]) -> int:
     return int(rows[0]["id"]) if rows else 1
 
 
+def _default_active_site_id(db: Session) -> int | None:
+    external_ids = _external_site_ids(db)
+    sites = [
+        s
+        for s in db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.display_name.asc()).all()
+        if s.id not in external_ids
+    ]
+    if not sites:
+        return None
+    rows = [
+        {"id": s.id, "domain": s.domain, "display_name": s.display_name or s.domain}
+        for s in sites
+    ]
+    return _default_internal_site_id(rows)
+
+
 def _exclude_external_alerts(db, alerts: list[dict]) -> list[dict]:
     external_site_ids = _external_site_ids(db)
     if external_site_ids:
@@ -10535,9 +10551,12 @@ def get_intelligence_page(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/ga4")
 def ga4_page(request: Request):
+    with SessionLocal() as db:
+        default_site_id = _default_active_site_id(db)
     payload = {
         "site_name": "GA4",
         "sites": get_sidebar_sites(),
+        "default_site_id": default_site_id,
     }
     return templates.TemplateResponse(request, "ga4.html", context={"request": request, **payload})
 
@@ -13528,7 +13547,7 @@ def backlinks_page(request: Request):
     )
 
 
-def _search_console_page_context() -> dict[str, Any]:
+def _search_console_page_context(db: Session) -> dict[str, Any]:
     return {
         "site_name": "Search Console",
         "sites": get_sidebar_sites(),
@@ -13536,15 +13555,18 @@ def _search_console_page_context() -> dict[str, Any]:
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         "site_list_mode": "lazy",
         "sc_extra_views": sc_extra_views_for_nav(),
+        "default_site_id": _default_active_site_id(db),
     }
 
 
 @app.get("/search-console")
 def search_console_page(request: Request):
+    with SessionLocal() as db:
+        ctx = _search_console_page_context(db)
     return templates.TemplateResponse(
         request,
         "search_console.html",
-        context={"request": request, **_search_console_page_context()},
+        context={"request": request, **ctx},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
