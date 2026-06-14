@@ -782,6 +782,124 @@
   html.rt-view--compact [data-rt-profile-box] {
     min-height: 0;
   }
+  /* Split Panel (#3): sol KPI stack | sağ spark */
+  .rt-split-panel {
+    display: grid;
+    grid-template-columns: minmax(7.25rem, 36%) 1fr;
+    align-items: stretch;
+    min-height: 11rem;
+    margin-bottom: 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255);
+    overflow: hidden;
+  }
+  html.dark .rt-split-panel {
+    background: rgb(24 24 27);
+    border-color: rgba(63, 63, 70, 0.65);
+  }
+  .rt-split-kpis {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    padding: 0.65rem 0.75rem;
+    border-right: 1px solid rgb(241 245 249);
+  }
+  html.dark .rt-split-kpis {
+    border-right-color: rgba(63, 63, 70, 0.55);
+  }
+  .rt-split-kpis [data-rt-kpi] {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0;
+    padding: 0.35rem 0;
+    box-shadow: none;
+  }
+  .rt-split-kpis [data-rt-kpi="activeUsers"] {
+    padding-bottom: 0.65rem;
+    margin-bottom: 0.35rem;
+    border-bottom: 1px dashed rgb(226 232 240) !important;
+  }
+  html.dark .rt-split-kpis [data-rt-kpi="activeUsers"] {
+    border-bottom-color: rgba(63, 63, 70, 0.65) !important;
+  }
+  .rt-split-kpis [data-rt-kpi] [data-rt-val] {
+    font-size: 1.5rem;
+    line-height: 1.1;
+    margin-top: 0.25rem;
+  }
+  .rt-split-kpis [data-rt-kpi] p.text-xs {
+    font-size: 9px;
+    letter-spacing: 0.07em;
+  }
+  .rt-split-chart {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: stretch;
+  }
+  .rt-split-chart .rt-spark-wrap {
+    margin-top: 0;
+    flex: 1 1 auto;
+    height: 100%;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html.dark .rt-split-chart .rt-spark-wrap {
+    background: transparent;
+    box-shadow: none;
+  }
+  .rt-split-chart .rt-spark-inner {
+    border-radius: 0;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .rt-split-chart .rt-spark-plot {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .rt-split-chart .rt-spark-mini-bars,
+  .rt-split-chart .rt-spark-y-axis {
+    height: 5.25rem;
+  }
+  @media (max-width: 639px) {
+    .rt-split-panel {
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }
+    .rt-split-kpis {
+      flex-direction: row;
+      border-right: none;
+      border-bottom: 1px solid rgb(241 245 249);
+      padding: 0.65rem 0.75rem;
+      gap: 0.75rem;
+    }
+    html.dark .rt-split-kpis {
+      border-bottom-color: rgba(63, 63, 70, 0.55);
+    }
+    .rt-split-kpis [data-rt-kpi="activeUsers"] {
+      flex: 1;
+      min-width: 0;
+      padding-bottom: 0;
+      margin-bottom: 0;
+      border-bottom: none !important;
+      border-right: 1px dashed rgb(226 232 240) !important;
+      padding-right: 0.75rem;
+    }
+    html.dark .rt-split-kpis [data-rt-kpi="activeUsers"] {
+      border-right-color: rgba(63, 63, 70, 0.65) !important;
+    }
+    .rt-split-kpis [data-rt-kpi="screenPageViews"] {
+      flex: 1;
+      min-width: 0;
+    }
+  }
   /* Realtime görünüm: Tam / Özet pill */
   #rt-view-pills button[data-rt-view-pill] {
     min-width: 4.25rem;
@@ -1050,28 +1168,29 @@
           </div>
         </div>
 
-        {# KPI cards #}
-        <div class="grid min-w-0 grid-cols-2 gap-4 mb-4">
-          <div class="min-w-0 rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="activeUsers">
-            <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
-            <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
-            <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-              <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
-              <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
+        {# Split Panel: sol KPI | sağ spark #}
+        <div class="rt-split-panel">
+          <div class="rt-split-kpis">
+            <div class="min-w-0" data-rt-kpi="activeUsers">
+              <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
+              <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
+              <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+                <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
+                <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
+              </div>
+            </div>
+            <div class="min-w-0" data-rt-kpi="screenPageViews">
+              <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Görüntüleme</p>
+              <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
+              <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+                <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
+                <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
+              </div>
             </div>
           </div>
-          <div class="min-w-0 rounded-lg border border-slate-100 bg-white p-3 dark:border-slate-600/70 dark:bg-slate-900" data-rt-kpi="screenPageViews">
-            <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Görüntüleme</p>
-            <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
-            <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-              <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
-              <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
-            </div>
-          </div>
-        </div>
-
+          <div class="rt-split-chart">
         {# Aktif kullanıcı — dakikalık mini sütunlar (DB snapshot trend) #}
-        <div class="rt-spark-wrap mt-3" data-rt-chart-wrap>
+        <div class="rt-spark-wrap" data-rt-chart-wrap>
           <div class="rt-spark-inner rt-yf-surface">
             <div class="rt-spark-live-pulse" data-rt-spark-pulse aria-hidden="true"></div>
             <div class="rt-yf-chrome flex flex-wrap items-center gap-1 border-b border-slate-200/80 pb-1 dark:border-zinc-700/60" data-rt-yf-chrome>
@@ -1098,6 +1217,8 @@
             </div>
           </div>
         </div>
+          </div>{# /.rt-split-chart #}
+        </div>{# /.rt-split-panel #}
 
         {# 404 Spike indicator — sadece veri varsa gösterilir #}
         <div class="rt-404-section hidden mt-2 rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 dark:border-amber-800/40 dark:bg-amber-950/20"
