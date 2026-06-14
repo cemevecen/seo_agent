@@ -1535,6 +1535,49 @@ def _preferred_site_order_key(domain: str | None, display_name: str | None = Non
     )
 
 
+_SITE_DOMAIN_ALIASES: dict[str, tuple[str, ...]] = {
+    "doviz.com": ("doviz.com", "www.doviz.com"),
+    "www.doviz.com": ("www.doviz.com", "doviz.com"),
+    "sinemalar.com": ("sinemalar.com", "www.sinemalar.com"),
+    "www.sinemalar.com": ("www.sinemalar.com", "sinemalar.com"),
+}
+
+
+def _site_domain_candidates(domain: str) -> list[str]:
+    raw = str(domain or "").strip().lower()
+    if not raw:
+        return []
+    aliases = _SITE_DOMAIN_ALIASES.get(raw)
+    if aliases:
+        return list(dict.fromkeys(aliases))
+    return [raw]
+
+
+def _resolve_site_by_domain(db, domain: str) -> Site | None:
+    from sqlalchemy import func
+
+    for candidate in _site_domain_candidates(domain):
+        site = db.query(Site).filter(Site.domain == candidate).first()
+        if site is not None:
+            return site
+    raw = str(domain or "").strip().lower()
+    if raw:
+        return db.query(Site).filter(func.lower(Site.domain) == raw).first()
+    return None
+
+
+def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
+    times: list[datetime] = []
+    for provider in ("pagespeed", "crux_history"):
+        run = _latest_provider_run(db, site_id=site_id, provider=provider)
+        finished = getattr(run, "finished_at", None) if run else None
+        if isinstance(finished, datetime):
+            times.append(finished)
+    if not times:
+        return "Henüz otomatik yenileme kaydı yok"
+    return format_local_datetime(max(times), fallback="Henüz otomatik yenileme kaydı yok")
+
+
 def _dashboard_spotlight_card_limit(domain: str | None) -> int:
     """Öne çıkan sorgu kartı sayısı: döviz daha kompakt; sinemalar vb. tam liste."""
     d = str(domain or "").strip().lower()
@@ -5626,7 +5669,7 @@ def _build_error_widget(db, site_id: int) -> dict:
 
 def _data_explorer_context(domain: str) -> dict:
     with SessionLocal() as db:
-        site = db.query(Site).filter(Site.domain == domain).first()
+        site = _resolve_site_by_domain(db, domain)
         if site is None:
             raise ValueError("Site bulunamadı.")
 
@@ -5678,6 +5721,7 @@ def _data_explorer_context(domain: str) -> dict:
             "mobile_desktop_delta": mobile_desktop_delta,
             "error_widget": error_widget,
             "data_explorer_schedule": schedule_str,
+            "data_explorer_last_auto_refresh": _data_explorer_last_auto_refresh_label(db, site.id),
             "psi_lighthouse_last_updated": format_local_datetime(
                 psi_collected,
                 fallback="Henüz PSI/Lighthouse ölçümü yok",
@@ -5685,6 +5729,14 @@ def _data_explorer_context(domain: str) -> dict:
             "crux_history_last_updated": format_local_datetime(
                 crux_collected,
                 fallback="Henüz CrUX geçmişi yok",
+            ),
+            "crux_mobile_last_updated": format_datetime_like(
+                (mobile_crux or {}).get("collected_at"),
+                fallback="Henüz mobil CrUX kaydı yok",
+            ),
+            "crux_desktop_last_updated": format_datetime_like(
+                (desktop_crux or {}).get("collected_at"),
+                fallback="Henüz masaüstü CrUX kaydı yok",
             ),
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
@@ -5736,7 +5788,7 @@ def _public_sites_payload(db) -> list[dict]:
 
 def _public_explorer_context(domain: str) -> dict:
     with SessionLocal() as db:
-        site = db.query(Site).filter(Site.domain == domain).first()
+        site = _resolve_site_by_domain(db, domain)
         if site is None:
             raise ValueError("Site bulunamadı.")
         if not _is_external_site(db, site.id):
@@ -8170,6 +8222,13 @@ def data_explorer(request: Request, domain: str):
     except ValueError:
         return HTMLResponse("Site bulunamadı.", status_code=404)
 
+    canonical_domain = str(payload.get("domain") or "").strip()
+    if canonical_domain and canonical_domain.lower() != str(domain or "").strip().lower():
+        redirect_url = f"/data-explorer/{canonical_domain}"
+        if request.url.query:
+            redirect_url = f"{redirect_url}?{request.url.query}"
+        return RedirectResponse(url=redirect_url, status_code=307)
+
     de_headers = {
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         "Pragma": "no-cache",
@@ -8726,7 +8785,7 @@ def api_get_live_lighthouse_scores_by_strategy(request: Request, domain: str, st
 @app.post("/api/site/{domain}/data-explorer/refresh")
 def api_refresh_data_explorer(request: Request, domain: str):
     with SessionLocal() as db:
-        site = db.query(Site).filter(Site.domain == domain).first()
+        site = _resolve_site_by_domain(db, domain)
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
