@@ -346,9 +346,9 @@
     countdownTimer = setInterval(function () {
       if (!autoCb.checked) return;
       if (loadingNow) return;
+      if (document.hidden) return;
       countdownSec -= 1;
       if (countdownSec <= 0) {
-        countdownSec = 0;
         updateCountdownUI();
         load();
         return;
@@ -394,6 +394,15 @@
   if (siteSelect) siteSelect.addEventListener('change', load);
   document.getElementById('trend-refresh').addEventListener('click', load);
   if (autoCb) autoCb.addEventListener('change', scheduleAuto);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (autoCb && autoCb.checked) {
+      load();
+    } else {
+      resetCountdown();
+      updateCountdownUI();
+    }
+  });
   load();
 })();
 </script>
