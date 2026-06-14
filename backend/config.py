@@ -258,6 +258,10 @@ class Settings(BaseSettings):
     ga4_scheduled_refresh_site_spacing_seconds: int = 15
     # Gece GA4 job: KPI dönemleri (gün) + ayrıca 12 ay günlük trend (collect_ga4_12m_daily_trend).
     ga4_scheduled_kpi_period_days: str = "1,7,30,60,90"
+    # GA4 hata izleme: tek RunReport'ta dönecek satır üst sınırı (GA4 API max ~250k).
+    ga4_error_pages_fetch_limit: int = Field(default=10000, ge=200, le=100000)
+    # DB'den /errors tablosuna yüklenecek kayıt üst sınırı (summary API).
+    ga4_error_pages_display_limit: int = Field(default=10000, ge=200, le=100000)
 
     # Inbox Gmail → DB (e-posta göndermez).
     inbox_scheduled_sync_enabled: bool = True

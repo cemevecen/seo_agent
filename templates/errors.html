@@ -60,7 +60,7 @@
       <p class="mt-1.5 text-2xl font-black {{ color }}" id="{{ id }}">
         <span class="inline-block h-5 w-8 animate-pulse rounded bg-slate-100 dark:bg-zinc-800 align-middle"></span>
       </p>
-      <p class="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">{{ sub }}</p>
+      <p class="text-[10px] text-slate-400 dark:text-zinc-500 mt-1" id="{{ id }}-sub">{{ sub }}</p>
     </div>
     {% endfor %}
   </div>
@@ -176,7 +176,22 @@ function _renderSummary(d) {
   document.getElementById('card-404').textContent   = d.total_404   || 0;
   document.getElementById('card-5xx').textContent   = d.total_5xx   || 0;
   document.getElementById('card-users').textContent = d.total_users || 0;
-  document.getElementById('card-total').textContent = (d.errors || []).length;
+  var listed = (d.errors || []).length;
+  document.getElementById('card-total').textContent = d.fetched_url_count != null ? d.fetched_url_count : listed;
+  var sub404 = document.getElementById('card-404-sub');
+  if (sub404) {
+    if (d.truncated && d.total_404 > listed) {
+      sub404.textContent = 'GA4 toplam · tabloda ' + listed + ' URL gösteriliyor';
+    } else {
+      sub404.textContent = 'Bulunamayan benzersiz sayfa';
+    }
+  }
+  var subTotal = document.getElementById('card-total-sub');
+  if (subTotal) {
+    subTotal.textContent = d.truncated
+      ? ('En çok kullanıcı etkilenen ' + listed + ' kayıt (limit ' + (d.fetch_limit || '—') + ')')
+      : ('Son ' + _errDays + ' günde tespit edilen');
+  }
   if (d.fetched_at) document.getElementById('fetched-at').textContent = d.fetched_at;
 
   var errors = d.errors || [];

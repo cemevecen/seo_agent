@@ -12,7 +12,11 @@ from urllib.parse import parse_qs
 
 from sqlalchemy.orm import Session
 
+from backend.config import settings
+
 logger = logging.getLogger(__name__)
+
+_FETCH_META_URL = "__fetch_meta__"
 
 _REFERRER_SKIP = frozenset({"", "(not set)", "(none)", "(direct)"})
 _MAX_REFERRERS = 20
@@ -377,12 +381,52 @@ def _build_ga4_client():
     return BetaAnalyticsDataClient(credentials=creds)
 
 
+def _ga4_error_fetch_limit(explicit: int | None = None) -> int:
+    if explicit is not None and explicit > 0:
+        return int(explicit)
+    return max(200, int(getattr(settings, "ga4_error_pages_fetch_limit", 10000) or 10000))
+
+
+def _ga4_error_display_limit() -> int:
+    return max(200, int(getattr(settings, "ga4_error_pages_display_limit", 10000) or 10000))
+
+
+def _ga4_error_unique_url_count(
+    client: Any,
+    pid: str,
+    days: int,
+    error_filters: list,
+) -> int | None:
+    """GA4 row_count — filtreyle eşleşen benzersiz pagePathPlusQueryString sayısı (limit olmadan)."""
+    from google.analytics.data_v1beta.types import (
+        DateRange, Dimension, FilterExpression, FilterExpressionList, Metric, RunReportRequest,
+    )
+
+    req = RunReportRequest(
+        property=pid,
+        date_ranges=[DateRange(start_date=f"{days}daysAgo", end_date="today")],
+        dimensions=[Dimension(name="pagePathPlusQueryString")],
+        metrics=[Metric(name="totalUsers")],
+        dimension_filter=FilterExpression(
+            or_group=FilterExpressionList(expressions=error_filters)
+        ),
+        limit=1,
+    )
+    try:
+        resp = client.run_report(req)
+        raw = getattr(resp, "row_count", None)
+        return int(raw) if raw is not None else None
+    except Exception as exc:
+        logger.debug("GA4 error unique URL count atlandı: %s", exc)
+        return None
+
+
 def fetch_ga4_error_pages(
     property_id: str,
     days: int = 7,
-    limit: int = 200,
+    limit: int | None = None,
     site_domain: str | None = None,
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     """
     GA4 Analytics Data API ile hata sayfalarını çeker.
     pagePath'te '404' geçen VEYA pageTitle'da hata kelimeleri içeren sayfalar.
@@ -397,6 +441,7 @@ def fetch_ga4_error_pages(
         pid = f"properties/{pid}"
 
     error_filters = _ga4_error_page_filter_list()
+    fetch_limit = _ga4_error_fetch_limit(limit)
 
     # Sorgu 1: URL + başlık + kullanıcı sayısı
     req_main = RunReportRequest(
@@ -417,15 +462,16 @@ def fetch_ga4_error_pages(
             metric=OrderBy.MetricOrderBy(metric_name="totalUsers"),
             desc=True,
         )],
-        limit=limit,
+        limit=fetch_limit,
     )
 
     try:
         client = _build_ga4_client()
+        ga4_unique_url_count = _ga4_error_unique_url_count(client, pid, days, error_filters)
         response = client.run_report(req_main)
     except Exception as exc:
         logger.warning("GA4 error pages fetch hatası [property=%s]: %s", property_id, exc)
-        return []
+        return {"errors": [], "ga4_unique_url_count": None, "fetched_url_count": 0, "fetch_limit": fetch_limit, "truncated": False}
 
     grouped: dict[str, dict] = {}
     for row in response.rows:
@@ -455,7 +501,13 @@ def fetch_ga4_error_pages(
     site_host = _host_hint(site_domain)
 
     if not grouped:
-        return []
+        return {
+            "errors": [],
+            "ga4_unique_url_count": ga4_unique_url_count or 0,
+            "fetched_url_count": 0,
+            "fetch_limit": fetch_limit,
+            "truncated": bool(ga4_unique_url_count and ga4_unique_url_count > 0),
+        }
 
     # Sorgu 2: aynı filtre + pageReferrer — ayrı sorgu daha güvenilir
     req_ref = RunReportRequest(
@@ -473,7 +525,7 @@ def fetch_ga4_error_pages(
             metric=OrderBy.MetricOrderBy(metric_name="totalUsers"),
             desc=True,
         )],
-        limit=limit * 5,
+        limit=min(fetch_limit * 5, 100000),
     )
     ref_agg: dict[str, dict[str, int]] = {}
     ref_unknown: dict[str, int] = {}
@@ -529,7 +581,7 @@ def fetch_ga4_error_pages(
             metric=OrderBy.MetricOrderBy(metric_name="totalUsers"),
             desc=True,
         )],
-        limit=limit * 10,
+        limit=min(fetch_limit * 10, 100000),
     )
     ch_agg: dict[str, dict[str, int]] = {}
     try:
@@ -555,7 +607,7 @@ def fetch_ga4_error_pages(
             for ch, u in sorted(counts.items(), key=lambda x: x[1], reverse=True)
         ][: _MAX_CHANNELS]
 
-    breakdown_limit = limit * 15
+    breakdown_limit = min(fetch_limit * 15, 100000)
     for field, ga4_dim, direct_only in _BREAKDOWN_FIELD_SPECS:
         counts_by_path = _ga4_run_path_breakdown(
             client, pid, days, breakdown_limit, error_filters, ga4_dim,
@@ -575,8 +627,24 @@ def fetch_ga4_error_pages(
             _attach_breakdown_by_base(grouped, base_path, "landing_params", items)
 
     results = sorted(grouped.values(), key=lambda x: x["users"], reverse=True)
-    logger.info("GA4 hata sayfaları: property=%s, %d benzersiz URL", property_id, len(results))
-    return results
+    fetched_count = len(results)
+    unique_total = ga4_unique_url_count if ga4_unique_url_count is not None else fetched_count
+    truncated = unique_total > fetched_count or len(response.rows or []) >= fetch_limit
+    logger.info(
+        "GA4 hata sayfaları: property=%s, ga4_unique=%s fetched=%d limit=%d truncated=%s",
+        property_id,
+        unique_total,
+        fetched_count,
+        fetch_limit,
+        truncated,
+    )
+    return {
+        "errors": results,
+        "ga4_unique_url_count": unique_total,
+        "fetched_url_count": fetched_count,
+        "fetch_limit": fetch_limit,
+        "truncated": truncated,
+    }
 
 
 def save_error_logs(
@@ -584,6 +652,8 @@ def save_error_logs(
     site_id: int,
     errors: list[dict[str, Any]],
     source: str,
+    *,
+    fetch_meta: dict[str, Any] | None = None,
 ) -> int:
     """Hataları DB'ye kaydeder. Her çekimde önce eski kayıtlar temizlenir, taze yazılır."""
     from backend.models import SiteErrorLog
@@ -600,6 +670,22 @@ def save_error_logs(
 
     saved = 0
     now = datetime.utcnow()
+
+    if fetch_meta:
+        db.add(
+            SiteErrorLog(
+                site_id=site_id,
+                url=_FETCH_META_URL,
+                status_code=0,
+                source=source,
+                error_type="fetch_meta",
+                hit_count=0,
+                first_seen=now,
+                last_seen=now,
+                extra_json=json.dumps(fetch_meta, ensure_ascii=False),
+            )
+        )
+        saved += 1
 
     for e in errors:
         url = (e.get("url") or "")[:2048]
@@ -783,16 +869,34 @@ def get_error_summary(
             SiteErrorLog.source == source_key,
         )
         .order_by(SiteErrorLog.hit_count.desc())
-        .limit(500)
+        .limit(_ga4_error_display_limit() + 1)
         .all()
     )
 
-    total_404 = sum(1 for r in rows if r.status_code == 404)
-    total_5xx = sum(1 for r in rows if r.status_code >= 500)
-    total_users = sum(r.hit_count for r in rows)
+    fetch_meta: dict[str, Any] = {}
+    data_rows = []
+    for r in rows:
+        if r.url == _FETCH_META_URL:
+            if r.extra_json:
+                try:
+                    fetch_meta = json.loads(r.extra_json)
+                except Exception:
+                    fetch_meta = {}
+            continue
+        data_rows.append(r)
+
+    total_404 = int(fetch_meta.get("ga4_unique_url_count") or 0)
+    if total_404 <= 0:
+        total_404 = sum(1 for r in data_rows if r.status_code == 404)
+    total_5xx = sum(1 for r in data_rows if r.status_code >= 500)
+    total_users = sum(r.hit_count for r in data_rows)
+    fetched_url_count = int(fetch_meta.get("fetched_url_count") or len(data_rows))
+    truncated = bool(fetch_meta.get("truncated")) or (
+        total_404 > len(data_rows) and len(data_rows) >= _ga4_error_display_limit()
+    )
 
     # Verinin kapsadığı tarih aralığı: çekim anından geriye days gün
-    fetched_at = max((r.last_seen for r in rows if r.last_seen), default=None)
+    fetched_at = max((r.last_seen for r in data_rows if r.last_seen), default=None)
     if fetched_at:
         range_end = fetched_at.date()
         range_start = range_end - timedelta(days=days - 1)
@@ -806,7 +910,7 @@ def get_error_summary(
         fetched_at_str = ""
 
     error_list = []
-    for r in rows:
+    for r in data_rows[: _ga4_error_display_limit()]:
         extra = {}
         if r.extra_json:
             try:
@@ -837,6 +941,9 @@ def get_error_summary(
         "total_404":   total_404,
         "total_5xx":   total_5xx,
         "total_users": total_users,
+        "fetched_url_count": fetched_url_count,
+        "truncated": truncated,
+        "fetch_limit": int(fetch_meta.get("fetch_limit") or _ga4_error_fetch_limit()),
         "by_source":   {"ga4": total_404 + total_5xx},
         "errors":      error_list,
         "site_id":     site_id,
@@ -868,17 +975,27 @@ def run_error_detection_for_site(db: Session, site_id: int, days: int = 7) -> di
     if not property_id:
         return {"status": "skip", "message": "web property ID yok"}
 
-    errors = fetch_ga4_error_pages(property_id, days=days, site_domain=site.domain)
+    payload = fetch_ga4_error_pages(property_id, days=days, site_domain=site.domain)
+    errors = payload.get("errors") or []
+    fetch_meta = {
+        "ga4_unique_url_count": payload.get("ga4_unique_url_count"),
+        "fetched_url_count": payload.get("fetched_url_count"),
+        "fetch_limit": payload.get("fetch_limit"),
+        "truncated": payload.get("truncated"),
+    }
     source_key = _ga4_source_key(days)
-    saved = save_error_logs(db, site.id, errors, source=source_key)
+    saved = save_error_logs(db, site.id, errors, source=source_key, fetch_meta=fetch_meta)
 
+    unique_count = int(payload.get("ga4_unique_url_count") or len(errors))
     logger.info(
-        "Hata tespiti: site=%s property=%s days=%d, %d hata bulundu, %d kaydedildi",
-        site.domain, property_id, days, len(errors), saved,
+        "Hata tespiti: site=%s property=%s days=%d, ga4_unique=%d fetched=%d, %d kaydedildi",
+        site.domain, property_id, days, unique_count, len(errors), saved,
     )
     return {
         "status":  "ok",
-        "found":   len(errors),
+        "found":   unique_count,
+        "fetched": len(errors),
+        "truncated": bool(payload.get("truncated")),
         "saved":   saved,
         "domain":  site.domain,
     }
