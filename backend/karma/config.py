@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class KarmaItem:
+class TrendItem:
     slug: str
     title: str
     group: str
@@ -12,44 +12,106 @@ class KarmaItem:
     order: int
 
 
-KARMA_COMPETITORS: dict[str, list[str]] = {
+# Geriye uyumluluk
+KarmaItem = TrendItem
+
+TREND_COMPETITORS: dict[str, list[str]] = {
     "doviz.com": ["paratic.com", "foreks.com", "cnbce.com"],
     "www.doviz.com": ["paratic.com", "foreks.com", "cnbce.com"],
     "sinemalar.com": ["beyazperde.com", "birsenaltuntas.com", "rottentomatoes.com"],
     "www.sinemalar.com": ["beyazperde.com", "birsenaltuntas.com", "rottentomatoes.com"],
 }
+KARMA_COMPETITORS = TREND_COMPETITORS
 
-KARMA_ITEMS: tuple[KarmaItem, ...] = (
-    KarmaItem("trend-radar", "Trend Radar", "Trend", "Çok kaynaklı trend skoru ve editör önerileri", 1),
-    KarmaItem("query-haber", "Query → Haber", "Trend", "GSC sorguları vs haber kapsamı", 2),
-    KarmaItem("rakip-gap", "Rakip Gap", "Trend", "Rakip başlıkları vs sizin coverage", 3),
-    KarmaItem("seasonality", "Seasonality", "Trend", "Mevsimsel içerik hazırlık takvimi", 4),
-    KarmaItem("anomaly-tree", "Anomaly Ağacı", "Trend", "Alarm kök neden drill-down", 5),
-    KarmaItem("brief-generator", "Brief Generator", "İçerik", "Trend kartından editoryal brief", 6),
-    KarmaItem("headline-lab", "Headline Lab", "İçerik", "Başlık varyantları ve skor", 7),
-    KarmaItem("ic-link", "İç Link", "İçerik", "Sayfa bazlı iç link önerileri", 8),
-    KarmaItem("content-decay", "Content Decay", "İçerik", "Düşen içerik ve aksiyon", 9),
-    KarmaItem("topic-cluster", "Topic Cluster", "İçerik", "Konu cluster authority haritası", 10),
-    KarmaItem("push-roi", "Push ROI", "Dağıtım", "Push konuları ve geri dönüş", 11),
-    KarmaItem("serp-tracker", "SERP Tracker", "Dağıtım", "Snippet ve SERP feature izleme", 12),
-    KarmaItem("programmatic-seo", "Prog. SEO", "Dağıtım", "Şablon sayfa kalite guardrail", 13),
-    KarmaItem("international", "International", "Dağıtım", "Dil / pazar fırsatları", 14),
-    KarmaItem("editorial-sla", "Editoryal SLA", "Operasyon", "Trend → yayın gecikme takibi", 15),
-    KarmaItem("war-room", "War Room", "Operasyon", "Kriz anı tek ekran", 16),
-    KarmaItem("post-mortem", "Post-mortem", "Operasyon", "Spike sonrası otomatik rapor", 17),
-    KarmaItem("morning-brief", "Sabah Brifingi", "Operasyon", "Role göre günlük özet", 18),
-    KarmaItem("cwv-trafik", "CWV ↔ Trafik", "Kalite", "Core Web Vitals vs trafik", 19),
-    KarmaItem("ai-action", "AI → Aksiyon", "Kalite", "AI Talk'tan issue / brief köprüsü", 20),
+TREND_ITEMS: tuple[TrendItem, ...] = (
+    TrendItem(
+        "trend-radar",
+        "Trend Radar",
+        "Keşif",
+        "Anlık haber, trafik, alarm ve rakip sinyallerini tek skorla birleştirir — son 30 dk kritik.",
+        1,
+    ),
+    TrendItem(
+        "query-haber",
+        "Query → Haber",
+        "Keşif",
+        "Yükselen GSC sorgularını haber/intelligence ile eşleştirir; gap ve fırsat anında.",
+        2,
+    ),
+    TrendItem(
+        "rakip-gap",
+        "Rakip Gap",
+        "Keşif",
+        "Rakip domainlerden geniş tarama — bizde olmayan başlıklar ve topic boşlukları.",
+        3,
+    ),
+    TrendItem(
+        "seasonality",
+        "Seasonality",
+        "Keşif",
+        "Mevsimsel takvim + geçmiş alarm spike pattern — ne zaman hazırlık gerekir.",
+        4,
+    ),
+    TrendItem(
+        "anomaly-tree",
+        "Anomaly Ağacı",
+        "Keşif",
+        "Realtime alarm → GA4 driver ağacı; web/mweb kök neden drill-down.",
+        5,
+    ),
+    TrendItem(
+        "brief-generator",
+        "Brief Generator",
+        "Aksiyon",
+        "Kritik gap + trafik + GSC bağlamından acil editoryal brief.",
+        6,
+    ),
+    TrendItem(
+        "headline-lab",
+        "Headline Lab",
+        "Aksiyon",
+        "Trend haberlerden SEO/CTR odaklı başlık varyantları — anlık skor.",
+        7,
+    ),
+    TrendItem(
+        "ic-link",
+        "İç Link",
+        "Aksiyon",
+        "Anlık top sayfalar + yükselen sorgular → iç link kaynak/hedef eşlemesi.",
+        8,
+    ),
+    TrendItem(
+        "content-decay",
+        "Content Decay",
+        "Aksiyon",
+        "GSC pozisyon kaybı + anlık trafik düşüşü birleşik decay skoru.",
+        9,
+    ),
+    TrendItem(
+        "topic-cluster",
+        "Topic Cluster",
+        "Aksiyon",
+        "Haber + GSC + realtime sayfa cluster haritası — otorite boşlukları.",
+        10,
+    ),
 )
 
-KARMA_BY_SLUG = {i.slug: i for i in KARMA_ITEMS}
-KARMA_GROUPS: tuple[str, ...] = tuple(dict.fromkeys(i.group for i in KARMA_ITEMS))
+KARMA_ITEMS = TREND_ITEMS
+TREND_BY_SLUG = {i.slug: i for i in TREND_ITEMS}
+KARMA_BY_SLUG = TREND_BY_SLUG
+TREND_GROUPS: tuple[str, ...] = tuple(dict.fromkeys(i.group for i in TREND_ITEMS))
+KARMA_GROUPS = TREND_GROUPS
+
+REFRESH_SEC = 30
 
 
-def karma_competitors_for_domain(domain: str) -> list[str]:
+def trend_competitors_for_domain(domain: str) -> list[str]:
     d = (domain or "").lower().strip()
     if "sinemalar" in d:
-        return KARMA_COMPETITORS["www.sinemalar.com"]
+        return TREND_COMPETITORS["www.sinemalar.com"]
     if "doviz" in d:
-        return KARMA_COMPETITORS["doviz.com"]
+        return TREND_COMPETITORS["doviz.com"]
     return []
+
+
+karma_competitors_for_domain = trend_competitors_for_domain

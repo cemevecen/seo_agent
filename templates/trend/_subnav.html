@@ -1,0 +1,14 @@
+<div class="trend-subnav-wrap">
+  <div class="trend-subnav-groups">
+    {% for group in trend_groups %}
+    <div>
+      <div class="trend-subnav-group-label">{{ group }}</div>
+      <div class="trend-subnav-track">
+        {% for item in trend_items if item.group == group %}
+        <a href="/trend/{{ item.slug }}" class="trend-subnav-link {% if item.slug == trend_slug %}is-active{% endif %}">{{ item.order }}. {{ item.title }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>

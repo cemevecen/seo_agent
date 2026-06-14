@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="trend-root mx-auto w-full min-w-0 max-w-[1800px]" data-header-title="Trend · {{ trend_item.title }}">
+  {% include "trend/_subnav.html" %}
+
+  <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <div class="mb-1 flex flex-wrap items-center gap-2">
+        <span id="trend-live-dot" class="trend-live-dot" title="Canlı yenileme"></span>
+        <p class="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">{{ trend_item.group }}</p>
+        <span id="trend-live-at" class="text-[10px] font-medium text-slate-400"></span>
+      </div>
+      <h1 class="text-xl font-black text-slate-900 dark:text-zinc-100 sm:text-2xl">{{ trend_item.title }}</h1>
+      <p class="mt-1 max-w-2xl text-sm text-slate-500 dark:text-zinc-400">{{ trend_item.description }}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Site</label>
+      <select id="trend-site-select" class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
+        {% for s in sites %}
+        <option value="{{ s.id }}" {% if s.id == site_id %}selected{% endif %}>{{ s.display_name or s.domain }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" id="trend-refresh" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Yenile</button>
+      <label class="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+        <input type="checkbox" id="trend-auto" checked class="rounded border-slate-300" />
+        Canlı (30s)
+      </label>
+    </div>
+  </div>
+
+  <div id="trend-loading" class="hidden py-12 text-center text-sm text-slate-400">Yükleniyor…</div>
+  <div id="trend-error" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"></div>
+
+  <div id="trend-summary" class="mb-4 hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300"></div>
+
+  <div id="trend-metrics" class="mb-5 hidden grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+
+  <div id="trend-sections" class="space-y-5"></div>
+
+  <div id="trend-actions" class="mt-6 hidden flex flex-wrap gap-2"></div>
+</div>
+
+<style>
+  .trend-live-dot {
+    width: 8px; height: 8px; border-radius: 999px;
+    background: rgb(34 197 94); box-shadow: 0 0 0 0 rgba(34,197,94,.5);
+    animation: trend-pulse 2s infinite;
+  }
+  .trend-live-dot.is-paused { background: rgb(148 163 184); animation: none; box-shadow: none; }
+  @keyframes trend-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34,197,94,.45); }
+    70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  }
+  .trend-subnav-wrap { margin-bottom: 1rem; border-bottom: 1px solid rgb(226 232 240); padding-bottom: 0.5rem; }
+  html.dark .trend-subnav-wrap { border-color: rgba(63,63,70,.55); }
+  .trend-subnav-groups { display: flex; flex-direction: column; gap: 0.5rem; }
+  .trend-subnav-group-label {
+    font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+    color: rgb(100 116 139); padding: 0 0.25rem;
+  }
+  html.dark .trend-subnav-group-label { color: rgb(161 161 170); }
+  .trend-subnav-track {
+    display: flex; flex-wrap: nowrap; gap: 0.35rem; overflow-x: auto;
+    -webkit-overflow-scrolling: touch; padding-bottom: 0.15rem;
+  }
+  .trend-subnav-link {
+    flex-shrink: 0; border-radius: 999px; padding: 0.3rem 0.65rem;
+    font-size: 10px; font-weight: 700; white-space: nowrap;
+    border: 1px solid rgb(226 232 240); color: rgb(71 85 105);
+    background: rgb(255 255 255); text-decoration: none;
+  }
+  html.dark .trend-subnav-link { border-color: rgb(63 63 70); color: rgb(212 212 216); background: rgb(24 24 27); }
+  .trend-subnav-link.is-active { background: rgb(79 70 229); border-color: rgb(79 70 229); color: #fff; }
+  html.dark .trend-subnav-link.is-active { background: rgb(99 102 241); border-color: rgb(99 102 241); }
+  .trend-metric {
+    border-radius: 0.75rem; border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255); padding: 0.65rem 0.75rem;
+  }
+  html.dark .trend-metric { border-color: rgb(63 63 70); background: rgb(24 24 27); }
+  .trend-metric-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: rgb(100 116 139); }
+  html.dark .trend-metric-label { color: rgb(161 161 170); }
+  .trend-metric-val { font-size: 1.15rem; font-weight: 900; font-variant-numeric: tabular-nums; color: rgb(15 23 42); }
+  html.dark .trend-metric-val { color: rgb(250 250 250); }
+  .trend-section-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: rgb(51 65 85); margin-bottom: 0.5rem; }
+  html.dark .trend-section-title { color: rgb(212 212 216); }
+  .trend-card {
+    border-radius: 0.75rem; border: 1px solid rgb(241 245 249);
+    background: rgb(255 255 255); padding: 0.65rem 0.75rem;
+  }
+  html.dark .trend-card { border-color: rgb(39 39 42); background: rgb(18 18 20); }
+  .trend-card + .trend-card { margin-top: 0.35rem; }
+  .trend-badge {
+    display: inline-block; border-radius: 999px; padding: 0.1rem 0.45rem;
+    font-size: 9px; font-weight: 700; background: rgb(241 245 249); color: rgb(71 85 105);
+  }
+  html.dark .trend-badge { background: rgb(39 39 42); color: rgb(161 161 170); }
+  .trend-badge.is-critical { background: rgb(254 226 226); color: rgb(185 28 28); }
+  html.dark .trend-badge.is-critical { background: rgb(69 10 10); color: rgb(252 165 165); }
+</style>
+
+<script>
+(function () {
+  var slug = {{ trend_slug | tojson }};
+  var siteSelect = document.getElementById('trend-site-select');
+  var loading = document.getElementById('trend-loading');
+  var errEl = document.getElementById('trend-error');
+  var summaryEl = document.getElementById('trend-summary');
+  var metricsEl = document.getElementById('trend-metrics');
+  var sectionsEl = document.getElementById('trend-sections');
+  var actionsEl = document.getElementById('trend-actions');
+  var liveAtEl = document.getElementById('trend-live-at');
+  var liveDot = document.getElementById('trend-live-dot');
+  var autoCb = document.getElementById('trend-auto');
+  var refreshSec = 30;
+  var timer = null;
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function badgeClass(b) {
+    var s = String(b || '').toUpperCase();
+    if (s.indexOf('KRİTİK') >= 0 || s.indexOf('ACİL') >= 0 || s.indexOf('YOK') >= 0) return ' trend-badge is-critical';
+    return ' trend-badge';
+  }
+
+  function render(data) {
+    if (data.refresh_sec) refreshSec = data.refresh_sec;
+    summaryEl.textContent = data.summary || '';
+    summaryEl.classList.toggle('hidden', !data.summary);
+    if (liveAtEl && data.live_at) {
+      try {
+        liveAtEl.textContent = '· ' + new Date(data.live_at).toLocaleTimeString('tr-TR');
+      } catch (e) { liveAtEl.textContent = ''; }
+    }
+
+    if (data.metrics && data.metrics.length) {
+      metricsEl.innerHTML = data.metrics.map(function (m) {
+        return '<div class="trend-metric"><div class="trend-metric-label">' + esc(m.label) + '</div><div class="trend-metric-val">' + esc(m.value) + '</div></div>';
+      }).join('');
+      metricsEl.classList.remove('hidden');
+    } else {
+      metricsEl.classList.add('hidden');
+    }
+
+    sectionsEl.innerHTML = (data.sections || []).map(function (sec) {
+      var items = (sec.items || []).map(function (it) {
+        var inner = '<div class="flex flex-wrap items-start justify-between gap-2"><div class="min-w-0 flex-1">';
+        if (it.href) inner += '<a href="' + esc(it.href) + '" target="_blank" rel="noopener" class="font-semibold text-sm text-indigo-700 hover:underline dark:text-indigo-300">' + esc(it.title) + '</a>';
+        else inner += '<div class="font-semibold text-sm text-slate-800 dark:text-zinc-100">' + esc(it.title) + '</div>';
+        if (it.subtitle) inner += '<div class="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">' + esc(it.subtitle) + '</div>';
+        inner += '</div>';
+        if (it.badge) inner += '<span class="' + badgeClass(it.badge).trim() + '">' + esc(it.badge) + '</span>';
+        inner += '</div>';
+        return '<div class="trend-card">' + inner + '</div>';
+      }).join('');
+      return '<div><h2 class="trend-section-title">' + esc(sec.title) + '</h2>' + (items || '<p class="text-xs text-slate-400">Veri yok</p>') + '</div>';
+    }).join('');
+
+    if (data.actions && data.actions.length) {
+      actionsEl.innerHTML = data.actions.map(function (a) {
+        return '<a href="' + esc(a.href) + '" class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">' + esc(a.label) + '</a>';
+      }).join('');
+      actionsEl.classList.remove('hidden');
+    } else {
+      actionsEl.classList.add('hidden');
+    }
+  }
+
+  function scheduleAuto() {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if (autoCb && autoCb.checked) {
+      if (liveDot) liveDot.classList.remove('is-paused');
+      timer = setInterval(load, refreshSec * 1000);
+    } else if (liveDot) {
+      liveDot.classList.add('is-paused');
+    }
+  }
+
+  function load() {
+    var sid = siteSelect ? siteSelect.value : '1';
+    loading.classList.remove('hidden');
+    errEl.classList.add('hidden');
+    fetch('/api/trend/' + encodeURIComponent(slug) + '?site_id=' + encodeURIComponent(sid), { credentials: 'same-origin' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        loading.classList.add('hidden');
+        if (!res.ok) throw new Error(res.j.error || 'Yüklenemedi');
+        render(res.j);
+        scheduleAuto();
+      })
+      .catch(function (e) {
+        loading.classList.add('hidden');
+        errEl.textContent = e.message || 'Hata';
+        errEl.classList.remove('hidden');
+      });
+  }
+
+  if (siteSelect) siteSelect.addEventListener('change', load);
+  document.getElementById('trend-refresh').addEventListener('click', load);
+  if (autoCb) autoCb.addEventListener('change', scheduleAuto);
+  load();
+})();
+</script>
+{% endblock %}
