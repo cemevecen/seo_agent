@@ -56,6 +56,24 @@ def test_entertainment_includes_platform_and_vizyon():
     )
 
 
+def test_entertainment_excludes_sports_and_politics():
+    for headline in (
+        "Trabzonspor'dan Zhegrova hamlesi",
+        "Galatasaray Başkanı Dursun Özbek açıklama yaptı",
+        "Fenerbahçe Amrabat transferini duyurdu",
+        "Transfer sezonu kapandı: Beşiktaş Lauriente'yi kadrosuna kattı",
+        "36. NATO Zirvesi'ne Ankara ev sahipliği yapacak",
+    ):
+        assert not intel_row_matches_vertical(_row(headline=headline, category="Türkiye"), ContentVertical.ENTERTAINMENT)
+
+
+def test_entertainment_includes_imdb_and_film():
+    assert intel_row_matches_vertical(
+        _row(headline="IMDb'ye göre zirvede tek başına! Yeşilçam'ın en yüksek puanlı filmi belli oldu"),
+        ContentVertical.ENTERTAINMENT,
+    )
+
+
 def test_entertainment_excludes_pure_finance_and_weather():
     assert not intel_row_matches_vertical(
         _row(headline="TCMB faiz kararı açıklandı", category="Finans & Borsa"),

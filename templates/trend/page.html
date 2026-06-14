@@ -350,7 +350,7 @@
       countdownSec -= 1;
       if (countdownSec <= 0) {
         updateCountdownUI();
-        load();
+        load({ silent: true });
         return;
       }
       updateCountdownUI();
@@ -361,14 +361,18 @@
     startCountdown();
   }
 
-  function load() {
+  function load(opts) {
+    opts = opts || {};
+    var silent = !!opts.silent;
     if (countdownTimer) {
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
     var sid = siteSelect ? siteSelect.value : '1';
-    loadingNow = true;
-    loading.classList.remove('hidden');
+    if (!silent) {
+      loadingNow = true;
+      loading.classList.remove('hidden');
+    }
     errEl.classList.add('hidden');
     fetch('/api/trend/' + encodeURIComponent(slug) + '?site_id=' + encodeURIComponent(sid), { credentials: 'same-origin' })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
@@ -397,7 +401,7 @@
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') return;
     if (autoCb && autoCb.checked) {
-      load();
+      load({ silent: true });
     } else {
       resetCountdown();
       updateCountdownUI();

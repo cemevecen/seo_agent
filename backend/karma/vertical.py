@@ -65,10 +65,32 @@ ENTERTAINMENT_KEYWORDS = frozenset(
         "yönetmen", "box office", "gişe", "netflix", "disney", "disney+", "hbo", "amazon prime",
         "exxen", "blutv", "gain", "puhutv", "tabii", "mubi", "max ", "apple tv",
         "oscar", "cannes", "emmy", "golden globe", "imdb", "yeşilçam", "streaming",
-        "sezon", "bölüm", "cast", "premiere", "galası", "vizyona", "sinemalarda",
+        "dizi sezon", "yeni sezon", "sezon final", "final sezon", "2. sezon", "3. sezon",
+        "bölüm", "cast", "premiere", "galası", "vizyona", "sinemalarda",
         "belgesel", "animasyon", "marvel", "dc ", "star wars", "dizi fragman",
-        "platform", "ott", "yayın takvimi", "vizyon takvimi", "final sezon",
-        "boxoffice", "sinema salon", "film festivali", "dizi platform",
+        "platform", "ott", "yayın takvimi", "vizyon takvimi", "sinema salon",
+        "boxoffice", "film festivali", "dizi platform", "sinema sektör", "eğlence sektör",
+    }
+)
+
+# Sinema/dizi dışı gürültü — tek eğlence kelimesiyle (ör. "sezon") geçmemeli.
+ENTERTAINMENT_EXCLUDE_KEYWORDS = frozenset(
+    {
+        "futbol", "galatasaray", "fenerbahçe", "beşiktaş", "trabzonspor", "süper lig",
+        "transfer ", "transferi", " maç", "maçı", "derbi", "gol ", "uefa", "şampiyonlar ligi",
+        "milli takım", "basketbol", "voleybol", "nba ", "euroleague", "tenis turnuvası",
+        "meclis", "cumhurbaşkan", "bakan ", "hükümet", "nato ", "tbmm", "seçim ",
+        "magazin", "dedikodu", "survivor", "masterchef", "billard", "bilardo",
+    }
+)
+
+ENTERTAINMENT_CORE_KEYWORDS = frozenset(
+    {
+        "film", "sinema", "dizi", "vizyon", "fragman", "imdb", "netflix", "disney",
+        "exxen", "blutv", "gain", "puhutv", "tabii", "gişe", "box office", "boxoffice",
+        "oyuncu", "yönetmen", "yeşilçam", "oscar", "cannes", "marvel", "vizyon takvimi",
+        "platform", "streaming", "sinemalarda", "vizyona", "film festivali", "eğlence sektör",
+        "sinema sektör", "dizi platform",
     }
 )
 
@@ -151,18 +173,24 @@ def intel_row_matches_vertical(row: NewsIntelligenceItem, vertical: ContentVerti
             return ent == 0
         return cat not in ENTERTAINMENT_CATEGORIES
 
-    # Entertainment
-    if wth >= 1 and ent == 0 and fin == 0:
+    # Entertainment — sinema/dizi/platform dışı haberleri sıkı ele.
+    exc = _keyword_score(blob, ENTERTAINMENT_EXCLUDE_KEYWORDS)
+    core = _keyword_score(blob, ENTERTAINMENT_CORE_KEYWORDS)
+    if wth >= 1 and core == 0:
+        return False
+    if exc >= 1 and core == 0:
         return False
     if cat in ENTERTAINMENT_CATEGORIES:
         return True
-    if cat in FINANCE_CATEGORIES and ent == 0:
+    if cat in FINANCE_CATEGORIES:
         return False
-    if ent >= 1:
+    if core >= 1:
         return True
-    if fin >= 3 and ent == 0:
-        return False
-    return ent > fin
+    if ent >= 2 and ent > fin:
+        return True
+    if cat in SHARED_CATEGORIES:
+        return core >= 1 or (ent >= 2 and ent > fin)
+    return False
 
 
 def headline_variants(base: str, vertical: ContentVertical | None, *, age_m: float) -> list[str]:
