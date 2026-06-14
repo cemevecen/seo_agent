@@ -7,29 +7,20 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.karma.config import TREND_BY_SLUG, TREND_GROUPS, TREND_ITEMS
 from backend.karma.data import get_trend_data
-from backend.models import Site
 
 router = APIRouter(tags=["trend"])
 
 
 def _trend_sites(db: Session) -> list[dict]:
-    rows = (
-        db.query(Site)
-        .filter(Site.is_active.is_(True))
-        .order_by(Site.id.asc())
-        .all()
-    )
-    return [
-        {"id": s.id, "domain": s.domain, "display_name": s.display_name or s.domain}
-        for s in rows
-    ]
+    from backend.main import _internal_site_selector_rows
+
+    return _internal_site_selector_rows(db)
 
 
 def _default_site_id(sites: list[dict]) -> int:
-    for s in sites:
-        if "doviz" in (s.get("domain") or "").lower():
-            return int(s["id"])
-    return int(sites[0]["id"]) if sites else 1
+    from backend.main import _default_internal_site_id
+
+    return _default_internal_site_id(sites)
 
 
 def _render_trend_page(slug: str, request: Request, site_id: int | None, db: Session):

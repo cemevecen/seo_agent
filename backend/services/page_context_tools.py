@@ -346,12 +346,16 @@ def page_fetch_news_intelligence(hours: int = 12, source: str = "", limit: int =
     """NEWS / intelligence son haberler."""
     from datetime import datetime, timedelta
 
+    from backend.menu_excluded import is_menu_excluded_label
     from backend.models import NewsIntelligenceItem
     from backend.services.news_intelligence import RETENTION_HOURS, dedupe_news_rows
 
     hrs = max(1, min(int(hours), RETENTION_HOURS))
     lim = max(1, min(int(limit), 40))
     cutoff = datetime.utcnow() - timedelta(hours=hrs)
+    src = (source or "").strip()
+    if src and is_menu_excluded_label(src):
+        return {"hours": hrs, "source_filter": src, "count": 0, "sources": [], "items": []}
     with SessionLocal() as db:
         q = (
             db.query(NewsIntelligenceItem)
@@ -359,10 +363,10 @@ def page_fetch_news_intelligence(hours: int = 12, source: str = "", limit: int =
             .filter(NewsIntelligenceItem.source_name.notin_(["Unknown", "Bilinmiyor", ""]))
             .order_by(NewsIntelligenceItem.published_at.desc())
         )
-        src = (source or "").strip()
         if src:
             q = q.filter(NewsIntelligenceItem.source_name == src)
-        rows = dedupe_news_rows(q.limit(lim * 2).all())[:lim]
+        rows = dedupe_news_rows(q.limit(lim * 3).all())
+        rows = [r for r in rows if not is_menu_excluded_label(r.source_name)][:lim]
         items = [
             {
                 "headline": r.headline,
@@ -372,7 +376,7 @@ def page_fetch_news_intelligence(hours: int = 12, source: str = "", limit: int =
             }
             for r in rows
         ]
-        sources = sorted({r.source_name for r in rows if r.source_name})
+        sources = sorted({r.source_name for r in rows if r.source_name and not is_menu_excluded_label(r.source_name)})
     return {"hours": hrs, "source_filter": src or None, "count": len(items), "sources": sources, "items": items}
 
 
@@ -527,11 +531,11 @@ def page_fetch_home_dashboard() -> dict[str, Any]:
 
 def page_list_sites(limit: int = 30) -> dict[str, Any]:
     """GA4/errors sayfalarında site_id eşlemesi için site listesi."""
-    from backend.models import Site
+    from backend.main import _internal_active_sites
 
     lim = max(1, min(int(limit), 60))
     with SessionLocal() as db:
-        rows = db.query(Site).order_by(Site.domain.asc()).limit(lim).all()
+        rows = _internal_active_sites(db, active_only=False)[:lim]
         items = [
             {"id": s.id, "domain": s.domain, "display_name": s.display_name or s.domain}
             for s in rows

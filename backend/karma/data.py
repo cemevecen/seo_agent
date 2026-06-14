@@ -28,8 +28,10 @@ from backend.models import NewsIntelligenceItem, RealtimeAlarmLog, Site
 
 
 def _site_or_404(db: Session, site_id: int) -> Site:
+    from backend.main import _is_external_site
+
     site = db.query(Site).filter(Site.id == site_id, Site.is_active.is_(True)).first()
-    if not site:
+    if not site or _is_external_site(db, site.id):
         raise ValueError("Site not found")
     return site
 

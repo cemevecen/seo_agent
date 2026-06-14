@@ -774,6 +774,7 @@ def admin_run_news_intelligence_now():
 @app.get("/api/admin/news-intelligence/sources")
 def get_news_intelligence_sources(hours: int | None = None, sort: str = "name", order: str = "asc"):
     """Son N saatte haber içeren kaynak adlarını (ve adet) döner — dropdown için."""
+    from backend.menu_excluded import is_menu_excluded_label
     from backend.services.news_intelligence import RETENTION_HOURS
 
     with SessionLocal() as db:
@@ -799,7 +800,11 @@ def get_news_intelligence_sources(hours: int | None = None, sort: str = "name", 
             query = query.filter(NewsIntelligenceItem.published_at >= cutoff)
 
         rows = query.all()
-        sources = [{"name": name, "count": int(count or 0)} for name, count in rows if name]
+        sources = [
+            {"name": name, "count": int(count or 0)}
+            for name, count in rows
+            if name and not is_menu_excluded_label(name)
+        ]
 
         sort_key = (sort or "name").strip().lower()
         order_key = (order or "asc").strip().lower()
@@ -826,12 +831,15 @@ def get_news_intelligence(
     `since` parametresi auto-refresh için kullanılır (sadece bu zamandan sonrasını döner).
     """
     from backend.services.news_intelligence import RETENTION_HOURS
+    from backend.menu_excluded import is_menu_excluded_label
 
     with SessionLocal() as db:
         from backend.models import NewsIntelligenceItem
         from backend.services.news_intelligence import dedupe_news_rows
         from sqlalchemy import desc
         import datetime as _dt
+        if source and is_menu_excluded_label(source):
+            return {"items": []}
         query = db.query(NewsIntelligenceItem).order_by(desc(NewsIntelligenceItem.published_at))
         if category:
             query = query.filter(NewsIntelligenceItem.category == category)
@@ -872,6 +880,7 @@ def get_news_intelligence(
                 if len(chunk) < max(safe_limit * 2, 24):
                     break
             items = collected[:safe_limit]
+        items = [item for item in items if not is_menu_excluded_label(item.source_name)]
         return {
             "items": [
                 {
@@ -1546,7 +1555,7 @@ def get_sidebar_sites() -> list[dict]:
     with SessionLocal() as db:
         from backend.services.search_console_auth import OAUTH_CREDENTIAL_TYPE, SERVICE_ACCOUNT_CREDENTIAL_TYPE
 
-        external_site_ids = {int(row.site_id) for row in db.query(ExternalSite.site_id).all()}
+        external_site_ids = _external_site_ids(db)
         sites = db.query(Site).filter(Site.is_active.is_(True)).order_by(Site.created_at.desc()).all()
 
         # Tek sorguda tüm SC credential'ları yükle (N+1 yerine 1 sorgu)
@@ -1580,11 +1589,20 @@ def invalidate_sidebar_cache():
     _sidebar_cache["ts"] = 0.0
 
 
+from backend.menu_excluded import is_menu_excluded_label
+
+
+def _is_menu_excluded_domain(domain: str | None) -> bool:
+    """Harici / menüden gizlenecek domainler (ör. canlidoviz.com)."""
+    return is_menu_excluded_label(domain)
+
+
 def _external_site_ids(db) -> set[int]:
-    return {
-        int(row.site_id)
-        for row in db.query(ExternalSite.site_id).all()
-    }
+    ids = {int(row.site_id) for row in db.query(ExternalSite.site_id).all()}
+    for site in db.query(Site.id, Site.domain).all():
+        if _is_menu_excluded_domain(site.domain):
+            ids.add(int(site.id))
+    return ids
 
 
 def _external_site_domains(db) -> set[str]:
@@ -1593,7 +1611,36 @@ def _external_site_domains(db) -> set[str]:
         .join(ExternalSite, ExternalSite.site_id == Site.id)
         .all()
     )
-    return {str(row[0] or "").lower() for row in rows if row and row[0]}
+    domains = {str(row[0] or "").lower() for row in rows if row and row[0]}
+    for site in db.query(Site.domain).all():
+        if _is_menu_excluded_domain(site.domain):
+            domains.add(str(site.domain or "").lower())
+    return domains
+
+
+def _internal_active_sites(db, *, active_only: bool = True) -> list[Site]:
+    excluded = _external_site_ids(db)
+    q = db.query(Site)
+    if active_only:
+        q = q.filter(Site.is_active.is_(True))
+    return [s for s in q.order_by(Site.id.asc()).all() if s.id not in excluded]
+
+
+def _internal_site_selector_rows(db) -> list[dict]:
+    sites = _internal_active_sites(db)
+    sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+    return [
+        {"id": s.id, "domain": s.domain, "display_name": s.display_name or s.domain}
+        for s in sites
+    ]
+
+
+def _default_internal_site_id(rows: list[dict]) -> int:
+    preferred = {"doviz.com", "www.doviz.com"}
+    for row in rows:
+        if (row.get("domain") or "").lower() in preferred:
+            return int(row["id"])
+    return int(rows[0]["id"]) if rows else 1
 
 
 def _exclude_external_alerts(db, alerts: list[dict]) -> list[dict]:
@@ -10110,7 +10157,7 @@ def _ga4_sites_payload(db) -> list[dict]:
 @app.get("/intelligence", response_class=HTMLResponse)
 def get_intelligence_page(request: Request, db: Session = Depends(get_db)):
     """Market İstihbaratı sayfası."""
-    sites = db.query(Site).all()
+    sites = _internal_active_sites(db, active_only=False)
     return templates.TemplateResponse(
         "intelligence.html",
         {
@@ -10271,14 +10318,17 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
             for s in db.query(Site).order_by(Site.domain).all()
             if s.id not in external_ids
         ]
-        all_sites = sorted(all_sites, key=lambda s: (0 if "doviz" in (s["domain"] or "").lower() else 1, s["domain"] or ""))
+        all_sites = sorted(
+            all_sites,
+            key=lambda s: _preferred_site_order_key(s.get("domain"), s.get("display_name")),
+        )
 
         if not site_id and all_sites:
-            site_id = all_sites[0]["id"]
+            site_id = _default_internal_site_id(all_sites)
 
         if site_id:
             site_row = db.query(Site).filter(Site.id == site_id).first()
-            if site_row and "doviz" in (site_row.domain or "").lower():
+            if site_row and (site_row.domain or "").lower() in ("doviz.com", "www.doviz.com"):
                 purge_invalid_m_doviz_audit_urls(db, site_id)
             summary = get_audit_summary(db, site_id)
             issues = get_audit_issues(db, site_id, filter_key=filter, limit=limit, offset=offset)
@@ -13176,13 +13226,11 @@ def backlinks_page(request: Request):
         ]
     default_site_id: int | None = None
     if sites:
-        for s in sites:
-            blob = f"{(s.domain or '')} {(s.display_name or '')}".lower()
-            if "doviz" in blob:
-                default_site_id = int(s.id)
-                break
-        if default_site_id is None:
-            default_site_id = int(sites[0].id)
+        rows = [
+            {"id": s.id, "domain": s.domain, "display_name": s.display_name or s.domain}
+            for s in sites
+        ]
+        default_site_id = _default_internal_site_id(rows)
         sites = sorted(sites, key=lambda s: (0 if s.id == default_site_id else 1, (s.display_name or s.domain or "").lower()))
     return templates.TemplateResponse(
         request,

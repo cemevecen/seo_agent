@@ -41,17 +41,20 @@ def intel_recent(
     minutes: int | None = None,
     limit: int = 200,
 ) -> list[NewsIntelligenceItem]:
+    from backend.menu_excluded import is_menu_excluded_label
+
     if minutes is not None:
         cutoff = utcnow() - timedelta(minutes=minutes)
     else:
         cutoff = utcnow() - timedelta(hours=hours)
-    return (
+    rows = (
         db.query(NewsIntelligenceItem)
         .filter(NewsIntelligenceItem.published_at >= cutoff)
         .order_by(desc(NewsIntelligenceItem.published_at))
-        .limit(limit)
+        .limit(limit * 2)
         .all()
     )
+    return [r for r in rows if not is_menu_excluded_label(r.source_name)][:limit]
 
 
 def site_pulse(db: Session, site_id: int) -> dict[str, Any]:
