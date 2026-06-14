@@ -1791,15 +1791,10 @@
     return dark ? '#166534' : '#dcfce7';
   }
 
-  function _sparkTimeAxisLabel(ms, rangeKey, t0, t1) {
+  function _sparkTimeAxisLabel(ms) {
     var d = new Date(ms);
     var hh = String(d.getHours()).padStart(2, '0');
     var mm = String(d.getMinutes()).padStart(2, '0');
-    if (rangeKey === '24h' && (t1 - t0) > 20 * 3600000) {
-      var dd = String(d.getDate()).padStart(2, '0');
-      var mo = String(d.getMonth() + 1).padStart(2, '0');
-      return dd + '.' + mo + ' ' + hh + ':' + mm;
-    }
     return hh + ':' + mm;
   }
 
@@ -1832,7 +1827,7 @@
     var out = [];
     for (var i = 0; i < n; i++) {
       var frac = n > 1 ? i / (n - 1) : 0;
-      out.push(_sparkTimeAxisLabel(t0 + frac * (t1 - t0), rangeKey, t0, t1));
+      out.push(_sparkTimeAxisLabel(t0 + frac * (t1 - t0)));
     }
     return out;
   }
