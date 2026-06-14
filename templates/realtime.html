@@ -597,6 +597,54 @@
     gap: 1px;
     box-sizing: border-box;
   }
+  .rt-spark-chart-body {
+    display: flex;
+    align-items: stretch;
+    gap: 0.35rem;
+    width: 100%;
+  }
+  .rt-spark-y-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex-shrink: 0;
+    width: 2.1rem;
+    height: 4.75rem;
+    padding: 1px 0 0;
+    font-size: 9px;
+    line-height: 1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgb(100 116 139);
+    text-align: right;
+  }
+  html.dark .rt-spark-y-axis {
+    color: rgb(161 161 170);
+  }
+  .rt-spark-plot-area {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .rt-spark-x-axis {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.25rem;
+    margin-top: 0.2rem;
+    padding-left: 2.45rem;
+    font-size: 9px;
+    line-height: 1.1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-spark-x-axis {
+    color: rgb(161 161 170);
+  }
+  .rt-spark-x-axis span,
+  .rt-spark-y-axis span {
+    white-space: nowrap;
+  }
   .rt-spark-mini-bars.rt-spark-line-mode {
     display: block;
     gap: 0;
@@ -1038,8 +1086,14 @@
                 <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500" data-rt-spark-last-label>son ölçüm</p>
               </div>
             </div>
-            <div class="rt-spark-plot h-24 w-full min-h-[4.5rem] px-1.5 pb-2" data-rt-chart aria-label="Aktif kullanıcı — dakikalık mini sütunlar">
-              <div class="rt-spark-mini-bars" data-rt-spark-bars></div>
+            <div class="rt-spark-plot w-full min-h-[4.5rem] px-1.5 pb-2" data-rt-chart aria-label="Aktif kullanıcı — dakikalık mini sütunlar">
+              <div class="rt-spark-chart-body">
+                <div class="rt-spark-y-axis" data-rt-spark-y-axis aria-hidden="true"></div>
+                <div class="rt-spark-plot-area">
+                  <div class="rt-spark-mini-bars" data-rt-spark-bars></div>
+                </div>
+              </div>
+              <div class="rt-spark-x-axis" data-rt-spark-x-axis aria-hidden="true"></div>
               <div class="rt-spark-bar-tip hidden" data-rt-spark-tip role="tooltip"></div>
             </div>
           </div>
@@ -1588,6 +1642,74 @@
     return dark ? '#166534' : '#dcfce7';
   }
 
+  function _sparkTimeAxisLabel(ms, rangeKey, t0, t1) {
+    var d = new Date(ms);
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    if (rangeKey === '24h' && (t1 - t0) > 20 * 3600000) {
+      var dd = String(d.getDate()).padStart(2, '0');
+      var mo = String(d.getMonth() + 1).padStart(2, '0');
+      return dd + '.' + mo + ' ' + hh + ':' + mm;
+    }
+    return hh + ':' + mm;
+  }
+
+  function _sparkYAxisTicks(mx) {
+    mx = Math.max(Number(mx) || 0, 1);
+    var mid = Math.round(mx / 2);
+    if (mid === 0) mid = 1;
+    if (mid >= mx) {
+      return [0, mx];
+    }
+    return [0, mid, mx];
+  }
+
+  function _sparkXAxisLabels(opts) {
+    var rangeKey = opts.rangeKey || '24h';
+    var t0;
+    var t1;
+    if (opts.useLine && opts.series) {
+      t0 = opts.series.rangeStartMs;
+      t1 = opts.series.rangeEndMs;
+    } else if (opts.display && opts.display.length) {
+      var bucketMs = _sparkBucketMs(rangeKey);
+      t0 = opts.display[0].tMs;
+      t1 = (opts.display[opts.display.length - 1].tMs || t0) + bucketMs;
+    } else {
+      return ['—'];
+    }
+    if (!t0 || !t1 || t1 <= t0) return ['—'];
+    var n = rangeKey === '24h' ? 5 : rangeKey === '1h' ? 4 : 3;
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var frac = n > 1 ? i / (n - 1) : 0;
+      out.push(_sparkTimeAxisLabel(t0 + frac * (t1 - t0), rangeKey, t0, t1));
+    }
+    return out;
+  }
+
+  function _sparkRenderSparkAxes(chartEl, opts) {
+    if (!chartEl) return;
+    var yEl = chartEl.querySelector('[data-rt-spark-y-axis]');
+    var xEl = chartEl.querySelector('[data-rt-spark-x-axis]');
+    if (!yEl || !xEl) return;
+    var mx = opts.mx || 1;
+    var yTicks = _sparkYAxisTicks(mx);
+    yEl.innerHTML = yTicks
+      .slice()
+      .reverse()
+      .map(function (v) {
+        return '<span>' + _fmt(v) + '</span>';
+      })
+      .join('');
+    var xLabels = _sparkXAxisLabels(opts);
+    xEl.innerHTML = xLabels
+      .map(function (l) {
+        return '<span>' + l + '</span>';
+      })
+      .join('');
+  }
+
   function _sparkFmtClock(d) {
     var DD = String(d.getDate()).padStart(2, '0');
     var MM = String(d.getMonth() + 1).padStart(2, '0');
@@ -1641,6 +1763,7 @@
             label: label,
             tStart: label,
             tEnd: '',
+            tMs: t,
           });
         } else {
           out.push({
@@ -1651,6 +1774,7 @@
             label: label,
             tStart: label,
             tEnd: '',
+            tMs: t,
           });
         }
         continue;
@@ -1683,6 +1807,7 @@
         tEnd: '',
         empty: false,
         carried: false,
+        tMs: t,
       };
       lastCarry = { v: peak, pv: pvPeak };
       out.push(bucket);
@@ -1709,6 +1834,7 @@
             label: out[bi].label,
             tStart: out[bi].tStart,
             tEnd: '',
+            tMs: out[bi].tMs,
           };
         }
       }
@@ -1995,6 +2121,7 @@
     var pulseEl = box.querySelector('[data-rt-spark-pulse]');
     if (!trend || !trend.length) {
       barsEl.innerHTML = '';
+      _sparkRenderSparkAxes(el, { mx: 1, display: [], rangeKey: rangeKey, useLine: false });
       var emptyLast = box.querySelector('[data-rt-spark-last-val]');
       if (emptyLast) emptyLast.textContent = '—';
       return;
@@ -2011,6 +2138,7 @@
     });
     if (!trendPoints.length) {
       barsEl.innerHTML = '';
+      _sparkRenderSparkAxes(el, { mx: 1, display: [], rangeKey: rangeKey, useLine: false });
       return;
     }
     var lastTs =
@@ -2083,6 +2211,13 @@
         })
         .join('');
     }
+    _sparkRenderSparkAxes(el, {
+      mx: mx,
+      display: display,
+      series: box._rtSparkLineSeries,
+      rangeKey: rangeKey,
+      useLine: useLine,
+    });
     barsEl._rtTipWired = false;
     _wireSparkBarTips(box);
 
