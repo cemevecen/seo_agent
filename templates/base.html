@@ -1904,7 +1904,7 @@
   </button>
 
   <div id="pc-agent-panel"
-    class="fixed bottom-20 right-6 z-50 hidden
+    class="fixed bottom-20 right-6 z-50 hidden relative
            flex flex-col rounded-2xl
            bg-zinc-950 border border-violet-800/40
            shadow-2xl shadow-violet-950/60
@@ -1968,6 +1968,22 @@
       </div>
     </div>
 
+    <div id="pc-agent-history-gate"
+      class="hidden absolute inset-x-0 top-[3.25rem] bottom-[5.5rem] z-20 flex flex-col items-center justify-center bg-zinc-950/94 px-6 text-center backdrop-blur-sm">
+      <div class="max-w-[18rem] rounded-2xl border border-violet-800/50 bg-zinc-900/95 p-4 shadow-xl">
+        <p class="text-sm font-semibold text-violet-100">Geçmiş konuşmalar kilitli</p>
+        <p class="mt-2 text-xs leading-relaxed text-zinc-400">Kayıtlı sohbet geçmişini görmek için Settings ve Inbox’ta kullandığınız şifreyi girin.</p>
+        <input id="pc-agent-history-pwd" type="password" autocomplete="current-password" placeholder="Şifre"
+          class="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();pcAgentHistoryUnlock();}">
+        <p id="pc-agent-history-pwd-err" class="mt-2 hidden text-xs text-rose-400"></p>
+        <button type="button" onclick="pcAgentHistoryUnlock()"
+          class="mt-3 w-full rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-500">
+          Kilidi aç
+        </button>
+      </div>
+    </div>
+
     <div id="pc-agent-quick" class="px-4 pb-2 flex flex-wrap gap-1.5"></div>
 
     <div class="px-4 pb-4 pt-1">
@@ -2004,6 +2020,8 @@
     var _pcHistory = [];
     var _pcStreaming = false;
     var _pcOpen = false;
+    var _pcHistoryAuthed = false;
+    var _pcHistoryAuthRequired = false;
 
     function _pcCollectContext() {
       try {
@@ -2037,32 +2055,93 @@
 
     // Sayfa yüklenince geçmişi restore et (ana veri isteklerinden sonra)
     (function () {
-      function restoreAgentHistory() {
-      fetch('/api/agent/history/' + _pcSessionId)
-        .then(function(r){ return r.json(); })
-        .then(function(data) {
-          var msgs = data.messages || [];
-          if (!msgs.length) return;
-          _pcHistory = msgs;
-          var container = document.getElementById('pc-agent-messages');
-          if (!container) return;
-          msgs.forEach(function(m) {
-            if (m.role === 'user') {
-              var div = document.createElement('div');
-              div.className = 'flex justify-end';
-              div.innerHTML = '<div class="rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-sm leading-relaxed bg-violet-700 text-white max-w-[85%]">' + _esc(m.content) + '</div>';
-              container.appendChild(div);
-            } else if (m.role === 'assistant') {
-              var wrap = document.createElement('div');
-              wrap.className = 'pc-msg-assistant flex gap-2.5';
-              wrap.innerHTML = '<div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div><div class="pc-bubble rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%] whitespace-pre-wrap break-words">' + _md(m.content) + '</div>';
-              container.appendChild(wrap);
-            }
-          });
-          var scrollEl = document.getElementById('pc-agent-messages');
-          if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
-        }).catch(function(){});
+      function _pcShowHistoryGate(show) {
+        var gate = document.getElementById('pc-agent-history-gate');
+        if (gate) gate.classList.toggle('hidden', !show);
       }
+
+      function _pcApplyRestoredMessages(msgs) {
+        if (!msgs || !msgs.length) return;
+        _pcHistory = msgs;
+        var container = document.getElementById('pc-agent-messages');
+        if (!container) return;
+        msgs.forEach(function(m) {
+          if (m.role === 'user') {
+            var div = document.createElement('div');
+            div.className = 'flex justify-end';
+            div.innerHTML = '<div class="rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-sm leading-relaxed bg-violet-700 text-white max-w-[85%]">' + _esc(m.content) + '</div>';
+            container.appendChild(div);
+          } else if (m.role === 'assistant') {
+            var wrap = document.createElement('div');
+            wrap.className = 'pc-msg-assistant flex gap-2.5';
+            wrap.innerHTML = '<div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div><div class="pc-bubble rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%] whitespace-pre-wrap break-words">' + _md(m.content) + '</div>';
+            container.appendChild(wrap);
+          }
+        });
+        var scrollEl = document.getElementById('pc-agent-messages');
+        if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+        _pcShowHistoryGate(false);
+      }
+
+      function _pcFetchHistory() {
+        return fetch('/api/agent/history/' + encodeURIComponent(_pcSessionId)).then(function(r) {
+          if (r.status === 403) {
+            _pcShowHistoryGate(true);
+            return null;
+          }
+          return r.json();
+        });
+      }
+
+      function restoreAgentHistory() {
+        fetch('/api/agent/history-auth/status')
+          .then(function(r){ return r.json(); })
+          .then(function(st) {
+            _pcHistoryAuthRequired = !!st.password_required;
+            _pcHistoryAuthed = !_pcHistoryAuthRequired || !!st.authenticated;
+            return _pcFetchHistory();
+          })
+          .then(function(data) {
+            if (!data || !data.messages || !data.messages.length) return;
+            _pcApplyRestoredMessages(data.messages);
+          })
+          .catch(function(){});
+      }
+
+      window.pcAgentHistoryUnlock = function () {
+        var inp = document.getElementById('pc-agent-history-pwd');
+        var err = document.getElementById('pc-agent-history-pwd-err');
+        var pwd = (inp && inp.value || '').trim();
+        if (!pwd) {
+          if (err) { err.textContent = 'Şifre gerekli.'; err.classList.remove('hidden'); }
+          return;
+        }
+        if (err) err.classList.add('hidden');
+        fetch('/api/agent/history-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ password: pwd }),
+        })
+          .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+          .then(function(res) {
+            if (!res.ok || !res.body.ok) {
+              if (err) { err.textContent = (res.body && res.body.error) || 'Yanlış şifre'; err.classList.remove('hidden'); }
+              return;
+            }
+            _pcHistoryAuthed = true;
+            if (inp) inp.value = '';
+            return _pcFetchHistory();
+          })
+          .then(function(data) {
+            if (!data || !data.messages) return;
+            _pcApplyRestoredMessages(data.messages);
+          })
+          .catch(function() {
+            if (err) { err.textContent = 'Doğrulama başarısız.'; err.classList.remove('hidden'); }
+          });
+      };
+
       if (typeof requestIdleCallback === 'function') {
         requestIdleCallback(restoreAgentHistory, { timeout: 5000 });
       } else {
@@ -2100,6 +2179,16 @@
         iconChat.classList.add('hidden');
         iconClose.classList.remove('hidden');
         _pcRefreshPageUi();
+        if (_pcHistoryAuthRequired && !_pcHistoryAuthed) {
+          fetch('/api/agent/history/' + encodeURIComponent(_pcSessionId))
+            .then(function(r) {
+              if (r.status === 403) {
+                var gate = document.getElementById('pc-agent-history-gate');
+                if (gate) gate.classList.remove('hidden');
+              }
+            })
+            .catch(function(){});
+        }
         setTimeout(function () { var i = document.getElementById('pc-agent-input'); if (i) i.focus(); }, 50);
       } else {
         panel.classList.add('hidden');
@@ -2170,12 +2259,23 @@
 
     window.pcAgentClearHistory = function () {
       if (_pcStreaming) return;
+      var doServerClear = function () {
+        fetch('/api/agent/history/' + encodeURIComponent(_pcSessionId), { method: 'DELETE' }).catch(function () {});
+      };
+      if (_pcHistoryAuthRequired && !_pcHistoryAuthed) {
+        _pcHistory = [];
+        document.getElementById('pc-agent-messages').innerHTML =
+          '<div class="pc-msg-assistant flex gap-2.5"><div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div>' +
+          '<div class="rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%]">buyur bayım? 👋</div></div>';
+        _pcSetStatus('Hazır');
+        return;
+      }
       _pcHistory = [];
       document.getElementById('pc-agent-messages').innerHTML =
         '<div class="pc-msg-assistant flex gap-2.5"><div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div>' +
         '<div class="rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%]">buyur bayım? 👋</div></div>';
       _pcSetStatus('Hazır');
-      fetch('/api/agent/history/' + encodeURIComponent(_pcSessionId), { method: 'DELETE' }).catch(function () {});
+      doServerClear();
     };
 
     window.pcAgentQuickSend = function (btn) {

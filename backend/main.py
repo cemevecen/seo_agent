@@ -16015,13 +16015,16 @@ async def api_agent_chat(request: Request):
     # Bağlam hafızası: frontend az mesaj gönderiyorsa (sayfa yenileme) DB'den tamamla
     session_id = (body.get("session_id") or "").strip()
     if session_id and len(clean_messages) <= 2:
+        from backend.services.ai_talk_history_auth import is_ai_talk_history_authenticated
         from backend.services.agent_tools import ai_talk_get_messages
-        history = ai_talk_get_messages(session_id)
-        if history and len(history) > len(clean_messages):
-            # Geçmiş mesajları + mevcut yeni mesajı birleştir
-            # Son mesaj zaten clean_messages'da, geçmişe eklenmesin
-            prefix = [m for m in history if m not in clean_messages]
-            clean_messages = (prefix + clean_messages)[-30:]
+
+        if is_ai_talk_history_authenticated(request):
+            history = ai_talk_get_messages(session_id)
+            if history and len(history) > len(clean_messages):
+                # Geçmiş mesajları + mevcut yeni mesajı birleştir
+                # Son mesaj zaten clean_messages'da, geçmişe eklenmesin
+                prefix = [m for m in history if m not in clean_messages]
+                clean_messages = (prefix + clean_messages)[-30:]
 
     return StarletteStreamingResponse(
         stream_agent_response(clean_messages, session_id=session_id, page_context=page_context),
@@ -16031,18 +16034,93 @@ async def api_agent_chat(request: Request):
 
 
 @app.get("/api/agent/history/{session_id}")
-def api_agent_history(session_id: str):
+def api_agent_history(request: Request, session_id: str):
     """Sayfa yenileme sonrası sohbet geçmişini döner."""
+    from backend.services.ai_talk_history_auth import (
+        ai_talk_history_password_configured,
+        is_ai_talk_history_authenticated,
+    )
     from backend.services.agent_tools import ai_talk_get_messages
+
+    if ai_talk_history_password_configured() and not is_ai_talk_history_authenticated(request):
+        messages = ai_talk_get_messages(session_id)
+        if messages:
+            return JSONResponse(
+                {"messages": [], "count": 0, "requires_auth": True},
+                status_code=403,
+            )
+        return JSONResponse({"messages": [], "count": 0, "requires_auth": True})
     messages = ai_talk_get_messages(session_id)
-    return JSONResponse({"messages": messages, "count": len(messages)})
+    return JSONResponse({"messages": messages, "count": len(messages), "requires_auth": False})
 
 
 @app.delete("/api/agent/history/{session_id}")
-def api_agent_history_clear(session_id: str):
+def api_agent_history_clear(request: Request, session_id: str):
     """Sohbet geçmişini siler."""
+    from backend.services.ai_talk_history_auth import require_ai_talk_history_auth
     from backend.services.agent_tools import ai_talk_clear_messages
+
+    require_ai_talk_history_auth(request)
     return JSONResponse(ai_talk_clear_messages(session_id))
+
+
+@app.post("/api/agent/history-auth")
+async def api_agent_history_auth(request: Request):
+    """AI Talk geçmişi için Settings / Inbox şifresi doğrulama."""
+    from backend.services.ai_talk_history_auth import (
+        AI_TALK_HISTORY_AUTH_COOKIE,
+        ai_talk_history_password_configured,
+        issue_ai_talk_history_cookie_token,
+        verify_ai_talk_history_password,
+    )
+
+    if not ai_talk_history_password_configured():
+        return JSONResponse({"ok": True, "password_required": False})
+
+    password = ""
+    ctype = (request.headers.get("content-type") or "").lower()
+    if "application/json" in ctype:
+        try:
+            body = await request.json()
+            password = str((body or {}).get("password") or "")
+        except Exception:
+            password = ""
+    else:
+        form = await request.form()
+        password = str(form.get("password") or "")
+
+    if not verify_ai_talk_history_password(password):
+        return JSONResponse({"ok": False, "error": "Yanlış şifre"}, status_code=401)
+
+    token = issue_ai_talk_history_cookie_token()
+    resp = JSONResponse({"ok": True, "password_required": True})
+    resp.set_cookie(
+        key=AI_TALK_HISTORY_AUTH_COOKIE,
+        value=token,
+        httponly=True,
+        secure=_admin_auth_cookie_secure(request),
+        samesite="lax",
+        max_age=60 * 60 * 8,
+        path="/",
+    )
+    return resp
+
+
+@app.get("/api/agent/history-auth/status")
+def api_agent_history_auth_status(request: Request):
+    """AI Talk geçmişi şifre koruması durumu."""
+    from backend.services.ai_talk_history_auth import (
+        ai_talk_history_password_configured,
+        is_ai_talk_history_authenticated,
+    )
+
+    configured = ai_talk_history_password_configured()
+    return JSONResponse(
+        {
+            "password_required": configured,
+            "authenticated": is_ai_talk_history_authenticated(request),
+        }
+    )
 
 
 @app.get("/api/agent/alerts")
