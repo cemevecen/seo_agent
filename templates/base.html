@@ -1314,18 +1314,29 @@
     html.midnight .header-nav-link.nav-active::after {
       color: #52525b;
     }
-    .header-nav-dropdown { position: relative; flex-shrink: 0; }
+    .header-nav-dropdown { position: relative; flex-shrink: 0; z-index: 1; }
+    .header-nav-dropdown.is-open { z-index: 300; }
     .header-nav-dropdown-trigger { cursor: pointer; }
     .header-nav-dropdown-menu {
-      display: none; position: absolute; top: calc(100% + 6px); right: 0; left: auto; z-index: 90;
+      display: none; position: absolute; top: calc(100% + 6px); right: 0; left: auto; z-index: 301;
       min-width: 14rem; max-width: min(18rem, 92vw); max-height: 70vh; overflow-y: auto;
       border-radius: 0.75rem; border: 1px solid rgb(226 232 240);
       background: rgb(255 255 255); padding: 0.35rem; box-shadow: 0 12px 32px rgba(0,0,0,.12);
+    }
+    .header-nav-dropdown-menu.is-fixed {
+      position: fixed;
+      top: auto;
+      right: auto;
+      left: auto;
     }
     html.dark .header-nav-dropdown-menu, html.midnight .header-nav-dropdown-menu {
       border-color: rgb(63 63 70); background: rgb(24 24 27);
     }
     .header-nav-dropdown.is-open .header-nav-dropdown-menu { display: block; }
+    .header-main-nav:has(.header-nav-dropdown.is-open),
+    .header-nav-track:has(.header-nav-dropdown.is-open) {
+      overflow: visible;
+    }
     .header-nav-dropdown-group {
       padding: 0.35rem 0.5rem 0.1rem; font-size: 9px; font-weight: 800;
       text-transform: uppercase; letter-spacing: .1em; color: rgb(100 116 139);
@@ -1614,16 +1625,59 @@
         var wrap = document.getElementById('header-karma-dropdown');
         if (!wrap) return;
         var btn = wrap.querySelector('.header-nav-dropdown-trigger');
-        if (!btn) return;
-        btn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          var open = wrap.classList.toggle('is-open');
-          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-        document.addEventListener('click', function () {
+        var menu = wrap.querySelector('.header-nav-dropdown-menu');
+        if (!btn || !menu) return;
+
+        function closeMenu() {
           wrap.classList.remove('is-open');
           btn.setAttribute('aria-expanded', 'false');
+          menu.classList.remove('is-fixed');
+          menu.style.top = '';
+          menu.style.left = '';
+          menu.style.right = '';
+          menu.style.maxHeight = '';
+        }
+
+        function positionMenu() {
+          if (!wrap.classList.contains('is-open')) return;
+          menu.classList.add('is-fixed');
+          menu.style.display = 'block';
+          var rect = btn.getBoundingClientRect();
+          var menuW = menu.offsetWidth || 224;
+          var left = Math.min(Math.max(8, rect.right - menuW), window.innerWidth - menuW - 8);
+          var top = rect.bottom + 6;
+          var maxH = Math.max(120, window.innerHeight - top - 12);
+          menu.style.left = left + 'px';
+          menu.style.top = top + 'px';
+          menu.style.right = 'auto';
+          menu.style.maxHeight = maxH + 'px';
+        }
+
+        function openMenu() {
+          wrap.classList.add('is-open');
+          btn.setAttribute('aria-expanded', 'true');
+          positionMenu();
+        }
+
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (wrap.classList.contains('is-open')) closeMenu();
+          else openMenu();
         });
+
+        menu.addEventListener('click', function (e) {
+          e.stopPropagation();
+        });
+
+        document.addEventListener('click', function (e) {
+          if (wrap.contains(e.target)) return;
+          closeMenu();
+        });
+
+        window.addEventListener('resize', positionMenu);
+        window.addEventListener('scroll', positionMenu, true);
+        document.getElementById('header-nav-track')?.addEventListener('scroll', positionMenu);
       })();
 
       /* HTMX afterSwap target genelde #content degil; swap edilen cocuk dugumdur. */
