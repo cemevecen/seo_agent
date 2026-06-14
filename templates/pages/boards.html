@@ -16,9 +16,9 @@
         Yenile
       </button>
       <div x-show="activeProject" class="flex flex-wrap items-center gap-2 sm:ml-2">
-        <label class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400" for="board-sort-mode">Madde sırası</label>
         <select
           id="board-sort-mode"
+          aria-label="Madde sırası"
           class="max-w-[14rem] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-blue-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           :value="getSortMode(activeProject)"
           @change="onSortModeChange(activeProject, $event.target.value)"
