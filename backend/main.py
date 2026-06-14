@@ -7169,6 +7169,14 @@ def _home_format_int(n: float) -> str:
     return str(n)
 
 
+def _home_format_int_exact(n: float) -> str:
+    try:
+        n = int(round(float(n)))
+    except (TypeError, ValueError):
+        return "—"
+    return f"{n:,}".replace(",", ".")
+
+
 def _home_cf_fmt(pct: float | None) -> str:
     if pct is None:
         return "—"
@@ -7508,8 +7516,8 @@ def api_home_realtime(request: Request, site: str | None = None):
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name,
                 "profiles": profiles,
-                "total_active_fmt": _home_format_int(total_au),
-                "total_pageviews_fmt": _home_format_int(total_pv),
+                "total_active_fmt": _home_format_int_exact(total_au),
+                "total_pageviews_fmt": _home_format_int_exact(total_pv),
             })
     now_label = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%H:%M")
     return templates.TemplateResponse(
