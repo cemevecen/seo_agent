@@ -15669,6 +15669,7 @@ from backend.services.gitlab_board import (
     reorder_issue_async,
     save_board_column_order,
     save_board_project_settings,
+    sync_columns_order_to_gitlab,
     sync_open_issues_order_to_gitlab,
     update_issue_async,
 )
@@ -15752,15 +15753,21 @@ async def api_boards_save_sort_settings(request: Request, db: Session = Depends(
 
 @app.post("/api/boards/sync-sort")
 async def api_boards_sync_sort(request: Request):
-    """Seçili sıralamayı GitLab relative_position olarak uygular."""
+    """Seçili sıralamayı GitLab relative_position olarak uygular (sütun bazlı)."""
     try:
         body = await request.json()
     except Exception:
         return JSONResponse({"error": "invalid_json"}, status_code=400)
     project_path = str(body.get("project_path") or "").strip()
+    columns = body.get("columns")
     ordered = body.get("ordered") or []
     if not project_path:
         return JSONResponse({"error": "missing_project"}, status_code=400)
+    if columns is not None:
+        if not isinstance(columns, list):
+            return JSONResponse({"error": "columns_must_be_list"}, status_code=400)
+        result = await sync_columns_order_to_gitlab(project_path, columns)
+        return JSONResponse(result)
     if not isinstance(ordered, list):
         return JSONResponse({"error": "ordered_must_be_list"}, status_code=400)
     result = await sync_open_issues_order_to_gitlab(project_path, ordered)

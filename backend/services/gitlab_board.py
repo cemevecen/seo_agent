@@ -183,65 +183,102 @@ def save_board_project_settings(db: Session, project_path: str, sort_mode: str) 
     return {"project_path": project_path, "sort_mode": mode}
 
 
+async def sync_column_order_to_gitlab(
+    project_path: str,
+    target_ordered: list[dict[str, Any]],
+    *,
+    current_ordered: list[dict[str, Any]] | None = None,
+) -> dict[str, int]:
+    """Tek board sütunundaki issue sırasını GitLab relative_position ile hizalar."""
+    if len(target_ordered) <= 1:
+        return {"synced": 0, "failed": 0, "skipped": len(target_ordered)}
+
+    current = current_ordered or []
+    target_iids = [int(x.get("iid")) for x in target_ordered if x.get("iid") is not None]
+    current_iids = [int(x.get("iid")) for x in current if x.get("iid") is not None]
+    start_at = 0
+    while start_at < len(target_iids) and start_at < len(current_iids) and target_iids[start_at] == current_iids[start_at]:
+        start_at += 1
+    if start_at >= len(target_ordered):
+        return {"synced": 0, "failed": 0, "skipped": len(target_ordered)}
+
+    synced = 0
+    failed = 0
+    for i in range(start_at, len(target_ordered)):
+        item = target_ordered[i]
+        try:
+            iid = int(item.get("iid"))
+        except (TypeError, ValueError):
+            continue
+        move_after_id: int | None = None
+        move_before_id: int | None = None
+        if i == 0:
+            if current and current[0].get("id") is not None:
+                try:
+                    move_before_id = int(current[0]["id"])
+                except (TypeError, ValueError):
+                    pass
+        else:
+            prev = target_ordered[i - 1]
+            if prev.get("id") is not None:
+                try:
+                    move_after_id = int(prev["id"])
+                except (TypeError, ValueError):
+                    pass
+        if move_after_id is None and move_before_id is None:
+            continue
+        updated = await reorder_issue_async(
+            project_path,
+            iid,
+            move_after_id=move_after_id,
+            move_before_id=move_before_id,
+        )
+        if updated is not None:
+            synced += 1
+        else:
+            failed += 1
+    return {"synced": synced, "failed": failed, "skipped": start_at}
+
+
+async def sync_columns_order_to_gitlab(
+    project_path: str,
+    columns: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Board sütunlarını ayrı ayrı GitLab sırasına yazar."""
+    total_synced = 0
+    total_failed = 0
+    column_results: list[dict[str, Any]] = []
+    for col in columns or []:
+        target = col.get("ordered") or []
+        current = col.get("current") or []
+        list_key = str(col.get("list_key") or "")
+        result = await sync_column_order_to_gitlab(
+            project_path,
+            target,
+            current_ordered=current,
+        )
+        total_synced += int(result.get("synced") or 0)
+        total_failed += int(result.get("failed") or 0)
+        column_results.append({"list_key": list_key, **result})
+    return {
+        "ok": total_failed == 0,
+        "synced": total_synced,
+        "failed": total_failed,
+        "columns": column_results,
+    }
+
+
 async def sync_open_issues_order_to_gitlab(
     project_path: str,
     ordered: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Açık issue listesini GitLab relative_position ile hizalar (soldan sağa, üstten alta)."""
-    if not ordered:
-        return {"ok": True, "synced": 0, "failed": 0, "total": 0, "skipped": 0}
-
-    synced = 0
-    failed = 0
-    skipped = 0
-    prev_id: int | None = None
-
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        token = get_gitlab_token()
-        if not token:
-            return {"ok": False, "synced": 0, "failed": len(ordered), "total": len(ordered), "skipped": 0}
-        headers = _headers()
-        encoded_path = _encoded_path(project_path)
-
-        for item in ordered:
-            try:
-                iid = int(item.get("iid"))
-                global_id = int(item.get("id"))
-            except (TypeError, ValueError):
-                skipped += 1
-                continue
-            if prev_id is None:
-                prev_id = global_id
-                continue
-
-            url = f"{GITLAB_URL}/projects/{encoded_path}/issues/{iid}/reorder"
-            try:
-                resp = await client.put(
-                    url,
-                    headers=headers,
-                    params={"move_after_id": prev_id},
-                )
-                if resp.status_code in (200, 201, 204):
-                    synced += 1
-                else:
-                    failed += 1
-                    LOGGER.warning(
-                        "GitLab sync-sort failed [%s#%s] %s: %s",
-                        project_path,
-                        iid,
-                        resp.status_code,
-                        resp.text[:200],
-                    )
-            except Exception as exc:
-                failed += 1
-                LOGGER.warning("GitLab sync-sort error [%s#%s]: %s", project_path, iid, exc)
-            prev_id = global_id
-
+    """Geriye dönük: tek düz liste — tüm sütunları tek kolon gibi senkronlar."""
+    result = await sync_column_order_to_gitlab(project_path, ordered)
     return {
-        "ok": failed == 0,
-        "synced": synced,
-        "failed": failed,
-        "skipped": skipped,
+        "ok": result.get("failed", 0) == 0,
+        "synced": result.get("synced", 0),
+        "failed": result.get("failed", 0),
+        "skipped": result.get("skipped", 0),
         "total": len(ordered),
     }
 

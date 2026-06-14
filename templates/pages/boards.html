@@ -568,60 +568,40 @@
         mountBoardSortLottie();
 
         try {
-          const openLists = pd.lists.filter((l) => !l.isClosed);
-          const ordered = [];
-          const seen = new Set();
-          for (const lst of openLists) {
-            const issues = this.sortIssuesForDisplay(path, this.listKey(lst), this.getRawIssuesForList(path, lst));
-            for (const issue of issues) {
-              if (seen.has(issue.iid)) continue;
-              seen.add(issue.iid);
-              ordered.push({ iid: issue.iid, id: issue.id });
-            }
-          }
           await this.persistColumnOrdersFromDisplay(path);
-          if (!ordered.length) return;
-
-          const targetIds = ordered.map((o) => o.id);
-          const currentIds = pd.issues
-            .filter((i) => i.state === 'opened')
-            .slice()
-            .sort((a, b) => {
-              const pa = a.relative_position ?? Number.MAX_SAFE_INTEGER;
-              const pb = b.relative_position ?? Number.MAX_SAFE_INTEGER;
-              if (pa !== pb) return pa - pb;
-              return (a.id || 0) - (b.id || 0);
-            })
-            .map((i) => i.id);
-          let startAt = 0;
-          while (startAt < targetIds.length && currentIds[startAt] === targetIds[startAt]) {
-            startAt += 1;
+          const columns = [];
+          for (const lst of pd.lists) {
+            const lk = this.listKey(lst);
+            const raw = this.getRawIssuesForList(path, lst);
+            const sorted = this.sortIssuesForDisplay(path, lk, raw);
+            if (sorted.length <= 1) continue;
+            columns.push({
+              list_key: lk,
+              ordered: sorted.map((i) => ({ iid: i.iid, id: i.id })),
+              current: this.sortIssuesByPosition(raw).map((i) => ({ iid: i.iid, id: i.id })),
+            });
           }
-          if (startAt >= targetIds.length) return;
+          if (!columns.length) return;
 
-          for (let i = startAt; i < ordered.length; i++) {
-            if (i === 0) continue;
-            await this.reorderIssueDirect(path, ordered[i].iid, ordered[i - 1].id);
+          const res = await fetch('/api/boards/sync-sort', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_path: path, columns }),
+          });
+          if (!res.ok) {
+            console.warn('GitLab sort sync HTTP', res.status);
+            return;
+          }
+          const data = await res.json();
+          if (data && data.failed > 0) {
+            console.warn('GitLab sort sync partial failure', data);
           }
         } catch (e) {
           console.warn('GitLab sort sync failed', e);
         } finally {
           this.syncingSort[path] = false;
           unmountBoardSortLottie();
-        }
-      },
-
-      async reorderIssueDirect(projectPath, issueIid, moveAfterGlobalId) {
-        if (!moveAfterGlobalId) return false;
-        const encodedPath = encodeURIComponent(projectPath);
-        try {
-          const res = await fetch(
-            `${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}/reorder?move_after_id=${moveAfterGlobalId}`,
-            { method: 'PUT', headers: { 'PRIVATE-TOKEN': this.token } }
-          );
-          return res.ok;
-        } catch (e) {
-          return false;
         }
       },
 
