@@ -22,13 +22,19 @@
           class="max-w-[14rem] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-blue-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           :value="getSortMode(activeProject)"
           @change="onSortModeChange(activeProject, $event.target.value)"
-          :disabled="!activeProject || (syncingSort[activeProject]) || (projectData[activeProject] && projectData[activeProject].loading)"
+          :disabled="!activeProject || (projectData[activeProject] && projectData[activeProject].loading)"
         >
           <template x-for="opt in sortModeOptions" :key="opt.id">
             <option :value="opt.id" x-text="opt.label" :selected="getSortMode(activeProject) === opt.id"></option>
           </template>
         </select>
-        <span x-show="syncingSort[activeProject]" class="text-xs text-blue-600 dark:text-blue-400">GitLab'e aktarılıyor…</span>
+        <div
+          x-show="syncingSort[activeProject]"
+          x-cloak
+          id="board-sort-lottie-host"
+          class="board-sort-lottie-host h-9 w-9 shrink-0"
+          aria-hidden="true"
+        ></div>
       </div>
     </div>
     <span class="inline-flex items-center gap-2 text-[12px] font-semibold">
@@ -223,6 +229,12 @@
     min-width: min(calc(100vw - 2.5rem), 280px);
     max-width: 400px;
   }
+  .board-sort-lottie-host {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  [x-cloak] { display: none !important; }
   @media (min-width: 640px) {
     .gl-board-col-expanded {
       width: 400px;
@@ -232,7 +244,36 @@
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script>
+  var BOARD_SORT_LOTTIE_SRC = 'https://assets1.lottiefiles.com/packages/lf20_poqmycwy.json';
+  var BOARD_SORT_SYNC_DELAY_MS = 7500;
+  var _boardSortLottieAnim = null;
+
+  function mountBoardSortLottie() {
+    var host = document.getElementById('board-sort-lottie-host');
+    if (!host || typeof lottie === 'undefined') return;
+    unmountBoardSortLottie();
+    host.textContent = '';
+    _boardSortLottieAnim = lottie.loadAnimation({
+      container: host,
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      path: BOARD_SORT_LOTTIE_SRC,
+    });
+  }
+
+  function unmountBoardSortLottie() {
+    if (_boardSortLottieAnim && typeof _boardSortLottieAnim.destroy === 'function') {
+      try { _boardSortLottieAnim.destroy(); } catch (_) {}
+    }
+    _boardSortLottieAnim = null;
+    var host = document.getElementById('board-sort-lottie-host');
+    if (host) host.textContent = '';
+  }
+</script>
 <script>
   function gitlabBoards() {
     return {
@@ -245,6 +286,8 @@
       boardOrders: {},
       boardSortSettings: {},
       syncingSort: {},
+      sortSyncTimers: {},
+      sortSyncPendingMode: {},
       sortModeOptions: [
         { id: 'manual', label: 'Manuel (sürükle-bırak)' },
         { id: 'relative_position', label: 'GitLab board sırası' },
@@ -517,8 +560,13 @@
       async applySortToGitLab(path) {
         const pd = this.projectData[path];
         if (!pd || !pd.loaded) return;
+        const mode = this.getSortMode(path);
+        if (mode === 'manual') return;
+
         if (!this.syncingSort) this.syncingSort = {};
         this.syncingSort[path] = true;
+        mountBoardSortLottie();
+
         try {
           const openLists = pd.lists.filter((l) => !l.isClosed);
           const ordered = [];
@@ -532,34 +580,89 @@
             }
           }
           await this.persistColumnOrdersFromDisplay(path);
-          if (this.getSortMode(path) === 'manual' || !ordered.length) return;
-          const res = await fetch('/api/boards/sync-sort', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project_path: path, ordered }),
-          });
-          if (!res.ok) throw new Error('GitLab sıralaması güncellenemedi');
+          if (!ordered.length) return;
+
+          const targetIds = ordered.map((o) => o.id);
+          const currentIds = pd.issues
+            .filter((i) => i.state === 'opened')
+            .slice()
+            .sort((a, b) => {
+              const pa = a.relative_position ?? Number.MAX_SAFE_INTEGER;
+              const pb = b.relative_position ?? Number.MAX_SAFE_INTEGER;
+              if (pa !== pb) return pa - pb;
+              return (a.id || 0) - (b.id || 0);
+            })
+            .map((i) => i.id);
+          let startAt = 0;
+          while (startAt < targetIds.length && currentIds[startAt] === targetIds[startAt]) {
+            startAt += 1;
+          }
+          if (startAt >= targetIds.length) return;
+
+          for (let i = startAt; i < ordered.length; i++) {
+            if (i === 0) continue;
+            await this.reorderIssueDirect(path, ordered[i].iid, ordered[i - 1].id);
+          }
+        } catch (e) {
+          console.warn('GitLab sort sync failed', e);
         } finally {
           this.syncingSort[path] = false;
+          unmountBoardSortLottie();
         }
+      },
+
+      async reorderIssueDirect(projectPath, issueIid, moveAfterGlobalId) {
+        if (!moveAfterGlobalId) return false;
+        const encodedPath = encodeURIComponent(projectPath);
+        try {
+          const res = await fetch(
+            `${this.baseUrl}/projects/${encodedPath}/issues/${issueIid}/reorder?move_after_id=${moveAfterGlobalId}`,
+            { method: 'PUT', headers: { 'PRIVATE-TOKEN': this.token } }
+          );
+          return res.ok;
+        } catch (e) {
+          return false;
+        }
+      },
+
+      scheduleGitLabSortSync(path, mode) {
+        if (!this.sortSyncTimers) this.sortSyncTimers = {};
+        if (this.sortSyncTimers[path]) {
+          clearTimeout(this.sortSyncTimers[path]);
+          delete this.sortSyncTimers[path];
+        }
+        if (!mode || mode === 'manual') return;
+        if (!this.sortSyncPendingMode) this.sortSyncPendingMode = {};
+        this.sortSyncPendingMode[path] = mode;
+        this.sortSyncTimers[path] = setTimeout(() => {
+          delete this.sortSyncTimers[path];
+          if (this.getSortMode(path) !== mode) return;
+          if (this.sortSyncPendingMode[path] !== mode) return;
+          this.applySortToGitLab(path);
+        }, BOARD_SORT_SYNC_DELAY_MS);
       },
 
       async onSortModeChange(path, mode) {
         if (!path || !mode) return;
         const prev = this.getSortMode(path);
         if (mode === prev) return;
+
+        if (this.sortSyncTimers && this.sortSyncTimers[path]) {
+          clearTimeout(this.sortSyncTimers[path]);
+          delete this.sortSyncTimers[path];
+        }
+
+        this.setSortMode(path, mode);
         try {
           await this.saveBoardSortSettings(path, mode);
-          if (mode !== 'manual') {
-            await this.applySortToGitLab(path);
-          } else {
-            await this.persistColumnOrdersFromDisplay(path);
-          }
+          await this.persistColumnOrdersFromDisplay(path);
         } catch (e) {
-          alert('Sıralama ayarı uygulanamadı: ' + (e.message || e));
+          console.warn('Sort settings save failed', e);
           await this.loadBoardSortSettings(path);
+          return;
         }
+
+        this.scheduleGitLabSortSync(path, mode);
       },
 
       listKey(lst) {
@@ -707,7 +810,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('Sıralama kaydedilemedi');
+        if (!res.ok) return null;
         const data = await res.json();
         return data.issue || null;
       },

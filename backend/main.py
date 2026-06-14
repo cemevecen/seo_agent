@@ -15785,7 +15785,7 @@ async def api_boards_reorder(request: Request):
         move_before_id=int(move_before_id) if move_before_id is not None else None,
     )
     if updated is None and (move_after_id is not None or move_before_id is not None):
-        return JSONResponse({"error": "reorder_failed"}, status_code=502)
+        return JSONResponse({"ok": False, "issue": None}, status_code=200)
     return JSONResponse({"ok": True, "issue": updated})
 
 

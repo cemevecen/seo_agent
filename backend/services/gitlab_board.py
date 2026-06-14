@@ -189,28 +189,61 @@ async def sync_open_issues_order_to_gitlab(
 ) -> dict[str, Any]:
     """Açık issue listesini GitLab relative_position ile hizalar (soldan sağa, üstten alta)."""
     if not ordered:
-        return {"ok": True, "synced": 0}
+        return {"ok": True, "synced": 0, "failed": 0, "total": 0, "skipped": 0}
+
     synced = 0
+    failed = 0
+    skipped = 0
     prev_id: int | None = None
-    for item in ordered:
-        try:
-            iid = int(item.get("iid"))
-            global_id = int(item.get("id"))
-        except (TypeError, ValueError):
-            continue
-        params: dict[str, int] = {}
-        if prev_id is not None:
-            params["move_after_id"] = prev_id
-        if not params:
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        token = get_gitlab_token()
+        if not token:
+            return {"ok": False, "synced": 0, "failed": len(ordered), "total": len(ordered), "skipped": 0}
+        headers = _headers()
+        encoded_path = _encoded_path(project_path)
+
+        for item in ordered:
+            try:
+                iid = int(item.get("iid"))
+                global_id = int(item.get("id"))
+            except (TypeError, ValueError):
+                skipped += 1
+                continue
+            if prev_id is None:
+                prev_id = global_id
+                continue
+
+            url = f"{GITLAB_URL}/projects/{encoded_path}/issues/{iid}/reorder"
+            try:
+                resp = await client.put(
+                    url,
+                    headers=headers,
+                    params={"move_after_id": prev_id},
+                )
+                if resp.status_code in (200, 201, 204):
+                    synced += 1
+                else:
+                    failed += 1
+                    LOGGER.warning(
+                        "GitLab sync-sort failed [%s#%s] %s: %s",
+                        project_path,
+                        iid,
+                        resp.status_code,
+                        resp.text[:200],
+                    )
+            except Exception as exc:
+                failed += 1
+                LOGGER.warning("GitLab sync-sort error [%s#%s]: %s", project_path, iid, exc)
             prev_id = global_id
-            continue
-        updated = await reorder_issue_async(project_path, iid, **params)
-        if updated is None:
-            LOGGER.warning("GitLab sync-sort failed for %s#%s", project_path, iid)
-        else:
-            synced += 1
-        prev_id = global_id
-    return {"ok": True, "synced": synced, "total": len(ordered)}
+
+    return {
+        "ok": failed == 0,
+        "synced": synced,
+        "failed": failed,
+        "skipped": skipped,
+        "total": len(ordered),
+    }
 
 
 async def reorder_issue_async(
