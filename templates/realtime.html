@@ -608,20 +608,20 @@
     overflow: visible;
   }
   .rt-spark-line-area {
-    fill: rgba(217, 119, 6, 0.14);
+    fill: rgba(34, 197, 94, 0.14);
   }
   html.dark .rt-spark-line-area {
-    fill: rgba(251, 191, 36, 0.12);
+    fill: rgba(74, 222, 128, 0.12);
   }
   .rt-spark-line-stroke {
     fill: none;
-    stroke: rgb(217 119 6);
+    stroke: rgb(22 163 74);
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
   html.dark .rt-spark-line-stroke {
-    stroke: rgb(251 191 36);
+    stroke: rgb(74 222 128);
   }
   .rt-spark-line-hit {
     cursor: crosshair;
@@ -630,13 +630,13 @@
     opacity: 1;
   }
   .rt-spark-line-dot {
-    fill: rgb(217 119 6);
+    fill: rgb(22 163 74);
     opacity: 0;
     transition: opacity 0.12s ease;
     pointer-events: none;
   }
   html.dark .rt-spark-line-dot {
-    fill: rgb(251 191 36);
+    fill: rgb(74 222 128);
   }
   .rt-spark-line-sparse {
     fill: rgb(100 116 139);
@@ -650,10 +650,13 @@
     min-width: 2px;
     width: 0;
     border-radius: 2px 2px 0 0;
-    background: rgb(217 119 6);
+    background: rgb(187 247 208);
     align-self: flex-end;
     cursor: crosshair;
     transition: filter 0.12s ease, opacity 0.12s ease;
+  }
+  .rt-spark-mini-bar--carried {
+    opacity: 0.72;
   }
   .rt-spark-mini-bar:hover,
   .rt-spark-mini-bar.is-hovered {
@@ -661,7 +664,7 @@
     opacity: 1;
   }
   html.dark .rt-spark-mini-bar {
-    background: rgb(251 191 36);
+    background: rgb(34 197 94);
   }
   .rt-spark-plot {
     position: relative;
@@ -1575,6 +1578,16 @@
 
   var RT_SPARK_BAR_PX = 76;
 
+  function _sparkBarFill(v, mx) {
+    var r = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
+    var dark = document.documentElement.classList.contains('dark');
+    if (r >= 0.75) return dark ? '#22c55e' : '#14532d';
+    if (r >= 0.5) return dark ? '#4ade80' : '#16a34a';
+    if (r >= 0.25) return dark ? '#86efac' : '#4ade80';
+    if (r > 0) return dark ? '#bbf7d0' : '#bbf7d0';
+    return dark ? '#166534' : '#dcfce7';
+  }
+
   function _sparkFmtClock(d) {
     var DD = String(d.getDate()).padStart(2, '0');
     var MM = String(d.getMonth() + 1).padStart(2, '0');
@@ -1613,19 +1626,33 @@
     });
 
     var out = [];
+    var lastCarry = null;
     for (var t = gridStart; t <= gridEnd; t += bucketMs) {
       var label = _sparkBucketLabel(t, bucketMs);
       var slot = map[t];
       if (!slot || !slot.users.length) {
-        out.push({
-          v: 0,
-          pv: 0,
-          bucketCount: 0,
-          empty: true,
-          label: label,
-          tStart: label,
-          tEnd: '',
-        });
+        if (lastCarry) {
+          out.push({
+            v: lastCarry.v,
+            pv: lastCarry.pv,
+            bucketCount: 0,
+            empty: false,
+            carried: true,
+            label: label,
+            tStart: label,
+            tEnd: '',
+          });
+        } else {
+          out.push({
+            v: 0,
+            pv: 0,
+            bucketCount: 0,
+            empty: true,
+            label: label,
+            tStart: label,
+            tEnd: '',
+          });
+        }
         continue;
       }
       var users = slot.users;
@@ -1644,7 +1671,7 @@
         if (pv >= pvPeak) pvPeak = pv;
       }
       if (!isFinite(vmin)) vmin = 0;
-      out.push({
+      var bucket = {
         v: peak,
         pv: pvPeak,
         bucketCount: users.length,
@@ -1655,8 +1682,38 @@
         tStart: label,
         tEnd: '',
         empty: false,
-      });
+        carried: false,
+      };
+      lastCarry = { v: peak, pv: pvPeak };
+      out.push(bucket);
     }
+
+    var firstIdx = -1;
+    for (var fi = 0; fi < out.length; fi++) {
+      if (!out[fi].empty && out[fi].bucketCount > 0) {
+        firstIdx = fi;
+        break;
+      }
+    }
+    if (firstIdx > 0) {
+      var seed = out[firstIdx];
+      for (var bi = 0; bi < firstIdx; bi++) {
+        if (out[bi].empty) {
+          out[bi] = {
+            v: seed.v,
+            pv: seed.pv,
+            bucketCount: 0,
+            empty: false,
+            carried: true,
+            backfilled: true,
+            label: out[bi].label,
+            tStart: out[bi].tStart,
+            tEnd: '',
+          };
+        }
+      }
+    }
+
     return out;
   }
 
@@ -1703,11 +1760,11 @@
   }
 
   function _sparkBarTipHtml(d) {
-    if (d.empty || !d.bucketCount) {
-      if (d.carried) {
-        return (d.label || '—') + '\nara dakika · son ölçüm ' + _fmt(d.v);
-      }
+    if (d.empty || (!d.bucketCount && !d.carried)) {
       return (d.label || '—') + '\nölçüm yok';
+    }
+    if (d.carried && !d.bucketCount) {
+      return (d.label || '—') + '\n' + (d.backfilled ? 'önceki dilim · ' : 'ara dilim · ') + _fmt(d.v);
     }
     var v = Number(d.v) || 0;
     var lines = [];
@@ -2002,17 +2059,24 @@
           var v = Number(d.v) || 0;
           if (d.empty || v <= 0) {
             return (
-              '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:0;min-height:0;opacity:0" data-rt-bar-i="' +
+              '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;background:' +
+              _sparkBarFill(0, mx) +
+              ';opacity:0.45" data-rt-bar-i="' +
               i +
               '"></div>'
             );
           }
           var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
           hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
+          var carriedCls = d.carried ? ' rt-spark-mini-bar--carried' : '';
           return (
-            '<div class="rt-spark-mini-bar" style="height:' +
+            '<div class="rt-spark-mini-bar' +
+            carriedCls +
+            '" style="height:' +
             hPx +
-            'px" data-rt-bar-i="' +
+            'px;background:' +
+            _sparkBarFill(v, mx) +
+            '" data-rt-bar-i="' +
             i +
             '"></div>'
           );
