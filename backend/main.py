@@ -7375,6 +7375,9 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
         "key": prof_key,
         "label": prof_label,
         "value_fmt": "—",
+        "value_raw": 0.0,
+        "pageviews_fmt": "—",
+        "pageviews_raw": 0.0,
         "delta_fmt": None,
         "delta_tone": "flat",
         "delta_pct": 0.0,
@@ -7385,6 +7388,7 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
         return empty
 
     cur, delta_fmt, tone, delta_pct = active_users_kpi_from_realtime_result(bundle)
+    pv_raw = _home_realtime_main_metric(bundle, "screenPageViews")
     spark = _home_spark_paths([float(t.get("active_users") or 0) for t in trend])
     if not trend and cur <= 0 and bundle.get("error"):
         return empty
@@ -7393,11 +7397,34 @@ def _home_build_realtime_profile(site_id: int, prof_key: str, prof_label: str, b
         "key": prof_key,
         "label": prof_label,
         "value_fmt": _home_format_int(cur),
+        "value_raw": float(cur or 0),
+        "pageviews_fmt": _home_format_int(pv_raw),
+        "pageviews_raw": float(pv_raw or 0),
         "delta_fmt": delta_fmt,
         "delta_tone": tone,
         "delta_pct": delta_pct,
         "spark": spark,
     }
+
+
+def _home_realtime_main_metric(bundle: dict, key: str) -> float:
+    total = bundle.get("total") or {}
+    if total.get(key) is not None:
+        return float(total.get(key) or 0)
+    comp = (bundle.get("comparison") or {}).get(key)
+    if comp and comp.get("current") is not None:
+        return float(comp.get("current") or 0)
+    cur = (bundle.get("current") or {}).get(key)
+    if cur is not None:
+        return float(cur or 0)
+    trend = bundle.get("trend") or []
+    if trend:
+        last = trend[-1]
+        if key == "activeUsers":
+            return float(last.get("active_users") or 0)
+        if key == "screenPageViews":
+            return float(last.get("pageviews") or 0)
+    return 0.0
 
 
 def _home_get_site(db, site_id: int):
@@ -7473,11 +7500,16 @@ def api_home_realtime(request: Request, site: str | None = None):
             site_obj = _home_get_site(db, site_id)
             if site_obj is None:
                 continue
+            profiles = _home_load_realtime_for_site(db, site_id, profs)
+            total_au = sum(float(p.get("value_raw") or 0) for p in profiles)
+            total_pv = sum(float(p.get("pageviews_raw") or 0) for p in profiles)
             sites_out.append({
                 "site_id": site_id,
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name,
-                "profiles": _home_load_realtime_for_site(db, site_id, profs),
+                "profiles": profiles,
+                "total_active_fmt": _home_format_int(total_au),
+                "total_pageviews_fmt": _home_format_int(total_pv),
             })
     now_label = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%H:%M")
     return templates.TemplateResponse(

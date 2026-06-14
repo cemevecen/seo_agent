@@ -990,6 +990,51 @@
   html.dark .realtime-root [data-rt-site] > h2 .text-slate-400 {
     color: #a1a1aa !important;
   }
+  .rt-site-totals {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .rt-site-total-chip {
+    min-width: 5.5rem;
+    border-radius: 0.625rem;
+    border: 1px solid rgb(224 231 255);
+    background: rgb(238 242 255 / 0.85);
+    padding: 0.35rem 0.65rem;
+    text-align: right;
+  }
+  html.dark .rt-site-total-chip {
+    border-color: rgb(67 56 202 / 0.35);
+    background: rgb(30 27 75 / 0.45);
+  }
+  .rt-site-total-chip--pv {
+    border-color: rgb(226 232 240);
+    background: rgb(248 250 252 / 0.9);
+  }
+  html.dark .rt-site-total-chip--pv {
+    border-color: rgb(63 63 70 / 0.8);
+    background: rgb(24 24 27 / 0.55);
+  }
+  .rt-site-total-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(79 70 229 / 0.85);
+  }
+  html.dark .rt-site-total-label { color: rgb(165 180 252 / 0.85); }
+  .rt-site-total-chip--pv .rt-site-total-label { color: rgb(100 116 139); }
+  html.dark .rt-site-total-chip--pv .rt-site-total-label { color: rgb(161 161 170); }
+  .rt-site-total-val {
+    margin-top: 0.1rem;
+    font-size: 1.05rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    color: rgb(49 46 129);
+  }
+  html.dark .rt-site-total-val { color: rgb(224 231 255); }
+  .rt-site-total-chip--pv .rt-site-total-val { color: rgb(30 41 59); }
+  html.dark .rt-site-total-chip--pv .rt-site-total-val { color: rgb(228 228 231); }
   html.dark .realtime-root [data-rt-kpi] {
     border-color: rgba(82, 82, 91, 0.45) !important;
   }
@@ -1168,10 +1213,22 @@
 
   {% for site in sites %}
   <div class="rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none" data-rt-site="{{ site.id }}">
-    <h2 class="mb-5 flex items-baseline gap-2 text-lg font-extrabold text-slate-800 dark:text-slate-200">
-      {{ site.display_name or site.domain }}
-      <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
-    </h2>
+    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <h2 class="flex items-baseline gap-2 text-lg font-extrabold text-slate-800 dark:text-slate-200">
+        {{ site.display_name or site.domain }}
+        <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
+      </h2>
+      <div class="rt-site-totals flex flex-wrap items-center justify-end gap-2" data-rt-site-totals="{{ site.id }}" title="Tüm profillerin toplamı (Desktop + Mobil Web + iOS + Android)">
+        <div class="rt-site-total-chip">
+          <p class="rt-site-total-label">Toplam aktif</p>
+          <p class="rt-site-total-val" data-rt-site-total-au>—</p>
+        </div>
+        <div class="rt-site-total-chip rt-site-total-chip--pv">
+          <p class="rt-site-total-label">Toplam görüntüleme</p>
+          <p class="rt-site-total-val" data-rt-site-total-pv>—</p>
+        </div>
+      </div>
+    </div>
     <div class="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
       {% for profile in site.profiles %}
       <div
@@ -1587,6 +1644,54 @@
     return String(Math.round(n));
   }
 
+  function _rtMainKpiFromData(data, key) {
+    if (!data) return null;
+    var total = data.total || {};
+    if (total[key] != null) return Number(total[key]) || 0;
+    var comp = (data.comparison || {})[key];
+    if (comp && comp.current != null) return Number(comp.current) || 0;
+    var cw = (data.current || {})[key];
+    if (cw != null) return Number(cw) || 0;
+    return null;
+  }
+
+  function _rtStoreProfileKpis(box, data) {
+    if (!box) return;
+    var au = _rtMainKpiFromData(data, 'activeUsers');
+    var pv = _rtMainKpiFromData(data, 'screenPageViews');
+    box._rtKpis = {
+      activeUsers: au,
+      screenPageViews: pv,
+    };
+    var sid = box.getAttribute('data-rt-site-id');
+    if (sid) _rtUpdateSiteTotals(sid);
+  }
+
+  function _rtUpdateSiteTotals(siteId) {
+    var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
+    if (!siteEl) return;
+    var auEl = siteEl.querySelector('[data-rt-site-total-au]');
+    var pvEl = siteEl.querySelector('[data-rt-site-total-pv]');
+    var sumAu = 0;
+    var sumPv = 0;
+    var haveAu = 0;
+    var havePv = 0;
+    siteEl.querySelectorAll('[data-rt-profile-box]').forEach(function (box) {
+      var k = box._rtKpis;
+      if (!k) return;
+      if (k.activeUsers != null) {
+        sumAu += k.activeUsers;
+        haveAu += 1;
+      }
+      if (k.screenPageViews != null) {
+        sumPv += k.screenPageViews;
+        havePv += 1;
+      }
+    });
+    if (auEl) auEl.textContent = haveAu ? _fmt(sumAu) : '—';
+    if (pvEl) pvEl.textContent = havePv ? _fmt(sumPv) : '—';
+  }
+
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
   /** HTML attribute (title=…) için güvenli kaçış */
   function _attr(s) {
@@ -1705,6 +1810,9 @@
         pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat';
       }
     });
+    _rtStoreProfileKpis(box, {
+      total: { activeUsers: map.activeUsers, screenPageViews: map.screenPageViews },
+    });
   }
 
   function _renderKpis(box, data) {
@@ -1777,6 +1885,7 @@
         }
       }
     });
+    _rtStoreProfileKpis(box, data);
   }
 
   function _rtTrendRangeForBox(box) {

@@ -6,7 +6,18 @@
     </span>
     <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
   </div>
-  <span class="text-xs tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }} · {{ poll_seconds | default(60) }}s</span>
+  <div class="flex flex-wrap items-center justify-end gap-2">
+    {% if sites %}
+      {% for site in sites %}
+      <div class="inline-flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-1.5 text-right {% if site.site_id == 1 %}border-indigo-200 bg-indigo-50/80 dark:border-indigo-900/40 dark:bg-indigo-950/30{% else %}border-rose-200 bg-rose-50/80 dark:border-rose-900/40 dark:bg-rose-950/30{% endif %}" title="{{ site.display_name or site.domain }} — tüm profiller toplamı">
+        <span class="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ site.display_name or site.domain }}</span>
+        <span class="text-[10px] font-bold tabular-nums text-slate-800 dark:text-slate-100">{{ site.total_active_fmt }} aktif</span>
+        <span class="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">· {{ site.total_pageviews_fmt }} gör.</span>
+      </div>
+      {% endfor %}
+    {% endif %}
+    <span class="text-xs tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }} · {{ poll_seconds | default(60) }}s</span>
+  </div>
 </div>
 {% if sites %}
   <div class="home-rt-grid-wrap mt-4">
