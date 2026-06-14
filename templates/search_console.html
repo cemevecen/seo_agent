@@ -81,6 +81,12 @@
   .sc-extra-section.sc-extra-section--empty {
     display: none;
   }
+  tr[data-sc-extra-row-more] {
+    display: none;
+  }
+  tr[data-sc-extra-row-more].sc-extra-row-visible {
+    display: table-row;
+  }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
     min-width: 0 !important;
@@ -2159,15 +2165,38 @@
     }
   })();
 
+  function scExtraSetTableExpanded(root, expanded) {
+    if (!root) return;
+    root.querySelectorAll('[data-sc-extra-row-more]').forEach(function (tr) {
+      tr.classList.toggle('sc-extra-row-visible', expanded);
+    });
+    var expandBtn = root.querySelector('[data-sc-extra-expand]');
+    var collapseBtn = root.querySelector('[data-sc-extra-collapse]');
+    if (expandBtn) expandBtn.classList.toggle('hidden', expanded);
+    if (collapseBtn) collapseBtn.classList.toggle('hidden', !expanded);
+    if (expanded) {
+      root.dataset.scExtraTableExpanded = '1';
+    } else {
+      delete root.dataset.scExtraTableExpanded;
+    }
+  }
+
   function scExtraExpandTable(btn) {
     if (!btn) return;
     var root = btn.closest('[data-sc-extra-card]');
-    if (!root) return;
-    root.querySelectorAll('[data-sc-extra-row-more]').forEach(function (tr) {
-      tr.classList.remove('hidden');
-    });
-    btn.remove();
+    scExtraSetTableExpanded(root, true);
+  }
+
+  function scExtraCollapseTable(btn) {
+    if (!btn) return;
+    var root = btn.closest('[data-sc-extra-card]');
+    scExtraSetTableExpanded(root, false);
+    var wrap = root && root.querySelector('[data-sc-extra-table]');
+    if (wrap) {
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
   window.scExtraExpandTable = scExtraExpandTable;
+  window.scExtraCollapseTable = scExtraCollapseTable;
 </script>
 {% endblock %}
