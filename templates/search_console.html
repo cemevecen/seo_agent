@@ -22,47 +22,58 @@
   @keyframes sc-extras-spin {
     to { transform: rotate(360deg); }
   }
-  /* SC extras tablolar — fixed layout, responsive truncate */
+  /* SC extras tablolar — metrik sütunlar sabit, metin truncate */
   .sc-extra-table-wrap {
     width: 100%;
     max-width: 100%;
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
   .sc-extra-table {
     width: 100%;
-    min-width: 0;
+    min-width: 20rem;
     table-layout: fixed;
     border-collapse: collapse;
   }
-  .sc-extra-th,
-  .sc-extra-td {
+  .sc-extra-col-text {
+    width: auto;
+  }
+  .sc-extra-col-text-secondary {
+    width: 24%;
+  }
+  .sc-extra-col-metric {
+    width: 4.75rem;
+  }
+  .sc-extra-th-text,
+  .sc-extra-td-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 0;
     vertical-align: middle;
   }
   .sc-extra-th-num,
   .sc-extra-td-num {
+    width: 4.75rem;
+    min-width: 4.75rem;
+    max-width: none;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
     text-align: right;
     font-variant-numeric: tabular-nums;
+    vertical-align: middle;
   }
-  .sc-extra-table[data-sc-cols="4"] .sc-extra-th:first-child,
-  .sc-extra-table[data-sc-cols="4"] .sc-extra-td:first-child { width: 46%; }
-  .sc-extra-table[data-sc-cols="4"] .sc-extra-th:nth-child(n + 2),
-  .sc-extra-table[data-sc-cols="4"] .sc-extra-td:nth-child(n + 2) { width: 18%; }
-  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-th:first-child,
-  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-td:first-child { width: 40%; }
-  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-th:nth-child(n + 2),
-  .sc-extra-table[data-sc-cols="5"]:not([data-sc-has-secondary]) .sc-extra-td:nth-child(n + 2) { width: 15%; }
-  .sc-extra-table[data-sc-cols="6"] .sc-extra-th:first-child,
-  .sc-extra-table[data-sc-cols="6"] .sc-extra-td:first-child { width: 26%; }
-  .sc-extra-table[data-sc-cols="6"] .sc-extra-th:nth-child(2),
-  .sc-extra-table[data-sc-cols="6"] .sc-extra-td:nth-child(2) { width: 24%; }
-  .sc-extra-table[data-sc-cols="6"] .sc-extra-th:nth-child(n + 3),
-  .sc-extra-table[data-sc-cols="6"] .sc-extra-td:nth-child(n + 3) { width: 12.5%; }
+  .sc-extra-table[data-sc-cols="6"] {
+    min-width: 36rem;
+  }
+  .sc-extra-table[data-sc-cols="5"] {
+    min-width: 28rem;
+  }
   @media (max-width: 640px) {
     .sc-extra-table { font-size: 10px; }
-    .sc-extra-th, .sc-extra-td { padding-left: 0.35rem; padding-right: 0.35rem; }
+    .sc-extra-th-num, .sc-extra-td-num { width: 3.75rem; min-width: 3.75rem; }
+    .sc-extra-col-metric { width: 3.75rem; }
   }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
