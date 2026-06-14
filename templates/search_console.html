@@ -2,6 +2,27 @@
 
 {% block content %}
 <style>
+  .trend-subnav-wrap { margin-bottom: 1rem; border-bottom: 1px solid rgb(226 232 240); padding-bottom: 0.5rem; }
+  html.dark .trend-subnav-wrap { border-color: rgba(63,63,70,.55); }
+  .trend-subnav-groups { display: flex; flex-direction: column; gap: 0.5rem; }
+  .trend-subnav-group-label {
+    font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+    color: rgb(100 116 139); padding: 0 0.25rem;
+  }
+  html.dark .trend-subnav-group-label { color: rgb(161 161 170); }
+  .trend-subnav-track {
+    display: flex; flex-wrap: nowrap; gap: 0.35rem; overflow-x: auto;
+    -webkit-overflow-scrolling: touch; padding-bottom: 0.15rem;
+  }
+  .trend-subnav-link {
+    flex-shrink: 0; border-radius: 999px; padding: 0.3rem 0.65rem;
+    font-size: 10px; font-weight: 700; white-space: nowrap;
+    border: 1px solid rgb(226 232 240); color: rgb(71 85 105);
+    background: rgb(255 255 255); text-decoration: none;
+  }
+  html.dark .trend-subnav-link { border-color: rgb(63 63 70); color: rgb(212 212 216); background: rgb(24 24 27); }
+  .trend-subnav-link.is-active { background: rgb(79 70 229); border-color: rgb(79 70 229); color: #fff; }
+  html.dark .trend-subnav-link.is-active { background: rgb(99 102 241); border-color: rgb(99 102 241); }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
     min-width: 0 !important;
@@ -63,8 +84,19 @@
 </style>
 <div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
+    {% include "partials/sc_subnav.html" %}
+
+    {% if sc_view_item and sc_view != 'performance' %}
+    <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">{{ sc_view_item.group }}</p>
+      <h1 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">{{ sc_view_item.title }}</h1>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Canlı Search Console API · son 28 gün (analytics görünümleri)</p>
+    </div>
+    {% endif %}
+
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-2">
+        {% if sc_view == 'performance' or not sc_view %}
         <button
           id="refresh-search-console-sites-button"
           type="button"
@@ -73,6 +105,7 @@
         >
           Tüm Siteleri Yenile
         </button>
+        {% endif %}
       </div>
     </div>
 
@@ -130,7 +163,7 @@
       </div>
     </div>
 
-    <div id="search-console-site-list" hx-get="/search-console/site-list?mode={{ site_list_mode or 'lazy' }}" hx-trigger="load" hx-swap="innerHTML">
+    <div id="search-console-site-list" hx-get="/search-console/site-list?mode={{ site_list_mode or 'lazy' }}&view={{ sc_view or 'performance' }}" hx-trigger="load" hx-swap="innerHTML">
       <div class="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch" aria-hidden="true">
         {% for _ in [0, 1] %}
           <div class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shadow-sm">
@@ -1786,9 +1819,12 @@
       updateSearchConsoleActivityBar();
       scSiteListBootstrapped = true;
       searchConsolePageLoad.swapped();
-      window.setTimeout(function () {
-        initSearchConsolePanels(event.target);
-      }, 50);
+      var extrasRoot = event.target.querySelector('[data-sc-extras-root]');
+      if (!extrasRoot) {
+        window.setTimeout(function () {
+          initSearchConsolePanels(event.target);
+        }, 50);
+      }
       return;
     }
     // Lazy-load: kart outerHTML ile gelir; split/grid üst konteynerde — tüm listeyi yeniden bağla

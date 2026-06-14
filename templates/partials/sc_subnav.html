@@ -1,0 +1,15 @@
+<div class="trend-subnav-wrap">
+  <div class="trend-subnav-groups">
+    {% for group in sc_groups %}
+    <div>
+      <div class="trend-subnav-group-label">{{ group }}</div>
+      <div class="trend-subnav-track">
+        {% for item in sc_views if item.group == group %}
+        {% set href = '/search-console/performance' if item.slug == 'performance' else '/search-console/' ~ item.slug %}
+        <a href="{{ href }}" class="trend-subnav-link {% if item.slug == sc_view %}is-active{% endif %}">{{ item.order }}. {{ item.title }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>

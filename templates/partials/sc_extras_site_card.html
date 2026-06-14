@@ -1,0 +1,146 @@
+<section
+  id="sc-extra-card-{{ site_id }}"
+  class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm ring-1 ring-slate-200/80 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-700/70"
+  data-sc-extra-card
+>
+  <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{{ sc_view_item.group }}</p>
+      <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">{{ display_name or domain }}</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400">{{ domain }}</p>
+    </div>
+    <div class="text-xs font-semibold {% if connection.connected %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">
+      {{ connection.label or ('Bağlı' if connection.connected else 'Bağlantı yok') }}
+    </div>
+  </div>
+
+  {% if not connection.connected %}
+    <div class="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+      Search Console bağlantısı yok. Ayarlardan OAuth veya servis hesabı ekleyin.
+    </div>
+  {% elif error %}
+    <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+      {{ error }}
+    </div>
+  {% elif sc_view_item.kind == 'inspection' %}
+    <form
+      class="space-y-3"
+      hx-post="/search-console/extras/url-inspection/site/{{ site_id }}"
+      hx-target="#sc-inspection-result-{{ site_id }}"
+      hx-swap="innerHTML"
+      hx-indicator="#sc-inspection-spinner-{{ site_id }}"
+    >
+      <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300" for="sc-inspect-url-{{ site_id }}">İncelenecek URL</label>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <input
+          id="sc-inspect-url-{{ site_id }}"
+          name="inspection_url"
+          type="url"
+          value="{{ (report.default_url if report else '') }}"
+          class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          placeholder="https://example.com/sayfa"
+          required
+        />
+        <button
+          type="submit"
+          class="shrink-0 rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+        >
+          İncele
+        </button>
+      </div>
+      <p id="sc-inspection-spinner-{{ site_id }}" class="hidden text-xs text-slate-500 htmx-request:inline dark:text-slate-400">Google URL Inspection API çağrılıyor…</p>
+    </form>
+    <div id="sc-inspection-result-{{ site_id }}" class="mt-3"></div>
+  {% elif sc_view_item.kind == 'sitemaps' and report %}
+    {% if report.sitemaps %}
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+        <table class="min-w-full text-left text-xs">
+          <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+            <tr>
+              <th class="px-3 py-2">Sitemap</th>
+              <th class="px-3 py-2">Durum</th>
+              <th class="px-3 py-2">Uyarı</th>
+              <th class="px-3 py-2">Hata</th>
+              <th class="px-3 py-2">Son gönderim</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            {% for row in report.sitemaps %}
+            <tr class="text-slate-700 dark:text-slate-200">
+              <td class="max-w-[16rem] truncate px-3 py-2 font-medium" title="{{ row.path }}">{{ row.path or '—' }}</td>
+              <td class="px-3 py-2">
+                {% if row.error %}
+                  <span class="text-red-600 dark:text-red-400">Hata</span>
+                {% elif row.isPending %}
+                  Beklemede
+                {% else %}
+                  OK
+                {% endif %}
+              </td>
+              <td class="px-3 py-2 tabular-nums">{{ row.warnings|default(0)|tr_int }}</td>
+              <td class="px-3 py-2 tabular-nums">{{ row.errors|default(0)|tr_int }}</td>
+              <td class="px-3 py-2 whitespace-nowrap">{{ row.lastSubmitted or '—' }}</td>
+            </tr>
+            {% if row.error %}
+            <tr>
+              <td colspan="5" class="px-3 pb-2 text-[11px] text-red-600 dark:text-red-400">{{ row.error }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{{ report.count|tr_int }} kayıt</p>
+    {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">Bu property için sitemap kaydı bulunamadı.</p>
+    {% endif %}
+  {% elif sc_view_item.kind == 'analytics' and report %}
+    <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
+      {{ report.start_date|ga4_iso_ddmmyyyy }} – {{ report.end_date|ga4_iso_ddmmyyyy }}
+      · {{ report.row_count|tr_int }} satır
+      {% if report.search_type %} · {{ report.search_type }}{% endif %}
+    </p>
+    {% if report.rows %}
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+        <table class="min-w-full text-left text-xs">
+          <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+            <tr>
+              <th class="px-3 py-2">{{ sc_view_item.primary_label or 'Boyut' }}</th>
+              {% if sc_view_item.secondary_col %}
+              <th class="px-3 py-2">{{ sc_view_item.secondary_label or 'Sorgu' }}</th>
+              {% endif %}
+              <th class="px-3 py-2 text-right">Tıklama</th>
+              <th class="px-3 py-2 text-right">Gösterim</th>
+              <th class="px-3 py-2 text-right">CTR</th>
+              <th class="px-3 py-2 text-right">Pozisyon</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            {% for row in report.rows %}
+            <tr class="text-slate-700 dark:text-slate-200">
+              <td class="max-w-[14rem] truncate px-3 py-2 font-medium" title="{{ row[sc_view_item.primary_col] }}">
+                {% if sc_view_item.primary_col == 'page' %}
+                  <a href="{{ row.page }}" target="_blank" rel="noopener" class="text-sky-700 hover:underline dark:text-sky-400">{{ row.page|ga4_row_page_label }}</a>
+                {% else %}
+                  {{ row[sc_view_item.primary_col] or '—' }}
+                {% endif %}
+              </td>
+              {% if sc_view_item.secondary_col %}
+              <td class="max-w-[12rem] truncate px-3 py-2" title="{{ row[sc_view_item.secondary_col] }}">{{ row[sc_view_item.secondary_col] or '—' }}</td>
+              {% endif %}
+              <td class="px-3 py-2 text-right tabular-nums">{{ row.clicks|tr_int }}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ row.impressions|tr_int }}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ (row.ctr * 100)|max_two_decimals }}%</td>
+              <td class="px-3 py-2 text-right tabular-nums">{{ row.position|max_two_decimals }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">Seçilen dönemde veri yok.</p>
+    {% endif %}
+  {% else %}
+    <p class="text-sm text-slate-500 dark:text-slate-400">Veri yüklenemedi.</p>
+  {% endif %}
+</section>

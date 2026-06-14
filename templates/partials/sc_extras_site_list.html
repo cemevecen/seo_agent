@@ -1,0 +1,27 @@
+{% if lazy_site_ids %}
+  <div class="grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2 xl:items-start" data-sc-extras-root>
+    {% for site_id, display_name in lazy_site_ids %}
+      <div
+        id="sc-extra-card-{{ site_id }}"
+        hx-get="/search-console/extras/{{ sc_view }}/site/{{ site_id }}"
+        hx-trigger="load, revealed"
+        hx-swap="outerHTML"
+        class="animate-pulse rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/95"
+      >
+        <div class="mb-4 space-y-2">
+          <div class="h-3 w-32 rounded bg-slate-200 dark:bg-slate-700"></div>
+          <div class="h-6 w-48 rounded bg-slate-300 dark:bg-slate-600"></div>
+        </div>
+        <div class="space-y-2">
+          <div class="h-4 w-full rounded bg-slate-200 dark:bg-slate-700"></div>
+          <div class="h-4 w-5/6 rounded bg-slate-200 dark:bg-slate-700"></div>
+          <div class="h-4 w-4/6 rounded bg-slate-200 dark:bg-slate-700"></div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+    Search Console için kayıtlı site bulunmuyor.
+  </div>
+{% endif %}

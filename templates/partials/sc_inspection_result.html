@@ -1,0 +1,42 @@
+{% if error %}
+  <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+    {{ error }}
+  </div>
+{% elif summary %}
+  <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Verdict</dt>
+      <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">{{ summary.verdict or '—' }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Coverage</dt>
+      <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">{{ summary.coverage_state or '—' }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Indexing</dt>
+      <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">{{ summary.indexing_state or '—' }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Page fetch</dt>
+      <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">{{ summary.page_fetch_state or '—' }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60 sm:col-span-2">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Google canonical</dt>
+      <dd class="mt-0.5 break-all font-medium text-slate-800 dark:text-slate-200">{{ summary.google_canonical or '—' }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60 sm:col-span-2">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">User canonical</dt>
+      <dd class="mt-0.5 break-all font-medium text-slate-800 dark:text-slate-200">{{ summary.user_canonical or '—' }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Son tarama</dt>
+      <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">{{ summary.last_crawl_time or '—' }}</dd>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <dt class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Rich results</dt>
+      <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">{{ summary.rich_results_verdict or '—' }}</dd>
+    </div>
+  </dl>
+{% else %}
+  <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Sonuç yok.</p>
+{% endif %}

@@ -117,6 +117,14 @@ from backend.services.operations_notifier import (
     notify_system_trigger,
     send_consolidated_system_email,
 )
+from backend.services.search_console_reports import (
+    SC_VIEW_SPECS,
+    fetch_sc_analytics_report,
+    fetch_sc_sitemaps,
+    inspect_sc_url,
+    sc_view_groups,
+    sc_views_for_nav,
+)
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
@@ -13494,22 +13502,36 @@ def backlinks_page(request: Request):
     )
 
 
-@app.get("/search-console")
-def search_console_page(request: Request):
-    # Lazy site-list: önce küçük iskelet HTML, sonra her kart kendi /search-console/site/{id}
-    # endpoint'inden yüklenir. Eager modda 90d eklendikten sonra HTML 3 MB+ ve render 2-3 sn
-    # sürüyordu; lazy'de ilk paint çok daha hızlı, kartlar paralel hidrate olur.
-    payload = {
-        "site_name": "Search Console",
+def _search_console_page_context(view_slug: str) -> dict[str, Any]:
+    slug = str(view_slug or "performance").strip() or "performance"
+    if slug not in SC_VIEW_SPECS:
+        raise ValueError(f"Gecersiz Search Console gorunumu: {slug}")
+    spec = SC_VIEW_SPECS[slug]
+    title_suffix = "" if slug == "performance" else f" · {spec.get('title') or slug}"
+    return {
+        "site_name": f"Search Console{title_suffix}",
         "sites": get_sidebar_sites(),
         "oauth_ready": oauth_is_configured(),
         "oauth_redirect_uri": settings.google_oauth_redirect_uri,
         "site_list_mode": "lazy",
+        "sc_view": slug,
+        "sc_view_item": spec,
+        "sc_views": sc_views_for_nav(),
+        "sc_groups": sc_view_groups(),
     }
+
+
+@app.get("/search-console")
+def search_console_index():
+    return RedirectResponse(url="/search-console/performance", status_code=302)
+
+
+@app.get("/search-console/performance")
+def search_console_performance_page(request: Request):
     return templates.TemplateResponse(
         request,
         "search_console.html",
-        context={"request": request, **payload},
+        context={"request": request, **_search_console_page_context("performance")},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
@@ -13518,10 +13540,29 @@ def search_console_page(request: Request):
 def search_console_site_list(request: Request):
     """Site listesini anlık render eder; her kart lazy HTMX ile ayrı yüklenir."""
     mode = str(request.query_params.get("mode") or "lazy").strip().lower()
+    view = str(request.query_params.get("view") or "performance").strip() or "performance"
+    if view not in SC_VIEW_SPECS:
+        return HTMLResponse("Gecersiz gorunum", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
+    view_spec = SC_VIEW_SPECS[view]
     with SessionLocal() as db:
         external_ids = _external_site_ids(db)
         sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
         sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+        if view_spec.get("kind") != "performance":
+            lazy_site_ids = [(s.id, s.display_name) for s in sites]
+            return templates.TemplateResponse(
+                request,
+                "partials/sc_extras_site_list.html",
+                context={
+                    "request": request,
+                    "lazy_mode": True,
+                    "lazy_site_ids": lazy_site_ids,
+                    "oauth_ready": oauth_is_configured(),
+                    "sc_view": view,
+                    "sc_view_item": view_spec,
+                },
+                headers=_SC_HTML_NO_CACHE_HEADERS,
+            )
         if mode == "eager":
             schedule_label = (
                 f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
@@ -13548,9 +13589,154 @@ def search_console_site_list(request: Request):
             "lazy_mode": True,
             "lazy_site_ids": lazy_site_ids,
             "oauth_ready": oauth_is_configured(),
+            "sc_view": view,
+            "sc_view_item": view_spec,
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
+
+
+@app.get("/search-console/extras/{view_slug}/site/{site_id}", response_class=HTMLResponse)
+def search_console_extras_site_card(request: Request, view_slug: str, site_id: int):
+    """Ek SC gorunumleri icin tek site karti (canli API)."""
+    if view_slug not in SC_VIEW_SPECS:
+        return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
+    spec = SC_VIEW_SPECS[view_slug]
+    if spec.get("kind") == "performance":
+        return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
+        connection = get_search_console_connection_status(db, site.id)
+        report: dict[str, Any] | None = None
+        error: str | None = None
+        kind = str(spec.get("kind") or "")
+        if kind == "analytics":
+            try:
+                report = fetch_sc_analytics_report(
+                    db,
+                    site.id,
+                    str(spec.get("report_key") or ""),
+                )
+            except Exception as exc:
+                logging.exception("sc_extras analytics site_id=%s view=%s", site_id, view_slug)
+                error = str(exc)[:400]
+        elif kind == "sitemaps":
+            try:
+                report = fetch_sc_sitemaps(db, site.id)
+            except Exception as exc:
+                logging.exception("sc_extras sitemaps site_id=%s", site_id)
+                error = str(exc)[:400]
+        elif kind == "inspection":
+            from backend.collectors.url_inspection import _normalize_url
+
+            report = {
+                "default_url": _normalize_url(site.domain),
+            }
+    return templates.TemplateResponse(
+        request,
+        "partials/sc_extras_site_card.html",
+        context={
+            "request": request,
+            "site_id": site.id,
+            "display_name": site.display_name,
+            "domain": site.domain,
+            "connection": connection,
+            "oauth_ready": oauth_is_configured(),
+            "sc_view": view_slug,
+            "sc_view_item": spec,
+            "report": report,
+            "error": error,
+        },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.post("/search-console/extras/url-inspection/site/{site_id}", response_class=HTMLResponse)
+def search_console_inspect_url_post(
+    request: Request,
+    site_id: int,
+    inspection_url: str = Form(""),
+):
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return HTMLResponse("", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
+        try:
+            result = inspect_sc_url(db, site.id, inspection_url)
+            summary = result.get("summary") or {}
+            error = None
+        except Exception as exc:
+            logging.exception("sc_inspect site_id=%s", site_id)
+            summary = {}
+            error = str(exc)[:400]
+    return templates.TemplateResponse(
+        request,
+        "partials/sc_inspection_result.html",
+        context={
+            "request": request,
+            "site_id": site.id,
+            "summary": summary,
+            "error": error,
+        },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/api/search-console/{site_id}/analytics-report")
+def api_search_console_analytics_report(
+    site_id: int,
+    report_key: str,
+    days: int = 28,
+    row_limit: int = 250,
+):
+    if not report_key:
+        return JSONResponse({"error": "report_key gerekli"}, status_code=400)
+    with SessionLocal() as db:
+        try:
+            payload = fetch_sc_analytics_report(
+                db,
+                site_id,
+                report_key,
+                days=days,
+                row_limit=row_limit,
+            )
+            return JSONResponse(payload)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        except Exception as exc:
+            logging.exception("api_sc_analytics site_id=%s key=%s", site_id, report_key)
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+@app.get("/api/search-console/{site_id}/sitemaps")
+def api_search_console_sitemaps(site_id: int):
+    with SessionLocal() as db:
+        try:
+            return JSONResponse(fetch_sc_sitemaps(db, site_id))
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        except Exception as exc:
+            logging.exception("api_sc_sitemaps site_id=%s", site_id)
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+@app.post("/api/search-console/{site_id}/inspect")
+async def api_search_console_inspect(site_id: int, request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    inspection_url = str(body.get("inspection_url") or body.get("url") or "").strip()
+    with SessionLocal() as db:
+        try:
+            return JSONResponse(inspect_sc_url(db, site_id, inspection_url))
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        except Exception as exc:
+            logging.exception("api_sc_inspect site_id=%s", site_id)
+            return JSONResponse({"error": str(exc)}, status_code=400)
 
 
 @app.get("/search-console/site/{site_id}", response_class=HTMLResponse)
@@ -14303,6 +14489,21 @@ def search_console_oauth_disconnect(request: Request, site_id: int):
     return templates.TemplateResponse(
         "partials/site_list.html",
         context={"request": request, "sites": sites, "oauth_ready": oauth_is_configured()},
+    )
+
+
+@app.get("/search-console/{view_slug}")
+def search_console_view_page(request: Request, view_slug: str):
+    slug = str(view_slug or "").strip()
+    if slug == "performance":
+        return RedirectResponse(url="/search-console/performance", status_code=302)
+    if slug not in SC_VIEW_SPECS:
+        return HTMLResponse("Gorunum bulunamadi.", status_code=404, headers=_SC_HTML_NO_CACHE_HEADERS)
+    return templates.TemplateResponse(
+        request,
+        "search_console.html",
+        context={"request": request, **_search_console_page_context(slug)},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
 
