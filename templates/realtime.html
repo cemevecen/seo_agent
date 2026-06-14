@@ -1001,6 +1001,26 @@
     background: rgb(238 242 255 / 0.85);
     padding: 0.35rem 0.65rem;
     text-align: right;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+  .rt-site-total-chip:hover {
+    border-color: rgb(199 210 254);
+    background: rgb(224 231 255);
+  }
+  .rt-site-total-chip.is-active {
+    border-color: rgb(99 102 241);
+    box-shadow: 0 0 0 2px rgb(99 102 241 / 0.22);
+    background: rgb(238 242 255);
+  }
+  html.dark .rt-site-total-chip.is-active {
+    border-color: rgb(129 140 248);
+    box-shadow: 0 0 0 2px rgb(129 140 248 / 0.28);
+    background: rgb(30 27 75 / 0.65);
   }
   html.dark .rt-site-total-chip {
     border-color: rgb(67 56 202 / 0.35);
@@ -1325,43 +1345,29 @@
         {{ site.display_name or site.domain }}
         <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
       </h2>
-      <div class="rt-site-totals flex flex-wrap items-center justify-end gap-2" data-rt-site-totals="{{ site.id }}" title="Tüm profillerin toplamı (Desktop + Mobil Web + iOS + Android)">
-        <div class="rt-site-total-chip">
+      <div class="rt-site-totals flex flex-wrap items-center justify-end gap-2" data-rt-site-totals="{{ site.id }}" title="Grafik metriğini değiştirmek için tıklayın">
+        <button type="button" class="rt-site-total-chip is-active" data-rt-site-metric-tab="au" aria-pressed="true" title="Toplam aktif · 24s spark">
           <p class="rt-site-total-label">Toplam aktif</p>
           <p class="rt-site-total-val" data-rt-site-total-au>—</p>
-        </div>
-        <div class="rt-site-total-chip rt-site-total-chip--pv">
+        </button>
+        <button type="button" class="rt-site-total-chip rt-site-total-chip--pv" data-rt-site-metric-tab="pv" aria-pressed="false" title="Toplam görüntüleme · 24s spark">
           <p class="rt-site-total-label">Toplam görüntüleme</p>
           <p class="rt-site-total-val" data-rt-site-total-pv>—</p>
-        </div>
+        </button>
       </div>
     </div>
     <div class="rt-site-sparks hidden" data-rt-site-sparks="{{ site.id }}">
-      <div class="rt-site-spark-row">
+      <div class="rt-site-spark-row" data-rt-site-spark-row>
         <div class="rt-site-spark-meta">
-          <p class="rt-site-spark-label">Toplam aktif</p>
+          <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel">24 saat</p>
-          <p class="rt-site-spark-last" data-rt-site-spark-au-last>—</p>
+          <p class="rt-site-spark-last" data-rt-site-spark-last>—</p>
         </div>
-        <div class="rt-site-spark-plot" data-rt-site-spark-au-chart>
-          <div class="rt-site-spark-y" data-rt-site-spark-au-y></div>
+        <div class="rt-site-spark-plot" data-rt-site-spark-chart>
+          <div class="rt-site-spark-y" data-rt-site-spark-y></div>
           <div class="rt-site-spark-main">
-            <div class="rt-site-spark-bars" data-rt-site-spark-au-bars role="img" aria-label="Site geneli toplam aktif — 24 saat"></div>
-            <div class="rt-site-spark-x" data-rt-site-spark-au-x></div>
-          </div>
-        </div>
-      </div>
-      <div class="rt-site-spark-row rt-site-spark-row--pv">
-        <div class="rt-site-spark-meta">
-          <p class="rt-site-spark-label">Toplam görüntüleme</p>
-          <p class="rt-site-spark-sublabel">24 saat</p>
-          <p class="rt-site-spark-last" data-rt-site-spark-pv-last>—</p>
-        </div>
-        <div class="rt-site-spark-plot" data-rt-site-spark-pv-chart>
-          <div class="rt-site-spark-y" data-rt-site-spark-pv-y></div>
-          <div class="rt-site-spark-main">
-            <div class="rt-site-spark-bars" data-rt-site-spark-pv-bars role="img" aria-label="Site geneli toplam görüntüleme — 24 saat"></div>
-            <div class="rt-site-spark-x" data-rt-site-spark-pv-x></div>
+            <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="Site geneli 24 saat trend"></div>
+            <div class="rt-site-spark-x" data-rt-site-spark-x></div>
           </div>
         </div>
       </div>
@@ -1852,12 +1858,36 @@
     }
   }
 
+  function _rtSetSiteSparkMetric(siteEl, metric) {
+    if (!siteEl) return;
+    metric = metric === 'pv' ? 'pv' : 'au';
+    siteEl._rtSparkMetric = metric;
+    siteEl.querySelectorAll('[data-rt-site-metric-tab]').forEach(function (btn) {
+      var on = btn.getAttribute('data-rt-site-metric-tab') === metric;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    var rowEl = siteEl.querySelector('[data-rt-site-spark-row]');
+    if (rowEl) rowEl.classList.toggle('rt-site-spark-row--pv', metric === 'pv');
+    var labelEl = siteEl.querySelector('[data-rt-site-spark-label]');
+    if (labelEl) labelEl.textContent = metric === 'pv' ? 'Toplam görüntüleme' : 'Toplam aktif';
+    var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
+    if (barsEl) {
+      barsEl.setAttribute(
+        'aria-label',
+        metric === 'pv' ? 'Site geneli toplam görüntüleme — 24 saat' : 'Site geneli toplam aktif — 24 saat'
+      );
+    }
+    if (siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
+      _renderSiteSparkMetric(siteEl, siteEl._rtCombinedTrend, metric);
+    }
+  }
+
   function _renderSiteSparkMetric(siteEl, trend, metric) {
-    var suffix = metric === 'pv' ? 'pv' : 'au';
-    var barsEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-bars]');
-    var yEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-y]');
-    var xEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-x]');
-    var lastEl = siteEl.querySelector('[data-rt-site-spark-' + suffix + '-last]');
+    var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
+    var yEl = siteEl.querySelector('[data-rt-site-spark-y]');
+    var xEl = siteEl.querySelector('[data-rt-site-spark-x]');
+    var lastEl = siteEl.querySelector('[data-rt-site-spark-last]');
     if (!barsEl) return;
     var rangeKey = '24h';
     var trendPoints = [];
@@ -1941,11 +1971,13 @@
     var wrap = siteEl.querySelector('[data-rt-site-sparks]');
     if (!trend || !trend.length) {
       if (wrap) wrap.classList.add('hidden');
+      siteEl._rtCombinedTrend = null;
       return;
     }
+    siteEl._rtCombinedTrend = trend;
     if (wrap) wrap.classList.remove('hidden');
-    _renderSiteSparkMetric(siteEl, trend, 'au');
-    _renderSiteSparkMetric(siteEl, trend, 'pv');
+    if (!siteEl._rtSparkMetric) siteEl._rtSparkMetric = 'au';
+    _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric);
   }
 
   function rtFetchSiteCombinedTrend(siteId) {
@@ -3969,6 +4001,13 @@
     document.querySelectorAll('[data-rt-profile-box]').forEach(function (box) {
       box._rtTrendRange = RT_TREND_RANGE_DEFAULT;
       _syncRtYfTabs(box, RT_TREND_RANGE_DEFAULT);
+    });
+    document.addEventListener('click', function (ev) {
+      var tab = ev.target.closest('[data-rt-site-metric-tab]');
+      if (!tab) return;
+      var siteEl = tab.closest('[data-rt-site]');
+      if (!siteEl) return;
+      _rtSetSiteSparkMetric(siteEl, tab.getAttribute('data-rt-site-metric-tab'));
     });
     _initRtAlarmSitePills();
     _startPolling();
