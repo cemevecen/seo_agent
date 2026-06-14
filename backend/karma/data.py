@@ -14,6 +14,7 @@ from backend.karma.vertical import (
     brief_internal_links_hint,
     headline_variants,
     vertical_for_site,
+    ContentVertical,
 )
 from backend.karma.realtime_helpers import (
     age_minutes,
@@ -289,6 +290,7 @@ def trend_seasonality(db: Session, site_id: int) -> dict[str, Any]:
     site = _site_or_404(db, site_id)
     out = _base_payload("seasonality", site)
     domain = site.domain or ""
+    vertical = vertical_for_site(site)
     now = utcnow()
     patterns = alarm_spike_patterns(db, site_id, days=30)
     events = editorial_calendar_events(domain)
@@ -312,23 +314,77 @@ def trend_seasonality(db: Session, site_id: int) -> dict[str, Any]:
             upcoming.append({"title": period, "subtitle": trig, "badge": act})
 
     recent_alarms = alarms_recent(db, site_id, hours=48, limit=10)
-    out["summary"] = (
-        f"Takvim + 30g alarm pattern ({patterns.get('total', 0)} olay). "
-        f"Bugün {now.strftime('%A %d.%m')} — yakın hazırlık: {len(upcoming)} madde."
+    sections: list[dict[str, Any]] = []
+
+    vakif_event_count = 0
+    if vertical == ContentVertical.FINANCE:
+        from backend.services.vakif_economic_calendar import fetch_vakif_economic_calendar
+
+        vakif = fetch_vakif_economic_calendar()
+        weekly = vakif.get("weekly") or {}
+        week_items = weekly.get("items") or []
+        vakif_event_count = len(week_items)
+        week_label = weekly.get("week_range") or weekly.get("published_label") or "Bu hafta"
+        week_title = f"Ekonomik takvim — {week_label}"
+        if weekly.get("published_label"):
+            week_title += f" · yayımlanma {weekly['published_label']}"
+
+        sections.append(
+            {
+                "title": week_title,
+                "items": week_items
+                or [
+                    {
+                        "title": "Takvim verisi alınamadı",
+                        "subtitle": vakif.get("error") or "Vakıf Yatırım kaynağı geçici olarak yanıt vermiyor",
+                        "badge": "—",
+                        "href": vakif.get("source_url"),
+                    }
+                ],
+            }
+        )
+
+        bulletin_items = []
+        for b in vakif.get("bulletins") or []:
+            subtitle_parts = [p for p in (b.get("date_label"), b.get("excerpt")) if p]
+            bulletin_items.append(
+                {
+                    "title": b.get("label") or b.get("title") or "Bülten",
+                    "subtitle": " · ".join(subtitle_parts)[:220] if subtitle_parts else "Güncel strateji notu",
+                    "badge": "bülten",
+                    "href": b.get("pdf_url") or b.get("detail_url") or b.get("page_url"),
+                }
+            )
+        if bulletin_items:
+            sections.append({"title": "Strateji bültenleri (Vakıf Yatırım)", "items": bulletin_items})
+
+    sections.extend(
+        [
+            {"title": "Yakın editoryal hazırlık", "items": upcoming or cal_items[:3]},
+            {"title": "Spike saatleri (alarm geçmişi)", "items": hour_items or [{"title": "Veri birikiyor", "subtitle": "30g alarm yok", "badge": "—"}]},
+            {"title": "Yoğun günler", "items": day_items},
+            {"title": "Mevsimsel takvim", "items": cal_items},
+            {"title": "Son 48s alarmlar (pattern doğrulama)", "items": [_alarm_item(a) for a in recent_alarms]},
+        ]
     )
+
+    summary_parts = []
+    if out.get("vertical_label"):
+        summary_parts.append(str(out["vertical_label"]))
+    if vertical == ContentVertical.FINANCE and vakif_event_count:
+        summary_parts.append(f"Vakıf takvim: {vakif_event_count} gündem maddesi")
+    summary_parts.append(f"30g alarm pattern ({patterns.get('total', 0)} olay)")
+    out["summary"] = " · ".join(summary_parts)
     out["metrics"] = [
+        {"label": "Takvim", "value": str(vakif_event_count) if vertical == ContentVertical.FINANCE else "—"},
         {"label": "30g alarm", "value": str(patterns.get("total", 0))},
         {"label": "Ay", "value": cur_month},
-        {"label": "Yakın olay", "value": str(len(upcoming))},
     ]
-    out["sections"] = [
-        {"title": "Yakın editoryal hazırlık", "items": upcoming or cal_items[:3]},
-        {"title": "Spike saatleri (alarm geçmişi)", "items": hour_items or [{"title": "Veri birikiyor", "subtitle": "30g alarm yok", "badge": "—"}]},
-        {"title": "Yoğun günler", "items": day_items},
-        {"title": "Mevsimsel takvim", "items": cal_items},
-        {"title": "Son 48s alarmlar (pattern doğrulama)", "items": [_alarm_item(a) for a in recent_alarms]},
-    ]
-    out["actions"] = [{"label": "Alerts", "href": "/alerts"}, {"label": "Realtime", "href": "/realtime"}]
+    out["sections"] = sections
+    actions = [{"label": "Alerts", "href": "/alerts"}, {"label": "Realtime", "href": "/realtime"}]
+    if vertical == ContentVertical.FINANCE:
+        actions.insert(0, {"label": "VakıfBank raporları", "href": "https://www.vakifbank.com.tr/tr/bireysel/yatirim/arastirmalar-ve-raporlar/piyasa-raporlari"})
+    out["actions"] = actions
     return out
 
 
