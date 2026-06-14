@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import unquote, urlparse
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.collectors.search_console import build_search_console_service_and_targets
 from backend.collectors.url_inspection import _extract_summary, _normalize_url
+from backend.models import NewsIntelligenceItem
 from backend.services.timezone_utils import report_calendar_yesterday
+
+_PAGE_DATE_ID_RE = re.compile(r"/(\d+)(?:/)?(?:\?|#|$)")
 
 SC_VIEW_SPECS: dict[str, dict[str, Any]] = {
     "performance": {
@@ -31,6 +37,7 @@ SC_VIEW_SPECS: dict[str, dict[str, Any]] = {
         "primary_col": "page",
         "primary_label": "Sayfa",
         "position_supported": False,
+        "page_date_column": True,
     },
     "news": {
         "title": "Google News",
@@ -44,6 +51,7 @@ SC_VIEW_SPECS: dict[str, dict[str, Any]] = {
         "primary_col": "page",
         "primary_label": "Sayfa",
         "position_supported": False,
+        "page_date_column": True,
     },
     "appearance": {
         "title": "Görünüm",
@@ -180,6 +188,190 @@ def _merge_rows_by_key(rows: list[dict], key_fields: list[str]) -> list[dict]:
     return result
 
 
+def _page_lookup_key(url: str) -> str:
+    u = unquote(str(url or "").strip())
+    if not u:
+        return ""
+    try:
+        p = urlparse(u)
+        path = p.path or "/"
+        host = (p.netloc or "").lower()
+        if host:
+            return f"{host}{path}".rstrip("/") or host
+        return path.rstrip("/") or "/"
+    except Exception:
+        return u.rstrip("/")
+
+
+def _news_id_from_page_url(url: str) -> int | None:
+    try:
+        path = urlparse(str(url or "")).path or ""
+    except Exception:
+        return None
+    m = _PAGE_DATE_ID_RE.search(path)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
+def _fetch_first_traffic_by_page(
+    service,
+    targets: list[dict[str, Any]],
+    start_date: date,
+    end_date: date,
+    *,
+    search_type: str | None,
+    property_aggregate: bool,
+) -> dict[str, str]:
+    """Sayfa başına dönem içindeki ilk gösterim/tıklama günü (YYYY-MM-DD)."""
+    min_by_page: dict[str, date] = {}
+
+    def _ingest(property_url: str, device: str | None) -> None:
+        try:
+            raw = _fetch_analytics_raw(
+                service,
+                property_url,
+                start_date,
+                end_date,
+                dimensions=["date", "page"],
+                search_type=search_type,
+                row_limit=25000,
+                max_row_limit=25000,
+                device=device,
+            )
+        except Exception:
+            return
+        for row in raw or []:
+            keys = row.get("keys") or []
+            if len(keys) < 2:
+                continue
+            d_str, page = str(keys[0]), str(keys[1])
+            clicks = float(row.get("clicks") or 0.0)
+            impressions = float(row.get("impressions") or 0.0)
+            if clicks <= 0 and impressions <= 0:
+                continue
+            try:
+                d = date.fromisoformat(d_str[:10])
+            except ValueError:
+                continue
+            key = _page_lookup_key(page)
+            prev = min_by_page.get(key)
+            if prev is None or d < prev:
+                min_by_page[key] = d
+
+    if property_aggregate:
+        seen: set[str] = set()
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            if not property_url or property_url in seen:
+                continue
+            seen.add(property_url)
+            _ingest(property_url, None)
+    else:
+        for target in targets:
+            property_url = str(target.get("property_url") or "")
+            device = str(target.get("device") or "").upper() or None
+            if property_url:
+                _ingest(property_url, device)
+
+    return {k: v.isoformat() for k, v in min_by_page.items()}
+
+
+def _lookup_publish_dates(db: Session, page_urls: list[str]) -> dict[str, str]:
+    """Haber URL'lerinde yayın tarihi — news_intelligence_items eşleşmesi."""
+    id_by_key: dict[str, int] = {}
+    ids: set[int] = set()
+    for url in page_urls:
+        key = _page_lookup_key(url)
+        if not key:
+            continue
+        nid = _news_id_from_page_url(url)
+        if nid is not None:
+            id_by_key[key] = nid
+            ids.add(nid)
+
+    publish_by_id: dict[int, date] = {}
+    if ids:
+        id_list = sorted(ids)
+        chunk = 80
+        for i in range(0, len(id_list), chunk):
+            part = id_list[i : i + chunk]
+            conds = []
+            for nid in part:
+                sid = str(nid)
+                conds.append(NewsIntelligenceItem.url.like(f"%/{sid}"))
+                conds.append(NewsIntelligenceItem.url.like(f"%/{sid}/%"))
+            rows = (
+                db.query(NewsIntelligenceItem.url, NewsIntelligenceItem.published_at)
+                .filter(or_(*conds))
+                .all()
+            )
+            for url, published_at in rows:
+                if not published_at:
+                    continue
+                nid = _news_id_from_page_url(str(url or ""))
+                if nid is None:
+                    continue
+                d = published_at.date() if hasattr(published_at, "date") else None
+                if d is None:
+                    continue
+                prev = publish_by_id.get(nid)
+                if prev is None or d < prev:
+                    publish_by_id[nid] = d
+
+    out: dict[str, str] = {}
+    for url in page_urls:
+        key = _page_lookup_key(url)
+        if not key:
+            continue
+        nid = id_by_key.get(key)
+        if nid is not None and nid in publish_by_id:
+            out[key] = publish_by_id[nid].isoformat()
+    return out
+
+
+def _enrich_rows_with_page_dates(
+    db: Session,
+    rows: list[dict[str, Any]],
+    *,
+    service,
+    targets: list[dict[str, Any]],
+    start_date: date,
+    end_date: date,
+    search_type: str | None,
+    property_aggregate: bool,
+) -> None:
+    pages = [str(r.get("page") or "") for r in rows if r.get("page")]
+    if not pages:
+        return
+    traffic_dates = _fetch_first_traffic_by_page(
+        service,
+        targets,
+        start_date,
+        end_date,
+        search_type=search_type,
+        property_aggregate=property_aggregate,
+    )
+    publish_dates = _lookup_publish_dates(db, pages)
+    for row in rows:
+        page = str(row.get("page") or "")
+        key = _page_lookup_key(page)
+        pub = publish_dates.get(key)
+        traffic = traffic_dates.get(key)
+        if pub:
+            row["page_date"] = pub
+            row["page_date_kind"] = "publish"
+        elif traffic:
+            row["page_date"] = traffic
+            row["page_date_kind"] = "traffic"
+        else:
+            row["page_date"] = None
+            row["page_date_kind"] = None
+
+
 def _fetch_analytics_raw(
     service,
     property_url: str,
@@ -189,9 +381,10 @@ def _fetch_analytics_raw(
     dimensions: list[str],
     search_type: str | None = None,
     row_limit: int = 250,
+    max_row_limit: int = 5000,
     device: str | None = None,
 ) -> list[dict]:
-    safe_limit = max(1, min(int(row_limit), 5000))
+    safe_limit = max(1, min(int(row_limit), int(max_row_limit)))
     body: dict[str, Any] = {
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat(),
@@ -310,6 +503,18 @@ def fetch_sc_analytics_report(
             raise ValueError(errors[0][:400])
 
     merged = _merge_rows_by_key(collected, dimensions)
+    trimmed = merged[: max(1, min(int(safe_limit), 500))]
+    if spec.get("page_date_column") and trimmed:
+        _enrich_rows_with_page_dates(
+            db,
+            trimmed,
+            service=service,
+            targets=targets,
+            start_date=start_date,
+            end_date=end_date,
+            search_type=search_type,
+            property_aggregate=property_aggregate,
+        )
     return {
         "site_id": site.id,
         "domain": site.domain,
@@ -319,7 +524,7 @@ def fetch_sc_analytics_report(
         "dimensions": dimensions,
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
-        "rows": merged[: max(1, min(int(safe_limit), 500))],
+        "rows": trimmed,
         "row_count": len(merged),
     }
 

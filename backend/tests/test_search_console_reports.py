@@ -3,7 +3,9 @@
 from backend.services.search_console_reports import (
     SC_VIEW_SPECS,
     _merge_rows_by_key,
+    _news_id_from_page_url,
     _normalize_dimension_rows,
+    _page_lookup_key,
     sc_extra_card_should_render,
     sc_extra_views_for_nav,
     sc_view_groups,
@@ -15,7 +17,8 @@ def test_sc_view_specs_has_performance_and_extras():
     assert "performance" in SC_VIEW_SPECS
     assert "countries" not in SC_VIEW_SPECS
     assert SC_VIEW_SPECS["discover"].get("position_supported") is False
-    assert SC_VIEW_SPECS["news"].get("position_supported") is False
+    assert SC_VIEW_SPECS["discover"].get("page_date_column") is True
+    assert SC_VIEW_SPECS["news"].get("page_date_column") is True
     slugs = {v["slug"] for v in SC_VIEW_SPECS.values()}
     for expected in ("discover", "news", "appearance", "page-query", "url-inspection", "sitemaps"):
         assert expected in slugs
@@ -76,3 +79,11 @@ def test_sc_extra_card_should_render():
     ) is True
     assert sc_extra_card_should_render(spec_inspection, connection=connected, report={}, error=None) is True
     assert sc_extra_card_should_render(spec_inspection, connection=disconnected, report={}, error=None) is False
+
+
+def test_page_lookup_key_and_news_id():
+    url = "https://www.doviz.com/gundem-haberleri/ornek-baslik/837872"
+    assert _news_id_from_page_url(url) == 837872
+    key = _page_lookup_key(url)
+    assert key.endswith("/837872")
+    assert _page_lookup_key("https://WWW.DOVIZ.COM/foo/") == _page_lookup_key("https://www.doviz.com/foo")

@@ -128,8 +128,10 @@
     {% set sc_preview_limit = 15 %}
     {% set sc_all_rows = report.rows or [] %}
     {% set sc_show_position = sc_view_item.get('position_supported', True) %}
+    {% set sc_show_page_date = sc_view_item.get('page_date_column') %}
     {% set sc_table_cols = 4 %}
     {% if sc_view_item.secondary_col %}{% set sc_table_cols = sc_table_cols + 1 %}{% endif %}
+    {% if sc_show_page_date %}{% set sc_table_cols = sc_table_cols + 1 %}{% endif %}
     {% if sc_show_position %}{% set sc_table_cols = sc_table_cols + 1 %}{% endif %}
     <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">
       {{ report.start_date|ga4_iso_ddmmyyyy }} – {{ report.end_date|ga4_iso_ddmmyyyy }}
@@ -145,6 +147,7 @@
           <colgroup>
             <col class="sc-extra-col-text">
             {% if sc_view_item.secondary_col %}<col class="sc-extra-col-text-secondary">{% endif %}
+            {% if sc_show_page_date %}<col class="sc-extra-col-date">{% endif %}
             <col class="sc-extra-col-metric"><col class="sc-extra-col-metric"><col class="sc-extra-col-metric">
             {% if sc_show_position %}<col class="sc-extra-col-metric">{% endif %}
           </colgroup>
@@ -153,6 +156,9 @@
               <th class="sc-extra-th-text px-2 py-1.5 sm:px-3 sm:py-2">{{ sc_view_item.primary_label or 'Boyut' }}</th>
               {% if sc_view_item.secondary_col %}
               <th class="sc-extra-th-text px-2 py-1.5 sm:px-3 sm:py-2">{{ sc_view_item.secondary_label or 'Sorgu' }}</th>
+              {% endif %}
+              {% if sc_show_page_date %}
+              <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2">Tarih</th>
               {% endif %}
               <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2">Tıklama</th>
               <th class="sc-extra-th-num px-2 py-1.5 sm:px-3 sm:py-2">Gösterim</th>
@@ -174,6 +180,9 @@
               </td>
               {% if sc_view_item.secondary_col %}
               <td class="sc-extra-td-text px-2 py-1.5 sm:px-3 sm:py-2" title="{{ row.get(sc_view_item.secondary_col) or '' }}">{{ row.get(sc_view_item.secondary_col) or '—' }}</td>
+              {% endif %}
+              {% if sc_show_page_date %}
+              <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2 whitespace-nowrap" title="{% if row.page_date_kind == 'publish' %}Yayın tarihi{% elif row.page_date_kind == 'traffic' %}İlk trafik (dönem içi){% else %}—{% endif %}">{% if row.page_date %}{{ row.page_date | ga4_iso_ddmmyyyy }}{% else %}—{% endif %}</td>
               {% endif %}
               <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ (row.get('clicks') or 0)|tr_int }}</td>
               <td class="sc-extra-td-num px-2 py-1.5 sm:px-3 sm:py-2">{{ (row.get('impressions') or 0)|tr_int }}</td>
