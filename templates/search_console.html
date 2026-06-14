@@ -75,6 +75,12 @@
     .sc-extra-th-num, .sc-extra-td-num { width: 3.75rem; min-width: 3.75rem; }
     .sc-extra-col-metric { width: 3.75rem; }
   }
+  [data-sc-extras-root].sc-extras-grid--single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sc-extra-section.sc-extra-section--empty {
+    display: none;
+  }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
     min-width: 0 !important;
@@ -1412,6 +1418,9 @@
     document.querySelectorAll('[data-sc-split-root]').forEach(function (grid) {
       scSplitApplyFocus(grid, fid);
     });
+    document.querySelectorAll('[data-sc-extras-root]').forEach(function (root) {
+      scExtrasReflowGrid(root);
+    });
   }
 
   function scSplitApplyFocus(grid, focusId) {
@@ -1919,21 +1928,75 @@
   }
   window.initScExtrasLottie = initScExtrasLottie;
 
+  function scExtrasPruneEmptySlots(root) {
+    if (!root) {
+      return;
+    }
+    root.querySelectorAll(':scope > [id^="sc-extra-card-"]').forEach(function (el) {
+      if (el.hasAttribute('hx-get') || el.matches('[data-sc-extra-card]')) {
+        return;
+      }
+      var txt = (el.textContent || '').replace(/\s+/g, '');
+      if (!txt) {
+        el.remove();
+      }
+    });
+  }
+
+  function scExtrasReflowGrid(root) {
+    if (!root || !root.matches || !root.matches('[data-sc-extras-root]')) {
+      return;
+    }
+    scExtrasPruneEmptySlots(root);
+    var visible = Array.from(root.querySelectorAll(':scope > [data-site-id]')).filter(function (el) {
+      return !el.classList.contains('hidden');
+    });
+    var n = visible.length;
+    var focused = scGetGlobalFocus();
+    root.classList.toggle('sc-extras-grid--single', n === 1 && !focused);
+    visible.forEach(function (el) {
+      if (n === 1 && !focused) {
+        el.classList.remove('xl:col-span-2');
+      }
+    });
+  }
+
+  function scExtrasSyncSectionVisibility(root) {
+    if (!root) {
+      return;
+    }
+    var section = root.closest('.sc-extra-section');
+    if (!section) {
+      return;
+    }
+    if (root.querySelector('[id^="sc-extra-card-"][hx-get]')) {
+      section.classList.remove('sc-extra-section--empty');
+      return;
+    }
+    var hasCard = root.querySelector(':scope > [data-sc-extra-card]');
+    var hasEmptyMsg = root.querySelector('[data-sc-empty]');
+    section.classList.toggle('sc-extra-section--empty', !hasCard && Boolean(hasEmptyMsg));
+  }
+
   function scExtrasSyncEmptyRoot(root) {
     if (!root || !root.matches || !root.matches('[data-sc-extras-root]')) {
       return;
     }
+    scExtrasReflowGrid(root);
     if (root.querySelector('[id^="sc-extra-card-"][hx-get]')) {
       return;
     }
-    if (root.querySelector('[data-sc-extra-card]')) {
+    if (root.querySelector(':scope > [data-sc-extra-card]')) {
+      scExtrasSyncSectionVisibility(root);
       return;
     }
     if (root.querySelector('[data-sc-empty]')) {
+      scExtrasSyncSectionVisibility(root);
       return;
     }
     root.innerHTML =
       '<p class="rounded-2xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400" data-sc-empty>Bu görünümde hiçbir sitede veri bulunamadı.</p>';
+    scExtrasSyncSectionVisibility(root);
   }
   window.scExtrasSyncEmptyRoot = scExtrasSyncEmptyRoot;
 
@@ -1964,6 +2027,12 @@
         (elt && elt.id && elt.id.indexOf('sc-extra-card-') === 0);
       if (extraCardId) {
         window.setTimeout(function () {
+          var cardRoot =
+            (target && target.closest && target.closest('[data-sc-extras-root]')) ||
+            (elt && elt.closest && elt.closest('[data-sc-extras-root]'));
+          if (cardRoot) {
+            scExtrasSyncEmptyRoot(cardRoot);
+          }
           scApplyGlobalFocus();
         }, 40);
       }

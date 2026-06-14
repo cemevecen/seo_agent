@@ -145,6 +145,10 @@ _SC_HTML_NO_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
 }
+_SC_HTML_OMIT_HEADERS = {
+    **_SC_HTML_NO_CACHE_HEADERS,
+    "HX-Reswap": "delete",
+}
 _SC_JSON_NO_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
@@ -13651,7 +13655,7 @@ def search_console_extras_site_card(request: Request, view_slug: str, site_id: i
                 report=report,
                 error=error,
             ):
-                return HTMLResponse("", headers=_SC_HTML_NO_CACHE_HEADERS)
+                return HTMLResponse("", headers=_SC_HTML_OMIT_HEADERS)
         return templates.TemplateResponse(
             request,
             "partials/sc_extras_site_card.html",
