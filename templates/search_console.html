@@ -1914,5 +1914,16 @@
       window.setTimeout(function () { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
     }
   })();
+
+  function scExtraExpandTable(btn) {
+    if (!btn) return;
+    var root = btn.closest('[data-sc-extra-table]');
+    if (!root) return;
+    root.querySelectorAll('[data-sc-extra-row-more]').forEach(function (tr) {
+      tr.classList.remove('hidden');
+    });
+    btn.remove();
+  }
+  window.scExtraExpandTable = scExtraExpandTable;
 </script>
 {% endblock %}

@@ -13,6 +13,8 @@ from backend.services.search_console_reports import (
 def test_sc_view_specs_has_performance_and_extras():
     assert "performance" in SC_VIEW_SPECS
     assert "countries" not in SC_VIEW_SPECS
+    assert SC_VIEW_SPECS["discover"].get("position_supported") is False
+    assert SC_VIEW_SPECS["news"].get("position_supported") is False
     slugs = {v["slug"] for v in SC_VIEW_SPECS.values()}
     for expected in ("discover", "news", "appearance", "page-query", "url-inspection", "sitemaps"):
         assert expected in slugs

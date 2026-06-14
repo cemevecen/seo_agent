@@ -30,6 +30,7 @@ SC_VIEW_SPECS: dict[str, dict[str, Any]] = {
         "dimensions": ["page"],
         "primary_col": "page",
         "primary_label": "Sayfa",
+        "position_supported": False,
     },
     "news": {
         "title": "Google News",
@@ -42,6 +43,7 @@ SC_VIEW_SPECS: dict[str, dict[str, Any]] = {
         "dimensions": ["page"],
         "primary_col": "page",
         "primary_label": "Sayfa",
+        "position_supported": False,
     },
     "appearance": {
         "title": "Görünüm",
