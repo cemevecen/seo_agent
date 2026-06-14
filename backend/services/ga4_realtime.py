@@ -115,13 +115,39 @@ def _email_profile_abbr(profile: str) -> str:
     return {"web": "web", "mweb": "mweb", "android": "android", "ios": "ios"}.get(profile, profile or "web")
 
 
-def _email_metric_plain_tr(metric: str) -> str:
-    """E-posta gövdesinde okunabilir metrik adı."""
+def _email_metric_chip(metric: str) -> str:
+    """E-posta gövdesi/konu — kısa metrik kodu."""
     m = (metric or "").strip()
-    return {
-        "activeUsers": "Aktif kullanıcı (activeUsers)",
-        "screenPageViews": "Sayfa görüntüleme (screenPageViews)",
-    }.get(m, m)
+    return {"activeUsers": "kul", "screenPageViews": "gör"}.get(m, m)
+
+
+def _email_metric_plain_tr(metric: str) -> str:
+    return _email_metric_chip(metric)
+
+
+def _html_email_metric_row(prev: int, cur: int, pct: float, *, large: bool = False) -> str:
+    """Önceki/şimdiki yarı etiketi olmadan: 1067 → 2427 +127.5%"""
+    is_drop = pct < 0
+    pct_c = "#dc2626" if is_drop else "#16a34a"
+    fs = "26px" if large else "22px"
+    if prev > 0:
+        return (
+            f'<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
+            f'<span style="font-size:{fs};font-weight:900;color:#475569;">{prev:,}</span>'
+            f'<span style="font-size:16px;color:#94a3b8;">→</span>'
+            f'<span style="font-size:{fs};font-weight:900;color:#0f172a;">{cur:,}</span>'
+            f'<span style="font-size:16px;font-weight:800;color:{pct_c};">{pct:+.1f}%</span>'
+            f'</div>'
+        )
+    return f'<span style="font-size:{fs};font-weight:900;color:#0f172a;">{cur:,}</span>'
+
+
+def _html_email_section_header(domain: str, profile: str) -> str:
+    """Kısa site adı + profil — www.doviz.com yok."""
+    short = html.escape(_email_site_short_label(domain))
+    prof = html.escape(_email_profile_abbr(profile))
+    suffix = f" [{prof}]" if prof not in ("web", "") else ""
+    return f'<p style="font-size:14px;font-weight:700;margin:0 0 10px;">{short}{suffix}</p>'
 
 
 def _email_metric_subject_slug(metric: str, rule_id: str) -> str:
@@ -245,55 +271,30 @@ def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
     return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
-def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
-    """Site metrik alarmları — kompakt kart, preview'da okunabilir."""
-    dom_e = html.escape(domain)
-    prof_e = html.escape(profile_label)
+def _html_site_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+    """Site metrik alarmları — yalnızca sayılar."""
+    prof_tag = html.escape(_email_profile_abbr(profile))
+    prof_suffix = f" [{prof_tag}]" if prof_tag not in ("web", "") else ""
     cards: list[str] = []
+    pre_parts: list[str] = []
     for alarm in alarms:
         metric_key = str(alarm.get("metric", "activeUsers"))
-        metric_tr = html.escape(_email_metric_plain_tr(metric_key))
+        metric_chip = html.escape(_email_metric_plain_tr(metric_key))
         cur = int(alarm.get("current_value", 0))
         prev = int(alarm.get("previous_value", 0))
         pct = float(alarm.get("change_pct", 0.0))
-        delta = cur - prev
         is_drop = pct < 0
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
-        pct_c = "#dc2626" if is_drop else "#16a34a"
-        sign = "+" if delta >= 0 else ""
-
-        if prev > 0:
-            metric_row = (
-                f'<div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;">'
-                f'<div style="text-align:center;">'
-                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Önceki yarı</div>'
-                f'<span style="font-size:26px;font-weight:900;color:#475569;">{prev}</span>'
-                f'</div>'
-                f'<span style="font-size:20px;color:#94a3b8;padding-bottom:4px;">→</span>'
-                f'<div style="text-align:center;">'
-                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Şimdiki yarı</div>'
-                f'<span style="font-size:26px;font-weight:900;color:#0f172a;">{cur}</span>'
-                f'</div>'
-                f'<span style="font-size:20px;font-weight:800;color:{pct_c};padding-bottom:4px;">{pct:+.1f}%</span>'
-                f'</div>'
-            )
-        else:
-            metric_row = (
-                f'<div style="display:flex;align-items:baseline;gap:6px;">'
-                f'<span style="font-size:28px;font-weight:900;color:#0f172a;">{cur}</span>'
-                f'<span style="font-size:13px;color:#64748b;">aktif</span>'
-                f'</div>'
-            )
-
+        metric_row = _html_email_metric_row(prev, cur, pct, large=True)
+        pre_parts.append(f"{metric_chip} {prev:,}→{cur:,} {pct:+.0f}%")
         cards.append(
             f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
-            f'<div style="font-size:11px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">{metric_tr} · {prof_e}</div>'
+            f'<div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:700;">{metric_chip}{prof_suffix}</div>'
             f'{metric_row}'
             f'</div>'
         )
 
-    # Sürücü Analizi (Eğer varsa)
     driver_html = ""
     first_alarm = alarms[0] if alarms else {}
     drivers = first_alarm.get("drivers", [])
@@ -301,25 +302,26 @@ def _html_site_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         site_delta = first_alarm.get("current_value", 0) - first_alarm.get("previous_value", 0)
         driver_html = _html_driver_analysis_section(drivers, site_delta)
 
+    pre = _preheader(" · ".join(pre_parts[:4]))
+
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
-            <p style="font-size:15px;font-weight:700;margin:0 0 10px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
+            {pre}
+            {_html_email_section_header(domain, profile)}
             {''.join(cards)}
             {driver_html}
-            <p style="color:#94a3b8;font-size:11px;margin-top:14px;">SEO Agent · GA4 Realtime (otomatik)</p>
         </div>
         """
 
 
-def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
-    dom_e = html.escape(domain)
+def _html_page_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
     cards: list[str] = []
+    pre_parts: list[str] = []
     for alarm in alarms:
         page = alarm.get("page", "")
         title = _rt_alarm_screen_title_one_line(page, max_len=70) or page
         title_e = html.escape(title)
         row_url = _alarm_row_public_url(domain, "page:" + str(page))
-        # Başlık tıklanabilir olsun — row_url varsa <a> ile sar
         if row_url:
             ru = html.escape(row_url, quote=True)
             title_html = (
@@ -335,37 +337,28 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         border = "#dc2626" if is_drop else "#16a34a"
         bg = "#fef2f2" if is_drop else "#f0fdf4"
         pct_c = "#dc2626" if is_drop else "#16a34a"
-        delta = curr - prev
-        sign = "+" if delta >= 0 else ""
 
         if rid == "page_disappeared":
-            metric_html = (f'<span style="font-size:24px;font-weight:900;color:{pct_c};">{prev}</span>'
-                           f'<span style="font-size:13px;color:#64748b;margin-left:6px;">kul. vardı · listeden çıktı</span>')
+            metric_html = (
+                f'<span style="font-size:22px;font-weight:900;color:{pct_c};">{prev:,}</span>'
+                f'<span style="font-size:16px;color:#94a3b8;margin:0 6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{pct_c};">0</span>'
+            )
+            pre_parts.append(f"{title[:18]} {prev:,}→0")
         elif rid == "page_new_entry":
-            metric_html = (f'<span style="font-size:24px;font-weight:900;color:{pct_c};">{curr}</span>'
-                           f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı · yeni giriş</span>')
+            metric_html = (
+                f'<span style="font-size:22px;font-weight:900;color:{pct_c};">0</span>'
+                f'<span style="font-size:16px;color:#94a3b8;margin:0 6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{pct_c};">{curr:,}</span>'
+            )
+            pre_parts.append(f"{title[:18]} 0→{curr:,}")
         elif prev > 0:
-            metric_html = (
-                f'<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;">'
-                f'<div style="text-align:center;">'
-                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Önceki yarı</div>'
-                f'<span style="font-size:22px;font-weight:900;color:#475569;">{prev}</span>'
-                f'</div>'
-                f'<span style="font-size:16px;color:#94a3b8;padding-bottom:3px;">→</span>'
-                f'<div style="text-align:center;">'
-                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Şimdiki yarı</div>'
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-                f'</div>'
-                f'<span style="font-size:16px;font-weight:800;color:{pct_c};padding-bottom:3px;">{pct:+.1f}%</span>'
-                f'</div>'
-            )
+            metric_html = _html_email_metric_row(prev, curr, pct)
+            pre_parts.append(f"{title[:18]} {prev:,}→{curr:,} {pct:+.0f}%")
         else:
-            metric_html = (
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-                f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı</span>'
-            )
+            metric_html = f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr:,}</span>'
+            pre_parts.append(f"{title[:18]} {curr:,}")
 
-        # URL listesi — pagePath varsa başlığın altında göster
         paths_html = ""
         page_paths = alarm.get("page_paths") or []
         if page_paths:
@@ -377,7 +370,7 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             )
             paths_html = f'<div style="margin-top:4px;">{path_items}</div>'
             if len(page_paths) > 5:
-                paths_html += f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">+{len(page_paths)-5} URL daha…</div>'
+                paths_html += f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">+{len(page_paths)-5} URL</div>'
 
         cards.append(
             f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
@@ -387,11 +380,13 @@ def _html_page_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f'</div>'
         )
 
+    pre = _preheader(" · ".join(pre_parts[:6]))
+
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
-            <p style="font-size:15px;font-weight:700;margin:0 0 10px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {html.escape(profile_label)}</span></p>
+            {pre}
+            {_html_email_section_header(domain, profile)}
             {''.join(cards)}
-            <p style="color:#94a3b8;font-size:11px;margin-top:14px;">SEO Agent · GA4 Realtime sayfa listesi (otomatik)</p>
         </div>
         """
 
@@ -408,11 +403,7 @@ def _preheader(text: str) -> str:
     )
 
 
-def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
-    dom_e = html.escape(domain)
-    prof_e = html.escape(profile_label)
-    # Negatif (düşüş/kaybolma/zirveden düşüş) ve pozitif alarmları ayır — her ikisinin de
-    # mailde kesinlikle yer alması için ayrı kotalarla seç: max 8 pozitif + max 7 negatif
+def _html_news_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
     neg_alarms = [a for a in alarms if str(a.get("rule_id", "")) in NEGATIVE_ALARM_RULE_IDS]
     pos_alarms = [a for a in alarms if str(a.get("rule_id", "")) not in NEGATIVE_ALARM_RULE_IDS]
     pos_sorted = _sort_news_alarms(pos_alarms)[:8]
@@ -439,35 +430,36 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         bg = "#fef2f2" if is_drop else "#f0fdf4"
         num_c = "#dc2626" if is_drop else "#16a34a"
 
-        # Metrik satırı: her alarm tipine özel, anlamlı
         if rid == "news_new_entry":
             metric_html = (
-                f'<span style="font-size:28px;font-weight:900;color:{num_c};">{curr}</span>'
-                f'<span style="font-size:13px;color:#64748b;margin-left:6px;">aktif kullanıcı · yeni giriş</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">0</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr:,}</span>'
             )
         elif rid == "news_disappeared":
             metric_html = (
-                f'<span style="font-size:28px;font-weight:900;color:{num_c};">{prev}</span>'
-                f'<span style="font-size:13px;color:#64748b;margin-left:6px;">kul. vardı · listeden çıktı</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{prev:,}</span>'
+                f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">0</span>'
             )
         elif rid == "news_peak_drop":
             peak = int(alarm.get("peak_users", prev))
             drop_pct = int(alarm.get("drop_pct", 0))
             metric_html = (
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{peak}</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{peak:,}</span>'
                 f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
-                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr}</span>'
-                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · düştü</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr:,}</span>'
+                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}%</span>'
             )
         else:
             delta = curr - prev
             sign = "+" if delta >= 0 else ""
-            direction_label = "arttı" if delta >= 0 else "düştü"
+            pct = float(alarm.get("change_pct", 0.0))
             metric_html = (
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev:,}</span>'
                 f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-                f'<span style="font-size:16px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} · {direction_label}</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr:,}</span>'
+                f'<span style="font-size:16px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct:+.0f}%)</span>'
             )
 
         cards.append(
@@ -477,7 +469,6 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
             f'</div>'
         )
 
-    # Genel trafik özeti banner'ı
     kpi_html = ""
     kpi = site_kpi or {}
     if kpi.get("current") is not None:
@@ -488,59 +479,41 @@ def _html_news_alarm_body(domain: str, profile_label: str, alarms: list[dict[str
         kpi_color = "#dc2626" if is_drop_kpi else "#16a34a"
         kpi_bg    = "#fef2f2" if is_drop_kpi else "#f0fdf4"
         kpi_border= "#dc2626" if is_drop_kpi else "#16a34a"
-        pct_sign  = "" if pct_kpi < 0 else "+"
         if prev_kpi > 0:
             kpi_html = (
                 f'<div style="margin:0 0 14px;padding:10px 14px;border-radius:8px;'
                 f'border-left:4px solid {kpi_border};background:{kpi_bg};">'
-                f'<div style="font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;'
-                f'letter-spacing:.06em;margin-bottom:4px;">Genel Trafik · {prof_e}</div>'
-                f'<div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;">'
-                f'<div style="text-align:center;">'
-                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Önceki yarı</div>'
-                f'<span style="font-size:22px;font-weight:900;color:#475569;">{prev_kpi:,}</span>'
-                f'</div>'
-                f'<span style="font-size:16px;color:#94a3b8;padding-bottom:2px;">→</span>'
-                f'<div style="text-align:center;">'
-                f'<div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Şimdiki yarı</div>'
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{cur_kpi:,}</span>'
-                f'</div>'
-                f'<span style="font-size:16px;font-weight:800;color:{kpi_color};padding-bottom:2px;">'
-                f'{pct_sign}{pct_kpi:.1f}%</span>'
-                f'</div>'
+                f'<div style="font-size:11px;color:#64748b;margin-bottom:4px;font-weight:700;">site kul</div>'
+                f'{_html_email_metric_row(prev_kpi, cur_kpi, pct_kpi)}'
                 f'</div>'
             )
         else:
             kpi_html = (
                 f'<div style="margin:0 0 14px;padding:8px 14px;border-radius:8px;'
                 f'background:#f8fafc;border-left:4px solid #e2e8f0;">'
-                f'<span style="font-size:11px;color:#64748b;">Genel Trafik · {prof_e}: '
-                f'<strong style="color:#0f172a;">{cur_kpi:,}</strong> aktif kullanıcı</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{cur_kpi:,}</span>'
                 f'</div>'
             )
 
-    # Preheader: KPI varsa önce trafik sayısı, sonra haber özeti
-    kpi = site_kpi or {}
     pre_parts: list[str] = []
     if kpi.get("current"):
         cur_k = int(kpi["current"])
         pct_k = float(kpi.get("change_pct", 0))
-        sign  = "+" if pct_k >= 0 else ""
-        pre_parts.append(f"{cur_k:,} kul. {sign}{pct_k:.0f}%")
+        pre_parts.append(f"site {cur_k:,} {pct_k:+.0f}%")
     for a in alarms[:10]:
         title = _rt_alarm_screen_title_one_line(str(a.get("page", "")), max_len=18)
         curr  = int(a.get("current_users", 0))
+        prev_a = int(a.get("previous_users", 0))
         if title and title != "—":
-            pre_parts.append(f"{title}: {curr}")
-    preheader_str = " · ".join(pre_parts) if pre_parts else f"{len(alarms)} haber alarmı"
+            pre_parts.append(f"{title}: {prev_a:,}→{curr:,}")
+    preheader_str = " · ".join(pre_parts) if pre_parts else f"{len(alarms)} haber"
 
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
             {_preheader(preheader_str)}
-            <p style="font-size:15px;font-weight:700;margin:0 0 12px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>
+            {_html_email_section_header(domain, profile)}
             {kpi_html}
             {''.join(cards)}
-            <p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · GA4 Realtime haberler (otomatik)</p>
         </div>
         """
 
@@ -2384,9 +2357,8 @@ def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, An
         return False
 
     logger.info("GA4 Realtime: E-posta hazırlanıyor (site=%s, profile=%s)...", domain, profile)
-    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_site_alarm_body(domain, profile_label, alarms)
+    html_body = _html_site_alarm_body(domain, profile, alarms)
     subject = _email_site_alarm_subject(domain, profile, alarms)
     ok = send_realtime_email(subject, html_body, thread_kind="site", thread_key=thread_key)
     if ok:
@@ -3097,9 +3069,8 @@ def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
         )
         return False
 
-    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_page_alarm_body(domain, profile_label, alarms)
+    html_body = _html_page_alarm_body(domain, profile, alarms)
     subject = _email_page_alarm_subject(domain, profile, alarms)
     return bool(send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key))
 
@@ -3485,9 +3456,8 @@ def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
         )
         return False
 
-    profile_label = {"web": "Desktop", "mweb": "Mobile Web", "android": "Android", "ios": "iOS"}.get(profile, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_news_alarm_body(domain, profile_label, alarms, site_kpi=site_kpi or {})
+    html_body = _html_news_alarm_body(domain, profile, alarms, site_kpi=site_kpi or {})
     subject = _email_news_alarm_subject(domain, profile, alarms)
     return bool(send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key))
 
@@ -3622,37 +3592,37 @@ def _html_realtime_summary_body(alarms: list[dict[str, Any]]) -> str:
             ),
         )
         rows: list[str] = []
-        for a in site_alarms[:10]: # Her site için de bir sınır koyalım ki çok uzamasın
+        for a in site_alarms[:10]:
             profile = a.get("profile", "web")
-            profile_abbr = {"web": "DK", "mweb": "MW", "android": "AN", "ios": "IOS"}.get(profile, profile.upper()[:3])
-            
+            profile_abbr = _email_profile_abbr(profile)
+
             pct = float(a.get("change_pct", 0))
             color = "#dc2626" if pct < 0 else "#16a34a"
-            arrow = "↓" if pct < 0 else "↑"
-            
-            # KPI alarmları için 'metric', Sayfa/Haber alarmları için 'page' alanını kullan
-            metric_label = a.get("metric") or a.get("page") or "Metrik"
+
+            raw_label = a.get("metric") or a.get("page") or ""
+            metric_label = _email_metric_chip(str(raw_label)) if raw_label in ("activeUsers", "screenPageViews") else raw_label
             if len(str(metric_label)) > 45:
                 metric_label = str(metric_label)[:42] + "..."
-            
+
             cur = a.get("current_value") or a.get("current_users") or 0
             prev = a.get("previous_value") or a.get("previous_users") or 0
-            
+
             rows.append(f"""
                 <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:10px 8px;font-size:13px;color:#475569;width:40px;">{profile_abbr}</td>
+                    <td style="padding:10px 8px;font-size:13px;color:#475569;width:48px;">{html.escape(profile_abbr)}</td>
                     <td style="padding:10px 8px;font-size:13px;color:#0f172a;font-weight:500;">{html.escape(str(metric_label))}</td>
                     <td style="padding:10px 8px;font-size:13px;color:#64748b;text-align:right;">{prev:,.0f} → {cur:,.0f}</td>
                     <td style="padding:10px 8px;font-size:14px;font-weight:700;color:{color};text-align:right;width:80px;">
-                        {arrow} {abs(pct):.1f}%
+                        {pct:+.1f}%
                     </td>
                 </tr>
             """)
 
+        short_dom = html.escape(_email_site_short_label(dom))
         sections.append(f"""
             <div style="margin-bottom:24px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
                 <div style="background:#f8fafc;padding:10px 14px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#334155;">
-                    {html.escape(dom)}
+                    {short_dom}
                 </div>
                 <table style="width:100%;border-collapse:collapse;background:white;">
                     {''.join(rows)}
@@ -3664,7 +3634,6 @@ def _html_realtime_summary_body(alarms: list[dict[str, Any]]) -> str:
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;margin:0 auto;padding:16px;">
         <p style="font-size:13px;font-weight:600;color:#64748b;margin:0 0 16px;">{len(alarms)} alarm</p>
         {''.join(sections)}
-        <p style="font-size:11px;color:#94a3b8;margin-top:16px;">SEO Agent · Realtime (otomatik)</p>
     </div>
     """
 
@@ -3804,7 +3773,7 @@ def fetch_realtime_404_users(
 
 def _html_404_spike_body(
     domain: str,
-    profile_label: str,
+    profile: str,
     current_users: int,
     pages: list[dict],
     severity: str,
@@ -3813,49 +3782,40 @@ def _html_404_spike_body(
     previous: int = 0,
     delta: int = 0,
 ) -> str:
-    dom_e  = html.escape(domain)
-    prof_e = html.escape(profile_label)
     border = "#dc2626" if severity == "critical" else "#f59e0b"
     bg     = "#fef2f2" if severity == "critical" else "#fffbeb"
     badge_c= "#dc2626" if severity == "critical" else "#d97706"
     sev_tr = "KRİTİK" if severity == "critical" else "UYARI"
+    pct = (delta / previous * 100) if previous > 0 else (100.0 if current_users > 0 else 0.0)
 
     page_rows = "".join(
         f'<div style="display:flex;justify-content:space-between;padding:5px 0;'
         f'border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;">'
         f'<span style="color:#475569">{html.escape(p["title"][:60])}</span>'
-        f'<strong style="color:{badge_c};margin-left:12px">{p["activeUsers"]} kul.</strong>'
+        f'<strong style="color:{badge_c};margin-left:12px">{p["activeUsers"]}</strong>'
         f'</div>'
         for p in pages[:8]
     )
 
-    # Preheader
     top_pages_str = " · ".join(
-        f'{html.escape(p["title"][:20])}: {p["activeUsers"]}'
+        f'{html.escape(p["title"][:20])}:{p["activeUsers"]}'
         for p in pages[:3]
     ) if pages else ""
-    pre404 = f"{current_users} kul. 404'te ({sev_tr})" + (f" · {top_pages_str}" if top_pages_str else "")
+    pre404 = f"404 {previous}→{current_users} {delta:+d} [{sev_tr}]" + (f" · {top_pages_str}" if top_pages_str else "")
+
+    metric_row = _html_email_metric_row(previous, current_users, pct, large=True) if previous > 0 else (
+        f'<span style="font-size:32px;font-weight:900;color:{badge_c}">{current_users:,}</span>'
+    )
 
     return f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
           {_preheader(pre404)}
-          <p style="font-size:15px;font-weight:700;margin:0 0 2px">{dom_e}
-            <span style="font-weight:400;color:#64748b;font-size:13px">· {prof_e}</span>
-          </p>
+          {_html_email_section_header(domain, profile)}
           <div style="margin:10px 0;padding:14px 16px;border-radius:10px;border-left:4px solid {border};background:{bg}">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:{badge_c};margin-bottom:8px">
-              {sev_tr} · 404 Spike
-            </div>
-            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-              <span style="font-size:32px;font-weight:900;color:{badge_c}">{current_users}</span>
-              <span style="font-size:14px;color:#475569">kullanıcı şu an 404 sayfasında</span>
-            </div>
-            <div style="font-size:12px;color:#64748b;margin-top:4px">
-              Eşik: {threshold} · Önceki pencere: {previous} kul. · Değişim: {delta:+d}
-            </div>
+            <div style="font-size:11px;font-weight:700;color:{badge_c};margin-bottom:8px">404 · {sev_tr} · eşik {threshold}</div>
+            {metric_row}
           </div>
           {('<div style="margin-top:8px">' + page_rows + '</div>') if pages else ''}
-          <p style="color:#94a3b8;font-size:11px;margin-top:14px">SEO Agent · GA4 Realtime 404 (otomatik)</p>
         </div>"""
 
 
@@ -3948,11 +3908,11 @@ def check_realtime_404_for_site(
     if is_realtime_mail_ready():
         threshold = crit_threshold if severity == "critical" else warn_threshold
         html_body = _html_404_spike_body(
-            site.domain, profile_label, total, pages, severity, threshold, previous=previous, delta=delta
+            site.domain, profile, total, pages, severity, threshold, previous=previous, delta=delta
         )
         subject = (
-            f"{'🚨 KRİTİK' if severity == 'critical' else '⚠️ UYARI'} · {site.domain} · "
-            f"404 spike {previous:.0f}→{total:.0f} kul."
+            f"{'🚨 KRİTİK' if severity == 'critical' else '⚠️ UYARI'} · "
+            f"{_email_site_short_label(site.domain)} · 404 {previous:.0f}→{total:.0f} [{profile}]"
         )
         thread_key = _realtime_email_thread_key(site.domain, profile)
         send_realtime_email(subject, html_body, thread_kind="404spike", thread_key=thread_key)
@@ -3991,21 +3951,19 @@ def send_realtime_email_for_alarm(alarm: dict[str, Any]) -> bool:
     
     domain = alarm.get("domain") or alarm.get("site_domain") or "Site"
     profile = alarm.get("profile") or "web"
-    profile_label = alarm.get("profile_label") or profile
-    
-    # Konu başlığı üret
+
     rule_id = alarm.get("rule_id", "")
     if rule_id.startswith("news_"):
         subject = _email_news_alarm_subject(domain, profile, [alarm])
-        html_body = _html_news_alarm_body(domain, profile_label, [alarm], site_kpi={})
+        html_body = _html_news_alarm_body(domain, profile, [alarm], site_kpi={})
         thread_kind = "news"
     elif rule_id.startswith("page_"):
         subject = _email_page_alarm_subject(domain, profile, [alarm])
-        html_body = _html_page_alarm_body(domain, profile_label, [alarm])
+        html_body = _html_page_alarm_body(domain, profile, [alarm])
         thread_kind = "page"
     else:
         subject = _email_site_alarm_subject(domain, profile, [alarm])
-        html_body = _html_site_alarm_body(domain, profile_label, [alarm])
+        html_body = _html_site_alarm_body(domain, profile, [alarm])
         thread_kind = "site"
         
     thread_key = _realtime_email_thread_key(domain, profile)
@@ -4083,10 +4041,7 @@ def get_peak_app_event_snapshots(
     return {row.event_name: int(row.peak_count or 0) for row in rows}
 
 
-def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dict[str, Any]]) -> str:
-    dom_e = html.escape(domain)
-    prof_e = html.escape(profile_label)
-    # Negatif (drop + peak_drop) ve pozitif (spike) ayrı kotalarla — her ikisi de görünsün
+def _html_app_event_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
     neg_alarms = [a for a in alarms if str(a.get("rule_id", "")) in NEGATIVE_ALARM_RULE_IDS]
     pos_alarms = [a for a in alarms if str(a.get("rule_id", "")) not in NEGATIVE_ALARM_RULE_IDS]
     neg_sorted = sorted(neg_alarms, key=lambda a: int(a.get("current_count", a.get("peak_count", 0))), reverse=True)[:5]
@@ -4102,8 +4057,6 @@ def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dic
         rid = str(a.get("rule_id", ""))
         is_peak_drop = rid == "app_event_peak_drop"
         is_drop = is_peak_drop or (curr - prev) < 0
-        # Olumsuz event'lerde (failed/error/crash) renk mantığı tersine döner:
-        # artış = kötü (kırmızı), düşüş = iyi (yeşil)
         _neg_kw = ("failed", "error", "crash", "exception", "timeout", "denied")
         is_negative_event = any(kw in evt_name.lower() for kw in _neg_kw)
         is_bad = (not is_drop) if is_negative_event else is_drop
@@ -4115,22 +4068,20 @@ def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dic
             peak = int(a.get("peak_count", prev))
             drop_pct = int(a.get("drop_pct", 0))
             metric_html = (
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{peak}</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{peak:,}</span>'
                 f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
-                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr}</span>'
-                f'<span style="font-size:13px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}% · düştü</span>'
+                f'<span style="font-size:22px;font-weight:900;color:{num_c};">{curr:,}</span>'
+                f'<span style="font-size:13px;font-weight:800;color:{num_c};margin-left:8px;">−{drop_pct}%</span>'
             )
         else:
             delta = curr - prev
             sign = "+" if delta >= 0 else ""
-            pct = a.get("change_pct", 0)
-            pct_sign = "+" if pct >= 0 else ""
-            direction_label = ("arttı" if delta >= 0 else "düştü")
+            pct = float(a.get("change_pct", 0))
             metric_html = (
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev}</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{prev:,}</span>'
                 f'<span style="font-size:18px;color:#94a3b8;margin:0 6px;">→</span>'
-                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr}</span>'
-                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct_sign}{pct:.0f}%) · {direction_label}</span>'
+                f'<span style="font-size:22px;font-weight:900;color:#0f172a;">{curr:,}</span>'
+                f'<span style="font-size:14px;font-weight:800;color:{num_c};margin-left:8px;">{sign}{delta} ({pct:+.0f}%)</span>'
             )
 
         cards.append(
@@ -4140,14 +4091,13 @@ def _html_app_event_alarm_body(domain: str, profile_label: str, alarms: list[dic
         )
 
     pre_parts = [f"{a.get('event_name','')[:18]}:{int(a.get('current_count',0))}" for a in alarms[:5]]
-    preheader = " · ".join(pre_parts) or f"{len(alarms)} event alarmı"
+    preheader = " · ".join(pre_parts) or f"{len(alarms)} event"
 
     return (
         f'<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:600px;color:#0f172a;">'
         f'{_preheader(preheader)}'
-        f'<p style="font-size:15px;font-weight:700;margin:0 0 12px;">{dom_e} <span style="font-weight:400;color:#64748b;font-size:13px;">· {prof_e}</span></p>'
+        f'{_html_email_section_header(domain, profile)}'
         f'{"".join(cards)}'
-        f'<p style="color:#94a3b8;font-size:12px;margin-top:16px;">SEO Agent · Uygulama event alarmı (otomatik)</p>'
         f'</div>'
     )
 
@@ -4259,8 +4209,7 @@ def check_app_event_spike_for_site(
 
             to_send = filter_alarms_for_email(_cap_top_n_each_side(to_send))
         if to_send:
-            profile_label = {"android": "Android", "ios": "iOS"}.get(profile, profile)
-            html_body = _html_app_event_alarm_body(site.domain, profile_label, to_send)
+            html_body = _html_app_event_alarm_body(site.domain, profile, to_send)
             # Konuda negatifi de garantile: 2 pozitif + 1 negatif (varsa) — max 3 chip
             negs_to_send, poss_to_send = _split_alarms_by_sentiment(to_send)
             top_pos = sorted(poss_to_send, key=lambda a: abs(a.get("change_pct", 0)), reverse=True)[:2]

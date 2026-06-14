@@ -21,6 +21,18 @@ def test_normalize_outbound_recipients_gmail_only_falls_back():
     assert out == [DEFAULT_MAIL_RECIPIENT]
 
 
+def test_sanitize_message_recipients_strips_gmail_from_to_header():
+    from email.message import EmailMessage
+
+    from backend.services.mailer import _sanitize_message_recipients
+
+    msg = EmailMessage()
+    msg["To"] = "cemevecen@gmail.com, cemevecen@nokta.com"
+    safe = _sanitize_message_recipients(msg)
+    assert safe == ["cemevecen@nokta.com"]
+    assert msg["To"] == "cemevecen@nokta.com"
+
+
 def test_default_mail_recipients_from_settings():
     with patch("backend.services.mailer.settings") as mock_settings:
         mock_settings.mail_to = "cemevecen@gmail.com, cemevecen@nokta.com"

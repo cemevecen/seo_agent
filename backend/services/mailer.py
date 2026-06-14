@@ -159,8 +159,8 @@ def realtime_email_batch_flush() -> bool:
     )
     if omitted > 0:
         combined_body += (
-            f'<p style="font-size:11px;color:#94a3b8;margin-top:14px;">'
-            f"+ {omitted} alarm daha — /realtime ve Threshold sekmesinde.</p>"
+            f'<p style="font-size:11px;color:#64748b;margin-top:14px;">'
+            f"+{omitted} alarm</p>"
         )
     combined_body += "</div>"
 
@@ -236,11 +236,23 @@ def normalize_outbound_recipients(
         out.append(addr)
 
     if dropped_gmail:
-        logging.info("Gmail alıcıları çıkarıldı: %s", ", ".join(dropped_gmail))
+        logging.warning("Gmail alıcıları çıkarıldı (gönderilmeyecek): %s", ", ".join(dropped_gmail))
 
     if not out:
         return [default]
     return out
+
+
+def _sanitize_message_recipients(message: EmailMessage) -> list[str] | None:
+    """To başlığındaki Gmail adreslerini son kez filtreler; boş kalırsa gönderim iptal."""
+    to_raw = str(message.get("To", "") or "")
+    addrs = [a.strip() for a in to_raw.split(",") if a.strip()]
+    safe = normalize_outbound_recipients(addrs)
+    if not safe:
+        logging.error("E-posta gönderimi iptal: Gmail hariç geçerli alıcı yok (To=%s)", to_raw[:160])
+        return None
+    message["To"] = ", ".join(safe)
+    return safe
 
 
 def default_mail_recipients() -> list[str]:
@@ -356,6 +368,8 @@ def is_mail_configured() -> bool:
 
 def _smtp_send_message_with_retries(message: EmailMessage) -> bool:
     """SMTP gönderimi (kota rezervasyonu çağıran tarafında yapılmalıdır)."""
+    if _sanitize_message_recipients(message) is None:
+        return False
     MAX_RETRIES = 3
     INITIAL_BACKOFF_S = 15
     subj = str(message.get("Subject", ""))[:120]
@@ -452,6 +466,9 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
 
         if not creds.valid:
             logging.warning("Gmail OAuth token geçersiz, Gmail API atlanıyor.")
+            return False
+
+        if _sanitize_message_recipients(message) is None:
             return False
 
         service = googleapiclient.discovery.build("gmail", "v1", credentials=creds, cache_discovery=False)
@@ -584,14 +601,16 @@ def send_realtime_email(
     message["Subject"] = subj
     message["From"] = settings.mail_from
     message["To"] = ", ".join(recipient_list)
-    message.set_content("GA4 Realtime alarm — düz metin özet.")
+    from backend.services.inbox_email_render import plain_text_for_mailer
+
+    message.set_content(plain_text_for_mailer(html_body, subject=subj))
     message.add_alternative(html_body, subtype="html")
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
     # ÖNCE GMAIL API (OAuth) DENE (Railway SMTP engeline takılmaz)
     if _gmail_api_dispatch(message):
-        logging.info("GA4 Realtime e-postası GMAIL API (OAuth) ile gönderildi: %s", subj[:100])
+        logging.info("GA4 Realtime e-postası GMAIL API (OAuth) ile gönderildi: %s → %s", subj[:100], message["To"])
         return True
 
     # FALLBACK: SMTP (Eğer Gmail API bağlı değilse veya hata verdiyse)
@@ -645,14 +664,16 @@ def send_realtime_news_email(
     message["Subject"] = subj
     message["From"] = settings.mail_from
     message["To"] = ", ".join(recipient_list)
-    message.set_content("GA4 Realtime haber alarmı — düz metin özet.")
+    from backend.services.inbox_email_render import plain_text_for_mailer
+
+    message.set_content(plain_text_for_mailer(html_body, subject=subj))
     message.add_alternative(html_body, subtype="html")
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
     # ÖNCE GMAIL API (OAuth) DENE
     if _gmail_api_dispatch(message):
-        logging.info("GA4 Realtime haber e-postası GMAIL API (OAuth) ile gönderildi: %s", subj[:100])
+        logging.info("GA4 Realtime haber e-postası GMAIL API (OAuth) ile gönderildi: %s → %s", subj[:100], message["To"])
         return True
 
     # FALLBACK: SMTP
