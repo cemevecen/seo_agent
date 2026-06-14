@@ -12,6 +12,12 @@ from sqlalchemy.orm import Session
 
 from backend.models import NewsIntelligenceItem, RealtimeAlarmLog, RealtimePageSnapshot, RealtimeSnapshot, Site
 from backend.karma.vertical import ContentVertical, intel_row_matches_vertical, vertical_for_site
+from backend.services.timezone_utils import format_local_datetime, now_local, to_local_datetime
+
+
+def fmt_local_time(value: datetime | None, fmt: str = "%H:%M") -> str:
+    """DB'deki UTC (naive/aware) zaman damgasını yerel saate çevirip formatlar."""
+    return format_local_datetime(value, fmt=fmt, fallback="", include_suffix=False)
 
 
 def utcnow() -> datetime:
@@ -159,8 +165,11 @@ def alarm_spike_patterns(db: Session, site_id: int, *, days: int = 30) -> dict[s
     for r in rows:
         if not r.triggered_at:
             continue
-        by_hour[r.triggered_at.hour] += 1
-        by_dow[r.triggered_at.weekday()] += 1
+        local_dt = to_local_datetime(r.triggered_at)
+        if not local_dt:
+            continue
+        by_hour[local_dt.hour] += 1
+        by_dow[local_dt.weekday()] += 1
     dow_names = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
     top_hours = by_hour.most_common(5)
     top_days = [(dow_names[d], c) for d, c in by_dow.most_common(3)]

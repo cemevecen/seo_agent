@@ -23,6 +23,7 @@ from backend.karma.realtime_helpers import (
     drivers_for_profiles,
     editorial_calendar_events,
     fmt_driver,
+    fmt_local_time,
     gsc_rising_and_decay,
     intel_recent,
     match_query_intel,
@@ -32,6 +33,7 @@ from backend.karma.realtime_helpers import (
     top_pages_rt,
     utcnow,
 )
+from backend.services.timezone_utils import now_local
 from backend.models import NewsIntelligenceItem, RealtimeAlarmLog, Site
 
 
@@ -62,7 +64,7 @@ def _base_payload(slug: str, site: Site) -> dict[str, Any]:
         "metrics": [],
         "sections": [],
         "actions": [],
-        "live_at": now.isoformat(),
+        "live_at": now_local().isoformat(),
         "refresh_sec": REFRESH_SEC,
     }
 
@@ -70,7 +72,7 @@ def _base_payload(slug: str, site: Site) -> dict[str, Any]:
 def _alarm_item(a: RealtimeAlarmLog) -> dict[str, Any]:
     return {
         "title": (a.message or a.rule_id or "Alarm")[:120],
-        "subtitle": f"{a.metric or ''} · {a.triggered_at.strftime('%d.%m %H:%M') if a.triggered_at else ''}",
+        "subtitle": f"{a.metric or ''} · {fmt_local_time(a.triggered_at, '%d.%m %H:%M')}",
         "badge": a.severity or "alarm",
         "href": "/realtime",
     }
@@ -409,7 +411,7 @@ def trend_anomaly_tree(db: Session, site_id: int) -> dict[str, Any]:
         tree_items.append(
             {
                 "title": f"⚡ {(a.message or a.rule_id or 'Alarm')[:100]}",
-                "subtitle": f"{prof} · {a.triggered_at.strftime('%H:%M') if a.triggered_at else ''}",
+                "subtitle": f"{prof} · {fmt_local_time(a.triggered_at)}",
                 "badge": a.severity or "alarm",
                 "href": "/realtime",
             }
