@@ -374,19 +374,19 @@
               <div class="mt-1 space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Düşen içerikler (Son {{ period_key }} gün vs Önceki {{ period_key }} gün · tıklama)</p>
                 <div class="w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">
-                  <table class="w-full min-w-[56rem] text-[10px] sm:text-xs">
+                  <table class="w-full min-w-[56rem] text-[10px] sm:text-xs" data-search-console-table>
                     <thead class="border-b border-slate-200 dark:border-slate-700">
                       <tr>
-                        <th class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-left text-slate-500 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-3">Sayfa</th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Düşüş %</th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Tıklama fark</th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Son {{ period_key }}g</th>
-                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3">Önceki {{ period_key }}g</th>
+                        <th class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-left text-slate-500 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-3"><button type="button" class="text-left font-semibold hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="query" data-sort-type="string">Sayfa</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-rose-600 dark:hover:text-rose-400" data-sort-key="dropPct" data-sort-type="number">Düşüş %</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-rose-600 dark:hover:text-rose-400" data-sort-key="clicksDiff" data-sort-type="number">Tıklama fark</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-blue-600 dark:hover:text-blue-400" data-sort-key="clicksCurrent" data-sort-type="number">Son {{ period_key }}g</button></th>
+                        <th class="whitespace-nowrap px-2 py-2 text-right sm:px-3"><button type="button" class="font-semibold hover:text-blue-600 dark:hover:text-blue-400" data-sort-key="clicksPrevious" data-sort-type="number">Önceki {{ period_key }}g</button></th>
                       </tr>
                     </thead>
                     <tbody>
                       {% for row in view.content_trending_down %}
-                      <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80">
+                      <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80" data-query="{{ row.page|lower }}" data-drop-pct="{{ row.clicks_drop_pct or 0 }}" data-clicks-diff="{{ row.clicks_diff }}" data-clicks-current="{{ row.clicks_current }}" data-clicks-previous="{{ row.clicks_previous }}">
                         <td class="sticky left-0 z-[1] max-w-[min(100vw,30rem)] bg-white px-2 py-2 text-left font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 break-all shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-3 sm:text-sm">{{ row.page }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">-{{ "{:.1f}".format(row.clicks_drop_pct or 0) }}%</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>

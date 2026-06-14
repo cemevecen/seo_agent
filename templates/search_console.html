@@ -90,6 +90,19 @@
   tr[data-sc-extra-row-more].sc-extra-row-visible {
     display: table-row;
   }
+  [data-search-console-table] thead [data-sort-key] {
+    cursor: pointer;
+  }
+  [data-search-console-table] thead [data-sort-key][data-sort-direction="asc"]::after {
+    content: " ↑";
+    font-size: 0.85em;
+    opacity: 0.85;
+  }
+  [data-search-console-table] thead [data-sort-key][data-sort-direction="desc"]::after {
+    content: " ↓";
+    font-size: 0.85em;
+    opacity: 0.85;
+  }
   /* Tam genişlik kart: sorgu tablosu kart genişliğini doldursun */
   .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
     min-width: 0 !important;
@@ -1146,7 +1159,10 @@
       }
       table.dataset.tableReady = '1';
       const tbody = table.querySelector('tbody');
-      const buttons = table.querySelectorAll('[data-sort-key]');
+      if (!tbody) {
+        return;
+      }
+      const buttons = table.querySelectorAll('thead [data-sort-key]');
       buttons.forEach(function (button) {
         button.addEventListener('click', function () {
           const key = button.dataset.sortKey;
@@ -1157,23 +1173,60 @@
             item.dataset.sortDirection = '';
           });
           button.dataset.sortDirection = nextDirection;
-          const rows = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
-            return row.dataset.query;
+          const groups = [];
+          Array.from(tbody.children).forEach(function (row) {
+            if (row.hasAttribute('data-sc-sort-row') || row.dataset.query) {
+              const group = [row];
+              const next = row.nextElementSibling;
+              if (next && next.hasAttribute('data-sc-extra-row-error')) {
+                group.push(next);
+              }
+              groups.push({ row: row, nodes: group });
+            }
           });
-          rows.sort(function (left, right) {
+          groups.sort(function (leftGroup, rightGroup) {
+            const left = leftGroup.row;
+            const right = rightGroup.row;
             const leftValue = left.dataset[key];
             const rightValue = right.dataset[key];
             if (type === 'number') {
-              const leftNumber = parseFloat(leftValue || '0');
-              const rightNumber = parseFloat(rightValue || '0');
+              const leftNumber = parseFloat(leftValue);
+              const rightNumber = parseFloat(rightValue);
+              const leftNa = Number.isNaN(leftNumber);
+              const rightNa = Number.isNaN(rightNumber);
+              if (leftNa && rightNa) {
+                return 0;
+              }
+              if (leftNa) {
+                return 1;
+              }
+              if (rightNa) {
+                return -1;
+              }
               return nextDirection === 'asc' ? leftNumber - rightNumber : rightNumber - leftNumber;
+            }
+            if (type === 'date') {
+              const leftDate = Date.parse(leftValue || '') || 0;
+              const rightDate = Date.parse(rightValue || '') || 0;
+              if (!leftDate && !rightDate) {
+                return 0;
+              }
+              if (!leftDate) {
+                return 1;
+              }
+              if (!rightDate) {
+                return -1;
+              }
+              return nextDirection === 'asc' ? leftDate - rightDate : rightDate - leftDate;
             }
             return nextDirection === 'asc'
               ? String(leftValue || '').localeCompare(String(rightValue || ''), 'tr')
               : String(rightValue || '').localeCompare(String(leftValue || ''), 'tr');
           });
-          rows.forEach(function (row) {
-            tbody.appendChild(row);
+          groups.forEach(function (group) {
+            group.nodes.forEach(function (node) {
+              tbody.appendChild(node);
+            });
           });
         });
       });
@@ -2021,6 +2074,7 @@
     var target = event.target;
     if (target) {
       initScExtrasLottie(target);
+      initSearchConsoleTables(target);
       var extrasRoot =
         (target.matches && target.matches('[data-sc-extras-root]') && target) ||
         (target.querySelector && target.querySelector('[data-sc-extras-root]')) ||
@@ -2042,6 +2096,7 @@
           if (cardRoot) {
             scExtrasSyncEmptyRoot(cardRoot);
           }
+          initSearchConsoleTables(target);
           scApplyGlobalFocus();
         }, 40);
       }
