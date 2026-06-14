@@ -807,12 +807,13 @@
         };
 
         const params = {};
-        if (idx > 0) {
-          const beforeId = globalId(items[idx - 1]);
-          if (beforeId != null) params.move_before_id = beforeId;
-        }
-        if (idx < items.length - 1) {
-          const afterId = globalId(items[idx + 1]);
+        if (idx === 0) {
+          if (items.length > 1) {
+            const nextId = globalId(items[1]);
+            if (nextId != null) params.move_before_id = nextId;
+          }
+        } else {
+          const afterId = globalId(items[idx - 1]);
           if (afterId != null) params.move_after_id = afterId;
         }
         return params;
@@ -947,11 +948,27 @@
 
             try {
               if (crossColumn) {
+                const boardLabels = (pd.board.lists || [])
+                  .map((l) => l.label && l.label.name)
+                  .filter(Boolean);
+                const issue = pd.issues.find((i) => String(i.iid) === String(issueIid));
+                let labelsToRemove = [];
+                if (issue && issue.labels) {
+                  labelsToRemove = issue.labels.filter((l) => boardLabels.includes(l));
+                } else if (fromLabel && !isFromVirtual && !isFromClosed) {
+                  labelsToRemove = [fromLabel];
+                }
+                const addLabel = isToVirtual || isToClosed ? '' : toLabel;
+                if (addLabel) {
+                  labelsToRemove = labelsToRemove.filter((l) => l !== addLabel);
+                }
+
                 const payload = {
                   project_path: projectPath,
                   issue_iid: parseInt(issueIid, 10),
                   from_label: isFromVirtual || isFromClosed ? '' : fromLabel,
-                  to_label: isToVirtual || isToClosed ? '' : toLabel,
+                  to_label: addLabel,
+                  remove_labels: labelsToRemove,
                 };
                 if (isToClosed && !isFromClosed) payload.state_event = 'close';
                 else if (!isToClosed && isFromClosed) payload.state_event = 'reopen';
@@ -962,7 +979,16 @@
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(payload),
                 });
-                if (!res.ok) throw new Error('Durum/etiket güncellenemedi');
+                if (!res.ok) {
+                  let msg = 'Durum/etiket güncellenemedi';
+                  try {
+                    const errBody = await res.json();
+                    if (errBody && errBody.detail) msg = errBody.detail;
+                    else if (errBody && errBody.error) msg = errBody.error;
+                  } catch (_) {}
+                  if (res.status === 401) msg = 'Oturum süresi doldu — sayfayı yenileyin';
+                  throw new Error(msg);
+                }
 
                 const moveData = await res.json();
                 const updated = moveData.issue;
@@ -977,10 +1003,8 @@
                     if (payload.state_event === 'close') pd.issues[issueIndex].state = 'closed';
                     if (payload.state_event === 'reopen') pd.issues[issueIndex].state = 'opened';
                     let labels = pd.issues[issueIndex].labels || [];
-                    const removeLabels = payload.from_label;
-                    const addLabels = payload.to_label;
-                    if (removeLabels) labels = labels.filter(l => l !== removeLabels);
-                    if (addLabels && !labels.includes(addLabels)) labels.push(addLabels);
+                    labels = labels.filter((l) => !boardLabels.includes(l));
+                    if (addLabel && !labels.includes(addLabel)) labels.push(addLabel);
                     pd.issues[issueIndex].labels = labels;
                   }
                 }

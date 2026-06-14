@@ -15694,6 +15694,7 @@ from backend.services.gitlab_board import (
     sync_columns_order_to_gitlab,
     sync_open_issues_order_to_gitlab,
     update_issue_async,
+    normalize_board_move_labels,
 )
 
 @app.get("/boards", response_class=HTMLResponse)
@@ -15835,6 +15836,7 @@ async def api_boards_move(request: Request):
         issue_iid = body.get("issue_iid")
         from_label = str(body.get("from_label") or "")
         to_label = str(body.get("to_label") or "")
+        remove_labels_raw = body.get("remove_labels")
         state_event = body.get("state_event")
     else:
         form = await request.form()
@@ -15845,18 +15847,25 @@ async def api_boards_move(request: Request):
         issue_iid = int(issue_iid_str)
         from_label = str(form.get("from_label", ""))
         to_label = str(form.get("to_label", ""))
+        remove_labels_raw = form.getlist("remove_labels") if hasattr(form, "getlist") else None
         state_event = form.get("state_event")
 
     if not project_path or issue_iid is None:
         return JSONResponse({"error": "missing_fields"}, status_code=400)
 
-    add_labels = [to_label] if to_label and to_label not in ("null", "__open__", "__closed__") else []
-    remove_labels = [from_label] if from_label and from_label not in ("null", "__open__", "__closed__") else []
+    remove_labels_list: list[str] | None = None
+    if isinstance(remove_labels_raw, list):
+        remove_labels_list = [str(x) for x in remove_labels_raw]
+    add_labels, remove_labels = normalize_board_move_labels(
+        from_label=from_label,
+        to_label=to_label,
+        remove_labels=remove_labels_list,
+    )
     state_ev = str(state_event).strip() if state_event else None
     if state_ev not in ("close", "reopen"):
         state_ev = None
 
-    updated = await update_issue_async(
+    updated, detail = await update_issue_async(
         project_path,
         int(issue_iid),
         add_labels=add_labels or None,
@@ -15864,7 +15873,10 @@ async def api_boards_move(request: Request):
         state_event=state_ev,
     )
     if updated is None:
-        return JSONResponse({"error": "update_failed"}, status_code=502)
+        return JSONResponse(
+            {"error": "update_failed", "detail": detail or "GitLab issue güncellenemedi"},
+            status_code=502,
+        )
     return JSONResponse({"ok": True, "issue": updated})
 
 

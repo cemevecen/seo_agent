@@ -330,6 +330,22 @@ async def reorder_issue_async(
             return None
 
 
+def normalize_board_move_labels(
+    *,
+    from_label: str,
+    to_label: str,
+    remove_labels: list[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    skip = {"", "null", "__open__", "__closed__"}
+    add = [to_label] if to_label and to_label not in skip else []
+    if remove_labels:
+        remove = [str(x).strip() for x in remove_labels if str(x).strip() and str(x).strip() not in skip]
+        remove = [x for x in remove if x not in add]
+    else:
+        remove = [from_label] if from_label and from_label not in skip else []
+    return add, remove
+
+
 async def update_issue_async(
     project_path: str,
     issue_iid: int,
@@ -337,11 +353,11 @@ async def update_issue_async(
     add_labels: list[str] | None = None,
     remove_labels: list[str] | None = None,
     state_event: str | None = None,
-) -> dict[str, Any] | None:
-    """Issue etiket / durum güncellemesi."""
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Issue etiket / durum güncellemesi. (issue, hata_mesajı) döner."""
     token = get_gitlab_token()
     if not token:
-        return None
+        return None, "GITLAB_PRIVATE_TOKEN tanımlı değil"
 
     headers = _headers()
     encoded_path = _encoded_path(project_path)
@@ -356,24 +372,31 @@ async def update_issue_async(
         data["state_event"] = state_event
 
     if not data:
-        return None
+        return None, "Güncellenecek alan yok"
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
-            resp = await client.put(url, headers=headers, json=data)
+            resp = await client.put(url, headers=headers, data=data)
             if resp.status_code != 200:
+                detail = resp.text[:300]
+                try:
+                    payload = resp.json()
+                    if isinstance(payload, dict):
+                        detail = str(payload.get("message") or payload.get("error") or detail)
+                except Exception:
+                    pass
                 LOGGER.warning(
                     "GitLab issue update failed [%s#%s] %s: %s",
                     project_path,
                     issue_iid,
                     resp.status_code,
-                    resp.text[:200],
+                    detail,
                 )
-                return None
-            return resp.json()
+                return None, detail or f"GitLab HTTP {resp.status_code}"
+            return resp.json(), None
         except Exception as exc:
             LOGGER.exception("GitLab issue update error [%s#%s]: %s", project_path, issue_iid, exc)
-            return None
+            return None, str(exc)
 
 
 async def move_issue_async(
@@ -383,7 +406,7 @@ async def move_issue_async(
     remove_labels: list[str],
 ) -> bool:
     """Issue'nun etiketlerini güncelleyerek board üzerinde sütun değiştirir."""
-    updated = await update_issue_async(
+    updated, _err = await update_issue_async(
         project_path,
         issue_iid,
         add_labels=add_labels,

@@ -9,6 +9,7 @@ from backend.models import GitlabBoardIssueOrder, GitlabBoardProjectSettings
 from backend.services.gitlab_board import (
     get_board_column_orders,
     get_board_project_settings,
+    normalize_board_move_labels,
     normalize_board_sort_mode,
     save_board_column_order,
     save_board_project_settings,
@@ -100,3 +101,23 @@ async def test_sync_column_order_skips_already_aligned_prefix():
 
     assert result["skipped"] == 1
     assert calls == [(45, 1006, None)]
+
+
+def test_normalize_board_move_labels_prefers_remove_list():
+    add, remove = normalize_board_move_labels(
+        from_label="Doing",
+        to_label="Review",
+        remove_labels=["Doing", "Backlog"],
+    )
+    assert add == ["Review"]
+    assert remove == ["Doing", "Backlog"]
+
+
+def test_normalize_board_move_labels_skips_duplicate_target():
+    add, remove = normalize_board_move_labels(
+        from_label="Doing",
+        to_label="Review",
+        remove_labels=["Doing", "Review"],
+    )
+    assert add == ["Review"]
+    assert remove == ["Doing"]
