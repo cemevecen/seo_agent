@@ -4,6 +4,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
 <style>
   .sc-extra-section { scroll-margin-top: 7rem; }
+  /* Lazy kart / HTMX yüksekliği değişince mobilde scroll yukarı zıplamasın */
+  #search-console-page,
+  #search-console-site-list,
+  #search-console-page [data-sc-split-root] {
+    overflow-anchor: none;
+  }
   .sc-extras-lottie-host {
     width: 96px;
     height: 96px;
@@ -28,6 +34,7 @@
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
   .sc-extra-table {
     width: 100%;
@@ -145,10 +152,10 @@
     position: relative;
     z-index: 0;
     isolation: isolate;
+    touch-action: pan-y;
   }
   [data-sc-period-panel="12m"] [data-search-console-trend] {
     min-height: 260px;
-    touch-action: pan-x pan-y;
   }
   #sc-cwv-lightbox::backdrop {
     background: rgba(15, 23, 42, 0.72);
@@ -392,13 +399,19 @@
         });
         window.setTimeout(function () {
           if (panel) {
-            panel.style.transition = 'opacity 220ms ease';
+            panel.style.transition = 'opacity 220ms ease, max-height 220ms ease, margin 220ms ease, padding 220ms ease';
             panel.style.opacity = '0';
+            panel.style.maxHeight = '0';
+            panel.style.marginBottom = '0';
+            panel.style.paddingTop = '0';
+            panel.style.paddingBottom = '0';
+            panel.style.overflow = 'hidden';
             window.setTimeout(function () {
-              if (panel && panel.parentElement) {
-                panel.remove();
+              if (panel) {
+                panel.classList.add('hidden');
+                panel.setAttribute('aria-hidden', 'true');
               }
-            }, 220);
+            }, 240);
           }
         }, 200);
       },
@@ -1132,8 +1145,9 @@
                 zeroline: false,
               },
               hovermode: 'x unified',
+              dragmode: false,
             },
-            { displayModeBar: false, responsive: true }
+            { displayModeBar: false, responsive: true, scrollZoom: false, doubleClick: false }
           ).then(function () {
             element.dataset.chartReady = '1';
             window.requestAnimationFrame(function () {
@@ -2068,6 +2082,24 @@
     });
   });
 
+  var scLazySwapScrollComp = null;
+
+  document.body.addEventListener('htmx:beforeSwap', function (event) {
+    var detail = event.detail || {};
+    var elt = detail.elt;
+    scLazySwapScrollComp = null;
+    if (!elt || !elt.id || elt.id.indexOf('sc-card-') !== 0) {
+      return;
+    }
+    var rect = elt.getBoundingClientRect();
+    if (rect.bottom <= 0) {
+      scLazySwapScrollComp = {
+        y: window.scrollY,
+        h: elt.offsetHeight || 0,
+      };
+    }
+  });
+
   document.body.addEventListener('htmx:afterSwap', function (event) {
     var detail = event.detail || {};
     var elt = detail.elt;
@@ -2122,6 +2154,16 @@
     var cardData =
       (target && target.getAttribute && target.getAttribute('data-sc-site-card') !== null) ||
       (elt && elt.getAttribute && elt.getAttribute('data-sc-site-card') !== null);
+    if (scLazySwapScrollComp && target && target.id && target.id.indexOf('sc-card-') === 0) {
+      var comp = scLazySwapScrollComp;
+      scLazySwapScrollComp = null;
+      window.setTimeout(function () {
+        var delta = (target.offsetHeight || 0) - (comp.h || 0);
+        if (delta) {
+          window.scrollTo(0, comp.y + delta);
+        }
+      }, 180);
+    }
     if (scList && (cardId || cardData)) {
       window.setTimeout(function () {
         initSearchConsolePanels(scList);
