@@ -720,10 +720,10 @@
     position: relative;
   }
   .rt-spark-bar-tip {
-    position: absolute;
-    z-index: 30;
+    position: fixed;
+    z-index: 9999;
     pointer-events: none;
-    max-width: 14rem;
+    max-width: min(14rem, calc(100vw - 16px));
     padding: 0.35rem 0.5rem;
     border-radius: 0.375rem;
     font-size: 10px;
@@ -734,6 +734,7 @@
     border: 1px solid rgb(226 232 240);
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
     white-space: pre-line;
+    overflow-wrap: anywhere;
   }
   html.dark .rt-spark-bar-tip {
     color: rgb(244 244 245);
@@ -2078,6 +2079,27 @@
     return html;
   }
 
+  function _rtPlaceFixedTip(tipEl, clientX, clientY) {
+    var pad = 8;
+    var gap = 12;
+    tipEl.style.visibility = 'hidden';
+    tipEl.style.left = '0px';
+    tipEl.style.top = '0px';
+    var tr = tipEl.getBoundingClientRect();
+    var w = tr.width;
+    var h = tr.height;
+    var x = clientX + gap;
+    var y = clientY - h - gap;
+    if (y < pad) y = clientY + gap;
+    if (x + w > window.innerWidth - pad) x = clientX - w - gap;
+    if (x < pad) x = pad;
+    if (y + h > window.innerHeight - pad) y = Math.max(pad, window.innerHeight - pad - h);
+    if (y < pad) y = pad;
+    tipEl.style.left = Math.round(x) + 'px';
+    tipEl.style.top = Math.round(y) + 'px';
+    tipEl.style.visibility = '';
+  }
+
   function _wireSiteSparkBarTips(siteEl) {
     var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
     var tipEl = siteEl.querySelector('[data-rt-site-spark-tip]');
@@ -2093,24 +2115,7 @@
       });
     }
     function place(clientX, clientY) {
-      var pad = 8;
-      var gap = 12;
-      tipEl.style.visibility = 'hidden';
-      tipEl.style.left = '0px';
-      tipEl.style.top = '0px';
-      var tr = tipEl.getBoundingClientRect();
-      var w = tr.width;
-      var h = tr.height;
-      var x = clientX + gap;
-      var y = clientY - h - gap;
-      if (y < pad) y = clientY + gap;
-      if (x + w > window.innerWidth - pad) x = clientX - w - gap;
-      if (x < pad) x = pad;
-      if (y + h > window.innerHeight - pad) y = Math.max(pad, window.innerHeight - pad - h);
-      if (y < pad) y = pad;
-      tipEl.style.left = Math.round(x) + 'px';
-      tipEl.style.top = Math.round(y) + 'px';
-      tipEl.style.visibility = '';
+      _rtPlaceFixedTip(tipEl, clientX, clientY);
     }
     barsEl.addEventListener(
       'mouseover',
@@ -2811,8 +2816,7 @@
   function _wireSparkBarTips(box) {
     var barsEl = box.querySelector('[data-rt-spark-bars]');
     var tipEl = box.querySelector('[data-rt-spark-tip]');
-    var plotEl = box.querySelector('[data-rt-chart]');
-    if (!barsEl || !tipEl || !plotEl) return;
+    if (!barsEl || !tipEl) return;
     if (barsEl._rtTipWired) return;
     barsEl._rtTipWired = true;
     function hide() {
@@ -2825,14 +2829,7 @@
       });
     }
     function place(clientX, clientY) {
-      var rect = plotEl.getBoundingClientRect();
-      var x = clientX - rect.left + 8;
-      var y = clientY - rect.top - 8;
-      if (x > rect.width - 120) x = rect.width - 120;
-      if (y < 4) y = 4;
-      if (y > rect.height - 48) y = rect.height - 48;
-      tipEl.style.left = x + 'px';
-      tipEl.style.top = y + 'px';
+      _rtPlaceFixedTip(tipEl, clientX, clientY);
     }
     barsEl.addEventListener(
       'mouseover',
