@@ -2502,8 +2502,8 @@ def get_combined_bucket_top_pages(
     *,
     hours: float = REALTIME_TREND_HOURS_DEFAULT,
     top_n: int = 3,
-) -> dict[str, list[dict[str, Any]]]:
-    """Site geneli 24s grafik tooltip: her 15 dk diliminde en çok katkı veren sayfalar (DB snapshot)."""
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """Site geneli 24s grafik tooltip: her 15 dk diliminde web/mweb top sayfalar (DB snapshot)."""
     from collections import defaultdict
 
     from backend.models import RealtimePageSnapshot
@@ -2512,14 +2512,16 @@ def get_combined_bucket_top_pages(
     cutoff = datetime.utcnow() - timedelta(hours=h)
     bucket_ms = 15 * 60 * 1000
     cap = max(1, min(int(top_n), 10))
+    profiles = ("web", "mweb")
 
-    # bucket_ms -> page_path -> profile -> {au, pv} tepe
+    # bucket_ms -> profile -> page_path -> {au, pv} tepe
     nested: dict[int, dict[str, dict[str, dict[str, float]]]] = defaultdict(lambda: defaultdict(dict))
 
     rows = (
         db.query(RealtimePageSnapshot)
         .filter(
             RealtimePageSnapshot.site_id == site_id,
+            RealtimePageSnapshot.profile.in_(profiles),
             RealtimePageSnapshot.collected_at >= cutoff,
         )
         .order_by(RealtimePageSnapshot.collected_at.asc())
@@ -2539,29 +2541,32 @@ def get_combined_bucket_top_pages(
         if not path:
             continue
         prof = str(row.profile or "web").strip()
+        if prof not in profiles:
+            continue
         au = float(row.active_users or 0)
         pv = float(row.pageviews or 0)
-        slot = nested[key][path].get(prof)
+        slot = nested[key][prof].get(path)
         if slot is None or au >= slot.get("active_users", 0):
-            nested[key][path][prof] = {"active_users": au, "pageviews": pv}
+            nested[key][prof][path] = {"active_users": au, "pageviews": pv}
 
-    out: dict[str, list[dict[str, Any]]] = {}
-    for key, paths in nested.items():
-        ranked: list[dict[str, Any]] = []
-        for path, prof_map in paths.items():
-            total_au = sum(float(v.get("active_users") or 0) for v in prof_map.values())
-            total_pv = sum(float(v.get("pageviews") or 0) for v in prof_map.values())
-            label = path if len(path) <= 48 else path[:47] + "…"
-            ranked.append(
-                {
-                    "page_path": path,
-                    "label": label,
-                    "active_users": int(round(total_au)),
-                    "pageviews": int(round(total_pv)),
-                }
-            )
-        ranked.sort(key=lambda x: (x["active_users"], x["pageviews"]), reverse=True)
-        out[str(key)] = ranked[:cap]
+    out: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for key, prof_map in nested.items():
+        bucket_out: dict[str, list[dict[str, Any]]] = {}
+        for prof in profiles:
+            ranked: list[dict[str, Any]] = []
+            for path, metrics in (prof_map.get(prof) or {}).items():
+                label = path if len(path) <= 48 else path[:47] + "…"
+                ranked.append(
+                    {
+                        "page_path": path,
+                        "label": label,
+                        "active_users": int(round(float(metrics.get("active_users") or 0))),
+                        "pageviews": int(round(float(metrics.get("pageviews") or 0))),
+                    }
+                )
+            ranked.sort(key=lambda x: (x["active_users"], x["pageviews"]), reverse=True)
+            bucket_out[prof] = ranked[:cap]
+        out[str(key)] = bucket_out
     return out
 
 

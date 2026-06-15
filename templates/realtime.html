@@ -2022,18 +2022,26 @@
       '</div>';
     var tops = siteEl._rtBucketTopPages || {};
     var key = row.tMs != null ? String(row.tMs) : '';
-    var pages = tops[key] || [];
-    if (pages.length) {
-      html += '<div class="rt-tip-pages"><div style="font-weight:600;margin-bottom:0.2rem">Top 3 sayfa</div>';
+    var bucket = tops[key] || {};
+    var webPages = bucket.web || [];
+    var mwebPages = bucket.mweb || [];
+    function tipPageGroup(label, pages) {
+      if (!pages.length) return '';
+      var block = '<div class="rt-tip-pages-group"><div style="font-weight:600;margin-bottom:0.2rem">' + _esc(label) + '</div>';
       for (var i = 0; i < pages.length; i++) {
         var p = pages[i];
         var n = metric === 'pv' ? p.pageviews || 0 : p.active_users || 0;
-        html +=
+        block +=
           '<div>' +
           _esc(String(i + 1) + '. ' + (p.label || p.page_path) + ' · ' + _fmt(n)) +
           '</div>';
       }
-      html += '</div>';
+      block += '</div>';
+      return block;
+    }
+    var pagesHtml = tipPageGroup('Web', webPages) + tipPageGroup('Mweb', mwebPages);
+    if (pagesHtml) {
+      html += '<div class="rt-tip-pages">' + pagesHtml + '</div>';
     } else if (!row.empty && row.bucketCount) {
       html += '<div class="rt-tip-pages">Bu dilim için sayfa snapshot yok</div>';
     }
