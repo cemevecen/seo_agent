@@ -1072,7 +1072,7 @@
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255);
     padding: 0.45rem 0.55rem;
-    overflow: hidden;
+    overflow: visible;
   }
   html.dark .rt-site-spark-row {
     background: var(--rt-d-split);
@@ -1140,10 +1140,10 @@
     min-height: 0;
   }
   .rt-site-spark-tip {
-    position: absolute;
-    z-index: 40;
+    position: fixed;
+    z-index: 9999;
     pointer-events: none;
-    max-width: 17rem;
+    max-width: min(18rem, calc(100vw - 16px));
     padding: 0.45rem 0.55rem;
     border-radius: 0.375rem;
     font-size: 10px;
@@ -1153,7 +1153,8 @@
     background: rgba(255, 255, 255, 0.98);
     border: 1px solid rgb(226 232 240);
     box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
-    white-space: pre-line;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   html.dark .rt-site-spark-tip {
     color: rgb(244 244 245);
@@ -1169,6 +1170,10 @@
     border-top: 1px solid rgb(226 232 240);
     color: rgb(71 85 105);
     font-size: 9px;
+    line-height: 1.35;
+  }
+  .rt-site-spark-tip .rt-tip-pages > div {
+    overflow-wrap: anywhere;
   }
   html.dark .rt-site-spark-tip .rt-tip-pages {
     border-top-color: rgb(63 63 70);
@@ -2050,14 +2055,24 @@
       });
     }
     function place(clientX, clientY) {
-      var rect = plotEl.getBoundingClientRect();
-      var x = clientX - rect.left + 8;
-      var y = clientY - rect.top - 8;
-      if (x > rect.width - 140) x = rect.width - 140;
-      if (y < 4) y = 4;
-      if (y > rect.height - 72) y = rect.height - 72;
-      tipEl.style.left = x + 'px';
-      tipEl.style.top = y + 'px';
+      var pad = 8;
+      var gap = 12;
+      tipEl.style.visibility = 'hidden';
+      tipEl.style.left = '0px';
+      tipEl.style.top = '0px';
+      var tr = tipEl.getBoundingClientRect();
+      var w = tr.width;
+      var h = tr.height;
+      var x = clientX + gap;
+      var y = clientY - h - gap;
+      if (y < pad) y = clientY + gap;
+      if (x + w > window.innerWidth - pad) x = clientX - w - gap;
+      if (x < pad) x = pad;
+      if (y + h > window.innerHeight - pad) y = Math.max(pad, window.innerHeight - pad - h);
+      if (y < pad) y = pad;
+      tipEl.style.left = Math.round(x) + 'px';
+      tipEl.style.top = Math.round(y) + 'px';
+      tipEl.style.visibility = '';
     }
     barsEl.addEventListener(
       'mouseover',
