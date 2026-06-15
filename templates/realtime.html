@@ -1139,6 +1139,25 @@
     min-width: 0;
     min-height: 0;
   }
+  .rt-site-spark-load {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .rt-site-spark-lottie {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .rt-site-spark-row.is-loading .rt-site-spark-bars,
+  .rt-site-spark-row.is-loading .rt-site-spark-y,
+  .rt-site-spark-row.is-loading .rt-site-spark-x,
+  .rt-site-spark-row.is-loading .rt-site-spark-last {
+    visibility: hidden;
+  }
   .rt-site-spark-tip {
     position: fixed;
     z-index: 9999;
@@ -1397,8 +1416,8 @@
         </button>
       </div>
     </div>
-    <div class="rt-site-sparks hidden" data-rt-site-sparks="{{ site.id }}">
-      <div class="rt-site-spark-row" data-rt-site-spark-row>
+    <div class="rt-site-sparks" data-rt-site-sparks="{{ site.id }}">
+      <div class="rt-site-spark-row is-loading" data-rt-site-spark-row>
         <div class="rt-site-spark-meta">
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel">24 saat</p>
@@ -1407,6 +1426,16 @@
         <div class="rt-site-spark-plot" data-rt-site-spark-chart>
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
           <div class="rt-site-spark-main">
+            <div class="rt-site-spark-load" data-rt-site-spark-load aria-hidden="true">
+              <lottie-player
+                class="rt-site-spark-lottie"
+                src="https://assets7.lottiefiles.com/packages/lf20_t9gkkhz4.json"
+                background="transparent"
+                speed="1"
+                loop
+                autoplay
+              ></lottie-player>
+            </div>
             <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="Site geneli 24 saat trend"></div>
             <div class="rt-site-spark-tip hidden" data-rt-site-spark-tip role="tooltip"></div>
             <div class="rt-site-spark-x" data-rt-site-spark-x></div>
@@ -1666,6 +1695,7 @@
   </div>
 </div>
 
+<script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
 <script>
 (function () {
   var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
@@ -2113,6 +2143,31 @@
     barsEl.addEventListener('mouseleave', hide, true);
   }
 
+  function _setSiteSparkLoading(siteEl, loading) {
+    if (!siteEl) return;
+    var row = siteEl.querySelector('[data-rt-site-spark-row]');
+    var loadEl = siteEl.querySelector('[data-rt-site-spark-load]');
+    if (row) row.classList.toggle('is-loading', !!loading);
+    if (loadEl) loadEl.classList.toggle('hidden', !loading);
+    var lottie = siteEl.querySelector('.rt-site-spark-lottie');
+    if (lottie) {
+      try {
+        if (loading) lottie.play();
+        else lottie.pause();
+      } catch (e) { /* lottie-player henüz yüklenmemiş olabilir */ }
+    }
+  }
+
+  function _primeSiteCombinedTrends() {
+    document.querySelectorAll('[data-rt-site]').forEach(function (el) {
+      var sid = parseInt(el.getAttribute('data-rt-site'), 10);
+      if (!isNaN(sid)) {
+        _setSiteSparkLoading(el, true);
+        rtFetchSiteCombinedTrend(sid, { bucketPages: false, showLoading: true });
+      }
+    });
+  }
+
   function _renderSiteCombinedSparks(siteId, trend) {
     var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
     if (!siteEl) return;
@@ -2120,27 +2175,48 @@
     if (!trend || !trend.length) {
       if (wrap) wrap.classList.add('hidden');
       siteEl._rtCombinedTrend = null;
+      _setSiteSparkLoading(siteEl, false);
       return;
     }
     siteEl._rtCombinedTrend = trend;
     if (wrap) wrap.classList.remove('hidden');
     if (!siteEl._rtSparkMetric) siteEl._rtSparkMetric = 'au';
     _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric);
+    _setSiteSparkLoading(siteEl, false);
   }
 
-  function rtFetchSiteCombinedTrend(siteId) {
-    fetch('/api/ga4/realtime/' + encodeURIComponent(siteId) + '/trend-combined?hours=24', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-    })
+  function rtFetchSiteCombinedTrend(siteId, opts) {
+    opts = opts || {};
+    var wantPages = opts.bucketPages !== false;
+    var showLoading = opts.showLoading === true;
+    var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
+    if (showLoading && siteEl) _setSiteSparkLoading(siteEl, true);
+
+    var url = '/api/ga4/realtime/' + encodeURIComponent(siteId) + '/trend-combined?hours=24';
+    if (!wantPages) url += '&bucket_pages=0';
+
+    fetch(url, { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d || d.error) return;
-        var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
-        if (siteEl) siteEl._rtBucketTopPages = d.bucket_top_pages || {};
-        _renderSiteCombinedSparks(siteId, d.trend || []);
+        if (!d || d.error) {
+          if (showLoading && siteEl) _setSiteSparkLoading(siteEl, false);
+          return;
+        }
+        if (siteEl && d.bucket_top_pages && Object.keys(d.bucket_top_pages).length) {
+          siteEl._rtBucketTopPages = d.bucket_top_pages;
+        }
+        if (d.trend && d.trend.length) {
+          _renderSiteCombinedSparks(siteId, d.trend);
+        } else if (showLoading && siteEl) {
+          _setSiteSparkLoading(siteEl, false);
+        }
+        if (!wantPages && d.trend && d.trend.length) {
+          rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false });
+        }
       })
-      .catch(function () {});
+      .catch(function () {
+        if (showLoading && siteEl) _setSiteSparkLoading(siteEl, false);
+      });
   }
   window.rtFetchSiteCombinedTrend = rtFetchSiteCombinedTrend;
 
@@ -3989,7 +4065,6 @@
 
   function _startPolling() {
     var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]'));
-    var siteIdsSeen = {};
     boxes.forEach(function (box, idx) {
       var sid = box.getAttribute('data-rt-site-id');
       var prof = box.getAttribute('data-rt-profile');
@@ -3997,10 +4072,6 @@
       var sidInt = parseInt(sid, 10);
 
       setTimeout(function () { rtFetchProfile(sidInt, prof); }, idx * 400);
-      if (sid && !siteIdsSeen[sid]) {
-        siteIdsSeen[sid] = true;
-        setTimeout(function () { rtFetchSiteCombinedTrend(sidInt); }, idx * 400 + 80);
-      }
       setTimeout(function () {
         rtFetchTopPages(sidInt, prof);
         rtFetchTopEvents(sidInt, prof);
@@ -4175,6 +4246,7 @@
       _rtSetSiteSparkMetric(siteEl, tab.getAttribute('data-rt-site-metric-tab'));
     });
     _initRtAlarmSitePills();
+    _primeSiteCombinedTrends();
     _startPolling();
     _restoreRealtimeScroll();
   });
