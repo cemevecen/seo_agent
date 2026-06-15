@@ -277,7 +277,6 @@
 <script>
   function gitlabBoards() {
     return {
-      token: '{{ token }}',
       baseUrl: 'https://git.nokta.com/api/v4',
       configProjects: {{ projects | tojson | safe }},
       defaultProjectPath: {{ default_board_project | tojson }},
@@ -356,14 +355,15 @@
 
       async checkVpn() {
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 2500);
+        const timer = setTimeout(() => ctrl.abort(), 8000);
         try {
-          const res = await fetch('https://git.nokta.com/api/v4/version', {
-            headers: { 'PRIVATE-TOKEN': this.token },
+          const res = await fetch('/api/boards/gitlab-ping', {
+            credentials: 'same-origin',
             signal: ctrl.signal,
           });
           clearTimeout(timer);
-          this.vpnStatus = res.ok || res.status === 401 ? 'on' : 'off';
+          const data = await res.json().catch(function () { return {}; });
+          this.vpnStatus = res.ok && data.ok ? 'on' : 'off';
         } catch {
           clearTimeout(timer);
           this.vpnStatus = 'off';
@@ -707,6 +707,14 @@
         });
       },
 
+      friendlyFetchError(err) {
+        const msg = (err && err.message) ? String(err.message) : '';
+        if (/failed to fetch|networkerror|load failed|aborted/i.test(msg)) {
+          return 'GitLab verisi alınamadı (ağ veya sunucu). Sayfayı yenileyin; sorun sürerse GITLAB_PRIVATE_TOKEN ve sunucunun git.nokta.com erişimini kontrol edin.';
+        }
+        return msg || 'Bağlantı hatası.';
+      },
+
       async fetchProjectData(path, force) {
         const pd = this.projectData[path];
         if (pd.loading) return;
@@ -714,26 +722,34 @@
         
         pd.loading = true;
         pd.error = null;
-        
-        const encodedPath = encodeURIComponent(path);
-        const headers = { 'PRIVATE-TOKEN': this.token };
 
         try {
-          const [boardsRes, openedIssues, closedIssues, _orders, _sort] = await Promise.all([
-            fetch(`${this.baseUrl}/projects/${encodedPath}/boards`, { headers }),
-            this.fetchAllIssues(encodedPath, 'opened', path),
-            this.fetchAllIssues(encodedPath, 'closed', path),
+          const fetchParams = this.gitlabFetchOrderForProject(path);
+          const qs = new URLSearchParams({
+            project_path: path,
+            opened_order_by: fetchParams.order_by,
+            opened_sort: fetchParams.sort,
+          });
+          const [bundleRes, _orders, _sort] = await Promise.all([
+            fetch('/api/boards/project-bundle?' + qs.toString(), {
+              credentials: 'same-origin',
+              cache: 'no-store',
+            }),
             this.loadBoardOrders(path),
             this.loadBoardSortSettings(path),
           ]);
 
-          if (!boardsRes.ok) throw new Error(`GitLab API Hatası: ${boardsRes.statusText}`);
+          const data = await bundleRes.json().catch(function () { return {}; });
+          if (!bundleRes.ok || data.error) {
+            throw new Error(data.error || data.detail || 'GitLab verisi yüklenemedi');
+          }
           this.vpnStatus = 'on';
-          const boardsData = await boardsRes.json();
-          if (!boardsData || boardsData.length === 0) throw new Error("Projede aktif board bulunamadı.");
-          
-          pd.board = boardsData[0];
-          
+
+          if (!data.board) throw new Error('Projede aktif board bulunamadı.');
+
+          pd.board = data.board;
+          const openedIssues = data.opened_issues || [];
+          const closedIssues = data.closed_issues || [];
           let actualLists = pd.board.lists.map(l => ({
             ...l, 
             isVirtual: false, 
@@ -769,7 +785,7 @@
 
         } catch (err) {
           console.error(err);
-          pd.error = err.message || "Bağlantı hatası.";
+          pd.error = this.friendlyFetchError(err);
           if (this.vpnStatus === 'checking') this.vpnStatus = 'off';
         } finally {
           pd.loading = false;
@@ -851,29 +867,30 @@
       async createIssue(path, lst) {
         if (!lst.newIssueTitle || !lst.newIssueTitle.trim()) return;
         lst.isCreating = true;
-        const encodedPath = encodeURIComponent(path);
-        
+
         let payload = {
-          title: lst.newIssueTitle.trim()
+          project_path: path,
+          title: lst.newIssueTitle.trim(),
         };
-        
+
         if (!lst.isVirtual) {
           payload.labels = lst.label.name;
         }
-        
+
         try {
-          const res = await fetch(`${this.baseUrl}/projects/${encodedPath}/issues`, {
+          const res = await fetch('/api/boards/issues', {
             method: 'POST',
-            headers: {
-              'PRIVATE-TOKEN': this.token,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
           });
-          
-          if (!res.ok) throw new Error("Oluşturulamadı");
-          
-          const newIssue = await res.json();
+
+          const data = await res.json().catch(function () { return {}; });
+          if (!res.ok || !data.issue) {
+            throw new Error(data.error || 'Oluşturulamadı');
+          }
+
+          const newIssue = data.issue;
           const pd = this.projectData[path];
           pd.issues.push(newIssue);
 
@@ -897,7 +914,7 @@
           lst.newIssueTitle = '';
           lst.showNewIssueForm = false;
         } catch (err) {
-          alert("Hata: " + err.message);
+          alert('Hata: ' + this.friendlyFetchError(err));
         } finally {
           lst.isCreating = false;
         }

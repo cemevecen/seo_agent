@@ -15721,6 +15721,9 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # --- GITLAB BOARDS ---
 
 from backend.services.gitlab_board import (
+    create_issue_async,
+    fetch_board_project_bundle_async,
+    fetch_gitlab_version_async,
     fetch_project_board_async,
     get_board_column_orders,
     get_board_project_settings,
@@ -15737,8 +15740,6 @@ from backend.services.gitlab_board import (
 @app.get("/boards", response_class=HTMLResponse)
 def page_boards(request: Request):
     """GitLab Kanban Board ana sayfası."""
-    import os
-    token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
     projects = [
         {"name": "Döviz Web", "path": "nokta/doviz", "platform": "web", "product": "doviz"},
         {"name": "Döviz iOS", "path": "ios/doviz", "platform": "ios", "product": "doviz"},
@@ -15750,7 +15751,6 @@ def page_boards(request: Request):
         context={
             "request": request,
             "projects": projects,
-            "token": token,
             "default_board_project": "ios/doviz",
         },
     )
@@ -15763,6 +15763,47 @@ async def api_boards_content(request: Request, project_path: str):
         request, "partials/boards/board_content.html",
         context={"request": request, "data": data, "project_path": project_path}
     )
+
+
+@app.get("/api/boards/gitlab-ping")
+async def api_boards_gitlab_ping():
+    """Tarayıcıdan GitLab'e doğrudan gitmek yerine bağlantı kontrolü."""
+    return JSONResponse(await fetch_gitlab_version_async())
+
+
+@app.get("/api/boards/project-bundle")
+async def api_boards_project_bundle(
+    project_path: str,
+    opened_order_by: str = "relative_position",
+    opened_sort: str = "asc",
+):
+    """Kanban: board + sayfalı issue listeleri (CORS/VPN bypass — sunucu proxy)."""
+    data = await fetch_board_project_bundle_async(
+        project_path,
+        opened_order_by=opened_order_by,
+        opened_sort=opened_sort,
+    )
+    if data.get("error"):
+        return JSONResponse(data, status_code=502)
+    return JSONResponse(data)
+
+
+@app.post("/api/boards/issues")
+async def api_boards_create_issue(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    project_path = str(body.get("project_path") or "").strip()
+    title = str(body.get("title") or "").strip()
+    labels = body.get("labels")
+    labels_str = str(labels).strip() if labels is not None and str(labels).strip() else None
+    if not project_path or not title:
+        return JSONResponse({"error": "missing_fields"}, status_code=400)
+    issue, detail = await create_issue_async(project_path, title, labels=labels_str)
+    if issue is None:
+        return JSONResponse({"error": detail or "create_failed"}, status_code=502)
+    return JSONResponse({"ok": True, "issue": issue})
 
 @app.get("/api/boards/order")
 def api_boards_order(project_path: str, db: Session = Depends(get_db)):

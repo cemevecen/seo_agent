@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -36,6 +36,175 @@ def _headers() -> dict[str, str]:
 
 def _encoded_path(project_path: str) -> str:
     return project_path.replace("/", "%2F")
+
+
+def _issues_updated_after_iso() -> str:
+    one_year = datetime.now(timezone.utc) - timedelta(days=365)
+    return one_year.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _gitlab_connect_error_message(exc: Exception) -> str:
+    msg = str(exc).strip() or exc.__class__.__name__
+    low = msg.lower()
+    if "connect" in low or "timeout" in low or "name or service" in low:
+        return (
+            "GitLab'e (git.nokta.com) sunucudan ulaşılamadı. "
+            "Railway ortamında GITLAB_PRIVATE_TOKEN tanımlı olmalı; "
+            "şirket ağı/VPN gerekiyorsa sunucunun da erişebildiğinden emin olun."
+        )
+    return f"GitLab isteği başarısız: {msg}"
+
+
+async def fetch_gitlab_version_async() -> dict[str, Any]:
+    token = get_gitlab_token()
+    if not token:
+        return {"ok": False, "error": "GITLAB_PRIVATE_TOKEN tanımlı değil."}
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        try:
+            resp = await client.get(f"{GITLAB_URL}/version", headers=_headers())
+            if resp.status_code in (200, 401):
+                return {"ok": True, "status": resp.status_code}
+            return {"ok": False, "error": f"GitLab version HTTP {resp.status_code}"}
+        except Exception as exc:
+            return {"ok": False, "error": _gitlab_connect_error_message(exc)}
+
+
+async def fetch_all_issues_async(
+    project_path: str,
+    state: str,
+    *,
+    order_by: str = "updated_at",
+    sort: str = "desc",
+    updated_after: str | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
+    """GitLab issue listesi — sayfalı."""
+    token = get_gitlab_token()
+    if not token:
+        raise ValueError("GITLAB_PRIVATE_TOKEN tanımlı değil.")
+
+    encoded_path = _encoded_path(project_path)
+    updated_after = updated_after or _issues_updated_after_iso()
+    headers = _headers()
+    all_issues: list[dict[str, Any]] = []
+    page = 1
+
+    async def _paginate(c: httpx.AsyncClient) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        p = 1
+        while True:
+            url = (
+                f"{GITLAB_URL}/projects/{encoded_path}/issues"
+                f"?state={state}&updated_after={updated_after}"
+                f"&order_by={order_by}&sort={sort}&per_page=100&page={p}"
+            )
+            resp = await c.get(url, headers=headers)
+            if resp.status_code != 200:
+                raise RuntimeError(f"Issues ({state}) HTTP {resp.status_code}: {resp.text[:200]}")
+            data = resp.json()
+            if not isinstance(data, list):
+                raise RuntimeError(f"Issues ({state}) beklenmeyen yanıt")
+            out.extend(data)
+            if len(data) < 100:
+                break
+            p += 1
+        return out
+
+    if client is not None:
+        return await _paginate(client)
+
+    async with httpx.AsyncClient(timeout=60.0) as c:
+        return await _paginate(c)
+
+
+async def fetch_board_project_bundle_async(
+    project_path: str,
+    *,
+    opened_order_by: str = "relative_position",
+    opened_sort: str = "asc",
+) -> dict[str, Any]:
+    """Boards UI: board + açık/kapalı issue listeleri (sunucu proxy)."""
+    token = get_gitlab_token()
+    if not token:
+        return {"error": "GITLAB_PRIVATE_TOKEN tanımlı değil. Railway / .env kontrol edin."}
+
+    encoded_path = _encoded_path(project_path)
+    boards_url = f"{GITLAB_URL}/projects/{encoded_path}/boards"
+    headers = _headers()
+
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        try:
+            resp_boards = await client.get(boards_url, headers=headers)
+            if resp_boards.status_code != 200:
+                return {
+                    "error": f"Board alınamadı: HTTP {resp_boards.status_code}",
+                    "detail": resp_boards.text[:300],
+                }
+            boards = resp_boards.json()
+            if not boards:
+                return {"error": "Projede aktif board bulunamadı."}
+
+            opened_task = fetch_all_issues_async(
+                project_path,
+                "opened",
+                order_by=opened_order_by,
+                sort=opened_sort,
+                client=client,
+            )
+            closed_task = fetch_all_issues_async(
+                project_path,
+                "closed",
+                order_by="updated_at",
+                sort="desc",
+                client=client,
+            )
+            opened_issues, closed_issues = await asyncio.gather(opened_task, closed_task)
+
+            return {
+                "board": boards[0],
+                "opened_issues": opened_issues,
+                "closed_issues": closed_issues,
+                "project_path": project_path,
+            }
+        except Exception as exc:
+            LOGGER.exception("GitLab board bundle failed [%s]: %s", project_path, exc)
+            return {"error": _gitlab_connect_error_message(exc)}
+
+
+async def create_issue_async(
+    project_path: str,
+    title: str,
+    *,
+    labels: str | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    token = get_gitlab_token()
+    if not token:
+        return None, "GITLAB_PRIVATE_TOKEN tanımlı değil."
+
+    encoded_path = _encoded_path(project_path)
+    url = f"{GITLAB_URL}/projects/{encoded_path}/issues"
+    payload: dict[str, Any] = {"title": (title or "").strip()}
+    if not payload["title"]:
+        return None, "Başlık boş"
+    if labels:
+        payload["labels"] = labels
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        try:
+            resp = await client.post(url, headers=_headers(), json=payload)
+            if resp.status_code not in (200, 201):
+                detail = resp.text[:300]
+                try:
+                    body = resp.json()
+                    if isinstance(body, dict):
+                        detail = str(body.get("message") or body.get("error") or detail)
+                except Exception:
+                    pass
+                return None, detail or f"GitLab HTTP {resp.status_code}"
+            return resp.json(), None
+        except Exception as exc:
+            LOGGER.exception("GitLab create issue [%s]: %s", project_path, exc)
+            return None, _gitlab_connect_error_message(exc)
 
 
 async def fetch_project_board_async(project_path: str) -> dict[str, Any]:
