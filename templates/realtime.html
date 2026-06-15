@@ -1133,10 +1133,46 @@
     min-width: 1.75rem;
   }
   .rt-site-spark-main {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+  }
+  .rt-site-spark-tip {
+    position: absolute;
+    z-index: 40;
+    pointer-events: none;
+    max-width: 17rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.375rem;
+    font-size: 10px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+    color: rgb(15 23 42);
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgb(226 232 240);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+    white-space: pre-line;
+  }
+  html.dark .rt-site-spark-tip {
+    color: rgb(244 244 245);
+    background: rgba(24, 24, 27, 0.97);
+    border-color: rgb(63 63 70);
+  }
+  .rt-site-spark-tip.hidden {
+    display: none;
+  }
+  .rt-site-spark-tip .rt-tip-pages {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgb(226 232 240);
+    color: rgb(71 85 105);
+    font-size: 9px;
+  }
+  html.dark .rt-site-spark-tip .rt-tip-pages {
+    border-top-color: rgb(63 63 70);
+    color: rgb(161 161 170);
   }
   .rt-site-spark-bars {
     display: flex;
@@ -1367,6 +1403,7 @@
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
           <div class="rt-site-spark-main">
             <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="Site geneli 24 saat trend"></div>
+            <div class="rt-site-spark-tip hidden" data-rt-site-spark-tip role="tooltip"></div>
             <div class="rt-site-spark-x" data-rt-site-spark-x></div>
           </div>
         </div>
@@ -1922,32 +1959,35 @@
       display.map(function (d) { return Number(d.v) || 0; }).concat([1])
     );
     var barPx = 68;
+    siteEl._rtSparkDisplay = display;
+    siteEl._rtSparkMetricCurrent = metric;
     barsEl.innerHTML = display
       .map(function (d, i) {
         var v = Number(d.v) || 0;
         if (d.empty || v <= 0) {
           return (
-            '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;background:' +
+            '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" data-rt-bar-i="' +
+            i +
+            '" style="height:2px;background:' +
             _sparkBarFill(0, mx) +
-            ';opacity:0.45" title="' +
-            _attr(d.label || '') +
-            '"></div>'
+            ';opacity:0.45"></div>'
           );
         }
         var hPx = Math.round((v / mx) * barPx);
         hPx = Math.max(3, Math.min(barPx, hPx));
-        var tip = (d.label || '') + ': ' + _fmtExact(v);
         return (
-          '<div class="rt-spark-mini-bar" style="height:' +
+          '<div class="rt-spark-mini-bar" data-rt-bar-i="' +
+          i +
+          '" style="height:' +
           hPx +
           'px;background:' +
           _sparkBarFill(v, mx) +
-          '" title="' +
-          _attr(tip) +
           '"></div>'
         );
       })
       .join('');
+    barsEl._rtSiteTipWired = false;
+    _wireSiteSparkBarTips(siteEl);
     if (yEl) {
       yEl.innerHTML = _sparkYAxisTicks(mx)
         .slice()
@@ -1964,6 +2004,90 @@
     if (lastEl) {
       lastEl.textContent = _fmtExact(metric === 'pv' ? last.pv : last.users);
     }
+  }
+
+  function _siteSparkTipInnerHtml(siteEl, row, metric) {
+    if (!row) return '';
+    var v = Number(row.v) || 0;
+    var html =
+      '<div><strong>' +
+      _esc(row.label || '—') +
+      '</strong></div><div>' +
+      _esc(_fmtExact(v) + (metric === 'pv' ? ' görüntüleme (dilim)' : ' aktif (dilim)')) +
+      '</div>';
+    var tops = siteEl._rtBucketTopPages || {};
+    var key = row.tMs != null ? String(row.tMs) : '';
+    var pages = tops[key] || [];
+    if (pages.length) {
+      html += '<div class="rt-tip-pages"><div style="font-weight:600;margin-bottom:0.2rem">Top 3 sayfa</div>';
+      for (var i = 0; i < pages.length; i++) {
+        var p = pages[i];
+        var n = metric === 'pv' ? p.pageviews || 0 : p.active_users || 0;
+        html +=
+          '<div>' +
+          _esc(String(i + 1) + '. ' + (p.label || p.page_path) + ' · ' + _fmt(n)) +
+          '</div>';
+      }
+      html += '</div>';
+    } else if (!row.empty && row.bucketCount) {
+      html += '<div class="rt-tip-pages">Bu dilim için sayfa snapshot yok</div>';
+    }
+    return html;
+  }
+
+  function _wireSiteSparkBarTips(siteEl) {
+    var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
+    var tipEl = siteEl.querySelector('[data-rt-site-spark-tip]');
+    var plotEl = siteEl.querySelector('[data-rt-site-spark-chart]');
+    if (!barsEl || !tipEl || !plotEl) return;
+    if (barsEl._rtSiteTipWired) return;
+    barsEl._rtSiteTipWired = true;
+    var metric = siteEl._rtSparkMetricCurrent || 'au';
+    function hide() {
+      tipEl.classList.add('hidden');
+      barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
+        b.classList.remove('is-hovered');
+      });
+    }
+    function place(clientX, clientY) {
+      var rect = plotEl.getBoundingClientRect();
+      var x = clientX - rect.left + 8;
+      var y = clientY - rect.top - 8;
+      if (x > rect.width - 140) x = rect.width - 140;
+      if (y < 4) y = 4;
+      if (y > rect.height - 72) y = rect.height - 72;
+      tipEl.style.left = x + 'px';
+      tipEl.style.top = y + 'px';
+    }
+    barsEl.addEventListener(
+      'mouseover',
+      function (ev) {
+        var bar = ev.target.closest('.rt-spark-mini-bar');
+        if (!bar || !barsEl.contains(bar)) return;
+        barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
+          b.classList.remove('is-hovered');
+        });
+        bar.classList.add('is-hovered');
+        var idx = parseInt(bar.getAttribute('data-rt-bar-i') || '-1', 10);
+        var disp = siteEl._rtSparkDisplay || [];
+        var row = idx >= 0 && disp[idx] ? disp[idx] : null;
+        metric = siteEl._rtSparkMetricCurrent || 'au';
+        tipEl.innerHTML = _siteSparkTipInnerHtml(siteEl, row, metric);
+        tipEl.classList.remove('hidden');
+        place(ev.clientX, ev.clientY);
+      },
+      true
+    );
+    barsEl.addEventListener(
+      'mousemove',
+      function (ev) {
+        if (tipEl.classList.contains('hidden')) return;
+        if (!ev.target.closest('.rt-spark-mini-bar')) return;
+        place(ev.clientX, ev.clientY);
+      },
+      true
+    );
+    barsEl.addEventListener('mouseleave', hide, true);
   }
 
   function _renderSiteCombinedSparks(siteId, trend) {
@@ -1989,6 +2113,8 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || d.error) return;
+        var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
+        if (siteEl) siteEl._rtBucketTopPages = d.bucket_top_pages || {};
         _renderSiteCombinedSparks(siteId, d.trend || []);
       })
       .catch(function () {});

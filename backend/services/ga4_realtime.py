@@ -2496,6 +2496,75 @@ def get_combined_site_snapshots(
     return out
 
 
+def get_combined_bucket_top_pages(
+    db: Session,
+    site_id: int,
+    *,
+    hours: float = REALTIME_TREND_HOURS_DEFAULT,
+    top_n: int = 3,
+) -> dict[str, list[dict[str, Any]]]:
+    """Site geneli 24s grafik tooltip: her 15 dk diliminde en çok katkı veren sayfalar (DB snapshot)."""
+    from collections import defaultdict
+
+    from backend.models import RealtimePageSnapshot
+
+    h = min(float(hours), REALTIME_TREND_HOURS_MAX)
+    cutoff = datetime.utcnow() - timedelta(hours=h)
+    bucket_ms = 15 * 60 * 1000
+    cap = max(1, min(int(top_n), 10))
+
+    # bucket_ms -> page_path -> profile -> {au, pv} tepe
+    nested: dict[int, dict[str, dict[str, dict[str, float]]]] = defaultdict(lambda: defaultdict(dict))
+
+    rows = (
+        db.query(RealtimePageSnapshot)
+        .filter(
+            RealtimePageSnapshot.site_id == site_id,
+            RealtimePageSnapshot.collected_at >= cutoff,
+        )
+        .order_by(RealtimePageSnapshot.collected_at.asc())
+        .limit(500_000)
+        .all()
+    )
+    for row in rows:
+        if not row.collected_at:
+            continue
+        ca = row.collected_at
+        ts_ms = int(
+            (ca.replace(tzinfo=timezone.utc) if ca.tzinfo is None else ca.astimezone(timezone.utc)).timestamp()
+            * 1000
+        )
+        key = (ts_ms // bucket_ms) * bucket_ms
+        path = str(row.page_path or "").strip()
+        if not path:
+            continue
+        prof = str(row.profile or "web").strip()
+        au = float(row.active_users or 0)
+        pv = float(row.pageviews or 0)
+        slot = nested[key][path].get(prof)
+        if slot is None or au >= slot.get("active_users", 0):
+            nested[key][path][prof] = {"active_users": au, "pageviews": pv}
+
+    out: dict[str, list[dict[str, Any]]] = {}
+    for key, paths in nested.items():
+        ranked: list[dict[str, Any]] = []
+        for path, prof_map in paths.items():
+            total_au = sum(float(v.get("active_users") or 0) for v in prof_map.values())
+            total_pv = sum(float(v.get("pageviews") or 0) for v in prof_map.values())
+            label = path if len(path) <= 48 else path[:47] + "…"
+            ranked.append(
+                {
+                    "page_path": path,
+                    "label": label,
+                    "active_users": int(round(total_au)),
+                    "pageviews": int(round(total_pv)),
+                }
+            )
+        ranked.sort(key=lambda x: (x["active_users"], x["pageviews"]), reverse=True)
+        out[str(key)] = ranked[:cap]
+    return out
+
+
 def fetch_realtime_profile_bundle(
     db: Session,
     site: Any,
