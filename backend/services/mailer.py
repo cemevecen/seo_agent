@@ -21,14 +21,7 @@ from email.utils import parseaddr
 # tek bir mail olarak gönderir. Alarm tespiti / DB mantığına dokunulmaz.
 _batch_ctx = threading.local()
 _last_realtime_batch_sent_at: float | None = None
-
-
-_SEO_REALTIME_SUBJECT_PREFIX = "seo realtime"
-
-
-def _is_seo_realtime_subject(subject: str) -> bool:
-    """Only the consolidated SEO Realtime thread is allowed to send realtime mail."""
-    return (subject or "").strip().lower().startswith(_SEO_REALTIME_SUBJECT_PREFIX)
+_pending_realtime_batch_items: list[tuple[str, str]] = []
 
 
 def _compact_realtime_batch_chip(raw_subject: str) -> str:
@@ -77,7 +70,7 @@ def _compact_realtime_batch_chip(raw_subject: str) -> str:
 
 
 def _combined_realtime_subject(items: list[tuple[str, str]]) -> str:
-    """Önizlemede site + olay okunur; «SEO Realtime: N alarm» öneki yok."""
+    """Konsolide konu: SEO Realtime iş parçacığı + okunabilir olay chip'leri."""
     n = len(items)
     chips = [_compact_realtime_batch_chip(subj) for subj, _ in items[:4]]
     chips = [c for c in chips if c]
@@ -86,20 +79,27 @@ def _combined_realtime_subject(items: list[tuple[str, str]]) -> str:
     if more > 0:
         line = f"{line} +{more}" if line else f"+{more}"
     if n <= 1:
-        return (line or "RT")[:120]
-    prefix = f"{n} · "
-    budget = 120 - len(prefix)
-    if budget < 20:
-        return str(n)[:120]
-    if len(line) > budget:
-        line = line[: budget - 1] + "…"
-    return f"{prefix}{line}"
+        core = line or "RT"
+    else:
+        prefix = f"{n} · "
+        budget = 120 - len("SEO Realtime · ") - len(prefix)
+        if budget < 12:
+            core = str(n)
+        else:
+            if len(line) > budget:
+                line = line[: budget - 1] + "…"
+            core = f"{prefix}{line}"
+    if core.lower().startswith("seo realtime"):
+        return core[:120]
+    return f"SEO Realtime · {core}"[:120]
 
 
 def realtime_email_batch_begin() -> None:
     """Batch toplamayı başlat — bu thread'deki send_realtime_email çağrıları biriktirilir."""
+    global _pending_realtime_batch_items
     _batch_ctx.collecting = True
-    _batch_ctx.items = []  # (subject, html_body)
+    _batch_ctx.items = list(_pending_realtime_batch_items)
+    _pending_realtime_batch_items = []
 
 
 def _realtime_batch_is_urgent(items: list[tuple[str, str]]) -> bool:
@@ -118,7 +118,7 @@ def _prioritize_realtime_batch_items(items: list[tuple[str, str]]) -> list[tuple
 
 def realtime_email_batch_flush() -> bool:
     """Biriktirilen mailleri tek email olarak gönder; batch'i temizle."""
-    global _last_realtime_batch_sent_at
+    global _last_realtime_batch_sent_at, _pending_realtime_batch_items
 
     if not getattr(_batch_ctx, "collecting", False):
         return False
@@ -135,8 +135,9 @@ def realtime_email_batch_flush() -> bool:
     if min_gap_min > 0 and _last_realtime_batch_sent_at is not None and not urgent:
         elapsed = time.time() - _last_realtime_batch_sent_at
         if elapsed < min_gap_min * 60:
-            logging.info(
-                "SEO Realtime konsolide mail ertelendi (%d dk minimum aralık, %d bölüm atlandı).",
+            _pending_realtime_batch_items.extend(items)
+            logging.warning(
+                "SEO Realtime konsolide mail ertelendi (%d dk minimum aralık); %d bölüm kuyruğa alındı.",
                 min_gap_min,
                 len(items),
             )
@@ -173,6 +174,13 @@ def realtime_email_batch_flush() -> bool:
     )
     if ok:
         _last_realtime_batch_sent_at = time.time()
+    else:
+        _pending_realtime_batch_items.extend(items)
+        logging.error(
+            "SEO Realtime konsolide mail gönderilemedi; %d bölüm kuyruğa alındı (konu=%s).",
+            len(items),
+            combined_subject[:80],
+        )
     return ok
 
 
@@ -591,9 +599,6 @@ def send_realtime_email(
         return True
 
     subj = subject.strip()
-    if not is_summary and not _is_seo_realtime_subject(subj):
-        logging.info("SEO Realtime dışı realtime e-postası iptal edildi: %s", subj[:120])
-        return False
 
     if not settings.ga4_realtime_email_enabled:
         logging.warning("GA4 Realtime e-postası gönderilemedi: ga4_realtime_email_enabled=False")
@@ -652,9 +657,6 @@ def send_realtime_news_email(
         return True
 
     subj = subject.strip()
-    if not _is_seo_realtime_subject(subj):
-        logging.info("SEO Realtime dışı realtime haber e-postası iptal edildi: %s", subj[:120])
-        return False
 
     if not settings.ga4_realtime_email_enabled:
         logging.warning("GA4 Realtime haber e-postası gönderilemedi: ga4_realtime_email_enabled=False")
