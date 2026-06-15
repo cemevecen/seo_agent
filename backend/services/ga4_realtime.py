@@ -2196,8 +2196,15 @@ def check_site_realtime(
                 logger.info("GA4 Realtime: E-posta cooldown aktif, gönderim atlandı (site=%s, profile=%s).", site.domain, profile)
             else:
                 mail_alarms = filter_alarms_for_email(alarms)
-                if mail_alarms and _send_site_alarm_emails(site.domain, profile, mail_alarms):
-                    _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in mail_alarms], profile=profile)
+                if mail_alarms:
+                    st = _send_site_alarm_emails(site.domain, profile, mail_alarms)
+                    _commit_realtime_email_mark(
+                        db,
+                        site.id,
+                        [a["rule_id"] for a in mail_alarms],
+                        profile=profile,
+                        status=st,
+                    )
         logger.warning(
             "GA4 Realtime ALARM [%s]: %d kural tetiklendi — %s",
             site.domain,
@@ -2341,31 +2348,70 @@ def _mark_alarms_emailed(
         db.rollback()
 
 
-def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> bool:
-    """Genel site alarmları — tek e-postada özet + Gmail iş parçacığı. True döner mail atıldıysa."""
+def _realtime_email_dispatch_status(send_ok: bool) -> str:
+    from backend.services.mailer import realtime_email_batch_is_collecting
+
+    if not send_ok:
+        return "failed"
+    if realtime_email_batch_is_collecting():
+        return "queued"
+    return "sent"
+
+
+def _commit_realtime_email_mark(
+    db: Session,
+    site_id: int,
+    rule_ids: list[str],
+    *,
+    profile: str | None,
+    status: str,
+) -> None:
+    from backend.services.mailer import realtime_email_batch_note_mark
+
+    if status == "sent":
+        _mark_alarms_emailed(db, site_id, rule_ids, profile=profile)
+    elif status == "queued":
+        realtime_email_batch_note_mark(site_id, rule_ids, profile=profile)
+
+
+def apply_realtime_batch_email_marks(db: Session, marks: list[dict]) -> None:
+    for m in marks:
+        _mark_alarms_emailed(
+            db,
+            int(m["site_id"]),
+            list(m.get("rule_ids") or []),
+            profile=m.get("profile"),
+        )
+
+
+def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+    """Genel site alarmları — batch veya anında gönderim. sent | queued | failed."""
     from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
 
     if not alarms:
-        return False
+        return "failed"
     if not is_realtime_mail_ready():
         logger.warning(
             "Realtime site alarmı tetiklendi (site=%s, alarm_count=%d) ancak e-posta gönderilemedi. "
-            "Lütfen şu ayarları kontrol edin: GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP_HOST, MAIL_TO.",
+            "Lütfen şu ayarları kontrol edin: GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP/Gmail OAuth, MAIL_TO.",
             domain,
             len(alarms),
         )
-        return False
+        return "failed"
 
     logger.info("GA4 Realtime: E-posta hazırlanıyor (site=%s, profile=%s)...", domain, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
     html_body = _html_site_alarm_body(domain, profile, alarms)
     subject = _email_site_alarm_subject(domain, profile, alarms)
     ok = send_realtime_email(subject, html_body, thread_kind="site", thread_key=thread_key)
-    if ok:
+    status = _realtime_email_dispatch_status(bool(ok))
+    if status == "sent":
         logger.info("GA4 Realtime: E-posta başarıyla gönderildi (site=%s, profile=%s).", domain, profile)
+    elif status == "queued":
+        logger.info("GA4 Realtime: E-posta konsolide kuyruğa alındı (site=%s, profile=%s).", domain, profile)
     else:
         logger.error("GA4 Realtime: E-posta gönderimi başarısız (site=%s, profile=%s).", domain, profile)
-    return bool(ok)
+    return status
 
 
 def get_recent_snapshots(
@@ -3176,8 +3222,14 @@ def check_page_alarms_for_site(
             if to_send:
                 to_send = filter_alarms_for_email(_cap_top_n_each_side(to_send))
             if to_send:
-                if _send_page_alarm_email(site.domain, profile, to_send):
-                    _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in to_send], profile=profile)
+                st = _send_page_alarm_email(site.domain, profile, to_send)
+                _commit_realtime_email_mark(
+                    db,
+                    site.id,
+                    [a["rule_id"] for a in to_send],
+                    profile=profile,
+                    status=st,
+                )
 
     return alarms
 
@@ -3205,24 +3257,25 @@ def _save_page_alarm_logs(db: Session, site_id: int, alarms: list[dict[str, Any]
         logger.exception("Sayfa alarm log kayıt hatası (site_id=%s)", site_id)
 
 
-def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> bool:
-    """Sayfa bazlı alarmlar — tek e-postada özet + Gmail iş parçacığı. True döner mail atıldıysa."""
+def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+    """Sayfa bazlı alarmlar — sent | queued | failed."""
     from backend.services.mailer import is_page_alarm_mail_ready, send_realtime_email
 
     if not alarms:
-        return False
+        return "failed"
     if not is_page_alarm_mail_ready():
         logger.warning(
             "Realtime sayfa alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
-            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP ve MAIL_TO yapılandırmasını kontrol edin.",
+            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_PAGE_ALERT_EMAIL, SMTP/Gmail OAuth ve MAIL_TO.",
             len(alarms),
         )
-        return False
+        return "failed"
 
     thread_key = _realtime_email_thread_key(domain, profile)
     html_body = _html_page_alarm_body(domain, profile, alarms)
     subject = _email_page_alarm_subject(domain, profile, alarms)
-    return bool(send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key))
+    ok = send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key)
+    return _realtime_email_dispatch_status(bool(ok))
 
 
 def run_page_alarm_check_all_sites(
@@ -3799,24 +3852,25 @@ def _get_site_kpi_summary(db: Session, site_id: int, profile: str) -> dict:
     return {}
 
 
-def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> bool:
-    """Haber trafiği alarmları — tek e-postada özet + Gmail iş parçacığı. True döner mail atıldıysa."""
+def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
+    """Haber trafiği alarmları — sent | queued | failed."""
     from backend.services.mailer import is_news_realtime_mail_ready, send_realtime_news_email
 
     if not alarms:
-        return False
+        return "failed"
     if not is_news_realtime_mail_ready():
         logger.warning(
             "Realtime haber alarmı tetiklendi (%d) ancak e-posta gönderilmedi — "
-            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_NEWS_ALERT_EMAIL, SMTP ve MAIL_TO.",
+            "GA4_REALTIME_EMAIL_ENABLED, GA4_REALTIME_NEWS_ALERT_EMAIL, SMTP/Gmail OAuth ve MAIL_TO.",
             len(alarms),
         )
-        return False
+        return "failed"
 
     thread_key = _realtime_email_thread_key(domain, profile)
     html_body = _html_news_alarm_body(domain, profile, alarms, site_kpi=site_kpi or {})
     subject = _email_news_alarm_subject(domain, profile, alarms)
-    return bool(send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key))
+    ok = send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key)
+    return _realtime_email_dispatch_status(bool(ok))
 
 
 def check_news_alarms_for_site(
@@ -3885,8 +3939,14 @@ def check_news_alarms_for_site(
                 to_send = filter_alarms_for_email(_cap_top_n_each_side(to_send))
             if to_send:
                 site_kpi = _get_site_kpi_summary(db, site.id, profile)
-                if _send_news_alarm_email(site.domain, profile, to_send, site_kpi=site_kpi):
-                    _mark_alarms_emailed(db, site.id, [a["rule_id"] for a in to_send], profile=profile)
+                st = _send_news_alarm_email(site.domain, profile, to_send, site_kpi=site_kpi)
+                _commit_realtime_email_mark(
+                    db,
+                    site.id,
+                    [a["rule_id"] for a in to_send],
+                    profile=profile,
+                    status=st,
+                )
 
     return alarms
 

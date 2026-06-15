@@ -95,11 +95,48 @@ def _combined_realtime_subject(items: list[tuple[str, str]]) -> str:
 
 
 def realtime_email_batch_begin() -> None:
-    """Batch toplamayı başlat — bu thread'deki send_realtime_email çağrıları biriktirilir."""
+    """Batch toplamayı başlat — ertelenmiş içerik varsa korunur."""
     global _pending_realtime_batch_items
+    if getattr(_batch_ctx, "collecting", False) and getattr(_batch_ctx, "items", None):
+        return
     _batch_ctx.collecting = True
-    _batch_ctx.items = list(_pending_realtime_batch_items)
+    merged = list(_pending_realtime_batch_items)
     _pending_realtime_batch_items = []
+    _batch_ctx.items = merged
+    if not getattr(_batch_ctx, "pending_marks", None):
+        _batch_ctx.pending_marks = []
+
+
+def realtime_email_batch_note_mark(
+    site_id: int,
+    rule_ids: list[str],
+    *,
+    profile: str | None = None,
+) -> None:
+    """Konsolide mail gerçekten gittikten sonra işaretlenecek alarm kayıtları."""
+    if not getattr(_batch_ctx, "collecting", False):
+        return
+    if not rule_ids:
+        return
+    marks: list[dict] = getattr(_batch_ctx, "pending_marks", None) or []
+    marks.append(
+        {
+            "site_id": int(site_id),
+            "rule_ids": [str(r) for r in rule_ids],
+            "profile": profile,
+        }
+    )
+    _batch_ctx.pending_marks = marks
+
+
+def realtime_email_batch_take_pending_marks() -> list[dict]:
+    marks = list(getattr(_batch_ctx, "pending_marks", []) or [])
+    _batch_ctx.pending_marks = []
+    return marks
+
+
+def realtime_email_batch_is_collecting() -> bool:
+    return bool(getattr(_batch_ctx, "collecting", False))
 
 
 def _realtime_batch_is_urgent(items: list[tuple[str, str]]) -> bool:
@@ -123,9 +160,8 @@ def realtime_email_batch_flush() -> bool:
     if not getattr(_batch_ctx, "collecting", False):
         return False
     items: list[tuple[str, str]] = list(getattr(_batch_ctx, "items", []))
-    _batch_ctx.collecting = False
-    _batch_ctx.items = []
     if not items:
+        _batch_ctx.collecting = False
         return False
 
     from backend.config import settings
@@ -135,13 +171,15 @@ def realtime_email_batch_flush() -> bool:
     if min_gap_min > 0 and _last_realtime_batch_sent_at is not None and not urgent:
         elapsed = time.time() - _last_realtime_batch_sent_at
         if elapsed < min_gap_min * 60:
-            _pending_realtime_batch_items.extend(items)
-            logging.warning(
-                "SEO Realtime konsolide mail ertelendi (%d dk minimum aralık); %d bölüm kuyruğa alındı.",
+            logging.info(
+                "SEO Realtime konsolide mail ertelendi (%d dk minimum aralık, %d bölüm sonraki döngüde).",
                 min_gap_min,
                 len(items),
             )
             return False
+
+    _batch_ctx.collecting = False
+    _batch_ctx.items = []
 
     total_sections = len(items)
     max_sections = int(getattr(settings, "ga4_realtime_email_batch_max_sections", 8))
@@ -175,11 +213,12 @@ def realtime_email_batch_flush() -> bool:
     if ok:
         _last_realtime_batch_sent_at = time.time()
     else:
+        _batch_ctx.collecting = True
+        _batch_ctx.items = items
         _pending_realtime_batch_items.extend(items)
-        logging.error(
-            "SEO Realtime konsolide mail gönderilemedi; %d bölüm kuyruğa alındı (konu=%s).",
+        logging.warning(
+            "SEO Realtime konsolide mail gönderilemedi; %d bölüm sonraki döngüye bırakıldı.",
             len(items),
-            combined_subject[:80],
         )
     return ok
 
@@ -338,12 +377,29 @@ def _smtp_configured() -> bool:
     return all(value and value.strip() and not value.startswith("local-") for value in required)
 
 
+def _gmail_oauth_outbound_ready() -> bool:
+    """Inbox OAuth bağlıysa SMTP olmadan da giden posta mümkün."""
+    try:
+        from backend.database import SessionLocal
+        from backend.services.inbox_gmail_auth import load_inbox_credentials
+
+        with SessionLocal() as db:
+            creds = load_inbox_credentials(db)
+            return bool(creds and creds.refresh_token)
+    except Exception:
+        return False
+
+
+def _realtime_outbound_transport_ready() -> bool:
+    return _smtp_configured() or _gmail_oauth_outbound_ready()
+
+
 def is_realtime_mail_ready() -> bool:
-    """GA4 Realtime site/KPI alarm postası gönderilebilir mi (SMTP + alıcı + email bayrağı)."""
+    """GA4 Realtime site/KPI alarm postası gönderilebilir mi (SMTP veya Gmail OAuth + alıcı)."""
     if not settings.ga4_realtime_email_enabled:
         return False
     default_recipient_list = default_mail_recipients()
-    return _smtp_configured() and bool(default_recipient_list)
+    return _realtime_outbound_transport_ready() and bool(default_recipient_list)
 
 
 def is_page_alarm_mail_ready() -> bool:
@@ -353,7 +409,7 @@ def is_page_alarm_mail_ready() -> bool:
     if not settings.ga4_realtime_page_alert_email:
         return False
     default_recipient_list = default_mail_recipients()
-    return _smtp_configured() and bool(default_recipient_list)
+    return _realtime_outbound_transport_ready() and bool(default_recipient_list)
 
 
 def is_news_realtime_mail_ready() -> bool:
@@ -363,7 +419,7 @@ def is_news_realtime_mail_ready() -> bool:
     if not settings.ga4_realtime_news_alert_email:
         return False
     default_recipient_list = default_mail_recipients()
-    return _smtp_configured() and bool(default_recipient_list)
+    return _realtime_outbound_transport_ready() and bool(default_recipient_list)
 
 
 def is_mail_configured() -> bool:
@@ -605,8 +661,10 @@ def send_realtime_email(
         return False
 
     recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
-    if not _smtp_configured():
-        logging.warning("GA4 Realtime e-postası gönderilemedi: SMTP yapılandırması eksik (Host/User/Pass/From kontrol edin)")
+    if not _realtime_outbound_transport_ready():
+        logging.warning(
+            "GA4 Realtime e-postası gönderilemedi: SMTP yapılandırması veya Gmail OAuth (inbox) gerekli"
+        )
         return False
     if not recipient_list:
         logging.warning("GA4 Realtime e-postası gönderilemedi: Alıcı listesi (MAIL_TO) boş")
@@ -666,8 +724,8 @@ def send_realtime_news_email(
         return False
 
     recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
-    if not _smtp_configured():
-        logging.warning("GA4 Realtime haber e-postası gönderilemedi: SMTP yapılandırması eksik")
+    if not _realtime_outbound_transport_ready():
+        logging.warning("GA4 Realtime haber e-postası gönderilemedi: SMTP veya Gmail OAuth gerekli")
         return False
     if not recipient_list:
         logging.warning("GA4 Realtime haber e-postası gönderilemedi: Alıcı listesi boş")

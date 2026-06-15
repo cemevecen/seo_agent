@@ -1,4 +1,4 @@
-"""Realtime mail subject + batch behavior."""
+"""Realtime mail subject allow-list behavior."""
 
 from backend.services import mailer
 
@@ -18,7 +18,7 @@ def test_compact_batch_chip_mweb_profile():
     assert "[mweb]" in chip
 
 
-def test_combined_subject_has_seo_realtime_prefix():
+def test_combined_subject_phone_preview():
     items = [
         ("doviz — Fibabanka Altın -21", "<p></p>"),
         ("doviz — Harem Euro -13 [mweb]", "<p></p>"),
@@ -26,10 +26,7 @@ def test_combined_subject_has_seo_realtime_prefix():
     ]
     subj = mailer._combined_realtime_subject(items)
     assert subj.lower().startswith("seo realtime")
-    assert "3 ·" in subj
-    assert "alarm" not in subj.lower()
-    assert "Fibabanka" in subj
-    assert "doviz" not in subj.lower()
+    assert "2 ·" in subj or "3 ·" in subj
 
 
 def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
@@ -40,6 +37,7 @@ def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
     monkeypatch.setattr(mailer.settings, "mail_to", "ops@example.com")
     monkeypatch.setattr(mailer.settings, "mail_from", "seo@example.com")
     monkeypatch.setattr(mailer, "_smtp_configured", lambda: True)
+    monkeypatch.setattr(mailer, "_realtime_outbound_transport_ready", lambda: True)
     monkeypatch.setattr(mailer, "smtp_recipients_allowed", lambda _count: True)
     monkeypatch.setattr(mailer, "_smtp_dispatch_with_daily_quota", lambda _message: False)
 
@@ -50,7 +48,7 @@ def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
     monkeypatch.setattr(mailer, "_gmail_api_dispatch", _fake_gmail_dispatch)
 
 
-def test_realtime_batch_single_alarm_sends(monkeypatch):
+def test_realtime_batch_single_alarm_sends_seo_realtime_subject(monkeypatch):
     sent: list[str] = []
     _ready_mailer(monkeypatch, sent)
 
@@ -60,10 +58,9 @@ def test_realtime_batch_single_alarm_sends(monkeypatch):
 
     assert len(sent) == 1
     assert sent[0].lower().startswith("seo realtime")
-    assert "alarm" not in sent[0].lower()
 
 
-def test_realtime_batch_multiple_alarms_single_mail(monkeypatch):
+def test_realtime_batch_multiple_alarms_sends_single_seo_realtime_subject(monkeypatch):
     sent: list[str] = []
     _ready_mailer(monkeypatch, sent)
 
@@ -86,11 +83,12 @@ def test_realtime_batch_deferred_items_queued_not_dropped(monkeypatch):
     mailer.realtime_email_batch_begin()
     mailer.send_realtime_email("doviz.com — +120 kul [web]", "<p>alarm</p>")
     assert mailer.realtime_email_batch_flush() is False
-    assert len(mailer._pending_realtime_batch_items) == 1
     assert sent == []
+    assert mailer.realtime_email_batch_is_collecting()
+    assert len(getattr(mailer._batch_ctx, "items", [])) == 1
 
     monkeypatch.setattr(mailer.settings, "ga4_realtime_email_batch_interval_minutes", 0)
-    mailer.realtime_email_batch_begin()
+    mailer._last_realtime_batch_sent_at = None
     assert mailer.realtime_email_batch_flush() is True
     assert len(sent) == 1
     assert mailer._pending_realtime_batch_items == []

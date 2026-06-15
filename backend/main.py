@@ -14738,7 +14738,9 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
         from backend.services.mailer import (
             realtime_email_batch_begin,
             realtime_email_batch_flush,
+            realtime_email_batch_take_pending_marks,
         )
+        from backend.services.ga4_realtime import apply_realtime_batch_email_marks
 
         total_site_alarms = 0
         total_page_alarms = 0
@@ -14762,7 +14764,12 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
                 total_site_alarms += len(res["alarms"])
 
         if is_night and not force_run:
-            realtime_email_batch_flush()
+            flushed = realtime_email_batch_flush()
+            if flushed:
+                marks = realtime_email_batch_take_pending_marks()
+                if marks:
+                    with SessionLocal() as db:
+                        apply_realtime_batch_email_marks(db, marks)
             LOGGER.info(
                 "GA4 Realtime: Gece modu — %d KPI snapshot güncellendi (alarm/sayfa/haber atlandı).",
                 len(results),
@@ -14801,7 +14808,12 @@ def _run_ga4_realtime_check_job(force_run: bool = False) -> dict[str, Any]:
             LOGGER.warning("App event check hatası: %s", exc)
 
         # Tüm alarmlar toplandı — tek mail olarak gönder
-        realtime_email_batch_flush()
+        flushed = realtime_email_batch_flush()
+        if flushed:
+            marks = realtime_email_batch_take_pending_marks()
+            if marks:
+                with SessionLocal() as db:
+                    apply_realtime_batch_email_marks(db, marks)
 
         total = total_site_alarms + total_page_alarms + total_news_alarms + total_404_alarms + total_app_event_alarms
         LOGGER.info(
