@@ -98,6 +98,20 @@
       flex-wrap: nowrap;
     }
   }
+  @media (max-width: 639px) {
+    .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] {
+      table-layout: auto !important;
+      width: max-content !important;
+      min-width: min(100%, 32rem) !important;
+    }
+    .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] th:first-child,
+    .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table] td:first-child {
+      width: auto !important;
+      max-width: min(70vw, 18rem) !important;
+      white-space: normal !important;
+      word-break: break-word !important;
+    }
+  }
   .ga4-motion-wave {
     display: inline-flex;
     align-items: flex-end;

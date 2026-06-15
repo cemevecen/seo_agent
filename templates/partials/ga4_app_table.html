@@ -26,7 +26,7 @@
   {% else %}
   {# overflow-x-auto + min-width > viewport → mobilde yatay scroll aktif #}
   <div class="overflow-x-auto overscroll-x-contain" style="-webkit-overflow-scrolling:touch;">
-    <table class="table-fixed text-xs" style="min-width:30rem;width:100%;" data-ga4-table>
+    <table class="table-fixed text-xs sm:table-fixed" style="min-width:30rem;width:max-content;max-width:none;" data-ga4-table>
       <colgroup>
         {# İsim sütunu: sticky, geri kalan alana yayılır #}
         <col style="width:10rem;min-width:8rem;" />

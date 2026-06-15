@@ -246,6 +246,20 @@
     width: 100%;
     writing-mode: horizontal-tb;
   }
+  @media (max-width: 639px) {
+    #bl-domains-table {
+      table-layout: auto !important;
+      min-width: 40rem;
+    }
+    #bl-domains-table th,
+    #bl-domains-table td {
+      white-space: normal !important;
+    }
+    #bl-domains-table .bl-col-num,
+    #bl-domains-table td.tabular-nums {
+      white-space: nowrap !important;
+    }
+  }
   #bl-domains-table th,
   #bl-domains-table td {
     writing-mode: horizontal-tb;

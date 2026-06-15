@@ -206,6 +206,10 @@
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    writing-mode: horizontal-tb;
   }
   html:not(.dark) .rt-alarm--up {
     background: #ecfdf5;
@@ -366,14 +370,31 @@
   }
   .rt-alarm-site-table-wrap {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
     border-radius: 0.5rem;
+    max-width: 100%;
   }
   .rt-alarm-site-table {
     width: 100%;
+    min-width: 0;
     border-collapse: separate;
     border-spacing: 0 0.35rem;
     font-size: 0.8125rem;
     font-weight: 500;
+  }
+  @media (min-width: 640px) {
+    .rt-alarm-site-table {
+      table-layout: fixed;
+      min-width: 36rem;
+    }
+  }
+  .rt-alarm-site-table .rt-alarm-cell {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
   }
   .rt-alarm-site-table thead th {
     text-align: left;
@@ -445,6 +466,154 @@
     font-weight: 800;
     text-align: center;
     width: 2.25rem;
+  }
+  .rt-alarm-mobile-dir {
+    display: none;
+  }
+  @media (max-width: 639px) {
+    .realtime-root :where(.rt-surface-solid) {
+      padding: 0.875rem !important;
+    }
+    #rt-alarms-global .mb-4.flex.gap-1 {
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    .rt-alarm-tab-active,
+    .rt-alarm-tab-inactive {
+      padding: 0.45rem 0.55rem;
+      font-size: 0.75rem;
+      flex: 1 1 auto;
+      min-width: 0;
+      text-align: center;
+      white-space: normal;
+      line-height: 1.25;
+    }
+    .rt-alarm-site-table-wrap {
+      overflow-x: visible;
+    }
+    .rt-alarm-site-table {
+      border-spacing: 0 0.5rem;
+    }
+    .rt-alarm-site-table thead {
+      display: none;
+    }
+    .rt-alarm-site-table tbody tr {
+      display: block;
+      border-radius: 0.625rem;
+      overflow: hidden;
+      border: 1px solid rgb(226 232 240);
+    }
+    html.dark .rt-alarm-site-table tbody tr {
+      border-color: rgb(63 63 70);
+    }
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--up td,
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--down td,
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--warn td,
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--info td,
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--crit td,
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--up td,
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--down td,
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--warn td,
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--info td,
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--crit td {
+      background: transparent !important;
+    }
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--up {
+      background: #ecfdf5;
+      border-color: #6ee7b7;
+      color: #065f46;
+    }
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--down {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--warn {
+      background: #fffbeb;
+      border-color: #fde68a;
+      color: #92400e;
+    }
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--info {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #1e3a8a;
+    }
+    html:not(.dark) .rt-alarm-site-table tbody tr.rt-alarm--crit {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      color: #7f1d1d;
+    }
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--up {
+      background: rgba(6, 78, 59, 0.55);
+      border-color: rgba(52, 211, 153, 0.35);
+      color: #d1fae5;
+    }
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--down {
+      background: rgba(88, 28, 28, 0.55);
+      border-color: rgba(248, 113, 113, 0.35);
+      color: #fecaca;
+    }
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--warn,
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--info,
+    html.dark .rt-alarm-site-table tbody tr.rt-alarm--crit {
+      background: rgba(120, 53, 15, 0.35);
+      border-color: rgba(251, 191, 36, 0.35);
+      color: #fef3c7;
+    }
+    .rt-alarm-site-table tbody td {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.65rem;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      padding: 0.4rem 0.75rem;
+      text-align: right;
+      border-radius: 0 !important;
+    }
+    .rt-alarm-site-table tbody td::before {
+      content: attr(data-label);
+      flex: 0 1 42%;
+      font-weight: 800;
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.72;
+      text-align: left;
+      line-height: 1.35;
+      white-space: normal;
+    }
+    .rt-alarm-site-table tbody td.rt-alarm-cell--site {
+      display: block;
+      padding: 0.55rem 0.75rem 0.35rem;
+      font-size: 0.9375rem;
+      font-weight: 800;
+      text-align: left;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    html.dark .rt-alarm-site-table tbody td.rt-alarm-cell--site {
+      border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
+    .rt-alarm-site-table tbody td.rt-alarm-cell--site::before {
+      display: none;
+    }
+    .rt-alarm-site-table tbody td.rt-alarm-site-dir {
+      display: none;
+    }
+    .rt-alarm-site-table tbody td.rt-alarm-cell--pct {
+      font-weight: 800;
+    }
+    .rt-alarm-mobile-dir {
+      display: inline;
+      margin-right: 0.35rem;
+      font-weight: 900;
+    }
+    .rt-alarm-row {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      writing-mode: horizontal-tb;
+    }
   }
   /* Etkinlik listesi kaydırma çubuğu */
   .rt-scroll-area {
@@ -1652,7 +1821,7 @@
   {% endfor %}
 
   {# Global alarms #}
-  <div class="rt-surface-solid rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none" id="rt-alarms-global">
+  <div class="rt-surface-solid rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700/90 dark:shadow-none sm:p-6" id="rt-alarms-global">
     <div class="mb-4 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
         <h3 class="text-base font-extrabold text-slate-800 dark:text-slate-200">Son Alarmlar</h3>
@@ -3853,22 +4022,22 @@
       var shortLab = _siteShortLabel(a.site_id) || dom;
       return (
         '<tr class="' + sev + '">' +
-        '<td class="rt-alarm-site-dir" style="width:35px" title="' + _esc(dirTitle) + '">' + _esc(dir) + '</td>' +
-        '<td style="min-width:80px"><span title="' + _esc(dom) + '">' + _esc(shortLab) + '</span></td>' +
-        '<td style="width:60px">' + _esc(prof) + '</td>' +
-        '<td style="min-width:120px" class="font-bold">' + _esc(_rtMetricTr(metricKey)) + '</td>' +
-        '<td class="tabular-nums" style="width:60px">' + _esc(String(Math.round(prev))) + '</td>' +
-        '<td class="tabular-nums" style="width:60px">' + _esc(String(Math.round(cur))) + '</td>' +
-        '<td class="tabular-nums font-extrabold" style="width:70px">' + 
-           _esc((pctStr >= 0 ? '+' : '') + pctStr.toFixed(1) + '%') + 
-           '<div class="text-[9px] opacity-70 font-normal">Fark: ' + (cur - prev).toFixed(0) + '</div>' +
+        '<td class="rt-alarm-site-dir rt-alarm-cell" data-label="Yön" title="' + _esc(dirTitle) + '">' + _esc(dir) + '</td>' +
+        '<td class="rt-alarm-cell rt-alarm-cell--site" data-label="Site"><span class="rt-alarm-mobile-dir" aria-hidden="true">' + _esc(dir) + '</span><span title="' + _esc(dom) + '">' + _esc(shortLab) + '</span></td>' +
+        '<td class="rt-alarm-cell" data-label="Profil">' + _esc(prof) + '</td>' +
+        '<td class="rt-alarm-cell rt-alarm-cell--metric font-bold">' + _esc(_rtMetricTr(metricKey)) + '</td>' +
+        '<td class="rt-alarm-cell tabular-nums" data-label="Önceki">' + _esc(String(Math.round(prev))) + '</td>' +
+        '<td class="rt-alarm-cell tabular-nums" data-label="Şimdi">' + _esc(String(Math.round(cur))) + '</td>' +
+        '<td class="rt-alarm-cell rt-alarm-cell--pct tabular-nums font-extrabold" data-label="% / Fark">' +
+           _esc((pctStr >= 0 ? '+' : '') + pctStr.toFixed(1) + '%') +
+           '<div class="text-[9px] opacity-70 font-normal sm:inline sm:ml-1">Fark: ' + (cur - prev).toFixed(0) + '</div>' +
         '</td>' +
-        '<td class="tabular-nums text-[10px] opacity-80" style="width:50px">' + _esc(dt) + '</td>' +
+        '<td class="rt-alarm-cell tabular-nums text-[10px] opacity-80" data-label="Saat">' + _esc(dt) + '</td>' +
         '</tr>'
       );
     }).join('');
     listEl.innerHTML =
-      '<table class="rt-alarm-site-table" role="grid" style="table-layout:fixed">' +
+      '<table class="rt-alarm-site-table" role="grid">' +
       '<thead><tr>' +
       '<th scope="col" style="width:35px">Yön</th>' +
       '<th scope="col" style="min-width:80px">Site</th>' +

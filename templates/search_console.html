@@ -81,9 +81,29 @@
     width: 5.25rem;
   }
   @media (max-width: 640px) {
+    .sc-extra-table {
+      table-layout: auto;
+      min-width: 100% !important;
+    }
+    .sc-extra-table[data-sc-cols="6"],
+    .sc-extra-table[data-sc-cols="5"] {
+      min-width: 100% !important;
+    }
+    .sc-extra-th-text,
+    .sc-extra-td-text {
+      max-width: none !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+    }
     .sc-extra-table { font-size: 10px; }
     .sc-extra-th-num, .sc-extra-td-num { width: 3.75rem; min-width: 3.75rem; }
     .sc-extra-col-metric { width: 3.75rem; }
+    .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
+      table-layout: auto !important;
+      min-width: 36rem !important;
+      width: max-content !important;
+    }
   }
   [data-sc-extras-root].sc-extras-grid--single {
     grid-template-columns: minmax(0, 1fr);
@@ -156,6 +176,12 @@
   }
   [data-sc-period-panel="12m"] [data-search-console-trend] {
     min-height: 260px;
+  }
+  [data-sc-period-switch] button,
+  [data-search-console-device-switch] button,
+  [data-sc-table-switch] button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   #sc-cwv-lightbox::backdrop {
     background: rgba(15, 23, 42, 0.72);
@@ -955,6 +981,17 @@
     });
   }
 
+  function scRunWhenIdle(fn, timeoutMs) {
+    var t = timeoutMs == null ? 600 : timeoutMs;
+    window.requestAnimationFrame(function () {
+      if (window.requestIdleCallback) {
+        window.requestIdleCallback(fn, { timeout: t });
+      } else {
+        window.setTimeout(fn, 16);
+      }
+    });
+  }
+
   function scTrendLineColors() {
     var dark =
       document.documentElement.classList.contains('dark') ||
@@ -1082,6 +1119,11 @@
           const th = window.seoPlotlyTheme
             ? window.seoPlotlyTheme()
             : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569', muted: '#64748b', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)' };
+          var plotConfig = { displayModeBar: false, responsive: true, scrollZoom: false, doubleClick: false };
+          if (isLongDaily && window.matchMedia('(pointer: coarse)').matches) {
+            plotConfig.staticPlot = true;
+          }
+          var runPlot = function () {
           Plotly.newPlot(
             element,
             traces,
@@ -1147,7 +1189,7 @@
               hovermode: 'x unified',
               dragmode: false,
             },
-            { displayModeBar: false, responsive: true, scrollZoom: false, doubleClick: false }
+            plotConfig
           ).then(function () {
             element.dataset.chartReady = '1';
             window.requestAnimationFrame(function () {
@@ -1157,6 +1199,12 @@
               Plotly.Plots.resize(element);
             }, 150);
           });
+          };
+          if (isLongDaily) {
+            scRunWhenIdle(runPlot, 900);
+          } else {
+            runPlot();
+          }
         } catch (error) {
           console.warn('Search Console trend render failed:', error);
         }
@@ -1168,6 +1216,9 @@
 
   function initSearchConsoleTables(root) {
     (root || document).querySelectorAll('[data-search-console-table]').forEach(function (table) {
+      if (table.closest('.hidden')) {
+        return;
+      }
       if (table.dataset.tableReady === '1') {
         return;
       }
@@ -1282,19 +1333,24 @@
           button.classList.toggle('dark:text-slate-300', !isActive);
         });
         const activePeriod = hostCard ? hostCard.querySelector('[data-sc-period-panel]:not(.hidden)') : null;
-        const scope = activePeriod || hostCard;
-        if (scope) {
-          scope.querySelectorAll('[data-device-panel]').forEach(function (panel) {
+        if (activePeriod) {
+          activePeriod.querySelectorAll('[data-device-panel]').forEach(function (panel) {
+            const isActive = panel.dataset.devicePanel === deviceKey;
+            panel.classList.toggle('hidden', !isActive);
+          });
+        } else if (hostCard) {
+          hostCard.querySelectorAll('[data-device-panel]').forEach(function (panel) {
             const isActive = panel.dataset.devicePanel === deviceKey;
             panel.classList.toggle('hidden', !isActive);
           });
         }
         syncSearchConsoleDateHint(hostCard);
-        window.setTimeout(function () {
-          initSearchConsoleTables(hostCard);
-          renderSearchConsoleTrendCharts(hostCard);
-          fitSearchConsoleText(hostCard);
-        }, 40);
+        var scope = activePeriod || hostCard;
+        scRunWhenIdle(function () {
+          initSearchConsoleTables(scope);
+          renderSearchConsoleTrendCharts(scope);
+          fitSearchConsoleText(scope);
+        }, 400);
       };
 
       buttons.forEach(function (button) {
@@ -1363,12 +1419,13 @@
           });
         }
         syncSearchConsoleDateHint(hostCard);
-        window.setTimeout(function () {
+        var visiblePeriod = hostCard && hostCard.querySelector('[data-sc-period-panel]:not(.hidden)');
+        scRunWhenIdle(function () {
           syncDeviceForActivePeriod();
-          initSearchConsoleTables(hostCard);
-          renderSearchConsoleTrendCharts(hostCard);
-          fitSearchConsoleText(hostCard);
-        }, 40);
+          initSearchConsoleTables(visiblePeriod || hostCard);
+          renderSearchConsoleTrendCharts(visiblePeriod || hostCard);
+          fitSearchConsoleText(visiblePeriod || hostCard);
+        }, periodKey === '12m' ? 900 : 400);
       };
 
       buttons.forEach(function (button) {

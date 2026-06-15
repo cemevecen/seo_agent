@@ -28,6 +28,31 @@
   }
   html.dark .inbox-ziyaret-table td.inbox-ziyaret-url a { color: #93c5fd; }
   .inbox-ziyaret-table td.inbox-ziyaret-url a:hover { text-decoration: underline; }
+  @media (max-width: 639px) {
+    .inbox-ziyaret-table {
+      table-layout: auto !important;
+      width: max-content !important;
+      min-width: 100% !important;
+    }
+    .inbox-ziyaret-table th,
+    .inbox-ziyaret-table td {
+      white-space: normal !important;
+      writing-mode: horizontal-tb !important;
+      word-break: break-word;
+    }
+    .inbox-ziyaret-table th.inbox-ziyaret-url,
+    .inbox-ziyaret-table td.inbox-ziyaret-url {
+      min-width: 10rem !important;
+      max-width: min(72vw, 22rem) !important;
+      width: auto !important;
+    }
+    .inbox-ziyaret-table td.inbox-ziyaret-url a {
+      white-space: normal !important;
+      word-break: break-all;
+      overflow: visible;
+      text-overflow: clip;
+    }
+  }
   .inbox-ziyaret-table td.inbox-ziyaret-up { color: #15803d; font-weight: 700; background: #f0fdf4; }
   html.dark .inbox-ziyaret-table td.inbox-ziyaret-up { color: #86efac; background: #14532d33; }
   .inbox-ziyaret-table td.inbox-ziyaret-down { color: #b91c1c; font-weight: 700; background: #fef2f2; }

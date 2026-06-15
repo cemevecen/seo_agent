@@ -556,6 +556,58 @@
     #content :where(.overflow-x-auto table:not(.table-fixed), .overflow-x-scroll table:not(.table-fixed)) {
       min-width: max-content;
     }
+
+    /* Mobil: dar sütunda dikey harf kırılması + ezilmiş fixed tablolar */
+    @media (max-width: 639px) {
+      #content :where(table.table-fixed, table[style*="table-layout:fixed"], table[style*="table-layout: fixed"]) {
+        table-layout: auto !important;
+      }
+      #content :where(th, td) {
+        writing-mode: horizontal-tb !important;
+        text-orientation: mixed !important;
+        min-width: 0;
+      }
+      #content :where(th, td):is(.tabular-nums, .text-right, .whitespace-nowrap, [class*="text-right"]) {
+        white-space: nowrap !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+      }
+      #content :where(th, td):not(.whitespace-nowrap):not(.tabular-nums) {
+        white-space: normal !important;
+      }
+      #content :where(.sc-extra-th-text, .sc-extra-td-text) {
+        max-width: none !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+      }
+      #content .sc-split--focused :where(table[data-search-console-table]),
+      #content .ga4-split--focused :where(table[data-ga4-table]) {
+        table-layout: auto !important;
+        width: max-content !important;
+        min-width: min(100%, 36rem) !important;
+      }
+      #content .notification-page .nt-cross-top-table {
+        table-layout: auto !important;
+      }
+      #content :where(.overflow-x-auto, .overflow-x-scroll, .bl-table-scroll, .nt-raw-text-cell, .sc-extra-table-wrap, .rt-alarm-site-table-wrap) {
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+      }
+      #content :where(pre:not(.whitespace-pre), code) {
+        white-space: pre-wrap !important;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      #content :where(.break-all, .truncate, [class*="truncate"]) {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      #content table :where(a, span, p) {
+        writing-mode: horizontal-tb !important;
+      }
+    }
   </style>
   <style id="seo-mz-page-layout">
     /* /ad düzeni — prod app.css purge/çakışması ya da grid quirk'i olsa bile içerik
@@ -1314,9 +1366,32 @@
     html.midnight .header-nav-link.nav-active::after {
       color: #52525b;
     }
-    .header-nav-dropdown { position: relative; flex-shrink: 0; z-index: 1; }
+    .header-nav-dropdown {
+      position: relative;
+      flex-shrink: 0;
+      z-index: 1;
+      touch-action: manipulation;
+    }
     .header-nav-dropdown.is-open { z-index: 300; }
-    .header-nav-dropdown-trigger { cursor: pointer; }
+    .header-nav-dropdown-trigger {
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .header-nav-dropdown-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 298;
+      background: rgba(15, 23, 42, 0.12);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html.dark .header-nav-dropdown-backdrop,
+    html.midnight .header-nav-dropdown-backdrop {
+      background: rgba(0, 0, 0, 0.35);
+    }
+    .header-nav-dropdown.is-open .header-nav-dropdown-backdrop { display: block; }
     .header-nav-dropdown-menu {
       display: none; position: absolute; top: calc(100% + 6px); right: 0; left: auto; z-index: 301;
       min-width: 14rem; max-width: min(18rem, 92vw); max-height: 70vh; overflow-y: auto;
@@ -1343,8 +1418,11 @@
     }
     html.dark .header-nav-dropdown-group { color: rgb(113 113 122); }
     .header-nav-dropdown-menu a {
-      display: block; border-radius: 0.5rem; padding: 0.35rem 0.5rem;
+      display: block; border-radius: 0.5rem; padding: 0.5rem 0.55rem;
+      min-height: 2.75rem;
       font-size: 11px; font-weight: 600; color: rgb(51 65 85); text-decoration: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     html.dark .header-nav-dropdown-menu a { color: rgb(212 212 216); }
     .header-nav-dropdown-menu a:hover { background: rgb(241 245 249); }
@@ -1475,6 +1553,7 @@
               <a href="/ai" data-nav-match="/ai" class="header-nav-link">ai</a>
               <div class="header-nav-dropdown" id="header-trend-dropdown" data-nav-match="/trend,/karma">
                 <button type="button" class="header-nav-link header-nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">trend ▾</button>
+                <div class="header-nav-dropdown-backdrop" aria-hidden="true" tabindex="-1"></div>
                 <div class="header-nav-dropdown-menu" role="menu">
                   {% set trend_nav = [
                     ("Keşif", [("trend-radar","Trend Radar"),("query-haber","Query → Haber"),("seasonality","Seasonality"),("anomaly-tree","Anomaly Ağacı")]),
@@ -1623,7 +1702,11 @@
         if (!wrap) return;
         var btn = wrap.querySelector('.header-nav-dropdown-trigger');
         var menu = wrap.querySelector('.header-nav-dropdown-menu');
+        var backdrop = wrap.querySelector('.header-nav-dropdown-backdrop');
         if (!btn || !menu) return;
+
+        var ignoreOutsideUntil = 0;
+        var bodyScrollLock = '';
 
         function closeMenu() {
           wrap.classList.remove('is-open');
@@ -1633,6 +1716,7 @@
           menu.style.left = '';
           menu.style.right = '';
           menu.style.maxHeight = '';
+          document.body.style.overflow = bodyScrollLock;
         }
 
         function positionMenu() {
@@ -1651,23 +1735,42 @@
         }
 
         function openMenu() {
+          ignoreOutsideUntil = Date.now() + 400;
+          if (!wrap.classList.contains('is-open')) {
+            bodyScrollLock = document.body.style.overflow || '';
+            if (window.matchMedia('(max-width: 1023px)').matches) {
+              document.body.style.overflow = 'hidden';
+            }
+          }
           wrap.classList.add('is-open');
           btn.setAttribute('aria-expanded', 'true');
           positionMenu();
         }
 
-        btn.addEventListener('click', function (e) {
+        function toggleFromPointer(e) {
+          if (e && e.pointerType === 'mouse' && e.button !== 0) return;
           e.preventDefault();
           e.stopPropagation();
           if (wrap.classList.contains('is-open')) closeMenu();
           else openMenu();
-        });
+        }
+
+        btn.addEventListener('click', toggleFromPointer);
 
         menu.addEventListener('click', function (e) {
           e.stopPropagation();
         });
 
+        if (backdrop) {
+          backdrop.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeMenu();
+          });
+        }
+
         document.addEventListener('click', function (e) {
+          if (Date.now() < ignoreOutsideUntil) return;
           if (wrap.contains(e.target)) return;
           closeMenu();
         });

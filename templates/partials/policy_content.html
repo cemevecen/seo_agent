@@ -70,9 +70,9 @@
     <button type="button" onclick="clearSearch()" class="rounded px-2 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800">temizle</button>
   </div>
 
-  <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-    <div class="overflow-x-auto">
-      <table id="policy-table" class="w-full border-collapse text-xs" style="table-layout:fixed;min-width:900px">
+  <div class="max-w-full min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+      <table id="policy-table" class="w-full border-collapse text-xs" style="min-width:900px">
         <colgroup>
           <col style="width:36px">      {# # #}
           <col style="width:30px">      {# Kopya #}

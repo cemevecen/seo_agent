@@ -383,6 +383,40 @@
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }
     }
+    @media (max-width: 639px) {
+      .notification-page .nt-cross-top-table {
+        table-layout: auto !important;
+        min-width: 36rem !important;
+      }
+      .notification-page .nt-cross-top-table th,
+      .notification-page .nt-cross-top-table td {
+        white-space: normal !important;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        writing-mode: horizontal-tb !important;
+      }
+      .notification-page .nt-cross-top-table .nt-cross-title {
+        width: auto !important;
+        min-width: 8rem !important;
+        max-width: none !important;
+        white-space: normal !important;
+      }
+      .notification-page .nt-gsc-queries-table th:first-child,
+      .notification-page .nt-gsc-queries-table td:first-child {
+        max-width: none !important;
+        white-space: normal !important;
+        word-break: break-word;
+      }
+      .notification-page .nt-gsc-queries-table th,
+      .notification-page .nt-gsc-queries-table td {
+        white-space: normal !important;
+      }
+      .nt-raw-text-cell {
+        max-width: none !important;
+        white-space: normal !important;
+        display: block;
+      }
+    }
   </style>
   <details id="nt-ham-list-details" open class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <summary class="cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200">Ham içerik listesi</summary>

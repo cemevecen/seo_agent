@@ -107,6 +107,21 @@
     .app-asc-sortable-th[data-sorted="desc"] .app-asc-sort-arrow { opacity: 1; }
     @keyframes app-asc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .app-asc-spin { animation: app-asc-spin 1s linear infinite; display: inline-block; }
+    @media (max-width: 639px) {
+      #app-intel-root :where(table) {
+        table-layout: auto !important;
+      }
+      #app-intel-root :where(th, td) {
+        writing-mode: horizontal-tb !important;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      #app-intel-root :where(th, td).tabular-nums,
+      #app-intel-root :where(th, td).whitespace-nowrap {
+        white-space: nowrap !important;
+        word-break: normal !important;
+      }
+    }
   </style>
   <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-4">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
