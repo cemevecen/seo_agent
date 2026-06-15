@@ -2439,12 +2439,16 @@
       .join('');
   }
 
+  function _sparkFmtTime(d) {
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    return hh + ':' + mm;
+  }
+
   function _sparkFmtClock(d) {
     var DD = String(d.getDate()).padStart(2, '0');
     var MM = String(d.getMonth() + 1).padStart(2, '0');
-    var hh = String(d.getHours()).padStart(2, '0');
-    var mm = String(d.getMinutes()).padStart(2, '0');
-    return DD + '.' + MM + ' ' + hh + ':' + mm;
+    return DD + '.' + MM + ' ' + _sparkFmtTime(d);
   }
 
   function _sparkBucketMs(rangeKey) {
@@ -2455,7 +2459,7 @@
   function _sparkBucketLabel(t0Ms, bucketMs) {
     var d0 = new Date(t0Ms);
     var d1 = new Date(t0Ms + bucketMs - 60000);
-    return _sparkFmtClock(d0) + ' – ' + _sparkFmtClock(d1);
+    return _sparkFmtTime(d0) + '-' + _sparkFmtTime(d1);
   }
 
   /** Sabit duvar saati dilimleri: 15dk/1s → 1 dk, 24s → 15 dk (snapshot sayısına göre değil). */
