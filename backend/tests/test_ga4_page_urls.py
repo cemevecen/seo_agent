@@ -187,3 +187,28 @@ def test_mweb_phantom_category_prefix_stripped():
         assert is_m_doviz_phantom_breadcrumb_url(bad)
         assert repair_seo_audit_url(bad) == good
         assert not is_m_doviz_phantom_breadcrumb_url(good)
+
+
+def test_absolute_audit_href_full_url_unchanged():
+    from backend.services.ga4_page_urls import absolute_audit_href
+
+    u = "https://m.doviz.com/haber/borsa-haberleri/foo/880554"
+    assert absolute_audit_href("www.doviz.com", u) == u
+
+
+def test_absolute_audit_href_relative_path():
+    from backend.services.ga4_page_urls import absolute_audit_href
+
+    assert absolute_audit_href("www.doviz.com", "/kripto-paralar/avalanche") == (
+        "https://www.doviz.com/kripto-paralar/avalanche"
+    )
+
+
+def test_absolute_audit_href_no_double_host():
+    from backend.services.ga4_page_urls import absolute_audit_href
+
+    bad = "https://www.doviz.comhttps://www.doviz.com/foo"
+    # Tam URL ise olduğu gibi (bozuk kayıt ayrı temizlenir); göreli path birleşmez
+    full = "https://www.doviz.com/kripto-paralar/avalanche"
+    assert absolute_audit_href("www.doviz.com", full) == full
+    assert "www.doviz.comhttps" not in absolute_audit_href("www.doviz.com", full)

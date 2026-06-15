@@ -14848,6 +14848,7 @@ def _run_error_report_email_job() -> None:
         from backend.services.error_monitor import get_error_summary, format_error_sources_html
         from backend.services.mailer import error_report_recipients, send_error_report_email
         from backend.models import Site
+        from backend.services.ga4_page_urls import absolute_audit_href
 
         with SessionLocal() as db:
             sites = db.query(Site).order_by(Site.id).all()
@@ -14866,6 +14867,7 @@ def _run_error_report_email_job() -> None:
                 rows = ""
                 for e in errors[:15]:
                     url = e.get("url", "")
+                    href = absolute_audit_href(site.domain, url)
                     ref_html = format_error_sources_html(e, max_refs=3, max_channels=3)
 
                     cnt = e.get("hit_count", 0)
@@ -14873,9 +14875,9 @@ def _run_error_report_email_job() -> None:
                     rows += (
                         f'<tr style="border-bottom:1px solid #f1f5f9">'
                         f'<td style="padding:8px 10px 8px 0;vertical-align:top">'
-                        f'<a href="https://{site.domain}{url}" target="_blank" '
+                        f'<a href="{href}" target="_blank" '
                         f'style="font-family:monospace;font-size:12px;color:#0284c7;text-decoration:none">'
-                        f'{url[:60]}{"…" if len(url) > 60 else ""}</a>'
+                        f'{(url or href)[:60]}{"…" if len(url or href) > 60 else ""}</a>'
                         f'{ref_html}'
                         f'</td>'
                         f'<td style="padding:8px 0;text-align:right;white-space:nowrap;vertical-align:top">'
@@ -14986,8 +14988,10 @@ def _run_meta_audit_snapshot_job() -> None:
 
         # Kritik değişiklik maili
         from datetime import datetime as _dt
+        from backend.services.ga4_page_urls import absolute_audit_href
+
         now_str = _dt.now().strftime("%d.%m.%Y %H:%M")
-        pre_parts = [f'{c["domain"]}{c["url"][:30]}' for c in all_critical[:3]]
+        pre_parts = [absolute_audit_href(c.get("domain"), c.get("url"))[:50] for c in all_critical[:3]]
         filler = "&nbsp;" * 80
         preheader = f'{len(all_critical)} kritik değişiklik · ' + " · ".join(pre_parts)
         rows_html = ""
@@ -14996,10 +15000,12 @@ def _run_meta_audit_snapshot_job() -> None:
                 if d.get("severity") != "critical":
                     continue
                 field_label = {"noindex": "Noindex eklendi", "canonical": "Canonical değişti"}.get(d["field"], d["field"])
+                href = absolute_audit_href(c.get("domain"), c.get("url"))
+                link_text = (c.get("url") or href)[:60]
                 rows_html += (
                     f'<tr style="border-bottom:1px solid #fee2e2">'
                     f'<td style="padding:8px 10px 8px 0;font-family:monospace;font-size:12px;color:#dc2626">'
-                    f'<a href="https://{c["domain"]}{c["url"]}" style="color:#dc2626">{c["url"][:60]}</a></td>'
+                    f'<a href="{href}" style="color:#dc2626">{link_text}</a></td>'
                     f'<td style="padding:8px;font-size:12px;color:#64748b">{field_label}</td>'
                     f'<td style="padding:8px 0;font-size:11px;color:#94a3b8">{str(d.get("old",""))[:40]} → {str(d.get("new",""))[:40]}</td>'
                     f'</tr>'

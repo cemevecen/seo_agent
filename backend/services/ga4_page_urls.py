@@ -21,6 +21,26 @@ def ga4_site_host(domain: str | None) -> str | None:
     return d or None
 
 
+def absolute_audit_href(site_domain: str | None, url: str | None) -> str:
+    """SEO audit / meta alarm: DB'deki tam veya göreli URL → tek https bağlantısı.
+
+    UrlAuditRecord çoğu zaman ``https://m.doviz.com/...`` tam URL tutar; ``https://{domain}{url}``
+    birleştirmesi ``https://www.doviz.comhttps://...`` üretir.
+    """
+    raw = (url or "").strip()
+    if not raw:
+        dom = (site_domain or "").strip().rstrip("/")
+        return f"https://{dom}" if dom else ""
+    low = raw.lower()
+    if low.startswith("https://") or low.startswith("http://"):
+        return raw
+    if raw.startswith("//"):
+        return "https:" + raw
+    dom = (site_domain or "").strip().rstrip("/")
+    path = raw if raw.startswith("/") else "/" + raw
+    return f"https://{dom}{path}" if dom else raw
+
+
 _DOVIZ_MAIN_HOSTS = frozenset({"www.doviz.com", "doviz.com", "m.doviz.com"})
 _DOVIZ_MWEB_HOST = "m.doviz.com"
 _DOVIZ_ALTIN_HOST = "altin.doviz.com"

@@ -518,7 +518,8 @@ function _renderChanges(changes) {
       return badge + ' <span class="text-[10px] text-slate-400">' + String(d.old).substring(0,40) + ' → ' + String(d.new).substring(0,40) + '</span>';
     }).join('<br>');
     return '<tr class="border-b border-slate-50 dark:border-zinc-800/50">'
-      + '<td class="px-4 py-2 font-mono text-xs text-sky-600 dark:text-sky-500 overflow-hidden max-w-[260px] truncate">' + c.url + '</td>'
+      + '<td class="px-4 py-2 font-mono text-xs overflow-hidden max-w-[260px] truncate">'
+      + '<a href="' + (c.href || c.url) + '" target="_blank" rel="noopener" class="text-sky-600 dark:text-sky-500 hover:underline">' + c.url + '</a></td>'
       + '<td class="px-3 py-2">' + diffs + '</td>'
       + '</tr>';
   }).join('');

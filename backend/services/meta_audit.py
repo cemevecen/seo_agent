@@ -485,7 +485,15 @@ def get_changes(db: Session, site_id: int, days: int = 7) -> list[dict[str, Any]
         if diffs:
             changes.append({"url": url, "changes": diffs, "seo_score": new.seo_score})
 
+    from backend.models import Site
+    from backend.services.ga4_page_urls import absolute_audit_href
+
+    site = db.query(Site).filter(Site.id == site_id).first()
+    domain = (site.domain if site else "") or ""
+
     changes.sort(key=lambda x: any(d.get("severity") == "critical" for d in x["changes"]), reverse=True)
+    for item in changes:
+        item["href"] = absolute_audit_href(domain, item.get("url"))
     return changes
 
 
