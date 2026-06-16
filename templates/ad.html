@@ -4922,14 +4922,8 @@
     return true;
   }
 
-  var MZ_MARKET_LINE_COLORS = {
-    gram_altin: "#d97706",
-    usd_try: "#10b981",
-    eur_try: "#3b82f6",
-    bist100: "#8b5cf6",
-    gram_gumus: "#94a3b8",
-    brent: "#0f766e",
-  };
+  /** Piyasa overlay — tek renk, düz çizgi */
+  var MZ_MARKET_OVERLAY_LINE_COLOR = "#9D174D";
 
   function mzMarketOverlayMode() {
     var el = document.getElementById("mz-market-overlay-mode");
@@ -5018,7 +5012,7 @@
         mode: "lines",
         name: block.label + (mode === "all_indexed" ? " %" : ""),
         yaxis: "y2",
-        line: { color: MZ_MARKET_LINE_COLORS[sk] || "#64748b", width: 1.5, dash: "dot" },
+        line: { color: MZ_MARKET_OVERLAY_LINE_COLOR, width: 2 },
         connectgaps: false,
       });
       y2 = true;
