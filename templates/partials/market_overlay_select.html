@@ -9,7 +9,7 @@
   <button
     type="button"
     data-market-overlay-trigger
-    class="flex max-w-[13rem] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+    class="flex max-w-[13rem] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 shadow-sm dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 midnight:border-zinc-700 midnight:bg-black midnight:text-zinc-100"
     aria-haspopup="listbox"
     aria-expanded="false"
   >
@@ -20,7 +20,7 @@
   </button>
   <div
     data-market-overlay-panel
-    class="absolute right-0 z-[200] mt-1 hidden min-w-[14.5rem] rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg ring-1 ring-slate-200/80 dark:border-slate-600 dark:bg-slate-900 dark:ring-slate-700"
+    class="seo-market-overlay-panel absolute right-0 z-[200] mt-1 hidden min-w-[14.5rem] rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg dark:border-zinc-600 dark:bg-zinc-950 midnight:border-zinc-700 midnight:bg-black"
     role="listbox"
     aria-multiselectable="true"
   >
@@ -34,7 +34,7 @@
       ('all_indexed', 'Tümü (% aralık başı=100)'),
     ] %}
     <label
-      class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+      class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800 midnight:text-zinc-200 midnight:hover:bg-zinc-900"
       data-market-overlay-option="{{ val }}"
     >
       <input
