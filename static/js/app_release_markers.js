@@ -149,7 +149,9 @@
           pct.toFixed(2) +
           '%" title="' +
           escHtml(title) +
-          '" aria-label="' +
+          '" data-tip="' +
+          escHtml(title) +
+          '" role="button" tabindex="0" aria-label="' +
           escHtml(title) +
           '"></span>'
         );
@@ -180,6 +182,31 @@
     }
     return target;
   }
+
+  function initMarkerTouchTips() {
+    if (initMarkerTouchTips._bound) return;
+    initMarkerTouchTips._bound = true;
+    document.addEventListener(
+      "click",
+      function (e) {
+        var m = e.target && e.target.closest ? e.target.closest(".app-rel-marker") : null;
+        if (!m) {
+          document.querySelectorAll(".app-rel-marker--show-tip").forEach(function (el) {
+            el.classList.remove("app-rel-marker--show-tip");
+          });
+          return;
+        }
+        e.stopPropagation();
+        var open = m.classList.contains("app-rel-marker--show-tip");
+        document.querySelectorAll(".app-rel-marker--show-tip").forEach(function (el) {
+          el.classList.remove("app-rel-marker--show-tip");
+        });
+        if (!open) m.classList.add("app-rel-marker--show-tip");
+      },
+      true
+    );
+  }
+  initMarkerTouchTips();
 
   global.AppReleaseMarkers = {
     SINCE_DEFAULT: SINCE_DEFAULT,

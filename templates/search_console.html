@@ -291,6 +291,12 @@
       </button>
     </div>
 
+    <div
+      class="sc-global-filter-mobile-dock sc-card-filter-bar mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-0 sm:hidden"
+      data-sc-global-filter-slot-mobile
+      aria-label="Piyasa ve tarih karşılaştırması"
+    ></div>
+
     <div id="sc-global-filter-chrome-holder" class="sr-only" aria-hidden="true">
       {% include 'partials/sc_global_filter_chrome.html' %}
     </div>
@@ -1620,7 +1626,19 @@
     return (page && page.dataset.scGlobalFocus) || '';
   }
 
+  function scPreferMobileGlobalSlot() {
+    try {
+      return window.matchMedia('(max-width: 639px)').matches;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function pickScGlobalFilterSlot() {
+    if (scPreferMobileGlobalSlot()) {
+      var dock = document.querySelector('[data-sc-global-filter-slot-mobile]');
+      if (dock) return dock;
+    }
     var fid = scGetGlobalFocus();
     if (fid) {
       var focused = document.querySelector(
@@ -1630,7 +1648,7 @@
     }
     var visible = document.querySelector('[data-sc-site-card]:not(.hidden) [data-sc-global-filter-slot]');
     if (visible) return visible;
-    return document.querySelector('[data-sc-global-filter-slot]');
+    return document.querySelector('[data-sc-site-card] [data-sc-global-filter-slot]');
   }
 
   function mountScGlobalFilters() {
@@ -2293,6 +2311,10 @@
     window.requestAnimationFrame(function () {
       fitSearchConsoleText(document);
     });
+    if (window._scFilterMountResizeTimer) window.clearTimeout(window._scFilterMountResizeTimer);
+    window._scFilterMountResizeTimer = window.setTimeout(function () {
+      mountScGlobalFilters();
+    }, 120);
   });
 
   var scLazySwapScrollComp = null;

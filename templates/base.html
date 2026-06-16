@@ -659,6 +659,46 @@
         min-height: 2.25rem;
       }
 
+      #content [data-ga4-global-filter-slot]:empty,
+      #content [data-sc-global-filter-slot]:empty {
+        display: none !important;
+      }
+      #content [data-ga4-global-filter-slot-mobile]:empty,
+      #content [data-sc-global-filter-slot-mobile]:empty {
+        display: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-width: 0 !important;
+      }
+      #content .ga4-global-filter-mobile-dock:not(:empty),
+      #content .sc-global-filter-mobile-dock:not(:empty) {
+        position: sticky;
+        top: 0.25rem;
+        z-index: 55;
+      }
+      #content .ga4-global-filter-chrome,
+      #content .sc-global-filter-chrome {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.625rem;
+      }
+      #content .ga4-global-filter-chrome .seo-market-overlay-root,
+      #content .sc-global-filter-chrome .seo-market-overlay-root {
+        width: 100%;
+        max-width: 100%;
+      }
+      #content [data-market-overlay-trigger] {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+      }
+      #content [data-analytics-date-compare] [data-compare-mode],
+      #content [data-analytics-date-compare] [data-compare-custom],
+      #content [data-analytics-date-compare] .seo-analytics-compare-loading {
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+
       #pc-agent-btn {
         bottom: max(1rem, env(safe-area-inset-bottom, 0px));
         right: max(0.75rem, env(safe-area-inset-right, 0px));

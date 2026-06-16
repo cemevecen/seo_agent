@@ -175,6 +175,29 @@
         height: 28px;
         transform: translate(-50%, -50%);
       }
+      .app-rel-marker--show-tip::after {
+        content: attr(data-tip);
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 6px);
+        transform: translateX(-50%);
+        z-index: 30;
+        max-width: min(14rem, 70vw);
+        padding: 0.35rem 0.5rem;
+        border-radius: 0.375rem;
+        background: #0f172a;
+        color: #f8fafc;
+        font-size: 10px;
+        line-height: 1.35;
+        white-space: normal;
+        text-align: center;
+        pointer-events: none;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35);
+      }
+      html.dark .app-rel-marker--show-tip::after {
+        background: #f1f5f9;
+        color: #0f172a;
+      }
       #app-intel-root .app-intel-tab-btn,
       #app-intel-root [data-app-period-btn] {
         min-height: 2.25rem;
@@ -814,7 +837,7 @@
   observer.observe(crashRoot);
 })();
 </script>
-<script src="/static/js/app_release_markers.js?v=1"></script>
+<script src="/static/js/app_release_markers.js?v=2"></script>
 
 <script>
 (function () {

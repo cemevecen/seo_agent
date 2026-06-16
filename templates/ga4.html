@@ -268,6 +268,12 @@
       </button>
     </div>
 
+    <div
+      class="ga4-global-filter-mobile-dock ga4-card-filter-bar mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-0 sm:hidden"
+      data-ga4-global-filter-slot-mobile
+      aria-label="Piyasa ve tarih karşılaştırması"
+    ></div>
+
     <div id="ga4-global-filter-chrome-holder" class="sr-only" aria-hidden="true">
       {% include 'partials/ga4_global_filter_chrome.html' %}
     </div>
@@ -1764,7 +1770,19 @@
     }, 40);
   }
 
+  function ga4PreferMobileGlobalSlot() {
+    try {
+      return window.matchMedia('(max-width: 639px)').matches;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function pickGa4GlobalFilterSlot() {
+    if (ga4PreferMobileGlobalSlot()) {
+      var dock = document.querySelector('[data-ga4-global-filter-slot-mobile]');
+      if (dock) return dock;
+    }
     var fid = ga4GetGlobalFocus();
     if (fid) {
       var focused = document.querySelector(
@@ -1774,7 +1792,7 @@
     }
     var visible = document.querySelector('[data-ga4-site-card]:not(.hidden) [data-ga4-global-filter-slot]');
     if (visible) return visible;
-    return document.querySelector('[data-ga4-global-filter-slot]');
+    return document.querySelector('[data-ga4-site-card] [data-ga4-global-filter-slot]');
   }
 
   function mountGa4GlobalFilters() {
@@ -1862,11 +1880,16 @@
     mountGa4GlobalFilters();
   }
 
+  var _ga4FilterMountResizeTimer = null;
   window.addEventListener('resize', function () {
     window.requestAnimationFrame(function () {
       fitGa4Text(document);
       renderGa4TrendCharts(document);
     });
+    if (_ga4FilterMountResizeTimer) window.clearTimeout(_ga4FilterMountResizeTimer);
+    _ga4FilterMountResizeTimer = window.setTimeout(function () {
+      mountGa4GlobalFilters();
+    }, 120);
   });
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
