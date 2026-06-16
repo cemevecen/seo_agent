@@ -253,6 +253,29 @@
   .seo-analytics-compare-inline [data-compare-loading] {
     max-width: 11.5rem;
   }
+  @media (max-width: 639px) {
+    .sc-card-filter-bar [data-sc-global-filter-slot]:not(:empty) {
+      flex: 1 1 100%;
+      width: 100%;
+    }
+    #search-console-page .sc-global-filter-chrome {
+      width: 100%;
+    }
+    .sc-card-filter-bar [data-sc-period-switch],
+    .sc-card-filter-bar [data-search-console-device-switch] {
+      flex: 1 1 100%;
+      width: 100%;
+      max-width: 100%;
+    }
+    .sc-card-filter-bar .seo-analytics-compare-inline {
+      max-width: 100% !important;
+      width: 100%;
+      flex: 1 1 100%;
+    }
+    .sc-card-filter-bar .seo-analytics-compare-inline [data-compare-loading] {
+      max-width: none !important;
+    }
+  }
 </style>
 <div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">

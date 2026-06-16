@@ -214,6 +214,39 @@
   .seo-analytics-compare-inline [data-compare-mode] {
     max-width: 100%;
   }
+  [data-ga4-period-switch] button,
+  [data-ga4-profile-switch] button,
+  [data-ga4-pages-kind-switch] .ga4-pages-kind-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (max-width: 639px) {
+    .ga4-card-filter-bar [data-ga4-global-filter-slot]:not(:empty) {
+      flex: 1 1 100%;
+      width: 100%;
+    }
+    #ga4-page .ga4-global-filter-chrome {
+      width: 100%;
+    }
+    .ga4-card-filter-bar [data-ga4-period-switch],
+    .ga4-card-filter-bar [data-ga4-profile-switch] {
+      flex: 1 1 100%;
+      width: 100%;
+      max-width: 100%;
+    }
+    .ga4-card-filter-bar .seo-analytics-compare-inline {
+      max-width: 100% !important;
+      width: 100%;
+      flex: 1 1 100%;
+    }
+    .ga4-card-filter-bar .seo-analytics-compare-inline [data-compare-loading] {
+      max-width: none !important;
+    }
+    [data-ga4-period-switch] button,
+    [data-ga4-profile-switch] button {
+      min-height: 2.25rem;
+    }
+  }
 </style>
 <div id="ga4-page" data-ga4-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}" data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">

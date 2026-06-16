@@ -148,6 +148,39 @@
     html.dark .app-rel-marker:hover {
       background: #cbd5e1;
     }
+    @media (max-width: 639px) {
+      .app-rel-marker-track {
+        height: 0.75rem;
+        margin-top: 0.35rem;
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        pointer-events: auto;
+        touch-action: pan-x;
+      }
+      .app-rel-marker {
+        width: 9px;
+        height: 9px;
+        margin-left: -4.5px;
+        bottom: 0;
+        touch-action: manipulation;
+      }
+      .app-rel-marker::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 28px;
+        height: 28px;
+        transform: translate(-50%, -50%);
+      }
+      #app-intel-root .app-intel-tab-btn,
+      #app-intel-root [data-app-period-btn] {
+        min-height: 2.25rem;
+        touch-action: manipulation;
+      }
+    }
   </style>
   <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-4">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
@@ -4528,424 +4561,9 @@
 })();
 </script>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     ProjectControl AI Ajan — Yüzen Chat Widget
-     ═══════════════════════════════════════════════════════════════════════ -->
-
-<!-- Floating button -->
-<button id="pc-agent-btn"
-  onclick="pcAgentToggle()"
-  title="ProjectControl AI Ajan"
-  class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full
-         bg-gradient-to-br from-violet-600 to-indigo-700
-         px-4 py-3 text-white shadow-2xl shadow-violet-900/40
-         hover:from-violet-500 hover:to-indigo-600
-         transition-all duration-200 hover:scale-105 active:scale-95
-         ring-2 ring-violet-400/30">
-  <svg id="pc-agent-icon-chat" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
-  </svg>
-  <svg id="pc-agent-icon-close" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
-  </svg>
-  <span class="text-sm font-semibold tracking-wide">PC Ajan</span>
-  <span id="pc-agent-badge" class="hidden absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse"></span>
-</button>
-
-<!-- Chat panel -->
-<div id="pc-agent-panel"
-  class="fixed bottom-20 right-6 z-50 hidden
-         w-[min(420px,calc(100vw-1.5rem))]
-         flex flex-col rounded-2xl
-         bg-zinc-950 border border-violet-800/40
-         shadow-2xl shadow-violet-950/60
-         overflow-hidden"
-  style="height: min(580px, calc(100vh - 120px));">
-
-  <!-- Header -->
-  <div class="flex items-center gap-3 px-4 py-3
-              bg-gradient-to-r from-violet-900/80 to-indigo-900/80
-              border-b border-violet-800/40">
-    <div class="flex h-8 w-8 items-center justify-center rounded-full
-                bg-violet-600 ring-2 ring-violet-400/40 shrink-0">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
-      </svg>
-    </div>
-    <div class="min-w-0 flex-1">
-      <div class="text-sm font-bold text-white">PC Ajan</div>
-      <div id="pc-agent-status-text" class="text-xs text-violet-300/70">Claude claude-opus-4-7 · Araçlı</div>
-    </div>
-    <button onclick="pcAgentClearHistory()"
-      title="Sohbeti temizle"
-      class="ml-auto shrink-0 rounded-lg p-1.5 text-violet-300/60 hover:text-white hover:bg-violet-800/40 transition-colors">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
-      </svg>
-    </button>
-  </div>
-
-  <!-- Messages -->
-  <div id="pc-agent-messages"
-    class="flex-1 overflow-y-auto px-4 py-3 space-y-3
-           scrollbar-thin scrollbar-thumb-violet-800/50 scrollbar-track-transparent">
-    <!-- Welcome message -->
-    <div class="pc-msg-assistant flex gap-2.5">
-      <div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
-        </svg>
-      </div>
-      <div class="pc-bubble assistant rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed
-                  bg-zinc-800/80 text-zinc-100 max-w-[85%]">
-        Merhaba! Ben ProjectControl'ün AI ajanıyım 👋<br>
-        GitHub, Railway, veritabanı ve sistem durumuyla ilgili her konuda yardımcı olabilirim.<br>
-        <span class="text-violet-400 text-xs mt-1 block">Ne yapmamı istersin?</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Quick prompts -->
-  <div id="pc-agent-quick" class="px-4 pb-2 flex flex-wrap gap-1.5">
-    <button onclick="pcAgentQuickSend(this)" data-msg="Sistem sağlık durumunu kontrol et"
-      class="pc-quick-btn rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-             text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-      🩺 Sağlık
-    </button>
-    <button onclick="pcAgentQuickSend(this)" data-msg="Son GitHub issue'ları listele"
-      class="pc-quick-btn rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-             text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-      🐛 Issue'lar
-    </button>
-    <button onclick="pcAgentQuickSend(this)" data-msg="Railway son deployment durumu nedir?"
-      class="pc-quick-btn rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-             text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-      🚀 Deploy
-    </button>
-    <button onclick="pcAgentQuickSend(this)" data-msg="Veritabanı tablo istatistiklerini göster"
-      class="pc-quick-btn rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-             text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-      🗄️ DB
-    </button>
-    <button onclick="pcAgentQuickSend(this)" data-msg="Son commit'leri göster ve değişiklikleri özetle"
-      class="pc-quick-btn rounded-full border border-violet-800/50 bg-violet-950/60 px-2.5 py-1
-             text-xs text-violet-300 hover:border-violet-600 hover:text-white hover:bg-violet-900/50 transition-all">
-      📝 Commit
-    </button>
-  </div>
-
-  <!-- Input area -->
-  <div class="px-4 pb-4 pt-1">
-    <div class="flex items-end gap-2 rounded-xl border border-zinc-700/60
-                bg-zinc-900/80 px-3 py-2 focus-within:border-violet-600/60 transition-colors">
-      <textarea id="pc-agent-input"
-        placeholder="Mesajını yaz..."
-        rows="1"
-        onkeydown="pcAgentKeydown(event)"
-        oninput="pcAgentAutoResize(this)"
-        class="flex-1 resize-none bg-transparent text-sm text-zinc-100
-               placeholder-zinc-500 outline-none leading-relaxed
-               max-h-32 min-h-[1.5rem]"
-        style="overflow-y: auto;"></textarea>
-      <button id="pc-agent-send-btn"
-        onclick="pcAgentSend()"
-        class="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg
-               bg-violet-600 text-white hover:bg-violet-500
-               disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        title="Gönder (Enter)">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405Z"/>
-        </svg>
-      </button>
-    </div>
-    <p class="mt-1.5 text-center text-[10px] text-zinc-600">
-      Enter gönder · Shift+Enter yeni satır
-    </p>
-  </div>
-</div>
-
 <script>
 (function () {
   'use strict';
-
-  // ── Durum ──────────────────────────────────────────────────────────────────
-  var _pcHistory = [];         // {role, content} dizisi
-  var _pcStreaming = false;
-  var _pcCurrentEvtSource = null;
-  var _pcCurrentBubble = null; // Aktif streaming bubble DOM node
-  var _pcOpen = false;
-
-  // ── Toggle ─────────────────────────────────────────────────────────────────
-  window.pcAgentToggle = function () {
-    _pcOpen = !_pcOpen;
-    var panel = document.getElementById('pc-agent-panel');
-    var iconChat = document.getElementById('pc-agent-icon-chat');
-    var iconClose = document.getElementById('pc-agent-icon-close');
-    var badge = document.getElementById('pc-agent-badge');
-    if (_pcOpen) {
-      panel.classList.remove('hidden');
-      panel.classList.add('flex');
-      iconChat.classList.add('hidden');
-      iconClose.classList.remove('hidden');
-      badge.classList.add('hidden');
-      setTimeout(function () {
-        var inp = document.getElementById('pc-agent-input');
-        if (inp) inp.focus();
-      }, 50);
-    } else {
-      panel.classList.add('hidden');
-      panel.classList.remove('flex');
-      iconChat.classList.remove('hidden');
-      iconClose.classList.add('hidden');
-    }
-  };
-
-  // ── Temizle ────────────────────────────────────────────────────────────────
-  window.pcAgentClearHistory = function () {
-    if (_pcStreaming) return;
-    _pcHistory = [];
-    var msgs = document.getElementById('pc-agent-messages');
-    msgs.innerHTML = '<div class="pc-msg-assistant flex gap-2.5">' +
-      '<div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center">' +
-      '<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">' +
-      '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div>' +
-      '<div class="pc-bubble assistant rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-zinc-800/80 text-zinc-100 max-w-[85%]">' +
-      'Sohbet temizlendi. Nasıl yardımcı olabilirim?</div></div>';
-    pcSetStatus('Hazır');
-  };
-
-  // ── Hızlı mesaj ───────────────────────────────────────────────────────────
-  window.pcAgentQuickSend = function (btn) {
-    var msg = btn.getAttribute('data-msg');
-    if (!msg || _pcStreaming) return;
-    var inp = document.getElementById('pc-agent-input');
-    inp.value = msg;
-    pcAgentSend();
-  };
-
-  // ── Textarea auto-resize ───────────────────────────────────────────────────
-  window.pcAgentAutoResize = function (el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 128) + 'px';
-  };
-
-  // ── Klavye ────────────────────────────────────────────────────────────────
-  window.pcAgentKeydown = function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      pcAgentSend();
-    }
-  };
-
-  // ── Gönder ────────────────────────────────────────────────────────────────
-  window.pcAgentSend = function () {
-    if (_pcStreaming) return;
-    var inp = document.getElementById('pc-agent-input');
-    var text = (inp.value || '').trim();
-    if (!text) return;
-
-    inp.value = '';
-    inp.style.height = 'auto';
-
-    _pcHistory.push({ role: 'user', content: text });
-    _appendUserMsg(text);
-    _startStreaming();
-  };
-
-  // ── Kullanıcı balonu ──────────────────────────────────────────────────────
-  function _appendUserMsg(text) {
-    var msgs = document.getElementById('pc-agent-messages');
-    var div = document.createElement('div');
-    div.className = 'flex justify-end';
-    div.innerHTML = '<div class="pc-bubble user rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-sm leading-relaxed ' +
-      'bg-violet-700 text-white max-w-[85%]">' + _escHtml(text) + '</div>';
-    msgs.appendChild(div);
-    _scrollBottom();
-  }
-
-  // ── Asistan balonu (streaming) ────────────────────────────────────────────
-  function _appendAssistantBubble() {
-    var msgs = document.getElementById('pc-agent-messages');
-    var wrap = document.createElement('div');
-    wrap.className = 'pc-msg-assistant flex gap-2.5';
-    wrap.innerHTML = '<div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center">' +
-      '<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">' +
-      '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg></div>' +
-      '<div class="pc-bubble assistant rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed ' +
-      'bg-zinc-800/80 text-zinc-100 max-w-[85%] whitespace-pre-wrap break-words"></div>';
-    msgs.appendChild(wrap);
-    _pcCurrentBubble = wrap.querySelector('.pc-bubble.assistant');
-    _scrollBottom();
-    return _pcCurrentBubble;
-  }
-
-  // ── Araç bildirim balonu ──────────────────────────────────────────────────
-  function _appendToolBadge(toolName, running) {
-    var msgs = document.getElementById('pc-agent-messages');
-    var div = document.createElement('div');
-    div.className = 'flex items-center gap-2 px-1';
-    div.innerHTML = '<div class="h-px flex-1 bg-violet-900/40"></div>' +
-      '<span class="text-[10px] font-medium text-violet-400/70 flex items-center gap-1">' +
-      (running
-        ? '<svg class="h-3 w-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>'
-        : '✓')
-      + ' ' + _escHtml(toolName) + '</span>' +
-      '<div class="h-px flex-1 bg-violet-900/40"></div>';
-    msgs.appendChild(div);
-    _scrollBottom();
-    return div;
-  }
-
-  // ── Streaming başlat ──────────────────────────────────────────────────────
-  function _startStreaming() {
-    _pcStreaming = true;
-    var sendBtn = document.getElementById('pc-agent-send-btn');
-    var inp = document.getElementById('pc-agent-input');
-    if (sendBtn) sendBtn.disabled = true;
-    if (inp) inp.disabled = true;
-
-    pcSetStatus('Düşünüyor…');
-    var bubble = _appendAssistantBubble();
-    bubble.innerHTML = '<span class="pc-cursor inline-block w-2 h-4 bg-violet-400 animate-pulse align-middle ml-0.5"></span>';
-
-    var accText = '';
-    var _toolBadgeEl = null;
-
-    var payload = JSON.stringify({ messages: _pcHistory.slice() });
-
-    fetch('/api/agent/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
-      body: payload,
-    }).then(function (resp) {
-      if (!resp.ok) {
-        return resp.text().then(function (t) { throw new Error(t || resp.statusText); });
-      }
-      var reader = resp.body.getReader();
-      var decoder = new TextDecoder();
-      var leftover = '';
-
-      function pump() {
-        reader.read().then(function (result) {
-          if (result.done) {
-            _finishStreaming(bubble, accText);
-            return;
-          }
-          var chunk = decoder.decode(result.value, { stream: true });
-          var lines = (leftover + chunk).split('\n');
-          leftover = lines.pop();
-
-          lines.forEach(function (line) {
-            if (!line.startsWith('data: ')) return;
-            var raw = line.slice(6).trim();
-            if (!raw) return;
-            var evt;
-            try { evt = JSON.parse(raw); } catch (e) { return; }
-
-            if (evt.type === 'thinking') {
-              pcSetStatus('Düşünüyor (' + evt.iteration + '. tur)…');
-            } else if (evt.type === 'tool_start') {
-              _toolBadgeEl = _appendToolBadge(evt.tool, true);
-              pcSetStatus('Araç: ' + evt.tool + '…');
-            } else if (evt.type === 'tool_result') {
-              if (_toolBadgeEl) {
-                _toolBadgeEl.querySelector('span').innerHTML = '✓ ' + _escHtml(evt.tool);
-                _toolBadgeEl.querySelector('svg') && (_toolBadgeEl.querySelector('svg').remove());
-                _toolBadgeEl = null;
-              }
-            } else if (evt.type === 'text_chunk') {
-              if (accText === '' && evt.text) {
-                // İlk metin geldi, cursor'u temizle
-                bubble.innerHTML = '';
-              }
-              accText += evt.text;
-              bubble.innerHTML = _renderMarkdown(accText) +
-                '<span class="pc-cursor inline-block w-2 h-4 bg-violet-400 animate-pulse align-middle ml-0.5"></span>';
-              _scrollBottom();
-            } else if (evt.type === 'complete') {
-              var finalText = evt.text || accText;
-              accText = finalText;
-              _finishStreaming(bubble, finalText);
-            } else if (evt.type === 'error') {
-              bubble.innerHTML = '<span class="text-rose-400">Hata: ' + _escHtml(evt.message || 'bilinmeyen') + '</span>';
-              _endStreaming();
-              return;
-            } else if (evt.type === 'done') {
-              if (accText) _finishStreaming(bubble, accText);
-              else _endStreaming();
-              return;
-            }
-          });
-          pump();
-        }).catch(function (err) {
-          bubble.innerHTML = '<span class="text-rose-400">Bağlantı hatası: ' + _escHtml(String(err)) + '</span>';
-          _endStreaming();
-        });
-      }
-      pump();
-    }).catch(function (err) {
-      bubble.innerHTML = '<span class="text-rose-400">İstek hatası: ' + _escHtml(String(err)) + '</span>';
-      _endStreaming();
-    });
-  }
-
-  function _finishStreaming(bubble, text) {
-    bubble.innerHTML = _renderMarkdown(text);
-    _pcHistory.push({ role: 'assistant', content: text });
-    _endStreaming();
-    _scrollBottom();
-  }
-
-  function _endStreaming() {
-    _pcStreaming = false;
-    var sendBtn = document.getElementById('pc-agent-send-btn');
-    var inp = document.getElementById('pc-agent-input');
-    if (sendBtn) sendBtn.disabled = false;
-    if (inp) { inp.disabled = false; inp.focus(); }
-    _pcCurrentBubble = null;
-    pcSetStatus('Hazır');
-  }
-
-  // ── Yardımcılar ───────────────────────────────────────────────────────────
-  function pcSetStatus(txt) {
-    var el = document.getElementById('pc-agent-status-text');
-    if (el) el.textContent = txt;
-  }
-
-  function _scrollBottom() {
-    var msgs = document.getElementById('pc-agent-messages');
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
-  }
-
-  function _escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  // Çok hafif markdown render (bold, italic, code, code block, newline)
-  function _renderMarkdown(text) {
-    var h = String(text);
-    // Kod blokları (```...```)
-    h = h.replace(/```([\w]*)\n?([\s\S]*?)```/g, function (_, lang, code) {
-      return '<pre class="mt-1.5 mb-1.5 rounded-lg bg-zinc-900 border border-zinc-700/60 px-3 py-2 text-xs overflow-x-auto text-emerald-300 font-mono">' +
-        _escHtml(code.trim()) + '</pre>';
-    });
-    // İnline kod (`...`)
-    h = h.replace(/`([^`]+)`/g, '<code class="rounded bg-zinc-700/70 px-1 py-0.5 text-xs font-mono text-emerald-300">$1</code>');
-    // Bold (**...**)
-    h = h.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-white">$1</strong>');
-    // İtalik (*...*)
-    h = h.replace(/\*([^*]+)\*/g, '<em class="italic text-zinc-300">$1</em>');
-    // Satır sonu
-    h = h.replace(/\n/g, '<br>');
-    return h;
-  }
-
-  window.pcSetStatus = pcSetStatus;
-
   window.__pcPageContext = function () {
     var activeTabBtn = document.querySelector('.app-intel-tab-btn.bg-slate-900, .app-intel-tab-btn.dark\\:bg-slate-100');
     var asc = ascState.payload || null;
@@ -4973,6 +4591,5 @@
       visible_text: parts.join('\n').slice(0, 4500),
     };
   };
-
 })();
 </script>

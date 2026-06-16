@@ -612,6 +612,63 @@
       #content table :where(a, span, p) {
         writing-mode: horizontal-tb !important;
       }
+
+      #content .seo-analytics-compare-inline {
+        max-width: 100% !important;
+        width: 100%;
+        flex: 1 1 100%;
+      }
+      #content .seo-analytics-compare-inline [data-compare-loading] {
+        max-width: none !important;
+      }
+      #content .ga4-card-filter-bar__divider--after-global,
+      #content .sc-card-filter-bar__divider--after-global {
+        display: none !important;
+      }
+      #content .ga4-card-filter-bar [data-compare-mode],
+      #content .sc-card-filter-bar [data-compare-mode],
+      #content .ga4-card-filter-bar [data-market-overlay-trigger],
+      #content .sc-card-filter-bar [data-market-overlay-trigger] {
+        touch-action: manipulation;
+      }
+      #content [data-ga4-global-filter-slot],
+      #content [data-sc-global-filter-slot] {
+        flex: 1 1 100%;
+        width: 100%;
+      }
+      #content .ga4-global-filter-chrome,
+      #content .sc-global-filter-chrome {
+        width: 100%;
+      }
+      #content .ga4-card-filter-bar [data-ga4-period-switch],
+      #content .ga4-card-filter-bar [data-ga4-profile-switch],
+      #content .sc-card-filter-bar [data-sc-period-switch],
+      #content .sc-card-filter-bar [data-search-console-device-switch] {
+        flex: 1 1 100%;
+        width: 100%;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+      #content [data-ga4-period-switch] button,
+      #content [data-ga4-profile-switch] button,
+      #content [data-sc-period-switch] button,
+      #content [data-search-console-device-switch] button,
+      #content [data-sc-table-switch] button {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        min-height: 2.25rem;
+      }
+
+      #pc-agent-btn {
+        bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+        right: max(0.75rem, env(safe-area-inset-right, 0px));
+      }
+      #pc-agent-panel {
+        right: max(0.75rem, env(safe-area-inset-right, 0px));
+        bottom: calc(max(1rem, env(safe-area-inset-bottom, 0px)) + 3.25rem);
+        width: min(420px, calc(100vw - 1.5rem)) !important;
+        max-height: min(580px, calc(100dvh - 5.5rem)) !important;
+      }
     }
   </style>
   <style id="seo-market-overlay-ui">
