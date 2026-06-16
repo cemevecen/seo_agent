@@ -2039,7 +2039,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (window.SeoMarketOverlay) {
-      SeoMarketOverlay.bindSelect('seo-market-overlay-root', scRerenderTrendChartsForMarket);
+      SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', scRerenderTrendChartsForMarket);
     }
     initGscCwvMediaHandlers();
     initSearchConsolePanels(document);

@@ -385,8 +385,10 @@
 
     if (!global.__seoMarketOverlayDocClose) {
       global.__seoMarketOverlayDocClose = true;
-      document.addEventListener("click", function () {
+      document.addEventListener("click", function (e) {
+        var target = e.target;
         document.querySelectorAll("[data-market-overlay-root]").forEach(function (r) {
+          if (target && r.contains(target)) return;
           var p = r.querySelector("[data-market-overlay-panel]");
           var t = r.querySelector("[data-market-overlay-trigger]");
           if (p) p.classList.add("hidden");
@@ -405,17 +407,31 @@
   function bindSelect(controlId, onChange) {
     var root = rootEl(controlId);
     if (root) {
+      if (root.dataset.marketOverlayBound === "1") return true;
       bindPanel(root, onChange);
-      return;
+      return true;
     }
     var id = controlId || "seo-market-overlay-mode";
     var el = document.getElementById(id);
-    if (!el || el.dataset.marketOverlayBound === "1") return;
+    if (!el) return false;
+    if (el.dataset.marketOverlayBound === "1") return true;
     el.dataset.marketOverlayBound = "1";
     el.addEventListener("change", function () {
       clearCache();
       if (typeof onChange === "function") onChange();
     });
+    return true;
+  }
+
+  /** defer script sonrası — sayfa inline script’lerinden çağrılabilir */
+  function bindWhenReady(controlId, onChange, attempt) {
+    var n = attempt || 0;
+    if (bindSelect(controlId, onChange)) return;
+    if (n < 80) {
+      global.setTimeout(function () {
+        bindWhenReady(controlId, onChange, n + 1);
+      }, 40);
+    }
   }
 
   global.SeoMarketOverlay = {
@@ -427,6 +443,7 @@
     ensureOverlay: ensureOverlay,
     apply: apply,
     bindSelect: bindSelect,
+    bindWhenReady: bindWhenReady,
     bindPanel: bindPanel,
     pickFreeYaxisId: pickFreeYaxisId,
     normalizeDateKey: normalizeDateKey,

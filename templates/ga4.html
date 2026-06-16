@@ -1875,7 +1875,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (window.SeoMarketOverlay) {
-      SeoMarketOverlay.bindSelect('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
+      SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
     }
     initGa4Panels(document);
   });

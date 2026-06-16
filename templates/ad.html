@@ -8168,8 +8168,16 @@
     renderTopMxUnitsWeek();
   });
   if (window.SeoMarketOverlay) {
-    SeoMarketOverlay.bindSelect("mz-market-overlay-root", function () {
+    SeoMarketOverlay.bindWhenReady("mz-market-overlay-root", function () {
       refreshChartLine();
+    });
+  } else {
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.SeoMarketOverlay) {
+        SeoMarketOverlay.bindWhenReady("mz-market-overlay-root", function () {
+          refreshChartLine();
+        });
+      }
     });
   }
 
