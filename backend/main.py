@@ -2381,7 +2381,12 @@ def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
     }
 
 
-def _search_console_report_payload(db, *, site_id: int) -> dict:
+def _search_console_report_payload(
+    db,
+    *,
+    site_id: int,
+    compare_opts: dict | None = None,
+) -> dict:
     _sc_batch = get_latest_search_console_rows_batch(
         db,
         site_id=site_id,
@@ -2717,7 +2722,7 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         previous_rows_30
     )
 
-    return {
+    report = {
         "has_data": bool(current_rows_7 or previous_rows_7 or top_queries),
         "summary_current": current_summary,
         "summary_previous": previous_summary,
@@ -2739,9 +2744,31 @@ def _search_console_report_payload(db, *, site_id: int) -> dict:
         "range_current_90d": _format_sc_tr_date_range(*range_90_last),
         "range_previous_90d": _format_sc_tr_date_range(*range_90_prev),
     }
+    if compare_opts:
+        from backend.services.analytics_compare import apply_search_console_report_compare
+
+        report = apply_search_console_report_compare(
+            report,
+            compare=compare_opts,
+            summary_payload=summary_payload,
+            period_primary_ranges={
+                "7": range_7_last,
+                "30": range_30_last,
+                "90": range_90_last,
+            },
+            format_prev_label=lambda a, b: _format_sc_tr_date_range(a, b),
+        )
+        if compare_opts.get("enabled") and compare_opts.get("mode") not in (None, "previous_period"):
+            mv = ((report.get("periods") or {}).get("7") or {}).get("views") or {}
+            mob = mv.get("mobile") or {}
+            if mob.get("range_prev"):
+                report["range_previous_7d"] = mob["range_prev"]
+    return report
 
 
-def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
+def _search_console_single_site_data(
+    db, site, schedule_label: str, *, compare_opts: dict | None = None
+) -> dict:
     """Tek bir site için tam Search Console kart verisi üretir."""
     latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
     connection = get_search_console_connection_status(db, site.id)
@@ -2802,7 +2829,7 @@ def _search_console_single_site_data(db, site, schedule_label: str) -> dict:
         ),
         "cooldown_active": cooldown_active,
         "manual_mode_label": f"{schedule_label} otomatik + manuel",
-        "report": _search_console_report_payload(db, site_id=site.id),
+        "report": _search_console_report_payload(db, site_id=site.id, compare_opts=compare_opts),
         "gsc_cwv": gsc_cwv,
     }
 
@@ -12192,6 +12219,16 @@ def ga4_site_list(request: Request):
 @app.get("/ga4/site/{site_id}", response_class=HTMLResponse)
 def ga4_single_site_card(request: Request, site_id: int):
     """HTMX lazy loading ile tek GA4 site kartını tam veriyle render eder."""
+    from backend.services.analytics_compare import apply_ga4_period_compare, parse_compare_options
+
+    q = request.query_params
+    compare_enabled = str(q.get("compare") or "").lower() in ("1", "true", "yes", "on")
+    compare_opts = parse_compare_options(
+        enabled=compare_enabled,
+        mode=q.get("compare_mode"),
+        custom_start=q.get("compare_start"),
+        custom_end=q.get("compare_end"),
+    )
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
@@ -12227,6 +12264,13 @@ def ga4_single_site_card(request: Request, site_id: int):
                         ),
                     },
                 }
+                daily_long = (profiles[profile]["periods"].get("12m") or {}).get("daily_trend")
+                for _pk in ("7", "30", "90"):
+                    profiles[profile]["periods"][_pk] = apply_ga4_period_compare(
+                        profiles[profile]["periods"][_pk],
+                        compare=compare_opts,
+                        daily_long=daily_long if isinstance(daily_long, dict) else None,
+                    )
             site_data = {
                 "id": site.id,
                 "domain": site.domain,
@@ -12255,6 +12299,7 @@ def ga4_single_site_card(request: Request, site_id: int):
                 "site": site_data,
                 "site_count": site_count,
                 "error_summary": _get_error_summary_for_card(db, site.id),
+                "analytics_compare": compare_opts,
             },
         )
         response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
@@ -13887,6 +13932,16 @@ async def api_search_console_inspect(site_id: int, request: Request):
 @app.get("/search-console/site/{site_id}", response_class=HTMLResponse)
 def search_console_single_site_card(request: Request, site_id: int):
     """HTMX lazy loading ile tek site kartını tam veriyle render eder."""
+    from backend.services.analytics_compare import parse_compare_options
+
+    q = request.query_params
+    compare_enabled = str(q.get("compare") or "").lower() in ("1", "true", "yes", "on")
+    compare_opts = parse_compare_options(
+        enabled=compare_enabled,
+        mode=q.get("compare_mode"),
+        custom_start=q.get("compare_start"),
+        custom_end=q.get("compare_end"),
+    )
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
@@ -13900,7 +13955,9 @@ def search_console_single_site_card(request: Request, site_id: int):
                 f"{int(settings.search_console_scheduled_refresh_hour):02d}:"
                 f"{int(settings.search_console_scheduled_refresh_minute):02d}"
             )
-            site_data = _search_console_single_site_data(db, site, schedule_label)
+            site_data = _search_console_single_site_data(
+                db, site, schedule_label, compare_opts=compare_opts
+            )
         except Exception as exc:
             logging.exception("search_console_single_site_card site_id=%s hata", site_id)
             import html as _html
@@ -13923,6 +13980,7 @@ def search_console_single_site_card(request: Request, site_id: int):
             "site": site_data,
             "oauth_ready": oauth_is_configured(),
             "site_count": site_count,
+            "analytics_compare": compare_opts,
         },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
