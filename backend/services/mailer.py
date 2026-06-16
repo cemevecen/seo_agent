@@ -306,7 +306,19 @@ def _sanitize_message_recipients(message: EmailMessage) -> list[str] | None:
     if not safe:
         logging.error("E-posta gönderimi iptal: Gmail hariç geçerli alıcı yok (To=%s)", to_raw[:160])
         return None
-    _set_message_to_header(message, safe)
+    # Gmail denemesi sonrası SMTP yolu aynı mesajı tekrar sanitize eder; gereksiz To yazımı ValueError riski.
+    if (
+        len(message.get_all("To") or []) == 1
+        and safe == normalize_outbound_recipients(addrs)
+        and not any(_is_gmail_recipient(a) for a in addrs)
+    ):
+        return safe
+    try:
+        _set_message_to_header(message, safe)
+    except ValueError:
+        while message.get_all("To"):
+            del message["To"]
+        message["To"] = ", ".join(safe)
     return safe
 
 
