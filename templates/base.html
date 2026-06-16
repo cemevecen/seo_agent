@@ -727,11 +727,17 @@
       cursor: not-allowed;
       opacity: 0.55;
     }
-    .seo-analytics-compare-loading.hidden {
+    [data-analytics-date-compare] .seo-analytics-compare-loading.hidden {
       display: none !important;
     }
-    .seo-analytics-compare-lottie {
-      display: block;
+    [data-analytics-date-compare] lottie-player.seo-analytics-compare-lottie {
+      width: 2.25rem !important;
+      height: 2.25rem !important;
+      max-width: 2.25rem !important;
+      max-height: 2.25rem !important;
+      display: block !important;
+      overflow: hidden;
+      flex-shrink: 0;
     }
   </style>
   <style id="seo-mz-page-layout">
@@ -1597,7 +1603,7 @@
   <script src="/static/js/app-refresh.js?v=1" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=6" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
-  <script src="/static/js/analytics_date_compare.js?v=6" defer></script>
+  <script src="/static/js/analytics_date_compare.js?v=7" defer></script>
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#09090b,_#111113_55%,_#18181b)] dark:text-zinc-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}

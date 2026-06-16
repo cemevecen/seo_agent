@@ -83,8 +83,9 @@
     return url + sep + q.toString();
   }
 
-  function loadingOverlayId(pageKey) {
-    return pageKey === "sc" ? "sc-compare-loading" : "ga4-compare-loading";
+  function compareLoadingEl() {
+    var wrap = document.querySelector("[data-analytics-date-compare]");
+    return wrap ? wrap.querySelector("[data-compare-loading]") : null;
   }
 
   function lottiePlayerReady() {
@@ -92,7 +93,7 @@
   }
 
   function showCompareLoading(pageKey) {
-    var el = document.getElementById(loadingOverlayId(pageKey));
+    var el = compareLoadingEl();
     if (!el) return;
     el.classList.remove("hidden");
     el.setAttribute("aria-hidden", "false");
@@ -107,7 +108,7 @@
   }
 
   function hideCompareLoading(pageKey) {
-    var el = document.getElementById(loadingOverlayId(pageKey));
+    var el = compareLoadingEl();
     if (!el) return;
     el.classList.add("hidden");
     el.setAttribute("aria-hidden", "true");
