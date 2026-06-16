@@ -285,6 +285,13 @@ class Settings(BaseSettings):
     app_intel_scheduled_refresh_hour: int = 7
     app_intel_scheduled_refresh_minute: int = 0
 
+    # Google Sheets piyasa kapanış (gram altın, USD, EUR, BIST, gümüş, Brent)
+    market_sheets_sync_enabled: bool = True
+    market_sheets_sync_hour: int = 7
+    market_sheets_sync_minute: int = 20
+    market_sheets_startup_sync_enabled: bool = True
+    market_sheets_startup_sync_delay_seconds: int = 90
+
     # Günlük AI özet (GA4, PageSpeed, Search Console, uyarılar). False iken zamanlanmış LLM job çalışmaz;
     # POST /ai/generate (force) yine üretir.
     ai_daily_brief_enabled: bool = False

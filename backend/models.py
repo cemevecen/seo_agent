@@ -929,6 +929,24 @@ class AdReportRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class MarketDailyQuote(Base):
+    """Google Sheets — günlük piyasa açılış/kapanış (grafik overlay)."""
+
+    __tablename__ = "market_daily_quotes"
+    __table_args__ = (
+        UniqueConstraint("series_key", "report_date", name="uq_market_daily_series_date"),
+        Index("ix_market_daily_series_date", "series_key", "report_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    series_key: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    open_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    close_price: Mapped[float] = mapped_column(Float, nullable=False)
+    source_sheet_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AdReportRowArchive(Base):
     """Bir dosya başka bir dosyayla üstüne yazmadan önce saklanan satır anlık görüntüsü."""
 

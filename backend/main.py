@@ -52,6 +52,7 @@ from backend.api.backlinks import router as backlinks_router
 from backend.api.store_catalog import router as store_catalog_router
 from backend.api.notification_analytics import router as notification_analytics_router
 from backend.api.ad_analytics import router as ad_analytics_router
+from backend.api.market_quotes import router as market_quotes_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
 from backend.collectors.pagespeed import (
@@ -998,6 +999,7 @@ app.include_router(inbox_router, prefix="/api")
 app.include_router(backlinks_router, prefix="/api")
 app.include_router(notification_analytics_router, prefix="/api")
 app.include_router(ad_analytics_router, prefix="/api")
+app.include_router(market_quotes_router, prefix="/api")
 
 from backend.karma.router import router as karma_router
 
@@ -1570,6 +1572,18 @@ def on_startup() -> None:
                 LOGGER.warning("Startup inbox sync: %s", exc)
 
         _threading.Thread(target=_startup_inbox_sync, daemon=True, name="inbox-startup-sync").start()
+
+    if settings.market_sheets_startup_sync_enabled:
+
+        def _startup_market_sheets_sync() -> None:
+            delay = max(15, int(settings.market_sheets_startup_sync_delay_seconds))
+            time.sleep(delay)
+            try:
+                _run_market_sheets_sync_job(trigger_source="startup")
+            except Exception as exc:
+                LOGGER.warning("Startup market sheets sync: %s", exc)
+
+        _threading.Thread(target=_startup_market_sheets_sync, daemon=True, name="market-sheets-startup").start()
 
 
 @app.on_event("shutdown")
@@ -3565,6 +3579,25 @@ def _run_rank_refresh_job() -> None:
         _RANK_REFRESH_LOCK.release()
 
 
+def _run_market_sheets_sync_job(*, trigger_source: str = "scheduler") -> None:
+    from backend.services.market_sheets_sync import sync_all_market_sheets
+
+    if not settings.market_sheets_sync_enabled:
+        return
+    try:
+        out = sync_all_market_sheets()
+        LOGGER.info(
+            "Market sheets sync (%s): ok=%s series=%s/%s rows=%s",
+            trigger_source,
+            out.get("ok"),
+            out.get("ok_count"),
+            out.get("series_count"),
+            out.get("rows_upserted"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Market sheets sync failed (%s): %s", trigger_source, exc)
+
+
 def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     try:
         timezone = ZoneInfo(settings.scheduled_refresh_timezone)
@@ -3665,6 +3698,22 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             max_instances=1,
             coalesce=True,
             misfire_grace_time=1800,
+        )
+        job_count += 1
+
+    if settings.market_sheets_sync_enabled:
+        scheduler.add_job(
+            _run_market_sheets_sync_job,
+            trigger=CronTrigger(
+                hour=max(0, min(23, int(settings.market_sheets_sync_hour))),
+                minute=max(0, min(59, int(settings.market_sheets_sync_minute))),
+                timezone=timezone,
+            ),
+            id="daily-market-sheets-sync",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
         )
         job_count += 1
 
