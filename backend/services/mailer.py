@@ -291,9 +291,9 @@ def normalize_outbound_recipients(
 
 
 def _set_message_to_header(message: EmailMessage, recipients: list[str]) -> None:
-    """Tek To başlığı (Python 3.14+ ikinci atamada ValueError verir)."""
+    """Tek To başlığı — ikinci doğrudan atama Python 3.12+ ValueError verir."""
     value = ", ".join(recipients)
-    if message.get("To"):
+    while message.get_all("To"):
         del message["To"]
     message["To"] = value
 
@@ -574,8 +574,10 @@ def send_admin_security_email(subject: str, html_body: str, recipients: list[str
     recipient_list = normalize_outbound_recipients(recipients)
     if not recipient_list:
         return False
-    if not _smtp_configured():
-        logging.warning("Admin güvenlik e-postası gönderilemedi: SMTP yapılandırması eksik")
+    if not _smtp_configured() and not _gmail_oauth_outbound_ready():
+        logging.warning(
+            "Admin güvenlik e-postası gönderilemedi: SMTP veya Gmail OAuth (inbox) gerekli"
+        )
         return False
     if not smtp_recipients_allowed(len(recipient_list)):
         return False
