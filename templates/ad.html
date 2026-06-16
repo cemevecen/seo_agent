@@ -1,6 +1,41 @@
 {% extends "base.html" %}
 {% block content %}
 <!-- mz-layout-v5 -->
+<style>
+  @keyframes mz-delete-spin {
+    to { transform: rotate(360deg); }
+  }
+  .mz-delete-spinner {
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    border: 3px solid rgba(244, 63, 94, 0.22);
+    border-top-color: rgb(225 29 72);
+    border-radius: 9999px;
+    animation: mz-delete-spin 0.7s linear infinite;
+  }
+  html.dark .mz-delete-spinner {
+    border-color: rgba(251, 113, 133, 0.25);
+    border-top-color: rgb(251 113 133);
+  }
+  #mz-delete-overlay.mz-delete-overlay--nudge > div {
+    animation: mz-delete-nudge 0.45s ease;
+  }
+  @keyframes mz-delete-nudge {
+    0%, 100% { transform: scale(1); }
+    40% { transform: scale(1.03); }
+  }
+  #mz-imports-wrap.mz-imports-wrap--deleting {
+    border-color: rgb(244 63 94) !important;
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.28);
+    background: rgba(255, 241, 242, 0.65);
+  }
+  html.dark #mz-imports-wrap.mz-imports-wrap--deleting {
+    border-color: rgb(190 18 60) !important;
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.35);
+    background: rgba(76, 5, 25, 0.35);
+  }
+</style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -563,6 +598,29 @@
       </div>
     </div>
   </div>
+
+  <div
+    id="mz-delete-overlay"
+    class="fixed inset-0 z-[9998] hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[3px] dark:bg-black/60"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="mz-delete-overlay-title"
+    aria-describedby="mz-delete-overlay-desc"
+    aria-hidden="true"
+  >
+    <div class="w-full max-w-md rounded-2xl border-2 border-rose-400 bg-white p-5 shadow-2xl ring-4 ring-rose-500/15 dark:border-rose-700 dark:bg-zinc-900 dark:ring-rose-500/25">
+      <div class="flex items-start gap-3.5">
+        <div class="mz-delete-spinner" aria-hidden="true"></div>
+        <div class="min-w-0 flex-1">
+          <p id="mz-delete-overlay-title" class="text-base font-extrabold tracking-tight text-rose-800 dark:text-rose-200">Dosya siliniyor</p>
+          <p id="mz-delete-overlay-file" class="mt-1.5 break-all rounded-lg border border-rose-200 bg-rose-50/80 px-2 py-1.5 font-mono text-[11px] font-semibold text-rose-950 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"></p>
+          <p id="mz-delete-overlay-desc" class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-zinc-400">
+            Yüklü dosyalar listesinden kaldırılıyor; veritabanı ve grafikler güncelleniyor. Bu sürede sayfayı kapatmayın.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="/static/js/mz_mean_split_traces.js?v=2"></script>
@@ -713,6 +771,51 @@
       el.textContent = "";
       el.classList.add("hidden");
     }
+  }
+
+  function mzEnsureDeleteOverlayInBody() {
+    var el = document.getElementById("mz-delete-overlay");
+    if (el && el.parentNode !== document.body) {
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function mzShowDeleteOverlay(sourceFile) {
+    var el = mzEnsureDeleteOverlayInBody();
+    var fileEl = document.getElementById("mz-delete-overlay-file");
+    if (fileEl) fileEl.textContent = sourceFile || "—";
+    if (el) {
+      el.classList.remove("hidden");
+      el.classList.add("flex");
+      el.setAttribute("aria-hidden", "false");
+    }
+    var wrap = document.getElementById("mz-imports-wrap");
+    if (wrap) {
+      wrap.open = true;
+      wrap.classList.add("mz-imports-wrap--deleting");
+    }
+    var statusEl = document.getElementById("mz-status");
+    if (statusEl) statusEl.textContent = "Siliniyor: " + (sourceFile || "dosya") + "…";
+  }
+
+  function mzHideDeleteOverlay() {
+    var el = document.getElementById("mz-delete-overlay");
+    if (el) {
+      el.classList.add("hidden");
+      el.classList.remove("flex", "mz-delete-overlay--nudge");
+      el.setAttribute("aria-hidden", "true");
+    }
+    var wrap = document.getElementById("mz-imports-wrap");
+    if (wrap) wrap.classList.remove("mz-imports-wrap--deleting");
+  }
+
+  function mzNudgeDeleteOverlay() {
+    var el = mzEnsureDeleteOverlayInBody();
+    if (!el || el.classList.contains("hidden")) return;
+    el.classList.remove("mz-delete-overlay--nudge");
+    void el.offsetWidth;
+    el.classList.add("mz-delete-overlay--nudge");
   }
 
   function hideBootHint() {
@@ -8010,7 +8113,8 @@
     ev.stopPropagation();
     var statusEl = document.getElementById("mz-status");
     if (state._mzDeleteBusy) {
-      if (statusEl) statusEl.textContent = "Önceki silme işlemi devam ediyor…";
+      mzShowDeleteOverlay(state._mzDeletePendingFile || "");
+      mzNudgeDeleteOverlay();
       return;
     }
     var sourceFile = mzResolveImportSourceFile(btn);
@@ -8034,6 +8138,8 @@
   async function runMzImportDelete(sourceFile, btn) {
     if (state._mzDeleteBusy) return;
     state._mzDeleteBusy = true;
+    state._mzDeletePendingFile = sourceFile;
+    mzShowDeleteOverlay(sourceFile);
     if (btn) btn.disabled = true;
     var statusEl = document.getElementById("mz-status");
     try {
@@ -8063,6 +8169,7 @@
     } finally {
       state._mzDeleteBusy = false;
       state._mzDeletePendingFile = "";
+      mzHideDeleteOverlay();
     }
   }
 
