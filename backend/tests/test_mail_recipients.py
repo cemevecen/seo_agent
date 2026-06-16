@@ -33,6 +33,20 @@ def test_sanitize_message_recipients_strips_gmail_from_to_header():
     assert msg["To"] == "cemevecen@nokta.com"
 
 
+def test_sanitize_message_recipients_idempotent_no_duplicate_to_header():
+    """send_email To + Gmail yolu _sanitize tekrar çağırır; Python 3.14 çift To atamasına izin vermez."""
+    from email.message import EmailMessage
+
+    from backend.services.mailer import _sanitize_message_recipients
+
+    msg = EmailMessage()
+    msg["To"] = "ops@nokta.com, medya@nokta.com"
+    safe1 = _sanitize_message_recipients(msg)
+    safe2 = _sanitize_message_recipients(msg)
+    assert safe1 == safe2 == ["ops@nokta.com", "medya@nokta.com"]
+    assert msg["To"] == "ops@nokta.com, medya@nokta.com"
+
+
 def test_default_mail_recipients_from_settings():
     with patch("backend.services.mailer.settings") as mock_settings:
         mock_settings.mail_to = "cemevecen@gmail.com, cemevecen@nokta.com"

@@ -290,6 +290,14 @@ def normalize_outbound_recipients(
     return out
 
 
+def _set_message_to_header(message: EmailMessage, recipients: list[str]) -> None:
+    """Tek To başlığı (Python 3.14+ ikinci atamada ValueError verir)."""
+    value = ", ".join(recipients)
+    if message.get("To"):
+        del message["To"]
+    message["To"] = value
+
+
 def _sanitize_message_recipients(message: EmailMessage) -> list[str] | None:
     """To başlığındaki Gmail adreslerini son kez filtreler; boş kalırsa gönderim iptal."""
     to_raw = str(message.get("To", "") or "")
@@ -298,7 +306,7 @@ def _sanitize_message_recipients(message: EmailMessage) -> list[str] | None:
     if not safe:
         logging.error("E-posta gönderimi iptal: Gmail hariç geçerli alıcı yok (To=%s)", to_raw[:160])
         return None
-    message["To"] = ", ".join(safe)
+    _set_message_to_header(message, safe)
     return safe
 
 
@@ -575,7 +583,7 @@ def send_admin_security_email(subject: str, html_body: str, recipients: list[str
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = settings.mail_from
-    message["To"] = ", ".join(recipient_list)
+    _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
     message.set_content(plain_text_for_mailer(html_body, subject=subject))
@@ -609,7 +617,7 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = settings.mail_from
-    message["To"] = ", ".join(recipient_list)
+    _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
     message.set_content(plain_text_for_mailer(html_body, subject=subject))
@@ -676,7 +684,7 @@ def send_realtime_email(
     message = EmailMessage()
     message["Subject"] = subj
     message["From"] = settings.mail_from
-    message["To"] = ", ".join(recipient_list)
+    _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
     message.set_content(plain_text_for_mailer(html_body, subject=subj))
@@ -736,7 +744,7 @@ def send_realtime_news_email(
     message = EmailMessage()
     message["Subject"] = subj
     message["From"] = settings.mail_from
-    message["To"] = ", ".join(recipient_list)
+    _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
     message.set_content(plain_text_for_mailer(html_body, subject=subj))
