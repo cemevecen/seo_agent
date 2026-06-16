@@ -337,13 +337,24 @@
       <div id="mz-top-units-wrap" class="mz-chart-card rounded-2xl border border-amber-200/90 bg-amber-50/40 p-4 dark:border-amber-900/50 dark:bg-amber-950/20 midnight:border-amber-900/40">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
           <div class="min-w-0">
-            <h2 class="text-sm font-bold text-amber-950 dark:text-amber-100">Son 7 gün — en çok kazandıran Mx birimleri</h2>
-            <p id="mz-top-units-range" class="mt-0.5 text-[10px] text-amber-900/80 dark:text-amber-200/90">Son 7 gün hesaplanıyor…</p>
+            <h2 id="mz-top-units-title" class="text-sm font-bold text-amber-950 dark:text-amber-100">En çok kazandıran Mx birimleri</h2>
+            <p id="mz-top-units-range" class="mt-0.5 text-[10px] text-amber-900/80 dark:text-amber-200/90">Hesaplanıyor…</p>
             <p class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Çubuğa veya chip’e tıklayın: detay tabloda seçilir, trend ve favori güncellenir.</p>
           </div>
-          <button id="mz-top-units-refresh" type="button" class="shrink-0 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-black dark:text-amber-200 dark:hover:bg-amber-950/60">
-            Yenile
-          </button>
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            <select id="mz-top-units-preset" class="max-w-[11rem] rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold text-amber-950 dark:border-amber-800 dark:bg-black dark:text-amber-100" aria-label="Mx birimleri tarih aralığı">
+              <option value="yesterday">Dün</option>
+              <option value="last_7d" selected>Son bir hafta</option>
+              <option value="prev_week">Geçen hafta</option>
+              <option value="last_30d">Son bir ay</option>
+              <option value="last_month">Geçen ay</option>
+              <option value="last_1y">Son bir yıl</option>
+              <option value="last_year">Geçen yıl</option>
+            </select>
+            <button id="mz-top-units-refresh" type="button" class="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-black dark:text-amber-200 dark:hover:bg-amber-950/60">
+              Yenile
+            </button>
+          </div>
         </div>
         <div id="mz-top-units-chart" class="mz-chart-plot w-full" data-mz-chart-h="300"></div>
         <p id="mz-top-units-status" class="mt-1 text-[10px] text-slate-600 dark:text-zinc-400"></p>
@@ -6020,17 +6031,64 @@
     plotChart(elId, traces, plotTheme(barLayout), { minHeight: 220 });
   }
 
-  function last7DayRange() {
-    var endInp = document.getElementById("mz-end");
-    var endStr = (endInp && endInp.value) ? endInp.value.slice(0, 10) : new Date().toISOString().slice(0, 10);
-    var end = new Date(endStr + "T12:00:00");
-    if (isNaN(end.getTime())) {
-      end = new Date();
-      endStr = end.toISOString().slice(0, 10);
+  var MZ_TOP_UNITS_PRESET_LABELS = {
+    yesterday: "Dün",
+    last_7d: "Son bir hafta",
+    prev_week: "Geçen hafta",
+    last_30d: "Son bir ay",
+    last_month: "Geçen ay",
+    last_1y: "Son bir yıl",
+    last_year: "Geçen yıl",
+  };
+
+  function mzTopUnitsPresetValue() {
+    var el = document.getElementById("mz-top-units-preset");
+    return (el && el.value) || "last_7d";
+  }
+
+  /** Geçen takvim haftası (Pzt–Paz), bugüne göre. */
+  function mzPrevCalendarWeekRange(anchorIso) {
+    var d = new Date(anchorIso + "T12:00:00");
+    var dow = d.getDay();
+    var toMonday = dow === 0 ? -6 : 1 - dow;
+    var thisMonday = new Date(d);
+    thisMonday.setDate(d.getDate() + toMonday);
+    var lastMonday = new Date(thisMonday);
+    lastMonday.setDate(thisMonday.getDate() - 7);
+    var lastSunday = new Date(lastMonday);
+    lastSunday.setDate(lastMonday.getDate() + 6);
+    return { start: isoCalendarDate(lastMonday), end: isoCalendarDate(lastSunday) };
+  }
+
+  function topMxUnitsRangeForPreset(preset) {
+    var anchor = mzPresetAnchorIso();
+    var d = new Date(anchor + "T12:00:00");
+    if (preset === "yesterday") {
+      var y = new Date(d);
+      y.setDate(y.getDate() - 1);
+      var day = isoCalendarDate(y);
+      return { start: day, end: day, preset: preset };
     }
-    var start = new Date(end);
-    start.setDate(start.getDate() - 6);
-    return { start: start.toISOString().slice(0, 10), end: endStr };
+    if (preset === "prev_week") {
+      var pw = mzPrevCalendarWeekRange(anchor);
+      return { start: pw.start, end: pw.end, preset: preset };
+    }
+    if (preset === "last_month") {
+      var ms = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+      var me = new Date(d.getFullYear(), d.getMonth(), 0);
+      return { start: isoCalendarDate(ms), end: isoCalendarDate(me), preset: preset };
+    }
+    if (preset === "last_year") {
+      var calY = d.getFullYear() - 1;
+      return { start: calY + "-01-01", end: calY + "-12-31", preset: preset };
+    }
+    var start = new Date(d);
+    var end = new Date(d);
+    if (preset === "last_7d") start.setDate(start.getDate() - 6);
+    else if (preset === "last_30d") start.setDate(start.getDate() - 29);
+    else if (preset === "last_1y") start.setFullYear(start.getFullYear() - 1);
+    else start.setDate(start.getDate() - 6);
+    return { start: isoCalendarDate(start), end: isoCalendarDate(end), preset: preset || "last_7d" };
   }
 
   function renderTopUnitsChips(rows) {
@@ -6069,8 +6127,12 @@
     var statusEl = document.getElementById("mz-top-units-status");
     var rangeEl = document.getElementById("mz-top-units-range");
     if (!chartEl || !window.Plotly) return;
-    var r7 = last7DayRange();
-    if (rangeEl) rangeEl.textContent = r7.start + " — " + r7.end + " (son 7 gün)";
+    var preset = mzTopUnitsPresetValue();
+    var r7 = topMxUnitsRangeForPreset(preset);
+    var presetLbl = MZ_TOP_UNITS_PRESET_LABELS[r7.preset] || MZ_TOP_UNITS_PRESET_LABELS.last_7d;
+    if (rangeEl) {
+      rangeEl.textContent = r7.start + " — " + r7.end + " · " + presetLbl;
+    }
     if (statusEl) statusEl.textContent = "Yükleniyor…";
     try {
       var p = qs();
@@ -6089,7 +6151,14 @@
       renderTopUnitsChips(rows);
       if (!rows.length) {
         try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
-        chartEl.innerHTML = "<p class=\"py-10 text-center text-xs text-slate-500 dark:text-zinc-500\">Son 7 günde Mx birimi verisi yok.</p>";
+        chartEl.innerHTML =
+          "<p class=\"py-10 text-center text-xs text-slate-500 dark:text-zinc-500\">" +
+          presetLbl +
+          " (" +
+          r7.start +
+          " — " +
+          r7.end +
+          ") aralığında Mx birimi verisi yok.</p>";
         if (statusEl) statusEl.textContent = "";
         return;
       }
@@ -8026,6 +8095,9 @@
   });
 
   on("mz-top-units-refresh", "click", function () {
+    renderTopMxUnitsWeek();
+  });
+  on("mz-top-units-preset", "change", function () {
     renderTopMxUnitsWeek();
   });
 
