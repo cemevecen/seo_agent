@@ -4965,8 +4965,34 @@
     return m;
   }
 
-  async function mzApplyMarketOverlayLine(traces, layoutExtra, dateKeys, mode) {
+  function mzMarketAxisLayoutKey(yaxisId) {
+    if (!yaxisId || yaxisId === "y") return "yaxis";
+    var n = String(yaxisId).replace(/^y/, "");
+    return n ? "yaxis" + n : "yaxis";
+  }
+
+  function mzPickMarketYaxisId(layoutExtra) {
+    layoutExtra = layoutExtra || {};
+    for (var n = 2; n <= 6; n++) {
+      if (!layoutExtra["yaxis" + n]) return "y" + n;
+    }
+    return "y6";
+  }
+
+  async function mzMaybeApplyMarketOverlay(traces, layoutExtra, dateKeys, opts) {
+    var mode = mzMarketOverlayMode();
+    if (!mode || !dateKeys || !dateKeys.length) return false;
+    var o = Object.assign({}, opts || {});
+    if (!o.yaxisId) o.yaxisId = mzPickMarketYaxisId(layoutExtra);
+    await mzApplyMarketOverlayLine(traces, layoutExtra, dateKeys, mode, o);
+    return true;
+  }
+
+  async function mzApplyMarketOverlayLine(traces, layoutExtra, dateKeys, mode, opts) {
     if (!mode || !dateKeys || !dateKeys.length) return;
+    opts = opts || {};
+    var yaxisId = opts.yaxisId || "y2";
+    var yLayoutKey = mzMarketAxisLayoutKey(yaxisId);
     var startIso = String(dateKeys[0]).slice(0, 10);
     var endIso = String(dateKeys[dateKeys.length - 1]).slice(0, 10);
     var payload;
@@ -5011,14 +5037,14 @@
         type: "scatter",
         mode: "lines",
         name: block.label + (mode === "all_indexed" ? " %" : ""),
-        yaxis: "y2",
+        yaxis: yaxisId,
         line: { color: MZ_MARKET_OVERLAY_LINE_COLOR, width: 2 },
         connectgaps: false,
       });
       y2 = true;
     });
     if (!y2) return;
-    layoutExtra.yaxis2 = Object.assign({}, plotAxis(mode === "all_indexed" ? "Endeks (100)" : "Piyasa"), {
+    layoutExtra[yLayoutKey] = Object.assign({}, plotAxis(mode === "all_indexed" ? "Endeks (100)" : "Piyasa"), {
       overlaying: "y",
       side: "right",
       showgrid: false,
@@ -6041,6 +6067,12 @@
       });
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
+    var lineLay = plotTheme(layoutExtra);
+    var marketDates =
+      timeKey === "date" && !aligned && !periodPair
+        ? filterSeriesBySelectedRange(byDate, timeKey).map(function (x) { return x.date; })
+        : null;
+
     if (peerSum && timeKey === "date" && !cmp) {
       var seriesPeer = filterSeriesBySelectedRange(byDate, timeKey);
       var peerX = seriesPeer.map(function (x) { return x.date; });
@@ -6048,12 +6080,13 @@
         hidePeerSplitChart("line");
         var peerYs = peerMetricYForPlotX(peerSum, peerX, kpiKey);
         if (peerYs.some(function (v) { return v != null && v !== 0; })) {
-          var lineLay = plotTheme(layoutExtra);
+          if (marketDates && marketDates.length) {
+            await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
+          }
           lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
-          plotChart("mz-chart-line", traces, lineLay, { minHeight: 220 });
-          plotPeerSplitChart(
-            "line",
-            [{
+          await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220 });
+          var peerTraces = [
+            {
               x: peerX,
               y: peerYs,
               type: "scatter",
@@ -6061,7 +6094,15 @@
               name: peerBranchLabel() + " · " + def.label,
               line: peerOverlayLineStyle(),
               connectgaps: false,
-            }],
+            },
+          ];
+          var peerLay = plotTheme({ yTitle: def.axis || "" });
+          if (marketDates && marketDates.length) {
+            await mzMaybeApplyMarketOverlay(peerTraces, peerLay, marketDates);
+          }
+          await plotPeerSplitChart(
+            "line",
+            peerTraces,
             { yTitle: def.axis || "" },
             {
               xaxis: Object.assign({}, lineLay.xaxis, { type: "date", showticklabels: true }),
@@ -6078,16 +6119,10 @@
     } else {
       hidePeerSplitChart("line");
     }
-    var lineLay = plotTheme(layoutExtra);
-    var marketMode = mzMarketOverlayMode();
-    if (marketMode && timeKey === "date" && !cmp && !aligned && !periodPair) {
-      var mktSeries = filterSeriesBySelectedRange(byDate, timeKey);
-      var mktDates = mktSeries.map(function (x) { return x.date; });
-      if (mktDates.length) {
-        await mzApplyMarketOverlayLine(traces, lineLay, mktDates, marketMode);
-      }
+    if (marketDates && marketDates.length) {
+      await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
     }
-    plotChart("mz-chart-line", traces, lineLay, { minHeight: 220 });
+    await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220 });
   }
 
   function peerBarYsForLabels(peerSum, labels, labelKey) {
@@ -6492,7 +6527,7 @@
       state.peerSeparate.dual ||
       state.peerSeparate.quality;
     var peerPromise = peerNeeded ? ensurePeerSummary() : Promise.resolve(null);
-    return peerPromise.then(function (peerSum) {
+    return peerPromise.then(async function (peerSum) {
     var cmp = compareBlock(sum);
     var colors = compareColors();
     var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
@@ -6595,8 +6630,19 @@
           connectgaps: false,
         },
       ];
+      if (!revAligned && dates.length) {
+        await mzMaybeApplyMarketOverlay(dualTraces, dualLay, dates);
+      }
       dualLay.xaxis = Object.assign({}, dualLay.xaxis || {}, { showticklabels: false });
-      plotPeerSplitChart("dual", dualPeerTraces, {
+      await plotChart("mz-chart-dual", dualTraces, dualLay, { minHeight: revAligned && impAligned ? 320 : 220 });
+      var dualPeerLay = plotTheme({
+        yaxis: { title: "TL" },
+        yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
+      });
+      if (dates.length) {
+        await mzMaybeApplyMarketOverlay(dualPeerTraces, dualPeerLay, dates);
+      }
+      await plotPeerSplitChart("dual", dualPeerTraces, {
         yaxis: { title: "TL" },
         yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
       }, {
@@ -6609,8 +6655,11 @@
         appendPeerScatterTrace(dualTraces, dates, "net_revenue", peerSum, peerBranchLabel() + " · Net gelir", "y");
         appendPeerScatterTrace(dualTraces, dates, "impression", peerSum, peerBranchLabel() + " · Gösterim", "y2");
       }
+      if (!revAligned && dates.length) {
+        await mzMaybeApplyMarketOverlay(dualTraces, dualLay, dates);
+      }
+      await plotChart("mz-chart-dual", dualTraces, dualLay, { minHeight: revAligned && impAligned ? 320 : 220 });
     }
-    plotChart("mz-chart-dual", dualTraces, dualLay, { minHeight: revAligned && impAligned ? 320 : 220 });
 
     var qualityKeys = [
       { key: "viewability_pct", label: "Viewability %", idx: 0 },
@@ -6674,8 +6723,16 @@
           connectgaps: false,
         });
       });
+      if (dates.length) {
+        await mzMaybeApplyMarketOverlay(qualityTraces, qualityLay, dates);
+      }
       qualityLay.xaxis = Object.assign({}, qualityLay.xaxis || {}, { showticklabels: false });
-      plotPeerSplitChart("quality", qPeerTraces, { yTitle: "%" }, {
+      await plotChart("mz-chart-quality", qualityTraces, qualityLay, { minHeight: qualityAligned ? 320 : 220 });
+      var qPeerLay = plotTheme({ yTitle: "%" });
+      if (dates.length) {
+        await mzMaybeApplyMarketOverlay(qPeerTraces, qPeerLay, dates);
+      }
+      await plotPeerSplitChart("quality", qPeerTraces, { yTitle: "%" }, {
         xaxis: Object.assign({}, qualityLay.xaxis, { type: "date", showticklabels: true }),
         yTitle: "%",
         minHeight: 220,
@@ -6687,8 +6744,11 @@
           appendPeerScatterTrace(qualityTraces, dates, q.key, peerSum, peerBranchLabel() + " · " + q.label);
         });
       }
+      if (!qualityAligned && dates.length) {
+        await mzMaybeApplyMarketOverlay(qualityTraces, qualityLay, dates);
+      }
+      await plotChart("mz-chart-quality", qualityTraces, qualityLay, { minHeight: qualityAligned ? 320 : 220 });
     }
-    plotChart("mz-chart-quality", qualityTraces, qualityLay, { minHeight: qualityAligned ? 320 : 220 });
 
     var hm = sum.heatmap_calendar || [];
     if (hm.length) {
