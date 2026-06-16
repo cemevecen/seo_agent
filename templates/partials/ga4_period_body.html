@@ -45,6 +45,7 @@
     id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
     class="ga4-kpi-trend h-[min(360px,55vh)] min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[420px]"
     data-ga4-kpi-trend
+    data-ga4-platform="{{ pk }}"
     data-ga4-daily-trend='{{ dt | tojson }}'
   ></div>
 {% elif _has_period %}
@@ -115,6 +116,7 @@
     id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
     class="ga4-kpi-trend h-[min(360px,52vh)] min-h-[220px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"
     data-ga4-kpi-trend
+    data-ga4-platform="{{ pk }}"
     data-ga4-daily-trend='{{ dt | tojson }}'
   ></div>
   {% else %}

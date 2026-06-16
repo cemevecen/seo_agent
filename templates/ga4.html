@@ -352,6 +352,7 @@
   </div>
 </div>
 
+<script src="/static/js/app_version_markers.js?v=1"></script>
 <script>
   function createGa4PageLoadController() {
     const panel = document.getElementById('ga4-page-load-panel');
@@ -1387,6 +1388,10 @@
             window.setTimeout(function () {
               Plotly.Plots.resize(element);
             }, 150);
+            var plat = element.getAttribute('data-ga4-platform') || '';
+            if (window.AppVersionMarkers && (plat === 'ios' || plat === 'android')) {
+              window.AppVersionMarkers.decorate(element, plat);
+            }
           });
           };
           var overlayPromise =

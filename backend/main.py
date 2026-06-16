@@ -11439,6 +11439,27 @@ def api_app_store_rollout(product: str = "doviz"):
     return JSONResponse(intel_json_safe(fetch_store_rollout(pid)))
 
 
+@app.get("/api/app/version-releases")
+def api_app_version_releases(platform: str = "all", refresh: int = 0):
+    """Google Sheet kaynaklı uygulama sürüm yayın tarihleri (iOS/Android).
+
+    Grafiklerde (GA4 + /ad) yatay eksende sürüm noktaları için kullanılır.
+    """
+    from backend.services.app_version_releases import fetch_version_releases
+
+    data = fetch_version_releases(force=bool(refresh))
+    plat = (platform or "all").strip().lower()
+    if plat in ("ios", "android"):
+        return JSONResponse(
+            {
+                "platform": plat,
+                "releases": data.get(plat, []),
+                "updated_at": data.get("updated_at"),
+            }
+        )
+    return JSONResponse(data)
+
+
 @app.get("/api/app/asc-stream")
 async def api_app_asc_stream(
     product: str = "doviz",

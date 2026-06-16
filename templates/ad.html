@@ -639,6 +639,7 @@
 </div>
 
 <script src="/static/js/mz_mean_split_traces.js?v=2"></script>
+<script src="/static/js/app_version_markers.js?v=1"></script>
 <script>
 (function () {
   /* CSS'den bağımsız layout zorlaması — element inline style, tüm CSS kurallarından üstün */
@@ -5754,6 +5755,22 @@
     return Math.round(h);
   }
 
+  // Sürüm yayın işaretçisi eklenecek ana tarih-eksenli grafikler
+  var MZ_VERSION_MARKER_CHARTS = {
+    "mz-chart-line": 1,
+    "mz-chart-dual": 1,
+    "mz-chart-quality": 1,
+  };
+
+  // Aktif dala göre platform: ios / android / all (genel)
+  function mzActivePlatform() {
+    var s = state.activeStream || {};
+    var key = String(s.key || s.branch || "").toLowerCase();
+    if (key.indexOf("ios") >= 0) return "ios";
+    if (key.indexOf("android") >= 0) return "android";
+    return "all";
+  }
+
   function plotChart(elOrId, traces, layout, opts) {
     opts = opts || {};
     var el = typeof elOrId === "string" ? document.getElementById(elOrId) : elOrId;
@@ -5777,6 +5794,12 @@
       el.innerHTML = "";
       return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function () {
         return Plotly.Plots.resize(el);
+      }).then(function () {
+        try {
+          if (window.AppVersionMarkers && el.id && MZ_VERSION_MARKER_CHARTS[el.id]) {
+            return window.AppVersionMarkers.decorate(el, mzActivePlatform());
+          }
+        } catch (_) { /* ignore */ }
       });
     }
     return new Promise(function (resolve) {
