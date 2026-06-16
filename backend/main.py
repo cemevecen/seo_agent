@@ -11383,6 +11383,23 @@ def api_app_intel(product: str = "doviz", period: int = 30, cache_only: int = 0)
     return JSONResponse(intel_json_safe(payload))
 
 
+@app.get("/api/app/version-releases")
+def api_app_version_releases(product: str = "doviz", since: str = "2025-01-01"):
+    from datetime import date as date_cls
+
+    from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
+    from backend.services.store_version_releases import fetch_version_releases_for_product
+
+    pid = (product or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        return JSONResponse({"error": "unknown_product"}, status_code=400)
+    try:
+        since_d = date_cls.fromisoformat((since or "2025-01-01").strip()[:10])
+    except ValueError:
+        return JSONResponse({"error": "invalid_since"}, status_code=400)
+    return JSONResponse(intel_json_safe(fetch_version_releases_for_product(pid, since=since_d)))
+
+
 @app.get("/api/app/asc-preview")
 def api_app_asc_preview(
     product: str = "doviz",

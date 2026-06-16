@@ -122,6 +122,32 @@
         word-break: normal !important;
       }
     }
+    .app-rel-marker-track {
+      pointer-events: none;
+    }
+    .app-rel-marker {
+      pointer-events: auto;
+      position: absolute;
+      bottom: 0;
+      width: 7px;
+      height: 7px;
+      margin-left: -3.5px;
+      border-radius: 1px;
+      background: #94a3b8;
+      cursor: default;
+      transition: background 0.12s ease, transform 0.12s ease;
+    }
+    .app-rel-marker:hover {
+      background: #475569;
+      transform: scale(1.15);
+      z-index: 2;
+    }
+    html.dark .app-rel-marker {
+      background: #64748b;
+    }
+    html.dark .app-rel-marker:hover {
+      background: #cbd5e1;
+    }
   </style>
   <div class="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:px-6 sm:py-4">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
@@ -755,6 +781,7 @@
   observer.observe(crashRoot);
 })();
 </script>
+<script src="/static/js/app_release_markers.js?v=1"></script>
 
 <script>
 (function () {
@@ -807,6 +834,7 @@
     ascRequestSeq: 0,
     crashlyticsDays: 7,
     crashlyticsRequestSeq: 0,
+    versionReleases: { ios: [], android: [], since: "2025-01-01" },
   };
   var COMP_BENCHMARK_STORAGE_KEY = "seo_agent_comp_benchmark_v3";
   var COMP_BENCHMARK_HISTORY_KEY = "seo_agent_comp_benchmark_history_v1";
@@ -818,6 +846,28 @@
     return String(v == null ? "" : v).replace(/[<>&]/g, function (c) {
       return c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;";
     });
+  }
+
+  function appVersionDateRange(len, periodDays) {
+    var n = Math.max(2, Number(len) || Number(periodDays) || 30);
+    if (periodDays === 0) {
+      n = Math.max(2, Number(len) || 365);
+    }
+    var end = new Date();
+    end.setHours(12, 0, 0, 0);
+    var start = new Date(end);
+    start.setDate(start.getDate() - (n - 1));
+    return { start: start, end: end };
+  }
+
+  function versionReleaseMarkerStrip(platform, seriesLen, periodDays) {
+    var ARM = window.AppReleaseMarkers;
+    if (!ARM || !state.versionReleases) return "";
+    var list =
+      platform === "android"
+        ? state.versionReleases.android || []
+        : state.versionReleases.ios || [];
+    return ARM.markerStripHtml(list, appVersionDateRange(seriesLen, periodDays));
   }
 
   function fmtNum(v, maxFrac) {
@@ -1212,6 +1262,16 @@
         refreshProductStyles();
         applyHeroShellFromState();
         loadIntel({ cacheOnly: true });
+        if (window.AppReleaseMarkers) {
+          AppReleaseMarkers.load(state.product, AppReleaseMarkers.SINCE_DEFAULT)
+            .then(function (vr) {
+              if (!vr || vr.error) return;
+              state.versionReleases.ios = vr.ios || [];
+              state.versionReleases.android = vr.android || [];
+              state.versionReleases.since = vr.since || state.versionReleases.since;
+            })
+            .catch(function () {});
+        }
         // Açık store panellerini hemen yenile
         var ascBody = document.getElementById('app-asc-body');
         loadStoreRollout();
@@ -1429,7 +1489,7 @@
       (d == null ? '' :
         '<p class="mt-0.5 text-xs font-semibold ' + ascDeltaClass(d) + '"><span class="mr-0.5">' + ascDeltaArrow(d) + '</span>' + esc(ascFormatDelta(d)) + '</p>') +
       ((metric && metric.series && metric.series.length) ?
-        '<div class="mt-2">' + ascSparklineSvg(metric.series, sparkColor) + '</div>' : '') +
+        '<div class="mt-2">' + ascSparklineSvg(metric.series, sparkColor) + versionReleaseMarkerStrip("ios", metric.series.length, ascState.period) + '</div>' : '') +
       '</div>'
     );
   }
@@ -1479,10 +1539,10 @@
         '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
         '<div><p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">İndirme (toplam)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + ascFmtNum(dlSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
-        ascSparklineSvg(dlSeries, 'text-indigo-500 dark:text-indigo-400') + '</div>' +
+        ascSparklineSvg(dlSeries, 'text-indigo-500 dark:text-indigo-400') + versionReleaseMarkerStrip('ios', dlSeries.length, j.period_days) + '</div>' +
         '<div><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Gelir (toplam)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + ascFmtMoney(prSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
-        ascSparklineSvg(prSeries, 'text-emerald-500 dark:text-emerald-400') + '</div>' +
+        ascSparklineSvg(prSeries, 'text-emerald-500 dark:text-emerald-400') + versionReleaseMarkerStrip('ios', prSeries.length, j.period_days) + '</div>' +
         '</div></div></section>';
     }
 
@@ -2091,7 +2151,7 @@
       '<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">' + esc(title) + '</p>' +
       '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">' + esc(val) + '</p>' +
       (d == null ? '' : '<p class="mt-0.5 text-xs font-semibold ' + gpDeltaClass(d) + '"><span class="mr-0.5">' + (d > 0 ? "▲" : d < 0 ? "▼" : "→") + '</span>' + esc(gpFormatDelta(d)) + '</p>') +
-      ((metric && metric.series && metric.series.length) ? '<div class="mt-2">' + gpSparkline(metric.series, "text-" + color + "-500 dark:text-" + color + "-400") + '</div>' : '') +
+      ((metric && metric.series && metric.series.length) ? '<div class="mt-2">' + gpSparkline(metric.series, "text-" + color + "-500 dark:text-" + color + "-400") + versionReleaseMarkerStrip("android", metric.series.length, gpState.period) + '</div>' : '') +
       '</div>';
   }
   function gpMiniCard(title, val, deltaPct) {
@@ -2160,10 +2220,10 @@
         '<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">' +
         '<div><p class="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Kurulum (toplam)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + gpFmtNum(iSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
-        gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + '</div>' +
+        gpSparkline(iSeries, 'text-green-500 dark:text-green-400') + versionReleaseMarkerStrip('android', iSeries.length, j.period_days) + '</div>' +
         '<div><p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Kaldırma (toplam)</p>' +
         '<p class="text-xl font-extrabold tabular-nums">' + gpFmtNum(uSeries.reduce(function (a, b) { return a + b; }, 0)) + '</p>' +
-        gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + '</div>' +
+        gpSparkline(uSeries, 'text-rose-500 dark:text-rose-400') + versionReleaseMarkerStrip('android', uSeries.length, j.period_days) + '</div>' +
         '</div></div></section>';
     }
 
@@ -2777,7 +2837,7 @@
     }
   }
 
-  function plotRankTrend(el, rows, label) {
+  function plotRankTrend(el, rows, label, platform) {
     if (!el) return;
     if (!window.Plotly) {
       if (el.querySelector(".app-intel-skeleton")) {
@@ -2800,7 +2860,7 @@
     var x = list.map(function (r) {
       try {
         var d = new Date(r.at);
-        return isNaN(d.getTime()) ? String(r.at || "") : d.toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+        return isNaN(d.getTime()) ? String(r.at || "") : d;
       } catch (e) {
         return String(r.at || "");
       }
@@ -2814,26 +2874,50 @@
       el.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">Sıralama değeri bulunamadı.</p>';
       return;
     }
+    var traces = [
+      {
+        x: x,
+        y: y,
+        mode: "lines+markers",
+        line: { color: "#22c55e", width: 2 },
+        marker: { size: 6, color: "#16a34a" },
+        name: label || "Sıra",
+        hovertemplate: "%{x|%d %b %H:%M}<br>Sıra: #%{y}<extra></extra>",
+      },
+    ];
+    var ARM = window.AppReleaseMarkers;
+    var rel =
+      platform === "android"
+        ? (state.versionReleases && state.versionReleases.android) || []
+        : (state.versionReleases && state.versionReleases.ios) || [];
+    var xDates = x.filter(function (d) {
+      return d instanceof Date && !isNaN(d.getTime());
+    });
+    var xMin = xDates.length ? xDates[0] : null;
+    var xMax = xDates.length ? xDates[xDates.length - 1] : null;
+    if (ARM && rel.length && xMin && xMax) {
+      var filtered = ARM.filterInRange(rel, xMin, xMax);
+      var relTrace = ARM.buildReleaseTrace(filtered, {
+        markerColor: platform === "android" ? "#22c55e" : "#6366f1",
+        yPaper: 0.04,
+      });
+      if (relTrace) traces.push(relTrace);
+    }
     Plotly.newPlot(
       el,
-      [
-        {
-          x: x,
-          y: y,
-          mode: "lines+markers",
-          line: { color: "#22c55e", width: 2 },
-          marker: { size: 6, color: "#16a34a" },
-          name: label || "Sıra",
-          hovertemplate: "%{x}<br>Sıra: #%{y}<extra></extra>",
-        },
-      ],
+      traces,
       {
         autosize: true,
         height: 210,
-        margin: { l: 52, r: 16, t: 14, b: 42 },
+        margin: { l: 52, r: 16, t: 14, b: rel.length ? 52 : 42 },
         paper_bgcolor: th.paper,
         plot_bgcolor: th.plot,
-        xaxis: { tickfont: { size: 10, color: th.tick }, automargin: true },
+        xaxis: {
+          type: "date",
+          tickfont: { size: 10, color: th.tick },
+          automargin: true,
+          tickformat: "%d %b",
+        },
         yaxis: {
           title: { text: "Sıra", font: { size: 11, color: th.tick } },
           tickfont: { size: 11, color: th.tick },
@@ -3824,7 +3908,8 @@
       plotRankTrend(
         document.getElementById("app-chart-play-rank"),
         playRankRows,
-        "Android sıra"
+        "Android sıra",
+        "android"
       );
     }
     plotCats(
@@ -3879,7 +3964,8 @@
       plotRankTrend(
         document.getElementById("app-chart-ios-rank"),
         iosRankRows,
-        "iOS sıra"
+        "iOS sıra",
+        "ios"
       );
     }
     plotCats(
@@ -4168,6 +4254,9 @@
         window.clearTimeout(to);
         clearTimeout(slowHintTimer);
         state.lastPayload = x.j;
+        if (window.AppReleaseMarkers) {
+          AppReleaseMarkers.mergeFromIntelPayload(x.j, state.versionReleases);
+        }
         if (status) {
           status.textContent = "Son çekim: " + formatShortDate(x.j.display_fetched_at || x.j.fetched_at);
         }
@@ -4395,6 +4484,17 @@
   function boot() {
     loadIntel({ cacheOnly: true });
     loadStoreRollout();
+    if (window.AppReleaseMarkers) {
+      AppReleaseMarkers.load(state.product, AppReleaseMarkers.SINCE_DEFAULT)
+        .then(function (vr) {
+          if (!vr || vr.error) return;
+          state.versionReleases.ios = vr.ios || state.versionReleases.ios || [];
+          state.versionReleases.android = vr.android || state.versionReleases.android || [];
+          state.versionReleases.since = vr.since || state.versionReleases.since;
+          if (state.lastPayload) redrawAll();
+        })
+        .catch(function () {});
+    }
     if (window.Plotly) return;
     var guard = 0;
     var iv = setInterval(function () {

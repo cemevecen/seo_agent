@@ -2352,6 +2352,13 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
         }
 
     intel["active_window"] = intel["windows"][str(period_days)]
+    try:
+        from backend.services.store_version_releases import fetch_version_releases_for_product
+
+        intel["version_releases"] = fetch_version_releases_for_product(product_id)
+    except Exception:
+        logger.debug("version_releases attach failed", exc_info=True)
+        intel["version_releases"] = {"ios": [], "android": [], "since": "2025-01-01"}
     return intel
 
 
