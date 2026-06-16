@@ -298,20 +298,39 @@ def _set_message_to_header(message: EmailMessage, recipients: list[str]) -> None
     message["To"] = value
 
 
-def _sanitize_message_recipients(message: EmailMessage) -> list[str] | None:
-    """To başlığındaki Gmail adreslerini son kez filtreler; boş kalırsa gönderim iptal."""
+def _recipient_addrs_from_message(message: EmailMessage) -> list[str]:
     to_raw = str(message.get("To", "") or "")
-    addrs = [a.strip() for a in to_raw.split(",") if a.strip()]
+    return [a.strip() for a in to_raw.split(",") if a.strip()]
+
+
+def _header_matches_recipient_list(message: EmailMessage, recipients: list[str]) -> bool:
+    addrs = _recipient_addrs_from_message(message)
+    if len(message.get_all("To") or []) != 1:
+        return False
+    if any(_is_gmail_recipient(a) for a in addrs):
+        return False
+    return [a.lower() for a in addrs] == [a.lower() for a in recipients]
+
+
+def _outbound_recipients_ready(message: EmailMessage) -> list[str] | None:
+    """Gönderim öncesi alıcı doğrula; To başlığına dokunmaz (çift To ataması yok)."""
+    addrs = _recipient_addrs_from_message(message)
     safe = normalize_outbound_recipients(addrs)
     if not safe:
-        logging.error("E-posta gönderimi iptal: Gmail hariç geçerli alıcı yok (To=%s)", to_raw[:160])
+        logging.error(
+            "E-posta gönderimi iptal: Gmail hariç geçerli alıcı yok (To=%s)",
+            str(message.get("To", ""))[:160],
+        )
         return None
-    # Gmail denemesi sonrası SMTP yolu aynı mesajı tekrar sanitize eder; gereksiz To yazımı ValueError riski.
-    if (
-        len(message.get_all("To") or []) == 1
-        and safe == normalize_outbound_recipients(addrs)
-        and not any(_is_gmail_recipient(a) for a in addrs)
-    ):
+    return safe
+
+
+def _sanitize_message_recipients(message: EmailMessage) -> list[str] | None:
+    """To başlığını güvenli alıcı listesine çeker (yalnızca açıkça gerekince kullanın)."""
+    safe = _outbound_recipients_ready(message)
+    if safe is None:
+        return None
+    if _header_matches_recipient_list(message, safe):
         return safe
     try:
         _set_message_to_header(message, safe)
@@ -452,7 +471,7 @@ def is_mail_configured() -> bool:
 
 def _smtp_send_message_with_retries(message: EmailMessage) -> bool:
     """SMTP gönderimi (kota rezervasyonu çağıran tarafında yapılmalıdır)."""
-    if _sanitize_message_recipients(message) is None:
+    if _outbound_recipients_ready(message) is None:
         return False
     MAX_RETRIES = 3
     INITIAL_BACKOFF_S = 15
@@ -565,7 +584,7 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
             logging.warning("Gmail OAuth token geçersiz, Gmail API atlanıyor.")
             return False
 
-        if _sanitize_message_recipients(message) is None:
+        if _outbound_recipients_ready(message) is None:
             return False
 
         service = googleapiclient.discovery.build("gmail", "v1", credentials=creds, cache_discovery=False)
@@ -705,6 +724,10 @@ def send_realtime_email(
     message.add_alternative(html_body, subtype="html")
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
+
+    if _outbound_recipients_ready(message) is None:
+        logging.warning("GA4 Realtime e-postası gönderilemedi: geçerli To alıcısı yok")
+        return False
 
     # ÖNCE GMAIL API (OAuth) DENE (Railway SMTP engeline takılmaz)
     if _gmail_api_dispatch(message):
