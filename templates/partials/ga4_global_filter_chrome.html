@@ -1,0 +1,12 @@
+{# Sayfa geneli — kart filtre şeridine taşınır (tek DOM) #}
+<div
+  id="ga4-global-filter-chrome"
+  class="ga4-global-filter-chrome flex min-w-0 flex-wrap items-center gap-2 sm:gap-2.5"
+>
+  <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+    <span class="hidden text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 xl:inline">Piyasa</span>
+    {% include 'partials/market_overlay_select.html' %}
+  </div>
+  {% set analytics_compare_inline = true %}
+  {% include 'partials/analytics_date_compare.html' %}
+</div>

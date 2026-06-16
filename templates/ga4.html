@@ -132,10 +132,51 @@
     0%, 100% { transform: scaleY(.55); opacity: .55; }
     50% { transform: scaleY(1.08); opacity: 1; }
   }
+  .ga4-card-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+  }
+  @media (min-width: 640px) {
+    .ga4-card-filter-bar {
+      gap: 0.625rem;
+    }
+  }
+  .ga4-card-filter-bar__divider {
+    display: none;
+    width: 1px;
+    height: 1.75rem;
+    flex-shrink: 0;
+    align-self: center;
+    background: rgb(226 232 240);
+  }
+  html.dark .ga4-card-filter-bar__divider {
+    background: rgb(51 65 85);
+  }
+  @media (min-width: 480px) {
+    .ga4-card-filter-bar__divider {
+      display: block;
+    }
+  }
+  [data-ga4-global-filter-slot]:empty {
+    display: none;
+  }
+  [data-ga4-global-filter-slot]:not(:empty) + .ga4-card-filter-bar__divider--after-global {
+    display: block;
+  }
+  .seo-analytics-compare-inline [data-compare-loading] {
+    max-width: 11.5rem;
+  }
+  .seo-analytics-compare-inline [data-compare-mode] {
+    max-width: 100%;
+  }
 </style>
 <div id="ga4-page" data-ga4-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}" data-header-title="GA4" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
-    <div class="ga4-analytics-toolbar mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="ga4-analytics-toolbar mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-3">
         <span class="ga4-motion-wave" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
         <div>
@@ -143,23 +184,18 @@
           <h2 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Analytics özeti</h2>
         </div>
       </div>
-      <div class="flex flex-col items-stretch gap-2 sm:items-end">
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Piyasa overlay</span>
-          {% include 'partials/market_overlay_select.html' %}
-        </div>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          {% include 'partials/analytics_date_compare.html' %}
-        </div>
       <button
         id="refresh-ga4-sites-button"
         type="button"
-        class="w-full rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        class="w-full shrink-0 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         onclick="refreshGa4Sites(this)"
       >
         Tüm Siteleri Yenile
       </button>
-      </div>
+    </div>
+
+    <div id="ga4-global-filter-chrome-holder" class="sr-only" aria-hidden="true">
+      {% include 'partials/ga4_global_filter_chrome.html' %}
     </div>
 
     <div id="ga4-page-load-panel" class="mb-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100/95 p-4 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-slate-200/80 backdrop-blur-sm dark:border-slate-600 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-[0_20px_50px_-38px_rgba(0,0,0,0.55)] dark:ring-slate-600/70 sm:rounded-[1.6rem] sm:p-5">
@@ -1651,6 +1687,37 @@
     }, 40);
   }
 
+  function pickGa4GlobalFilterSlot() {
+    var fid = ga4GetGlobalFocus();
+    if (fid) {
+      var focused = document.querySelector(
+        '[data-ga4-site-card][data-site-id="' + fid + '"]:not(.hidden) [data-ga4-global-filter-slot]'
+      );
+      if (focused) return focused;
+    }
+    var visible = document.querySelector('[data-ga4-site-card]:not(.hidden) [data-ga4-global-filter-slot]');
+    if (visible) return visible;
+    return document.querySelector('[data-ga4-global-filter-slot]');
+  }
+
+  function mountGa4GlobalFilters() {
+    var chrome = document.getElementById('ga4-global-filter-chrome');
+    if (!chrome) return;
+    var slot = pickGa4GlobalFilterSlot();
+    var holder = document.getElementById('ga4-global-filter-chrome-holder');
+    if (!slot) {
+      if (holder && chrome.parentElement !== holder) holder.appendChild(chrome);
+      return;
+    }
+    if (chrome.parentElement !== slot) slot.appendChild(chrome);
+    if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
+      SeoAnalyticsCompare.bindWhenReady('ga4');
+    }
+    if (window.SeoMarketOverlay && SeoMarketOverlay.bindWhenReady) {
+      SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
+    }
+  }
+
   function ga4ApplyGlobalFocus(focusId) {
     var fid;
     if (focusId !== undefined) {
@@ -1665,6 +1732,7 @@
     document.querySelectorAll('[data-ga4-split-root]').forEach(function (grid) {
       ga4ApplyFocusToGrid(grid, fid);
     });
+    mountGa4GlobalFilters();
   }
 
   function initGa4SplitView(root) {
@@ -1714,6 +1782,7 @@
       fitGa4Text(root);
       renderGa4TrendCharts(root);
     });
+    mountGa4GlobalFilters();
   }
 
   window.addEventListener('resize', function () {
@@ -1875,6 +1944,7 @@
     if (window.SeoMarketOverlay) {
       SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
     }
+    mountGa4GlobalFilters();
     initGa4Panels(document);
   });
 
