@@ -9,6 +9,9 @@
     sc: "seo-sc-date-compare",
   };
 
+  var debounceTimers = { ga4: null, sc: null };
+  var lastState = { ga4: null, sc: null };
+
   function read(storageKey) {
     try {
       var raw = global.localStorage.getItem(storageKey);
@@ -35,6 +38,28 @@
     } catch (e) {
       /* ignore */
     }
+  }
+
+  function statesEqual(a, b) {
+    if (!a || !b) return false;
+    return (
+      !!a.enabled === !!b.enabled &&
+      (a.mode || "") === (b.mode || "") &&
+      (a.start || "") === (b.start || "") &&
+      (a.end || "") === (b.end || "")
+    );
+  }
+
+  /** Sunucuda KPI değişimi gerektiren mod (önceki dönem = varsayılan veri). */
+  function needsServerReload(st, prevSt) {
+    prevSt = prevSt || defaultState();
+    if (st.enabled) {
+      return st.mode !== "previous_period";
+    }
+    if (prevSt.enabled && prevSt.mode !== "previous_period") {
+      return true;
+    }
+    return false;
   }
 
   function queryParams(pageKey) {
@@ -73,11 +98,11 @@
     }
     if (cs) {
       cs.value = st.start;
-      cs.disabled = !st.enabled;
+      cs.disabled = !st.enabled || st.mode !== "custom";
     }
     if (ce) {
       ce.value = st.end;
-      ce.disabled = !st.enabled;
+      ce.disabled = !st.enabled || st.mode !== "custom";
     }
     var isCustom = st.enabled && st.mode === "custom";
     if (custom) custom.classList.toggle("hidden", !isCustom);
@@ -108,13 +133,73 @@
     }
   }
 
+  function staggerHtmxReload(cards, urlBuilder) {
+    if (!global.htmx || !cards.length) return;
+    var idx = 0;
+    function step() {
+      if (idx >= cards.length) return;
+      var el = cards[idx];
+      idx += 1;
+      if (!el || !el.parentElement) {
+        step();
+        return;
+      }
+      delete el.dataset.chartReady;
+      global.htmx.ajax("GET", urlBuilder(el), { target: el, swap: "outerHTML" });
+      global.setTimeout(step, 120);
+    }
+    step();
+  }
+
+  function reloadGa4CardsImpl(prevSt) {
+    var st = read(STORAGE.ga4);
+    if (!needsServerReload(st, prevSt)) {
+      updateBanner("ga4", st);
+      return;
+    }
+    var cards = document.querySelectorAll("#ga4-site-list [data-ga4-site-card]");
+    if (!cards.length) return;
+    staggerHtmxReload(cards, function (el) {
+      var sid = el.getAttribute("data-site-id") || "";
+      return appendToUrl("/ga4/site/" + encodeURIComponent(sid), "ga4");
+    });
+  }
+
+  function reloadScCardsImpl(prevSt) {
+    var st = read(STORAGE.sc);
+    if (!needsServerReload(st, prevSt)) {
+      updateBanner("sc", st);
+      return;
+    }
+    var cards = document.querySelectorAll("#search-console-site-list [data-sc-site-card]");
+    if (!cards.length) return;
+    staggerHtmxReload(cards, function (el) {
+      var sid = el.getAttribute("data-site-id") || "";
+      return appendToUrl("/search-console/site/" + encodeURIComponent(sid), "sc");
+    });
+  }
+
+  function scheduleReload(pageKey, prevSt) {
+    var key = pageKey === "sc" ? "sc" : "ga4";
+    if (debounceTimers[key]) {
+      global.clearTimeout(debounceTimers[key]);
+    }
+    debounceTimers[key] = global.setTimeout(function () {
+      debounceTimers[key] = null;
+      if (key === "sc") reloadScCardsImpl(prevSt);
+      else reloadGa4CardsImpl(prevSt);
+    }, 450);
+  }
+
   function bind(pageKey, onChange) {
     var storageKey = STORAGE[pageKey] || STORAGE.ga4;
     var wrap = document.querySelector("[data-analytics-date-compare]");
     if (!wrap || wrap.dataset.compareBound === "1") return;
     wrap.dataset.compareBound = "1";
+    lastState[pageKey === "sc" ? "sc" : "ga4"] = read(storageKey);
 
     function persistAndNotify() {
+      var prevSt = read(storageKey);
       var en = wrap.querySelector("[data-compare-enabled]");
       var mode = wrap.querySelector("[data-compare-mode]");
       var cs = wrap.querySelector("[data-compare-start]");
@@ -125,8 +210,18 @@
         start: (cs && cs.value) || "",
         end: (ce && ce.value) || "",
       };
+      if (mode) mode.disabled = !st.enabled;
+      if (cs) cs.disabled = !st.enabled || st.mode !== "custom";
+      if (ce) ce.disabled = !st.enabled || st.mode !== "custom";
+      var custom = wrap.querySelector("[data-compare-custom]");
+      if (custom) custom.classList.toggle("hidden", !(st.enabled && st.mode === "custom"));
+
+      if (statesEqual(st, prevSt)) {
+        return;
+      }
       write(storageKey, st);
-      syncControls(document, pageKey);
+      updateBanner(pageKey, st);
+      scheduleReload(pageKey, prevSt);
       if (typeof onChange === "function") onChange(st);
     }
 
@@ -138,44 +233,11 @@
   }
 
   function reloadGa4Cards() {
-    document.querySelectorAll("[data-ga4-site-card], [id^='ga4-card-'][data-site-id]").forEach(function (el) {
-      var sid = el.getAttribute("data-site-id") || (el.id || "").replace("ga4-card-", "");
-      if (!sid) return;
-      delete el.dataset.chartReady;
-      var url = appendToUrl("/ga4/site/" + encodeURIComponent(sid), "ga4");
-      if (global.htmx) {
-        global.htmx.ajax("GET", url, { target: el, swap: "outerHTML" });
-      } else if (global.fetch) {
-        global.fetch(url, { credentials: "same-origin" }).then(function (r) {
-          return r.text();
-        }).then(function (html) {
-          el.outerHTML = html;
-          if (typeof global.initGa4Panels === "function") {
-            global.initGa4Panels(document);
-          }
-        });
-      }
-    });
+    reloadGa4CardsImpl(read(STORAGE.ga4));
   }
 
   function reloadScCards() {
-    document.querySelectorAll("[data-sc-site-card], [id^='sc-card-']").forEach(function (el) {
-      var sid = el.getAttribute("data-site-id") || (el.id || "").replace("sc-card-", "");
-      if (!sid) return;
-      var url = appendToUrl("/search-console/site/" + encodeURIComponent(sid), "sc");
-      if (global.htmx) {
-        global.htmx.ajax("GET", url, { target: el, swap: "outerHTML" });
-      } else if (global.fetch) {
-        global.fetch(url, { credentials: "same-origin" }).then(function (r) {
-          return r.text();
-        }).then(function (html) {
-          el.outerHTML = html;
-          if (typeof global.initSearchConsolePanels === "function") {
-            global.initSearchConsolePanels(document);
-          }
-        });
-      }
-    });
+    reloadScCardsImpl(read(STORAGE.sc));
   }
 
   global.SeoAnalyticsCompare = {
