@@ -639,7 +639,7 @@
 </div>
 
 <script src="/static/js/mz_mean_split_traces.js?v=2"></script>
-<script src="/static/js/app_version_markers.js?v=1"></script>
+<script src="/static/js/app_release_markers.js?v=2"></script>
 <script>
 (function () {
   /* CSS'den bağımsız layout zorlaması — element inline style, tüm CSS kurallarından üstün */
@@ -5771,6 +5771,38 @@
     return "all";
   }
 
+  // App sürüm yayın listesini bir kez yükle (iOS/Android), paylaş.
+  function ensureAppReleaseStore() {
+    if (window.__appReleaseStorePromise) return window.__appReleaseStorePromise;
+    if (!window.AppReleaseMarkers) return Promise.resolve(null);
+    var product = (state.activeStream && state.activeStream.project) || "doviz";
+    window.__appReleaseStorePromise = window.AppReleaseMarkers
+      .load(product, window.AppReleaseMarkers.SINCE_DEFAULT)
+      .then(function (vr) {
+        if (!vr || vr.error) return { ios: [], android: [] };
+        return { ios: vr.ios || [], android: vr.android || [] };
+      })
+      .catch(function () { return { ios: [], android: [] }; });
+    return window.__appReleaseStorePromise;
+  }
+
+  // Tarih-eksenli ana grafiklere sürüm işaretlerini ekle (aktif platforma göre).
+  function mzApplyVersionMarkers(el) {
+    if (!window.AppReleaseMarkers || !el || !el.id || !MZ_VERSION_MARKER_CHARTS[el.id]) {
+      return;
+    }
+    ensureAppReleaseStore().then(function (store) {
+      if (!store) return;
+      var plat = mzActivePlatform();
+      if (plat === "all") {
+        window.AppReleaseMarkers.decorate(el, "ios", store);
+        window.AppReleaseMarkers.decorate(el, "android", store);
+      } else {
+        window.AppReleaseMarkers.decorate(el, plat, store);
+      }
+    });
+  }
+
   function plotChart(elOrId, traces, layout, opts) {
     opts = opts || {};
     var el = typeof elOrId === "string" ? document.getElementById(elOrId) : elOrId;
@@ -5795,11 +5827,7 @@
       return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function () {
         return Plotly.Plots.resize(el);
       }).then(function () {
-        try {
-          if (window.AppVersionMarkers && el.id && MZ_VERSION_MARKER_CHARTS[el.id]) {
-            return window.AppVersionMarkers.decorate(el, mzActivePlatform());
-          }
-        } catch (_) { /* ignore */ }
+        try { mzApplyVersionMarkers(el); } catch (_) { /* ignore */ }
       });
     }
     return new Promise(function (resolve) {

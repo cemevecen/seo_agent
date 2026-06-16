@@ -352,8 +352,22 @@
   </div>
 </div>
 
-<script src="/static/js/app_version_markers.js?v=1"></script>
+<script src="/static/js/app_release_markers.js?v=2"></script>
 <script>
+  // App sürüm yayın listesini bir kez yükle (iOS/Android), sayfa boyunca paylaş.
+  function ensureAppReleaseStore() {
+    if (window.__appReleaseStorePromise) return window.__appReleaseStorePromise;
+    if (!window.AppReleaseMarkers) return Promise.resolve(null);
+    window.__appReleaseStorePromise = window.AppReleaseMarkers
+      .load('doviz', window.AppReleaseMarkers.SINCE_DEFAULT)
+      .then(function (vr) {
+        if (!vr || vr.error) return { ios: [], android: [] };
+        return { ios: vr.ios || [], android: vr.android || [] };
+      })
+      .catch(function () { return { ios: [], android: [] }; });
+    return window.__appReleaseStorePromise;
+  }
+
   function createGa4PageLoadController() {
     const panel = document.getElementById('ga4-page-load-panel');
     const title = document.getElementById('ga4-page-load-title');
@@ -1389,8 +1403,10 @@
               Plotly.Plots.resize(element);
             }, 150);
             var plat = element.getAttribute('data-ga4-platform') || '';
-            if (window.AppVersionMarkers && (plat === 'ios' || plat === 'android')) {
-              window.AppVersionMarkers.decorate(element, plat);
+            if (window.AppReleaseMarkers && (plat === 'ios' || plat === 'android')) {
+              ensureAppReleaseStore().then(function (store) {
+                if (store) window.AppReleaseMarkers.decorate(element, plat, store);
+              });
             }
           });
           };
