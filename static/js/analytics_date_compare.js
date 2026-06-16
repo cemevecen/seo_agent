@@ -122,6 +122,21 @@
     }
     reloadPending[pageKey] = 0;
     if (reloadActivePage === pageKey) reloadActivePage = null;
+    if (global.__seoCompareReloadWatch) {
+      global.clearTimeout(global.__seoCompareReloadWatch);
+      global.__seoCompareReloadWatch = null;
+    }
+  }
+
+  function hideAllCompareLoading() {
+    hideCompareLoading("ga4");
+    hideCompareLoading("sc");
+    reloadActivePage = null;
+  }
+
+  function requestPath(ev) {
+    var pi = ev && ev.detail && ev.detail.pathInfo;
+    return (pi && pi.requestPath) || "";
   }
 
   function onCardSwapDone(pageKey) {
@@ -132,17 +147,48 @@
     }
   }
 
+  function armCompareReloadWatch(pageKey, count) {
+    if (global.__seoCompareReloadWatch) {
+      global.clearTimeout(global.__seoCompareReloadWatch);
+    }
+    var ms = Math.min(120000, Math.max(45000, count * 12000));
+    global.__seoCompareReloadWatch = global.setTimeout(function () {
+      if (reloadActivePage === pageKey) {
+        hideCompareLoading(pageKey);
+      }
+    }, ms);
+  }
+
   function bindHtmxCompareSwapOnce() {
     if (global.__seoCompareHtmxSwapBound) return;
     global.__seoCompareHtmxSwapBound = true;
     document.body.addEventListener("htmx:afterSwap", function (ev) {
       var t = ev.detail && ev.detail.target;
       if (!t || !t.getAttribute) return;
-      if (t.getAttribute("data-ga4-site-card")) onCardSwapDone("ga4");
-      if (t.getAttribute("data-sc-site-card")) onCardSwapDone("sc");
+      if (t.id === "ga4-site-list") {
+        hideCompareLoading("ga4");
+        return;
+      }
+      if (t.id === "search-console-site-list") {
+        hideCompareLoading("sc");
+        return;
+      }
+    });
+    document.body.addEventListener("htmx:afterSettle", function (ev) {
+      if (!reloadActivePage) return;
+      var path = requestPath(ev);
+      if (reloadActivePage === "ga4" && path.indexOf("/ga4/site/") === 0) {
+        onCardSwapDone("ga4");
+      }
+      if (reloadActivePage === "sc" && path.indexOf("/search-console/site/") === 0) {
+        onCardSwapDone("sc");
+      }
     });
     document.body.addEventListener("htmx:responseError", function () {
       if (reloadActivePage) hideCompareLoading(reloadActivePage);
+    });
+    window.addEventListener("pageshow", function () {
+      hideAllCompareLoading();
     });
   }
 
@@ -152,6 +198,7 @@
     reloadActivePage = pageKey;
     reloadPending[pageKey] = cards.length;
     showCompareLoading(pageKey);
+    armCompareReloadWatch(pageKey, cards.length);
     cards.forEach(function (el) {
       if (!el || !el.parentElement) {
         onCardSwapDone(pageKey);
@@ -266,6 +313,7 @@
     wrap.dataset.compareBound = "1";
     lastState[pageKey === "sc" ? "sc" : "ga4"] = read(storageKey);
     bindHtmxCompareSwapOnce();
+    hideCompareLoading(pageKey === "sc" ? "sc" : "ga4");
 
     function persistAndNotify() {
       var prevSt = read(storageKey);
@@ -326,5 +374,6 @@
     reloadGa4Cards: reloadGa4Cards,
     reloadScCards: reloadScCards,
     LOTTIE_SRC: ANALYTICS_COMPARE_LOTTIE,
+    hideAllCompareLoading: hideAllCompareLoading,
   };
 })(typeof window !== "undefined" ? window : this);
