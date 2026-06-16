@@ -29,6 +29,13 @@ _IS_PG = "postgresql" in str(engine.url)
 
 LOGGER = logging.getLogger(__name__)
 
+# Tarayıcı multipart ile 0 bayt gönderdiğinde (yer tutucu bulut dosyası, bozuk indirme).
+EMPTY_UPLOAD_ERROR = (
+    "boş dosya (0 bayt) — Finder’da dosya boyutunu kontrol edin; "
+    "iCloud/Google Drive yer tutucusu veya bozuk indirme olabilir. "
+    "Excel’de açıp «Farklı Kaydet» ile yeniden kaydedin."
+)
+
 _IMPORT_BATCH_SIZE = 400
 
 _FACETS_CACHE_TTL_SEC = 90.0
@@ -1074,13 +1081,14 @@ def iter_bulk_import_events(
     total_parsed = 0
     for idx, (data, name) in enumerate(ordered, start=1):
         if not data:
-            per_file.append({"filename": name, "error": "boş dosya"})
+            LOGGER.warning("Ad upload empty body: %s", name)
+            per_file.append({"filename": name, "error": EMPTY_UPLOAD_ERROR})
             yield {
                 "phase": "file_error",
                 "file_index": idx,
                 "total_files": total_files,
                 "filename": name,
-                "error": "boş dosya",
+                "error": EMPTY_UPLOAD_ERROR,
                 "pct": int(100 * (idx - 1) / max(total_files, 1)),
             }
             continue
@@ -1168,7 +1176,8 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
     total_parsed = 0
     for data, name in ordered:
         if not data:
-            per_file.append({"filename": name, "error": "boş dosya"})
+            LOGGER.warning("Ad upload empty body: %s", name)
+            per_file.append({"filename": name, "error": EMPTY_UPLOAD_ERROR})
             continue
         with SessionLocal() as db:
             try:

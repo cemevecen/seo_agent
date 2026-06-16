@@ -479,6 +479,16 @@ def test_delete_file3_restores_file2_then_reupload_file3():
         assert store.count_rows(db) == 1
 
 
+def test_bulk_import_empty_file_reports_zero_bytes_hint():
+    out = store.import_upload_files_bulk([(b"", "dovizweb3.xlsx")])
+    summary = out["summary"]
+    assert summary["failed_count"] == 1
+    assert summary["integrated_rows"] == 0
+    reason = summary["failed"][0]["reason"]
+    assert "0 bayt" in reason
+    assert summary["failed"][0]["filename"] == "dovizweb3.xlsx"
+
+
 def test_suggested_detail_favorites_stream_keys_and_top_n():
     init_db()
     with SessionLocal() as db:

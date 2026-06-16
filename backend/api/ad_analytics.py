@@ -1,6 +1,7 @@
 """Reklam analitiği API — Excel/CSV yükleme ve filtreli özet."""
 
 import json
+import logging
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -10,6 +11,8 @@ from backend.database import get_db
 from backend.services import ad_analytics_store as store
 
 router = APIRouter(tags=["mz-analytics"])
+
+LOGGER = logging.getLogger(__name__)
 
 _MAX_BULK_BYTES = 120 * 1024 * 1024  # 12 dosya × ~10 MB
 
@@ -164,7 +167,8 @@ async def post_ad_analytics_append(
     try:
         raw = await file.read()
         if not raw:
-            raise HTTPException(status_code=400, detail="Boş dosya")
+            LOGGER.warning("Ad append upload empty body: %s stream=%s", name, sk)
+            raise HTTPException(status_code=400, detail=store.EMPTY_UPLOAD_ERROR)
         result = store.import_append_to_stream(
             db,
             raw,
@@ -193,7 +197,8 @@ async def post_ad_analytics_upload(
     try:
         raw = await file.read()
         if not raw:
-            raise HTTPException(status_code=400, detail="Boş dosya")
+            LOGGER.warning("Ad upload empty body: %s", name)
+            raise HTTPException(status_code=400, detail=store.EMPTY_UPLOAD_ERROR)
         if low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
             result = store.import_upload_file(db, raw, filename=name)
         else:
@@ -227,6 +232,8 @@ async def post_ad_analytics_upload_bulk(
         total_bytes += len(raw)
         if total_bytes > _MAX_BULK_BYTES:
             raise HTTPException(status_code=413, detail="Toplam yükleme 120 MB sınırını aşıyor")
+        if not raw:
+            LOGGER.warning("Ad bulk upload empty body: %s", name)
         payload.append((raw, name))
     try:
         result = store.import_upload_files_bulk(payload)
@@ -271,6 +278,8 @@ async def post_ad_analytics_upload_bulk_stream(
         total_bytes += len(raw)
         if total_bytes > _MAX_BULK_BYTES:
             raise HTTPException(status_code=413, detail="Toplam yükleme 120 MB sınırını aşıyor")
+        if not raw:
+            LOGGER.warning("Ad bulk-stream upload empty body: %s", name)
         payload.append((raw, name))
 
     def _ndjson_stream():

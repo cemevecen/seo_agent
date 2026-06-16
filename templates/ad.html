@@ -7587,7 +7587,7 @@
     if (s.failed_count) {
       lines.push("Yüklenemedi / hata: " + s.failed_count + " dosya");
       (s.failed || []).slice(0, 8).forEach(function (x) {
-        lines.push("  · " + x.filename + " — " + (x.reason || "").slice(0, 120));
+        lines.push("  · " + x.filename + " — " + (x.reason || "").slice(0, 280));
       });
     }
     if (s.empty_count) {
@@ -7729,6 +7729,58 @@
     };
   }
 
+  function mzAssertFilesHaveBytes(fileArr) {
+    var bad = [];
+    for (var i = 0; i < fileArr.length; i++) {
+      var f = fileArr[i];
+      if (!f || !f.size) bad.push((f && f.name) || "dosya");
+    }
+    if (!bad.length) return;
+    throw new Error(
+      bad.join(", ") +
+        " 0 bayt görünüyor. Finder’da boyutu kontrol edin (iCloud/Drive senkronu bitmeden seçilmiş olabilir); " +
+        "Excel’de açıp yeniden kaydedin."
+    );
+  }
+
+  function mzDescribeFileInput(inp) {
+    if (!inp || !inp.files || !inp.files.length) return "";
+    var parts = [];
+    for (var i = 0; i < inp.files.length; i++) {
+      var f = inp.files[i];
+      var sz = f.size || 0;
+      parts.push(
+        (f.name || "?") +
+          " (" +
+          (sz ? fmt(sz) + " bayt" : "0 bayt — yüklenemez") +
+          ")"
+      );
+    }
+    return parts.join(" · ");
+  }
+
+  function bindMzFileSizeHint(inputId) {
+    var inp = document.getElementById(inputId);
+    if (!inp || inp.dataset.mzSizeHintBound) return;
+    inp.dataset.mzSizeHintBound = "1";
+    inp.addEventListener("change", function () {
+      var status = document.getElementById("mz-status");
+      var text = mzDescribeFileInput(inp);
+      if (!status || !text) return;
+      var hasZero = false;
+      if (inp.files) {
+        for (var i = 0; i < inp.files.length; i++) {
+          if (!inp.files[i].size) hasZero = true;
+        }
+      }
+      status.textContent = hasZero
+        ? text + " — 0 baytlı dosya sunucuya gitmez; önce yerel kopyayı düzeltin."
+        : "Seçildi: " + text;
+    });
+  }
+  bindMzFileSizeHint("mz-file");
+  bindMzFileSizeHint("mz-append-file");
+
   async function uploadFilesSequential(fileList) {
     var nFiles = fileList.length;
     var results = [];
@@ -7846,6 +7898,12 @@
       return;
     }
     var fileArr = Array.prototype.slice.call(inp.files);
+    try {
+      mzAssertFilesHaveBytes(fileArr);
+    } catch (preErr) {
+      document.getElementById("mz-status").textContent = (preErr && preErr.message) || "Dosya geçersiz";
+      return;
+    }
     var totalBytes = 0;
     var j;
     for (j = 0; j < fileArr.length; j++) {
@@ -7923,6 +7981,12 @@
       return;
     }
     var f = inp.files[0];
+    try {
+      mzAssertFilesHaveBytes([f]);
+    } catch (preErr) {
+      if (status) status.textContent = (preErr && preErr.message) || "Dosya geçersiz";
+      return;
+    }
     var fd = new FormData();
     fd.append("file", f);
     var url =
