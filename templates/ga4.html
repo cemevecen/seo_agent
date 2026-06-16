@@ -1260,7 +1260,8 @@
               },
               hovermode: 'x unified',
             };
-          var overlayMode = window.SeoMarketOverlay ? SeoMarketOverlay.mode() : '';
+          var overlayModes =
+            window.SeoMarketOverlay ? SeoMarketOverlay.modes("seo-market-overlay-root") : [];
           var runPlot = function () {
           Plotly.newPlot(
             element,
@@ -1278,8 +1279,8 @@
           });
           };
           var overlayPromise =
-            overlayMode && trend.dates && trend.dates.length && window.SeoMarketOverlay
-              ? SeoMarketOverlay.apply(traces, layoutObj, trend.dates, overlayMode, {
+            overlayModes.length && trend.dates && trend.dates.length && window.SeoMarketOverlay
+              ? SeoMarketOverlay.apply(traces, layoutObj, trend.dates, overlayModes, {
                   yaxisId: 'y5',
                   marginRight: 68,
                 })
@@ -1885,7 +1886,7 @@
   }
 
   if (window.SeoMarketOverlay) {
-    SeoMarketOverlay.bindSelect('seo-market-overlay-mode', function () {
+    SeoMarketOverlay.bindSelect('seo-market-overlay-root', function () {
       document.querySelectorAll('[data-ga4-kpi-trend]').forEach(function (el) {
         delete el.dataset.chartReady;
         if (window.Plotly) {

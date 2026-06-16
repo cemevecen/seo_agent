@@ -228,17 +228,10 @@
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
           <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
-          <div class="flex flex-wrap items-center justify-end gap-2">
-            <select id="mz-market-overlay-mode" class="max-w-[11rem] rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-100" aria-label="Piyasa serisi overlay">
-              <option value="">Piyasa: kapalı</option>
-              <option value="usd_try">USD/TRY kapanış</option>
-              <option value="eur_try">EUR/TRY kapanış</option>
-              <option value="gram_altin">Gram altın kapanış</option>
-              <option value="gram_gumus">Gram gümüş kapanış</option>
-              <option value="bist100">BIST 100 kapanış</option>
-              <option value="brent">Brent kapanış</option>
-              <option value="all_indexed">Tümü (% aralık başı=100)</option>
-            </select>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+            {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz' %}
+            {% include 'partials/market_overlay_select.html' %}
+            {% endwith %}
             <div id="mz-peer-toggle-line" class="hidden shrink-0"></div>
             <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
           </div>
@@ -4922,54 +4915,8 @@
     return true;
   }
 
-  /** Piyasa overlay — tek renk, düz çizgi */
+  /** Piyasa overlay — ortak SeoMarketOverlay (çoklu seri) */
   var MZ_MARKET_OVERLAY_LINE_COLOR = "#9D174D";
-
-  function mzMarketOverlayMode() {
-    var el = document.getElementById("mz-market-overlay-mode");
-    return (el && el.value) || "";
-  }
-
-  async function mzEnsureMarketOverlay(startIso, endIso) {
-    var key = (startIso || "") + "|" + (endIso || "");
-    if (state.marketOverlayPayload && state.marketOverlayPayload._rangeKey === key) {
-      return state.marketOverlayPayload;
-    }
-    if (state._marketOverlayPromise) return state._marketOverlayPromise;
-    var p = new URLSearchParams();
-    if (startIso) p.set("start", startIso);
-    if (endIso) p.set("end", endIso);
-    state._marketOverlayPromise = fetch("/api/market-quotes/overlay?" + p.toString(), { credentials: "same-origin" })
-      .then(function (r) {
-        if (!r.ok) throw new Error("Piyasa verisi alınamadı");
-        return r.json();
-      })
-      .then(function (data) {
-        data._rangeKey = key;
-        state.marketOverlayPayload = data;
-        state._marketOverlayPromise = null;
-        return data;
-      })
-      .catch(function (err) {
-        state._marketOverlayPromise = null;
-        throw err;
-      });
-    return state._marketOverlayPromise;
-  }
-
-  function mzMarketCloseMap(seriesBlock) {
-    var m = {};
-    ((seriesBlock && seriesBlock.by_date) || []).forEach(function (pt) {
-      if (pt && pt.date) m[String(pt.date).slice(0, 10)] = Number(pt.close);
-    });
-    return m;
-  }
-
-  function mzMarketAxisLayoutKey(yaxisId) {
-    if (!yaxisId || yaxisId === "y") return "yaxis";
-    var n = String(yaxisId).replace(/^y/, "");
-    return n ? "yaxis" + n : "yaxis";
-  }
 
   function mzPickMarketYaxisId(layoutExtra) {
     layoutExtra = layoutExtra || {};
@@ -4980,78 +4927,11 @@
   }
 
   async function mzMaybeApplyMarketOverlay(traces, layoutExtra, dateKeys, opts) {
-    var mode = mzMarketOverlayMode();
-    if (!mode || !dateKeys || !dateKeys.length) return false;
+    var modes = window.SeoMarketOverlay ? SeoMarketOverlay.modes("mz-market-overlay-root") : [];
+    if (!modes.length || !dateKeys || !dateKeys.length || !window.SeoMarketOverlay) return false;
     var o = Object.assign({}, opts || {});
     if (!o.yaxisId) o.yaxisId = mzPickMarketYaxisId(layoutExtra);
-    await mzApplyMarketOverlayLine(traces, layoutExtra, dateKeys, mode, o);
-    return true;
-  }
-
-  async function mzApplyMarketOverlayLine(traces, layoutExtra, dateKeys, mode, opts) {
-    if (!mode || !dateKeys || !dateKeys.length) return;
-    opts = opts || {};
-    var yaxisId = opts.yaxisId || "y2";
-    var yLayoutKey = mzMarketAxisLayoutKey(yaxisId);
-    var startIso = String(dateKeys[0]).slice(0, 10);
-    var endIso = String(dateKeys[dateKeys.length - 1]).slice(0, 10);
-    var payload;
-    try {
-      payload = await mzEnsureMarketOverlay(startIso, endIso);
-    } catch (e) {
-      return;
-    }
-    var series = (payload && payload.series) || {};
-    var keys =
-      mode === "all_indexed"
-        ? ["gram_altin", "usd_try", "eur_try", "bist100", "gram_gumus", "brent"]
-        : [mode];
-    var y2 = false;
-    keys.forEach(function (sk) {
-      var block = series[sk];
-      if (!block) return;
-      var clos = mzMarketCloseMap(block);
-      var ys = dateKeys.map(function (d) {
-        var k = String(d).slice(0, 10);
-        return clos[k] != null ? clos[k] : null;
-      });
-      if (mode === "all_indexed") {
-        var base = null;
-        for (var i = 0; i < ys.length; i++) {
-          if (ys[i] != null && ys[i] > 0) {
-            base = ys[i];
-            break;
-          }
-        }
-        if (!base) return;
-        ys = ys.map(function (v) {
-          return v != null ? (v / base) * 100 : null;
-        });
-      }
-      if (!ys.some(function (v) {
-        return v != null;
-      })) return;
-      traces.push({
-        x: dateKeys,
-        y: ys,
-        type: "scatter",
-        mode: "lines",
-        name: block.label + (mode === "all_indexed" ? " %" : ""),
-        yaxis: yaxisId,
-        line: { color: MZ_MARKET_OVERLAY_LINE_COLOR, width: 2 },
-        connectgaps: false,
-      });
-      y2 = true;
-    });
-    if (!y2) return;
-    layoutExtra[yLayoutKey] = Object.assign({}, plotAxis(mode === "all_indexed" ? "Endeks (100)" : "Piyasa"), {
-      overlaying: "y",
-      side: "right",
-      showgrid: false,
-    });
-    var m = layoutExtra.margin || { l: 52, r: 12, t: 28, b: 56 };
-    layoutExtra.margin = Object.assign({}, m, { r: Math.max(m.r || 12, 58) });
-    layoutExtra.showlegend = true;
+    return SeoMarketOverlay.apply(traces, layoutExtra, dateKeys, modes, o);
   }
 
   function hideGa4SplitChart(scope) {
@@ -8287,10 +8167,11 @@
   on("mz-top-units-preset", "change", function () {
     renderTopMxUnitsWeek();
   });
-  on("mz-market-overlay-mode", "change", function () {
-    state.marketOverlayPayload = null;
-    refreshChartLine();
-  });
+  if (window.SeoMarketOverlay) {
+    SeoMarketOverlay.bindSelect("mz-market-overlay-root", function () {
+      refreshChartLine();
+    });
+  }
 
   on("mz-append-upload", "click", async function () {
     var inp = document.getElementById("mz-append-file");

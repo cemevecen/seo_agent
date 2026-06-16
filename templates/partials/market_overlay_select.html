@@ -1,15 +1,49 @@
-<select
-  id="seo-market-overlay-mode"
-  class="max-w-[11rem] rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-  aria-label="Piyasa serisi overlay"
-  data-market-overlay-select
+{# Çoklu piyasa overlay — id: market_overlay_control_id veya seo-market-overlay-root #}
+{% set _moid = market_overlay_control_id|default('seo-market-overlay-root') %}
+<div
+  class="relative text-left"
+  id="{{ _moid }}"
+  data-market-overlay-root
+  data-overlay-storage-key="{{ market_overlay_storage_key|default('seo') }}"
 >
-  <option value="">Piyasa: kapalı</option>
-  <option value="usd_try">USD/TRY kapanış</option>
-  <option value="eur_try">EUR/TRY kapanış</option>
-  <option value="gram_altin">Gram altın kapanış</option>
-  <option value="gram_gumus">Gram gümüş kapanış</option>
-  <option value="bist100">BIST 100 kapanış</option>
-  <option value="brent">Brent kapanış</option>
-  <option value="all_indexed">Tümü (% aralık başı=100)</option>
-</select>
+  <button
+    type="button"
+    data-market-overlay-trigger
+    class="flex max-w-[13rem] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+    aria-haspopup="listbox"
+    aria-expanded="false"
+  >
+    <span data-market-overlay-label class="truncate">Piyasa: kapalı</span>
+    <svg class="h-3 w-3 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
+    </svg>
+  </button>
+  <div
+    data-market-overlay-panel
+    class="absolute right-0 z-[80] mt-1 hidden min-w-[14.5rem] rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg ring-1 ring-slate-200/80 dark:border-slate-600 dark:bg-slate-900 dark:ring-slate-700"
+    role="listbox"
+    aria-multiselectable="true"
+  >
+    {% for val, label in [
+      ('usd_try', 'USD/TRY kapanış'),
+      ('eur_try', 'EUR/TRY kapanış'),
+      ('gram_altin', 'Gram altın kapanış'),
+      ('gram_gumus', 'Gram gümüş kapanış'),
+      ('bist100', 'BIST 100 kapanış'),
+      ('brent', 'Brent kapanış'),
+      ('all_indexed', 'Tümü (% aralık başı=100)'),
+    ] %}
+    <label
+      class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+      data-market-overlay-option="{{ val }}"
+    >
+      <input
+        type="checkbox"
+        class="rounded border-slate-300 text-[#9D174D] focus:ring-[#9D174D] dark:border-slate-600"
+        value="{{ val }}"
+      />
+      <span>{{ label }}</span>
+    </label>
+    {% endfor %}
+  </div>
+</div>

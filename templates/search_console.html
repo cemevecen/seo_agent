@@ -1193,8 +1193,10 @@
               hovermode: 'x unified',
               dragmode: false,
             };
-          var overlayMode =
-            isDailyTrend && window.SeoMarketOverlay ? SeoMarketOverlay.mode() : '';
+          var overlayModes =
+            isDailyTrend && window.SeoMarketOverlay
+              ? SeoMarketOverlay.modes("seo-market-overlay-root")
+              : [];
           var runPlot = function () {
           Plotly.newPlot(
             element,
@@ -1212,8 +1214,8 @@
           });
           };
           var overlayPromise =
-            overlayMode && xValues && xValues.length && window.SeoMarketOverlay
-              ? SeoMarketOverlay.apply(traces, layoutObj, xValues, overlayMode, {
+            overlayModes.length && xValues && xValues.length && window.SeoMarketOverlay
+              ? SeoMarketOverlay.apply(traces, layoutObj, xValues, overlayModes, {
                   yaxisId: 'y5',
                   marginRight: 72,
                 })
@@ -2351,7 +2353,7 @@
   }
 
   if (window.SeoMarketOverlay) {
-    SeoMarketOverlay.bindSelect('seo-market-overlay-mode', function () {
+    SeoMarketOverlay.bindSelect('seo-market-overlay-root', function () {
       document.querySelectorAll('[data-search-console-trend]').forEach(function (el) {
         delete el.dataset.chartReady;
         if (window.Plotly) {
