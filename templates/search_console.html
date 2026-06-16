@@ -198,6 +198,10 @@
 <div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
     <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Piyasa overlay</span>
+        {% include 'partials/market_overlay_select.html' %}
+      </div>
       <div class="space-y-2">
         <button
           id="refresh-search-console-sites-button"
@@ -1123,11 +1127,7 @@
           if (isLongDaily && window.matchMedia('(pointer: coarse)').matches) {
             plotConfig.staticPlot = true;
           }
-          var runPlot = function () {
-          Plotly.newPlot(
-            element,
-            traces,
-            {
+          var layoutObj = {
               autosize: true,
               height: chartHeight,
               margin: { l: 52, r: 52, t: 20, b: isLongDaily ? 110 : 100 },
@@ -1151,7 +1151,6 @@
                 nticks: isLongDaily ? 14 : undefined,
                 dtick: isLongDaily ? 'M1' : undefined,
               },
-              // y1: Clicks (left)
               yaxis: {
                 title: { text: 'Clicks', font: { color: lc.clicks, size: 11 } },
                 tickfont: { color: lc.clicks, size: 10 },
@@ -1159,7 +1158,6 @@
                 zeroline: false,
                 automargin: true,
               },
-              // y2: Position (right, reversed)
               yaxis2: {
                 title: { text: 'Position', font: { color: lc.position, size: 11 } },
                 tickfont: { color: lc.position, size: 10 },
@@ -1170,7 +1168,6 @@
                 automargin: true,
                 showgrid: false,
               },
-              // y3: Impressions (left, separate scale, ticks hidden)
               yaxis3: {
                 overlaying: 'y',
                 side: 'left',
@@ -1178,7 +1175,6 @@
                 showgrid: false,
                 zeroline: false,
               },
-              // y4: CTR (right, separate scale, ticks hidden)
               yaxis4: {
                 overlaying: 'y',
                 side: 'right',
@@ -1188,7 +1184,14 @@
               },
               hovermode: 'x unified',
               dragmode: false,
-            },
+            };
+          var overlayMode =
+            isDailyTrend && window.SeoMarketOverlay ? SeoMarketOverlay.mode() : '';
+          var runPlot = function () {
+          Plotly.newPlot(
+            element,
+            traces,
+            layoutObj,
             plotConfig
           ).then(function () {
             element.dataset.chartReady = '1';
@@ -1200,10 +1203,19 @@
             }, 150);
           });
           };
+          var overlayPromise =
+            overlayMode && xValues && xValues.length && window.SeoMarketOverlay
+              ? SeoMarketOverlay.apply(traces, layoutObj, xValues, overlayMode, {
+                  yaxisId: 'y5',
+                  marginRight: 72,
+                })
+              : Promise.resolve();
           if (isLongDaily) {
-            scRunWhenIdle(runPlot, 900);
+            scRunWhenIdle(function () {
+              overlayPromise.then(runPlot);
+            }, 900);
           } else {
-            runPlot();
+            overlayPromise.then(runPlot);
           }
         } catch (error) {
           console.warn('Search Console trend render failed:', error);
@@ -2311,6 +2323,18 @@
   if (!window.__scPlotlyThemeBound) {
     window.__scPlotlyThemeBound = true;
     document.addEventListener('seo-theme-change', relayoutSearchConsoleTrendChartsTheme);
+  }
+
+  if (window.SeoMarketOverlay) {
+    SeoMarketOverlay.bindSelect('seo-market-overlay-mode', function () {
+      document.querySelectorAll('[data-search-console-trend]').forEach(function (el) {
+        delete el.dataset.chartReady;
+        if (window.Plotly) {
+          try { Plotly.purge(el); } catch (_) { /* ignore */ }
+        }
+      });
+      renderSearchConsoleTrendCharts(document);
+    });
   }
 
   (function scHashScroll() {

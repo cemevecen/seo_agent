@@ -17,7 +17,21 @@ def test_parse_tr_number():
 
 def test_parse_tr_date():
     assert _parse_tr_date_cell("1 Ocak 2025") == date(2025, 1, 1)
-    assert _parse_tr_date_cell("02 Oca 2025") is None or _parse_tr_date_cell("2 Ocak 2025") == date(2025, 1, 2)
+    assert _parse_tr_date_cell("02 Oca 2025") == date(2025, 1, 2)
+    assert _parse_tr_date_cell("03 Şub 2025") == date(2025, 2, 3)
+
+
+BRENT_CSV = """Tarih,Açılış,Kapanış
+02 Oca 2025,"74,93","75,93"
+03 Oca 2025,"75,98","76,51"
+"""
+
+
+def test_parse_brent_sheet_csv():
+    rows = parse_market_sheet_csv(BRENT_CSV)
+    assert len(rows) == 2
+    assert rows[0]["report_date"] == date(2025, 1, 2)
+    assert rows[0]["close_price"] == 75.93
 
 
 def test_parse_market_sheet_csv_sample():
