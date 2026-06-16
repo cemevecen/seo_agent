@@ -19,88 +19,6 @@
       <h5 class="text-lg font-semibold leading-tight text-slate-900 dark:text-slate-100 sm:text-xl">{{ site.display_name }}</h5>
       <p class="mt-0.5 break-all text-sm leading-snug text-slate-600 dark:text-slate-300">{{ site.domain }}</p>
     </button>
-    <div class="flex flex-shrink-0 flex-wrap items-center justify-start gap-1.5 lg:justify-end">
-      {% if site.report.has_data and site.report.periods %}
-      <div
-        class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch] dark:border-slate-600 dark:bg-slate-800/95"
-        data-sc-period-switch
-        role="tablist"
-        aria-label="Search Console dönem karşılaştırması"
-      >
-        <button
-          type="button"
-          role="tab"
-          class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
-          data-sc-period-toggle="1"
-          data-active="false"
-        >
-          1d
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="shrink-0 whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-900 sm:px-3.5 sm:py-1.5"
-          data-sc-period-toggle="7"
-          data-active="true"
-        >
-          7d
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
-          data-sc-period-toggle="30"
-          data-active="false"
-        >
-          30d
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
-          data-sc-period-toggle="90"
-          data-active="false"
-        >
-          90d
-        </button>
-        {% if '12m' in site.report.periods %}
-        <button
-          type="button"
-          role="tab"
-          class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
-          data-sc-period-toggle="12m"
-          data-active="false"
-          title="Son 12 ay günlük trend (karşılaştırma yok)"
-        >
-          12 ay
-        </button>
-        {% endif %}
-      </div>
-      {% endif %}
-      {% if site_count is defined and site_count > 1 %}
-      <button
-        type="button"
-        data-sc-focus-toggle="{{ site.id }}"
-        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 hover:text-cyan-900 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-300 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80 dark:hover:text-cyan-100"
-        title="Tam genişlikte göster"
-      >
-        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        data-sc-split-reset
-        class="hidden inline-flex h-9 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-xs font-semibold text-cyan-900 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80"
-        title="İki sütunlu görünüme dön"
-      >
-        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-        </svg>
-        <span class="hidden sm:inline">Split</span>
-      </button>
-      {% endif %}
-    </div>
   </div>
   {% if site.connection.requires_reauth %}
     <div class="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/35 dark:text-rose-300">
@@ -112,8 +30,121 @@
 
   {% if site.report.has_data and site.report.periods %}
     <div class="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5 sm:space-y-5">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-        <div class="min-w-0 flex-1" data-sc-period-date-wrap>
+      <div
+        class="sc-card-filter-bar rounded-2xl border border-slate-200/80 bg-white/90 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-2.5"
+        data-sc-card-filter-bar
+      >
+        <div data-sc-global-filter-slot class="flex min-w-0 flex-wrap items-center gap-2"></div>
+        <span class="sc-card-filter-bar__divider sc-card-filter-bar__divider--after-global" aria-hidden="true"></span>
+        <div
+          class="flex max-w-full min-w-0 flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-violet-200 bg-violet-50 p-1 [-webkit-overflow-scrolling:touch] dark:border-slate-600 dark:bg-slate-800/95"
+          data-sc-period-switch
+          role="tablist"
+          aria-label="Search Console dönem karşılaştırması"
+        >
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
+            data-sc-period-toggle="1"
+            data-active="false"
+          >
+            1d
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full bg-violet-900 px-2.5 py-1.5 text-sm font-semibold text-white transition dark:bg-violet-900 sm:px-3.5 sm:py-1.5"
+            data-sc-period-toggle="7"
+            data-active="true"
+          >
+            7d
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
+            data-sc-period-toggle="30"
+            data-active="false"
+          >
+            30d
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
+            data-sc-period-toggle="90"
+            data-active="false"
+          >
+            90d
+          </button>
+          {% if '12m' in site.report.periods %}
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
+            data-sc-period-toggle="12m"
+            data-active="false"
+            title="Son 12 ay günlük trend (karşılaştırma yok)"
+          >
+            12 ay
+          </button>
+          {% endif %}
+        </div>
+        {% if site_count is defined and site_count > 1 %}
+        <span class="sc-card-filter-bar__divider hidden min-[520px]:block" aria-hidden="true"></span>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            data-sc-focus-toggle="{{ site.id }}"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 hover:text-cyan-900 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-300 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80 dark:hover:text-cyan-100"
+            title="Tam genişlikte göster"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-sc-split-reset
+            class="hidden inline-flex h-9 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-xs font-semibold text-cyan-900 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-100 dark:border-cyan-900/40 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/80"
+            title="İki sütunlu görünüme dön"
+          >
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+            </svg>
+            <span class="hidden sm:inline">Split</span>
+          </button>
+        </div>
+        {% endif %}
+        <span class="sc-card-filter-bar__divider" aria-hidden="true"></span>
+        <div
+          class="flex max-w-full min-w-0 flex-1 flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch] sm:flex-none sm:justify-end"
+          data-search-console-device-switch
+          role="tablist"
+          aria-label="Search Console cihazı"
+        >
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3.5"
+            data-device-toggle="mobile"
+            data-active="{{ 'true' if site.report.default_device == 'mobile' else 'false' }}"
+          >
+            Mobile
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3.5"
+            data-device-toggle="desktop"
+            data-active="{{ 'true' if site.report.default_device == 'desktop' else 'false' }}"
+          >
+            Desktop
+          </button>
+        </div>
+      </div>
+      <div class="min-w-0" data-sc-period-date-wrap>
           {% for period_key in ['1', '7', '30', '90', '12m'] %}
             {% if period_key not in site.report.periods %}{% else %}
             {% set _pd = site.report.periods[period_key] %}
@@ -133,40 +164,9 @@
                 <span class="tabular-nums">{{ v.range_prev or "—" }}</span>
                 {% endif %}
               </p>
-            {% endfor %}
-            {% endif %}
           {% endfor %}
-        </div>
-        <div class="flex w-full shrink-0 flex-col items-stretch gap-2 lg:w-auto lg:items-end lg:pt-0">
-          <div class="w-full lg:w-auto">
-            <p class="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 lg:hidden">Cihaz</p>
-            <div
-              class="flex max-w-full flex-nowrap items-stretch justify-start gap-0.5 overflow-x-auto overscroll-x-contain rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1 [-webkit-overflow-scrolling:touch] lg:max-w-none lg:justify-end"
-              data-search-console-device-switch
-              role="tablist"
-              aria-label="Search Console cihazı"
-            >
-              <button
-                type="button"
-                role="tab"
-                class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3.5"
-                data-device-toggle="mobile"
-                data-active="{{ 'true' if site.report.default_device == 'mobile' else 'false' }}"
-              >
-                Mobile
-              </button>
-              <button
-                type="button"
-                role="tab"
-                class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold transition sm:px-3.5"
-                data-device-toggle="desktop"
-                data-active="{{ 'true' if site.report.default_device == 'desktop' else 'false' }}"
-              >
-                Desktop
-              </button>
-            </div>
-          </div>
-        </div>
+        {% endif %}
+      {% endfor %}
       </div>
     {% for period_key in ['1', '7', '30', '90', '12m'] %}
       {% if period_key in site.report.periods %}

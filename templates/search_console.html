@@ -194,27 +194,82 @@
     padding: 0;
     background: transparent;
   }
+  .sc-card-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+  }
+  @media (min-width: 640px) {
+    .sc-card-filter-bar {
+      gap: 0.625rem;
+    }
+  }
+  .sc-card-filter-bar__divider {
+    display: none;
+    width: 1px;
+    height: 1.75rem;
+    flex-shrink: 0;
+    align-self: center;
+    background: rgb(226 232 240);
+  }
+  html.dark .sc-card-filter-bar__divider {
+    background: rgb(51 65 85);
+  }
+  @media (min-width: 480px) {
+    .sc-card-filter-bar__divider {
+      display: block;
+    }
+  }
+  [data-sc-global-filter-slot]:empty {
+    display: none;
+  }
+  [data-sc-global-filter-slot]:not(:empty) + .sc-card-filter-bar__divider--after-global {
+    display: block;
+  }
+  html.dark .sc-card-filter-bar,
+  html.midnight .sc-card-filter-bar {
+    background-color: #18181b !important;
+    border-color: #27272a !important;
+    box-shadow: none;
+  }
+  html.dark .sc-card-filter-bar [data-analytics-date-compare],
+  html.midnight .sc-card-filter-bar [data-analytics-date-compare] {
+    background-color: #18181b !important;
+    border-color: #27272a !important;
+  }
+  html.dark .sc-card-filter-bar [data-market-overlay-trigger],
+  html.midnight .sc-card-filter-bar [data-market-overlay-trigger] {
+    background-color: #18181b !important;
+    border-color: #3f3f46 !important;
+  }
+  html.dark .sc-card-filter-bar [data-compare-mode],
+  html.midnight .sc-card-filter-bar [data-compare-mode] {
+    background-color: #27272a !important;
+    border-color: #3f3f46 !important;
+  }
+  .seo-analytics-compare-inline [data-compare-loading] {
+    max-width: 11.5rem;
+  }
 </style>
 <div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
-    <div class="sc-analytics-toolbar mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Piyasa overlay</span>
-        {% include 'partials/market_overlay_select.html' %}
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        {% include 'partials/analytics_date_compare.html' %}
-      </div>
-      <div class="space-y-2">
-        <button
-          id="refresh-search-console-sites-button"
-          type="button"
-          class="w-full rounded-full border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-slate-900 hover:text-slate-900 dark:text-slate-100 sm:w-auto"
-          onclick="refreshSearchConsoleSites(this)"
-        >
-          Tüm Siteleri Yenile
-        </button>
-      </div>
+    <div class="sc-analytics-toolbar mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Search Console özeti</p>
+      <button
+        id="refresh-search-console-sites-button"
+        type="button"
+        class="w-full shrink-0 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-900 hover:text-slate-900 dark:border-slate-600 dark:text-slate-200 dark:hover:text-slate-100 sm:w-auto"
+        onclick="refreshSearchConsoleSites(this)"
+      >
+        Tüm Siteleri Yenile
+      </button>
+    </div>
+
+    <div id="sc-global-filter-chrome-holder" class="sr-only" aria-hidden="true">
+      {% include 'partials/sc_global_filter_chrome.html' %}
     </div>
 
     <div id="search-console-page-load-panel" class="mb-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100/95 p-4 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-slate-200/80 backdrop-blur-sm dark:border-slate-600 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-[0_20px_50px_-38px_rgba(0,0,0,0.55)] dark:ring-slate-600/70 sm:rounded-[1.6rem] sm:p-5">
@@ -1542,6 +1597,37 @@
     return (page && page.dataset.scGlobalFocus) || '';
   }
 
+  function pickScGlobalFilterSlot() {
+    var fid = scGetGlobalFocus();
+    if (fid) {
+      var focused = document.querySelector(
+        '[data-sc-site-card][data-site-id="' + fid + '"]:not(.hidden) [data-sc-global-filter-slot]'
+      );
+      if (focused) return focused;
+    }
+    var visible = document.querySelector('[data-sc-site-card]:not(.hidden) [data-sc-global-filter-slot]');
+    if (visible) return visible;
+    return document.querySelector('[data-sc-global-filter-slot]');
+  }
+
+  function mountScGlobalFilters() {
+    var chrome = document.getElementById('sc-global-filter-chrome');
+    if (!chrome) return;
+    var slot = pickScGlobalFilterSlot();
+    var holder = document.getElementById('sc-global-filter-chrome-holder');
+    if (!slot) {
+      if (holder && chrome.parentElement !== holder) holder.appendChild(chrome);
+      return;
+    }
+    if (chrome.parentElement !== slot) slot.appendChild(chrome);
+    if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
+      SeoAnalyticsCompare.bindWhenReady('sc');
+    }
+    if (window.SeoMarketOverlay && SeoMarketOverlay.bindWhenReady) {
+      SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', scRerenderTrendChartsForMarket);
+    }
+  }
+
   function scSplitCardsInGrid(grid) {
     if (!grid || !grid.querySelectorAll) {
       return [];
@@ -1570,6 +1656,7 @@
     document.querySelectorAll('[data-sc-extras-root]').forEach(function (root) {
       scExtrasReflowGrid(root);
     });
+    mountScGlobalFilters();
   }
 
   function scSplitApplyFocus(grid, focusId) {
@@ -1939,6 +2026,7 @@
     renderSearchConsoleTrendCharts(root);
     initSearchConsoleTables(root);
     fitSearchConsoleText(root);
+    mountScGlobalFilters();
   }
 
   function bindSearchConsoleRefreshForms(root) {
@@ -2042,6 +2130,7 @@
     initGscCwvMediaHandlers();
     initSearchConsolePanels(document);
     initScExtrasLottie(document);
+    mountScGlobalFilters();
   });
   window.initSearchConsolePanels = initSearchConsolePanels;
 
