@@ -173,6 +173,7 @@
       <p id="mz-boot-hint" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">KPI ve grafikler yükleniyor…</p>
       <p id="mz-import-audit" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"></p>
       <p id="mz-page-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
+      <p id="mz-range-empty" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" role="status"></p>
       <div id="mz-compare-period-banner" class="hidden rounded-xl border border-indigo-300/90 bg-indigo-50/90 px-3 py-2.5 dark:border-indigo-800 dark:bg-indigo-950/50 midnight:border-indigo-900 midnight:bg-indigo-950/30">
         <p class="text-[10px] font-bold uppercase tracking-wide text-indigo-800 dark:text-indigo-300">Tarih karşılaştırması — veri aralıkları</p>
         <p id="mz-compare-period-lines" class="mt-1.5 text-sm leading-snug text-slate-800 dark:text-zinc-100"></p>
@@ -1557,6 +1558,70 @@
     var m = d.getMonth() + 1;
     var day = d.getDate();
     return y + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
+  }
+
+  /** Hazır tarih aralıkları takvim «bugün»e göre; DB max’ına göre değil (silinen son ay verisi mayısa çekmesin). */
+  function mzPresetAnchorIso() {
+    return isoCalendarDate(new Date());
+  }
+
+  var MZ_PRESET_LABELS = {
+    yesterday: "Dün",
+    "7d": "Son 7 gün",
+    "30d": "Son 30 gün",
+    "90d": "Son 90 gün",
+    this_month: "Bu ay",
+    last_month: "Geçen ay",
+    ytd: "Bu yıl",
+    "1y": "Son 1 yıl",
+    last_year: "Geçen yıl",
+    all: "Tüm veri",
+  };
+
+  function summaryRowsInRange(sum) {
+    if (!sum) return 0;
+    if (sum.rows_in_range != null) return Number(sum.rows_in_range) || 0;
+    var k = sum.kpis || {};
+    if ((k.ad_request || 0) > 0 || (k.impression || 0) > 0) return 1;
+    return (sum.by_date && sum.by_date.length) || 0;
+  }
+
+  function updateRangeEmptyNotice(sum) {
+    var el = document.getElementById("mz-range-empty");
+    if (!el) return;
+    var startV = (document.getElementById("mz-start").value || "").slice(0, 10);
+    var endV = (document.getElementById("mz-end").value || "").slice(0, 10);
+    var rows = summaryRowsInRange(sum);
+    if (!startV || !endV || rows > 0) {
+      el.classList.add("hidden");
+      el.textContent = "";
+      return;
+    }
+    var presetEl = document.getElementById("mz-preset");
+    var presetLbl =
+      presetEl && !isMzCustomPreset(presetEl.value)
+        ? MZ_PRESET_LABELS[presetEl.value] || presetEl.value
+        : "Seçilen aralık";
+    var st = state.activeStream;
+    var bounds = "";
+    if (st && st.min_date && st.max_date) {
+      bounds =
+        " Bu dalda yüklü veri: " +
+        String(st.min_date).slice(0, 10) +
+        " — " +
+        String(st.max_date).slice(0, 10) +
+        ".";
+    }
+    el.textContent =
+      presetLbl +
+      " (" +
+      startV +
+      " — " +
+      endV +
+      ") için kayıt yok." +
+      bounds +
+      " İlgili dönem dosyasını yükleyin veya tarih aralığını değiştirin.";
+    el.classList.remove("hidden");
   }
 
   function resolveCompareRangeClient(primaryStart, primaryEnd, mode) {
@@ -7037,7 +7102,7 @@
     endEl.setAttribute("data-max", st.max_date || st.min_date);
   }
 
-  /** Sekme değişince preset veya özel tarih aralığını koru; yalnızca yeni dalın min/max’ına kırp. */
+  /** Sekme değişince preset veya özel tarih aralığını koru (DB min/max ile otomatik kırpma yok). */
   function preserveDateRangeForStream(st) {
     applyStreamCalendarBounds(st);
     var presetEl = document.getElementById("mz-preset");
@@ -7047,48 +7112,38 @@
     }
     var startEl = document.getElementById("mz-start");
     var endEl = document.getElementById("mz-end");
-    var minD = (startEl.getAttribute("data-min") || "").slice(0, 10);
-    var maxD = (endEl.getAttribute("data-max") || "").slice(0, 10);
     var startV = (startEl.value || "").slice(0, 10);
     var endV = (endEl.value || "").slice(0, 10);
-    if (!endV && maxD) endEl.value = maxD;
-    endV = (endEl.value || "").slice(0, 10);
-    if (maxD && endV && endV > maxD) endEl.value = maxD;
-    if (minD && endV && endV < minD) endEl.value = minD;
-    endV = (endEl.value || "").slice(0, 10);
-    if (minD && startV && startV < minD) startEl.value = minD;
-    if (maxD && startV && startV > maxD) startEl.value = maxD;
-    startV = (startEl.value || "").slice(0, 10);
     if (startV && endV && startV > endV) startEl.value = endV;
-    if (!startV && minD) startEl.value = minD;
     updateComparePeriodBanner(state.lastSummary);
+    updateRangeEmptyNotice(state.lastSummary);
   }
 
   function applyPreset() {
     var v = document.getElementById("mz-preset").value;
     var end = document.getElementById("mz-end");
     var start = document.getElementById("mz-start");
-    var max = end.getAttribute("data-max") || end.value;
+    var dataMin = (start.getAttribute("data-min") || "").slice(0, 10);
+    var dataMax = (end.getAttribute("data-max") || "").slice(0, 10);
     if (isMzCustomPreset(v)) return;
     if (v === "all") {
-      start.value = document.getElementById("mz-start").getAttribute("data-min") || "";
-      end.value = max || "";
+      start.value = dataMin || "";
+      end.value = dataMax || "";
       updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
       return;
     }
-    var d = max ? new Date(max) : new Date();
+    var anchorIso = mzPresetAnchorIso();
+    var d = new Date(anchorIso + "T12:00:00");
     var s = new Date(d);
     if (v === "yesterday") {
       var y = new Date();
       y.setDate(y.getDate() - 1);
       var day = isoCalendarDate(y);
-      var minD = (start.getAttribute("data-min") || "").slice(0, 10);
-      var maxD = (max || "").slice(0, 10);
-      if (maxD && day > maxD) day = maxD;
-      if (minD && day < minD) day = minD;
       start.value = day;
       end.value = day;
       updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
       return;
     }
     if (v === "7d") s.setDate(s.getDate() - 7);
@@ -7099,6 +7154,7 @@
       start.value = isoCalendarDate(thisMonthStart);
       end.value = isoCalendarDate(d);
       updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
       return;
     } else if (v === "last_month") {
       var monthStart = new Date(d.getFullYear(), d.getMonth() - 1, 1);
@@ -7106,20 +7162,24 @@
       start.value = isoCalendarDate(monthStart);
       end.value = isoCalendarDate(monthEnd);
       updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
       return;
     } else if (v === "ytd") {
       s = new Date(d.getFullYear(), 0, 1);
-    } else if (v === "1y") s.setFullYear(s.getFullYear() - 1);
-    else if (v === "last_year") {
+    } else if (v === "1y") {
+      s.setFullYear(s.getFullYear() - 1);
+    } else if (v === "last_year") {
       var calY = d.getFullYear() - 1;
       start.value = calY + "-01-01";
       end.value = calY + "-12-31";
       updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
       return;
     }
     start.value = isoCalendarDate(s);
     end.value = isoCalendarDate(d);
     updateComparePeriodBanner(state.lastSummary);
+    updateRangeEmptyNotice(state.lastSummary);
   }
 
   function renderStreamTabs() {
@@ -7327,6 +7387,7 @@
       state.lastByDate = sum.by_date || [];
       state.kpiAvailable = sum.kpi_available || [];
       updateRangeLabel();
+      updateRangeEmptyNotice(sum);
       renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);

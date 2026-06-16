@@ -2253,6 +2253,7 @@ def query_summary(
         pv_ecpm_sum,
         uv_ecpm_sum,
     ) = [float(x or 0) for x in totals]
+    rows_in_range = int(db.scalar(select(func.count()).select_from(sub)) or 0)
     avg_ecpm = (net_rev / impr * 1000.0) if impr > 0 else 0.0
     ctr = (clicks / impr * 100.0) if impr > 0 else 0.0
     req_ecpm = (net_rev / ad_req * 1000.0) if ad_req > 0 else 0.0
@@ -2432,6 +2433,7 @@ def query_summary(
 
     payload: dict[str, Any] = {
         "range": {"start": start, "end": end},
+        "rows_in_range": rows_in_range,
         "kpi_available": kpi_available,
         "kpis": {
             "empower_pageview": int(empower_pv),

@@ -216,6 +216,27 @@ def test_query_summary_with_compare():
         db.commit()
 
 
+def test_query_summary_rows_in_range_zero_outside_data():
+    init_db()
+    d = date(2026, 5, 15)
+    text = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        f"unit_a,1,{_excel_serial(d)},Open Auction,10,10,10,1,0,0,0,0,0,50\n"
+    )
+    rows = store.parse_csv_text(text, filename="dovizweb1.csv")
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_rows(db, rows)
+        inside = store.query_summary(db, start="2026-05-01", end="2026-05-31")
+        assert inside["rows_in_range"] == 1
+        outside = store.query_summary(db, start="2026-06-01", end="2026-06-16")
+        assert outside["rows_in_range"] == 0
+        assert outside["kpis"]["ad_request"] == 0
+        db.execute(__import__("sqlalchemy").delete(AdReportRow))
+        db.commit()
+
+
 def test_empower_metrics_from_extra_header():
     wb = Workbook()
     ws = wb.active
