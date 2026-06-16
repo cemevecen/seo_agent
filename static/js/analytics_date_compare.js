@@ -9,8 +9,13 @@
     sc: "seo-sc-date-compare",
   };
 
+  var ANALYTICS_COMPARE_LOTTIE =
+    "https://assets1.lottiefiles.com/packages/lf20_poqmycwy.json";
+
   var debounceTimers = { ga4: null, sc: null };
   var lastState = { ga4: null, sc: null };
+  var reloadPending = { ga4: 0, sc: 0 };
+  var reloadActivePage = null;
 
   function read(storageKey) {
     try {
@@ -78,6 +83,84 @@
     return url + sep + q.toString();
   }
 
+  function loadingOverlayId(pageKey) {
+    return pageKey === "sc" ? "sc-compare-loading" : "ga4-compare-loading";
+  }
+
+  function lottiePlayerReady() {
+    return !!(global.customElements && global.customElements.get("lottie-player"));
+  }
+
+  function showCompareLoading(pageKey) {
+    var el = document.getElementById(loadingOverlayId(pageKey));
+    if (!el) return;
+    el.classList.remove("hidden");
+    el.setAttribute("aria-hidden", "false");
+    var player = el.querySelector("lottie-player");
+    if (player && lottiePlayerReady()) {
+      try {
+        player.play();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+
+  function hideCompareLoading(pageKey) {
+    var el = document.getElementById(loadingOverlayId(pageKey));
+    if (!el) return;
+    el.classList.add("hidden");
+    el.setAttribute("aria-hidden", "true");
+    var player = el.querySelector("lottie-player");
+    if (player) {
+      try {
+        player.pause();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    reloadPending[pageKey] = 0;
+    if (reloadActivePage === pageKey) reloadActivePage = null;
+  }
+
+  function onCardSwapDone(pageKey) {
+    if (reloadActivePage !== pageKey) return;
+    reloadPending[pageKey] -= 1;
+    if (reloadPending[pageKey] <= 0) {
+      hideCompareLoading(pageKey);
+    }
+  }
+
+  function bindHtmxCompareSwapOnce() {
+    if (global.__seoCompareHtmxSwapBound) return;
+    global.__seoCompareHtmxSwapBound = true;
+    document.body.addEventListener("htmx:afterSwap", function (ev) {
+      var t = ev.detail && ev.detail.target;
+      if (!t || !t.getAttribute) return;
+      if (t.getAttribute("data-ga4-site-card")) onCardSwapDone("ga4");
+      if (t.getAttribute("data-sc-site-card")) onCardSwapDone("sc");
+    });
+    document.body.addEventListener("htmx:responseError", function () {
+      if (reloadActivePage) hideCompareLoading(reloadActivePage);
+    });
+  }
+
+  function parallelHtmxReload(cards, urlBuilder, pageKey) {
+    if (!global.htmx || !cards.length) return;
+    bindHtmxCompareSwapOnce();
+    reloadActivePage = pageKey;
+    reloadPending[pageKey] = cards.length;
+    showCompareLoading(pageKey);
+    cards.forEach(function (el) {
+      if (!el || !el.parentElement) {
+        onCardSwapDone(pageKey);
+        return;
+      }
+      delete el.dataset.chartReady;
+      global.htmx.ajax("GET", urlBuilder(el), { target: el, swap: "outerHTML" });
+    });
+  }
+
   function applyControlUi(wrap, st) {
     if (!wrap) return;
     var mode = wrap.querySelector("[data-compare-mode]");
@@ -126,24 +209,6 @@
     /* Banner kaldırıldı — karşılaştırma yalnızca üst kontrolde. */
   }
 
-  function staggerHtmxReload(cards, urlBuilder) {
-    if (!global.htmx || !cards.length) return;
-    var idx = 0;
-    function step() {
-      if (idx >= cards.length) return;
-      var el = cards[idx];
-      idx += 1;
-      if (!el || !el.parentElement) {
-        step();
-        return;
-      }
-      delete el.dataset.chartReady;
-      global.htmx.ajax("GET", urlBuilder(el), { target: el, swap: "outerHTML" });
-      global.setTimeout(step, 120);
-    }
-    step();
-  }
-
   function reloadGa4CardsImpl(prevSt) {
     var st = read(STORAGE.ga4);
     if (!needsServerReload(st, prevSt)) {
@@ -152,10 +217,14 @@
     }
     var cards = document.querySelectorAll("#ga4-site-list [data-ga4-site-card]");
     if (!cards.length) return;
-    staggerHtmxReload(cards, function (el) {
-      var sid = el.getAttribute("data-site-id") || "";
-      return appendToUrl("/ga4/site/" + encodeURIComponent(sid), "ga4");
-    });
+    parallelHtmxReload(
+      cards,
+      function (el) {
+        var sid = el.getAttribute("data-site-id") || "";
+        return appendToUrl("/ga4/site/" + encodeURIComponent(sid), "ga4");
+      },
+      "ga4"
+    );
   }
 
   function reloadScCardsImpl(prevSt) {
@@ -166,10 +235,14 @@
     }
     var cards = document.querySelectorAll("#search-console-site-list [data-sc-site-card]");
     if (!cards.length) return;
-    staggerHtmxReload(cards, function (el) {
-      var sid = el.getAttribute("data-site-id") || "";
-      return appendToUrl("/search-console/site/" + encodeURIComponent(sid), "sc");
-    });
+    parallelHtmxReload(
+      cards,
+      function (el) {
+        var sid = el.getAttribute("data-site-id") || "";
+        return appendToUrl("/search-console/site/" + encodeURIComponent(sid), "sc");
+      },
+      "sc"
+    );
   }
 
   function scheduleReload(pageKey, prevSt) {
@@ -181,7 +254,7 @@
       debounceTimers[key] = null;
       if (key === "sc") reloadScCardsImpl(prevSt);
       else reloadGa4CardsImpl(prevSt);
-    }, 450);
+    }, 280);
   }
 
   function bind(pageKey, onChange) {
@@ -191,6 +264,7 @@
     if (wrap.dataset.compareBound === "1") return true;
     wrap.dataset.compareBound = "1";
     lastState[pageKey === "sc" ? "sc" : "ga4"] = read(storageKey);
+    bindHtmxCompareSwapOnce();
 
     function persistAndNotify() {
       var prevSt = read(storageKey);
@@ -250,5 +324,6 @@
     syncControls: syncControls,
     reloadGa4Cards: reloadGa4Cards,
     reloadScCards: reloadScCards,
+    LOTTIE_SRC: ANALYTICS_COMPARE_LOTTIE,
   };
 })(typeof window !== "undefined" ? window : this);

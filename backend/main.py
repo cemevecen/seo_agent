@@ -12279,31 +12279,25 @@ def ga4_single_site_card(request: Request, site_id: int):
                         ),
                     },
                 }
-                daily_long = (profiles[profile]["periods"].get("12m") or {}).get("daily_trend")
-                if compare_opts.get("enabled") and compare_opts.get("mode") not in (
-                    None,
-                    "previous_period",
-                ):
-                    from backend.services.ga4_compare_daily import supplement_ga4_daily_trend
+            if compare_opts.get("enabled") and compare_opts.get("mode") not in (
+                None,
+                "previous_period",
+            ):
+                from backend.services.ga4_compare_daily import apply_compare_daily_to_profiles
 
-                    daily_long = supplement_ga4_daily_trend(
-                        db,
-                        site.id,
-                        prop_id,
-                        daily_long if isinstance(daily_long, dict) else None,
-                        compare_opts,
-                        {
-                            k: profiles[profile]["periods"][k]
-                            for k in ("7", "30", "90")
-                            if k in profiles[profile]["periods"]
-                        },
-                    )
+                apply_compare_daily_to_profiles(db, site.id, profiles, compare_opts)
+            for profile in list(profiles.keys()):
+                pdata = profiles[profile]
+                daily_long = pdata.get("compare_daily_long")
+                if not isinstance(daily_long, dict):
+                    daily_long = (pdata["periods"].get("12m") or {}).get("daily_trend")
                 for _pk in ("7", "30", "90"):
                     profiles[profile]["periods"][_pk] = apply_ga4_period_compare(
                         profiles[profile]["periods"][_pk],
                         compare=compare_opts,
                         daily_long=daily_long if isinstance(daily_long, dict) else None,
                     )
+                pdata.pop("compare_daily_long", None)
             site_data = {
                 "id": site.id,
                 "domain": site.domain,

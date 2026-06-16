@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date
 from typing import Any
 
@@ -21,6 +22,9 @@ from backend.services.search_console_auth import (
 from sqlalchemy.orm import Session
 
 LOGGER = logging.getLogger(__name__)
+
+_FETCH_CACHE_TTL_SEC = 20 * 60
+_sc_fetch_cache: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
 
 
 def _parse_iso(d: str | None) -> date | None:
@@ -87,6 +91,12 @@ def fetch_search_console_daily_rows_for_site(
     start: date,
     end: date,
 ) -> list[dict[str, Any]]:
+    cache_key = (int(site.id), start.isoformat(), end.isoformat())
+    now = time.monotonic()
+    hit = _sc_fetch_cache.get(cache_key)
+    if hit and hit[0] > now:
+        return list(hit[1])
+
     credential = get_search_console_credentials_record(db, site.id)
     if credential is None:
         return []
@@ -126,6 +136,8 @@ def fetch_search_console_daily_rows_for_site(
                 end.isoformat(),
                 exc,
             )
+    if rows:
+        _sc_fetch_cache[cache_key] = (time.monotonic() + _FETCH_CACHE_TTL_SEC, rows)
     return rows
 
 
