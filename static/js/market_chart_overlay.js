@@ -65,10 +65,28 @@
     }
   }
 
+  function panelForRoot(root) {
+    if (!root) return null;
+    var rid = root.id;
+    if (rid) {
+      var docked = document.querySelector(
+        '[data-market-overlay-panel][data-market-overlay-for="' + rid + '"]'
+      );
+      if (docked) return docked;
+    }
+    return root.querySelector("[data-market-overlay-panel]");
+  }
+
+  function panelCheckboxes(root, selector) {
+    var panel = panelForRoot(root);
+    if (!panel) return [];
+    return Array.prototype.slice.call(panel.querySelectorAll(selector || "input[type=checkbox]"));
+  }
+
   function selectedFromDom(root) {
     if (!root) return [];
     var keys = [];
-    root.querySelectorAll("[data-market-overlay-panel] input[type=checkbox]:checked").forEach(function (cb) {
+    panelCheckboxes(root, "input[type=checkbox]:checked").forEach(function (cb) {
       if (cb.value) keys.push(cb.value);
     });
     return keys;
@@ -77,7 +95,7 @@
   function syncDomFromStored(root) {
     if (!root) return;
     var keys = readStored(root);
-    root.querySelectorAll("[data-market-overlay-panel] input[type=checkbox]").forEach(function (cb) {
+    panelCheckboxes(root).forEach(function (cb) {
       cb.checked = keys.indexOf(cb.value) >= 0;
     });
     updateTriggerLabel(root);
@@ -408,6 +426,9 @@
 
     var trigger = root.querySelector("[data-market-overlay-trigger]");
     var panel = root.querySelector("[data-market-overlay-panel]");
+    if (panel && root.id) {
+      panel.setAttribute("data-market-overlay-for", root.id);
+    }
 
     function closePanel() {
       if (!panel) return;
@@ -436,18 +457,19 @@
       });
     }
 
-    root.querySelectorAll("[data-market-overlay-panel] input[type=checkbox]").forEach(function (cb) {
+    panelCheckboxes(root).forEach(function (cb) {
       cb.addEventListener("change", function () {
         if (cb.value === "all_indexed" && cb.checked) {
-          root.querySelectorAll("[data-market-overlay-panel] input[type=checkbox]").forEach(function (other) {
+          panelCheckboxes(root).forEach(function (other) {
             if (other !== cb) other.checked = false;
           });
         } else if (cb.checked && cb.value !== "all_indexed") {
-          var allCb = root.querySelector('[data-market-overlay-panel] input[value="all_indexed"]');
+          var allCb = panelForRoot(root);
+          allCb = allCb && allCb.querySelector('input[value="all_indexed"]');
           if (allCb) allCb.checked = false;
         }
         var keys = normalizeKeys(selectedFromDom(root));
-        root.querySelectorAll("[data-market-overlay-panel] input[type=checkbox]").forEach(function (box) {
+        panelCheckboxes(root).forEach(function (box) {
           box.checked = keys.indexOf(box.value) >= 0;
         });
         writeStored(root, keys);
@@ -462,8 +484,8 @@
       document.addEventListener("click", function (e) {
         var target = e.target;
         document.querySelectorAll("[data-market-overlay-root]").forEach(function (r) {
-          if (target && r.contains(target)) return;
-          var p = r.querySelector("[data-market-overlay-panel]");
+          var p = panelForRoot(r);
+          if (target && (r.contains(target) || (p && p.contains(target)))) return;
           var t = r.querySelector("[data-market-overlay-trigger]");
           if (p) {
             p.classList.add("hidden");
@@ -476,11 +498,12 @@
       });
     }
 
-    root.querySelectorAll("[data-market-overlay-panel]").forEach(function (p) {
-      p.addEventListener("click", function (e) {
+    var panelForClicks = panelForRoot(root);
+    if (panelForClicks) {
+      panelForClicks.addEventListener("click", function (e) {
         e.stopPropagation();
       });
-    });
+    }
   }
 
   function bindSelect(controlId, onChange) {
