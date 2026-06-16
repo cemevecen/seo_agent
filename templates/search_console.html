@@ -2038,6 +2038,9 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
+      SeoAnalyticsCompare.bindWhenReady('sc');
+    }
     if (window.SeoMarketOverlay) {
       SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', scRerenderTrendChartsForMarket);
     }
@@ -2057,9 +2060,6 @@
         evt.detail.parameters[k] = v;
       });
     });
-  }
-  if (window.SeoAnalyticsCompare) {
-    SeoAnalyticsCompare.bind('sc');
   }
 
   var SC_EXTRAS_LOTTIE_SRC = 'https://assets1.lottiefiles.com/packages/lf20_poqmycwy.json';

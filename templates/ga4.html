@@ -1874,6 +1874,9 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
+      SeoAnalyticsCompare.bindWhenReady('ga4');
+    }
     if (window.SeoMarketOverlay) {
       SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
     }
@@ -1890,9 +1893,6 @@
         evt.detail.parameters[k] = v;
       });
     });
-  }
-  if (window.SeoAnalyticsCompare) {
-    SeoAnalyticsCompare.bind('ga4');
   }
 
   window.__pcPageContext = function () {

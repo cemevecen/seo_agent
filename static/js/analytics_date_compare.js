@@ -82,30 +82,47 @@
     return url + sep + q.toString();
   }
 
+  function applyControlUi(wrap, st) {
+    if (!wrap) return;
+    var mode = wrap.querySelector("[data-compare-mode]");
+    var custom = wrap.querySelector("[data-compare-custom]");
+    var cs = wrap.querySelector("[data-compare-start]");
+    var ce = wrap.querySelector("[data-compare-end]");
+    if (mode) {
+      mode.disabled = !st.enabled;
+      if (st.enabled) {
+        mode.removeAttribute("disabled");
+      } else {
+        mode.setAttribute("disabled", "disabled");
+      }
+    }
+    var isCustom = st.enabled && st.mode === "custom";
+    if (cs) {
+      cs.disabled = !isCustom;
+      if (isCustom) cs.removeAttribute("disabled");
+      else cs.setAttribute("disabled", "disabled");
+    }
+    if (ce) {
+      ce.disabled = !isCustom;
+      if (isCustom) ce.removeAttribute("disabled");
+      else ce.setAttribute("disabled", "disabled");
+    }
+    if (custom) custom.classList.toggle("hidden", !isCustom);
+  }
+
   function syncControls(root, pageKey) {
     var wrap = (root || document).querySelector("[data-analytics-date-compare]");
     if (!wrap) return;
     var st = read(STORAGE[pageKey] || STORAGE.ga4);
     var en = wrap.querySelector("[data-compare-enabled]");
     var mode = wrap.querySelector("[data-compare-mode]");
-    var custom = wrap.querySelector("[data-compare-custom]");
     var cs = wrap.querySelector("[data-compare-start]");
     var ce = wrap.querySelector("[data-compare-end]");
     if (en) en.checked = st.enabled;
-    if (mode) {
-      mode.value = st.mode;
-      mode.disabled = !st.enabled;
-    }
-    if (cs) {
-      cs.value = st.start;
-      cs.disabled = !st.enabled || st.mode !== "custom";
-    }
-    if (ce) {
-      ce.value = st.end;
-      ce.disabled = !st.enabled || st.mode !== "custom";
-    }
-    var isCustom = st.enabled && st.mode === "custom";
-    if (custom) custom.classList.toggle("hidden", !isCustom);
+    if (mode) mode.value = st.mode;
+    if (cs) cs.value = st.start;
+    if (ce) ce.value = st.end;
+    applyControlUi(wrap, st);
     updateBanner(pageKey, st);
   }
 
@@ -194,7 +211,8 @@
   function bind(pageKey, onChange) {
     var storageKey = STORAGE[pageKey] || STORAGE.ga4;
     var wrap = document.querySelector("[data-analytics-date-compare]");
-    if (!wrap || wrap.dataset.compareBound === "1") return;
+    if (!wrap) return false;
+    if (wrap.dataset.compareBound === "1") return true;
     wrap.dataset.compareBound = "1";
     lastState[pageKey === "sc" ? "sc" : "ga4"] = read(storageKey);
 
@@ -210,11 +228,7 @@
         start: (cs && cs.value) || "",
         end: (ce && ce.value) || "",
       };
-      if (mode) mode.disabled = !st.enabled;
-      if (cs) cs.disabled = !st.enabled || st.mode !== "custom";
-      if (ce) ce.disabled = !st.enabled || st.mode !== "custom";
-      var custom = wrap.querySelector("[data-compare-custom]");
-      if (custom) custom.classList.toggle("hidden", !(st.enabled && st.mode === "custom"));
+      applyControlUi(wrap, st);
 
       if (statesEqual(st, prevSt)) {
         return;
@@ -230,6 +244,17 @@
     wrap.querySelector("[data-compare-start]").addEventListener("change", persistAndNotify);
     wrap.querySelector("[data-compare-end]").addEventListener("change", persistAndNotify);
     syncControls(document, pageKey);
+    return true;
+  }
+
+  function bindWhenReady(pageKey, onChange, attempt) {
+    var n = attempt || 0;
+    if (bind(pageKey, onChange)) return;
+    if (n < 80) {
+      global.setTimeout(function () {
+        bindWhenReady(pageKey, onChange, n + 1);
+      }, 40);
+    }
   }
 
   function reloadGa4Cards() {
@@ -245,6 +270,7 @@
     queryParams: queryParams,
     appendToUrl: appendToUrl,
     bind: bind,
+    bindWhenReady: bindWhenReady,
     syncControls: syncControls,
     reloadGa4Cards: reloadGa4Cards,
     reloadScCards: reloadScCards,

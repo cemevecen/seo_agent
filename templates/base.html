@@ -668,6 +668,19 @@
       position: relative;
       z-index: 25;
     }
+    [data-analytics-date-compare] {
+      position: relative;
+      z-index: 35;
+    }
+    [data-analytics-date-compare] [data-compare-mode]:not(:disabled) {
+      pointer-events: auto;
+      cursor: pointer;
+      opacity: 1 !important;
+    }
+    [data-analytics-date-compare] [data-compare-mode]:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
   </style>
   <style id="seo-mz-page-layout">
     /* /ad düzeni — prod app.css purge/çakışması ya da grid quirk'i olsa bile içerik
@@ -1531,7 +1544,7 @@
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=4" defer></script>
-  <script src="/static/js/analytics_date_compare.js?v=2" defer></script>
+  <script src="/static/js/analytics_date_compare.js?v=3" defer></script>
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#09090b,_#111113_55%,_#18181b)] dark:text-zinc-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}
