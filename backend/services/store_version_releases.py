@@ -11,6 +11,7 @@ import time
 from datetime import date, datetime, timezone
 from typing import Any
 
+from backend.services.app_release_sheet import fetch_releases_from_sheet
 from backend.services import asc_client
 from backend.services.app_intel import APP_PRODUCTS, get_raw_product_data
 from backend.services.asc_analytics import _paginate_first_path
@@ -140,61 +141,69 @@ def fetch_version_releases_for_product(
         payload = {"error": "unknown_product", "product": pid}
         return payload
 
-    meta = APP_PRODUCTS[pid]
-    bundle = (meta.get("ios_bundle_id") or "").strip()
+    product_meta = APP_PRODUCTS[pid]
+    bundle = (product_meta.get("ios_bundle_id") or "").strip()
     since_dt = datetime(since_d.year, since_d.month, since_d.day, tzinfo=timezone.utc)
 
-    ios: list[dict[str, Any]] = []
-    if bundle:
-        ios = fetch_ios_version_releases(bundle_id=bundle, since=since_d)
+    sheet_ios, sheet_android = fetch_releases_from_sheet(pid, since=since_d, use_cache=use_cache)
+    if sheet_ios or sheet_android:
+        ios = sheet_ios
+        android = sheet_android
+        note_tr = "Kaynak: Google Sheets «sürüm güncellemeler» tablosu (resmi yayın tarihleri)."
+    else:
+        ios: list[dict[str, Any]] = []
+        if bundle:
+            ios = fetch_ios_version_releases(bundle_id=bundle, since=since_d)
 
-    raw = get_raw_product_data(pid, force_refresh=False, cache_only=True)
-    if raw.get("error"):
-        raw = get_raw_product_data(pid, force_refresh=False, cache_only=False)
+        raw = get_raw_product_data(pid, force_refresh=False, cache_only=True)
+        if raw.get("error"):
+            raw = get_raw_product_data(pid, force_refresh=False, cache_only=False)
 
-    android_from_reviews: list[dict[str, Any]] = []
-    ios_fallback: list[dict[str, Any]] = []
-    if not raw.get("error"):
-        android_from_reviews = _releases_from_reviews(
-            list((raw.get("android") or {}).get("reviews") or []),
-            since=since_dt,
-        )
-        if not ios:
-            ios_fallback = _releases_from_reviews(
-                list((raw.get("ios") or {}).get("reviews") or []),
+        android: list[dict[str, Any]] = []
+        ios_fallback: list[dict[str, Any]] = []
+        if not raw.get("error"):
+            android = _releases_from_reviews(
+                list((raw.get("android") or {}).get("reviews") or []),
                 since=since_dt,
             )
-            for row in ios_fallback:
-                row["source"] = "reviews_first_seen"
+            if not ios:
+                ios_fallback = _releases_from_reviews(
+                    list((raw.get("ios") or {}).get("reviews") or []),
+                    since=since_dt,
+                )
+                for row in ios_fallback:
+                    row["source"] = "reviews_first_seen"
 
-    if not ios:
-        ios = ios_fallback
+        if not ios:
+            ios = ios_fallback
 
-    if not ios and not raw.get("error"):
-        meta = (raw.get("ios") or {}).get("meta")
-        if isinstance(meta, dict):
-            ver = str(meta.get("version") or "").strip()
-            rd = _utc_dt(meta.get("currentVersionReleaseDate"))
-            if ver and rd and rd >= since_dt:
-                ios = [
-                    {
-                        "version": ver,
-                        "released_at": _iso(rd),
-                        "source": "itunes_lookup_current",
-                    }
-                ]
+        if not ios and not raw.get("error"):
+            ios_meta = (raw.get("ios") or {}).get("meta")
+            if isinstance(ios_meta, dict):
+                ver = str(ios_meta.get("version") or "").strip()
+                rd = _utc_dt(ios_meta.get("currentVersionReleaseDate"))
+                if ver and rd and rd >= since_dt:
+                    ios = [
+                        {
+                            "version": ver,
+                            "released_at": _iso(rd),
+                            "source": "itunes_lookup_current",
+                        }
+                    ]
+
+        note_tr = (
+            "iOS tarihleri App Store Connect sürüm kaydından; "
+            "Android tarihleri mağaza yorumlarında sürümün ilk geçtiği güne göre tahmindir."
+        )
 
     payload = {
         "product": pid,
-        "product_label": meta.get("label") or pid,
+        "product_label": product_meta.get("label") or pid,
         "since": since_d.isoformat(),
         "ios": ios,
-        "android": android_from_reviews,
-        "counts": {"ios": len(ios), "android": len(android_from_reviews)},
-        "note_tr": (
-            "iOS tarihleri App Store Connect sürüm kaydından; "
-            "Android tarihleri mağaza yorumlarında sürümün ilk geçtiği güne göre tahmindir."
-        ),
+        "android": android,
+        "counts": {"ios": len(ios), "android": len(android)},
+        "note_tr": note_tr,
     }
     _CACHE[cache_key] = (time.time(), payload)
     return payload
