@@ -1281,8 +1281,7 @@
           var overlayPromise =
             overlayModes.length && trend.dates && trend.dates.length && window.SeoMarketOverlay
               ? SeoMarketOverlay.apply(traces, layoutObj, trend.dates, overlayModes, {
-                  yaxisId: 'y5',
-                  marginRight: 68,
+                  marginRight: 72,
                 })
               : Promise.resolve();
           overlayPromise.then(runPlot);
@@ -1864,7 +1863,20 @@
     document.addEventListener('seo-theme-change', relayoutGa4TrendChartsTheme);
   }
 
+  function ga4RerenderTrendChartsForMarket() {
+    document.querySelectorAll('[data-ga4-kpi-trend]').forEach(function (el) {
+      delete el.dataset.chartReady;
+      if (window.Plotly) {
+        try { Plotly.purge(el); } catch (_) { /* ignore */ }
+      }
+    });
+    renderGa4TrendCharts(document);
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    if (window.SeoMarketOverlay) {
+      SeoMarketOverlay.bindSelect('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
+    }
     initGa4Panels(document);
   });
 
@@ -1881,18 +1893,6 @@
   }
   if (window.SeoAnalyticsCompare) {
     SeoAnalyticsCompare.bind('ga4');
-  }
-
-  if (window.SeoMarketOverlay) {
-    SeoMarketOverlay.bindSelect('seo-market-overlay-root', function () {
-      document.querySelectorAll('[data-ga4-kpi-trend]').forEach(function (el) {
-        delete el.dataset.chartReady;
-        if (window.Plotly) {
-          try { Plotly.purge(el); } catch (_) { /* ignore */ }
-        }
-      });
-      renderGa4TrendCharts(document);
-    });
   }
 
   window.__pcPageContext = function () {

@@ -211,6 +211,43 @@
     return n ? "yaxis" + n : "yaxis";
   }
 
+  function normalizeDateKey(d) {
+    if (d == null || d === "") return "";
+    if (typeof d === "number" && !isNaN(d)) {
+      return new Date(d).toISOString().slice(0, 10);
+    }
+    var s = String(d).trim();
+    if (/^\d{8}$/.test(s)) {
+      return s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8);
+    }
+    if (s.length >= 10 && s.charAt(4) === "-") return s.slice(0, 10);
+    var parsed = Date.parse(s);
+    if (!isNaN(parsed)) {
+      return new Date(parsed).toISOString().slice(0, 10);
+    }
+    return s.slice(0, 10);
+  }
+
+  /** Plotly layout + trace’lerde kullanılmayan ilk yN (GA4: y2 eng. rate → piyasa y3). */
+  function pickFreeYaxisId(layout, traces) {
+    var used = { y: true };
+    if (layout) {
+      Object.keys(layout).forEach(function (k) {
+        if (k === "yaxis") used.y = true;
+        var m = /^yaxis(\d+)$/.exec(k);
+        if (m) used["y" + m[1]] = true;
+      });
+    }
+    (traces || []).forEach(function (t) {
+      var ax = t.yaxis || "y";
+      used[ax] = true;
+    });
+    for (var n = 3; n <= 8; n++) {
+      if (!used["y" + n]) return "y" + n;
+    }
+    return "y8";
+  }
+
   function defaultMarketAxisLayout(title, tickColor) {
     var c = tickColor || LINE_COLOR;
     return {
@@ -234,11 +271,11 @@
       return Promise.resolve(false);
     }
     opts = opts || {};
-    var yaxisId = opts.yaxisId || "y5";
+    var yaxisId = opts.yaxisId || pickFreeYaxisId(layout, traces);
     var layoutKey = layoutKeyForYaxis(yaxisId);
     var indexed = useIndexedScale(keys, overlayMode);
-    var startIso = String(dateKeys[0]).slice(0, 10);
-    var endIso = String(dateKeys[dateKeys.length - 1]).slice(0, 10);
+    var startIso = normalizeDateKey(dateKeys[0]);
+    var endIso = normalizeDateKey(dateKeys[dateKeys.length - 1]);
     return ensureOverlay(startIso, endIso)
       .then(function (payload) {
         var series = (payload && payload.series) || {};
@@ -249,7 +286,7 @@
           if (!block) return;
           var clos = closeMap(block);
           var ys = dateKeys.map(function (d) {
-            var k = String(d).slice(0, 10);
+            var k = normalizeDateKey(d);
             return clos[k] != null ? clos[k] : null;
           });
           if (indexed) {
@@ -391,5 +428,7 @@
     apply: apply,
     bindSelect: bindSelect,
     bindPanel: bindPanel,
+    pickFreeYaxisId: pickFreeYaxisId,
+    normalizeDateKey: normalizeDateKey,
   };
 })(typeof window !== "undefined" ? window : this);
