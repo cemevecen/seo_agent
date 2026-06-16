@@ -334,6 +334,73 @@
       });
   }
 
+  function syncOverlayOpenBodyClass() {
+    var open = false;
+    document.querySelectorAll("[data-market-overlay-panel]").forEach(function (p) {
+      if (!p.classList.contains("hidden")) open = true;
+    });
+    document.body.classList.toggle("seo-market-overlay-open", open);
+  }
+
+  function dockMarketOverlayPanel(panel) {
+    if (!panel || panel.dataset.marketOverlayDocked === "1") return;
+    panel._marketOverlayHome = {
+      parent: panel.parentNode,
+      next: panel.nextSibling,
+    };
+    document.body.appendChild(panel);
+    panel.dataset.marketOverlayDocked = "1";
+  }
+
+  function undockMarketOverlayPanel(panel) {
+    if (!panel || panel.dataset.marketOverlayDocked !== "1") return;
+    var home = panel._marketOverlayHome;
+    if (home && home.parent) {
+      if (home.next) home.parent.insertBefore(panel, home.next);
+      else home.parent.appendChild(panel);
+    }
+    delete panel._marketOverlayHome;
+    delete panel.dataset.marketOverlayDocked;
+  }
+
+  function resetMarketOverlayPanelPosition(panel) {
+    if (!panel) return;
+    panel.classList.remove("seo-market-overlay-panel--open");
+    panel.style.position = "";
+    panel.style.top = "";
+    panel.style.left = "";
+    panel.style.right = "";
+    panel.style.zIndex = "";
+    panel.style.width = "";
+    panel.style.maxWidth = "";
+    panel.style.maxHeight = "";
+  }
+
+  function positionMarketOverlayPanel(trigger, panel) {
+    if (!trigger || !panel) return;
+    dockMarketOverlayPanel(panel);
+    panel.classList.add("seo-market-overlay-panel--open");
+    var margin = 8;
+    var maxW = Math.max(200, Math.min(300, window.innerWidth - margin * 2));
+    panel.style.width = maxW + "px";
+    panel.style.maxWidth = maxW + "px";
+    panel.style.maxHeight = Math.min(Math.round(window.innerHeight * 0.7), 352) + "px";
+    var w = panel.offsetWidth || maxW;
+    var r = trigger.getBoundingClientRect();
+    var left = Math.round(Math.min(r.right - w, window.innerWidth - w - margin));
+    if (left < margin) left = margin;
+    var top = Math.round(r.bottom + 4);
+    var panelH = panel.offsetHeight || 280;
+    if (top + panelH > window.innerHeight - margin) {
+      top = Math.max(margin, Math.round(r.top - panelH - 4));
+    }
+    panel.style.position = "fixed";
+    panel.style.top = top + "px";
+    panel.style.left = left + "px";
+    panel.style.right = "auto";
+    panel.style.zIndex = "10000";
+  }
+
   function bindPanel(root, onChange) {
     if (!root || root.dataset.marketOverlayBound === "1") return;
     root.dataset.marketOverlayBound = "1";
@@ -345,13 +412,20 @@
     function closePanel() {
       if (!panel) return;
       panel.classList.add("hidden");
+      resetMarketOverlayPanelPosition(panel);
+      undockMarketOverlayPanel(panel);
       if (trigger) trigger.setAttribute("aria-expanded", "false");
+      syncOverlayOpenBodyClass();
     }
 
     function openPanel() {
       if (!panel) return;
       panel.classList.remove("hidden");
-      if (trigger) trigger.setAttribute("aria-expanded", "true");
+      if (trigger) {
+        positionMarketOverlayPanel(trigger, panel);
+        trigger.setAttribute("aria-expanded", "true");
+      }
+      syncOverlayOpenBodyClass();
     }
 
     if (trigger) {
@@ -391,9 +465,14 @@
           if (target && r.contains(target)) return;
           var p = r.querySelector("[data-market-overlay-panel]");
           var t = r.querySelector("[data-market-overlay-trigger]");
-          if (p) p.classList.add("hidden");
+          if (p) {
+            p.classList.add("hidden");
+            resetMarketOverlayPanelPosition(p);
+            undockMarketOverlayPanel(p);
+          }
           if (t) t.setAttribute("aria-expanded", "false");
         });
+        syncOverlayOpenBodyClass();
       });
     }
 

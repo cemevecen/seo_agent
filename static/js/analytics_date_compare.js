@@ -50,15 +50,11 @@
     );
   }
 
-  /** Sunucuda KPI değişimi gerektiren mod (önceki dönem = varsayılan veri). */
+  /** Karşılaştırma ayarı değişince kartları yeniden yükle (önceki döneme dönüş dahil). */
   function needsServerReload(st, prevSt) {
     prevSt = prevSt || defaultState();
-    if (st.enabled) {
-      return st.mode !== "previous_period";
-    }
-    if (prevSt.enabled && prevSt.mode !== "previous_period") {
-      return true;
-    }
+    if (statesEqual(st, prevSt)) return false;
+    if (st.enabled || prevSt.enabled) return true;
     return false;
   }
 
@@ -126,28 +122,8 @@
     updateBanner(pageKey, st);
   }
 
-  function modeLabel(mode) {
-    if (mode === "previous_year") return "Geçen yıl (aynı tarihler)";
-    if (mode === "custom") return "Özel karşılaştırma aralığı";
-    return "Önceki dönem (aynı uzunluk)";
-  }
-
-  function updateBanner(pageKey, st) {
-    var id = pageKey === "sc" ? "sc-compare-period-banner" : "ga4-compare-period-banner";
-    var banner = document.getElementById(id);
-    var modeEl = document.getElementById(id + "-mode");
-    if (!banner) return;
-    if (!st.enabled) {
-      banner.classList.add("hidden");
-      return;
-    }
-    banner.classList.remove("hidden");
-    if (modeEl) {
-      modeEl.textContent = modeLabel(st.mode);
-      if (st.mode === "custom" && st.start && st.end) {
-        modeEl.textContent += " · " + st.start + " – " + st.end;
-      }
-    }
+  function updateBanner() {
+    /* Banner kaldırıldı — karşılaştırma yalnızca üst kontrolde. */
   }
 
   function staggerHtmxReload(cards, urlBuilder) {

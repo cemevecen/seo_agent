@@ -1268,7 +1268,7 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
                     trend_12m_start_date,
                     end_date,
                     device=device,
-                    row_limit=min(400, trend_12m_days + 5),
+                    row_limit=trend_12m_days + 15,
                 )
             )
 
@@ -2006,6 +2006,12 @@ def collect_search_console_metrics(
                 "previous_90d_rows": previous_90d_row_count,
                 "content_trending_down": content_trending_down,
                 "same_weekday_day": same_weekday_day_summary,
+                "current_7d_start": str(payload.get("current_7d_start") or ""),
+                "current_7d_end": str(payload.get("current_7d_end") or ""),
+                "current_30d_start": str(payload.get("current_30d_start") or ""),
+                "current_30d_end": str(payload.get("current_30d_end") or ""),
+                "current_90d_start": str(payload.get("current_90d_start") or ""),
+                "current_90d_end": str(payload.get("current_90d_end") or ""),
                 "trend_28d_summary": trend_summary,
                 "trend_28d_summary_by_device": trend_summary_by_device,
                 # Ham günlük satırlar (impressions/ctr backfill için)

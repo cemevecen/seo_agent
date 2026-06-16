@@ -116,8 +116,23 @@ def apply_ga4_period_compare(
     if not c_start or not c_end:
         return period
 
+    if _ga4_daily_coverage(daily, c_start, c_end) < (c_end - c_start).days + 1:
+        out = dict(period)
+        out["compare_mode"] = mode
+        out["compare_data_unavailable"] = True
+        out["compare_note"] = "Seçilen karşılaştırma aralığı için günlük GA4 verisi yok."
+        out["ranges"] = {**ranges, "prev_start": cs, "prev_end": ce}
+        out["sessions_pct_change"] = None
+        out["users_pct_change"] = None
+        out["engaged_pct_change"] = None
+        out["pageviews_pct_change"] = None
+        out["engagement_rate_pct_change"] = None
+        out["wow_change_pct"] = None
+        return out
+
     agg = _sum_ga4_daily(daily, c_start, c_end)
     out = dict(period)
+    out["compare_data_unavailable"] = False
     out["ranges"] = {
         **ranges,
         "prev_start": cs,
@@ -168,10 +183,69 @@ def _sc_summarize_daily_rows(rows: list[dict[str, Any]], device_code: str, start
     }
 
 
-def _sc_pct_change(cur: float, prev: float) -> float:
+def _sc_pct_change(cur: float, prev: float) -> float | None:
     if prev == 0:
         return 0.0 if cur == 0 else 100.0
     return ((cur - prev) / abs(prev)) * 100.0
+
+
+def _sc_daily_coverage(
+    rows: list[dict[str, Any]],
+    device_code: str,
+    start: date,
+    end: date,
+) -> int:
+    """Karşılaştırma aralığında bu cihaz için kaç güne ait günlük satır var."""
+    days: set[str] = set()
+    dev = str(device_code or "").upper()
+    for row in rows:
+        if str(row.get("device") or "ALL").upper() != dev:
+            continue
+        d = _parse_iso(str(row.get("date") or ""))
+        if d and start <= d <= end:
+            days.add(d.isoformat())
+    return len(days)
+
+
+def resolve_sc_summary_period_range(
+    summary_payload: dict[str, Any],
+    period_key: str,
+    scope_fallback: tuple[str, str],
+) -> tuple[str, str]:
+    """7/30/90 güncel dönem ISO aralığı — sorgu satırı min/max yerine collector özeti."""
+    keys_by_period = {
+        "7": ("current_7d_start", "current_7d_end"),
+        "30": ("current_30d_start", "current_30d_end"),
+        "90": ("current_90d_start", "current_90d_end"),
+    }
+    pair = keys_by_period.get(str(period_key))
+    if pair:
+        s = str(summary_payload.get(pair[0]) or "").strip()[:10]
+        e = str(summary_payload.get(pair[1]) or "").strip()[:10]
+        if s and e:
+            return s, e
+    rows = list(summary_payload.get("trend_28d_rows") or []) + list(
+        summary_payload.get("trend_12m_rows") or []
+    )
+    dates = sorted({str(r.get("date") or "").strip()[:10] for r in rows if r.get("date")})
+    if not dates:
+        return scope_fallback
+    try:
+        pd = int(period_key)
+        end_d = date.fromisoformat(dates[-1])
+        start_d = end_d - timedelta(days=pd - 1)
+        return start_d.isoformat(), end_d.isoformat()
+    except (ValueError, TypeError, OSError):
+        return scope_fallback
+
+
+def _ga4_daily_coverage(daily: dict[str, Any], start: date, end: date) -> int:
+    days: set[str] = set()
+    for raw in daily.get("dates") or []:
+        d = _parse_iso(str(raw))
+        if d and start <= d <= end:
+            days.add(d.isoformat())
+    return len(days)
 
 
 def apply_sc_period_view_compare(
@@ -197,7 +271,7 @@ def apply_sc_period_view_compare(
         compare.get("custom_start"),
         compare.get("custom_end"),
     )
-    if not cs or not ce or not daily_rows:
+    if not cs or not ce:
         return view
     c_start = _parse_iso(cs)
     c_end = _parse_iso(ce)
@@ -207,10 +281,41 @@ def apply_sc_period_view_compare(
         return view
 
     device_code = str(view.get("device_code") or "DESKTOP").upper()
+    out = dict(view)
+    out["compare_mode"] = mode
+    out["compare_prev_start"] = cs
+    out["compare_prev_end"] = ce
+    out["compare_primary_start"] = primary_start[:10]
+    out["compare_primary_end"] = primary_end[:10]
+
+    if not daily_rows:
+        out["compare_data_unavailable"] = True
+        out["compare_unavailable_note"] = (
+            "Günlük trend verisi yok. Search Console kartını yenileyin."
+        )
+        out["clicks_pct_change"] = None
+        out["impressions_pct_change"] = None
+        out["ctr_pct_change"] = None
+        out["position_delta"] = None
+        return out
+
+    cov = _sc_daily_coverage(daily_rows, device_code, c_start, c_end)
+    if cov == 0:
+        out["compare_data_unavailable"] = True
+        out["compare_unavailable_note"] = (
+            "Seçilen karşılaştırma tarihleri önbellekte yok "
+            "(geçen yıl için 12 aylık günlük seri gerekir). Siteyi yenileyin."
+        )
+        out["clicks_pct_change"] = None
+        out["impressions_pct_change"] = None
+        out["ctr_pct_change"] = None
+        out["position_delta"] = None
+        return out
+
     cur = _sc_summarize_daily_rows(daily_rows, device_code, p_start, p_end)
     prev = _sc_summarize_daily_rows(daily_rows, device_code, c_start, c_end)
 
-    out = dict(view)
+    out["compare_data_unavailable"] = False
     out["summary_previous"] = {
         "clicks": prev["clicks"],
         "impressions": prev["impressions"],
@@ -223,12 +328,22 @@ def apply_sc_period_view_compare(
         "ctr": cur["ctr"],
         "position": cur["position"],
     }
+    prev_has_signal = (
+        prev["clicks"] > 0 or prev["impressions"] > 0 or prev["ctr"] > 0 or prev["position"] > 0
+    )
+    if not prev_has_signal and cov > 0:
+        out["compare_data_unavailable"] = True
+        out["compare_unavailable_note"] = "Karşılaştırma döneminde ölçülebilir veri yok."
+        out["clicks_pct_change"] = None
+        out["impressions_pct_change"] = None
+        out["ctr_pct_change"] = None
+        out["position_delta"] = None
+        return out
+
     out["clicks_pct_change"] = _sc_pct_change(cur["clicks"], prev["clicks"])
     out["impressions_pct_change"] = _sc_pct_change(cur["impressions"], prev["impressions"])
     out["ctr_pct_change"] = _sc_pct_change(cur["ctr"], prev["ctr"])
     out["position_delta"] = prev["position"] - cur["position"]
-    out["table_label_previous"] = f"{cs} – {ce}"
-    out["compare_mode"] = mode
     return out
 
 
@@ -268,21 +383,27 @@ def apply_search_console_report_compare(
                 compare=compare,
                 daily_rows=daily_rows,
             )
-            cs = (updated.get("table_label_previous") or "").split("–")[0].strip()
-            ce = ""
-            if "–" in (updated.get("table_label_previous") or ""):
-                ce = (updated.get("table_label_previous") or "").split("–", 1)[1].strip()
-            if cs and ce and callable(format_prev_label):
-                updated["table_label_previous"] = format_prev_label(cs, ce)
-                updated["range_prev"] = updated["table_label_previous"]
+            cps = str(updated.get("compare_prev_start") or "").strip()[:10]
+            cpe = str(updated.get("compare_prev_end") or "").strip()[:10]
+            pps = str(updated.get("compare_primary_start") or ps).strip()[:10]
+            ppe = str(updated.get("compare_primary_end") or pe).strip()[:10]
+            if callable(format_prev_label):
+                if cps and cpe:
+                    updated["table_label_previous"] = format_prev_label(cps, cpe)
+                    updated["range_prev"] = updated["table_label_previous"]
+                if pps and ppe:
+                    updated["range_last"] = format_prev_label(pps, ppe)
             views[device_key] = updated
         mv = views.get("mobile") or {}
-        if mv.get("table_label_previous"):
-            periods[period_key]["label_previous"] = mv["table_label_previous"]
-            periods[period_key]["subtitle"] = (
+        if mv.get("range_prev") or mv.get("table_label_previous"):
+            periods[period_key]["label_previous"] = mv.get("table_label_previous") or mv.get("range_prev")
+            subtitle = (
                 f"Güncel dönem: {mv.get('range_last') or '—'} · "
                 f"Karşılaştırma: {mv.get('range_prev') or mv.get('table_label_previous') or '—'}"
             )
+            if mv.get("compare_data_unavailable") and mv.get("compare_unavailable_note"):
+                subtitle += f" · {mv['compare_unavailable_note']}"
+            periods[period_key]["subtitle"] = subtitle
         periods[period_key]["views"] = views
 
     report["periods"] = periods

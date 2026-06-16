@@ -197,7 +197,7 @@
 </style>
 <div id="search-console-page" class="mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-sc-global-focus="{% if default_site_id %}{{ default_site_id }}{% endif %}">
   <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:rounded-3xl sm:p-5 md:p-6">
-    <div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="sc-analytics-toolbar mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex flex-wrap items-center gap-2">
         <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Piyasa overlay</span>
         {% include 'partials/market_overlay_select.html' %}
@@ -215,11 +215,6 @@
           Tüm Siteleri Yenile
         </button>
       </div>
-    </div>
-
-    <div id="sc-compare-period-banner" class="mb-4 hidden rounded-xl border border-sky-300/90 bg-sky-50/90 px-3 py-2.5 dark:border-sky-800 dark:bg-sky-950/50">
-      <p class="text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-300">Tarih karşılaştırması</p>
-      <p id="sc-compare-period-banner-mode" class="mt-1 text-sm text-slate-800 dark:text-slate-100"></p>
     </div>
 
     <div id="search-console-page-load-panel" class="mb-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-100/95 p-4 shadow-[0_24px_55px_-36px_rgba(51,65,85,0.45)] ring-1 ring-slate-200/80 backdrop-blur-sm dark:border-slate-600 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-[0_20px_50px_-38px_rgba(0,0,0,0.55)] dark:ring-slate-600/70 sm:rounded-[1.6rem] sm:p-5">

@@ -635,9 +635,28 @@
       opacity: 1 !important;
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
+      box-sizing: border-box;
+      width: min(18.75rem, calc(100vw - 1rem));
+      min-width: min(17.5rem, calc(100vw - 1rem));
+      max-width: calc(100vw - 1rem);
+      max-height: min(70vh, 22rem);
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       box-shadow:
         0 12px 42px -14px rgba(15, 23, 42, 0.45),
         0 0 0 1px rgba(226, 232, 240, 0.95);
+    }
+    [data-market-overlay-panel].seo-market-overlay-panel--open {
+      position: fixed !important;
+      right: auto !important;
+      margin-top: 0 !important;
+    }
+    [data-market-overlay-panel] [data-market-overlay-option] span {
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-break: normal;
     }
     html.dark [data-market-overlay-panel] {
       background-color: #18181b !important;
@@ -654,8 +673,35 @@
     html.midnight .mz-page [data-market-overlay-panel] {
       background-color: #000000 !important;
     }
+    .sc-analytics-toolbar,
+    .ga4-analytics-toolbar {
+      position: relative;
+      z-index: 60;
+      isolation: isolate;
+    }
+    #search-console-site-list,
+    #ga4-site-list {
+      position: relative;
+      z-index: 0;
+    }
+    body.seo-market-overlay-open #search-console-site-list,
+    body.seo-market-overlay-open #ga4-site-list {
+      pointer-events: none;
+    }
+    [data-market-overlay-panel]:not(.hidden) {
+      pointer-events: auto;
+    }
     [data-market-overlay-panel] [data-market-overlay-option] {
-      background-color: transparent;
+      background-color: #ffffff !important;
+      position: relative;
+      z-index: 1;
+    }
+    html.dark [data-market-overlay-panel] [data-market-overlay-option],
+    html.midnight [data-market-overlay-panel] [data-market-overlay-option] {
+      background-color: #18181b !important;
+    }
+    html.midnight .mz-page [data-market-overlay-panel] [data-market-overlay-option] {
+      background-color: #09090b !important;
     }
     [data-market-overlay-panel] [data-market-overlay-option]:hover {
       background-color: #f1f5f9 !important;
@@ -1543,8 +1589,8 @@
   <script src="/static/vendor/plotly-2.35.2.min.js" defer onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
-  <script src="/static/js/market_chart_overlay.js?v=4" defer></script>
-  <script src="/static/js/analytics_date_compare.js?v=3" defer></script>
+  <script src="/static/js/market_chart_overlay.js?v=6" defer></script>
+  <script src="/static/js/analytics_date_compare.js?v=5" defer></script>
 </head>
 <body class="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc,_#e2e8f0_55%,_#cbd5e1)] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_#09090b,_#111113_55%,_#18181b)] dark:text-zinc-100">
   {% set header_domain = domain or (sites[0].domain if sites and sites[0].domain else '') %}

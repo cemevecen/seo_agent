@@ -1,7 +1,7 @@
 {# Çoklu piyasa overlay — id: market_overlay_control_id veya seo-market-overlay-root #}
 {% set _moid = market_overlay_control_id|default('seo-market-overlay-root') %}
 <div
-  class="relative text-left"
+  class="seo-market-overlay-root relative min-w-0 text-left"
   id="{{ _moid }}"
   data-market-overlay-root
   data-overlay-storage-key="{{ market_overlay_storage_key|default('seo') }}"
@@ -9,7 +9,7 @@
   <button
     type="button"
     data-market-overlay-trigger
-    class="flex max-w-[13rem] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 shadow-sm dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 midnight:border-zinc-700 midnight:bg-black midnight:text-zinc-100"
+    class="flex w-full min-w-[10.5rem] max-w-[min(100%,14rem)] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 shadow-sm sm:w-auto sm:min-w-[11rem] dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 midnight:border-zinc-700 midnight:bg-black midnight:text-zinc-100"
     aria-haspopup="listbox"
     aria-expanded="false"
   >
@@ -20,7 +20,7 @@
   </button>
   <div
     data-market-overlay-panel
-    class="seo-market-overlay-panel absolute right-0 z-[200] mt-1 hidden min-w-[14.5rem] rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg dark:border-zinc-600 dark:bg-zinc-950 midnight:border-zinc-700 midnight:bg-black"
+    class="seo-market-overlay-panel absolute right-0 z-[200] mt-1 hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg dark:border-zinc-600 dark:bg-zinc-950 midnight:border-zinc-700 midnight:bg-black sm:right-0"
     role="listbox"
     aria-multiselectable="true"
   >
@@ -34,15 +34,15 @@
       ('all_indexed', 'Tümü (% aralık başı=100)'),
     ] %}
     <label
-      class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800 midnight:text-zinc-200 midnight:hover:bg-zinc-900"
+      class="flex cursor-pointer items-start gap-2.5 px-3 py-2 text-left text-[11px] font-medium leading-snug text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800 midnight:text-zinc-200 midnight:hover:bg-zinc-900 sm:px-2.5 sm:py-1.5"
       data-market-overlay-option="{{ val }}"
     >
       <input
         type="checkbox"
-        class="rounded border-slate-300 text-[#9D174D] focus:ring-[#9D174D] dark:border-slate-600"
+        class="mt-0.5 shrink-0 rounded border-slate-300 text-[#9D174D] focus:ring-[#9D174D] dark:border-slate-600"
         value="{{ val }}"
       />
-      <span>{{ label }}</span>
+      <span class="min-w-0 flex-1">{{ label }}</span>
     </label>
     {% endfor %}
   </div>

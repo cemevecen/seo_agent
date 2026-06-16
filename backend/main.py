@@ -2745,17 +2745,32 @@ def _search_console_report_payload(
         "range_previous_90d": _format_sc_tr_date_range(*range_90_prev),
     }
     if compare_opts:
-        from backend.services.analytics_compare import apply_search_console_report_compare
+        from backend.services.analytics_compare import (
+            apply_search_console_report_compare,
+            resolve_sc_summary_period_range,
+        )
+        from backend.services.sc_compare_daily import supplement_summary_for_compare
+
+        period_primary_ranges = {
+            "7": resolve_sc_summary_period_range(summary_payload, "7", range_7_last),
+            "30": resolve_sc_summary_period_range(summary_payload, "30", range_30_last),
+            "90": resolve_sc_summary_period_range(summary_payload, "90", range_90_last),
+        }
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is not None:
+            summary_payload = supplement_summary_for_compare(
+                db,
+                site,
+                summary_payload,
+                compare_opts,
+                period_primary_ranges,
+            )
 
         report = apply_search_console_report_compare(
             report,
             compare=compare_opts,
             summary_payload=summary_payload,
-            period_primary_ranges={
-                "7": range_7_last,
-                "30": range_30_last,
-                "90": range_90_last,
-            },
+            period_primary_ranges=period_primary_ranges,
             format_prev_label=lambda a, b: _format_sc_tr_date_range(a, b),
         )
         if compare_opts.get("enabled") and compare_opts.get("mode") not in (None, "previous_period"):
@@ -12265,6 +12280,24 @@ def ga4_single_site_card(request: Request, site_id: int):
                     },
                 }
                 daily_long = (profiles[profile]["periods"].get("12m") or {}).get("daily_trend")
+                if compare_opts.get("enabled") and compare_opts.get("mode") not in (
+                    None,
+                    "previous_period",
+                ):
+                    from backend.services.ga4_compare_daily import supplement_ga4_daily_trend
+
+                    daily_long = supplement_ga4_daily_trend(
+                        db,
+                        site.id,
+                        prop_id,
+                        daily_long if isinstance(daily_long, dict) else None,
+                        compare_opts,
+                        {
+                            k: profiles[profile]["periods"][k]
+                            for k in ("7", "30", "90")
+                            if k in profiles[profile]["periods"]
+                        },
+                    )
                 for _pk in ("7", "30", "90"):
                     profiles[profile]["periods"][_pk] = apply_ga4_period_compare(
                         profiles[profile]["periods"][_pk],

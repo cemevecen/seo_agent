@@ -191,11 +191,19 @@
             <p class="text-center text-sm text-slate-500 dark:text-slate-400">12 aylık trend için veri henüz yok. Search Console verisini yenileyin.</p>
             {% endif %}
             {% else %}
+            {% set cmp_na = view.get('compare_data_unavailable') %}
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 items-stretch">
+              {% if cmp_na %}
+              {% set cp = none %}
+              {% set ip = none %}
+              {% set tp = none %}
+              {% set pd = none %}
+              {% else %}
               {% set cp = (view.clicks_pct_change | default(0)) | float %}
               {% set ip = (view.impressions_pct_change | default(0)) | float %}
               {% set tp = (view.ctr_pct_change | default(0)) | float %}
               {% set pd = (view.position_delta | default(0)) | float %}
+              {% endif %}
               {% set clicks_pct_class = ('text-emerald-700 dark:text-emerald-400' if cp >= 5 else 'text-emerald-500 dark:text-emerald-300') if cp > 0 else (('text-orange-500 dark:text-orange-400' if cp > -5 else 'text-rose-600 dark:text-rose-500') if cp < 0 else 'text-slate-500 dark:text-slate-400') %}
               {% set impressions_pct_class = ('text-emerald-700 dark:text-emerald-400' if ip >= 5 else 'text-emerald-500 dark:text-emerald-300') if ip > 0 else (('text-orange-500 dark:text-orange-400' if ip > -5 else 'text-rose-600 dark:text-rose-500') if ip < 0 else 'text-slate-500 dark:text-slate-400') %}
               {% set ctr_pct_class = ('text-emerald-700 dark:text-emerald-400' if tp >= 5 else 'text-emerald-500 dark:text-emerald-300') if tp > 0 else (('text-orange-500 dark:text-orange-400' if tp > -5 else 'text-rose-600 dark:text-rose-500') if tp < 0 else 'text-slate-500 dark:text-slate-400') %}
@@ -205,12 +213,12 @@
                 <p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-slate-500 dark:text-slate-400 sm:text-xs sm:tracking-[0.12em]">CLICKS</p>
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
-                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ clicks_pct_class }}">{{ view.clicks_pct_change | signed_max_two_decimals }}%</p>
+                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ clicks_pct_class if not cmp_na else 'text-slate-500 dark:text-slate-400' }}">{% if cmp_na %}—{% else %}{{ view.clicks_pct_change | signed_max_two_decimals }}%{% endif %}</p>
                     <p class="min-w-0 truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ '{:,.0f}'.format(view.summary_current.clicks or 0).replace(',', ',') }}">{{ "{:,.0f}".format(view.summary_current.clicks or 0).replace(",", ",") }}</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
-                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg" title="{{ '{:,.0f}'.format(view.summary_previous.clicks or 0).replace(',', ',') }}">{{ "{:,.0f}".format(view.summary_previous.clicks or 0).replace(",", ",") }}</p>
+                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg" title="{% if cmp_na %}Karşılaştırma verisi yok{% else %}{{ '{:,.0f}'.format(view.summary_previous.clicks or 0).replace(',', ',') }}{% endif %}">{% if cmp_na %}—{% else %}{{ "{:,.0f}".format(view.summary_previous.clicks or 0).replace(",", ",") }}{% endif %}</p>
                     <p class="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_previous }}</p>
                   </div>
                 </div>
@@ -220,12 +228,12 @@
                 <p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-slate-500 dark:text-slate-400 sm:text-xs sm:tracking-[0.12em]">IMPRESSIONS</p>
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
-                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ impressions_pct_class }}">{{ view.impressions_pct_change | signed_max_two_decimals }}%</p>
+                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ impressions_pct_class if not cmp_na else 'text-slate-500 dark:text-slate-400' }}">{% if cmp_na %}—{% else %}{{ view.impressions_pct_change | signed_max_two_decimals }}%{% endif %}</p>
                     <p class="min-w-0 truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ '{:,.0f}'.format(view.summary_current.impressions or 0).replace(',', ',') }}">{{ "{:,.0f}".format(view.summary_current.impressions or 0).replace(",", ",") }}</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
-                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg" title="{{ '{:,.0f}'.format(view.summary_previous.impressions or 0).replace(',', ',') }}">{{ "{:,.0f}".format(view.summary_previous.impressions or 0).replace(",", ",") }}</p>
+                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{% if cmp_na %}—{% else %}{{ "{:,.0f}".format(view.summary_previous.impressions or 0).replace(",", ",") }}{% endif %}</p>
                     <p class="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_previous }}</p>
                   </div>
                 </div>
@@ -235,12 +243,12 @@
                 <p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-slate-500 dark:text-slate-400 sm:text-xs sm:tracking-[0.12em]">CTR</p>
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
-                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ ctr_pct_class }}">{{ view.ctr_pct_change | signed_max_two_decimals }}%</p>
+                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ ctr_pct_class if not cmp_na else 'text-slate-500 dark:text-slate-400' }}">{% if cmp_na %}—{% else %}{{ view.ctr_pct_change | signed_max_two_decimals }}%{% endif %}</p>
                     <p class="min-w-0 truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ '{:.2f}'.format(view.summary_current.ctr or 0) }}%">{{ "{:.2f}".format(view.summary_current.ctr or 0) }}%</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
-                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg" title="{{ '{:.2f}'.format(view.summary_previous.ctr or 0) }}%">{{ "{:.2f}".format(view.summary_previous.ctr or 0) }}%</p>
+                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{% if cmp_na %}—{% else %}{{ "{:.2f}".format(view.summary_previous.ctr or 0) }}%{% endif %}</p>
                     <p class="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_previous }}</p>
                   </div>
                 </div>
@@ -250,17 +258,20 @@
                 <p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-slate-500 dark:text-slate-400 sm:text-xs sm:tracking-[0.12em]">POSITION</p>
                 <div class="mt-2 flex min-h-0 flex-1 flex-col justify-between gap-3">
                   <div class="min-w-0 space-y-1">
-                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ position_delta_class }}">{{ view.position_delta | signed_max_two_decimals }}</p>
+                    <p class="whitespace-nowrap text-lg font-bold tabular-nums leading-none sm:text-xl {{ position_delta_class if not cmp_na else 'text-slate-500 dark:text-slate-400' }}">{% if cmp_na %}—{% else %}{{ view.position_delta | signed_max_two_decimals }}{% endif %}</p>
                     <p class="min-w-0 truncate text-sm font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-100 sm:text-base" title="{{ '{:.2f}'.format(view.summary_current.position or 0) }}">{{ "{:.2f}".format(view.summary_current.position or 0) }}</p>
                     <p class="line-clamp-2 min-h-[2.5rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_current }}</p>
                   </div>
                   <div class="shrink-0 border-t border-slate-100 dark:border-slate-800 pt-2">
-                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg" title="{{ '{:.2f}'.format(view.summary_previous.position or 0) }}">{{ "{:.2f}".format(view.summary_previous.position or 0) }}</p>
+                    <p class="min-w-0 truncate text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 sm:text-lg">{% if cmp_na %}—{% else %}{{ "{:.2f}".format(view.summary_previous.position or 0) }}{% endif %}</p>
                     <p class="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:text-xs">{{ view.table_label_previous }}</p>
                   </div>
                 </div>
               </article>
             </div>
+            {% if cmp_na and view.get('compare_unavailable_note') %}
+            <p class="rounded-lg border border-amber-200/90 bg-amber-50/90 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">{{ view.compare_unavailable_note }}</p>
+            {% endif %}
 
             <div
               id="search-console-trend-{{ site.id }}-{{ period_key }}-{{ device_key }}"
