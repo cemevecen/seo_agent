@@ -2450,7 +2450,7 @@ def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
         return t
     return {
         **t,
-        "mode": "last_28d",
+        "mode": str(t.get("mode") or "last_28d"),
         "dates": dates[-take:],
         "labels": labels[-take:] if len(labels) >= take else labels,
         "clicks": clicks[-take:],
@@ -2552,6 +2552,35 @@ def _search_console_report_payload(
     content_trending_down = summary_payload.get("content_trending_down") or []
     trend_summary_by_device = _raw_trend_by_device
 
+    _raw_12m_trend_by_device = summary_payload.get("trend_12m_summary_by_device") or {}
+    _stored_12m_trend_rows = summary_payload.get("trend_12m_rows") or []
+    if _stored_12m_trend_rows and not _raw_12m_trend_by_device:
+        from backend.collectors.search_console import _build_recent_trend_summary_by_device
+
+        try:
+            from datetime import date as _date_cls_12m_early
+
+            _12s = str(summary_payload.get("trend_12m_start_date") or "").strip()
+            _12e = str(summary_payload.get("trend_12m_end_date") or "").strip()
+            if _12s and _12e:
+                _s12e = _date_cls_12m_early.fromisoformat(_12s[:10])
+                _e12e = _date_cls_12m_early.fromisoformat(_12e[:10])
+            else:
+                _d12e = [r.get("date") for r in _stored_12m_trend_rows if r.get("date")]
+                if not _d12e:
+                    raise ValueError("no 12m trend dates")
+                _s12e = _date_cls_12m_early.fromisoformat(min(_d12e)[:10])
+                _e12e = _date_cls_12m_early.fromisoformat(_12e[:10]) if _12e else _date_cls_12m_early.fromisoformat(max(_d12e)[:10])
+            _raw_12m_trend_by_device = _build_recent_trend_summary_by_device(
+                _stored_12m_trend_rows, start_date=_s12e, end_date=_e12e
+            )
+            for _dev_s in _raw_12m_trend_by_device.values():
+                if isinstance(_dev_s, dict):
+                    _dev_s["mode"] = "last_12m"
+        except Exception:
+            _raw_12m_trend_by_device = {}
+    trend_12m_by_device = _raw_12m_trend_by_device
+
     range_7_last = _scope_range_from_rows(current_rows_7)
     range_7_prev = _scope_range_from_rows(previous_rows_7)
     range_30_last = _scope_range_from_rows(current_rows_30)
@@ -2579,7 +2608,7 @@ def _search_console_report_payload(
         ("1", 1, "Son tam gün", "Geçen haftanın aynı günü", 7),
         ("7", 7, "Son 7 gün", "Önceki 7 gün", 7),
         ("30", 30, "Son 30 gün", "Önceki 30 gün", 30),
-        ("90", 90, "Son 90 gün", "Önceki 90 gün", 30),
+        ("90", 90, "Son 90 gün", "Önceki 90 gün", 90),
     ):
         views: dict[str, dict] = {}
         for device_key, device_label in (("mobile", "Mobile"), ("desktop", "Desktop")):
@@ -2650,7 +2679,13 @@ def _search_console_report_payload(
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
                 pages_current = []
                 pages_previous = []
-                chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
+                base_90 = _sanitize_search_console_trend(
+                    trend_12m_by_device.get(device_code)
+                    or {**empty_trend, "mode": "last_12m"}
+                )
+                chart_trend = _slice_search_console_trend_last_days(base_90, trend_days)
+                if not _search_console_trend_has_signal(chart_trend):
+                    chart_trend = _slice_search_console_trend_last_days(base_trend, min(30, len(base_trend.get("dates") or []) or 30))
                 range_last = _format_sc_tr_date_range(*range_90_last)
                 range_prev = _format_sc_tr_date_range(*range_90_prev)
 
@@ -2720,7 +2755,7 @@ def _search_console_report_payload(
             "label_previous": _lp,
             "trend_caption": "Son 7 günün günlük trendi"
             if pd_days in (1, 7)
-            else ("Son 90 günün trendi (son 30 günlük detay)" if pd_days == 90 else "Son 30 günün günlük trendi"),
+            else ("Son 90 günün günlük trendi" if pd_days == 90 else "Son 30 günün günlük trendi"),
             "views": views,
             "trend_only": False,
         }
