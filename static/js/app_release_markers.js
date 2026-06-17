@@ -88,9 +88,7 @@
         color: opts.markerColor || "#94a3b8",
         line: { width: 1, color: "rgba(255,255,255,0.35)" },
       },
-      hoverlabel: { align: "left" },
-      hovertemplate: "<b>Sürüm %{customdata[0]}</b><br>%{customdata[1]}<extra></extra>",
-      customdata: custom,
+      hoverinfo: "skip",
       showlegend: false,
       name: "Sürüm",
     };

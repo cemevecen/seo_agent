@@ -5698,7 +5698,7 @@
     var spikeColor = dark ? "#71717a" : "#94a3b8";
     return {
       hovermode: "x unified",
-      hoverdistance: 80,
+      hoverdistance: -1,
       spikedistance: -1,
       xaxis: {
         showspikes: true,
@@ -5754,7 +5754,7 @@
         trace.marker || {}
       );
     }
-    trace.hoveron = "points+fills";
+    trace.hoveron = "lines";
     var rel = opts.releaseTextPerPoint;
     if (rel && rel.length === n) {
       trace.text = rel;
@@ -5768,6 +5768,56 @@
       trace.hovertemplate = "%{x}<br><b>" + name + "</b>: %{y:,.2f}" + unit + "<extra></extra>";
     }
     return trace;
+  }
+
+  /** Görünür marker'ları hover dışı ayrı trace yap — nokta üstünde x-unified kırılmasın. */
+  function mzExpandMarkerDecorations(traces) {
+    if (!traces || !traces.length) return traces;
+    var out = [];
+    traces.forEach(function (t) {
+      if (!t || t.type !== "scatter" || t.yref === "paper" || t.hoverinfo === "skip") {
+        out.push(t);
+        return;
+      }
+      var mode = String(t.mode || "lines");
+      var hasMarkers = mode.indexOf("markers") >= 0;
+      if (!hasMarkers) {
+        t.hoveron = t.hoveron || "lines";
+        out.push(t);
+        return;
+      }
+      var lineMode = mode
+        .replace(/\+?markers\+?/g, "")
+        .replace(/^\++|\++$/g, "")
+        .trim();
+      if (!lineMode) lineMode = "lines";
+      var markerCopy = Object.assign({}, t.marker || {});
+      var lineTrace = Object.assign({}, t, { mode: lineMode, hoveron: "lines" });
+      delete lineTrace.marker;
+      if (markerCopy.size > 0) {
+        out.push(lineTrace);
+        out.push({
+          x: t.x,
+          y: t.y,
+          type: "scatter",
+          mode: "markers",
+          marker: markerCopy,
+          hoverinfo: "skip",
+          showlegend: false,
+          connectgaps: t.connectgaps,
+          yaxis: t.yaxis,
+          xaxis: t.xaxis,
+          name: (t.name || "") + " ·",
+        });
+      } else {
+        out.push(lineTrace);
+      }
+    });
+    traces.length = 0;
+    out.forEach(function (tr) {
+      traces.push(tr);
+    });
+    return traces;
   }
 
   function mzStylizeLineTraces(traces, opts) {
@@ -5784,6 +5834,7 @@
         releaseTextPerPoint: rel,
       });
     });
+    mzExpandMarkerDecorations(traces);
     return traces;
   }
 
