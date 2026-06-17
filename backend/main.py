@@ -16120,6 +16120,8 @@ from backend.services.gitlab_board import (
     fetch_project_board_async,
     get_board_column_orders,
     get_board_project_settings,
+    gitlab_api_v4_base,
+    gitlab_web_origin,
     move_issue_async,
     reorder_issue_async,
     save_board_column_order,
@@ -16139,12 +16141,16 @@ def page_boards(request: Request):
         {"name": "Döviz Android", "path": "android/doviz", "platform": "android", "product": "doviz"},
         {"name": "Sinemalar Web", "path": "nokta/sinemalar", "platform": "web", "product": "sinemalar"},
     ]
+    browser_fb = os.environ.get("GITLAB_BOARDS_BROWSER_FALLBACK", "1").strip().lower()
     return templates.TemplateResponse(
         request, "pages/boards.html",
         context={
             "request": request,
             "projects": projects,
             "default_board_project": "ios/doviz",
+            "gitlab_api_base": gitlab_api_v4_base(),
+            "gitlab_web_origin": gitlab_web_origin(),
+            "gitlab_boards_browser_fallback": browser_fb not in ("0", "false", "no"),
         },
     )
 

@@ -11,7 +11,34 @@ from backend.models import GitlabBoardIssueOrder, GitlabBoardProjectSettings
 
 LOGGER = logging.getLogger(__name__)
 
-GITLAB_URL = "https://git.nokta.com/api/v4"
+_DEFAULT_GITLAB_API_V4 = "https://git.nokta.com/api/v4"
+
+
+def gitlab_api_v4_base() -> str:
+    """GitLab REST kökü — GITLAB_API_BASE_URL ile tünel/proxy (Railway → şirket ağı)."""
+    raw = (
+        os.environ.get("GITLAB_API_BASE_URL")
+        or os.environ.get("GITLAB_URL")
+        or _DEFAULT_GITLAB_API_V4
+    ).strip().rstrip("/")
+    if raw.endswith("/api/v4"):
+        return raw
+    if raw.endswith("/api"):
+        return raw + "/v4"
+    if "/api/v4" in raw:
+        return raw.split("/api/v4")[0] + "/api/v4"
+    return raw + "/api/v4"
+
+
+def gitlab_web_origin() -> str:
+    base = gitlab_api_v4_base()
+    if base.endswith("/api/v4"):
+        return base[: -len("/api/v4")] or "https://git.nokta.com"
+    return "https://git.nokta.com"
+
+
+# Geriye uyumluluk
+GITLAB_URL = gitlab_api_v4_base()
 # Railway / tarayıcı zaman aşımı: aşırı sayfalama sonsuz yükleme yapar
 MAX_OPENED_ISSUE_PAGES = 25
 MAX_CLOSED_ISSUE_PAGES = 8
@@ -51,9 +78,10 @@ def _gitlab_connect_error_message(exc: Exception) -> str:
     low = msg.lower()
     if "connect" in low or "timeout" in low or "name or service" in low:
         return (
-            "GitLab'e (git.nokta.com) sunucudan ulaşılamadı. "
-            "Railway ortamında GITLAB_PRIVATE_TOKEN tanımlı olmalı; "
-            "şirket ağı/VPN gerekiyorsa sunucunun da erişebildiğinden emin olun."
+            "GitLab'e sunucudan ulaşılamadı (bağlantı zaman aşımı). "
+            "Railway genelde şirket içi git.nokta.com'a doğrudan erişemez: "
+            "GITLAB_API_BASE_URL ile erişilebilir bir proxy/tünel tanımlayın veya "
+            "boards sayfasında VPN açıkken tarayıcı modunu kullanın."
         )
     return f"GitLab isteği başarısız: {msg}"
 
@@ -64,7 +92,7 @@ async def fetch_gitlab_version_async() -> dict[str, Any]:
         return {"ok": False, "error": "GITLAB_PRIVATE_TOKEN tanımlı değil."}
     async with httpx.AsyncClient(timeout=8.0) as client:
         try:
-            resp = await client.get(f"{GITLAB_URL}/version", headers=_headers())
+            resp = await client.get(f"{gitlab_api_v4_base()}/version", headers=_headers())
             if resp.status_code in (200, 401):
                 return {"ok": True, "status": resp.status_code}
             return {"ok": False, "error": f"GitLab version HTTP {resp.status_code}"}
@@ -99,7 +127,7 @@ async def fetch_all_issues_async(
         p = 1
         while True:
             url = (
-                f"{GITLAB_URL}/projects/{encoded_path}/issues"
+                f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
                 f"?state={state}&updated_after={updated_after}"
                 f"&order_by={order_by}&sort={sort}&per_page=100&page={p}"
             )
@@ -137,7 +165,7 @@ async def fetch_board_project_bundle_async(
         return {"error": "GITLAB_PRIVATE_TOKEN tanımlı değil. Railway / .env kontrol edin."}
 
     encoded_path = _encoded_path(project_path)
-    boards_url = f"{GITLAB_URL}/projects/{encoded_path}/boards"
+    boards_url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/boards"
     headers = _headers()
 
     timeout = httpx.Timeout(12.0, read=45.0)
@@ -198,7 +226,7 @@ async def create_issue_async(
         return None, "GITLAB_PRIVATE_TOKEN tanımlı değil."
 
     encoded_path = _encoded_path(project_path)
-    url = f"{GITLAB_URL}/projects/{encoded_path}/issues"
+    url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
     payload: dict[str, Any] = {"title": (title or "").strip()}
     if not payload["title"]:
         return None, "Başlık boş"
@@ -231,8 +259,8 @@ async def fetch_project_board_async(project_path: str) -> dict[str, Any]:
 
     headers = _headers()
     encoded_path = _encoded_path(project_path)
-    boards_url = f"{GITLAB_URL}/projects/{encoded_path}/boards"
-    issues_url = f"{GITLAB_URL}/projects/{encoded_path}/issues?state=opened&per_page=100"
+    boards_url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/boards"
+    issues_url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues?state=opened&per_page=100"
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
@@ -488,7 +516,7 @@ async def reorder_issue_async(
     if move_before_id is not None:
         params["move_before_id"] = int(move_before_id)
 
-    url = f"{GITLAB_URL}/projects/{encoded_path}/issues/{issue_iid}/reorder"
+    url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues/{issue_iid}/reorder"
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
             resp = await client.put(url, headers=headers, params=params or None)
@@ -505,7 +533,7 @@ async def reorder_issue_async(
                 data = resp.json()
                 if isinstance(data, dict):
                     return data
-            fetch_url = f"{GITLAB_URL}/projects/{encoded_path}/issues/{issue_iid}"
+            fetch_url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues/{issue_iid}"
             ref = await client.get(fetch_url, headers=headers)
             if ref.status_code == 200:
                 return ref.json()
@@ -546,7 +574,7 @@ async def update_issue_async(
 
     headers = _headers()
     encoded_path = _encoded_path(project_path)
-    url = f"{GITLAB_URL}/projects/{encoded_path}/issues/{issue_iid}"
+    url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues/{issue_iid}"
 
     data: dict[str, Any] = {}
     if add_labels:
