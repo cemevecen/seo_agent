@@ -9753,7 +9753,6 @@ def admin_login_page(request: Request):
             "client_ip": _extract_client_ip(request),
             "local_first_setup": (not configured) and _is_local_dev_first_password_client(request),
             "google_member_oauth_ready": ama.member_oauth_configured(),
-            "google_member_oauth_redirect": ama.get_member_oauth_redirect_uri(request=request),
             "oauth_error": oauth_display,
         },
         headers={"Cache-Control": "no-store"},
