@@ -318,6 +318,7 @@ def _event_label(event_type: str) -> str:
     return {
         "login_ok": "Admin girişi",
         "member_login_ok": "Google üye girişi",
+        "member_login_fail": "Google üye girişi (başarısız)",
         "login_fail": "Başarısız giriş",
         "settings_ok": "Settings erişimi",
         "settings_fail": "Settings — hatalı şifre",
@@ -327,7 +328,11 @@ def _event_label(event_type: str) -> str:
 def _prior_login_rows(db: Session, *, fingerprint: str, ip: str, limit: int = 6) -> list[AdminLoginEvent]:
     q = (
         db.query(AdminLoginEvent)
-        .filter(AdminLoginEvent.event_type.in_(("login_ok", "member_login_ok", "settings_ok", "login_fail")))
+        .filter(
+            AdminLoginEvent.event_type.in_(
+                ("login_ok", "member_login_ok", "member_login_fail", "settings_ok", "login_fail")
+            )
+        )
         .order_by(AdminLoginEvent.created_at.desc(), AdminLoginEvent.id.desc())
         .limit(limit + 3)
     )
@@ -492,7 +497,8 @@ def _deliver_unknown_login_alert(
 
         body = (
             '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;max-width:640px;line-height:1.45;">'
-            f"<h2 style=\"color:#b91c1c;margin:0 0 12px;\">Tanınmayan admin erişimi</h2>"
+            f"<h2 style=\"color:#b91c1c;margin:0 0 12px;\">"
+            f"{'Başarısız panel girişi' if event_type == 'member_login_fail' else 'Tanınmayan admin erişimi'}</h2>"
             f"<p style=\"margin:0 0 8px;\"><strong>Olay:</strong> {html.escape(et)}</p>"
             + actor_line
             + f"<p style=\"margin:0 0 8px;\"><strong>Zaman:</strong> {html.escape(when)} (TR)</p>"
@@ -518,7 +524,12 @@ def _deliver_unknown_login_alert(
         )
         browser = parse_browser_short(user_agent)
         ip_disp = (ip or "?").strip() or "?"
-        if em:
+        if event_type == "member_login_fail":
+            if em:
+                subject = f"panel girişi başarısız - '{em}' - '{ip_disp}'"
+            else:
+                subject = f"panel girişi başarısız - '{browser}' - '{ip_disp}'"
+        elif em:
             subject = f"panel girişi - '{em}' - '{ip_disp}'"
         else:
             subject = f"admin girişi - '{browser}' - '{ip_disp}'"
@@ -628,6 +639,18 @@ def record_access_event(
 
     em = (actor_email or "").strip()
     if event_type == "member_login_ok" and em:
+        sent = schedule_unknown_login_alert(
+            ip=ip,
+            device_label=device,
+            user_agent=ua,
+            fingerprint=fp,
+            event_type=event_type,
+            referer=referer,
+            accept_language=accept_language,
+            actor_email=em,
+        )
+        row.alert_sent = sent
+    elif event_type == "member_login_fail":
         sent = schedule_unknown_login_alert(
             ip=ip,
             device_label=device,

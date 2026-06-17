@@ -74,6 +74,45 @@ def test_member_login_alert_includes_email():
     assert "78.187.20.15" in body
 
 
+def test_member_login_fail_record_triggers_alert():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
+        with patch.object(aal, "_trim_old_events"):
+            row = aal.record_access_event(
+                db,
+                event_type="member_login_fail",
+                ip="203.0.113.9",
+                user_agent="Chrome",
+                actor_email="outsider@gmail.com",
+            )
+    mock_alert.assert_called_once()
+    assert mock_alert.call_args.kwargs.get("actor_email") == "outsider@gmail.com"
+    assert row.alert_sent is True
+
+
+def test_member_login_fail_alert_subject():
+    mock_db = MagicMock()
+    mock_db.query.return_value.count.return_value = 0
+    with patch.object(aal, "_lookup_ip_geo", return_value={}):
+        with patch("backend.database.SessionLocal") as mock_sl:
+            mock_sl.return_value.__enter__.return_value = mock_db
+            with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
+                with patch.object(aal.settings, "admin_login_alert_enabled", True):
+                    with patch.object(aal.settings, "admin_login_alert_email", "cemevecen@nokta.com"):
+                        ok = aal._deliver_unknown_login_alert(
+                            ip="78.187.20.15",
+                            device_label="Masaüstü / Chrome",
+                            user_agent="Mozilla/5.0 Chrome",
+                            fingerprint="abc123",
+                            event_type="member_login_fail",
+                            actor_email="outsider@gmail.com",
+                        )
+    assert ok is True
+    assert mock_send.call_args[0][0] == "panel girişi başarısız - 'outsider@gmail.com' - '78.187.20.15'"
+
+
 def test_member_login_record_triggers_alert():
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = None

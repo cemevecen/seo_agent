@@ -24,6 +24,29 @@ def _safe_next_path(raw: str) -> str:
     return p
 
 
+def _record_member_access_event(
+    db: Session,
+    request: Request,
+    *,
+    event_type: str,
+    actor_email: str = "",
+) -> None:
+    from backend.services import admin_access_log as aal
+
+    try:
+        aal.record_access_event(
+            db,
+            event_type=event_type,
+            ip=aal.client_ip_from_request(request),
+            user_agent=(request.headers.get("user-agent") or "")[:512],
+            referer=(request.headers.get("referer") or "")[:512],
+            accept_language=(request.headers.get("accept-language") or "")[:120],
+            actor_email=actor_email,
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Üye giriş kaydı / uyarı e-postası başarısız (%s): %s", event_type, exc)
+
+
 @router.get("/auth/google/start")
 def google_member_oauth_start(request: Request, next: str = "/"):
     if not ama.member_oauth_configured():
@@ -50,12 +73,14 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     if err:
         from urllib.parse import quote
 
+        _record_member_access_event(db, request, event_type="member_login_fail")
         msg = ama.format_member_oauth_login_error(err, request=request)
         return RedirectResponse(url=f"/admin/login?oauth_error={quote(msg)}", status_code=302)
     state = request.query_params.get("state")
     code = request.query_params.get("code")
     if not state or not code:
         return HTMLResponse("OAuth state veya kod eksik.", status_code=400)
+    attempted_email = ""
     try:
         payload = ama.decode_oauth_state(state, request=request)
         flow = ama.build_member_oauth_flow(state=state, request=request)
@@ -63,11 +88,18 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
         creds = flow.credentials
         info = ama.fetch_google_userinfo(creds.token)
         email = str(info.get("email") or "").strip()
+        attempted_email = email
         if not email:
             raise RuntimeError("Google hesabından e-posta alınamadı")
         if not ama.is_email_eligible_for_membership(email):
             from urllib.parse import quote
 
+            _record_member_access_event(
+                db,
+                request,
+                event_type="member_login_fail",
+                actor_email=email,
+            )
             return RedirectResponse(
                 url=f"/admin/login?oauth_error={quote(ama.membership_rejection_message(email))}",
                 status_code=302,
@@ -81,6 +113,12 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
         )
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("member oauth callback failed")
+        _record_member_access_event(
+            db,
+            request,
+            event_type="member_login_fail",
+            actor_email=attempted_email,
+        )
         from urllib.parse import quote
 
         return RedirectResponse(
@@ -90,20 +128,12 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     dest = _safe_next_path(str(payload.get("return_path") or "/"))
     resp = RedirectResponse(url=dest, status_code=303)
     ama.set_member_session_cookie(resp, request, member)
-    from backend.services import admin_access_log as aal
-
-    try:
-        aal.record_access_event(
-            db,
-            event_type="member_login_ok",
-            ip=aal.client_ip_from_request(request),
-            user_agent=(request.headers.get("user-agent") or "")[:512],
-            referer=(request.headers.get("referer") or "")[:512],
-            accept_language=(request.headers.get("accept-language") or "")[:120],
-            actor_email=member.email,
-        )
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("Üye girişi kaydı / uyarı e-postası başarısız: %s", exc)
+    _record_member_access_event(
+        db,
+        request,
+        event_type="member_login_ok",
+        actor_email=member.email,
+    )
     return resp
 
 
