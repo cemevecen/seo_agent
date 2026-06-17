@@ -5731,74 +5731,6 @@
     return 7;
   }
 
-  function mzPlotDragSurface(gd) {
-    if (!gd || !gd.querySelector) return gd;
-    return (
-      gd.querySelector(".nsewdrag") ||
-      gd.querySelector(".drag") ||
-      gd.querySelector(".draglayer") ||
-      gd
-    );
-  }
-
-  function mzSyncUnifiedColumnHover(gd, ev) {
-    if (!gd || !window.Plotly || !Plotly.Fx || typeof Plotly.Fx.hover !== "function") return;
-    var fl = gd._fullLayout;
-    if (!fl || !fl.hovermode || String(fl.hovermode).indexOf("x") < 0) return;
-    var surface = mzPlotDragSurface(gd);
-    if (!surface) return;
-    var bb = surface.getBoundingClientRect();
-    var xPx = ev.clientX - bb.left;
-    var yPx = ev.clientY - bb.top;
-    if (xPx < 0 || yPx < 0 || xPx > bb.width || yPx > bb.height) {
-      try {
-        Plotly.Fx.unhover(gd);
-      } catch (_) {
-        /* ignore */
-      }
-      return;
-    }
-    var hoverEvt = {
-      type: "mousemove",
-      target: surface,
-      clientX: ev.clientX,
-      clientY: ev.clientY,
-      preventDefault: function () {},
-      stopPropagation: function () {},
-    };
-    try {
-      Plotly.Fx.hover(gd, hoverEvt);
-    } catch (_) {
-      /* ignore */
-    }
-  }
-
-  function mzBindUnifiedColumnHover(gd, layout) {
-    if (!gd) return;
-    if (gd._mzColHoverHandler) {
-      gd.removeEventListener("mousemove", gd._mzColHoverHandler, true);
-      gd._mzColHoverHandler = null;
-    }
-    if (gd._mzColLeaveHandler) {
-      gd.removeEventListener("mouseleave", gd._mzColLeaveHandler, true);
-      gd._mzColLeaveHandler = null;
-    }
-    var hm = (layout && layout.hovermode) || (gd._fullLayout && gd._fullLayout.hovermode);
-    if (!hm || String(hm).indexOf("x") < 0) return;
-    gd._mzColHoverHandler = function (ev) {
-      mzSyncUnifiedColumnHover(gd, ev);
-    };
-    gd._mzColLeaveHandler = function () {
-      try {
-        if (Plotly.Fx && Plotly.Fx.unhover) Plotly.Fx.unhover(gd);
-      } catch (_) {
-        /* ignore */
-      }
-    };
-    gd.addEventListener("mousemove", gd._mzColHoverHandler, true);
-    gd.addEventListener("mouseleave", gd._mzColLeaveHandler, true);
-  }
-
   function mzApplyLineHoverStyle(trace, opts) {
     opts = opts || {};
     if (!trace || trace.type !== "scatter" || trace.yref === "paper" || trace.hoverinfo === "skip") {
@@ -5837,55 +5769,6 @@
     return trace;
   }
 
-  /** Görünür marker'ları hover dışı ayrı trace yap — nokta üstünde x-unified kırılmasın. */
-  function mzExpandMarkerDecorations(traces) {
-    if (!traces || !traces.length) return traces;
-    var out = [];
-    traces.forEach(function (t) {
-      if (!t || t.type !== "scatter" || t.yref === "paper" || t.hoverinfo === "skip") {
-        out.push(t);
-        return;
-      }
-      var mode = String(t.mode || "lines");
-      var hasMarkers = mode.indexOf("markers") >= 0;
-      if (!hasMarkers) {
-        out.push(t);
-        return;
-      }
-      var lineMode = mode
-        .replace(/\+?markers\+?/g, "")
-        .replace(/^\++|\++$/g, "")
-        .trim();
-      if (!lineMode) lineMode = "lines";
-      var markerCopy = Object.assign({}, t.marker || {});
-      var lineTrace = Object.assign({}, t, { mode: lineMode });
-      delete lineTrace.marker;
-      if (markerCopy.size > 0) {
-        out.push(lineTrace);
-        out.push({
-          x: t.x,
-          y: t.y,
-          type: "scatter",
-          mode: "markers",
-          marker: markerCopy,
-          hoverinfo: "skip",
-          showlegend: false,
-          connectgaps: t.connectgaps,
-          yaxis: t.yaxis,
-          xaxis: t.xaxis,
-          name: (t.name || "") + " ·",
-        });
-      } else {
-        out.push(lineTrace);
-      }
-    });
-    traces.length = 0;
-    out.forEach(function (tr) {
-      traces.push(tr);
-    });
-    return traces;
-  }
-
   function mzStylizeLineTraces(traces, opts) {
     opts = opts || {};
     (traces || []).forEach(function (t, i) {
@@ -5900,7 +5783,6 @@
         releaseTextPerPoint: rel,
       });
     });
-    mzExpandMarkerDecorations(traces);
     return traces;
   }
 
@@ -6059,8 +5941,7 @@
       );
       try { Plotly.purge(el); } catch (_) { /* ignore */ }
       el.innerHTML = "";
-      return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function (gd) {
-        mzBindUnifiedColumnHover(gd, lay);
+      return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function () {
         return Plotly.Plots.resize(el);
       }).then(function () {
         try {
@@ -6068,7 +5949,6 @@
         } catch (_) {
           /* ignore */
         }
-        if (el._fullLayout) mzBindUnifiedColumnHover(el, lay);
       });
     }
     return new Promise(function (resolve) {

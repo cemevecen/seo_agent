@@ -990,16 +990,16 @@
       height: 100% !important;
       max-width: 100%;
     }
-    /* x-unified: dikey şeritte tooltip — scatter nokta/çizgi hit-test kapalı */
-    .mz-page .mz-chart-plot .scatterlayer .points path,
-    .mz-page .mz-chart-plot .scatterlayers .trace .points path,
-    .mz-page .mz-chart-plot .scatterlayer .lines path,
-    .mz-page .mz-chart-plot .scatterlayers .trace .lines path,
-    .mz-page .mz-chart-plot .scatterlayer .fills path,
-    .mz-page .mz-chart-plot .scatterlayers .trace .fills path {
+    /* x-unified: dikey şeritte tooltip — tüm Plotly scatter grafikleri */
+    .js-plotly-plot .scatterlayer .points path,
+    .js-plotly-plot .scatterlayers .trace .points path,
+    .js-plotly-plot .scatterlayer .lines path,
+    .js-plotly-plot .scatterlayers .trace .lines path,
+    .js-plotly-plot .scatterlayer .fills path,
+    .js-plotly-plot .scatterlayers .trace .fills path {
       pointer-events: none !important;
     }
-    .mz-page .mz-chart-plot .hoverlayer {
+    .js-plotly-plot .hoverlayer {
       pointer-events: none !important;
     }
     .mz-page .mz-chart-plot .main-svg {
@@ -1735,6 +1735,7 @@
   </script>
   <!-- Plotly: önce yerel (Railway/CDN engeli); olmazsa CDN -->
   <script src="/static/vendor/plotly-2.35.2.min.js" defer onerror="this.onerror=null;this.src='https://cdn.plot.ly/plotly-2.35.2.min.js'"></script>
+  <script src="/static/js/plotly_time_series_hover.js?v=1" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=7" defer></script>
@@ -2221,6 +2222,12 @@
         grid: '#e2e8f0', tick: '#64748b', legend: '#475569',
         muted: '#64748b', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)',
       };
+    };
+    window.seoPlotlyTimeSeriesLayout = function (layout) {
+      if (window.SeoPlotlyTimeSeriesHover && SeoPlotlyTimeSeriesHover.mergeLayout) {
+        return SeoPlotlyTimeSeriesHover.mergeLayout(layout || {});
+      }
+      return layout || {};
     };
   </script>
   <script src="/static/alerts_page.js" defer></script>

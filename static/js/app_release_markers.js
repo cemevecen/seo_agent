@@ -106,6 +106,9 @@
     if (!trace) return Promise.resolve();
     var layoutPatch = { margin: { b: opts.marginBottom || 56 } };
     return global.Plotly.addTraces(el, trace).then(function () {
+      if (global.SeoPlotlyTimeSeriesHover && global.SeoPlotlyTimeSeriesHover.bindColumnHover) {
+        global.SeoPlotlyTimeSeriesHover.bindColumnHover(el);
+      }
       return global.Plotly.relayout(el, layoutPatch);
     });
   }
