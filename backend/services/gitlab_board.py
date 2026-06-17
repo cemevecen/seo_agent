@@ -61,7 +61,11 @@ def get_gitlab_token() -> str:
 
 
 def _headers() -> dict[str, str]:
-    return {"PRIVATE-TOKEN": get_gitlab_token()}
+    h: dict[str, str] = {"PRIVATE-TOKEN": get_gitlab_token()}
+    relay_secret = (os.environ.get("GITLAB_RELAY_SECRET") or "").strip()
+    if relay_secret:
+        h["X-GitLab-Relay-Key"] = relay_secret
+    return h
 
 
 def _encoded_path(project_path: str) -> str:
@@ -79,9 +83,8 @@ def _gitlab_connect_error_message(exc: Exception) -> str:
     if "connect" in low or "timeout" in low or "name or service" in low:
         return (
             "GitLab'e sunucudan ulaşılamadı (bağlantı zaman aşımı). "
-            "Railway genelde şirket içi git.nokta.com'a doğrudan erişemez: "
-            "GITLAB_API_BASE_URL ile erişilebilir bir proxy/tünel tanımlayın veya "
-            "boards sayfasında VPN açıkken tarayıcı modunu kullanın."
+            "Tüm tarayıcılar için: şirket ağında deploy/gitlab-relay çalıştırıp Railway'de "
+            "GITLAB_API_BASE_URL + GITLAB_RELAY_SECRET tanımlayın."
         )
     return f"GitLab isteği başarısız: {msg}"
 

@@ -130,9 +130,15 @@
       <div class="h-full">
         <div x-show="projectData[activeProject].error" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-400 mb-4">
           <p class="font-medium" x-text="projectData[activeProject].error"></p>
-          <p class="mt-2 text-xs opacity-90" x-show="vpnStatus === 'off'">
-            Sunucunun git.nokta.com'a erişmesi gerekir (Railway'de <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_PRIVATE_TOKEN</code>). Bu gösterge tarayıcı VPN'inizi değil, panel sunucusunun GitLab bağlantısını yansıtır.
-          </p>
+          <div class="mt-3 rounded-lg border border-rose-300/60 bg-white/50 p-3 text-xs leading-relaxed text-rose-900 dark:border-rose-800 dark:bg-black/20 dark:text-rose-100">
+            <p class="font-semibold">Tüm tarayıcılar için kalıcı kurulum</p>
+            <ol class="mt-2 list-decimal space-y-1 pl-4">
+              <li>VPN/ofis ağında <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">deploy/gitlab-relay</code> (Docker) çalıştırın.</li>
+              <li>Relay’i HTTPS ile dışarı açın (Cloudflare Tunnel, nginx, vb.).</li>
+              <li>Railway’de: <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_API_BASE_URL</code> = relay URL (<code class="text-[10px]">…/api/v4</code>), <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_RELAY_SECRET</code> + <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_PRIVATE_TOKEN</code>.</li>
+            </ol>
+            <p class="mt-2 opacity-90">Bundan sonra kimse tarayıcıda token girmez; boards her oturumda sunucu üzerinden yüklenir.</p>
+          </div>
         </div>
 
         <div x-show="projectData[activeProject].issuesTruncated" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 mb-4">
@@ -140,7 +146,7 @@
         </div>
 
         <div x-show="showBrowserSetup && browserFallbackEnabled" class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100 mb-4">
-          <p class="font-semibold">Tarayıcı modu (VPN açıkken)</p>
+          <p class="font-semibold">Geçici: tarayıcı modu (yalnızca bu bilgisayar)</p>
           <p class="mt-1 text-xs leading-relaxed opacity-90">
             Railway sunucusu şirket içi GitLab'e TCP ile ulaşamıyor (<code class="rounded bg-white/60 px-1 dark:bg-black/40">ConnectTimeout</code>).
             Kişisel erişim token'ınızı yalnızca bu tarayıcıda saklayarak VPN üzerinden doğrudan GitLab API'sine bağlanabilirsiniz.
@@ -161,7 +167,7 @@
               Bağlan
             </button>
           </div>
-          <p class="mt-2 text-[11px] opacity-75">Token sessionStorage'da kalır; SEO Agent sunucusuna gönderilmez. Kalıcı çözüm: Railway'de <code class="rounded bg-white/60 px-1 dark:bg-black/40">GITLAB_API_BASE_URL</code> ile şirket ağındaki bir proxy.</p>
+          <p class="mt-2 text-[11px] opacity-75">Geliştirici geçici çözümü; production’da <code class="rounded bg-white/60 px-1 dark:bg-black/40">GITLAB_BOARDS_BROWSER_FALLBACK=0</code> önerilir.</p>
         </div>
 
         <div x-show="projectData[activeProject].loading && !projectData[activeProject].loaded && !projectData[activeProject].error" class="mt-20 text-center">
@@ -947,7 +953,7 @@
 
           if (this.vpnStatus === 'off') {
             pd.error =
-              'Panel sunucusu GitLab\'e bağlanamıyor (Railway → git.nokta.com zaman aşımı).';
+              'Panel sunucusu GitLab\'e bağlanamıyor. Kalıcı çözüm: deploy/gitlab-relay + Railway GITLAB_API_BASE_URL (tüm tarayıcılar).';
             if (this.browserFallbackEnabled) this.showBrowserSetup = true;
             return;
           }

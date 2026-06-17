@@ -1,0 +1,10 @@
+# Şirket ağında (VPN / ofis) çalıştırın; dışarıya Cloudflare Tunnel veya reverse proxy ile açın.
+services:
+  gitlab-relay:
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      GITLAB_UPSTREAM_URL: https://git.nokta.com/api/v4
+      GITLAB_PRIVATE_TOKEN: ${GITLAB_PRIVATE_TOKEN}
+      GITLAB_RELAY_SECRET: ${GITLAB_RELAY_SECRET}

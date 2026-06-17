@@ -16141,7 +16141,7 @@ def page_boards(request: Request):
         {"name": "Döviz Android", "path": "android/doviz", "platform": "android", "product": "doviz"},
         {"name": "Sinemalar Web", "path": "nokta/sinemalar", "platform": "web", "product": "sinemalar"},
     ]
-    browser_fb = os.environ.get("GITLAB_BOARDS_BROWSER_FALLBACK", "1").strip().lower()
+    browser_fb = os.environ.get("GITLAB_BOARDS_BROWSER_FALLBACK", "0").strip().lower()
     return templates.TemplateResponse(
         request, "pages/boards.html",
         context={
