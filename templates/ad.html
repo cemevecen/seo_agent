@@ -5731,6 +5731,93 @@
     return 7;
   }
 
+  function mzXToHoverNumber(x, axisType) {
+    if (x == null) return NaN;
+    if (axisType === "date" || x instanceof Date || (typeof x === "string" && /^\d{4}-\d{2}/.test(String(x)))) {
+      var d = x instanceof Date ? x : new Date(x);
+      return d.getTime();
+    }
+    var n = Number(x);
+    return isFinite(n) ? n : NaN;
+  }
+
+  function mzNearestIndexByX(xs, xTarget, axisType) {
+    var t = mzXToHoverNumber(xTarget, axisType);
+    if (!isFinite(t) || !xs || !xs.length) return -1;
+    var best = -1;
+    var bestD = Infinity;
+    for (var i = 0; i < xs.length; i++) {
+      var xi = mzXToHoverNumber(xs[i], axisType);
+      if (!isFinite(xi)) continue;
+      var d = Math.abs(xi - t);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  function mzTraceParticipatesInUnifiedHover(tr) {
+    if (!tr || tr.yref === "paper" || tr.hoverinfo === "skip" || tr.hoverinfo === "none") return false;
+    if (tr.visible === false || tr.visible === "legendonly") return false;
+    if (!tr.x || !tr.x.length) return false;
+    return !!(tr.hovertemplate || !tr.hoverinfo || tr.hoverinfo === "all" || tr.hoverinfo === "text");
+  }
+
+  function mzSyncUnifiedColumnHover(gd, ev, hovermode) {
+    if (!gd || !window.Plotly || !Plotly.Fx || typeof Plotly.Fx.hover !== "function") return;
+    var fl = gd._fullLayout;
+    if (!fl || !fl.xaxis) return;
+    var xa = fl.xaxis;
+    var bb = gd.getBoundingClientRect();
+    var xPx = ev.clientX - bb.left;
+    var yPx = ev.clientY - bb.top;
+    var size = fl._size;
+    if (!size || xPx < size.l || xPx > fl.width - size.r || yPx < size.t || yPx > fl.height - size.b) {
+      return;
+    }
+    var xData = xa.p2d(xPx - xa._offset);
+    var data = gd._fullData || gd.data || [];
+    var pts = [];
+    data.forEach(function (tr, curveNumber) {
+      if (!mzTraceParticipatesInUnifiedHover(tr)) return;
+      var pi = mzNearestIndexByX(tr.x, xData, xa.type);
+      if (pi < 0) return;
+      pts.push({ curveNumber: curveNumber, pointNumber: pi });
+    });
+    if (!pts.length) return;
+    try {
+      Plotly.Fx.hover(gd, pts, hovermode);
+    } catch (_) {
+      try {
+        Plotly.Fx.hover(gd, pts);
+      } catch (__) {
+        /* ignore */
+      }
+    }
+  }
+
+  function mzBindUnifiedColumnHover(gd, layout) {
+    if (!gd) return;
+    if (gd._mzColHoverHandler) {
+      gd.removeEventListener("mousemove", gd._mzColHoverHandler);
+      gd._mzColHoverHandler = null;
+    }
+    var hm = (layout && layout.hovermode) || (gd._fullLayout && gd._fullLayout.hovermode);
+    if (!hm || String(hm).indexOf("x") < 0) return;
+    var pending = false;
+    gd._mzColHoverHandler = function (ev) {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () {
+        pending = false;
+        mzSyncUnifiedColumnHover(gd, ev, hm);
+      });
+    };
+    gd.addEventListener("mousemove", gd._mzColHoverHandler);
+  }
+
   function mzApplyLineHoverStyle(trace, opts) {
     opts = opts || {};
     if (!trace || trace.type !== "scatter" || trace.yref === "paper" || trace.hoverinfo === "skip") {
@@ -5754,7 +5841,6 @@
         trace.marker || {}
       );
     }
-    trace.hoveron = "lines";
     var rel = opts.releaseTextPerPoint;
     if (rel && rel.length === n) {
       trace.text = rel;
@@ -5782,7 +5868,6 @@
       var mode = String(t.mode || "lines");
       var hasMarkers = mode.indexOf("markers") >= 0;
       if (!hasMarkers) {
-        t.hoveron = t.hoveron || "lines";
         out.push(t);
         return;
       }
@@ -5792,7 +5877,7 @@
         .trim();
       if (!lineMode) lineMode = "lines";
       var markerCopy = Object.assign({}, t.marker || {});
-      var lineTrace = Object.assign({}, t, { mode: lineMode, hoveron: "lines" });
+      var lineTrace = Object.assign({}, t, { mode: lineMode });
       delete lineTrace.marker;
       if (markerCopy.size > 0) {
         out.push(lineTrace);
@@ -5990,7 +6075,8 @@
       );
       try { Plotly.purge(el); } catch (_) { /* ignore */ }
       el.innerHTML = "";
-      return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function () {
+      return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function (gd) {
+        mzBindUnifiedColumnHover(gd, lay);
         return Plotly.Plots.resize(el);
       }).then(function () {
         try { mzApplyVersionMarkers(el); } catch (_) { /* ignore */ }

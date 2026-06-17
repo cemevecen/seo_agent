@@ -990,6 +990,13 @@
       height: 100% !important;
       max-width: 100%;
     }
+    /* x-unified: dikey şeritte tooltip — scatter nokta/çizgi hit-test kapalı */
+    .mz-page .mz-chart-plot .scatterlayer .points path,
+    .mz-page .mz-chart-plot .scatterlayers .trace .points path,
+    .mz-page .mz-chart-plot .scatterlayer .lines path,
+    .mz-page .mz-chart-plot .scatterlayers .trace .lines path {
+      pointer-events: none !important;
+    }
     .mz-page .mz-chart-plot .main-svg {
       max-width: 100%;
     }
