@@ -16121,6 +16121,7 @@ from backend.services.gitlab_board import (
     get_board_column_orders,
     get_board_project_settings,
     gitlab_api_v4_base,
+    gitlab_board_setup_status_async,
     gitlab_web_origin,
     move_issue_async,
     reorder_issue_async,
@@ -16168,6 +16169,12 @@ async def api_boards_content(request: Request, project_path: str):
 async def api_boards_gitlab_ping():
     """Tarayıcıdan GitLab'e doğrudan gitmek yerine bağlantı kontrolü."""
     return JSONResponse(await fetch_gitlab_version_async())
+
+
+@app.get("/api/boards/setup-status")
+async def api_boards_setup_status():
+    """Boards kurulum: env + bağlantı (secret yok)."""
+    return JSONResponse(await gitlab_board_setup_status_async())
 
 
 @app.get("/api/boards/project-bundle")

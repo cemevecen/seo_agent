@@ -103,6 +103,46 @@ async def fetch_gitlab_version_async() -> dict[str, Any]:
             return {"ok": False, "error": _gitlab_connect_error_message(exc)}
 
 
+async def gitlab_board_setup_status_async() -> dict[str, Any]:
+    """Railway / boards kurulum kontrolü (secret göstermez)."""
+    raw_custom = (os.environ.get("GITLAB_API_BASE_URL") or os.environ.get("GITLAB_URL") or "").strip()
+    base = gitlab_api_v4_base()
+    has_token = bool(get_gitlab_token())
+    has_relay_secret = bool((os.environ.get("GITLAB_RELAY_SECRET") or "").strip())
+    ping = await fetch_gitlab_version_async()
+    checks: list[dict[str, Any]] = [
+        {
+            "id": "token",
+            "ok": has_token,
+            "label": "GITLAB_PRIVATE_TOKEN tanımlı (Railway)",
+        },
+        {
+            "id": "api_base",
+            "ok": bool(raw_custom),
+            "label": "GITLAB_API_BASE_URL tanımlı (relay → …/api/v4)",
+            "hint": "Olmadan istek doğrudan git.nokta.com'a gider; bulut sunucusu erişemez.",
+        },
+        {
+            "id": "relay_secret",
+            "ok": has_relay_secret,
+            "label": "GITLAB_RELAY_SECRET tanımlı (relay ile aynı)",
+            "optional": not bool(raw_custom),
+        },
+        {
+            "id": "connect",
+            "ok": bool(ping.get("ok")),
+            "label": "Sunucudan GitLab /version erişimi",
+            "detail": ping.get("error"),
+        },
+    ]
+    return {
+        "api_base": base,
+        "custom_api_base_configured": bool(raw_custom),
+        "checks": checks,
+        "ready": bool(ping.get("ok")) and has_token,
+    }
+
+
 async def fetch_all_issues_async(
     project_path: str,
     state: str,

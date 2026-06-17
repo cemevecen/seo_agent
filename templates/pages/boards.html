@@ -138,6 +138,21 @@
               <li>Railway’de: <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_API_BASE_URL</code> = relay URL (<code class="text-[10px]">…/api/v4</code>), <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_RELAY_SECRET</code> + <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_PRIVATE_TOKEN</code>.</li>
             </ol>
             <p class="mt-2 opacity-90">Bundan sonra kimse tarayıcıda token girmez; boards her oturumda sunucu üzerinden yüklenir.</p>
+            <div class="mt-3 border-t border-rose-200/80 pt-3 dark:border-rose-800" x-show="gitlabSetup && gitlabSetup.checks">
+              <p class="font-semibold">Railway kontrol listesi (canlı)</p>
+              <ul class="mt-2 space-y-1">
+                <template x-for="c in gitlabSetup.checks" :key="c.id">
+                  <li class="flex flex-wrap items-start gap-x-2">
+                    <span x-text="c.ok ? '✓' : '✗'" :class="c.ok ? 'text-emerald-600' : 'text-rose-600'"></span>
+                    <span x-text="c.label"></span>
+                    <span class="w-full pl-5 text-[10px] opacity-80" x-show="c.detail" x-text="c.detail"></span>
+                    <span class="w-full pl-5 text-[10px] opacity-80" x-show="c.hint && !c.ok" x-text="c.hint"></span>
+                  </li>
+                </template>
+              </ul>
+              <p class="mt-2 text-[10px] opacity-75">API kökü: <code class="rounded bg-rose-100/60 px-1 dark:bg-rose-950/40" x-text="gitlabSetup.api_base"></code></p>
+              <button type="button" @click="loadGitlabSetup()" class="mt-2 text-[11px] font-semibold underline opacity-90 hover:opacity-100">Yeniden kontrol et</button>
+            </div>
           </div>
         </div>
 
@@ -331,6 +346,8 @@
       syncingSort: {},
       sortSyncTimers: {},
       sortSyncPendingMode: {},
+      gitlabSetup: null,
+
       sortModeOptions: [
         { id: 'manual', label: 'Manuel (sürükle-bırak)' },
         { id: 'relative_position', label: 'GitLab board sırası' },
@@ -527,6 +544,15 @@
         };
       },
 
+      async loadGitlabSetup() {
+        try {
+          const res = await fetch('/api/boards/setup-status', { credentials: 'same-origin', cache: 'no-store' });
+          if (res.ok) this.gitlabSetup = await res.json();
+        } catch (e) {
+          console.warn('setup-status', e);
+        }
+      },
+
       async checkVpn() {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 8000);
@@ -562,6 +588,7 @@
           this.activeProject = (preferred || this.configProjects[0]).path;
         }
         await this.checkVpn();
+        await this.loadGitlabSetup();
         if (this.vpnStatus === 'off') {
           if (this.dataMode === 'browser' && this.browserPat) {
             const ok = await this.checkBrowserGitLab();
