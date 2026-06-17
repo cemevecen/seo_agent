@@ -46,7 +46,16 @@ ADMIN_MEMBER_EMAILS = frozenset(
 
 
 def member_oauth_configured() -> bool:
-    return bool(settings.google_client_id.strip() and settings.google_client_secret.strip())
+    cid, secret = _member_oauth_client_credentials()
+    return bool(cid and secret)
+
+
+def _member_oauth_client_credentials() -> tuple[str, str]:
+    mid = (getattr(settings, "google_member_client_id", "") or "").strip()
+    msec = (getattr(settings, "google_member_client_secret", "") or "").strip()
+    if mid and msec:
+        return mid, msec
+    return settings.google_client_id.strip(), settings.google_client_secret.strip()
 
 
 def _secret_bytes() -> bytes:
@@ -90,10 +99,11 @@ def get_member_oauth_redirect_uri(*, request: Request | None = None) -> str:
 
 def build_member_oauth_flow(state: str | None = None, *, request: Request | None = None) -> Flow:
     redirect = get_member_oauth_redirect_uri(request=request)
+    client_id, client_secret = _member_oauth_client_credentials()
     client_config = {
         "web": {
-            "client_id": settings.google_client_id.strip(),
-            "client_secret": settings.google_client_secret.strip(),
+            "client_id": client_id,
+            "client_secret": client_secret,
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "redirect_uris": [redirect],

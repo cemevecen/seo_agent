@@ -2789,13 +2789,30 @@ def _search_console_report_payload(
         }
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is not None:
-            summary_payload = supplement_summary_for_compare(
-                db,
-                site,
-                summary_payload,
-                compare_opts,
-                period_primary_ranges,
-            )
+            try:
+                summary_payload = supplement_summary_for_compare(
+                    db,
+                    site,
+                    summary_payload,
+                    compare_opts,
+                    period_primary_ranges,
+                )
+            except Exception as exc:
+                from backend.services.search_console_auth import (
+                    SearchConsoleOAuthError,
+                    format_search_console_error_for_ui,
+                    record_search_console_oauth_revoked,
+                )
+
+                if isinstance(exc, SearchConsoleOAuthError):
+                    record_search_console_oauth_revoked(db, site.id, str(exc))
+                    logging.warning(
+                        "SC compare supplement skipped site_id=%s: %s",
+                        site.id,
+                        format_search_console_error_for_ui(str(exc)),
+                    )
+                else:
+                    logging.warning("SC compare supplement failed site_id=%s: %s", site.id, exc)
 
         report = apply_search_console_report_compare(
             report,
@@ -13875,7 +13892,15 @@ def search_console_extras_site_card(request: Request, view_slug: str, site_id: i
                     )
                 except Exception as exc:
                     logging.exception("sc_extras analytics site_id=%s view=%s", site_id, view_slug)
-                    error = str(exc)[:400]
+                    from backend.services.search_console_auth import (
+                        SearchConsoleOAuthError,
+                        format_search_console_error_for_ui,
+                        record_search_console_oauth_revoked,
+                    )
+
+                    if isinstance(exc, SearchConsoleOAuthError):
+                        record_search_console_oauth_revoked(db, site.id, str(exc))
+                    error = format_search_console_error_for_ui(str(exc))[:400]
             elif kind == "sitemaps":
                 try:
                     report = fetch_sc_sitemaps(db, site.id)
@@ -14051,7 +14076,10 @@ def search_console_single_site_card(request: Request, site_id: int):
         except Exception as exc:
             logging.exception("search_console_single_site_card site_id=%s hata", site_id)
             import html as _html
-            err_msg = _html.escape(f"{type(exc).__name__}: {exc}")
+
+            from backend.services.search_console_auth import format_search_console_error_for_ui
+
+            err_msg = _html.escape(format_search_console_error_for_ui(str(exc)) or f"{type(exc).__name__}: {exc}")
             return HTMLResponse(
                 f'<section id="sc-card-{site_id}" class="rounded-3xl border border-red-300 dark:border-red-700 '
                 f'bg-red-50 dark:bg-red-900/30 p-5 text-sm text-red-700 dark:text-red-300">'

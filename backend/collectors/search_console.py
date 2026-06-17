@@ -15,7 +15,14 @@ from backend.config import search_console_should_purge_before_collect, settings
 from backend.locale.tr import weekday_tr
 from backend.models import CollectorRun, Site, SiteCredential
 from backend.services.alert_engine import evaluate_site_alerts
-from backend.services.search_console_auth import SEARCH_CONSOLE_SCOPES, get_search_console_credentials_record, load_google_credentials
+from backend.services.search_console_auth import (
+    SEARCH_CONSOLE_SCOPES,
+    SearchConsoleOAuthError,
+    get_search_console_credentials_record,
+    load_google_credentials,
+    prepare_search_console_oauth_credentials,
+    record_search_console_oauth_revoked,
+)
 from backend.services.metric_store import save_metrics
 from backend.services.quota_guard import consume_api_quota
 from backend.services.timezone_utils import report_calendar_yesterday
@@ -471,12 +478,14 @@ def build_search_console_service_and_targets(db: Session, site_id: int):
     if credential is None:
         raise ValueError("Search Console baglantisi yok.")
 
-    credential_data = load_google_credentials(credential)
     if credential.credential_type == "search_console_oauth":
-        credentials = credential_data
-        if credentials.expired and credentials.refresh_token:
-            credentials.refresh(GoogleAuthRequest())
+        try:
+            credentials = prepare_search_console_oauth_credentials(credential)
+        except SearchConsoleOAuthError as exc:
+            record_search_console_oauth_revoked(db, site.id, str(exc))
+            raise
     else:
+        credential_data = load_google_credentials(credential)
         credentials = service_account.Credentials.from_service_account_info(
             credential_data,
             scopes=SEARCH_CONSOLE_SCOPES,

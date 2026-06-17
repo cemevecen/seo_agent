@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     google_api_key: str
     google_client_id: str = ""
     google_client_secret: str = ""
+    # Üyelik girişi (panel): boşsa GOOGLE_CLIENT_ID/SECRET kullanılır. SC/Inbox ile çakışmayı önlemek için ayrı OAuth istemcisi önerilir.
+    google_member_client_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("GOOGLE_MEMBER_CLIENT_ID", "google_member_client_id"),
+    )
+    google_member_client_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("GOOGLE_MEMBER_CLIENT_SECRET", "google_member_client_secret"),
+    )
     google_oauth_redirect_uri: str = "http://127.0.0.1:8012/api/search-console/oauth/callback"
     # Gmail gelen kutusu (/inbox): Google Cloud OAuth istemcisine bu redirect URI de eklenmeli.
     gmail_inbox_oauth_redirect_uri: str = Field(

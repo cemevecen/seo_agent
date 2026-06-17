@@ -16,8 +16,12 @@ from backend.services.ad_analytics_store import resolve_compare_range
 from backend.services.analytics_compare import _sc_daily_coverage
 from backend.services.search_console_auth import (
     SEARCH_CONSOLE_SCOPES,
+    SearchConsoleOAuthError,
+    format_search_console_error_for_ui,
     get_search_console_credentials_record,
     load_google_credentials,
+    prepare_search_console_oauth_credentials,
+    record_search_console_oauth_revoked,
 )
 from sqlalchemy.orm import Session
 
@@ -56,24 +60,26 @@ def _merge_daily_rows(*groups: list[dict[str, Any]] | None) -> list[dict[str, An
     return list(out.values())
 
 
-def _build_search_console_service(credential):
+def _build_search_console_service(db: Session, site: Site, credential):
     try:
-        from google.auth.transport.requests import Request as GoogleAuthRequest
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
     except ImportError:
         return None
 
-    credential_data = load_google_credentials(credential)
-    if credential.credential_type == "search_console_oauth":
-        credentials = credential_data
-        if credentials.expired and credentials.refresh_token:
-            credentials.refresh(GoogleAuthRequest())
-    else:
-        credentials = service_account.Credentials.from_service_account_info(
-            credential_data,
-            scopes=SEARCH_CONSOLE_SCOPES,
-        )
+    try:
+        if credential.credential_type == "search_console_oauth":
+            credentials = prepare_search_console_oauth_credentials(credential)
+        else:
+            credential_data = load_google_credentials(credential)
+            credentials = service_account.Credentials.from_service_account_info(
+                credential_data,
+                scopes=SEARCH_CONSOLE_SCOPES,
+            )
+    except SearchConsoleOAuthError as exc:
+        LOGGER.warning("SC compare: oauth refresh failed site_id=%s %s", site.id, exc)
+        record_search_console_oauth_revoked(db, site.id, str(exc))
+        return None
     return build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
 
 
@@ -100,7 +106,7 @@ def fetch_search_console_daily_rows_for_site(
     credential = get_search_console_credentials_record(db, site.id)
     if credential is None:
         return []
-    service = _build_search_console_service(credential)
+    service = _build_search_console_service(db, site, credential)
     if service is None:
         return []
     try:

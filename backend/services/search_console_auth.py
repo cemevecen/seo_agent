@@ -28,6 +28,67 @@ _OAUTH_REVOKED_MARKERS = (
 )
 
 
+class SearchConsoleOAuthError(Exception):
+    """Search Console OAuth yenilemesi başarısız; Ayarlar'dan yeniden bağlanılmalı."""
+
+
+def refresh_search_console_oauth_if_needed(credentials: Credentials) -> None:
+    """OAuth access token süresi dolmuşsa refresh dener; invalid_grant → SearchConsoleOAuthError."""
+    if not credentials.refresh_token:
+        return
+    if not (credentials.expired or not credentials.valid):
+        return
+    try:
+        from google.auth.transport.requests import Request as GoogleAuthRequest
+    except ImportError as exc:
+        raise SearchConsoleOAuthError("Google auth kütüphanesi yüklü değil.") from exc
+    try:
+        credentials.refresh(GoogleAuthRequest())
+    except Exception as exc:  # noqa: BLE001
+        msg = format_search_console_error_for_ui(str(exc))
+        if _is_oauth_revoked_error(str(exc)):
+            raise SearchConsoleOAuthError(msg) from exc
+        raise SearchConsoleOAuthError(msg or str(exc)) from exc
+
+
+def prepare_search_console_oauth_credentials(credential: SiteCredential) -> Credentials:
+    if credential.credential_type != OAUTH_CREDENTIAL_TYPE:
+        raise ValueError("OAuth credential bekleniyor.")
+    credentials = load_google_credentials(credential)
+    if not isinstance(credentials, Credentials):
+        raise ValueError("Geçersiz OAuth credential.")
+    refresh_search_console_oauth_if_needed(credentials)
+    return credentials
+
+
+def record_search_console_oauth_revoked(db: Session, site_id: int, error_message: str) -> None:
+    """UI'da «yeniden bağlan» göstermek için başarısız collector kaydı (üye girişi token'ı değiştirmez)."""
+    from backend.services.warehouse import finish_collector_run, start_collector_run
+
+    msg = format_search_console_error_for_ui(error_message) or str(error_message or "")[:500]
+    if not _is_oauth_revoked_error(msg):
+        return
+    try:
+        run = start_collector_run(
+            db,
+            site_id=site_id,
+            provider="search_console",
+            strategy="all",
+            trigger_source="oauth_refresh",
+        )
+        finish_collector_run(
+            db,
+            run,
+            status="failed",
+            error_message=msg[:2000],
+            summary={"source": "oauth_refresh_failed"},
+            row_count=0,
+        )
+        db.commit()
+    except Exception:
+        LOGGER.exception("SC oauth revoked kaydı yazılamadı site_id=%s", site_id)
+
+
 def oauth_is_configured() -> bool:
     return bool(settings.google_client_id.strip() and settings.google_client_secret.strip())
 
