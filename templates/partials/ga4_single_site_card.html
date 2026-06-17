@@ -1,7 +1,7 @@
 {# Tek GA4 site kartı – lazy HTMX ile /ga4/site/{id} endpoint'inden yüklenir #}
 <section
   id="ga4-card-{{ site.id }}"
-  class="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-slate-700 sm:px-5"
+  class="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-slate-700 sm:px-5 min-w-0 max-w-full"
   data-ga4-expandable
   data-ga4-site-card
   data-site-id="{{ site.id }}"

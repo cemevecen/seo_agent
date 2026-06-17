@@ -13,21 +13,21 @@
 {% endif %}
 
 {% set _table_heading = table_heading | default('Pages (excl. news)') %}
-<div class="rounded-2xl border border-slate-200 dark:border-slate-700">
+<div class="rounded-2xl border border-slate-200 dark:border-slate-700 w-full min-w-0 max-w-full">
   <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">{{ _table_heading }}</p>
-  <div class="ga4-table-scroll overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+  <p class="px-2 pt-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:hidden">Sütunlar için tabloyu yatay kaydırın.</p>
+  <div class="ga4-table-scroll w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
     <table
-      class="table-fixed text-[10px] sm:text-xs"
+      class="w-full min-w-0 table-fixed text-[10px] sm:text-xs"
       data-ga4-table
-      data-ga4-metric-table
-      style="min-width: 36rem; width: max-content; max-width: none"
+      data-ga4-breakdown-table
     >
       <colgroup>
-        <col style="width: 14rem; min-width: 9rem" />
-        <col style="width: 5.25rem; min-width: 5.25rem" />
-        <col style="width: 5.25rem; min-width: 5.25rem" />
-        <col style="width: 5rem; min-width: 5rem" />
-        <col style="width: 4.75rem; min-width: 4.75rem" />
+        <col style="width: 38%" />
+        <col style="width: 15.5%" />
+        <col style="width: 15.5%" />
+        <col style="width: 15.5%" />
+        <col style="width: 15.5%" />
       </colgroup>
       <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
         <tr>
@@ -74,13 +74,13 @@
             data-delta="{{ row.delta }}"
             data-delta-pct="{{ row.delta_pct }}"
           >
-            <td class="sticky left-0 z-[1] min-w-0 bg-white px-1 py-1.5 text-left font-medium shadow-[4px_0_12px_-6px_rgba(15,23,42,0.18)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 sm:px-2 sm:py-2">
+            <td class="ga4-path-cell sticky left-0 z-[1] min-w-0 bg-white px-1 py-1.5 text-left font-medium shadow-[4px_0_12px_-6px_rgba(15,23,42,0.18)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 sm:px-2 sm:py-2">
               {% set _pu = row | ga4_row_page_href(site_domain) %}
               {% set _pl = row | ga4_row_page_label(site_domain) %}
               {% if _pu %}
-                <a href="{{ _pu }}" target="_blank" rel="noopener noreferrer" title="{{ _pl }}" class="block truncate text-sky-600 underline decoration-sky-400/80 underline-offset-2 hover:text-sky-700 dark:text-sky-300 dark:decoration-sky-400/90 dark:hover:text-sky-200">{{ _pl }}</a>
+                <a href="{{ _pu }}" target="_blank" rel="noopener noreferrer" title="{{ _pl }}" class="block text-sky-600 underline decoration-sky-400/80 underline-offset-2 hover:text-sky-700 dark:text-sky-300 dark:decoration-sky-400/90 dark:hover:text-sky-200 sm:truncate">{{ _pl }}</a>
               {% else %}
-                <span class="block truncate text-slate-900 dark:text-slate-100" title="{{ _pl }}">{{ _pl }}</span>
+                <span class="block text-slate-900 dark:text-slate-100 sm:truncate" title="{{ _pl }}">{{ _pl }}</span>
               {% endif %}
             </td>
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2">{{ row.last_total | tr_int }}</td>

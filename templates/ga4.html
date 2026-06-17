@@ -87,9 +87,29 @@
   }
   /* Sayfalar / Haberler / Kaynak: Plotly üstü + sm:w-0 benzeri sıfır genişlik hatalarına karşı */
   [data-ga4-pages-section] .ga4-table-scroll {
+    width: 100%;
     max-width: 100%;
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
-  #content table[data-ga4-metric-table] {
+  #content table[data-ga4-breakdown-table],
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] th:first-child,
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] td:first-child {
+    width: 38%;
+    max-width: none;
+  }
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] th:nth-child(n + 2),
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] td:nth-child(n + 2) {
+    width: 15.5%;
+  }
+  #content table[data-ga4-metric-table]:not([data-ga4-breakdown-table]) {
     table-layout: fixed;
     width: max-content;
     min-width: 36rem;
@@ -123,7 +143,39 @@
     }
   }
   @media (max-width: 639px) {
-    .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]) {
+    [data-ga4-pages-section] {
+      overflow-x: clip;
+    }
+    #content table[data-ga4-breakdown-table] {
+      width: max(100%, 21rem);
+      min-width: 21rem;
+      table-layout: fixed;
+    }
+    #content table[data-ga4-breakdown-table] th:first-child,
+    #content table[data-ga4-breakdown-table] td:first-child {
+      width: 34% !important;
+      min-width: 6.5rem;
+      max-width: none !important;
+      white-space: normal !important;
+    }
+    #content table[data-ga4-breakdown-table] th:nth-child(n + 2),
+    #content table[data-ga4-breakdown-table] td:nth-child(n + 2) {
+      width: 16.5% !important;
+      min-width: 3.35rem;
+      padding-left: 0.2rem !important;
+      padding-right: 0.2rem !important;
+      font-size: 9px;
+    }
+    #content table[data-ga4-breakdown-table] .ga4-path-cell :is(a, span) {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
+      white-space: normal !important;
+      word-break: break-all;
+      line-height: 1.25;
+    }
+    .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]):not([data-ga4-breakdown-table]) {
       table-layout: auto !important;
       width: max-content !important;
       min-width: min(100%, 32rem) !important;
