@@ -34,10 +34,11 @@ def _cookie_token_valid(request: Request, raw_pwd: str) -> bool:
 
 
 def _admin_panel_authenticated(request: Request) -> bool:
+    """Admin şifresi veya Google üye oturumu — INBOX_ACTION_PASSWORD bypass (site OAuth değil)."""
     try:
-        from backend.main import _is_admin_authenticated
+        from backend.main import _is_app_panel_authenticated
 
-        return bool(_is_admin_authenticated(request))
+        return bool(_is_app_panel_authenticated(request))
     except Exception:
         return False
 

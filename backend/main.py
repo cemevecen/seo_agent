@@ -1270,6 +1270,8 @@ def _get_active_sessions(request: Request | None = None) -> list[dict]:
 
 def _is_settings_authenticated(request: Request) -> bool:
     """Settings sayfasına özel ikinci katman doğrulaması."""
+    if _app_member_authenticated(request):
+        return True
     raw_pwd = (getattr(settings, "settings_password", "") or "").strip()
     if not raw_pwd:
         return True
@@ -1361,6 +1363,11 @@ def _app_member_authenticated(request: Request) -> bool:
     return _app_member_from_request(request) is not None
 
 
+def _is_app_panel_authenticated(request: Request) -> bool:
+    """Uygulama kapısı: admin şifresi veya Google üye oturumu (site SC/GA4 OAuth ayrı)."""
+    return _is_admin_authenticated(request) or _app_member_authenticated(request)
+
+
 def _is_membership_admin(request: Request) -> bool:
     if _is_admin_authenticated(request):
         return True
@@ -1449,10 +1456,8 @@ async def ip_allowlist_middleware(request: Request, call_next):
         member = _app_member_from_request(request)
         if member is not None:
             request.state.app_member = member
-        # Settings ikinci şifre: Google üyeleri ilk aşamada doğrudan erişir (tüm menüler).
         if path.startswith("/settings") and not _is_settings_authenticated(request):
-            if not _app_member_authenticated(request):
-                return RedirectResponse(url="/admin/settings-login", status_code=303)
+            return RedirectResponse(url="/admin/settings-login", status_code=303)
         return await call_next(request)
 
     from backend.services import tmdb_guest_auth as tga
@@ -9737,7 +9742,9 @@ def admin_login_submit(request: Request, password: str = Form(default="")):
 
 @app.get("/admin/settings-login")
 def settings_login_page(request: Request):
-    if not _is_admin_authenticated(request):
+    if _app_member_authenticated(request):
+        return RedirectResponse(url="/settings", status_code=303)
+    if not _is_app_panel_authenticated(request):
         return RedirectResponse(url="/admin/login", status_code=303)
     if _is_settings_authenticated(request):
         return RedirectResponse(url="/settings", status_code=303)
@@ -9787,6 +9794,8 @@ def settings_login_page(request: Request):
 def settings_login_submit(request: Request, password: str = Form(default="")):
     from backend.services import admin_access_log as aal
 
+    if _app_member_authenticated(request):
+        return RedirectResponse(url="/settings", status_code=303)
     if not _is_admin_authenticated(request):
         return RedirectResponse(url="/admin/login", status_code=303)
 

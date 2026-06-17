@@ -1,4 +1,9 @@
-"""Google ile uygulama üyeliği (giriş / oturum)."""
+"""Google ile uygulama üyeliği (giriş / oturum).
+
+Bu modül yalnızca uygulama kapısıdır (kim panele girebilir). Site bazlı Search Console /
+GA4 / Inbox Gmail OAuth token'ları veritabanında ayrı saklanır; üye girişi bu bağlantıları
+değiştirmez veya sıfırlamaz.
+"""
 
 from __future__ import annotations
 
