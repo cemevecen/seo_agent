@@ -44,6 +44,13 @@ ADMIN_MEMBER_EMAILS = frozenset(
     }
 )
 
+# Üyelik: @nokta.com dışında yalnızca bu adresler (küçük harf).
+MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS = frozenset(
+    {
+        "cemevecen@gmail.com",
+    }
+)
+
 
 def member_oauth_configured() -> bool:
     cid, secret = _member_oauth_client_credentials()
@@ -66,7 +73,11 @@ def _request_public_origin(request: Request | None) -> str | None:
     if request is None:
         return None
     try:
-        return str(request.base_url).rstrip("/")
+        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+        host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+        if not host:
+            return str(request.base_url).rstrip("/")
+        return f"{proto}://{host}"
     except Exception:  # noqa: BLE001
         return None
 
@@ -76,11 +87,48 @@ def _configured_redirect_is_localhost(configured: str) -> bool:
     return not c or c.startswith("http://127.0.0.1") or c.startswith("http://localhost")
 
 
+def format_member_oauth_login_error(error_code: str, *, request: Request | None = None) -> str:
+    """Google OAuth hata kodlarını giriş sayfası için Türkçe metne çevirir."""
+    code = str(error_code or "").strip().lower()
+    redirect = get_member_oauth_redirect_uri(request=request)
+    if code == "redirect_uri_mismatch":
+        uses_member_client = bool((getattr(settings, "google_member_client_id", "") or "").strip())
+        client_hint = "GOOGLE_MEMBER_CLIENT_ID" if uses_member_client else "GOOGLE_CLIENT_ID"
+        return (
+            "Google OAuth redirect URI eşleşmiyor (redirect_uri_mismatch). "
+            f"Google Cloud Console → Credentials → OAuth 2.0 Client ({client_hint}) → "
+            f"Authorized redirect URIs listesine birebir ekleyin: {redirect}"
+        )
+    if code == "access_denied":
+        return "Google girişi iptal edildi veya erişim reddedildi."
+    return str(error_code or "").strip()[:240]
+
+
+def is_email_eligible_for_membership(email: str) -> bool:
+    em = _normalize_email(email)
+    if not em or "@" not in em:
+        return False
+    if em in MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS:
+        return True
+    return em.endswith("@nokta.com")
+
+
+def membership_rejection_message(email: str) -> str:
+    em = _normalize_email(email)
+    return (
+        "Bu panel yalnızca @nokta.com e-posta adresleri içindir (istisna: cemevecen@gmail.com). "
+        f"Seçilen hesap: {em or '—'}"
+    )
+
+
 def get_member_oauth_redirect_uri(*, request: Request | None = None) -> str:
     configured = (getattr(settings, "app_member_oauth_redirect_uri", "") or "").strip()
+    # Railway: env'de canlı URI varsa proxy/host sapmasına karşı önce onu kullan.
+    if is_railway_runtime() and configured and not _configured_redirect_is_localhost(configured):
+        return configured.rstrip("/") if configured.endswith("/auth/google/callback/") else configured
     origin = _request_public_origin(request)
     if origin and is_railway_runtime():
-        from_request = f"{origin}/auth/google/callback"
+        from_request = f"{origin.rstrip('/')}/auth/google/callback"
         if _configured_redirect_is_localhost(configured):
             return from_request
         if configured:
@@ -88,17 +136,32 @@ def get_member_oauth_redirect_uri(*, request: Request | None = None) -> str:
             req_host = urlparse(origin).netloc
             if cfg_host and req_host and cfg_host != req_host:
                 return from_request
-            return configured
+            return configured.rstrip("/")
         return from_request
+    if configured and not _configured_redirect_is_localhost(configured):
+        return configured.rstrip("/")
     if configured:
         return configured
     if origin:
-        return f"{origin}/auth/google/callback"
+        return f"{origin.rstrip('/')}/auth/google/callback"
     return "http://127.0.0.1:8012/auth/google/callback"
+
+
+def oauth_callback_authorization_response(request: Request) -> str:
+    """Proxy arkasında scheme/host düzeltmesi — token exchange redirect_uri ile uyumlu."""
+    from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+    redirect = get_member_oauth_redirect_uri(request=request)
+    red = urlparse(redirect)
+    incoming = urlparse(str(request.url))
+    query = urlencode(parse_qsl(incoming.query, keep_blank_values=True))
+    path = incoming.path or "/auth/google/callback"
+    return urlunparse((red.scheme, red.netloc, path, "", query, ""))
 
 
 def build_member_oauth_flow(state: str | None = None, *, request: Request | None = None) -> Flow:
     redirect = get_member_oauth_redirect_uri(request=request)
+    LOGGER.info("Member OAuth start redirect_uri=%s", redirect)
     client_id, client_secret = _member_oauth_client_credentials()
     client_config = {
         "web": {

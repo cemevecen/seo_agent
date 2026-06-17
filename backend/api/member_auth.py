@@ -34,6 +34,8 @@ def google_member_oauth_start(request: Request, next: str = "/"):
     safe_next = _safe_next_path(next)
     state = ama.encode_oauth_state(safe_next, request=request)
     flow = ama.build_member_oauth_flow(state=state, request=request)
+    redirect_uri = ama.get_member_oauth_redirect_uri(request=request)
+    LOGGER.info("member oauth start redirect_uri=%s", redirect_uri)
     auth_url, _ = flow.authorization_url(
         access_type="online",
         prompt="select_account",
@@ -48,7 +50,8 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     if err:
         from urllib.parse import quote
 
-        return RedirectResponse(url=f"/admin/login?oauth_error={quote(err)}", status_code=302)
+        msg = ama.format_member_oauth_login_error(err, request=request)
+        return RedirectResponse(url=f"/admin/login?oauth_error={quote(msg)}", status_code=302)
     state = request.query_params.get("state")
     code = request.query_params.get("code")
     if not state or not code:
@@ -56,12 +59,19 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     try:
         payload = ama.decode_oauth_state(state, request=request)
         flow = ama.build_member_oauth_flow(state=state, request=request)
-        flow.fetch_token(code=code)
+        flow.fetch_token(authorization_response=ama.oauth_callback_authorization_response(request))
         creds = flow.credentials
         info = ama.fetch_google_userinfo(creds.token)
         email = str(info.get("email") or "").strip()
         if not email:
             raise RuntimeError("Google hesabından e-posta alınamadı")
+        if not ama.is_email_eligible_for_membership(email):
+            from urllib.parse import quote
+
+            return RedirectResponse(
+                url=f"/admin/login?oauth_error={quote(ama.membership_rejection_message(email))}",
+                status_code=302,
+            )
         member = ama.upsert_member_from_google(
             db,
             email=email,

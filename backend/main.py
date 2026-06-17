@@ -9685,7 +9685,13 @@ def admin_login_page(request: Request):
     # Şifre yokken giriş formu yine 503; yerelde önce /settings’te belirle.
     if not configured and _is_local_dev_first_password_client(request):
         return RedirectResponse(url="/settings?admin_pw=first_setup", status_code=303)
-    oauth_err = (request.query_params.get("oauth_error") or "").strip()
+    from urllib.parse import unquote
+
+    oauth_err = unquote((request.query_params.get("oauth_error") or "").strip())
+    if oauth_err.lower() in ("redirect_uri_mismatch", "access_denied"):
+        oauth_display = ama.format_member_oauth_login_error(oauth_err, request=request)
+    else:
+        oauth_display = oauth_err[:400]
     return templates.TemplateResponse(
         request,
         "admin_login.html",
@@ -9696,7 +9702,8 @@ def admin_login_page(request: Request):
             "client_ip": _extract_client_ip(request),
             "local_first_setup": (not configured) and _is_local_dev_first_password_client(request),
             "google_member_oauth_ready": ama.member_oauth_configured(),
-            "oauth_error": oauth_err[:240] if oauth_err else "",
+            "google_member_oauth_redirect": ama.get_member_oauth_redirect_uri(request=request),
+            "oauth_error": oauth_display,
         },
     )
 
