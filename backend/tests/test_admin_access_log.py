@@ -49,19 +49,66 @@ def test_unknown_device_sends_alert():
     assert row.alert_sent is True
 
 
-def test_unknown_login_alert_subject_format():
+def test_member_login_alert_includes_email():
+    mock_db = MagicMock()
+    mock_db.query.return_value.count.return_value = 0
     with patch.object(aal, "_lookup_ip_geo", return_value={}):
-        with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
-            with patch.object(aal.settings, "admin_login_alert_enabled", True):
-                with patch.object(aal.settings, "admin_login_alert_email", "admin@example.com"):
-                    ok = aal._deliver_unknown_login_alert(
-                        ip="78.187.20.15",
-                        device_label="Masaüstü / Firefox",
-                        user_agent="Mozilla/5.0 Firefox",
-                        fingerprint="abc123",
-                        event_type="login_ok",
-                        nav_paths=[{"at_tr": "12:00:01", "label": "Home", "path": "/"}],
-                    )
+        with patch("backend.database.SessionLocal") as mock_sl:
+            mock_sl.return_value.__enter__.return_value = mock_db
+            with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
+                with patch.object(aal.settings, "admin_login_alert_enabled", True):
+                    with patch.object(aal.settings, "admin_login_alert_email", "cemevecen@nokta.com"):
+                        ok = aal._deliver_unknown_login_alert(
+                            ip="78.187.20.15",
+                            device_label="Masaüstü / Chrome",
+                            user_agent="Mozilla/5.0 Chrome",
+                            fingerprint="abc123",
+                            event_type="member_login_ok",
+                            actor_email="user@nokta.com",
+                        )
+    assert ok is True
+    subject = mock_send.call_args[0][0]
+    body = mock_send.call_args[0][1]
+    assert subject == "panel girişi - 'user@nokta.com' - '78.187.20.15'"
+    assert "user@nokta.com" in body
+    assert "78.187.20.15" in body
+
+
+def test_member_login_record_triggers_alert():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
+        with patch.object(aal, "_trim_old_events"):
+            row = aal.record_access_event(
+                db,
+                event_type="member_login_ok",
+                ip="203.0.113.9",
+                user_agent="Chrome",
+                actor_email="colleague@nokta.com",
+            )
+    mock_alert.assert_called_once()
+    assert mock_alert.call_args.kwargs.get("actor_email") == "colleague@nokta.com"
+    assert row.alert_sent is True
+
+
+def test_unknown_login_alert_subject_format():
+    mock_db = MagicMock()
+    mock_db.query.return_value.count.return_value = 0
+    with patch.object(aal, "_lookup_ip_geo", return_value={}):
+        with patch("backend.database.SessionLocal") as mock_sl:
+            mock_sl.return_value.__enter__.return_value = mock_db
+            with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
+                with patch.object(aal.settings, "admin_login_alert_enabled", True):
+                    with patch.object(aal.settings, "admin_login_alert_email", "admin@example.com"):
+                        ok = aal._deliver_unknown_login_alert(
+                            ip="78.187.20.15",
+                            device_label="Masaüstü / Firefox",
+                            user_agent="Mozilla/5.0 Firefox",
+                            fingerprint="abc123",
+                            event_type="login_ok",
+                            nav_paths=[{"at_tr": "12:00:01", "label": "Home", "path": "/"}],
+                        )
     assert ok is True
     mock_send.assert_called_once()
     subject = mock_send.call_args[0][0]

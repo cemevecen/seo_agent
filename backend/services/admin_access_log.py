@@ -13,7 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -21,11 +21,23 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.models import AdminLoginEvent, AdminTrustedDevice
 
+if TYPE_CHECKING:
+    from starlette.requests import Request
+
 LOGGER = logging.getLogger(__name__)
 _TR = ZoneInfo("Europe/Istanbul")
 _LOGIN_HISTORY_LIMIT = 10
 _nav_lock = threading.Lock()
 _nav_watch: dict[str, dict[str, Any]] = {}
+
+
+def client_ip_from_request(request: Request) -> str:
+    """Proxy arkasında gerçek istemci IP (member OAuth vb.)."""
+    if settings.trust_proxy_headers:
+        forwarded = (request.headers.get("x-forwarded-for") or "").strip()
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return (request.client.host if request.client else "") or ""
 
 
 def device_fingerprint(ip: str, user_agent: str) -> str:
@@ -305,6 +317,7 @@ def _trim_old_events(db: Session) -> None:
 def _event_label(event_type: str) -> str:
     return {
         "login_ok": "Admin girişi",
+        "member_login_ok": "Google üye girişi",
         "login_fail": "Başarısız giriş",
         "settings_ok": "Settings erişimi",
         "settings_fail": "Settings — hatalı şifre",
@@ -314,7 +327,7 @@ def _event_label(event_type: str) -> str:
 def _prior_login_rows(db: Session, *, fingerprint: str, ip: str, limit: int = 6) -> list[AdminLoginEvent]:
     q = (
         db.query(AdminLoginEvent)
-        .filter(AdminLoginEvent.event_type.in_(("login_ok", "settings_ok", "login_fail")))
+        .filter(AdminLoginEvent.event_type.in_(("login_ok", "member_login_ok", "settings_ok", "login_fail")))
         .order_by(AdminLoginEvent.created_at.desc(), AdminLoginEvent.id.desc())
         .limit(limit + 3)
     )
@@ -365,6 +378,7 @@ def _deliver_unknown_login_alert(
     referer: str = "",
     accept_language: str = "",
     nav_paths: list[dict[str, str]] | None = None,
+    actor_email: str = "",
 ) -> bool:
     from backend.services.mailer import normalize_outbound_recipients, send_admin_security_email
 
@@ -376,6 +390,13 @@ def _deliver_unknown_login_alert(
 
         when = format_tr(datetime.utcnow())
         et = _event_label(event_type)
+        actor_line = ""
+        em = (actor_email or "").strip()
+        if em:
+            actor_line = (
+                f"<p style=\"margin:0 0 8px;\"><strong>Kullanıcı e-posta:</strong> "
+                f"{html.escape(em)}</p>"
+            )
         ua_details = parse_ua_details(user_agent)
         geo = _lookup_ip_geo(ip)
         geo_line = "—"
@@ -473,20 +494,21 @@ def _deliver_unknown_login_alert(
             '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;max-width:640px;line-height:1.45;">'
             f"<h2 style=\"color:#b91c1c;margin:0 0 12px;\">Tanınmayan admin erişimi</h2>"
             f"<p style=\"margin:0 0 8px;\"><strong>Olay:</strong> {html.escape(et)}</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>Zaman:</strong> {html.escape(when)} (TR)</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>IP:</strong> {html.escape(ip or '—')}</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>Konum / ağ:</strong> {html.escape(geo_line)}</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>Cihaz:</strong> {html.escape(device_label)}</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>İşletim sistemi:</strong> {html.escape(ua_details.get('os') or '—')}</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>Tarayıcı:</strong> {html.escape(ua_details.get('browser_version') or '—')} "
-            f"· <strong>Mimari:</strong> {html.escape(ua_details.get('arch') or '—')}</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>Dil (Accept-Language):</strong> {html.escape(accept_language or '—')}</p>"
-            f"<p style=\"margin:0 0 8px;\"><strong>Referer (giriş):</strong> {html.escape(referer or '—')}</p>"
-            f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>User-Agent:</strong><br>"
-            f"{html.escape(user_agent or '')}</p>"
-            f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>Parmak izi:</strong> "
-            f"<code>{html.escape(fingerprint)}</code></p>"
-            f"<p style=\"margin:0 0 8px;font-size:12px;\"><strong>Tanıdık cihaz sayısı (DB):</strong> {trusted_count}</p>"
+            + actor_line
+            + f"<p style=\"margin:0 0 8px;\"><strong>Zaman:</strong> {html.escape(when)} (TR)</p>"
+            + f"<p style=\"margin:0 0 8px;\"><strong>IP:</strong> {html.escape(ip or '—')}</p>"
+            + f"<p style=\"margin:0 0 8px;\"><strong>Konum / ağ:</strong> {html.escape(geo_line)}</p>"
+            + f"<p style=\"margin:0 0 8px;\"><strong>Cihaz:</strong> {html.escape(device_label)}</p>"
+            + f"<p style=\"margin:0 0 8px;\"><strong>İşletim sistemi:</strong> {html.escape(ua_details.get('os') or '—')}</p>"
+            + f"<p style=\"margin:0 0 8px;\"><strong>Tarayıcı:</strong> {html.escape(ua_details.get('browser_version') or '—')} "
+            + f"· <strong>Mimari:</strong> {html.escape(ua_details.get('arch') or '—')}</p>"
+            + f"<p style=\"margin:0 0 8px;\"><strong>Dil (Accept-Language):</strong> {html.escape(accept_language or '—')}</p>"
+            + f"<p style=\"margin:0 0 8px;\"><strong>Referer (giriş):</strong> {html.escape(referer or '—')}</p>"
+            + f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>User-Agent:</strong><br>"
+            + f"{html.escape(user_agent or '')}</p>"
+            + f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>Parmak izi:</strong> "
+            + f"<code>{html.escape(fingerprint)}</code></p>"
+            + f"<p style=\"margin:0 0 8px;font-size:12px;\"><strong>Tanıdık cihaz sayısı (DB):</strong> {trusted_count}</p>"
             + _html_section("Menü / sayfa gezintisi", f"<p style=\"margin:0 0 6px;font-size:11px;color:#64748b;\">{html.escape(nav_note)}</p>{nav_html}")
             + _html_section("Bu IP / cihaz — son kayıtlar", prior_html)
             + _html_section("Aktif oturum (bellek)", sess_html)
@@ -496,7 +518,10 @@ def _deliver_unknown_login_alert(
         )
         browser = parse_browser_short(user_agent)
         ip_disp = (ip or "?").strip() or "?"
-        subject = f"admin girişi - '{browser}' - '{ip_disp}'"
+        if em:
+            subject = f"panel girişi - '{em}' - '{ip_disp}'"
+        else:
+            subject = f"admin girişi - '{browser}' - '{ip_disp}'"
         return send_admin_security_email(subject, body, recipients)
     except Exception as exc:
         LOGGER.warning("Admin giriş uyarı e-postası gönderilemedi: %s", exc)
@@ -512,6 +537,7 @@ def schedule_unknown_login_alert(
     event_type: str,
     referer: str = "",
     accept_language: str = "",
+    actor_email: str = "",
 ) -> bool:
     """Gezinti toplamak için gecikmeli gönderim; delay=0 ise anında."""
     delay = max(0, int(settings.admin_login_alert_nav_delay_seconds or 0))
@@ -523,6 +549,7 @@ def schedule_unknown_login_alert(
         "event_type": event_type,
         "referer": referer,
         "accept_language": accept_language,
+        "actor_email": (actor_email or "").strip(),
     }
     begin_nav_watch(fingerprint, meta=meta)
 
@@ -541,6 +568,7 @@ def schedule_unknown_login_alert(
             referer=str(m.get("referer") or ""),
             accept_language=str(m.get("accept_language") or ""),
             nav_paths=paths,
+            actor_email=str(m.get("actor_email") or ""),
         )
 
     if delay <= 0:
@@ -555,6 +583,7 @@ def schedule_unknown_login_alert(
             referer=referer,
             accept_language=accept_language,
             nav_paths=paths,
+            actor_email=actor_email,
         )
 
     threading.Thread(
@@ -578,6 +607,7 @@ def record_access_event(
     user_agent: str,
     referer: str = "",
     accept_language: str = "",
+    actor_email: str = "",
 ) -> AdminLoginEvent:
     """Giriş veya settings erişimini kalıcı kaydet; gerekirse e-posta gönder."""
     ua = (user_agent or "")[:512]
@@ -596,8 +626,20 @@ def record_access_event(
     db.add(row)
     db.flush()
 
-    should_alert = event_type in ("login_ok", "settings_ok") and not trusted
-    if should_alert:
+    em = (actor_email or "").strip()
+    if event_type == "member_login_ok" and em:
+        sent = schedule_unknown_login_alert(
+            ip=ip,
+            device_label=device,
+            user_agent=ua,
+            fingerprint=fp,
+            event_type=event_type,
+            referer=referer,
+            accept_language=accept_language,
+            actor_email=em,
+        )
+        row.alert_sent = sent
+    elif event_type in ("login_ok", "settings_ok") and not trusted:
         has_any_trusted = db.query(AdminTrustedDevice.id).first() is not None
         if not has_any_trusted:
             trust_fingerprint(db, fp, label=device, ip_hint=ip)

@@ -90,6 +90,20 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     dest = _safe_next_path(str(payload.get("return_path") or "/"))
     resp = RedirectResponse(url=dest, status_code=303)
     ama.set_member_session_cookie(resp, request, member)
+    from backend.services import admin_access_log as aal
+
+    try:
+        aal.record_access_event(
+            db,
+            event_type="member_login_ok",
+            ip=aal.client_ip_from_request(request),
+            user_agent=(request.headers.get("user-agent") or "")[:512],
+            referer=(request.headers.get("referer") or "")[:512],
+            accept_language=(request.headers.get("accept-language") or "")[:120],
+            actor_email=member.email,
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Üye girişi kaydı / uyarı e-postası başarısız: %s", exc)
     return resp
 
 
