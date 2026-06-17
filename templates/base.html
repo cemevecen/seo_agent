@@ -559,8 +559,24 @@
 
     /* Mobil: dar sütunda dikey harf kırılması + ezilmiş fixed tablolar */
     @media (max-width: 639px) {
-      #content :where(table.table-fixed, table[style*="table-layout:fixed"], table[style*="table-layout: fixed"]) {
+      #content :where(table.table-fixed, table[style*="table-layout:fixed"], table[style*="table-layout: fixed"]):not([data-ga4-metric-table]) {
         table-layout: auto !important;
+      }
+      #content table[data-ga4-metric-table] {
+        table-layout: fixed !important;
+        width: max-content !important;
+        min-width: 36rem !important;
+        max-width: none !important;
+      }
+      #content table[data-ga4-metric-table] col:nth-child(n + 2),
+      #content table[data-ga4-metric-table] th:nth-child(n + 2),
+      #content table[data-ga4-metric-table] td:nth-child(n + 2) {
+        min-width: 4.5rem !important;
+        width: auto !important;
+      }
+      #content .ga4-table-scroll {
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
       }
       #content :where(th, td) {
         writing-mode: horizontal-tb !important;
@@ -582,7 +598,7 @@
         text-overflow: clip !important;
       }
       #content .sc-split--focused :where(table[data-search-console-table]),
-      #content .ga4-split--focused :where(table[data-ga4-table]:not([data-ga4-news-table])) {
+      #content .ga4-split--focused :where(table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table])) {
         table-layout: auto !important;
         width: max-content !important;
         min-width: min(100%, 36rem) !important;

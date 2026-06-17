@@ -3,17 +3,17 @@
 {% block content %}
 <style>
   /* Tam genişlik kart modunda tablolar içerik kadar dar kalmasın (w-max kalkar) */
-  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]) {
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]) {
     width: 100%;
     table-layout: fixed;
   }
-  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]) th:first-child,
-  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]) td:first-child {
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]) th:first-child,
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]) td:first-child {
     width: 46%;
     max-width: none;
   }
-  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]) th:nth-child(n + 2),
-  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]) td:nth-child(n + 2) {
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]) th:nth-child(n + 2),
+  .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]) td:nth-child(n + 2) {
     width: 13.5%;
   }
   .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-news-table] {
@@ -86,6 +86,15 @@
     isolation: isolate;
   }
   /* Sayfalar / Haberler / Kaynak: Plotly üstü + sm:w-0 benzeri sıfır genişlik hatalarına karşı */
+  [data-ga4-pages-section] .ga4-table-scroll {
+    max-width: 100%;
+  }
+  #content table[data-ga4-metric-table] {
+    table-layout: fixed;
+    width: max-content;
+    min-width: 36rem;
+    max-width: none;
+  }
   [data-ga4-pages-section] {
     position: relative;
     z-index: 20;
@@ -114,7 +123,7 @@
     }
   }
   @media (max-width: 639px) {
-    .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]) {
+    .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-table]:not([data-ga4-news-table]):not([data-ga4-metric-table]) {
       table-layout: auto !important;
       width: max-content !important;
       min-width: min(100%, 32rem) !important;

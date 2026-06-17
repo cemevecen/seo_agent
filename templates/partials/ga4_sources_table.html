@@ -14,14 +14,19 @@
 
 <div class="rounded-2xl border border-slate-200 dark:border-slate-700">
   <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Session source / medium</p>
-  <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-    <table class="w-full min-w-[36rem] text-[10px] sm:min-w-0 sm:table-fixed sm:text-xs" data-ga4-table>
+  <div class="ga4-table-scroll overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+    <table
+      class="table-fixed text-[10px] sm:text-xs"
+      data-ga4-table
+      data-ga4-metric-table
+      style="min-width: 36rem; width: max-content; max-width: none"
+    >
       <colgroup>
-        <col class="min-w-0" style="width: 36%" />
-        <col style="width: 16%" />
-        <col style="width: 16%" />
-        <col style="width: 16%" />
-        <col style="width: 16%" />
+        <col style="width: 14rem; min-width: 9rem" />
+        <col style="width: 5.25rem; min-width: 5.25rem" />
+        <col style="width: 5.25rem; min-width: 5.25rem" />
+        <col style="width: 5rem; min-width: 5rem" />
+        <col style="width: 4.75rem; min-width: 4.75rem" />
       </colgroup>
       <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
         <tr>
