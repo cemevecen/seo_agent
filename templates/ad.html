@@ -5771,13 +5771,6 @@
     } catch (_) {
       /* ignore */
     }
-    requestAnimationFrame(function () {
-      try {
-        Plotly.Fx.hover(gd, hoverEvt);
-      } catch (_) {
-        /* ignore */
-      }
-    });
   }
 
   function mzBindUnifiedColumnHover(gd, layout) {
@@ -5944,6 +5937,9 @@
     if (extra.showlegend != null) layout.showlegend = extra.showlegend;
     if (extra.title) layout.title = Object.assign({ font: plotFont(), x: 0 }, extra.title);
     if (extra.annotations) layout.annotations = extra.annotations;
+    if (extra.hovermode != null) layout.hovermode = extra.hovermode;
+    if (extra.hoverdistance != null) layout.hoverdistance = extra.hoverdistance;
+    if (extra.spikedistance != null) layout.spikedistance = extra.spikedistance;
     return layout;
   }
 
