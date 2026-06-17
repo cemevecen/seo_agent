@@ -53,6 +53,7 @@ from backend.api.store_catalog import router as store_catalog_router
 from backend.api.notification_analytics import router as notification_analytics_router
 from backend.api.ad_analytics import router as ad_analytics_router
 from backend.api.market_quotes import router as market_quotes_router
+from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
 from backend.collectors.crux_history import collect_crux_history
 from backend.collectors.pagespeed import (
@@ -76,6 +77,7 @@ from backend.models import (
     NotificationDeliveryLog, PageSpeedAuditSnapshot, PageSpeedPayloadSnapshot,
     RealtimeAlarmLog, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot,
     SearchConsoleQuerySnapshot, Site, SiteCredential, SiteErrorLog, UrlAuditRecord, UrlInspectionSnapshot, AdminAuthSetting,
+    AppMember,
     AppStoreRankSnapshot, AiDailyBriefReport, AiBriefRunLog, AppIntelRawCache,
     SupportInboxThread, SupportInboxMessage,
 )
@@ -1004,6 +1006,7 @@ app.include_router(market_quotes_router, prefix="/api")
 from backend.karma.router import router as karma_router
 
 app.include_router(karma_router)
+app.include_router(member_auth_router)
 
 PERIOD_DAYS_MAP = {
     "daily": 1,
@@ -1348,6 +1351,24 @@ def _is_admin_authenticated(request: Request) -> bool:
     return hmac.compare_digest(token, expected)
 
 
+def _app_member_from_request(request: Request) -> AppMember | None:
+    from backend.services import app_member_auth as ama
+
+    return ama.member_from_request(request)
+
+
+def _app_member_authenticated(request: Request) -> bool:
+    return _app_member_from_request(request) is not None
+
+
+def _is_membership_admin(request: Request) -> bool:
+    if _is_admin_authenticated(request):
+        return True
+    from backend.services import app_member_auth as ama
+
+    return ama.is_membership_admin(request)
+
+
 def _bootstrap_admin_password_from_env() -> None:
     """Veritabanında admin hash yoksa .env ADMIN_PASSWORD (config: admin_bootstrap_password) ile doldurur."""
     raw = (getattr(settings, "admin_bootstrap_password", None) or "").strip()
@@ -1412,6 +1433,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/apple-touch-icon",
         "/admin/login",
         "/admin/auth/login",
+        "/auth/google/",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -1422,11 +1444,15 @@ async def ip_allowlist_middleware(request: Request, call_next):
     if not password_ready and _is_local_dev_first_password_client(request):
         if (path == "/admin/password" and request.method == "POST") or path.startswith("/settings"):
             return await call_next(request)
-    if password_ready and _is_admin_authenticated(request):
+    if password_ready and (_is_admin_authenticated(request) or _app_member_authenticated(request)):
         _record_session(request)
-        # Admin girişi okeyse, şimdi Settings için ikinci katmanı kontrol et
+        member = _app_member_from_request(request)
+        if member is not None:
+            request.state.app_member = member
+        # Settings ikinci şifre: Google üyeleri ilk aşamada doğrudan erişir (tüm menüler).
         if path.startswith("/settings") and not _is_settings_authenticated(request):
-            return RedirectResponse(url="/admin/settings-login", status_code=303)
+            if not _app_member_authenticated(request):
+                return RedirectResponse(url="/admin/settings-login", status_code=303)
         return await call_next(request)
 
     from backend.services import tmdb_guest_auth as tga
@@ -9567,9 +9593,11 @@ def alerts_refresh_status(request: Request):
 def settings_page(request: Request):
     # Settings ekranı site yönetimi arayüzünü gösterir.
     from backend.services import admin_access_log as aal
+    from backend.services import app_member_auth as ama
 
     with SessionLocal() as db:
         admin_password_configured = _admin_password_configured(db)
+        membership_admin = _is_membership_admin(request)
         payload = {
             "site_name": "Settings",
             "sites": get_sidebar_sites(),
@@ -9580,6 +9608,10 @@ def settings_page(request: Request):
             "admin_password_configured": admin_password_configured,
             "active_sessions": _get_active_sessions(request),
             "login_history": aal.recent_login_history(db) if admin_password_configured else [],
+            "membership_admin": membership_admin,
+            "app_members": ama.member_list_payload(db) if membership_admin else [],
+            "current_app_member": _app_member_from_request(request),
+            "google_member_oauth_redirect": ama.get_member_oauth_redirect_uri(request=request),
         }
     flash_key = (request.query_params.get("admin_pw") or "").strip()
     _admin_pw_flash_messages = {
@@ -9622,13 +9654,16 @@ def settings_site_list(request: Request):
 def admin_login_page(request: Request):
     if not _admin_auth_active():
         return RedirectResponse(url="/", status_code=303)
-    if _is_admin_authenticated(request):
+    if _is_admin_authenticated(request) or _app_member_authenticated(request):
         return RedirectResponse(url="/", status_code=303)
+    from backend.services import app_member_auth as ama
+
     with SessionLocal() as db:
         configured = _admin_password_configured(db)
     # Şifre yokken giriş formu yine 503; yerelde önce /settings’te belirle.
     if not configured and _is_local_dev_first_password_client(request):
         return RedirectResponse(url="/settings?admin_pw=first_setup", status_code=303)
+    oauth_err = (request.query_params.get("oauth_error") or "").strip()
     return templates.TemplateResponse(
         request,
         "admin_login.html",
@@ -9638,6 +9673,8 @@ def admin_login_page(request: Request):
             "password_configured": configured,
             "client_ip": _extract_client_ip(request),
             "local_first_setup": (not configured) and _is_local_dev_first_password_client(request),
+            "google_member_oauth_ready": ama.member_oauth_configured(),
+            "oauth_error": oauth_err[:240] if oauth_err else "",
         },
     )
 

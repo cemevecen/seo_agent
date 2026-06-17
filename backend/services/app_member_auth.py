@@ -1,0 +1,299 @@
+"""Google ile uygulama üyeliği (giriş / oturum)."""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import logging
+import secrets
+import time
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
+
+import httpx
+from google_auth_oauthlib.flow import Flow
+from sqlalchemy.orm import Session
+
+from backend.config import is_railway_runtime, settings
+from backend.models import AppMember
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
+
+LOGGER = logging.getLogger(__name__)
+
+APP_MEMBER_COOKIE = "seo_app_member"
+MEMBER_SESSION_DAYS = 30
+MEMBER_OAUTH_SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
+
+ADMIN_MEMBER_EMAILS = frozenset(
+    {
+        "cemevecen@nokta.com",
+        "cemevecen@gmail.com",
+    }
+)
+
+
+def member_oauth_configured() -> bool:
+    return bool(settings.google_client_id.strip() and settings.google_client_secret.strip())
+
+
+def _secret_bytes() -> bytes:
+    return str(getattr(settings, "secret_key", "") or "").encode("utf-8")
+
+
+def _request_public_origin(request: Request | None) -> str | None:
+    if request is None:
+        return None
+    try:
+        return str(request.base_url).rstrip("/")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _configured_redirect_is_localhost(configured: str) -> bool:
+    c = (configured or "").strip().lower()
+    return not c or c.startswith("http://127.0.0.1") or c.startswith("http://localhost")
+
+
+def get_member_oauth_redirect_uri(*, request: Request | None = None) -> str:
+    configured = (getattr(settings, "app_member_oauth_redirect_uri", "") or "").strip()
+    origin = _request_public_origin(request)
+    if origin and is_railway_runtime():
+        from_request = f"{origin}/auth/google/callback"
+        if _configured_redirect_is_localhost(configured):
+            return from_request
+        if configured:
+            cfg_host = urlparse(configured).netloc
+            req_host = urlparse(origin).netloc
+            if cfg_host and req_host and cfg_host != req_host:
+                return from_request
+            return configured
+        return from_request
+    if configured:
+        return configured
+    if origin:
+        return f"{origin}/auth/google/callback"
+    return "http://127.0.0.1:8012/auth/google/callback"
+
+
+def build_member_oauth_flow(state: str | None = None, *, request: Request | None = None) -> Flow:
+    redirect = get_member_oauth_redirect_uri(request=request)
+    client_config = {
+        "web": {
+            "client_id": settings.google_client_id.strip(),
+            "client_secret": settings.google_client_secret.strip(),
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [redirect],
+        }
+    }
+    return Flow.from_client_config(
+        client_config,
+        scopes=MEMBER_OAUTH_SCOPES,
+        state=state,
+        redirect_uri=redirect,
+    )
+
+
+def encode_oauth_state(return_path: str, *, request: Request) -> str:
+    exp = int(time.time()) + 600
+    nonce = secrets.token_urlsafe(16)
+    payload = json.dumps({"next": return_path, "exp": exp, "n": nonce}, separators=(",", ":"))
+    sig = hmac.new(_secret_bytes(), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def decode_oauth_state(state: str, *, request: Request) -> dict[str, Any]:
+    raw = str(state or "").strip()
+    if "." not in raw:
+        raise ValueError("Geçersiz OAuth state")
+    payload, sig = raw.rsplit(".", 1)
+    expected = hmac.new(_secret_bytes(), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        raise ValueError("OAuth state imzası geçersiz")
+    data = json.loads(payload)
+    if int(data.get("exp") or 0) < int(time.time()):
+        raise ValueError("OAuth state süresi doldu")
+    nxt = str(data.get("next") or "/")
+    if not nxt.startswith("/"):
+        nxt = "/"
+    return {"return_path": nxt}
+
+
+def _normalize_email(email: str) -> str:
+    return str(email or "").strip().lower()
+
+
+def default_screen_permissions() -> str:
+    return json.dumps({"screens": "*"}, separators=(",", ":"))
+
+
+def role_for_email(email: str) -> str:
+    return "admin" if _normalize_email(email) in ADMIN_MEMBER_EMAILS else "member"
+
+
+def is_protected_admin_email(email: str) -> bool:
+    return _normalize_email(email) in ADMIN_MEMBER_EMAILS
+
+
+def upsert_member_from_google(
+    db: Session,
+    *,
+    email: str,
+    google_sub: str = "",
+    display_name: str = "",
+    picture_url: str = "",
+) -> AppMember:
+    em = _normalize_email(email)
+    if not em or "@" not in em:
+        raise ValueError("Geçersiz e-posta")
+    row = db.query(AppMember).filter(AppMember.email == em).first()
+    now = datetime.utcnow()
+    desired_role = role_for_email(em)
+    if not row:
+        row = AppMember(
+            email=em,
+            google_sub=(google_sub or "")[:128],
+            display_name=(display_name or "")[:255],
+            picture_url=(picture_url or "")[:1024],
+            role=desired_role,
+            is_active=True,
+            screen_permissions_json=default_screen_permissions(),
+            created_at=now,
+            last_login_at=now,
+        )
+        db.add(row)
+    else:
+        if google_sub:
+            row.google_sub = google_sub[:128]
+        if display_name:
+            row.display_name = display_name[:255]
+        if picture_url:
+            row.picture_url = picture_url[:1024]
+        row.role = desired_role
+        row.is_active = True
+        row.last_login_at = now
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def build_member_session_token(member_id: int, email: str) -> str:
+    exp = int(time.time()) + MEMBER_SESSION_DAYS * 86400
+    em = _normalize_email(email)
+    body = f"{member_id}:{exp}:{em}"
+    sig = hmac.new(_secret_bytes(), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{member_id}.{exp}.{sig}"
+
+
+def parse_member_session_token(token: str) -> tuple[int, int] | None:
+    parts = str(token or "").split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        member_id = int(parts[0])
+        exp = int(parts[1])
+    except ValueError:
+        return None
+    if exp < int(time.time()):
+        return None
+    body = f"{member_id}:{exp}:"
+    # email not in token verify — re-load from DB
+    sig = parts[2]
+    return member_id, exp
+
+
+def verify_member_session_token(db: Session, token: str) -> AppMember | None:
+    parsed = parse_member_session_token(token)
+    if not parsed:
+        return None
+    member_id, exp = parsed
+    row = db.query(AppMember).filter(AppMember.id == member_id).first()
+    if not row or not row.is_active:
+        return None
+    em = _normalize_email(row.email)
+    body = f"{member_id}:{exp}:{em}"
+    expected = hmac.new(_secret_bytes(), body.encode("utf-8"), hashlib.sha256).hexdigest()
+    parts = str(token or "").split(".")
+    if len(parts) != 3 or not hmac.compare_digest(parts[2], expected):
+        return None
+    return row
+
+
+def member_from_request(request: Request) -> AppMember | None:
+    token = str(request.cookies.get(APP_MEMBER_COOKIE) or "")
+    if not token:
+        return None
+    from backend.database import SessionLocal
+
+    with SessionLocal() as db:
+        return verify_member_session_token(db, token)
+
+
+def is_member_authenticated(request: Request) -> bool:
+    return member_from_request(request) is not None
+
+
+def is_membership_admin(request: Request) -> bool:
+    m = member_from_request(request)
+    if m and m.role == "admin":
+        return True
+    return False
+
+
+def member_cookie_secure(request: Request) -> bool:
+    return request.url.scheme == "https"
+
+
+def set_member_session_cookie(response, request: Request, member: AppMember) -> None:
+    token = build_member_session_token(member.id, member.email)
+    response.set_cookie(
+        key=APP_MEMBER_COOKIE,
+        value=token,
+        httponly=True,
+        secure=member_cookie_secure(request),
+        samesite="lax",
+        max_age=MEMBER_SESSION_DAYS * 86400,
+        path="/",
+    )
+
+
+def clear_member_session_cookie(response) -> None:
+    response.delete_cookie(APP_MEMBER_COOKIE, path="/")
+
+
+def fetch_google_userinfo(access_token: str) -> dict[str, Any]:
+    resp = httpx.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=15.0,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"Google userinfo alınamadı: {resp.status_code}")
+    return resp.json()
+
+
+def member_list_payload(db: Session) -> list[dict[str, Any]]:
+    rows = db.query(AppMember).order_by(AppMember.created_at.desc()).all()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        out.append(
+            {
+                "id": r.id,
+                "email": r.email,
+                "display_name": r.display_name or "",
+                "role": r.role,
+                "is_active": bool(r.is_active),
+                "screen_permissions_json": r.screen_permissions_json or default_screen_permissions(),
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+                "last_login_at": r.last_login_at.isoformat() if r.last_login_at else "",
+            }
+        )
+    return out

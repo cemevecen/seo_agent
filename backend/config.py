@@ -22,6 +22,10 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:8012/api/inbox/oauth/callback",
         validation_alias=AliasChoices("GMAIL_INBOX_OAUTH_REDIRECT_URI", "gmail_inbox_oauth_redirect_uri"),
     )
+    app_member_oauth_redirect_uri: str = Field(
+        default="http://127.0.0.1:8012/auth/google/callback",
+        validation_alias=AliasChoices("APP_MEMBER_OAUTH_REDIRECT_URI", "app_member_oauth_redirect_uri"),
+    )
     # Gmail OAuth başlatırken login_hint (örn. cemevecen@nokta.com) — yanlış hesap seçimini azaltır.
     inbox_oauth_login_hint: str = Field(
         default="",

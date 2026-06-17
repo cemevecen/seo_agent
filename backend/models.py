@@ -500,6 +500,23 @@ class AdminAuthSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AppMember(Base):
+    """Google ile giriş yapan uygulama üyeleri."""
+
+    __tablename__ = "app_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    google_sub: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    picture_url: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="member", index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    screen_permissions_json: Mapped[str] = mapped_column(Text, nullable=False, default='{"screens":"*"}')
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_login_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class RealtimeSnapshot(Base):
     """GA4 Realtime API kontrol sonuçları — trend grafiği ve geçmiş için."""
 
