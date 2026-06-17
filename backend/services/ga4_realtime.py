@@ -931,6 +931,13 @@ def fetch_realtime_comparison(
         client = _build_client()
 
     pid = _normalize_ga4_property_id(property_id)
+    from backend.services.ga4_realtime_quota import (
+        assert_property_realtime_allowed,
+        note_realtime_quota_error,
+    )
+
+    assert_property_realtime_allowed(pid)
+
     metric_sets: tuple[tuple[str, list[Metric]], ...] = (
         (
             "activeUsers+screenPageViews+eventCount+conversions",
@@ -980,6 +987,7 @@ def fetch_realtime_comparison(
                 exc,
             )
     if last_exc is not None:
+        note_realtime_quota_error(pid, last_exc)
         raise last_exc
     raise RuntimeError("fetch_realtime_comparison: no metric set")
 
@@ -1005,6 +1013,9 @@ def fetch_realtime_top_pages(
         client = _build_client()
 
     property_id = _normalize_ga4_property_id(property_id)
+    from backend.services.ga4_realtime_quota import assert_property_realtime_allowed
+
+    assert_property_realtime_allowed(property_id)
     # GA4 Standard property realtime: max 29 dakika geri.
     # compare_previous=True iken iki pencere arka arkaya: 2*w-1 ≤ 29 olmalı → w ≤ 15.
     max_w = 15 if compare_previous else 29
@@ -2008,12 +2019,27 @@ def fetch_traffic_drivers(db: Session, site_id: int, profile: str) -> dict[str, 
                 if drivers["increase"] or drivers["decrease"]:
                     driver_source = "live_api"
         except Exception as exc:
-            logger.warning(
-                "Traffic drivers canlı API hatası [%s/%s]: %s",
-                site.domain,
-                profile,
-                exc,
+            from backend.services.ga4_realtime_quota import (
+                Ga4RealtimeQuotaPausedError,
+                note_realtime_quota_error,
             )
+
+            if isinstance(exc, Ga4RealtimeQuotaPausedError):
+                logger.debug("Traffic drivers atlandı (kota) [%s/%s]", site.domain, profile)
+            elif note_realtime_quota_error(
+                property_id or "",
+                exc,
+                domain=str(site.domain or ""),
+                logger=logger,
+            ):
+                pass
+            else:
+                logger.warning(
+                    "Traffic drivers canlı API hatası [%s/%s]: %s",
+                    site.domain,
+                    profile,
+                    exc,
+                )
 
     if not drivers["increase"] and not drivers["decrease"]:
         drivers = _analyze_traffic_drivers(db, site_id, profile, site_delta)
@@ -2141,7 +2167,22 @@ def check_site_realtime(
         logger.info("GA4 Realtime Fetch: site=%s profile=%s property=%s", site.domain, profile, property_id)
         result = fetch_realtime_comparison(property_id, window_minutes, dimension_filter=dim_filter)
     except Exception as exc:
-        logger.warning("GA4 Realtime API hatası [%s / %s]: %s", site.domain, property_id, exc)
+        from backend.services.ga4_realtime_quota import (
+            Ga4RealtimeQuotaPausedError,
+            note_realtime_quota_error,
+        )
+
+        if isinstance(exc, Ga4RealtimeQuotaPausedError):
+            logger.debug("GA4 Realtime atlandı (kota) [%s / %s]", site.domain, property_id)
+            return {
+                "site_id": site.id,
+                "domain": site.domain,
+                "profile": profile,
+                "error": "quota_paused",
+                "message": str(exc),
+            }
+        if not note_realtime_quota_error(property_id, exc, domain=str(site.domain or ""), logger=logger):
+            logger.warning("GA4 Realtime API hatası [%s / %s]: %s", site.domain, property_id, exc)
         return {
             "site_id": site.id,
             "domain": site.domain,
@@ -2629,10 +2670,14 @@ def fetch_realtime_profile_bundle(
     """Realtime sayfası ve ana sayfa KPI/spark için ortak veri yolu (TTL cache + trend)."""
     from backend.config import settings
     from backend.services.realtime_cache import get_or_call
+    from backend.services.ga4_realtime_quota import domain_is_light_realtime
 
     w = window_minutes if window_minutes is not None else settings.ga4_realtime_window_minutes
     sid = int(site.id)
     prof = (profile or "web").strip()
+    ttl = int(settings.ga4_realtime_kpi_cache_seconds)
+    if domain_is_light_realtime(getattr(site, "domain", None)):
+        ttl = max(ttl, 120)
 
     def _produce() -> dict[str, Any]:
         return check_site_realtime(db, site, window_minutes=w, profile=prof, skip_alarms=skip_alarms)
@@ -2640,7 +2685,7 @@ def fetch_realtime_profile_bundle(
     result = dict(
         get_or_call(
             f"rt:kpi:{sid}:{prof}:{w}",
-            settings.ga4_realtime_kpi_cache_seconds,
+            ttl,
             _produce,
             is_error=lambda r: bool(r.get("error")),
             last_good_ttl=settings.ga4_realtime_last_good_seconds,
@@ -2893,6 +2938,7 @@ def run_all_sites_realtime_check(
     """
     from backend.models import Site as SiteModel
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.ga4_realtime_quota import scheduler_profiles_for_site
 
     sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
     results: list[dict[str, Any]] = []
@@ -2903,7 +2949,10 @@ def run_all_sites_realtime_check(
         base_web = (properties.get("web") or "").strip()
         if not base_web and not any((properties.get(p) or "").strip() for p in profile_order):
             continue
+        allowed_profiles = scheduler_profiles_for_site(site.domain, properties)
         for profile in profile_order:
+            if profile not in allowed_profiles:
+                continue
             pid = (properties.get(profile) or "").strip() or base_web
             if not pid:
                 continue

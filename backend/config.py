@@ -385,6 +385,13 @@ class Settings(BaseSettings):
     ga4_realtime_404_warning_threshold: int = Field(default=10, ge=1, le=500)   # uyarı eşiği
     ga4_realtime_404_critical_threshold: int = Field(default=25, ge=1, le=500)  # kritik eşik
     ga4_realtime_404_window_minutes: int = Field(default=15, ge=5, le=30)       # GA4 penceresi
+    # Günlük property token kotası (429) sonrası API duraklatma — varsayılan sabah 06:00 TR job
+    ga4_realtime_quota_resume_hour: int = Field(default=6, ge=0, le=23)
+    # Virgülle: scheduler'da yalnızca web (+ ayrı mweb property varsa mweb); ios/android ve fazla çağrı yok
+    ga4_realtime_light_domains: str = Field(
+        default="sinemalar.com,www.sinemalar.com",
+        validation_alias=AliasChoices("GA4_REALTIME_LIGHT_DOMAINS", "ga4_realtime_light_domains"),
+    )
 
     # False: otomatik sayfa yükü ölçümleri kapalı kalır; manuel PSI/Data Explorer ve dashboard ölçümü (force) çalışır.
     live_refresh_enabled: bool = True

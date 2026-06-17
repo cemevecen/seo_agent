@@ -13174,6 +13174,8 @@ def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int =
     """Anlık 404 spike verisi — realtime sayfası için."""
     from backend.services.ga4_realtime import fetch_realtime_404_users, _evaluate_404_spike_severity
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.ga4_realtime_quota import Ga4RealtimeQuotaPausedError, note_realtime_quota_error
+    from backend.services.realtime_cache import get_or_call
     from backend.config import settings
 
     with SessionLocal() as db:
@@ -13186,8 +13188,22 @@ def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int =
         if not property_id:
             return JSONResponse({"error": "no_property"}, status_code=404)
 
+    w = min(window, 30)
+    cache_ttl = max(60, int(settings.ga4_realtime_list_cache_seconds))
+
+    def _fetch():
+        return fetch_realtime_404_users(property_id, window_minutes=w)
+
     try:
-        data = fetch_realtime_404_users(property_id, window_minutes=min(window, 30))
+        data = get_or_call(
+            f"rt:404:{site_id}:{profile}:{w}",
+            float(cache_ttl),
+            _fetch,
+            is_error=lambda r: False,
+            last_good_ttl=float(settings.ga4_realtime_last_good_seconds),
+        )
+        if not isinstance(data, dict):
+            data = {}
         warn = int(getattr(settings, "ga4_realtime_404_warning_threshold", 10))
         crit = int(getattr(settings, "ga4_realtime_404_critical_threshold", 25))
         total = data.get("total_404_users", 0)
@@ -13207,7 +13223,31 @@ def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int =
             "warn_threshold": warn,
             "crit_threshold": crit,
         })
+    except Ga4RealtimeQuotaPausedError as exc:
+        return JSONResponse(
+            {
+                "site_id": site_id,
+                "profile": profile,
+                "quota_paused": True,
+                "error": str(exc),
+                "total_404_users": 0,
+                "pages": [],
+                "severity": None,
+            }
+        )
     except Exception as exc:
+        if note_realtime_quota_error(property_id, exc):
+            return JSONResponse(
+                {
+                    "site_id": site_id,
+                    "profile": profile,
+                    "quota_paused": True,
+                    "error": str(exc)[:200],
+                    "total_404_users": 0,
+                    "pages": [],
+                    "severity": None,
+                }
+            )
         LOGGER.warning("404 spike API hatası [%s]: %s", site_id, exc)
         return JSONResponse({"error": str(exc), "total_404_users": 0, "pages": [], "severity": None})
 
@@ -13216,12 +13256,31 @@ def api_ga4_realtime_404_spike(site_id: int, profile: str = "web", window: int =
 def api_ga4_realtime_drivers(site_id: int, profile: str = "web"):
     """Realtime trafik değişim analizi — hangi sayfalar site genelindeki değişime katkıda bulunuyor."""
     from backend.services.ga4_realtime import fetch_traffic_drivers
+    from backend.services.realtime_cache import get_or_call
+    from backend.config import settings
 
-    with SessionLocal() as db:
-        result = fetch_traffic_drivers(db, site_id, profile)
-        if result.get("error") == "site_not_found":
-            return JSONResponse({"error": "site_not_found"}, status_code=404)
-        return JSONResponse(result)
+    cache_ttl = max(90, int(settings.ga4_realtime_list_cache_seconds))
+
+    def _produce():
+        with SessionLocal() as db:
+            return fetch_traffic_drivers(db, site_id, profile)
+
+    try:
+        result = get_or_call(
+            f"rt:drivers:{site_id}:{profile}",
+            float(cache_ttl),
+            _produce,
+            is_error=lambda r: bool(r.get("error")),
+            last_good_ttl=float(settings.ga4_realtime_last_good_seconds),
+        )
+    except Exception as exc:
+        LOGGER.debug("drivers cache miss error site_id=%s: %s", site_id, exc)
+        with SessionLocal() as db:
+            result = fetch_traffic_drivers(db, site_id, profile)
+
+    if isinstance(result, dict) and result.get("error") == "site_not_found":
+        return JSONResponse({"error": "site_not_found"}, status_code=404)
+    return JSONResponse(result if isinstance(result, dict) else {})
 
 
 @app.get("/api/ga4/realtime/{site_id}/insights")
