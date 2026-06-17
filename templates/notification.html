@@ -9,34 +9,40 @@
           <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV dosyası</label>
           <input id="nt-csv-file" type="file" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
         </div>
-        <div class="min-w-0 space-y-1.5 xl:col-span-3">
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div class="space-y-1.5">
-              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Başlangıç tarihi</label>
-              <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+        <div class="min-w-0 xl:col-span-3">
+          <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Başlangıç tarihi</label>
+                <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bitiş tarihi</label>
+                <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+              </div>
             </div>
-            <div class="space-y-1.5">
-              <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bitiş tarihi</label>
-              <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
-            </div>
+            <button id="nt-apply-date" type="button" class="nt-btn-pastel-orange w-full rounded-lg px-3 py-2 text-sm font-bold">Filtreyi uygula</button>
           </div>
-          <button id="nt-apply-date" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Filtreyi uygula</button>
         </div>
-        <div class="min-w-0 space-y-1.5 xl:col-span-2">
-          <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
-          <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-            <option value="custom">Özel aralık</option>
-            <option value="all">Tümü</option>
-            <option value="1w">Son 1 hafta</option>
-            <option value="1m">Son 1 ay</option>
-            <option value="3m">Son 3 ay</option>
-            <option value="6m">Son 6 ay</option>
-            <option value="1y" selected>Son 1 yıl</option>
-            <option value="2y">Son 2 yıl</option>
-            <option value="3y">Son 3 yıl</option>
-            <option value="4y">Son 4 yıl</option>
-          </select>
-          <button id="nt-apply-preset" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Hazır aralığı uygula</button>
+        <div class="min-w-0 xl:col-span-2">
+          <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
+            <div class="space-y-1.5">
+              <label for="nt-range-preset" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
+              <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                <option value="custom">Özel aralık</option>
+                <option value="all">Tümü</option>
+                <option value="1w">Son 1 hafta</option>
+                <option value="1m">Son 1 ay</option>
+                <option value="3m">Son 3 ay</option>
+                <option value="6m">Son 6 ay</option>
+                <option value="1y" selected>Son 1 yıl</option>
+                <option value="2y">Son 2 yıl</option>
+                <option value="3y">Son 3 yıl</option>
+                <option value="4y">Son 4 yıl</option>
+              </select>
+            </div>
+            <button id="nt-apply-preset" type="button" class="nt-btn-pastel-green w-full rounded-lg px-3 py-2 text-sm font-bold">Hazır aralığı uygula</button>
+          </div>
         </div>
         <div class="min-w-0 xl:col-span-4">
           <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-slate-100 dark:hover:bg-indigo-700">CSV yükle ve ekle</button>
@@ -97,21 +103,23 @@
         <button type="button" data-nt-list-platform="android" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">Android</button>
         <button type="button" data-nt-list-platform="ios" class="nt-pill rounded-full border px-3 py-1 text-xs font-semibold">iOS</button>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</span>
-        <select id="nt-range-preset-secondary" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-          <option value="custom">Özel aralık</option>
-          <option value="all">Tümü</option>
-          <option value="1w">Son 1 hafta</option>
-          <option value="1m">Son 1 ay</option>
-          <option value="3m">Son 3 ay</option>
-          <option value="6m">Son 6 ay</option>
-          <option value="1y" selected>Son 1 yıl</option>
-          <option value="2y">Son 2 yıl</option>
-          <option value="3y">Son 3 yıl</option>
-          <option value="4y">Son 4 yıl</option>
-        </select>
-        <button id="nt-apply-preset-secondary" type="button" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">Hazır aralığı uygula</button>
+      <div class="nt-mini-card inline-flex max-w-full flex-col gap-2 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:flex-row sm:flex-wrap sm:items-end">
+        <div class="min-w-[10rem] space-y-1.5">
+          <label for="nt-range-preset-secondary" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
+          <select id="nt-range-preset-secondary" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+            <option value="custom">Özel aralık</option>
+            <option value="all">Tümü</option>
+            <option value="1w">Son 1 hafta</option>
+            <option value="1m">Son 1 ay</option>
+            <option value="3m">Son 3 ay</option>
+            <option value="6m">Son 6 ay</option>
+            <option value="1y" selected>Son 1 yıl</option>
+            <option value="2y">Son 2 yıl</option>
+            <option value="3y">Son 3 yıl</option>
+            <option value="4y">Son 4 yıl</option>
+          </select>
+        </div>
+        <button id="nt-apply-preset-secondary" type="button" class="nt-btn-pastel-green shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold sm:mb-0.5">Hazır aralığı uygula</button>
       </div>
     </div>
   </div>
@@ -149,10 +157,48 @@
     }
     html.dark .notification-page .nt-filter-panel input[type="file"],
     html.dark .notification-page .nt-filter-panel input[type="date"],
-    html.dark .notification-page .nt-filter-panel select {
+    html.dark .notification-page .nt-filter-panel select,
+    html.dark .notification-page .nt-mini-card input[type="date"],
+    html.dark .notification-page .nt-mini-card select {
       background-color: #18181b !important;
       border-color: #3f3f46 !important;
       color: #e4e4e7 !important;
+    }
+    html.dark .notification-page .nt-mini-card {
+      background-color: #18181b !important;
+      border-color: #3f3f46 !important;
+    }
+    .notification-page .nt-btn-pastel-orange {
+      background-color: #ffd4b0;
+      color: #7c2d12;
+      border: 1px solid #fdba74;
+    }
+    .notification-page .nt-btn-pastel-orange:hover {
+      background-color: #ffc89a;
+    }
+    html.dark .notification-page .nt-btn-pastel-orange {
+      background-color: rgba(251, 146, 60, 0.35);
+      color: #ffedd5;
+      border-color: rgba(251, 146, 60, 0.45);
+    }
+    html.dark .notification-page .nt-btn-pastel-orange:hover {
+      background-color: rgba(251, 146, 60, 0.5);
+    }
+    .notification-page .nt-btn-pastel-green {
+      background-color: #bbf7d0;
+      color: #14532d;
+      border: 1px solid #86efac;
+    }
+    .notification-page .nt-btn-pastel-green:hover {
+      background-color: #a7f3d0;
+    }
+    html.dark .notification-page .nt-btn-pastel-green {
+      background-color: rgba(52, 211, 153, 0.28);
+      color: #d1fae5;
+      border-color: rgba(52, 211, 153, 0.4);
+    }
+    html.dark .notification-page .nt-btn-pastel-green:hover {
+      background-color: rgba(52, 211, 153, 0.42);
     }
     html.dark .notification-page #nt-clear-file,
     html.dark .notification-page #nt-reset-all {
