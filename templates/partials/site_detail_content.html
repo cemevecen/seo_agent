@@ -119,7 +119,7 @@
     {% for section in sections %}
     <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm">
       <div class="mb-4">
-        <h5 class="text-sm font-semibold uppercase tracking-wide text-slate-900 dark:text-slate-100">{{ section.title_en|e }}</h5>
+        <h5 lang="en" class="text-sm font-semibold uppercase tracking-wide text-slate-900 dark:text-slate-100">{{ section.title_en|e }}</h5>
         {% if section.title_tr %}
         <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ section.title_tr|e }}</p>
         {% endif %}
@@ -145,7 +145,7 @@
 
 <div class="space-y-6" data-site-domain="{{ domain }}" data-site-title="{{ site_name|default('Lighthouse')|e }}">
   <div class="rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
-    <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Lighthouse</p>
+    <p lang="en" class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Lighthouse</p>
     <h2 class="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">Lighthouse Skorları</h2>
     <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
       Bu sayfa artık yalnızca Lighthouse skorlarına odaklanır. Diğer veri katmanları ve teknik ayrıntılar

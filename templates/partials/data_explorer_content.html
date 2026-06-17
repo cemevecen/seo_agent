@@ -116,6 +116,7 @@ text-slate-500 dark:text-slate-400
   <div>
     <div class="flex items-center justify-between gap-1">
       <p
+        lang="en"
         data-fit-text
         data-fit-max="11"
         data-fit-min="7.5"
@@ -175,6 +176,7 @@ text-slate-500 dark:text-slate-400
 <div class="min-w-0 rounded-[1.2rem] border p-2.5 shadow-sm {{ shell_class }}">
   <div class="min-w-0">
     <p
+      lang="en"
       data-fit-text
       data-fit-max="10"
       data-fit-min="7.5"
@@ -349,7 +351,7 @@ text-slate-500 dark:text-slate-400
 <div id="data-explorer-shell" class="dex-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-site-domain="{{ domain }}" data-site-profile="verified" data-site-title="{{ site_name|default('PageSpeed')|e }}">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
-      <p class="inline-flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400"><span class="dex-motion-gauge" aria-hidden="true"></span><span>PageSpeed</span></p>
+      <p class="inline-flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400" lang="en"><span class="dex-motion-gauge" aria-hidden="true"></span><span>PageSpeed</span></p>
       <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ domain }}</h3>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
         <span class="inline-flex items-center gap-1.5">
@@ -500,11 +502,11 @@ text-slate-500 dark:text-slate-400
         <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Son {{ error_widget.window_days }}g hata</p>
         <div class="grid grid-cols-2 gap-1">
           <div>
-            <p class="text-[9px] font-bold uppercase text-slate-400">404</p>
+            <p lang="en" class="text-[9px] font-bold uppercase text-slate-400">404</p>
             <p class="text-base font-black tabular-nums {% if error_widget.total_404 > 100 %}text-rose-600 dark:text-rose-300{% else %}text-amber-600 dark:text-amber-300{% endif %}">{{ error_widget.total_404 }}</p>
           </div>
           <div>
-            <p class="text-[9px] font-bold uppercase text-slate-400">5xx</p>
+            <p lang="en" class="text-[9px] font-bold uppercase text-slate-400">5xx</p>
             <p class="text-base font-black tabular-nums {% if error_widget.total_5xx > 0 %}text-rose-600 dark:text-rose-300{% else %}text-slate-400 dark:text-slate-500{% endif %}">{{ error_widget.total_5xx }}</p>
           </div>
         </div>
@@ -1129,7 +1131,7 @@ text-slate-500 dark:text-slate-400
       ];
       const raw = JSON.parse(element.dataset.series || '{}');
       function metricColor(label) {
-        const normalized = String(label || '').toUpperCase();
+        const normalized = String(label || '').toLocaleUpperCase('en-US');
         if (normalized === 'CLS') return '#0ea5e9';
         if (normalized === 'TTFB') return '#f97316';
         if (normalized === 'FCP') return '#16a34a';

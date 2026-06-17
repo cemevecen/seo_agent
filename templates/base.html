@@ -36,6 +36,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v={{ app_css_v }}" />
+  <script src="/static/js/seo_en_case.js?v=2"></script>
   {% block page_head %}{% endblock %}
   <style id="seo-dark-form-controls">
     /* Native form controls — koyu temada lacivertsiz çinko */
@@ -77,6 +78,12 @@
       border-radius: 0.375rem;
       padding: 0.25rem 0.5rem;
       margin-right: 0.5rem;
+    }
+  </style>
+  <style id="seo-en-caps">
+    .seo-en-caps,
+    [data-seo-en-caps] {
+      text-transform: none !important;
     }
   </style>
   <style id="seo-dark-zinc-ui">

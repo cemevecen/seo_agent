@@ -1153,7 +1153,7 @@
 
   function dumpHeaderCellHtml(label, tag, sortArrow) {
     var tagHtml = tag
-      ? "<span class=\"ab-dump-group-tag\">" + escapeHtml(tag) + "</span>"
+      ? "<span class=\"ab-dump-group-tag\" lang=\"en\">" + escapeHtml(tag) + "</span>"
       : "";
     return (
       "<div class=\"ab-dump-th-inner\">" +
@@ -1208,6 +1208,7 @@
         var item = document.createElement("div");
         item.className = "ab-dump-card-metric" + (num > 0 ? "" : " ab-dump-card-metric--zero");
         var dt = document.createElement("dt");
+        dt.setAttribute("lang", "en");
         dt.textContent = dumpMetricTitle(col);
         var dd = document.createElement("dd");
         dd.textContent = num > 0 ? formatNum(num) : "·";
@@ -1302,6 +1303,7 @@
     columns.forEach(function (col) {
       var th = document.createElement("th");
       th.className = "ab-dump-th-sort ab-dump-th-metric text-[10px] font-bold leading-tight";
+      th.setAttribute("lang", "en");
       th.setAttribute("data-sort-key", col.key);
       th.setAttribute("data-sort-type", "num");
       th.setAttribute("data-default-desc", "1");

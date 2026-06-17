@@ -1138,6 +1138,12 @@
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: dec == null ? 2 : dec });
   }
 
+  function enCaps(s) {
+    return (window.seoEnUppercase || function (x) {
+      return String(x == null ? "" : x).toLocaleUpperCase("en-US");
+    })(s);
+  }
+
   function mzLabPctBadge(pct) {
     if (pct == null || isNaN(pct)) return '<span class="text-slate-400">—</span>';
     var n = Number(pct);
@@ -4167,8 +4173,8 @@
         return;
       }
       el.innerHTML =
-        "<p class=\"mb-1 font-bold uppercase tracking-wide text-[9px] text-slate-500 dark:text-zinc-500\">" +
-        (mDef ? mDef.label : "Metrik") + " — veri notu</p>" +
+        "<p class=\"mb-1 font-bold tracking-wide text-[9px] text-slate-500 dark:text-zinc-500\">" +
+        enCaps(mDef ? mDef.label : "Metrik") + " — veri notu</p>" +
         parts.join("");
       el.classList.remove("hidden");
       return;
@@ -4212,8 +4218,8 @@
         }).join(" · ")
       );
     }
-    el.innerHTML = "<p class=\"mb-1 font-bold uppercase tracking-wide text-[9px] text-slate-500 dark:text-zinc-400\">" +
-      (mDef ? mDef.label : "Metrik") + " — olağandışı noktalar</p>" + parts.map(function (p) {
+    el.innerHTML = "<p class=\"mb-1 font-bold tracking-wide text-[9px] text-slate-500 dark:text-zinc-400\">" +
+      enCaps(mDef ? mDef.label : "Metrik") + " — olağandışı noktalar</p>" + parts.map(function (p) {
         return "<p class=\"mt-0.5 text-slate-600 dark:text-zinc-300 midnight:text-zinc-400\">" + p + "</p>";
       }).join("");
     el.classList.remove("hidden");
@@ -7077,7 +7083,7 @@
       }
       var sparkId = "mz-spark-" + def.key;
       card.innerHTML =
-        "<p class=\"text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400\">" + def.label + "</p>" +
+        "<p lang=\"en\" data-seo-en-caps class=\"seo-en-caps text-[10px] font-semibold tracking-wide text-slate-500 dark:text-zinc-400\">" + enCaps(def.label) + "</p>" +
         "<p class=\"mt-1 text-base font-black text-slate-900 dark:text-zinc-300\">" +
         fmt(k[def.key], def.dec) + "</p>" + deltaHtml +
         "<div id=\"" + sparkId + "\" class=\"mt-2 h-9 w-full\"></div>";
@@ -7089,6 +7095,7 @@
       grid.appendChild(card);
     });
     scheduleKpiSparklines(sum);
+    if (window.seoEnCapsScan) window.seoEnCapsScan(grid);
   }
 
   var MZ_TABLE_PREVIEW = 20;

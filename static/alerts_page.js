@@ -14,6 +14,12 @@ var _alertType = 'all';
 var _alertPeriod = 7;
 var _compCache = {};
 
+function alertsEnCaps(s) {
+  return (window.seoEnUppercase || function (x) {
+    return String(x == null ? "" : x).toLocaleUpperCase("en-US");
+  })(s);
+}
+
 // ─── Canlı SC pozisyon (ana sayfa ile aynı) ───────────────────────────────────
 function reloadLivePositionGrid() {
   var wrap = document.getElementById('alerts-live-position-grid');
@@ -289,7 +295,7 @@ function renderComparisonData(alertId, comparisonType) {
     comparison.cards.forEach(function (c) {
       var ts = toneStyle[c.tone] || toneStyle.slate;
       html += '<div class="rounded-xl border px-3 py-2.5" style="' + ts + '">';
-      html += '<p class="text-[10px] font-semibold uppercase tracking-[0.13em] opacity-75">' + (c.label || '') + '</p>';
+      html += '<p class="text-[10px] font-semibold tracking-[0.13em] opacity-75">' + alertsEnCaps(c.label || '') + '</p>';
       html += '<p class="mt-1 text-base font-bold leading-none sm:text-lg">' + (c.value || 'N/A') + '</p>';
       if (c.detail) html += '<p class="mt-1 text-[11px] leading-4 opacity-80">' + c.detail + '</p>';
       html += '</div>';

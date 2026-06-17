@@ -11,13 +11,13 @@
         <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
         <div class="mt-2 grid grid-cols-2 gap-3">
           <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Clicks</p>
+            <p lang="en" class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Clicks</p>
             {% set _p = dev.clicks_delta_pct | default(0) | float %}
             <p class="mt-1 truncate text-base font-semibold tabular-nums {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
             <p class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
           </div>
           <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Impressions</p>
+            <p lang="en" class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Impressions</p>
             {% set _p = dev.impr_delta_pct | default(0) | float %}
             <p class="mt-1 truncate text-base font-semibold tabular-nums {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.impr_delta_fmt }}</p>
             <p class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ dev.impr_last_fmt }} ← {{ dev.impr_prev_fmt }}</p>

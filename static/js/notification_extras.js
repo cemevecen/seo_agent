@@ -20,6 +20,12 @@
   ];
   var HEATMAP_NO_DATA = null;
 
+  function enCapsLabel(s) {
+    return (global.seoEnUppercase || function (x) {
+      return String(x == null ? "" : x).toLocaleUpperCase("en-US");
+    })(s);
+  }
+
   function dowIndex(iso) {
     var dt = new Date(iso);
     if (isNaN(dt.getTime())) return -1;
@@ -379,7 +385,7 @@
       ? Number(prevVal).toFixed(2) + "%"
       : (nt().fmtCount ? nt().fmtCount(prevVal) : prevVal);
     return '<div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/50">'
-      + '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">' + label + "</p>"
+      + '<p class="text-[10px] font-semibold tracking-wide text-slate-500 dark:text-slate-400">' + enCapsLabel(label) + "</p>"
       + '<p class="mt-1 text-base font-black text-slate-900 dark:text-slate-200">' + valStr + "</p>"
       + '<p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Önceki: ' + prevStr + " · " + fmtDeltaHtml(delta) + "</p>"
       + '<div id="' + id + '" class="mt-2 h-9 w-full"></div></div>';
@@ -387,7 +393,7 @@
 
   function periodPlatCard(id, label, value, delta, share) {
     return '<div class="rounded-xl border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900/50">'
-      + '<p class="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">' + label + "</p>"
+      + '<p class="text-[10px] font-bold text-slate-500 dark:text-slate-400">' + enCapsLabel(label) + "</p>"
       + '<p class="mt-0.5 text-sm font-black text-slate-800 dark:text-slate-200">' + (nt().fmtCount ? nt().fmtCount(value) : value) + "</p>"
       + '<p class="text-[10px] text-slate-500 dark:text-slate-400">' + fmtDeltaHtml(delta) + ' · pay %' + share.toFixed(1) + "</p>"
       + '<div id="' + id + '" class="mt-1.5 h-8 w-full"></div></div>';
@@ -827,7 +833,7 @@
     containerEl.innerHTML = specs.map(function (x) {
       var ctr = x.impr > 0 ? ((x.click / x.impr) * 100).toFixed(2) + "% CTR" : (x.k === "iOS" ? "impr yok" : "—");
       return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-center dark:border-slate-700 dark:bg-slate-900">'
-        + '<p class="text-[10px] font-bold uppercase text-slate-500">' + x.k + '</p>'
+        + '<p class="text-[10px] font-bold text-slate-500">' + enCapsLabel(x.k) + '</p>'
         + '<p class="text-lg font-black text-indigo-700 dark:text-indigo-300">' + (nt().fmtCount ? nt().fmtCount(x.click) : x.click) + "</p>"
         + '<p class="text-[9px] text-slate-500 dark:text-slate-400">' + ctr + (x.impr ? " · " + (nt().fmtCount ? nt().fmtCount(x.impr) : x.impr) + " impr" : "") + "</p></div>";
     }).join("");

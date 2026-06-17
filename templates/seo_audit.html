@@ -523,7 +523,7 @@ function _renderChanges(changes) {
       + '<td class="px-3 py-2">' + diffs + '</td>'
       + '</tr>';
   }).join('');
-  el.innerHTML = '<table class="w-full text-sm"><thead><tr class="border-b border-slate-100 dark:border-zinc-800/30"><th class="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-zinc-400">URL</th><th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-zinc-400">Değişiklik</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  el.innerHTML = '<table class="w-full text-sm"><thead><tr class="border-b border-slate-100 dark:border-zinc-800/30"><th lang="en" class="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-zinc-400">URL</th><th class="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500 dark:text-zinc-400">Değişiklik</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
 function _renderDuplicates(data) {

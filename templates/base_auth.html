@@ -8,6 +8,7 @@
   {% set app_css_v = "15" %}
   <link rel="icon" href="/static/favicon.png?v={{ favicon_v }}" sizes="any" type="image/png" />
   <link rel="stylesheet" href="/static/css/app.css?v={{ app_css_v }}" />
+  <script src="/static/js/seo_en_case.js?v=2"></script>
   <meta name="robots" content="noindex, nofollow" />
   <script>
     (function () {
@@ -29,7 +30,7 @@
 <body class="min-h-screen bg-slate-100 text-slate-900 dark:bg-zinc-950 dark:text-zinc-100">
   <div class="flex min-h-screen flex-col items-center justify-center px-4 py-10">
     <div class="mb-6 text-center">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">SEO Agent</p>
+      <p lang="en" class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-500">SEO Agent</p>
       <p class="mt-1 text-sm text-slate-600 dark:text-zinc-400">Panele erişmek için giriş yapın</p>
     </div>
     {% block content %}{% endblock %}
