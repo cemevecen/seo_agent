@@ -5671,6 +5671,122 @@
     };
   }
 
+  function mzReleaseHoverLinesForDay(releases, dayIso, platform) {
+    var day = String(dayIso || "").slice(0, 10);
+    if (!day || !releases || !releases.length) return "";
+    var hits = releases.filter(function (r) {
+      return String(r.released_at || "").slice(0, 10) === day;
+    });
+    if (!hits.length) return "";
+    var platLbl = platform === "android" ? "Android" : platform === "ios" ? "iOS" : "Uygulama";
+    return hits
+      .map(function (r) {
+        return platLbl + " güncelleme v" + (r.version || "—");
+      })
+      .join("<br>");
+  }
+
+  function mzReleaseTextPerDates(dates, releases, platform) {
+    if (!dates || !dates.length) return null;
+    return dates.map(function (d) {
+      return mzReleaseHoverLinesForDay(releases, d, platform) || "";
+    });
+  }
+
+  function mzTimeSeriesHoverLayoutPatch() {
+    var dark = isDarkTheme();
+    var spikeColor = dark ? "#71717a" : "#94a3b8";
+    return {
+      hovermode: "x unified",
+      hoverdistance: 80,
+      spikedistance: -1,
+      xaxis: {
+        showspikes: true,
+        spikethickness: 1,
+        spikecolor: spikeColor,
+        spikedash: "dot",
+        spikesnap: "cursor",
+        spikemode: "across",
+      },
+    };
+  }
+
+  function mzMergeTimeSeriesHoverLayout(layoutExtra) {
+    var patch = mzTimeSeriesHoverLayoutPatch();
+    var out = Object.assign({}, layoutExtra || {});
+    out.xaxis = Object.assign({}, patch.xaxis, out.xaxis || {});
+    out.hovermode = patch.hovermode;
+    out.hoverdistance = patch.hoverdistance;
+    out.spikedistance = patch.spikedistance;
+    return out;
+  }
+
+  function mzLineModeForCount(n) {
+    return n > 200 ? "lines" : "lines+markers";
+  }
+
+  function mzLineMarkerSize(n) {
+    if (n > 200) return 0;
+    if (n > 120) return 5;
+    return 7;
+  }
+
+  function mzApplyLineHoverStyle(trace, opts) {
+    opts = opts || {};
+    if (!trace || trace.type !== "scatter" || trace.yref === "paper" || trace.hoverinfo === "skip") {
+      return trace;
+    }
+    var n = (trace.x || []).length;
+    var def = opts.def || {};
+    var unit = opts.valueSuffix != null ? opts.valueSuffix : def.axis === "TL" ? " TL" : "";
+    var name = trace.name || def.label || "";
+    if (!trace.mode || trace.mode === "lines") {
+      trace.mode = mzLineModeForCount(n);
+    }
+    if (String(trace.mode).indexOf("markers") >= 0) {
+      var mc = (trace.marker && trace.marker.color) || (trace.line && trace.line.color) || "#6366f1";
+      trace.marker = Object.assign(
+        {
+          size: mzLineMarkerSize(n),
+          color: mc,
+          line: { width: 1, color: isDarkTheme() ? "#18181b" : "#ffffff" },
+        },
+        trace.marker || {}
+      );
+    }
+    trace.hoveron = "points+fills";
+    var rel = opts.releaseTextPerPoint;
+    if (rel && rel.length === n) {
+      trace.text = rel;
+      trace.hovertemplate =
+        "%{x}<br><b>" +
+        name +
+        "</b>: %{y:,.2f}" +
+        unit +
+        "<br>%{text}<extra></extra>";
+    } else {
+      trace.hovertemplate = "%{x}<br><b>" + name + "</b>: %{y:,.2f}" + unit + "<extra></extra>";
+    }
+    return trace;
+  }
+
+  function mzStylizeLineTraces(traces, opts) {
+    opts = opts || {};
+    (traces || []).forEach(function (t, i) {
+      var rel = i === 0 ? opts.releaseTextPerPoint : null;
+      var sfx = opts.valueSuffix;
+      if (opts.valueSuffixByTrace && opts.valueSuffixByTrace[i] != null) {
+        sfx = opts.valueSuffixByTrace[i];
+      }
+      mzApplyLineHoverStyle(t, {
+        def: opts.def,
+        valueSuffix: sfx,
+        releaseTextPerPoint: rel,
+      });
+    });
+    return traces;
+  }
+
   function plotTheme(extra) {
     extra = extra || {};
     var dark = isDarkTheme();
@@ -5708,7 +5824,7 @@
   }
 
   function plotlyCfg() {
-    return { responsive: true, displayModeBar: false, autosizable: true };
+    return { responsive: true, displayModeBar: false, autosizable: true, scrollZoom: false };
   }
 
   function mzPushMeanSplitTraces(traces, xs, ys, opts) {
@@ -5946,6 +6062,18 @@
     var sum = state.lastSummary;
     var aligned = cmp && timeKey === "date" ? alignedDateSeries(cmp, kpiKey) : null;
     var periodPair = cmp && timeKey !== "date" ? buildPeriodCompareLinePair(byDate, timeKey, kpiKey, sum) : null;
+    var releaseTextPerPoint = null;
+    if (timeKey === "date" && !aligned && !periodPair) {
+      var plat = mzActivePlatform();
+      var releaseStore = await ensureAppReleaseStore();
+      var platReleases = plat && releaseStore ? releaseStore[plat] || [] : [];
+      var seriesForRel = filterSeriesBySelectedRange(byDate, timeKey);
+      releaseTextPerPoint = mzReleaseTextPerDates(
+        seriesForRel.map(function (x) { return x.date; }),
+        platReleases,
+        plat
+      );
+    }
 
     if (aligned) {
       var built = makeCompareLineTraces(aligned, {
@@ -6000,7 +6128,14 @@
       });
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
-    var lineLay = plotTheme(layoutExtra);
+    mzStylizeLineTraces(traces, { def: def, releaseTextPerPoint: releaseTextPerPoint });
+    var lineLay = plotTheme(mzMergeTimeSeriesHoverLayout(layoutExtra));
+    if (timeKey === "date" && !aligned && !periodPair) {
+      lineLay.xaxis = Object.assign({}, lineLay.xaxis, {
+        type: "date",
+        tickformat: "%d %b %Y",
+      });
+    }
     var marketDates =
       timeKey === "date" && !aligned && !periodPair
         ? filterSeriesBySelectedRange(byDate, timeKey).map(function (x) { return x.date; })
@@ -6465,6 +6600,10 @@
     var colors = compareColors();
     var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     var dates = byDate.map(function (d) { return d.date; });
+    var extReleaseStore = await ensureAppReleaseStore();
+    var extPlat = mzActivePlatform();
+    var extPlatReleases = extPlat && extReleaseStore ? extReleaseStore[extPlat] || [] : [];
+    var dateReleaseHints = dates.length ? mzReleaseTextPerDates(dates, extPlatReleases, extPlat) : null;
     var revAligned = cmp ? alignedDateSeries(cmp, "net_revenue") : null;
     var impAligned = cmp ? alignedDateSeries(cmp, "impression") : null;
     var dualTraces;
@@ -6539,7 +6678,16 @@
         },
       ];
     }
-    var dualLay = plotTheme(dualLayoutExtra);
+    var dualReleaseText = !revAligned && !impAligned ? dateReleaseHints : null;
+    var dualLay = plotTheme(
+      mzMergeTimeSeriesHoverLayout(
+        Object.assign(dualLayoutExtra, !revAligned && dates.length ? { xaxis: { type: "date", tickformat: "%d %b %Y" } } : {})
+      )
+    );
+    mzStylizeLineTraces(dualTraces, {
+      valueSuffixByTrace: [" TL", ""],
+      releaseTextPerPoint: dualReleaseText,
+    });
     if (peerSum && !revAligned && !impAligned && state.peerSeparate.dual) {
       var dualPeerTraces = [
         {
@@ -6642,7 +6790,18 @@
         });
       });
     }
-    var qualityLay = plotTheme(qualityLayoutExtra);
+    var qualityLay = plotTheme(
+      mzMergeTimeSeriesHoverLayout(
+        Object.assign(
+          qualityLayoutExtra,
+          !qualityAligned && dates.length ? { xaxis: { type: "date", tickformat: "%d %b %Y" } } : {}
+        )
+      )
+    );
+    mzStylizeLineTraces(qualityTraces, {
+      valueSuffix: " %",
+      releaseTextPerPoint: !qualityAligned ? dateReleaseHints : null,
+    });
     if (peerSum && !qualityAligned && state.peerSeparate.quality) {
       var qPeerTraces = [];
       qualityKeys.forEach(function (q, idx) {
