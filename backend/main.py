@@ -1393,8 +1393,24 @@ def _bootstrap_admin_password_from_env() -> None:
 
 
 def _admin_auth_active() -> bool:
-    """IP allowlist + admin oturum. Railway'de daima açık; yerelde ADMIN_AUTH_ENFORCED=false ile kapatılabilir."""
+    """Şablonlar için: Railway'de zorunlu; yerelde ADMIN_AUTH_ENFORCED."""
     if is_railway_runtime():
+        return True
+    return bool(settings.admin_auth_enforced)
+
+
+def _request_host(request: Request) -> str:
+    raw = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").strip()
+    return raw.split(",")[0].strip().lower().split(":")[0]
+
+
+def _auth_gate_enabled(request: Request) -> bool:
+    """HTTP isteği için panel kapısı açık mı (canlı host'ta ADMIN_AUTH_ENFORCED=false yok sayılır)."""
+    from backend.config import host_requires_panel_auth
+
+    if is_railway_runtime():
+        return True
+    if host_requires_panel_auth(_request_host(request)):
         return True
     return bool(settings.admin_auth_enforced)
 
@@ -1430,7 +1446,7 @@ def _tmdb_guest_login_response(request: Request, *, redirect_path: str) -> Redir
 @app.middleware("http")
 async def ip_allowlist_middleware(request: Request, call_next):
     # Allowlist IP'ler doğrudan geçer; diğerleri admin parolası ile giriş yapar.
-    if not _admin_auth_active():
+    if not _auth_gate_enabled(request):
         return await call_next(request)
     path = (request.url.path or "").strip()
     public_prefixes = (
@@ -1451,7 +1467,8 @@ async def ip_allowlist_middleware(request: Request, call_next):
     if not password_ready and _is_local_dev_first_password_client(request):
         if (path == "/admin/password" and request.method == "POST") or path.startswith("/settings"):
             return await call_next(request)
-    if password_ready and (_is_admin_authenticated(request) or _app_member_authenticated(request)):
+    panel_authed = _is_admin_authenticated(request) or _app_member_authenticated(request)
+    if panel_authed and (password_ready or _app_member_authenticated(request)):
         _record_session(request)
         member = _app_member_from_request(request)
         if member is not None:
@@ -1545,6 +1562,15 @@ def on_startup() -> None:
     global SCHEDULER
     init_db()
     _bootstrap_admin_password_from_env()
+    if is_railway_runtime():
+        LOGGER.info(
+            "Panel auth: Railway ortamı — giriş zorunlu (ADMIN_AUTH_ENFORCED=%s yok sayılır).",
+            settings.admin_auth_enforced,
+        )
+    elif not settings.admin_auth_enforced:
+        LOGGER.warning(
+            "ADMIN_AUTH_ENFORCED=false — panel girişi KAPALI (yalnızca güvenli yerel geliştirme için)."
+        )
     if SCHEDULER is None:
         SCHEDULER = _build_daily_refresh_scheduler()
         if SCHEDULER is not None:
@@ -9674,7 +9700,7 @@ def settings_site_list(request: Request):
 
 @app.get("/admin/login")
 def admin_login_page(request: Request):
-    if not _admin_auth_active():
+    if not _auth_gate_enabled(request):
         return RedirectResponse(url="/", status_code=303)
     if _is_admin_authenticated(request) or _app_member_authenticated(request):
         return RedirectResponse(url="/", status_code=303)

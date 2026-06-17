@@ -144,6 +144,11 @@ class Settings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("ADMIN_AUTH_ENFORCED", "admin_auth_enforced"),
     )
+    # Canlı panel host (middleware: ADMIN_AUTH_ENFORCED=false olsa bile giriş zorunlu)
+    app_public_host: str = Field(
+        default="projectcontrol.up.railway.app",
+        validation_alias=AliasChoices("APP_PUBLIC_HOST", "app_public_host"),
+    )
     admin_login_alert_email: str = Field(
         default="cemevecen@nokta.com",
         validation_alias=AliasChoices("ADMIN_LOGIN_ALERT_EMAIL", "admin_login_alert_email"),
@@ -535,6 +540,19 @@ def email_allows_trigger_source(trigger_source: str) -> bool:
 def is_railway_runtime() -> bool:
     """Railway deploy: ortam değişkenleri ile tespit (resmi image'da RAILWAY_ENVIRONMENT set)."""
     return bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
+
+
+def host_requires_panel_auth(host: str | None) -> bool:
+    """Canlı / Railway hostlarında panel girişi her zaman zorunlu (ADMIN_AUTH_ENFORCED=false yok sayılır)."""
+    h = str(host or "").strip().lower().split(":")[0]
+    if not h:
+        return False
+    if h.endswith(".up.railway.app"):
+        return True
+    pub = (getattr(settings, "app_public_host", "") or "").strip().lower()
+    if pub and (h == pub or h.endswith(f".{pub}") or pub in h):
+        return True
+    return False
 
 
 def search_console_should_purge_before_collect() -> bool:
