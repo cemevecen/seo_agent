@@ -31,6 +31,10 @@
     width: auto;
     min-width: 5.25rem;
   }
+  #content table[data-ga4-news-table] th:nth-child(n + 2),
+  #content table[data-ga4-news-table] td:nth-child(n + 2) {
+    min-width: 3.25rem;
+  }
   .ga4-kpi-grid {
     align-items: stretch;
   }
@@ -94,6 +98,12 @@
     overscroll-behavior-x: contain;
   }
   #content table[data-ga4-breakdown-table],
+  #content table[data-ga4-news-table] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
   .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] {
     width: 100%;
     max-width: 100%;
@@ -144,7 +154,7 @@
   }
   @media (max-width: 639px) {
     [data-ga4-pages-section] {
-      overflow-x: clip;
+      overflow-x: visible;
     }
     #content table[data-ga4-breakdown-table] {
       width: max(100%, 21rem);
@@ -167,6 +177,35 @@
       font-size: 9px;
     }
     #content table[data-ga4-breakdown-table] .ga4-path-cell :is(a, span) {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
+      white-space: normal !important;
+      word-break: break-all;
+      line-height: 1.25;
+    }
+    #content table[data-ga4-news-table] {
+      width: max(100%, 21rem) !important;
+      min-width: 21rem !important;
+      table-layout: fixed !important;
+    }
+    #content table[data-ga4-news-table] th:first-child,
+    #content table[data-ga4-news-table] td:first-child {
+      width: 40% !important;
+      min-width: 6.5rem;
+      max-width: none !important;
+      white-space: normal !important;
+    }
+    #content table[data-ga4-news-table] th:nth-child(n + 2),
+    #content table[data-ga4-news-table] td:nth-child(n + 2) {
+      width: auto !important;
+      min-width: 3.35rem !important;
+      padding-left: 0.2rem !important;
+      padding-right: 0.2rem !important;
+      font-size: 9px;
+    }
+    #content table[data-ga4-news-table] .ga4-path-cell :is(a, span) {
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 3;
