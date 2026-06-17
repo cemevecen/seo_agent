@@ -994,7 +994,12 @@
     .mz-page .mz-chart-plot .scatterlayer .points path,
     .mz-page .mz-chart-plot .scatterlayers .trace .points path,
     .mz-page .mz-chart-plot .scatterlayer .lines path,
-    .mz-page .mz-chart-plot .scatterlayers .trace .lines path {
+    .mz-page .mz-chart-plot .scatterlayers .trace .lines path,
+    .mz-page .mz-chart-plot .scatterlayer .fills path,
+    .mz-page .mz-chart-plot .scatterlayers .trace .fills path {
+      pointer-events: none !important;
+    }
+    .mz-page .mz-chart-plot .hoverlayer {
       pointer-events: none !important;
     }
     .mz-page .mz-chart-plot .main-svg {
