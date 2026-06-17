@@ -16120,9 +16120,6 @@ from backend.services.gitlab_board import (
     fetch_project_board_async,
     get_board_column_orders,
     get_board_project_settings,
-    gitlab_api_v4_base,
-    gitlab_board_setup_status_async,
-    gitlab_web_origin,
     move_issue_async,
     reorder_issue_async,
     save_board_column_order,
@@ -16136,22 +16133,20 @@ from backend.services.gitlab_board import (
 @app.get("/boards", response_class=HTMLResponse)
 def page_boards(request: Request):
     """GitLab Kanban Board ana sayfası."""
+    token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
     projects = [
         {"name": "Döviz Web", "path": "nokta/doviz", "platform": "web", "product": "doviz"},
         {"name": "Döviz iOS", "path": "ios/doviz", "platform": "ios", "product": "doviz"},
         {"name": "Döviz Android", "path": "android/doviz", "platform": "android", "product": "doviz"},
         {"name": "Sinemalar Web", "path": "nokta/sinemalar", "platform": "web", "product": "sinemalar"},
     ]
-    browser_fb = os.environ.get("GITLAB_BOARDS_BROWSER_FALLBACK", "0").strip().lower()
     return templates.TemplateResponse(
         request, "pages/boards.html",
         context={
             "request": request,
             "projects": projects,
+            "token": token,
             "default_board_project": "ios/doviz",
-            "gitlab_api_base": gitlab_api_v4_base(),
-            "gitlab_web_origin": gitlab_web_origin(),
-            "gitlab_boards_browser_fallback": browser_fb not in ("0", "false", "no"),
         },
     )
 
@@ -16169,12 +16164,6 @@ async def api_boards_content(request: Request, project_path: str):
 async def api_boards_gitlab_ping():
     """Tarayıcıdan GitLab'e doğrudan gitmek yerine bağlantı kontrolü."""
     return JSONResponse(await fetch_gitlab_version_async())
-
-
-@app.get("/api/boards/setup-status")
-async def api_boards_setup_status():
-    """Boards kurulum: env + bağlantı (secret yok)."""
-    return JSONResponse(await gitlab_board_setup_status_async())
 
 
 @app.get("/api/boards/project-bundle")
