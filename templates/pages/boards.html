@@ -41,7 +41,7 @@
       <template x-if="vpnStatus === 'checking'">
         <span class="inline-flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
           <span class="inline-block h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-slate-600 animate-pulse"></span>
-          VPN kontrol ediliyor…
+          GitLab bağlantısı kontrol ediliyor…
         </span>
       </template>
       <template x-if="vpnStatus === 'on'">
@@ -50,13 +50,13 @@
             <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping"></span>
             <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
           </span>
-          VPN ON
+          GitLab erişilebilir
         </span>
       </template>
       <template x-if="vpnStatus === 'off'">
         <span class="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
           <span class="inline-block h-2.5 w-2.5 rounded-full bg-rose-500"></span>
-          VPN OFF
+          GitLab erişilemiyor
         </span>
       </template>
     </span>
@@ -65,7 +65,7 @@
   <div class="flex items-center gap-2 overflow-x-auto pb-2">
     <template x-for="project in configProjects" :key="project.path">
       <button
-        @click="activeProject = project.path"
+        @click="activeProject = project.path; fetchProjectData(project.path)"
         :class="tabButtonClass(project)"
         class="gl-project-tab relative inline-flex shrink-0 items-center gap-2.5 rounded-xl border px-3 py-2 text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 sm:px-4 sm:py-2.5"
         :title="tabSubtitle(project)"
@@ -130,6 +130,13 @@
       <div class="h-full">
         <div x-show="projectData[activeProject].error" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-400 mb-4">
           <p class="font-medium" x-text="projectData[activeProject].error"></p>
+          <p class="mt-2 text-xs opacity-90" x-show="vpnStatus === 'off'">
+            Sunucunun git.nokta.com'a erişmesi gerekir (Railway'de <code class="rounded bg-rose-100/80 px-1 dark:bg-rose-950/50">GITLAB_PRIVATE_TOKEN</code>). Bu gösterge tarayıcı VPN'inizi değil, panel sunucusunun GitLab bağlantısını yansıtır.
+          </p>
+        </div>
+
+        <div x-show="projectData[activeProject].issuesTruncated" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 mb-4">
+          Son 1 yıldaki issue listesi sayfa sınırına ulaştı; en eski kayıtlar gösterilmiyor olabilir. Yenile veya GitLab'de filtreleyin.
         </div>
 
         <div x-show="projectData[activeProject].loading && !projectData[activeProject].loaded && !projectData[activeProject].error" class="mt-20 text-center">
@@ -372,14 +379,35 @@
 
       initBoards() {
         this.configProjects.forEach(p => {
-          this.projectData[p.path] = { loading: false, loaded: false, error: null, board: null, lists: [], issues: [] };
+          this.projectData[p.path] = {
+            loading: false,
+            loaded: false,
+            error: null,
+            board: null,
+            lists: [],
+            issues: [],
+            issuesTruncated: false,
+          };
         });
         if (this.configProjects.length > 0) {
           const preferred = this.configProjects.find((p) => p.path === this.defaultProjectPath);
           this.activeProject = (preferred || this.configProjects[0]).path;
         }
         this.checkVpn();
-        this.configProjects.forEach(p => this.fetchProjectData(p.path));
+        if (this.activeProject) {
+          this.fetchProjectData(this.activeProject);
+        }
+      },
+
+      boardsFetch(url, timeoutMs) {
+        const ms = timeoutMs == null ? 70000 : timeoutMs;
+        const ctrl = new AbortController();
+        const timer = setTimeout(function () { ctrl.abort(); }, ms);
+        return fetch(url, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          signal: ctrl.signal,
+        }).finally(function () { clearTimeout(timer); });
       },
 
       refreshActiveProject() {
@@ -709,6 +737,9 @@
 
       friendlyFetchError(err) {
         const msg = (err && err.message) ? String(err.message) : '';
+        if (err && err.name === 'AbortError') {
+          return 'GitLab yanıtı zaman aşımına uğradı (70 sn). Tekrar deneyin; issue sayısı çok yüksekse Railway GITLAB erişimini kontrol edin.';
+        }
         if (/failed to fetch|networkerror|load failed|aborted/i.test(msg)) {
           return 'GitLab verisi alınamadı (ağ veya sunucu). Sayfayı yenileyin; sorun sürerse GITLAB_PRIVATE_TOKEN ve sunucunun git.nokta.com erişimini kontrol edin.';
         }
@@ -717,31 +748,30 @@
 
       async fetchProjectData(path, force) {
         const pd = this.projectData[path];
+        if (!pd) return;
         if (pd.loading) return;
         if (pd.loaded && !force) return;
-        
+
         pd.loading = true;
         pd.error = null;
 
         try {
+          await Promise.all([
+            this.loadBoardOrders(path),
+            this.loadBoardSortSettings(path),
+          ]);
           const fetchParams = this.gitlabFetchOrderForProject(path);
           const qs = new URLSearchParams({
             project_path: path,
             opened_order_by: fetchParams.order_by,
             opened_sort: fetchParams.sort,
           });
-          const [bundleRes, _orders, _sort] = await Promise.all([
-            fetch('/api/boards/project-bundle?' + qs.toString(), {
-              credentials: 'same-origin',
-              cache: 'no-store',
-            }),
-            this.loadBoardOrders(path),
-            this.loadBoardSortSettings(path),
-          ]);
+          const bundleRes = await this.boardsFetch('/api/boards/project-bundle?' + qs.toString(), 70000);
 
           const data = await bundleRes.json().catch(function () { return {}; });
           if (!bundleRes.ok || data.error) {
-            throw new Error(data.error || data.detail || 'GitLab verisi yüklenemedi');
+            const detail = data.detail ? String(data.detail) : '';
+            throw new Error(data.error + (detail ? ' — ' + detail : '') || 'GitLab verisi yüklenemedi');
           }
           this.vpnStatus = 'on';
 
@@ -750,6 +780,7 @@
           pd.board = data.board;
           const openedIssues = data.opened_issues || [];
           const closedIssues = data.closed_issues || [];
+          pd.issuesTruncated = !!data.issues_truncated;
           let actualLists = pd.board.lists.map(l => ({
             ...l, 
             isVirtual: false, 

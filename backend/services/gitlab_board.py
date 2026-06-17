@@ -12,6 +12,9 @@ from backend.models import GitlabBoardIssueOrder, GitlabBoardProjectSettings
 LOGGER = logging.getLogger(__name__)
 
 GITLAB_URL = "https://git.nokta.com/api/v4"
+# Railway / tarayıcı zaman aşımı: aşırı sayfalama sonsuz yükleme yapar
+MAX_OPENED_ISSUE_PAGES = 25
+MAX_CLOSED_ISSUE_PAGES = 8
 
 BOARD_SORT_MODES: dict[str, dict[str, str]] = {
     "manual": {"label": "Manuel (sürükle-bırak)", "gitlab_order_by": "relative_position"},
@@ -76,8 +79,9 @@ async def fetch_all_issues_async(
     order_by: str = "updated_at",
     sort: str = "desc",
     updated_after: str | None = None,
+    max_pages: int | None = None,
     client: httpx.AsyncClient | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], bool]:
     """GitLab issue listesi — sayfalı."""
     token = get_gitlab_token()
     if not token:
@@ -89,8 +93,9 @@ async def fetch_all_issues_async(
     all_issues: list[dict[str, Any]] = []
     page = 1
 
-    async def _paginate(c: httpx.AsyncClient) -> list[dict[str, Any]]:
+    async def _paginate(c: httpx.AsyncClient) -> tuple[list[dict[str, Any]], bool]:
         out: list[dict[str, Any]] = []
+        truncated = False
         p = 1
         while True:
             url = (
@@ -107,13 +112,16 @@ async def fetch_all_issues_async(
             out.extend(data)
             if len(data) < 100:
                 break
+            if max_pages is not None and p >= max_pages:
+                truncated = True
+                break
             p += 1
-        return out
+        return out, truncated
 
     if client is not None:
         return await _paginate(client)
 
-    async with httpx.AsyncClient(timeout=60.0) as c:
+    async with httpx.AsyncClient(timeout=45.0) as c:
         return await _paginate(c)
 
 
@@ -132,7 +140,8 @@ async def fetch_board_project_bundle_async(
     boards_url = f"{GITLAB_URL}/projects/{encoded_path}/boards"
     headers = _headers()
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    timeout = httpx.Timeout(12.0, read=45.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             resp_boards = await client.get(boards_url, headers=headers)
             if resp_boards.status_code != 200:
@@ -149,6 +158,7 @@ async def fetch_board_project_bundle_async(
                 "opened",
                 order_by=opened_order_by,
                 sort=opened_sort,
+                max_pages=MAX_OPENED_ISSUE_PAGES,
                 client=client,
             )
             closed_task = fetch_all_issues_async(
@@ -156,15 +166,21 @@ async def fetch_board_project_bundle_async(
                 "closed",
                 order_by="updated_at",
                 sort="desc",
+                max_pages=MAX_CLOSED_ISSUE_PAGES,
                 client=client,
             )
-            opened_issues, closed_issues = await asyncio.gather(opened_task, closed_task)
+            (opened_issues, opened_truncated), (closed_issues, closed_truncated) = await asyncio.gather(
+                opened_task, closed_task
+            )
 
             return {
                 "board": boards[0],
                 "opened_issues": opened_issues,
                 "closed_issues": closed_issues,
                 "project_path": project_path,
+                "issues_truncated": bool(opened_truncated or closed_truncated),
+                "opened_truncated": opened_truncated,
+                "closed_truncated": closed_truncated,
             }
         except Exception as exc:
             LOGGER.exception("GitLab board bundle failed [%s]: %s", project_path, exc)
