@@ -30,7 +30,9 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 APP_MEMBER_COOKIE = "seo_app_member"
+PANEL_MEMBER_SEEN_COOKIE = "seo_panel_member_seen"
 MEMBER_SESSION_DAYS = 30
+PANEL_MEMBER_SEEN_DAYS = 400
 MEMBER_OAUTH_SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
@@ -326,6 +328,33 @@ def is_membership_admin(request: Request) -> bool:
     return False
 
 
+def panel_member_seen_on_request(request: Request) -> bool:
+    return (request.cookies.get(PANEL_MEMBER_SEEN_COOKIE) or "").strip() == "1"
+
+
+def member_oauth_authorization_extra_params(request: Request) -> dict[str, str]:
+    """İlk Google girişinde hesap seçimi zorunlu; daha önce panel oturumu açılmışsa tekrar sorma."""
+    if panel_member_seen_on_request(request):
+        return {}
+    return {"prompt": "select_account"}
+
+
+def set_panel_member_seen_cookie(response, request: Request) -> None:
+    response.set_cookie(
+        key=PANEL_MEMBER_SEEN_COOKIE,
+        value="1",
+        httponly=True,
+        secure=member_cookie_secure(request),
+        samesite="lax",
+        max_age=PANEL_MEMBER_SEEN_DAYS * 86400,
+        path="/",
+    )
+
+
+def clear_panel_member_seen_cookie(response) -> None:
+    response.delete_cookie(PANEL_MEMBER_SEEN_COOKIE, path="/")
+
+
 def member_cookie_secure(request: Request) -> bool:
     return request.url.scheme == "https"
 
@@ -341,10 +370,12 @@ def set_member_session_cookie(response, request: Request, member: AppMember) -> 
         max_age=MEMBER_SESSION_DAYS * 86400,
         path="/",
     )
+    set_panel_member_seen_cookie(response, request)
 
 
 def clear_member_session_cookie(response) -> None:
     response.delete_cookie(APP_MEMBER_COOKIE, path="/")
+    clear_panel_member_seen_cookie(response)
 
 
 def fetch_google_userinfo(access_token: str) -> dict[str, Any]:

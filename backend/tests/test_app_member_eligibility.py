@@ -17,3 +17,19 @@ def test_redirect_mismatch_message():
     msg = ama.format_member_oauth_login_error("redirect_uri_mismatch", request=None)
     assert "redirect_uri_mismatch" in msg
     assert "/auth/google/callback" in msg
+
+
+def test_oauth_prompt_first_visit():
+    from unittest.mock import MagicMock
+
+    req = MagicMock()
+    req.cookies = {}
+    assert ama.member_oauth_authorization_extra_params(req) == {"prompt": "select_account"}
+
+
+def test_oauth_prompt_returning_browser():
+    from unittest.mock import MagicMock
+
+    req = MagicMock()
+    req.cookies = {ama.PANEL_MEMBER_SEEN_COOKIE: "1"}
+    assert ama.member_oauth_authorization_extra_params(req) == {}

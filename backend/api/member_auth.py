@@ -55,15 +55,18 @@ def google_member_oauth_start(request: Request, next: str = "/"):
             status_code=503,
         )
     safe_next = _safe_next_path(next)
+    if ama.is_member_authenticated(request):
+        return RedirectResponse(url=safe_next, status_code=303)
     state = ama.encode_oauth_state(safe_next, request=request)
     flow = ama.build_member_oauth_flow(state=state, request=request)
     redirect_uri = ama.get_member_oauth_redirect_uri(request=request)
     LOGGER.info("member oauth start redirect_uri=%s", redirect_uri)
-    auth_url, _ = flow.authorization_url(
-        access_type="online",
-        prompt="select_account",
-        include_granted_scopes="false",
-    )
+    auth_kwargs: dict[str, str] = {
+        "access_type": "online",
+        "include_granted_scopes": "false",
+    }
+    auth_kwargs.update(ama.member_oauth_authorization_extra_params(request))
+    auth_url, _ = flow.authorization_url(**auth_kwargs)
     return RedirectResponse(auth_url, status_code=302)
 
 
