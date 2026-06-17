@@ -5762,13 +5762,13 @@
     "mz-chart-quality": 1,
   };
 
-  // Aktif dala göre platform: ios / android / all (genel)
+  // Aktif dal: yalnızca native uygulama akışlarında sürüm işaretleri (web/mweb yok).
   function mzActivePlatform() {
     var s = state.activeStream || {};
-    var key = String(s.key || s.branch || "").toLowerCase();
-    if (key.indexOf("ios") >= 0) return "ios";
-    if (key.indexOf("android") >= 0) return "android";
-    return "all";
+    var branch = String(s.branch || "").toLowerCase();
+    if (branch === "ios") return "ios";
+    if (branch === "android") return "android";
+    return null;
   }
 
   // App sürüm yayın listesini bir kez yükle (iOS/Android), paylaş.
@@ -5794,12 +5794,8 @@
     ensureAppReleaseStore().then(function (store) {
       if (!store) return;
       var plat = mzActivePlatform();
-      if (plat === "all") {
-        window.AppReleaseMarkers.decorate(el, "ios", store);
-        window.AppReleaseMarkers.decorate(el, "android", store);
-      } else {
-        window.AppReleaseMarkers.decorate(el, plat, store);
-      }
+      if (!plat) return;
+      window.AppReleaseMarkers.decorate(el, plat, store);
     });
   }
 
