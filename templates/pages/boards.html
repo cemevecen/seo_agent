@@ -299,6 +299,101 @@
       ],
       vpnStatus: 'checking',
 
+      gitlabHeaders(json) {
+        const h = { 'PRIVATE-TOKEN': this.token };
+        if (json) h['Content-Type'] = 'application/json';
+        return h;
+      },
+
+      async gitlabReorderIssue(projectPath, issueIid, { move_after_id, move_before_id } = {}) {
+        if (!this.token) return null;
+        const enc = encodeURIComponent(projectPath);
+        const iid = parseInt(issueIid, 10);
+        const params = new URLSearchParams();
+        if (move_after_id != null) params.set('move_after_id', String(move_after_id));
+        if (move_before_id != null) params.set('move_before_id', String(move_before_id));
+        const qs = params.toString();
+        const url = `${this.baseUrl}/projects/${enc}/issues/${iid}/reorder` + (qs ? `?${qs}` : '');
+        const res = await fetch(url, { method: 'PUT', headers: this.gitlabHeaders() });
+        if (!res.ok) return null;
+        if (res.status === 204) {
+          const ref = await fetch(`${this.baseUrl}/projects/${enc}/issues/${iid}`, {
+            headers: this.gitlabHeaders(),
+          });
+          return ref.ok ? ref.json() : null;
+        }
+        const text = await res.text();
+        if (text && text.trim()) {
+          try { return JSON.parse(text); } catch (_) {}
+        }
+        return null;
+      },
+
+      async syncColumnOrderToGitLab(projectPath, targetOrdered, currentOrdered) {
+        const target = targetOrdered || [];
+        const current = currentOrdered || [];
+        if (target.length <= 1) {
+          return { synced: 0, failed: 0, skipped: target.length };
+        }
+        const targetIids = target.map((x) => parseInt(x.iid, 10)).filter((n) => !isNaN(n));
+        const currentIids = current.map((x) => parseInt(x.iid, 10)).filter((n) => !isNaN(n));
+        let startAt = 0;
+        while (
+          startAt < targetIids.length &&
+          startAt < currentIids.length &&
+          targetIids[startAt] === currentIids[startAt]
+        ) {
+          startAt += 1;
+        }
+        if (startAt >= target.length) {
+          return { synced: 0, failed: 0, skipped: target.length };
+        }
+        let synced = 0;
+        let failed = 0;
+        for (let i = startAt; i < target.length; i++) {
+          const item = target[i];
+          const iid = parseInt(item.iid, 10);
+          if (isNaN(iid)) continue;
+          let move_after_id = null;
+          let move_before_id = null;
+          if (i === 0) {
+            if (current[0] && current[0].id != null) move_before_id = parseInt(current[0].id, 10);
+          } else {
+            const prev = target[i - 1];
+            if (prev && prev.id != null) move_after_id = parseInt(prev.id, 10);
+          }
+          if (move_after_id == null && move_before_id == null) continue;
+          const updated = await this.gitlabReorderIssue(projectPath, iid, {
+            move_after_id,
+            move_before_id,
+          });
+          if (updated) synced += 1;
+          else failed += 1;
+        }
+        return { synced, failed, skipped: startAt };
+      },
+
+      async gitlabUpdateIssue(projectPath, issueIid, { add_labels, remove_labels, state_event } = {}) {
+        if (!this.token) return null;
+        const enc = encodeURIComponent(projectPath);
+        const url = `${this.baseUrl}/projects/${enc}/issues/${parseInt(issueIid, 10)}`;
+        const body = new URLSearchParams();
+        if (add_labels && add_labels.length) body.set('add_labels', add_labels.join(','));
+        if (remove_labels && remove_labels.length) body.set('remove_labels', remove_labels.join(','));
+        if (state_event === 'close' || state_event === 'reopen') body.set('state_event', state_event);
+        if (![...body.keys()].length) return null;
+        const res = await fetch(url, { method: 'PUT', headers: { 'PRIVATE-TOKEN': this.token }, body });
+        if (!res.ok) {
+          let detail = 'GitLab issue güncellenemedi';
+          try {
+            const err = await res.json();
+            if (err && (err.message || err.error)) detail = String(err.message || err.error);
+          } catch (_) {}
+          throw new Error(detail);
+        }
+        return res.json();
+      },
+
       tabTheme(project) {
         const key = (project && project.path) || '';
         const themes = {
@@ -583,19 +678,13 @@
           }
           if (!columns.length) return;
 
-          const res = await fetch('/api/boards/sync-sort', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project_path: path, columns }),
-          });
-          if (!res.ok) {
-            console.warn('GitLab sort sync HTTP', res.status);
-            return;
+          let totalFailed = 0;
+          for (const col of columns) {
+            const result = await this.syncColumnOrderToGitLab(path, col.ordered, col.current);
+            totalFailed += result.failed || 0;
           }
-          const data = await res.json();
-          if (data && data.failed > 0) {
-            console.warn('GitLab sort sync partial failure', data);
+          if (totalFailed > 0) {
+            console.warn('GitLab sort sync partial failure', { failed: totalFailed });
           }
         } catch (e) {
           console.warn('GitLab sort sync failed', e);
@@ -777,22 +866,7 @@
       },
 
       async reorderIssueViaBackend(projectPath, issueIid, { move_after_id, move_before_id } = {}) {
-        const body = {
-          project_path: projectPath,
-          issue_iid: parseInt(issueIid, 10),
-        };
-        if (move_after_id != null) body.move_after_id = move_after_id;
-        if (move_before_id != null) body.move_before_id = move_before_id;
-
-        const res = await fetch('/api/boards/reorder', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data.issue || null;
+        return this.gitlabReorderIssue(projectPath, issueIid, { move_after_id, move_before_id });
       },
 
       getReorderParamsFromList(listEl, issueIid, projectPath) {
@@ -963,35 +1037,15 @@
                   labelsToRemove = labelsToRemove.filter((l) => l !== addLabel);
                 }
 
-                const payload = {
-                  project_path: projectPath,
-                  issue_iid: parseInt(issueIid, 10),
-                  from_label: isFromVirtual || isFromClosed ? '' : fromLabel,
-                  to_label: addLabel,
+                let stateEvent = null;
+                if (isToClosed && !isFromClosed) stateEvent = 'close';
+                else if (!isToClosed && isFromClosed) stateEvent = 'reopen';
+                const addLabels = addLabel ? [addLabel] : [];
+                const updated = await this.gitlabUpdateIssue(projectPath, issueIid, {
+                  add_labels: addLabels,
                   remove_labels: labelsToRemove,
-                };
-                if (isToClosed && !isFromClosed) payload.state_event = 'close';
-                else if (!isToClosed && isFromClosed) payload.state_event = 'reopen';
-
-                const res = await fetch('/api/boards/move', {
-                  method: 'POST',
-                  credentials: 'same-origin',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload),
+                  state_event: stateEvent,
                 });
-                if (!res.ok) {
-                  let msg = 'Durum/etiket güncellenemedi';
-                  try {
-                    const errBody = await res.json();
-                    if (errBody && errBody.detail) msg = errBody.detail;
-                    else if (errBody && errBody.error) msg = errBody.error;
-                  } catch (_) {}
-                  if (res.status === 401) msg = 'Oturum süresi doldu — sayfayı yenileyin';
-                  throw new Error(msg);
-                }
-
-                const moveData = await res.json();
-                const updated = moveData.issue;
                 if (updated) {
                   const issueIndex = pd.issues.findIndex(i => String(i.iid) === String(issueIid));
                   if (issueIndex > -1) {
@@ -1000,8 +1054,8 @@
                 } else {
                   const issueIndex = pd.issues.findIndex(i => String(i.iid) === String(issueIid));
                   if (issueIndex > -1) {
-                    if (payload.state_event === 'close') pd.issues[issueIndex].state = 'closed';
-                    if (payload.state_event === 'reopen') pd.issues[issueIndex].state = 'opened';
+                    if (stateEvent === 'close') pd.issues[issueIndex].state = 'closed';
+                    if (stateEvent === 'reopen') pd.issues[issueIndex].state = 'opened';
                     let labels = pd.issues[issueIndex].labels || [];
                     labels = labels.filter((l) => !boardLabels.includes(l));
                     if (addLabel && !labels.includes(addLabel)) labels.push(addLabel);
