@@ -116,8 +116,8 @@ def is_email_eligible_for_membership(email: str) -> bool:
 def membership_rejection_message(email: str) -> str:
     em = _normalize_email(email)
     return (
-        "Bu panel yalnızca @nokta.com e-posta adresleri içindir (istisna: cemevecen@gmail.com). "
-        f"Seçilen hesap: {em or '—'}"
+        "Bu panel yalnızca @nokta.com e-posta adresleri içindir. "
+        f"Giriş yapmaya çalıştığınız hesap: {em or '—'}"
     )
 
 
