@@ -70,6 +70,7 @@ from backend.collectors.search_console import (
 )
 from backend.collectors.url_inspection import collect_url_inspection
 from backend.config import is_railway_runtime, settings
+from backend.services.panel_auth import panel_session_granted
 from backend.database import SessionLocal, _IS_SQLITE, init_db, get_db
 from backend.models import (
     Alert, AlertLog, CollectorRun, CruxHistorySnapshot, ExternalOnboardingJob,
@@ -1400,19 +1401,34 @@ def _admin_auth_active() -> bool:
 
 
 def _request_host(request: Request) -> str:
-    raw = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").strip()
-    return raw.split(",")[0].strip().lower().split(":")[0]
+    from backend.services.panel_auth import request_host
+
+    return request_host(request)
 
 
 def _auth_gate_enabled(request: Request) -> bool:
-    """HTTP isteği için panel kapısı açık mı (canlı host'ta ADMIN_AUTH_ENFORCED=false yok sayılır)."""
-    from backend.config import host_requires_panel_auth
+    from backend.services.panel_auth import auth_gate_enabled
 
-    if is_railway_runtime():
-        return True
-    if host_requires_panel_auth(_request_host(request)):
-        return True
-    return bool(settings.admin_auth_enforced)
+    return auth_gate_enabled(request)
+
+
+def _panel_redirect_login() -> RedirectResponse:
+    return RedirectResponse(url="/admin/login", status_code=303)
+
+
+def _ensure_panel_session(request: Request) -> RedirectResponse | None:
+    """Middleware dışı savunma: oturum yoksa login."""
+    if not _auth_gate_enabled(request):
+        return None
+    with SessionLocal() as db:
+        password_ready = _admin_password_configured(db)
+    if panel_session_granted(
+        password_ready=password_ready,
+        admin_authenticated=_is_admin_authenticated(request),
+        member_authenticated=_app_member_authenticated(request),
+    ):
+        return None
+    return _panel_redirect_login()
 
 
 jinja_env.globals["admin_access_ui"] = _admin_auth_active
@@ -1467,8 +1483,12 @@ async def ip_allowlist_middleware(request: Request, call_next):
     if not password_ready and _is_local_dev_first_password_client(request):
         if (path == "/admin/password" and request.method == "POST") or path.startswith("/settings"):
             return await call_next(request)
-    panel_authed = _is_admin_authenticated(request) or _app_member_authenticated(request)
-    if panel_authed and (password_ready or _app_member_authenticated(request)):
+    panel_authed = panel_session_granted(
+        password_ready=password_ready,
+        admin_authenticated=_is_admin_authenticated(request),
+        member_authenticated=_app_member_authenticated(request),
+    )
+    if panel_authed:
         _record_session(request)
         member = _app_member_from_request(request)
         if member is not None:
@@ -1516,7 +1536,9 @@ async def ip_allowlist_middleware(request: Request, call_next):
                 "client_ip": _extract_client_ip(request),
             },
         )
-    return RedirectResponse(url="/admin/login", status_code=303)
+    resp = RedirectResponse(url="/admin/login", status_code=303)
+    resp.headers["X-Seo-Panel-Auth"] = "required"
+    return resp
 
 # (legacy) Router include blokları yukarı taşındı.
 
@@ -7538,6 +7560,9 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
 @app.get("/")
 def dashboard(request: Request):
     """Dashboard ilk yüklemesi: slim veri ile anında render, site kartları HTMX lazy load."""
+    denied = _ensure_panel_session(request)
+    if denied is not None:
+        return denied
     with SessionLocal() as db:
         recent_alerts = get_recent_alerts(db, limit=100, include_external=False)
         external_ids = _external_site_ids(db)
@@ -9723,7 +9748,7 @@ def admin_login_page(request: Request):
         "admin_login.html",
         context={
             "request": request,
-            "site_name": "Admin Login",
+            "site_name": "Giriş — SEO Agent",
             "password_configured": configured,
             "client_ip": _extract_client_ip(request),
             "local_first_setup": (not configured) and _is_local_dev_first_password_client(request),
@@ -9731,6 +9756,7 @@ def admin_login_page(request: Request):
             "google_member_oauth_redirect": ama.get_member_oauth_redirect_uri(request=request),
             "oauth_error": oauth_display,
         },
+        headers={"Cache-Control": "no-store"},
     )
 
 
