@@ -8340,35 +8340,30 @@ def _live_position_drop_sites(db, domain: str | None = None) -> list[dict]:
 
 
 def _sc_alert_scan_note(db) -> str:
-    """Son SC veri zamanı + gece uyarı taraması — üst canlı liste bağlamı."""
-    from backend.services.alert_engine import get_latest_search_console_alert_run, list_sc_position_changes_7d
+    """Üst canlı liste — tek satır güncelleme tarihi (TSİ)."""
+    from backend.services.alert_engine import _sc_position_data_as_of, get_latest_search_console_alert_run
     from backend.services.timezone_utils import format_local_datetime
 
-    parts: list[str] = []
+    best_raw = None
     for site_id in (1, 2):
         site_obj = _home_get_site(db, site_id)
         if site_obj is None:
             continue
-        name = site_obj.display_name or site_obj.domain
-        pos_payload = list_sc_position_changes_7d(db, site_obj, limit=1)
-        data_ts = pos_payload.get("as_of_label")
+        raw, _, _ = _sc_position_data_as_of(db, site_obj)
+        if raw is not None:
+            if best_raw is None or raw > best_raw:
+                best_raw = raw
+            continue
         run = get_latest_search_console_alert_run(db, site_id)
-        run_ts = None
         if run is not None and run.finished_at is not None:
-            run_ts = format_local_datetime(run.finished_at, fmt="%d.%m.%Y %H:%M", include_suffix=True)
-        chunk = name + ":"
-        if data_ts:
-            chunk += f" SC verisi {data_ts}"
-        else:
-            chunk += " SC verisi yok"
-        if run_ts:
-            chunk += f" · gece taraması {run_ts}"
-        else:
-            chunk += " · gece taraması kaydı yok"
-        parts.append(chunk)
-    if not parts:
-        return "SC pozisyon listesi için veri yok — gece yenilemesi veya «Yenile» ile güncellenir."
-    return " · ".join(parts)
+            rt = run.finished_at
+            if best_raw is None or rt > best_raw:
+                best_raw = rt
+
+    if best_raw is None:
+        return ""
+    label = format_local_datetime(best_raw, fmt="%d.%m.%Y %H:%M", include_suffix=True)
+    return label or ""
 
 
 def home_summary_payload(db) -> dict:

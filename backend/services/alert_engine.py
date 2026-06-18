@@ -10,12 +10,13 @@ import re
 import time
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 
 LOGGER = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
-from backend.models import Alert, AlertLog, CollectorRun, Metric, Site
+from backend.models import Alert, AlertLog, CollectorRun, Metric, SearchConsoleQuerySnapshot, Site
 
 # Search Console alert taraması (collector strategy=alerts) ile üretilen log tipleri.
 SEARCH_CONSOLE_QUERY_ALERT_TYPES: frozenset[str] = frozenset(
@@ -476,19 +477,19 @@ def _pad_position_change_rows(items: list[dict[str, Any]], row_limit: int) -> li
 
 def _sc_position_data_as_of(db: Session, site: Site) -> tuple[Any, str | None, str | None]:
     from backend.services.timezone_utils import format_local_datetime, parse_datetime_like, to_local_datetime
-    from backend.services.warehouse import get_latest_search_console_rows
 
-    as_of_raw = None
-    try:
-        cur_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
-        for r in cur_rows:
-            ca = r.get("collected_at")
-            if ca is None:
-                continue
-            if as_of_raw is None or ca > as_of_raw:
-                as_of_raw = ca
-    except Exception:
-        as_of_raw = None
+    as_of_raw = (
+        db.query(func.max(SearchConsoleQuerySnapshot.collected_at))
+        .filter(
+            SearchConsoleQuerySnapshot.site_id == site.id,
+            SearchConsoleQuerySnapshot.data_scope == "current_7d",
+        )
+        .scalar()
+    )
+    if as_of_raw is None:
+        run = get_latest_search_console_alert_run(db, site.id)
+        if run is not None and run.finished_at is not None:
+            as_of_raw = run.finished_at
 
     as_of_label = (
         format_local_datetime(as_of_raw, fmt="%d.%m.%Y %H:%M", include_suffix=True)

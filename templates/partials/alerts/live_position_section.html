@@ -2,9 +2,8 @@
   <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
     <div>
       <h3 class="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">Canlı pozisyon değişimleri</h3>
-      <p class="mt-0.5 text-[11px] text-slate-600 dark:text-slate-400">Düşüş ve yükseliş · son 7 gün vs önceki 7 gün · her gece SC yenilemesi ile güncellenir</p>
       {% if sc_scan_note %}
-        <p class="mt-1 text-[10px] text-slate-500 dark:text-slate-500">{{ sc_scan_note }}</p>
+        <p class="mt-1 text-[10px] tabular-nums text-slate-500 dark:text-slate-500">{{ sc_scan_note }}</p>
       {% endif %}
     </div>
     <span class="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">Canlı</span>
