@@ -432,6 +432,7 @@ def _position_drop_from_row(row: dict, *, min_diff: float) -> dict[str, Any] | N
         "pos_cur": f"{cur:.1f}",
         "diff_fmt": f"{diff:.1f}",
         "diff": diff,
+        "direction": "drop",
         "clicks": clicks,
         "clicks_fmt": _format_number(clicks),
         "impressions_fmt": _format_number(impressions),
@@ -439,49 +440,43 @@ def _position_drop_from_row(row: dict, *, min_diff: float) -> dict[str, Any] | N
     }
 
 
-def list_sc_position_drops_7d(
-    db: Session,
-    site: Site,
-    *,
-    limit: int = HOME_POSITION_DROPS_ROW_LIMIT,
-    min_diff: float = 0.1,
-) -> dict[str, Any]:
-    """Ana sayfa: M+Web ağırlıklı pozisyon düşüşleri, etki sırası.
+def _position_rise_from_row(row: dict, *, min_diff: float) -> dict[str, Any] | None:
+    """Sıralama iyileşmesi (pozisyon sayısı düştü)."""
+    prev = float(row.get("previous_position") or 0.0)
+    cur = float(row.get("position") or 0.0)
+    if prev <= 0 or cur <= 0 or cur >= prev:
+        return None
+    diff = prev - cur
+    if diff < min_diff:
+        return None
+    clicks = float(row.get("clicks") or 0.0)
+    impressions = float(row.get("impressions") or 0.0)
+    impact = diff * max(clicks, 1.0)
+    return {
+        "query": str(row.get("query") or ""),
+        "pos_prev": f"{prev:.1f}",
+        "pos_cur": f"{cur:.1f}",
+        "diff_fmt": f"{diff:.1f}",
+        "diff": diff,
+        "direction": "rise",
+        "clicks": clicks,
+        "clicks_fmt": _format_number(clicks),
+        "impressions_fmt": _format_number(impressions),
+        "impact": impact,
+    }
 
-    Önce top 50 havuzuna bakılır; satır sayısı dolmazsa tüm sorgulara genişletilir
-  (döviz/sinemalar kartlarında aynı satır limiti).
-    """
-    from backend.services.timezone_utils import format_local_datetime
+
+def _pad_position_change_rows(items: list[dict[str, Any]], row_limit: int) -> list[dict[str, Any]]:
+    out = items[:row_limit]
+    if out:
+        while len(out) < row_limit:
+            out.append({"is_pad": True})
+    return out
+
+
+def _sc_position_data_as_of(db: Session, site: Site) -> tuple[Any, str | None, str | None]:
+    from backend.services.timezone_utils import format_local_datetime, parse_datetime_like, to_local_datetime
     from backend.services.warehouse import get_latest_search_console_rows
-
-    data = _get_top_50_keywords_with_changes(db, site)
-    row_limit = max(1, int(limit))
-    seen_queries: set[str] = set()
-    ordered_rows: list[dict] = []
-    for row in (data.get("top_50") or []):
-        q = str(row.get("query") or "").strip().lower()
-        if not q or q in seen_queries:
-            continue
-        seen_queries.add(q)
-        ordered_rows.append(row)
-    for row in data.get("all_queries") or []:
-        q = str(row.get("query") or "").strip().lower()
-        if not q or q in seen_queries:
-            continue
-        seen_queries.add(q)
-        ordered_rows.append(row)
-
-    drops: list[dict[str, Any]] = []
-    for row in ordered_rows:
-        item = _position_drop_from_row(row, min_diff=min_diff)
-        if item:
-            drops.append(item)
-
-    drops.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
-    drops = drops[:row_limit]
-    if drops:
-        while len(drops) < row_limit:
-            drops.append({"is_pad": True})
 
     as_of_raw = None
     try:
@@ -500,15 +495,78 @@ def list_sc_position_drops_7d(
         if as_of_raw is not None
         else None
     )
+    as_of_iso = None
+    if as_of_raw is not None:
+        parsed = parse_datetime_like(as_of_raw)
+        local_dt = to_local_datetime(parsed) if parsed is not None else None
+        if local_dt is not None:
+            as_of_iso = local_dt.isoformat(timespec="seconds")
+    return as_of_raw, as_of_label, as_of_iso
+
+
+def list_sc_position_changes_7d(
+    db: Session,
+    site: Site,
+    *,
+    limit: int = HOME_POSITION_DROPS_ROW_LIMIT,
+    min_diff: float = 0.1,
+) -> dict[str, Any]:
+    """M+Web ağırlıklı pozisyon düşüş ve yükselişleri (7g vs önceki 7g)."""
+    data = _get_top_50_keywords_with_changes(db, site)
+    row_limit = max(1, int(limit))
+    seen_queries: set[str] = set()
+    ordered_rows: list[dict] = []
+    for row in (data.get("top_50") or []):
+        q = str(row.get("query") or "").strip().lower()
+        if not q or q in seen_queries:
+            continue
+        seen_queries.add(q)
+        ordered_rows.append(row)
+    for row in data.get("all_queries") or []:
+        q = str(row.get("query") or "").strip().lower()
+        if not q or q in seen_queries:
+            continue
+        seen_queries.add(q)
+        ordered_rows.append(row)
+
+    drops: list[dict[str, Any]] = []
+    rises: list[dict[str, Any]] = []
+    for row in ordered_rows:
+        drop_item = _position_drop_from_row(row, min_diff=min_diff)
+        if drop_item:
+            drops.append(drop_item)
+        rise_item = _position_rise_from_row(row, min_diff=min_diff)
+        if rise_item:
+            rises.append(rise_item)
+
+    drops.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
+    rises.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
+    drops = _pad_position_change_rows(drops, row_limit)
+    rises = _pad_position_change_rows(rises, row_limit)
+
+    _as_of_raw, as_of_label, as_of_iso = _sc_position_data_as_of(db, site)
 
     return {
         "drops": drops,
+        "rises": rises,
         "as_of_label": as_of_label,
+        "as_of_iso": as_of_iso,
         "scope_label": "Mobil+Web (gösterim ağırlıklı) · önce Top 50, sonra diğer sorgular",
         "row_limit": row_limit,
         "period_label": "Son 7 gün vs önceki 7 gün",
         "sort_label": "Sıra: pozisyon farkı × tıklama",
     }
+
+
+def list_sc_position_drops_7d(
+    db: Session,
+    site: Site,
+    *,
+    limit: int = HOME_POSITION_DROPS_ROW_LIMIT,
+    min_diff: float = 0.1,
+) -> dict[str, Any]:
+    """Geriye dönük uyumluluk — düşüş listesi + meta (yükselişler `rises` anahtarında)."""
+    return list_sc_position_changes_7d(db, site, limit=limit, min_diff=min_diff)
 
 
 def list_live_position_alert_rows(
@@ -517,7 +575,7 @@ def list_live_position_alert_rows(
     domain: str | None = None,
     site_ids: tuple[int, ...] = (1, 2),
 ) -> list[dict[str, Any]]:
-    """/alerts alt listesi — üstteki canlı pozisyon düşüşleri ile aynı satırlar ve sıra."""
+    """/alerts alt listesi — üstteki canlı düşüş/yükseliş satırları ile aynı veri ve sıra."""
     dom = (domain or "").strip()
     rows_out: list[dict[str, Any]] = []
     for site_id in site_ids:
@@ -526,16 +584,19 @@ def list_live_position_alert_rows(
             continue
         if dom and site_obj.domain != dom:
             continue
-        payload = list_sc_position_drops_7d(db, site_obj)
+        payload = list_sc_position_changes_7d(db, site_obj)
         as_of_label = payload.get("as_of_label")
+        as_of_iso = payload.get("as_of_iso") or datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+        triggered_display = as_of_label or "Canlı SC"
+        live_rows: list[dict[str, Any]] = []
         for idx, drop in enumerate(payload.get("drops") or []):
             if drop.get("is_pad"):
                 continue
             diff = float(drop.get("diff") or 0.0)
             impact = float(drop.get("impact") or 0.0)
-            rows_out.append(
+            live_rows.append(
                 {
-                    "id": f"live-pos-{site_id}-{idx}",
+                    "id": f"live-pos-drop-{site_id}-{idx}",
                     "alert_id": None,
                     "domain": site_obj.domain,
                     "alert_type": "search_console_position_drop",
@@ -544,21 +605,56 @@ def list_live_position_alert_rows(
                     "display_query": str(drop.get("query") or ""),
                     "display_metric": (
                         f"Pozisyon {drop.get('pos_prev')} → {drop.get('pos_cur')} | "
-                        f"Fark <span class=\"text-rose-600 dark:text-rose-400\">+{drop.get('diff_fmt')}</span>"
+                        f"Düşüş <span class=\"text-rose-600 dark:text-rose-400\">+{drop.get('diff_fmt')}</span>"
                         f" · {drop.get('clicks_fmt') or '0'} tık · 7g"
                     ),
                     "display_tone": "sky",
                     "display_device_code": "",
-                    "triggered_at": as_of_label or "Canlı SC",
-                    "triggered_at_iso": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+                    "triggered_at": triggered_display,
+                    "triggered_at_iso": as_of_iso,
                     "sent_mail": None,
                     "metric_type": "Pozisyon",
                     "is_external": False,
                     "delta_numeric": diff,
                     "sort_score": impact,
                     "is_live_position": True,
+                    "position_direction": "drop",
                 }
             )
+        for idx, rise in enumerate(payload.get("rises") or []):
+            if rise.get("is_pad"):
+                continue
+            diff = float(rise.get("diff") or 0.0)
+            impact = float(rise.get("impact") or 0.0)
+            live_rows.append(
+                {
+                    "id": f"live-pos-rise-{site_id}-{idx}",
+                    "alert_id": None,
+                    "domain": site_obj.domain,
+                    "alert_type": "search_console_position_rise",
+                    "message": "",
+                    "display_title": "",
+                    "display_query": str(rise.get("query") or ""),
+                    "display_metric": (
+                        f"Pozisyon {rise.get('pos_prev')} → {rise.get('pos_cur')} | "
+                        f"Yükseliş <span class=\"text-emerald-600 dark:text-emerald-400\">−{rise.get('diff_fmt')}</span>"
+                        f" · {rise.get('clicks_fmt') or '0'} tık · 7g"
+                    ),
+                    "display_tone": "sky",
+                    "display_device_code": "",
+                    "triggered_at": triggered_display,
+                    "triggered_at_iso": as_of_iso,
+                    "sent_mail": None,
+                    "metric_type": "Pozisyon",
+                    "is_external": False,
+                    "delta_numeric": -diff,
+                    "sort_score": impact,
+                    "is_live_position": True,
+                    "position_direction": "rise",
+                }
+            )
+        live_rows.sort(key=lambda item: float(item.get("sort_score") or 0.0), reverse=True)
+        rows_out.extend(live_rows)
     return rows_out
 
 

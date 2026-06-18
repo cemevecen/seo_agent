@@ -5,12 +5,15 @@
     {% if block and block.display_name %}
       <p class="text-[10px] font-semibold uppercase tracking-wider {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-rose-600 dark:text-rose-300{% endif %}">{{ block.display_name }}</p>
     {% endif %}
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100{% if block and block.display_name %} mt-0.5{% endif %}">Pozisyon düşüşü · Top 50 · 7g</h3>
+    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100{% if block and block.display_name %} mt-0.5{% endif %}">Pozisyon · düşüş / yükseliş · Top 50 · 7g</h3>
     {% if block and block.scope_label %}
       <p class="mt-0.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">{{ block.scope_label }}</p>
     {% endif %}
+    {% if block and block.period_label %}
+      <p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">{{ block.period_label }}</p>
+    {% endif %}
     {% if block and block.as_of_label %}
-      <p class="mt-0.5 text-[10px] tabular-nums text-slate-400 dark:text-slate-500">Veri: {{ block.as_of_label }}</p>
+      <p class="mt-0.5 text-[10px] font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
     {% endif %}
   </div>
   {% if not hide_nav_link %}
@@ -21,28 +24,63 @@
   {% endif %}
 </div>
 {% set _real_drops = (block.drops | rejectattr('is_pad') | list) if block and block.drops else [] %}
-{% if _real_drops %}
-  <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
-    {% for d in block.drops %}
-      {% if d.is_pad %}
-      <li class="py-2 first:pt-0 last:pb-0" aria-hidden="true"><span class="block h-[2.35rem]"></span></li>
+{% set _real_rises = (block.rises | rejectattr('is_pad') | list) if block and block.rises else [] %}
+{% if _real_drops or _real_rises %}
+  <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="min-w-0">
+      <p class="text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300">Düşüşler</p>
+      {% if _real_drops %}
+        <ul class="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+          {% for d in block.drops %}
+            {% if d.is_pad %}
+            <li class="py-2 first:pt-0 last:pb-0" aria-hidden="true"><span class="block h-[2.35rem]"></span></li>
+            {% else %}
+            <li class="flex items-start justify-between gap-2 py-2 first:pt-0 last:pb-0">
+              <span class="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300" title="{{ d.query }}">{{ d.query }}</span>
+              <span class="shrink-0 text-right text-[11px] font-medium tabular-nums text-slate-500 dark:text-slate-400">
+                <span class="block whitespace-nowrap">{{ d.pos_prev }} → {{ d.pos_cur }}
+                  <span class="text-rose-600 dark:text-rose-400">+{{ d.diff_fmt }}</span></span>
+                {% if d.clicks_fmt %}
+                  <span class="mt-0.5 block text-[10px] font-normal text-slate-400 dark:text-slate-500">{{ d.clicks_fmt }} tık · 7g</span>
+                {% endif %}
+              </span>
+            </li>
+            {% endif %}
+          {% endfor %}
+        </ul>
       {% else %}
-      <li class="flex items-start justify-between gap-2 py-2 first:pt-0 last:pb-0">
-        <span class="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300" title="{{ d.query }}">{{ d.query }}</span>
-        <span class="shrink-0 text-right text-[11px] font-medium tabular-nums text-slate-500 dark:text-slate-400">
-          <span class="block whitespace-nowrap">{{ d.pos_prev }} → {{ d.pos_cur }}
-            <span class="text-rose-600 dark:text-rose-400">+{{ d.diff_fmt }}</span></span>
-          {% if d.clicks_fmt %}
-            <span class="mt-0.5 block text-[10px] font-normal text-slate-400 dark:text-slate-500">{{ d.clicks_fmt }} tık · 7g</span>
-          {% endif %}
-        </span>
-      </li>
+        <p class="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">Anlamlı düşüş yok</p>
       {% endif %}
-    {% endfor %}
-  </ul>
+    </div>
+    <div class="min-w-0">
+      <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Yükselişler</p>
+      {% if _real_rises %}
+        <ul class="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+          {% for d in block.rises %}
+            {% if d.is_pad %}
+            <li class="py-2 first:pt-0 last:pb-0" aria-hidden="true"><span class="block h-[2.35rem]"></span></li>
+            {% else %}
+            <li class="flex items-start justify-between gap-2 py-2 first:pt-0 last:pb-0">
+              <span class="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300" title="{{ d.query }}">{{ d.query }}</span>
+              <span class="shrink-0 text-right text-[11px] font-medium tabular-nums text-slate-500 dark:text-slate-400">
+                <span class="block whitespace-nowrap">{{ d.pos_prev }} → {{ d.pos_cur }}
+                  <span class="text-emerald-600 dark:text-emerald-400">−{{ d.diff_fmt }}</span></span>
+                {% if d.clicks_fmt %}
+                  <span class="mt-0.5 block text-[10px] font-normal text-slate-400 dark:text-slate-500">{{ d.clicks_fmt }} tık · 7g</span>
+                {% endif %}
+              </span>
+            </li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">Anlamlı yükseliş yok</p>
+      {% endif %}
+    </div>
+  </div>
   {% if block.sort_label %}
-    <p class="mt-2 text-[10px] text-slate-400 dark:text-slate-500">{{ block.sort_label }}</p>
+    <p class="mt-2 text-[10px] text-slate-400 dark:text-slate-500">{{ block.sort_label }} · gece SC yenilemesi sonrası güncellenir</p>
   {% endif %}
 {% else %}
-  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Top 50 içinde anlamlı düşüş yok</p>
+  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Top 50 içinde anlamlı pozisyon değişimi yok</p>
 {% endif %}

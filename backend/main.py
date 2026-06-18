@@ -8327,7 +8327,9 @@ def _live_position_drop_sites(db, domain: str | None = None) -> list[dict]:
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name or site_obj.domain,
                 "drops": drop_payload.get("drops") or [],
+                "rises": drop_payload.get("rises") or [],
                 "as_of_label": drop_payload.get("as_of_label"),
+                "as_of_iso": drop_payload.get("as_of_iso"),
                 "scope_label": drop_payload.get("scope_label"),
                 "period_label": drop_payload.get("period_label"),
                 "sort_label": drop_payload.get("sort_label"),
@@ -8338,8 +8340,8 @@ def _live_position_drop_sites(db, domain: str | None = None) -> list[dict]:
 
 
 def _sc_alert_scan_note(db) -> str:
-    """Son SC uyarı taraması zamanı — olay kayıtları için bağlam."""
-    from backend.services.alert_engine import get_latest_search_console_alert_run
+    """Son SC veri zamanı + gece uyarı taraması — üst canlı liste bağlamı."""
+    from backend.services.alert_engine import get_latest_search_console_alert_run, list_sc_position_changes_7d
     from backend.services.timezone_utils import format_local_datetime
 
     parts: list[str] = []
@@ -8347,14 +8349,25 @@ def _sc_alert_scan_note(db) -> str:
         site_obj = _home_get_site(db, site_id)
         if site_obj is None:
             continue
+        name = site_obj.display_name or site_obj.domain
+        pos_payload = list_sc_position_changes_7d(db, site_obj, limit=1)
+        data_ts = pos_payload.get("as_of_label")
         run = get_latest_search_console_alert_run(db, site_id)
-        if run is None or run.finished_at is None:
-            parts.append(f"{site_obj.display_name or site_obj.domain}: tarama kaydı yok")
-            continue
-        ts = format_local_datetime(run.finished_at, fmt="%d.%m.%Y %H:%M", include_suffix=True)
-        parts.append(f"{site_obj.display_name or site_obj.domain}: son uyarı taraması {ts}")
+        run_ts = None
+        if run is not None and run.finished_at is not None:
+            run_ts = format_local_datetime(run.finished_at, fmt="%d.%m.%Y %H:%M", include_suffix=True)
+        chunk = name + ":"
+        if data_ts:
+            chunk += f" SC verisi {data_ts}"
+        else:
+            chunk += " SC verisi yok"
+        if run_ts:
+            chunk += f" · gece taraması {run_ts}"
+        else:
+            chunk += " · gece taraması kaydı yok"
+        parts.append(chunk)
     if not parts:
-        return "Son uyarı taraması kaydı yok — «Yenile» ile olay kayıtları güncellenir."
+        return "SC pozisyon listesi için veri yok — gece yenilemesi veya «Yenile» ile güncellenir."
     return " · ".join(parts)
 
 
@@ -8412,6 +8425,7 @@ def api_home_position_drops(request: Request, site: str | None = None):
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name,
                 "drops": drop_payload.get("drops") or [],
+                "rises": drop_payload.get("rises") or [],
                 "as_of_label": drop_payload.get("as_of_label"),
                 "scope_label": drop_payload.get("scope_label"),
                 "period_label": drop_payload.get("period_label"),

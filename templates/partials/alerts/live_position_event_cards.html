@@ -13,6 +13,7 @@
     data-is-external=""
     data-sort-score="{{ _sort_score }}"
     data-live-position="1"
+    data-position-direction="{{ alert.position_direction or 'drop' }}"
   >
     {% if is_doviz %}
       <div class="alert-domain-stripe-doviz absolute inset-y-0 left-0 w-[3px] rounded-l-xl" aria-hidden="true"></div>
