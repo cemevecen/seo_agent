@@ -639,6 +639,7 @@
       if (closeBtn) {
         ev.preventDefault();
         ev.stopPropagation();
+        if (nt().setRawDrill) nt().setRawDrill(null);
         if (nt().setCrossTopDrill) nt().setCrossTopDrill(null);
         return;
       }
@@ -660,6 +661,23 @@
         }
         return;
       }
+      var inRawList = btn.closest("#nt-raw-list");
+      if (inRawList) {
+        ev.preventDefault();
+        var rawId = btn.getAttribute("data-nt-drill-id") || "";
+        var rawText = btn.getAttribute("data-nt-drill-text") || "";
+        var rawDate = btn.getAttribute("data-nt-drill-date") || "";
+        var rawRow = findDrillRow(rawId, rawText, rawDate);
+        if (nt().setRawDrill) {
+          nt().setRawDrill({
+            id: rawId,
+            text: rawRow ? String(rawRow.text || "") : rawText,
+            date: rawDate || (rawRow && nt().dayKey ? nt().dayKey(rawRow.date) : "")
+          });
+        }
+        if (global.scrollHamDrillIntoView) global.scrollHamDrillIntoView();
+        return;
+      }
       if (!global.NTDrill) return;
       ev.preventDefault();
       var drillId = btn.getAttribute("data-nt-drill-id") || "";
@@ -678,6 +696,15 @@
         var sel = ev.target;
         if (!sel || !sel.classList || !sel.classList.contains("nt-inline-traffic-days")) return;
         if (nt().refreshCrossTopDrillContent) nt().refreshCrossTopDrillContent();
+      });
+    }
+    var rawList = global.document.getElementById("nt-raw-list");
+    if (rawList && !rawList._ntInlineDaysBound) {
+      rawList._ntInlineDaysBound = true;
+      rawList.addEventListener("change", function (ev) {
+        var sel = ev.target;
+        if (!sel || !sel.classList || !sel.classList.contains("nt-inline-traffic-days")) return;
+        if (nt().refreshRawDrillContent) nt().refreshRawDrillContent();
       });
     }
   }
