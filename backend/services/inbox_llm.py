@@ -332,15 +332,10 @@ def inbox_llm_any_configured() -> bool:
 
 
 def _inbox_llm_chain() -> list[tuple[str, str]]:
-    """Öncelik: Groq → Gemini → OpenAI (Railway’de anahtarlar varsa önce ucuz/hızlı sağlayıcılar)."""
-    out: list[tuple[str, str]] = []
-    if (settings.groq_api_key or "").strip():
-        out.append(("groq", (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()))
-    if (settings.gemini_api_key or "").strip():
-        out.append(("gemini", (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()))
-    if (settings.openai_api_key or "").strip():
-        out.append(("openai", (settings.inbox_openai_model or "gpt-4.1-mini").strip()))
-    return out
+    """Öncelik: Groq → Gemini → OpenAI."""
+    from backend.services.llm_provider_chain import inbox_provider_try_chain
+
+    return inbox_provider_try_chain()
 
 
 def inbox_plain_text_with_failover(system: str, user: str) -> tuple[str, str]:

@@ -1,4 +1,4 @@
-"""ProjectControl AI Ajan — Gemini REST API ile streaming tool-use ajanı."""
+"""ProjectControl AI Ajan — Gemini / Groq / OpenAI tool-use (failover ile)."""
 from __future__ import annotations
 
 import json
@@ -171,8 +171,117 @@ aktif sayfa bağlamındaki `analysis_hints` satırına da uy.
 def _api_key() -> str:
     key = (settings.gemini_api_key or "").strip()
     if not key:
-        raise RuntimeError("GEMINI_API_KEY tanımlı değil. Railway environment variables'a ekle.")
+        raise RuntimeError("GEMINI_API_KEY tanımlı değil.")
     return key
+
+
+def _system_prompt_text(page_context: dict[str, Any] | None = None) -> str:
+    from backend.services.page_context_tools import format_page_context_for_prompt
+
+    return _SYSTEM_PROMPT + format_page_context_for_prompt(page_context)
+
+
+def _openai_tool_specs() -> list[dict]:
+    tools: list[dict] = []
+    for t in TOOL_DEFINITIONS:
+        schema = {k: v for k, v in t.get("input_schema", {}).items() if k != "$schema"}
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": schema,
+                },
+            }
+        )
+    return tools
+
+
+def _initial_openai_messages(
+    messages: list[dict[str, Any]], page_context: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    oai: list[dict[str, Any]] = [{"role": "system", "content": _system_prompt_text(page_context)}]
+    for m in messages:
+        role = "assistant" if m.get("role") == "assistant" else "user"
+        oai.append({"role": role, "content": str(m.get("content") or "")})
+    return oai
+
+
+def _openai_compat_chat(
+    *,
+    provider: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict],
+) -> dict:
+    """Groq veya OpenAI chat/completions (tool destekli)."""
+    prov = (provider or "").strip().lower()
+    if prov == "groq":
+        key = (settings.groq_api_key or "").strip()
+        if not key:
+            raise RuntimeError("GROQ_API_KEY tanımlı değil.")
+        url = "https://api.groq.com/openai/v1/chat/completions"
+    elif prov == "openai":
+        key = (settings.openai_api_key or "").strip()
+        if not key:
+            raise RuntimeError("OPENAI_API_KEY tanımlı değil.")
+        url = "https://api.openai.com/v1/chat/completions"
+    else:
+        raise ValueError(f"OpenAI uyumlu ajan sağlayıcısı değil: {provider}")
+
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "tools": tools,
+        "tool_choice": "auto",
+        "temperature": 0.7,
+        "max_tokens": 4096,
+    }
+    model_candidates: list[str] = []
+    for cand in (model, "llama-3.3-70b-versatile", "meta-llama/llama-4-scout-17b-16e-instruct"):
+        if cand and cand not in model_candidates:
+            model_candidates.append(cand)
+    last_err: Exception | None = None
+    with httpx.Client(timeout=120.0) as client:
+        for model_name in model_candidates:
+            body["model"] = model_name
+            try:
+                r = client.post(url, headers=headers, json=body)
+                if r.status_code >= 400:
+                    raise RuntimeError(f"{prov} API {r.status_code}: {r.text[:300]}")
+                return r.json()
+            except Exception as exc:
+                last_err = exc
+                if prov != "groq":
+                    raise
+                continue
+    raise last_err if last_err else RuntimeError(f"{prov} çağrısı başarısız")
+
+
+def _parse_openai_tool_response(data: dict) -> tuple[str, list[dict], dict]:
+    """(text, func_calls[{name,args}], assistant_message_for_history)"""
+    choice = (data.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    text = str(msg.get("content") or "").strip()
+    raw_calls = msg.get("tool_calls") or []
+    func_calls: list[dict] = []
+    for tc in raw_calls:
+        fn = tc.get("function") or {}
+        name = str(fn.get("name") or "").strip()
+        if not name:
+            continue
+        args_raw = fn.get("arguments") or "{}"
+        try:
+            args = json.loads(args_raw) if isinstance(args_raw, str) else dict(args_raw)
+        except json.JSONDecodeError:
+            args = {}
+        func_calls.append({"name": name, "args": args, "id": tc.get("id") or name})
+    assistant_hist = dict(msg)
+    if "role" not in assistant_hist:
+        assistant_hist["role"] = "assistant"
+    return text, func_calls, assistant_hist
 
 
 def _tool_declarations() -> list[dict]:
@@ -189,9 +298,7 @@ def _tool_declarations() -> list[dict]:
 
 
 def _build_request_body(contents: list[dict], page_context: dict[str, Any] | None = None) -> dict:
-    from backend.services.page_context_tools import format_page_context_for_prompt
-
-    prompt = _SYSTEM_PROMPT + format_page_context_for_prompt(page_context)
+    prompt = _system_prompt_text(page_context)
     return {
         "systemInstruction": {"parts": [{"text": prompt}]},
         "contents": contents,
@@ -310,7 +417,55 @@ def _run_agent_loop(
     send: Any,
     page_context: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Senkron Gemini REST ajan döngüsü. Tamamlanan mesaj listesini döner (DB kayıt için)."""
+    """Tool-use döngüsü; Gemini → Groq → OpenAI failover."""
+    from backend.services.llm_provider_chain import agent_provider_try_chain
+
+    chain = agent_provider_try_chain()
+    if not chain:
+        send(
+            {
+                "type": "error",
+                "message": "LLM anahtarı yok. Railway'de GROQ_API_KEY veya GEMINI_API_KEY tanımlayın.",
+            }
+        )
+        return list(messages)
+
+    last_err = ""
+    for idx, (provider, model) in enumerate(chain):
+        if idx > 0:
+            send({"type": "status", "message": f"{provider} ile devam ediliyor…"})
+        try:
+            if provider == "gemini":
+                saved, ok = _run_agent_loop_gemini(
+                    messages, max_iterations, send, page_context=page_context
+                )
+            else:
+                saved, ok = _run_agent_loop_openai_tools(
+                    messages,
+                    max_iterations,
+                    send,
+                    page_context=page_context,
+                    provider=provider,
+                    model=model,
+                )
+            if ok:
+                return saved
+            last_err = f"{provider} yanıt üretemedi."
+        except Exception as exc:
+            LOGGER.warning("Ajan sağlayıcı %s (%s) hatası: %s", provider, model, exc)
+            last_err = str(exc)[:400]
+
+    send({"type": "error", "message": last_err or "Tüm LLM sağlayıcıları başarısız."})
+    return list(messages)
+
+
+def _run_agent_loop_gemini(
+    messages: list[dict[str, Any]],
+    max_iterations: int,
+    send: Any,
+    page_context: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Senkron Gemini REST ajan döngüsü."""
     contents = _messages_to_contents(messages)
     # Başlangıç mesajlarını kopyala (role/content formatında tutuyoruz)
     saved: list[dict[str, Any]] = list(messages)
@@ -321,14 +476,13 @@ def _run_agent_loop(
         try:
             data = _gemini_generate(contents, page_context=page_context)
         except Exception as e:
-            send({"type": "error", "message": str(e)})
-            return saved
+            raise RuntimeError(str(e)) from e
 
         try:
             text, func_calls = _parse_response(data)
         except Exception as e:
             send({"type": "error", "message": str(e)})
-            return saved
+            return saved, False
 
         # Asistan yanıtını contents'e ekle (Gemini formatı)
         assistant_parts: list[dict] = []
@@ -344,13 +498,12 @@ def _run_agent_loop(
             if not text:
                 LOGGER.warning("Gemini boş text + sıfır tool call döndü. iteration=%d", iteration)
                 send({"type": "error", "message": "model yanıt üretemedi, tekrar dene."})
-                return saved
+                return saved, False
             _stream_text(text, send)
             send({"type": "complete", "text": text})
-            # Asistan yanıtını DB formatında kaydet
             if text:
                 saved.append({"role": "assistant", "content": text})
-            return saved
+            return saved, True
 
         # Araçları çalıştır
         tool_result_parts = []
@@ -368,7 +521,57 @@ def _run_agent_loop(
         contents.append({"role": "user", "parts": tool_result_parts})
 
     send({"type": "complete", "text": "Maksimum iterasyon sayısına ulaşıldı."})
-    return saved
+    return saved, True
+
+
+def _run_agent_loop_openai_tools(
+    messages: list[dict[str, Any]],
+    max_iterations: int,
+    send: Any,
+    *,
+    page_context: dict[str, Any] | None,
+    provider: str,
+    model: str,
+) -> tuple[list[dict[str, Any]], bool]:
+    oai_messages = _initial_openai_messages(messages, page_context)
+    tools = _openai_tool_specs()
+    saved: list[dict[str, Any]] = list(messages)
+
+    for iteration in range(max_iterations):
+        send({"type": "thinking", "iteration": iteration + 1})
+        data = _openai_compat_chat(provider=provider, model=model, messages=oai_messages, tools=tools)
+        text, func_calls, assistant_hist = _parse_openai_tool_response(data)
+
+        oai_messages.append(assistant_hist)
+
+        if not func_calls:
+            if not text:
+                send({"type": "error", "message": "model yanıt üretemedi, tekrar dene."})
+                return saved, False
+            _stream_text(text, send)
+            send({"type": "complete", "text": text})
+            saved.append({"role": "assistant", "content": text})
+            return saved, True
+
+        tool_msgs: list[dict[str, Any]] = []
+        for fc in func_calls:
+            tname = fc["name"]
+            tinputs = fc.get("args") or {}
+            send({"type": "tool_start", "tool": tname})
+            result = execute_tool(tname, tinputs)
+            result_str = json.dumps(result, ensure_ascii=False, default=str)
+            send({"type": "tool_result", "tool": tname, "result_preview": result_str[:200]})
+            tool_msgs.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": fc.get("id") or tname,
+                    "content": result_str,
+                }
+            )
+        oai_messages.extend(tool_msgs)
+
+    send({"type": "complete", "text": "Maksimum iterasyon sayısına ulaşıldı."})
+    return saved, True
 
 
 def _stream_text(text: str, send: Any) -> None:

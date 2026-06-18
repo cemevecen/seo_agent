@@ -252,32 +252,6 @@ def _resolve_brief_llm_with_override(provider_override: str | None) -> tuple[str
     return ("gemini", gm) if gem_k else None
 
 
-def brief_provider_try_chain(*, provider_override: str | None) -> list[tuple[str, str]]:
-    """Özet üretimi için sıra: Gemini önce, OpenAI fallback. Groq devre dışı.
-
-    Zamanlanmış iş `provider_override=None` ile çağrılır.
-    """
-    gem_k = bool((settings.gemini_api_key or "").strip())
-    oai_k = bool((settings.openai_api_key or "").strip())
-    if not gem_k and not oai_k:
-        return []
-    gm = (settings.ai_daily_brief_gemini_model or "gemini-2.5-flash").strip()
-    om = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
-    failover = bool(getattr(settings, "ai_daily_brief_provider_failover", True))
-
-    ovr = (provider_override or "").strip().lower()
-    if ovr == "openai" and oai_k:
-        primary: list[tuple[str, str]] = [("openai", om)]
-        return primary + ([("gemini", gm)] if failover and gem_k else [])
-    # gemini veya bilinmeyen seçim → gemini önce
-    if gem_k:
-        primary = [("gemini", gm)]
-        return primary + ([("openai", om)] if failover and oai_k else [])
-    if oai_k:
-        return [("openai", om)]
-    return []
-
-
 def _try_reserve_llm_calls(n: int) -> bool:
     global _LLM_QUOTA_DATE, _LLM_QUOTA_USED
     day = _istanbul_today_str()
@@ -925,12 +899,15 @@ def run_ai_daily_brief_job(*, force: bool = False, provider_override: str | None
 
 
 def _run_ai_daily_brief_job_impl(*, force: bool = False, provider_override: str | None = None) -> AiBriefRunOutcome:
+    from backend.services.llm_provider_chain import brief_provider_try_chain
+
     try_chain = brief_provider_try_chain(provider_override=provider_override)
     if not try_chain:
-        LOGGER.warning("AI günlük özet atlandı: GEMINI_API_KEY veya OPENAI_API_KEY yapılandırılmadı.")
+        LOGGER.warning("AI günlük özet atlandı: LLM API anahtarı yok.")
         return AiBriefRunOutcome(
             False,
-            "Yapılandırılmış LLM API anahtarı yok. Railway ortamında GEMINI_API_KEY veya OPENAI_API_KEY tanımlı mı kontrol edin.",
+            "Yapılandırılmış LLM API anahtarı yok. Railway'de GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY "
+            "(en az biri; Gemini sorununda Groq için GROQ_API_KEY önerilir) tanımlı mı kontrol edin.",
         )
 
     single = bool(settings.ai_daily_brief_single_llm_call)

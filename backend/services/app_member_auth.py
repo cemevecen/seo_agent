@@ -390,9 +390,12 @@ def fetch_google_userinfo(access_token: str) -> dict[str, Any]:
 
 
 def member_list_payload(db: Session) -> list[dict[str, Any]]:
+    from backend.services.timezone_utils import format_local_datetime
+
     rows = db.query(AppMember).order_by(AppMember.created_at.desc()).all()
     out: list[dict[str, Any]] = []
     for r in rows:
+        last_raw = r.last_login_at
         out.append(
             {
                 "id": r.id,
@@ -402,7 +405,8 @@ def member_list_payload(db: Session) -> list[dict[str, Any]]:
                 "is_active": bool(r.is_active),
                 "screen_permissions_json": r.screen_permissions_json or default_screen_permissions(),
                 "created_at": r.created_at.isoformat() if r.created_at else "",
-                "last_login_at": r.last_login_at.isoformat() if r.last_login_at else "",
+                "last_login_at": last_raw.isoformat() if last_raw else "",
+                "last_login_at_tr": format_local_datetime(last_raw, fallback="—"),
             }
         )
     return out

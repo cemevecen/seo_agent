@@ -1270,9 +1270,16 @@ def _get_active_sessions(request: Request | None = None) -> list[dict]:
 
 
 def _is_settings_authenticated(request: Request) -> bool:
-    """Settings sayfasına özel ikinci katman doğrulaması."""
-    if _app_member_authenticated(request):
+    """Settings sayfası: allowlist üyeleri veya admin şifre + isteğe bağlı settings şifresi."""
+    from backend.services.settings_menu_access import is_settings_menu_allowed_email
+
+    member = _app_member_from_request(request)
+    if member is not None:
+        if not is_settings_menu_allowed_email(member.email):
+            return False
         return True
+    if not _is_admin_authenticated(request):
+        return False
     raw_pwd = (getattr(settings, "settings_password", "") or "").strip()
     if not raw_pwd:
         return True
@@ -1282,6 +1289,15 @@ def _is_settings_authenticated(request: Request) -> bool:
     secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
     expected = hmac.new(secret, raw_pwd.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
     return hmac.compare_digest(token, expected)
+
+
+def _member_denied_settings_menu(request: Request) -> bool:
+    from backend.services.settings_menu_access import member_denied_settings_access
+
+    member = _app_member_from_request(request)
+    if member is None:
+        return False
+    return member_denied_settings_access(member.email)
 
 
 def _inbox_action_token(raw_pwd: str) -> str:
@@ -1443,6 +1459,15 @@ def _template_is_tmdb_guest_view(request: Request | None) -> bool:
 jinja_env.globals["is_tmdb_guest_view"] = _template_is_tmdb_guest_view
 
 
+def _template_settings_menu_visible(request: Request | None) -> bool:
+    if request is None:
+        return False
+    return bool(getattr(request.state, "settings_menu_visible", False))
+
+
+jinja_env.globals["settings_menu_visible"] = _template_settings_menu_visible
+
+
 def _tmdb_guest_login_response(request: Request, *, redirect_path: str) -> RedirectResponse:
     from backend.services.tmdb_guest_auth import TMDB_GUEST_COOKIE, guest_cookie_value
 
@@ -1493,7 +1518,15 @@ async def ip_allowlist_middleware(request: Request, call_next):
         member = _app_member_from_request(request)
         if member is not None:
             request.state.app_member = member
+        from backend.services.settings_menu_access import resolve_settings_menu_visible
+
+        request.state.settings_menu_visible = resolve_settings_menu_visible(
+            member_email=member.email if member else None,
+            admin_authenticated=_is_admin_authenticated(request),
+        )
         if path.startswith("/settings") and not _is_settings_authenticated(request):
+            if _member_denied_settings_menu(request):
+                return RedirectResponse(url="/admin/settings-denied", status_code=303)
             return RedirectResponse(url="/admin/settings-login", status_code=303)
         return await call_next(request)
 
@@ -9854,7 +9887,10 @@ def admin_login_submit(request: Request, password: str = Form(default="")):
 
 @app.get("/admin/settings-login")
 def settings_login_page(request: Request):
-    if _app_member_authenticated(request):
+    if _member_denied_settings_menu(request):
+        return RedirectResponse(url="/admin/settings-denied", status_code=303)
+    member = _app_member_from_request(request)
+    if member is not None and _is_settings_authenticated(request):
         return RedirectResponse(url="/settings", status_code=303)
     if not _is_app_panel_authenticated(request):
         return RedirectResponse(url="/admin/login", status_code=303)
@@ -9902,11 +9938,92 @@ def settings_login_page(request: Request):
     return HTMLResponse(content=html_content)
 
 
+@app.get("/admin/settings-denied")
+def settings_denied_page(request: Request):
+    from backend.services.settings_menu_access import render_settings_denied_html
+
+    if not _is_app_panel_authenticated(request):
+        return RedirectResponse(url="/admin/login", status_code=303)
+    member = _app_member_from_request(request)
+    if member is None or not _member_denied_settings_menu(request):
+        if _is_settings_authenticated(request):
+            return RedirectResponse(url="/settings", status_code=303)
+        return RedirectResponse(url="/admin/settings-login", status_code=303)
+    requested = (request.query_params.get("requested") or "").strip() == "1"
+    err = (request.query_params.get("error") or "").strip()
+    err_msg = ""
+    if err == "mail":
+        err_msg = "E-posta gönderilemedi. SMTP yapılandırmasını kontrol edin veya doğrudan yazın."
+    elif err == "rate":
+        err_msg = "Kısa süre önce istek gönderildi. Lütfen bir saat sonra tekrar deneyin."
+    html = render_settings_denied_html(
+        member_email=member.email,
+        member_name=member.display_name or "",
+        requested=requested,
+        request_error=err_msg,
+    )
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/admin/settings-access-request")
+def settings_access_request_submit(request: Request):
+    from backend.services import admin_access_log as aal
+    from backend.services.settings_menu_access import (
+        SETTINGS_ACCESS_REQUEST_COOLDOWN_SEC,
+        _access_request_cooldown_ok,
+        send_settings_access_request_email,
+    )
+
+    if not _is_app_panel_authenticated(request):
+        return RedirectResponse(url="/admin/login", status_code=303)
+    member = _app_member_from_request(request)
+    if member is None or not _member_denied_settings_menu(request):
+        if _is_settings_authenticated(request):
+            return RedirectResponse(url="/settings", status_code=303)
+        return RedirectResponse(url="/admin/settings-login", status_code=303)
+    if not _access_request_cooldown_ok(request):
+        return RedirectResponse(url="/admin/settings-denied?error=rate", status_code=303)
+
+    client_ip = _extract_client_ip(request)
+    client_ua = request.headers.get("user-agent", "")
+    ok = send_settings_access_request_email(
+        requester_email=member.email,
+        requester_name=member.display_name or "",
+        client_ip=client_ip,
+        user_agent=client_ua,
+    )
+    with SessionLocal() as db:
+        aal.record_access_event(
+            db,
+            event_type="settings_access_request" if ok else "settings_access_request_fail",
+            ip=client_ip,
+            user_agent=client_ua,
+            actor_email=member.email,
+        )
+    if not ok:
+        return RedirectResponse(url="/admin/settings-denied?error=mail", status_code=303)
+    import time as _time
+
+    resp = RedirectResponse(url="/admin/settings-denied?requested=1", status_code=303)
+    resp.set_cookie(
+        key="seo_settings_req_at",
+        value=str(int(_time.time())),
+        httponly=True,
+        secure=_admin_auth_cookie_secure(request),
+        samesite="lax",
+        max_age=SETTINGS_ACCESS_REQUEST_COOLDOWN_SEC,
+        path="/",
+    )
+    return resp
+
+
 @app.post("/admin/settings-login")
 def settings_login_submit(request: Request, password: str = Form(default="")):
     from backend.services import admin_access_log as aal
 
-    if _app_member_authenticated(request):
+    if _member_denied_settings_menu(request):
+        return RedirectResponse(url="/admin/settings-denied", status_code=303)
+    if _is_settings_authenticated(request):
         return RedirectResponse(url="/settings", status_code=303)
     if not _is_admin_authenticated(request):
         return RedirectResponse(url="/admin/login", status_code=303)
@@ -16509,28 +16626,89 @@ def api_policy_last_csv(db: Session = Depends(get_db)):
 
 @app.get("/api/agent/test")
 def api_agent_test():
-    """Gemini API bağlantı testi + mevcut model listesi."""
+    """LLM sağlayıcı bağlantı testi (Gemini listesi + Groq/OpenAI ping)."""
     import httpx
     from backend.config import settings
-    key = (settings.gemini_api_key or "").strip()
-    if not key:
-        return JSONResponse({"ok": False, "error": "GEMINI_API_KEY yok"})
-    try:
-        # Önce mevcut modelleri listele
-        r = httpx.get(
-            f"https://generativelanguage.googleapis.com/v1beta/models?key={key}",
-            timeout=30,
-        )
-        data = r.json()
-        if r.status_code != 200:
-            return JSONResponse({"ok": False, "status": r.status_code, "error": data})
-        models = [
-            m["name"] for m in data.get("models", [])
-            if "generateContent" in m.get("supportedGenerationMethods", [])
-        ]
-        return JSONResponse({"ok": True, "available_models": models})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)})
+    from backend.services.llm_provider_chain import agent_provider_try_chain, llm_provider_keys
+
+    keys = llm_provider_keys()
+    chain = agent_provider_try_chain()
+    out: dict[str, Any] = {
+        "keys": keys,
+        "agent_failover_chain": [{"provider": p, "model": m} for p, m in chain],
+        "gemini": {"ok": False},
+        "groq": {"ok": False},
+        "openai": {"ok": False},
+    }
+    if not any(keys.values()):
+        out["ok"] = False
+        out["error"] = "GROQ_API_KEY, GEMINI_API_KEY veya OPENAI_API_KEY gerekli"
+        return JSONResponse(out)
+
+    gkey = (settings.gemini_api_key or "").strip()
+    if gkey:
+        try:
+            r = httpx.get(
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={gkey}",
+                timeout=30,
+            )
+            data = r.json()
+            if r.status_code == 200:
+                models = [
+                    m["name"]
+                    for m in data.get("models", [])
+                    if "generateContent" in m.get("supportedGenerationMethods", [])
+                ]
+                out["gemini"] = {"ok": True, "available_models": models[:12]}
+            else:
+                out["gemini"] = {"ok": False, "status": r.status_code, "error": data}
+        except Exception as e:
+            out["gemini"] = {"ok": False, "error": str(e)}
+
+    groq_k = (settings.groq_api_key or "").strip()
+    if groq_k:
+        try:
+            model = (settings.ai_daily_brief_groq_model or "llama-3.3-70b-versatile").strip()
+            r = httpx.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_k}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 8,
+                },
+                timeout=30,
+            )
+            out["groq"] = {"ok": r.status_code < 400, "status": r.status_code}
+            if r.status_code >= 400:
+                out["groq"]["error"] = r.text[:200]
+        except Exception as e:
+            out["groq"] = {"ok": False, "error": str(e)}
+
+    oai_k = (settings.openai_api_key or "").strip()
+    if oai_k:
+        try:
+            model = (settings.ai_daily_brief_openai_model or "gpt-4.1-mini").strip()
+            r = httpx.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {oai_k}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 8,
+                },
+                timeout=30,
+            )
+            out["openai"] = {"ok": r.status_code < 400, "status": r.status_code}
+            if r.status_code >= 400:
+                out["openai"]["error"] = r.text[:200]
+        except Exception as e:
+            out["openai"] = {"ok": False, "error": str(e)}
+
+    out["ok"] = bool(chain) and any(
+        out.get(name, {}).get("ok") for name in ("groq", "gemini", "openai") if keys.get(name)
+    )
+    return JSONResponse(out)
 
 @app.post("/api/agent/chat")
 async def api_agent_chat(request: Request):

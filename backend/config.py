@@ -337,7 +337,7 @@ class Settings(BaseSettings):
     ai_daily_brief_groq_model: str = "openai/gpt-oss-120b"
     # OpenAI üretim modeli: maliyet/kalite dengesi için varsayılan mini model.
     ai_daily_brief_openai_model: str = "gpt-4.1-mini"
-    # 429 / kota / erişim hatasında diğer anahtar varsa otomatik Groq ↔ Gemini geçişi (tek üretim turu içinde).
+    # 429 / kota / erişim hatasında Groq ↔ Gemini ↔ OpenAI (sıra: brief_provider_try_chain).
     ai_daily_brief_provider_failover: bool = True
     # true: üretim + Türkçe tek istekte (günde en fazla yarı yarıya daha az LLM çağrısı).
     ai_daily_brief_single_llm_call: bool = True

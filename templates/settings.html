@@ -3,15 +3,26 @@
 {% block content %}
 <div class="mx-auto flex min-w-0 max-w-[1800px] flex-col gap-5 sm:gap-6 lg:gap-8">
   {% if admin_access_ui() %}
-  <div class="min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
-    <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Admin Erişimi</h3>
-      {% if admin_password_configured %}
-        <span class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Şifre aktif</span>
-      {% else %}
-        <span class="inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/45 dark:text-amber-300">Şifre ayarlanmamış</span>
-      {% endif %}
-    </div>
+  <details class="group min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6"{% if admin_password_flash %} open{% endif %}>
+    <summary class="flex cursor-pointer list-none items-center gap-2 rounded-lg text-left [&::-webkit-details-marker]:hidden">
+      <span
+        class="inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-500 transition-transform duration-200 group-open:rotate-90 dark:text-slate-400"
+        aria-hidden="true"
+      >
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </span>
+      <div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Admin Erişimi</h3>
+        {% if admin_password_configured %}
+          <span class="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">Şifre aktif</span>
+        {% else %}
+          <span class="inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/45 dark:text-amber-300">Şifre ayarlanmamış</span>
+        {% endif %}
+      </div>
+    </summary>
+    <div class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
     <p class="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
       Tüm erişimler bu tek şifre ile korunmaktadır.
     </p>
@@ -145,15 +156,27 @@
       <p class="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">Son 30 dakikada istek gönderen oturumlar (bellekte). Saatler Türkiye (TR) saatidir. Giriş kayıtları yukarıda kalıcıdır.</p>
     </div>
     {% endif %}
-  </div>
+    </div>
+  </details>
   {% endif %}
 
   {% if membership_admin %}
-  <div class="min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
+  <details class="group min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
+    <summary class="flex cursor-pointer list-none items-center gap-2 rounded-lg text-left [&::-webkit-details-marker]:hidden">
+      <span
+        class="inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-500 transition-transform duration-200 group-open:rotate-90 dark:text-slate-400"
+        aria-hidden="true"
+      >
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </span>
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Google üyelikleri</h3>
+    </summary>
+    <div class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
     <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Google üyelikleri</h3>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <p class="text-xs text-slate-500 dark:text-slate-400">
           İlk aşamada tüm üyeler tüm ekranları görür. Ekran kısıtları <span class="font-mono text-[10px]">screen_permissions_json</span> ile ileride genişletilecek.
         </p>
       </div>
@@ -194,7 +217,7 @@
             <td class="px-3 py-2">
               <input type="checkbox" class="member-active-toggle h-4 w-4 rounded" data-member-id="{{ m.id }}" {% if m.is_active %}checked{% endif %} />
             </td>
-            <td class="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">{{ m.last_login_at[:16] if m.last_login_at else '—' }}</td>
+            <td class="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">{{ m.last_login_at_tr or '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -203,7 +226,8 @@
     {% else %}
     <p class="text-sm text-slate-500 dark:text-slate-400">Henüz Google ile giriş yapan üye yok.</p>
     {% endif %}
-  </div>
+    </div>
+  </details>
   <script>
   (function () {
     function patchMember(id, body) {
@@ -228,10 +252,22 @@
   </script>
   {% endif %}
 
-  {# Site ekle: tam genişlik, üstte — yan sütun kaldırıldı #}
-  <div class="min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Site Ekle</h3>
-    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 sm:text-sm">Form gönderiminden sonra liste HTMX ile yenilenir.</p>
+  <details class="group min-w-0 rounded-xl bg-white p-4 shadow-sm dark:bg-slate-900 sm:p-6">
+    <summary class="flex cursor-pointer list-none items-center gap-2 rounded-lg text-left [&::-webkit-details-marker]:hidden">
+      <span
+        class="inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-500 transition-transform duration-200 group-open:rotate-90 dark:text-slate-400"
+        aria-hidden="true"
+      >
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </span>
+      <div class="min-w-0">
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 sm:text-base">Site Ekle</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">Form gönderiminden sonra liste HTMX ile yenilenir.</p>
+      </div>
+    </summary>
+    <div class="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
 
     <form
       id="site-form"
@@ -278,7 +314,8 @@
     </form>
 
     <p id="site-form-feedback" class="mt-3 text-sm text-slate-500 dark:text-slate-400"></p>
-  </div>
+    </div>
+  </details>
 
   <div class="min-w-0 space-y-5 sm:space-y-6">
     <details

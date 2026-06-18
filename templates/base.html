@@ -1856,7 +1856,9 @@
                   {% endfor %}
                 </div>
               </div>
+              {% if settings_menu_visible(request) %}
               <a href="/settings" data-nav-match="/settings" class="header-nav-link">settings</a>
+              {% endif %}
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
               {% endif %}
               </div>
