@@ -951,6 +951,9 @@
   html.rt-view--compact [data-rt-events-section] {
     display: none !important;
   }
+  html.rt-view--compact [data-rt-site-top-detail] {
+    display: none !important;
+  }
   html.rt-view--compact [data-rt-profile-box] {
     min-height: 0;
   }
@@ -1616,6 +1619,13 @@
         </div>
       </div>
     </div>
+    {% set dom_l = (site.domain or '')|lower %}
+    {% if 'doviz' in dom_l or 'sinemalar' in dom_l %}
+    <div class="mt-4 hidden rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40" data-rt-site-top-detail>
+      <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Top içerik · son dilim</p>
+      <div class="grid gap-4 sm:grid-cols-2" data-rt-site-top-detail-body></div>
+    </div>
+    {% endif %}
     <div class="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
       {% for profile in site.profiles %}
       <div
@@ -2196,6 +2206,7 @@
       .join('');
     barsEl._rtSiteTipWired = false;
     _wireSiteSparkBarTips(siteEl);
+    _updateSiteTopDetailPanel(siteEl);
     if (yEl) {
       yEl.innerHTML = _sparkYAxisTicks(mx)
         .slice()
@@ -2249,6 +2260,52 @@
       html += '<div class="rt-tip-pages">Bu dilim için sayfa snapshot yok</div>';
     }
     return html;
+  }
+
+  function _siteTopDetailPageGroup(label, pages, metric) {
+    if (!pages || !pages.length) {
+      return '<div class="min-w-0"><p class="text-[11px] font-bold text-slate-600 dark:text-slate-300">' + _esc(label) + '</p>'
+        + '<p class="mt-1 text-xs italic text-slate-400">veri yok</p></div>';
+    }
+    var rows = '';
+    for (var i = 0; i < pages.length; i++) {
+      var p = pages[i];
+      var n = metric === 'pv' ? (p.pageviews || 0) : (p.active_users || 0);
+      rows += '<li class="flex justify-between gap-2 py-0.5 text-[11px] leading-snug">'
+        + '<span class="min-w-0 truncate font-medium text-slate-700 dark:text-slate-200" title="' + _attr(p.label || p.page_path || '') + '">'
+        + _esc(String(i + 1) + '. ' + (p.label || p.page_path || '')) + '</span>'
+        + '<span class="shrink-0 tabular-nums font-bold text-slate-600 dark:text-slate-300">' + _fmt(n) + '</span></li>';
+    }
+    return '<div class="min-w-0"><p class="text-[11px] font-bold text-slate-600 dark:text-slate-300">' + _esc(label) + '</p>'
+      + '<ol class="mt-1 list-none space-y-0.5 pl-0">' + rows + '</ol></div>';
+  }
+
+  function _updateSiteTopDetailPanel(siteEl) {
+    if (!siteEl) return;
+    var panel = siteEl.querySelector('[data-rt-site-top-detail]');
+    var body = siteEl.querySelector('[data-rt-site-top-detail-body]');
+    if (!panel || !body) return;
+    var metric = siteEl._rtSparkMetric === 'pv' ? 'pv' : 'au';
+    var display = siteEl._rtSparkDisplay || [];
+    var tops = siteEl._rtBucketTopPages || {};
+    var bucket = null;
+    for (var i = display.length - 1; i >= 0; i--) {
+      var row = display[i];
+      if (!row || row.empty) continue;
+      var key = row.tMs != null ? String(row.tMs) : '';
+      if (key && tops[key] && ((tops[key].web && tops[key].web.length) || (tops[key].mweb && tops[key].mweb.length))) {
+        bucket = tops[key];
+        break;
+      }
+    }
+    if (!bucket) {
+      panel.classList.add('hidden');
+      body.innerHTML = '';
+      return;
+    }
+    body.innerHTML = _siteTopDetailPageGroup('Web', bucket.web || [], metric)
+      + _siteTopDetailPageGroup('Mweb', bucket.mweb || [], metric);
+    panel.classList.remove('hidden');
   }
 
   function _rtPlaceFixedTip(tipEl, clientX, clientY) {
@@ -2379,6 +2436,7 @@
         }
         if (siteEl && d.bucket_top_pages && Object.keys(d.bucket_top_pages).length) {
           siteEl._rtBucketTopPages = d.bucket_top_pages;
+          _updateSiteTopDetailPanel(siteEl);
         }
         if (d.trend && d.trend.length) {
           _renderSiteCombinedSparks(siteId, d.trend);
@@ -3290,7 +3348,7 @@
     if (!listEl) return;
     var rangeKey = _rtTrendRangeForBox(box);
 
-    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&range=' + encodeURIComponent(rangeKey) + '&limit=10&type=' + type)
+    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&range=' + encodeURIComponent(rangeKey) + '&limit=6&type=' + type)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages || !d.pages.length) {

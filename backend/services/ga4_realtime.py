@@ -271,7 +271,13 @@ def _email_news_alarm_subject(domain: str, profile: str, alarms: list[dict[str, 
     return f"{short} — {' · '.join(chips)}{rest}{suffix}"
 
 
-def _html_site_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+def _html_site_alarm_body(
+    domain: str,
+    profile: str,
+    alarms: list[dict[str, Any]],
+    *,
+    detail_top_html: str = "",
+) -> str:
     """Site metrik alarmları — yalnızca sayılar."""
     prof_tag = html.escape(_email_profile_abbr(profile))
     prof_suffix = f" [{prof_tag}]" if prof_tag not in ("web", "") else ""
@@ -310,11 +316,18 @@ def _html_site_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]
             {_html_email_section_header(domain, profile)}
             {''.join(cards)}
             {driver_html}
+            {detail_top_html}
         </div>
         """
 
 
-def _html_page_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]]) -> str:
+def _html_page_alarm_body(
+    domain: str,
+    profile: str,
+    alarms: list[dict[str, Any]],
+    *,
+    detail_top_html: str = "",
+) -> str:
     cards: list[str] = []
     pre_parts: list[str] = []
     for alarm in alarms:
@@ -387,6 +400,7 @@ def _html_page_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]
             {pre}
             {_html_email_section_header(domain, profile)}
             {''.join(cards)}
+            {detail_top_html}
         </div>
         """
 
@@ -403,7 +417,14 @@ def _preheader(text: str) -> str:
     )
 
 
-def _html_news_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]], site_kpi: dict | None = None) -> str:
+def _html_news_alarm_body(
+    domain: str,
+    profile: str,
+    alarms: list[dict[str, Any]],
+    site_kpi: dict | None = None,
+    *,
+    detail_top_html: str = "",
+) -> str:
     neg_alarms = [a for a in alarms if str(a.get("rule_id", "")) in NEGATIVE_ALARM_RULE_IDS]
     pos_alarms = [a for a in alarms if str(a.get("rule_id", "")) not in NEGATIVE_ALARM_RULE_IDS]
     pos_sorted = _sort_news_alarms(pos_alarms)[:8]
@@ -514,6 +535,7 @@ def _html_news_alarm_body(domain: str, profile: str, alarms: list[dict[str, Any]
             {_html_email_section_header(domain, profile)}
             {kpi_html}
             {''.join(cards)}
+            {detail_top_html}
         </div>
         """
 
@@ -666,6 +688,8 @@ def _split_alarms_by_sentiment(alarms: list[dict[str, Any]]) -> tuple[list[dict[
 
 # Bir site+profil mailinde azami pozitif/negatif alarm (konsolide mailde ayrıca batch cap var).
 ALARM_EMAIL_TOP_N = 6
+REALTIME_DETAIL_TOP_N = 6
+REALTIME_BUCKET_TOP_PAGES_N = 6
 
 
 def _alarm_user_volumes(alarm: dict[str, Any]) -> tuple[float, float, float]:
@@ -2110,6 +2134,100 @@ def _html_driver_analysis_section(drivers: list[dict[str, Any]], site_delta: flo
     """
 
 
+def _domain_shows_web_mweb_top_detail(domain: str) -> bool:
+    d = (domain or "").lower()
+    return "doviz" in d or "sinemalar" in d
+
+
+def get_web_mweb_top_content_for_detail(
+    db: Session,
+    site_id: int,
+    *,
+    top_n: int = REALTIME_DETAIL_TOP_N,
+    window_minutes: int = 15,
+) -> dict[str, list[dict[str, Any]]]:
+    """Döviz / Sinemalar detay: web + mweb top sayfa (snapshot penceresi)."""
+    out: dict[str, list[dict[str, Any]]] = {"web": [], "mweb": []}
+    for prof in ("web", "mweb"):
+        bundle = aggregate_page_snapshots_over_window(
+            db,
+            site_id=site_id,
+            profile=prof,
+            window_minutes=window_minutes,
+            limit=top_n,
+            sort_by="activeUsers",
+        )
+        for p in bundle.get("pages") or []:
+            title = _rt_alarm_screen_title_one_line(str(p.get("page") or ""), max_len=56)
+            out[prof].append(
+                {
+                    "title": title,
+                    "active_users": int(float(p.get("activeUsers") or 0)),
+                    "pageviews": int(float(p.get("screenPageViews") or 0)),
+                }
+            )
+    return out
+
+
+def _html_web_mweb_top_content_block(top: dict[str, list[dict[str, Any]]]) -> str:
+    if not (top.get("web") or top.get("mweb")):
+        return ""
+    parts = [
+        '<div style="margin-top:16px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;">',
+        '<div style="padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;'
+        'font-size:11px;font-weight:700;color:#64748b;letter-spacing:.03em;">'
+        "TOP İÇERİK · Web &amp; Mweb</div>",
+    ]
+    for label, key in (("Web", "web"), ("Mweb", "mweb")):
+        pages = top.get(key) or []
+        if not pages:
+            continue
+        parts.append(
+            f'<div style="padding:8px 12px 4px;font-size:11px;font-weight:800;color:#334155;">{label}</div>'
+        )
+        parts.append(
+            '<ol style="margin:0 0 6px;padding:0 12px 8px 26px;font-size:12px;line-height:1.45;color:#1e293b;">'
+        )
+        for item in pages:
+            parts.append(
+                "<li style=\"margin:3px 0;\">"
+                f'<span style="font-weight:600;">{html.escape(item["title"])}</span> '
+                f'<span style="color:#64748b;">· {item["active_users"]:,} kul · '
+                f'{item["pageviews"]:,} gör.</span></li>'
+            )
+        parts.append("</ol>")
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def _detail_top_html_for_alarm(db: Session | None, alarm: dict[str, Any]) -> str:
+    domain = str(alarm.get("domain") or alarm.get("site_domain") or "")
+    if not _domain_shows_web_mweb_top_detail(domain):
+        return ""
+    sid = alarm.get("site_id")
+    if sid is None or db is None:
+        return ""
+    try:
+        top = get_web_mweb_top_content_for_detail(db, int(sid))
+    except Exception:
+        logger.exception("detail top content failed site_id=%s", sid)
+        return ""
+    return _html_web_mweb_top_content_block(top)
+
+
+def _realtime_alarm_detail_top_html(domain: str, alarms: list[dict[str, Any]]) -> str:
+    if not alarms or not _domain_shows_web_mweb_top_detail(domain):
+        return ""
+    from backend.database import SessionLocal
+
+    try:
+        with SessionLocal() as db:
+            return _detail_top_html_for_alarm(db, alarms[0])
+    except Exception:
+        logger.exception("Realtime batch email detail top skipped")
+        return ""
+
+
 def check_site_realtime(
     db: Session,
     site: Site,
@@ -2442,7 +2560,8 @@ def _send_site_alarm_emails(domain: str, profile: str, alarms: list[dict[str, An
 
     logger.info("GA4 Realtime: E-posta hazırlanıyor (site=%s, profile=%s)...", domain, profile)
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_site_alarm_body(domain, profile, alarms)
+    detail_top_html = _realtime_alarm_detail_top_html(domain, alarms)
+    html_body = _html_site_alarm_body(domain, profile, alarms, detail_top_html=detail_top_html)
     subject = _email_site_alarm_subject(domain, profile, alarms)
     ok = send_realtime_email(subject, html_body, thread_kind="site", thread_key=thread_key)
     status = _realtime_email_dispatch_status(bool(ok))
@@ -3321,7 +3440,8 @@ def _send_page_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
         return "failed"
 
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_page_alarm_body(domain, profile, alarms)
+    detail_top_html = _realtime_alarm_detail_top_html(domain, alarms)
+    html_body = _html_page_alarm_body(domain, profile, alarms, detail_top_html=detail_top_html)
     subject = _email_page_alarm_subject(domain, profile, alarms)
     ok = send_realtime_email(subject, html_body, thread_kind="page", thread_key=thread_key)
     return _realtime_email_dispatch_status(bool(ok))
@@ -3916,7 +4036,10 @@ def _send_news_alarm_email(domain: str, profile: str, alarms: list[dict[str, Any
         return "failed"
 
     thread_key = _realtime_email_thread_key(domain, profile)
-    html_body = _html_news_alarm_body(domain, profile, alarms, site_kpi=site_kpi or {})
+    detail_top_html = _realtime_alarm_detail_top_html(domain, alarms)
+    html_body = _html_news_alarm_body(
+        domain, profile, alarms, site_kpi=site_kpi or {}, detail_top_html=detail_top_html
+    )
     subject = _email_news_alarm_subject(domain, profile, alarms)
     ok = send_realtime_news_email(subject, html_body, thread_kind="news", thread_key=thread_key)
     return _realtime_email_dispatch_status(bool(ok))
@@ -4413,23 +4536,32 @@ def run_404_spike_check_all_sites(db: Session, *, skip_emails: bool = False) -> 
 
 def send_realtime_email_for_alarm(alarm: dict[str, Any]) -> bool:
     """Tekil bir alarm için e-posta gönderir (hibrit gönderim mantığı için)."""
+    from backend.database import SessionLocal
     from backend.services.mailer import send_realtime_email
-    
+
     domain = alarm.get("domain") or alarm.get("site_domain") or "Site"
     profile = alarm.get("profile") or "web"
-
+    detail_top_html = ""
+    if _domain_shows_web_mweb_top_detail(str(domain)):
+        try:
+            with SessionLocal() as db:
+                detail_top_html = _detail_top_html_for_alarm(db, alarm)
+        except Exception:
+            logger.exception("Realtime alarm detail top content skipped")
     rule_id = alarm.get("rule_id", "")
     if rule_id.startswith("news_"):
         subject = _email_news_alarm_subject(domain, profile, [alarm])
-        html_body = _html_news_alarm_body(domain, profile, [alarm], site_kpi={})
+        html_body = _html_news_alarm_body(
+            domain, profile, [alarm], site_kpi={}, detail_top_html=detail_top_html
+        )
         thread_kind = "news"
     elif rule_id.startswith("page_"):
         subject = _email_page_alarm_subject(domain, profile, [alarm])
-        html_body = _html_page_alarm_body(domain, profile, [alarm])
+        html_body = _html_page_alarm_body(domain, profile, [alarm], detail_top_html=detail_top_html)
         thread_kind = "page"
     else:
         subject = _email_site_alarm_subject(domain, profile, [alarm])
-        html_body = _html_site_alarm_body(domain, profile, [alarm])
+        html_body = _html_site_alarm_body(domain, profile, [alarm], detail_top_html=detail_top_html)
         thread_kind = "site"
         
     thread_key = _realtime_email_thread_key(domain, profile)
