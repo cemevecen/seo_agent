@@ -9,14 +9,17 @@
       <label class="font-semibold text-slate-600 dark:text-slate-300">Top N</label>
       <input id="nt-lab-pareto-n" type="number" min="5" max="200" value="30" class="w-20 rounded border border-slate-300 px-2 py-1 dark:border-slate-600 dark:bg-slate-900" />
     </div>
+    <div class="nt-lab-pareto-scroll mt-3 w-full overflow-x-auto overflow-y-visible rounded-xl border border-slate-100 bg-slate-50/50 dark:border-zinc-800 dark:bg-zinc-950/40">
     <style>
       #nt-lab-pareto.nt-lab-pareto-chart {
         display: block;
         box-sizing: border-box;
         width: 100%;
-        min-height: min(42vh, 480px);
-        height: min(42vh, 480px);
+        min-width: 100%;
+        min-height: min(48vh, 520px);
+        height: min(48vh, 520px);
         flex-shrink: 0;
+        overflow: visible;
       }
       #nt-lab-pareto.nt-lab-pareto-chart .js-plotly-plot,
       #nt-lab-pareto.nt-lab-pareto-chart .plot-container.plotly,
@@ -34,8 +37,10 @@
         height: auto;
       }
     </style>
-    <div id="nt-lab-pareto" class="nt-lab-pareto-chart mt-3 w-full overflow-hidden rounded-xl border border-slate-100 bg-slate-50/50 dark:border-zinc-800 dark:bg-zinc-950/40"></div>
+    <div id="nt-lab-pareto" class="nt-lab-pareto-chart"></div>
+    </div>
     <p id="nt-lab-pareto-summary" class="mt-2 text-xs text-slate-600 dark:text-slate-400"></p>
+    <p class="mt-1 text-[10px] text-slate-500 dark:text-slate-500">Grafikte sıra numarası; tam başlık için sütunun üzerine gelin.</p>
   </div>
 
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">

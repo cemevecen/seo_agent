@@ -2,19 +2,25 @@
   function api() { return window.NT || null; }
   var paretoResizeObs = null;
 
-  function paretoChartSize(el) {
-    if (!el) return { w: 0, h: 360 };
+  function paretoChartSize(el, nTop) {
+    if (!el) return { w: 0, h: 400 };
+    var n = Math.max(5, nTop || 30);
     var w = el.clientWidth || (el.parentElement && el.parentElement.clientWidth) || 0;
+    var baseH = Math.min(Math.round(window.innerHeight * 0.48), 560);
     var h = el.clientHeight || 0;
-    if (h < 200) h = Math.min(Math.round(window.innerHeight * 0.42), 480);
-    if (h < 280) h = 360;
-    return { w: Math.max(280, w), h: Math.max(280, h) };
+    if (h < 200) h = baseH;
+    if (h < 320) h = Math.max(360, baseH);
+    var minW = Math.max(280, w, n * 22);
+    return { w: minW, h: Math.max(360, h) };
   }
 
   function resizeParetoPlot() {
     var el = document.getElementById("nt-lab-pareto");
     if (!el || !window.Plotly || !el.querySelector(".js-plotly-plot")) return;
-    var sz = paretoChartSize(el);
+    var nTop = 30;
+    var nInp = document.getElementById("nt-lab-pareto-n");
+    if (nInp) nTop = parseInt(nInp.value, 10) || 30;
+    var sz = paretoChartSize(el, nTop);
     try {
       Plotly.relayout(el, { width: sz.w, height: sz.h, autosize: true });
       Plotly.Plots.resize(el);
@@ -179,29 +185,58 @@
     }
     clearPlotHost(el);
     var top = stats.slice(0, nTop);
-    var cum = 0, xs = [], bar = [], line = [];
+    var cum = 0;
+    var xs = [];
+    var bar = [];
+    var line = [];
+    var titles = [];
     top.forEach(function (x, i) {
       cum += x.clicks;
-      xs.push((i + 1) + ". " + (x.headline.length > 28 ? x.headline.slice(0, 28) + "…" : x.headline));
+      titles.push(x.headline);
+      xs.push(String(i + 1));
       bar.push(x.clicks);
       line.push((cum / total) * 100);
     });
     var lc = ntLabColors();
-    var sz = paretoChartSize(el);
+    var sz = paretoChartSize(el, nTop);
+    var bottomMargin = 52;
     var layout = plotLayout({
       width: sz.w,
       height: sz.h,
       autosize: true,
-      yaxis: ntAxis(),
+      yaxis: ntAxis({ title: "Click" }),
       yaxis2: ntAxis({ overlaying: "y", side: "right", title: "Kümülatif %", range: [0, 100] }),
-      margin: { l: 52, r: 48, t: 28, b: 100 },
-      xaxis: ntAxis({ tickangle: -35 }),
-      legend: { font: ntFont(), orientation: "h", y: 1.08, x: 0 }
+      margin: { l: 56, r: 52, t: 36, b: bottomMargin },
+      xaxis: ntAxis({
+        title: "Sıra (1 = en yüksek click)",
+        tickmode: "linear",
+        dtick: nTop > 20 ? 2 : 1,
+        automargin: true
+      }),
+      legend: { font: ntFont(), orientation: "h", y: 1.12, x: 0 },
+      hovermode: "x unified"
     });
-    Plotly.newPlot(el, [
-      { type: "bar", x: xs, y: bar, name: "Click", marker: { color: lc.bar } },
-      { type: "scatter", x: xs, y: line, name: "Kümülatif %", yaxis: "y2", mode: "lines+markers", line: { color: lc.line, width: 2 } }
-    ], layout, { responsive: true, displayModeBar: false });
+    var barTrace = {
+      type: "bar",
+      x: xs,
+      y: bar,
+      name: "Click",
+      customdata: titles,
+      marker: { color: lc.bar },
+      hovertemplate: "<b>%{customdata}</b><br>Click: %{y}<extra></extra>"
+    };
+    var lineTrace = {
+      type: "scatter",
+      x: xs,
+      y: line,
+      name: "Kümülatif %",
+      yaxis: "y2",
+      mode: "lines+markers",
+      customdata: titles,
+      line: { color: lc.line, width: 2 },
+      hovertemplate: "<b>%{customdata}</b><br>Kümülatif: %{y:.1f}%<extra></extra>"
+    };
+    Plotly.newPlot(el, [barTrace, lineTrace], layout, { responsive: true, displayModeBar: false });
     bindParetoResize();
     window.requestAnimationFrame(resizeParetoPlot);
     var share = (top.reduce(function (s, x) { return s + x.clicks; }, 0) / total) * 100;
