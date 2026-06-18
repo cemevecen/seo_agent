@@ -69,7 +69,7 @@
   var NT_TRAFFIC_LOTTIE = "https://assets7.lottiefiles.com/packages/lf20_t9gkkhz4.json";
   var NT_TRAFFIC_LOTTIE_PX = 240;
   /** GA4+GSC traffic API ortalama yanıt süresine göre geri sayım (sn). */
-  var NT_TRAFFIC_COUNTDOWN_SEC = 15;
+  var NT_TRAFFIC_COUNTDOWN_SEC = 20;
 
   function nt() {
     return global.NT || {};

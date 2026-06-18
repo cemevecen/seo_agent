@@ -334,6 +334,24 @@
     html.dark .notification-page .nt-cross-top-table tr.nt-cross-row-selected td {
       background: rgb(30 27 75 / 0.45) !important;
     }
+    .notification-page #nt-raw-list tr.nt-cross-row-selected td {
+      background: rgb(238 242 255) !important;
+    }
+    html.dark .notification-page #nt-raw-list tr.nt-cross-row-selected td {
+      background: rgb(30 27 75 / 0.45) !important;
+    }
+    .notification-page .nt-raw-list-stack {
+      width: 100%;
+      min-width: 0;
+    }
+    .notification-page .nt-raw-drill-below {
+      width: 100%;
+      min-width: 0;
+    }
+    .notification-page .nt-raw-drill-below .nt-cross-drill-panel {
+      border-top-width: 0;
+      border-radius: 0 0 0.5rem 0.5rem;
+    }
     .notification-page .nt-cross-drill-detail td {
       padding: 0 !important;
       border-bottom: 1px solid rgb(199 210 254) !important;
@@ -375,11 +393,17 @@
     }
     .notification-page .nt-traffic-bottom {
       grid-column: 1 / -1;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr));
+      display: flex;
+      flex-wrap: wrap;
       gap: 0.5rem;
       width: 100%;
-      align-items: start;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+    .notification-page .nt-traffic-bottom .nt-traffic-extra {
+      flex: 1 1 13.5rem;
+      max-width: min(100%, 22rem);
+      width: auto;
     }
     .notification-page .nt-traffic-urls {
       grid-column: 1 / -1;
@@ -1544,7 +1568,8 @@
   }
   function refreshRawDrillContent() {
     if (!ntRawDrill) return;
-    var panel = document.querySelector("#nt-raw-list .nt-cross-drill-panel");
+    var panel = document.querySelector("#nt-raw-list .nt-raw-drill-below .nt-cross-drill-panel")
+      || document.querySelector("#nt-raw-list .nt-cross-drill-panel");
     if (!panel) return;
     var row = findRawDrillRow();
     if (!row) {
@@ -1865,7 +1890,7 @@
         + '<button type="button" data-nt-sort="' + c.key + '" class="hover:text-slate-700 dark:hover:text-slate-200">' + escapeHtml(c.label) + ' ' + arrow + '</button>'
         + '</th>';
     }).join("");
-    var colCount = RAW_COLUMNS.length;
+    var openShell = null;
     var body = chunk.map(function (r) {
       var itemKey = rawDrillKeyFromRow(r);
       var isOpen = !!(ntRawDrill && ntRawDrill.key === itemKey);
@@ -1874,14 +1899,21 @@
         drill += ' data-nt-drill-text="' + escapeHtml(String(r.text || "").trim()).replace(/"/g, "&quot;") + '"';
       }
       var rowCls = "border-t border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30" + (isOpen ? " nt-cross-row-selected" : "");
-      var mainRow = '<tr class="' + rowCls + '"' + drill + ">"
+      if (isOpen) {
+        openShell = { id: idString(r), headline: String(r.text || "").trim(), sendDay: dayKey(r.date) };
+      }
+      return '<tr class="' + rowCls + '"' + drill + ">"
         + RAW_COLUMNS.map(function (c) { return rawCellHtml(r, c); }).join("")
         + "</tr>";
-      if (!isOpen) return mainRow;
-      var shellItem = { id: idString(r), headline: String(r.text || "").trim(), sendDay: dayKey(r.date) };
-      return mainRow + '<tr class="nt-cross-drill-detail"><td colspan="' + colCount + '">' + crossTopDrillPanelShell(shellItem) + "</td></tr>";
     }).join("");
-    el.innerHTML = '<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700"><table class="min-w-full"><thead class="bg-slate-50 dark:bg-slate-900"><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+    var tableBorderCls = openShell ? "rounded-t-lg border-b-0" : "rounded-lg";
+    var belowDrill = openShell
+      ? '<div class="nt-raw-drill-below border border-t-0 border-slate-200 dark:border-slate-700">' + crossTopDrillPanelShell(openShell) + "</div>"
+      : "";
+    el.innerHTML = '<div class="nt-raw-list-stack">'
+      + '<div class="overflow-x-auto ' + tableBorderCls + ' border border-slate-200 dark:border-slate-700"><table class="min-w-full"><thead class="bg-slate-50 dark:bg-slate-900"><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>'
+      + belowDrill
+      + "</div>";
     if (ntRawDrill) {
       var visible = chunk.some(function (r) { return rawDrillKeyFromRow(r) === ntRawDrill.key; });
       if (!visible) {
