@@ -1,4 +1,4 @@
-"""Gelen kutusu senkronu ve 6 sekmeli özet e-postası."""
+"""Gelen kutusu senkronu ve 4 sekmeli özet e-postası (doviz → sinemalar → nstat → firebase)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import html
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -18,22 +18,18 @@ from backend.services.inbox_visit_report import is_ziyaret_report_subject, ziyar
 
 logger = logging.getLogger(__name__)
 
-# UI sekmeleriyle aynı sıra (inbox_sync.INBOX_TAB_ORDER): doviz → sinemalar → nstat → firebase → reklam → all
+# Özet mailinde yalnızca bu sekmeler (sıra sabit)
 # (key, başlık, kısa açıklama, vurgu rengi, arka plan)
 INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
     ("doviz", "doviz", "info@doviz.com · feedback@doviz.com", "#1d4ed8", "#eff6ff"),
     ("sinemalar", "sinemalar", "info@sinemalar.com · feedback@sinemalar.com", "#4338ca", "#eef2ff"),
     ("nstat", "nstat", "En çok ziyaret edilen sayfalar (noreply@doviz.com)", "#047857", "#ecfdf5"),
     ("firebase", "firebase", "Firebase Crashlytics uyarıları", "#b45309", "#fffbeb"),
-    ("reklam", "reklam", "reklam@nokta.com", "#c026d3", "#fdf4ff"),
-    (
-        "all",
-        "all",
-        "to:me · info@blogcu.com · info@izlesene.com · medya@nokta.com",
-        "#475569",
-        "#f8fafc",
-    ),
 )
+
+INBOX_SUMMARY_TAB_ORDER: tuple[str, ...] = tuple(s[0] for s in INBOX_SUMMARY_SECTIONS)
+_SUMMARY_ROUTE_KEYS = frozenset(INBOX_SUMMARY_TAB_ORDER)
+SUMMARY_DETAIL_MAX_AGE_DAYS = 7
 
 
 def _inbox_summary_email_disabled() -> bool:
@@ -44,6 +40,11 @@ def _inbox_summary_email_disabled() -> bool:
 
 def _normalize_summary_route(route_tag: str | None) -> str:
     return inbox_sync.normalize_inbox_route_tag(route_tag)
+
+
+def _summary_cutoff_ms() -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=SUMMARY_DETAIL_MAX_AGE_DAYS)
+    return int(cutoff.timestamp() * 1000)
 
 
 def run_inbox_scheduled_sync(db: Session) -> dict[str, Any] | None:
@@ -71,16 +72,25 @@ def run_inbox_scheduled_sync(db: Session) -> dict[str, Any] | None:
         raise
 
 
-def _latest_inbound_message(db: Session, thread_id: int) -> SupportInboxMessage | None:
+def _inbound_messages_for_summary(
+    db: Session,
+    thread_id: int,
+    *,
+    cutoff_ms: int,
+) -> list[SupportInboxMessage]:
     return (
         db.query(SupportInboxMessage)
-        .filter(SupportInboxMessage.thread_id == thread_id, SupportInboxMessage.is_outbound.is_(False))
+        .filter(
+            SupportInboxMessage.thread_id == thread_id,
+            SupportInboxMessage.is_outbound.is_(False),
+            SupportInboxMessage.internal_ms >= cutoff_ms,
+        )
         .order_by(SupportInboxMessage.internal_ms.desc())
-        .first()
+        .all()
     )
 
 
-def _format_thread_date(internal_ms: int) -> str:
+def _format_message_date(internal_ms: int) -> str:
     if not internal_ms:
         return "—"
     try:
@@ -89,31 +99,31 @@ def _format_thread_date(internal_ms: int) -> str:
         return "—"
 
 
-def _thread_preview_text(
-    thread: SupportInboxThread,
-    latest: SupportInboxMessage | None,
+def _message_preview_text(
+    message: SupportInboxMessage,
     *,
     route_key: str,
 ) -> str:
-    raw = ""
-    if latest:
-        raw = effective_plain_text(latest.body_text, getattr(latest, "body_html", None))
-    elif thread.snippet:
-        raw = thread.snippet.strip()
+    raw = effective_plain_text(message.body_text, getattr(message, "body_html", None))
     if route_key == "nstat" and raw:
-        preview = ziyaret_thread_preview(raw, max_rows=2)
+        preview = ziyaret_thread_preview(raw, max_rows=4)
         return html.escape(preview).replace("\n", "<br/>")
     raw = raw.replace("\r\n", "\n").replace("\r", "\n")
-    if len(raw) > 480:
-        raw = raw[:477] + "…"
+    if len(raw) > 800:
+        raw = raw[:797] + "…"
     return html.escape(raw).replace("\n", "<br/>")
 
 
-def _render_thread_item(thread: SupportInboxThread, latest: SupportInboxMessage | None, *, route_key: str) -> str:
-    sender = html.escape((latest.from_addr if latest else "") or "Bilinmiyor")
-    date_str = _format_thread_date(latest.internal_ms if latest else thread.last_internal_ms)
-    subject = html.escape(thread.subject or "(konu yok)")
-    preview = _thread_preview_text(thread, latest, route_key=route_key)
+def _render_message_item(
+    thread: SupportInboxThread,
+    message: SupportInboxMessage,
+    *,
+    route_key: str,
+) -> str:
+    sender = html.escape((message.from_addr or "").strip() or "Bilinmiyor")
+    date_str = _format_message_date(message.internal_ms)
+    subject = html.escape((message.subject or thread.subject or "").strip() or "(konu yok)")
+    preview = _message_preview_text(message, route_key=route_key)
     accent = next((s[3] for s in INBOX_SUMMARY_SECTIONS if s[0] == route_key), "#94a3b8")
     return (
         "<li style='border-bottom:1px solid #e2e8f0;padding:14px 0;margin:0;list-style:none;'>"
@@ -150,20 +160,21 @@ def _render_overview_table(grouped: dict[str, list[SupportInboxThread]]) -> str:
     )
 
 
-
 def build_inbox_summary_html(
     grouped: dict[str, list[SupportInboxThread]],
     db: Session,
 ) -> str:
     now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
-    total = sum(len(v) for v in grouped.values())
+    cutoff_ms = _summary_cutoff_ms()
+    total = sum(len(grouped.get(key) or []) for key in INBOX_SUMMARY_TAB_ORDER)
+    order_label = " → ".join(INBOX_SUMMARY_TAB_ORDER)
     parts = [
         "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#1e293b;"
         "max-width:680px;margin:0 auto;'>",
         "<h2 style='color:#1d4ed8;margin:0 0 6px;'>Gelen Kutusu Özeti</h2>",
         f"<p style='color:#64748b;font-size:13px;margin:0 0 16px;'>{now_str} · "
-        f"<b>{total}</b> konuşma · sıra: "
-        f"{' → '.join(inbox_sync.INBOX_TAB_ORDER)}</p>",
+        f"<b>{total}</b> konuşma (son {SUMMARY_DETAIL_MAX_AGE_DAYS} gün) · sıra: "
+        f"{order_label}</p>",
         _render_overview_table(grouped),
     ]
 
@@ -188,13 +199,18 @@ def build_inbox_summary_html(
             )
         else:
             parts.append("<ul style='margin:0;padding:0 16px 8px;'>")
-            for thread in threads[:15]:
-                latest = _latest_inbound_message(db, thread.id)
-                parts.append(_render_thread_item(thread, latest, route_key=route_key))
-            if count > 15:
+            message_count = 0
+            for thread in threads:
+                messages = _inbound_messages_for_summary(db, thread.id, cutoff_ms=cutoff_ms)
+                if not messages:
+                    continue
+                for message in messages:
+                    parts.append(_render_message_item(thread, message, route_key=route_key))
+                    message_count += 1
+            if message_count == 0:
                 parts.append(
-                    f"<li style='list-style:none;padding:10px 0;color:#64748b;font-size:12px;'>"
-                    f"+ {count - 15} konuşma daha…</li>"
+                    "<li style='list-style:none;padding:10px 0;color:#64748b;font-size:13px;'>"
+                    f"Son {SUMMARY_DETAIL_MAX_AGE_DAYS} günde gösterilecek ileti yok.</li>"
                 )
             parts.append("</ul>")
         parts.append("</section>")
@@ -202,13 +218,18 @@ def build_inbox_summary_html(
     parts.append(
         "<p style='margin-top:8px;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;"
         "padding-top:12px;'>SEO Agent · 2 saatte bir otomatik özet · "
+        f"Detay: son {SUMMARY_DETAIL_MAX_AGE_DAYS} gün, ileti bazında · "
         "<a href='https://projectcontrol.up.railway.app/inbox'>Gelen kutusunu aç</a></p>"
     )
     parts.append("</div>")
     return "\n".join(parts)
 
 
-def _group_unread_threads(unread_threads: list[SupportInboxThread]) -> dict[str, list[SupportInboxThread]]:
+def _group_unread_threads(
+    unread_threads: list[SupportInboxThread],
+    *,
+    cutoff_ms: int,
+) -> dict[str, list[SupportInboxThread]]:
     grouped: dict[str, list[SupportInboxThread]] = defaultdict(list)
     for thread in unread_threads:
         if inbox_sync.inbox_thread_is_excluded(
@@ -217,14 +238,20 @@ def _group_unread_threads(unread_threads: list[SupportInboxThread]) -> dict[str,
         ):
             continue
         route = _normalize_summary_route(thread.route_tag)
+        if route not in _SUMMARY_ROUTE_KEYS:
+            continue
         if route == "nstat" and not is_ziyaret_report_subject(thread.subject or ""):
             continue
+        if (thread.last_internal_ms or 0) < cutoff_ms:
+            continue
         grouped[route].append(thread)
+    for route_key in grouped:
+        grouped[route_key].sort(key=lambda t: t.last_internal_ms or 0, reverse=True)
     return grouped
 
 
 def run_inbox_summary_email(db: Session) -> bool:
-    """Senkron sonrası 6 sekmeli gelen kutusu özet e-postası gönderir."""
+    """Senkron sonrası 4 sekmeli gelen kutusu özet e-postası gönderir."""
     if _inbox_summary_email_disabled():
         logger.info("Inbox summary email disabled (INBOX_SUMMARY_EMAIL_ENABLED=false).")
         return False
@@ -246,16 +273,17 @@ def run_inbox_summary_email(db: Session) -> bool:
     )
     logger.info("Unread threads for summary: %d", len(unread_threads))
 
-    grouped = _group_unread_threads(unread_threads)
-    total = sum(len(v) for v in grouped.values())
-    section_counts = {key: len(grouped.get(key) or []) for key, *_ in INBOX_SUMMARY_SECTIONS}
+    cutoff_ms = _summary_cutoff_ms()
+    grouped = _group_unread_threads(unread_threads, cutoff_ms=cutoff_ms)
+    total = sum(len(grouped.get(key) or []) for key in INBOX_SUMMARY_TAB_ORDER)
+    section_counts = {key: len(grouped.get(key) or []) for key in INBOX_SUMMARY_TAB_ORDER}
     chips = " · ".join(f"{k}:{v}" for k, v in section_counts.items() if v > 0)
     subject = f"Inbox özeti — {total} konuşma" + (f" ({chips})" if chips else "")
 
     html_body = build_inbox_summary_html(grouped, db)
     ok = mailer.send_email(subject, html_body)
     if ok:
-        logger.info("Inbox summary email sent (%d unread).", total)
+        logger.info("Inbox summary email sent (%d unread in summary window).", total)
     else:
         logger.error("Failed to send inbox summary email.")
     return ok

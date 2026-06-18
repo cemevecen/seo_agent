@@ -736,7 +736,7 @@ def admin_refresh_tmdb_cache():
 
 @app.get("/api/admin/run-inbox-summary-now")
 def admin_run_inbox_summary_now():
-    """Inbox özet mailini MANUEL tetikler (5 sekme)."""
+    """Inbox özet mailini MANUEL tetikler (4 sekme: doviz, sinemalar, nstat, firebase)."""
     from backend.services.inbox_summary import run_inbox_summary_email
 
     try:
@@ -4054,7 +4054,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         job_count += 1
         LOGGER.info("Inbox Firebase sync aktif: her %d dk.", fb_iv)
 
-    # Inbox 5 sekmeli özet maili — 2 saatte bir, çeyrek geçe (:15).
+    # Inbox 4 sekmeli özet maili — 2 saatte bir, çeyrek geçe (:15).
     scheduler.add_job(
         _run_inbox_summary_email_job,
         trigger=CronTrigger(
@@ -15513,7 +15513,7 @@ def _run_inbox_scheduled_sync_job() -> None:
 
 
 def _run_inbox_summary_email_job() -> None:
-    """APScheduler: 2 saatte bir 5 sekmeli inbox özet maili (:15)."""
+    """APScheduler: 2 saatte bir 4 sekmeli inbox özet maili (:15)."""
     try:
         from backend.services.inbox_summary import run_inbox_summary_email
 
