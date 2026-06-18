@@ -6,12 +6,6 @@
       <p class="text-[10px] font-semibold uppercase tracking-wider {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-rose-600 dark:text-rose-300{% endif %}">{{ block.display_name }}</p>
     {% endif %}
     <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100{% if block and block.display_name %} mt-0.5{% endif %}">Pozisyon · düşüş / yükseliş · Top 50 · 7g</h3>
-    {% if block and block.scope_label %}
-      <p class="mt-0.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">{{ block.scope_label }}</p>
-    {% endif %}
-    {% if block and block.period_label %}
-      <p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">{{ block.period_label }}</p>
-    {% endif %}
     {% if block and block.as_of_label %}
       <p class="mt-0.5 text-[10px] font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
     {% endif %}
