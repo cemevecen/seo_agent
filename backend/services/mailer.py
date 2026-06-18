@@ -237,6 +237,7 @@ from backend.services.smtp_quota import (
 
 DEFAULT_ERROR_REPORT_RECIPIENT = "cemevecen@nokta.com"
 DEFAULT_MAIL_RECIPIENT = "cemevecen@nokta.com"
+DEFAULT_OUTBOUND_FROM = "SEO Agent <projectcontrol@nokta.com>"
 
 
 def _recipient_domain(addr: str) -> str:
@@ -256,13 +257,18 @@ def _is_nokta_recipient(addr: str) -> bool:
     return dom == "nokta.com" or dom.endswith(".nokta.com")
 
 
+def _canonical_email(addr: str) -> str:
+    _, parsed = parseaddr((addr or "").strip())
+    return (parsed or (addr or "").strip()).strip()
+
+
 def normalize_outbound_recipients(
     recipients: list[str] | None = None,
     *,
     raw_setting: str | None = None,
     default: str = DEFAULT_MAIL_RECIPIENT,
 ) -> list[str]:
-    """Gmail alıcılarını çıkarır; liste boş kalırsa varsayılan @nokta.com döner."""
+    """Yalnızca @nokta.com alıcıları; Gmail ve diğer alan adları çıkarılır."""
     src: list[str] = []
     if recipients:
         src.extend(item.strip() for item in recipients if item and str(item).strip())
@@ -271,10 +277,13 @@ def normalize_outbound_recipients(
 
     out: list[str] = []
     seen: set[str] = set()
-    dropped_gmail: list[str] = []
-    for addr in src:
-        if _is_gmail_recipient(addr):
-            dropped_gmail.append(addr)
+    dropped: list[str] = []
+    for item in src:
+        addr = _canonical_email(item)
+        if not addr or "@" not in addr:
+            continue
+        if _is_gmail_recipient(addr) or not _is_nokta_recipient(addr):
+            dropped.append(addr)
             continue
         key = addr.lower()
         if key in seen:
@@ -282,12 +291,26 @@ def normalize_outbound_recipients(
         seen.add(key)
         out.append(addr)
 
-    if dropped_gmail:
-        logging.warning("Gmail alıcıları çıkarıldı (gönderilmeyecek): %s", ", ".join(dropped_gmail))
+    if dropped:
+        logging.warning(
+            "Giden posta alıcıları @nokta.com dışı bırakıldı: %s",
+            ", ".join(dropped),
+        )
 
     if not out:
         return [default]
     return out
+
+
+def effective_mail_from(recipient_list: list[str] | None = None) -> str:
+    """Gönderen: MAIL_FROM veya varsayılan servis adresi; alıcı ile aynı posta kutusu olmaz."""
+    raw = (settings.mail_from or "").strip()
+    from_hdr = raw if raw else DEFAULT_OUTBOUND_FROM
+    from_addr = _canonical_email(from_hdr).lower()
+    recs = recipient_list or []
+    if len(recs) == 1 and from_addr and from_addr == _canonical_email(recs[0]).lower():
+        return DEFAULT_OUTBOUND_FROM
+    return from_hdr
 
 
 def _set_message_to_header(message: EmailMessage, recipients: list[str]) -> None:
@@ -300,7 +323,12 @@ def _set_message_to_header(message: EmailMessage, recipients: list[str]) -> None
 
 def _recipient_addrs_from_message(message: EmailMessage) -> list[str]:
     to_raw = str(message.get("To", "") or "")
-    return [a.strip() for a in to_raw.split(",") if a.strip()]
+    out: list[str] = []
+    for part in to_raw.split(","):
+        addr = _canonical_email(part.strip())
+        if addr:
+            out.append(addr)
+    return out
 
 
 def _header_matches_recipient_list(message: EmailMessage, recipients: list[str]) -> bool:
@@ -430,7 +458,7 @@ def _gmail_oauth_outbound_ready() -> bool:
 
 
 def _realtime_outbound_transport_ready() -> bool:
-    return _smtp_configured() or _gmail_oauth_outbound_ready()
+    return _outbound_transport_ready()
 
 
 def is_realtime_mail_ready() -> bool:
@@ -584,8 +612,10 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
             logging.warning("Gmail OAuth token geçersiz, Gmail API atlanıyor.")
             return False
 
-        if _outbound_recipients_ready(message) is None:
+        safe = _outbound_recipients_ready(message)
+        if safe is None:
             return False
+        _set_message_to_header(message, safe)
 
         service = googleapiclient.discovery.build("gmail", "v1", credentials=creds, cache_discovery=False)
         raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode()
@@ -600,14 +630,38 @@ def _gmail_api_dispatch(message: EmailMessage, db: Session | None = None) -> boo
             session.close()
 
 
+def _outbound_transport_ready() -> bool:
+    if _smtp_configured():
+        return True
+    return bool(settings.outbound_gmail_api_enabled and _gmail_oauth_outbound_ready())
+
+
+def _dispatch_outbound_message(message: EmailMessage) -> bool:
+    """SMTP önce; Gmail Inbox OAuth yalnızca OUTBOUND_GMAIL_API_ENABLED=true iken yedek."""
+    safe = _outbound_recipients_ready(message)
+    if safe is None:
+        return False
+    _set_message_to_header(message, safe)
+
+    if _smtp_configured():
+        if _smtp_dispatch_with_daily_quota(message):
+            return True
+        if not settings.outbound_gmail_api_enabled:
+            return False
+
+    if settings.outbound_gmail_api_enabled and _gmail_oauth_outbound_ready():
+        return _gmail_api_dispatch(message)
+    return False
+
+
 def send_admin_security_email(subject: str, html_body: str, recipients: list[str]) -> bool:
     """Admin güvenlik uyarıları — outbound_email_enabled kapalı olsa da SMTP/Gmail ile dener."""
     recipient_list = normalize_outbound_recipients(recipients)
     if not recipient_list:
         return False
-    if not _smtp_configured() and not _gmail_oauth_outbound_ready():
+    if not _outbound_transport_ready():
         logging.warning(
-            "Admin güvenlik e-postası gönderilemedi: SMTP veya Gmail OAuth (inbox) gerekli"
+            "Admin güvenlik e-postası gönderilemedi: SMTP veya (OUTBOUND_GMAIL_API_ENABLED + Gmail OAuth) gerekli"
         )
         return False
     if not smtp_recipients_allowed(len(recipient_list)):
@@ -615,17 +669,14 @@ def send_admin_security_email(subject: str, html_body: str, recipients: list[str
 
     message = EmailMessage()
     message["Subject"] = subject
-    message["From"] = settings.mail_from
+    message["From"] = effective_mail_from(recipient_list)
     _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
     message.set_content(plain_text_for_mailer(html_body, subject=subject))
     message.add_alternative(html_body, subtype="html")
 
-    if _gmail_api_dispatch(message):
-        logging.info("Admin güvenlik e-postası Gmail API ile gönderildi: %s", subject[:100])
-        return True
-    ok = _smtp_dispatch_with_daily_quota(message)
+    ok = _dispatch_outbound_message(message)
     if ok:
         logging.info("Admin güvenlik e-postası gönderildi: %s", subject[:100])
     return ok
@@ -640,7 +691,9 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
         logging.debug("outbound_email_enabled=false; e-posta gönderilmedi: %s", subject[:80])
         return False
     recipient_list = normalize_outbound_recipients(recipients, raw_setting=settings.mail_to)
-    if not _smtp_configured() or not recipient_list:
+    if not recipient_list:
+        return False
+    if not _outbound_transport_ready():
         if not _smtp_configured():
             logging.warning("SMTP is not configured. Skipping email sending.")
         return False
@@ -649,20 +702,14 @@ def send_email(subject: str, html_body: str, recipients: list[str] | None = None
 
     message = EmailMessage()
     message["Subject"] = subject
-    message["From"] = settings.mail_from
+    message["From"] = effective_mail_from(recipient_list)
     _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
     message.set_content(plain_text_for_mailer(html_body, subject=subject))
     message.add_alternative(html_body, subtype="html")
 
-    # ÖNCE GMAIL API (OAuth) DENE (Railway SMTP engeline takılmaz)
-    if _gmail_api_dispatch(message):
-        logging.info("E-posta GMAIL API (OAuth) ile gönderildi: %s", subject[:100])
-        return True
-
-    # FALLBACK: SMTP (Eğer Gmail API bağlı değilse veya hata verdiyse)
-    ok = _smtp_dispatch_with_daily_quota(message)
+    ok = _dispatch_outbound_message(message)
     if ok:
         logging.info(
             "Email with subject '%s' sent successfully to %s.",
@@ -716,7 +763,7 @@ def send_realtime_email(
 
     message = EmailMessage()
     message["Subject"] = subj
-    message["From"] = settings.mail_from
+    message["From"] = effective_mail_from(recipient_list)
     _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
@@ -725,20 +772,10 @@ def send_realtime_email(
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
-    if _outbound_recipients_ready(message) is None:
-        logging.warning("GA4 Realtime e-postası gönderilemedi: geçerli To alıcısı yok")
-        return False
-
-    # ÖNCE GMAIL API (OAuth) DENE (Railway SMTP engeline takılmaz)
-    if _gmail_api_dispatch(message):
-        logging.info("GA4 Realtime e-postası GMAIL API (OAuth) ile gönderildi: %s → %s", subj[:100], message["To"])
-        return True
-
-    # FALLBACK: SMTP (Eğer Gmail API bağlı değilse veya hata verdiyse)
-    ok = _smtp_dispatch_with_daily_quota(message)
+    ok = _dispatch_outbound_message(message)
     if ok:
         logging.info(
-            "GA4 Realtime e-postası SMTP ile gönderildi: %s → %s",
+            "GA4 Realtime e-postası gönderildi: %s → %s",
             subj[:100],
             ", ".join(recipient_list),
         )
@@ -780,7 +817,7 @@ def send_realtime_news_email(
 
     message = EmailMessage()
     message["Subject"] = subj
-    message["From"] = settings.mail_from
+    message["From"] = effective_mail_from(recipient_list)
     _set_message_to_header(message, recipient_list)
     from backend.services.inbox_email_render import plain_text_for_mailer
 
@@ -789,16 +826,10 @@ def send_realtime_news_email(
     if thread_kind and thread_key:
         _apply_realtime_thread_headers(message, thread_kind, thread_key)
 
-    # ÖNCE GMAIL API (OAuth) DENE
-    if _gmail_api_dispatch(message):
-        logging.info("GA4 Realtime haber e-postası GMAIL API (OAuth) ile gönderildi: %s → %s", subj[:100], message["To"])
-        return True
-
-    # FALLBACK: SMTP
-    ok = _smtp_dispatch_with_daily_quota(message)
+    ok = _dispatch_outbound_message(message)
     if ok:
         logging.info(
-            "GA4 Realtime haber e-postası SMTP ile gönderildi: %s → %s",
+            "GA4 Realtime haber e-postası gönderildi: %s → %s",
             subj[:100],
             ", ".join(recipient_list),
         )

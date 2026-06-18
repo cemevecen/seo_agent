@@ -34,10 +34,12 @@ def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
     mailer._pending_realtime_batch_items = []
     monkeypatch.setattr(mailer.settings, "ga4_realtime_email_batch_interval_minutes", 0)
     monkeypatch.setattr(mailer.settings, "ga4_realtime_email_enabled", True)
-    monkeypatch.setattr(mailer.settings, "mail_to", "ops@example.com")
-    monkeypatch.setattr(mailer.settings, "mail_from", "seo@example.com")
+    monkeypatch.setattr(mailer.settings, "mail_to", "ops@nokta.com")
+    monkeypatch.setattr(mailer.settings, "mail_from", "seo@nokta.com")
+    monkeypatch.setattr(mailer.settings, "outbound_gmail_api_enabled", True)
     monkeypatch.setattr(mailer, "_smtp_configured", lambda: True)
     monkeypatch.setattr(mailer, "_realtime_outbound_transport_ready", lambda: True)
+    monkeypatch.setattr(mailer, "_gmail_oauth_outbound_ready", lambda: True)
     monkeypatch.setattr(mailer, "smtp_recipients_allowed", lambda _count: True)
     monkeypatch.setattr(mailer, "_smtp_dispatch_with_daily_quota", lambda _message: False)
 

@@ -268,6 +268,14 @@ class Settings(BaseSettings):
     # Genel uygulama e-postaları: SEO Alert, operasyon özeti, günlük AI özet, GA4 haftalık özet vb.
     # False iken bu kanallar SMTP kullanmaz. GA4 Realtime alarm postası ayrı bayrakla (ga4_realtime_email_enabled) gönderilir.
     outbound_email_enabled: bool = False
+    # false: giden posta önce SMTP (MAIL_FROM); Gmail Inbox OAuth yalnızca yedek ve açıkça etkinse.
+    outbound_gmail_api_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "OUTBOUND_GMAIL_API_ENABLED",
+            "outbound_gmail_api_enabled",
+        ),
+    )
     # Tetik/operasyon özet mailleri (PageSpeed/CrUX günlük vb.); outbound açıkken anlam taşır.
     operations_trigger_email_enabled: bool = False
     # True iken operasyon/GA4 özet e-postaları yalnızca trigger_source=manual ile gider (zamanlayıcı ve monitör dahil).

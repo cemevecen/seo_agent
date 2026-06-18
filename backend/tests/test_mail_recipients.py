@@ -4,7 +4,9 @@ from unittest.mock import patch
 
 from backend.services.mailer import (
     DEFAULT_MAIL_RECIPIENT,
+    DEFAULT_OUTBOUND_FROM,
     default_mail_recipients,
+    effective_mail_from,
     normalize_outbound_recipients,
 )
 
@@ -14,6 +16,11 @@ def test_normalize_outbound_recipients_strips_gmail():
         ["cemevecen@gmail.com", "cemevecen@nokta.com", "ops@nokta.com"]
     )
     assert out == ["cemevecen@nokta.com", "ops@nokta.com"]
+
+
+def test_normalize_outbound_recipients_strips_non_nokta():
+    out = normalize_outbound_recipients(["ops@example.com", "cemevecen@nokta.com"])
+    assert out == ["cemevecen@nokta.com"]
 
 
 def test_normalize_outbound_recipients_gmail_only_falls_back():
@@ -85,3 +92,10 @@ def test_operations_recipients_filters_gmail():
     with patch("backend.services.operations_notifier.settings") as mock_settings:
         mock_settings.operations_mail_to = "cemevecen@gmail.com, cemevecen@nokta.com"
         assert operations_recipients() == ["cemevecen@nokta.com"]
+
+
+def test_effective_mail_from_avoids_self_send():
+    assert effective_mail_from(["cemevecen@nokta.com"]) == DEFAULT_OUTBOUND_FROM
+    with patch("backend.services.mailer.settings") as mock_settings:
+        mock_settings.mail_from = "SEO Agent <projectcontrol@nokta.com>"
+        assert effective_mail_from(["cemevecen@nokta.com"]) == "SEO Agent <projectcontrol@nokta.com>"
