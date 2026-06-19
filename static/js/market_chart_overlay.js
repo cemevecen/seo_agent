@@ -303,22 +303,55 @@
     return group != null && String(group).indexOf(MARKET_LEGEND_PREFIX) === 0;
   }
 
-  function syncMarketBridgeVisibility(plotEl, curveNumber) {
+  function marketGroupLeaderTrace(data, group) {
+    for (var i = 0; i < (data || []).length; i++) {
+      var tr = data[i];
+      if (tr && tr.legendgroup === group && tr.showlegend !== false) return tr;
+    }
+    return null;
+  }
+
+  function traceShownOnGraph(visible) {
+    return visible !== false && visible !== "legendonly";
+  }
+
+  /** Legend tıklamasında ana seri + köprü segmentlerini birlikte gizle/göster. */
+  function toggleMarketLegendGroup(plotEl, curveNumber) {
     if (!plotEl || !global.Plotly || curveNumber == null) return;
     var data = plotEl.data || [];
-    var main = data[curveNumber];
-    if (!main || !isMarketLegendGroup(main.legendgroup)) return;
-    var targetVis = main.visible;
+    var clicked = data[curveNumber];
+    if (!clicked || !isMarketLegendGroup(clicked.legendgroup)) return;
+    var group = clicked.legendgroup;
+    var anyOnGraph = data.some(function (tr) {
+      return tr && tr.legendgroup === group && traceShownOnGraph(tr.visible);
+    });
+    var newVis = anyOnGraph ? false : true;
     var idx = [];
     var vis = [];
     data.forEach(function (tr, i) {
-      if (
-        i !== curveNumber &&
-        tr &&
-        tr.legendgroup === main.legendgroup &&
-        tr.showlegend === false &&
-        tr.visible !== targetVis
-      ) {
+      if (tr && tr.legendgroup === group) {
+        idx.push(i);
+        vis.push(newVis);
+      }
+    });
+    if (idx.length) {
+      Plotly.restyle(plotEl, { visible: vis }, idx);
+    }
+    return false;
+  }
+
+  function syncAllMarketBridgeGroups(plotEl) {
+    if (!plotEl || !global.Plotly) return;
+    var data = plotEl.data || [];
+    var idx = [];
+    var vis = [];
+    data.forEach(function (tr, i) {
+      if (!tr || tr.showlegend !== false || !isMarketLegendGroup(tr.legendgroup)) return;
+      var leader = marketGroupLeaderTrace(data, tr.legendgroup);
+      if (!leader) return;
+      var targetVis = leader.visible;
+      if (targetVis == null) targetVis = true;
+      if (tr.visible !== targetVis) {
         idx.push(i);
         vis.push(targetVis);
       }
@@ -340,13 +373,12 @@
       el.removeListener("plotly_legenddoubleclick", el._seoMarketLegendDblHandler);
     }
     el._seoMarketLegendHandler = function (evt) {
-      window.setTimeout(function () {
-        syncMarketBridgeVisibility(el, evt.curveNumber);
-      }, 0);
+      var handled = toggleMarketLegendGroup(el, evt.curveNumber);
+      if (handled === false) return false;
     };
     el._seoMarketLegendDblHandler = function (evt) {
       window.setTimeout(function () {
-        syncMarketBridgeVisibility(el, evt.curveNumber);
+        syncAllMarketBridgeGroups(el);
       }, 0);
     };
     el.on("plotly_legendclick", el._seoMarketLegendHandler);
@@ -407,6 +439,7 @@
           name: legendName,
           showlegend: false,
           legendgroup: legendGroup,
+          visible: true,
           yaxis: yaxisId,
           line: { color: bridgeColor, width: 2 },
           connectgaps: true,
@@ -468,6 +501,7 @@
             mode: "lines",
             name: legendName,
             legendgroup: legendGroup,
+            visible: true,
             yaxis: yaxisId,
             line: { color: lineColor, width: 2 },
             connectgaps: false,
