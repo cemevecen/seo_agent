@@ -131,11 +131,14 @@
         <option value="7d">Son 7 gün</option>
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
+        <option value="6m">Son 6 ay</option>
         <option value="this_month">Bu ay</option>
         <option value="last_month">Geçen ay</option>
         <option value="ytd" selected>Bu yıl</option>
         <option value="1y">Son 1 yıl</option>
         <option value="last_year">Geçen yıl</option>
+        <option value="last_year_h1">Geçen yıl ilk 6 ay</option>
+        <option value="last_year_h2">Geçen yıl son 6 ay</option>
         <option value="all">Tüm veri</option>
       </select>
 
@@ -1623,11 +1626,14 @@
     "7d": "Son 7 gün",
     "30d": "Son 30 gün",
     "90d": "Son 90 gün",
+    "6m": "Son 6 ay",
     this_month: "Bu ay",
     last_month: "Geçen ay",
     ytd: "Bu yıl",
     "1y": "Son 1 yıl",
     last_year: "Geçen yıl",
+    last_year_h1: "Geçen yıl ilk 6 ay",
+    last_year_h2: "Geçen yıl son 6 ay",
     all: "Tüm veri",
   };
 
@@ -7686,6 +7692,7 @@
     if (v === "7d") s.setDate(s.getDate() - 7);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "90d") s.setDate(s.getDate() - 90);
+    else if (v === "6m") s.setMonth(s.getMonth() - 6);
     else if (v === "this_month") {
       var thisMonthStart = new Date(d.getFullYear(), d.getMonth(), 1);
       start.value = isoCalendarDate(thisMonthStart);
@@ -7709,6 +7716,20 @@
       var calY = d.getFullYear() - 1;
       start.value = calY + "-01-01";
       end.value = calY + "-12-31";
+      updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
+      return;
+    } else if (v === "last_year_h1") {
+      var calY1 = d.getFullYear() - 1;
+      start.value = calY1 + "-01-01";
+      end.value = calY1 + "-06-30";
+      updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
+      return;
+    } else if (v === "last_year_h2") {
+      var calY2 = d.getFullYear() - 1;
+      start.value = calY2 + "-07-01";
+      end.value = calY2 + "-12-31";
       updateComparePeriodBanner(state.lastSummary);
       updateRangeEmptyNotice(state.lastSummary);
       return;
