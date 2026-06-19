@@ -1496,10 +1496,12 @@
     if (q) p.set("search", q);
     if (state.drillSlice && state.drillSlice.ad_unit) {
       p.set("ad_unit", state.drillSlice.ad_unit);
+      p.set("ad_units", state.drillSlice.ad_unit);
       if (state.drillSlice.area) p.set("area", state.drillSlice.area);
     }
     if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
       p.set("drill_income_type", state.summaryDrillSlice.income_type);
+      p.set("income_types", state.summaryDrillSlice.income_type);
     }
     var preset = document.getElementById("mz-preset").value;
     if (preset && !isMzCustomPreset(preset)) p.set("preset", preset);
@@ -3693,6 +3695,13 @@
     }
   }
 
+  function mzScopedDrillFiltersActive() {
+    return (
+      !!(state.drillSlice && state.drillSlice.ad_unit) ||
+      !!(state.summaryDrillSlice && state.summaryDrillSlice.income_type)
+    );
+  }
+
   async function refreshChartMonth() {
     if (!window.Plotly || !state.lastSummary) return;
     var peerSum = null;
@@ -3701,7 +3710,7 @@
     }
     var cfg = state.breakdowns.chartMonth;
     var cmp = compareBlock(state.lastSummary);
-    if (cfg.bdTime === "month" && !cfg.bdArea && !cfg.bdDims.size) {
+    if (cfg.bdTime === "month" && !cfg.bdArea && !cfg.bdDims.size && !mzScopedDrillFiltersActive()) {
       var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (state.lastSummary.by_month || []);
       mo = sortChartRowsChronological(mo, "month");
       groupedBarPlot("mz-chart-bar-month", mo, "month", cmp, peerSum);
@@ -6450,6 +6459,15 @@
   }
 
   function groupedBarPlot(elId, rows, labelKey, cmp, peerSum) {
+    rows = rows || [];
+    if (!rows.length) {
+      var emptyEl = document.getElementById(elId);
+      if (emptyEl) {
+        emptyEl.innerHTML =
+          '<p class="py-8 text-center text-xs text-slate-500 dark:text-zinc-400">Seçili dilim için aylık gelir verisi yok.</p>';
+      }
+      return;
+    }
     var colors = compareColors();
     var labels = rows.map(function (x) { return x[labelKey]; });
     var periodLabels = comparePeriodChartLabels(state.lastSummary);
@@ -6469,7 +6487,11 @@
         marker: { color: colors.barCompare },
       });
     }
-    var barLayout = { yTitle: "TL", barmode: cmp ? "group" : "relative" };
+    var barLayout = {
+      yTitle: "TL",
+      barmode: cmp ? "group" : "relative",
+      xaxis: { type: "category", automargin: true },
+    };
     var peerYs =
       state.peerOverlay.month && peerSum ? peerBarYsForLabels(peerSum, labels, labelKey) : null;
     if (peerYs) {
@@ -6491,7 +6513,7 @@
       traces.push(peerTrace);
     }
     if (cmp) barLayout = applyCompareLayout(barLayout, labels.length);
-    plotChart(elId, traces, plotTheme(barLayout), { minHeight: 220 });
+    plotChart(elId, traces, plotTheme(barLayout), { minHeight: 220, tightX: false });
   }
 
   var MZ_TOP_UNITS_PRESET_LABELS = {
