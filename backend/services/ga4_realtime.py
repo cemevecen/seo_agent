@@ -379,11 +379,11 @@ def _html_page_alarm_body(
                 f'<div style="font-size:11px;color:#2563eb;font-family:monospace;margin-top:2px;">'
                 f'<a href="https://{domain}{html.escape(p)}" style="color:#2563eb;">{html.escape(p)}</a>'
                 f'</div>'
-                for p in page_paths[:5]
+                for p in page_paths[:10]
             )
             paths_html = f'<div style="margin-top:4px;">{path_items}</div>'
-            if len(page_paths) > 5:
-                paths_html += f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">+{len(page_paths)-5} URL</div>'
+            if len(page_paths) > 10:
+                paths_html += f'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">+{len(page_paths)-10} URL</div>'
 
         cards.append(
             f'<div style="margin:8px 0;padding:12px 14px;border-radius:8px;border-left:4px solid {border};background:{bg};">'
@@ -687,8 +687,8 @@ def _split_alarms_by_sentiment(alarms: list[dict[str, Any]]) -> tuple[list[dict[
 
 
 # Bir site+profil mailinde azami pozitif/negatif alarm (konsolide mailde ayrıca batch cap var).
-ALARM_EMAIL_TOP_N = 6
-REALTIME_DETAIL_TOP_N = 6
+ALARM_EMAIL_TOP_N = 10
+REALTIME_DETAIL_TOP_N = 10
 REALTIME_BUCKET_TOP_PAGES_N = 6
 
 
@@ -2226,6 +2226,238 @@ def _realtime_alarm_detail_top_html(domain: str, alarms: list[dict[str, Any]]) -
     except Exception:
         logger.exception("Realtime batch email detail top skipped")
         return ""
+
+
+def _digest_top_n() -> int:
+    from backend.config import settings
+
+    return int(getattr(settings, "ga4_realtime_email_digest_top_n", REALTIME_DETAIL_TOP_N))
+
+
+def _latest_collected_at(
+    db: Session,
+    model: type,
+    site_id: int,
+    profile: str,
+) -> datetime | None:
+    from sqlalchemy import desc
+
+    return (
+        db.query(model.collected_at)
+        .filter(model.site_id == site_id, model.profile == profile)
+        .order_by(desc(model.collected_at))
+        .limit(1)
+        .scalar()
+    )
+
+
+def _html_digest_top_list(
+    title: str,
+    rows: list[tuple[str, int, str | None]],
+    *,
+    value_label: str = "kul",
+) -> str:
+    if not rows:
+        return ""
+    items = []
+    for idx, (label, val, href) in enumerate(rows, start=1):
+        label_e = html.escape(label)
+        if href:
+            link = html.escape(href, quote=True)
+            label_html = (
+                f'<a href="{link}" style="color:#1e293b;text-decoration:none;border-bottom:1px solid rgba(30,41,59,.15);">'
+                f"{label_e}</a>"
+            )
+        else:
+            label_html = label_e
+        items.append(
+            f'<li style="margin:3px 0;">'
+            f'<span style="color:#94a3b8;margin-right:6px;">{idx}.</span>'
+            f"{label_html} "
+            f'<span style="color:#64748b;">· {val:,} {value_label}</span></li>'
+        )
+    return (
+        f'<div style="margin:10px 0 4px;font-size:11px;font-weight:800;color:#475569;">{html.escape(title)}</div>'
+        f'<ol style="margin:0 0 8px;padding:0 0 0 22px;font-size:12px;line-height:1.45;">{"".join(items)}</ol>'
+    )
+
+
+def _digest_profile_block(
+    db: Session,
+    site: "Site",
+    profile: str,
+    *,
+    top_n: int,
+) -> str:
+    from backend.models import RealtimeAppEventSnapshot, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot
+    from sqlalchemy import desc
+
+    snap = (
+        db.query(RealtimeSnapshot)
+        .filter(RealtimeSnapshot.site_id == site.id, RealtimeSnapshot.profile == profile)
+        .order_by(desc(RealtimeSnapshot.collected_at))
+        .first()
+    )
+    if not snap:
+        return ""
+
+    au_cur = int(round(float(snap.active_users_current or 0)))
+    au_prev = int(round(float(snap.active_users_previous or 0)))
+    pv_cur = int(round(float(snap.pageviews_current or 0)))
+    pv_prev = int(round(float(snap.pageviews_previous or 0)))
+    delta = au_cur - au_prev
+    delta_c = "#16a34a" if delta >= 0 else "#dc2626"
+    delta_sign = f"{delta:+d}" if au_prev > 0 or delta != 0 else "—"
+
+    header = _html_email_section_header(site.domain, profile)
+    kpi = (
+        f'<div style="font-size:12px;color:#64748b;margin:0 0 8px;">'
+        f"Aktif kullanıcı <strong style=\"color:#0f172a;\">{au_cur:,}</strong>"
+        f' <span style="color:#94a3b8;">(önceki {au_prev:,}, </span>'
+        f'<span style="color:{delta_c};font-weight:700;">{delta_sign}</span>'
+        f'<span style="color:#94a3b8;">)</span>'
+        f" · Görüntüleme <strong style=\"color:#0f172a;\">{pv_cur:,}</strong>"
+        f' <span style="color:#94a3b8;">(önceki {pv_prev:,})</span></div>'
+    )
+
+    body_parts = [header, kpi]
+
+    if profile in ("web", "mweb"):
+        latest_pages = _latest_collected_at(db, RealtimePageSnapshot, site.id, profile)
+        if latest_pages:
+            page_rows = (
+                db.query(RealtimePageSnapshot)
+                .filter(
+                    RealtimePageSnapshot.site_id == site.id,
+                    RealtimePageSnapshot.profile == profile,
+                    RealtimePageSnapshot.collected_at == latest_pages,
+                )
+                .order_by(desc(RealtimePageSnapshot.active_users))
+                .limit(top_n)
+                .all()
+            )
+            plist: list[tuple[str, int, str | None]] = []
+            for r in page_rows:
+                path = str(r.page_path or "").strip() or "?"
+                title = _rt_alarm_screen_title_one_line(path, max_len=72)
+                href = f"https://{site.domain}{path}" if path.startswith("/") else None
+                plist.append((title, int(r.active_users or 0), href))
+            body_parts.append(_html_digest_top_list("Top sayfalar", plist))
+
+        latest_news = _latest_collected_at(db, RealtimeNewsSnapshot, site.id, profile)
+        if latest_news:
+            news_rows = (
+                db.query(RealtimeNewsSnapshot)
+                .filter(
+                    RealtimeNewsSnapshot.site_id == site.id,
+                    RealtimeNewsSnapshot.profile == profile,
+                    RealtimeNewsSnapshot.collected_at == latest_news,
+                )
+                .order_by(desc(RealtimeNewsSnapshot.active_users))
+                .limit(top_n)
+                .all()
+            )
+            nlist = [
+                (
+                    _rt_alarm_screen_title_one_line(str(r.screen_title or ""), max_len=72),
+                    int(r.active_users or 0),
+                    None,
+                )
+                for r in news_rows
+            ]
+            if nlist:
+                body_parts.append(_html_digest_top_list("Top haberler", nlist))
+
+    if profile in ("android", "ios"):
+        latest_ev = _latest_collected_at(db, RealtimeAppEventSnapshot, site.id, profile)
+        if latest_ev:
+            ev_rows = (
+                db.query(RealtimeAppEventSnapshot)
+                .filter(
+                    RealtimeAppEventSnapshot.site_id == site.id,
+                    RealtimeAppEventSnapshot.profile == profile,
+                    RealtimeAppEventSnapshot.collected_at == latest_ev,
+                )
+                .order_by(desc(RealtimeAppEventSnapshot.event_count))
+                .limit(top_n)
+                .all()
+            )
+            elist = [(str(r.event_name or ""), int(r.event_count or 0), None) for r in ev_rows]
+            body_parts.append(_html_digest_top_list("Top eventler", elist, value_label="evt"))
+
+    return (
+        f'<div style="margin:14px 0;padding:12px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa;">'
+        f'{"".join(body_parts)}</div>'
+    )
+
+
+def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: int = 0) -> str:
+    """4 saatlik SEO Realtime özet maili — site/profil toplamları + top N link/event."""
+    from backend.models import Site as SiteModel
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from backend.config import settings
+
+    top_n = _digest_top_n()
+    tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
+    now_local = datetime.now(ZoneInfo(tz_name))
+    stamp = now_local.strftime("%d.%m.%Y %H:%M")
+
+    sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
+    site_blocks: list[str] = []
+    for site in sites:
+        prof_blocks: list[str] = []
+        for profile in ("web", "mweb", "android", "ios"):
+            block = _digest_profile_block(db, site, profile, top_n=top_n)
+            if block:
+                prof_blocks.append(block)
+        if not prof_blocks:
+            continue
+        site_blocks.append(
+            f'<div style="margin-bottom:22px;">'
+            f'<h2 style="font-size:16px;font-weight:800;margin:0 0 8px;color:#0f172a;">'
+            f'{html.escape(_email_site_short_label(site.domain))}</h2>'
+            f'{"".join(prof_blocks)}</div>'
+        )
+
+    if not site_blocks:
+        inner = (
+            '<p style="font-size:13px;color:#64748b;">Bu aralık için snapshot verisi yok.</p>'
+        )
+    else:
+        inner = "".join(site_blocks)
+
+    queued_line = ""
+    if queued_alarm_sections > 0:
+        queued_line = (
+            f'<p style="font-size:11px;color:#64748b;margin:0 0 14px;">'
+            f"Bu dönemde kuyruğa alınan alarm bölümü: {queued_alarm_sections}</p>"
+        )
+
+    pre = _preheader(f"SEO Realtime 4s özet · {stamp}")
+    return (
+        f'<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
+        f'max-width:620px;margin:0 auto;color:#0f172a;">'
+        f"{pre}"
+        f'<p style="font-size:15px;font-weight:800;margin:0 0 4px;">SEO Realtime · 4 saatlik özet</p>'
+        f'<p style="font-size:12px;color:#64748b;margin:0 0 18px;">{html.escape(stamp)} · '
+        f"Her profil için en çok {top_n} sayfa/haber/event</p>"
+        f"{queued_line}"
+        f"{inner}"
+        f"</div>"
+    )
+
+
+def realtime_periodic_digest_subject() -> str:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from backend.config import settings
+
+    tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
+    stamp = datetime.now(ZoneInfo(tz_name)).strftime("%d.%m %H:%M")
+    return f"SEO Realtime · 4s özet · {stamp}"[:120]
 
 
 def check_site_realtime(
@@ -4360,52 +4592,6 @@ def fetch_realtime_404_users(
     }
 
 
-def _html_404_spike_body(
-    domain: str,
-    profile: str,
-    current_users: int,
-    pages: list[dict],
-    severity: str,
-    threshold: int,
-    *,
-    previous: int = 0,
-    delta: int = 0,
-) -> str:
-    border = "#dc2626" if severity == "critical" else "#f59e0b"
-    bg     = "#fef2f2" if severity == "critical" else "#fffbeb"
-    badge_c= "#dc2626" if severity == "critical" else "#d97706"
-    sev_tr = "KRİTİK" if severity == "critical" else "UYARI"
-    pct = (delta / previous * 100) if previous > 0 else (100.0 if current_users > 0 else 0.0)
-
-    page_rows = "".join(
-        f'<div style="display:flex;justify-content:space-between;padding:5px 0;'
-        f'border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;">'
-        f'<span style="color:#475569">{html.escape(p["title"][:60])}</span>'
-        f'<strong style="color:{badge_c};margin-left:12px">{p["activeUsers"]}</strong>'
-        f'</div>'
-        for p in pages[:8]
-    )
-
-    top_pages_str = " · ".join(
-        f'{html.escape(p["title"][:20])}:{p["activeUsers"]}'
-        for p in pages[:3]
-    ) if pages else ""
-    pre404 = f"404 {previous}→{current_users} {delta:+d} [{sev_tr}]" + (f" · {top_pages_str}" if top_pages_str else "")
-
-    metric_row = _html_email_metric_row(previous, current_users, pct, large=True) if previous > 0 else (
-        f'<span style="font-size:32px;font-weight:900;color:{badge_c}">{current_users:,}</span>'
-    )
-
-    return f"""
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;color:#0f172a;">
-          {_preheader(pre404)}
-          {_html_email_section_header(domain, profile)}
-          <div style="margin:10px 0;padding:14px 16px;border-radius:10px;border-left:4px solid {border};background:{bg}">
-            <div style="font-size:11px;font-weight:700;color:{badge_c};margin-bottom:8px">404 · {sev_tr} · eşik {threshold}</div>
-            {metric_row}
-          </div>
-          {('<div style="margin-top:8px">' + page_rows + '</div>') if pages else ''}
-        </div>"""
 
 
 def check_realtime_404_for_site(
@@ -4486,26 +4672,6 @@ def check_realtime_404_for_site(
 
     if skip_emails:
         return result
-
-    # Cooldown kontrolü
-    if _alarm_email_suppressed(db, site.id, [rule_id, "rt_404_warning", "rt_404_critical"], profile=profile):
-        logger.info("404 spike cooldown aktif, mail atlandı (site=%s, profile=%s).", site.domain, profile)
-        return result
-
-    # Mail gönder
-    from backend.services.mailer import is_realtime_mail_ready, send_realtime_email
-    if is_realtime_mail_ready():
-        threshold = crit_threshold if severity == "critical" else warn_threshold
-        html_body = _html_404_spike_body(
-            site.domain, profile, total, pages, severity, threshold, previous=previous, delta=delta
-        )
-        subject = (
-            f"{'🚨 KRİTİK' if severity == 'critical' else '⚠️ UYARI'} · "
-            f"{_email_site_short_label(site.domain)} · 404 {previous:.0f}→{total:.0f} [{profile}]"
-        )
-        thread_key = _realtime_email_thread_key(site.domain, profile)
-        send_realtime_email(subject, html_body, thread_kind="404spike", thread_key=thread_key)
-        logger.warning("404 Spike [%s %s]: %d kullanıcı (%s)", site.domain, profile, total, severity)
 
     return result
 

@@ -178,10 +178,6 @@ class Settings(BaseSettings):
         default="cemevecen@nokta.com",
         validation_alias=AliasChoices("OPERATIONS_MAIL_TO", "operations_mail_to"),
     )
-    error_report_mail_to: str = Field(
-        default="cemevecen@nokta.com",
-        validation_alias=AliasChoices("ERROR_REPORT_MAIL_TO", "error_report_mail_to"),
-    )
     # SMTP günlük kota: Gmail tüketici ~500 mesaj/gün; Workspace ücretli kullanıcı ~2000/gün (Google duyurusu, değişebilir).
     # Workspace’te POP/IMAP/SMTP ile mesaj başına en fazla 100 alıcı (RCPT) sınırı yaygındır.
     # Referans: https://support.google.com/mail/answer/22839 — https://support.google.com/a/answer/166852
@@ -384,8 +380,9 @@ class Settings(BaseSettings):
     ga4_realtime_news_alert_email: bool = True
     # Aynı site/kural için e-posta tekrar baskılama süresi (dakika). 0 = baskılama yok.
     ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=90, ge=0, le=480)
-    # Konsolide «SEO Realtime» maili: en az bu kadar dakika arayla (kritik/404 hariç).
-    ga4_realtime_email_batch_interval_minutes: int = Field(default=60, ge=15, le=480)
+    # Konsolide «SEO Realtime» özet maili: en az bu kadar dakika arayla (06:00–22:00 TR).
+    ga4_realtime_email_batch_interval_minutes: int = Field(default=240, ge=60, le=480)
+    ga4_realtime_email_digest_top_n: int = Field(default=10, ge=5, le=25)
     # Sayfa/haber düşüşü maili: önceki veya şimdiki yarıda en az bu kadar aktif kullanıcı + mutlak fark.
     ga4_realtime_email_min_users_for_mail: int = Field(default=30, ge=5, le=500)
     ga4_realtime_email_min_abs_user_delta: int = Field(default=12, ge=1, le=200)

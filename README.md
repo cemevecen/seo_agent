@@ -301,7 +301,7 @@ Ortak parametreler:
 |------|--------|----------|
 | **06:00, 09:00, 12:00, 15:00, 18:00, 20:00, 22:00** | `inbox-summary-on-hour` | Inbox özet maili (kapatılabilir: `INBOX_SUMMARY_EMAIL_ENABLED=true` ile aktifleşir) |
 | **07:30, 10:30, 13:30, 16:30** | `inbox-summary-on-half` | Inbox özet maili (aynı flag) |
-| **13:15, 23:15** | `error-report-email` | 404 hata özet maili (günde 2 kez tüm siteler için tek konsolide mail) |
+| **Her 4 saat (06:00–22:00 TR)** | GA4 Realtime job | SEO Realtime özet maili (toplam KPI + profil başına top 10 sayfa/haber/event) |
 | **Her ~5 dk** (07:01–23:51) | `ga4-realtime-check` | Realtime KPI + sayfa alarm + 404 spike kontrolü |
 | **Her ~5 dk** (07:01–23:51) | `ga4-realtime-news-check` | Haber realtime alarm kontrolü (peak-drop, traffic-spike, new-entry, disappeared) |
 | **Her 10 dk** (07:01–23:51) | `news-intelligence-sync` | Haber senkronizasyonu (gün içi mini-batch) |
@@ -1045,7 +1045,7 @@ Aynı dark mode matlaştırma `home-de-card` scope'unda uygulanır.
 
 ### 21.8 SMTP / Gmail Send
 
-- **Tüketim:** Otomatik mailler (404 günlük 2, scheduled refresh, realtime alarmlar, kaçırılmış run, vb.) günde 25–60 mail
+- **Tüketim:** Otomatik mailler (SEO Realtime 4s özet, scheduled refresh, kaçırılmış run, vb.) günde daha düşük hacimde
 - **Risk:** Sağlayıcı limitine bağlı
 
 ### 21.9 LLM API'leri
@@ -1297,7 +1297,6 @@ GET /api/admin/run-error-detection-now
 GET /api/admin/run-seo-audit-now
 GET /api/admin/run-news-intelligence-now
 GET /api/admin/run-meta-audit-now
-GET /api/admin/run-error-report-mail-now
 GET /api/admin/run-inbox-summary-now
 ```
 

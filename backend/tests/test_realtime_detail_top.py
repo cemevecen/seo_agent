@@ -21,4 +21,4 @@ def test_html_web_mweb_top_block():
     assert "TOP İÇERİK" in html
     assert "Altın" in html
     assert "Mweb" in html
-    assert REALTIME_DETAIL_TOP_N == 6
+    assert REALTIME_DETAIL_TOP_N == 10

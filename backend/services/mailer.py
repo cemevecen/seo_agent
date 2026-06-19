@@ -31,12 +31,6 @@ def _compact_realtime_batch_chip(raw_subject: str) -> str:
         return ""
 
     low = s.lower()
-    if "404 spike" in low or "404" in low and "spike" in low:
-        spike = re.search(r"(\d+)\s*→\s*(\d+)", s)
-        if spike:
-            return f"404 {spike.group(1)}→{spike.group(2)} kul"
-        return "404 spike"
-
     if "🚨" in s or "kritik" in low:
         inner = _compact_realtime_batch_chip(re.sub(r"🚨\s*KRİTİK\s*·\s*", "", s, flags=re.I))
         return f"KRİTİK {inner}" if inner else "KRİTİK"
@@ -135,73 +129,85 @@ def realtime_email_batch_take_pending_marks() -> list[dict]:
     return marks
 
 
+def _realtime_digest_local_now():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from backend.config import settings
+
+    tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
+    return datetime.now(ZoneInfo(tz_name))
+
+
+def _realtime_digest_in_quiet_hours() -> bool:
+    """22:00–06:00 TR — konsolide SEO Realtime maili gönderilmez."""
+    hour = _realtime_digest_local_now().hour
+    return hour >= 22 or hour < 6
+
+
+def _realtime_digest_interval_due(min_gap_min: int) -> bool:
+    global _last_realtime_batch_sent_at
+    if min_gap_min <= 0:
+        return True
+    if _last_realtime_batch_sent_at is None:
+        return True
+    elapsed = time.time() - _last_realtime_batch_sent_at
+    return elapsed >= min_gap_min * 60
+
+
 def realtime_email_batch_is_collecting() -> bool:
     return bool(getattr(_batch_ctx, "collecting", False))
 
 
-def _realtime_batch_is_urgent(items: list[tuple[str, str]]) -> bool:
-    for subj, _body in items:
-        s = (subj or "").lower()
-        if "kritik" in s or "404 spike" in s or "🚨" in subj:
-            return True
-    return False
-
-
-def _prioritize_realtime_batch_items(items: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    urgent = [it for it in items if _realtime_batch_is_urgent([it])]
-    rest = [it for it in items if it not in urgent]
-    return urgent + rest
-
-
 def realtime_email_batch_flush() -> bool:
-    """Biriktirilen mailleri tek email olarak gönder; batch'i temizle."""
+    """Biriktirilen alarm işaretleri + 4 saatlik özet maili gönder."""
     global _last_realtime_batch_sent_at, _pending_realtime_batch_items
 
     if not getattr(_batch_ctx, "collecting", False):
         return False
     items: list[tuple[str, str]] = list(getattr(_batch_ctx, "items", []))
-    if not items:
-        _batch_ctx.collecting = False
-        return False
 
     from backend.config import settings
 
-    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 60))
-    urgent = _realtime_batch_is_urgent(items)
-    if min_gap_min > 0 and _last_realtime_batch_sent_at is not None and not urgent:
-        elapsed = time.time() - _last_realtime_batch_sent_at
-        if elapsed < min_gap_min * 60:
+    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 240))
+
+    if _realtime_digest_in_quiet_hours():
+        if items:
             logging.info(
-                "SEO Realtime konsolide mail ertelendi (%d dk minimum aralık, %d bölüm sonraki döngüde).",
+                "SEO Realtime özet maili gece penceresinde — %d bölüm ertelendi.",
+                len(items),
+            )
+        return False
+
+    if not _realtime_digest_interval_due(min_gap_min):
+        if items:
+            logging.info(
+                "SEO Realtime özet maili ertelendi (%d dk minimum aralık, %d alarm kuyrukta).",
                 min_gap_min,
                 len(items),
             )
-            return False
+        return False
 
     _batch_ctx.collecting = False
     _batch_ctx.items = []
 
-    total_sections = len(items)
-    max_sections = int(getattr(settings, "ga4_realtime_email_batch_max_sections", 8))
-    omitted = 0
-    if total_sections > max_sections:
-        items = _prioritize_realtime_batch_items(items)[:max_sections]
-        omitted = total_sections - len(items)
-
-    combined_subject = _combined_realtime_subject(items)
-
-    sep = '<div style="border-top:2px dashed #e2e8f0;margin:22px 0 18px;"></div>'
-    combined_body = (
-        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
-        'max-width:620px;margin:0 auto;padding:8px 0;">'
-        + sep.join(body for _, body in items)
+    from backend.database import SessionLocal
+    from backend.services.ga4_realtime import (
+        build_realtime_periodic_digest_html,
+        realtime_periodic_digest_subject,
     )
-    if omitted > 0:
-        combined_body += (
-            f'<p style="font-size:11px;color:#64748b;margin-top:14px;">'
-            f"+{omitted} alarm</p>"
-        )
-    combined_body += "</div>"
+
+    try:
+        with SessionLocal() as db:
+            combined_body = build_realtime_periodic_digest_html(
+                db, queued_alarm_sections=len(items)
+            )
+    except Exception:
+        logging.exception("SEO Realtime özet maili HTML üretilemedi")
+        _batch_ctx.collecting = True
+        _batch_ctx.items = items
+        return False
+
 
     ok = send_realtime_email(
         combined_subject,
@@ -217,7 +223,7 @@ def realtime_email_batch_flush() -> bool:
         _batch_ctx.items = items
         _pending_realtime_batch_items.extend(items)
         logging.warning(
-            "SEO Realtime konsolide mail gönderilemedi; %d bölüm sonraki döngüye bırakıldı.",
+            "SEO Realtime özet maili gönderilemedi; %d bölüm sonraki döngüye bırakıldı.",
             len(items),
         )
     return ok
@@ -235,7 +241,6 @@ from backend.services.smtp_quota import (
     smtp_recipients_allowed,
 )
 
-DEFAULT_ERROR_REPORT_RECIPIENT = "cemevecen@nokta.com"
 DEFAULT_MAIL_RECIPIENT = "cemevecen@nokta.com"
 DEFAULT_OUTBOUND_FROM = "SEO Agent <projectcontrol@nokta.com>"
 
@@ -372,41 +377,6 @@ def _sanitize_message_recipients(message: EmailMessage) -> list[str] | None:
 def default_mail_recipients() -> list[str]:
     """MAIL_TO — Gmail hariç; boş/ yalnız Gmail ise cemevecen@nokta.com."""
     return normalize_outbound_recipients(raw_setting=settings.mail_to)
-
-
-def _is_error_report_allowed_recipient(addr: str) -> bool:
-    """404 günlük raporu — yalnızca @nokta.com; Gmail ve diğer alan adları hariç."""
-    if _is_gmail_recipient(addr):
-        return False
-    return _is_nokta_recipient(addr)
-
-
-def error_report_recipients() -> list[str]:
-    """404 günlük raporu alıcıları — varsayılan cemevecen@nokta.com; OPERATIONS_MAIL_TO/MAIL_TO kullanılmaz."""
-    raw = (settings.error_report_mail_to or "").strip() or DEFAULT_ERROR_REPORT_RECIPIENT
-    all_recipients = [item.strip() for item in raw.split(",") if item.strip()]
-    allowed = [r for r in all_recipients if _is_error_report_allowed_recipient(r)]
-    if allowed:
-        if len(allowed) < len(all_recipients):
-            logging.info(
-                "404 rapor alıcıları @nokta.com ile sınırlandı: %s → %s",
-                ", ".join(all_recipients),
-                ", ".join(allowed),
-            )
-        return allowed
-    if all_recipients:
-        logging.warning(
-            "404 rapor alıcılarında geçerli @nokta.com yok (%s); varsayılan: %s",
-            ", ".join(all_recipients),
-            DEFAULT_ERROR_REPORT_RECIPIENT,
-        )
-    return [DEFAULT_ERROR_REPORT_RECIPIENT]
-
-
-def send_error_report_email(subject: str, html_body: str) -> bool:
-    """Günlük 404 özeti — yalnızca error_report_recipients() listesine gönderir."""
-    recipients = error_report_recipients()
-    return send_email(subject, html_body, recipients=recipients)
 
 
 def _smtp_message_id_host() -> str:

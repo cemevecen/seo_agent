@@ -35,10 +35,6 @@ def test_spike_moderate_volume_emailed():
     assert alarm_worthy_for_email(spike)
 
 
-def test_404_critical_always_emailed():
-    assert alarm_worthy_for_email({"rule_id": "rt_404_critical", "severity": "warning"})
-
-
 def test_filter_alarms_for_email():
     alarms = [
         {"rule_id": "page_traffic_drop", "previous_users": 20, "current_users": 5, "change_pct": -75},
