@@ -1757,7 +1757,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
-  <script src="/static/js/market_chart_overlay.js?v=8" defer></script>
+  <script src="/static/js/market_chart_overlay.js?v=9" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=8" defer></script>
 </head>
@@ -2228,6 +2228,30 @@
       }
     })();
 
+    window.seoPlotlyCompactLegend = function (opts) {
+      opts = opts || {};
+      var th = window.seoPlotlyTheme ? window.seoPlotlyTheme() : { legend: '#475569' };
+      var n = Math.max(0, opts.traceCount | 0);
+      var entryW = opts.entrywidth != null ? opts.entrywidth : 118;
+      var marginTop =
+        opts.marginTop != null ? opts.marginTop : n > 4 ? 58 : n > 2 ? 48 : 42;
+      return {
+        legend: {
+          orientation: 'h',
+          x: 0,
+          xanchor: 'left',
+          y: 1.02,
+          yanchor: 'bottom',
+          font: { size: 10, color: th.legend },
+          bgcolor: 'rgba(0,0,0,0)',
+          borderwidth: 0,
+          tracegroupgap: 6,
+          entrywidth: entryW,
+          itemwidth: 28,
+        },
+        marginTop: marginTop,
+      };
+    };
     window.seoPlotlyTheme = function () {
       var mn = document.documentElement.classList.contains('midnight');
       var d = document.documentElement.classList.contains('dark');

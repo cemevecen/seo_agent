@@ -287,7 +287,7 @@
       h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
     }
     if (h.length !== 6) return hex;
-    var t = mix == null ? 0.38 : mix;
+    var t = mix == null ? 0.55 : mix;
     function ch(i) {
       var v = parseInt(h.slice(i, i + 2), 16);
       return Math.round(v + (255 - v) * t)
@@ -402,6 +402,13 @@
         var minR = opts.marginRight != null ? opts.marginRight : 64;
         layout.margin = Object.assign({}, m, { r: Math.max(m.r || 12, minR) });
         layout.showlegend = true;
+        var compactLeg =
+          global.seoPlotlyCompactLegend &&
+          global.seoPlotlyCompactLegend({ traceCount: traces.length });
+        if (compactLeg) {
+          layout.legend = Object.assign({}, layout.legend || {}, compactLeg.legend);
+          layout.margin.t = Math.max(layout.margin.t || 0, compactLeg.marginTop);
+        }
         return true;
       })
       .catch(function () {
