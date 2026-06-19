@@ -4276,6 +4276,8 @@
   var PEER_LINE_WIDTH = 1.25;
   /** Aynı grafik üzerinde +Android / +iOS vb. overlay — devamlı kırmızı */
   var PEER_ON_CHART_COLOR = { light: "#dc2626", dark: "#f87171" };
+  var PEER_ON_CHART_LINE_OPACITY = 0.52;
+  var PEER_ON_CHART_FILL_OPACITY = 0.28;
   var PEER_LINE_ALT_COLORS = ["#38bdf8", "#7dd3fc", "#0284c7", "#0ea5e9", "#2563eb"];
 
   /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
@@ -4342,11 +4344,15 @@
     return "";
   }
 
-  function peerOverlayOnChartLineColor() {
-    return isDarkTheme() ? PEER_ON_CHART_COLOR.dark : PEER_ON_CHART_COLOR.light;
+  function peerOverlayOnChartLineColor(opacity) {
+    var a = opacity != null ? opacity : PEER_ON_CHART_LINE_OPACITY;
+    if (isDarkTheme()) {
+      return "rgba(248, 113, 113, " + a + ")";
+    }
+    return "rgba(220, 38, 38, " + a + ")";
   }
 
-  /** Karşı dal, ana grafikte (overlay) — solid kırmızı */
+  /** Karşı dal, ana grafikte (overlay) — solid kırmızı, hafif şeffaf */
   function peerOverlayOnChartLineStyle() {
     return { color: peerOverlayOnChartLineColor(), width: 2 };
   }
@@ -5575,7 +5581,7 @@
                     name: peerBranchLabel() + " · " + mDef.label,
                     x: peerXs,
                     y: peerYs,
-                    marker: { color: peerOverlayOnChartLineColor(), opacity: 0.55 },
+                    marker: { color: peerOverlayOnChartLineColor() },
                   });
                 } else {
                   traces.push({
@@ -6472,7 +6478,7 @@
         y: peerYs,
         type: "bar",
         name: peerBranchLabel() + " · Net gelir",
-        marker: { color: peerOverlayOnChartLineColor(), opacity: 0.55 },
+        marker: { color: peerOverlayOnChartLineColor() },
       };
       if (cmp) {
         traces[0].offsetgroup = "mz-primary";
@@ -6698,7 +6704,8 @@
   }
 
   /** Karşı dönem / peer: yalnızca ince dolgu — çizgi yok (KPI spark kuralı). */
-  function mzSparkOverlayFillTrace(xs, ys, colorHex, dark) {
+  function mzSparkOverlayFillTrace(xs, ys, colorHex, dark, fillAlpha) {
+    var a = fillAlpha != null ? fillAlpha : dark ? 0.26 : 0.2;
     return {
       x: xs,
       y: ys,
@@ -6706,7 +6713,7 @@
       mode: "lines",
       line: { width: 0, color: "rgba(0,0,0,0)" },
       fill: "tozeroy",
-      fillcolor: mzSparkFillRgba(colorHex, dark ? 0.26 : 0.2),
+      fillcolor: mzSparkFillRgba(colorHex, a),
       connectgaps: false,
       hoverinfo: "skip",
     };
@@ -6749,7 +6756,15 @@
       if (state.peerOverlay.kpi && peerSum && !cmp) {
         var peerYs = peerMetricYForPlotX(peerSum, xs, key);
         if (peerYs.some(function (v) { return v != null && v !== 0; })) {
-          traces.push(mzSparkOverlayFillTrace(xs, peerYs, peerOverlayOnChartLineColor(), dark));
+          traces.push(
+            mzSparkOverlayFillTrace(
+              xs,
+              peerYs,
+              isDarkTheme() ? PEER_ON_CHART_COLOR.dark : PEER_ON_CHART_COLOR.light,
+              dark,
+              PEER_ON_CHART_FILL_OPACITY
+            )
+          );
         }
       }
       mzPushMeanSplitTraces(traces, xs, ys, {
