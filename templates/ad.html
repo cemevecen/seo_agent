@@ -667,7 +667,7 @@
 </div>
 
 <script src="/static/js/mz_mean_split_traces.js?v=2"></script>
-<script src="/static/js/app_release_markers.js?v=3"></script>
+<script src="/static/js/app_release_markers.js?v=4"></script>
 <script>
 (function () {
   /* CSS'den bağımsız layout zorlaması — element inline style, tüm CSS kurallarından üstün */
@@ -6036,11 +6036,51 @@
     return window.__appReleaseStorePromise;
   }
 
-  function mzRelayoutTightXaxis(el, layout) {
-    if (!el || !window.Plotly || !layout || !layout.xaxis) return Promise.resolve();
-    var r = layout.xaxis.range;
-    if (!r || r.length !== 2 || layout.xaxis.autorange !== false) return Promise.resolve();
-    return Plotly.relayout(el, { "xaxis.autorange": false, "xaxis.range": r.slice() });
+  function mzEnsurePlotlyFillsContainer(el) {
+    if (!el || !window.Plotly) return Promise.resolve();
+    var w = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
+    if (w < 16) return Promise.resolve();
+    el.style.width = "100%";
+    el.style.maxWidth = "100%";
+    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container").forEach(function (node) {
+      node.style.setProperty("width", "100%", "important");
+      node.style.setProperty("max-width", "100%", "important");
+    });
+    return Plotly.relayout(el, { autosize: true })
+      .then(function () {
+        return Plotly.Plots.resize(el);
+      })
+      .catch(function () {
+        try {
+          Plotly.Plots.resize(el);
+        } catch (_) { /* ignore */ }
+      });
+  }
+
+  function mzRelayoutTightXaxis(el, layout, timeKey) {
+    if (!el || !window.Plotly) return Promise.resolve();
+    var xs = collectTracesX(el.data || []);
+    var tk =
+      timeKey ||
+      (layout && layout.xaxis && layout.xaxis.type === "date" ? "date" : null) ||
+      (plotXValuesLookLikeDates(xs) ? "date" : "category");
+    var patch = xs.length ? tightXaxisPatch(xs, { timeKey: tk }) : null;
+    if (!patch || !Object.keys(patch).length) {
+      if (!layout || !layout.xaxis) return mzEnsurePlotlyFillsContainer(el);
+      var r = layout.xaxis.range;
+      if (!r || r.length !== 2 || layout.xaxis.autorange !== false) {
+        return mzEnsurePlotlyFillsContainer(el);
+      }
+      return Plotly.relayout(el, { "xaxis.autorange": false, "xaxis.range": r.slice() }).then(function () {
+        return mzEnsurePlotlyFillsContainer(el);
+      });
+    }
+    patch.automargin = false;
+    var rel = { autosize: true, "xaxis.autorange": false, "xaxis.range": patch.range };
+    if (patch.type) rel["xaxis.type"] = patch.type;
+    return Plotly.relayout(el, rel).then(function () {
+      return mzEnsurePlotlyFillsContainer(el);
+    });
   }
 
   // Tarih-eksenli ana grafiklere sürüm işaretlerini ekle (aktif platforma göre).
@@ -6090,14 +6130,11 @@
           return mzApplyVersionMarkers(el);
         })
         .then(function () {
-          if (opts.tightX === false) return;
-          return mzRelayoutTightXaxis(el, lay);
+          if (opts.tightX === false) return mzEnsurePlotlyFillsContainer(el);
+          return mzRelayoutTightXaxis(el, lay, opts.timeKey);
         })
         .then(function () {
-          return Plotly.Plots.resize(el);
-        })
-        .then(function () {
-          scheduleMzChartsResize();
+          scheduleMzChartsResizeBurst();
         });
     }
     return new Promise(function (resolve) {
@@ -6213,13 +6250,10 @@
         try { mzApplyVersionMarkers(chartEl); } catch (_) { /* ignore */ }
       })
       .then(function () {
-        return mzRelayoutTightXaxis(chartEl, lay);
+        return mzRelayoutTightXaxis(chartEl, lay, lay._mzChartTimeKey);
       })
       .then(function () {
-        return Plotly.Plots.resize(chartEl);
-      })
-      .then(function () {
-        scheduleMzChartsResize();
+        scheduleMzChartsResizeBurst();
       })
       .catch(function (err) {
         chartEl.innerHTML =

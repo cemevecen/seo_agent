@@ -104,11 +104,16 @@
     if (!filtered.length) return Promise.resolve();
     var trace = buildReleaseTrace(filtered, opts);
     if (!trace) return Promise.resolve();
-    var layoutPatch = { margin: { b: opts.marginBottom || 56 } };
+    var full = el._fullLayout || el.layout || {};
+    var curMargin = full.margin || {};
+    var layoutPatch = {
+      autosize: true,
+      margin: Object.assign({}, curMargin, {
+        b: Math.max(Number(curMargin.b) || 0, opts.marginBottom || 56),
+      }),
+    };
     var xRange =
-      el.layout && el.layout.xaxis && el.layout.xaxis.range
-        ? el.layout.xaxis.range.slice()
-        : null;
+      full.xaxis && full.xaxis.range ? full.xaxis.range.slice() : null;
     if (xRange && xRange.length === 2) {
       layoutPatch["xaxis.autorange"] = false;
       layoutPatch["xaxis.range"] = xRange;
@@ -117,7 +122,17 @@
       if (global.SeoPlotlyTimeSeriesHover && global.SeoPlotlyTimeSeriesHover.bindColumnHover) {
         global.SeoPlotlyTimeSeriesHover.bindColumnHover(el);
       }
-      return global.Plotly.relayout(el, layoutPatch);
+      return global.Plotly.relayout(el, layoutPatch).then(function () {
+        try {
+          return global.Plotly.relayout(el, { autosize: true });
+        } catch (e) {
+          return undefined;
+        }
+      }).then(function () {
+        if (global.Plotly.Plots && global.Plotly.Plots.resize) {
+          return global.Plotly.Plots.resize(el);
+        }
+      });
     });
   }
 

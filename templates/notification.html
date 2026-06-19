@@ -44,14 +44,12 @@
             <button id="nt-apply-preset" type="button" class="nt-btn-pastel-green w-full rounded-lg px-3 py-2 text-sm font-bold">Hazır aralığı uygula</button>
           </div>
         </div>
-        <div class="min-w-0 xl:col-span-4">
+        <div class="min-w-0 xl:col-span-4 flex flex-col gap-2">
           <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-slate-100 dark:hover:bg-indigo-700">CSV yükle ve ekle</button>
-        </div>
-        <div class="min-w-0 xl:col-span-4">
-          <button id="nt-clear-file" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Dosya seçimini temizle</button>
-        </div>
-        <div class="min-w-0 xl:col-span-4">
-          <button id="nt-reset-all" class="w-full rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/50">Tüm birikimi sıfırla</button>
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button id="nt-clear-file" type="button" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Dosya seçimini temizle</button>
+            <button id="nt-reset-all" type="button" class="w-full rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/50">Tüm birikimi sıfırla</button>
+          </div>
         </div>
         <p id="nt-status" class="min-w-0 text-xs text-slate-500 dark:text-slate-400 xl:col-span-12"></p>
       </div>
