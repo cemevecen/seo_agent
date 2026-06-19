@@ -80,8 +80,10 @@
     --tw-ring-shadow: 0 0 #0000;
     pointer-events: none;
   }
-  [data-ga4-period-panel="12m"] [data-ga4-kpi-trend] {
-    min-height: 260px;
+  [data-ga4-period-panel="12m"] [data-ga4-kpi-trend],
+  [data-ga4-period-panel="60"] [data-ga4-kpi-trend],
+  [data-ga4-period-panel="90"] [data-ga4-kpi-trend] {
+    min-height: 280px;
     touch-action: pan-x pan-y;
   }
   [data-ga4-kpi-trend] {
@@ -1409,9 +1411,7 @@
           var th = window.seoPlotlyTheme
             ? window.seoPlotlyTheme()
             : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)' };
-          var chartHeight = isLongDaily
-            ? Math.max(280, Math.min(480, element.clientHeight || 400))
-            : 360;
+          var chartW = Math.max(320, element.clientWidth || 640);
           var plat = element.getAttribute('data-ga4-platform') || '';
           var scPosRaw = element.getAttribute('data-ga4-sc-position-trend') || '';
           var scPos = null;
@@ -1503,11 +1503,10 @@
             });
           }
           var compactLeg = window.seoPlotlyCompactLegend
-            ? seoPlotlyCompactLegend({ traceCount: traces.length })
+            ? seoPlotlyCompactLegend({ legendCount: traces.length, chartWidth: chartW })
             : null;
           var layoutObj = {
               autosize: true,
-              height: chartHeight,
               margin: {
                 l: 56,
                 r: hasScPos ? 72 : 56,
@@ -1581,6 +1580,15 @@
           var overlayModes =
             window.SeoMarketOverlay ? SeoMarketOverlay.modes("seo-market-overlay-root") : [];
           var runPlot = function () {
+          if (window.seoPlotlyResolveHeight) {
+            layoutObj.height = seoPlotlyResolveHeight(element, layoutObj, {
+              minPlot: isLongDaily ? 320 : 280,
+              fallback: isLongDaily ? 440 : 380,
+              maxTotal: 560,
+            });
+          } else {
+            layoutObj.height = isLongDaily ? 440 : 380;
+          }
           Plotly.newPlot(
             element,
             traces,
@@ -1606,6 +1614,7 @@
             overlayModes.length && trend.dates && trend.dates.length && window.SeoMarketOverlay
               ? SeoMarketOverlay.apply(traces, layoutObj, trend.dates, overlayModes, {
                   marginRight: 72,
+                  chartWidth: chartW,
                 })
               : Promise.resolve();
           overlayPromise.then(runPlot);

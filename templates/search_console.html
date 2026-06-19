@@ -174,8 +174,10 @@
     isolation: isolate;
     touch-action: pan-y;
   }
-  [data-sc-period-panel="12m"] [data-search-console-trend] {
-    min-height: 260px;
+  [data-sc-period-panel="12m"] [data-search-console-trend],
+  [data-sc-period-panel="60"] [data-search-console-trend],
+  [data-sc-period-panel="90"] [data-search-console-trend] {
+    min-height: 280px;
   }
   [data-sc-period-switch] button,
   [data-search-console-device-switch] button,
@@ -1139,9 +1141,7 @@
 
           const periodLabel = isDailyTrend ? '' : ' (dönem)';
           const lc = scTrendLineColors();
-          var chartHeight = isLongDaily
-            ? Math.max(280, Math.min(480, element.clientHeight || 400))
-            : 360;
+          var chartW = Math.max(320, element.clientWidth || 640);
 
           const traces = [
             {
@@ -1219,11 +1219,10 @@
             plotConfig.staticPlot = true;
           }
           var compactLeg = window.seoPlotlyCompactLegend
-            ? seoPlotlyCompactLegend({ traceCount: traces.length })
+            ? seoPlotlyCompactLegend({ legendCount: traces.length, chartWidth: chartW })
             : null;
           var layoutObj = {
               autosize: true,
-              height: chartHeight,
               margin: {
                 l: 52,
                 r: 52,
@@ -1291,6 +1290,15 @@
               ? SeoMarketOverlay.modes("seo-market-overlay-root")
               : [];
           var runPlot = function () {
+          if (window.seoPlotlyResolveHeight) {
+            layoutObj.height = seoPlotlyResolveHeight(element, layoutObj, {
+              minPlot: isLongDaily ? 320 : 280,
+              fallback: isLongDaily ? 440 : 380,
+              maxTotal: 560,
+            });
+          } else {
+            layoutObj.height = isLongDaily ? 440 : 380;
+          }
           Plotly.newPlot(
             element,
             traces,
@@ -1310,6 +1318,7 @@
             overlayModes.length && xValues && xValues.length && window.SeoMarketOverlay
               ? SeoMarketOverlay.apply(traces, layoutObj, xValues, overlayModes, {
                   marginRight: 72,
+                  chartWidth: chartW,
                 })
               : Promise.resolve();
           if (isLongDaily) {

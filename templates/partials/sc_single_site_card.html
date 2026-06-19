@@ -193,7 +193,7 @@
             <p class="text-sm font-medium leading-snug text-slate-700 dark:text-slate-200">{{ period.trend_caption }}</p>
             <div
               id="search-console-trend-{{ site.id }}-{{ period_key }}-{{ device_key }}"
-              class="h-[min(360px,55vh)] min-h-[260px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[420px]"
+              class="h-[min(360px,55vh)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[440px]"
               data-search-console-trend='{{ view.trend|tojson }}'
             ></div>
             {% if not view.has_data %}
@@ -284,7 +284,7 @@
 
             <div
               id="search-console-trend-{{ site.id }}-{{ period_key }}-{{ device_key }}"
-              class="h-[min(300px,45vh)] min-h-[220px] w-full min-w-0 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[360px]"
+              class="h-[min(360px,55vh)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[440px]"
               data-search-console-trend='{{ view.trend|tojson }}'
             ></div>
 

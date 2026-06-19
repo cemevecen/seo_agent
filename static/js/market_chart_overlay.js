@@ -69,7 +69,15 @@
     }
   }
 
-  function panelForRoot(root) {
+  function countLegendTraces(traces) {
+    var n = 0;
+    (traces || []).forEach(function (t) {
+      if (t && t.showlegend === false) return;
+      n += 1;
+    });
+    return n;
+  }
+
     if (!root) return null;
     var rid = root.id;
     if (rid) {
@@ -537,7 +545,10 @@
         layout.showlegend = true;
         var compactLeg =
           global.seoPlotlyCompactLegend &&
-          global.seoPlotlyCompactLegend({ traceCount: traces.length });
+          global.seoPlotlyCompactLegend({
+            legendCount: countLegendTraces(traces),
+            chartWidth: opts.chartWidth || 720,
+          });
         if (compactLeg) {
           layout.legend = Object.assign(
             { groupclick: "toggleitem" },

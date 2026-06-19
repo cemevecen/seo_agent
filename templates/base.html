@@ -1757,7 +1757,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
-  <script src="/static/js/market_chart_overlay.js?v=13" defer></script>
+  <script src="/static/js/market_chart_overlay.js?v=14" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=8" defer></script>
 </head>
@@ -2231,10 +2231,14 @@
     window.seoPlotlyCompactLegend = function (opts) {
       opts = opts || {};
       var th = window.seoPlotlyTheme ? window.seoPlotlyTheme() : { legend: '#475569' };
-      var n = Math.max(0, opts.traceCount | 0);
-      var entryW = opts.entrywidth != null ? opts.entrywidth : 118;
+      var items = Math.max(0, opts.legendCount != null ? opts.legendCount : (opts.traceCount | 0));
+      var chartW = Math.max(320, opts.chartWidth || 640);
+      var entryW =
+        opts.entrywidth != null ? opts.entrywidth : Math.max(132, Math.floor(chartW * 0.44));
+      var perRow = Math.max(2, Math.floor(chartW / entryW));
+      var rows = items <= 0 ? 1 : Math.ceil(items / perRow);
       var marginTop =
-        opts.marginTop != null ? opts.marginTop : n > 4 ? 58 : n > 2 ? 48 : 42;
+        opts.marginTop != null ? opts.marginTop : Math.min(132, 28 + rows * 24);
       return {
         legend: {
           orientation: 'h',
@@ -2252,6 +2256,25 @@
         },
         marginTop: marginTop,
       };
+    };
+    window.seoPlotlyResolveHeight = function (element, layout, opts) {
+      opts = opts || {};
+      var minPlot = opts.minPlot != null ? opts.minPlot : 300;
+      var maxTotal = opts.maxTotal != null ? opts.maxTotal : 560;
+      var fallback = opts.fallback != null ? opts.fallback : 420;
+      var m = (layout && layout.margin) || {};
+      var mt = m.t || 20;
+      var mb = m.b || 88;
+      var need = minPlot + mt + mb;
+      var containerH =
+        element && element.clientHeight && element.clientHeight > 80
+          ? element.clientHeight
+          : fallback;
+      var h = Math.max(need, Math.min(maxTotal, Math.max(containerH, need)));
+      if (element && h > containerH) {
+        element.style.minHeight = h + 'px';
+      }
+      return h;
     };
     window.seoPlotlyTheme = function () {
       var mn = document.documentElement.classList.contains('midnight');
