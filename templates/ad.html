@@ -52,6 +52,14 @@
     width: 100% !important;
     max-width: 100% !important;
   }
+  .mz-page .mz-chart-plot .main-svg {
+    width: 100% !important;
+  }
+  .mz-page .mz-kpi-spark {
+    width: 100%;
+    min-width: 0;
+    height: 2.25rem;
+  }
 </style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
@@ -689,7 +697,12 @@
       }
     }
     apply();
-    window.addEventListener('resize', apply);
+    window.addEventListener("resize", function () {
+      apply();
+      if (typeof window.__mzChartsRelayout === "function") {
+        window.__mzChartsRelayout();
+      }
+    });
   })();
 
   window.__seoAdPageScriptRan = true;
@@ -4681,7 +4694,7 @@
     if (chartKey === "kpi") scheduleKpiSparklines(state.lastSummary);
     else if (chartKey === "line") refreshChartLine();
     else if (chartKey === "dual" || chartKey === "quality") {
-      if (state.lastSummary) renderExtendedCharts(state.lastSummary).then(scheduleMzChartsResize);
+      if (state.lastSummary) renderExtendedCharts(state.lastSummary).then(scheduleMzChartsResizeBurst);
     }     else if (chartKey === "stacked") refreshChartStacked();
     else if (chartKey === "month") refreshChartMonth();
     else if (chartKey === "drillDetail") renderTableDrillChart();
@@ -5744,6 +5757,7 @@
     if (!tk) tk = plotXValuesLookLikeDates(xs) ? "date" : "category";
     var patch = tightXaxisPatch(xs, { timeKey: tk });
     if (!Object.keys(patch).length) return layout;
+    patch.automargin = false;
     layout.xaxis = Object.assign({}, layout.xaxis || {}, patch);
     return layout;
   }
@@ -6058,9 +6072,9 @@
       if (opts.tightX !== false) {
         applyTightXaxisToLayout(lay, traces, opts.timeKey);
       }
-      var plotW = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
-      if (plotW > 0) lay.width = plotW;
       try { Plotly.purge(el); } catch (_) { /* ignore */ }
+      el.style.width = "100%";
+      el.style.maxWidth = "100%";
       el.innerHTML = "";
       return Plotly.newPlot(el, traces, lay, plotlyCfg())
         .then(function () {
@@ -6075,11 +6089,18 @@
         })
         .then(function () {
           return Plotly.Plots.resize(el);
+        })
+        .then(function () {
+          scheduleMzChartsResize();
         });
     }
     return new Promise(function (resolve) {
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
+          if (typeof window.__mzChartsRelayout === "function") {
+            var grid = document.getElementById("mz-body-grid");
+            if (grid) grid.getBoundingClientRect();
+          }
           draw().then(resolve).catch(resolve);
         });
       });
@@ -6131,12 +6152,24 @@
     mzChartResizeTimer = setTimeout(function () {
       mzChartResizeTimer = null;
       if (!window.Plotly) return;
-      document.querySelectorAll(".mz-page .mz-chart-plot").forEach(function (el) {
+      document.querySelectorAll(".mz-page .mz-chart-plot, .mz-page .mz-kpi-spark").forEach(function (el) {
         if (!el.querySelector(".js-plotly-plot")) return;
-        try { Plotly.Plots.resize(el); } catch (_) { /* ignore */ }
+        try {
+          Plotly.relayout(el, { autosize: true });
+        } catch (_) { /* ignore */ }
+        try {
+          Plotly.Plots.resize(el);
+        } catch (_) { /* ignore */ }
       });
-    }, 100);
+    }, 80);
   }
+
+  function scheduleMzChartsResizeBurst() {
+    scheduleMzChartsResize();
+    setTimeout(scheduleMzChartsResize, 200);
+    setTimeout(scheduleMzChartsResize, 550);
+  }
+  window.__mzChartsRelayout = scheduleMzChartsResizeBurst;
 
   function plotDrillChartEl(chartEl, traces, layout) {
     if (!chartEl || !window.Plotly) {
@@ -6163,9 +6196,8 @@
       layout || {}
     );
     applyTightXaxisToLayout(lay, traces, layout && layout._mzChartTimeKey);
-    var plotW = Math.round(chartEl.getBoundingClientRect().width || chartEl.clientWidth || 0);
-    if (plotW > 0) lay.width = plotW;
     try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+    chartEl.style.width = "100%";
     chartEl.innerHTML = "";
     return Plotly.newPlot(chartEl, traces, lay, plotlyCfg())
       .then(function () {
@@ -6179,6 +6211,9 @@
       })
       .then(function () {
         return Plotly.Plots.resize(chartEl);
+      })
+      .then(function () {
+        scheduleMzChartsResize();
       })
       .catch(function (err) {
         chartEl.innerHTML =
@@ -6586,12 +6621,12 @@
     var cmp = compareBlock(sum);
     var surf = (cmp && cmp.by_surface && cmp.by_surface.length) ? cmp.by_surface : (sum.by_surface || []);
     renderBreakdownPiePair("mz-chart-pie-surface", surf, "surface", cmp, sum);
-    renderExtendedCharts(sum).then(scheduleMzChartsResize);
+    renderExtendedCharts(sum).then(scheduleMzChartsResizeBurst);
     renderLeadersLosers(sum);
     refreshChartMonth();
     refreshChartIncomeBar();
     refreshChartStacked();
-    scheduleMzChartsResize();
+    scheduleMzChartsResizeBurst();
   }
 
   function mzSparkFillRgba(hex, alpha) {
@@ -6675,14 +6710,23 @@
     }
 
     try { Plotly.purge(el); } catch (e) { /* ignore */ }
-    Plotly.newPlot(el, traces, {
+    el.classList.add("mz-kpi-spark");
+    var sparkLay = {
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      margin: { l: 4, r: 4, t: 2, b: 2 },
-      xaxis: { visible: false },
-      yaxis: { visible: false },
+      autosize: true,
+      margin: { l: 1, r: 1, t: 1, b: 1 },
+      xaxis: { visible: false, fixedrange: true },
+      yaxis: { visible: false, fixedrange: true },
       showlegend: false,
-    }, { responsive: true, displayModeBar: false, staticPlot: true });
+    };
+    applyTightXaxisToLayout(sparkLay, traces, aligned ? "category" : "date");
+    Plotly.newPlot(el, traces, sparkLay, { responsive: true, displayModeBar: false, staticPlot: true })
+      .then(function () {
+        try {
+          return Plotly.Plots.resize(el);
+        } catch (_) { /* ignore */ }
+      });
   }
 
   function refreshAllKpiSparklines(sum) {
@@ -6698,6 +6742,7 @@
       var i = 0;
       function step() {
         if (i >= defs.length) {
+          scheduleMzChartsResizeBurst();
           return;
         }
         var def = defs[i++];
@@ -6712,7 +6757,9 @@
   function finalizeMzTrendAndSparks(sum) {
     scheduleKpiSparklines(sum);
     setTimeout(function () {
-      refreshChartLine();
+      refreshChartLine().then(function () {
+        scheduleMzChartsResizeBurst();
+      });
     }, 180);
   }
 
@@ -7215,7 +7262,7 @@
         "<p lang=\"en\" data-seo-en-caps class=\"seo-en-caps text-[10px] font-semibold tracking-wide text-slate-500 dark:text-zinc-400\">" + enCaps(def.label) + "</p>" +
         "<p class=\"mt-1 text-base font-black text-slate-900 dark:text-zinc-300\">" +
         fmt(k[def.key], def.dec) + "</p>" + deltaHtml +
-        "<div id=\"" + sparkId + "\" class=\"mt-2 h-9 w-full\"></div>";
+        "<div id=\"" + sparkId + "\" class=\"mz-kpi-spark mt-2 h-9 w-full\"></div>";
       card.addEventListener("click", function () {
         state.activeKpiKey = def.key;
         renderKpis(k, sum || state.lastSummary);
@@ -7888,7 +7935,7 @@
       if (state.peerOverlay.line || state.peerSeparate.line) refreshChartLine();
       if (state.peerOverlay.stacked || state.peerSeparate.stacked) refreshChartStacked();
       if (state.peerOverlay.dual || state.peerSeparate.dual || state.peerOverlay.quality || state.peerSeparate.quality) {
-        renderExtendedCharts(sum).then(scheduleMzChartsResize);
+        renderExtendedCharts(sum).then(scheduleMzChartsResizeBurst);
       }
       await Promise.all([
         refreshDetailTable(),
@@ -8817,7 +8864,7 @@
     restoreDetailFavoritesBackup();
   });
 
-  window.addEventListener("resize", scheduleMzChartsResize);
+  window.addEventListener("resize", scheduleMzChartsResizeBurst);
 
   loadFacets().then(function () {
     var keepDrills = applyMzUrlDrillState(mzUrlState);
