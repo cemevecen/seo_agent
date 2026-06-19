@@ -1902,7 +1902,9 @@
         x: 0,
         font: plotFont(),
         bgcolor: "rgba(0,0,0,0)",
-        tracegroupgap: 12,
+        tracegroupgap: 6,
+        entrywidth: 118,
+        itemwidth: 28,
       },
     };
   }
@@ -3835,7 +3837,10 @@
           );
         }
       }
-      plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, { minHeight: 240 });
+      plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, {
+        minHeight: 240,
+        timeKey: revAligned && revAligned.length ? "category" : "date",
+      });
       return;
     }
     try {
@@ -5730,6 +5735,35 @@
     return xs;
   }
 
+  /** Kategori ekseninde aralık: en uzun seri (çoklu trace x birikimini sayma). */
+  function categoryAxisPointCount(traces, xValues) {
+    var maxLen = 0;
+    (traces || []).forEach(function (tr) {
+      if (!tr || tr.yref === "paper" || tr.hoverinfo === "skip" || !tr.x) return;
+      maxLen = Math.max(maxLen, tr.x.length);
+    });
+    if (maxLen) return maxLen;
+    var seen = {};
+    var n = 0;
+    (xValues || []).forEach(function (v) {
+      var k = String(v);
+      if (k && !seen[k]) {
+        seen[k] = 1;
+        n += 1;
+      }
+    });
+    return n || (xValues ? xValues.length : 0);
+  }
+
+  function resolveTightXTimeKey(layout, traces, timeKey) {
+    var axisType = layout && layout.xaxis && layout.xaxis.type;
+    if (axisType === "category") return "category";
+    if (timeKey === "month" || timeKey === "week" || timeKey === "category") return timeKey;
+    if (timeKey) return timeKey;
+    var xs = collectTracesX(traces);
+    return plotXValuesLookLikeDates(xs) ? "date" : "category";
+  }
+
   function parseIsoDateOnlyMs(v) {
     var s = String(v == null ? "" : v).slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return NaN;
@@ -5758,7 +5792,12 @@
     opts = opts || {};
     var timeKey = opts.timeKey;
     if (!xValues || !xValues.length) return {};
-    var useDate = timeKey === "date" || (timeKey !== "month" && timeKey !== "week" && plotXValuesLookLikeDates(xValues));
+    var useDate =
+      timeKey === "date" ||
+      (timeKey !== "month" &&
+        timeKey !== "week" &&
+        timeKey !== "category" &&
+        plotXValuesLookLikeDates(xValues));
     if (useDate) {
       var ms = [];
       xValues.forEach(function (v) {
@@ -5779,16 +5818,18 @@
         range: plotlyDateRangeFromMs(t0, t1, padDays),
       };
     }
-    var n = xValues.length;
-    return { autorange: false, range: [-0.5, Math.max(0.5, n - 0.5)] };
+    var n = categoryAxisPointCount(opts.traces, xValues);
+    if (!n) return {};
+    var patch = { autorange: false, range: [-0.5, Math.max(0.5, n - 0.5)] };
+    if (opts.forceCategoryType || timeKey === "category") patch.type = "category";
+    return patch;
   }
 
   function applyTightXaxisToLayout(layout, traces, timeKey) {
     if (!layout || !traces || !traces.length) return layout;
     var xs = collectTracesX(traces);
-    var tk = timeKey;
-    if (!tk) tk = plotXValuesLookLikeDates(xs) ? "date" : "category";
-    var patch = tightXaxisPatch(xs, { timeKey: tk });
+    var tk = resolveTightXTimeKey(layout, traces, timeKey);
+    var patch = tightXaxisPatch(xs, { timeKey: tk, traces: traces, forceCategoryType: tk === "category" });
     if (!Object.keys(patch).length) return layout;
     patch.automargin = false;
     layout.xaxis = Object.assign({}, layout.xaxis || {}, patch);
@@ -5806,7 +5847,7 @@
     } else if (plotX && plotX.length) {
       if (ax.tickangle == null) ax.tickangle = dense ? -45 : 0;
     }
-    return Object.assign(ax, tightXaxisPatch(plotX || [], { timeKey: chartTimeKey || "date" }));
+    return Object.assign(ax, tightXaxisPatch(plotX || [], { timeKey: chartTimeKey || "date", traces: opts && opts.traces }));
   }
 
   function plotAxis(title) {
@@ -6086,12 +6127,13 @@
 
   function mzRelayoutTightXaxis(el, layout, timeKey) {
     if (!el || !window.Plotly) return Promise.resolve();
-    var xs = collectTracesX(el.data || []);
-    var tk =
-      timeKey ||
-      (layout && layout.xaxis && layout.xaxis.type === "date" ? "date" : null) ||
-      (plotXValuesLookLikeDates(xs) ? "date" : "category");
-    var patch = xs.length ? tightXaxisPatch(xs, { timeKey: tk }) : null;
+    var plotTraces = el.data || [];
+    var fullLayout = el._fullLayout || layout || {};
+    var xs = collectTracesX(plotTraces);
+    var tk = resolveTightXTimeKey(fullLayout, plotTraces, timeKey);
+    var patch = xs.length
+      ? tightXaxisPatch(xs, { timeKey: tk, traces: plotTraces, forceCategoryType: tk === "category" })
+      : null;
     if (!patch || !Object.keys(patch).length) {
       if (!layout || !layout.xaxis) return mzEnsurePlotlyFillsContainer(el);
       var r = layout.xaxis.range;
@@ -6305,6 +6347,7 @@
     var sum = state.lastSummary;
     var aligned = cmp && timeKey === "date" ? alignedDateSeries(cmp, kpiKey) : null;
     var periodPair = cmp && timeKey !== "date" ? buildPeriodCompareLinePair(byDate, timeKey, kpiKey, sum) : null;
+    var plotTimeKey = aligned || periodPair ? "category" : timeKey;
     var releaseTextPerPoint = null;
     if (timeKey === "date" && !aligned && !periodPair) {
       var plat = mzActivePlatform();
@@ -6395,7 +6438,7 @@
             await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
           }
           lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
-          await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: timeKey });
+          await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
           var peerTraces = [
             {
               x: peerX,
@@ -6433,7 +6476,7 @@
     if (marketDates && marketDates.length) {
       await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
     }
-    await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: timeKey });
+    await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
   }
 
   function peerBarYsForLabels(peerSum, labels, labelKey) {
@@ -6992,7 +7035,10 @@
         await mzMaybeApplyMarketOverlay(dualTraces, dualLay, dates);
       }
       dualLay.xaxis = Object.assign({}, dualLay.xaxis || {}, { showticklabels: false });
-      await plotChart("mz-chart-dual", dualTraces, dualLay, { minHeight: revAligned && impAligned ? 320 : 220 });
+      await plotChart("mz-chart-dual", dualTraces, dualLay, {
+        minHeight: revAligned && impAligned ? 320 : 220,
+        timeKey: revAligned && impAligned ? "category" : "date",
+      });
       var dualPeerLay = plotTheme({
         yaxis: { title: "TL" },
         yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
@@ -7016,7 +7062,10 @@
       if (!revAligned && dates.length) {
         await mzMaybeApplyMarketOverlay(dualTraces, dualLay, dates);
       }
-      await plotChart("mz-chart-dual", dualTraces, dualLay, { minHeight: revAligned && impAligned ? 320 : 220 });
+      await plotChart("mz-chart-dual", dualTraces, dualLay, {
+        minHeight: revAligned && impAligned ? 320 : 220,
+        timeKey: revAligned && impAligned ? "category" : "date",
+      });
     }
 
     var qualityKeys = [
@@ -7096,7 +7145,10 @@
         await mzMaybeApplyMarketOverlay(qualityTraces, qualityLay, dates);
       }
       qualityLay.xaxis = Object.assign({}, qualityLay.xaxis || {}, { showticklabels: false });
-      await plotChart("mz-chart-quality", qualityTraces, qualityLay, { minHeight: qualityAligned ? 320 : 220 });
+      await plotChart("mz-chart-quality", qualityTraces, qualityLay, {
+        minHeight: qualityAligned ? 320 : 220,
+        timeKey: qualityAligned ? "category" : "date",
+      });
       var qPeerLay = plotTheme({ yTitle: "%" });
       if (dates.length) {
         await mzMaybeApplyMarketOverlay(qPeerTraces, qPeerLay, dates);
@@ -7116,7 +7168,10 @@
       if (!qualityAligned && dates.length) {
         await mzMaybeApplyMarketOverlay(qualityTraces, qualityLay, dates);
       }
-      await plotChart("mz-chart-quality", qualityTraces, qualityLay, { minHeight: qualityAligned ? 320 : 220 });
+      await plotChart("mz-chart-quality", qualityTraces, qualityLay, {
+        minHeight: qualityAligned ? 320 : 220,
+        timeKey: qualityAligned ? "category" : "date",
+      });
     }
 
     var hm = sum.heatmap_calendar || [];
