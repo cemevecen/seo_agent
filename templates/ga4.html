@@ -112,12 +112,12 @@
   }
   .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] th:first-child,
   .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] td:first-child {
-    width: 32%;
+    width: 28%;
     max-width: none;
   }
   .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] th:nth-child(n + 2),
   .ga4-split--focused [data-ga4-site-card]:not(.hidden) table[data-ga4-breakdown-table] td:nth-child(n + 2) {
-    width: 13.6%;
+    width: 12%;
   }
   #content table[data-ga4-metric-table]:not([data-ga4-breakdown-table]) {
     table-layout: fixed;
@@ -1333,6 +1333,11 @@
         var raw = row.dataset.scPositionDiff;
         if (raw === '' || raw == null) return Number.NEGATIVE_INFINITY;
         return parseFloat(raw || '0');
+      }
+      if (key === 'scPositionCurrent') {
+        var rawCur = row.dataset.scPositionCurrent;
+        if (rawCur === '' || rawCur == null) return Number.POSITIVE_INFINITY;
+        return parseFloat(rawCur || '0');
       }
       if (key === 'last') return parseFloat(row.dataset.last || '0');
       if (key === 'prev') return parseFloat(row.dataset.prev || '0');

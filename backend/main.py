@@ -12917,38 +12917,45 @@ def _ga4_days_to_sc_page_scopes(days: int) -> tuple[str, str] | None:
     return None
 
 
-def _sc_page_position_diff_lookup_for_ga4(
+def _sc_page_position_lookups_for_ga4(
     db: Session,
     *,
     site_id: int,
     days: int,
     profile: str,
     site_domain: str | None,
-) -> dict[str, float]:
-    """Search Console page kırılımından URL → position_diff (Queries/Pages ile aynı formül)."""
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Search Console page kırılımı: URL → (position_diff, position_current)."""
     scopes_pair = _ga4_days_to_sc_page_scopes(days)
     if not scopes_pair:
-        return {}
+        return {}, {}
     cur_scope, prev_scope = scopes_pair
     batch = get_latest_search_console_rows_batch(db, site_id=site_id, scopes=[cur_scope, prev_scope])
     device = _ga4_profile_to_sc_device(profile)
     cur = _filter_search_console_rows_by_device(batch.get(cur_scope) or [], device)
     prev = _filter_search_console_rows_by_device(batch.get(prev_scope) or [], device)
     if not cur and not prev:
-        return {}
+        return {}, {}
     entities = _build_search_console_top_entities(cur, prev, label_key="query", limit=2500)
-    lookup: dict[str, float] = {}
+    diff_lookup: dict[str, float] = {}
+    current_lookup: dict[str, float] = {}
     for ent in entities:
         diff = float(ent.get("position_diff") or 0.0)
+        pos_cur = float(ent.get("position_current") or 0.0)
         label = str(ent.get("label") or "").strip()
         if not label:
             continue
         for key in _ga4_url_match_keys(label, site_domain):
-            lookup.setdefault(key, diff)
-    return lookup
+            diff_lookup.setdefault(key, diff)
+            current_lookup.setdefault(key, pos_cur)
+    return diff_lookup, current_lookup
 
 
-def _lookup_sc_position_diff(row: dict, lookup: dict[str, float], site_domain: str | None) -> float | None:
+def _lookup_sc_page_metric(
+    row: dict,
+    lookup: dict[str, float],
+    site_domain: str | None,
+) -> float | None:
     if not lookup or not isinstance(row, dict):
         return None
     href = _ga4_row_page_href(row, site_domain)
@@ -12968,9 +12975,10 @@ def _lookup_sc_position_diff(row: dict, lookup: dict[str, float], site_domain: s
     return None
 
 
-def _attach_sc_position_diff_to_ga4_rows(
+def _attach_sc_position_to_ga4_rows(
     rows: list,
-    lookup: dict[str, float],
+    diff_lookup: dict[str, float],
+    current_lookup: dict[str, float],
     site_domain: str | None,
 ) -> list:
     out: list = []
@@ -12979,7 +12987,8 @@ def _attach_sc_position_diff_to_ga4_rows(
             out.append(row)
             continue
         item = dict(row)
-        item["sc_position_diff"] = _lookup_sc_position_diff(item, lookup, site_domain)
+        item["sc_position_diff"] = _lookup_sc_page_metric(item, diff_lookup, site_domain)
+        item["sc_position_current"] = _lookup_sc_page_metric(item, current_lookup, site_domain)
         out.append(item)
     return out
 
@@ -13128,14 +13137,14 @@ def ga4_pages_partial(request: Request, site_id: int):
                 else:
                     rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=api_limit, exclude_news=True)
             rows = _enrich_ga4_page_rows(rows, keep_news_articles=False)
-            sc_pos_lookup = _sc_page_position_diff_lookup_for_ga4(
+            sc_diff_lookup, sc_current_lookup = _sc_page_position_lookups_for_ga4(
                 db,
                 site_id=site.id,
                 days=days,
                 profile=profile,
                 site_domain=site.domain,
             )
-            rows = _attach_sc_position_diff_to_ga4_rows(rows, sc_pos_lookup, site.domain)
+            rows = _attach_sc_position_to_ga4_rows(rows, sc_diff_lookup, sc_current_lookup, site.domain)
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 
