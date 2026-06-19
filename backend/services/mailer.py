@@ -208,6 +208,7 @@ def realtime_email_batch_flush() -> bool:
         _batch_ctx.items = items
         return False
 
+    combined_subject = realtime_periodic_digest_subject()
 
     ok = send_realtime_email(
         combined_subject,
