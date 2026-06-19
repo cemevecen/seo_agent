@@ -3,6 +3,10 @@
 from backend.main import _ga4_days_to_sc_page_scopes
 
 
+def test_ga4_days_to_sc_page_scopes_includes_60d():
+    assert _ga4_days_to_sc_page_scopes(60) == ("current_60d_pages", "previous_60d_pages")
+
+
 def test_ga4_days_to_sc_page_scopes_includes_90d():
     assert _ga4_days_to_sc_page_scopes(90) == ("current_90d_pages", "previous_90d_pages")
 

@@ -216,6 +216,7 @@ def resolve_sc_summary_period_range(
     keys_by_period = {
         "7": ("current_7d_start", "current_7d_end"),
         "30": ("current_30d_start", "current_30d_end"),
+        "60": ("current_60d_start", "current_60d_end"),
         "90": ("current_90d_start", "current_90d_end"),
     }
     pair = keys_by_period.get(str(period_key))

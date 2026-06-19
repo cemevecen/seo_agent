@@ -2555,6 +2555,8 @@ def _search_console_report_payload(
             "previous_7d",
             "current_30d",
             "previous_30d",
+            "current_60d",
+            "previous_60d",
             "current_90d",
             "previous_90d",
             "current_day",
@@ -2565,12 +2567,16 @@ def _search_console_report_payload(
             "previous_7d_pages",
             "current_30d_pages",
             "previous_30d_pages",
+            "current_60d_pages",
+            "previous_60d_pages",
         ],
     )
     current_rows_7 = _sc_batch.get("current_7d", [])
     previous_rows_7 = _sc_batch.get("previous_7d", [])
     current_rows_30 = _sc_batch.get("current_30d", [])
     previous_rows_30 = _sc_batch.get("previous_30d", [])
+    current_rows_60 = _sc_batch.get("current_60d", [])
+    previous_rows_60 = _sc_batch.get("previous_60d", [])
     current_rows_90 = _sc_batch.get("current_90d", [])
     previous_rows_90 = _sc_batch.get("previous_90d", [])
     current_rows_1 = _sc_batch.get("current_day", [])
@@ -2581,6 +2587,8 @@ def _search_console_report_payload(
     previous_pages_7 = _sc_batch.get("previous_7d_pages", [])
     current_pages_30 = _sc_batch.get("current_30d_pages", [])
     previous_pages_30 = _sc_batch.get("previous_30d_pages", [])
+    current_pages_60 = _sc_batch.get("current_60d_pages", [])
+    previous_pages_60 = _sc_batch.get("previous_60d_pages", [])
     summary_payload = _latest_successful_provider_summary(
         db,
         site_id=site_id,
@@ -2593,6 +2601,8 @@ def _search_console_report_payload(
     previous_7d_by_device = summary_payload.get("previous_7d_summary_by_device") or {}
     current_30d_by_device = summary_payload.get("current_30d_summary_by_device") or {}
     previous_30d_by_device = summary_payload.get("previous_30d_summary_by_device") or {}
+    current_60d_by_device = summary_payload.get("current_60d_summary_by_device") or {}
+    previous_60d_by_device = summary_payload.get("previous_60d_summary_by_device") or {}
     sw_day = summary_payload.get("same_weekday_day") if isinstance(summary_payload.get("same_weekday_day"), dict) else {}
     sw_by_device = sw_day.get("by_device") if isinstance(sw_day.get("by_device"), dict) else {}
 
@@ -2666,6 +2676,8 @@ def _search_console_report_payload(
     range_7_prev = _scope_range_from_rows(previous_rows_7)
     range_30_last = _scope_range_from_rows(current_rows_30)
     range_30_prev = _scope_range_from_rows(previous_rows_30)
+    range_60_last = _scope_range_from_rows(current_rows_60)
+    range_60_prev = _scope_range_from_rows(previous_rows_60)
     range_90_last = _scope_range_from_rows(current_rows_90)
     range_90_prev = _scope_range_from_rows(previous_rows_90)
     # 1g kartları: referans ve WoW tarihleri (özet JSON veya snapshot satırlarından)
@@ -2689,6 +2701,7 @@ def _search_console_report_payload(
         ("1", 1, "Son tam gün", "Geçen haftanın aynı günü", 7),
         ("7", 7, "Son 7 gün", "Önceki 7 gün", 7),
         ("30", 30, "Son 30 gün", "Önceki 30 gün", 30),
+        ("60", 60, "Son 60 gün", "Önceki 60 gün", 60),
         ("90", 90, "Son 90 gün", "Önceki 90 gün", 90),
     ):
         views: dict[str, dict] = {}
@@ -2752,6 +2765,23 @@ def _search_console_report_payload(
                 chart_trend = _slice_search_console_trend_last_days(base_trend, trend_days)
                 range_last = _format_sc_tr_date_range(*range_30_last)
                 range_prev = _format_sc_tr_date_range(*range_30_prev)
+            elif period_key == "60":
+                fc = _filter_search_console_rows_by_device(current_rows_60, device_code)
+                fp = _filter_search_console_rows_by_device(previous_rows_60, device_code)
+                summary_current = current_60d_by_device.get(device_code) or _summarize_search_console_rows(fc)
+                summary_previous = previous_60d_by_device.get(device_code) or _summarize_search_console_rows(fp)
+                device_top = _build_search_console_top_queries(fc, fp, limit=50)
+                pages_current = _filter_search_console_rows_by_device(current_pages_60, device_code)
+                pages_previous = _filter_search_console_rows_by_device(previous_pages_60, device_code)
+                base_60 = _sanitize_search_console_trend(
+                    trend_12m_by_device.get(device_code)
+                    or {**empty_trend, "mode": "last_12m"}
+                )
+                chart_trend = _slice_search_console_trend_last_days(base_60, trend_days)
+                if not _search_console_trend_has_signal(chart_trend):
+                    chart_trend = _slice_search_console_trend_last_days(base_trend, min(30, len(base_trend.get("dates") or []) or 30))
+                range_last = _format_sc_tr_date_range(*range_60_last)
+                range_prev = _format_sc_tr_date_range(*range_60_prev)
             else:
                 fc = _filter_search_console_rows_by_device(current_rows_90, device_code)
                 fp = _filter_search_console_rows_by_device(previous_rows_90, device_code)
@@ -2809,7 +2839,7 @@ def _search_console_report_payload(
                     float(_cur.get("position") or 0),
                     float(_prev.get("position") or 0),
                 ),
-                "content_trending_down": content_trending_down if period_key in ("30", "90") else [],
+                "content_trending_down": content_trending_down if period_key in ("30", "60", "90") else [],
             }
 
         mv = views.get("mobile") or {}
@@ -2836,7 +2866,7 @@ def _search_console_report_payload(
             "label_previous": _lp,
             "trend_caption": "Son 7 günün günlük trendi"
             if pd_days in (1, 7)
-            else ("Son 90 günün günlük trendi" if pd_days == 90 else "Son 30 günün günlük trendi"),
+            else ("Son 90 günün günlük trendi" if pd_days == 90 else ("Son 60 günün günlük trendi" if pd_days == 60 else "Son 30 günün günlük trendi")),
             "views": views,
             "trend_only": False,
         }
@@ -2936,6 +2966,8 @@ def _search_console_report_payload(
         "range_previous_7d": _format_sc_tr_date_range(*range_7_prev),
         "range_current_30d": _format_sc_tr_date_range(*range_30_last),
         "range_previous_30d": _format_sc_tr_date_range(*range_30_prev),
+        "range_current_60d": _format_sc_tr_date_range(*range_60_last),
+        "range_previous_60d": _format_sc_tr_date_range(*range_60_prev),
         "range_current_90d": _format_sc_tr_date_range(*range_90_last),
         "range_previous_90d": _format_sc_tr_date_range(*range_90_prev),
     }
@@ -2949,6 +2981,7 @@ def _search_console_report_payload(
         period_primary_ranges = {
             "7": resolve_sc_summary_period_range(summary_payload, "7", range_7_last),
             "30": resolve_sc_summary_period_range(summary_payload, "30", range_30_last),
+            "60": resolve_sc_summary_period_range(summary_payload, "60", range_60_last),
             "90": resolve_sc_summary_period_range(summary_payload, "90", range_90_last),
         }
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -11090,6 +11123,14 @@ def _ga4_sites_payload(db) -> list[dict]:
                         latest=latest,
                         prop_id=prop_id,
                     ),
+                    "60": _ga4_profile_payload_for_period(
+                        db,
+                        site_id=site.id,
+                        profile=profile,
+                        period_days=60,
+                        latest=latest,
+                        prop_id=prop_id,
+                    ),
                     "90": _ga4_profile_payload_for_period(
                         db,
                         site_id=site.id,
@@ -12756,6 +12797,7 @@ def ga4_single_site_card(request: Request, site_id: int):
                         "1":  _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=1,  latest=latest, prop_id=prop_id),
                         "7":  _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=7,  latest=latest, prop_id=prop_id),
                         "30": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=30, latest=latest, prop_id=prop_id),
+                        "60": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=60, latest=latest, prop_id=prop_id),
                         "90": _ga4_profile_payload_for_period(db, site_id=site.id, profile=profile, period_days=90, latest=latest, prop_id=prop_id),
                         "12m": _ga4_profile_payload_for_period(
                             db,
@@ -12779,7 +12821,7 @@ def ga4_single_site_card(request: Request, site_id: int):
                 daily_long = pdata.get("compare_daily_long")
                 if not isinstance(daily_long, dict):
                     daily_long = (pdata["periods"].get("12m") or {}).get("daily_trend")
-                for _pk in ("7", "30", "90"):
+                for _pk in ("7", "30", "60", "90"):
                     profiles[profile]["periods"][_pk] = apply_ga4_period_compare(
                         profiles[profile]["periods"][_pk],
                         compare=compare_opts,
@@ -13114,6 +13156,8 @@ def _ga4_days_to_sc_page_scopes(days: int) -> tuple[str, str] | None:
         return "current_7d_pages", "previous_7d_pages"
     if days == 30:
         return "current_30d_pages", "previous_30d_pages"
+    if days == 60:
+        return "current_60d_pages", "previous_60d_pages"
     if days == 90:
         return "current_90d_pages", "previous_90d_pages"
     return None

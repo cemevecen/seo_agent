@@ -1158,6 +1158,9 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         current_30d_start = end_date - timedelta(days=29)
         previous_30d_end = current_30d_start - timedelta(days=1)
         previous_30d_start = previous_30d_end - timedelta(days=29)
+        current_60d_start = end_date - timedelta(days=59)
+        previous_60d_end = current_60d_start - timedelta(days=1)
+        previous_60d_start = previous_60d_end - timedelta(days=59)
         current_90d_start = end_date - timedelta(days=89)
         previous_90d_end = current_90d_start - timedelta(days=1)
         previous_90d_start = previous_90d_end - timedelta(days=89)
@@ -1169,6 +1172,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         previous_7d_rows: list[dict] = []
         current_30d_rows: list[dict] = []
         previous_30d_rows: list[dict] = []
+        current_60d_rows: list[dict] = []
+        previous_60d_rows: list[dict] = []
         current_90d_rows: list[dict] = []
         previous_90d_rows: list[dict] = []
         current_1d_pages_rows: list[dict] = []
@@ -1177,6 +1182,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         previous_7d_pages_rows: list[dict] = []
         current_30d_pages_rows: list[dict] = []
         previous_30d_pages_rows: list[dict] = []
+        current_60d_pages_rows: list[dict] = []
+        previous_60d_pages_rows: list[dict] = []
         current_90d_pages_rows: list[dict] = []
         previous_90d_pages_rows: list[dict] = []
         trend_28d_rows: list[dict] = []
@@ -1195,6 +1202,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             previous_7d_rows.extend(_fetch_search_console_rows(service, property_url, previous_7d_start, previous_7d_end, device=device))
             current_30d_rows.extend(_fetch_search_console_rows(service, property_url, current_30d_start, end_date, device=device))
             previous_30d_rows.extend(_fetch_search_console_rows(service, property_url, previous_30d_start, previous_30d_end, device=device))
+            current_60d_rows.extend(_fetch_search_console_rows(service, property_url, current_60d_start, end_date, device=device))
+            previous_60d_rows.extend(_fetch_search_console_rows(service, property_url, previous_60d_start, previous_60d_end, device=device))
             current_90d_rows.extend(_fetch_search_console_rows(service, property_url, current_90d_start, end_date, device=device))
             previous_90d_rows.extend(_fetch_search_console_rows(service, property_url, previous_90d_start, previous_90d_end, device=device))
             if settings.search_console_include_page_dimension:
@@ -1271,6 +1280,28 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
                         primary_dimension="page",
                     )
                 )
+                current_60d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        current_60d_start,
+                        end_date,
+                        device=device,
+                        max_rows=min(2250, page_cap),
+                        primary_dimension="page",
+                    )
+                )
+                previous_60d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        previous_60d_start,
+                        previous_60d_end,
+                        device=device,
+                        max_rows=min(2250, page_cap),
+                        primary_dimension="page",
+                    )
+                )
                 current_90d_pages_rows.extend(
                     _fetch_search_console_rows_limited(
                         service,
@@ -1314,6 +1345,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "previous_7d_rows": previous_7d_rows,
             "current_30d_rows": current_30d_rows,
             "previous_30d_rows": previous_30d_rows,
+            "current_60d_rows": current_60d_rows,
+            "previous_60d_rows": previous_60d_rows,
             "current_90d_rows": current_90d_rows,
             "previous_90d_rows": previous_90d_rows,
             "current_1d_pages_rows": current_1d_pages_rows,
@@ -1322,6 +1355,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "previous_7d_pages_rows": previous_7d_pages_rows,
             "current_30d_pages_rows": current_30d_pages_rows,
             "previous_30d_pages_rows": previous_30d_pages_rows,
+            "current_60d_pages_rows": current_60d_pages_rows,
+            "previous_60d_pages_rows": previous_60d_pages_rows,
             "current_90d_pages_rows": current_90d_pages_rows,
             "previous_90d_pages_rows": previous_90d_pages_rows,
             "trend_28d_rows": trend_28d_rows,
@@ -1347,6 +1382,10 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "current_30d_end": end_date.isoformat(),
             "previous_30d_start": previous_30d_start.isoformat(),
             "previous_30d_end": previous_30d_end.isoformat(),
+            "current_60d_start": current_60d_start.isoformat(),
+            "current_60d_end": end_date.isoformat(),
+            "previous_60d_start": previous_60d_start.isoformat(),
+            "previous_60d_end": previous_60d_end.isoformat(),
             "current_90d_start": current_90d_start.isoformat(),
             "current_90d_end": end_date.isoformat(),
             "previous_90d_start": previous_90d_start.isoformat(),
@@ -1650,6 +1689,8 @@ def collect_search_console_metrics(
     previous_7d_rows = payload.get("previous_7d_rows", [])
     current_30d_rows = payload.get("current_30d_rows", [])
     previous_30d_rows = payload.get("previous_30d_rows", [])
+    current_60d_rows = payload.get("current_60d_rows", [])
+    previous_60d_rows = payload.get("previous_60d_rows", [])
     current_90d_rows = payload.get("current_90d_rows", [])
     previous_90d_rows = payload.get("previous_90d_rows", [])
     current_1d_pages_rows = payload.get("current_1d_pages_rows", [])
@@ -1658,6 +1699,8 @@ def collect_search_console_metrics(
     previous_7d_pages_rows = payload.get("previous_7d_pages_rows", [])
     current_30d_pages_rows = payload.get("current_30d_pages_rows", [])
     previous_30d_pages_rows = payload.get("previous_30d_pages_rows", [])
+    current_60d_pages_rows = payload.get("current_60d_pages_rows", [])
+    previous_60d_pages_rows = payload.get("previous_60d_pages_rows", [])
     current_90d_pages_rows = payload.get("current_90d_pages_rows", [])
     previous_90d_pages_rows = payload.get("previous_90d_pages_rows", [])
     trend_28d_rows = payload.get("trend_28d_rows", [])
@@ -1747,6 +1790,8 @@ def collect_search_console_metrics(
 
         current_30d_summary = _summarize_rows(current_30d_rows)
         previous_30d_summary = _summarize_rows(previous_30d_rows)
+        current_60d_summary = _summarize_rows(current_60d_rows)
+        previous_60d_summary = _summarize_rows(previous_60d_rows)
         content_trending_down = _build_content_trending_down(
             current_30d_pages_rows,
             previous_30d_pages_rows,
@@ -1759,6 +1804,14 @@ def collect_search_console_metrics(
         previous_30d_summary_by_device = {
             "MOBILE": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
             "DESKTOP": _summarize_rows([r for r in previous_30d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+        }
+        current_60d_summary_by_device = {
+            "MOBILE": _summarize_rows([r for r in current_60d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+            "DESKTOP": _summarize_rows([r for r in current_60d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+        }
+        previous_60d_summary_by_device = {
+            "MOBILE": _summarize_rows([r for r in previous_60d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+            "DESKTOP": _summarize_rows([r for r in previous_60d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
         }
 
         same_weekday_day_summary: dict | None = None
@@ -1908,6 +1961,28 @@ def collect_search_console_metrics(
             end_date=str(payload.get("previous_30d_end") or ""),
             collector_run_id=collector_run.id,
         )
+        current_60d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_60d",
+            rows=current_60d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_60d_start") or ""),
+            end_date=str(payload.get("current_60d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_60d_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_60d",
+            rows=previous_60d_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_60d_start") or ""),
+            end_date=str(payload.get("previous_60d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
         current_90d_row_count = save_search_console_query_rows(
             db,
             site_id=site.id,
@@ -2007,6 +2082,28 @@ def collect_search_console_metrics(
             end_date=str(payload.get("previous_30d_end") or ""),
             collector_run_id=collector_run.id,
         )
+        current_60d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_60d_pages",
+            rows=current_60d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_60d_start") or ""),
+            end_date=str(payload.get("current_60d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_60d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_60d_pages",
+            rows=previous_60d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_60d_start") or ""),
+            end_date=str(payload.get("previous_60d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
         current_90d_pages_row_count = save_search_console_query_rows(
             db,
             site_id=site.id,
@@ -2055,22 +2152,32 @@ def collect_search_console_metrics(
                 "previous_30d_summary": previous_30d_summary,
                 "current_30d_summary_by_device": current_30d_summary_by_device,
                 "previous_30d_summary_by_device": previous_30d_summary_by_device,
+                "current_60d_summary": current_60d_summary,
+                "previous_60d_summary": previous_60d_summary,
+                "current_60d_summary_by_device": current_60d_summary_by_device,
+                "previous_60d_summary_by_device": previous_60d_summary_by_device,
                 "current_1d_pages_rows": current_1d_pages_row_count,
                 "previous_1d_pages_rows": previous_1d_pages_row_count,
                 "current_7d_pages_rows": current_7d_pages_row_count,
                 "previous_7d_pages_rows": previous_7d_pages_row_count,
                 "current_30d_pages_rows": current_30d_pages_row_count,
                 "previous_30d_pages_rows": previous_30d_pages_row_count,
+                "current_60d_pages_rows": current_60d_pages_row_count,
+                "previous_60d_pages_rows": previous_60d_pages_row_count,
                 "current_90d_pages_rows": current_90d_pages_row_count,
                 "previous_90d_pages_rows": previous_90d_pages_row_count,
                 "current_90d_rows": current_90d_row_count,
                 "previous_90d_rows": previous_90d_row_count,
+                "current_60d_rows": current_60d_row_count,
+                "previous_60d_rows": previous_60d_row_count,
                 "content_trending_down": content_trending_down,
                 "same_weekday_day": same_weekday_day_summary,
                 "current_7d_start": str(payload.get("current_7d_start") or ""),
                 "current_7d_end": str(payload.get("current_7d_end") or ""),
                 "current_30d_start": str(payload.get("current_30d_start") or ""),
                 "current_30d_end": str(payload.get("current_30d_end") or ""),
+                "current_60d_start": str(payload.get("current_60d_start") or ""),
+                "current_60d_end": str(payload.get("current_60d_end") or ""),
                 "current_90d_start": str(payload.get("current_90d_start") or ""),
                 "current_90d_end": str(payload.get("current_90d_end") or ""),
                 "trend_28d_summary": trend_summary,
@@ -2108,6 +2215,8 @@ def collect_search_console_metrics(
             + previous_7d_row_count
             + current_30d_row_count
             + previous_30d_row_count
+            + current_60d_row_count
+            + previous_60d_row_count
             + current_90d_row_count
             + previous_90d_row_count
             + previous_week_same_weekday_row_count
@@ -2117,6 +2226,8 @@ def collect_search_console_metrics(
             + previous_7d_pages_row_count
             + current_30d_pages_row_count
             + previous_30d_pages_row_count
+            + current_60d_pages_row_count
+            + previous_60d_pages_row_count
             + current_90d_pages_row_count
             + previous_90d_pages_row_count,
         )

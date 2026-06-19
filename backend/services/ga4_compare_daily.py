@@ -168,7 +168,7 @@ def apply_compare_daily_to_profiles(
     ref_periods: dict[str, dict[str, Any]] = {}
     for pdata in profiles.values():
         periods = pdata.get("periods") or {}
-        ref_periods = {k: periods[k] for k in ("7", "30", "90") if k in periods}
+        ref_periods = {k: periods[k] for k in ("7", "30", "60", "90") if k in periods}
         if ref_periods:
             break
     if not ref_periods:

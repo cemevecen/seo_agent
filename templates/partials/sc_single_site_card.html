@@ -73,6 +73,15 @@
             type="button"
             role="tab"
             class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
+            data-sc-period-toggle="60"
+            data-active="false"
+          >
+            60d
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition dark:text-slate-300 sm:px-3.5 sm:py-1.5"
             data-sc-period-toggle="90"
             data-active="false"
           >
@@ -145,7 +154,7 @@
         </div>
       </div>
       <div class="min-w-0" data-sc-period-date-wrap>
-          {% for period_key in ['1', '7', '30', '90', '12m'] %}
+          {% for period_key in ['1', '7', '30', '60', '90', '12m'] %}
             {% if period_key not in site.report.periods %}{% else %}
             {% set _pd = site.report.periods[period_key] %}
             {% for device_key in ['mobile', 'desktop'] %}
@@ -168,7 +177,7 @@
         {% endif %}
       {% endfor %}
       </div>
-    {% for period_key in ['1', '7', '30', '90', '12m'] %}
+    {% for period_key in ['1', '7', '30', '60', '90', '12m'] %}
       {% if period_key in site.report.periods %}
       {% set period = site.report.periods[period_key] %}
       <div
@@ -396,7 +405,7 @@
                   </div>
                 </div>
               </div>
-              {% if period_key in ('30', '90') %}
+              {% if period_key in ('30', '60', '90') %}
               <div class="mt-1 space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Düşen içerikler (Son {{ period_key }} gün vs Önceki {{ period_key }} gün · tıklama)</p>
                 <div class="w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">

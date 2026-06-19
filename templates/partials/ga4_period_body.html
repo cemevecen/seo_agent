@@ -10,6 +10,11 @@
   {% set prev_l = 'PREVIOUS 7 DAYS' %}
   {% set ch_l = 'CHANNEL SUMMARY (LAST 7 DAYS)' %}
   {% set org_l = 'ORGANIC SHARE (LAST 7 DAYS)' %}
+{% elif pd == 60 %}
+  {% set last_l = 'LAST 60 DAYS' %}
+  {% set prev_l = 'PREVIOUS 60 DAYS' %}
+  {% set ch_l = 'CHANNEL SUMMARY (LAST 60 DAYS)' %}
+  {% set org_l = 'ORGANIC SHARE (LAST 60 DAYS)' %}
 {% elif pd == 90 %}
   {% set last_l = 'LAST 90 DAYS' %}
   {% set prev_l = 'PREVIOUS 90 DAYS' %}
@@ -168,7 +173,7 @@
     </p>
     <div class="ga4-period-proxy-wrap inline-flex shrink-0 items-stretch gap-0.5 rounded-full border border-violet-200 bg-violet-50 p-1 dark:border-slate-600 dark:bg-slate-800/95"
          data-period-proxy-pk="{{ pk }}" role="group" aria-label="Dönem seç">
-      {% for label, dval in [('1g', '1'), ('7g', '7'), ('30g', '30'), ('90g', '90')] %}
+      {% for label, dval in [('1g', '1'), ('7g', '7'), ('30g', '30'), ('60g', '60'), ('90g', '90')] %}
         <button type="button"
           class="ga4-period-proxy-btn shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold transition"
           data-period-proxy-val="{{ dval }}"
