@@ -329,30 +329,38 @@
                 <div class="rounded-2xl border border-slate-200 dark:border-slate-700">
                   <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Top pages</p>
                   <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-                    <table class="w-full min-w-[56rem] text-[10px] sm:min-w-0 sm:table-fixed sm:text-xs" data-search-console-table data-sc-pages-table>
+                    <table class="w-full min-w-[42rem] text-[10px] sm:min-w-0 sm:table-fixed sm:text-xs md:text-sm" data-search-console-table data-sc-pages-table>
                       <colgroup>
-                        <col class="min-w-0" style="width: 36%" />
-                        <col style="width: 16%" />
-                        <col style="width: 16%" />
-                        <col style="width: 16%" />
-                        <col style="width: 16%" />
+                        <col style="width: 28%" />
+                        <col style="width: 12%" />
+                        <col style="width: 12%" />
+                        <col style="width: 12%" />
+                        <col style="width: 12%" />
+                        <col style="width: 12%" />
+                        <col style="width: 12%" />
                       </colgroup>
                       <thead class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                         <tr>
-                          <th scope="col" class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-1 py-0.5 text-left align-top shadow-[4px_0_12px_-6px_rgba(15,23,42,0.25)] sm:px-2 sm:py-1">
-                            <button type="button" class="touch-manipulation flex w-full flex-col items-start gap-0.5 text-left font-semibold leading-tight hover:text-slate-900 dark:text-slate-100" data-sort-key="query" data-sort-type="string"><span>Landing page</span><span class="text-[9px] font-normal opacity-90">URL</span></button>
+                          <th scope="col" class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-1.5 py-2 text-left align-top shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-2 sm:py-2.5">
+                            <button type="button" class="touch-manipulation flex w-full flex-col items-start gap-0 text-left font-semibold leading-tight hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="query" data-sort-type="string"><span>Landing page</span><span class="text-[9px] font-normal opacity-90">URL</span></button>
                           </th>
-                          <th scope="col" class="py-0.5 pl-1 pr-1 text-right align-top sm:py-1 sm:pl-2 sm:pr-2">
-                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300" data-sort-key="clicksCurrent" data-sort-type="number"><span>Clicks</span><span class="text-[9px] font-normal opacity-90">current</span></button>
+                          <th scope="col" class="px-1.5 py-2 text-right align-top sm:px-2 sm:py-2.5">
+                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0 font-semibold leading-tight text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300" data-sort-key="clicksCurrent" data-sort-type="number"><span>Clicks</span><span class="text-[9px] font-normal tabular-nums opacity-90">{{ view.table_label_current }}</span></button>
                           </th>
-                          <th scope="col" class="py-0.5 pl-1 pr-1 text-right align-top sm:py-1 sm:pl-2 sm:pr-2">
-                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300" data-sort-key="impressionsCurrent" data-sort-type="number"><span>Impr.</span><span class="text-[9px] font-normal opacity-90">current</span></button>
+                          <th scope="col" class="px-1.5 py-2 text-right align-top sm:px-2 sm:py-2.5">
+                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0 font-semibold leading-tight text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300" data-sort-key="clicksPrevious" data-sort-type="number"><span>Clicks</span><span class="text-[9px] font-normal tabular-nums opacity-90">{{ view.table_label_previous }}</span></button>
                           </th>
-                          <th scope="col" class="py-0.5 pl-1 pr-1 text-right align-top sm:py-1 sm:pl-2 sm:pr-2">
-                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight text-emerald-500 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300" data-sort-key="ctrCurrent" data-sort-type="number"><span>CTR</span><span class="text-[9px] font-normal opacity-90">current</span></button>
+                          <th scope="col" class="px-1.5 py-2 text-right align-top sm:px-2 sm:py-2.5">
+                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0 font-semibold leading-tight text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300" data-sort-key="clicksDiff" data-sort-type="number"><span>Clicks</span><span class="text-[9px] font-normal opacity-90">Change</span></button>
                           </th>
-                          <th scope="col" class="py-0.5 pl-1 pr-4 text-right align-top sm:py-1 sm:pl-2 sm:pr-4">
-                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 text-right font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="positionCurrent" data-sort-type="number"><span>Pos.</span><span class="text-[9px] font-normal opacity-90">current</span></button>
+                          <th scope="col" class="px-1.5 py-2 text-right align-top sm:px-2 sm:py-2.5">
+                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="positionCurrent" data-sort-type="number"><span>Position</span><span class="text-[9px] font-normal tabular-nums opacity-90">{{ view.table_label_current }}</span></button>
+                          </th>
+                          <th scope="col" class="px-1.5 py-2 text-right align-top sm:px-2 sm:py-2.5">
+                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="positionPrevious" data-sort-type="number"><span>Position</span><span class="text-[9px] font-normal tabular-nums opacity-90">{{ view.table_label_previous }}</span></button>
+                          </th>
+                          <th scope="col" class="px-1.5 py-2 text-right align-top sm:px-2 sm:py-2.5">
+                            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="positionDiff" data-sort-type="number"><span>Position</span><span class="text-[9px] font-normal opacity-90">Change</span></button>
                           </th>
                         </tr>
                       </thead>
@@ -367,20 +375,21 @@
                             {% set page_href = 'https://' ~ _host ~ '/' ~ _path %}
                           {% endif %}
                           {% set page_disp = row.label|replace('https://', '')|replace('http://', '') %}
-                          {% set _ctr = (row.clicks_current / row.impressions_current) if row.impressions_current > 0 else 0 %}
-                          <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80" data-query="{{ row.label|lower }}" data-clicks-current="{{ row.clicks_current }}" data-impressions-current="{{ row.impressions_current }}" data-ctr-current="{{ _ctr }}" data-position-current="{{ row.position_current }}">
-                            <td class="sticky left-0 z-[1] min-w-0 bg-white px-1 py-0.5 text-left font-medium shadow-[4px_0_12px_-6px_rgba(15,23,42,0.18)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 sm:px-2 sm:py-1">
+                          <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80" data-query="{{ row.label|lower }}" data-clicks-current="{{ row.clicks_current }}" data-clicks-previous="{{ row.clicks_previous }}" data-clicks-diff="{{ row.clicks_diff }}" data-position-current="{{ row.position_current }}" data-position-previous="{{ row.position_previous }}" data-position-diff="{{ row.position_diff }}">
+                            <td class="sticky left-0 z-[1] min-w-0 bg-white px-1.5 py-2 text-left font-medium shadow-[4px_0_12px_-6px_rgba(15,23,42,0.18)] group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 sm:px-2 sm:py-2.5">
                               <a href="{{ page_href }}" target="_blank" rel="noopener noreferrer" title="{{ row.label }}" class="block max-w-full text-sky-600 underline decoration-sky-400/80 underline-offset-2 hover:text-sky-700 dark:text-sky-300 dark:decoration-sky-400/90 dark:hover:text-sky-200">
                                 <span class="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left" dir="rtl"><bdi dir="ltr">{{ page_disp }}</bdi></span>
                               </a>
                             </td>
-                            <td class="whitespace-nowrap py-0.5 pl-1 pr-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-2">{{ row.clicks_current | tr_int }}</td>
-                            <td class="whitespace-nowrap py-0.5 pl-1 pr-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-2">{{ row.impressions_current | tr_int }}</td>
-                            <td class="whitespace-nowrap py-0.5 pl-1 pr-1 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-2">{{ (_ctr * 100)|max_two_decimals }}%</td>
-                            <td class="whitespace-nowrap py-0.5 pl-1 pr-4 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:py-1 sm:pl-2 sm:pr-4">{{ "{:.2f}".format(row.position_current) }}</td>
+                            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
+                            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
+                            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.clicks_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.clicks_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
+                            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:.2f}".format(row.position_current) }}</td>
+                            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:.2f}".format(row.position_previous) }}</td>
+                            <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+.2f}".format(row.position_diff) }}</td>
                           </tr>
                         {% else %}
-                          <tr><td colspan="5" class="px-2 py-6 text-center text-slate-500 dark:text-slate-400 sm:px-3">{{ view.device_label }} için bu dönemde page kırılımı yok.</td></tr>
+                          <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">{{ view.device_label }} için bu dönemde page kırılımı yok.</td></tr>
                         {% endfor %}
                       </tbody>
                     </table>
