@@ -1474,7 +1474,11 @@
     if (el6) el6.innerHTML = renderMzAppLabSection6(preview.section_6_anomaly_hints || {});
   }
 
-  function qs() {
+  // opts.global=true → tablo drill kapsamı (ad_unit/income_type) eklenmez.
+  // Global görünümler (özet KPI'lar, top birimler) bu modu kullanır; böylece
+  // bir satıra drill yapıldıktan sonra tarih değişince KPI'lar tüm dalın
+  // verisini gösterir, tek birime daralmaz.
+  function qs(opts) {
     var p = new URLSearchParams();
     if (state.activeStream) {
       p.set("project", state.activeStream.project);
@@ -1494,14 +1498,16 @@
     appendFacetParam(p, "sources", state.source, state._mzSourceFacetList || []);
     var q = document.getElementById("mz-search").value.trim();
     if (q) p.set("search", q);
-    if (state.drillSlice && state.drillSlice.ad_unit) {
-      p.set("ad_unit", state.drillSlice.ad_unit);
-      p.set("ad_units", state.drillSlice.ad_unit);
-      if (state.drillSlice.area) p.set("area", state.drillSlice.area);
-    }
-    if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
-      p.set("drill_income_type", state.summaryDrillSlice.income_type);
-      p.set("income_types", state.summaryDrillSlice.income_type);
+    if (!(opts && opts.global)) {
+      if (state.drillSlice && state.drillSlice.ad_unit) {
+        p.set("ad_unit", state.drillSlice.ad_unit);
+        p.set("ad_units", state.drillSlice.ad_unit);
+        if (state.drillSlice.area) p.set("area", state.drillSlice.area);
+      }
+      if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
+        p.set("drill_income_type", state.summaryDrillSlice.income_type);
+        p.set("income_types", state.summaryDrillSlice.income_type);
+      }
     }
     var preset = document.getElementById("mz-preset").value;
     if (preset && !isMzCustomPreset(preset)) p.set("preset", preset);
@@ -4570,13 +4576,7 @@
     var targetKey = peerTargetStreamKey();
     var pk = peerBranchKey();
     if (!targetKey || !pk || !state.activeStream) return null;
-    var p = qs();
-    if (opts.stripDrill !== false) {
-      p.delete("ad_unit");
-      p.delete("ad_units");
-      p.delete("area");
-      p.delete("drill_income_type");
-    }
+    var p = opts.stripDrill === false ? qs() : qs({ global: true });
     p.set("project", state.activeStream.project || "doviz");
     p.set("branch", pk);
     p.set("stream", targetKey);
@@ -6620,7 +6620,7 @@
     }
     if (statusEl) statusEl.textContent = "Yükleniyor…";
     try {
-      var p = qs();
+      var p = qs({ global: true });
       p.set("start", r7.start);
       p.set("end", r7.end);
       p.set("breakdown", "ad_unit");
@@ -8019,7 +8019,7 @@
     showPageError("");
     clearPeerSummaryCache();
     try {
-      var base = qs().toString();
+      var base = qs({ global: true }).toString();
       var sumR = await fetch("/api/mz-analytics/summary?" + base);
       if (!sumR.ok) throw new Error("Özet alınamadı");
       var sum = await sumR.json();
