@@ -35,6 +35,23 @@
     box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.35);
     background: rgba(76, 5, 25, 0.35);
   }
+  /* Grafik alanı kart genişliğini kullansın (Plotly yan boşlukları) */
+  .mz-page .mz-chart-card {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .mz-page .mz-chart-plot {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .mz-page .mz-chart-plot .js-plotly-plot,
+  .mz-page .mz-chart-plot .plot-container.plotly,
+  .mz-page .mz-chart-plot .svg-container {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 </style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
@@ -4899,11 +4916,11 @@
       side: "right",
       showgrid: false,
     });
-    var m = layout.margin || { l: 52, r: 12, t: 28, b: 56 };
+    var m = layout.margin || { l: 34, r: 6, t: 22, b: 48 };
     layout.margin = Object.assign({}, m, {
-      r: Math.max(m.r || 12, 62),
-      t: Math.max(m.t || 28, 72),
-      b: Math.max(m.b || 56, 64),
+      r: Math.max(m.r || 6, 40),
+      t: Math.max(m.t || 22, 56),
+      b: Math.max(m.b || 48, 56),
     });
     layout.showlegend = true;
     layout.legend = Object.assign({}, layout.legend || {}, {
@@ -5288,7 +5305,7 @@
         ? drillCompareAlignedPair(filtered, chartTimeKey, metricKey, state.lastSummary)
         : null;
       var traces = [];
-      var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 52, r: 12, t: 28, b: 56 } });
+      var layout = plotTheme({ yTitle: mDef.axis || "", margin: { l: 34, r: 6, t: 22, b: 48 } });
       var plotX = [];
       var overlayBucketKeys = [];
       var dense = series.length > 96;
@@ -5646,11 +5663,11 @@
     return { color: isDarkTheme() ? "#a1a1aa" : "#475569", size: 11 };
   }
 
-  var DRILL_STACK_MARGIN = { l: 52, r: 12, t: 28, b: 56 };
+  var DRILL_STACK_MARGIN = { l: 34, r: 6, t: 22, b: 48 };
 
   function drillStackXaxisSync(baseXaxis, chartTimeKey, plotX, dense) {
     var ax = Object.assign({}, baseXaxis || {});
-    ax.automargin = false;
+    ax.automargin = true;
     ax.fixedrange = false;
     if (chartTimeKey === "date" && (!ax.type || ax.type === "date")) {
       ax.type = "date";
@@ -5667,14 +5684,17 @@
 
   function plotAxis(title) {
     var dark = isDarkTheme();
-    return {
-      title: title || "",
+    var ax = {
       gridcolor: dark ? "#27272a" : "#e2e8f0",
       zerolinecolor: dark ? "#3f3f46" : "#cbd5e1",
       linecolor: dark ? "#3f3f46" : "#cbd5e1",
       tickfont: plotFont(),
-      titlefont: plotFont(),
+      automargin: true,
     };
+    if (title) {
+      ax.title = { text: title, font: plotFont(), standoff: 4 };
+    }
+    return ax;
   }
 
   function mzReleaseHoverLinesForDay(releases, dayIso, platform) {
@@ -5799,7 +5819,7 @@
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
       font: plotFont(),
-      margin: extra.margin || { l: 48, r: 16, t: 24, b: 48 },
+      margin: extra.margin || { l: 32, r: 6, t: 18, b: 38 },
       xaxis: plotAxis(extra.xTitle || ""),
       yaxis: plotAxis(extra.yTitle || ""),
       legend: {
@@ -5814,9 +5834,12 @@
         font: { color: dark ? "#e4e4e7" : "#1e293b", size: 11 },
       },
     };
+    layout.xaxis = Object.assign({ domain: [0, 1], anchor: "y" }, layout.xaxis);
+    layout.yaxis = Object.assign({ domain: [0, 1], anchor: "x" }, layout.yaxis);
     if (extra.yaxis) layout.yaxis = Object.assign({}, layout.yaxis, extra.yaxis);
     if (extra.yaxis2) {
       layout.yaxis2 = Object.assign({}, plotAxis(extra.yaxis2.title || ""), extra.yaxis2);
+      layout.margin.r = Math.max(Number(layout.margin.r) || 6, 34);
     }
     if (extra.xaxis) layout.xaxis = Object.assign({}, layout.xaxis, extra.xaxis);
     if (extra.legend) layout.legend = Object.assign({}, layout.legend, extra.legend);
@@ -5945,6 +5968,8 @@
         },
         layout || {}
       );
+      var plotW = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
+      if (plotW > 0) lay.width = plotW;
       try { Plotly.purge(el); } catch (_) { /* ignore */ }
       el.innerHTML = "";
       return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function () {
@@ -6042,6 +6067,8 @@
       },
       layout || {}
     );
+    var plotW = Math.round(chartEl.getBoundingClientRect().width || chartEl.clientWidth || 0);
+    if (plotW > 0) lay.width = plotW;
     try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
     chartEl.innerHTML = "";
     return Plotly.newPlot(chartEl, traces, lay, plotlyCfg())
@@ -6424,7 +6451,7 @@
         }],
         plotTheme({
           yTitle: "Net Revenue (TL)",
-          margin: { l: 56, r: 12, t: 20, b: 120 },
+          margin: { l: 34, r: 6, t: 18, b: 96 },
           xaxis: { tickangle: -35 },
         }),
         plotlyCfg()
@@ -6877,7 +6904,7 @@
         colorbar: { len: 0.85, thickness: 12, tickfont: plotFont() },
         hovertemplate: "%{y} %{x}<br>%{z:,.0f} TL<extra></extra>",
       }], plotTheme({
-        margin: { l: 52, r: 16, t: 8, b: 36 },
+        margin: { l: 34, r: 8, t: 8, b: 32 },
         xaxis: { side: "bottom", tickfont: plotFont() },
         yaxis: { automargin: true, tickfont: plotFont() },
       }), { minHeight: 208 });
