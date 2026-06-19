@@ -10552,6 +10552,148 @@ def _ga4_trend_has_signal(daily_trend: dict) -> bool:
     return False
 
 
+_GA4_PROFILE_SC_DEVICE = {"web": "DESKTOP", "mweb": "MOBILE"}
+
+
+def _sc_position_trend_has_values(trend: dict) -> bool:
+    for value in (trend or {}).get("position") or []:
+        if value is None:
+            continue
+        try:
+            if float(value) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def _load_ga4_sc_position_trends_by_device(db, site_id: int) -> dict[str, dict[str, dict]]:
+    """Site için SC günlük position serileri (DESKTOP/MOBILE, 28g + 12ay)."""
+    summary_payload = _latest_successful_provider_summary(
+        db, site_id=site_id, provider="search_console", strategy="all"
+    )
+    if not summary_payload:
+        return {}
+
+    _raw_trend_by_device = (
+        summary_payload.get("trend_28d_summary_by_device")
+        or summary_payload.get("trend_7d_summary_by_device")
+        or {}
+    )
+    _stored_trend_rows = summary_payload.get("trend_28d_rows") or []
+    if _stored_trend_rows and not _raw_trend_by_device:
+        from backend.collectors.search_console import _build_recent_trend_summary_by_device
+
+        try:
+            from datetime import date as _date_cls
+
+            _dates = [r.get("date") for r in _stored_trend_rows if r.get("date")]
+            if _dates:
+                _start = _date_cls.fromisoformat(min(_dates)[:10])
+                _end = _date_cls.fromisoformat(max(_dates)[:10])
+                _raw_trend_by_device = _build_recent_trend_summary_by_device(
+                    _stored_trend_rows, start_date=_start, end_date=_end
+                )
+        except Exception:
+            _raw_trend_by_device = {}
+
+    _raw_12m_by_device = summary_payload.get("trend_12m_summary_by_device") or {}
+    _stored_12m_trend_rows = summary_payload.get("trend_12m_rows") or []
+    if _stored_12m_trend_rows and not _raw_12m_by_device:
+        from backend.collectors.search_console import _build_recent_trend_summary_by_device
+
+        try:
+            from datetime import date as _date_cls_12m
+
+            _12s = str(summary_payload.get("trend_12m_start_date") or "").strip()
+            _12e = str(summary_payload.get("trend_12m_end_date") or "").strip()
+            if _12s and _12e:
+                _s12e = _date_cls_12m.fromisoformat(_12s[:10])
+                _e12e = _date_cls_12m.fromisoformat(_12e[:10])
+            else:
+                _d12e = [r.get("date") for r in _stored_12m_trend_rows if r.get("date")]
+                if not _d12e:
+                    raise ValueError("no 12m trend dates")
+                _s12e = _date_cls_12m.fromisoformat(min(_d12e)[:10])
+                _e12e = _date_cls_12m.fromisoformat(max(_d12e)[:10])
+            _raw_12m_by_device = _build_recent_trend_summary_by_device(
+                _stored_12m_trend_rows, start_date=_s12e, end_date=_e12e
+            )
+            for _dev_s in _raw_12m_by_device.values():
+                if isinstance(_dev_s, dict):
+                    _dev_s["mode"] = "last_12m"
+        except Exception:
+            _raw_12m_by_device = {}
+
+    out: dict[str, dict[str, dict]] = {}
+    for device in ("DESKTOP", "MOBILE"):
+        t28 = _sanitize_search_console_trend(_raw_trend_by_device.get(device) or {})
+        t12 = _sanitize_search_console_trend(_raw_12m_by_device.get(device) or {})
+        if t12:
+            t12 = {**t12, "mode": "last_12m"}
+        dev_out: dict[str, dict] = {}
+        if _sc_position_trend_has_values(t28):
+            dev_out["28d"] = t28
+        if _sc_position_trend_has_values(t12):
+            dev_out["12m"] = t12
+        if dev_out:
+            out[device] = dev_out
+    return out
+
+
+def _ga4_sc_position_trend_for_period(
+    sc_by_device: dict[str, dict[str, dict]],
+    *,
+    profile: str,
+    period_key: str,
+    period_days: int,
+) -> dict | None:
+    device = _GA4_PROFILE_SC_DEVICE.get(profile)
+    if not device:
+        return None
+    dev_trends = sc_by_device.get(device) or {}
+    pd12 = int(settings.ga4_trend_12m_period_days)
+    if period_key == "12m" or int(period_days) >= pd12:
+        base = dev_trends.get("12m")
+    else:
+        base = dev_trends.get("28d")
+    if not base:
+        return None
+    slice_days = int(period_days) if int(period_days) > 1 else 7
+    sliced = _slice_search_console_trend_last_days(base, slice_days)
+    dates = list(sliced.get("dates") or [])
+    position = list(sliced.get("position") or [])
+    if not dates or not _sc_position_trend_has_values(sliced):
+        return None
+    return {"dates": dates, "position": position}
+
+
+def _attach_ga4_sc_position_trends(profiles: dict[str, dict], sc_by_device: dict[str, dict[str, dict]]) -> None:
+    if not sc_by_device:
+        return
+    for profile in ("web", "mweb"):
+        pdata = profiles.get(profile)
+        if not isinstance(pdata, dict):
+            continue
+        periods = pdata.get("periods")
+        if not isinstance(periods, dict):
+            continue
+        for period_key, period_payload in periods.items():
+            if not isinstance(period_payload, dict):
+                continue
+            pd = int(period_payload.get("period_days") or 0)
+            if period_key == "12m":
+                pd = int(settings.ga4_trend_12m_period_days)
+            trend = _ga4_sc_position_trend_for_period(
+                sc_by_device,
+                profile=profile,
+                period_key=str(period_key),
+                period_days=pd,
+            )
+            if trend:
+                period_payload["sc_position_trend"] = trend
+
+
 def _ga4_profile_payload_for_12m_trend(
     db,
     *,
@@ -12588,6 +12730,8 @@ def ga4_single_site_card(request: Request, site_id: int):
                         daily_long=daily_long if isinstance(daily_long, dict) else None,
                     )
                 pdata.pop("compare_daily_long", None)
+            sc_by_device = _load_ga4_sc_position_trends_by_device(db, site.id)
+            _attach_ga4_sc_position_trends(profiles, sc_by_device)
             site_data = {
                 "id": site.id,
                 "domain": site.domain,

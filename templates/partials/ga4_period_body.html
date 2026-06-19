@@ -39,7 +39,7 @@
 {% set dt = p.daily_trend | default({}) %}
 {% if _has_period and dt.dates and dt.dates|length > 0 %}
   <p class="text-sm font-medium leading-snug text-slate-700 dark:text-slate-200">
-    Günlük trend — oturum, kullanıcı, etkileşimli oturum ve etkileşim oranı (karşılaştırma yok)
+    Günlük trend — oturum, kullanıcı{% if pk in ('web', 'mweb') %} ve Search Console ortalama pozisyon{% endif %} (engaged / engagement rate legend'den açılabilir)
   </p>
   <div
     id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
@@ -47,6 +47,7 @@
     data-ga4-kpi-trend
     data-ga4-platform="{{ pk }}"
     data-ga4-daily-trend='{{ dt | tojson }}'
+    data-ga4-sc-position-trend='{{ (p.sc_position_trend | default({})) | tojson }}'
   ></div>
 {% elif _has_period %}
   <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
@@ -118,6 +119,7 @@
     data-ga4-kpi-trend
     data-ga4-platform="{{ pk }}"
     data-ga4-daily-trend='{{ dt | tojson }}'
+    data-ga4-sc-position-trend='{{ (p.sc_position_trend | default({})) | tojson }}'
   ></div>
   {% else %}
   <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">

@@ -1412,6 +1412,34 @@
           var chartHeight = isLongDaily
             ? Math.max(280, Math.min(480, element.clientHeight || 400))
             : 360;
+          var plat = element.getAttribute('data-ga4-platform') || '';
+          var scPosRaw = element.getAttribute('data-ga4-sc-position-trend') || '';
+          var scPos = null;
+          try {
+            scPos = scPosRaw ? JSON.parse(scPosRaw) : null;
+          } catch (scErr) {
+            scPos = null;
+          }
+          var hasScPos =
+            (plat === 'web' || plat === 'mweb') &&
+            scPos &&
+            scPos.dates &&
+            scPos.dates.length &&
+            scPos.position &&
+            scPos.position.length;
+          var scPosMap = {};
+          if (hasScPos) {
+            scPos.dates.forEach(function (d, i) {
+              scPosMap[String(d).slice(0, 10)] = scPos.position[i];
+            });
+          }
+          var scPosLabel =
+            plat === 'web'
+              ? 'SC Position (Desktop)'
+              : plat === 'mweb'
+                ? 'SC Position (Mobile Web)'
+                : 'SC Position';
+          var scPink = '#ec4899';
           var traces = [
             {
               x: trend.dates,
@@ -1439,6 +1467,7 @@
               type: 'scatter',
               mode: lineMode,
               name: 'Engaged sessions',
+              visible: 'legendonly',
               line: { color: '#7c3aed', width: lineWidth },
               marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y',
@@ -1449,15 +1478,33 @@
               type: 'scatter',
               mode: lineMode,
               name: 'Engagement rate',
+              visible: 'legendonly',
               line: { color: '#dd7a2a', width: lineWidth },
               marker: shortSeries ? { size: 9 } : {},
-              yaxis: 'y2',
+              yaxis: hasScPos ? 'y3' : 'y2',
             },
           ];
+          if (hasScPos) {
+            traces.push({
+              x: trend.dates,
+              y: trend.dates.map(function (d) {
+                var v = scPosMap[String(d).slice(0, 10)];
+                return v == null || v === '' ? null : Number(v);
+              }),
+              type: 'scatter',
+              mode: lineMode,
+              name: scPosLabel,
+              line: { color: scPink, width: lineWidth },
+              marker: shortSeries ? { size: 9 } : {},
+              yaxis: 'y2',
+              connectgaps: false,
+              hovertemplate: scPosLabel + ': %{y:.2f}<extra></extra>',
+            });
+          }
           var layoutObj = {
               autosize: true,
               height: chartHeight,
-              margin: { l: 56, r: 56, t: 16, b: isLongDaily ? 110 : 88 },
+              margin: { l: 56, r: hasScPos ? 72 : 56, t: 16, b: isLongDaily ? 110 : 88 },
               paper_bgcolor: th.paper,
               plot_bgcolor: th.plot,
               legend: {
@@ -1479,23 +1526,46 @@
                 dtick: isLongDaily ? 'M1' : undefined,
               },
               yaxis: {
-                title: { text: 'Sessions / Users / Engaged', font: { color: th.tick, size: 11 } },
+                title: { text: 'Sessions / Users', font: { color: th.tick, size: 11 } },
                 showgrid: false,
                 tickfont: { color: th.tick },
                 zeroline: false,
                 automargin: true,
               },
-              yaxis2: {
-                title: { text: 'Eng. rate %', font: { color: th.tick, size: 11 } },
-                overlaying: 'y',
-                side: 'right',
-                tickfont: { color: th.tick },
-                zeroline: false,
-                automargin: true,
-                showgrid: false,
-              },
+              yaxis2: hasScPos
+                ? {
+                    title: { text: 'SC Position', font: { color: scPink, size: 11 } },
+                    overlaying: 'y',
+                    side: 'right',
+                    tickfont: { color: scPink, size: 10 },
+                    zeroline: false,
+                    automargin: true,
+                    showgrid: false,
+                  }
+                : {
+                    title: { text: 'Eng. rate %', font: { color: th.tick, size: 11 } },
+                    overlaying: 'y',
+                    side: 'right',
+                    tickfont: { color: th.tick },
+                    zeroline: false,
+                    automargin: true,
+                    showgrid: false,
+                  },
               hovermode: 'x unified',
             };
+          if (hasScPos) {
+            layoutObj.yaxis3 = {
+              overlaying: 'y',
+              side: 'right',
+              anchor: 'free',
+              position: 1.0,
+              tickfont: { color: th.tick, size: 10 },
+              zeroline: false,
+              automargin: true,
+              showgrid: false,
+              showticklabels: false,
+            };
+          }
           var overlayModes =
             window.SeoMarketOverlay ? SeoMarketOverlay.modes("seo-market-overlay-root") : [];
           var runPlot = function () {
