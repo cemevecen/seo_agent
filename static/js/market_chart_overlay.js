@@ -297,6 +297,92 @@
     return "#" + ch(0) + ch(2) + ch(4);
   }
 
+  var MARKET_LEGEND_PREFIX = "seo_mkt_";
+
+  function isMarketLegendGroup(group) {
+    return group != null && String(group).indexOf(MARKET_LEGEND_PREFIX) === 0;
+  }
+
+  function syncMarketBridgeVisibility(plotEl, curveNumber) {
+    if (!plotEl || !global.Plotly || curveNumber == null) return;
+    var data = plotEl.data || [];
+    var main = data[curveNumber];
+    if (!main || !isMarketLegendGroup(main.legendgroup)) return;
+    var targetVis = main.visible;
+    var idx = [];
+    var vis = [];
+    data.forEach(function (tr, i) {
+      if (
+        i !== curveNumber &&
+        tr &&
+        tr.legendgroup === main.legendgroup &&
+        tr.showlegend === false &&
+        tr.visible !== targetVis
+      ) {
+        idx.push(i);
+        vis.push(targetVis);
+      }
+    });
+    if (idx.length) {
+      Plotly.restyle(plotEl, { visible: vis }, idx);
+    }
+  }
+
+  function bindMarketLegendGroupSync(gd) {
+    var el = typeof gd === "string" ? document.getElementById(gd) : gd;
+    if (!el || !el.on || !el.data) return;
+    var hasMarket = el.data.some(function (t) {
+      return t && isMarketLegendGroup(t.legendgroup);
+    });
+    if (!hasMarket) return;
+    if (el._seoMarketLegendHandler) {
+      el.removeListener("plotly_legendclick", el._seoMarketLegendHandler);
+      el.removeListener("plotly_legenddoubleclick", el._seoMarketLegendDblHandler);
+    }
+    el._seoMarketLegendHandler = function (evt) {
+      window.setTimeout(function () {
+        syncMarketBridgeVisibility(el, evt.curveNumber);
+      }, 0);
+    };
+    el._seoMarketLegendDblHandler = function (evt) {
+      window.setTimeout(function () {
+        syncMarketBridgeVisibility(el, evt.curveNumber);
+      }, 0);
+    };
+    el.on("plotly_legendclick", el._seoMarketLegendHandler);
+    el.on("plotly_legenddoubleclick", el._seoMarketLegendDblHandler);
+  }
+
+  function patchPlotlyMarketLegendSync() {
+    if (!global.Plotly || global.Plotly.__seoMarketLegendPatched) return;
+    global.Plotly.__seoMarketLegendPatched = true;
+    var orig = global.Plotly.newPlot;
+    global.Plotly.newPlot = function (gd, data, layout, config) {
+      var p = orig.call(global.Plotly, gd, data, layout, config);
+      if (!p || typeof p.then !== "function") return p;
+      return p.then(function (gdOut) {
+        var root = gdOut || (typeof gd === "string" ? document.getElementById(gd) : gd);
+        bindMarketLegendGroupSync(root);
+        return gdOut;
+      });
+    };
+  }
+
+  if (global.Plotly) {
+    patchPlotlyMarketLegendSync();
+  } else if (global.document) {
+    var _legendPatchAttempts = 0;
+    var _legendPatchTimer = global.setInterval(function () {
+      _legendPatchAttempts += 1;
+      if (global.Plotly) {
+        global.clearInterval(_legendPatchTimer);
+        patchPlotlyMarketLegendSync();
+      } else if (_legendPatchAttempts > 200) {
+        global.clearInterval(_legendPatchTimer);
+      }
+    }, 50);
+  }
+
   /** Piyasa serisindeki takvim boşlukları (hafta sonu/tatil) için uç-uç köprü trace'leri. */
   function marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendGroup, legendName) {
     var bridges = [];
@@ -408,8 +494,14 @@
           global.seoPlotlyCompactLegend &&
           global.seoPlotlyCompactLegend({ traceCount: traces.length });
         if (compactLeg) {
-          layout.legend = Object.assign({}, layout.legend || {}, compactLeg.legend);
+          layout.legend = Object.assign(
+            { groupclick: "toggleitem" },
+            layout.legend || {},
+            compactLeg.legend
+          );
           layout.margin.t = Math.max(layout.margin.t || 0, compactLeg.marginTop);
+        } else {
+          layout.legend = Object.assign({ groupclick: "toggleitem" }, layout.legend || {});
         }
         return true;
       })
@@ -613,6 +705,7 @@
     bindSelect: bindSelect,
     bindWhenReady: bindWhenReady,
     bindPanel: bindPanel,
+    bindLegendGroupSync: bindMarketLegendGroupSync,
     pickFreeYaxisId: pickFreeYaxisId,
     normalizeDateKey: normalizeDateKey,
   };

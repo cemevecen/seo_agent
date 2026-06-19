@@ -2494,6 +2494,53 @@ def _slice_search_console_trend_last_days(trend: dict, last_n: int) -> dict:
     }
 
 
+def _align_search_console_trend_to_dates(trend: dict, date_keys: list[str]) -> dict:
+    """SC position serisini GA4 günlük eksen tarihleriyle hizalar (eksik günler null)."""
+    t = dict(trend or {})
+    src_dates = list(t.get("dates") or [])
+    src_pos = list(t.get("position") or [])
+    pos_map: dict[str, float | None] = {}
+    for i, d in enumerate(src_dates):
+        if i >= len(src_pos):
+            break
+        key = str(d)[:10]
+        if not key:
+            continue
+        raw = src_pos[i]
+        if raw is None:
+            pos_map[key] = None
+            continue
+        try:
+            fv = float(raw)
+            pos_map[key] = fv if fv > 0 else None
+        except (TypeError, ValueError):
+            pos_map[key] = None
+    out_dates: list[str] = []
+    out_pos: list[float | None] = []
+    for dk in date_keys or []:
+        key = str(dk)[:10]
+        if not key:
+            continue
+        out_dates.append(key)
+        out_pos.append(pos_map.get(key))
+    return {**t, "dates": out_dates, "position": out_pos}
+
+
+def _pick_ga4_sc_position_trend_base(
+    dev_trends: dict[str, dict],
+    *,
+    period_key: str,
+    period_days: int,
+) -> dict | None:
+    pd12 = int(settings.ga4_trend_12m_period_days)
+    slice_days = int(period_days) if int(period_days) > 1 else 7
+    if period_key == "12m" or slice_days >= pd12:
+        return dev_trends.get("12m")
+    if slice_days > 28:
+        return dev_trends.get("12m") or dev_trends.get("28d")
+    return dev_trends.get("28d")
+
+
 def _search_console_report_payload(
     db,
     *,
@@ -10647,20 +10694,22 @@ def _ga4_sc_position_trend_for_period(
     profile: str,
     period_key: str,
     period_days: int,
+    target_dates: list[str] | None = None,
 ) -> dict | None:
     device = _GA4_PROFILE_SC_DEVICE.get(profile)
     if not device:
         return None
     dev_trends = sc_by_device.get(device) or {}
-    pd12 = int(settings.ga4_trend_12m_period_days)
-    if period_key == "12m" or int(period_days) >= pd12:
-        base = dev_trends.get("12m")
-    else:
-        base = dev_trends.get("28d")
+    base = _pick_ga4_sc_position_trend_base(
+        dev_trends, period_key=str(period_key), period_days=int(period_days)
+    )
     if not base:
         return None
     slice_days = int(period_days) if int(period_days) > 1 else 7
-    sliced = _slice_search_console_trend_last_days(base, slice_days)
+    if target_dates:
+        sliced = _align_search_console_trend_to_dates(base, target_dates)
+    else:
+        sliced = _slice_search_console_trend_last_days(base, slice_days)
     dates = list(sliced.get("dates") or [])
     position = list(sliced.get("position") or [])
     if not dates or not _sc_position_trend_has_values(sliced):
@@ -10684,11 +10733,18 @@ def _attach_ga4_sc_position_trends(profiles: dict[str, dict], sc_by_device: dict
             pd = int(period_payload.get("period_days") or 0)
             if period_key == "12m":
                 pd = int(settings.ga4_trend_12m_period_days)
+            daily = period_payload.get("daily_trend")
+            target_dates = (
+                list(daily.get("dates") or [])
+                if isinstance(daily, dict) and daily.get("dates")
+                else None
+            )
             trend = _ga4_sc_position_trend_for_period(
                 sc_by_device,
                 profile=profile,
                 period_key=str(period_key),
                 period_days=pd,
+                target_dates=target_dates,
             )
             if trend:
                 period_payload["sc_position_trend"] = trend
