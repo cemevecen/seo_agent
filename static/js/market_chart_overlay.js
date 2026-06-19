@@ -42,18 +42,22 @@
     );
   }
 
+  var DEFAULT_OVERLAY_KEYS = ["gram_altin"];
+
   function storageKeyForRoot(root) {
-    return "seo-market-overlay-keys-" + ((root && root.getAttribute("data-overlay-storage-key")) || "seo");
+    return "seo-market-overlay-keys-v2-" + ((root && root.getAttribute("data-overlay-storage-key")) || "seo");
   }
 
   function readStored(root) {
     try {
       var raw = global.localStorage.getItem(storageKeyForRoot(root));
-      if (!raw) return [];
+      if (raw === null || raw === "") {
+        return DEFAULT_OVERLAY_KEYS.slice();
+      }
       var arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr.filter(Boolean) : [];
+      return Array.isArray(arr) ? arr.filter(Boolean) : DEFAULT_OVERLAY_KEYS.slice();
     } catch (e) {
-      return [];
+      return DEFAULT_OVERLAY_KEYS.slice();
     }
   }
 
@@ -95,6 +99,13 @@
   function syncDomFromStored(root) {
     if (!root) return;
     var keys = readStored(root);
+    try {
+      if (global.localStorage.getItem(storageKeyForRoot(root)) === null) {
+        writeStored(root, keys);
+      }
+    } catch (e) {
+      /* ignore */
+    }
     panelCheckboxes(root).forEach(function (cb) {
       cb.checked = keys.indexOf(cb.value) >= 0;
     });
