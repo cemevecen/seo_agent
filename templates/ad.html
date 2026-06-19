@@ -656,7 +656,7 @@
 </div>
 
 <script src="/static/js/mz_mean_split_traces.js?v=2"></script>
-<script src="/static/js/app_release_markers.js?v=2"></script>
+<script src="/static/js/app_release_markers.js?v=3"></script>
 <script>
 (function () {
   /* CSS'den bağımsız layout zorlaması — element inline style, tüm CSS kurallarından üstün */
@@ -5684,6 +5684,29 @@
     return xs;
   }
 
+  function parseIsoDateOnlyMs(v) {
+    var s = String(v == null ? "" : v).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return NaN;
+    return Date.UTC(
+      parseInt(s.slice(0, 4), 10),
+      parseInt(s.slice(5, 7), 10) - 1,
+      parseInt(s.slice(8, 10), 10)
+    );
+  }
+
+  function plotlyDateRangeFromMs(t0, t1, padDays) {
+    padDays = padDays == null ? 0.5 : padDays;
+    var day = 86400000;
+    function fmt(ms) {
+      var d = new Date(ms);
+      var y = d.getUTCFullYear();
+      var m = d.getUTCMonth() + 1;
+      var dd = d.getUTCDate();
+      return y + "-" + (m < 10 ? "0" : "") + m + "-" + (dd < 10 ? "0" : "") + dd;
+    }
+    return [fmt(t0 - padDays * day), fmt(t1 + padDays * day)];
+  }
+
   /** Plotly date/category ekseninde baş/son boş şeridi kaldırır (autorange padding). */
   function tightXaxisPatch(xValues, opts) {
     opts = opts || {};
@@ -5693,20 +5716,21 @@
     if (useDate) {
       var ms = [];
       xValues.forEach(function (v) {
-        var t = new Date(v).getTime();
+        var t = parseIsoDateOnlyMs(v);
+        if (isNaN(t)) {
+          t = new Date(v).getTime();
+        }
         if (!isNaN(t)) ms.push(t);
       });
       if (!ms.length) return {};
       ms.sort(function (a, b) { return a - b; });
       var t0 = ms[0];
       var t1 = ms[ms.length - 1];
-      var day = 86400000;
-      var pad = day * 0.5;
-      if (ms.length === 1) pad = day * 0.35;
+      var padDays = ms.length === 1 ? 0.35 : 0.5;
       return {
         type: "date",
         autorange: false,
-        range: [new Date(t0 - pad).toISOString(), new Date(t1 + pad).toISOString()],
+        range: plotlyDateRangeFromMs(t0, t1, padDays),
       };
     }
     var n = xValues.length;
@@ -5992,16 +6016,23 @@
     return window.__appReleaseStorePromise;
   }
 
+  function mzRelayoutTightXaxis(el, layout) {
+    if (!el || !window.Plotly || !layout || !layout.xaxis) return Promise.resolve();
+    var r = layout.xaxis.range;
+    if (!r || r.length !== 2 || layout.xaxis.autorange !== false) return Promise.resolve();
+    return Plotly.relayout(el, { "xaxis.autorange": false, "xaxis.range": r.slice() });
+  }
+
   // Tarih-eksenli ana grafiklere sürüm işaretlerini ekle (aktif platforma göre).
   function mzApplyVersionMarkers(el) {
     if (!window.AppReleaseMarkers || !el || !el.id || !MZ_VERSION_MARKER_CHARTS[el.id]) {
-      return;
+      return Promise.resolve();
     }
-    ensureAppReleaseStore().then(function (store) {
+    return ensureAppReleaseStore().then(function (store) {
       if (!store) return;
       var plat = mzActivePlatform();
       if (!plat) return;
-      window.AppReleaseMarkers.decorate(el, plat, store);
+      return window.AppReleaseMarkers.decorate(el, plat, store);
     });
   }
 
@@ -6031,15 +6062,20 @@
       if (plotW > 0) lay.width = plotW;
       try { Plotly.purge(el); } catch (_) { /* ignore */ }
       el.innerHTML = "";
-      return Plotly.newPlot(el, traces, lay, plotlyCfg()).then(function () {
-        return Plotly.Plots.resize(el);
-      }).then(function () {
-        try {
-          mzApplyVersionMarkers(el);
-        } catch (_) {
-          /* ignore */
-        }
-      });
+      return Plotly.newPlot(el, traces, lay, plotlyCfg())
+        .then(function () {
+          return Plotly.Plots.resize(el);
+        })
+        .then(function () {
+          return mzApplyVersionMarkers(el);
+        })
+        .then(function () {
+          if (opts.tightX === false) return;
+          return mzRelayoutTightXaxis(el, lay);
+        })
+        .then(function () {
+          return Plotly.Plots.resize(el);
+        });
     }
     return new Promise(function (resolve) {
       requestAnimationFrame(function () {
@@ -6126,6 +6162,7 @@
       },
       layout || {}
     );
+    applyTightXaxisToLayout(lay, traces, layout && layout._mzChartTimeKey);
     var plotW = Math.round(chartEl.getBoundingClientRect().width || chartEl.clientWidth || 0);
     if (plotW > 0) lay.width = plotW;
     try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
@@ -6136,6 +6173,12 @@
       })
       .then(function () {
         try { mzApplyVersionMarkers(chartEl); } catch (_) { /* ignore */ }
+      })
+      .then(function () {
+        return mzRelayoutTightXaxis(chartEl, lay);
+      })
+      .then(function () {
+        return Plotly.Plots.resize(chartEl);
       })
       .catch(function (err) {
         chartEl.innerHTML =

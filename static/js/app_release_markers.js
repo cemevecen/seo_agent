@@ -105,6 +105,14 @@
     var trace = buildReleaseTrace(filtered, opts);
     if (!trace) return Promise.resolve();
     var layoutPatch = { margin: { b: opts.marginBottom || 56 } };
+    var xRange =
+      el.layout && el.layout.xaxis && el.layout.xaxis.range
+        ? el.layout.xaxis.range.slice()
+        : null;
+    if (xRange && xRange.length === 2) {
+      layoutPatch["xaxis.autorange"] = false;
+      layoutPatch["xaxis.range"] = xRange;
+    }
     return global.Plotly.addTraces(el, trace).then(function () {
       if (global.SeoPlotlyTimeSeriesHover && global.SeoPlotlyTimeSeriesHover.bindColumnHover) {
         global.SeoPlotlyTimeSeriesHover.bindColumnHover(el);
