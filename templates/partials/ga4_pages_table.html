@@ -65,15 +65,15 @@
             </button>
           </th>
           <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
-            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="scPositionDiff" data-sort-type="number" title="Search Console — Position Change (aynı dönem karşılaştırması)">
-              <span>Position</span>
-              <span class="text-[9px] font-normal opacity-90 sm:text-[10px]">SC Change</span>
-            </button>
-          </th>
-          <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
             <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="scPositionCurrent" data-sort-type="number" title="Search Console — seçili dönem ortalama pozisyon">
               <span>Position</span>
               <span class="text-[9px] font-normal tabular-nums opacity-90 sm:text-[10px]">{{ last_l }}</span>
+            </button>
+          </th>
+          <th scope="col" class="px-1 py-1.5 text-right align-top sm:px-2 sm:py-2">
+            <button type="button" class="touch-manipulation flex w-full flex-col items-end gap-0.5 font-semibold leading-tight text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300" data-sort-key="scPositionDiff" data-sort-type="number" title="Search Console — Position Change (aynı dönem karşılaştırması)">
+              <span>Position</span>
+              <span class="text-[9px] font-normal opacity-90 sm:text-[10px]">SC Change</span>
             </button>
           </th>
         </tr>
@@ -104,15 +104,6 @@
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2">{{ row.prev_total | tr_int }}</td>
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.delta > 0 %}text-emerald-700 dark:text-emerald-400{% elif row.delta < 0 %}text-rose-600 dark:text-rose-500{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ row.delta | tr_int }}</td>
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.delta_pct >= 5 %}text-emerald-700 dark:text-emerald-400{% elif row.delta_pct > 0 %}text-emerald-500 dark:text-emerald-300{% elif row.delta_pct > -5 %}text-orange-500 dark:text-orange-400{% elif row.delta_pct < 0 %}text-rose-600 dark:text-rose-500{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ row.delta_pct | signed_max_two_decimals }}%</td>
-            <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.sc_position_diff is not none %}{% if row.sc_position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.sc_position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}{% else %}text-slate-400 dark:text-slate-500{% endif %}">
-              {% if row.sc_position_diff is not none %}
-                {{ "{:+.2f}".format(row.sc_position_diff) }}
-              {% elif not _sc_pos_supported %}
-                <span class="font-normal" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g için">—</span>
-              {% else %}
-                <span class="font-normal" title="Bu URL için Search Console page verisi yok">—</span>
-              {% endif %}
-            </td>
             <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2">
               {% if row.sc_position_current is not none %}
                 {{ "{:.2f}".format(row.sc_position_current) }}
@@ -120,6 +111,15 @@
                 <span class="text-slate-400 dark:text-slate-500" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g için">—</span>
               {% else %}
                 <span class="text-slate-400 dark:text-slate-500" title="Bu URL için Search Console page verisi yok">—</span>
+              {% endif %}
+            </td>
+            <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold sm:px-2 sm:py-2 {% if row.sc_position_diff is not none %}{% if row.sc_position_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.sc_position_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}{% else %}text-slate-400 dark:text-slate-500{% endif %}">
+              {% if row.sc_position_diff is not none %}
+                {{ "{:+.2f}".format(row.sc_position_diff) }}
+              {% elif not _sc_pos_supported %}
+                <span class="font-normal" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g için">—</span>
+              {% else %}
+                <span class="font-normal" title="Bu URL için Search Console page verisi yok">—</span>
               {% endif %}
             </td>
           </tr>
