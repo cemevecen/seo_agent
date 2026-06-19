@@ -1049,7 +1049,7 @@
 
   function applyMzUrlFacetFilters(u) {
     if (!u) return;
-    if (u.income_types) state.income = new Set(splitCsvParam(u.income_types));
+    // Gelir tipi sidebar: her sayfa yüklemesinde tümü seçili (URL'den restore edilmez).
     if (u.platforms) state.platform = new Set(splitCsvParam(u.platforms));
     if (u.channels) state.channel = new Set(splitCsvParam(u.channels));
     if (u.surfaces) state.surface = new Set(splitCsvParam(u.surfaces));
@@ -1506,7 +1506,6 @@
       }
       if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
         p.set("drill_income_type", state.summaryDrillSlice.income_type);
-        p.set("income_types", state.summaryDrillSlice.income_type);
       }
     }
     var preset = document.getElementById("mz-preset").value;
