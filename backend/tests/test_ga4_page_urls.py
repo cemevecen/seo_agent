@@ -1,5 +1,6 @@
 from backend.services.ga4_page_urls import (
     ga4_canonical_page_url,
+    ga4_url_match_keys,
     is_m_doviz_flat_product_url,
     is_m_doviz_phantom_breadcrumb_url,
     repair_seo_audit_url,
@@ -77,6 +78,20 @@ def test_mweb_harem_under_altin_unchanged():
     url = "https://m.doviz.com/altin/harem/ons"
     assert not is_m_doviz_phantom_breadcrumb_url(url)
     assert repair_seo_audit_url(url) == url
+
+
+def test_ga4_url_match_keys_sc_page_full_url():
+    keys = set(ga4_url_match_keys("https://www.doviz.com/kur", "www.doviz.com"))
+    assert "doviz.com/kur" in keys
+    assert "/kur" in keys
+
+
+def test_ga4_url_match_keys_ga4_href_and_sc_label_align():
+    sc_label = "https://m.doviz.com/altin/gram-altin"
+    ga4_href = ga4_canonical_page_url("m.doviz.com", "/gram-altin")
+    sc_keys = set(ga4_url_match_keys(sc_label, "www.doviz.com"))
+    ga4_keys = set(ga4_url_match_keys(ga4_href, "www.doviz.com"))
+    assert sc_keys & ga4_keys
 
 
 def test_seo_audit_from_ga4_mweb_phantom_path():

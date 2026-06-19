@@ -721,3 +721,44 @@ def ga4_row_news_display_text(row: dict | None, site_domain: str | None) -> str:
     if not last.isdigit():
         return last
     return ga4_row_page_label(row, site_domain)
+
+
+def ga4_url_match_keys(raw: str | None, site_domain: str | None = None) -> tuple[str, ...]:
+    """GA4 satırı ile Search Console page etiketini eşleştirmek için lookup anahtarları."""
+    text = (raw or "").strip()
+    if not text:
+        return ()
+
+    keys: set[str] = set()
+
+    def _add_host_path(host: str, path: str) -> None:
+        h = _host_cmp_key(host)
+        if not h:
+            return
+        p = path or "/"
+        if not p.startswith("/"):
+            p = "/" + p
+        p_stripped = p.rstrip("/") or "/"
+        keys.add(f"{h}{p_stripped}".lower())
+        keys.add(p_stripped.lower())
+        keys.add(f"https://{h}{p_stripped}".lower())
+        if not h.startswith("www."):
+            keys.add(f"www.{h}{p_stripped}".lower())
+            keys.add(f"https://www.{h}{p_stripped}".lower())
+
+    if text.startswith(("http://", "https://")):
+        try:
+            parsed = urlparse(text)
+            _add_host_path(parsed.netloc or "", parsed.path or "/")
+        except Exception:
+            keys.add(text.lower())
+    else:
+        path = text if text.startswith("/") else f"/{text}"
+        _add_host_path(ga4_site_host(site_domain) or "", path)
+        if "://" not in text and "." in text.split("/")[0]:
+            parts = text.split("/", 1)
+            host_part = parts[0]
+            path_part = "/" + parts[1] if len(parts) > 1 else "/"
+            _add_host_path(host_part, path_part)
+
+    return tuple(k for k in keys if k)

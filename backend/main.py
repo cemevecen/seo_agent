@@ -112,6 +112,7 @@ from backend.services.ga4_page_urls import (
     ga4_row_page_href as _ga4_row_page_href,
     ga4_row_page_label as _ga4_row_page_label,
     ga4_site_host as _ga4_site_host,
+    ga4_url_match_keys as _ga4_url_match_keys,
 )
 from backend.services.operations_notifier import (
     notify_crawler_audit_emails,
@@ -12901,6 +12902,88 @@ def ga4_refresh_all_status(job_id: str):
         return JSONResponse({"ok": True, "done": True, **payload}, headers=_GA4_JSON_NO_CACHE_HEADERS)
 
 
+def _ga4_profile_to_sc_device(profile: str) -> str:
+    p = (profile or "web").strip().lower()
+    return "MOBILE" if p == "mweb" else "DESKTOP"
+
+
+def _ga4_days_to_sc_page_scopes(days: int) -> tuple[str, str] | None:
+    if days == 1:
+        return "current_1d_pages", "previous_1d_pages"
+    if days == 7:
+        return "current_7d_pages", "previous_7d_pages"
+    if days == 30:
+        return "current_30d_pages", "previous_30d_pages"
+    return None
+
+
+def _sc_page_position_diff_lookup_for_ga4(
+    db: Session,
+    *,
+    site_id: int,
+    days: int,
+    profile: str,
+    site_domain: str | None,
+) -> dict[str, float]:
+    """Search Console page kırılımından URL → position_diff (Queries/Pages ile aynı formül)."""
+    scopes_pair = _ga4_days_to_sc_page_scopes(days)
+    if not scopes_pair:
+        return {}
+    cur_scope, prev_scope = scopes_pair
+    batch = get_latest_search_console_rows_batch(db, site_id=site_id, scopes=[cur_scope, prev_scope])
+    device = _ga4_profile_to_sc_device(profile)
+    cur = _filter_search_console_rows_by_device(batch.get(cur_scope) or [], device)
+    prev = _filter_search_console_rows_by_device(batch.get(prev_scope) or [], device)
+    if not cur and not prev:
+        return {}
+    entities = _build_search_console_top_entities(cur, prev, label_key="query", limit=2500)
+    lookup: dict[str, float] = {}
+    for ent in entities:
+        diff = float(ent.get("position_diff") or 0.0)
+        label = str(ent.get("label") or "").strip()
+        if not label:
+            continue
+        for key in _ga4_url_match_keys(label, site_domain):
+            lookup.setdefault(key, diff)
+    return lookup
+
+
+def _lookup_sc_position_diff(row: dict, lookup: dict[str, float], site_domain: str | None) -> float | None:
+    if not lookup or not isinstance(row, dict):
+        return None
+    href = _ga4_row_page_href(row, site_domain)
+    for key in _ga4_url_match_keys(href, site_domain):
+        if key in lookup:
+            return lookup[key]
+    label = _ga4_row_page_label(row, site_domain)
+    for key in _ga4_url_match_keys(label, site_domain):
+        if key in lookup:
+            return lookup[key]
+    page = str(row.get("page") or "").strip()
+    host = str(row.get("page_host") or "").strip()
+    if host and page:
+        for key in _ga4_url_match_keys(f"{host}{page if page.startswith('/') else '/' + page}", site_domain):
+            if key in lookup:
+                return lookup[key]
+    return None
+
+
+def _attach_sc_position_diff_to_ga4_rows(
+    rows: list,
+    lookup: dict[str, float],
+    site_domain: str | None,
+) -> list:
+    out: list = []
+    for row in rows:
+        if not isinstance(row, dict):
+            out.append(row)
+            continue
+        item = dict(row)
+        item["sc_position_diff"] = _lookup_sc_position_diff(item, lookup, site_domain)
+        out.append(item)
+    return out
+
+
 @app.get("/ga4/pages/{site_id}")
 def ga4_pages_partial(request: Request, site_id: int):
     profile = (request.query_params.get("profile") or "").strip().lower()
@@ -13045,6 +13128,14 @@ def ga4_pages_partial(request: Request, site_id: int):
                 else:
                     rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=api_limit, exclude_news=True)
             rows = _enrich_ga4_page_rows(rows, keep_news_articles=False)
+            sc_pos_lookup = _sc_page_position_diff_lookup_for_ga4(
+                db,
+                site_id=site.id,
+                days=days,
+                profile=profile,
+                site_domain=site.domain,
+            )
+            rows = _attach_sc_position_diff_to_ga4_rows(rows, sc_pos_lookup, site.domain)
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 
@@ -13059,6 +13150,7 @@ def ga4_pages_partial(request: Request, site_id: int):
                 "property_id": property_id,
                 "site_domain": site.domain,
                 "table_heading": "Pages (excl. news)",
+                "sc_position_period_supported": _ga4_days_to_sc_page_scopes(days) is not None,
             },
         )
         pages_resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
