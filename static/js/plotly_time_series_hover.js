@@ -92,7 +92,13 @@
         .trim();
       if (!lineMode) lineMode = "lines";
       var markerCopy = Object.assign({}, t.marker || {});
-      var lineTrace = Object.assign({}, t, { mode: lineMode });
+      var group =
+        t.legendgroup != null && t.legendgroup !== ""
+          ? String(t.legendgroup)
+          : t.name != null && t.name !== ""
+            ? String(t.name)
+            : "__seo_tr_" + out.length;
+      var lineTrace = Object.assign({}, t, { mode: lineMode, legendgroup: group });
       delete lineTrace.marker;
       if (markerCopy.size > 0) {
         out.push(lineTrace);
@@ -104,10 +110,11 @@
           marker: markerCopy,
           hoverinfo: "skip",
           showlegend: false,
+          legendgroup: group,
           connectgaps: t.connectgaps,
           yaxis: t.yaxis,
           xaxis: t.xaxis,
-          name: (t.name || "") + " ·",
+          name: t.name || "",
         });
       } else {
         out.push(lineTrace);

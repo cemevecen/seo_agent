@@ -45,6 +45,17 @@
     var width = opts.lineWidth != null ? opts.lineWidth : 2;
     var mode = opts.mode || "lines";
     var traces = [];
+    var legendGroup =
+      opts.legendgroup != null && opts.legendgroup !== ""
+        ? String(opts.legendgroup)
+        : opts.name != null && opts.name !== ""
+          ? String(opts.name)
+          : null;
+
+    function withLegendGroup(tr) {
+      if (legendGroup) tr.legendgroup = legendGroup;
+      return tr;
+    }
 
     var segX = [xs[0]];
     var segY = [ys[0]];
@@ -71,7 +82,7 @@
       if (opts.fill) {
         /* Yahoo tarzı: yeşilde orta çizginin üstü, kırmızıda altı dolu */
         if (segSide === "above") {
-          traces.push({
+          traces.push(withLegendGroup({
             x: xCopy,
             y: baseCopy,
             type: "scatter",
@@ -79,7 +90,7 @@
             line: { width: 0, color: "rgba(0,0,0,0)" },
             hoverinfo: "skip",
             showlegend: false,
-          });
+          }));
           var aboveTrace = {
             x: xCopy,
             y: yCopy,
@@ -97,7 +108,7 @@
             aboveTrace.marker = { color: color, size: opts.markerSize, line: { width: 0 } };
           }
           if (opts.hoverinfo) aboveTrace.hoverinfo = opts.hoverinfo;
-          traces.push(aboveTrace);
+          traces.push(withLegendGroup(aboveTrace));
         } else {
           var belowLine = {
             x: xCopy,
@@ -114,8 +125,8 @@
             belowLine.marker = { color: color, size: opts.markerSize, line: { width: 0 } };
           }
           if (opts.hoverinfo) belowLine.hoverinfo = opts.hoverinfo;
-          traces.push(belowLine);
-          traces.push({
+          traces.push(withLegendGroup(belowLine));
+          traces.push(withLegendGroup({
             x: xCopy,
             y: baseCopy,
             type: "scatter",
@@ -125,7 +136,7 @@
             fillcolor: fillColor,
             hoverinfo: "skip",
             showlegend: false,
-          });
+          }));
         }
       } else {
         var trace = {
@@ -143,7 +154,7 @@
           trace.marker = { color: color, size: opts.markerSize, line: { width: 0 } };
         }
         if (opts.hoverinfo) trace.hoverinfo = opts.hoverinfo;
-        traces.push(trace);
+        traces.push(withLegendGroup(trace));
       }
       segX = [];
       segY = [];
