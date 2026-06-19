@@ -298,7 +298,7 @@
   }
 
   /** Piyasa serisindeki takvim boşlukları (hafta sonu/tatil) için uç-uç köprü trace'leri. */
-  function marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendName) {
+  function marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendGroup, legendName) {
     var bridges = [];
     if (!dateKeys || !ys || dateKeys.length !== ys.length) return bridges;
     var bridgeColor = lightenHex(lineColor);
@@ -320,7 +320,7 @@
           mode: "lines",
           name: legendName,
           showlegend: false,
-          legendgroup: legendName,
+          legendgroup: legendGroup,
           yaxis: yaxisId,
           line: { color: bridgeColor, width: 2 },
           connectgaps: true,
@@ -374,17 +374,19 @@
               : SERIES_COLORS[colorIdx % SERIES_COLORS.length];
           colorIdx += 1;
           var legendName = block.label + (indexed ? " %" : "");
+          var legendGroup = "seo_mkt_" + sk + (indexed ? "_i" : "");
           traces.push({
             x: dateKeys,
             y: ys,
             type: "scatter",
             mode: "lines",
             name: legendName,
+            legendgroup: legendGroup,
             yaxis: yaxisId,
             line: { color: lineColor, width: 2 },
             connectgaps: false,
           });
-          marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendName).forEach(function (bt) {
+          marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendGroup, legendName).forEach(function (bt) {
             traces.push(bt);
           });
           added = true;
