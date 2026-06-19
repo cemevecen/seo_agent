@@ -4482,7 +4482,10 @@
       lay.xaxis = Object.assign({}, syncOpts.xaxis, { showticklabels: true });
     }
     if (syncOpts.yTitle) lay.yaxis = Object.assign({}, lay.yaxis, { title: syncOpts.yTitle });
-    await plotChart(chartEl, traces, lay, { minHeight: syncOpts.minHeight || 220 });
+    await plotChart(chartEl, traces, lay, {
+      minHeight: syncOpts.minHeight || 220,
+      timeKey: syncOpts.timeKey || (syncOpts.xaxis && syncOpts.xaxis.type === "date" ? "date" : undefined),
+    });
     return true;
   }
 
@@ -5665,21 +5668,74 @@
 
   var DRILL_STACK_MARGIN = { l: 34, r: 6, t: 22, b: 48 };
 
+  function plotXValuesLookLikeDates(xValues) {
+    if (!xValues || !xValues.length) return false;
+    return /^\d{4}-\d{2}-\d{2}/.test(String(xValues[0] || ""));
+  }
+
+  function collectTracesX(traces) {
+    var xs = [];
+    (traces || []).forEach(function (tr) {
+      if (!tr || !tr.x || tr.yref === "paper" || tr.hoverinfo === "skip") return;
+      (tr.x || []).forEach(function (v) {
+        if (v != null && v !== "") xs.push(v);
+      });
+    });
+    return xs;
+  }
+
+  /** Plotly date/category ekseninde baş/son boş şeridi kaldırır (autorange padding). */
+  function tightXaxisPatch(xValues, opts) {
+    opts = opts || {};
+    var timeKey = opts.timeKey;
+    if (!xValues || !xValues.length) return {};
+    var useDate = timeKey === "date" || (timeKey !== "month" && timeKey !== "week" && plotXValuesLookLikeDates(xValues));
+    if (useDate) {
+      var ms = [];
+      xValues.forEach(function (v) {
+        var t = new Date(v).getTime();
+        if (!isNaN(t)) ms.push(t);
+      });
+      if (!ms.length) return {};
+      ms.sort(function (a, b) { return a - b; });
+      var t0 = ms[0];
+      var t1 = ms[ms.length - 1];
+      var day = 86400000;
+      var pad = day * 0.5;
+      if (ms.length === 1) pad = day * 0.35;
+      return {
+        type: "date",
+        autorange: false,
+        range: [new Date(t0 - pad).toISOString(), new Date(t1 + pad).toISOString()],
+      };
+    }
+    var n = xValues.length;
+    return { autorange: false, range: [-0.5, Math.max(0.5, n - 0.5)] };
+  }
+
+  function applyTightXaxisToLayout(layout, traces, timeKey) {
+    if (!layout || !traces || !traces.length) return layout;
+    var xs = collectTracesX(traces);
+    var tk = timeKey;
+    if (!tk) tk = plotXValuesLookLikeDates(xs) ? "date" : "category";
+    var patch = tightXaxisPatch(xs, { timeKey: tk });
+    if (!Object.keys(patch).length) return layout;
+    layout.xaxis = Object.assign({}, layout.xaxis || {}, patch);
+    return layout;
+  }
+
   function drillStackXaxisSync(baseXaxis, chartTimeKey, plotX, dense) {
     var ax = Object.assign({}, baseXaxis || {});
     ax.automargin = true;
     ax.fixedrange = false;
     if (chartTimeKey === "date" && (!ax.type || ax.type === "date")) {
       ax.type = "date";
-      ax.tickformat = "%d.%m.%y";
-      ax.tickangle = dense ? -45 : 0;
-      if (plotX && plotX.length > 1) {
-        ax.range = [plotX[0], plotX[plotX.length - 1]];
-      }
+      ax.tickformat = ax.tickformat || "%d.%m.%y";
+      ax.tickangle = dense ? -45 : (ax.tickangle || 0);
     } else if (plotX && plotX.length) {
       if (ax.tickangle == null) ax.tickangle = dense ? -45 : 0;
     }
-    return ax;
+    return Object.assign(ax, tightXaxisPatch(plotX || [], { timeKey: chartTimeKey || "date" }));
   }
 
   function plotAxis(title) {
@@ -5968,6 +6024,9 @@
         },
         layout || {}
       );
+      if (opts.tightX !== false) {
+        applyTightXaxisToLayout(lay, traces, opts.timeKey);
+      }
       var plotW = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
       if (plotW > 0) lay.width = plotW;
       try { Plotly.purge(el); } catch (_) { /* ignore */ }
@@ -6191,7 +6250,7 @@
             await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
           }
           lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
-          await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220 });
+          await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: timeKey });
           var peerTraces = [
             {
               x: peerX,
@@ -6229,7 +6288,7 @@
     if (marketDates && marketDates.length) {
       await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
     }
-    await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220 });
+    await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: timeKey });
   }
 
   function peerBarYsForLabels(peerSum, labels, labelKey) {
