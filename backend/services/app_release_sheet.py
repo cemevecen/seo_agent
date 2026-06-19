@@ -55,7 +55,7 @@ def _norm_month_token(raw: str) -> str:
 
 
 def parse_tr_release_datetime(text: str) -> datetime | None:
-    """Örn. «5 Haz 2026 21:22» — Europe/Istanbul, UTC ISO için dönüştürülür."""
+    """Örn. «5 Haz 2026 21:22» veya «07.09.2025» — Europe/Istanbul."""
     s = (text or "").strip()
     if not s:
         return None
@@ -63,22 +63,39 @@ def parse_tr_release_datetime(text: str) -> datetime | None:
         r"^(\d{1,2})\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(\d{4})\s+(\d{1,2}):(\d{2})$",
         s,
     )
-    if not m:
-        return None
-    day = int(m.group(1))
-    mon_raw = m.group(2)
-    year = int(m.group(3))
-    hour = int(m.group(4))
-    minute = int(m.group(5))
-    mon_key = _norm_month_token(mon_raw)
-    month = _TR_MONTHS.get(mon_key)
-    if not month:
-        return None
-    try:
-        local = datetime(year, month, day, hour, minute, tzinfo=_IST)
-    except ValueError:
-        return None
-    return local.astimezone(timezone.utc)
+    if m:
+        day = int(m.group(1))
+        mon_raw = m.group(2)
+        year = int(m.group(3))
+        hour = int(m.group(4))
+        minute = int(m.group(5))
+        mon_key = _norm_month_token(mon_raw)
+        month = _TR_MONTHS.get(mon_key)
+        if not month:
+            return None
+        try:
+            local = datetime(year, month, day, hour, minute, tzinfo=_IST)
+        except ValueError:
+            return None
+        return local.astimezone(timezone.utc)
+
+    m2 = re.match(
+        r"^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$",
+        s,
+    )
+    if m2:
+        day = int(m2.group(1))
+        month = int(m2.group(2))
+        year = int(m2.group(3))
+        hour = int(m2.group(4)) if m2.group(4) else 12
+        minute = int(m2.group(5)) if m2.group(5) else 0
+        try:
+            local = datetime(year, month, day, hour, minute, tzinfo=_IST)
+        except ValueError:
+            return None
+        return local.astimezone(timezone.utc)
+
+    return None
 
 
 def _clean_cell(v: str | None) -> str:
@@ -92,6 +109,15 @@ def _iso_utc(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _version_from_row(version: str, build: str) -> str:
+    if version:
+        return version
+    if not build:
+        return ""
+    # «253 / 254» gibi çift build — grafikte ilk numara
+    return build.split("/")[0].strip()
+
+
 def parse_release_sheet_csv(csv_text: str, *, since: date) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     since_dt = datetime(since.year, since.month, since.day, tzinfo=timezone.utc)
     ios: list[dict[str, Any]] = []
@@ -99,7 +125,10 @@ def parse_release_sheet_csv(csv_text: str, *, since: date) -> tuple[list[dict[st
     reader = csv.DictReader(io.StringIO(csv_text or ""))
     for row in reader:
         platform = _clean_cell(row.get("Platform") or row.get("platform"))
-        version = _clean_cell(row.get("Versiyon") or row.get("version"))
+        version = _version_from_row(
+            _clean_cell(row.get("Versiyon") or row.get("version")),
+            _clean_cell(row.get("Build") or row.get("build")),
+        )
         build = _clean_cell(row.get("Build") or row.get("build"))
         tarih = _clean_cell(row.get("Tarih") or row.get("tarih") or row.get("date"))
         if not platform or not tarih:
