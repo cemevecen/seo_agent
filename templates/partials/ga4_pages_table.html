@@ -6,6 +6,10 @@
   {% set last_l = 'Last 7 days' %}
   {% set prev_l = 'Previous 7 days' %}
   {% set prev_l_title = prev_l %}
+{% elif days | int == 90 %}
+  {% set last_l = 'Last 90 days' %}
+  {% set prev_l = 'Previous 90 days' %}
+  {% set prev_l_title = prev_l %}
 {% else %}
   {% set last_l = 'Last 30 days' %}
   {% set prev_l = 'Previous 30 days' %}
@@ -108,7 +112,7 @@
               {% if row.sc_position_current is not none %}
                 {{ "{:.2f}".format(row.sc_position_current) }}
               {% elif not _sc_pos_supported %}
-                <span class="text-slate-400 dark:text-slate-500" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g için">—</span>
+                <span class="text-slate-400 dark:text-slate-500" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g / 90g için">—</span>
               {% else %}
                 <span class="text-slate-400 dark:text-slate-500" title="Bu URL için Search Console page verisi yok">—</span>
               {% endif %}
@@ -117,7 +121,7 @@
               {% if row.sc_position_diff is not none %}
                 {{ "{:+.2f}".format(row.sc_position_diff) }}
               {% elif not _sc_pos_supported %}
-                <span class="font-normal" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g için">—</span>
+                <span class="font-normal" title="Search Console page karşılaştırması yalnızca 1g / 7g / 30g / 90g için">—</span>
               {% else %}
                 <span class="font-normal" title="Bu URL için Search Console page verisi yok">—</span>
               {% endif %}

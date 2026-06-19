@@ -1177,6 +1177,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
         previous_7d_pages_rows: list[dict] = []
         current_30d_pages_rows: list[dict] = []
         previous_30d_pages_rows: list[dict] = []
+        current_90d_pages_rows: list[dict] = []
+        previous_90d_pages_rows: list[dict] = []
         trend_28d_rows: list[dict] = []
         trend_12m_rows: list[dict] = []
 
@@ -1269,6 +1271,28 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
                         primary_dimension="page",
                     )
                 )
+                current_90d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        current_90d_start,
+                        end_date,
+                        device=device,
+                        max_rows=min(2500, page_cap),
+                        primary_dimension="page",
+                    )
+                )
+                previous_90d_pages_rows.extend(
+                    _fetch_search_console_rows_limited(
+                        service,
+                        property_url,
+                        previous_90d_start,
+                        previous_90d_end,
+                        device=device,
+                        max_rows=min(2500, page_cap),
+                        primary_dimension="page",
+                    )
+                )
             trend_28d_rows.extend(_fetch_search_console_daily_rows(service, property_url, trend_start_date, end_date, device=device))
             trend_12m_rows.extend(
                 _fetch_search_console_daily_rows(
@@ -1298,6 +1322,8 @@ def _load_search_console_data(site: Site, credential: SiteCredential | None) -> 
             "previous_7d_pages_rows": previous_7d_pages_rows,
             "current_30d_pages_rows": current_30d_pages_rows,
             "previous_30d_pages_rows": previous_30d_pages_rows,
+            "current_90d_pages_rows": current_90d_pages_rows,
+            "previous_90d_pages_rows": previous_90d_pages_rows,
             "trend_28d_rows": trend_28d_rows,
             "trend_12m_rows": trend_12m_rows,
             "source": "live",
@@ -1632,6 +1658,8 @@ def collect_search_console_metrics(
     previous_7d_pages_rows = payload.get("previous_7d_pages_rows", [])
     current_30d_pages_rows = payload.get("current_30d_pages_rows", [])
     previous_30d_pages_rows = payload.get("previous_30d_pages_rows", [])
+    current_90d_pages_rows = payload.get("current_90d_pages_rows", [])
+    previous_90d_pages_rows = payload.get("previous_90d_pages_rows", [])
     trend_28d_rows = payload.get("trend_28d_rows", [])
     trend_12m_rows = payload.get("trend_12m_rows", [])
     source = payload.get("source", "failed")
@@ -1979,6 +2007,28 @@ def collect_search_console_metrics(
             end_date=str(payload.get("previous_30d_end") or ""),
             collector_run_id=collector_run.id,
         )
+        current_90d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="current_90d_pages",
+            rows=current_90d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("current_90d_start") or ""),
+            end_date=str(payload.get("current_90d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
+        previous_90d_pages_row_count = save_search_console_query_rows(
+            db,
+            site_id=site.id,
+            property_url=site_url,
+            data_scope="previous_90d_pages",
+            rows=previous_90d_pages_rows,
+            collected_at=collected_at,
+            start_date=str(payload.get("previous_90d_start") or ""),
+            end_date=str(payload.get("previous_90d_end") or ""),
+            collector_run_id=collector_run.id,
+        )
         finish_collector_run(
             db,
             collector_run,
@@ -2011,6 +2061,8 @@ def collect_search_console_metrics(
                 "previous_7d_pages_rows": previous_7d_pages_row_count,
                 "current_30d_pages_rows": current_30d_pages_row_count,
                 "previous_30d_pages_rows": previous_30d_pages_row_count,
+                "current_90d_pages_rows": current_90d_pages_row_count,
+                "previous_90d_pages_rows": previous_90d_pages_row_count,
                 "current_90d_rows": current_90d_row_count,
                 "previous_90d_rows": previous_90d_row_count,
                 "content_trending_down": content_trending_down,
@@ -2064,7 +2116,9 @@ def collect_search_console_metrics(
             + current_7d_pages_row_count
             + previous_7d_pages_row_count
             + current_30d_pages_row_count
-            + previous_30d_pages_row_count,
+            + previous_30d_pages_row_count
+            + current_90d_pages_row_count
+            + previous_90d_pages_row_count,
         )
         # Snapshot satirlarini commit etmeden alert motoru calisirse eski Search Console verisini gorur.
         db.commit()

@@ -13114,6 +13114,8 @@ def _ga4_days_to_sc_page_scopes(days: int) -> tuple[str, str] | None:
         return "current_7d_pages", "previous_7d_pages"
     if days == 30:
         return "current_30d_pages", "previous_30d_pages"
+    if days == 90:
+        return "current_90d_pages", "previous_90d_pages"
     return None
 
 
