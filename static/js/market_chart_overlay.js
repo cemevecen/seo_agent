@@ -279,6 +279,59 @@
     };
   }
 
+  /** #RRGGBB rengini beyaza doğru aç (hafta sonu köprü çizgileri). */
+  function lightenHex(hex, mix) {
+    if (!hex || hex.charAt(0) !== "#") return hex;
+    var h = hex.replace("#", "");
+    if (h.length === 3) {
+      h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    }
+    if (h.length !== 6) return hex;
+    var t = mix == null ? 0.38 : mix;
+    function ch(i) {
+      var v = parseInt(h.slice(i, i + 2), 16);
+      return Math.round(v + (255 - v) * t)
+        .toString(16)
+        .padStart(2, "0");
+    }
+    return "#" + ch(0) + ch(2) + ch(4);
+  }
+
+  /** Piyasa serisindeki takvim boşlukları (hafta sonu/tatil) için uç-uç köprü trace'leri. */
+  function marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendName) {
+    var bridges = [];
+    if (!dateKeys || !ys || dateKeys.length !== ys.length) return bridges;
+    var bridgeColor = lightenHex(lineColor);
+    var n = ys.length;
+    var i = 0;
+    while (i < n) {
+      while (i < n && (ys[i] == null || isNaN(ys[i]))) i++;
+      if (i >= n) break;
+      var segEnd = i;
+      while (segEnd < n && ys[segEnd] != null && !isNaN(ys[segEnd])) segEnd++;
+      segEnd -= 1;
+      var j = segEnd + 1;
+      while (j < n && (ys[j] == null || isNaN(ys[j]))) j++;
+      if (j < n && j > segEnd + 1) {
+        bridges.push({
+          x: [dateKeys[segEnd], dateKeys[j]],
+          y: [ys[segEnd], ys[j]],
+          type: "scatter",
+          mode: "lines",
+          name: legendName,
+          showlegend: false,
+          legendgroup: legendName,
+          yaxis: yaxisId,
+          line: { color: bridgeColor, width: 2 },
+          connectgaps: true,
+          hoverinfo: "skip",
+        });
+      }
+      i = j;
+    }
+    return bridges;
+  }
+
   /**
    * @param {string|string[]} overlayMode
    * @param {object} opts - yaxisId (default y5), axisTitle, tickColor, marginRight
@@ -320,15 +373,19 @@
               ? LINE_COLOR
               : SERIES_COLORS[colorIdx % SERIES_COLORS.length];
           colorIdx += 1;
+          var legendName = block.label + (indexed ? " %" : "");
           traces.push({
             x: dateKeys,
             y: ys,
             type: "scatter",
             mode: "lines",
-            name: block.label + (indexed ? " %" : ""),
+            name: legendName,
             yaxis: yaxisId,
             line: { color: lineColor, width: 2 },
             connectgaps: false,
+          });
+          marketGapBridgeTraces(dateKeys, ys, lineColor, yaxisId, legendName).forEach(function (bt) {
+            traces.push(bt);
           });
           added = true;
         });
