@@ -181,7 +181,7 @@ jobs:
               "spesifik dosya/env/komut adı verirsin."
           )
 
-          AI_PROMPT_FMT = (
+          AI_PROMPT_TEMPLATE = (
               "Aşağıdaki Railway hata loglarını analiz et. Her satır için TÜRKÇE bir JSON object dön:\n"
               "{\n"
               '  "sorun": "tek cümle: log satırında somut olarak ne oldu",\n'
@@ -193,13 +193,13 @@ jobs:
               "- 'Logları kontrol et' / 'incele' gibi boş tavsiye verme.\n"
               "- Mümkünse env değişkeni adı, dosya yolu (services/x.py), komut, yada Railway/Google dashboard adımı söyle.\n"
               "- Hata geçici görünüyorsa (timeout, 5xx) bunu söyle ve 'genelde retry ile düzelir' de.\n\n"
-              "Sıralı loglar:\n{logs}\n\n"
-              'Yalnızca JSON array dön (markdown bloksuz veya bloklu farketmez): [{{"sorun":...,"anlam":...,"cozum":[...]}}]'
+              "Sıralı loglar:\n__LOGS__\n\n"
+              'Yalnızca JSON array dön (markdown bloksuz veya bloklu farketmez): [{"sorun":...,"anlam":...,"cozum":[...]}]'
           )
 
           def _build_prompt(lines: list[str]) -> str:
               numbered = "\n".join(f"{i+1}. {ln}" for i, ln in enumerate(lines))
-              return AI_PROMPT_FMT.format(logs=numbered)
+              return AI_PROMPT_TEMPLATE.replace("__LOGS__", numbered)
 
           def _normalize_entry(e) -> dict:
               if not isinstance(e, dict):
