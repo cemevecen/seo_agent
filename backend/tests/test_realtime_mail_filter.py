@@ -64,7 +64,7 @@ def _ready_mailer(monkeypatch, sent_subjects: list[str]) -> None:
     )
     monkeypatch.setattr(
         "backend.services.ga4_realtime.realtime_periodic_digest_subject",
-        lambda: "SEO Realtime · 1,5s özet · test",
+        lambda: "SEO 90 - 21:19",
     )
 
 
@@ -77,7 +77,7 @@ def test_realtime_batch_flush_sends_periodic_digest(monkeypatch):
     assert mailer.realtime_email_batch_flush() is True
 
     assert len(sent) == 1
-    assert sent[0].lower().startswith("seo realtime · 1,5s özet")
+    assert sent[0].startswith("SEO 90 - ")
 
 
 def test_realtime_batch_deferred_items_queued_not_dropped(monkeypatch):

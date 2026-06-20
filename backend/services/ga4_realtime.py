@@ -2516,9 +2516,9 @@ def realtime_periodic_digest_subject() -> str:
     from backend.config import settings
 
     tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
-    stamp = datetime.now(ZoneInfo(tz_name)).strftime("%d.%m %H:%M")
-    label = _digest_interval_short_label()
-    return f"SEO Realtime · {label} özet · {stamp}"[:120]
+    minutes = _digest_window_minutes()
+    time_stamp = datetime.now(ZoneInfo(tz_name)).strftime("%H:%M")
+    return f"SEO {minutes} - {time_stamp}"[:120]
 
 
 def check_site_realtime(

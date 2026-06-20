@@ -9,11 +9,22 @@ from backend.services.ga4_realtime import (
     _digest_profile_block,
     _site_for_digest_brand,
     build_realtime_periodic_digest_html,
+    realtime_periodic_digest_subject,
 )
 
 
 def test_digest_interval_short_label_90_minutes():
     assert _digest_interval_short_label(90) == "1,5s"
+
+
+def test_realtime_periodic_digest_subject_format(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.ga4_realtime._digest_window_minutes",
+        lambda: 90,
+    )
+    subj = realtime_periodic_digest_subject()
+    assert subj.startswith("SEO 90 - ")
+    assert len(subj.split(" - ", 1)[1]) == 5  # HH:MM
 
 
 def test_realtime_digest_areas_are_six_streams():
