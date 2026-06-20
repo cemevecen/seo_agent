@@ -74,6 +74,8 @@ jobs:
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           DEP_STATUS: ${{ steps.dep.outputs.status }}
           DEP_ID: ${{ steps.dep.outputs.id }}
           DEP_COMMIT: ${{ steps.dep.outputs.commit }}
@@ -83,7 +85,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 - <<'PY'
-          import os, smtplib, ssl
+          import os, smtplib, ssl, json, urllib.request, urllib.error
           from email.message import EmailMessage
 
           status   = os.environ["DEP_STATUS"]
@@ -145,11 +147,102 @@ jobs:
                "Build aşamasında hata — Dockerfile/dependencies kontrol edilmeli."),
           ]
 
-          def explain(line: str) -> str:
+          def static_explain(line: str):
               for pat, desc in PATTERNS:
                   if re.search(pat, line, re.IGNORECASE):
                       return desc
-              return "Bilinmeyen hata pattern'ı — manuel kontrol gerekli."
+              return None
+
+          def ai_explain_batch(lines):
+              """Statik eşleşmeyenleri AI'a sor (önce Gemini, fail olursa Groq).
+              Dönüş: line → açıklama dict. Hata olursa boş dict."""
+              if not lines:
+                  return {}
+              numbered = "\n".join(f"{i+1}. {ln}" for i, ln in enumerate(lines))
+              prompt = (
+                  "Aşağıda Railway deployment'tan gelen hata logları var. "
+                  "Her satır için TEK CÜMLE Türkçe açıklama yaz; çözüm önerme, sadece tanımla. "
+                  "Yalnızca JSON array dön, başka şey yazma.\n\n"
+                  f"{numbered}\n\n"
+                  f"Format: {json.dumps(['açıklama 1','açıklama 2'])}"
+              )
+
+              # 1) Gemini
+              g_key = os.environ.get("GEMINI_API_KEY", "").strip()
+              if g_key:
+                  try:
+                      url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={g_key}"
+                      data = json.dumps({"contents":[{"parts":[{"text":prompt}]}]}).encode()
+                      req = urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"})
+                      with urllib.request.urlopen(req, timeout=25) as r:
+                          resp = json.load(r)
+                      text = resp["candidates"][0]["content"]["parts"][0]["text"]
+                      arr = _parse_json_array(text)
+                      if arr and len(arr) == len(lines):
+                          return dict(zip(lines, arr))
+                  except Exception as e:
+                      print(f"Gemini fail: {e}")
+
+              # 2) Groq fallback
+              q_key = os.environ.get("GROQ_API_KEY", "").strip()
+              if q_key:
+                  try:
+                      url = "https://api.groq.com/openai/v1/chat/completions"
+                      data = json.dumps({
+                          "model": "llama-3.3-70b-versatile",
+                          "messages": [{"role":"user","content":prompt}],
+                          "max_tokens": 600,
+                          "temperature": 0.3,
+                      }).encode()
+                      req = urllib.request.Request(url, data=data, headers={
+                          "Authorization": f"Bearer {q_key}",
+                          "Content-Type": "application/json",
+                      })
+                      with urllib.request.urlopen(req, timeout=25) as r:
+                          resp = json.load(r)
+                      text = resp["choices"][0]["message"]["content"]
+                      arr = _parse_json_array(text)
+                      if arr and len(arr) == len(lines):
+                          return dict(zip(lines, arr))
+                  except Exception as e:
+                      print(f"Groq fail: {e}")
+              return {}
+
+          def _parse_json_array(text: str):
+              """JSON array'i string'den çekip parse et (markdown wrapping vs.)."""
+              t = text.strip()
+              if t.startswith("```"):
+                  t = re.sub(r"^```(?:json)?\s*", "", t)
+                  t = re.sub(r"\s*```$", "", t)
+              m = re.search(r"\[.*\]", t, re.DOTALL)
+              if not m:
+                  return None
+              try:
+                  arr = json.loads(m.group(0))
+                  return arr if isinstance(arr, list) else None
+              except json.JSONDecodeError:
+                  return None
+
+          def explain_all(lines):
+              """Önce statik, eşleşmeyenleri AI'a topla."""
+              results = {}
+              unmatched = []
+              for ln in lines:
+                  s = static_explain(ln)
+                  if s:
+                      results[ln] = s
+                  else:
+                      unmatched.append(ln)
+              if unmatched:
+                  ai_results = ai_explain_batch(unmatched)
+                  for ln in unmatched:
+                      results[ln] = ai_results.get(ln, "Bilinmeyen hata pattern'ı — manuel kontrol gerekli.")
+              return results
+
+          # En son 50 satırın açıklamalarını tek seferde çek
+          explanations = explain_all(log_lines[-50:]) if log_lines else {}
+          def explain(line: str) -> str:
+              return explanations.get(line, "Bilinmeyen hata pattern'ı — manuel kontrol gerekli.")
 
           def annotated(lines):
               out = []
