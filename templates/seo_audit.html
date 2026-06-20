@@ -11,6 +11,10 @@
           {% if summary.last_crawled %}Son tarama: {{ summary.last_crawled[:16].replace("T"," ") }}{% else %}Henüz tarama yapılmadı{% endif %}
           · <a href="/static/docs/seo-audit-denetim-kriterleri.md" download="seo-audit-denetim-kriterleri.md"
                class="text-sky-600 hover:underline dark:text-sky-400">Denetim kriterleri (indir)</a>
+          · <a href="/api/seo-audit/{{ selected_site_id }}/export.xlsx?filter={{ filter }}"
+               class="text-sky-600 hover:underline dark:text-sky-400">Excel</a>
+          · <a href="/api/seo-audit/{{ selected_site_id }}/export.csv?filter={{ filter }}"
+               class="text-sky-600 hover:underline dark:text-sky-400">CSV</a>
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">

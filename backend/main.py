@@ -11446,6 +11446,40 @@ def api_seo_audit_issues(site_id: int, filter: str = "all", limit: int = 100, of
     return {"issues": issues, "total": total}
 
 
+@app.get("/api/seo-audit/{site_id}/export.xlsx")
+def api_seo_audit_export_xlsx(site_id: int, filter: str = "all"):
+    from backend.services.meta_audit import build_audit_xlsx
+
+    safe_filter = filter if filter != "" else "all"
+    with SessionLocal() as db:
+        blob = build_audit_xlsx(db, site_id, filter_key=safe_filter)
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return Response(
+        content=blob,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="seo_audit_site{site_id}_{safe_filter}_{today}.xlsx"',
+        },
+    )
+
+
+@app.get("/api/seo-audit/{site_id}/export.csv")
+def api_seo_audit_export_csv(site_id: int, filter: str = "all"):
+    from backend.services.meta_audit import build_audit_csv
+
+    safe_filter = filter if filter != "" else "all"
+    with SessionLocal() as db:
+        blob = build_audit_csv(db, site_id, filter_key=safe_filter)
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return Response(
+        content=blob,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="seo_audit_site{site_id}_{safe_filter}_{today}.csv"',
+        },
+    )
+
+
 @app.get("/api/seo-audit/{site_id}/duplicates")
 def api_seo_audit_duplicates(site_id: int):
     from backend.services.meta_audit import get_duplicates

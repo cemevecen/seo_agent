@@ -507,3 +507,115 @@ def cleanup_old_snapshots(db: Session, retention_days: int = 90) -> int:
     except Exception:
         db.rollback()
     return deleted
+
+
+ISSUE_LABELS_TR: dict[str, str] = {
+    "title_missing": "Başlık yok",
+    "title_short": "Başlık kısa",
+    "title_long": "Başlık uzun",
+    "desc_missing": "Desc yok",
+    "desc_short": "Desc kısa",
+    "desc_long": "Desc uzun",
+    "canonical_missing": "Canonical yok",
+    "canonical_mismatch": "Canonical mismatch",
+    "noindex": "Noindex",
+    "og_missing": "OG eksik",
+    "h1_missing": "H1 yok",
+    "h1_multiple": "Çoklu H1",
+    "schema_missing": "Schema yok",
+    "h2_missing": "H2 yok",
+}
+
+SCORE_LABELS_TR: dict[str, str] = {
+    "poor": "Kritik",
+    "needs_improvement": "İyileştir",
+    "good": "İyi",
+}
+
+_EXPORT_HEADERS = [
+    "URL",
+    "Skor",
+    "Sorunlar",
+    "Title",
+    "Title (kr)",
+    "Description",
+    "Description (kr)",
+    "Canonical",
+    "H1",
+    "H2",
+    "Schema",
+    "Noindex",
+    "Son tarama",
+]
+
+
+def _audit_export_rows(db: Session, site_id: int, filter_key: str = "all") -> list[list[Any]]:
+    """Export için satır listesi (başlık hariç)."""
+    issues = get_audit_issues(db, site_id, filter_key=filter_key, limit=50000, offset=0)
+    rows: list[list[Any]] = []
+    for e in issues:
+        issue_text = ", ".join(ISSUE_LABELS_TR.get(code, code) for code in (e.get("issues") or []))
+        rows.append([
+            e.get("url") or "",
+            SCORE_LABELS_TR.get(e.get("seo_score") or "", e.get("seo_score") or ""),
+            issue_text,
+            e.get("title") or "",
+            e.get("title_length") or 0,
+            e.get("meta_description") or "",
+            e.get("meta_description_length") or 0,
+            e.get("canonical_url") or "",
+            e.get("h1_count") or 0,
+            e.get("h2_count") or 0,
+            "Evet" if e.get("has_schema") else "Hayır",
+            "Evet" if e.get("is_noindex") else "Hayır",
+            (e.get("collected_at") or "")[:19].replace("T", " "),
+        ])
+    return rows
+
+
+def build_audit_csv(db: Session, site_id: int, filter_key: str = "all") -> bytes:
+    import csv
+    import io
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_EXPORT_HEADERS)
+    writer.writerows(_audit_export_rows(db, site_id, filter_key=filter_key))
+    return buf.getvalue().encode("utf-8-sig")
+
+
+def build_audit_xlsx(db: Session, site_id: int, filter_key: str = "all") -> bytes:
+    import io
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "SEO Audit"
+    ws.append(_EXPORT_HEADERS)
+
+    header_fill = PatternFill("solid", fgColor="1F2937")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    for col_i in range(1, len(_EXPORT_HEADERS) + 1):
+        cell = ws.cell(row=1, column=col_i)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+
+    for row in _audit_export_rows(db, site_id, filter_key=filter_key):
+        ws.append(row)
+
+    widths = [55, 14, 40, 45, 10, 55, 12, 55, 6, 6, 8, 8, 18]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    ws.freeze_panes = "A2"
+    if ws.max_row > 1:
+        ws.auto_filter.ref = ws.dimensions
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.getvalue()

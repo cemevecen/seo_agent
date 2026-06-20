@@ -135,6 +135,8 @@ Sonuçlar `url_audit_records` tablosunda saklanır. Her taramada aynı site içi
 | İşlem | Adres |
 |-------|--------|
 | Bu doküman (Markdown) | `/static/docs/seo-audit-denetim-kriterleri.md` |
+| Tüm URL’ler (Excel) | `GET /api/seo-audit/{site_id}/export.xlsx?filter=poor` |
+| Tüm URL’ler (CSV) | `GET /api/seo-audit/{site_id}/export.csv?filter=poor` |
 | Kritik sayfa listesi (JSON) | `GET /api/seo-audit/{site_id}/issues?filter=poor` |
 | Özet istatistik | Sayfa yüklemesinde `get_audit_summary()` |
 | Manuel tarama | `POST /api/seo-audit/{site_id}/run` |
