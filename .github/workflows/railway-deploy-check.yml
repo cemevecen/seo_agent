@@ -353,13 +353,17 @@ jobs:
               print(f"[Skip] Status={status}, geçici durum; alert yok.")
 
           # Force alert (manuel test) — gerçek hata yoksa sahte log kullan
+          is_synthetic_test = False
           if force and not alert_type:
               alert_type = "deploy_failed"
               alert_lines = [
                   "2026-06-20T00:00:00Z [error] [TEST] HTTPSConnectionPool host=example.com timeout",
                   "2026-06-20T00:00:01Z [error] [TEST] Database connection lost: psycopg2.OperationalError",
               ]
-              print("[Force] Test alert tetiklendi (gerçek hata yok).")
+              is_synthetic_test = True
+              print("[Force] Sentetik test alert tetiklendi (gerçek hata yok).")
+          elif force and alert_type:
+              print(f"[Force] Manuel tetikleme ile gerçek {alert_type} alerti gönderiliyor.")
 
           if not alert_type:
               print("::notice title=Sağlıklı::Hiçbir alert gönderilmedi.")
@@ -394,8 +398,8 @@ jobs:
           full_block = annotated(alert_lines)
           n_lines = len(alert_lines)
 
-          # Subject (her zaman Türkçe)
-          prefix = "[TEST] " if force else ""
+          # Subject (her zaman Türkçe). [TEST] sadece sentetik test alert için.
+          prefix = "[TEST] " if is_synthetic_test else ""
           if alert_type == "deploy_failed":
               subject = f"{prefix}[Deploy: {tr_status}] seo-agent — {n_lines} hata"
               top = (
@@ -410,7 +414,7 @@ jobs:
                   f"COMMIT: {commit}\n"
                   f"ZAMAN:  {created}"
               )
-          if force:
+          if is_synthetic_test:
               top = "[!] Bu bir TEST mailidir — gerçek hata yok, manuel workflow_dispatch ile tetiklendi.\n\n" + top
 
           body_parts = [
