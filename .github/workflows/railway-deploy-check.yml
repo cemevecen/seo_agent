@@ -7,24 +7,21 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 env:
   RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
   PROJECT_ID: eb62c02c-f447-4279-b87e-e09114ba4d26
   SERVICE_ID: b3660507-c346-48ec-8062-e464d1df9ce9
   ENVIRONMENT_ID: c16602df-5fc0-4f3d-9a82-d277979d3e71
-  GH_TOKEN: ${{ github.token }}
-  ALERT_LABEL: railway-alert
+  SMTP_HOST: smtp.gmail.com
+  SMTP_PORT: '587'
+  MAIL_FROM: cemevecen@nokta.com
+  MAIL_TO: cemevecen@nokta.com
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Ensure alert label exists
-        run: |
-          gh label create "$ALERT_LABEL" --color B60205 --description "Railway deploy issue auto-detected" -R "$GITHUB_REPOSITORY" 2>/dev/null || true
-
       - name: Fetch latest deployment
         id: dep
         run: |
@@ -37,7 +34,7 @@ jobs:
 
           NODE=$(echo "$RESP" | jq -c '.data.deployments.edges[0].node')
           if [ "$NODE" = "null" ] || [ -z "$NODE" ]; then
-            echo "Railway API returned no deployment. Full response:"
+            echo "Railway API returned no deployment. Response:"
             echo "$RESP"
             exit 1
           fi
@@ -68,53 +65,72 @@ jobs:
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$QUERY")
-          LINES=$(echo "$RESP" | jq -r '.data.deploymentLogs[] | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null || echo "(log çekilemedi)")
-          {
-            echo "lines<<EOF"
-            echo "$LINES" | tail -n 50
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          echo "$RESP" | jq -r '.data.deploymentLogs[] | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null > /tmp/errlogs.txt || echo "(log çekilemedi)" > /tmp/errlogs.txt
+          tail -n 50 /tmp/errlogs.txt > /tmp/errlogs_tail.txt
+          echo "wrote=$(wc -l < /tmp/errlogs_tail.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
-      - name: Open issue if deploy is unhealthy
+      - name: Send SMTP alert mail
         if: contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status)
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          DEP_STATUS: ${{ steps.dep.outputs.status }}
+          DEP_ID: ${{ steps.dep.outputs.id }}
+          DEP_COMMIT: ${{ steps.dep.outputs.commit }}
+          DEP_CREATED: ${{ steps.dep.outputs.created }}
+          DEP_TITLE: ${{ steps.dep.outputs.title }}
+          DEP_URL: ${{ steps.dep.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -euo pipefail
-          STATUS='${{ steps.dep.outputs.status }}'
-          DEP_ID='${{ steps.dep.outputs.id }}'
-          COMMIT='${{ steps.dep.outputs.commit }}'
-          CREATED='${{ steps.dep.outputs.created }}'
-          TITLE='${{ steps.dep.outputs.title }}'
-          URL='${{ steps.dep.outputs.url }}'
+          python3 - <<'PY'
+          import os, smtplib, ssl
+          from email.message import EmailMessage
 
-          EXISTING=$(gh issue list -R "$GITHUB_REPOSITORY" --label "$ALERT_LABEL" --state open --search "$DEP_ID in:body" --json number --jq '.[0].number')
+          status   = os.environ["DEP_STATUS"]
+          dep_id   = os.environ["DEP_ID"]
+          commit   = os.environ["DEP_COMMIT"]
+          created  = os.environ["DEP_CREATED"]
+          title    = os.environ.get("DEP_TITLE", "")
+          dep_url  = os.environ.get("DEP_URL", "")
+          run_url  = os.environ["RUN_URL"]
 
-          BODY=$(cat <<BODYEOF
-          ## Railway deploy sorunu
+          try:
+              with open("/tmp/errlogs_tail.txt", "r", encoding="utf-8", errors="replace") as f:
+                  logs = f.read().strip() or "(error log yok)"
+          except FileNotFoundError:
+              logs = "(log dosyası okunamadı)"
 
-          - **Status:** \`$STATUS\`
-          - **Deployment:** \`$DEP_ID\`
-          - **Commit:** \`$COMMIT\` — $TITLE
-          - **Time:** $CREATED
-          - **URL:** $URL
+          body = f"""Railway deploy sorunu
 
-          ### Son error log satırları
+          Durum:      {status}
+          Deployment: {dep_id}
+          Commit:     {commit} — {title}
+          Zaman:      {created}
+          URL:        {dep_url}
 
-          \`\`\`
-          ${{ steps.logs.outputs.lines }}
-          \`\`\`
+          --- Son error log satırları ---
+          {logs}
 
-          _Otomatik olarak GitHub Actions ile oluşturuldu (railway-deploy-check.yml). Sorun çözüldüğünde bu issue'yu kapatabilirsin._
-          BODYEOF
-          )
+          --- ---
+          Workflow run: {run_url}
 
-          if [ -z "$EXISTING" ]; then
-            gh issue create -R "$GITHUB_REPOSITORY" \
-              --title "[Railway] $STATUS — $COMMIT" \
-              --label "$ALERT_LABEL" \
-              --body "$BODY"
-          else
-            gh issue comment "$EXISTING" -R "$GITHUB_REPOSITORY" --body "$BODY"
-          fi
+          Bu mail GitHub Actions üzerinden otomatik olarak gönderildi
+          (railway-deploy-check.yml, her 10 dakikada bir).
+          """
+
+          msg = EmailMessage()
+          msg["Subject"] = f"[Railway] {status} — seo-agent ({commit})"
+          msg["From"] = os.environ.get("MAIL_FROM", os.environ["SMTP_USER"])
+          msg["To"] = os.environ.get("MAIL_TO", os.environ["SMTP_USER"])
+          msg.set_content(body)
+
+          ctx = ssl.create_default_context()
+          with smtplib.SMTP(os.environ["SMTP_HOST"], int(os.environ["SMTP_PORT"]), timeout=20) as s:
+              s.starttls(context=ctx)
+              s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
+              s.send_message(msg)
+          print(f"OK: alert mail sent → {msg['To']}")
+          PY
 
       - name: Healthy ping
         if: ${{ !contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status) }}
