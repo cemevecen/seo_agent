@@ -3,7 +3,12 @@ name: Railway Deploy Health Check
 on:
   schedule:
     - cron: '*/10 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_alert:
+        description: "true: gerçek deploy SUCCESS olsa bile sahte FAILED ile alert mail gönder (test için)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -57,7 +62,7 @@ jobs:
 
       - name: Fetch error logs (only on failure)
         id: logs
-        if: contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status)
+        if: ${{ contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status) || inputs.force_alert == true }}
         run: |
           set -euo pipefail
           QUERY='{"query":"{ deploymentLogs(deploymentId: \"'"${{ steps.dep.outputs.id }}"'\", limit: 80, filter: \"@level:error\") { timestamp message severity } }"}'
@@ -70,7 +75,7 @@ jobs:
           echo "wrote=$(wc -l < /tmp/errlogs_tail.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Send SMTP alert mail
-        if: contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status)
+        if: ${{ contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status) || inputs.force_alert == true }}
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
