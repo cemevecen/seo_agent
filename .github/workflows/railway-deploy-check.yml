@@ -1,8 +1,8 @@
-name: Railway Deploy Health Check
+name: Deploy Health Check
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '7 * * * *'
   workflow_dispatch:
     inputs:
       force_alert:
@@ -280,7 +280,7 @@ jobs:
           """
 
           msg = EmailMessage()
-          msg["Subject"] = f"[Railway {status}] seo-agent — {short_title}"
+          msg["Subject"] = f"[Deploy {status}] seo-agent — {short_title}"
           msg["From"] = os.environ.get("MAIL_FROM", os.environ["SMTP_USER"])
           msg["To"] = os.environ.get("MAIL_TO", os.environ["SMTP_USER"])
           msg.set_content(body)
