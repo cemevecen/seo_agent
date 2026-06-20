@@ -1,0 +1,122 @@
+name: Railway Deploy Health Check
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  PROJECT_ID: eb62c02c-f447-4279-b87e-e09114ba4d26
+  SERVICE_ID: b3660507-c346-48ec-8062-e464d1df9ce9
+  ENVIRONMENT_ID: c16602df-5fc0-4f3d-9a82-d277979d3e71
+  GH_TOKEN: ${{ github.token }}
+  ALERT_LABEL: railway-alert
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure alert label exists
+        run: |
+          gh label create "$ALERT_LABEL" --color B60205 --description "Railway deploy issue auto-detected" -R "$GITHUB_REPOSITORY" 2>/dev/null || true
+
+      - name: Fetch latest deployment
+        id: dep
+        run: |
+          set -euo pipefail
+          QUERY='{"query":"{ deployments(first: 1, input: { projectId: \"'"$PROJECT_ID"'\", serviceId: \"'"$SERVICE_ID"'\", environmentId: \"'"$ENVIRONMENT_ID"'\" }) { edges { node { id status createdAt staticUrl meta } } } }"}'
+          RESP=$(curl -sS -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$QUERY")
+
+          NODE=$(echo "$RESP" | jq -c '.data.deployments.edges[0].node')
+          if [ "$NODE" = "null" ] || [ -z "$NODE" ]; then
+            echo "Railway API returned no deployment. Full response:"
+            echo "$RESP"
+            exit 1
+          fi
+
+          DEP_ID=$(echo "$NODE" | jq -r '.id')
+          STATUS=$(echo "$NODE" | jq -r '.status')
+          CREATED=$(echo "$NODE" | jq -r '.createdAt')
+          COMMIT=$(echo "$NODE" | jq -r '.meta.commitHash // "unknown"' | cut -c1-8)
+          MSG=$(echo "$NODE" | jq -r '.meta.commitMessage // ""' | head -n 1)
+          URL=$(echo "$NODE" | jq -r '.staticUrl // ""')
+
+          echo "id=$DEP_ID" >> "$GITHUB_OUTPUT"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "created=$CREATED" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "title=$MSG" >> "$GITHUB_OUTPUT"
+
+          echo "::notice title=Deployment::status=$STATUS commit=$COMMIT createdAt=$CREATED"
+
+      - name: Fetch error logs (only on failure)
+        id: logs
+        if: contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status)
+        run: |
+          set -euo pipefail
+          QUERY='{"query":"{ deploymentLogs(deploymentId: \"'"${{ steps.dep.outputs.id }}"'\", limit: 80, filter: \"@level:error\") { timestamp message severity } }"}'
+          RESP=$(curl -sS -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$QUERY")
+          LINES=$(echo "$RESP" | jq -r '.data.deploymentLogs[] | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null || echo "(log çekilemedi)")
+          {
+            echo "lines<<EOF"
+            echo "$LINES" | tail -n 50
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open issue if deploy is unhealthy
+        if: contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status)
+        run: |
+          set -euo pipefail
+          STATUS='${{ steps.dep.outputs.status }}'
+          DEP_ID='${{ steps.dep.outputs.id }}'
+          COMMIT='${{ steps.dep.outputs.commit }}'
+          CREATED='${{ steps.dep.outputs.created }}'
+          TITLE='${{ steps.dep.outputs.title }}'
+          URL='${{ steps.dep.outputs.url }}'
+
+          EXISTING=$(gh issue list -R "$GITHUB_REPOSITORY" --label "$ALERT_LABEL" --state open --search "$DEP_ID in:body" --json number --jq '.[0].number')
+
+          BODY=$(cat <<BODYEOF
+          ## Railway deploy sorunu
+
+          - **Status:** \`$STATUS\`
+          - **Deployment:** \`$DEP_ID\`
+          - **Commit:** \`$COMMIT\` — $TITLE
+          - **Time:** $CREATED
+          - **URL:** $URL
+
+          ### Son error log satırları
+
+          \`\`\`
+          ${{ steps.logs.outputs.lines }}
+          \`\`\`
+
+          _Otomatik olarak GitHub Actions ile oluşturuldu (railway-deploy-check.yml). Sorun çözüldüğünde bu issue'yu kapatabilirsin._
+          BODYEOF
+          )
+
+          if [ -z "$EXISTING" ]; then
+            gh issue create -R "$GITHUB_REPOSITORY" \
+              --title "[Railway] $STATUS — $COMMIT" \
+              --label "$ALERT_LABEL" \
+              --body "$BODY"
+          else
+            gh issue comment "$EXISTING" -R "$GITHUB_REPOSITORY" --body "$BODY"
+          fi
+
+      - name: Healthy ping
+        if: ${{ !contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status) }}
+        run: |
+          echo "::notice title=Healthy::Deploy status=${{ steps.dep.outputs.status }} commit=${{ steps.dep.outputs.commit }}"
