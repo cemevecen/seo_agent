@@ -691,6 +691,16 @@ ALARM_EMAIL_TOP_N = 10
 REALTIME_DETAIL_TOP_N = 10
 REALTIME_BUCKET_TOP_PAGES_N = 6
 
+# 4 saatlik özet maili: doviz web/mweb/android/ios + sinemalar web/mweb (monetizasyon 6 akış)
+REALTIME_DIGEST_AREAS: tuple[tuple[str, str], ...] = (
+    ("doviz", "web"),
+    ("doviz", "mweb"),
+    ("doviz", "android"),
+    ("doviz", "ios"),
+    ("sinemalar", "web"),
+    ("sinemalar", "mweb"),
+)
+
 
 def _alarm_user_volumes(alarm: dict[str, Any]) -> tuple[float, float, float]:
     prev = float(
@@ -2234,6 +2244,23 @@ def _digest_top_n() -> int:
     return int(getattr(settings, "ga4_realtime_email_digest_top_n", REALTIME_DETAIL_TOP_N))
 
 
+def _digest_window_minutes() -> int:
+    from backend.config import settings
+
+    return int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 240))
+
+
+def _site_for_digest_brand(sites: list, brand: str):
+    key = (brand or "").strip().lower()
+    for site in sites:
+        dom = (site.domain or "").lower()
+        if key == "doviz" and "doviz" in dom and "sinema" not in dom:
+            return site
+        if key == "sinemalar" and "sinemalar" in dom:
+            return site
+    return None
+
+
 def _latest_collected_at(
     db: Session,
     model: type,
@@ -2288,9 +2315,13 @@ def _digest_profile_block(
     profile: str,
     *,
     top_n: int,
+    window_minutes: int,
 ) -> str:
-    from backend.models import RealtimeAppEventSnapshot, RealtimeNewsSnapshot, RealtimePageSnapshot, RealtimeSnapshot
+    from backend.models import RealtimeSnapshot
     from sqlalchemy import desc
+
+    window_minutes = max(15, min(int(window_minutes), 24 * 60))
+    window_label = f"{max(1, window_minutes // 60)}s"
 
     snap = (
         db.query(RealtimeSnapshot)
@@ -2298,92 +2329,94 @@ def _digest_profile_block(
         .order_by(desc(RealtimeSnapshot.collected_at))
         .first()
     )
-    if not snap:
-        return ""
-
-    au_cur = int(round(float(snap.active_users_current or 0)))
-    au_prev = int(round(float(snap.active_users_previous or 0)))
-    pv_cur = int(round(float(snap.pageviews_current or 0)))
-    pv_prev = int(round(float(snap.pageviews_previous or 0)))
-    delta = au_cur - au_prev
-    delta_c = "#16a34a" if delta >= 0 else "#dc2626"
-    delta_sign = f"{delta:+d}" if au_prev > 0 or delta != 0 else "—"
 
     header = _html_email_section_header(site.domain, profile)
-    kpi = (
-        f'<div style="font-size:12px;color:#64748b;margin:0 0 8px;">'
-        f"Aktif kullanıcı <strong style=\"color:#0f172a;\">{au_cur:,}</strong>"
-        f' <span style="color:#94a3b8;">(önceki {au_prev:,}, </span>'
-        f'<span style="color:{delta_c};font-weight:700;">{delta_sign}</span>'
-        f'<span style="color:#94a3b8;">)</span>'
-        f" · Görüntüleme <strong style=\"color:#0f172a;\">{pv_cur:,}</strong>"
-        f' <span style="color:#94a3b8;">(önceki {pv_prev:,})</span></div>'
-    )
+    body_parts: list[str] = [header]
 
-    body_parts = [header, kpi]
+    if snap:
+        au_cur = int(round(float(snap.active_users_current or 0)))
+        au_prev = int(round(float(snap.active_users_previous or 0)))
+        pv_cur = int(round(float(snap.pageviews_current or 0)))
+        pv_prev = int(round(float(snap.pageviews_previous or 0)))
+        delta = au_cur - au_prev
+        delta_c = "#16a34a" if delta >= 0 else "#dc2626"
+        delta_sign = f"{delta:+d}" if au_prev > 0 or delta != 0 else "—"
+        body_parts.append(
+            f'<div style="font-size:12px;color:#64748b;margin:0 0 8px;">'
+            f"Aktif kullanıcı <strong style=\"color:#0f172a;\">{au_cur:,}</strong>"
+            f' <span style="color:#94a3b8;">(önceki {au_prev:,}, </span>'
+            f'<span style="color:{delta_c};font-weight:700;">{delta_sign}</span>'
+            f'<span style="color:#94a3b8;">)</span>'
+            f" · Görüntüleme <strong style=\"color:#0f172a;\">{pv_cur:,}</strong>"
+            f' <span style="color:#94a3b8;">(önceki {pv_prev:,})</span></div>'
+        )
+
+    has_ranked_content = False
 
     if profile in ("web", "mweb"):
-        latest_pages = _latest_collected_at(db, RealtimePageSnapshot, site.id, profile)
-        if latest_pages:
-            page_rows = (
-                db.query(RealtimePageSnapshot)
-                .filter(
-                    RealtimePageSnapshot.site_id == site.id,
-                    RealtimePageSnapshot.profile == profile,
-                    RealtimePageSnapshot.collected_at == latest_pages,
-                )
-                .order_by(desc(RealtimePageSnapshot.active_users))
-                .limit(top_n)
-                .all()
+        page_bundle = aggregate_page_snapshots_over_window(
+            db,
+            site_id=site.id,
+            profile=profile,
+            window_minutes=window_minutes,
+            limit=top_n,
+            sort_by="activeUsers",
+        )
+        plist: list[tuple[str, int, str | None]] = []
+        for row in page_bundle.get("pages") or []:
+            path = str(row.get("page") or "").strip() or "?"
+            title = _rt_alarm_screen_title_one_line(path, max_len=72)
+            href = f"https://{site.domain}{path}" if path.startswith("/") else None
+            plist.append((title, int(float(row.get("activeUsers") or 0)), href))
+        if plist:
+            has_ranked_content = True
+            body_parts.append(
+                _html_digest_top_list(f"Top sayfalar · son {window_label} zirve", plist)
             )
-            plist: list[tuple[str, int, str | None]] = []
-            for r in page_rows:
-                path = str(r.page_path or "").strip() or "?"
-                title = _rt_alarm_screen_title_one_line(path, max_len=72)
-                href = f"https://{site.domain}{path}" if path.startswith("/") else None
-                plist.append((title, int(r.active_users or 0), href))
-            body_parts.append(_html_digest_top_list("Top sayfalar", plist))
 
-        latest_news = _latest_collected_at(db, RealtimeNewsSnapshot, site.id, profile)
-        if latest_news:
-            news_rows = (
-                db.query(RealtimeNewsSnapshot)
-                .filter(
-                    RealtimeNewsSnapshot.site_id == site.id,
-                    RealtimeNewsSnapshot.profile == profile,
-                    RealtimeNewsSnapshot.collected_at == latest_news,
-                )
-                .order_by(desc(RealtimeNewsSnapshot.active_users))
-                .limit(top_n)
-                .all()
+        news_bundle = aggregate_news_snapshots_over_window(
+            db,
+            site_id=site.id,
+            profile=profile,
+            site_domain=str(site.domain or ""),
+            window_minutes=window_minutes,
+            limit=top_n,
+            sort_by="activeUsers",
+        )
+        nlist: list[tuple[str, int, str | None]] = []
+        for row in news_bundle.get("pages") or []:
+            title = _rt_alarm_screen_title_one_line(str(row.get("page") or ""), max_len=72)
+            href = str(row.get("link_url") or "").strip() or None
+            nlist.append((title, int(float(row.get("activeUsers") or 0)), href))
+        if nlist:
+            has_ranked_content = True
+            body_parts.append(
+                _html_digest_top_list(f"Top haberler · son {window_label} zirve", nlist)
             )
-            nlist = [
-                (
-                    _rt_alarm_screen_title_one_line(str(r.screen_title or ""), max_len=72),
-                    int(r.active_users or 0),
-                    None,
-                )
-                for r in news_rows
-            ]
-            if nlist:
-                body_parts.append(_html_digest_top_list("Top haberler", nlist))
 
     if profile in ("android", "ios"):
-        latest_ev = _latest_collected_at(db, RealtimeAppEventSnapshot, site.id, profile)
-        if latest_ev:
-            ev_rows = (
-                db.query(RealtimeAppEventSnapshot)
-                .filter(
-                    RealtimeAppEventSnapshot.site_id == site.id,
-                    RealtimeAppEventSnapshot.profile == profile,
-                    RealtimeAppEventSnapshot.collected_at == latest_ev,
-                )
-                .order_by(desc(RealtimeAppEventSnapshot.event_count))
-                .limit(top_n)
-                .all()
+        peaks = get_peak_app_event_snapshots(
+            db, site.id, profile, window_minutes=window_minutes
+        )
+        elist = [
+            (name, count, None)
+            for name, count in sorted(peaks.items(), key=lambda item: item[1], reverse=True)[:top_n]
+            if name
+        ]
+        if elist:
+            has_ranked_content = True
+            body_parts.append(
+                _html_digest_top_list(f"Top eventler · son {window_label} zirve", elist, value_label="evt")
             )
-            elist = [(str(r.event_name or ""), int(r.event_count or 0), None) for r in ev_rows]
-            body_parts.append(_html_digest_top_list("Top eventler", elist, value_label="evt"))
+
+    if not snap and not has_ranked_content:
+        return ""
+
+    if snap and not has_ranked_content:
+        body_parts.append(
+            f'<p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">'
+            f"Son {window_label} penceresinde sıralanacak sayfa/haber/event verisi yok.</p>"
+        )
 
     return (
         f'<div style="margin:14px 0;padding:12px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa;">'
@@ -2392,7 +2425,7 @@ def _digest_profile_block(
 
 
 def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: int = 0) -> str:
-    """4 saatlik SEO Realtime özet maili — site/profil toplamları + top N link/event."""
+    """4 saatlik SEO Realtime özet maili — 6 alanda pencere içi top sayfa/haber/event."""
     from backend.models import Site as SiteModel
     from datetime import datetime
     from zoneinfo import ZoneInfo
@@ -2400,33 +2433,31 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
     from backend.config import settings
 
     top_n = _digest_top_n()
+    window_minutes = _digest_window_minutes()
+    window_hours = max(1, window_minutes // 60)
     tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
     now_local = datetime.now(ZoneInfo(tz_name))
     stamp = now_local.strftime("%d.%m.%Y %H:%M")
 
     sites = _sort_sites(db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all())
-    site_blocks: list[str] = []
-    for site in sites:
-        prof_blocks: list[str] = []
-        for profile in ("web", "mweb", "android", "ios"):
-            block = _digest_profile_block(db, site, profile, top_n=top_n)
-            if block:
-                prof_blocks.append(block)
-        if not prof_blocks:
+    area_blocks: list[str] = []
+    for brand, profile in REALTIME_DIGEST_AREAS:
+        site = _site_for_digest_brand(sites, brand)
+        if not site:
             continue
-        site_blocks.append(
-            f'<div style="margin-bottom:22px;">'
-            f'<h2 style="font-size:16px;font-weight:800;margin:0 0 8px;color:#0f172a;">'
-            f'{html.escape(_email_site_short_label(site.domain))}</h2>'
-            f'{"".join(prof_blocks)}</div>'
+        block = _digest_profile_block(
+            db, site, profile, top_n=top_n, window_minutes=window_minutes
         )
+        if block:
+            area_blocks.append(block)
 
-    if not site_blocks:
+    if not area_blocks:
         inner = (
-            '<p style="font-size:13px;color:#64748b;">Bu aralık için snapshot verisi yok.</p>'
+            '<p style="font-size:13px;color:#64748b;">'
+            f"Son {window_hours} saat için 6 alanda snapshot verisi yok.</p>"
         )
     else:
-        inner = "".join(site_blocks)
+        inner = "".join(area_blocks)
 
     queued_line = ""
     if queued_alarm_sections > 0:
@@ -2435,14 +2466,16 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
             f"Bu dönemde kuyruğa alınan alarm bölümü: {queued_alarm_sections}</p>"
         )
 
-    pre = _preheader(f"SEO Realtime 4s özet · {stamp}")
+    pre = _preheader(f"SEO Realtime {window_hours}s özet · {stamp}")
     return (
         f'<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
         f'max-width:620px;margin:0 auto;color:#0f172a;">'
         f"{pre}"
-        f'<p style="font-size:15px;font-weight:800;margin:0 0 4px;">SEO Realtime · 4 saatlik özet</p>'
+        f'<p style="font-size:15px;font-weight:800;margin:0 0 4px;">'
+        f"SEO Realtime · {window_hours} saatlik özet</p>"
         f'<p style="font-size:12px;color:#64748b;margin:0 0 18px;">{html.escape(stamp)} · '
-        f"Her profil için en çok {top_n} sayfa/haber/event</p>"
+        f"6 alanda (döviz web/mweb/android/ios + sinemalar web/mweb) "
+        f"son {window_hours} saatte en çok {top_n} sayfa/haber/event · zirve aktif kullanıcı</p>"
         f"{queued_line}"
         f"{inner}"
         f"</div>"
