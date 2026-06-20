@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       force_alert:
-        description: "true: gerçek deploy SUCCESS olsa bile sahte FAILED ile alert mail gönder (test için)"
+        description: "true: deploy SUCCESS olsa bile sahte alert mail gönder (test için)"
         type: boolean
         default: false
 
@@ -27,92 +27,76 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch latest deployment
-        id: dep
-        run: |
-          set -euo pipefail
-          QUERY='{"query":"{ deployments(first: 1, input: { projectId: \"'"$PROJECT_ID"'\", serviceId: \"'"$SERVICE_ID"'\", environmentId: \"'"$ENVIRONMENT_ID"'\" }) { edges { node { id status createdAt staticUrl meta } } } }"}'
-          RESP=$(curl -sS -X POST https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$QUERY")
-
-          NODE=$(echo "$RESP" | jq -c '.data.deployments.edges[0].node')
-          if [ "$NODE" = "null" ] || [ -z "$NODE" ]; then
-            echo "Railway API returned no deployment. Response:"
-            echo "$RESP"
-            exit 1
-          fi
-
-          DEP_ID=$(echo "$NODE" | jq -r '.id')
-          STATUS=$(echo "$NODE" | jq -r '.status')
-          CREATED=$(echo "$NODE" | jq -r '.createdAt')
-          COMMIT=$(echo "$NODE" | jq -r '.meta.commitHash // "unknown"' | cut -c1-8)
-          MSG=$(echo "$NODE" | jq -r '.meta.commitMessage // ""' | head -n 1)
-          URL=$(echo "$NODE" | jq -r '.staticUrl // ""')
-
-          echo "id=$DEP_ID" >> "$GITHUB_OUTPUT"
-          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
-          echo "created=$CREATED" >> "$GITHUB_OUTPUT"
-          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-          echo "title=$MSG" >> "$GITHUB_OUTPUT"
-
-          echo "::notice title=Deployment::status=$STATUS commit=$COMMIT createdAt=$CREATED"
-
-      - name: Fetch error logs (only on failure)
-        id: logs
-        if: ${{ contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status) || inputs.force_alert == true }}
-        run: |
-          set -euo pipefail
-          QUERY='{"query":"{ deploymentLogs(deploymentId: \"'"${{ steps.dep.outputs.id }}"'\", limit: 80, filter: \"@level:error\") { timestamp message severity } }"}'
-          RESP=$(curl -sS -X POST https://backboard.railway.app/graphql/v2 \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$QUERY")
-          echo "$RESP" | jq -r '.data.deploymentLogs[] | "\(.timestamp) [\(.severity)] \(.message)"' 2>/dev/null > /tmp/errlogs.txt || echo "(log çekilemedi)" > /tmp/errlogs.txt
-          tail -n 50 /tmp/errlogs.txt > /tmp/errlogs_tail.txt
-          echo "wrote=$(wc -l < /tmp/errlogs_tail.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
-
-      - name: Send SMTP alert mail
-        if: ${{ contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status) || inputs.force_alert == true }}
+      - name: Check deploy + runtime errors, alert if any
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          DEP_STATUS: ${{ steps.dep.outputs.status }}
-          DEP_ID: ${{ steps.dep.outputs.id }}
-          DEP_COMMIT: ${{ steps.dep.outputs.commit }}
-          DEP_CREATED: ${{ steps.dep.outputs.created }}
-          DEP_TITLE: ${{ steps.dep.outputs.title }}
-          DEP_URL: ${{ steps.dep.outputs.url }}
+          FORCE_ALERT: ${{ inputs.force_alert && 'true' || 'false' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 - <<'PY'
-          import os, smtplib, ssl, json, urllib.request, urllib.error
+          import os, json, re, ssl, smtplib, urllib.request
+          from datetime import datetime, timedelta, timezone
           from email.message import EmailMessage
 
-          status   = os.environ["DEP_STATUS"]
-          dep_id   = os.environ["DEP_ID"]
-          commit   = os.environ["DEP_COMMIT"]
-          created  = os.environ["DEP_CREATED"]
-          title    = os.environ.get("DEP_TITLE", "")
-          dep_url  = os.environ.get("DEP_URL", "")
-          run_url  = os.environ["RUN_URL"]
+          # ─────────────────────────────────────────────────────────────
+          # 1) Yardımcılar: Railway API
+          # ─────────────────────────────────────────────────────────────
+          API = "https://backboard.railway.app/graphql/v2"
+          TOKEN = os.environ["RAILWAY_TOKEN"]
 
-          import re
+          def graphql(query: str) -> dict:
+              data = json.dumps({"query": query}).encode()
+              req = urllib.request.Request(
+                  API, data=data,
+                  headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+              )
+              with urllib.request.urlopen(req, timeout=25) as r:
+                  return json.loads(r.read().decode("utf-8"), strict=False)
 
-          try:
-              with open("/tmp/errlogs_tail.txt", "r", encoding="utf-8", errors="replace") as f:
-                  raw_logs = f.read().strip() or "(error log yok)"
-          except FileNotFoundError:
-              raw_logs = "(log dosyası okunamadı)"
+          def fetch_latest_deployment() -> dict:
+              q = (
+                  '{ deployments(first: 1, input: { '
+                  f'projectId: "{os.environ["PROJECT_ID"]}", '
+                  f'serviceId: "{os.environ["SERVICE_ID"]}", '
+                  f'environmentId: "{os.environ["ENVIRONMENT_ID"]}" '
+                  '}) { edges { node { id status createdAt staticUrl meta } } } }'
+              )
+              edges = graphql(q)["data"]["deployments"]["edges"]
+              if not edges:
+                  raise RuntimeError("Hiç deployment bulunamadı")
+              return edges[0]["node"]
 
-          log_lines = [l for l in raw_logs.splitlines() if l.strip()]
-          full_logs = "\n".join(log_lines[-50:]) if log_lines else raw_logs
+          def fetch_error_logs(dep_id: str, limit: int = 150) -> list[dict]:
+              q = (
+                  f'{{ deploymentLogs(deploymentId: "{dep_id}", limit: {limit}, '
+                  f'filter: "@level:error") {{ timestamp message severity }} }}'
+              )
+              return graphql(q)["data"].get("deploymentLogs", []) or []
 
-          # Pattern → Türkçe açıklama tablosu (sırayla denenir, ilk eşleşme kazanır)
+          # ─────────────────────────────────────────────────────────────
+          # 2) Türkçe status etiketleri
+          # ─────────────────────────────────────────────────────────────
+          TR_STATUS = {
+              "SUCCESS": "Başarılı",
+              "FAILED": "Başarısız",
+              "CRASHED": "Çöktü",
+              "BUILD_FAILED": "Build başarısız",
+              "DEPLOY_FAILED": "Deploy başarısız",
+              "BUILDING": "Build oluyor",
+              "DEPLOYING": "Deploy oluyor",
+              "REMOVED": "Kaldırıldı",
+              "INITIALIZING": "Başlatılıyor",
+              "QUEUED": "Sırada",
+              "SKIPPED": "Atlandı",
+          }
+          BAD_DEPLOY = {"FAILED", "CRASHED", "BUILD_FAILED", "DEPLOY_FAILED"}
+
+          # ─────────────────────────────────────────────────────────────
+          # 3) Statik hata pattern'leri (Türkçe açıklama)
+          # ─────────────────────────────────────────────────────────────
           PATTERNS = [
               (r"(read )?time(d)? ?out|TimeoutError|ETIMEDOUT",
                "Dış servise istek zaman aşımına uğradı — üçüncü taraf yavaş ya da cevap vermiyor."),
@@ -132,6 +116,8 @@ jobs:
                "Port çakışması — eski instance hala bağlı olabilir, redeploy gerekebilir."),
               (r"healthcheck|/health.*(failed|timeout)|Healthcheck failed",
                "Sağlık kontrolü başarısız — /health endpoint cevap vermiyor ya da app boot olmadı."),
+              (r"oauth.*(refresh|expired|invalid_grant)|invalid_grant|RefreshError|token (expired|invalid)",
+               "OAuth token yenilenemedi — refresh token geçersiz, yeniden bağlantı gerek."),
               (r"401|Unauthorized|forbidden|permission denied|403",
                "Yetkilendirme hatası — token/API key/izinler kontrol edilmeli."),
               (r"5\d\d|bad gateway|service unavailable",
@@ -142,6 +128,8 @@ jobs:
                "Bot dış siteye erişemedi — kaynak site down ya da network engeli."),
               (r"GA4|Google Analytics|search.*console|googleapis",
                "Google API hatası — quota dolmuş ya da credentials geçersiz olabilir."),
+              (r"PageSpeed|pagespeedonline",
+               "PageSpeed API hatası — quota veya geçici Google hatası."),
               (r"rate limit|429|too many requests",
                "Rate limit aşıldı — quota cooldown'a girmiş olabilir."),
               (r"Migration|alembic|relation.*does not exist",
@@ -150,6 +138,10 @@ jobs:
                "DNS çözümlenemedi — host yanlış veya internet kesintisi."),
               (r"build (failed|error)|nixpacks|docker build",
                "Build aşamasında hata — Dockerfile/dependencies kontrol edilmeli."),
+              (r"SMTPException|SMTPAuthenticationError|smtp.*fail",
+               "SMTP gönderim hatası — kimlik/quota/host kontrol edilmeli."),
+              (r"yenileme|refresh.*fail|scheduled.*refresh.*error",
+               "Yenileme job'ı hata verdi — kaynak servis veya iç scheduler kontrol."),
           ]
 
           def static_explain(line: str):
@@ -158,63 +150,10 @@ jobs:
                       return desc
               return None
 
-          def ai_explain_batch(lines):
-              """Statik eşleşmeyenleri AI'a sor (önce Gemini, fail olursa Groq).
-              Dönüş: line → açıklama dict. Hata olursa boş dict."""
-              if not lines:
-                  return {}
-              numbered = "\n".join(f"{i+1}. {ln}" for i, ln in enumerate(lines))
-              prompt = (
-                  "Aşağıda Railway deployment'tan gelen hata logları var. "
-                  "Her satır için TEK CÜMLE Türkçe açıklama yaz; çözüm önerme, sadece tanımla. "
-                  "Yalnızca JSON array dön, başka şey yazma.\n\n"
-                  f"{numbered}\n\n"
-                  f"Format: {json.dumps(['açıklama 1','açıklama 2'])}"
-              )
-
-              # 1) Gemini
-              g_key = os.environ.get("GEMINI_API_KEY", "").strip()
-              if g_key:
-                  try:
-                      url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={g_key}"
-                      data = json.dumps({"contents":[{"parts":[{"text":prompt}]}]}).encode()
-                      req = urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"})
-                      with urllib.request.urlopen(req, timeout=25) as r:
-                          resp = json.load(r)
-                      text = resp["candidates"][0]["content"]["parts"][0]["text"]
-                      arr = _parse_json_array(text)
-                      if arr and len(arr) == len(lines):
-                          return dict(zip(lines, arr))
-                  except Exception as e:
-                      print(f"Gemini fail: {e}")
-
-              # 2) Groq fallback
-              q_key = os.environ.get("GROQ_API_KEY", "").strip()
-              if q_key:
-                  try:
-                      url = "https://api.groq.com/openai/v1/chat/completions"
-                      data = json.dumps({
-                          "model": "llama-3.3-70b-versatile",
-                          "messages": [{"role":"user","content":prompt}],
-                          "max_tokens": 600,
-                          "temperature": 0.3,
-                      }).encode()
-                      req = urllib.request.Request(url, data=data, headers={
-                          "Authorization": f"Bearer {q_key}",
-                          "Content-Type": "application/json",
-                      })
-                      with urllib.request.urlopen(req, timeout=25) as r:
-                          resp = json.load(r)
-                      text = resp["choices"][0]["message"]["content"]
-                      arr = _parse_json_array(text)
-                      if arr and len(arr) == len(lines):
-                          return dict(zip(lines, arr))
-                  except Exception as e:
-                      print(f"Groq fail: {e}")
-              return {}
-
-          def _parse_json_array(text: str):
-              """JSON array'i string'den çekip parse et (markdown wrapping vs.)."""
+          # ─────────────────────────────────────────────────────────────
+          # 4) AI fallback (Gemini → Groq)
+          # ─────────────────────────────────────────────────────────────
+          def _parse_arr(text: str):
               t = text.strip()
               if t.startswith("```"):
                   t = re.sub(r"^```(?:json)?\s*", "", t)
@@ -228,72 +167,204 @@ jobs:
               except json.JSONDecodeError:
                   return None
 
-          def explain_all(lines):
-              """Önce statik, eşleşmeyenleri AI'a topla."""
-              results = {}
+          def ai_explain_batch(lines: list[str]) -> dict[str, str]:
+              if not lines:
+                  return {}
+              numbered = "\n".join(f"{i+1}. {ln}" for i, ln in enumerate(lines))
+              prompt = (
+                  "Aşağıda Railway deployment'tan gelen hata logları var. "
+                  "Her satır için TEK CÜMLE Türkçe açıklama yaz; çözüm önerme, sadece tanımla. "
+                  "Yalnızca JSON array dön, başka şey yazma.\n\n"
+                  f"{numbered}\n\n"
+                  f"Format: {json.dumps(['açıklama 1','açıklama 2'])}"
+              )
+
+              g = (os.environ.get("GEMINI_API_KEY") or "").strip()
+              if g:
+                  try:
+                      url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={g}"
+                      data = json.dumps({"contents":[{"parts":[{"text":prompt}]}]}).encode()
+                      req = urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"})
+                      with urllib.request.urlopen(req, timeout=30) as r:
+                          resp = json.load(r)
+                      text = resp["candidates"][0]["content"]["parts"][0]["text"]
+                      arr = _parse_arr(text)
+                      if arr and len(arr) == len(lines):
+                          print(f"[AI] Gemini OK ({len(arr)} açıklama)")
+                          return dict(zip(lines, arr))
+                  except Exception as e:
+                      print(f"[AI] Gemini fail: {e}")
+
+              q = (os.environ.get("GROQ_API_KEY") or "").strip()
+              if q:
+                  try:
+                      url = "https://api.groq.com/openai/v1/chat/completions"
+                      data = json.dumps({
+                          "model": "llama-3.3-70b-versatile",
+                          "messages": [{"role": "user", "content": prompt}],
+                          "max_tokens": 600, "temperature": 0.3,
+                      }).encode()
+                      req = urllib.request.Request(url, data=data, headers={
+                          "Authorization": f"Bearer {q}", "Content-Type": "application/json",
+                      })
+                      with urllib.request.urlopen(req, timeout=30) as r:
+                          resp = json.load(r)
+                      text = resp["choices"][0]["message"]["content"]
+                      arr = _parse_arr(text)
+                      if arr and len(arr) == len(lines):
+                          print(f"[AI] Groq OK ({len(arr)} açıklama)")
+                          return dict(zip(lines, arr))
+                  except Exception as e:
+                      print(f"[AI] Groq fail: {e}")
+              return {}
+
+          def explain_all(lines: list[str]) -> dict[str, str]:
+              out = {}
               unmatched = []
               for ln in lines:
                   s = static_explain(ln)
                   if s:
-                      results[ln] = s
+                      out[ln] = s
                   else:
                       unmatched.append(ln)
               if unmatched:
-                  ai_results = ai_explain_batch(unmatched)
+                  ai_res = ai_explain_batch(unmatched)
                   for ln in unmatched:
-                      results[ln] = ai_results.get(ln, "Bilinmeyen hata pattern'ı — manuel kontrol gerekli.")
-              return results
+                      out[ln] = ai_res.get(ln, "Bilinmeyen hata pattern'ı — manuel kontrol gerekli.")
+              return out
 
-          # En son 50 satırın açıklamalarını tek seferde çek
-          explanations = explain_all(log_lines[-50:]) if log_lines else {}
-          def explain(line: str) -> str:
-              return explanations.get(line, "Bilinmeyen hata pattern'ı — manuel kontrol gerekli.")
+          # ─────────────────────────────────────────────────────────────
+          # 5) Mail gönderim
+          # ─────────────────────────────────────────────────────────────
+          def send_mail(subject: str, body: str) -> None:
+              msg = EmailMessage()
+              msg["Subject"] = subject
+              msg["From"] = os.environ.get("MAIL_FROM") or os.environ["SMTP_USER"]
+              msg["To"] = os.environ.get("MAIL_TO") or os.environ["SMTP_USER"]
+              msg.set_content(body)
+              ctx = ssl.create_default_context()
+              with smtplib.SMTP(os.environ["SMTP_HOST"], int(os.environ["SMTP_PORT"]), timeout=20) as s:
+                  s.starttls(context=ctx)
+                  s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
+                  s.send_message(msg)
+              print(f"[Mail] Gönderildi → {msg['To']}")
 
-          def annotated(lines):
+          # ─────────────────────────────────────────────────────────────
+          # 6) Ana akış
+          # ─────────────────────────────────────────────────────────────
+          force = os.environ.get("FORCE_ALERT","false").lower() == "true"
+          dep = fetch_latest_deployment()
+          status = dep["status"]
+          tr_status = TR_STATUS.get(status, status)
+          dep_id = dep["id"]
+          created = dep["createdAt"]
+          dep_url = dep.get("staticUrl") or ""
+          meta = dep.get("meta") or {}
+          commit_full = (meta.get("commitHash") or "unknown")
+          commit = commit_full[:8]
+          commit_msg = (meta.get("commitMessage") or "").splitlines()[0] if meta.get("commitMessage") else ""
+
+          print(f"[Deploy] status={status} ({tr_status})  commit={commit}  createdAt={created}")
+
+          # Karar: alert mı, sessiz mi
+          alert_type = ""
+          alert_lines: list[str] = []  # gösterilecek log satırları
+
+          if status in BAD_DEPLOY:
+              alert_type = "deploy_failed"
+              raw = fetch_error_logs(dep_id, limit=150)
+              alert_lines = [f"{r['timestamp']} [{r['severity']}] {r['message']}" for r in raw if r.get("message","").strip()]
+              print(f"[Trigger] Deploy hatalı; {len(alert_lines)} error log çekildi.")
+          elif status == "SUCCESS":
+              raw = fetch_error_logs(dep_id, limit=200)
+              # Son 60dk içindeki error'ları say
+              cutoff = datetime.now(timezone.utc) - timedelta(minutes=60)
+              recent = []
+              for r in raw:
+                  ts = r.get("timestamp","")
+                  msg = r.get("message","").strip()
+                  if not msg:
+                      continue
+                  try:
+                      # Railway timestamps look like 2026-06-20T17:21:37.123456789Z
+                      ts_norm = re.sub(r"\.\d+Z$", "Z", ts).replace("Z","+00:00")
+                      dt = datetime.fromisoformat(ts_norm)
+                  except Exception:
+                      continue
+                  if dt >= cutoff:
+                      recent.append(f"{ts} [{r.get('severity','')}] {msg}")
+              if recent:
+                  alert_type = "runtime_errors"
+                  alert_lines = recent
+                  print(f"[Trigger] Çalışma hataları: son 60dk içinde {len(recent)} satır.")
+              else:
+                  print("[Healthy] Deploy SUCCESS ve son 60dk içinde error log yok.")
+          else:
+              print(f"[Skip] Status={status}, geçici durum; alert yok.")
+
+          # Force alert (manuel test) — gerçek hata yoksa sahte log kullan
+          if force and not alert_type:
+              alert_type = "deploy_failed"
+              alert_lines = [
+                  "2026-06-20T00:00:00Z [error] [TEST] HTTPSConnectionPool host=example.com timeout",
+                  "2026-06-20T00:00:01Z [error] [TEST] Database connection lost: psycopg2.OperationalError",
+              ]
+              print("[Force] Test alert tetiklendi (gerçek hata yok).")
+
+          if not alert_type:
+              print("::notice title=Sağlıklı::Hiçbir alert gönderilmedi.")
+              raise SystemExit(0)
+
+          # ─────────────────────────────────────────────────────────────
+          # 7) Mail derle (Türkçe başlık + body)
+          # ─────────────────────────────────────────────────────────────
+          alert_lines = alert_lines[-80:]  # max 80 satır
+          expls = explain_all(alert_lines)
+
+          def annotated(lines: list[str]) -> str:
               out = []
               for ln in lines:
                   out.append(ln)
-                  out.append(f"   ↳ {explain(ln)}")
+                  out.append(f"   ↳ {expls.get(ln,'?')}")
                   out.append("")
               return "\n".join(out).rstrip()
 
-          last_three_annotated = annotated(log_lines[-3:]) if log_lines else "(error log yok)"
-          full_logs_annotated = annotated(log_lines[-50:]) if log_lines else raw_logs
+          last_three = annotated(alert_lines[-3:])
+          full_block = annotated(alert_lines)
+          n_lines = len(alert_lines)
 
-          # Commit mesajını ilk 80 karaktere kısalt
-          short_title = (title[:80] + "…") if len(title) > 80 else title
+          # Subject (her zaman Türkçe)
+          if alert_type == "deploy_failed":
+              subject = f"[Deploy: {tr_status}] seo-agent — {n_lines} hata"
+              top = (
+                  f"DURUM:  Deploy {tr_status.lower()}\n"
+                  f"COMMIT: {commit}\n"
+                  f"ZAMAN:  {created}"
+              )
+          else:  # runtime_errors
+              subject = f"[Çalışma hatası] seo-agent — son 60dk içinde {n_lines} hata"
+              top = (
+                  f"DURUM:  Deploy başarılı ama uygulamada {n_lines} hata son 60dk\n"
+                  f"COMMIT: {commit}\n"
+                  f"ZAMAN:  {created}"
+              )
 
-          body = f"""{status} — seo-agent production
-          Commit {commit}: {short_title}
-          Zaman: {created}
+          body_parts = [
+              top,
+              "",
+              "── Son hatalar (Türkçe açıklama ile) ──",
+              last_three,
+              "",
+              "── Detaylar ──",
+              f"URL:        {dep_url}",
+              f"Deployment: {dep_id}",
+              f"Workflow:   {os.environ['RUN_URL']}",
+              "",
+              f"── Tam hata günlüğü ({n_lines} satır, açıklamalı) ──",
+              full_block,
+          ]
+          if commit_msg:
+              body_parts += ["", "── Commit (orijinal dil) ──", commit_msg]
 
-          ── Son hatalar (Türkçe açıklama ile) ──
-          {last_three_annotated}
-
-          ── Detaylar ──
-          URL: {dep_url}
-          Deployment: {dep_id}
-          Workflow: {run_url}
-
-          ── Tam error log ({len(log_lines)} satır, açıklamalı) ──
-          {full_logs_annotated}
-          """
-
-          msg = EmailMessage()
-          msg["Subject"] = f"[Deploy {status}] seo-agent — {short_title}"
-          msg["From"] = os.environ.get("MAIL_FROM", os.environ["SMTP_USER"])
-          msg["To"] = os.environ.get("MAIL_TO", os.environ["SMTP_USER"])
-          msg.set_content(body)
-
-          ctx = ssl.create_default_context()
-          with smtplib.SMTP(os.environ["SMTP_HOST"], int(os.environ["SMTP_PORT"]), timeout=20) as s:
-              s.starttls(context=ctx)
-              s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
-              s.send_message(msg)
-          print(f"OK: alert mail sent → {msg['To']}")
+          send_mail(subject, "\n".join(body_parts))
           PY
-
-      - name: Healthy ping
-        if: ${{ !contains(fromJSON('["FAILED","CRASHED","BUILD_FAILED","DEPLOY_FAILED"]'), steps.dep.outputs.status) }}
-        run: |
-          echo "::notice title=Healthy::Deploy status=${{ steps.dep.outputs.status }} commit=${{ steps.dep.outputs.commit }}"
