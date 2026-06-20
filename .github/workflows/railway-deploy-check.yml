@@ -96,30 +96,36 @@ jobs:
 
           try:
               with open("/tmp/errlogs_tail.txt", "r", encoding="utf-8", errors="replace") as f:
-                  logs = f.read().strip() or "(error log yok)"
+                  raw_logs = f.read().strip() or "(error log yok)"
           except FileNotFoundError:
-              logs = "(log dosyası okunamadı)"
+              raw_logs = "(log dosyası okunamadı)"
 
-          body = f"""Railway deploy sorunu
+          # En son 3 satır → mail önizlemesi için
+          log_lines = [l for l in raw_logs.splitlines() if l.strip()]
+          last_three = "\n".join(log_lines[-3:]) if log_lines else "(error log yok)"
+          full_logs = "\n".join(log_lines[-50:]) if log_lines else raw_logs
 
-          Durum:      {status}
+          # Commit mesajını ilk 80 karaktere kısalt
+          short_title = (title[:80] + "…") if len(title) > 80 else title
+
+          body = f"""{status} — seo-agent production
+          Commit {commit}: {short_title}
+          Zaman: {created}
+
+          ── Son hatalar ──
+          {last_three}
+
+          ── Detaylar ──
+          URL: {dep_url}
           Deployment: {dep_id}
-          Commit:     {commit} — {title}
-          Zaman:      {created}
-          URL:        {dep_url}
+          Workflow: {run_url}
 
-          --- Son error log satırları ---
-          {logs}
-
-          --- ---
-          Workflow run: {run_url}
-
-          Bu mail GitHub Actions üzerinden otomatik olarak gönderildi
-          (railway-deploy-check.yml, her 10 dakikada bir).
+          ── Tam error log ({len(log_lines)} satır) ──
+          {full_logs}
           """
 
           msg = EmailMessage()
-          msg["Subject"] = f"[Railway] {status} — seo-agent ({commit})"
+          msg["Subject"] = f"[Railway {status}] seo-agent — {short_title}"
           msg["From"] = os.environ.get("MAIL_FROM", os.environ["SMTP_USER"])
           msg["To"] = os.environ.get("MAIL_TO", os.environ["SMTP_USER"])
           msg.set_content(body)
