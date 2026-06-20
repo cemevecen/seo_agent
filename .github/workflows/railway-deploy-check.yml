@@ -157,7 +157,7 @@ jobs:
               return None
 
           # ─────────────────────────────────────────────────────────────
-          # 4) AI fallback (Gemini → Groq)
+          # 4) AI analiz (Gemini → Groq) — sorun + anlam + çözüm
           # ─────────────────────────────────────────────────────────────
           def _parse_arr(text: str):
               t = text.strip()
@@ -173,31 +173,70 @@ jobs:
               except json.JSONDecodeError:
                   return None
 
-          def ai_explain_batch(lines: list[str]) -> dict[str, str]:
+          AI_SYSTEM = (
+              "Sen Railway'de çalışan bir FastAPI + PostgreSQL + APScheduler tabanlı SEO/analitik "
+              "panelinin senior DevOps mühendisisin. Proje: cemevecen/seo_agent. Servisler arası: "
+              "Search Console, GA4, PageSpeed, CrUX, Gmail Inbox, OAuth, SMTP (Gmail Workspace). "
+              "Hata loglarına bakıp pratik çözüm verirsin; genel-geçer 'kontrol et' demezsin, "
+              "spesifik dosya/env/komut adı verirsin."
+          )
+
+          AI_PROMPT_FMT = (
+              "Aşağıdaki Railway hata loglarını analiz et. Her satır için TÜRKÇE bir JSON object dön:\n"
+              "{\n"
+              '  "sorun": "tek cümle: log satırında somut olarak ne oldu",\n'
+              '  "anlam": "tek cümle: uygulamaya/kullanıcıya etkisi",\n'
+              '  "cozum": ["somut adım 1", "somut adım 2", ...]  (1-3 madde, her madde tek cümle)\n'
+              "}\n\n"
+              "Kurallar:\n"
+              "- Tahmin yapma, log'ta gözüken bilgiyi kullan.\n"
+              "- 'Logları kontrol et' / 'incele' gibi boş tavsiye verme.\n"
+              "- Mümkünse env değişkeni adı, dosya yolu (services/x.py), komut, yada Railway/Google dashboard adımı söyle.\n"
+              "- Hata geçici görünüyorsa (timeout, 5xx) bunu söyle ve 'genelde retry ile düzelir' de.\n\n"
+              "Sıralı loglar:\n{logs}\n\n"
+              'Yalnızca JSON array dön (markdown bloksuz veya bloklu farketmez): [{{"sorun":...,"anlam":...,"cozum":[...]}}]'
+          )
+
+          def _build_prompt(lines: list[str]) -> str:
+              numbered = "\n".join(f"{i+1}. {ln}" for i, ln in enumerate(lines))
+              return AI_PROMPT_FMT.format(logs=numbered)
+
+          def _normalize_entry(e) -> dict:
+              if not isinstance(e, dict):
+                  return {"sorun": str(e), "anlam": "", "cozum": []}
+              sorun = str(e.get("sorun") or "").strip()
+              anlam = str(e.get("anlam") or "").strip()
+              cozum = e.get("cozum") or []
+              if isinstance(cozum, str):
+                  cozum = [cozum]
+              cozum = [str(c).strip() for c in cozum if str(c).strip()]
+              return {"sorun": sorun, "anlam": anlam, "cozum": cozum[:4]}
+
+          def ai_explain_batch(lines: list[str]) -> dict[str, dict]:
               if not lines:
                   return {}
-              numbered = "\n".join(f"{i+1}. {ln}" for i, ln in enumerate(lines))
-              prompt = (
-                  "Aşağıda Railway deployment'tan gelen hata logları var. "
-                  "Her satır için TEK CÜMLE Türkçe açıklama yaz; çözüm önerme, sadece tanımla. "
-                  "Yalnızca JSON array dön, başka şey yazma.\n\n"
-                  f"{numbered}\n\n"
-                  f"Format: {json.dumps(['açıklama 1','açıklama 2'])}"
-              )
+              prompt = _build_prompt(lines)
 
               g = (os.environ.get("GEMINI_API_KEY") or "").strip()
               if g:
                   try:
                       url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={g}"
-                      data = json.dumps({"contents":[{"parts":[{"text":prompt}]}]}).encode()
-                      req = urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"})
-                      with urllib.request.urlopen(req, timeout=30) as r:
+                      payload = {
+                          "systemInstruction": {"parts": [{"text": AI_SYSTEM}]},
+                          "contents": [{"parts": [{"text": prompt}]}],
+                          "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2000},
+                      }
+                      data = json.dumps(payload).encode()
+                      req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json", "User-Agent": UA})
+                      with urllib.request.urlopen(req, timeout=45) as r:
                           resp = json.load(r)
                       text = resp["candidates"][0]["content"]["parts"][0]["text"]
                       arr = _parse_arr(text)
                       if arr and len(arr) == len(lines):
                           print(f"[AI] Gemini OK ({len(arr)} açıklama)")
-                          return dict(zip(lines, arr))
+                          return {ln: _normalize_entry(e) for ln, e in zip(lines, arr)}
+                      else:
+                          print(f"[AI] Gemini len mismatch: got {len(arr) if arr else 0}, need {len(lines)}")
                   except Exception as e:
                       print(f"[AI] Gemini fail: {e}")
 
@@ -205,38 +244,43 @@ jobs:
               if q:
                   try:
                       url = "https://api.groq.com/openai/v1/chat/completions"
-                      data = json.dumps({
+                      payload = {
                           "model": "llama-3.3-70b-versatile",
-                          "messages": [{"role": "user", "content": prompt}],
-                          "max_tokens": 600, "temperature": 0.3,
-                      }).encode()
+                          "messages": [
+                              {"role": "system", "content": AI_SYSTEM},
+                              {"role": "user", "content": prompt},
+                          ],
+                          "max_tokens": 2000, "temperature": 0.3,
+                      }
+                      data = json.dumps(payload).encode()
                       req = urllib.request.Request(url, data=data, headers={
-                          "Authorization": f"Bearer {q}", "Content-Type": "application/json",
+                          "Authorization": f"Bearer {q}", "Content-Type": "application/json", "User-Agent": UA,
                       })
-                      with urllib.request.urlopen(req, timeout=30) as r:
+                      with urllib.request.urlopen(req, timeout=45) as r:
                           resp = json.load(r)
                       text = resp["choices"][0]["message"]["content"]
                       arr = _parse_arr(text)
                       if arr and len(arr) == len(lines):
                           print(f"[AI] Groq OK ({len(arr)} açıklama)")
-                          return dict(zip(lines, arr))
+                          return {ln: _normalize_entry(e) for ln, e in zip(lines, arr)}
                   except Exception as e:
                       print(f"[AI] Groq fail: {e}")
               return {}
 
-          def explain_all(lines: list[str]) -> dict[str, str]:
-              out = {}
-              unmatched = []
+          def explain_all(lines: list[str]) -> dict[str, dict]:
+              """Her hata için: AI'dan sorun/anlam/cozum al; AI başarısızsa statik pattern + çözümsüz."""
+              ai_res = ai_explain_batch(lines)
+              out: dict[str, dict] = {}
               for ln in lines:
-                  s = static_explain(ln)
-                  if s:
-                      out[ln] = s
-                  else:
-                      unmatched.append(ln)
-              if unmatched:
-                  ai_res = ai_explain_batch(unmatched)
-                  for ln in unmatched:
-                      out[ln] = ai_res.get(ln, "Bilinmeyen hata pattern'ı — manuel kontrol gerekli.")
+                  if ln in ai_res and ai_res[ln].get("sorun"):
+                      out[ln] = ai_res[ln]
+                      continue
+                  sp = static_explain(ln)
+                  out[ln] = {
+                      "sorun": sp or "Bilinmeyen hata pattern'ı (AI yanıtı alınamadı).",
+                      "anlam": "",
+                      "cozum": ["Railway dashboard → Deployments → Logs üzerinden tam stack trace'i incele."],
+                  }
               return out
 
           # ─────────────────────────────────────────────────────────────
@@ -330,8 +374,19 @@ jobs:
           def annotated(lines: list[str]) -> str:
               out = []
               for ln in lines:
+                  e = expls.get(ln) or {}
                   out.append(ln)
-                  out.append(f"   ↳ {expls.get(ln,'?')}")
+                  sorun = (e.get("sorun") or "").strip()
+                  anlam = (e.get("anlam") or "").strip()
+                  cozum = e.get("cozum") or []
+                  if sorun:
+                      out.append(f"   ↳ Sorun:  {sorun}")
+                  if anlam:
+                      out.append(f"     Anlam:  {anlam}")
+                  if cozum:
+                      out.append(f"     Çözüm:")
+                      for c in cozum:
+                          out.append(f"       • {c}")
                   out.append("")
               return "\n".join(out).rstrip()
 
