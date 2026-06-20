@@ -94,16 +94,73 @@ jobs:
           dep_url  = os.environ.get("DEP_URL", "")
           run_url  = os.environ["RUN_URL"]
 
+          import re
+
           try:
               with open("/tmp/errlogs_tail.txt", "r", encoding="utf-8", errors="replace") as f:
                   raw_logs = f.read().strip() or "(error log yok)"
           except FileNotFoundError:
               raw_logs = "(log dosyası okunamadı)"
 
-          # En son 3 satır → mail önizlemesi için
           log_lines = [l for l in raw_logs.splitlines() if l.strip()]
-          last_three = "\n".join(log_lines[-3:]) if log_lines else "(error log yok)"
           full_logs = "\n".join(log_lines[-50:]) if log_lines else raw_logs
+
+          # Pattern → Türkçe açıklama tablosu (sırayla denenir, ilk eşleşme kazanır)
+          PATTERNS = [
+              (r"(read )?time(d)? ?out|TimeoutError|ETIMEDOUT",
+               "Dış servise istek zaman aşımına uğradı — üçüncü taraf yavaş ya da cevap vermiyor."),
+              (r"psycopg2|OperationalError|connection (lost|refused|reset).*postgres|could not connect to server",
+               "PostgreSQL bağlantı sorunu — DB restart, max connection limiti veya network kesintisi olabilir."),
+              (r"psycopg2.errors\.|IntegrityError|UniqueViolation|ForeignKeyViolation",
+               "PostgreSQL veri bütünlüğü hatası — migration/constraint eksik olabilir."),
+              (r"redis|connection refused.*6379",
+               "Redis bağlantısı kurulamadı — service down ya da REDIS_URL yanlış."),
+              (r"exited with code 1|Worker process exited|SIGKILL|SIGTERM",
+               "Process beklenmedik şekilde sonlandı — yakalanmamış exception veya OOM olabilir."),
+              (r"out of memory|MemoryError|OOMKilled|Cannot allocate memory",
+               "Bellek tükendi — Railway planını ya da kodda memory leak'i kontrol et."),
+              (r"ModuleNotFoundError|ImportError|No module named",
+               "Python paket eksik — requirements.txt veya import path'i kontrol et."),
+              (r"address already in use|port \d+ is already",
+               "Port çakışması — eski instance hala bağlı olabilir, redeploy gerekebilir."),
+              (r"healthcheck|/health.*(failed|timeout)|Healthcheck failed",
+               "Sağlık kontrolü başarısız — /health endpoint cevap vermiyor ya da app boot olmadı."),
+              (r"401|Unauthorized|forbidden|permission denied|403",
+               "Yetkilendirme hatası — token/API key/izinler kontrol edilmeli."),
+              (r"5\d\d|bad gateway|service unavailable",
+               "Upstream/dış servis 5xx döndü — geçici hata, retry gerekebilir."),
+              (r"SSLError|certificate|SSL handshake",
+               "SSL/TLS hatası — sertifika geçersiz ya da eksik."),
+              (r"BOT haftalık|boxofficeturkiye|fetch hatası",
+               "Bot dış siteye erişemedi — kaynak site down ya da network engeli."),
+              (r"GA4|Google Analytics|search.*console|googleapis",
+               "Google API hatası — quota dolmuş ya da credentials geçersiz olabilir."),
+              (r"rate limit|429|too many requests",
+               "Rate limit aşıldı — quota cooldown'a girmiş olabilir."),
+              (r"Migration|alembic|relation.*does not exist",
+               "DB şeması güncel değil — alembic migration eksik olabilir."),
+              (r"DNS|NXDOMAIN|getaddrinfo",
+               "DNS çözümlenemedi — host yanlış veya internet kesintisi."),
+              (r"build (failed|error)|nixpacks|docker build",
+               "Build aşamasında hata — Dockerfile/dependencies kontrol edilmeli."),
+          ]
+
+          def explain(line: str) -> str:
+              for pat, desc in PATTERNS:
+                  if re.search(pat, line, re.IGNORECASE):
+                      return desc
+              return "Bilinmeyen hata pattern'ı — manuel kontrol gerekli."
+
+          def annotated(lines):
+              out = []
+              for ln in lines:
+                  out.append(ln)
+                  out.append(f"   ↳ {explain(ln)}")
+                  out.append("")
+              return "\n".join(out).rstrip()
+
+          last_three_annotated = annotated(log_lines[-3:]) if log_lines else "(error log yok)"
+          full_logs_annotated = annotated(log_lines[-50:]) if log_lines else raw_logs
 
           # Commit mesajını ilk 80 karaktere kısalt
           short_title = (title[:80] + "…") if len(title) > 80 else title
@@ -112,16 +169,16 @@ jobs:
           Commit {commit}: {short_title}
           Zaman: {created}
 
-          ── Son hatalar ──
-          {last_three}
+          ── Son hatalar (Türkçe açıklama ile) ──
+          {last_three_annotated}
 
           ── Detaylar ──
           URL: {dep_url}
           Deployment: {dep_id}
           Workflow: {run_url}
 
-          ── Tam error log ({len(log_lines)} satır) ──
-          {full_logs}
+          ── Tam error log ({len(log_lines)} satır, açıklamalı) ──
+          {full_logs_annotated}
           """
 
           msg = EmailMessage()
