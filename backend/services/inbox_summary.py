@@ -1,4 +1,4 @@
-"""Gelen kutusu senkronu ve 4 sekmeli özet e-postası (doviz → sinemalar → nstat → firebase)."""
+"""Gelen kutusu senkronu ve 5 sekmeli özet e-postası (doviz → sinemalar → medya → nstat → firebase)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,12 @@ from sqlalchemy.orm import Session
 from backend.models import SupportInboxMessage, SupportInboxThread
 from backend.services import inbox_gmail_auth, inbox_sync, mailer
 from backend.services.inbox_email_render import effective_plain_text
+from backend.services.inbox_medya import (
+    MEDYA_KIND_ISBIRLIGI,
+    MEDYA_KIND_REKLAM,
+    classify_medya_thread_kind,
+    medya_kind_label,
+)
 from backend.services.inbox_visit_report import is_ziyaret_report_subject, ziyaret_thread_preview
 
 logger = logging.getLogger(__name__)
@@ -23,6 +29,13 @@ logger = logging.getLogger(__name__)
 INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
     ("doviz", "doviz", "info@doviz.com · feedback@doviz.com", "#1d4ed8", "#eff6ff"),
     ("sinemalar", "sinemalar", "info@sinemalar.com · feedback@sinemalar.com", "#4338ca", "#eef2ff"),
+    (
+        "medya",
+        "medya",
+        "medya@nokta.com · işbirliği / reklam ayrımı",
+        "#0f766e",
+        "#ecfdf5",
+    ),
     ("nstat", "nstat", "En çok ziyaret edilen sayfalar (noreply@doviz.com)", "#047857", "#ecfdf5"),
     ("firebase", "firebase", "Firebase Crashlytics uyarıları", "#b45309", "#fffbeb"),
 )
@@ -114,15 +127,48 @@ def _message_preview_text(
     return html.escape(raw).replace("\n", "<br/>")
 
 
+def _medya_kind_badge_html(kind: str) -> str:
+    label = html.escape(medya_kind_label(kind))
+    colors = {
+        MEDYA_KIND_ISBIRLIGI: ("#047857", "#ecfdf5"),
+        MEDYA_KIND_REKLAM: ("#b45309", "#fffbeb"),
+    }
+    fg, bg = colors.get(kind, ("#64748b", "#f1f5f9"))
+    return (
+        f"<span style='display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;"
+        f"font-size:10px;font-weight:800;color:{fg};background:{bg};'>{label}</span>"
+    )
+
+
+def _medya_section_subtitle(threads: list[SupportInboxThread], base_subtitle: str) -> str:
+    if not threads:
+        return base_subtitle
+    counts = {MEDYA_KIND_ISBIRLIGI: 0, MEDYA_KIND_REKLAM: 0}
+    for thread in threads:
+        kind = classify_medya_thread_kind(
+            subject=thread.subject or "",
+            snippet=thread.snippet or "",
+        )
+        if kind in counts:
+            counts[kind] += 1
+    extra = (
+        f" · {counts[MEDYA_KIND_ISBIRLIGI]} işbirliği · {counts[MEDYA_KIND_REKLAM]} reklam"
+    )
+    return base_subtitle + extra
+
+
 def _render_message_item(
     thread: SupportInboxThread,
     message: SupportInboxMessage,
     *,
     route_key: str,
+    medya_kind: str | None = None,
 ) -> str:
     sender = html.escape((message.from_addr or "").strip() or "Bilinmiyor")
     date_str = _format_message_date(message.internal_ms)
     subject = html.escape((message.subject or thread.subject or "").strip() or "(konu yok)")
+    if route_key == "medya" and medya_kind:
+        subject += _medya_kind_badge_html(medya_kind)
     preview = _message_preview_text(message, route_key=route_key)
     accent = next((s[3] for s in INBOX_SUMMARY_SECTIONS if s[0] == route_key), "#94a3b8")
     return (
@@ -181,6 +227,9 @@ def build_inbox_summary_html(
     for route_key, title, subtitle, accent, bg in INBOX_SUMMARY_SECTIONS:
         threads = grouped.get(route_key) or []
         count = len(threads)
+        section_subtitle = subtitle
+        if route_key == "medya":
+            section_subtitle = _medya_section_subtitle(threads, subtitle)
         parts.append(
             f"<section style='margin-bottom:24px;border:1px solid #e2e8f0;border-radius:10px;"
             f"overflow:hidden;background:{bg};'>"
@@ -189,7 +238,7 @@ def build_inbox_summary_html(
             f"{html.escape(title)}"
             f"<span style='float:right;font-size:13px;font-weight:700;color:#64748b;'>"
             f"{count} konuşma</span></h3>"
-            f"<p style='margin:6px 0 0;font-size:12px;color:#64748b;'>{html.escape(subtitle)}</p>"
+            f"<p style='margin:6px 0 0;font-size:12px;color:#64748b;'>{html.escape(section_subtitle)}</p>"
             f"</div>"
         )
         if not threads:
@@ -204,8 +253,26 @@ def build_inbox_summary_html(
                 messages = _inbound_messages_for_summary(db, thread.id, cutoff_ms=cutoff_ms)
                 if not messages:
                     continue
+                medya_kind = None
+                if route_key == "medya":
+                    body_hint = effective_plain_text(
+                        messages[0].body_text,
+                        getattr(messages[0], "body_html", None),
+                    )
+                    medya_kind = classify_medya_thread_kind(
+                        subject=thread.subject or messages[0].subject or "",
+                        snippet=thread.snippet or "",
+                        body=body_hint,
+                    )
                 for message in messages:
-                    parts.append(_render_message_item(thread, message, route_key=route_key))
+                    parts.append(
+                        _render_message_item(
+                            thread,
+                            message,
+                            route_key=route_key,
+                            medya_kind=medya_kind,
+                        )
+                    )
                     message_count += 1
             if message_count == 0:
                 parts.append(

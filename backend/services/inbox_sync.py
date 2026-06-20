@@ -29,13 +29,14 @@ INBOX_LIST_LIMIT = 50
 INBOX_DEFAULT_TAB = "doviz"
 
 # UI sekmeleri — soldan sağa sıra
-INBOX_TAB_ORDER: tuple[str, ...] = ("doviz", "sinemalar", "nstat", "firebase", "reklam", "all")
+INBOX_TAB_ORDER: tuple[str, ...] = ("doviz", "sinemalar", "medya", "nstat", "firebase", "reklam", "all")
 
 # Canonical route_tag değerleri (UI sekmeleriyle birebir)
 INBOX_ROUTE_FIREBASE = "firebase"
 INBOX_ROUTE_DOVIZ = "doviz"
 INBOX_ROUTE_SINEMALAR = "sinemalar"
 INBOX_ROUTE_REKLAM = "reklam"
+INBOX_ROUTE_MEDYA = "medya"
 INBOX_ROUTE_NSTAT = "nstat"
 INBOX_ROUTE_ALL = "all"
 # Sanal sekme: cevaplanan tüm konuşmalar (tek bir route_tag değil; answered_flag'e göre).
@@ -45,7 +46,6 @@ INBOX_ROUTE_ANSWERED = "answered"
 INBOX_ALL_SHARED_ADDRESSES: tuple[str, ...] = (
     "info@blogcu.com",
     "info@izlesene.com",
-    "medya@nokta.com",
 )
 
 INBOX_ROUTE_LEGACY_MAP: dict[str, str] = {
@@ -68,7 +68,7 @@ def _inbox_all_gmail_query() -> str:
     return (
         f"(to:me OR {shared}) "
         "-to:info@doviz.com -to:feedback@doviz.com -to:info@sinemalar.com "
-        "-to:feedback@sinemalar.com -to:reklam@nokta.com "
+        "-to:feedback@sinemalar.com -to:reklam@nokta.com -to:medya@nokta.com "
         "-from:firebase-noreply@google.com -from:firebase-noreply.googleapis.com "
         "-from:noreply@doviz.com"
     )
@@ -85,6 +85,7 @@ INBOX_ROUTE_GMAIL_QUERIES: dict[str, str] = {
         "to:feedback@sinemalar.com OR deliveredto:feedback@sinemalar.com"
     ),
     "reklam": _gmail_addr_clauses("reklam@nokta.com"),
+    "medya": _gmail_addr_clauses("medya@nokta.com"),
     "nstat": 'from:noreply@doviz.com subject:"ziyaret edilen sayfalar"',
     "firebase": "from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com",
 }
@@ -95,6 +96,7 @@ INBOX_TAB_ROUTE_TAGS: dict[str, tuple[str, ...]] = {
     "doviz": ("doviz", "info", "feedback"),
     "sinemalar": ("sinemalar",),
     "reklam": ("reklam",),
+    "medya": ("medya",),
     "nstat": ("nstat", "ziyaret"),
     "firebase": ("firebase",),
     # Sanal sekme: route_tag filtresi yerine answered_flag'e göre süzülür (endpoint'te özel ele alınır).
@@ -115,6 +117,7 @@ _SUPPORT_ADDR_MARKERS = (
     "info@sinemalar.com",
     "feedback@sinemalar.com",
     "reklam@nokta.com",
+    "medya@nokta.com",
     *INBOX_ALL_SHARED_ADDRESSES,
 )
 
@@ -243,6 +246,7 @@ def _default_inbox_gmail_query() -> str:
         "OR deliveredto:info@doviz.com OR deliveredto:feedback@doviz.com "
         "OR deliveredto:info@sinemalar.com OR deliveredto:feedback@sinemalar.com "
         f"OR {shared} OR {_gmail_addr_clauses('reklam@nokta.com')} "
+        f"OR {_gmail_addr_clauses('medya@nokta.com')} "
         "OR from:firebase-noreply@google.com OR from:firebase-noreply.googleapis.com "
         "OR from:noreply@doviz.com OR to:me"
         ")"
@@ -623,6 +627,8 @@ def _route_tag_from_addrs(text: str) -> str | None:
 
     if "reklam@nokta.com" in t:
         return INBOX_ROUTE_REKLAM
+    if "medya@nokta.com" in t:
+        return INBOX_ROUTE_MEDYA
 
     has_info_doviz = "info@doviz.com" in t or "feedback@doviz.com" in t
     has_info_sinemalar = "info@sinemalar.com" in t or "feedback@sinemalar.com" in t
@@ -663,7 +669,14 @@ def _finalize_route_tag(
         return hint
     if hint == INBOX_ROUTE_REKLAM and computed in (INBOX_ROUTE_ALL, hint):
         return hint
-    if hint in (INBOX_ROUTE_DOVIZ, INBOX_ROUTE_SINEMALAR, INBOX_ROUTE_REKLAM) and computed == INBOX_ROUTE_ALL:
+    if hint == INBOX_ROUTE_MEDYA and computed in (INBOX_ROUTE_ALL, hint):
+        return hint
+    if hint in (
+        INBOX_ROUTE_DOVIZ,
+        INBOX_ROUTE_SINEMALAR,
+        INBOX_ROUTE_REKLAM,
+        INBOX_ROUTE_MEDYA,
+    ) and computed == INBOX_ROUTE_ALL:
         return hint
     return normalize_inbox_route_tag(computed)
 

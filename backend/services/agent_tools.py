@@ -1249,7 +1249,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "page_fetch_inbox_threads",
-        "description": "Inbox thread listesi. route: all|doviz|sinemalar|reklam|nstat|firebase",
+        "description": "Inbox thread listesi. route: all|doviz|sinemalar|medya|reklam|nstat|firebase",
         "input_schema": {
             "type": "object",
             "properties": {

@@ -364,6 +364,7 @@
         <div id="inbox-route-tabs" class="flex flex-wrap gap-1" role="tablist" aria-label="Gelen kutusu sekmeleri">
           <button type="button" role="tab" data-route="doviz" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" title="info@doviz.com ve feedback@doviz.com" aria-selected="true">doviz</button>
           <button type="button" role="tab" data-route="sinemalar" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">sinemalar</button>
+          <button type="button" role="tab" data-route="medya" class="inbox-tab rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-900 hover:bg-teal-100 dark:border-teal-700 dark:bg-teal-950/40 dark:text-teal-200 dark:hover:bg-teal-900/50" title="medya@nokta.com · işbirliği / reklam">medya</button>
           <button type="button" role="tab" data-route="nstat" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">nstat</button>
           <button type="button" role="tab" data-route="firebase" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800">firebase</button>
           <button type="button" role="tab" data-route="reklam" class="inbox-tab rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800" title="reklam@nokta.com">reklam</button>
@@ -622,12 +623,32 @@
       firebase: "firebase",
       doviz: "doviz",
       sinemalar: "sinemalar",
+      medya: "medya",
       reklam: "reklam",
       nstat: "nstat",
       all: "all",
       answered: "cevaplandı",
     };
     return labels[tag] || tag;
+  }
+
+  function medyaKindLabel(kind) {
+    var labels = {
+      isbirligi: "İşbirliği",
+      reklam: "Reklam",
+      diger: "Diğer",
+    };
+    return labels[kind] || "";
+  }
+
+  function medyaKindBadgeClass(kind) {
+    if (kind === "isbirligi") {
+      return "ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200";
+    }
+    if (kind === "reklam") {
+      return "ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200";
+    }
+    return "ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300";
   }
 
   function inboxRouteBadgeClass(tag) {
@@ -1426,7 +1447,9 @@
           : route === "nstat"
           ? "nstat (En çok ziyaret edilen sayfalar) kaydı yok. «Senkronize et» ile Gmail'den çekin."
           : route === "all"
-          ? "all sekmesinde (to:me, info@blogcu.com, info@izlesene.com, medya@nokta.com) mail yok. «Senkronize et» ile güncelleyin."
+          ? "all sekmesinde (to:me, info@blogcu.com, info@izlesene.com) mail yok. «Senkronize et» ile güncelleyin."
+          : route === "medya"
+          ? "medya (medya@nokta.com) kaydı yok. «Senkronize et» ile Gmail’den çekin."
           : route === "reklam"
           ? "reklam (reklam@nokta.com) kaydı yok. «Senkronize et» ile Gmail’den çekin."
           : route === "doviz"
@@ -1448,6 +1471,15 @@
           '">' +
           esc(inboxRouteLabel(t.route_tag)) +
           "</span>";
+        var medyaBadge = "";
+        if (t.medya_kind && medyaKindLabel(t.medya_kind)) {
+          medyaBadge =
+            '<span class="' +
+            medyaKindBadgeClass(t.medya_kind) +
+            '">' +
+            esc(medyaKindLabel(t.medya_kind)) +
+            "</span>";
+        }
         var flags = "";
         if (t.gmail_unread) flags += '<span class="ml-1 text-rose-600 dark:text-rose-400">●</span>';
         if (t.answered_flag) flags += '<span class="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 uppercase tracking-tighter">Cevaplandı</span>';
@@ -1461,6 +1493,7 @@
           '<div class="flex items-start justify-between gap-2">' +
           '<span class="inbox-row-title line-clamp-2 text-slate-900 dark:text-slate-100">' +
           esc(t.subject || "(konu yok)") +
+          medyaBadge +
           badge +
           flags +
           "</span>" +
@@ -1504,7 +1537,13 @@
     document.getElementById("inbox-detail").classList.remove("hidden");
     document.getElementById("inbox-detail-subject").textContent = t.subject || "(konu yok)";
     document.getElementById("inbox-detail-meta").textContent =
-      "Rota: " + inboxRouteLabel(t.route_tag) + " · Gmail okunmadı: " + (t.gmail_unread ? "evet" : "hayır") + " · Cevaplandı: " + (t.answered_flag ? "evet" : "hayır");
+      "Rota: " +
+      inboxRouteLabel(t.route_tag) +
+      (t.medya_kind && medyaKindLabel(t.medya_kind) ? " · Tür: " + medyaKindLabel(t.medya_kind) : "") +
+      " · Gmail okunmadı: " +
+      (t.gmail_unread ? "evet" : "hayır") +
+      " · Cevaplandı: " +
+      (t.answered_flag ? "evet" : "hayır");
     toggleInboxReplyMode(t.route_tag);
     if (isInboxAlertRoute(t.route_tag)) {
       restoreAlertAnalysisIfPinned(id);

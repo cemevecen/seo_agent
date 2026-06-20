@@ -23,6 +23,7 @@ from backend.services.inbox_email_render import (
     normalize_inbox_text,
     render_inbox_message_html,
 )
+from backend.services.inbox_medya import classify_medya_thread_kind
 from backend.services.inbox_visit_report import (
     is_ziyaret_report_subject,
     ziyaret_thread_preview,
@@ -450,7 +451,7 @@ def inbox_sync_stream(request: Request, db: Session = Depends(get_db)):
 def inbox_threads_list(
     request: Request,
     db: Session = Depends(get_db),
-    route: str | None = Query(None, description="firebase|doviz|sinemalar|nstat|all"),
+    route: str | None = Query(None, description="firebase|doviz|sinemalar|medya|nstat|reklam|all|answered"),
     limit: int = Query(inbox_sync.INBOX_LIST_LIMIT, ge=1, le=200),
 ):
     if route not in inbox_sync.INBOX_TAB_ROUTE_TAGS:
@@ -484,6 +485,13 @@ def inbox_threads_list(
             message_preview = ziyaret_thread_preview(last_body)
         else:
             message_preview = _body_preview(preview_src)
+        medya_kind = None
+        if _thread_route(t.route_tag) == inbox_sync.INBOX_ROUTE_MEDYA:
+            medya_kind = classify_medya_thread_kind(
+                subject=t.subject or "",
+                snippet=t.snippet or "",
+                body=last_body,
+            )
         items.append(
             {
                 "id": t.id,
@@ -492,6 +500,7 @@ def inbox_threads_list(
                 "snippet": normalize_inbox_text(t.snippet or "")[:240],
                 "message_preview": message_preview,
                 "route_tag": t.route_tag,
+                "medya_kind": medya_kind,
                 "gmail_unread": t.gmail_unread,
                 "answered_flag": t.answered_flag,
                 "last_internal_ms": t.last_internal_ms,
@@ -520,6 +529,15 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("inbox image attachments fetch skipped [thread=%s]: %s", thread_id, exc)
         image_map = {}
+
+    medya_kind = None
+    if _thread_route(t.route_tag) == inbox_sync.INBOX_ROUTE_MEDYA and msgs:
+        last_inbound = next((m for m in reversed(msgs) if not m.is_outbound), msgs[-1])
+        medya_kind = classify_medya_thread_kind(
+            subject=t.subject or last_inbound.subject or "",
+            snippet=t.snippet or "",
+            body=effective_plain_text(last_inbound.body_text, getattr(last_inbound, "body_html", None)),
+        )
 
     def _message_row(m: SupportInboxMessage) -> dict[str, Any]:
         images = image_map.get(m.gmail_message_id) or []
@@ -552,6 +570,7 @@ def inbox_thread_detail(request: Request, thread_id: int, db: Session = Depends(
             "subject": normalize_inbox_text(t.subject),
             "snippet": normalize_inbox_text(t.snippet or ""),
             "route_tag": t.route_tag,
+            "medya_kind": medya_kind,
             "gmail_unread": t.gmail_unread,
             "answered_flag": t.answered_flag,
             "ai_summary": t.ai_summary,

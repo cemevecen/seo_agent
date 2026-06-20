@@ -737,7 +737,7 @@ def admin_refresh_tmdb_cache():
 
 @app.get("/api/admin/run-inbox-summary-now")
 def admin_run_inbox_summary_now():
-    """Inbox özet mailini MANUEL tetikler (4 sekme: doviz, sinemalar, nstat, firebase)."""
+    """Inbox özet mailini MANUEL tetikler (5 sekme: doviz, sinemalar, medya, nstat, firebase)."""
     from backend.services.inbox_summary import run_inbox_summary_email
 
     try:

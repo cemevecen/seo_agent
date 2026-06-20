@@ -4,6 +4,7 @@ from backend.services.inbox_sync import (
     INBOX_DEFAULT_TAB,
     INBOX_ROUTE_ALL,
     INBOX_ROUTE_DOVIZ,
+    INBOX_ROUTE_MEDYA,
     INBOX_ROUTE_NSTAT,
     INBOX_ROUTE_REKLAM,
     INBOX_ROUTE_SINEMALAR,
@@ -17,7 +18,7 @@ from backend.services.inbox_sync import (
 
 def test_inbox_tab_order_and_default():
     assert INBOX_DEFAULT_TAB == "doviz"
-    assert INBOX_TAB_ORDER == ("doviz", "sinemalar", "nstat", "firebase", "reklam", "all")
+    assert INBOX_TAB_ORDER == ("doviz", "sinemalar", "medya", "nstat", "firebase", "reklam", "all")
 
 
 def test_info_sinemalar_goes_to_sinemalar_not_doviz():
@@ -90,6 +91,15 @@ def test_reklam_goes_to_reklam_tab():
     assert _route_tag_from_addrs(src) == INBOX_ROUTE_REKLAM
 
 
+def test_medya_goes_to_medya_tab():
+    src = "Delivered-To: medya@nokta.com To: medya@nokta.com"
+    assert _route_tag_from_addrs(src) == INBOX_ROUTE_MEDYA
+
+
+def test_finalize_medya_uses_sync_hint():
+    assert _finalize_route_tag(INBOX_ROUTE_ALL, "cemevecen@nokta.com", "medya") == INBOX_ROUTE_MEDYA
+
+
 def test_finalize_reklam_uses_sync_hint():
     assert _finalize_route_tag(INBOX_ROUTE_ALL, "cemevecen@nokta.com", "reklam") == INBOX_ROUTE_REKLAM
 
@@ -100,7 +110,7 @@ def test_finalize_reklam_prefers_header_over_hint():
 
 
 def test_shared_all_addresses_do_not_route_to_doviz():
-    for addr in ("info@blogcu.com", "info@izlesene.com", "medya@nokta.com"):
+    for addr in ("info@blogcu.com", "info@izlesene.com"):
         assert _route_tag_from_addrs(f"to: {addr}") is None
 
 
