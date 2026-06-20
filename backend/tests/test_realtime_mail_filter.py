@@ -109,3 +109,25 @@ def test_realtime_batch_not_sent_in_quiet_hours(monkeypatch):
     mailer.send_realtime_email("doviz.com — +120 kul [web]", "<p>alarm</p>")
     assert mailer.realtime_email_batch_flush() is False
     assert sent == []
+
+
+def test_realtime_digest_quiet_hours_0630_to_2300(monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Istanbul")
+
+    def _at(h: int, m: int) -> datetime:
+        return datetime(2026, 6, 20, h, m, tzinfo=tz)
+
+    cases = [
+        (6, 29, True),
+        (6, 30, False),
+        (12, 0, False),
+        (22, 59, False),
+        (23, 0, True),
+        (3, 15, True),
+    ]
+    for h, m, expected in cases:
+        monkeypatch.setattr(mailer, "_realtime_digest_local_now", lambda h=h, m=m: _at(h, m))
+        assert mailer._realtime_digest_in_quiet_hours() is expected, f"{h:02d}:{m:02d}"

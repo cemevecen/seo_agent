@@ -140,9 +140,12 @@ def _realtime_digest_local_now():
 
 
 def _realtime_digest_in_quiet_hours() -> bool:
-    """22:00–06:00 TR — konsolide SEO Realtime maili gönderilmez."""
-    hour = _realtime_digest_local_now().hour
-    return hour >= 22 or hour < 6
+    """06:30 öncesi ve 23:00 sonrası TR — konsolide SEO Realtime maili gönderilmez."""
+    now = _realtime_digest_local_now()
+    minutes = now.hour * 60 + now.minute
+    start = 6 * 60 + 30   # 06:30
+    end = 23 * 60         # 23:00 (dahil değil)
+    return minutes < start or minutes >= end
 
 
 def _realtime_digest_interval_due(min_gap_min: int) -> bool:
