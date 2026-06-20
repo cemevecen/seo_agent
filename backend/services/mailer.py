@@ -160,7 +160,7 @@ def realtime_email_batch_is_collecting() -> bool:
 
 
 def realtime_email_batch_flush() -> bool:
-    """Biriktirilen alarm işaretleri + 4 saatlik özet maili gönder."""
+    """Biriktirilen alarm işaretleri + periyodik SEO Realtime özet maili gönder."""
     global _last_realtime_batch_sent_at, _pending_realtime_batch_items
 
     if not getattr(_batch_ctx, "collecting", False):
@@ -169,7 +169,7 @@ def realtime_email_batch_flush() -> bool:
 
     from backend.config import settings
 
-    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 240))
+    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 90))
 
     if _realtime_digest_in_quiet_hours():
         if items:

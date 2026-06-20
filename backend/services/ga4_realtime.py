@@ -2247,7 +2247,33 @@ def _digest_top_n() -> int:
 def _digest_window_minutes() -> int:
     from backend.config import settings
 
-    return int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 240))
+    return int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 90))
+
+
+def _digest_interval_short_label(minutes: int | None = None) -> str:
+    """Konu satırı / blok başlığı: 90 → 1,5s · 120 → 2s · 45 → 45dk."""
+    m = max(15, int(minutes if minutes is not None else _digest_window_minutes()))
+    if m % 60 == 0:
+        return f"{m // 60}s"
+    whole, rem = divmod(m, 60)
+    if rem == 30 and whole:
+        return f"{whole},5s"
+    if whole:
+        return f"{whole}s {rem}dk"
+    return f"{m}dk"
+
+
+def _digest_interval_long_label(minutes: int | None = None) -> str:
+    m = max(15, int(minutes if minutes is not None else _digest_window_minutes()))
+    if m % 60 == 0:
+        h = m // 60
+        return f"{h} saatlik" if h > 1 else "1 saatlik"
+    whole, rem = divmod(m, 60)
+    if rem == 30 and whole:
+        return f"{whole},5 saatlik"
+    if whole:
+        return f"{whole} saat {rem} dakikalık"
+    return f"{m} dakikalık"
 
 
 def _site_for_digest_brand(sites: list, brand: str):
@@ -2321,7 +2347,7 @@ def _digest_profile_block(
     from sqlalchemy import desc
 
     window_minutes = max(15, min(int(window_minutes), 24 * 60))
-    window_label = f"{max(1, window_minutes // 60)}s"
+    window_label = _digest_interval_short_label(window_minutes)
 
     snap = (
         db.query(RealtimeSnapshot)
@@ -2425,7 +2451,7 @@ def _digest_profile_block(
 
 
 def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: int = 0) -> str:
-    """4 saatlik SEO Realtime özet maili — 6 alanda pencere içi top sayfa/haber/event."""
+    """SEO Realtime periyodik özet maili — 6 alanda pencere içi top sayfa/haber/event."""
     from backend.models import Site as SiteModel
     from datetime import datetime
     from zoneinfo import ZoneInfo
@@ -2434,7 +2460,8 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
 
     top_n = _digest_top_n()
     window_minutes = _digest_window_minutes()
-    window_hours = max(1, window_minutes // 60)
+    interval_short = _digest_interval_short_label(window_minutes)
+    interval_long = _digest_interval_long_label(window_minutes)
     tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
     now_local = datetime.now(ZoneInfo(tz_name))
     stamp = now_local.strftime("%d.%m.%Y %H:%M")
@@ -2454,7 +2481,7 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
     if not area_blocks:
         inner = (
             '<p style="font-size:13px;color:#64748b;">'
-            f"Son {window_hours} saat için 6 alanda snapshot verisi yok.</p>"
+            f"Son {interval_short} penceresinde 6 alanda snapshot verisi yok.</p>"
         )
     else:
         inner = "".join(area_blocks)
@@ -2466,16 +2493,16 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
             f"Bu dönemde kuyruğa alınan alarm bölümü: {queued_alarm_sections}</p>"
         )
 
-    pre = _preheader(f"SEO Realtime {window_hours}s özet · {stamp}")
+    pre = _preheader(f"SEO Realtime {interval_short} özet · {stamp}")
     return (
         f'<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
         f'max-width:620px;margin:0 auto;color:#0f172a;">'
         f"{pre}"
         f'<p style="font-size:15px;font-weight:800;margin:0 0 4px;">'
-        f"SEO Realtime · {window_hours} saatlik özet</p>"
+        f"SEO Realtime · {interval_long} özet</p>"
         f'<p style="font-size:12px;color:#64748b;margin:0 0 18px;">{html.escape(stamp)} · '
         f"6 alanda (döviz web/mweb/android/ios + sinemalar web/mweb) "
-        f"son {window_hours} saatte en çok {top_n} sayfa/haber/event · zirve aktif kullanıcı</p>"
+        f"son {interval_short} pencerede en çok {top_n} sayfa/haber/event · zirve aktif kullanıcı</p>"
         f"{queued_line}"
         f"{inner}"
         f"</div>"
@@ -2490,7 +2517,8 @@ def realtime_periodic_digest_subject() -> str:
 
     tz_name = getattr(settings, "report_calendar_timezone", "Europe/Istanbul")
     stamp = datetime.now(ZoneInfo(tz_name)).strftime("%d.%m %H:%M")
-    return f"SEO Realtime · 4s özet · {stamp}"[:120]
+    label = _digest_interval_short_label()
+    return f"SEO Realtime · {label} özet · {stamp}"[:120]
 
 
 def check_site_realtime(

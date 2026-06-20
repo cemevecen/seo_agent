@@ -381,7 +381,7 @@ class Settings(BaseSettings):
     # Aynı site/kural için e-posta tekrar baskılama süresi (dakika). 0 = baskılama yok.
     ga4_realtime_alarm_email_cooldown_minutes: int = Field(default=90, ge=0, le=480)
     # Konsolide «SEO Realtime» özet maili: en az bu kadar dakika arayla (06:00–22:00 TR).
-    ga4_realtime_email_batch_interval_minutes: int = Field(default=240, ge=60, le=480)
+    ga4_realtime_email_batch_interval_minutes: int = Field(default=90, ge=30, le=480)
     ga4_realtime_email_digest_top_n: int = Field(default=10, ge=5, le=25)
     # Sayfa/haber düşüşü maili: önceki veya şimdiki yarıda en az bu kadar aktif kullanıcı + mutlak fark.
     ga4_realtime_email_min_users_for_mail: int = Field(default=30, ge=5, le=500)

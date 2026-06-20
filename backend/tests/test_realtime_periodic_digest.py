@@ -1,14 +1,19 @@
-"""4 saatlik SEO Realtime özet maili — 6 alan + pencere agregasyonu."""
+"""Periyodik SEO Realtime özet maili — 6 alan + pencere agregasyonu."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from backend.services.ga4_realtime import (
     REALTIME_DIGEST_AREAS,
+    _digest_interval_short_label,
     _digest_profile_block,
     _site_for_digest_brand,
     build_realtime_periodic_digest_html,
 )
+
+
+def test_digest_interval_short_label_90_minutes():
+    assert _digest_interval_short_label(90) == "1,5s"
 
 
 def test_realtime_digest_areas_are_six_streams():
@@ -49,8 +54,8 @@ def test_digest_profile_block_uses_window_aggregation(monkeypatch):
         lambda *_a, **_k: {"pages": []},
     )
 
-    html = _digest_profile_block(db, site, "web", top_n=10, window_minutes=240)
-    assert "Top sayfalar · son 4s zirve" in html
+    html = _digest_profile_block(db, site, "web", top_n=10, window_minutes=90)
+    assert "Top sayfalar · son 1,5s zirve" in html
     assert "altin-fiyatlari" in html
     assert "42 kul" in html
 
