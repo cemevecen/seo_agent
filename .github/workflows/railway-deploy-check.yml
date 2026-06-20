@@ -340,20 +340,23 @@ jobs:
           n_lines = len(alert_lines)
 
           # Subject (her zaman Türkçe)
+          prefix = "[TEST] " if force else ""
           if alert_type == "deploy_failed":
-              subject = f"[Deploy: {tr_status}] seo-agent — {n_lines} hata"
+              subject = f"{prefix}[Deploy: {tr_status}] seo-agent — {n_lines} hata"
               top = (
                   f"DURUM:  Deploy {tr_status.lower()}\n"
                   f"COMMIT: {commit}\n"
                   f"ZAMAN:  {created}"
               )
           else:  # runtime_errors
-              subject = f"[Çalışma hatası] seo-agent — son 60dk içinde {n_lines} hata"
+              subject = f"{prefix}[Çalışma hatası] seo-agent — son 60dk içinde {n_lines} hata"
               top = (
                   f"DURUM:  Deploy başarılı ama uygulamada {n_lines} hata son 60dk\n"
                   f"COMMIT: {commit}\n"
                   f"ZAMAN:  {created}"
               )
+          if force:
+              top = "[!] Bu bir TEST mailidir — gerçek hata yok, manuel workflow_dispatch ile tetiklendi.\n\n" + top
 
           body_parts = [
               top,
