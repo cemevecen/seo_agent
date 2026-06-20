@@ -9,6 +9,8 @@
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">SEO Denetim</h2>
         <p class="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
           {% if summary.last_crawled %}Son tarama: {{ summary.last_crawled[:16].replace("T"," ") }}{% else %}Henüz tarama yapılmadı{% endif %}
+          · <a href="/static/docs/seo-audit-denetim-kriterleri.md" download="seo-audit-denetim-kriterleri.md"
+               class="text-sky-600 hover:underline dark:text-sky-400">Denetim kriterleri (indir)</a>
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
