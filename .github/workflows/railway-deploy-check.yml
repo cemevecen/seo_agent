@@ -47,11 +47,17 @@ jobs:
           API = "https://backboard.railway.app/graphql/v2"
           TOKEN = os.environ["RAILWAY_TOKEN"]
 
+          UA = "seo-agent-deploy-monitor/1.0 (+github-actions)"
+
           def graphql(query: str) -> dict:
               data = json.dumps({"query": query}).encode()
               req = urllib.request.Request(
                   API, data=data,
-                  headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+                  headers={
+                      "Authorization": f"Bearer {TOKEN}",
+                      "Content-Type": "application/json",
+                      "User-Agent": UA,
+                  },
               )
               with urllib.request.urlopen(req, timeout=25) as r:
                   return json.loads(r.read().decode("utf-8"), strict=False)
