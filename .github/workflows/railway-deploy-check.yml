@@ -300,7 +300,18 @@ jobs:
               print(f"[Mail] Gönderildi → {msg['To']}")
 
           # ─────────────────────────────────────────────────────────────
-          # 6) Ana akış
+          # 6) Whitelist — hata sayılmayan log mesajları
+          # ─────────────────────────────────────────────────────────────
+          IGNORE_PATTERNS = [
+              # mailer.py'nin gmail koruması — sistem doğru davranıyor, hata değil
+              r"Giden posta alıcıları @nokta\.com dışı bırakıldı",
+          ]
+
+          def is_ignored(msg: str) -> bool:
+              return any(re.search(p, msg, re.IGNORECASE) for p in IGNORE_PATTERNS)
+
+          # ─────────────────────────────────────────────────────────────
+          # 7) Ana akış
           # ─────────────────────────────────────────────────────────────
           force = os.environ.get("FORCE_ALERT","false").lower() == "true"
           dep = fetch_latest_deployment()
@@ -323,17 +334,29 @@ jobs:
           if status in BAD_DEPLOY:
               alert_type = "deploy_failed"
               raw = fetch_error_logs(dep_id, limit=150)
-              alert_lines = [f"{r['timestamp']} [{r['severity']}] {r['message']}" for r in raw if r.get("message","").strip()]
-              print(f"[Trigger] Deploy hatalı; {len(alert_lines)} error log çekildi.")
+              raw_count = sum(1 for r in raw if r.get("message","").strip())
+              alert_lines = [
+                  f"{r['timestamp']} [{r['severity']}] {r['message']}"
+                  for r in raw
+                  if r.get("message","").strip() and not is_ignored(r["message"])
+              ]
+              ignored_count = raw_count - len(alert_lines)
+              if ignored_count:
+                  print(f"[Filter] {ignored_count} whitelisted log satırı atlandı.")
+              print(f"[Trigger] Deploy hatalı; {len(alert_lines)} gerçek error log (toplam {raw_count}).")
           elif status == "SUCCESS":
               raw = fetch_error_logs(dep_id, limit=200)
-              # Son 60dk içindeki error'ları say
+              # Son 60dk içindeki error'ları say (whitelist'tekiler atlanır)
               cutoff = datetime.now(timezone.utc) - timedelta(minutes=60)
               recent = []
+              ignored_count = 0
               for r in raw:
                   ts = r.get("timestamp","")
                   msg = r.get("message","").strip()
                   if not msg:
+                      continue
+                  if is_ignored(msg):
+                      ignored_count += 1
                       continue
                   try:
                       # Railway timestamps look like 2026-06-20T17:21:37.123456789Z
@@ -343,6 +366,8 @@ jobs:
                       continue
                   if dt >= cutoff:
                       recent.append(f"{ts} [{r.get('severity','')}] {msg}")
+              if ignored_count:
+                  print(f"[Filter] {ignored_count} whitelisted log satırı atlandı.")
               if recent:
                   alert_type = "runtime_errors"
                   alert_lines = recent
