@@ -261,6 +261,9 @@
     gap: 0.5rem;
     width: 100%;
     min-width: 0;
+    position: relative;
+    z-index: 48;
+    isolation: isolate;
   }
   html.dark .ga4-card-filter-bar,
   html.midnight .ga4-card-filter-bar {
@@ -2030,8 +2033,21 @@
     if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
       SeoAnalyticsCompare.bindWhenReady('ga4');
     }
-    if (window.SeoMarketOverlay && SeoMarketOverlay.bindWhenReady) {
-      SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
+    if (window.SeoMarketOverlay) {
+      if (SeoMarketOverlay.ensureClosed) SeoMarketOverlay.ensureClosed();
+      if (SeoMarketOverlay.ensureBound) {
+        SeoMarketOverlay.ensureBound('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
+      } else if (SeoMarketOverlay.bindWhenReady) {
+        SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
+      }
+    }
+  }
+
+  function parkGa4GlobalFilterChrome() {
+    var chrome = document.getElementById('ga4-global-filter-chrome');
+    var holder = document.getElementById('ga4-global-filter-chrome-holder');
+    if (chrome && holder && chrome.parentElement !== holder) {
+      holder.appendChild(chrome);
     }
   }
 
@@ -2112,6 +2128,17 @@
     _ga4FilterMountResizeTimer = window.setTimeout(function () {
       mountGa4GlobalFilters();
     }, 120);
+  });
+
+  document.body.addEventListener('htmx:beforeSwap', function (event) {
+    var detail = event.detail || {};
+    var swapTarget = detail.target || event.target;
+    if (swapTarget && swapTarget.id === 'ga4-site-list') {
+      parkGa4GlobalFilterChrome();
+      if (window.SeoMarketOverlay && SeoMarketOverlay.ensureClosed) {
+        SeoMarketOverlay.ensureClosed();
+      }
+    }
   });
 
   document.body.addEventListener('htmx:afterSwap', function (event) {

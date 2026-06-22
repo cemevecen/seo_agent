@@ -50,3 +50,17 @@
     </div>
   {% endif %}
 {% endif %}
+{% if refresh_job_id %}
+<script>
+  (function () {
+    if (typeof startExternalOnboardingJobTracking === 'function') {
+      startExternalOnboardingJobTracking({{ refresh_job_id|tojson }}, null, null);
+    }
+    {% if refresh_job_summary is defined and refresh_job_summary %}
+    if (typeof setExternalFeedback === 'function') {
+      setExternalFeedback({{ refresh_job_summary|tojson }}, false);
+    }
+    {% endif %}
+  })();
+</script>
+{% endif %}

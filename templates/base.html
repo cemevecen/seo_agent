@@ -826,9 +826,22 @@
       position: relative;
       z-index: 0;
     }
-    body.seo-market-overlay-open #search-console-site-list,
-    body.seo-market-overlay-open #ga4-site-list {
-      pointer-events: none;
+    #ga4-site-list .ga4-card-filter-bar,
+    #search-console-site-list .sc-card-filter-bar,
+    .ga4-global-filter-mobile-dock,
+    .sc-global-filter-mobile-dock {
+      position: relative;
+      z-index: 48;
+      isolation: isolate;
+    }
+    [data-market-overlay-root],
+    [data-market-overlay-trigger] {
+      pointer-events: auto;
+    }
+    [data-market-overlay-trigger] {
+      cursor: pointer;
+      position: relative;
+      z-index: 1;
     }
     [data-market-overlay-panel]:not(.hidden) {
       pointer-events: auto;
@@ -1757,7 +1770,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
-  <script src="/static/js/market_chart_overlay.js?v=14" defer></script>
+  <script src="/static/js/market_chart_overlay.js?v=15" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=8" defer></script>
 </head>

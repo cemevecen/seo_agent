@@ -232,7 +232,7 @@ APP_INTEL_REFRESH_LOCK = threading.Lock()
 INBOX_SYNC_LOCK = threading.Lock()
 SCHEDULER: BackgroundScheduler | None = None
 EXTERNAL_ONBOARDING_JOB_TTL_SECONDS = 1800
-EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 180
+EXTERNAL_ONBOARDING_MAX_RUNNING_SECONDS = 300
 
 #
 # Not: GSC CWV ekran görüntüsü otomasyonu (Playwright) kaldırıldı.
@@ -3535,6 +3535,153 @@ def _run_external_onboarding_background(site_id: int, job_id: str) -> None:
                 detail=str(exc),
                 finished_at=datetime.utcnow(),
             )
+
+
+def _run_external_deep_refresh_background(site_id: int, job_id: str) -> None:
+    """Derin external yenileme — HTTP isteğini bloklamamak için arka planda çalışır."""
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            _set_external_onboarding_job(
+                job_id,
+                status="failed",
+                percent=100,
+                title="Yenileme başarısız",
+                detail="Site kaydı bulunamadı.",
+                finished_at=datetime.utcnow(),
+            )
+            return
+
+        results: dict[str, dict] = {}
+        warnings: list[str] = []
+        try:
+            _set_external_onboarding_job(
+                job_id,
+                percent=12,
+                title="PageSpeed ölçümü",
+                detail=f"{site.domain} için PSI/Lighthouse verileri güncelleniyor.",
+            )
+            try:
+                results["pagespeed"] = collect_pagespeed_metrics(
+                    db,
+                    site,
+                    bypass_quota=settings.pagespeed_manual_refresh_bypass_quota,
+                    trigger_source="manual",
+                )
+            except Exception as exc:  # noqa: BLE001
+                warnings.append(f"PageSpeed: {exc}")
+                results["pagespeed"] = {"errors": {"exception": str(exc)}}
+
+            _set_external_onboarding_job(
+                job_id,
+                percent=48,
+                title="Crawler analizi",
+                detail="Site haritası, bağlantılar ve teknik denetim yazılıyor.",
+            )
+            try:
+                results["crawler"] = _collect_crawler_external_deep(db, site)
+            except Exception as exc:  # noqa: BLE001
+                warnings.append(f"Crawler: {exc}")
+                results["crawler"] = {"errors": {"exception": str(exc)}}
+
+            _set_external_onboarding_job(
+                job_id,
+                percent=76,
+                title="CrUX geçmişi",
+                detail="Chrome UX Report verileri güncelleniyor.",
+            )
+            try:
+                results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
+            except Exception as exc:  # noqa: BLE001
+                warnings.append(f"CrUX: {exc}")
+                results["crux_history"] = {"state": "failed", "error": str(exc)}
+
+            results["url_inspection"] = {
+                "state": "skipped",
+                "reason": "URL Inspection için Search Console property yetkisi gerekiyor.",
+            }
+
+            try:
+                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
+            except OperationalError as exc:
+                db.rollback()
+                if _is_sqlite_lock_error(exc):
+                    _set_external_onboarding_job(
+                        job_id,
+                        status="failed",
+                        percent=100,
+                        title="Yenileme tamamlanamadı",
+                        detail="Veritabanı meşgul. Birkaç saniye sonra tekrar deneyin.",
+                        finished_at=datetime.utcnow(),
+                    )
+                    return
+                raise
+
+            notify_result_map(
+                trigger_source="manual",
+                site=site,
+                results=results,
+                action_label="Public crawl verisini yenile",
+            )
+            if isinstance(results.get("crawler"), dict):
+                notify_crawler_audit_emails(
+                    db=db,
+                    site=site,
+                    result=results.get("crawler"),
+                    trigger_source="manual",
+                )
+
+            if warnings:
+                _set_external_onboarding_job(
+                    job_id,
+                    status="completed",
+                    percent=100,
+                    title="Derin yenileme tamamlandı (kısmi uyarı)",
+                    detail="; ".join(warnings),
+                    finished_at=datetime.utcnow(),
+                )
+            else:
+                _set_external_onboarding_job(
+                    job_id,
+                    status="completed",
+                    percent=100,
+                    title="Derin yenileme tamamlandı",
+                    detail=f"{site.domain} ölçümleri güncellendi.",
+                    finished_at=datetime.utcnow(),
+                )
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            LOGGER.warning("External deep refresh failed for site_id=%s: %s", site_id, exc)
+            _set_external_onboarding_job(
+                job_id,
+                status="failed",
+                percent=100,
+                title="Derin yenileme başarısız",
+                detail=str(exc),
+                finished_at=datetime.utcnow(),
+            )
+
+
+def _external_lazy_site_card_context(db) -> dict:
+    ext_sites = (
+        db.query(Site)
+        .join(ExternalSite, ExternalSite.site_id == Site.id)
+        .filter(Site.is_active.is_(True))
+        .order_by(Site.created_at.desc())
+        .all()
+    )
+    ext_sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
+    return {
+        "lazy_mode": True,
+        "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in ext_sites],
+    }
+
+
+def _request_wants_json(request: Request) -> bool:
+    if str(request.query_params.get("format") or "").strip().lower() == "json":
+        return True
+    accept = str(request.headers.get("Accept") or "").lower()
+    return "application/json" in accept and "text/html" not in accept
 
 
 def _collect_sc_for_site_in_own_session(site_id: int) -> tuple[int, dict]:
@@ -9199,49 +9346,56 @@ def public_sites_delete_site(request: Request, site_id: int):
 
 @app.post("/external/refresh/{site_id}")
 @app.post("/public-sites/refresh/{site_id}")
-def public_sites_refresh_site(request: Request, site_id: int):
+def public_sites_refresh_site(request: Request, site_id: int, background_tasks: BackgroundTasks):
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if site is None:
+            if _request_wants_json(request):
+                return JSONResponse({"ok": False, "error": "Site bulunamadı."}, status_code=404)
             return HTMLResponse("Site bulunamadı.", status_code=404)
         if not _is_external_site(db, site.id):
+            if _request_wants_json(request):
+                return JSONResponse({"ok": False, "error": "Site external profilinde değil."}, status_code=404)
             return HTMLResponse("Site external profilinde değil.", status_code=404)
 
-        results = _refresh_public_site_measurements(db, site, force=True, deep=True)
-        try:
-            _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-        except OperationalError as exc:
-            db.rollback()
-            if _is_sqlite_lock_error(exc):
-                return HTMLResponse("Veritabanı meşgul, lütfen tekrar deneyin.", status_code=503)
-            raise
-        notify_result_map(
-            trigger_source="manual",
-            site=site,
-            results=results,
-            action_label="Public crawl verisini yenile",
-        )
-        if isinstance(results.get("crawler"), dict):
-            notify_crawler_audit_emails(
-                db=db,
-                site=site,
-                result=results.get("crawler"),
-                trigger_source="manual",
+        job_id, created_new = _create_external_onboarding_job(db, site_id=site.id, domain=site.domain)
+        if created_new:
+            _set_external_onboarding_job(
+                job_id,
+                percent=5,
+                title="Derin yenileme başlatıldı",
+                detail=f"{site.domain} için ölçümler arka planda güncelleniyor.",
             )
+            background_tasks.add_task(_run_external_deep_refresh_background, site.id, job_id)
+
+        summary = (
+            f"{site.domain} için derin yenileme kuyruğa alındı."
+            if created_new
+            else "Bu site için yenileme zaten devam ediyor; mevcut iş izleniyor."
+        )
+
+        if _request_wants_json(request):
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "job_id": job_id,
+                    "created_new": created_new,
+                    "summary": summary,
+                }
+            )
+
+        card_context = _external_lazy_site_card_context(db)
+        card_context["refresh_job_id"] = job_id
         return templates.TemplateResponse(
             request,
             "partials/public_site_cards.html",
-            context={
-                "request": request,
-                "lazy_mode": False,
-                "public_sites": _public_sites_payload(db),
-            },
+            context={"request": request, **card_context},
         )
 
 
 @app.post("/external/refresh-all")
 @app.post("/public-sites/refresh-all")
-def public_sites_refresh_all(request: Request):
+def public_sites_refresh_all(request: Request, background_tasks: BackgroundTasks):
     with SessionLocal() as db:
         sites = (
             db.query(Site)
@@ -9250,44 +9404,44 @@ def public_sites_refresh_all(request: Request):
             .order_by(Site.created_at.asc(), Site.id.asc())
             .all()
         )
-        for index, site in enumerate(sites):
-            results = _refresh_public_site_measurements(db, site, force=True, deep=True)
-            try:
-                _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
-            except OperationalError as exc:
-                db.rollback()
-                if _is_sqlite_lock_error(exc):
-                    notify_result_map(
-                        trigger_source="manual",
-                        site=site,
-                        results={"crawler": {"state": "failed", "error": "database is locked"}},
-                        action_label="Public crawl tum siteler yenile",
-                    )
-                    continue
-                raise
-            notify_result_map(
-                trigger_source="manual",
-                site=site,
-                results=results,
-                action_label="Public crawl tum siteler yenile",
-            )
-            if isinstance(results.get("crawler"), dict):
-                notify_crawler_audit_emails(
-                    db=db,
-                    site=site,
-                    result=results.get("crawler"),
-                    trigger_source="manual",
+        job_ids: list[str] = []
+        for site in sites:
+            job_id, created_new = _create_external_onboarding_job(db, site_id=site.id, domain=site.domain)
+            if created_new:
+                _set_external_onboarding_job(
+                    job_id,
+                    percent=5,
+                    title="Derin yenileme başlatıldı",
+                    detail=f"{site.domain} için ölçümler arka planda güncelleniyor.",
                 )
-            if index < len(sites) - 1:
-                time.sleep(max(0, int(settings.scheduled_refresh_site_spacing_seconds)))
+                background_tasks.add_task(_run_external_deep_refresh_background, site.id, job_id)
+                job_ids.append(job_id)
+
+        queued = len(job_ids)
+        summary = (
+            f"{queued} external site için derin yenileme kuyruğa alındı."
+            if queued
+            else "Tüm siteler için yenileme zaten devam ediyor veya aktif site yok."
+        )
+
+        if _request_wants_json(request):
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "job_ids": job_ids,
+                    "queued": queued,
+                    "summary": summary,
+                }
+            )
+
+        card_context = _external_lazy_site_card_context(db)
+        if job_ids:
+            card_context["refresh_job_id"] = job_ids[0]
+            card_context["refresh_job_summary"] = summary
         return templates.TemplateResponse(
             request,
             "partials/public_site_cards.html",
-            context={
-                "request": request,
-                "lazy_mode": False,
-                "public_sites": _public_sites_payload(db),
-            },
+            context={"request": request, **card_context},
         )
 
 

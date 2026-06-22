@@ -348,24 +348,46 @@
     if (button) {
       button.disabled = true;
       button.dataset.originalText = button.textContent;
-      button.textContent = 'Yenileniyor...';
+      button.textContent = 'Kuyruğa alınıyor...';
     }
 
-    htmx.ajax('POST', '/external/refresh-all', {
-      target: '#public-site-list',
-      swap: 'innerHTML'
-    }).then(function () {
-      if (!button) {
-        return;
-      }
-      button.disabled = false;
-      button.textContent = button.dataset.originalText || 'Tüm External Siteleri Yenile';
-    }).catch(function () {
-      if (!button) {
-        return;
-      }
-      button.disabled = false;
-      button.textContent = button.dataset.originalText || 'Tüm External Siteleri Yenile';
-    });
+    fetch('/external/refresh-all?format=json', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (response) {
+        return response.json().then(function (payload) {
+          if (!response.ok || !payload.ok) {
+            throw new Error((payload && payload.error) || 'Yenileme başlatılamadı.');
+          }
+          return payload;
+        });
+      })
+      .then(function (payload) {
+        if (payload.summary) {
+          setExternalFeedback(payload.summary, false);
+        }
+        htmx.ajax('GET', '/external/site-list', {
+          target: '#public-site-list',
+          swap: 'innerHTML',
+        });
+        if (payload.job_ids && payload.job_ids.length) {
+          startExternalOnboardingJobTracking(payload.job_ids[0], button, button && button.dataset.originalText);
+          return;
+        }
+        if (button) {
+          button.disabled = false;
+          button.textContent = button.dataset.originalText || 'Tüm External Siteleri Yenile';
+        }
+      })
+      .catch(function () {
+        setExternalFeedback('Toplu yenileme başlatılamadı.', true);
+        if (!button) {
+          return;
+        }
+        button.disabled = false;
+        button.textContent = button.dataset.originalText || 'Tüm External Siteleri Yenile';
+      });
   }
 </script>

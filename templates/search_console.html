@@ -203,6 +203,9 @@
     gap: 0.5rem;
     width: 100%;
     min-width: 0;
+    position: relative;
+    z-index: 48;
+    isolation: isolate;
   }
   @media (min-width: 640px) {
     .sc-card-filter-bar {
@@ -1687,8 +1690,21 @@
     if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
       SeoAnalyticsCompare.bindWhenReady('sc');
     }
-    if (window.SeoMarketOverlay && SeoMarketOverlay.bindWhenReady) {
-      SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', scRerenderTrendChartsForMarket);
+    if (window.SeoMarketOverlay) {
+      if (SeoMarketOverlay.ensureClosed) SeoMarketOverlay.ensureClosed();
+      if (SeoMarketOverlay.ensureBound) {
+        SeoMarketOverlay.ensureBound('seo-market-overlay-root', scRerenderTrendChartsForMarket);
+      } else if (SeoMarketOverlay.bindWhenReady) {
+        SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', scRerenderTrendChartsForMarket);
+      }
+    }
+  }
+
+  function parkScGlobalFilterChrome() {
+    var chrome = document.getElementById('sc-global-filter-chrome');
+    var holder = document.getElementById('sc-global-filter-chrome-holder');
+    if (chrome && holder && chrome.parentElement !== holder) {
+      holder.appendChild(chrome);
     }
   }
 
@@ -2345,6 +2361,13 @@
   document.body.addEventListener('htmx:beforeSwap', function (event) {
     var detail = event.detail || {};
     var elt = detail.elt;
+    var swapTarget = detail.target || event.target;
+    if (swapTarget && swapTarget.id === 'search-console-site-list') {
+      parkScGlobalFilterChrome();
+      if (window.SeoMarketOverlay && SeoMarketOverlay.ensureClosed) {
+        SeoMarketOverlay.ensureClosed();
+      }
+    }
     scLazySwapScrollComp = null;
     if (!elt || !elt.id || elt.id.indexOf('sc-card-') !== 0) {
       return;

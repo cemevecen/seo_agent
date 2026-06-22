@@ -750,6 +750,29 @@
     }
   }
 
+  function ensureBound(controlId, onChange) {
+    var root = rootEl(controlId);
+    if (!root) return false;
+    if (root.dataset.marketOverlayBound !== "1") {
+      bindPanel(root, onChange);
+    }
+    return true;
+  }
+
+  function ensureClosed() {
+    document.querySelectorAll("[data-market-overlay-root]").forEach(function (r) {
+      var p = panelForRoot(r);
+      var t = r.querySelector("[data-market-overlay-trigger]");
+      if (p) {
+        p.classList.add("hidden");
+        resetMarketOverlayPanelPosition(p);
+        undockMarketOverlayPanel(p);
+      }
+      if (t) t.setAttribute("aria-expanded", "false");
+    });
+    syncOverlayOpenBodyClass();
+  }
+
   global.SeoMarketOverlay = {
     LINE_COLOR: LINE_COLOR,
     SERIES_COLORS: SERIES_COLORS,
@@ -760,6 +783,8 @@
     apply: apply,
     bindSelect: bindSelect,
     bindWhenReady: bindWhenReady,
+    ensureBound: ensureBound,
+    ensureClosed: ensureClosed,
     bindPanel: bindPanel,
     bindLegendGroupSync: bindMarketLegendGroupSync,
     pickFreeYaxisId: pickFreeYaxisId,
