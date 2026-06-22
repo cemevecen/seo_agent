@@ -3148,11 +3148,24 @@ def _collect_crux_external_fast(db, site: Site) -> dict:
     return collect_crux_history(
         db,
         site,
-        request_timeout=3,
-        max_identifier_attempts=1,
-        form_factors=("mobile",),
-        include_current=False,
+        request_timeout=8,
+        max_identifier_attempts=2,
+        form_factors=("mobile", "desktop"),
+        include_current=True,
         trigger_source="onboarding",
+    )
+
+
+def _collect_crawler_external_deep(db, site: Site) -> dict:
+    return collect_crawler_metrics(
+        db,
+        site,
+        source_page_limit=24,
+        target_url_limit=48,
+        links_per_page_limit=8,
+        issue_sample_limit=12,
+        sitemap_url_limit=24,
+        request_timeout_seconds=10,
     )
 
 
@@ -3169,22 +3182,36 @@ def _collect_crawler_external_fast(db, site: Site) -> dict:
     )
 
 
-def _refresh_public_site_measurements(db, site: Site, *, force: bool = True) -> dict[str, dict]:
+def _refresh_public_site_measurements(db, site: Site, *, force: bool = True, deep: bool = False) -> dict[str, dict]:
     # Search Console yetkisi gerektirmeyen collector akisi.
     results: dict[str, dict] = {}
 
     try:
-        results["pagespeed"] = _collect_pagespeed_external_fast(db, site)
+        if deep:
+            results["pagespeed"] = collect_pagespeed_metrics(
+                db,
+                site,
+                bypass_quota=settings.pagespeed_manual_refresh_bypass_quota,
+                trigger_source="manual",
+            )
+        else:
+            results["pagespeed"] = _collect_pagespeed_external_fast(db, site)
     except Exception as exc:  # noqa: BLE001
         results["pagespeed"] = {"errors": {"exception": str(exc)}}
 
     try:
-        results["crawler"] = _collect_crawler_external_fast(db, site)
+        if deep:
+            results["crawler"] = _collect_crawler_external_deep(db, site)
+        else:
+            results["crawler"] = _collect_crawler_external_fast(db, site)
     except Exception as exc:  # noqa: BLE001
         results["crawler"] = {"errors": {"exception": str(exc)}}
 
     try:
-        results["crux_history"] = _collect_crux_external_fast(db, site)
+        if deep:
+            results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
+        else:
+            results["crux_history"] = _collect_crux_external_fast(db, site)
     except Exception as exc:  # noqa: BLE001
         results["crux_history"] = {"state": "failed", "error": str(exc)}
 
@@ -6457,6 +6484,7 @@ def _public_explorer_context(domain: str) -> dict:
             )
 
         return {
+            "site_id": site.id,
             "site_name": f"External - {site.display_name}",
             "sites": get_sidebar_sites(),
             "domain": site.domain,
@@ -6487,6 +6515,8 @@ def _public_explorer_context(domain: str) -> dict:
                 fallback="Henüz CrUX geçmişi yok",
             ),
             "warehouse_summary": warehouse,
+            "site_alerts": get_site_alerts(db, site_id=site.id, limit=200),
+            "backlinks_href": f"/backlinks?site_id={site.id}",
         }
 
 
@@ -9177,7 +9207,7 @@ def public_sites_refresh_site(request: Request, site_id: int):
         if not _is_external_site(db, site.id):
             return HTMLResponse("Site external profilinde değil.", status_code=404)
 
-        results = _refresh_public_site_measurements(db, site, force=True)
+        results = _refresh_public_site_measurements(db, site, force=True, deep=True)
         try:
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
         except OperationalError as exc:
@@ -9221,7 +9251,7 @@ def public_sites_refresh_all(request: Request):
             .all()
         )
         for index, site in enumerate(sites):
-            results = _refresh_public_site_measurements(db, site, force=True)
+            results = _refresh_public_site_measurements(db, site, force=True, deep=True)
             try:
                 _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
             except OperationalError as exc:
