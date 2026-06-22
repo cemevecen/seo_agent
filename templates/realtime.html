@@ -1404,6 +1404,41 @@
     min-height: 4.25rem;
     padding-top: 0.15rem;
   }
+  .rt-site-spark-bars .rt-spark-mini-bar-slot {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1px;
+    flex: 1 1 0;
+    min-width: 4px;
+    max-width: 18px;
+    min-height: 4.25rem;
+  }
+  .rt-site-spark-bars .rt-spark-mini-bar-slot .rt-spark-mini-bar {
+    flex: 1 1 0;
+    min-width: 2px;
+    max-width: 8px;
+  }
+  .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
+    background: #6366f1 !important;
+    opacity: 0.72;
+  }
+  html.dark .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
+    background: #818cf8 !important;
+    opacity: 0.85;
+  }
+  .rt-site-spark-compare {
+    margin-top: 0.35rem;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: rgb(99 102 241);
+  }
+  html.dark .rt-site-spark-compare { color: rgb(165 180 252); }
+  .rt-site-spark-compare.is-down { color: rgb(220 38 38); }
+  html.dark .rt-site-spark-compare.is-down { color: rgb(248 113 113); }
+  .rt-site-spark-compare.is-up { color: rgb(5 150 105); }
+  html.dark .rt-site-spark-compare.is-up { color: rgb(52 211 153); }
   .rt-site-spark-bars .rt-spark-mini-bar {
     flex: 1 1 0;
     min-width: 2px;
@@ -1618,8 +1653,9 @@
       <div class="rt-site-spark-row is-loading" data-rt-site-spark-row>
         <div class="rt-site-spark-meta">
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
-          <p class="rt-site-spark-sublabel">24 saat</p>
+          <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat</p>
           <p class="rt-site-spark-last" data-rt-site-spark-last>—</p>
+          <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
         </div>
         <div class="rt-site-spark-plot" data-rt-site-spark-chart>
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
@@ -2170,6 +2206,9 @@
         ts: d,
         users: Number(t.active_users) || 0,
         pv: Number(t.pageviews) || 0,
+        usersPrevWeek:
+          t.active_users_prev_week == null ? null : Number(t.active_users_prev_week) || 0,
+        pvPrevWeek: t.pageviews_prev_week == null ? null : Number(t.pageviews_prev_week) || 0,
       });
     });
     if (!trendPoints.length) {
@@ -2180,17 +2219,30 @@
       return;
     }
     var display = _sparkBarsForDisplay(trendPoints, rangeKey);
+    var showPrevWeek =
+      metric === 'au' &&
+      trendPoints.some(function (p) {
+        return p.usersPrevWeek != null;
+      });
     if (metric === 'pv') {
       display = display.map(function (d) {
         var copy = {};
         for (var k in d) if (Object.prototype.hasOwnProperty.call(d, k)) copy[k] = d[k];
         copy.v = Number(d.pv) || 0;
+        if (d.pvPrev != null) copy.vPrev = Number(d.pvPrev) || 0;
         return copy;
+      });
+      showPrevWeek = trendPoints.some(function (p) {
+        return p.pvPrevWeek != null;
       });
     }
     var mx = Math.max.apply(
       null,
-      display.map(function (d) { return Number(d.v) || 0; }).concat([1])
+      display
+        .map(function (d) {
+          return Math.max(Number(d.v) || 0, showPrevWeek ? Number(d.vPrev) || 0 : 0);
+        })
+        .concat([1])
     );
     var barPx = 68;
     siteEl._rtSparkDisplay = display;
@@ -2198,7 +2250,15 @@
     barsEl.innerHTML = display
       .map(function (d, i) {
         var v = Number(d.v) || 0;
-        if (d.empty || v <= 0) {
+        var vPrev = showPrevWeek ? Number(d.vPrev) || 0 : 0;
+        if (d.empty || (v <= 0 && vPrev <= 0)) {
+          if (showPrevWeek) {
+            return (
+              '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
+              i +
+              '"><div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;opacity:0.35"></div><div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;opacity:0.35"></div></div>'
+            );
+          }
           return (
             '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" data-rt-bar-i="' +
             i +
@@ -2209,6 +2269,22 @@
         }
         var hPx = Math.round((v / mx) * barPx);
         hPx = Math.max(3, Math.min(barPx, hPx));
+        var hPrevPx = vPrev > 0 ? Math.max(3, Math.min(barPx, Math.round((vPrev / mx) * barPx))) : 2;
+        if (showPrevWeek) {
+          return (
+            '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
+            i +
+            '">' +
+            '<div class="rt-spark-mini-bar rt-spark-mini-bar--prev-week" title="Geçen hafta aynı saat" style="height:' +
+            hPrevPx +
+            'px"></div>' +
+            '<div class="rt-spark-mini-bar" style="height:' +
+            hPx +
+            'px;background:' +
+            _sparkBarFill(v, mx) +
+            '"></div></div>'
+          );
+        }
         return (
           '<div class="rt-spark-mini-bar" data-rt-bar-i="' +
           i +
@@ -2237,6 +2313,36 @@
     var last = trendPoints[trendPoints.length - 1];
     if (lastEl) {
       lastEl.textContent = _fmtExact(metric === 'pv' ? last.pv : last.users);
+    }
+    var sublabelEl = siteEl.querySelector('[data-rt-site-spark-sublabel]');
+    if (sublabelEl) {
+      sublabelEl.textContent = showPrevWeek
+        ? '24 saat · mor: geçen hafta'
+        : '24 saat';
+    }
+    var compareEl = siteEl.querySelector('[data-rt-site-spark-compare]');
+    if (compareEl) {
+      var lastDisp = display.length ? display[display.length - 1] : null;
+      var curV = lastDisp ? Number(lastDisp.v) || 0 : 0;
+      var prevV = lastDisp && lastDisp.vPrev != null ? Number(lastDisp.vPrev) || 0 : 0;
+      if (showPrevWeek && prevV > 0 && curV >= 0) {
+        var delta = curV - prevV;
+        var pct = (delta / prevV) * 100;
+        compareEl.textContent =
+          'Son dilim vs geçen hafta: ' +
+          (delta >= 0 ? '+' : '') +
+          _fmtExact(delta) +
+          ' (' +
+          (pct >= 0 ? '+' : '') +
+          pct.toFixed(1) +
+          '%)';
+        compareEl.classList.remove('hidden', 'is-up', 'is-down');
+        compareEl.classList.add(delta >= 0 ? 'is-up' : 'is-down');
+      } else {
+        compareEl.textContent = '';
+        compareEl.classList.add('hidden');
+        compareEl.classList.remove('is-up', 'is-down');
+      }
     }
   }
 
@@ -2305,6 +2411,18 @@
       '</strong></div><div>' +
       _esc(_fmtExact(v) + (metric === 'pv' ? ' görüntüleme (dilim)' : ' aktif (dilim)')) +
       '</div>';
+    if (metric === 'au' && row.vPrev != null && Number(row.vPrev) > 0) {
+      html +=
+        '<div style="color:#6366f1">Geçen hafta: ' +
+        _esc(_fmtExact(Number(row.vPrev))) +
+        '</div>';
+    }
+    if (metric === 'pv' && row.pvPrev != null && Number(row.pvPrev) > 0) {
+      html +=
+        '<div style="color:#6366f1">Geçen hafta: ' +
+        _esc(_fmtExact(Number(row.pvPrev))) +
+        '</div>';
+    }
     var tops = siteEl._rtBucketTopPages || {};
     var rangeKey = siteEl._rtSparkRangeKey || '24h';
     var key = _bucketTopKeyForRow(row, rangeKey);
@@ -2807,11 +2925,18 @@
     var gridEnd = Math.floor(lastMs / bucketMs) * bucketMs;
 
     var map = {};
+    var trackPrev = trendPoints.some(function (p) {
+      return p.usersPrevWeek != null || p.pvPrevWeek != null;
+    });
     trendPoints.forEach(function (p) {
       var key = Math.floor(p.ts.getTime() / bucketMs) * bucketMs;
-      if (!map[key]) map[key] = { users: [], pv: [] };
+      if (!map[key]) map[key] = { users: [], pv: [], usersPrev: [], pvPrev: [] };
       map[key].users.push(Number(p.users) || 0);
       map[key].pv.push(Number(p.pv) || 0);
+      if (trackPrev) {
+        if (p.usersPrevWeek != null) map[key].usersPrev.push(Number(p.usersPrevWeek) || 0);
+        if (p.pvPrevWeek != null) map[key].pvPrev.push(Number(p.pvPrevWeek) || 0);
+      }
     });
 
     var out = [];
@@ -2852,6 +2977,8 @@
       var vmax = -Infinity;
       var sum = 0;
       var pvPeak = 0;
+      var peakPrev = 0;
+      var pvPeakPrev = 0;
       for (var j = 0; j < users.length; j++) {
         var u = users[j];
         sum += u;
@@ -2861,10 +2988,24 @@
         var pv = Number(slot.pv[j]) || 0;
         if (pv >= pvPeak) pvPeak = pv;
       }
+      if (slot.usersPrev && slot.usersPrev.length) {
+        for (var jp = 0; jp < slot.usersPrev.length; jp++) {
+          var up = Number(slot.usersPrev[jp]) || 0;
+          if (up >= peakPrev) peakPrev = up;
+        }
+      }
+      if (slot.pvPrev && slot.pvPrev.length) {
+        for (var jpp = 0; jpp < slot.pvPrev.length; jpp++) {
+          var ppv = Number(slot.pvPrev[jpp]) || 0;
+          if (ppv >= pvPeakPrev) pvPeakPrev = ppv;
+        }
+      }
       if (!isFinite(vmin)) vmin = 0;
       var bucket = {
         v: peak,
         pv: pvPeak,
+        vPrev: peakPrev > 0 ? peakPrev : slot.usersPrev.length ? 0 : null,
+        pvPrev: pvPeakPrev > 0 ? pvPeakPrev : slot.pvPrev.length ? 0 : null,
         bucketCount: users.length,
         vmin: vmin,
         vmax: vmax,

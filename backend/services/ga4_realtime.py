@@ -2919,36 +2919,44 @@ def get_recent_snapshots(
     return [_row_dict(row) for row in reversed(rows)]
 
 
-def get_combined_site_snapshots(
+_COMBINED_SNAPSHOT_BUCKET_MS = 15 * 60 * 1000
+_COMBINED_SNAPSHOT_WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+
+def _resolve_combined_snapshot_profiles(
     db: Session,
     site_id: int,
     *,
-    hours: float = REALTIME_TREND_HOURS_DEFAULT,
-    profiles: list[str] | None = None,
-) -> list[dict[str, Any]]:
-    """Tüm profillerin 15 dk dilimlerinde toplam aktif + görüntüleme trendi (yalnızca DB)."""
+    cutoff: datetime,
+) -> list[str]:
+    from backend.models import RealtimeSnapshot
+
+    found = {
+        r[0]
+        for r in db.query(RealtimeSnapshot.profile)
+        .filter(
+            RealtimeSnapshot.site_id == site_id,
+            RealtimeSnapshot.collected_at >= cutoff,
+        )
+        .distinct()
+        .all()
+    }
+    return [p for p in ("web", "mweb", "ios", "android") if p in found]
+
+
+def _combined_site_snapshot_bucket_map(
+    db: Session,
+    site_id: int,
+    profiles: list[str],
+    *,
+    cutoff: datetime,
+    end: datetime,
+    bucket_ms: int = _COMBINED_SNAPSHOT_BUCKET_MS,
+) -> dict[int, dict[str, int]]:
+    """15 dk duvar saati dilimlerinde profil toplamları (site geneli)."""
     from collections import defaultdict
 
     from backend.models import RealtimeSnapshot
-
-    h = min(float(hours), REALTIME_TREND_HOURS_MAX)
-    cutoff = datetime.utcnow() - timedelta(hours=h)
-    bucket_ms = 15 * 60 * 1000
-
-    if profiles is None:
-        found = {
-            r[0]
-            for r in db.query(RealtimeSnapshot.profile)
-            .filter(
-                RealtimeSnapshot.site_id == site_id,
-                RealtimeSnapshot.collected_at >= cutoff,
-            )
-            .distinct()
-            .all()
-        }
-        profiles = [p for p in ("web", "mweb", "ios", "android") if p in found]
-    else:
-        profiles = [str(p).strip() for p in profiles if str(p).strip()]
 
     nested: dict[int, dict[str, dict[str, float]]] = defaultdict(dict)
 
@@ -2959,6 +2967,7 @@ def get_combined_site_snapshots(
                 RealtimeSnapshot.site_id == site_id,
                 RealtimeSnapshot.profile == prof,
                 RealtimeSnapshot.collected_at >= cutoff,
+                RealtimeSnapshot.collected_at <= end,
             )
             .order_by(RealtimeSnapshot.collected_at.asc())
             .limit(REALTIME_TREND_ROWS_MAX)
@@ -2979,19 +2988,66 @@ def get_combined_site_snapshots(
             if slot is None or au >= slot["active_users"]:
                 nested[key][prof] = {"active_users": au, "pageviews": pv}
 
-    out: list[dict[str, Any]] = []
-    for key in sorted(nested.keys()):
-        prof_map = nested[key]
+    out: dict[int, dict[str, int]] = {}
+    for key, prof_map in nested.items():
         total_au = sum(v["active_users"] for v in prof_map.values())
         total_pv = sum(v["pageviews"] for v in prof_map.values())
-        dt = datetime.utcfromtimestamp(key / 1000.0)
-        out.append(
-            {
-                "collected_at": _utc_db_datetime_iso_z(dt),
-                "active_users": int(round(total_au)),
-                "pageviews": int(round(total_pv)),
-            }
+        out[key] = {
+            "active_users": int(round(total_au)),
+            "pageviews": int(round(total_pv)),
+        }
+    return out
+
+
+def get_combined_site_snapshots(
+    db: Session,
+    site_id: int,
+    *,
+    hours: float = REALTIME_TREND_HOURS_DEFAULT,
+    profiles: list[str] | None = None,
+    include_prev_week: bool = True,
+) -> list[dict[str, Any]]:
+    """Tüm profillerin 15 dk dilimlerinde toplam aktif + görüntüleme trendi (yalnızca DB)."""
+    h = min(float(hours), REALTIME_TREND_HOURS_MAX)
+    now = datetime.utcnow()
+    cutoff = now - timedelta(hours=h)
+    bucket_ms = _COMBINED_SNAPSHOT_BUCKET_MS
+
+    profile_cutoff = cutoff - timedelta(days=7) if include_prev_week else cutoff
+    if profiles is None:
+        profiles = _resolve_combined_snapshot_profiles(db, site_id, cutoff=profile_cutoff)
+    else:
+        profiles = [str(p).strip() for p in profiles if str(p).strip()]
+
+    current_map = _combined_site_snapshot_bucket_map(
+        db, site_id, profiles, cutoff=cutoff, end=now, bucket_ms=bucket_ms
+    )
+    prev_map: dict[int, dict[str, int]] = {}
+    if include_prev_week:
+        week = timedelta(days=7)
+        prev_map = _combined_site_snapshot_bucket_map(
+            db,
+            site_id,
+            profiles,
+            cutoff=cutoff - week,
+            end=now - week,
+            bucket_ms=bucket_ms,
         )
+
+    out: list[dict[str, Any]] = []
+    for key in sorted(current_map.keys()):
+        cur = current_map[key]
+        prev = prev_map.get(key - _COMBINED_SNAPSHOT_WEEK_MS) if prev_map else None
+        dt = datetime.utcfromtimestamp(key / 1000.0)
+        row: dict[str, Any] = {
+            "collected_at": _utc_db_datetime_iso_z(dt),
+            "active_users": cur["active_users"],
+            "pageviews": cur["pageviews"],
+        }
+        if include_prev_week:
+            row["active_users_prev_week"] = int(prev["active_users"]) if prev else None
+            row["pageviews_prev_week"] = int(prev["pageviews"]) if prev else None
+        out.append(row)
     return out
 
 
