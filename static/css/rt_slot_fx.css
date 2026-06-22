@@ -1,0 +1,76 @@
+/* Realtime / home — slot tarzı sayı ve spark bar geçişleri */
+.rt-slot-text {
+  display: inline-flex;
+  align-items: baseline;
+  vertical-align: baseline;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.rt-slot-col {
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+  height: 1.1em;
+  line-height: 1.1em;
+  vertical-align: baseline;
+}
+.rt-slot-strip {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+.rt-slot-strip.rt-slot-anim {
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rt-slot-ch {
+  display: block;
+  height: 1.1em;
+  line-height: 1.1em;
+}
+.rt-spark-mini-bar.rt-slot-bar,
+.rt-site-spark-bars > .rt-spark-mini-bar.rt-slot-bar {
+  transition:
+    height 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.3s ease,
+    opacity 0.3s ease;
+}
+.rt-spark-mini-bar.rt-slot-bar-enter {
+  animation: rt-slot-bar-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes rt-slot-bar-rise {
+  from {
+    opacity: 0.25;
+    transform: scaleY(0.08);
+    transform-origin: bottom center;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+.rt-spark-mini-bar.rt-slot-bar-exit {
+  opacity: 0.2;
+  transform: scaleY(0.05);
+  transform-origin: bottom center;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease,
+    height 0.22s ease;
+}
+.home-rt-spark.rt-slot-spark-fade {
+  opacity: 0.35;
+  transition: opacity 0.18s ease;
+}
+.home-rt-spark.rt-slot-spark-in {
+  animation: rt-slot-spark-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes rt-slot-spark-in {
+  from {
+    opacity: 0.2;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1996,6 +1996,8 @@
 </div>
 
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
+<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=1">
+<script src="/static/js/rt_slot_fx.js?v=1"></script>
 <script>
 (function () {
   var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
@@ -2170,6 +2172,20 @@
     return Math.round(Number(n)).toLocaleString('tr-TR');
   }
 
+  function _slotText(el, text) {
+    if (!el) return;
+    if (window.RtSlotFx && window.RtSlotFx.setText) window.RtSlotFx.setText(el, text);
+    else el.textContent = text;
+  }
+
+  function _slotBars(barsEl, specs, opts) {
+    if (!barsEl) return;
+    if (window.RtSlotFx && window.RtSlotFx.renderBars) window.RtSlotFx.renderBars(barsEl, specs, opts);
+    else if (window.RtSlotFx && window.RtSlotFx.barHtml) {
+      barsEl.innerHTML = specs.map(function (s) { return window.RtSlotFx.barHtml(s, opts); }).join('');
+    }
+  }
+
   var _RT_PROFILE_LABELS = { web: 'Desktop', mweb: 'Mobile Web', android: 'Android', ios: 'iOS' };
 
   function _rtStoreProfileKpis(box, kpis) {
@@ -2215,13 +2231,13 @@
     var allAu = haveAu >= expected && expected > 0;
     var allPv = havePv >= expected && expected > 0;
     if (auEl) {
-      auEl.textContent = haveAu ? _fmtExact(sumAu) : '—';
+      _slotText(auEl, haveAu ? _fmtExact(sumAu) : '—');
       auEl.setAttribute('title', allAu
         ? auParts.join(' + ') + ' = ' + _fmtExact(sumAu)
         : (haveAu ? haveAu + '/' + expected + ' profil yüklendi' : 'Henüz veri yok'));
     }
     if (pvEl) {
-      pvEl.textContent = havePv ? _fmtExact(sumPv) : '—';
+      _slotText(pvEl, havePv ? _fmtExact(sumPv) : '—');
       pvEl.setAttribute('title', allPv
         ? pvParts.join(' + ') + ' = ' + _fmtExact(sumPv)
         : (havePv ? havePv + '/' + expected + ' profil yüklendi' : 'Henüz veri yok'));
@@ -2307,6 +2323,10 @@
     _wireSiteYfTabs(siteEl);
     var rangeKey = _rtSiteSparkRangeKey(siteEl);
     siteEl._rtSparkRangeKey = rangeKey;
+    if (siteEl._rtSparkRenderRange !== rangeKey) {
+      if (barsEl) barsEl.removeAttribute('data-slot-bars-ready');
+      siteEl._rtSparkRenderRange = rangeKey;
+    }
     var filteredTrend = _filterTrendForRange(trend || [], rangeKey);
     var trendPoints = [];
     filteredTrend.forEach(function (t) {
@@ -2356,62 +2376,17 @@
     var barPx = 68;
     siteEl._rtSparkDisplay = display;
     siteEl._rtSparkMetricCurrent = metric;
-    barsEl.innerHTML = display
-      .map(function (d, i) {
-        var v = Number(d.v) || 0;
-        var vPrev = showPrevWeekBars ? Number(d.vPrev) || 0 : 0;
-        if (d.empty || (v <= 0 && vPrev <= 0)) {
-          if (showPrevWeekBars) {
-            return (
-              '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
-              i +
-              '"><div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;opacity:0.35"></div><div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;opacity:0.35"></div></div>'
-            );
-          }
-          return (
-            '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" data-rt-bar-i="' +
-            i +
-            '" style="height:2px;background:' +
-            _sparkBarFill(0, mx) +
-            ';opacity:0.45"></div>'
-          );
-        }
-        var hPx = Math.round((v / mx) * barPx);
-        hPx = Math.max(3, Math.min(barPx, hPx));
-        var hPrevPx = vPrev > 0 ? Math.max(3, Math.min(barPx, Math.round((vPrev / mx) * barPx))) : 2;
-        if (showPrevWeekBars && vPrev > 0 && v > 0 && vPrev > v * 1.15) {
-          hPrevPx = Math.min(barPx, Math.max(hPx, Math.round(hPx * 1.1)));
-        }
-        if (showPrevWeekBars) {
-          return (
-            '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
-            i +
-            '">' +
-            '<div class="rt-spark-mini-bar rt-spark-mini-bar--prev-week" data-rt-bar-i="' +
-            i +
-            '" title="Geçen hafta aynı saat" style="height:' +
-            hPrevPx +
-            'px"></div>' +
-            '<div class="rt-spark-mini-bar" data-rt-bar-i="' +
-            i +
-            '" style="height:' +
-            hPx +
-            'px;background:' +
-            _sparkBarFill(v, mx) +
-            '"></div></div>'
-          );
-        }
-        return (
-          '<div class="rt-spark-mini-bar" data-rt-bar-i="' +
-          i +
-          '" style="height:' +
-          hPx +
-          'px;background:' +
-          _sparkBarFill(v, mx) +
-          '"></div>'
-        );
-      })
-      .join('');
+    var siteBarSpecs = display.map(function (d, i) {
+      var v = Number(d.v) || 0;
+      var vPrev = showPrevWeekBars ? Number(d.vPrev) || 0 : 0;
+      if (d.empty || (v <= 0 && vPrev <= 0)) {
+        return { i: i, empty: true, hPx: 2, bg: _sparkBarFill(0, mx) };
+      }
+      var hPx = Math.round((v / mx) * barPx);
+      hPx = Math.max(3, Math.min(barPx, hPx));
+      return { i: i, empty: false, hPx: hPx, bg: _sparkBarFill(v, mx) };
+    });
+    _slotBars(barsEl, siteBarSpecs, { barClass: 'rt-spark-mini-bar' });
     barsEl._rtSiteTipWired = false;
     _wireSiteSparkBarTips(siteEl);
     if (yEl) {
@@ -2428,7 +2403,7 @@
     }
     var last = trendPoints[trendPoints.length - 1];
     if (lastEl) {
-      lastEl.textContent = _fmtExact(metric === 'pv' ? last.pv : last.users);
+      _slotText(lastEl, _fmtExact(metric === 'pv' ? last.pv : last.users));
     }
     var sublabelEl = siteEl.querySelector('[data-rt-site-spark-sublabel]');
     if (sublabelEl) {
@@ -2961,7 +2936,7 @@
       var valEl = kpiBox.querySelector('[data-rt-val]');
       var halvesEl = kpiBox.querySelector('[data-rt-halves]');
       var pctEl = kpiBox.querySelector('[data-rt-pct]');
-      if (valEl) valEl.textContent = _fmt(v);
+      if (valEl) _slotText(valEl, _fmt(v));
       if (halvesEl) {
         halvesEl.textContent = 'son kayıt (önbellek)';
         halvesEl.className = 'text-xs tabular-nums text-slate-400 dark:text-slate-500';
@@ -3004,7 +2979,7 @@
       var pctEl = kpiBox.querySelector('[data-rt-pct]');
       var mainVal = (total[key] != null) ? total[key] : c.current;
       stored[key] = Number(mainVal) || 0;
-      if (valEl) valEl.textContent = _fmt(mainVal);
+      if (valEl) _slotText(valEl, _fmt(mainVal));
       if (valEl && key === 'activeUsers') {
         valEl.setAttribute(
           'title',
@@ -3570,6 +3545,10 @@
     if (trend && trend.length) box._rtTrendFull = trend;
     var rangeKey = _rtTrendRangeForBox(box);
     box._rtTrendRange = rangeKey;
+    if (box._rtSparkRenderRange !== rangeKey) {
+      barsEl.removeAttribute('data-slot-bars-ready');
+      box._rtSparkRenderRange = rangeKey;
+    }
     _wireRtYfTabs(box, siteId, profile);
     _syncRtYfTabs(box, rangeKey);
     trend = _filterTrendForRange(box._rtTrendFull || trend || [], rangeKey);
@@ -3617,7 +3596,7 @@
     el.setAttribute('data-last-rev', dataRevision);
     var lastU = trendPoints[trendPoints.length - 1].users;
     var lastValEl = box.querySelector('[data-rt-spark-last-val]');
-    if (lastValEl) lastValEl.textContent = _fmt(lastU);
+    if (lastValEl) _slotText(lastValEl, _fmt(lastU));
     var useLine = _sparkUsesLine(rangeKey);
     var display;
     var mx;
@@ -3639,34 +3618,22 @@
     if (useLine) {
       barsEl.innerHTML = _sparkLineSvgHtmlTime(box._rtSparkLineSeries);
     } else {
-      barsEl.innerHTML = display
-        .map(function (d, i) {
-          var v = Number(d.v) || 0;
-          if (d.empty || v <= 0) {
-            return (
-              '<div class="rt-spark-mini-bar rt-spark-mini-bar--empty" style="height:2px;background:' +
-              _sparkBarFill(0, mx) +
-              ';opacity:0.45" data-rt-bar-i="' +
-              i +
-              '"></div>'
-            );
-          }
-          var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
-          hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
-          var carriedCls = d.carried ? ' rt-spark-mini-bar--carried' : '';
-          return (
-            '<div class="rt-spark-mini-bar' +
-            carriedCls +
-            '" style="height:' +
-            hPx +
-            'px;background:' +
-            _sparkBarFill(v, mx) +
-            '" data-rt-bar-i="' +
-            i +
-            '"></div>'
-          );
-        })
-        .join('');
+      var profBarSpecs = display.map(function (d, i) {
+        var v = Number(d.v) || 0;
+        if (d.empty || v <= 0) {
+          return { i: i, empty: true, hPx: 2, bg: _sparkBarFill(0, mx) };
+        }
+        var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
+        hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
+        return {
+          i: i,
+          empty: false,
+          hPx: hPx,
+          bg: _sparkBarFill(v, mx),
+          extraClass: d.carried ? 'rt-spark-mini-bar--carried' : '',
+        };
+      });
+      _slotBars(barsEl, profBarSpecs, { barClass: 'rt-spark-mini-bar' });
     }
     _sparkRenderSparkAxes(el, {
       mx: mx,

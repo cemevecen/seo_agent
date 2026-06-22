@@ -11,7 +11,7 @@
       {% for site in sites %}
       <div class="inline-flex flex-wrap items-center gap-2 rounded-lg border px-2.5 py-1.5 text-right {% if site.site_id == 1 %}border-indigo-200 bg-indigo-50/80 dark:border-indigo-900/40 dark:bg-indigo-950/30{% else %}border-rose-200 bg-rose-50/80 dark:border-rose-900/40 dark:bg-rose-950/30{% endif %}" title="{{ site.display_name or site.domain }} — tüm profiller toplamı">
         <span class="text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ site.display_name or site.domain }}</span>
-        <span class="text-[10px] font-bold tabular-nums text-slate-800 dark:text-slate-100">{{ site.total_active_fmt }} aktif</span>
+        <span class="text-[10px] font-bold tabular-nums text-slate-800 dark:text-slate-100" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} aktif</span>
         <span class="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">· {{ site.total_pageviews_fmt }} gör.</span>
       </div>
       {% endfor %}
@@ -25,14 +25,14 @@
       {% for site in sites %}
         {% for prof in site.profiles %}
           {% set _p = prof.delta_pct | default(0) | float %}
-          <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2 py-2.5 xl:px-2.5">
+          <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2 py-2.5 xl:px-2.5" data-home-rt-key="{{ site.site_id }}-{{ prof.key }}">
             <div class="relative z-[1] min-w-0">
               <p class="truncate text-[10px] font-semibold uppercase tracking-wider {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-rose-600 dark:text-rose-300{% endif %}">{{ site.display_name or site.domain }}</p>
               <p class="mt-0.5 truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
-              <p class="mt-1 truncate text-xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">{{ prof.value_fmt }}</p>
+              <p class="mt-1 truncate text-xl font-semibold tabular-nums text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
             </div>
             {% if prof.delta_fmt %}
-              <p class="relative z-[1] mt-0.5 truncate text-xs font-medium tabular-nums {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ prof.delta_fmt }}</p>
+              <p class="relative z-[1] mt-0.5 truncate text-xs font-medium tabular-nums {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}" data-rt-slot-delta>{{ prof.delta_fmt }}</p>
             {% else %}
               <p class="relative z-[1] mt-0.5 text-xs text-slate-400 dark:text-slate-500">—</p>
             {% endif %}
