@@ -81,6 +81,17 @@ def is_property_paused(property_id: str) -> bool:
         return True
 
 
+def paused_property_resume_times() -> dict[str, float]:
+    """Property ID → unix resume time (kota devre kesici; bellek içi, restart sonrası sıfırlanır)."""
+    now = time.time()
+    with _LOCK:
+        active = {pid: until for pid, until in _PAUSE_UNTIL.items() if until > now}
+        for pid in list(_PAUSE_UNTIL):
+            if _PAUSE_UNTIL[pid] <= now:
+                _PAUSE_UNTIL.pop(pid, None)
+        return dict(active)
+
+
 def assert_property_realtime_allowed(property_id: str) -> None:
     pid = normalize_property_id(property_id)
     if is_property_paused(pid):

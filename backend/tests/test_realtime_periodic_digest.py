@@ -71,6 +71,48 @@ def test_digest_profile_block_uses_window_aggregation(monkeypatch):
     assert "42 kul" in html
 
 
+def test_build_periodic_digest_empty_shows_diagnostics(monkeypatch):
+    doviz = SimpleNamespace(id=1, domain="www.doviz.com", is_active=True)
+    sinemalar = SimpleNamespace(id=2, domain="www.sinemalar.com", is_active=True)
+
+    class _FakeQuery:
+        def filter(self, *_a, **_k):
+            return self
+
+        def all(self):
+            return [doviz, sinemalar]
+
+    db = MagicMock()
+    db.query.return_value = _FakeQuery()
+
+    monkeypatch.setattr("backend.services.ga4_realtime._digest_profile_block", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        "backend.services.ga4_realtime._latest_collected_at",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.get_ga4_credentials_record",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        "backend.services.ga4_auth.load_ga4_properties",
+        lambda *_a, **_k: {"web": "properties/1"},
+    )
+    monkeypatch.setattr(
+        "backend.services.ga4_realtime_quota.paused_property_resume_times",
+        lambda: {},
+    )
+    monkeypatch.setattr(
+        "backend.services.ga4_realtime_quota.is_property_paused",
+        lambda *_a, **_k: False,
+    )
+
+    html = build_realtime_periodic_digest_html(db)
+    assert "Hiç KPI snapshot yok" in html
+    assert "saniye değil" in html
+    assert "run-realtime-job-now" in html
+
+
 def test_build_periodic_digest_html_lists_six_areas(monkeypatch):
     doviz = SimpleNamespace(id=1, domain="www.doviz.com", is_active=True)
     sinemalar = SimpleNamespace(id=2, domain="www.sinemalar.com", is_active=True)

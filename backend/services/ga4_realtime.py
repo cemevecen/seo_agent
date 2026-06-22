@@ -2304,6 +2304,125 @@ def _latest_collected_at(
     )
 
 
+def _digest_stamp_local(dt: datetime | None, tz_name: str) -> str:
+    if dt is None:
+        return "—"
+    from zoneinfo import ZoneInfo
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    local = dt.astimezone(ZoneInfo(tz_name))
+    return local.strftime("%d.%m.%Y %H:%M")
+
+
+def _build_realtime_digest_empty_diagnostic_html(
+    db: Session,
+    sites: list,
+    *,
+    interval_short: str,
+    tz_name: str,
+) -> str:
+    """6 alanın tamamı boşken özet mailine tanı tablosu."""
+    from backend.config import settings
+    from backend.models import RealtimeSnapshot
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.ga4_realtime_quota import (
+        is_property_paused,
+        paused_property_resume_times,
+    )
+
+    host = (getattr(settings, "app_public_host", "") or "projectcontrol.up.railway.app").strip()
+    host = host.replace("https://", "").replace("http://", "").split("/")[0]
+    admin_job_url = f"https://{host}/api/admin/run-realtime-job-now"
+    realtime_url = f"https://{host}/realtime"
+
+    rows_html: list[str] = []
+    paused_map = paused_property_resume_times()
+    resume_hour = int(getattr(settings, "ga4_realtime_quota_resume_hour", 6))
+
+    for brand, profile in REALTIME_DIGEST_AREAS:
+        site = _site_for_digest_brand(sites, brand)
+        if not site:
+            rows_html.append(
+                "<tr>"
+                f'<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">{html.escape(brand)} / {html.escape(profile)}</td>'
+                '<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;color:#dc2626;">Site eşleşmedi</td>'
+                '<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">—</td>'
+                '<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">—</td>'
+                "</tr>"
+            )
+            continue
+
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        pid = (properties.get(profile) or properties.get("web") or "").strip()
+        last_kpi = _latest_collected_at(db, RealtimeSnapshot, site.id, profile)
+
+        status_parts: list[str] = []
+        if not pid:
+            status_parts.append("GA4 property yok")
+        elif is_property_paused(pid):
+            status_parts.append("Kota duraklatıldı (429)")
+
+        if last_kpi is None:
+            status_parts.append("Hiç KPI snapshot yok")
+        else:
+            age_h = (datetime.now(timezone.utc) - (
+                last_kpi.replace(tzinfo=timezone.utc)
+                if last_kpi.tzinfo is None
+                else last_kpi.astimezone(timezone.utc)
+            )).total_seconds() / 3600.0
+            if age_h > 3:
+                status_parts.append(f"KPI eski ({age_h:.0f}s önce)")
+        if not status_parts:
+            status_parts.append("Pencerede sayfa/haber verisi yok (KPI var)")
+
+        rows_html.append(
+            "<tr>"
+            f'<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">{html.escape(brand)} / {html.escape(profile)}</td>'
+            f'<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">{html.escape(site.domain or "?")}</td>'
+            f'<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;">{_digest_stamp_local(last_kpi, tz_name)}</td>'
+            f'<td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#475569;">{html.escape("; ".join(status_parts))}</td>'
+            "</tr>"
+        )
+
+    rt_enabled = bool(getattr(settings, "ga4_realtime_enabled", True))
+    interval_min = int(getattr(settings, "ga4_realtime_interval_minutes", 10))
+    paused_note = ""
+    if paused_map:
+        paused_note = (
+            f'<p style="font-size:12px;color:#b45309;margin:12px 0 0;">'
+            f"GA4 Realtime günlük kota uyarısı: {len(paused_map)} property API çağrıları duraklatılmış "
+            f"(sunucu yeniden başlasa liste sıfırlanır; tipik devam: {resume_hour:02d}:00 {html.escape(tz_name)}).</p>"
+        )
+
+    return (
+        '<p style="font-size:13px;color:#64748b;margin:0 0 10px;">'
+        f"Son <strong>{html.escape(interval_short)}</strong> penceresinde 6 alanın hiçbirinde "
+        f"özetlenecek KPI veya sıralı sayfa/haber/event verisi yok. "
+        f"<span style=\"color:#94a3b8;\">(Not: «{html.escape(interval_short)}» = "
+        f"{html.escape(_digest_interval_long_label(_digest_window_minutes()))}, saniye değil.)</span></p>"
+        f'<p style="font-size:12px;color:#64748b;margin:0 0 12px;">'
+        f"Zamanlayıcı: ga4_realtime_enabled={'açık' if rt_enabled else 'kapalı'}, "
+        f"toparlama aralığı ≈{interval_min} dk.</p>"
+        '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:0 0 14px;">'
+        "<thead><tr style=\"background:#f1f5f9;\">"
+        '<th style="text-align:left;padding:6px 8px;">Alan</th>'
+        '<th style="text-align:left;padding:6px 8px;">Site</th>'
+        '<th style="text-align:left;padding:6px 8px;">Son KPI</th>'
+        '<th style="text-align:left;padding:6px 8px;">Durum</th>'
+        "</tr></thead><tbody>"
+        f"{''.join(rows_html)}"
+        "</tbody></table>"
+        f"{paused_note}"
+        '<p style="font-size:12px;color:#475569;margin:14px 0 0;">'
+        f'<a href="{html.escape(realtime_url, quote=True)}" style="color:#2563eb;">Realtime paneli</a>'
+        f" · "
+        f'<a href="{html.escape(admin_job_url, quote=True)}" style="color:#2563eb;">Manuel realtime job</a>'
+        f" (admin oturumu gerekir)</p>"
+    )
+
+
 def _html_digest_top_list(
     title: str,
     rows: list[tuple[str, int, str | None]],
@@ -2479,9 +2598,8 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
             area_blocks.append(block)
 
     if not area_blocks:
-        inner = (
-            '<p style="font-size:13px;color:#64748b;">'
-            f"Son {interval_short} penceresinde 6 alanda snapshot verisi yok.</p>"
+        inner = _build_realtime_digest_empty_diagnostic_html(
+            db, sites, interval_short=interval_short, tz_name=tz_name
         )
     else:
         inner = "".join(area_blocks)

@@ -78,6 +78,7 @@
     return n;
   }
 
+  function panelForRoot(root) {
     if (!root) return null;
     var rid = root.id;
     if (rid) {
