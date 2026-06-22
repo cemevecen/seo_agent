@@ -2377,9 +2377,39 @@
   function _bucketTopKeyForRow(row, rangeKey) {
     if (!row || row.tMs == null) return '';
     var tMs = Number(row.tMs) || 0;
-    if (rangeKey === '24h') return String(tMs);
     var bucketMs = 15 * 60 * 1000;
     return String(Math.floor(tMs / bucketMs) * bucketMs);
+  }
+
+  function _lookupBucketTopPages(tops, row, rangeKey) {
+    if (!tops || !row || row.tMs == null) return null;
+    var key = _bucketTopKeyForRow(row, rangeKey);
+    if (tops[key]) return tops[key];
+    var target = Number(key);
+    if (!isFinite(target)) return null;
+    var bucketMs = 15 * 60 * 1000;
+    var best = null;
+    var bestDist = Infinity;
+    Object.keys(tops).forEach(function (k) {
+      var n = Number(k);
+      if (!isFinite(n)) return;
+      var d = Math.abs(n - target);
+      if (d < bestDist && d <= bucketMs) {
+        bestDist = d;
+        best = tops[k];
+      }
+    });
+    return best;
+  }
+
+  function _mergeBucketTopPages(siteEl, incoming) {
+    if (!siteEl || !incoming || typeof incoming !== 'object') return;
+    if (!siteEl._rtBucketTopPages) {
+      siteEl._rtBucketTopPages = {};
+    }
+    Object.keys(incoming).forEach(function (k) {
+      siteEl._rtBucketTopPages[k] = incoming[k];
+    });
   }
 
   function _sparkBarTipLinesToHtml(text) {
@@ -2406,8 +2436,7 @@
     var siteEl = box.closest('[data-rt-site]');
     if (!siteEl || !siteEl._rtBucketTopPages) return _sparkBarTipLinesToHtml(plain);
     var rangeKey = _rtTrendRangeForBox(box);
-    var key = _bucketTopKeyForRow(row, rangeKey);
-    var bucket = siteEl._rtBucketTopPages[key] || {};
+    var bucket = _lookupBucketTopPages(siteEl._rtBucketTopPages, row, rangeKey) || {};
     var pages = profile === 'web' ? bucket.web || [] : bucket.mweb || [];
     var html = _sparkBarTipLinesToHtml(plain);
     if (!pages.length) {
@@ -2453,8 +2482,7 @@
     }
     var tops = siteEl._rtBucketTopPages || {};
     var rangeKey = siteEl._rtSparkRangeKey || '24h';
-    var key = _bucketTopKeyForRow(row, rangeKey);
-    var bucket = tops[key] || {};
+    var bucket = _lookupBucketTopPages(tops, row, rangeKey) || {};
     var webPages = metric === 'pv' ? bucket.web_by_pv || bucket.web || [] : bucket.web || [];
     var mwebPages = metric === 'pv' ? bucket.mweb_by_pv || bucket.mweb || [] : bucket.mweb || [];
     function tipPageGroup(label, pages) {
@@ -2569,9 +2597,19 @@
       if (!isNaN(sid)) {
         _setSiteSparkLoading(el, true);
         rtFetchSiteCombinedTrend(sid, { bucketPages: false, showLoading: true });
+        rtFetchSiteCombinedTrend(sid, { bucketPages: true, showLoading: false });
       }
     });
   }
+
+  function rtEnsureBucketTopPages(siteId) {
+    var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
+    if (!siteEl) return;
+    var tops = siteEl._rtBucketTopPages || {};
+    if (Object.keys(tops).length) return;
+    rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false });
+  }
+  window.rtEnsureBucketTopPages = rtEnsureBucketTopPages;
 
   function _renderSiteCombinedSparks(siteId, trend) {
     var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
@@ -2638,13 +2676,18 @@
           if (siteEl) _renderSiteCombinedSparkEmpty(siteId, 'error');
           return;
         }
-        if (siteEl && d.bucket_top_pages && Object.keys(d.bucket_top_pages).length) {
-          siteEl._rtBucketTopPages = d.bucket_top_pages;
+        if (siteEl && d.bucket_top_pages) {
+          _mergeBucketTopPages(siteEl, d.bucket_top_pages);
         }
         if (d.trend && d.trend.length) {
           _renderSiteCombinedSparks(siteId, d.trend);
         } else {
           _renderSiteCombinedSparkEmpty(siteId, 'empty');
+        }
+        if (wantPages && siteEl && (!siteEl._rtBucketTopPages || !Object.keys(siteEl._rtBucketTopPages).length)) {
+          setTimeout(function () {
+            rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false });
+          }, 2500);
         }
         if (!wantPages && d.trend && d.trend.length) {
           rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false });
@@ -2709,6 +2752,7 @@
         }
         _renderKpis(box, d);
         _renderChart(box, siteId, profile, d.trend || []);
+        rtEnsureBucketTopPages(siteId);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});

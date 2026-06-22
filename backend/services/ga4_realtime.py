@@ -2823,10 +2823,14 @@ def check_site_realtime(
     else:
         logger.debug("GA4 Realtime: Alarm tetiklenmedi (site=%s, profile=%s).", site.domain, profile)
 
+    if profile in ("web", "mweb"):
+        _maybe_save_page_snapshots_for_tooltip(db, site.id, profile, property_id)
+
     return result
 
 
 CHART_SNAPSHOT_MIN_INTERVAL_SEC = 50
+PAGE_SNAPSHOT_TOOLTIP_MIN_INTERVAL_SEC = 300
 
 
 def _maybe_record_chart_snapshot(db: Session, site_id: int, profile: str, result: dict[str, Any]) -> None:
@@ -3322,6 +3326,12 @@ def fetch_realtime_profile_bundle(
         )
     )
     _maybe_record_chart_snapshot(db, sid, prof, result)
+    if not result.get("error") and prof in ("web", "mweb"):
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        property_id = properties.get(prof) or properties.get("web")
+        if property_id:
+            _maybe_save_page_snapshots_for_tooltip(db, sid, prof, str(property_id))
     if trend_hours is not None and trend_hours > 0:
         result["trend"] = get_recent_snapshots(db, sid, profile=prof, hours=trend_hours)
     else:
@@ -3620,6 +3630,53 @@ def _rt_alarm_screen_title_one_line(key: str, *, max_len: int = 100) -> str:
     if not s:
         return "—"
     return s if len(s) <= max_len else s[: max_len - 1] + "…"
+
+
+def _maybe_save_page_snapshots_for_tooltip(
+    db: Session,
+    site_id: int,
+    profile: str,
+    property_id: str,
+    *,
+    min_interval_sec: int = PAGE_SNAPSHOT_TOOLTIP_MIN_INTERVAL_SEC,
+) -> None:
+    """Spark tooltip top içerik için web/mweb sayfa snapshot'ı (kota dostu throttle)."""
+    if profile not in ("web", "mweb"):
+        return
+    from sqlalchemy import func as sqlfunc
+
+    from backend.models import RealtimePageSnapshot
+
+    latest = (
+        db.query(sqlfunc.max(RealtimePageSnapshot.collected_at))
+        .filter(
+            RealtimePageSnapshot.site_id == site_id,
+            RealtimePageSnapshot.profile == profile,
+        )
+        .scalar()
+    )
+    now = datetime.utcnow()
+    if latest is not None:
+        la = latest.replace(tzinfo=None) if latest.tzinfo else latest
+        if (now - la).total_seconds() < max(60, int(min_interval_sec)):
+            return
+    try:
+        result = fetch_realtime_top_pages(
+            property_id,
+            window_minutes=15,
+            limit=100,
+            compare_previous=False,
+        )
+        pages = result.get("pages") or []
+        if pages:
+            save_page_snapshots(db, site_id, profile, pages)
+    except Exception as exc:
+        from backend.services.ga4_realtime_quota import Ga4RealtimeQuotaPausedError
+
+        if isinstance(exc, Ga4RealtimeQuotaPausedError):
+            logger.debug("Tooltip page snapshot atlandı (kota) site=%s profile=%s", site_id, profile)
+        else:
+            logger.debug("Tooltip page snapshot atlandı site=%s profile=%s: %s", site_id, profile, exc)
 
 
 def save_page_snapshots(
