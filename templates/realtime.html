@@ -1419,13 +1419,38 @@
     min-width: 2px;
     max-width: 8px;
   }
-  .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
-    background: #6366f1 !important;
-    opacity: 0.72;
+  .rt-site-spark-bars .rt-spark-mini-bar-slot .rt-spark-mini-bar--prev-week {
+    flex: 0 1 35%;
+    min-width: 1px;
+    max-width: 3px;
+    background: #a5b4fc !important;
+    opacity: 0.38;
+    z-index: 0;
+  }
+  .rt-site-spark-bars .rt-spark-mini-bar-slot .rt-spark-mini-bar:not(.rt-spark-mini-bar--prev-week):not(.rt-spark-mini-bar--empty) {
+    flex: 1 1 0;
+    min-width: 3px;
+    max-width: 11px;
+    z-index: 1;
+    position: relative;
   }
   html.dark .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
-    background: #818cf8 !important;
-    opacity: 0.85;
+    background: #a5b4fc !important;
+    opacity: 0.45;
+  }
+  .rt-site-spark-empty-msg {
+    flex: 1;
+    align-self: center;
+    margin: 0;
+    padding: 0.35rem 0.5rem;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: center;
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-site-spark-empty-msg {
+    color: rgb(161 161 170);
   }
   .rt-site-spark-compare {
     margin-top: 0.35rem;
@@ -2549,9 +2574,7 @@
     if (!siteEl) return;
     var wrap = siteEl.querySelector('[data-rt-site-sparks]');
     if (!trend || !trend.length) {
-      if (wrap) wrap.classList.add('hidden');
-      siteEl._rtCombinedTrend = null;
-      _setSiteSparkLoading(siteEl, false);
+      _renderSiteCombinedSparkEmpty(siteId, 'empty');
       return;
     }
     siteEl._rtCombinedTrend = trend;
@@ -2559,6 +2582,36 @@
     if (!siteEl._rtSparkMetric) siteEl._rtSparkMetric = 'au';
     _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric);
     _setSiteSparkLoading(siteEl, false);
+  }
+
+  function _renderSiteCombinedSparkEmpty(siteId, reason) {
+    var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
+    if (!siteEl) return;
+    var wrap = siteEl.querySelector('[data-rt-site-sparks]');
+    siteEl._rtCombinedTrend = null;
+    if (wrap) wrap.classList.remove('hidden');
+    _setSiteSparkLoading(siteEl, false);
+    var lastEl = siteEl.querySelector('[data-rt-site-spark-last]');
+    var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
+    var yEl = siteEl.querySelector('[data-rt-site-spark-y]');
+    var xEl = siteEl.querySelector('[data-rt-site-spark-x]');
+    var compareEl = siteEl.querySelector('[data-rt-site-spark-compare]');
+    if (yEl) yEl.innerHTML = '';
+    if (xEl) xEl.innerHTML = '';
+    if (compareEl) {
+      compareEl.textContent = '';
+      compareEl.classList.add('hidden');
+    }
+    if (lastEl) {
+      lastEl.textContent = reason === 'error' ? '—' : '—';
+    }
+    if (barsEl) {
+      var msg =
+        reason === 'error'
+          ? '24s grafik yüklenemedi (oturum veya ağ). Sayfayı yenileyin veya Tümünü Kontrol Et.'
+          : '24s snapshot henüz yok — GA4 Realtime job veri yazınca grafik dolar (Tümünü Kontrol Et).';
+      barsEl.innerHTML = '<p class="rt-site-spark-empty-msg" role="status">' + _esc(msg) + '</p>';
+    }
   }
 
   function rtFetchSiteCombinedTrend(siteId, opts) {
@@ -2572,10 +2625,13 @@
     if (!wantPages) url += '&bucket_pages=0';
 
     fetch(url, { credentials: 'same-origin', cache: 'no-store' })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('http_' + r.status);
+        return r.json();
+      })
       .then(function (d) {
         if (!d || d.error) {
-          if (showLoading && siteEl) _setSiteSparkLoading(siteEl, false);
+          if (siteEl) _renderSiteCombinedSparkEmpty(siteId, 'error');
           return;
         }
         if (siteEl && d.bucket_top_pages && Object.keys(d.bucket_top_pages).length) {
@@ -2583,15 +2639,15 @@
         }
         if (d.trend && d.trend.length) {
           _renderSiteCombinedSparks(siteId, d.trend);
-        } else if (showLoading && siteEl) {
-          _setSiteSparkLoading(siteEl, false);
+        } else {
+          _renderSiteCombinedSparkEmpty(siteId, 'empty');
         }
         if (!wantPages && d.trend && d.trend.length) {
           rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false });
         }
       })
       .catch(function () {
-        if (showLoading && siteEl) _setSiteSparkLoading(siteEl, false);
+        if (siteEl) _renderSiteCombinedSparkEmpty(siteId, 'error');
       });
   }
   window.rtFetchSiteCombinedTrend = rtFetchSiteCombinedTrend;
