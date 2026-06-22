@@ -1719,8 +1719,8 @@
             <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
           </div>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
-          <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat</p>
-          <p class="rt-site-spark-last" data-rt-site-spark-last>—</p>
+          <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · anlık toplam</p>
+          <p class="rt-site-spark-last" data-rt-site-spark-last title="Anlık toplam aktif (tüm profiller)">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
         </div>
         <div class="rt-site-spark-plot" data-rt-site-spark-chart>
@@ -2245,6 +2245,22 @@
     if (totalsWrap) {
       totalsWrap.classList.toggle('rt-site-totals--partial', !allAu || !allPv);
     }
+    siteEl._rtSiteSumAu = haveAu ? sumAu : null;
+    siteEl._rtSiteSumPv = havePv ? sumPv : null;
+    _rtSyncSiteSparkLiveTotal(siteEl);
+  }
+
+  function _rtSyncSiteSparkLiveTotal(siteEl) {
+    if (!siteEl) return;
+    var lastEl = siteEl.querySelector('[data-rt-site-spark-last]');
+    if (!lastEl) return;
+    var metric = siteEl._rtSparkMetric || 'au';
+    var val = metric === 'pv' ? siteEl._rtSiteSumPv : siteEl._rtSiteSumAu;
+    _slotText(lastEl, val != null ? _fmtExact(val) : '—');
+    lastEl.setAttribute(
+      'title',
+      metric === 'pv' ? 'Anlık toplam görüntüleme (tüm profiller)' : 'Anlık toplam aktif (tüm profiller)'
+    );
   }
 
   function _rtSiteSparkRangeKey(siteEl) {
@@ -2312,6 +2328,7 @@
     if (siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
       _renderSiteSparkMetric(siteEl, siteEl._rtCombinedTrend, metric);
     }
+    _rtSyncSiteSparkLiveTotal(siteEl);
   }
 
   function _renderSiteSparkMetric(siteEl, trend, metric) {
@@ -2401,15 +2418,12 @@
         .map(function (l) { return '<span>' + l + '</span>'; })
         .join('');
     }
-    var last = trendPoints[trendPoints.length - 1];
-    if (lastEl) {
-      _slotText(lastEl, _fmtExact(metric === 'pv' ? last.pv : last.users));
-    }
     var sublabelEl = siteEl.querySelector('[data-rt-site-spark-sublabel]');
     if (sublabelEl) {
       var rangeLbl = rangeKey === '15m' ? '15 dk' : rangeKey === '1h' ? '1 saat' : '24 saat';
-      sublabelEl.textContent =
-        hasPrevWeekData && rangeKey === '24h' ? rangeLbl + ' · WoW karşılaştırma' : rangeLbl;
+      var wow =
+        hasPrevWeekData && rangeKey === '24h' ? ' · WoW grafik' : '';
+      sublabelEl.textContent = rangeLbl + ' · anlık toplam' + wow;
     }
     var compareEl = siteEl.querySelector('[data-rt-site-spark-compare]');
     if (compareEl) {
@@ -2435,6 +2449,7 @@
         compareEl.classList.remove('is-up', 'is-down');
       }
     }
+    _rtSyncSiteSparkLiveTotal(siteEl);
   }
 
   function _sparkBarIndexFromTarget(barsEl, target) {
