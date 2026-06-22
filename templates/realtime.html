@@ -1501,7 +1501,7 @@
   html.dark .rt-site-spark-compare.is-up { color: rgb(52 211 153); }
   .rt-site-spark-bars > .rt-spark-mini-bar {
     flex: 1 1 0;
-    min-width: 0;
+    min-width: 1px;
     width: auto;
     max-width: 14px;
     border-radius: 2px 2px 0 0;
@@ -2329,12 +2329,13 @@
       return;
     }
     var display = _sparkBarsForDisplay(trendPoints, rangeKey);
-    var showPrevWeek =
+    var hasPrevWeekData =
       rangeKey === '24h' &&
-      metric === 'au' &&
       trendPoints.some(function (p) {
-        return p.usersPrevWeek != null;
+        return p.usersPrevWeek != null || p.pvPrevWeek != null;
       });
+    /* Site spark: çift bar (geçen hafta) ~96 dilimde dar ekranda görünmez; WoW metin/tooltip'te kalır. */
+    var showPrevWeekBars = false;
     if (metric === 'pv') {
       display = display.map(function (d) {
         var copy = {};
@@ -2343,11 +2344,6 @@
         if (d.pvPrev != null) copy.vPrev = Number(d.pvPrev) || 0;
         return copy;
       });
-      showPrevWeek =
-        rangeKey === '24h' &&
-        trendPoints.some(function (p) {
-          return p.pvPrevWeek != null;
-        });
     }
     var mx = Math.max.apply(
       null,
@@ -2363,9 +2359,9 @@
     barsEl.innerHTML = display
       .map(function (d, i) {
         var v = Number(d.v) || 0;
-        var vPrev = showPrevWeek ? Number(d.vPrev) || 0 : 0;
+        var vPrev = showPrevWeekBars ? Number(d.vPrev) || 0 : 0;
         if (d.empty || (v <= 0 && vPrev <= 0)) {
-          if (showPrevWeek) {
+          if (showPrevWeekBars) {
             return (
               '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
               i +
@@ -2383,10 +2379,10 @@
         var hPx = Math.round((v / mx) * barPx);
         hPx = Math.max(3, Math.min(barPx, hPx));
         var hPrevPx = vPrev > 0 ? Math.max(3, Math.min(barPx, Math.round((vPrev / mx) * barPx))) : 2;
-        if (showPrevWeek && vPrev > 0 && v > 0 && vPrev > v * 1.15) {
+        if (showPrevWeekBars && vPrev > 0 && v > 0 && vPrev > v * 1.15) {
           hPrevPx = Math.min(barPx, Math.max(hPx, Math.round(hPx * 1.1)));
         }
-        if (showPrevWeek) {
+        if (showPrevWeekBars) {
           return (
             '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
             i +
@@ -2438,14 +2434,14 @@
     if (sublabelEl) {
       var rangeLbl = rangeKey === '15m' ? '15 dk' : rangeKey === '1h' ? '1 saat' : '24 saat';
       sublabelEl.textContent =
-        showPrevWeek && rangeKey === '24h' ? rangeLbl + ' · mor: geçen hafta' : rangeLbl;
+        hasPrevWeekData && rangeKey === '24h' ? rangeLbl + ' · WoW karşılaştırma' : rangeLbl;
     }
     var compareEl = siteEl.querySelector('[data-rt-site-spark-compare]');
     if (compareEl) {
       var lastDisp = display.length ? display[display.length - 1] : null;
       var curV = lastDisp ? Number(lastDisp.v) || 0 : 0;
       var prevV = lastDisp && lastDisp.vPrev != null ? Number(lastDisp.vPrev) || 0 : 0;
-      if (showPrevWeek && prevV > 0 && curV >= 0) {
+      if (hasPrevWeekData && prevV > 0 && curV >= 0) {
         var delta = curV - prevV;
         var pct = (delta / prevV) * 100;
         compareEl.textContent =
