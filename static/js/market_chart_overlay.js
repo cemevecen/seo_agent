@@ -666,6 +666,7 @@
     if (trigger) {
       trigger.addEventListener("click", function (e) {
         e.stopPropagation();
+        global.__seoMarketOverlayIgnoreCloseUntil = Date.now() + 120;
         if (panel && panel.classList.contains("hidden")) openPanel();
         else closePanel();
       });
@@ -696,6 +697,9 @@
     if (!global.__seoMarketOverlayDocClose) {
       global.__seoMarketOverlayDocClose = true;
       document.addEventListener("click", function (e) {
+        if (global.__seoMarketOverlayIgnoreCloseUntil && Date.now() < global.__seoMarketOverlayIgnoreCloseUntil) {
+          return;
+        }
         var target = e.target;
         document.querySelectorAll("[data-market-overlay-root]").forEach(function (r) {
           var p = panelForRoot(r);
@@ -773,6 +777,63 @@
     syncOverlayOpenBodyClass();
   }
 
+  function resolveMarketOverlayOnChange(root) {
+    if (!root) return null;
+    var hook = root.getAttribute("data-overlay-on-change");
+    if (hook && typeof global[hook] === "function") {
+      return global[hook];
+    }
+    var rootId = root.id || "";
+    if (rootId === "mz-market-overlay-root") {
+      if (typeof global.refreshChartLine === "function") {
+        return function () {
+          global.refreshChartLine();
+        };
+      }
+      return null;
+    }
+    if (rootId === "seo-market-overlay-root") {
+      if (typeof global.ga4RerenderTrendChartsForMarket === "function") {
+        return global.ga4RerenderTrendChartsForMarket;
+      }
+      if (typeof global.scRerenderTrendChartsForMarket === "function") {
+        return global.scRerenderTrendChartsForMarket;
+      }
+    }
+    return null;
+  }
+
+  function autoBindMarketOverlays() {
+    document.querySelectorAll("[data-market-overlay-root]").forEach(function (root) {
+      if (root.dataset.marketOverlayBound === "1") return;
+      bindPanel(root, resolveMarketOverlayOnChange(root));
+    });
+  }
+
+  function installMarketOverlayAutoBind() {
+    if (global.__seoMarketOverlayAutoBindInstalled) return;
+    global.__seoMarketOverlayAutoBindInstalled = true;
+    function run() {
+      autoBindMarketOverlays();
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    if (document.body) {
+      document.body.addEventListener("htmx:afterSwap", run);
+      document.body.addEventListener("htmx:load", run);
+    } else {
+      document.addEventListener("DOMContentLoaded", function () {
+        document.body.addEventListener("htmx:afterSwap", run);
+        document.body.addEventListener("htmx:load", run);
+      });
+    }
+  }
+
+  installMarketOverlayAutoBind();
+
   global.SeoMarketOverlay = {
     LINE_COLOR: LINE_COLOR,
     SERIES_COLORS: SERIES_COLORS,
@@ -785,6 +846,7 @@
     bindWhenReady: bindWhenReady,
     ensureBound: ensureBound,
     ensureClosed: ensureClosed,
+    autoBindMarketOverlays: autoBindMarketOverlays,
     bindPanel: bindPanel,
     bindLegendGroupSync: bindMarketLegendGroupSync,
     pickFreeYaxisId: pickFreeYaxisId,

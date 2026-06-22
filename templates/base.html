@@ -754,7 +754,7 @@
   <style id="seo-market-overlay-ui">
     [data-market-overlay-root] {
       position: relative;
-      z-index: 40;
+      z-index: 120;
       isolation: isolate;
     }
     [data-market-overlay-trigger] {
@@ -794,6 +794,7 @@
       position: fixed !important;
       right: auto !important;
       margin-top: 0 !important;
+      z-index: 10100 !important;
     }
     [data-market-overlay-panel] [data-market-overlay-option] span {
       white-space: normal;
@@ -1770,7 +1771,7 @@
   <script src="/static/js/plotly_time_series_hover.js?v=2" defer></script>
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
-  <script src="/static/js/market_chart_overlay.js?v=15" defer></script>
+  <script src="/static/js/market_chart_overlay.js?v=16" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=8" defer></script>
 </head>
@@ -2089,6 +2090,9 @@
       document.body.addEventListener('htmx:afterSwap', function () {
         syncHeaderFromContent();
         syncTopNavActive();
+        if (window.SeoMarketOverlay && SeoMarketOverlay.autoBindMarketOverlays) {
+          SeoMarketOverlay.autoBindMarketOverlays();
+        }
         if (typeof window.seoInitAiBriefVisualCharts === 'function') {
           window.setTimeout(function () {
             window.seoInitAiBriefVisualCharts(0);
