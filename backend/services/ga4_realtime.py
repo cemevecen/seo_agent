@@ -2276,8 +2276,26 @@ def _digest_interval_long_label(minutes: int | None = None) -> str:
     return f"{m} dakikalık"
 
 
+def _normalize_digest_domain(domain: str | None) -> str:
+    d = (domain or "").strip().lower()
+    if d.startswith("https://"):
+        d = d[8:]
+    elif d.startswith("http://"):
+        d = d[7:]
+    return d.split("/")[0].split("?")[0].rstrip(".")
+
+
 def _site_for_digest_brand(sites: list, brand: str):
+    from backend.services.ga4_digest_email import ga4_digest_bucket_for_domain
+
     key = (brand or "").strip().lower()
+    want_bucket = "doviz" if key == "doviz" else "sinema" if key == "sinemalar" else None
+    if not want_bucket:
+        return None
+    for site in sites:
+        dom = _normalize_digest_domain(site.domain)
+        if ga4_digest_bucket_for_domain(dom) == want_bucket:
+            return site
     for site in sites:
         dom = (site.domain or "").lower()
         if key == "doviz" and "doviz" in dom and "sinema" not in dom:
@@ -2396,12 +2414,30 @@ def _build_realtime_digest_empty_diagnostic_html(
             f"(sunucu yeniden başlasa liste sıfırlanır; tipik devam: {resume_hour:02d}:00 {html.escape(tz_name)}).</p>"
         )
 
+    active_domains = [
+        _normalize_digest_domain(getattr(s, "domain", None) or "")
+        for s in (sites or [])
+        if getattr(s, "domain", None)
+    ]
+    inventory = (
+        f'<p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">'
+        f"Aktif site kaydı: {len(sites or [])}"
+        + (
+            f" · domainler: {html.escape(', '.join(active_domains[:12]))}"
+            + ("…" if len(active_domains) > 12 else "")
+            if active_domains
+            else " · <span style=\"color:#dc2626;\">hiç aktif site yok (DB)</span>"
+        )
+        + "</p>"
+    )
+
     return (
         '<p style="font-size:13px;color:#64748b;margin:0 0 10px;">'
         f"Son <strong>{html.escape(interval_short)}</strong> penceresinde 6 alanın hiçbirinde "
         f"özetlenecek KPI veya sıralı sayfa/haber/event verisi yok. "
         f"<span style=\"color:#94a3b8;\">(Not: «{html.escape(interval_short)}» = "
         f"{html.escape(_digest_interval_long_label(_digest_window_minutes()))}, saniye değil.)</span></p>"
+        f"{inventory}"
         f'<p style="font-size:12px;color:#64748b;margin:0 0 12px;">'
         f"Zamanlayıcı: ga4_realtime_enabled={'açık' if rt_enabled else 'kapalı'}, "
         f"toparlama aralığı ≈{interval_min} dk.</p>"

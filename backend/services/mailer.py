@@ -22,6 +22,8 @@ from email.utils import parseaddr
 _batch_ctx = threading.local()
 _last_realtime_batch_sent_at: float | None = None
 _pending_realtime_batch_items: list[tuple[str, str]] = []
+REALTIME_PERIODIC_DIGEST_NOTIF_TYPE = "realtime_periodic_digest"
+REALTIME_PERIODIC_DIGEST_KEY = "all_sites_batch"
 
 
 def _compact_realtime_batch_chip(raw_subject: str) -> str:
@@ -148,14 +150,50 @@ def _realtime_digest_in_quiet_hours() -> bool:
     return minutes < start or minutes >= end
 
 
-def _realtime_digest_interval_due(min_gap_min: int) -> bool:
+def _realtime_digest_interval_due(min_gap_min: int, db=None) -> bool:
+    """Periyodik özet aralığı — önce DB (çoklu replika), sonra bellek."""
     global _last_realtime_batch_sent_at
     if min_gap_min <= 0:
         return True
+    if db is not None:
+        from datetime import datetime, timedelta, timezone
+
+        from backend.models import NotificationDeliveryLog
+        from sqlalchemy import desc
+
+        last_sent = (
+            db.query(NotificationDeliveryLog.sent_at)
+            .filter(
+                NotificationDeliveryLog.notification_type == REALTIME_PERIODIC_DIGEST_NOTIF_TYPE,
+                NotificationDeliveryLog.notification_key == REALTIME_PERIODIC_DIGEST_KEY,
+            )
+            .order_by(desc(NotificationDeliveryLog.sent_at))
+            .limit(1)
+            .scalar()
+        )
+        if last_sent is not None:
+            if last_sent.tzinfo is None:
+                last_sent = last_sent.replace(tzinfo=timezone.utc)
+            elapsed = datetime.now(timezone.utc) - last_sent.astimezone(timezone.utc)
+            return elapsed >= timedelta(minutes=min_gap_min)
     if _last_realtime_batch_sent_at is None:
         return True
     elapsed = time.time() - _last_realtime_batch_sent_at
     return elapsed >= min_gap_min * 60
+
+
+def _log_realtime_periodic_digest_sent(db, subject: str, recipient: str) -> None:
+    from backend.models import NotificationDeliveryLog
+
+    db.add(
+        NotificationDeliveryLog(
+            notification_type=REALTIME_PERIODIC_DIGEST_NOTIF_TYPE,
+            notification_key=REALTIME_PERIODIC_DIGEST_KEY,
+            subject=(subject or "")[:255],
+            recipient=(recipient or "")[:255],
+        )
+    )
+    db.commit()
 
 
 def realtime_email_batch_is_collecting() -> bool:
@@ -182,34 +220,34 @@ def realtime_email_batch_flush() -> bool:
             )
         return False
 
-    if not _realtime_digest_interval_due(min_gap_min):
-        if items:
-            logging.info(
-                "SEO Realtime özet maili ertelendi (%d dk minimum aralık, %d alarm kuyrukta).",
-                min_gap_min,
-                len(items),
-            )
-        return False
-
-    _batch_ctx.collecting = False
-    _batch_ctx.items = []
-
     from backend.database import SessionLocal
     from backend.services.ga4_realtime import (
         build_realtime_periodic_digest_html,
         realtime_periodic_digest_subject,
     )
 
-    try:
-        with SessionLocal() as db:
+    with SessionLocal() as db:
+        if not _realtime_digest_interval_due(min_gap_min, db=db):
+            if items:
+                logging.info(
+                    "SEO Realtime özet maili ertelendi (%d dk minimum aralık, %d alarm kuyrukta).",
+                    min_gap_min,
+                    len(items),
+                )
+            return False
+
+        try:
             combined_body = build_realtime_periodic_digest_html(
                 db, queued_alarm_sections=len(items)
             )
-    except Exception:
-        logging.exception("SEO Realtime özet maili HTML üretilemedi")
-        _batch_ctx.collecting = True
-        _batch_ctx.items = items
-        return False
+        except Exception:
+            logging.exception("SEO Realtime özet maili HTML üretilemedi")
+            _batch_ctx.collecting = True
+            _batch_ctx.items = items
+            return False
+
+    _batch_ctx.collecting = False
+    _batch_ctx.items = []
 
     combined_subject = realtime_periodic_digest_subject()
 
@@ -222,6 +260,16 @@ def realtime_email_batch_flush() -> bool:
     )
     if ok:
         _last_realtime_batch_sent_at = time.time()
+        try:
+            with SessionLocal() as db:
+                from backend.config import settings as _settings
+
+                recips = normalize_outbound_recipients(None, raw_setting=_settings.mail_to)
+                _log_realtime_periodic_digest_sent(
+                    db, combined_subject, recips[0] if recips else ""
+                )
+        except Exception:
+            logging.exception("SEO Realtime özet maili gönderim kaydı yazılamadı")
     else:
         _batch_ctx.collecting = True
         _batch_ctx.items = items

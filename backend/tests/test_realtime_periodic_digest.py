@@ -42,6 +42,11 @@ def test_site_for_digest_brand():
     assert _site_for_digest_brand(sites, "sinemalar").domain == "www.sinemalar.com"
 
 
+def test_site_for_digest_brand_normalizes_url():
+    sites = [SimpleNamespace(domain="https://www.doviz.com/path")]
+    assert _site_for_digest_brand(sites, "doviz").domain.startswith("https://")
+
+
 def test_digest_profile_block_uses_window_aggregation(monkeypatch):
     site = SimpleNamespace(id=1, domain="www.doviz.com")
     db = MagicMock()
