@@ -5,6 +5,9 @@
   id="{{ _moid }}"
   data-market-overlay-root
   data-overlay-storage-key="{{ market_overlay_storage_key|default('seo') }}"
+  {% if market_overlay_on_change is defined and market_overlay_on_change %}
+  data-overlay-on-change="{{ market_overlay_on_change }}"
+  {% endif %}
 >
   <button
     type="button"

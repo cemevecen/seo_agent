@@ -253,13 +253,19 @@
         </section>
       </div>
 
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-black/40">
+        <p class="text-[10px] font-medium leading-snug text-slate-600 dark:text-zinc-400">
+          Piyasa kapanış — günlük çizgi, gelir/gösterim ve kalite grafiklerine ikinci eksen (tümünü kapatmak için seçimleri kaldırın)
+        </p>
+        {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
+        {% include 'partials/market_overlay_select.html' %}
+        {% endwith %}
+      </div>
+
       <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
           <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
             <div class="flex flex-wrap items-center justify-end gap-2">
-            {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz' %}
-            {% include 'partials/market_overlay_select.html' %}
-            {% endwith %}
             <div id="mz-peer-toggle-line" class="hidden shrink-0"></div>
             <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
           </div>
@@ -5012,6 +5018,17 @@
     return SeoMarketOverlay.apply(traces, layoutExtra, dateKeys, modes, o);
   }
 
+  /** Piyasa seçimi değişince tüm günlük MX grafiklerini yeniden çiz. */
+  window.mzOnMarketOverlayChange = function mzOnMarketOverlayChange() {
+    if (window.SeoMarketOverlay) SeoMarketOverlay.clearCache();
+    refreshChartLine();
+    if (state.lastSummary) {
+      renderExtendedCharts(state.lastSummary).then(function () {
+        scheduleMzChartsResizeBurst();
+      });
+    }
+  };
+
   function hideGa4SplitChart(scope) {
     var isSummary = scope === "summary";
     var wrap = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart-wrap" : "mz-drill-ga4-chart-wrap");
@@ -8727,19 +8744,6 @@
   on("mz-top-units-preset", "change", function () {
     renderTopMxUnitsWeek();
   });
-  if (window.SeoMarketOverlay) {
-    SeoMarketOverlay.bindWhenReady("mz-market-overlay-root", function () {
-      refreshChartLine();
-    });
-  } else {
-    document.addEventListener("DOMContentLoaded", function () {
-      if (window.SeoMarketOverlay) {
-        SeoMarketOverlay.bindWhenReady("mz-market-overlay-root", function () {
-          refreshChartLine();
-        });
-      }
-    });
-  }
 
   on("mz-append-upload", "click", async function () {
     var inp = document.getElementById("mz-append-file");

@@ -42,7 +42,7 @@
     );
   }
 
-  var DEFAULT_OVERLAY_KEYS = ["gram_altin"];
+  var DEFAULT_OVERLAY_KEYS = [];
 
   function storageKeyForRoot(root) {
     return "seo-market-overlay-keys-v2-" + ((root && root.getAttribute("data-overlay-storage-key")) || "seo");
@@ -156,6 +156,9 @@
         return v ? [v] : [];
       }
       return [];
+    }
+    if (root.dataset.marketOverlayBound === "1") {
+      return normalizeKeys(selectedFromDom(root));
     }
     var keys = selectedFromDom(root);
     if (!keys.length) keys = readStored(root);
@@ -786,6 +789,9 @@
     }
     var rootId = root.id || "";
     if (rootId === "mz-market-overlay-root") {
+      if (typeof global.mzOnMarketOverlayChange === "function") {
+        return global.mzOnMarketOverlayChange;
+      }
       if (typeof global.refreshChartLine === "function") {
         return function () {
           global.refreshChartLine();
