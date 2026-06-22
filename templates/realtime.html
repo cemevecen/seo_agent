@@ -1259,7 +1259,7 @@
   }
   .rt-site-spark-row {
     display: grid;
-    grid-template-columns: minmax(6.5rem, 8.5rem) minmax(0, 1fr);
+    grid-template-columns: minmax(7.25rem, 9.25rem) minmax(0, 1fr);
     gap: 0.65rem;
     align-items: stretch;
     min-height: 5.5rem;
@@ -1279,6 +1279,15 @@
     justify-content: center;
     padding: 0.15rem 0.25rem;
     border-right: 1px dashed rgb(226 232 240);
+  }
+  .rt-site-spark-range {
+    margin-bottom: 0.25rem;
+  }
+  .rt-site-spark-range .rt-yf-tab {
+    min-width: 0;
+    padding: 0.2rem 0.35rem;
+    font-size: 9px;
+    line-height: 1.1;
   }
   html.dark .rt-site-spark-meta { border-right-color: rgba(63, 63, 70, 0.45); }
   .rt-site-spark-label {
@@ -1426,23 +1435,17 @@
     min-height: 4.25rem;
     min-width: 0;
     padding-top: 0.15rem;
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .rt-site-spark-bars::-webkit-scrollbar {
-    display: none;
   }
   .rt-site-spark-bars .rt-spark-mini-bar-slot {
     display: flex;
     align-items: flex-end;
     justify-content: center;
     gap: 1px;
-    flex: 0 0 8px;
-    width: 8px;
-    min-width: 8px;
-    max-width: 12px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 18px;
     min-height: 4.25rem;
   }
   .rt-site-spark-bars .rt-spark-mini-bar-slot .rt-spark-mini-bar {
@@ -1710,6 +1713,11 @@
     <div class="rt-site-sparks" data-rt-site-sparks="{{ site.id }}">
       <div class="rt-site-spark-row is-loading" data-rt-site-spark-row>
         <div class="rt-site-spark-meta">
+          <div class="rt-site-spark-range flex flex-wrap gap-0.5" data-rt-site-yf-chrome>
+            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="15m" title="Son 15 dakika">15dk</button>
+            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="1h" title="Son 1 saat">1s</button>
+            <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
+          </div>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat</p>
           <p class="rt-site-spark-last" data-rt-site-spark-last>—</p>
@@ -2130,7 +2138,7 @@
     });
     document.querySelectorAll('[data-rt-site]').forEach(function (el) {
       var sid = parseInt(el.getAttribute('data-rt-site'), 10);
-      if (!isNaN(sid)) rtFetchSiteCombinedTrend(sid);
+      if (!isNaN(sid)) _pollSiteCombinedTrend(sid);
     });
   }
 
@@ -2223,6 +2231,44 @@
     }
   }
 
+  function _rtSiteSparkRangeKey(siteEl) {
+    if (siteEl && siteEl._rtSparkRangeKey && RT_TREND_RANGE_MS[siteEl._rtSparkRangeKey]) {
+      return siteEl._rtSparkRangeKey;
+    }
+    return '24h';
+  }
+
+  function _syncSiteYfTabs(siteEl, activeKey) {
+    if (!siteEl) return;
+    var chrome = siteEl.querySelector('[data-rt-site-yf-chrome]');
+    if (!chrome) return;
+    chrome.querySelectorAll('[data-rt-site-yf-range]').forEach(function (btn) {
+      var on = btn.getAttribute('data-rt-site-yf-range') === activeKey;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function _wireSiteYfTabs(siteEl) {
+    if (!siteEl || siteEl._rtSiteYfWired) return;
+    siteEl._rtSiteYfWired = true;
+    if (!siteEl._rtSparkRangeKey) siteEl._rtSparkRangeKey = '24h';
+    var chrome = siteEl.querySelector('[data-rt-site-yf-chrome]');
+    if (!chrome) return;
+    chrome.querySelectorAll('[data-rt-site-yf-range]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-rt-site-yf-range');
+        if (!key || !RT_TREND_RANGE_MS[key]) return;
+        siteEl._rtSparkRangeKey = key;
+        _syncSiteYfTabs(siteEl, key);
+        if (siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
+          _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric || 'au');
+        }
+      });
+    });
+    _syncSiteYfTabs(siteEl, _rtSiteSparkRangeKey(siteEl));
+  }
+
   function _rtSetSiteSparkMetric(siteEl, metric) {
     if (!siteEl) return;
     metric = metric === 'pv' ? 'pv' : 'au';
@@ -2238,11 +2284,15 @@
     if (labelEl) labelEl.textContent = metric === 'pv' ? 'Toplam görüntüleme' : 'Toplam aktif';
     var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
     if (barsEl) {
+      var rk = _rtSiteSparkRangeKey(siteEl);
       barsEl.setAttribute(
         'aria-label',
-        metric === 'pv' ? 'Site geneli toplam görüntüleme — 24 saat' : 'Site geneli toplam aktif — 24 saat'
+        metric === 'pv'
+          ? 'Site geneli toplam görüntüleme — ' + rk
+          : 'Site geneli toplam aktif — ' + rk
       );
     }
+    _wireSiteYfTabs(siteEl);
     if (siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
       _renderSiteSparkMetric(siteEl, siteEl._rtCombinedTrend, metric);
     }
@@ -2254,10 +2304,12 @@
     var xEl = siteEl.querySelector('[data-rt-site-spark-x]');
     var lastEl = siteEl.querySelector('[data-rt-site-spark-last]');
     if (!barsEl) return;
-    var rangeKey = '24h';
+    _wireSiteYfTabs(siteEl);
+    var rangeKey = _rtSiteSparkRangeKey(siteEl);
     siteEl._rtSparkRangeKey = rangeKey;
+    var filteredTrend = _filterTrendForRange(trend || [], rangeKey);
     var trendPoints = [];
-    (trend || []).forEach(function (t) {
+    filteredTrend.forEach(function (t) {
       var d = _parseSnapshotTs(t.collected_at);
       if (!d) return;
       trendPoints.push({
@@ -2278,6 +2330,7 @@
     }
     var display = _sparkBarsForDisplay(trendPoints, rangeKey);
     var showPrevWeek =
+      rangeKey === '24h' &&
       metric === 'au' &&
       trendPoints.some(function (p) {
         return p.usersPrevWeek != null;
@@ -2290,9 +2343,11 @@
         if (d.pvPrev != null) copy.vPrev = Number(d.pvPrev) || 0;
         return copy;
       });
-      showPrevWeek = trendPoints.some(function (p) {
-        return p.pvPrevWeek != null;
-      });
+      showPrevWeek =
+        rangeKey === '24h' &&
+        trendPoints.some(function (p) {
+          return p.pvPrevWeek != null;
+        });
     }
     var mx = Math.max.apply(
       null,
@@ -2361,9 +2416,6 @@
         );
       })
       .join('');
-    if (barsEl.scrollWidth > barsEl.clientWidth + 2) {
-      barsEl.scrollLeft = barsEl.scrollWidth;
-    }
     barsEl._rtSiteTipWired = false;
     _wireSiteSparkBarTips(siteEl);
     if (yEl) {
@@ -2384,9 +2436,9 @@
     }
     var sublabelEl = siteEl.querySelector('[data-rt-site-spark-sublabel]');
     if (sublabelEl) {
-      sublabelEl.textContent = showPrevWeek
-        ? '24 saat · mor: geçen hafta'
-        : '24 saat';
+      var rangeLbl = rangeKey === '15m' ? '15 dk' : rangeKey === '1h' ? '1 saat' : '24 saat';
+      sublabelEl.textContent =
+        showPrevWeek && rangeKey === '24h' ? rangeLbl + ' · mor: geçen hafta' : rangeLbl;
     }
     var compareEl = siteEl.querySelector('[data-rt-site-spark-compare]');
     if (compareEl) {
@@ -2463,6 +2515,18 @@
     Object.keys(incoming).forEach(function (k) {
       siteEl._rtBucketTopPages[k] = incoming[k];
     });
+    siteEl._rtBucketTopPagesAt = Date.now();
+  }
+
+  var RT_BUCKET_PAGES_REFRESH_MS = 5 * 60 * 1000;
+
+  function _maybeRefreshBucketTopPages(siteId) {
+    var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
+    if (!siteEl) return;
+    var tops = siteEl._rtBucketTopPages || {};
+    var at = siteEl._rtBucketTopPagesAt || 0;
+    if (Object.keys(tops).length && Date.now() - at < RT_BUCKET_PAGES_REFRESH_MS) return;
+    rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false, pagesOnly: true });
   }
 
   function _sparkBarTipLinesToHtml(text) {
@@ -2594,7 +2658,6 @@
     if (barsEl._rtSiteTipWired) return;
     barsEl._rtSiteTipWired = true;
     var metric = siteEl._rtSparkMetricCurrent || 'au';
-    var siteId = parseInt(siteEl.getAttribute('data-rt-site'), 10);
     function hide() {
       tipEl.classList.add('hidden');
       tipEl.classList.remove('rt-site-spark-tip--rich');
@@ -2616,9 +2679,6 @@
       }
       siteEl._rtSparkHoverIdx = idx;
       metric = siteEl._rtSparkMetricCurrent || 'au';
-      if (!siteEl._rtBucketTopPages || !Object.keys(siteEl._rtBucketTopPages).length) {
-        if (!isNaN(siteId)) rtEnsureBucketTopPages(siteId);
-      }
       var tipHtml = _siteSparkTipInnerHtml(siteEl, row, metric);
       tipEl.innerHTML = tipHtml;
       tipEl.classList.toggle('rt-site-spark-tip--rich', tipHtml.indexOf('rt-tip-pages') !== -1);
@@ -2675,19 +2735,15 @@
     document.querySelectorAll('[data-rt-site]').forEach(function (el) {
       var sid = parseInt(el.getAttribute('data-rt-site'), 10);
       if (!isNaN(sid)) {
+        _wireSiteYfTabs(el);
         _setSiteSparkLoading(el, true);
-        rtFetchSiteCombinedTrend(sid, { bucketPages: false, showLoading: true, pagesOnly: false });
-        rtFetchSiteCombinedTrend(sid, { bucketPages: true, showLoading: false, pagesOnly: true });
+        rtFetchSiteCombinedTrend(sid, { bucketPages: true, showLoading: true, pagesOnly: false });
       }
     });
   }
 
   function rtEnsureBucketTopPages(siteId) {
-    var siteEl = document.querySelector('[data-rt-site="' + siteId + '"]');
-    if (!siteEl) return;
-    var tops = siteEl._rtBucketTopPages || {};
-    if (Object.keys(tops).length) return;
-    rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false, pagesOnly: true });
+    _maybeRefreshBucketTopPages(siteId);
   }
   window.rtEnsureBucketTopPages = rtEnsureBucketTopPages;
 
@@ -2704,7 +2760,6 @@
     if (!siteEl._rtSparkMetric) siteEl._rtSparkMetric = 'au';
     _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric);
     _setSiteSparkLoading(siteEl, false);
-    if (!isNaN(siteId)) rtEnsureBucketTopPages(siteId);
   }
 
   function _renderSiteCombinedSparkEmpty(siteId, reason) {
@@ -2764,18 +2819,20 @@
           _mergeBucketTopPages(siteEl, d.bucket_top_pages);
         }
         if (pagesOnly) {
-          if (siteEl && siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
-            _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric || 'au');
-            var siteTipEl = siteEl.querySelector('[data-rt-site-spark-tip]');
-            if (siteTipEl && !siteTipEl.classList.contains('hidden') && siteEl._rtSparkHoverIdx != null) {
-              var disp = siteEl._rtSparkDisplay || [];
-              var hoverRow = disp[siteEl._rtSparkHoverIdx];
-              if (hoverRow) {
-                var m = siteEl._rtSparkMetricCurrent || 'au';
-                var hoverHtml = _siteSparkTipInnerHtml(siteEl, hoverRow, m);
-                siteTipEl.innerHTML = hoverHtml;
-                siteTipEl.classList.toggle('rt-site-spark-tip--rich', hoverHtml.indexOf('rt-tip-pages') !== -1);
-              }
+          var siteTipEl = siteEl ? siteEl.querySelector('[data-rt-site-spark-tip]') : null;
+          if (
+            siteTipEl &&
+            !siteTipEl.classList.contains('hidden') &&
+            siteEl &&
+            siteEl._rtSparkHoverIdx != null
+          ) {
+            var disp = siteEl._rtSparkDisplay || [];
+            var hoverRow = disp[siteEl._rtSparkHoverIdx];
+            if (hoverRow) {
+              var m = siteEl._rtSparkMetricCurrent || 'au';
+              var hoverHtml = _siteSparkTipInnerHtml(siteEl, hoverRow, m);
+              siteTipEl.innerHTML = hoverHtml;
+              siteTipEl.classList.toggle('rt-site-spark-tip--rich', hoverHtml.indexOf('rt-tip-pages') !== -1);
             }
           }
           return;
@@ -2785,9 +2842,6 @@
         } else if (!siteEl || !siteEl._rtCombinedTrend || !siteEl._rtCombinedTrend.length) {
           _renderSiteCombinedSparkEmpty(siteId, 'empty');
         }
-        if (!wantPages && d.trend && d.trend.length) {
-          rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false, pagesOnly: true });
-        }
       })
       .catch(function () {
         if (!pagesOnly && siteEl && (!siteEl._rtCombinedTrend || !siteEl._rtCombinedTrend.length)) {
@@ -2796,6 +2850,11 @@
       });
   }
   window.rtFetchSiteCombinedTrend = rtFetchSiteCombinedTrend;
+
+  function _pollSiteCombinedTrend(siteId) {
+    rtFetchSiteCombinedTrend(siteId, { bucketPages: false, showLoading: false, pagesOnly: false });
+    _maybeRefreshBucketTopPages(siteId);
+  }
 
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
   /** HTML attribute (title=…) için güvenli kaçış */
@@ -2850,8 +2909,6 @@
         }
         _renderKpis(box, d);
         _renderChart(box, siteId, profile, d.trend || []);
-        rtEnsureBucketTopPages(siteId);
-        rtFetchTrend(siteId, profile);
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
           tsEl.textContent = dt.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
@@ -4221,7 +4278,9 @@
     _fetchGlobalAlarms();
     document.querySelectorAll('[data-rt-site]').forEach(function (el) {
       var sid = parseInt(el.getAttribute('data-rt-site'), 10);
-      if (!isNaN(sid)) rtFetchSiteCombinedTrend(sid);
+      if (!isNaN(sid)) {
+        rtFetchSiteCombinedTrend(sid, { bucketPages: true, showLoading: false, pagesOnly: false });
+      }
     });
   }
   window.rtCheckAll = rtCheckAll;
@@ -4703,7 +4762,7 @@
       } catch (eVis) {}
       document.querySelectorAll('[data-rt-site]').forEach(function (el) {
         var sid = parseInt(el.getAttribute('data-rt-site'), 10);
-        if (!isNaN(sid)) rtFetchSiteCombinedTrend(sid);
+        if (!isNaN(sid)) _pollSiteCombinedTrend(sid);
       });
     });
 
