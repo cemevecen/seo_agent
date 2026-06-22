@@ -1396,6 +1396,28 @@
     border-top-color: rgb(63 63 70);
     color: rgb(161 161 170);
   }
+  .rt-site-spark-tip.rt-site-spark-tip--rich {
+    max-width: min(22rem, calc(100vw - 16px));
+  }
+  .rt-site-spark-tip .rt-tip-pages-title {
+    font-weight: 700;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgb(100 116 139);
+    margin-bottom: 0.25rem;
+  }
+  html.dark .rt-site-spark-tip .rt-tip-pages-title {
+    color: rgb(161 161 170);
+  }
+  .rt-site-spark-tip .rt-tip-pages-group + .rt-tip-pages-group {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed rgb(226 232 240);
+  }
+  html.dark .rt-site-spark-tip .rt-tip-pages-group + .rt-tip-pages-group {
+    border-top-color: rgb(63 63 70);
+  }
   .rt-site-spark-bars {
     display: flex;
     align-items: flex-end;
@@ -2314,10 +2336,14 @@
             '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
             i +
             '">' +
-            '<div class="rt-spark-mini-bar rt-spark-mini-bar--prev-week" title="Geçen hafta aynı saat" style="height:' +
+            '<div class="rt-spark-mini-bar rt-spark-mini-bar--prev-week" data-rt-bar-i="' +
+            i +
+            '" title="Geçen hafta aynı saat" style="height:' +
             hPrevPx +
             'px"></div>' +
-            '<div class="rt-spark-mini-bar" style="height:' +
+            '<div class="rt-spark-mini-bar" data-rt-bar-i="' +
+            i +
+            '" style="height:' +
             hPx +
             'px;background:' +
             _sparkBarFill(v, mx) +
@@ -2386,6 +2412,19 @@
         compareEl.classList.remove('is-up', 'is-down');
       }
     }
+  }
+
+  function _sparkBarIndexFromTarget(barsEl, target) {
+    if (!barsEl || !target) return -1;
+    var slot = target.closest('[data-rt-bar-i]');
+    if (slot && barsEl.contains(slot)) {
+      return parseInt(slot.getAttribute('data-rt-bar-i') || '-1', 10);
+    }
+    var bar = target.closest('.rt-spark-mini-bar[data-rt-bar-i]');
+    if (bar && barsEl.contains(bar)) {
+      return parseInt(bar.getAttribute('data-rt-bar-i') || '-1', 10);
+    }
+    return -1;
   }
 
   function _bucketTopKeyForRow(row, rangeKey) {
@@ -2516,7 +2555,10 @@
     }
     var pagesHtml = tipPageGroup('Web', webPages) + tipPageGroup('Mweb', mwebPages);
     if (pagesHtml) {
-      html += '<div class="rt-tip-pages">' + pagesHtml + '</div>';
+      html +=
+        '<div class="rt-tip-pages"><div class="rt-tip-pages-title">Top içerik</div>' +
+        pagesHtml +
+        '</div>';
     } else if (!row.empty && row.bucketCount) {
       html += '<div class="rt-tip-pages">Bu dilim için sayfa snapshot yok</div>';
     }
@@ -2552,11 +2594,36 @@
     if (barsEl._rtSiteTipWired) return;
     barsEl._rtSiteTipWired = true;
     var metric = siteEl._rtSparkMetricCurrent || 'au';
+    var siteId = parseInt(siteEl.getAttribute('data-rt-site'), 10);
     function hide() {
       tipEl.classList.add('hidden');
+      tipEl.classList.remove('rt-site-spark-tip--rich');
+      siteEl._rtSparkHoverIdx = null;
       barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
         b.classList.remove('is-hovered');
       });
+      barsEl.querySelectorAll('.rt-spark-mini-bar-slot.is-hovered').forEach(function (b) {
+        b.classList.remove('is-hovered');
+      });
+    }
+    function showTip(ev) {
+      var idx = _sparkBarIndexFromTarget(barsEl, ev.target);
+      var disp = siteEl._rtSparkDisplay || [];
+      var row = idx >= 0 && disp[idx] ? disp[idx] : null;
+      if (!row) {
+        hide();
+        return;
+      }
+      siteEl._rtSparkHoverIdx = idx;
+      metric = siteEl._rtSparkMetricCurrent || 'au';
+      if (!siteEl._rtBucketTopPages || !Object.keys(siteEl._rtBucketTopPages).length) {
+        if (!isNaN(siteId)) rtEnsureBucketTopPages(siteId);
+      }
+      var tipHtml = _siteSparkTipInnerHtml(siteEl, row, metric);
+      tipEl.innerHTML = tipHtml;
+      tipEl.classList.toggle('rt-site-spark-tip--rich', tipHtml.indexOf('rt-tip-pages') !== -1);
+      tipEl.classList.remove('hidden');
+      place(ev.clientX, ev.clientY);
     }
     function place(clientX, clientY) {
       _rtPlaceFixedTip(tipEl, clientX, clientY);
@@ -2565,18 +2632,17 @@
       'mouseover',
       function (ev) {
         var bar = ev.target.closest('.rt-spark-mini-bar');
-        if (!bar || !barsEl.contains(bar)) return;
+        var slot = ev.target.closest('.rt-spark-mini-bar-slot');
+        if ((!bar && !slot) || !barsEl.contains(bar || slot)) return;
         barsEl.querySelectorAll('.rt-spark-mini-bar.is-hovered').forEach(function (b) {
           b.classList.remove('is-hovered');
         });
-        bar.classList.add('is-hovered');
-        var idx = parseInt(bar.getAttribute('data-rt-bar-i') || '-1', 10);
-        var disp = siteEl._rtSparkDisplay || [];
-        var row = idx >= 0 && disp[idx] ? disp[idx] : null;
-        metric = siteEl._rtSparkMetricCurrent || 'au';
-        tipEl.innerHTML = _siteSparkTipInnerHtml(siteEl, row, metric);
-        tipEl.classList.remove('hidden');
-        place(ev.clientX, ev.clientY);
+        barsEl.querySelectorAll('.rt-spark-mini-bar-slot.is-hovered').forEach(function (b) {
+          b.classList.remove('is-hovered');
+        });
+        if (bar) bar.classList.add('is-hovered');
+        if (slot) slot.classList.add('is-hovered');
+        showTip(ev);
       },
       true
     );
@@ -2584,7 +2650,7 @@
       'mousemove',
       function (ev) {
         if (tipEl.classList.contains('hidden')) return;
-        if (!ev.target.closest('.rt-spark-mini-bar')) return;
+        if (!ev.target.closest('.rt-spark-mini-bar, .rt-spark-mini-bar-slot')) return;
         place(ev.clientX, ev.clientY);
       },
       true
@@ -2638,6 +2704,7 @@
     if (!siteEl._rtSparkMetric) siteEl._rtSparkMetric = 'au';
     _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric);
     _setSiteSparkLoading(siteEl, false);
+    if (!isNaN(siteId)) rtEnsureBucketTopPages(siteId);
   }
 
   function _renderSiteCombinedSparkEmpty(siteId, reason) {
@@ -2699,6 +2766,17 @@
         if (pagesOnly) {
           if (siteEl && siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
             _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric || 'au');
+            var siteTipEl = siteEl.querySelector('[data-rt-site-spark-tip]');
+            if (siteTipEl && !siteTipEl.classList.contains('hidden') && siteEl._rtSparkHoverIdx != null) {
+              var disp = siteEl._rtSparkDisplay || [];
+              var hoverRow = disp[siteEl._rtSparkHoverIdx];
+              if (hoverRow) {
+                var m = siteEl._rtSparkMetricCurrent || 'au';
+                var hoverHtml = _siteSparkTipInnerHtml(siteEl, hoverRow, m);
+                siteTipEl.innerHTML = hoverHtml;
+                siteTipEl.classList.toggle('rt-site-spark-tip--rich', hoverHtml.indexOf('rt-tip-pages') !== -1);
+              }
+            }
           }
           return;
         }
@@ -3363,7 +3441,7 @@
           b.classList.remove('is-hovered');
         });
         bar.classList.add('is-hovered');
-        var idx = parseInt(bar.getAttribute('data-rt-bar-i') || '-1', 10);
+        var idx = _sparkBarIndexFromTarget(barsEl, ev.target);
         var dot = barsEl.querySelector('.rt-spark-line-dot[data-rt-bar-i="' + idx + '"]');
         if (dot) dot.classList.add('is-hovered');
         var disp = box._rtSparkDisplay || [];
