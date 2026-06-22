@@ -1141,7 +1141,10 @@ def fetch_realtime_top_pages(
             mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
             try:
                 val = float(mv.value)
-                entry[mname + suffix] = entry.get(mname + suffix, 0.0) + val
+                key = mname + suffix
+                # Aynı ekran adına birden fazla satır gelirse toplama — zirve al (çift sayım önlenir).
+                prev_val = float(entry.get(key, 0.0) or 0.0)
+                entry[key] = max(prev_val, val)
             except (ValueError, TypeError):
                 pass
 
@@ -3255,8 +3258,11 @@ def get_combined_bucket_top_pages(
         au = float(row.active_users or 0)
         pv = float(row.pageviews or 0)
         slot = nested[key][prof].get(path)
-        if slot is None or au >= slot.get("active_users", 0):
+        if slot is None:
             nested[key][prof][path] = {"active_users": au, "pageviews": pv}
+        else:
+            slot["active_users"] = max(float(slot.get("active_users") or 0), au)
+            slot["pageviews"] = max(float(slot.get("pageviews") or 0), pv)
 
     out: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for key, prof_map in nested.items():
@@ -3275,6 +3281,8 @@ def get_combined_bucket_top_pages(
                 )
             ranked.sort(key=lambda x: (x["active_users"], x["pageviews"]), reverse=True)
             bucket_out[prof] = ranked[:cap]
+            ranked_pv = sorted(ranked, key=lambda x: (x["pageviews"], x["active_users"]), reverse=True)
+            bucket_out[prof + "_by_pv"] = ranked_pv[:cap]
         out[str(key)] = bucket_out
     return out
 

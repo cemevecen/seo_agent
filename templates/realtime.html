@@ -2265,7 +2265,7 @@
       null,
       display
         .map(function (d) {
-          return Math.max(Number(d.v) || 0, showPrevWeek ? Number(d.vPrev) || 0 : 0);
+          return Number(d.v) || 0;
         })
         .concat([1])
     );
@@ -2295,6 +2295,9 @@
         var hPx = Math.round((v / mx) * barPx);
         hPx = Math.max(3, Math.min(barPx, hPx));
         var hPrevPx = vPrev > 0 ? Math.max(3, Math.min(barPx, Math.round((vPrev / mx) * barPx))) : 2;
+        if (showPrevWeek && vPrev > 0 && v > 0 && vPrev > v * 1.15) {
+          hPrevPx = Math.min(barPx, Math.max(hPx, Math.round(hPx * 1.1)));
+        }
         if (showPrevWeek) {
           return (
             '<div class="rt-spark-mini-bar-slot" data-rt-bar-i="' +
@@ -2452,17 +2455,18 @@
     var rangeKey = siteEl._rtSparkRangeKey || '24h';
     var key = _bucketTopKeyForRow(row, rangeKey);
     var bucket = tops[key] || {};
-    var webPages = bucket.web || [];
-    var mwebPages = bucket.mweb || [];
+    var webPages = metric === 'pv' ? bucket.web_by_pv || bucket.web || [] : bucket.web || [];
+    var mwebPages = metric === 'pv' ? bucket.mweb_by_pv || bucket.mweb || [] : bucket.mweb || [];
     function tipPageGroup(label, pages) {
       if (!pages.length) return '';
       var block = '<div class="rt-tip-pages-group"><div style="font-weight:600;margin-bottom:0.2rem">' + _esc(label) + '</div>';
       for (var i = 0; i < pages.length; i++) {
         var p = pages[i];
         var n = metric === 'pv' ? p.pageviews || 0 : p.active_users || 0;
+        var unit = metric === 'pv' ? ' gör.' : ' kul.';
         block +=
           '<div>' +
-          _esc(String(i + 1) + '. ' + (p.label || p.page_path) + ' · ' + _fmt(n)) +
+          _esc(String(i + 1) + '. ' + (p.label || p.page_path) + ' · ' + _fmt(n) + unit) +
           '</div>';
       }
       block += '</div>';
