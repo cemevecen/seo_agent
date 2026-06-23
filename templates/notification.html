@@ -1262,6 +1262,32 @@
       return true;
     });
   }
+  function getRawSearchState() {
+    var qEl = document.getElementById("nt-filter-q");
+    var idEl = document.getElementById("nt-filter-id");
+    var platEl = document.getElementById("nt-filter-platform");
+    var minEl = document.getElementById("nt-filter-min-click");
+    return {
+      q: qEl ? qEl.value || "" : ntRawSearch.q,
+      id: idEl ? idEl.value || "" : ntRawSearch.id,
+      platform: platEl ? platEl.value || "" : ntRawSearch.platform,
+      minClick: minEl ? nCount(minEl.value) : nCount(ntRawSearch.minClick),
+    };
+  }
+  function hamListFilterActive(state) {
+    state = state || getRawSearchState();
+    if (String(state.q || "").trim()) return true;
+    if (normalizeId(state.id)) return true;
+    if (state.platform && nCount(state.minClick) > 0) return true;
+    return false;
+  }
+  function syncNtRawSearchFromDom() {
+    var s = getRawSearchState();
+    ntRawSearch.q = s.q;
+    ntRawSearch.id = s.id;
+    ntRawSearch.platform = s.platform;
+    ntRawSearch.minClick = s.minClick;
+  }
   function rawListRows() {
     return applyRawFilters(getFilteredRows());
   }
@@ -1275,18 +1301,19 @@
         return true;
       });
     }
-    var q = String(ntRawSearch.q || "").trim().toLowerCase();
+    var search = getRawSearchState();
+    var q = String(search.q || "").trim().toLowerCase();
     if (q) {
       out = out.filter(function (r) {
         return String(r.text || "").toLowerCase().indexOf(q) >= 0;
       });
     }
-    var fid = normalizeId(ntRawSearch.id);
+    var fid = normalizeId(search.id);
     if (fid) {
       out = out.filter(function (r) { return idString(r) === fid; });
     }
-    var plat = ntRawSearch.platform;
-    var minC = nCount(ntRawSearch.minClick);
+    var plat = search.platform;
+    var minC = nCount(search.minClick);
     if (plat && minC > 0) {
       out = out.filter(function (r) {
         var p = r.platforms || {};
@@ -1850,6 +1877,10 @@
     if (rawListView === "full") rawPage = Math.floor(idx / CHUNK_SIZE);
   }
   function renderRawRows(rows) {
+    if (hamListFilterActive() && rawListView === "preview") {
+      rawListView = "full";
+      rawPage = 0;
+    }
     var el = document.getElementById("nt-raw-list");
     var pageInfo = document.getElementById("nt-page-info");
     var hint = document.getElementById("nt-raw-view-hint");
@@ -2228,22 +2259,42 @@
       });
   });
 
+  var rawFilterDebounce = null;
+  function applyRawSearchFilter() {
+    syncNtRawSearchFromDom();
+    rawPage = 0;
+    if (hamListFilterActive()) {
+      rawListView = "full";
+    } else if (rawListView === "full") {
+      rawListView = "preview";
+    }
+    var matched = rawListRows();
+    renderRawRows(matched);
+    if (!serverReady && !rowsCache.length) {
+      status("Veri yükleniyor… Filtre hazır; kayıtlar gelince liste güncellenecek.");
+      return;
+    }
+    status("Ham liste filtresi uygulandı · " + fmt(matched.length) + " kayıt");
+  }
+  function scheduleRawSearchApply() {
+    if (rawFilterDebounce) clearTimeout(rawFilterDebounce);
+    rawFilterDebounce = setTimeout(applyRawSearchFilter, 300);
+  }
   var filterApply = document.getElementById("nt-filter-apply");
   if (filterApply) {
     filterApply.addEventListener("click", applyRawSearchFilter);
     ["nt-filter-q", "nt-filter-id", "nt-filter-min-click"].forEach(function (id) {
       var inp = document.getElementById(id);
-      if (inp) inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") applyRawSearchFilter(); });
+      if (inp) {
+        inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") applyRawSearchFilter(); });
+        if (id === "nt-filter-q") {
+          inp.addEventListener("input", scheduleRawSearchApply);
+          inp.addEventListener("search", applyRawSearchFilter);
+        }
+      }
     });
-  }
-  function applyRawSearchFilter() {
-    ntRawSearch.q = (document.getElementById("nt-filter-q") || {}).value || "";
-    ntRawSearch.id = (document.getElementById("nt-filter-id") || {}).value || "";
-    ntRawSearch.platform = (document.getElementById("nt-filter-platform") || {}).value || "";
-    ntRawSearch.minClick = nCount((document.getElementById("nt-filter-min-click") || {}).value);
-    rawPage = 0;
-    renderRawRows(rawListRows());
-    status("Ham liste filtresi uygulandı · " + fmt(rawListRows().length) + " kayıt");
+    var platSel = document.getElementById("nt-filter-platform");
+    if (platSel) platSel.addEventListener("change", applyRawSearchFilter);
   }
   var drillClear = document.getElementById("nt-drill-clear");
   if (drillClear) drillClear.addEventListener("click", function () { window.NTDrill.clear(); });
@@ -2269,12 +2320,16 @@
       } else {
         applyPresetRange(data.preset || "1y", true);
       }
-      status(
-        rowsCache.length
-          ? rowsCache.length.toLocaleString("tr-TR") +
-            " kayıt gösteriliyor (veritabanı; CSV yalnızca «CSV yükle ve ekle» ile güncellenir)."
-          : "Henüz kayıt yok — CSV yükleyin."
-      );
+      if (hamListFilterActive()) {
+        applyRawSearchFilter();
+      } else {
+        status(
+          rowsCache.length
+            ? rowsCache.length.toLocaleString("tr-TR") +
+              " kayıt gösteriliyor (veritabanı; CSV yalnızca «CSV yükle ve ekle» ile güncellenir)."
+            : "Henüz kayıt yok — CSV yükleyin."
+        );
+      }
     })
     .catch(function (err) {
       status((err && err.detail) || "Sunucudan veri alınamadı.");
