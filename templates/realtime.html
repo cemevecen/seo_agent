@@ -979,6 +979,60 @@
   html.rt-view--compact [data-rt-profile-box] {
     min-height: 0;
   }
+  /* Total görünüm: yalnızca döviz+sinemalar birleşik site spark */
+  #rt-global-total-panel {
+    display: none;
+  }
+  html.rt-view--total [data-rt-site] {
+    display: none !important;
+  }
+  html.rt-view--total #rt-global-total-panel {
+    display: block;
+  }
+  html.rt-view--total #rt-alarms-global {
+    display: none !important;
+  }
+  html.rt-view--total .rt-site-spark-row {
+    min-height: 11.5rem;
+  }
+  html.rt-view--total .rt-site-spark-bars {
+    min-height: 5.25rem;
+  }
+  html.rt-view--total .rt-site-spark-last {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+  .rt-global-site-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.5rem;
+  }
+  .rt-global-site-chip {
+    border-radius: 0.625rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 0.5rem 0.65rem;
+  }
+  html.dark .rt-global-site-chip {
+    border-color: rgba(63, 63, 70, 0.55);
+    background: rgba(24, 24, 27, 0.45);
+  }
+  .rt-global-site-chip-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-global-site-chip-label { color: rgb(161 161 170); }
+  .rt-global-site-chip-val {
+    margin-top: 0.2rem;
+    font-size: 1.125rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: rgb(15 23 42);
+  }
+  html.dark .rt-global-site-chip-val { color: rgb(244 244 245); }
   /* Split Panel (#3): sol KPI stack | sağ spark */
   .rt-split-panel {
     display: grid;
@@ -1679,6 +1733,15 @@
             title="Yalnızca anlık toplamlar ve sparkline"
             class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >Özet</button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked="false"
+            data-rt-view-pill="total"
+            onclick="rtSetViewMode('total')"
+            title="Döviz + Sinemalar birleşik toplam aktif spark"
+            class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+          >Total</button>
         </div>
       </div>
       <button
@@ -1689,6 +1752,61 @@
         <svg id="rt-global-refresh-icon" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
         Tümünü Kontrol Et
       </button>
+    </div>
+  </div>
+
+  <div
+    id="rt-global-total-panel"
+    class="rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none"
+    data-rt-global-total
+  >
+    <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-extrabold text-slate-800 dark:text-slate-200">Toplam aktif</h2>
+        <p class="mt-0.5 text-sm font-normal text-slate-400">Döviz + Sinemalar · tüm platformlar</p>
+      </div>
+      <p class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-global-total-ts>—</p>
+    </div>
+    <div class="rt-site-sparks" data-rt-site-sparks="global">
+      <div class="rt-site-spark-row is-loading" data-rt-site-spark-row>
+        <div class="rt-site-spark-meta">
+          <div class="rt-site-spark-range flex flex-wrap gap-0.5" data-rt-site-yf-chrome>
+            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="15m" title="Son 15 dakika">15dk</button>
+            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="1h" title="Son 1 saat">1s</button>
+            <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
+          </div>
+          <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
+          <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · Döviz + Sinemalar</p>
+          <p class="rt-site-spark-last" data-rt-site-spark-last title="Birleşik anlık toplam aktif">—</p>
+          <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
+        </div>
+        <div class="rt-site-spark-plot" data-rt-site-spark-chart>
+          <div class="rt-site-spark-y" data-rt-site-spark-y></div>
+          <div class="rt-site-spark-main">
+            <div class="rt-site-spark-load" data-rt-site-spark-load aria-hidden="true">
+              <lottie-player
+                class="rt-site-spark-lottie"
+                src="https://assets1.lottiefiles.com/packages/lf20_poqmycwy.json"
+                background="transparent"
+                speed="1"
+                loop
+                autoplay
+              ></lottie-player>
+            </div>
+            <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="Döviz + Sinemalar birleşik 24 saat trend"></div>
+            <div class="rt-site-spark-tip hidden" data-rt-site-spark-tip role="tooltip"></div>
+            <div class="rt-site-spark-x" data-rt-site-spark-x></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rt-global-site-chips mt-4" data-rt-global-site-chips>
+      {% for site in sites %}
+      <div class="rt-global-site-chip" data-rt-global-site-chip="{{ site.id }}">
+        <p class="rt-global-site-chip-label">{{ site.display_name or site.domain }}</p>
+        <p class="rt-global-site-chip-val" data-rt-global-site-au="{{ site.id }}">—</p>
+      </div>
+      {% endfor %}
     </div>
   </div>
 
@@ -2031,6 +2149,7 @@
   /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
   var RT_EVENTS_PAGE_SIZE = 10;
   var _pageTimers = {};
+  var _globalTotalTimer = null;
   var _alarmExpanded = false;
   var RT_VIEW_LS_KEY = 'rt_view_mode';
   var _liveCountdownSec = LIVE_POLL_SEC;
@@ -2267,6 +2386,142 @@
     siteEl._rtSiteSumAu = haveAu ? sumAu : null;
     siteEl._rtSiteSumPv = havePv ? sumPv : null;
     _rtSyncSiteSparkLiveTotal(siteEl);
+    _rtSyncGlobalTotalLive();
+  }
+
+  function _rtGetGlobalTotalEl() {
+    return document.getElementById('rt-global-total-panel');
+  }
+
+  function _rtMergeSiteTrends(trendList) {
+    var map = {};
+    (trendList || []).forEach(function (trend) {
+      (trend || []).forEach(function (pt) {
+        var key = String(pt.collected_at || '');
+        if (!key) return;
+        if (!map[key]) {
+          map[key] = {
+            collected_at: pt.collected_at,
+            active_users: 0,
+            pageviews: 0,
+            active_users_prev_week: 0,
+            pageviews_prev_week: 0,
+            _hasPrevAu: false,
+            _hasPrevPv: false,
+          };
+        }
+        var row = map[key];
+        row.active_users += Number(pt.active_users) || 0;
+        row.pageviews += Number(pt.pageviews) || 0;
+        if (pt.active_users_prev_week != null) {
+          row.active_users_prev_week += Number(pt.active_users_prev_week) || 0;
+          row._hasPrevAu = true;
+        }
+        if (pt.pageviews_prev_week != null) {
+          row.pageviews_prev_week += Number(pt.pageviews_prev_week) || 0;
+          row._hasPrevPv = true;
+        }
+      });
+    });
+    return Object.keys(map)
+      .sort()
+      .map(function (k) {
+        var p = map[k];
+        if (!p._hasPrevAu) p.active_users_prev_week = null;
+        if (!p._hasPrevPv) p.pageviews_prev_week = null;
+        delete p._hasPrevAu;
+        delete p._hasPrevPv;
+        return p;
+      });
+  }
+
+  function _rtSyncGlobalTotalLive() {
+    var globalEl = _rtGetGlobalTotalEl();
+    if (!globalEl) return;
+    var sum = 0;
+    var have = 0;
+    var parts = [];
+    document.querySelectorAll('[data-rt-site]').forEach(function (siteEl) {
+      var sid = siteEl.getAttribute('data-rt-site');
+      if (!sid) return;
+      var chip = globalEl.querySelector('[data-rt-global-site-au="' + sid + '"]');
+      var au = siteEl._rtSiteSumAu;
+      if (chip) _slotText(chip, au != null ? _fmtExact(au) : '—');
+      if (au != null) {
+        sum += au;
+        have += 1;
+        var titleEl = siteEl.querySelector('h2');
+        var label = titleEl ? titleEl.childNodes[0].textContent.trim() : ('Site ' + sid);
+        parts.push(label + ' ' + _fmtExact(au));
+      }
+    });
+    globalEl._rtSiteSumAu = have ? sum : null;
+    _rtSyncSiteSparkLiveTotal(globalEl);
+    var lastEl = globalEl.querySelector('[data-rt-site-spark-last]');
+    if (lastEl && have) {
+      lastEl.setAttribute('title', parts.join(' + ') + ' = ' + _fmtExact(sum));
+    }
+  }
+
+  function _rtFetchGlobalTotalTrend(opts) {
+    opts = opts || {};
+    var globalEl = _rtGetGlobalTotalEl();
+    if (!globalEl) return Promise.resolve();
+    var siteIds = [];
+    document.querySelectorAll('[data-rt-site]').forEach(function (el) {
+      var sid = parseInt(el.getAttribute('data-rt-site'), 10);
+      if (!isNaN(sid)) siteIds.push(sid);
+    });
+    if (!siteIds.length) return Promise.resolve();
+    if (opts.showLoading) _setSiteSparkLoading(globalEl, true);
+
+    return Promise.all(
+      siteIds.map(function (sid) {
+        return fetch(
+          '/api/ga4/realtime/' + encodeURIComponent(sid) + '/trend-combined?hours=24&bucket_pages=0',
+          { credentials: 'same-origin', cache: 'no-store' }
+        )
+          .then(function (r) {
+            if (!r.ok) throw new Error('http_' + r.status);
+            return r.json();
+          })
+          .then(function (d) {
+            if (!d || d.error) throw new Error(d && d.error ? d.error : 'error');
+            return d.trend || [];
+          });
+      })
+    )
+      .then(function (trends) {
+        var merged = _rtMergeSiteTrends(trends);
+        globalEl._rtCombinedTrend = merged;
+        globalEl._rtSparkMetric = 'au';
+        if (!globalEl._rtSparkRangeKey) globalEl._rtSparkRangeKey = '24h';
+        _wireSiteYfTabs(globalEl);
+        if (merged.length) {
+          _rtSetSiteSparkMetric(globalEl, 'au');
+        } else {
+          var barsEl = globalEl.querySelector('[data-rt-site-spark-bars]');
+          if (barsEl) {
+            barsEl.innerHTML =
+              '<p class="rt-site-spark-empty-msg" role="status">Birleşik 24s snapshot henüz yok — Tümünü Kontrol Et.</p>';
+          }
+        }
+        _setSiteSparkLoading(globalEl, false);
+        var tsEl = globalEl.querySelector('[data-rt-global-total-ts]');
+        if (tsEl) {
+          tsEl.textContent =
+            'güncelleme: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        }
+        _rtSyncGlobalTotalLive();
+      })
+      .catch(function () {
+        _setSiteSparkLoading(globalEl, false);
+        var barsEl = globalEl.querySelector('[data-rt-site-spark-bars]');
+        if (barsEl) {
+          barsEl.innerHTML =
+            '<p class="rt-site-spark-empty-msg" role="status">Birleşik grafik yüklenemedi. Sayfayı yenileyin.</p>';
+        }
+      });
   }
 
   function _rtSyncSiteSparkLiveTotal(siteEl) {
@@ -4287,6 +4542,7 @@
       rtFetchTopPages(sidInt, prof);
       rtFetchTopEvents(sidInt, prof);
     });
+    if (rtGetViewMode() === 'total') _rtFetchGlobalTotalTrend({ showLoading: false });
     _fetchGlobalAlarms();
     document.querySelectorAll('[data-rt-site]').forEach(function (el) {
       var sid = parseInt(el.getAttribute('data-rt-site'), 10);
@@ -4300,18 +4556,21 @@
   function rtGetViewMode() {
     try {
       var v = localStorage.getItem(RT_VIEW_LS_KEY);
-      return v === 'compact' ? 'compact' : 'full';
+      if (v === 'compact') return 'compact';
+      if (v === 'total') return 'total';
+      return 'full';
     } catch (e) {
       return 'full';
     }
   }
 
   function rtApplyViewMode(mode) {
-    var m = mode === 'compact' ? 'compact' : 'full';
+    var m = mode === 'compact' ? 'compact' : mode === 'total' ? 'total' : 'full';
     try {
       localStorage.setItem(RT_VIEW_LS_KEY, m);
     } catch (e2) {}
     document.documentElement.classList.toggle('rt-view--compact', m === 'compact');
+    document.documentElement.classList.toggle('rt-view--total', m === 'total');
     var pills = document.getElementById('rt-view-pills');
     if (pills) {
       pills.querySelectorAll('[data-rt-view-pill]').forEach(function (btn) {
@@ -4319,6 +4578,14 @@
         btn.setAttribute('aria-checked', on ? 'true' : 'false');
         btn.classList.toggle('rt-pill-on', on);
       });
+    }
+    if (m === 'total') {
+      var globalEl = _rtGetGlobalTotalEl();
+      if (globalEl) {
+        _wireSiteYfTabs(globalEl);
+        _rtSyncGlobalTotalLive();
+        _rtFetchGlobalTotalTrend({ showLoading: !globalEl._rtCombinedTrend });
+      }
     }
   }
 
@@ -4753,6 +5020,11 @@
       }, PAGES_INTERVAL_MS);
 
     });
+    if (_globalTotalTimer) clearInterval(_globalTotalTimer);
+    _globalTotalTimer = setInterval(function () {
+      if (_isNightMode() || rtGetViewMode() !== 'total') return;
+      _rtFetchGlobalTotalTrend({ showLoading: false });
+    }, PAGES_INTERVAL_MS);
     setTimeout(function() {
       if (!_isNightMode()) _fetchGlobalAlarms();
     }, 1000);
@@ -4776,6 +5048,7 @@
         var sid = parseInt(el.getAttribute('data-rt-site'), 10);
         if (!isNaN(sid)) _pollSiteCombinedTrend(sid);
       });
+      if (rtGetViewMode() === 'total') _rtFetchGlobalTotalTrend({ showLoading: false });
     });
 
     document.addEventListener('seo-theme-change', function () {
@@ -4914,6 +5187,11 @@
       _rtSetSiteSparkMetric(siteEl, tab.getAttribute('data-rt-site-metric-tab'));
     });
     _initRtAlarmSitePills();
+    var globalTotalEl = _rtGetGlobalTotalEl();
+    if (globalTotalEl) {
+      globalTotalEl._rtSparkRangeKey = '24h';
+      _wireSiteYfTabs(globalTotalEl);
+    }
     _primeSiteCombinedTrends();
     _startPolling();
     _restoreRealtimeScroll();
