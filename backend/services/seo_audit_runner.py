@@ -127,6 +127,13 @@ def _collect_audit_urls(site_id: int, site_domain: str, progress: dict) -> list[
             _add(u)
         logger.info("SEO audit: akaryakit fallback eklendi [%s]", site_domain)
 
+    www_base = base if (site_domain or "").startswith("www.") else f"https://www.doviz.com"
+    has_fuel_hub = any("yakit-sarj" in u or "ev-sarj-fiyatlari" in u for u in urls)
+    if not has_fuel_hub and "doviz.com" in (site_domain or ""):
+        for u in (f"{www_base}/yakit-sarj", f"{www_base}/ev-sarj-fiyatlari"):
+            _add(u)
+        logger.info("SEO audit: yakit-sarj / ev-sarj fallback eklendi [%s]", site_domain)
+
     return urls
 
 

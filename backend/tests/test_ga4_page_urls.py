@@ -3,6 +3,7 @@ from backend.services.ga4_page_urls import (
     ga4_url_match_keys,
     is_m_doviz_flat_product_url,
     is_m_doviz_phantom_breadcrumb_url,
+    normalize_seo_audit_doviz_fuel_url,
     repair_seo_audit_url,
     seo_audit_url_from_ga4,
 )
@@ -113,6 +114,8 @@ _MWEB_VALID_CATEGORY_PATHS = (
     "/borsa/halka-arz",
     "/emtia",
     "/akaryakit-fiyatlari",
+    "/ev-sarj-fiyatlari",
+    "/yakit-sarj",
     "/haberler",
     "/borsa/temettu-ve-sermaye-artirimi-takvimi",
     "/kredi",
@@ -155,6 +158,8 @@ _MWEB_PHANTOM_FIXES = (
     ("/altin/ekonomik-takvim", "/ekonomik-takvim"),
     ("/altin/kur/kapalicarsi/amerikan-dolari", "/kur/kapalicarsi/amerikan-dolari"),
     ("/altin/altin-cevirici", "/altin-cevirici"),
+    ("/altin/ev-sarj-fiyatlari", "/ev-sarj-fiyatlari"),
+    ("/altin/yakit-sarj", "/yakit-sarj"),
 )
 
 
@@ -227,3 +232,40 @@ def test_absolute_audit_href_no_double_host():
     full = "https://www.doviz.com/kripto-paralar/avalanche"
     assert absolute_audit_href("www.doviz.com", full) == full
     assert "www.doviz.comhttps" not in absolute_audit_href("www.doviz.com", full)
+
+
+def test_mweb_ev_sarj_no_altin_prefix():
+    url = ga4_canonical_page_url("m.doviz.com", "/ev-sarj-fiyatlari")
+    assert url == "https://m.doviz.com/ev-sarj-fiyatlari"
+    assert "/altin/" not in url
+
+
+def test_mweb_yakit_sarj_no_altin_prefix():
+    url = ga4_canonical_page_url("m.doviz.com", "/yakit-sarj")
+    assert url == "https://m.doviz.com/yakit-sarj"
+
+
+def test_seo_audit_mweb_ev_sarj_maps_to_www():
+    u = seo_audit_url_from_ga4("www.doviz.com", "/ev-sarj-fiyatlari", ga4_profile="mweb")
+    assert u == "https://www.doviz.com/ev-sarj-fiyatlari"
+
+
+def test_seo_audit_mweb_yakit_sarj_maps_to_www():
+    u = seo_audit_url_from_ga4("m.doviz.com", "/yakit-sarj", ga4_profile="mweb")
+    assert u == "https://www.doviz.com/yakit-sarj"
+
+
+def test_phantom_breadcrumb_ev_sarj_repaired_to_www():
+    bad = "https://m.doviz.com/altin/ev-sarj-fiyatlari"
+    assert is_m_doviz_phantom_breadcrumb_url(bad)
+    assert normalize_seo_audit_doviz_fuel_url(repair_seo_audit_url(bad)) == (
+        "https://www.doviz.com/ev-sarj-fiyatlari"
+    )
+
+
+def test_phantom_breadcrumb_yakit_sarj_repaired_to_www():
+    bad = "https://m.doviz.com/altin/yakit-sarj"
+    assert is_m_doviz_phantom_breadcrumb_url(bad)
+    assert normalize_seo_audit_doviz_fuel_url(repair_seo_audit_url(bad)) == (
+        "https://www.doviz.com/yakit-sarj"
+    )

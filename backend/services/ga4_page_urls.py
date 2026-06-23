@@ -65,6 +65,8 @@ _DOVIZ_MWEB_TOP_LEVEL = frozenset({
     "ekonomik-takvim",
     "akaryakit",
     "akaryakit-fiyatlari",
+    "ev-sarj-fiyatlari",
+    "yakit-sarj",
     "halka-arz",
     "endeksler",
     "harem",
@@ -92,6 +94,8 @@ _DOVIZ_MWEB_BREADCRUMB_PHANTOM_SEGMENTS = frozenset({
     "emtialar",
     "akaryakit-fiyatlari",
     "akaryakit",
+    "ev-sarj-fiyatlari",
+    "yakit-sarj",
     "doviz",
     "pariteler",
     "endeksler",
@@ -284,6 +288,7 @@ def seo_audit_url_from_ga4(
     if is_seo_audit_excluded_url(u):
         return ""
     u = repair_seo_audit_url(u)
+    u = normalize_seo_audit_doviz_fuel_url(u)
     if is_m_doviz_invalid_mweb_audit_url(u):
         return ""
     return u
@@ -458,6 +463,11 @@ def _doviz_rewrite_host(host: str, path_for_rules: str) -> str:
         return "www.doviz.com"
     if pl.startswith("/kripto-paralar") and h == "borsa.doviz.com":
         return "www.doviz.com"
+    if (
+        _doviz_path_is_www_fuel_charge(pl)
+        and h in (_DOVIZ_MWEB_HOST, _DOVIZ_ALTIN_HOST, "haber.doviz.com", "borsa.doviz.com", "kur.doviz.com")
+    ):
+        return "www.doviz.com"
     if "/doviz-cevirici" in pl and h == "borsa.doviz.com":
         return "www.doviz.com"
     # Haber URL'leri GA4'te bazen www'de görünür — tüm *-haberleri kök segmentleri
@@ -557,6 +567,41 @@ def _doviz_mweb_resolve_path(path: str) -> str:
     if parts[0].lower() in _DOVIZ_MWEB_TOP_LEVEL:
         return p
     return "/altin/" + "/".join(parts)
+
+
+_DOVIZ_WWW_FUEL_CHARGE_PREFIXES = (
+    "/ev-sarj-fiyatlari",
+    "/yakit-sarj",
+    "/akaryakit-fiyatlari",
+)
+
+
+def _doviz_path_is_www_fuel_charge(path: str | None) -> bool:
+    """Yakıt & şarj hub ve alt sayfaları yalnızca www.doviz.com kökünde."""
+    p = (path or "").strip().lower()
+    if not p.startswith("/"):
+        p = "/" + p
+    return any(p == prefix or p.startswith(prefix + "/") for prefix in _DOVIZ_WWW_FUEL_CHARGE_PREFIXES)
+
+
+def normalize_seo_audit_doviz_fuel_url(url: str | None) -> str:
+    """SEO audit: mweb GA4 yanlış m.doviz.com veya /altin/… üretmesin → www kökü."""
+    u = (url or "").strip()
+    if not u.startswith(("http://", "https://")):
+        return u
+    try:
+        parsed = urlparse(u)
+    except Exception:
+        return u
+    host = (parsed.netloc or "").lower().split(":")[0]
+    if not host.endswith("doviz.com"):
+        return u
+    path = parsed.path or "/"
+    if host == _DOVIZ_MWEB_HOST:
+        path = _doviz_mweb_strip_phantom_breadcrumb(path)
+    if not _doviz_path_is_www_fuel_charge(path):
+        return u
+    return f"https://www.doviz.com{quote(path, safe='/-._~%?&=#@!$()*+,;:')}"
 
 
 def ga4_canonical_page_url(host: str | None, path: str | None) -> str:
