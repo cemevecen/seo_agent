@@ -69,7 +69,7 @@
   {% include "partials/doviz_asset_monitor_panel.html" %}
 
   {# Hata tablosu #}
-  <div class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+  <div class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none min-w-0 overflow-hidden">
     <div class="border-b border-slate-200 px-5 py-3 dark:border-transparent">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -91,8 +91,8 @@
     </div>
 
     {# Tablo — JS ile doldurulur #}
-    <div id="err-table-wrap" class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] -mx-0 hidden max-w-full">
-      <table class="text-sm" style="min-width:712px;width:max-content" id="err-table">
+    <div id="err-table-wrap" class="err-table-wrap hidden max-w-full">
+      <table class="err-table text-sm w-full" id="err-table">
         <colgroup>
           <col style="width:52px">
           <col style="width:260px">
@@ -240,8 +240,8 @@ function _renderSummary(d) {
     var detailPanel = hasDetail ? _errDetailPanelHtml(e, { refs: allRefs, channels: allCh, unknown: unknown, urlQuery: urlQuery }) : '';
     var detailRow = hasDetail
       ? '<tr class="err-detail-row hidden" data-url="'+_esc((e.url||'').toLowerCase())+'">'
-        +'<td colspan="5" class="p-0 border-t border-slate-200/80 dark:border-zinc-700/50">'
-        +'<div class="bg-slate-50/90 px-4 py-4 dark:bg-zinc-950/50">'+detailPanel+'</div>'
+        +'<td colspan="5" class="err-detail-cell border-t border-slate-200/80 dark:border-zinc-700/50">'
+        +'<div class="err-detail-inner"><div class="bg-slate-50/90 px-4 py-4 dark:bg-zinc-950/50">'+detailPanel+'</div></div>'
         +'</td></tr>' : '';
     var lastSeen = (e.last_seen || '—').slice(0,10);
     var title = e.page_title && !['Sayfa Bulunamadı','Sayfa Bulunamadı - Sinemalar.com'].includes(e.page_title)
@@ -466,7 +466,7 @@ function _errDetailPanelHtml(e, ctx) {
     parts.push('<div class="grid gap-3 lg:grid-cols-2">'+directPanel+allPanel+'</div>');
   }
 
-  return '<div class="max-w-5xl space-y-3">'+parts.join('')+'</div>';
+  return '<div class="err-detail-panel w-full max-w-full space-y-3">'+parts.join('')+'</div>';
 }
 
 function toggleErrDetail(btn) {
@@ -476,6 +476,11 @@ function toggleErrDetail(btn) {
   var hidden = next.classList.toggle('hidden');
   btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
   btn.textContent = hidden ? 'Detay' : 'Gizle';
+  if (!hidden) {
+    window.requestAnimationFrame(function () {
+      next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
 }
 
 function filterErrors(q) {
@@ -580,6 +585,38 @@ html.dark .period-chip-active {
   background-color: #52525b;
   color: #f4f4f5;
   border-color: #52525b;
+}
+/* Detay açılınca tablo genişliği / sayfa yüksekliği bozulmasın */
+.err-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+#err-table.err-table {
+  width: 100%;
+  min-width: 42rem;
+  table-layout: fixed;
+  max-width: 100%;
+}
+.err-detail-row {
+  display: table-row;
+}
+.err-detail-cell {
+  padding: 0 !important;
+  vertical-align: top;
+  overflow: visible;
+}
+#content #err-table .err-detail-inner {
+  width: 0;
+  min-width: 100% !important;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+}
+.err-detail-panel {
+  overflow: visible;
 }
 </style>
 {% include "partials/doviz_asset_monitor_scripts.html" %}
