@@ -1035,6 +1035,7 @@ def fetch_realtime_top_pages(
     sort_by: str = "activeUsers",
     compare_previous: bool = False,
     include_page_path: bool = False,  # GA4 Realtime şemasında pagePath geçerli değil
+    metrics: list[str] | None = None,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
     """Realtime API ile son N dakikadaki top sayfaları çeker.
@@ -1042,6 +1043,7 @@ def fetch_realtime_top_pages(
     compare_previous: True ise önceki pencereyle (window_minutes kadar öncesi) karşılaştırma metriklerini de döner.
     sort_by: "activeUsers" veya "screenPageViews" — sıralama kriteri.
     include_page_path: True ise pagePath ikinci dimension olarak eklenir (Realtime API'de desteklenmez — False bırakın).
+    metrics: Özel metrik listesi (örn. yalnızca activeUsers); None ise varsayılan ikili.
     """
     if client is None:
         client = _build_client()
@@ -1068,13 +1070,11 @@ def fetch_realtime_top_pages(
     if include_page_path and dimension != "pagePath":
         dims.append(Dimension(name="pagePath"))
 
+    metric_names_req = metrics or ["activeUsers", "screenPageViews"]
     request = RunRealtimeReportRequest(
         property=f"properties/{property_id}",
         dimensions=dims,
-        metrics=[
-            Metric(name="activeUsers"),
-            Metric(name="screenPageViews"),
-        ],
+        metrics=[Metric(name=m) for m in metric_names_req],
         minute_ranges=minute_ranges,
     )
 
@@ -1138,7 +1138,10 @@ def fetch_realtime_top_pages(
         suffix = "_previous" if range_name == "previous" else ""
 
         for i, mv in enumerate(row.metric_values):
-            mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            raw_mname = metric_names[i] if i < len(metric_names) else f"metric_{i}"
+            mname = raw_mname
+            if mname in ("views", "eventCount"):
+                mname = "screenPageViews"
             try:
                 val = float(mv.value)
                 key = mname + suffix
@@ -1366,6 +1369,18 @@ def _realtime_screen_label_quality(pages: list[dict[str, Any]]) -> tuple[int, in
     return labeled, total
 
 
+def _realtime_pages_metric_total(pages: list[dict[str, Any]]) -> float:
+    """Toplam aktif kullanıcı + görüntüleme (boş metrik tespiti için)."""
+    total = 0.0
+    for p in pages:
+        total += float(p.get("activeUsers") or 0) + float(p.get("screenPageViews") or 0)
+    return total
+
+
+def _realtime_pages_have_metrics(pages: list[dict[str, Any]]) -> bool:
+    return _realtime_pages_metric_total(pages) > 0
+
+
 # Firebase / Android stream bazen unifiedScreenName boş kalır; Realtime şemasında denenecek sıra.
 _REALTIME_APP_SCREEN_DIMENSIONS: tuple[str, ...] = (
     "unifiedScreenName",
@@ -1387,7 +1402,7 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
     if client is None:
         client = _build_client()
     best: dict[str, Any] | None = None
-    best_key: tuple[int, int] = (-1, -1)
+    best_key: tuple[int, int, int] = (-1, -1, -1)
     last_exc: Exception | None = None
     for dim in _REALTIME_APP_SCREEN_DIMENSIONS:
         try:
@@ -1411,12 +1426,13 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
             continue
         pages = res.get("pages") or []
         labeled, total = _realtime_screen_label_quality(pages)
-        key = (labeled, total)
+        metrics_total = int(_realtime_pages_metric_total(pages))
+        key = (labeled, metrics_total, total)
         if key > best_key:
             best_key = key
             best = res
             best["breakdown"] = dim
-        if total > 0 and labeled >= 3 and labeled / total >= 0.45:
+        if total > 0 and labeled >= 3 and labeled / total >= 0.45 and metrics_total > 0:
             res["breakdown"] = dim
             return res
     if best is not None:
@@ -1600,6 +1616,37 @@ def fetch_realtime_top_pages_with_app_fallback(
     pages = base.get("pages") or []
     labeled, total = _realtime_screen_label_quality(pages)
     weak = labeled < 2 or (total > 0 and labeled / total < 0.35)
+    no_metrics = bool(pages) and not _realtime_pages_have_metrics(pages)
+
+    if no_metrics:
+        dim = base.get("breakdown") or "unifiedScreenName"
+        for metric_set in (["activeUsers", "screenPageViews"], ["activeUsers"]):
+            try:
+                retry = fetch_realtime_top_pages(
+                    property_id,
+                    window_minutes=window_minutes,
+                    limit=limit,
+                    sort_by=sort_by,
+                    dimension=dim,
+                    compare_previous=False,
+                    include_page_path=False,
+                    metrics=metric_set,
+                    client=client,
+                )
+                retry_pages = retry.get("pages") or []
+                if _realtime_pages_have_metrics(retry_pages):
+                    retry["breakdown"] = dim
+                    retry["metrics_retry"] = metric_set
+                    return retry
+            except Exception as exc:
+                logger.debug(
+                    "Realtime app metrics retry %s [%s / %s]: %s",
+                    metric_set,
+                    property_id,
+                    profile,
+                    exc,
+                )
+
     if not weak:
         return base
 
