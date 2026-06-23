@@ -14361,12 +14361,22 @@ def api_ga4_realtime_top_pages(
     return JSONResponse(result)
 
 
+def _parse_query_bool(value: object, *, default: bool = True) -> bool:
+    raw = str(value).strip().lower() if value is not None else ""
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    return default
+
+
 @app.get("/api/ga4/realtime/{site_id}/wow-day-pages")
 def api_ga4_realtime_wow_day_pages(
     site_id: int,
     profile: str = "web",
     limit: int = 12,
-    exclude_news: bool = True,
+    exclude_news: str = "1",
+    news_only: str = "0",
 ):
     """Geçen haftanın aynı günü (tam gün GA4) en çok görüntülenen sayfalar — web/mweb."""
     from backend.collectors.ga4 import fetch_ga4_landing_pages, same_weekday_day_meta
@@ -14395,7 +14405,9 @@ def api_ga4_realtime_wow_day_pages(
             )
 
     cap = max(1, min(int(limit), 25))
-    excl = str(exclude_news).strip().lower() not in ("0", "false", "no")
+    news = _parse_query_bool(news_only, default=False)
+    excl = _parse_query_bool(exclude_news, default=True) if not news else False
+    mode_key = "news" if news else ("excl" if excl else "all")
     cache_ttl = max(300, int(settings.ga4_realtime_list_cache_seconds) * 4)
 
     def _produce():
@@ -14404,6 +14416,7 @@ def api_ga4_realtime_wow_day_pages(
             days=1,
             limit=max(cap, 40),
             exclude_news=excl,
+            news_only=news,
             same_weekday_day=True,
         )
         rows.sort(key=lambda r: float(r.get("prev_total") or 0), reverse=True)
@@ -14431,13 +14444,15 @@ def api_ga4_realtime_wow_day_pages(
             "profile": profile_key,
             "pages": pages,
             "meta": meta,
+            "mode": mode_key,
             "exclude_news": excl,
+            "news_only": news,
             "data_source": "ga4_daily",
             "fetched_at": datetime.now(timezone.utc).isoformat(),
         }
 
     result = get_or_call(
-        f"rt:wowpages:{site_id}:{profile_key}:{int(excl)}:{cap}",
+        f"rt:wowpages:{site_id}:{profile_key}:{mode_key}:{cap}",
         float(cache_ttl),
         _produce,
         is_error=lambda r: bool(r.get("error")),
