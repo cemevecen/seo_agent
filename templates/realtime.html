@@ -3785,7 +3785,7 @@
         var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
           return !_isRealtimeNoiseTitle(p && p.page);
         });
-        _renderTopPages(listEl, rows, isViews, domain);
+        _renderTopPages(listEl, rows, isViews, domain, profile);
         _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
@@ -4177,13 +4177,21 @@
   }
   window.rtSwitchTopTab = rtSwitchTopTab;
 
-  function _renderTopPages(listEl, pages, viewsMode, domain) {
+  function _renderTopPages(listEl, pages, viewsMode, domain, profile) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
       return;
     }
+    var isApp = profile === 'ios' || profile === 'android';
     var sortKey = viewsMode ? 'screenPageViews' : 'activeUsers';
+    if (!viewsMode && isApp) {
+      var sumAu = pages.reduce(function (acc, p) { return acc + (Number(p.activeUsers) || 0); }, 0);
+      if (sumAu <= 0) sortKey = 'screenPageViews';
+    }
+    pages = pages.slice().sort(function (a, b) {
+      return (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0);
+    });
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
       var pathRaw = p.page || '(bilinmiyor)';

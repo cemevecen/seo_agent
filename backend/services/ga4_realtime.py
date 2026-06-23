@@ -1381,6 +1381,32 @@ def _realtime_pages_have_metrics(pages: list[dict[str, Any]]) -> bool:
     return _realtime_pages_metric_total(pages) > 0
 
 
+def _realtime_pages_have_active_users(pages: list[dict[str, Any]]) -> bool:
+    return any(float(p.get("activeUsers") or 0) > 0 for p in pages)
+
+
+def _merge_realtime_page_active_users(
+    pages: list[dict[str, Any]],
+    au_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """activeUsers-only sorgudan gelen değerleri ekran satırlarına birleştirir."""
+    au_map: dict[str, float] = {}
+    for row in au_rows:
+        key = str(row.get("page") or "").strip()
+        if key:
+            au_map[key] = max(au_map.get(key, 0.0), float(row.get("activeUsers") or 0))
+    if not au_map:
+        return pages
+    out: list[dict[str, Any]] = []
+    for p in pages:
+        merged = dict(p)
+        key = str(p.get("page") or "").strip()
+        if key in au_map:
+            merged["activeUsers"] = au_map[key]
+        out.append(merged)
+    return out
+
+
 # Firebase / Android stream bazen unifiedScreenName boş kalır; Realtime şemasında denenecek sıra.
 _REALTIME_APP_SCREEN_DIMENSIONS: tuple[str, ...] = (
     "unifiedScreenName",
@@ -1575,7 +1601,7 @@ def fetch_realtime_top_pages_with_app_fallback(
     compare_previous: bool = False,
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Mobil: önce en iyi ekran boyutu; etiketler zayıfsa eventName kırılımına düşer."""
+    """Mobil: en iyi ekran boyutu; metrik yoksa tek metrik yeniden dene. eventName burada kullanılmaz."""
     if profile not in ("android", "ios"):
         base = fetch_realtime_top_pages(
             property_id,
@@ -1614,13 +1640,11 @@ def fetch_realtime_top_pages_with_app_fallback(
         )
 
     pages = base.get("pages") or []
-    labeled, total = _realtime_screen_label_quality(pages)
-    weak = labeled < 2 or (total > 0 and labeled / total < 0.35)
     no_metrics = bool(pages) and not _realtime_pages_have_metrics(pages)
 
     if no_metrics:
         dim = base.get("breakdown") or "unifiedScreenName"
-        for metric_set in (["activeUsers", "screenPageViews"], ["activeUsers"]):
+        for metric_set in (["activeUsers", "screenPageViews"], ["activeUsers"], ["screenPageViews"]):
             try:
                 retry = fetch_realtime_top_pages(
                     property_id,
@@ -1647,35 +1671,38 @@ def fetch_realtime_top_pages_with_app_fallback(
                     exc,
                 )
 
-    if not weak:
-        return base
+    # Görüntüleme var ama aktif kullanıcı 0: Android'de ikili metrik sorgusu AU döndürmeyebilir.
+    if pages and _realtime_pages_have_metrics(pages) and not _realtime_pages_have_active_users(pages):
+        dim = base.get("breakdown") or "unifiedScreenName"
+        try:
+            au_only = fetch_realtime_top_pages(
+                property_id,
+                window_minutes=window_minutes,
+                limit=max(limit, len(pages)),
+                sort_by="activeUsers",
+                dimension=dim,
+                compare_previous=False,
+                include_page_path=False,
+                metrics=["activeUsers"],
+                client=client,
+            )
+            au_pages = au_only.get("pages") or []
+            if _realtime_pages_have_active_users(au_pages):
+                merged_pages = _merge_realtime_page_active_users(pages, au_pages)
+                base = dict(base)
+                base["pages"] = merged_pages[:limit]
+                base["active_users_merged"] = True
+                pages = merged_pages
+        except Exception as exc:
+            logger.debug(
+                "Realtime app activeUsers merge [%s / %s]: %s",
+                property_id,
+                profile,
+                exc,
+            )
 
-    try:
-        alt = fetch_realtime_top_event_names(
-            property_id,
-            window_minutes=window_minutes,
-            limit=limit,
-            sort_by=sort_by,
-            compare_previous=compare_previous,
-            client=client,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Realtime app fallback (eventName) başarısız [%s / %s]: %s",
-            property_id,
-            profile,
-            exc,
-        )
-        return base
-
-    alt_pages = alt.get("pages") or []
-    if not alt_pages:
-        return base
-
-    alt["replaced_unified_screen"] = True
-    alt["unified_screen_labeled_rows"] = labeled
-    alt["unified_screen_total_rows"] = total
-    return alt
+    # Ekran listesine eventName karıştırma — etkinlikler /top-events endpoint'inde.
+    return base
 
 
 def fetch_realtime_top_events_fallback_active_users(
