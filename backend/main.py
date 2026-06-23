@@ -14379,7 +14379,12 @@ def api_ga4_realtime_wow_day_pages(
     news_only: str = "0",
 ):
     """Geçen haftanın aynı günü (tam gün GA4) en çok görüntülenen sayfalar — web/mweb."""
-    from backend.collectors.ga4 import fetch_ga4_landing_pages, same_weekday_day_meta
+    from backend.collectors.ga4 import (
+        _aggregate_landing_rows_by_path,
+        fetch_ga4_landing_pages,
+        fetch_ga4_wow_day_news_pages,
+        same_weekday_day_meta,
+    )
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
     from backend.services.realtime_cache import get_or_call
     from backend.config import settings
@@ -14411,14 +14416,21 @@ def api_ga4_realtime_wow_day_pages(
     cache_ttl = max(300, int(settings.ga4_realtime_list_cache_seconds) * 4)
 
     def _produce():
-        rows = fetch_ga4_landing_pages(
-            property_id=str(property_id),
-            days=1,
-            limit=max(cap, 40),
-            exclude_news=excl,
-            news_only=news,
-            same_weekday_day=True,
-        )
+        if news:
+            rows = fetch_ga4_wow_day_news_pages(
+                property_id=str(property_id),
+                limit=max(cap, 40),
+            )
+        else:
+            rows = fetch_ga4_landing_pages(
+                property_id=str(property_id),
+                days=1,
+                limit=max(cap, 40),
+                exclude_news=excl,
+                news_only=False,
+                same_weekday_day=True,
+            )
+            rows = _aggregate_landing_rows_by_path(rows)
         rows.sort(key=lambda r: float(r.get("prev_total") or 0), reverse=True)
         pages = []
         for row in rows[:cap]:
@@ -14430,6 +14442,7 @@ def api_ga4_realtime_wow_day_pages(
             pages.append(
                 {
                     "page": row.get("page") or "",
+                    "page_title": row.get("page_title") or "",
                     "page_url": row.get("page_url") or "",
                     "page_host": row.get("page_host") or "",
                     "screenPageViews": prev_v,
@@ -14452,7 +14465,7 @@ def api_ga4_realtime_wow_day_pages(
         }
 
     result = get_or_call(
-        f"rt:wowpages:{site_id}:{profile_key}:{mode_key}:{cap}",
+        f"rt:wowpages:v2:{site_id}:{profile_key}:{mode_key}:{cap}",
         float(cache_ttl),
         _produce,
         is_error=lambda r: bool(r.get("error")),

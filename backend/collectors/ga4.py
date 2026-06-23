@@ -649,6 +649,164 @@ def _merge_period_maps(
     return {k: (float(last_map.get(k, 0.0)), float(prev_map.get(k, 0.0))) for k in keys}
 
 
+def _normalize_page_path_key(path: str) -> str:
+    """hostName ayrımından sonra aynı pagePath satırlarını birleştirmek için."""
+    p = str(path or "").strip() or "/"
+    if p != "/" and p.endswith("/"):
+        p = p.rstrip("/")
+    return p
+
+
+def _aggregate_landing_rows_by_path(rows: list[dict]) -> list[dict]:
+    """Çoklu host (www/m.) aynı pagePath tekrarlarını toplar — örn. üç ayrı «/» satırı."""
+    buckets: dict[str, dict] = {}
+    for row in rows:
+        path = _normalize_page_path_key(str(row.get("page") or ""))
+        if not path:
+            continue
+        lt = float(row.get("last_total") or 0)
+        pt = float(row.get("prev_total") or 0)
+        if path not in buckets:
+            buckets[path] = {
+                "page": path,
+                "page_host": "",
+                "page_url": "",
+                "last_total": 0.0,
+                "prev_total": 0.0,
+                "_best_prev": -1.0,
+            }
+        b = buckets[path]
+        b["last_total"] += lt
+        b["prev_total"] += pt
+        if pt > b["_best_prev"]:
+            b["_best_prev"] = pt
+            host = str(row.get("page_host") or "").strip()
+            url = str(row.get("page_url") or "").strip()
+            if host:
+                b["page_host"] = host
+            if url:
+                b["page_url"] = url
+    out: list[dict] = []
+    for b in buckets.values():
+        b.pop("_best_prev", None)
+        if not b.get("page_url") and b.get("page_host"):
+            b["page_url"] = ga4_canonical_page_url(b["page_host"], b["page"])
+        delta = b["last_total"] - b["prev_total"]
+        prev_v = b["prev_total"]
+        b["delta"] = delta
+        b["delta_pct"] = (delta / prev_v * 100.0) if prev_v > 0 else (100.0 if b["last_total"] > 0 else 0.0)
+        out.append(b)
+    return out
+
+
+def _run_news_paths_with_titles_single_range(
+    client: BetaAnalyticsDataClient,
+    property_id: str,
+    *,
+    start: str,
+    end: str,
+    limit: int,
+) -> dict[str, dict]:
+    """pagePath başına screenPageViews + pageTitle (hostlar birleşik)."""
+    news_filt = _landing_news_include_filter("pagePath")
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [
+            Dimension(name="hostName"),
+            Dimension(name="pagePath"),
+            Dimension(name="pageTitle"),
+        ],
+        "metrics": [Metric(name="screenPageViews")],
+        "date_ranges": [DateRange(start_date=start, end_date=end)],
+        "limit": max(50, min(int(limit or 200), 500)),
+        "order_bys": [
+            OrderBy(metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"), desc=True),
+        ],
+    }
+    if news_filt is not None:
+        req_kwargs["dimension_filter"] = news_filt
+    try:
+        response = client.run_report(
+            RunReportRequest(**req_kwargs),
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning("GA4 wow haber listesi başarısız property=%s", property_id, exc_info=True)
+        return {}
+    buckets: dict[str, dict] = {}
+    for row in response.rows or []:
+        if len(row.dimension_values) < 3:
+            continue
+        host = str(row.dimension_values[0].value or "").strip()
+        path = _normalize_page_path_key(str(row.dimension_values[1].value or ""))
+        title = str(row.dimension_values[2].value or "").strip()
+        if not path or not _is_news_article_path(path):
+            continue
+        views = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        if path not in buckets:
+            buckets[path] = {
+                "views": 0.0,
+                "page_title": "",
+                "page_host": "",
+                "page_url": "",
+                "_title_views": -1.0,
+            }
+        b = buckets[path]
+        b["views"] += views
+        if title and views >= b["_title_views"]:
+            b["page_title"] = title
+            b["_title_views"] = views
+            if host:
+                b["page_host"] = host
+    for path, b in buckets.items():
+        b.pop("_title_views", None)
+        host = b.get("page_host") or ""
+        b["page_url"] = ga4_canonical_page_url(host, path) if host else ""
+    return buckets
+
+
+def fetch_ga4_wow_day_news_pages(*, property_id: str, limit: int = 50) -> list[dict]:
+    """Geçen haftanın aynı günü en çok görüntülenen haberler — pageTitle ile."""
+    (last_start, last_end), (prev_start, prev_end) = _same_weekday_day_windows()
+    client = _client()
+    fetch_lim = max(40, min(int(limit or 50), 250))
+    last_map = _run_news_paths_with_titles_single_range(
+        client, property_id, start=last_start, end=last_end, limit=fetch_lim
+    )
+    prev_map = _run_news_paths_with_titles_single_range(
+        client, property_id, start=prev_start, end=prev_end, limit=fetch_lim
+    )
+    keys = set(last_map) | set(prev_map)
+    rows: list[dict] = []
+    for path in keys:
+        last_row = last_map.get(path) or {}
+        prev_row = prev_map.get(path) or {}
+        last_v = float(last_row.get("views") or 0)
+        prev_v = float(prev_row.get("views") or 0)
+        if prev_v <= 0 and last_v <= 0:
+            continue
+        title = str(last_row.get("page_title") or prev_row.get("page_title") or "").strip()
+        host = str(last_row.get("page_host") or prev_row.get("page_host") or "").strip()
+        page_url = str(last_row.get("page_url") or prev_row.get("page_url") or "").strip()
+        if not page_url and host:
+            page_url = ga4_canonical_page_url(host, path)
+        delta = last_v - prev_v
+        delta_pct = (delta / prev_v * 100.0) if prev_v > 0 else (100.0 if last_v > 0 else 0.0)
+        rows.append(
+            {
+                "page": path,
+                "page_title": title,
+                "page_host": host,
+                "page_url": page_url,
+                "last_total": last_v,
+                "prev_total": prev_v,
+                "delta": delta,
+                "delta_pct": delta_pct,
+            }
+        )
+    rows.sort(key=lambda r: float(r.get("prev_total") or 0), reverse=True)
+    return rows[: max(1, min(int(limit), 50))]
+
 def _run_landing_pages_excl_news(
     client: BetaAnalyticsDataClient,
     property_id: str,

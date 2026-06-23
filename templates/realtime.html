@@ -2485,8 +2485,8 @@
             <p class="rt-wow-meta" data-rt-wow-meta></p>
             <div class="rt-wow-filter" data-rt-wow-filter>
               <button type="button" class="rt-wow-filter-btn is-on" data-rt-wow-mode="excl">Haber hariç</button>
-              <button type="button" class="rt-wow-filter-btn" data-rt-wow-mode="all">Tüm sayfalar</button>
               <button type="button" class="rt-wow-filter-btn" data-rt-wow-mode="news">Haberler</button>
+              <button type="button" class="rt-wow-filter-btn" data-rt-wow-mode="all">Tüm sayfalar</button>
             </div>
             <div class="min-w-0 space-y-1" data-rt-wow-list>
               <div class="animate-pulse space-y-2 py-2">
@@ -4625,6 +4625,19 @@
     });
   }
 
+  function _wowNewsTitleFromPage(p) {
+    var title = String((p && p.page_title) || '').trim();
+    if (title && !/^\d+$/.test(title)) return title;
+    var pathRaw = String((p && p.page) || '').trim();
+    var parts = pathRaw.split('/').filter(Boolean);
+    if (!parts.length) return pathRaw || '(başlıksız)';
+    var last = parts[parts.length - 1];
+    if (/^\d+$/.test(last) && parts.length >= 2) {
+      return parts[parts.length - 2].replace(/-/g, ' ');
+    }
+    return last.replace(/-/g, ' ');
+  }
+
   function _renderWowDayNews(listEl, pages, domain, meta) {
     if (!listEl) return;
     if (!pages.length) {
@@ -4640,8 +4653,8 @@
     listEl.innerHTML = pages.map(function (p, i) {
       var pathRaw = p.page || '(bilinmiyor)';
       var pageUrl = (p.page_url || '').trim();
-      var titleRaw = pathRaw.split('/').filter(Boolean).pop() || pathRaw;
-      var titleDisp = _esc(titleRaw.replace(/-/g, ' '));
+      var titleRaw = _wowNewsTitleFromPage(p);
+      var titleDisp = _esc(titleRaw);
       var subEsc = _esc(pathRaw);
       var tipAttr = _attr(pathRaw);
       var hrefAttr = pageUrl ? encodeURI(pageUrl) : '';
