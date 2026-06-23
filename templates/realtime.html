@@ -1689,14 +1689,14 @@
     background: #60a5fa !important;
     opacity: 0.38;
   }
-  [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
-  [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
-  #rt-global-total-panel .rt-site-spark-row:not(.rt-site-spark-row--pv) {
+  [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
+  [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
+  #rt-global-total-panel .rt-site-sparks[data-rt-site-sparks="global"] .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv) {
     border-right-color: rgba(59, 130, 246, 0.22);
   }
-  html.dark [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
-  html.dark [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
-  html.dark #rt-global-total-panel .rt-site-spark-row:not(.rt-site-spark-row--pv) {
+  html.dark [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
+  html.dark [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
+  html.dark #rt-global-total-panel .rt-site-sparks[data-rt-site-sparks="global"] .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv) {
     border-right-color: rgba(96, 165, 250, 0.28);
   }
   .rt-site-spark-empty-msg {
@@ -3862,18 +3862,11 @@
 
   function _rtSiteSparkUsesBlue(siteEl, metric) {
     if (metric !== 'au' || !siteEl) return false;
+    /* Total sekmesi: yalnızca birleşik Döviz+Sinemalar spark mavi; alt site satırları yeşil */
+    if (siteEl.hasAttribute('data-rt-global-site-spark')) return false;
     if (siteEl.hasAttribute('data-rt-global-total')) return true;
     var slug = siteEl.getAttribute('data-rt-site-slug');
-    if (slug === 'doviz' || slug === 'sinemalar') return true;
-    if (siteEl.hasAttribute('data-rt-global-site-spark')) {
-      var sid = siteEl.getAttribute('data-rt-global-site-spark');
-      var card = document.querySelector('.rt-site-card[data-rt-site="' + sid + '"]');
-      if (card) {
-        slug = card.getAttribute('data-rt-site-slug');
-        return slug === 'doviz' || slug === 'sinemalar';
-      }
-    }
-    return false;
+    return slug === 'doviz' || slug === 'sinemalar';
   }
 
   function _rtSiteSparkBarFill(siteEl, metric) {
