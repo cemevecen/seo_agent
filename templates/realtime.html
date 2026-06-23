@@ -978,6 +978,9 @@
   html.rt-view--compact #rt-alarms-global {
     display: none !important;
   }
+  html.rt-view--compact [data-rt-404-section] {
+    display: none !important;
+  }
   html.rt-view--compact .rt-site-chrome {
     display: none !important;
   }
@@ -5326,6 +5329,11 @@
         _rtFetchGlobalTotalTrend({ showLoading: !globalEl._rtCombinedTrend });
       }
     }
+    if (m === 'compact') {
+      document.querySelectorAll('[data-rt-404-section]').forEach(function (sec) {
+        sec.classList.add('hidden');
+      });
+    }
   }
 
   function rtSetViewMode(mode) {
@@ -5861,6 +5869,10 @@
     if (!sec) return;
     box._rt404LastData = data;
     _wire404Dismiss(box);
+    if (rtGetViewMode() === 'compact') {
+      sec.classList.add('hidden');
+      return;
+    }
     var siteId = box.getAttribute('data-rt-site-id');
     var profile = box.getAttribute('data-rt-profile');
     var total = (data && data.total_404_users) || 0;
@@ -5902,6 +5914,7 @@
   }
 
   function _fetch404Spike(siteId, profile) {
+    if (rtGetViewMode() === 'compact') return;
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box || profile === 'android' || profile === 'ios') return;
     fetch('/api/ga4/realtime/' + siteId + '/404-spike?profile=' + encodeURIComponent(profile) + '&window=15', {
