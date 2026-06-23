@@ -14263,13 +14263,15 @@ def api_ga4_realtime_top_pages(
                     sort_by=sort_by,
                     compare_previous=compare,
                 )
-                result["site_id"] = site_id
-                result["profile"] = profile
-                result["type"] = type
-                result["range"] = range_key
-                result["range_label"] = REALTIME_LIST_RANGE_LABELS.get(range_key, f"{list_minutes} dk")
-                result["data_source"] = "ga4"
-                return result
+                pages = result.get("pages") or []
+                if pages:
+                    result["site_id"] = site_id
+                    result["profile"] = profile
+                    result["type"] = type
+                    result["range"] = range_key
+                    result["range_label"] = REALTIME_LIST_RANGE_LABELS.get(range_key, f"{list_minutes} dk")
+                    result["data_source"] = "ga4"
+                    return result
             except Exception as exc:
                 LOGGER.warning(
                     "Top pages canlı API başarısız [compare=%s, site=%s, profile=%s]: %s",
@@ -14339,13 +14341,21 @@ def api_ga4_realtime_top_pages(
                 "fetched_at": curr_time.isoformat() if curr_time else None,
             }
 
+    def _top_pages_is_error(r: dict) -> bool:
+        if bool(r.get("error")) or r.get("source") == "db_snapshot":
+            return True
+        # App profillerinde boş canlı liste cache'lenmesin; son-iyi veya DB yedeğine düşsün.
+        if (r.get("profile") or "").lower() in ("android", "ios") and r.get("data_source") == "ga4":
+            return not (r.get("pages") or [])
+        return False
+
     result = get_or_call(
         f"rt:pages:{site_id}:{profile}:{range_key}:{type}",
         settings.ga4_realtime_list_cache_seconds,
         _produce,
         # db_snapshot da "canlı değil" sayılır: canlı son-iyi varsa o tercih edilir,
         # ayrıca son-iyi (live) DB snapshot ile ezilmez.
-        is_error=lambda r: bool(r.get("error")) or r.get("source") == "db_snapshot",
+        is_error=_top_pages_is_error,
         last_good_ttl=settings.ga4_realtime_last_good_seconds,
     )
     return JSONResponse(result)

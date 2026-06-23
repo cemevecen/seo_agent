@@ -1412,8 +1412,79 @@ _REALTIME_APP_SCREEN_DIMENSIONS: tuple[str, ...] = (
     "unifiedScreenName",
     "screenName",
     "unifiedScreenClass",
+    "screenClass",
     "pageTitle",
 )
+
+
+def _rescue_app_empty_screen_pages(
+    property_id: str,
+    *,
+    window_minutes: int,
+    limit: int,
+    sort_by: str,
+    client: BetaAnalyticsDataClient,
+) -> dict[str, Any] | None:
+    """Android/iOS'ta tüm ekran boyutları boş dönerse ek boyut/pencere/metrik dene."""
+    sort_keys: list[str] = []
+    for sk in (sort_by, "screenPageViews", "activeUsers"):
+        if sk not in sort_keys:
+            sort_keys.append(sk)
+    windows: list[int] = []
+    for w in (window_minutes, 30):
+        if w not in windows and 1 <= w <= 29:
+            windows.append(w)
+
+    fetch_limit = max(limit, 50, 100)
+    best: dict[str, Any] | None = None
+    best_key: tuple[int, int, int] = (-1, -1, -1)
+
+    for w in windows:
+        for dim in _REALTIME_APP_SCREEN_DIMENSIONS:
+            for sk in sort_keys:
+                for metrics in (
+                    None,
+                    ["screenPageViews"],
+                    ["activeUsers"],
+                    ["activeUsers", "screenPageViews"],
+                ):
+                    try:
+                        res = fetch_realtime_top_pages(
+                            property_id,
+                            window_minutes=w,
+                            limit=fetch_limit,
+                            sort_by=sk,
+                            dimension=dim,
+                            compare_previous=False,
+                            include_page_path=False,
+                            metrics=metrics,
+                            client=client,
+                        )
+                    except Exception as exc:
+                        logger.debug(
+                            "Realtime app screen rescue dim=%s w=%s sort=%s: %s",
+                            dim,
+                            w,
+                            sk,
+                            exc,
+                        )
+                        continue
+                    pages = res.get("pages") or []
+                    if not pages:
+                        continue
+                    labeled, total = _realtime_screen_label_quality(pages)
+                    metrics_total = int(_realtime_pages_metric_total(pages))
+                    key = (labeled, metrics_total, total)
+                    if key > best_key:
+                        best_key = key
+                        best = res
+                        best["breakdown"] = dim
+                        best["screen_rescue"] = True
+                    if metrics_total > 0 and labeled >= 1:
+                        res["breakdown"] = dim
+                        res["screen_rescue"] = True
+                        return res
+    return best
 
 
 def fetch_realtime_top_pages_pick_best_screen_dimension(
@@ -1451,6 +1522,8 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
             )
             continue
         pages = res.get("pages") or []
+        if not pages:
+            continue
         labeled, total = _realtime_screen_label_quality(pages)
         metrics_total = int(_realtime_pages_metric_total(pages))
         key = (labeled, metrics_total, total)
@@ -1461,7 +1534,7 @@ def fetch_realtime_top_pages_pick_best_screen_dimension(
         if total > 0 and labeled >= 3 and labeled / total >= 0.45 and metrics_total > 0:
             res["breakdown"] = dim
             return res
-    if best is not None:
+    if best is not None and (best.get("pages") or []):
         return best
     if last_exc is not None:
         raise last_exc
@@ -1625,10 +1698,25 @@ def fetch_realtime_top_pages_with_app_fallback(
         # pick_best şu an comparison desteklemiyorsa standarda dönecek
         client=client,
     )
-    # Eğer comparison istendiyse ve base'de yoksa, zorla fetch et
-    if compare_previous and not base.get("comparison_enabled"):
+    pages = base.get("pages") or []
+    if not pages:
+        if client is None:
+            client = _build_client()
+        rescued = _rescue_app_empty_screen_pages(
+            property_id,
+            window_minutes=window_minutes,
+            limit=limit,
+            sort_by=sort_by,
+            client=client,
+        )
+        if rescued and rescued.get("pages"):
+            base = rescued
+            pages = base.get("pages") or []
+
+    # Eğer comparison istendiyse ve base'de yoksa, zorla fetch et (boş sonuçla iyi veriyi ezme).
+    if compare_previous and not base.get("comparison_enabled") and pages:
         dim = base.get("breakdown") or "unifiedScreenName"
-        base = fetch_realtime_top_pages(
+        compared = fetch_realtime_top_pages(
             property_id,
             window_minutes=window_minutes,
             limit=limit,
@@ -1638,6 +1726,9 @@ def fetch_realtime_top_pages_with_app_fallback(
             include_page_path=False,  # app property'lerde pagePath geçersiz
             client=client,
         )
+        if compared.get("pages"):
+            base = compared
+            pages = base.get("pages") or []
 
     pages = base.get("pages") or []
     no_metrics = bool(pages) and not _realtime_pages_have_metrics(pages)

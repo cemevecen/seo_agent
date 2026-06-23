@@ -4216,7 +4216,10 @@
     var isApp = profile === 'ios' || profile === 'android';
     var rangeKey = isApp ? '15m' : _rtTrendRangeForBox(box);
 
-    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&range=' + encodeURIComponent(rangeKey) + '&limit=6&type=' + type)
+    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&range=' + encodeURIComponent(rangeKey) + '&limit=6&type=' + type, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error || !d.pages || !d.pages.length) {
