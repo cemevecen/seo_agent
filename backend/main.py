@@ -14360,7 +14360,7 @@ def api_ga4_realtime_top_news(
     type: str = "pages",
     range: str | None = None,
 ):
-    """Realtime haber sayfaları — pagePath+pageTitle; yalnızca web/mweb (GA4 haber path kuralları)."""
+    """Realtime haber sayfaları — web/mweb URL; ios/android ekran başlığı (unifiedScreenName)."""
     from backend.services.ga4_realtime import (
         aggregate_news_snapshots_over_window,
         fetch_realtime_top_news_pages,
@@ -14370,7 +14370,7 @@ def api_ga4_realtime_top_news(
     from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
     from backend.services.realtime_cache import get_or_call
 
-    if profile not in ("web", "mweb"):
+    if profile not in ("web", "mweb", "android", "ios"):
         return JSONResponse(
             {"site_id": site_id, "profile": profile, "pages": [], "unsupported_profile": True},
         )
@@ -14412,6 +14412,7 @@ def api_ga4_realtime_top_news(
             result = fetch_realtime_top_news_pages(
                 property_id,
                 site_domain=site_domain_str,
+                profile=profile,
                 window_minutes=min(list_minutes, 30),
                 limit=min(limit, 25),
                 sort_by=sort_by,

@@ -1190,12 +1190,15 @@ def fetch_realtime_top_news_pages(
     property_id: str,
     *,
     site_domain: str = "",
+    profile: str = "web",
     window_minutes: int = 30,
     limit: int = 12,
     sort_by: str = "activeUsers",
     client: BetaAnalyticsDataClient | None = None,
 ) -> dict[str, Any]:
-    """Realtime «Haberler»: pagePath + unifiedScreenName birleşik; kategori, etiket ve makale."""
+    """Realtime «Haberler»: web/mweb path; ios/android unifiedScreenName (makale başlığı)."""
+    import re
+
     from backend.services.realtime_news_paths import (
         is_news_detail_path,
         is_realtime_news_path,
@@ -1203,26 +1206,44 @@ def fetch_realtime_top_news_pages(
         _normalize_news_tab_title,
     )
 
+    profile_key = (profile or "web").strip().lower()
+    _dynamic_screen = re.compile(r".*[:\-_]\d{3,}$")
+
     fetch_n = min(250, max(80, int(limit) * 25))
     breakdown_parts: list[str] = []
     bases: list[tuple[str, dict[str, Any]]] = []
 
-    try:
-        candidate = fetch_realtime_top_pages(
-            property_id,
-            window_minutes=window_minutes,
-            limit=fetch_n,
-            sort_by=sort_by,
-            compare_previous=False,
-            dimension="unifiedScreenName",
-            include_page_path=False,
-            client=client,
-        )
-        if candidate.get("pages"):
-            bases.append(("unifiedScreenName", candidate))
-            breakdown_parts.append("unifiedScreenName")
-    except Exception as exc:
-        logger.debug("Realtime top-news unifiedScreenName failed: %s", exc)
+    if profile_key in ("android", "ios"):
+        try:
+            candidate = fetch_realtime_top_pages_pick_best_screen_dimension(
+                property_id,
+                window_minutes=window_minutes,
+                limit=fetch_n,
+                sort_by=sort_by,
+                client=client,
+            )
+            dim = str(candidate.get("breakdown") or "unifiedScreenName")
+            bases.append((dim, candidate))
+            breakdown_parts.append(dim)
+        except Exception as exc:
+            logger.debug("Realtime top-news app screen dim failed [%s]: %s", profile_key, exc)
+    else:
+        try:
+            candidate = fetch_realtime_top_pages(
+                property_id,
+                window_minutes=window_minutes,
+                limit=fetch_n,
+                sort_by=sort_by,
+                compare_previous=False,
+                dimension="unifiedScreenName",
+                include_page_path=False,
+                client=client,
+            )
+            if candidate.get("pages"):
+                bases.append(("unifiedScreenName", candidate))
+                breakdown_parts.append("unifiedScreenName")
+        except Exception as exc:
+            logger.debug("Realtime top-news unifiedScreenName failed: %s", exc)
 
     if not bases:
         base = fetch_realtime_top_pages(
@@ -1258,6 +1279,8 @@ def fetch_realtime_top_news_pages(
         for p in base.get("pages") or []:
             key = str(p.get("page") or "").strip()
             if not key:
+                continue
+            if profile_key in ("android", "ios") and _dynamic_screen.match(key):
                 continue
             if dim_used == "pagePath":
                 if not is_realtime_news_path(key, site_domain=site_domain):
@@ -4642,6 +4665,7 @@ def check_news_alarms_for_site(
         result = fetch_realtime_top_news_pages(
             property_id,
             site_domain=(site.domain or "").strip(),
+            profile=profile,
             window_minutes=window_minutes,
             limit=100,
             sort_by="activeUsers",
