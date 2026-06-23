@@ -1819,20 +1819,20 @@
           <button
             type="button"
             role="radio"
-            aria-checked="true"
+            aria-checked="false"
             data-rt-view-pill="full"
             onclick="rtSetViewMode('full')"
             title="Top sayfalar, haberler ve uygulama etkinlik listeleri"
-            class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 rt-pill-on"
+            class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >Tam</button>
           <button
             type="button"
             role="radio"
-            aria-checked="false"
+            aria-checked="true"
             data-rt-view-pill="compact"
             onclick="rtSetViewMode('compact')"
             title="Masonry özet: döviz toplam + 4 profil + sinemalar toplam"
-            class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+            class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 rt-pill-on"
           >Özet</button>
           <button
             type="button"
@@ -4738,11 +4738,11 @@
   function rtGetViewMode() {
     try {
       var v = localStorage.getItem(RT_VIEW_LS_KEY);
-      if (v === 'compact') return 'compact';
+      if (v === 'full') return 'full';
       if (v === 'total') return 'total';
-      return 'full';
+      return 'compact';
     } catch (e) {
-      return 'full';
+      return 'compact';
     }
   }
 
