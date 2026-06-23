@@ -740,14 +740,21 @@
       }
 
       #pc-agent-btn {
+        position: fixed;
         bottom: max(1rem, env(safe-area-inset-bottom, 0px));
         right: max(0.75rem, env(safe-area-inset-right, 0px));
+        left: auto;
+        z-index: 50;
       }
       #pc-agent-panel {
+        position: fixed;
+        left: auto !important;
         right: max(0.75rem, env(safe-area-inset-right, 0px));
         bottom: calc(max(1rem, env(safe-area-inset-bottom, 0px)) + 3.25rem);
         width: min(420px, calc(100vw - 1.5rem)) !important;
+        max-width: min(420px, calc(100vw - 1.5rem)) !important;
         max-height: min(580px, calc(100dvh - 5.5rem)) !important;
+        z-index: 50;
       }
     }
   </style>
@@ -2346,7 +2353,19 @@
   </script>
 
   {% if not is_tmdb_guest_view(request) %}
-  <!-- ProjectControl AI Ajan — her sayfada görünen yüzen chat widget -->
+  <style id="seo-pc-agent-float">
+    #pc-agent-btn {
+      position: fixed;
+      left: auto;
+      z-index: 50;
+    }
+    #pc-agent-panel {
+      position: fixed;
+      left: auto !important;
+      z-index: 50;
+      max-width: min(420px, calc(100vw - 1.5rem));
+    }
+  </style>
   <button id="pc-agent-btn"
     onclick="pcAgentToggle()"
     title="ProjectControl AI Ajan"
@@ -2363,14 +2382,10 @@
       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
     </svg>
     <span class="text-xs font-semibold tracking-wide">AI Talk</span>
-    <span id="pc-alert-badge"
-      style="display:none;position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;
-             background:#ef4444;color:white;font-size:10px;font-weight:700;border-radius:9px;
-             align-items:center;justify-content:center;padding:0 4px;border:2px solid white;"></span>
   </button>
 
   <div id="pc-agent-panel"
-    class="fixed bottom-20 right-6 z-50 hidden relative
+    class="fixed bottom-20 right-6 z-50 hidden
            flex flex-col rounded-2xl
            bg-zinc-950 border border-violet-800/40
            shadow-2xl shadow-violet-950/60
@@ -2615,24 +2630,17 @@
       }
     })();
 
-    // Alert badge — her 2 dakikada poll (ilk kontrol gecikmeli)
-    (function () {
-      function checkAlerts() {
-        fetch('/api/agent/alerts').then(function(r){ return r.json(); }).then(function(data) {
-          var badge = document.getElementById('pc-alert-badge');
-          if (!badge) return;
-          var count = data.count || 0;
-          if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = 'flex';
-          } else {
-            badge.style.display = 'none';
-          }
-        }).catch(function(){});
-      }
-      setTimeout(checkAlerts, 2500);
-      setInterval(checkAlerts, 120000);
-    })();
+    // Alert badge kaldırıldı — proaktif uyarı sayacı UI'da gösterilmiyor.
+
+    function _pcResetPanelGeometry() {
+      var panel = document.getElementById('pc-agent-panel');
+      if (!panel) return;
+      panel.style.width = '';
+      panel.style.height = '';
+      panel.style.left = 'auto';
+      panel.style.right = '';
+      panel.style.bottom = '';
+    }
 
     window.pcAgentToggle = function () {
       _pcOpen = !_pcOpen;
@@ -2640,6 +2648,7 @@
       var iconChat = document.getElementById('pc-agent-icon-chat');
       var iconClose = document.getElementById('pc-agent-icon-close');
       if (_pcOpen) {
+        _pcResetPanelGeometry();
         panel.classList.remove('hidden');
         panel.classList.add('flex');
         iconChat.classList.add('hidden');
@@ -2684,10 +2693,13 @@
 
       document.addEventListener('mousemove', function (e) {
         if (!dragging) return;
-        var dw = startX - e.clientX;   // sola sürükleme = genişleme
-        var dh = startY - e.clientY;   // yukarı sürükleme = yükseklik artışı
-        var newW = Math.max(300, Math.min(startW + dw, window.innerWidth - 24));
-        var newH = Math.max(280, Math.min(startH + dh, window.innerHeight - 80));
+        var dw = startX - e.clientX;
+        var dh = startY - e.clientY;
+        var maxW = Math.min(420, window.innerWidth - 48);
+        var maxH = Math.min(580, window.innerHeight - 96);
+        var newW = Math.max(300, Math.min(startW + dw, maxW));
+        var newH = Math.max(280, Math.min(startH + dh, maxH));
+        panel.style.left = 'auto';
         panel.style.width  = newW + 'px';
         panel.style.height = newH + 'px';
       });
@@ -2710,8 +2722,11 @@
       document.addEventListener('touchmove', function (e) {
         if (!dragging) return;
         var t = e.touches[0];
-        var newW = Math.max(300, Math.min(startW + (startX - t.clientX), window.innerWidth - 24));
-        var newH = Math.max(280, Math.min(startH + (startY - t.clientY), window.innerHeight - 80));
+        var maxW = Math.min(420, window.innerWidth - 48);
+        var maxH = Math.min(580, window.innerHeight - 96);
+        var newW = Math.max(300, Math.min(startW + (startX - t.clientX), maxW));
+        var newH = Math.max(280, Math.min(startH + (startY - t.clientY), maxH));
+        panel.style.left = 'auto';
         panel.style.width  = newW + 'px';
         panel.style.height = newH + 'px';
       }, { passive: true });
