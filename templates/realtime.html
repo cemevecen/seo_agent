@@ -1104,37 +1104,30 @@
     font-size: 2rem;
     line-height: 1.1;
   }
-  .rt-global-site-chips {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-    gap: 0.5rem;
+  html.rt-view--total .rt-global-site-sparks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px dashed rgb(226 232 240);
   }
-  .rt-global-site-chip {
-    border-radius: 0.625rem;
-    border: 1px solid rgb(226 232 240);
-    background: rgb(248 250 252);
-    padding: 0.5rem 0.65rem;
+  html.dark.rt-view--total .rt-global-site-sparks {
+    border-top-color: rgba(63, 63, 70, 0.55);
   }
-  html.dark .rt-global-site-chip {
-    border-color: rgba(63, 63, 70, 0.55);
-    background: rgba(24, 24, 27, 0.45);
+  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-row {
+    min-height: 7.25rem;
   }
-  .rt-global-site-chip-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: rgb(100 116 139);
+  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-bars {
+    min-height: 4rem;
   }
-  html.dark .rt-global-site-chip-label { color: rgb(161 161 170); }
-  .rt-global-site-chip-val {
-    margin-top: 0.2rem;
-    font-size: 1.125rem;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    color: rgb(15 23 42);
+  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-last {
+    font-size: 1.5rem;
+    line-height: 1.1;
   }
-  html.dark .rt-global-site-chip-val { color: rgb(244 244 245); }
+  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-meta {
+    min-width: 8.5rem;
+  }
   /* Split Panel (#3): sol KPI stack | sağ spark */
   .rt-split-panel {
     display: grid;
@@ -1902,11 +1895,24 @@
         </div>
       </div>
     </div>
-    <div class="rt-global-site-chips mt-4" data-rt-global-site-chips>
+    <div class="rt-global-site-sparks" data-rt-global-site-sparks>
       {% for site in sites %}
-      <div class="rt-global-site-chip" data-rt-global-site-chip="{{ site.id }}">
-        <p class="rt-global-site-chip-label">{{ site.display_name or site.domain }}</p>
-        <p class="rt-global-site-chip-val" data-rt-global-site-au="{{ site.id }}">—</p>
+      <div class="rt-global-site-spark-wrap" data-rt-global-site-spark="{{ site.id }}">
+        <div class="rt-site-spark-row" data-rt-site-spark-row>
+          <div class="rt-site-spark-meta">
+            <p class="rt-site-spark-label">{{ site.display_name or site.domain }}</p>
+            <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · site toplam</p>
+            <p class="rt-site-spark-last" data-rt-site-spark-last title="Site toplam aktif">—</p>
+            <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
+          </div>
+          <div class="rt-site-spark-plot" data-rt-site-spark-chart>
+            <div class="rt-site-spark-y" data-rt-site-spark-y></div>
+            <div class="rt-site-spark-main">
+              <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="{{ site.display_name or site.domain }} 24 saat trend"></div>
+              <div class="rt-site-spark-x" data-rt-site-spark-x></div>
+            </div>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -2553,12 +2559,15 @@
     var sum = 0;
     var have = 0;
     var parts = [];
-    document.querySelectorAll('[data-rt-site]').forEach(function (siteEl) {
+    document.querySelectorAll('.rt-site-card[data-rt-site]').forEach(function (siteEl) {
       var sid = siteEl.getAttribute('data-rt-site');
       if (!sid) return;
-      var chip = globalEl.querySelector('[data-rt-global-site-au="' + sid + '"]');
       var au = siteEl._rtSiteSumAu;
-      if (chip) _slotText(chip, au != null ? _fmtExact(au) : '—');
+      var wrap = globalEl.querySelector('[data-rt-global-site-spark="' + sid + '"]');
+      if (wrap) {
+        wrap._rtSiteSumAu = au != null ? au : null;
+        _rtSyncSiteSparkLiveTotal(wrap);
+      }
       if (au != null) {
         sum += au;
         have += 1;
@@ -2569,9 +2578,49 @@
     });
     globalEl._rtSiteSumAu = have ? sum : null;
     _rtSyncSiteSparkLiveTotal(globalEl);
-    var lastEl = globalEl.querySelector('[data-rt-site-spark-last]');
+    var lastEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-last]');
     if (lastEl && have) {
       lastEl.setAttribute('title', parts.join(' + ') + ' = ' + _fmtExact(sum));
+    }
+  }
+
+  function _rtRenderGlobalSiteSparkRows(globalEl) {
+    if (!globalEl) return;
+    var rangeKey = globalEl._rtSparkRangeKey || '24h';
+    var trendsBySite = globalEl._rtSiteTrends || {};
+    globalEl.querySelectorAll('[data-rt-global-site-spark]').forEach(function (wrap) {
+      var sid = wrap.getAttribute('data-rt-global-site-spark');
+      var trend = trendsBySite[sid];
+      wrap._rtSparkRangeKey = rangeKey;
+      wrap._rtSparkMetric = 'au';
+      var barsEl = wrap.querySelector('[data-rt-site-spark-bars]');
+      if (!trend || !trend.length) {
+        if (barsEl) {
+          barsEl.innerHTML =
+            '<p class="rt-site-spark-empty-msg" role="status">24s snapshot henüz yok.</p>';
+        }
+        return;
+      }
+      _renderSiteSparkMetric(wrap, trend, 'au');
+      var siteCard = document.querySelector('.rt-site-card[data-rt-site="' + sid + '"]');
+      if (siteCard && siteCard._rtSiteSumAu != null) {
+        wrap._rtSiteSumAu = siteCard._rtSiteSumAu;
+        _rtSyncSiteSparkLiveTotal(wrap);
+      }
+    });
+  }
+
+  function _setGlobalTotalLoading(globalEl, loading) {
+    if (!globalEl) return;
+    globalEl.querySelectorAll('[data-rt-site-spark-row]').forEach(function (row) {
+      row.classList.toggle('is-loading', !!loading);
+    });
+    var lottie = globalEl.querySelector('.rt-site-spark-lottie');
+    if (lottie) {
+      try {
+        if (loading) lottie.play();
+        else lottie.pause();
+      } catch (e) { /* lottie-player */ }
     }
   }
 
@@ -2580,12 +2629,12 @@
     var globalEl = _rtGetGlobalTotalEl();
     if (!globalEl) return Promise.resolve();
     var siteIds = [];
-    document.querySelectorAll('[data-rt-site]').forEach(function (el) {
+    document.querySelectorAll('.rt-site-card[data-rt-site]').forEach(function (el) {
       var sid = parseInt(el.getAttribute('data-rt-site'), 10);
       if (!isNaN(sid)) siteIds.push(sid);
     });
     if (!siteIds.length) return Promise.resolve();
-    if (opts.showLoading) _setSiteSparkLoading(globalEl, true);
+    if (opts.showLoading) _setGlobalTotalLoading(globalEl, true);
 
     return Promise.all(
       siteIds.map(function (sid) {
@@ -2599,12 +2648,19 @@
           })
           .then(function (d) {
             if (!d || d.error) throw new Error(d && d.error ? d.error : 'error');
-            return d.trend || [];
+            return { sid: sid, trend: d.trend || [] };
           });
       })
     )
-      .then(function (trends) {
-        var merged = _rtMergeSiteTrends(trends);
+      .then(function (results) {
+        var trendsBySite = {};
+        var trendList = [];
+        results.forEach(function (r) {
+          trendsBySite[String(r.sid)] = r.trend;
+          trendList.push(r.trend);
+        });
+        globalEl._rtSiteTrends = trendsBySite;
+        var merged = _rtMergeSiteTrends(trendList);
         globalEl._rtCombinedTrend = merged;
         globalEl._rtSparkMetric = 'au';
         if (!globalEl._rtSparkRangeKey) globalEl._rtSparkRangeKey = '24h';
@@ -2612,13 +2668,14 @@
         if (merged.length) {
           _rtSetSiteSparkMetric(globalEl, 'au');
         } else {
-          var barsEl = globalEl.querySelector('[data-rt-site-spark-bars]');
+          var barsEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-bars]');
           if (barsEl) {
             barsEl.innerHTML =
               '<p class="rt-site-spark-empty-msg" role="status">Birleşik 24s snapshot henüz yok — Tümünü Kontrol Et.</p>';
           }
         }
-        _setSiteSparkLoading(globalEl, false);
+        _rtRenderGlobalSiteSparkRows(globalEl);
+        _setGlobalTotalLoading(globalEl, false);
         var tsEl = globalEl.querySelector('[data-rt-global-total-ts]');
         if (tsEl) {
           tsEl.textContent =
@@ -2627,12 +2684,16 @@
         _rtSyncGlobalTotalLive();
       })
       .catch(function () {
-        _setSiteSparkLoading(globalEl, false);
-        var barsEl = globalEl.querySelector('[data-rt-site-spark-bars]');
+        _setGlobalTotalLoading(globalEl, false);
+        var barsEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-bars]');
         if (barsEl) {
           barsEl.innerHTML =
             '<p class="rt-site-spark-empty-msg" role="status">Birleşik grafik yüklenemedi. Sayfayı yenileyin.</p>';
         }
+        globalEl.querySelectorAll('[data-rt-global-site-spark] [data-rt-site-spark-bars]').forEach(function (el) {
+          el.innerHTML =
+            '<p class="rt-site-spark-empty-msg" role="status">Grafik yüklenemedi.</p>';
+        });
       });
   }
 
@@ -2681,6 +2742,9 @@
         _syncSiteYfTabs(siteEl, key);
         if (siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
           _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric || 'au');
+        }
+        if (siteEl.hasAttribute('data-rt-global-total')) {
+          _rtRenderGlobalSiteSparkRows(siteEl);
         }
       });
     });
