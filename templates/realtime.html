@@ -2310,8 +2310,10 @@
   var RT_LIST_RANGE_LABELS = { '15m': '15 dk', '1h': '1 saat', '24h': '24 saat' };
   /** iOS/Android etkinlik listesi — GA4 Realtime üst sınırı (dk) */
   var RT_EVENTS_LIST_WINDOW = 30;
-  /** GA4 Realtime etkinlik adı tablosu: sayfa başına satır */
-  var RT_EVENTS_PAGE_SIZE = 10;
+  /** Web/mweb Sayfalar sekmesi satır sayısı */
+  var RT_TOP_PAGES_LIMIT = 10;
+  /** GA4'ten gürültü filtresi sonrası yeterli satır için biraz fazla çek */
+  var RT_TOP_PAGES_FETCH_LIMIT = 14;
   var _pageTimers = {};
   var _globalTotalTimer = null;
   var _alarmExpanded = false;
@@ -4263,7 +4265,7 @@
     var isApp = profile === 'ios' || profile === 'android';
     var rangeKey = isApp ? '15m' : _rtTrendRangeForBox(box);
 
-    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&range=' + encodeURIComponent(rangeKey) + '&limit=10&type=' + type, {
+    fetch('/api/ga4/realtime/' + siteId + '/top-pages?profile=' + profile + '&range=' + encodeURIComponent(rangeKey) + '&limit=' + RT_TOP_PAGES_FETCH_LIMIT + '&type=' + type, {
       credentials: 'same-origin',
       cache: 'no-store',
     })
@@ -4275,7 +4277,7 @@
         }
         var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
           return !_isRealtimeNoiseTitle(p && p.page);
-        });
+        }).slice(0, RT_TOP_PAGES_LIMIT);
         _renderTopPages(listEl, rows, isViews, domain, profile);
         _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })

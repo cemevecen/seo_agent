@@ -14350,7 +14350,7 @@ def api_ga4_realtime_top_pages(
         return False
 
     result = get_or_call(
-        f"rt:pages:{site_id}:{profile}:{range_key}:{type}",
+        f"rt:pages:v2:{site_id}:{profile}:{range_key}:{type}:{cap}",
         settings.ga4_realtime_list_cache_seconds,
         _produce,
         # db_snapshot da "canlı değil" sayılır: canlı son-iyi varsa o tercih edilir,
