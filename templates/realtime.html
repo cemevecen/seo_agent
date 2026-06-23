@@ -971,13 +971,115 @@
     70% { opacity: 0.25; transform: scale(1.08); box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
     100% { opacity: 0; transform: scale(1.12); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
   }
-  /* Özet görünüm: yalnız KPI + spark; listeler / app etkinlik kartı gizlenir */
+  /* Özet görünüm: Masonry 3+1 — tek container */
   html.rt-view--compact [data-rt-top-section],
   html.rt-view--compact [data-rt-events-section] {
     display: none !important;
   }
-  html.rt-view--compact [data-rt-profile-box] {
+  html.rt-view--compact #rt-alarms-global {
+    display: none !important;
+  }
+  html.rt-view--compact .rt-site-chrome {
+    display: none !important;
+  }
+  html.rt-view--compact .rt-masonry-site-label {
+    display: block;
+    margin: 0 0 0.35rem;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+  }
+  html.dark.rt-view--compact .rt-masonry-site-label {
+    color: rgb(161 161 170);
+  }
+  html.rt-view--compact #rt-compact-masonry-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin-bottom: 1.5rem;
+    border-radius: 1rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255);
+    padding: 0.85rem 1rem 1rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  html.dark.rt-view--compact #rt-compact-masonry-panel {
+    border-color: rgba(63, 63, 70, 0.55);
+    background: var(--rt-d-card, rgb(24 24 27));
+    box-shadow: none;
+  }
+  html.rt-view--compact .rt-site-card {
+    margin-bottom: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] {
+    border-top: 1px dashed rgb(226 232 240);
+    padding-top: 0.55rem;
+    margin-top: 0.15rem;
+  }
+  html.dark.rt-view--compact [data-rt-site-slug="sinemalar"] {
+    border-top-color: rgba(63, 63, 70, 0.55);
+  }
+  html.rt-view--compact .rt-masonry-total-row.rt-site-sparks {
+    margin-bottom: 0;
+  }
+  html.rt-view--compact .rt-masonry-total-row .rt-site-spark-row {
+    min-height: 6.75rem;
+    grid-template-columns: minmax(8.5rem, 10.5rem) minmax(0, 1fr);
+    border-radius: 0.625rem;
+  }
+  html.rt-view--compact .rt-masonry-total-row .rt-site-spark-last {
+    font-size: 1.55rem;
+    line-height: 1.05;
+  }
+  html.rt-view--compact .rt-masonry-total-row .rt-site-spark-bars {
+    min-height: 4.75rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-profiles-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid {
+    display: none !important;
+  }
+  html.rt-view--compact .rt-profile-box {
     min-height: 0;
+    padding: 0.55rem 0.65rem;
+  }
+  html.rt-view--compact .rt-split-panel {
+    min-height: 7.25rem;
+    margin-bottom: 0;
+    grid-template-columns: minmax(0, 5.25rem) minmax(0, 1fr);
+  }
+  html.rt-view--compact .rt-split-kpis [data-rt-kpi] [data-rt-val] {
+    font-size: 1.2rem;
+  }
+  html.rt-view--compact .rt-split-kpis [data-rt-kpi="activeUsers"] {
+    padding-bottom: 0.45rem;
+    margin-bottom: 0.25rem;
+  }
+  html.rt-view--compact .rt-split-kpis [data-rt-kpi] p.text-xs {
+    font-size: 8px;
+  }
+  html.rt-view--compact .rt-profile-box > .mb-4 {
+    margin-bottom: 0.35rem !important;
+  }
+  html.rt-view--compact .rt-profile-box .text-sm.font-extrabold {
+    font-size: 11px;
+  }
+  @media (max-width: 1100px) {
+    html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-profiles-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .rt-masonry-site-label {
+    display: none;
   }
   /* Total görünüm: yalnızca döviz+sinemalar birleşik site spark */
   #rt-global-total-panel {
@@ -1730,7 +1832,7 @@
             aria-checked="false"
             data-rt-view-pill="compact"
             onclick="rtSetViewMode('compact')"
-            title="Yalnızca anlık toplamlar ve sparkline"
+            title="Masonry özet: döviz toplam + 4 profil + sinemalar toplam"
             class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >Özet</button>
           <button
@@ -1810,9 +1912,17 @@
     </div>
   </div>
 
+  <div id="rt-compact-masonry-panel">
   {% for site in sites %}
-  <div class="rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none" data-rt-site="{{ site.id }}">
-    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  {% if site.domain and 'sinemalar' in site.domain %}
+    {% set site_slug = 'sinemalar' %}
+  {% elif site.domain and 'doviz' in site.domain %}
+    {% set site_slug = 'doviz' %}
+  {% else %}
+    {% set site_slug = 'other' %}
+  {% endif %}
+  <div class="rt-site-card rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none" data-rt-site="{{ site.id }}" data-rt-site-slug="{{ site_slug }}">
+    <div class="rt-site-chrome mb-5 flex flex-wrap items-start justify-between gap-3">
       <h2 class="flex items-baseline gap-2 text-lg font-extrabold text-slate-800 dark:text-slate-200">
         {{ site.display_name or site.domain }}
         <span class="text-sm font-normal text-slate-400">{{ site.domain }}</span>
@@ -1828,7 +1938,8 @@
         </button>
       </div>
     </div>
-    <div class="rt-site-sparks" data-rt-site-sparks="{{ site.id }}">
+    <p class="rt-masonry-site-label">{{ site.display_name or site.domain }} · toplam aktif</p>
+    <div class="rt-masonry-total-row rt-site-sparks" data-rt-site-sparks="{{ site.id }}">
       <div class="rt-site-spark-row is-loading" data-rt-site-spark-row>
         <div class="rt-site-spark-meta">
           <div class="rt-site-spark-range flex flex-wrap gap-0.5" data-rt-site-yf-chrome>
@@ -1861,7 +1972,7 @@
         </div>
       </div>
     </div>
-    <div class="grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
+    <div class="rt-masonry-profiles-grid grid min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 sm:items-stretch">
       {% for profile in site.profiles %}
       <div
         class="rt-profile-box rt-surface-muted flex min-h-0 min-w-0 flex-col rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 via-slate-100 to-zinc-50/40 p-5 dark:border-zinc-700/80"
@@ -2083,6 +2194,7 @@
     </div>
   </div>
   {% endfor %}
+  </div>
 
   {# Global alarms #}
   <div class="rt-surface-solid rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700/90 dark:shadow-none sm:p-6" id="rt-alarms-global">
