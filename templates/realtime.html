@@ -2064,16 +2064,16 @@
               <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif Kullanıcı</p>
               <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
               <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-                <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
-                <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
+                <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves data-rt-slot-delta>—</span>
+                <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct data-rt-slot-delta>—</span>
               </div>
             </div>
             <div class="min-w-0" data-rt-kpi="screenPageViews">
               <p class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sayfa Görüntüleme</p>
               <p class="mt-1.5 text-3xl font-black tabular-nums text-slate-800 dark:text-slate-200" data-rt-val>—</p>
               <div class="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-                <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves>—</span>
-                <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct>—</span>
+                <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves data-rt-slot-delta>—</span>
+                <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct data-rt-slot-delta>—</span>
               </div>
             </div>
           </div>
@@ -2317,8 +2317,8 @@
 </div>
 
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=1">
-<script src="/static/js/rt_slot_fx.js?v=1"></script>
+<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
+<script src="/static/js/rt_slot_fx.js?v=2"></script>
 <script>
 (function () {
   var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
@@ -2498,6 +2498,15 @@
     if (!el) return;
     if (window.RtSlotFx && window.RtSlotFx.setText) window.RtSlotFx.setText(el, text);
     else el.textContent = text;
+  }
+
+  function _slotDelta(el, text, tone) {
+    if (!el) return;
+    if (window.RtSlotFx && window.RtSlotFx.setDeltaText) {
+      window.RtSlotFx.setDeltaText(el, text, { tone: tone || 'flat' });
+    } else {
+      el.textContent = text;
+    }
   }
 
   function _slotBars(barsEl, specs, opts) {
@@ -3474,8 +3483,8 @@
         halvesEl.style.opacity = '1';
       }
       if (pctEl) {
-        pctEl.textContent = '—';
-        pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat';
+        _slotDelta(pctEl, '—', 'flat');
+        pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat rt-slot-delta';
       }
     });
     _rtStoreProfileKpis(box, stored);
@@ -3525,30 +3534,31 @@
       }
       if (halvesEl) {
         halvesEl.setAttribute('title', 'Son 15 dk vs önceki 15 dk (GA4 karşılaştırma; ana KPI 30 dk toplam)');
-        halvesEl.textContent = _fmt(c.previous) + ' → ' + _fmt(c.current);
+        _slotDelta(halvesEl, _fmt(c.previous) + ' → ' + _fmt(c.current), 'flat');
       }
       if (pctEl) {
         var pct = c.change_pct || 0;
         var arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
-        pctEl.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + '%';
+        var tone = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+        _slotDelta(pctEl, arrow + ' ' + Math.abs(pct).toFixed(1) + '%', tone);
         if (pct > 0) {
-          pctEl.className = 'text-sm font-bold tabular-nums rt-change-up';
+          pctEl.className = 'text-sm font-bold tabular-nums rt-change-up rt-slot-delta';
         } else if (pct < 0) {
-          pctEl.className = 'text-sm font-bold tabular-nums rt-change-down';
+          pctEl.className = 'text-sm font-bold tabular-nums rt-change-down rt-slot-delta';
         } else {
-          pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat';
+          pctEl.className = 'text-sm font-bold tabular-nums rt-change-flat rt-slot-delta';
         }
       }
       if (halvesEl) {
         var pct2 = c.change_pct || 0;
         if (pct2 > 0) {
-          halvesEl.className = 'text-xs tabular-nums rt-change-up';
+          halvesEl.className = 'text-xs tabular-nums rt-change-up rt-slot-delta';
           halvesEl.style.opacity = '0.7';
         } else if (pct2 < 0) {
-          halvesEl.className = 'text-xs tabular-nums rt-change-down';
+          halvesEl.className = 'text-xs tabular-nums rt-change-down rt-slot-delta';
           halvesEl.style.opacity = '0.7';
         } else {
-          halvesEl.className = 'text-xs tabular-nums text-slate-400 dark:text-slate-500';
+          halvesEl.className = 'text-xs tabular-nums text-slate-400 dark:text-slate-500 rt-slot-delta';
           halvesEl.style.opacity = '1';
         }
       }

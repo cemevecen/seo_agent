@@ -5,6 +5,7 @@
   'use strict';
 
   var DURATION_MS = 420;
+  var DELTA_DURATION_MS = 520;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -22,8 +23,72 @@
     return m ? parseFloat(m[1]) : NaN;
   }
 
+  function setDeltaText(el, text, opts) {
+    if (!el) return;
+    opts = opts || {};
+    text = text == null || text === '' ? '—' : String(text);
+    var prev = el.getAttribute('data-rt-slot-cur');
+    if (prev === text) return;
+
+    el.classList.add('rt-slot-delta');
+    el.setAttribute('data-rt-slot-cur', text);
+
+    var tone = opts.tone || 'flat';
+    el.classList.remove('rt-slot-delta-pulse--up', 'rt-slot-delta-pulse--down', 'rt-slot-delta-pulse--flat');
+    el.classList.add(
+      tone === 'up' ? 'rt-slot-delta-pulse--up' : tone === 'down' ? 'rt-slot-delta-pulse--down' : 'rt-slot-delta-pulse--flat'
+    );
+    void el.offsetWidth;
+    el.classList.add('rt-slot-delta-pulse');
+
+    if (prev == null) {
+      el.textContent = text;
+      window.setTimeout(function () {
+        el.classList.remove('rt-slot-delta-pulse', 'rt-slot-delta-pulse--up', 'rt-slot-delta-pulse--down', 'rt-slot-delta-pulse--flat');
+      }, DELTA_DURATION_MS);
+      return;
+    }
+
+    var enterFrom = tone === 'down' ? '-100%' : '100%';
+    var exitTo = tone === 'down' ? '100%' : '-100%';
+
+    var stage = document.createElement('span');
+    stage.className = 'rt-slot-delta-stage';
+    stage.setAttribute('aria-hidden', 'true');
+
+    var fromEl = document.createElement('span');
+    fromEl.className = 'rt-slot-delta-from';
+    fromEl.textContent = prev;
+
+    var toEl = document.createElement('span');
+    toEl.className = 'rt-slot-delta-to';
+    toEl.textContent = text;
+    toEl.style.transform = 'translateY(' + enterFrom + ')';
+
+    stage.appendChild(fromEl);
+    stage.appendChild(toEl);
+    el.textContent = '';
+    el.appendChild(stage);
+
+    window.requestAnimationFrame(function () {
+      fromEl.style.transform = 'translateY(' + exitTo + ')';
+      fromEl.style.opacity = '0';
+      toEl.style.transform = 'translateY(0)';
+      toEl.style.opacity = '1';
+    });
+
+    window.setTimeout(function () {
+      el.textContent = text;
+      el.classList.remove('rt-slot-delta-pulse', 'rt-slot-delta-pulse--up', 'rt-slot-delta-pulse--down', 'rt-slot-delta-pulse--flat');
+    }, DELTA_DURATION_MS);
+  }
+
   function setText(el, text) {
     if (!el) return;
+    if (el.hasAttribute('data-rt-slot-delta') || el.classList.contains('rt-slot-delta')) {
+      setDeltaText(el, text, {});
+      return;
+    }
     text = text == null || text === '' ? '—' : String(text);
     var prev = el.getAttribute('data-rt-slot-cur');
     if (prev === text) return;
@@ -252,9 +317,12 @@
         var newDelta = (deltaEl.textContent || '').trim();
         if (prev.delta && newDelta && prev.delta !== newDelta) {
           deltaEl.removeAttribute('data-rt-slot-cur');
-          deltaEl.classList.remove('rt-slot-text');
+          deltaEl.classList.remove('rt-slot-text', 'rt-slot-delta');
           deltaEl.textContent = prev.delta;
-          setText(deltaEl, newDelta);
+          var tone = 'flat';
+          if (newDelta.indexOf('↑') !== -1 || newDelta.indexOf('+') === 0) tone = 'up';
+          else if (newDelta.indexOf('↓') !== -1 || newDelta.indexOf('-') === 0) tone = 'down';
+          setDeltaText(deltaEl, newDelta, { tone: tone });
         } else {
           deltaEl.setAttribute('data-rt-slot-cur', newDelta);
         }
@@ -291,6 +359,7 @@
 
   global.RtSlotFx = {
     setText: setText,
+    setDeltaText: setDeltaText,
     renderBars: renderBars,
     snapshotHome: snapshotHome,
     animateHome: animateHome,

@@ -74,3 +74,123 @@
     transform: translateY(0);
   }
 }
+
+/* Değişim % / delta — tüm metin birlikte kayar (karakter slot değil) */
+.rt-slot-delta {
+  display: inline-block;
+  position: relative;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+  padding: 0 0.12rem;
+  margin: 0 -0.12rem;
+}
+.rt-slot-delta-stage {
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+  vertical-align: baseline;
+  min-height: 1.35em;
+  line-height: 1.35em;
+}
+.rt-slot-delta-from,
+.rt-slot-delta-to {
+  display: block;
+  white-space: nowrap;
+  transition:
+    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.44s ease;
+}
+.rt-slot-delta-to {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+}
+.rt-slot-delta-pulse {
+  animation: rt-slot-delta-flash 0.56s ease;
+}
+.rt-slot-delta-pulse--up {
+  animation-name: rt-slot-delta-flash-up;
+}
+.rt-slot-delta-pulse--down {
+  animation-name: rt-slot-delta-flash-down;
+}
+.rt-slot-delta-pulse--flat {
+  animation-name: rt-slot-delta-flash-flat;
+}
+@keyframes rt-slot-delta-flash-up {
+  0% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  18% {
+    background-color: rgba(22, 163, 74, 0.14);
+    box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.22);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+@keyframes rt-slot-delta-flash-down {
+  0% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  18% {
+    background-color: rgba(220, 38, 38, 0.12);
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.2);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+@keyframes rt-slot-delta-flash-flat {
+  0% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  18% {
+    background-color: rgba(100, 116, 139, 0.12);
+    box-shadow: 0 0 0 1px rgba(100, 116, 139, 0.18);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+html.dark .rt-slot-delta-pulse--up {
+  animation-name: rt-slot-delta-flash-up-dark;
+}
+html.dark .rt-slot-delta-pulse--down {
+  animation-name: rt-slot-delta-flash-down-dark;
+}
+@keyframes rt-slot-delta-flash-up-dark {
+  0% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  18% {
+    background-color: rgba(74, 222, 128, 0.12);
+    box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.2);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+@keyframes rt-slot-delta-flash-down-dark {
+  0% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  18% {
+    background-color: rgba(248, 113, 113, 0.12);
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
