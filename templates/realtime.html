@@ -1046,6 +1046,12 @@
     gap: 0.5rem;
   }
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid [data-rt-profile="ios"],
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid [data-rt-profile="android"] {
     display: none !important;
   }
   html.rt-view--compact .rt-profile-box {
