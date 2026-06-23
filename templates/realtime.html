@@ -2098,8 +2098,9 @@
         </div>
 
         {% if profile in ('android', 'ios') %}
-        {# Mobil uygulama: ekran + etkinlik listeleri (sekme) #}
+        {# Mobil: iOS ekran+etkinlik sekmeleri; Android yalnızca etkinlik (GA4 ekran kırılımı güvenilir değil) #}
         <div class="mt-4 flex min-h-[200px] min-w-0 flex-1 flex-col" data-rt-top-section>
+          {% if profile == 'ios' %}
           <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(2,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
@@ -2118,7 +2119,8 @@
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-pages-ts></p>
           </div>
-          <div data-rt-top-panel="events" class="hidden min-w-0 flex min-h-0 flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-3 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
+          {% endif %}
+          <div data-rt-top-panel="events" class="{% if profile == 'ios' %}hidden {% endif %}min-w-0 flex min-h-0 flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-3 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
             <p class="mt-1 min-h-[2.25rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400" data-rt-events-basis></p>
             <div class="mt-2 flex gap-3">
               <div class="min-w-0 flex-1">
@@ -4202,6 +4204,7 @@
   }
 
   function _fetchTopData(siteId, profile, type) {
+    if (profile === 'android') return;
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box) return;
     var isViews = (type === 'views');
@@ -4405,8 +4408,8 @@
   window.rtEventsNav = rtEventsNav;
 
   function rtFetchTopPages(siteId, profile) {
-    var isApp = profile === 'ios' || profile === 'android';
-    if (isApp) {
+    if (profile === 'android') return;
+    if (profile === 'ios') {
       _fetchTopData(siteId, profile, 'pages');
       return;
     }
@@ -4609,6 +4612,7 @@
     var sid = profileBox ? parseInt(profileBox.getAttribute('data-rt-site-id'), 10) : NaN;
     var prof = profileBox ? profileBox.getAttribute('data-rt-profile') : null;
     if (!isNaN(sid) && prof) {
+      if (prof === 'android' && tab === 'pages') return;
       if (tab === 'news') _fetchTopNews(sid, prof);
       if (tab === 'pages') _fetchTopData(sid, prof, 'pages');
       if (tab === 'events') rtFetchTopEvents(sid, prof);
