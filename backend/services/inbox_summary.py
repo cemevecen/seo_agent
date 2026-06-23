@@ -1,4 +1,4 @@
-"""Gelen kutusu senkronu ve 5 sekmeli özet e-postası (doviz → sinemalar → medya → nstat → firebase)."""
+"""Gelen kutusu senkronu ve 5 sekmeli özet e-postası (medya → doviz → sinemalar → nstat → firebase)."""
 
 from __future__ import annotations
 
@@ -27,8 +27,6 @@ logger = logging.getLogger(__name__)
 # Özet mailinde yalnızca bu sekmeler (sıra sabit)
 # (key, başlık, kısa açıklama, vurgu rengi, arka plan)
 INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
-    ("doviz", "doviz", "info@doviz.com · feedback@doviz.com", "#1d4ed8", "#eff6ff"),
-    ("sinemalar", "sinemalar", "info@sinemalar.com · feedback@sinemalar.com", "#4338ca", "#eef2ff"),
     (
         "medya",
         "medya",
@@ -36,6 +34,8 @@ INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
         "#0f766e",
         "#ecfdf5",
     ),
+    ("doviz", "doviz", "info@doviz.com · feedback@doviz.com", "#1d4ed8", "#eff6ff"),
+    ("sinemalar", "sinemalar", "info@sinemalar.com · feedback@sinemalar.com", "#4338ca", "#eef2ff"),
     ("nstat", "nstat", "En çok ziyaret edilen sayfalar (noreply@doviz.com)", "#047857", "#ecfdf5"),
     ("firebase", "firebase", "Firebase Crashlytics uyarıları", "#b45309", "#fffbeb"),
 )

@@ -66,7 +66,7 @@ def test_normalize_feedback_to_doviz():
 def test_summary_html_section_order():
     keys = [s[0] for s in INBOX_SUMMARY_SECTIONS]
     assert keys == list(INBOX_SUMMARY_TAB_ORDER)
-    assert keys == ["doviz", "sinemalar", "medya", "nstat", "firebase"]
+    assert keys == ["medya", "doviz", "sinemalar", "nstat", "firebase"]
 
 
 def test_summary_html_five_sections_no_reklam_all():
