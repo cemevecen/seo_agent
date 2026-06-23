@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_HALF_UP
 from ipaddress import ip_address, ip_network
 from pathlib import Path
@@ -14357,6 +14357,91 @@ def api_ga4_realtime_top_pages(
         # ayrıca son-iyi (live) DB snapshot ile ezilmez.
         is_error=_top_pages_is_error,
         last_good_ttl=settings.ga4_realtime_last_good_seconds,
+    )
+    return JSONResponse(result)
+
+
+@app.get("/api/ga4/realtime/{site_id}/wow-day-pages")
+def api_ga4_realtime_wow_day_pages(
+    site_id: int,
+    profile: str = "web",
+    limit: int = 12,
+    exclude_news: bool = True,
+):
+    """Geçen haftanın aynı günü (tam gün GA4) en çok görüntülenen sayfalar — web/mweb."""
+    from backend.collectors.ga4 import fetch_ga4_landing_pages, same_weekday_day_meta
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.realtime_cache import get_or_call
+    from backend.config import settings
+
+    profile_key = (profile or "web").strip().lower()
+    if profile_key not in ("web", "mweb"):
+        return JSONResponse(
+            {"error": "unsupported_profile", "profile": profile_key, "pages": []},
+            status_code=400,
+        )
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        property_id = properties.get(profile_key) or properties.get("web")
+        if not property_id:
+            return JSONResponse(
+                {"error": "no_property", "message": f"{profile_key} profili tanımlı değil"},
+                status_code=404,
+            )
+
+    cap = max(1, min(int(limit), 25))
+    excl = str(exclude_news).strip().lower() not in ("0", "false", "no")
+    cache_ttl = max(300, int(settings.ga4_realtime_list_cache_seconds) * 4)
+
+    def _produce():
+        rows = fetch_ga4_landing_pages(
+            property_id=str(property_id),
+            days=1,
+            limit=max(cap, 40),
+            exclude_news=excl,
+            same_weekday_day=True,
+        )
+        rows.sort(key=lambda r: float(r.get("prev_total") or 0), reverse=True)
+        pages = []
+        for row in rows[:cap]:
+            prev_v = float(row.get("prev_total") or 0)
+            last_v = float(row.get("last_total") or 0)
+            if prev_v <= 0 and last_v <= 0:
+                continue
+            delta_pct = row.get("delta_pct")
+            pages.append(
+                {
+                    "page": row.get("page") or "",
+                    "page_url": row.get("page_url") or "",
+                    "page_host": row.get("page_host") or "",
+                    "screenPageViews": prev_v,
+                    "screenPageViews_current": last_v,
+                    "delta": float(row.get("delta") or 0),
+                    "delta_pct": delta_pct,
+                }
+            )
+        meta = same_weekday_day_meta()
+        return {
+            "site_id": site_id,
+            "profile": profile_key,
+            "pages": pages,
+            "meta": meta,
+            "exclude_news": excl,
+            "data_source": "ga4_daily",
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    result = get_or_call(
+        f"rt:wowpages:{site_id}:{profile_key}:{int(excl)}:{cap}",
+        float(cache_ttl),
+        _produce,
+        is_error=lambda r: bool(r.get("error")),
+        last_good_ttl=float(settings.ga4_realtime_last_good_seconds),
     )
     return JSONResponse(result)
 

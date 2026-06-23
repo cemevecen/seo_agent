@@ -1323,6 +1323,46 @@
     cursor: pointer;
     font: inherit;
   }
+  .rt-wow-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+  .rt-wow-filter-btn {
+    border: 1px solid rgb(226 232 240);
+    border-radius: 9999px;
+    background: rgb(248 250 252);
+    padding: 0.15rem 0.45rem;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgb(100 116 139);
+    cursor: pointer;
+  }
+  .rt-wow-filter-btn.is-on {
+    border-color: rgb(199 210 254);
+    background: rgb(238 242 255);
+    color: rgb(67 56 202);
+  }
+  html.dark .rt-wow-filter-btn {
+    border-color: rgb(63 63 70);
+    background: rgb(39 39 42);
+    color: rgb(161 161 170);
+  }
+  html.dark .rt-wow-filter-btn.is-on {
+    border-color: rgb(99 102 241);
+    background: rgb(49 46 129 / 0.35);
+    color: rgb(199 210 254);
+  }
+  .rt-wow-meta {
+    margin-bottom: 0.35rem;
+    font-size: 10px;
+    line-height: 1.35;
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-wow-meta {
+    color: rgb(161 161 170);
+  }
   /*
    * base.html (seo-dark-zinc-ui) tüm dark:text-slate-400/500/600 → #71717a yapıyor;
    * Realtime kartlarında etiket / meta okunmuyor. Bu kök altında daha açık slate-zinc karışımı.
@@ -2152,13 +2192,16 @@
         {% else %}
         {# Web / mweb: Top sayfalar — tabbed #}
         <div class="mt-4 flex min-h-[200px] min-w-0 flex-1 flex-col" data-rt-top-section>
-          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(3,1fr)">
+          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(4,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
               class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="pages">Sayfalar</button>
             <button type="button" onclick="rtSwitchTopTab(this,'news')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="news">Haberler</button>
+            <button type="button" onclick="rtSwitchTopTab(this,'prevweek')"
+              class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              data-rt-top-tab="prevweek">Geçen hafta</button>
             <button type="button" onclick="rtSwitchTopTab(this,'drivers')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="drivers">Değişim</button>
@@ -2182,6 +2225,21 @@
               </div>
             </div>
             <p class="mt-2 rt-ts-foot" data-rt-news-ts></p>
+          </div>
+          <div data-rt-top-panel="prevweek" class="hidden min-w-0">
+            <p class="rt-wow-meta" data-rt-wow-meta></p>
+            <div class="rt-wow-filter" data-rt-wow-filter>
+              <button type="button" class="rt-wow-filter-btn is-on" data-rt-wow-exclude="1">Haber hariç</button>
+              <button type="button" class="rt-wow-filter-btn" data-rt-wow-exclude="0">Tüm sayfalar</button>
+            </div>
+            <div class="min-w-0 space-y-1" data-rt-wow-list>
+              <div class="animate-pulse space-y-2 py-2">
+                <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+                <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
+              </div>
+            </div>
+            <p class="mt-2 rt-ts-foot" data-rt-wow-ts></p>
           </div>
           <div data-rt-top-panel="drivers" class="hidden min-w-0 space-y-3">
             {# Anlık değişim — kim düşürüyor/çıkarıyor (drivers) #}
@@ -4236,6 +4294,123 @@
       });
   }
 
+  function _rtWowExcludeNews(box) {
+    if (!box) return true;
+    if (box._rtWowExcludeNews == null) box._rtWowExcludeNews = true;
+    return !!box._rtWowExcludeNews;
+  }
+
+  function _syncWowFilterButtons(box) {
+    var wrap = box.querySelector('[data-rt-wow-filter]');
+    if (!wrap) return;
+    var on = _rtWowExcludeNews(box);
+    wrap.querySelectorAll('[data-rt-wow-exclude]').forEach(function (btn) {
+      var ex = btn.getAttribute('data-rt-wow-exclude') === '1';
+      btn.classList.toggle('is-on', ex === on);
+    });
+  }
+
+  function _wireWowFilterButtons(box, siteId, profile) {
+    var wrap = box.querySelector('[data-rt-wow-filter]');
+    if (!wrap || wrap._rtWowWired) return;
+    wrap._rtWowWired = true;
+    wrap.querySelectorAll('[data-rt-wow-exclude]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        box._rtWowExcludeNews = btn.getAttribute('data-rt-wow-exclude') === '1';
+        _syncWowFilterButtons(box);
+        _fetchWowDayPages(siteId, profile);
+      });
+    });
+  }
+
+  function _renderWowDayPages(listEl, pages, domain, meta) {
+    if (!listEl) return;
+    if (!pages.length) {
+      listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+      return;
+    }
+    var sortKey = 'screenPageViews';
+    pages = pages.slice().sort(function (a, b) {
+      return (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0);
+    });
+    var maxVal = pages[0][sortKey] || 1;
+    listEl.innerHTML = pages.map(function (p, i) {
+      var pathRaw = p.page || '(bilinmiyor)';
+      var path = _esc(pathRaw);
+      var prevViews = Number(p.screenPageViews) || 0;
+      var ydayViews = p.screenPageViews_current;
+      var ydayComp = _renderComparison(ydayViews, prevViews);
+      var pageUrl = (p.page_url || '').trim();
+      var firstPath = pathRaw.startsWith('/') ? pathRaw : '';
+      var titleHtml;
+      if (pageUrl) {
+        titleHtml = '<a class="rt-list-title rt-news-link text-sm" href="' + _attr(pageUrl) + '" target="_blank" rel="noopener noreferrer" title="' + _attr(pathRaw) + '">' + path + '</a>';
+      } else if (firstPath && domain) {
+        var fullUrl = 'https://' + domain.replace(/^https?:\/\//, '') + encodeURI(firstPath);
+        titleHtml = '<a class="rt-list-title rt-news-link text-sm" href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" title="' + _attr(pathRaw) + '">' + path + '</a>';
+      } else {
+        titleHtml = '<div class="rt-list-title text-sm" title="' + _attr(pathRaw) + '">' + path + '</div>';
+      }
+      var barW = Math.max(4, Math.round((prevViews / maxVal) * 100));
+      var metaLbl = meta && meta.prev_week_day_label ? meta.prev_week_day_label : 'geçen hafta';
+      var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
+      return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
+        + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
+        + '<div class="rt-top-list-mid">'
+        + titleHtml
+        + '<div class="rt-bar-track"><div class="rt-bar-fill-violet" style="width:' + barW + '%"></div></div>'
+        + '</div>'
+        + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
+        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + _fmt(prevViews) + '</strong> <span class="rt-list-meta">gör.</span></span>'
+        + '<span class="rt-list-meta" title="Dün (' + _attr((meta && meta.current_day_label) || '') + ') vs ' + _attr(metaLbl) + '">Dün: ' + _fmt(ydayViews) + ydayComp + '</span>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function _fetchWowDayPages(siteId, profile) {
+    if (profile !== 'web' && profile !== 'mweb') return;
+    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    if (!box) return;
+    _wireWowFilterButtons(box, siteId, profile);
+    var listEl = box.querySelector('[data-rt-wow-list]');
+    var tsEl = box.querySelector('[data-rt-wow-ts]');
+    var metaEl = box.querySelector('[data-rt-wow-meta]');
+    if (!listEl) return;
+    var excludeNews = _rtWowExcludeNews(box) ? '1' : '0';
+    fetch('/api/ga4/realtime/' + siteId + '/wow-day-pages?profile=' + encodeURIComponent(profile) + '&limit=12&exclude_news=' + excludeNews, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error || !d.pages || !d.pages.length) {
+          if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
+          if (metaEl && d.meta) {
+            metaEl.textContent = (d.meta.prev_week_day_label || '') + ' · tam gün GA4';
+          }
+          return;
+        }
+        var domain = box.getAttribute('data-rt-domain') || '';
+        if (metaEl && d.meta) {
+          metaEl.textContent =
+            (d.meta.prev_week_day_label || 'Geçen hafta') +
+            ' · en çok görüntülenen sayfalar' +
+            (d.exclude_news ? ' (haber hariç)' : '') +
+            ' · dün: ' + (d.meta.current_day_label || '');
+        }
+        _renderWowDayPages(listEl, d.pages, domain, d.meta || {});
+        if (tsEl) {
+          var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
+          var stale = d.stale ? ' · önbellek' : '';
+          tsEl.textContent = 'GA4 tam gün · güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + stale;
+        }
+      })
+      .catch(function () {
+        if (listEl) listEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
+      });
+  }
+
   function rtFetchTopEvents(siteId, profile) {
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box || !box.querySelector('[data-rt-events-section]')) return;
@@ -4615,6 +4790,7 @@
       if (prof === 'android' && tab === 'pages') return;
       if (tab === 'news') _fetchTopNews(sid, prof);
       if (tab === 'pages') _fetchTopData(sid, prof, 'pages');
+      if (tab === 'prevweek') _fetchWowDayPages(sid, prof);
       if (tab === 'events') rtFetchTopEvents(sid, prof);
       if (tab === 'drivers') { _fetchDrivers(sid, prof); _fetchInsights(sid, prof); }
     }

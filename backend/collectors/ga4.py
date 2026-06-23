@@ -94,6 +94,21 @@ def _same_weekday_day_windows() -> tuple[tuple[str, str], tuple[str, str]]:
     )
 
 
+def same_weekday_day_meta() -> dict[str, str]:
+    """Realtime «Geçen hafta» sekmesi: referans gün etiketleri."""
+    (last_start, _), (prev_start, _) = _same_weekday_day_windows()
+    last_d = date.fromisoformat(last_start)
+    prev_d = date.fromisoformat(prev_start)
+    return {
+        "current_day": last_start,
+        "prev_week_day": prev_start,
+        "current_weekday_tr": weekday_tr(last_d),
+        "prev_weekday_tr": weekday_tr(prev_d),
+        "current_day_label": f"{weekday_tr(last_d)} {last_d.strftime('%d.%m.%Y')}",
+        "prev_week_day_label": f"{weekday_tr(prev_d)} {prev_d.strftime('%d.%m.%Y')}",
+    }
+
+
 def _exclude_path_substrings() -> list[str]:
     from backend.config import settings
 
