@@ -190,7 +190,8 @@ def _attach_breakdown_by_base(
     base = _path_base(page_path)
     for key, row in grouped.items():
         if _path_base(key) == base:
-            row[field] = items
+            prior = normalize_labeled_list(row.get(field))
+            row[field] = merge_labeled_items(prior + items, max_items=_MAX_BREAKDOWN)
 
 
 def _ga4_error_page_filter_list():

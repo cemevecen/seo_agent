@@ -48,3 +48,19 @@ def test_merge_labeled_items():
     ])
     assert merged[0]["label"] == "mobile"
     assert merged[0]["users"] == 15
+
+
+def test_attach_breakdown_by_base_merges_same_field():
+    from backend.services.error_monitor import _attach_breakdown_by_base
+
+    grouped = {
+        "/foo?page=1": {"direct_devices": []},
+        "/foo?page=2": {"direct_devices": []},
+    }
+    _attach_breakdown_by_base(grouped, "/foo", "direct_devices", [{"label": "desktop", "users": 10}])
+    _attach_breakdown_by_base(grouped, "/foo", "direct_devices", [{"label": "mobile", "users": 3}])
+    assert grouped["/foo?page=1"]["direct_devices"] == [
+        {"label": "desktop", "users": 10},
+        {"label": "mobile", "users": 3},
+    ]
+    assert grouped["/foo?page=2"]["direct_devices"] == grouped["/foo?page=1"]["direct_devices"]
