@@ -689,7 +689,7 @@ def _split_alarms_by_sentiment(alarms: list[dict[str, Any]]) -> tuple[list[dict[
 # Bir site+profil mailinde azami pozitif/negatif alarm (konsolide mailde ayrıca batch cap var).
 ALARM_EMAIL_TOP_N = 10
 REALTIME_DETAIL_TOP_N = 10
-REALTIME_BUCKET_TOP_PAGES_N = 6
+REALTIME_BUCKET_TOP_PAGES_N = 10
 
 # 4 saatlik özet maili: doviz web/mweb/android/ios + sinemalar web/mweb (monetizasyon 6 akış)
 REALTIME_DIGEST_AREAS: tuple[tuple[str, str], ...] = (
