@@ -1854,6 +1854,226 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.35; }
   }
+
+  /* ── Mobile web: realtime uçtan uca (≤639px) ── */
+  @media (max-width: 639px) {
+    .realtime-root {
+      overflow-x: clip;
+    }
+    .realtime-root h1 {
+      font-size: 1.35rem;
+    }
+    .realtime-root > .mb-8.flex {
+      margin-bottom: 1rem !important;
+    }
+
+    #rt-view-pills button[data-rt-view-pill] {
+      min-width: 2.65rem;
+      padding: 0.35rem 0.45rem;
+      font-size: 0.6875rem;
+    }
+
+    /* Özet: profil kartları tek sütun (2/4 sütun mobilde sıkışıyor) */
+    html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-profiles-grid,
+    html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid,
+    .rt-masonry-profiles-grid {
+      grid-template-columns: 1fr !important;
+      gap: 0.75rem !important;
+    }
+    html.rt-view--compact #rt-compact-masonry-panel {
+      padding: 0.65rem 0.75rem 0.85rem;
+    }
+    html.rt-view--compact .rt-profile-box {
+      padding: 0.65rem 0.75rem !important;
+    }
+
+    /* Özet: dar KPI sütunu (5.25rem) kaldır — KPI üstte, spark altta */
+    html.rt-view--compact .rt-split-panel {
+      grid-template-columns: 1fr !important;
+      min-height: 0 !important;
+    }
+    html.rt-view--compact .rt-split-kpis {
+      flex-direction: row !important;
+      align-items: stretch;
+      border-right: none !important;
+      border-bottom: 1px solid rgb(241 245 249);
+      padding: 0.65rem 0.75rem !important;
+      gap: 0.65rem !important;
+    }
+    html.dark.rt-view--compact .rt-split-kpis {
+      border-bottom-color: rgba(63, 63, 70, 0.55);
+    }
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi="activeUsers"] {
+      flex: 1 1 0;
+      min-width: 0;
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
+      border-bottom: none !important;
+      border-right: 1px dashed rgb(226 232 240) !important;
+      padding-right: 0.65rem !important;
+    }
+    html.dark.rt-view--compact .rt-split-kpis [data-rt-kpi="activeUsers"] {
+      border-right-color: rgba(63, 63, 70, 0.55) !important;
+    }
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi="screenPageViews"] {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi] [data-rt-val] {
+      font-size: 1.35rem !important;
+    }
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi] p.text-xs {
+      font-size: 9px !important;
+      letter-spacing: 0.04em;
+      white-space: normal;
+      line-height: 1.3;
+      writing-mode: horizontal-tb;
+      text-orientation: mixed;
+    }
+
+    .rt-split-kpis [data-rt-kpi] p.text-xs {
+      writing-mode: horizontal-tb;
+      text-orientation: mixed;
+      white-space: normal;
+      overflow-wrap: break-word;
+    }
+
+    .rt-split-chart .rt-spark-head {
+      flex-wrap: wrap;
+      row-gap: 0.25rem;
+    }
+    .rt-split-chart .rt-spark-mini-bars,
+    .rt-split-chart .rt-spark-y-axis {
+      height: 4.25rem;
+    }
+
+    /* Site toplam spark: meta üstte, grafik altta */
+    .rt-site-spark-row,
+    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-row,
+    html.rt-view--total .rt-site-spark-row,
+    html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-row {
+      grid-template-columns: 1fr !important;
+      min-height: 0;
+      gap: 0.45rem;
+      padding: 0.55rem 0.65rem;
+    }
+    .rt-site-spark-meta,
+    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-meta,
+    html.rt-view--total .rt-site-spark-meta,
+    html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-meta {
+      border-right: none !important;
+      border-bottom: 1px dashed rgb(226 232 240);
+      padding-bottom: 0.45rem;
+      padding-right: 0;
+      min-width: 0;
+    }
+    html.dark .rt-site-spark-meta,
+    html.dark.rt-view--compact .rt-masonry-total-row .rt-site-spark-meta,
+    html.dark.rt-view--total .rt-site-spark-meta {
+      border-bottom-color: rgba(63, 63, 70, 0.45);
+    }
+    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-last,
+    html.rt-view--total .rt-site-spark-last {
+      font-size: 1.65rem !important;
+    }
+    .rt-site-spark-bars,
+    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-bars {
+      min-height: 3.5rem !important;
+    }
+    .rt-site-spark-compare {
+      font-size: 9px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .rt-site-spark-range .rt-yf-tab,
+    .rt-yf-tab {
+      padding: 0.2rem 0.35rem;
+      font-size: 9px;
+    }
+
+    /* Üst sekmeler + geçen hafta filtreleri */
+    .rt-top-tab {
+      font-size: 9px !important;
+      padding: 0.4rem 0.2rem !important;
+      letter-spacing: 0.01em;
+      white-space: normal;
+      line-height: 1.2;
+    }
+    .rt-wow-filter {
+      gap: 0.2rem;
+    }
+    .rt-wow-filter-btn {
+      font-size: 9px;
+      padding: 0.18rem 0.38rem;
+    }
+    .rt-wow-meta {
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    /* Top listeler: rakamlar başlığın altına */
+    .rt-top-list-row {
+      grid-template-columns: 1.25rem minmax(0, 1fr);
+      grid-template-rows: auto auto;
+      row-gap: 0.15rem;
+    }
+    .rt-top-list-nums-col {
+      grid-column: 2;
+      justify-self: start;
+      text-align: left;
+      white-space: normal;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.2rem 0.55rem;
+    }
+
+    .rt-site-chrome {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 0.65rem !important;
+    }
+    .rt-site-totals {
+      width: 100%;
+      justify-content: flex-start !important;
+    }
+    .rt-site-total-chip {
+      flex: 1 1 calc(50% - 0.25rem);
+      min-width: 0;
+    }
+
+    .rt-profile-box,
+    .rt-site-card,
+    .rt-split-panel,
+    .rt-spark-wrap,
+    [data-rt-top-section] {
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .rt-scroll-area[data-rt-events-list] {
+      max-height: 14rem;
+    }
+
+    [data-rt-top-section] {
+      min-height: 0 !important;
+    }
+  }
+
+  @media (max-width: 399px) {
+    .rt-top-tab {
+      font-size: 8px !important;
+      padding: 0.35rem 0.12rem !important;
+    }
+    #rt-view-pills button[data-rt-view-pill] {
+      min-width: 2.35rem;
+      font-size: 0.625rem;
+    }
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi] [data-rt-val] {
+      font-size: 1.2rem !important;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .rt-cd-pulse, .rt-cd-ring {
       animation: none !important;
