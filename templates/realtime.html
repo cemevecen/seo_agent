@@ -1668,6 +1668,37 @@
     background: #a5b4fc !important;
     opacity: 0.45;
   }
+  /* Döviz + Sinemalar toplam aktif: mavi spark paleti */
+  .rt-site-spark-row--brand-blue .rt-site-spark-label {
+    color: rgb(29 78 216);
+  }
+  html.dark .rt-site-spark-row--brand-blue .rt-site-spark-label {
+    color: rgb(147 197 253);
+  }
+  .rt-site-spark-row--brand-blue .rt-site-spark-compare:not(.is-up):not(.is-down) {
+    color: rgb(37 99 235);
+  }
+  html.dark .rt-site-spark-row--brand-blue .rt-site-spark-compare:not(.is-up):not(.is-down) {
+    color: rgb(147 197 253);
+  }
+  .rt-site-spark-row--brand-blue .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
+    background: #93c5fd !important;
+    opacity: 0.42;
+  }
+  html.dark .rt-site-spark-row--brand-blue .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
+    background: #60a5fa !important;
+    opacity: 0.38;
+  }
+  [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
+  [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
+  #rt-global-total-panel .rt-site-spark-row:not(.rt-site-spark-row--pv) {
+    border-right-color: rgba(59, 130, 246, 0.22);
+  }
+  html.dark [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
+  html.dark [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row:not(.rt-site-spark-row--pv),
+  html.dark #rt-global-total-panel .rt-site-spark-row:not(.rt-site-spark-row--pv) {
+    border-right-color: rgba(96, 165, 250, 0.28);
+  }
   .rt-site-spark-empty-msg {
     flex: 1;
     align-self: center;
@@ -1943,7 +1974,14 @@
     </div>
     <div class="rt-global-site-sparks" data-rt-global-site-sparks>
       {% for site in sites %}
-      <div class="rt-global-site-spark-wrap" data-rt-global-site-spark="{{ site.id }}">
+      {% if site.domain and 'sinemalar' in site.domain %}
+        {% set g_site_slug = 'sinemalar' %}
+      {% elif site.domain and 'doviz' in site.domain %}
+        {% set g_site_slug = 'doviz' %}
+      {% else %}
+        {% set g_site_slug = 'other' %}
+      {% endif %}
+      <div class="rt-global-site-spark-wrap" data-rt-global-site-spark="{{ site.id }}" data-rt-site-slug="{{ g_site_slug }}">
         <div class="rt-site-spark-row" data-rt-site-spark-row>
           <div class="rt-site-spark-meta">
             <p class="rt-site-spark-label">{{ site.display_name or site.domain }}</p>
@@ -2818,7 +2856,10 @@
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     var rowEl = siteEl.querySelector('[data-rt-site-spark-row]');
-    if (rowEl) rowEl.classList.toggle('rt-site-spark-row--pv', metric === 'pv');
+    if (rowEl) {
+      rowEl.classList.toggle('rt-site-spark-row--pv', metric === 'pv');
+      rowEl.classList.toggle('rt-site-spark-row--brand-blue', _rtSiteSparkUsesBlue(siteEl, metric));
+    }
     var labelEl = siteEl.querySelector('[data-rt-site-spark-label]');
     if (labelEl) labelEl.textContent = metric === 'pv' ? 'Toplam görüntüleme' : 'Toplam aktif';
     var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
@@ -2843,6 +2884,11 @@
     var yEl = siteEl.querySelector('[data-rt-site-spark-y]');
     var xEl = siteEl.querySelector('[data-rt-site-spark-x]');
     var lastEl = siteEl.querySelector('[data-rt-site-spark-last]');
+    var rowEl = siteEl.querySelector('[data-rt-site-spark-row]');
+    if (rowEl) {
+      rowEl.classList.toggle('rt-site-spark-row--pv', metric === 'pv');
+      rowEl.classList.toggle('rt-site-spark-row--brand-blue', _rtSiteSparkUsesBlue(siteEl, metric));
+    }
     if (!barsEl) return;
     _wireSiteYfTabs(siteEl);
     var rangeKey = _rtSiteSparkRangeKey(siteEl);
@@ -2900,15 +2946,16 @@
     var barPx = 68;
     siteEl._rtSparkDisplay = display;
     siteEl._rtSparkMetricCurrent = metric;
+    var barFill = _rtSiteSparkBarFill(siteEl, metric);
     var siteBarSpecs = display.map(function (d, i) {
       var v = Number(d.v) || 0;
       var vPrev = showPrevWeekBars ? Number(d.vPrev) || 0 : 0;
       if (d.empty || (v <= 0 && vPrev <= 0)) {
-        return { i: i, empty: true, hPx: 2, bg: _sparkBarFill(0, mx) };
+        return { i: i, empty: true, hPx: 2, bg: barFill(0, mx) };
       }
       var hPx = Math.round((v / mx) * barPx);
       hPx = Math.max(3, Math.min(barPx, hPx));
-      return { i: i, empty: false, hPx: hPx, bg: _sparkBarFill(v, mx) };
+      return { i: i, empty: false, hPx: hPx, bg: barFill(v, mx) };
     });
     _slotBars(barsEl, siteBarSpecs, { barClass: 'rt-spark-mini-bar' });
     barsEl._rtSiteTipWired = false;
@@ -3580,6 +3627,37 @@
     if (r >= 0.25) return dark ? '#86efac' : '#4ade80';
     if (r > 0) return dark ? '#bbf7d0' : '#bbf7d0';
     return dark ? '#166534' : '#dcfce7';
+  }
+
+  /** Döviz + Sinemalar site toplam aktif spark — lacivert → uçuk mavi (yeşil düzenin mavisi). */
+  function _sparkBarFillBlue(v, mx) {
+    var r = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
+    var dark = document.documentElement.classList.contains('dark');
+    if (r >= 0.75) return dark ? '#1e40af' : '#1e3a8a';
+    if (r >= 0.5) return dark ? '#2563eb' : '#1d4ed8';
+    if (r >= 0.25) return dark ? '#3b82f6' : '#2563eb';
+    if (r > 0) return dark ? '#60a5fa' : '#3b82f6';
+    return dark ? '#172554' : '#dbeafe';
+  }
+
+  function _rtSiteSparkUsesBlue(siteEl, metric) {
+    if (metric !== 'au' || !siteEl) return false;
+    if (siteEl.hasAttribute('data-rt-global-total')) return true;
+    var slug = siteEl.getAttribute('data-rt-site-slug');
+    if (slug === 'doviz' || slug === 'sinemalar') return true;
+    if (siteEl.hasAttribute('data-rt-global-site-spark')) {
+      var sid = siteEl.getAttribute('data-rt-global-site-spark');
+      var card = document.querySelector('.rt-site-card[data-rt-site="' + sid + '"]');
+      if (card) {
+        slug = card.getAttribute('data-rt-site-slug');
+        return slug === 'doviz' || slug === 'sinemalar';
+      }
+    }
+    return false;
+  }
+
+  function _rtSiteSparkBarFill(siteEl, metric) {
+    return _rtSiteSparkUsesBlue(siteEl, metric) ? _sparkBarFillBlue : _sparkBarFill;
   }
 
   function _sparkTimeAxisLabel(ms) {
