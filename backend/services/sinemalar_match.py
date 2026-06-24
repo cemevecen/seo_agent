@@ -23,6 +23,35 @@ _ITEM_RE = re.compile(
     re.I,
 )
 _YEAR_IN_ALT_RE = re.compile(r'alt="[^"]*\((\d{4})\)[^"]*afişi"', re.I)
+_VIZYON_BLOCK_RE = re.compile(
+    r"<b>Vizyon Tarihi:</b>\s*([\s\S]*?)\s*</div>",
+    re.I,
+)
+_YAYIN_BLOCK_RE = re.compile(
+    r"<b>Yayın Tarihi:</b>\s*([\s\S]*?)\s*</div>",
+    re.I,
+)
+_TR_MONTH: dict[str, int] = {
+    "ocak": 1,
+    "subat": 2,
+    "şubat": 2,
+    "mart": 3,
+    "nisan": 4,
+    "mayis": 5,
+    "mayıs": 5,
+    "haziran": 6,
+    "temmuz": 7,
+    "agustos": 8,
+    "ağustos": 8,
+    "eylul": 9,
+    "eylül": 9,
+    "ekim": 10,
+    "kasim": 11,
+    "kasım": 11,
+    "aralik": 12,
+    "aralık": 12,
+}
+_EMPTY_RELEASE = frozenset({"", "-", "—", "?", "yok", "belirlenmedi", "henüz belirlenmedi"})
 
 _cache_lock = threading.Lock()
 _cache: dict[str, dict[str, Any]] = {}
@@ -30,7 +59,7 @@ _CACHE_TTL_S = 7 * 24 * 3600
 
 
 def _cache_key(media_type: str, title: str, year: str) -> str:
-    return f"{media_type}:{_normalize(title)}:{year}"
+    return f"v2:{media_type}:{_normalize(title)}:{year}"
 
 
 def _normalize(s: str) -> str:
@@ -130,6 +159,67 @@ def _fetch_search(query: str) -> list[dict[str, Any]]:
         return []
 
 
+def _turkish_date_label_to_iso(label: str) -> str | None:
+    """Örn. '01 Mart 2024' → '2024-03-01'."""
+    label = re.sub(r"\s+", " ", (label or "").strip())
+    m = re.match(r"(\d{1,2})\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(\d{4})", label)
+    if not m:
+        return None
+    day, month_name, year = int(m.group(1)), m.group(2).casefold(), m.group(3)
+    month = _TR_MONTH.get(month_name.replace("i̇", "i"))
+    if not month:
+        return None
+    return f"{year}-{month:02d}-{day:02d}"
+
+
+def _parse_release_from_detail_html(html: str, *, kind: str) -> dict[str, Any]:
+    """Film: Vizyon Tarihi; dizi: Yayın Tarihi."""
+    if kind == "dizi":
+        block = _YAYIN_BLOCK_RE.search(html)
+        label_key = "yayın"
+    else:
+        block = _VIZYON_BLOCK_RE.search(html)
+        label_key = "vizyon"
+    if not block:
+        return {
+            "sinemalar_has_release_date": False,
+            "sinemalar_release_date": None,
+            "sinemalar_release_label": None,
+            "sinemalar_release_kind": label_key,
+        }
+    raw = re.sub(r"<[^>]+>", " ", block.group(1))
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if raw.casefold() in _EMPTY_RELEASE:
+        return {
+            "sinemalar_has_release_date": False,
+            "sinemalar_release_date": None,
+            "sinemalar_release_label": None,
+            "sinemalar_release_kind": label_key,
+        }
+    iso = _turkish_date_label_to_iso(raw)
+    return {
+        "sinemalar_has_release_date": True,
+        "sinemalar_release_date": iso or raw,
+        "sinemalar_release_label": raw,
+        "sinemalar_release_kind": label_key,
+    }
+
+
+def _fetch_detail_release(url: str, *, kind: str) -> dict[str, Any]:
+    try:
+        resp = requests.get(url, headers={"User-Agent": _UA}, timeout=12)
+        resp.raise_for_status()
+        return _parse_release_from_detail_html(resp.text, kind=kind)
+    except Exception as exc:
+        logger.warning("Sinemalar detay (vizyon) hatası [%s]: %s", url[:80], exc)
+        return {
+            "sinemalar_has_release_date": False,
+            "sinemalar_release_date": None,
+            "sinemalar_release_label": None,
+            "sinemalar_release_kind": "vizyon" if kind != "dizi" else "yayın",
+        }
+
+
 def lookup(
     *,
     title: str,
@@ -170,12 +260,14 @@ def lookup(
     )
 
     if match:
+        release = _fetch_detail_release(match["url"], kind=match["kind"])
         payload = {
             "sinemalar_found": True,
             "sinemalar_url": match["url"],
             "sinemalar_title": match["title"],
             "sinemalar_id": match["sinemalar_id"],
             "sinemalar_match_quality": match["match_quality"],
+            **release,
         }
     else:
         payload = {
@@ -184,6 +276,10 @@ def lookup(
             "sinemalar_title": None,
             "sinemalar_id": None,
             "sinemalar_match_quality": None,
+            "sinemalar_has_release_date": None,
+            "sinemalar_release_date": None,
+            "sinemalar_release_label": None,
+            "sinemalar_release_kind": None,
         }
 
     with _cache_lock:
@@ -216,7 +312,7 @@ def warm_sinemalar_cache(
     items: list[dict[str, Any]],
     *,
     max_lookups: int = 200,
-    delay_s: float = 0.12,
+    delay_s: float = 0.18,
 ) -> int:
     """Önbellekte olmayan kayıtlar için Sinemalar araması yapar."""
     done = 0

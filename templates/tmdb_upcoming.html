@@ -134,6 +134,17 @@
       </a>
       {% endif %}
     </div>
+    {% if movie.sinemalar_found %}
+    <p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+      {% if movie.sinemalar_has_release_date %}
+        Sinemalar vizyon:
+        <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ movie.sinemalar_release_label or movie.sinemalar_release_date }}</span>
+      {% else %}
+        <span class="font-semibold text-amber-700 dark:text-amber-400">Sinemalar'da vizyon tarihi yok</span>
+        <span class="text-slate-400"> — sayfayı açıp bilgiyi doldurabilirsiniz</span>
+      {% endif %}
+    </p>
+    {% endif %}
   </div>
 </div>
 {% endmacro %}
@@ -233,6 +244,17 @@
       </a>
       {% endif %}
     </div>
+    {% if show.sinemalar_found %}
+    <p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+      {% if show.sinemalar_has_release_date %}
+        Sinemalar yayın:
+        <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ show.sinemalar_release_label or show.sinemalar_release_date }}</span>
+      {% else %}
+        <span class="font-semibold text-amber-700 dark:text-amber-400">Sinemalar'da yayın tarihi yok</span>
+        <span class="text-slate-400"> — sayfayı açıp bilgiyi doldurabilirsiniz</span>
+      {% endif %}
+    </p>
+    {% endif %}
   </div>
 </div>
 {% endmacro %}
