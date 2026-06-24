@@ -13,13 +13,13 @@ def test_device_fingerprint_stable():
     assert a != c
 
 
-def test_first_login_auto_trust_no_alert():
+def test_first_login_auto_trust_still_sends_alert():
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = None
     db.query.return_value.first.return_value = None  # no trusted devices yet
 
     with patch.object(aal, "trust_fingerprint") as mock_trust:
-        with patch.object(aal, "_send_unknown_login_alert") as mock_alert:
+        with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
             with patch.object(aal, "_trim_old_events"):
                 aal.record_access_event(
                     db,
@@ -28,7 +28,25 @@ def test_first_login_auto_trust_no_alert():
                     user_agent="Firefox",
                 )
     mock_trust.assert_called_once()
-    mock_alert.assert_not_called()
+    mock_alert.assert_called_once()
+    assert mock_alert.call_args.kwargs.get("force_immediate") is True
+
+
+def test_login_fail_triggers_immediate_alert():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
+        with patch.object(aal, "_trim_old_events"):
+            row = aal.record_access_event(
+                db,
+                event_type="login_fail",
+                ip="203.0.113.9",
+                user_agent="Chrome",
+            )
+    mock_alert.assert_called_once()
+    assert mock_alert.call_args.kwargs.get("force_immediate") is True
+    assert row.alert_sent is True
 
 
 def test_unknown_device_sends_alert():
@@ -46,6 +64,7 @@ def test_unknown_device_sends_alert():
                     user_agent="Chrome",
                 )
     mock_alert.assert_called_once()
+    assert mock_alert.call_args.kwargs.get("force_immediate") is True
     assert row.alert_sent is True
 
 

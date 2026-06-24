@@ -223,6 +223,13 @@ def is_protected_admin_email(email: str) -> bool:
     return _normalize_email(email) in ADMIN_MEMBER_EMAILS
 
 
+def member_exists_by_email(db: Session, email: str) -> bool:
+    em = _normalize_email(email)
+    if not em:
+        return False
+    return db.query(AppMember).filter(AppMember.email == em).first() is not None
+
+
 def upsert_member_from_google(
     db: Session,
     *,

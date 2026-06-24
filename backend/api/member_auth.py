@@ -107,6 +107,7 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
                 url=f"/admin/login?oauth_error={quote(ama.membership_rejection_message(email))}",
                 status_code=302,
             )
+        is_new_member = not ama.member_exists_by_email(db, email)
         member = ama.upsert_member_from_google(
             db,
             email=email,
@@ -134,7 +135,7 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     _record_member_access_event(
         db,
         request,
-        event_type="member_login_ok",
+        event_type="member_register_ok" if is_new_member else "member_login_ok",
         actor_email=member.email,
     )
     return resp

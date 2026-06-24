@@ -318,6 +318,7 @@ def _event_label(event_type: str) -> str:
     return {
         "login_ok": "Admin girişi",
         "member_login_ok": "Google üye girişi",
+        "member_register_ok": "Google üye kaydı (ilk giriş)",
         "member_login_fail": "Google üye girişi (başarısız)",
         "login_fail": "Başarısız giriş",
         "settings_ok": "Settings erişimi",
@@ -330,7 +331,14 @@ def _prior_login_rows(db: Session, *, fingerprint: str, ip: str, limit: int = 6)
         db.query(AdminLoginEvent)
         .filter(
             AdminLoginEvent.event_type.in_(
-                ("login_ok", "member_login_ok", "member_login_fail", "settings_ok", "login_fail")
+                (
+                    "login_ok",
+                    "member_login_ok",
+                    "member_register_ok",
+                    "member_login_fail",
+                    "settings_ok",
+                    "login_fail",
+                )
             )
         )
         .order_by(AdminLoginEvent.created_at.desc(), AdminLoginEvent.id.desc())
@@ -495,10 +503,23 @@ def _deliver_unknown_login_alert(
             else "Anlık uyarı (gezinti penceresi kapalı)."
         )
 
+        if event_type == "member_login_fail":
+            alert_heading = "Başarısız panel girişi"
+        elif event_type == "member_register_ok":
+            alert_heading = "Yeni üye kaydı (Google)"
+        elif event_type == "member_login_ok":
+            alert_heading = "Panel girişi (Google)"
+        elif event_type == "login_fail":
+            alert_heading = "Başarısız admin şifre girişi"
+        elif event_type in ("login_ok", "settings_ok"):
+            alert_heading = "Admin / settings girişi"
+        else:
+            alert_heading = "Tanınmayan admin erişimi"
+
         body = (
             '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;max-width:640px;line-height:1.45;">'
             f"<h2 style=\"color:#b91c1c;margin:0 0 12px;\">"
-            f"{'Başarısız panel girişi' if event_type == 'member_login_fail' else 'Tanınmayan admin erişimi'}</h2>"
+            f"{html.escape(alert_heading)}</h2>"
             f"<p style=\"margin:0 0 8px;\"><strong>Olay:</strong> {html.escape(et)}</p>"
             + actor_line
             + f"<p style=\"margin:0 0 8px;\"><strong>Zaman:</strong> {html.escape(when)} (TR)</p>"
@@ -529,6 +550,13 @@ def _deliver_unknown_login_alert(
                 subject = f"panel girişi başarısız - '{em}' - '{ip_disp}'"
             else:
                 subject = f"panel girişi başarısız - '{browser}' - '{ip_disp}'"
+        elif event_type == "member_register_ok":
+            if em:
+                subject = f"panel kayıt - '{em}' - '{ip_disp}'"
+            else:
+                subject = f"panel kayıt - '{browser}' - '{ip_disp}'"
+        elif event_type in ("member_login_ok", "login_ok", "settings_ok") and em:
+            subject = f"panel girişi - '{em}' - '{ip_disp}'"
         elif em:
             subject = f"panel girişi - '{em}' - '{ip_disp}'"
         else:
@@ -549,9 +577,10 @@ def schedule_unknown_login_alert(
     referer: str = "",
     accept_language: str = "",
     actor_email: str = "",
+    force_immediate: bool = False,
 ) -> bool:
-    """Gezinti toplamak için gecikmeli gönderim; delay=0 ise anında."""
-    delay = max(0, int(settings.admin_login_alert_nav_delay_seconds or 0))
+    """Gezinti toplamak için gecikmeli gönderim; panel girişlerinde force_immediate=True."""
+    delay = 0 if force_immediate else max(0, int(settings.admin_login_alert_nav_delay_seconds or 0))
     meta = {
         "ip": ip,
         "device_label": device_label,
@@ -638,7 +667,20 @@ def record_access_event(
     db.flush()
 
     em = (actor_email or "").strip()
-    if event_type == "member_login_ok" and em:
+    panel_login_events = (
+        "member_login_ok",
+        "member_register_ok",
+        "member_login_fail",
+        "login_ok",
+        "login_fail",
+        "settings_ok",
+    )
+    if event_type in panel_login_events:
+        if event_type in ("login_ok", "settings_ok") and not trusted:
+            has_any_trusted = db.query(AdminTrustedDevice.id).first() is not None
+            if not has_any_trusted:
+                trust_fingerprint(db, fp, label=device, ip_hint=ip)
+                row.is_trusted = True
         sent = schedule_unknown_login_alert(
             ip=ip,
             device_label=device,
@@ -648,36 +690,9 @@ def record_access_event(
             referer=referer,
             accept_language=accept_language,
             actor_email=em,
+            force_immediate=True,
         )
         row.alert_sent = sent
-    elif event_type == "member_login_fail":
-        sent = schedule_unknown_login_alert(
-            ip=ip,
-            device_label=device,
-            user_agent=ua,
-            fingerprint=fp,
-            event_type=event_type,
-            referer=referer,
-            accept_language=accept_language,
-            actor_email=em,
-        )
-        row.alert_sent = sent
-    elif event_type in ("login_ok", "settings_ok") and not trusted:
-        has_any_trusted = db.query(AdminTrustedDevice.id).first() is not None
-        if not has_any_trusted:
-            trust_fingerprint(db, fp, label=device, ip_hint=ip)
-            row.is_trusted = True
-        else:
-            sent = schedule_unknown_login_alert(
-                ip=ip,
-                device_label=device,
-                user_agent=ua,
-                fingerprint=fp,
-                event_type=event_type,
-                referer=referer,
-                accept_language=accept_language,
-            )
-            row.alert_sent = sent
 
     db.commit()
     _trim_old_events(db)
