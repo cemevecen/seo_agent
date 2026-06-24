@@ -10069,8 +10069,6 @@ def admin_login_page(request: Request):
     from urllib.parse import unquote
 
     oauth_err = unquote((request.query_params.get("oauth_error") or "").strip())
-    if not oauth_err and ama.member_oauth_configured() and request.query_params.get("manual") != "1":
-        return RedirectResponse(url="/auth/google/start?next=/", status_code=303)
     if oauth_err.lower() in ("redirect_uri_mismatch", "access_denied"):
         oauth_display = ama.format_member_oauth_login_error(oauth_err, request=request)
     else:
