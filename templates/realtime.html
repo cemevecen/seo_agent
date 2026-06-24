@@ -869,13 +869,13 @@
     min-width: 2px;
     width: 0;
     border-radius: 2px 2px 0 0;
-    background: rgb(187 247 208);
+    background: rgb(34 197 94);
     align-self: flex-end;
     cursor: crosshair;
     transition: filter 0.12s ease, opacity 0.12s ease;
   }
   .rt-spark-mini-bar--carried {
-    opacity: 0.72;
+    opacity: 0.88;
   }
   .rt-spark-mini-bar:hover,
   .rt-spark-mini-bar.is-hovered {
@@ -3902,24 +3902,26 @@
   var RT_SPARK_BAR_PX = 76;
 
   function _sparkBarFill(v, mx) {
-    var r = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
+    var raw = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
+    var r = v > 0 ? Math.max(raw, 0.2) : 0;
     var dark = document.documentElement.classList.contains('dark');
-    if (r >= 0.75) return dark ? '#22c55e' : '#14532d';
+    if (r >= 0.75) return dark ? '#22c55e' : '#15803d';
     if (r >= 0.5) return dark ? '#4ade80' : '#16a34a';
-    if (r >= 0.25) return dark ? '#86efac' : '#4ade80';
-    if (r > 0) return dark ? '#bbf7d0' : '#bbf7d0';
-    return dark ? '#166534' : '#dcfce7';
+    if (r >= 0.25) return dark ? '#86efac' : '#22c55e';
+    if (r > 0) return dark ? '#4ade80' : '#22c55e';
+    return dark ? '#166534' : '#4ade80';
   }
 
   /** Döviz + Sinemalar site toplam aktif spark — lacivert → uçuk mavi (yeşil düzenin mavisi). */
   function _sparkBarFillBlue(v, mx) {
-    var r = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
+    var raw = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
+    var r = v > 0 ? Math.max(raw, 0.2) : 0;
     var dark = document.documentElement.classList.contains('dark');
     if (r >= 0.75) return dark ? '#1e40af' : '#1e3a8a';
     if (r >= 0.5) return dark ? '#2563eb' : '#1d4ed8';
     if (r >= 0.25) return dark ? '#3b82f6' : '#2563eb';
     if (r > 0) return dark ? '#60a5fa' : '#3b82f6';
-    return dark ? '#172554' : '#dbeafe';
+    return dark ? '#172554' : '#60a5fa';
   }
 
   function _rtSiteSparkUsesBlue(siteEl, metric) {
