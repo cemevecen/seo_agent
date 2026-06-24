@@ -4,7 +4,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -408,16 +408,16 @@ def get_ga4_mobile_overlay(
     return out
 
 
-@router.get("/mz-analytics/ga4-app-banner")
-def get_ga4_app_banner(
-    db: Session = Depends(get_db),
-    project: str = Query("doviz"),
-    profile: str = Query("android", description="android | ios"),
-    start: str | None = Query(None),
-    end: str | None = Query(None),
-    top_campaigns: int = Query(10, ge=1, le=25),
-):
-    """GA4 mobil — günlük first_open, first user campaign kırılımı."""
+def _fetch_ga4_app_banner_payload(
+    db: Session,
+    *,
+    project: str,
+    profile: str,
+    start: str | None,
+    end: str | None,
+    top_campaigns: int,
+) -> dict:
+    """GA4 mobil — günlük first_open, kampanya + mweb + (iOS) ASC."""
     from google.api_core import exceptions as ga_exc
 
     from datetime import date as date_cls
@@ -502,7 +502,6 @@ def get_ga4_app_banner(
             payload["mweb_banner"] = {"ok": False, "error": str(exc)}
 
     if prof == "ios":
-        proj_key = (project or "doviz").strip().lower()
         bundle = (APP_PRODUCTS.get(proj_key) or {}).get("ios_bundle_id") or ""
         if bundle:
             try:
@@ -523,6 +522,61 @@ def get_ga4_app_banner(
 
     trim_banner_payload_to_observed_start(payload)
     return payload
+
+
+@router.get("/mz-analytics/ga4-app-banner")
+def get_ga4_app_banner(
+    db: Session = Depends(get_db),
+    project: str = Query("doviz"),
+    profile: str = Query("android", description="android | ios"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    top_campaigns: int = Query(10, ge=1, le=25),
+):
+    return _fetch_ga4_app_banner_payload(
+        db,
+        project=project,
+        profile=profile,
+        start=start,
+        end=end,
+        top_campaigns=top_campaigns,
+    )
+
+
+@router.get("/mz-analytics/ga4-app-banner/export.xlsx")
+def export_ga4_app_banner_xlsx(
+    db: Session = Depends(get_db),
+    project: str = Query("doviz"),
+    profile: str = Query("android", description="android | ios"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    top_campaigns: int = Query(10, ge=1, le=25),
+    active_only: bool = Query(
+        False,
+        description="Yalnızca en az bir metrik > 0 olan günler (paneldeki filtre ile uyumlu).",
+    ),
+):
+    from backend.services.ga4_app_banner_export import build_app_banner_xlsx
+
+    payload = _fetch_ga4_app_banner_payload(
+        db,
+        project=project,
+        profile=profile,
+        start=start,
+        end=end,
+        top_campaigns=top_campaigns,
+    )
+    blob = build_app_banner_xlsx(payload, active_only=active_only)
+    start_s = str(payload.get("chart_start") or payload.get("start") or "")[:10]
+    end_s = str(payload.get("chart_end") or payload.get("end") or "")[:10]
+    prof = str(payload.get("profile") or "app").strip().lower()
+    proj = str(payload.get("project") or "doviz").strip().lower()
+    filename = f"app_banner_{proj}_{prof}_{start_s}_{end_s}.xlsx"
+    return Response(
+        content=blob,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/mz-analytics/app-lab-preview")
