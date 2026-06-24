@@ -338,8 +338,46 @@ def warm_sinemalar_cache(
     return done
 
 
-def attach_to_upcoming_data(data: dict[str, Any], *, max_lookups: int = 0) -> None:
+def lookup_items_batch(items: list[dict[str, Any]], *, max_items: int = 20) -> dict[str, dict[str, Any]]:
+    """API / istemci: TMDB id → sinemalar payload."""
+    out: dict[str, dict[str, Any]] = {}
+    for raw in items[:max_items]:
+        tid = raw.get("id")
+        if tid is None:
+            continue
+        media_type: Literal["movie", "tv"] = (
+            "tv" if raw.get("media_type") == "tv" else "movie"
+        )
+        payload = lookup(
+            title=str(raw.get("title") or ""),
+            original_title=str(raw.get("original_title") or ""),
+            release_date=str(raw.get("release_date") or raw.get("first_air_date") or ""),
+            media_type=media_type,
+            use_cache=True,
+        )
+        out[str(int(tid))] = payload
+    return out
+
+
+def _sinemalar_warm_sort_key(m: dict[str, Any], current_month: str) -> tuple[int, int, float]:
+    rm = m.get("release_month") or (m.get("release_date") or m.get("first_air_date") or "")[:7]
+    missing = 0 if m.get("sinemalar_found") is None else 1
+    in_cur = 0 if rm == current_month else 1
+    pop = float(m.get("popularity") or 0)
+    return (missing, in_cur, -pop)
+
+
+def attach_to_upcoming_data(
+    data: dict[str, Any],
+    *,
+    max_lookups: int = 0,
+    current_month: str | None = None,
+) -> None:
     """TMDB upcoming dict içindeki tüm film/dizi listelerine Sinemalar alanları ekler."""
+    from datetime import date
+
+    if not current_month:
+        current_month = date.today().strftime("%Y-%m")
     lists: list[list[dict[str, Any]]] = []
     for key in ("theatrical", "streaming", "turkish_only", "tv_series", "high_potential"):
         raw = data.get(key)
@@ -365,4 +403,5 @@ def attach_to_upcoming_data(data: dict[str, Any], *, max_lookups: int = 0) -> No
 
     apply_cached_sinemalar(unique)
     if max_lookups > 0:
-        warm_sinemalar_cache(unique, max_lookups=max_lookups)
+        unique.sort(key=lambda m: _sinemalar_warm_sort_key(m, current_month))
+        warm_sinemalar_cache(unique, max_lookups=max_lookups, delay_s=0.12)

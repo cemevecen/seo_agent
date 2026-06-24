@@ -24,6 +24,55 @@
   {% elif p == 'TV+' %}bg-cyan-700 text-white
   {% else %}bg-slate-500 text-white{% endif %}">{{ p }}</span>{% endmacro %}
 
+{% macro sinemalar_state(item) -%}
+{%- if item.sinemalar_found is none -%}pending{%- elif item.sinemalar_found -%}found{%- else -%}missing{%- endif -%}
+{%- endmacro %}
+
+{% macro sinemalar_slot(item) %}
+{% set is_tv = (item.media_type or '') == 'tv' %}
+<div class="sinemalar-slot w-full">
+  <div class="flex flex-wrap gap-1.5">
+    {% if item.sinemalar_found %}
+    <a href="{{ item.sinemalar_url }}" target="_blank" rel="noopener"
+       title="{{ item.sinemalar_title or item.title }}"
+       class="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60">
+      Sinemalar'da{% if item.sinemalar_match_quality == 'fuzzy' %} ~{% endif %} ↗
+    </a>
+    {% elif item.sinemalar_found == false %}
+    <span class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-400"
+          title="Sinemalar aramasında güvenilir eşleşme bulunamadı">
+      Sinemalar'da yok
+    </span>
+    <a href="https://www.google.com/search?q=site:sinemalar.com+{{ item.title | urlencode }}" target="_blank" rel="noopener"
+       class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">
+      Google ↗
+    </a>
+    {% else %}
+    <span class="rounded-lg border border-dashed border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-400 dark:border-slate-600 dark:text-slate-500">
+      Sinemalar kontrol ediliyor…
+    </span>
+    <a href="https://www.google.com/search?q=site:sinemalar.com+{{ item.title | urlencode }}" target="_blank" rel="noopener"
+       class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">
+      Google ↗
+    </a>
+    {% endif %}
+  </div>
+  {% if item.sinemalar_found %}
+  <p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+    {% if item.sinemalar_has_release_date %}
+      {% if is_tv %}Sinemalar yayın{% else %}Sinemalar vizyon{% endif %}:
+      <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ item.sinemalar_release_label or item.sinemalar_release_date }}</span>
+    {% else %}
+      <span class="font-semibold text-amber-700 dark:text-amber-400">
+        {% if is_tv %}Sinemalar'da yayın tarihi yok{% else %}Sinemalar'da vizyon tarihi yok{% endif %}
+      </span>
+      <span class="text-slate-400"> — sayfayı açıp bilgiyi doldurabilirsiniz</span>
+    {% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endmacro %}
+
 {% macro film_card(movie) %}
 {# Dikey kart — afiş üstte tam genişlik, içerik altta #}
 <div class="tmdb-card group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
@@ -33,7 +82,13 @@
   bg-white dark:bg-slate-800"
   data-country="{{ movie.country_code }}"
   data-provider-slugs="{{ movie.provider_slugs or '' }}"
-  data-pop="{% if movie.popularity >= 200 %}high{% elif movie.popularity >= 80 %}medium{% else %}low{% endif %}">
+  data-pop="{% if movie.popularity >= 200 %}high{% elif movie.popularity >= 80 %}medium{% else %}low{% endif %}"
+  data-tmdb-id="{{ movie.id }}"
+  data-media-title="{{ movie.title | e }}"
+  data-media-original="{{ movie.original_title | e }}"
+  data-media-date="{{ movie.release_date or '' }}"
+  data-media-type="{{ movie.media_type or 'movie' }}"
+  data-sinemalar-state="{{ sinemalar_state(movie) }}">
 
   {# Afiş #}
   <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
@@ -107,44 +162,15 @@
       <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{ movie.overview }}</p>
     {% endif %}
 
-    <div class="mt-auto flex flex-wrap gap-1.5 pt-3">
-      <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
-        TMDB ↗
-      </a>
-      {% if movie.sinemalar_found %}
-      <a href="{{ movie.sinemalar_url }}" target="_blank" rel="noopener"
-         title="{{ movie.sinemalar_title or movie.title }}"
-         class="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60">
-        Sinemalar'da{% if movie.sinemalar_match_quality == 'fuzzy' %} ~{% endif %} ↗
-      </a>
-      {% elif movie.sinemalar_found == false %}
-      <span class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-400"
-            title="Sinemalar aramasında güvenilir eşleşme bulunamadı">
-        Sinemalar'da yok
-      </span>
-      <a href="https://www.google.com/search?q=site:sinemalar.com+{{ movie.title | urlencode }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">
-        Google ↗
-      </a>
-      {% else %}
-      <a href="https://www.google.com/search?q=site:sinemalar.com+{{ movie.title | urlencode }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50">
-        sinemalar'da ara ↗
-      </a>
-      {% endif %}
+    <div class="mt-auto flex flex-col gap-1.5 pt-3">
+      <div class="flex flex-wrap gap-1.5">
+        <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
+          TMDB ↗
+        </a>
+      </div>
+      {{ sinemalar_slot(movie) }}
     </div>
-    {% if movie.sinemalar_found %}
-    <p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-      {% if movie.sinemalar_has_release_date %}
-        Sinemalar vizyon:
-        <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ movie.sinemalar_release_label or movie.sinemalar_release_date }}</span>
-      {% else %}
-        <span class="font-semibold text-amber-700 dark:text-amber-400">Sinemalar'da vizyon tarihi yok</span>
-        <span class="text-slate-400"> — sayfayı açıp bilgiyi doldurabilirsiniz</span>
-      {% endif %}
-    </p>
-    {% endif %}
   </div>
 </div>
 {% endmacro %}
@@ -156,7 +182,13 @@
   bg-white dark:bg-slate-800"
   data-country="{{ show.country_code }}"
   data-provider-slugs="{{ show.provider_slugs or '' }}"
-  data-pop="{% if show.popularity >= 200 %}high{% elif show.popularity >= 80 %}medium{% else %}low{% endif %}">
+  data-pop="{% if show.popularity >= 200 %}high{% elif show.popularity >= 80 %}medium{% else %}low{% endif %}"
+  data-tmdb-id="{{ show.id }}"
+  data-media-title="{{ show.title | e }}"
+  data-media-original="{{ show.original_title | e }}"
+  data-media-date="{{ show.release_date or show.first_air_date or '' }}"
+  data-media-type="tv"
+  data-sinemalar-state="{{ sinemalar_state(show) }}">
 
   {# Afiş #}
   <div class="relative aspect-[2/3] bg-slate-200 dark:bg-slate-700">
@@ -217,44 +249,15 @@
       <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{ show.overview }}</p>
     {% endif %}
 
-    <div class="mt-auto flex flex-wrap gap-1.5 pt-3">
-      <a href="{{ show.tmdb_url }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
-        TMDB ↗
-      </a>
-      {% if show.sinemalar_found %}
-      <a href="{{ show.sinemalar_url }}" target="_blank" rel="noopener"
-         title="{{ show.sinemalar_title or show.title }}"
-         class="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60">
-        Sinemalar'da{% if show.sinemalar_match_quality == 'fuzzy' %} ~{% endif %} ↗
-      </a>
-      {% elif show.sinemalar_found == false %}
-      <span class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-400"
-            title="Sinemalar aramasında güvenilir eşleşme bulunamadı">
-        Sinemalar'da yok
-      </span>
-      <a href="https://www.google.com/search?q=site:sinemalar.com+{{ show.title | urlencode }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">
-        Google ↗
-      </a>
-      {% else %}
-      <a href="https://www.google.com/search?q=site:sinemalar.com+{{ show.title | urlencode }}" target="_blank" rel="noopener"
-         class="rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50">
-        sinemalar'da ara ↗
-      </a>
-      {% endif %}
+    <div class="mt-auto flex flex-col gap-1.5 pt-3">
+      <div class="flex flex-wrap gap-1.5">
+        <a href="{{ show.tmdb_url }}" target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">
+          TMDB ↗
+        </a>
+      </div>
+      {{ sinemalar_slot(show) }}
     </div>
-    {% if show.sinemalar_found %}
-    <p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">
-      {% if show.sinemalar_has_release_date %}
-        Sinemalar yayın:
-        <span class="font-semibold text-emerald-700 dark:text-emerald-400">{{ show.sinemalar_release_label or show.sinemalar_release_date }}</span>
-      {% else %}
-        <span class="font-semibold text-amber-700 dark:text-amber-400">Sinemalar'da yayın tarihi yok</span>
-        <span class="text-slate-400"> — sayfayı açıp bilgiyi doldurabilirsiniz</span>
-      {% endif %}
-    </p>
-    {% endif %}
   </div>
 </div>
 {% endmacro %}
@@ -775,6 +778,83 @@
     observer.observe(currentAnchor);
     jumpBtn.addEventListener('click', scrollToCurrentMonth);
   }
+
+  (function sinemalarEnrichQueue() {
+    var busy = false;
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+    function pendingCards() {
+      return Array.prototype.slice.call(
+        document.querySelectorAll('.tmdb-card[data-sinemalar-state="pending"]')
+      );
+    }
+    function renderSlot(card, p) {
+      var slot = card.querySelector('.sinemalar-slot');
+      if (!slot || !p) return;
+      var title = card.getAttribute('data-media-title') || '';
+      var isTv = (card.getAttribute('data-media-type') || '') === 'tv';
+      var vizLabel = isTv ? 'Sinemalar yayın:' : 'Sinemalar vizyon:';
+      var noDate = isTv ? "Sinemalar'da yayın tarihi yok" : "Sinemalar'da vizyon tarihi yok";
+      var googleQ = 'https://www.google.com/search?q=site%3Asinemalar.com+' + encodeURIComponent(title);
+      var html = '<div class="flex flex-wrap gap-1.5">';
+      if (p.sinemalar_found) {
+        card.setAttribute('data-sinemalar-state', 'found');
+        var fuzzy = p.sinemalar_match_quality === 'fuzzy' ? ' ~' : '';
+        html += '<a href="' + esc(p.sinemalar_url) + '" target="_blank" rel="noopener" title="' + esc(p.sinemalar_title || title) + '" class="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60">Sinemalar\'da' + fuzzy + ' ↗</a>';
+        html += '</div><p class="mt-1.5 w-full text-[10px] leading-snug text-slate-500 dark:text-slate-400">';
+        if (p.sinemalar_has_release_date) {
+          html += vizLabel + ' <span class="font-semibold text-emerald-700 dark:text-emerald-400">' + esc(p.sinemalar_release_label || p.sinemalar_release_date) + '</span>';
+        } else {
+          html += '<span class="font-semibold text-amber-700 dark:text-amber-400">' + noDate + '</span><span class="text-slate-400"> — sayfayı açıp bilgiyi doldurabilirsiniz</span>';
+        }
+        html += '</p>';
+      } else {
+        card.setAttribute('data-sinemalar-state', 'missing');
+        html += '<span class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-400">Sinemalar\'da yok</span>';
+        html += '<a href="' + googleQ + '" target="_blank" rel="noopener" class="rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-semibold text-sky-600 transition hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30">Google ↗</a></div>';
+      }
+      slot.innerHTML = html;
+    }
+    function tick() {
+      if (busy) return;
+      var cards = pendingCards().slice(0, 12);
+      if (!cards.length) return;
+      busy = true;
+      var items = cards.map(function (c) {
+        return {
+          id: parseInt(c.getAttribute('data-tmdb-id'), 10),
+          title: c.getAttribute('data-media-title') || '',
+          original_title: c.getAttribute('data-media-original') || '',
+          release_date: c.getAttribute('data-media-date') || '',
+          media_type: c.getAttribute('data-media-type') || 'movie',
+        };
+      });
+      fetch('/api/tmdb-upcoming/sinemalar-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ items: items }),
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || !data.results) return;
+          cards.forEach(function (card) {
+            var id = card.getAttribute('data-tmdb-id');
+            if (data.results[id]) renderSlot(card, data.results[id]);
+          });
+        })
+        .catch(function () {})
+        .finally(function () {
+          busy = false;
+          if (pendingCards().length) setTimeout(tick, 350);
+        });
+    }
+    setTimeout(tick, 500);
+    setInterval(function () { if (pendingCards().length) tick(); }, 3000);
+  })();
 
   window.__pcPageContext = function () {
     var activeTab = Array.from(tabs).find(function (t) {

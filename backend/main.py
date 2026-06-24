@@ -12072,18 +12072,14 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         error = str(exc)
 
     try:
+        from datetime import date as _date
         from backend.services.sinemalar_match import attach_to_upcoming_data
-        import threading
 
-        attach_to_upcoming_data(data, max_lookups=0)
-
-        def _sinemalar_bg_warm() -> None:
-            try:
-                attach_to_upcoming_data(data, max_lookups=45)
-            except Exception:
-                LOGGER.exception("Sinemalar arka plan eşleştirme hatası")
-
-        threading.Thread(target=_sinemalar_bg_warm, daemon=True).start()
+        attach_to_upcoming_data(
+            data,
+            max_lookups=40,
+            current_month=_date.today().strftime("%Y-%m"),
+        )
     except Exception:
         LOGGER.exception("Sinemalar eşleştirme (sayfa) atlandı")
 
@@ -12133,6 +12129,21 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
     }
     return templates.TemplateResponse(request, "tmdb_upcoming.html",
                                       context={"request": request, **payload})
+
+
+@app.post("/api/tmdb-upcoming/sinemalar-lookup")
+async def api_tmdb_sinemalar_lookup(request: Request):
+    """Kartlar için toplu Sinemalar eşleştirme (önbellekli)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"results": {}}, status_code=400)
+    items = body.get("items") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        return JSONResponse({"results": {}}, status_code=400)
+    from backend.services.sinemalar_match import lookup_items_batch
+
+    return {"results": lookup_items_batch(items, max_items=16)}
 
 
 @app.get("/app")
