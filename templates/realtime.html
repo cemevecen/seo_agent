@@ -1050,8 +1050,47 @@
   }
   html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-profiles-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-profile-box {
+    padding: 0.45rem 0.5rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-panel {
+    grid-template-columns: minmax(0, 34%) minmax(0, 1fr);
+    min-height: 6.75rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis {
+    padding: 0.35rem 0.3rem 0.35rem 0.4rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis [data-rt-kpi] [data-rt-val] {
+    font-size: clamp(0.7rem, 4.8cqi, 1rem);
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis .rt-kpi-title,
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis [data-rt-kpi] p.text-xs {
+    font-size: clamp(6px, 2.1cqi, 8px);
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-chart .rt-spark-y-axis {
+    width: 1.4rem;
+    font-size: 6px;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-chart .rt-spark-x-axis {
+    padding-left: 1.55rem;
+    font-size: 6px;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-chart .rt-spark-mini-bars,
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-chart .rt-spark-y-axis {
+    height: 4.35rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-chart [data-rt-spark-last-val] {
+    font-size: 0.85rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-profile-box > .mb-4 {
+    margin-bottom: 0.25rem !important;
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-profile-box .text-sm.font-extrabold {
+    font-size: 10px;
   }
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid {
     display: grid !important;
@@ -1087,9 +1126,10 @@
   html.rt-view--compact .rt-profile-box .text-sm.font-extrabold {
     font-size: 11px;
   }
-  @media (max-width: 1100px) {
+  @media (max-width: 639px) {
     html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-profiles-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
     }
   }
   .rt-masonry-site-label {
@@ -1948,8 +1988,7 @@
       font-size: 0.6875rem;
     }
 
-    /* Özet: profil kartları tek sütun (2/4 sütun mobilde sıkışıyor) */
-    html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-profiles-grid,
+    /* Özet mobil: Döviz 4'lü tek satır yalnızca ≥640px; burada tek sütun */
     html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid,
     .rt-masonry-profiles-grid {
       grid-template-columns: 1fr !important;
