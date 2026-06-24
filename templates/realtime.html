@@ -875,7 +875,7 @@
     transition: filter 0.12s ease, opacity 0.12s ease;
   }
   .rt-spark-mini-bar--carried {
-    opacity: 0.88;
+    opacity: 1;
   }
   .rt-spark-mini-bar:hover,
   .rt-spark-mini-bar.is-hovered {
@@ -1050,7 +1050,7 @@
   }
   html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-profiles-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid {
@@ -1274,11 +1274,18 @@
     padding: 0.15rem 0.3rem 0.25rem 0.05rem;
     border-radius: 0;
     box-shadow: none;
-    background: transparent;
+    background: rgb(255 255 255);
   }
   html.dark .rt-split-chart .rt-spark-inner.rt-yf-surface {
-    background: transparent;
+    background: rgb(24 24 27);
     box-shadow: none;
+  }
+  .rt-split-chart .rt-spark-mini-bars .rt-spark-mini-bar:not(.rt-spark-mini-bar--empty) {
+    opacity: 1 !important;
+  }
+  .rt-split-chart .rt-spark-mini-bars .rt-spark-mini-bar--carried {
+    opacity: 1 !important;
+    filter: none;
   }
   .rt-split-chart .rt-yf-chrome {
     padding: 0.2rem 0.25rem 0.08rem 0.05rem;
@@ -3901,27 +3908,25 @@
 
   var RT_SPARK_BAR_PX = 76;
 
-  function _sparkBarFill(v, mx) {
-    var raw = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
-    var r = v > 0 ? Math.max(raw, 0.2) : 0;
-    var dark = document.documentElement.classList.contains('dark');
-    if (r >= 0.75) return dark ? '#22c55e' : '#15803d';
-    if (r >= 0.5) return dark ? '#4ade80' : '#16a34a';
-    if (r >= 0.25) return dark ? '#86efac' : '#22c55e';
-    if (r > 0) return dark ? '#4ade80' : '#22c55e';
-    return dark ? '#166534' : '#4ade80';
+  function _sparkBarFillProfile(v, mx) {
+    void mx;
+    if ((Number(v) || 0) <= 0) {
+      return document.documentElement.classList.contains('dark') ? '#3f3f46' : '#e2e8f0';
+    }
+    return document.documentElement.classList.contains('dark') ? '#22c55e' : '#16a34a';
   }
 
-  /** Döviz + Sinemalar site toplam aktif spark — lacivert → uçuk mavi (yeşil düzenin mavisi). */
+  function _sparkBarFill(v, mx) {
+    return _sparkBarFillProfile(v, mx);
+  }
+
+  /** Döviz + Sinemalar site toplam aktif spark — lacivert (profil yeşilinden ayrı). */
   function _sparkBarFillBlue(v, mx) {
-    var raw = (Number(v) || 0) / Math.max(Number(mx) || 1, 1);
-    var r = v > 0 ? Math.max(raw, 0.2) : 0;
-    var dark = document.documentElement.classList.contains('dark');
-    if (r >= 0.75) return dark ? '#1e40af' : '#1e3a8a';
-    if (r >= 0.5) return dark ? '#2563eb' : '#1d4ed8';
-    if (r >= 0.25) return dark ? '#3b82f6' : '#2563eb';
-    if (r > 0) return dark ? '#60a5fa' : '#3b82f6';
-    return dark ? '#172554' : '#60a5fa';
+    void mx;
+    if ((Number(v) || 0) <= 0) {
+      return document.documentElement.classList.contains('dark') ? '#1e293b' : '#e0e7ff';
+    }
+    return document.documentElement.classList.contains('dark') ? '#3b82f6' : '#2563eb';
   }
 
   function _rtSiteSparkUsesBlue(siteEl, metric) {
@@ -4499,7 +4504,7 @@
       var profBarSpecs = display.map(function (d, i) {
         var v = Number(d.v) || 0;
         if (d.empty || v <= 0) {
-          return { i: i, empty: true, hPx: 2, bg: _sparkBarFill(0, mx) };
+          return { i: i, empty: true, hPx: 2, bg: _sparkBarFillProfile(0, mx) };
         }
         var hPx = Math.round((v / mx) * RT_SPARK_BAR_PX);
         hPx = Math.max(3, Math.min(RT_SPARK_BAR_PX, hPx));
@@ -4507,7 +4512,7 @@
           i: i,
           empty: false,
           hPx: hPx,
-          bg: _sparkBarFill(v, mx),
+          bg: _sparkBarFillProfile(v, mx),
           extraClass: d.carried ? 'rt-spark-mini-bar--carried' : '',
         };
       });

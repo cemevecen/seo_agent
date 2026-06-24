@@ -179,7 +179,7 @@
         i +
         '" style="height:2px;background:' +
         esc(spec.bg || 'transparent') +
-        ';opacity:0.45"></div>'
+        ';opacity:0.2"></div>'
       );
     }
     var extra = spec.extraClass ? ' ' + spec.extraClass : '';
@@ -243,7 +243,7 @@
           bar.classList.add('rt-spark-mini-bar--empty');
           bar.style.height = '2px';
           bar.style.background = spec.bg || 'transparent';
-          bar.style.opacity = '0.45';
+          bar.style.opacity = '0.2';
         } else {
           bar.classList.remove('rt-spark-mini-bar--empty');
           bar.style.height = spec.hPx + 'px';
