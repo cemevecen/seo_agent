@@ -1,9 +1,14 @@
 """Notification analytics paylaşımlı store."""
 
+import io
+
+from openpyxl import Workbook
+
 from backend.services.notification_analytics_store import (
     _merge_rows,
     filter_rows_by_date,
     parse_csv_text,
+    parse_xlsx_bytes,
 )
 
 
@@ -76,6 +81,46 @@ def test_ios_impression_column_ignored():
     rows = parse_csv_text(csv)
     assert rows[0]["platforms"]["ios"]["click"] == 42.0
     assert "impression" not in rows[0]["platforms"]["ios"]
+
+
+def test_parse_xlsx_same_as_csv_reference_row():
+    wb = Workbook()
+    ws = wb.active
+    ws.append(
+        [
+            "id",
+            "text",
+            "date",
+            "android app impression",
+            "android app ctr",
+            "ios app impression",
+            "ios app ctr",
+            "android app click",
+            "ios app click",
+        ]
+    )
+    ws.append(
+        [
+            9133656,
+            "Akaryakıt fiyatlarına çifte indirim geliyor",
+            "09.04.2026 09:38",
+            48521,
+            12.434,
+            8633,
+            14.822,
+            423,
+            336,
+        ]
+    )
+    buf = io.BytesIO()
+    wb.save(buf)
+    rows = parse_xlsx_bytes(buf.getvalue())
+    assert len(rows) == 1
+    p = rows[0]["platforms"]
+    assert p["android"]["impression"] == 48521.0
+    assert p["android"]["click"] == 423.0
+    assert p["ios"]["click"] == 336.0
+    assert "impression" not in p["ios"]
 
 
 def test_rows_date_bounds():

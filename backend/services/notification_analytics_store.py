@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import re
-from datetime import datetime
+import warnings
+from datetime import date, datetime
 from typing import Any
 
+from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from backend.models import NotificationAnalyticsWorkspace
@@ -97,6 +100,12 @@ def _normalize_header(h: str) -> str:
 
 
 def _parse_date_smart(raw: str) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        return raw.isoformat()
+    if isinstance(raw, date):
+        return datetime(raw.year, raw.month, raw.day).isoformat()
     if not raw:
         return None
     s = str(raw).strip()
@@ -132,16 +141,31 @@ def _detect_delimiter(header_line: str) -> str:
     return best
 
 
-def parse_csv_text(text: str) -> list[dict]:
-    raw = (text or "").strip()
-    if not raw:
-        return []
-    lines = [ln for ln in raw.splitlines() if ln.strip()]
-    if len(lines) < 2:
-        return []
-    delim = _detect_delimiter(lines[0])
-    headers = [_normalize_header(h) for h in lines[0].split(delim)]
+_HEADER_SCAN_MAX_ROWS = 25
 
+
+def _cell_to_str(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day).isoformat()
+    if isinstance(value, float):
+        if value != value:
+            return ""
+        if value == int(value) and abs(value) < 1e15:
+            return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    return str(value).strip()
+
+
+def _row_has_cells(row: tuple[Any, ...] | list[Any]) -> bool:
+    return any(c is not None and str(c).strip() for c in row)
+
+
+def _column_indices(headers: list[str]) -> dict[str, int] | None:
     def pick(names: list[str]) -> int:
         for i, h in enumerate(headers):
             if h in names:
@@ -189,46 +213,127 @@ def parse_csv_text(text: str) -> list[dict]:
         "mtr": pick(["mobilewebctr"]),
     }
     if idx["text"] < 0 or idx["date"] < 0:
-        return []
+        return None
+    return idx
 
-    def col(cols: list[str], i: int) -> str:
+
+def _build_row_from_cells(cols: list[str], idx: dict[str, int]) -> dict | None:
+    def col(i: int) -> str:
         return cols[i] if 0 <= i < len(cols) else ""
 
-    out: list[dict] = []
-    for line in lines[1:]:
-        cols = line.split(delim)
-        iso = _parse_date_smart(col(cols, idx["date"]))
-        if not iso:
-            continue
-        item = {
-            "id": _normalize_id(col(cols, idx["id"])) if idx["id"] >= 0 else "",
-            "text": col(cols, idx["text"]).strip(),
-            "date": iso,
-            "platforms": {
-                "android": {
-                    "impression": _n_count(col(cols, idx["ai"])),
-                    "click": _n_count(col(cols, idx["ac"])),
-                    "ctr": _n(col(cols, idx["atr"])),
-                },
-                "ios": {
-                    "click": _n_count(col(cols, idx["ic"])),
-                    "ctr": _n(col(cols, idx["itr"])),
-                },
-                "desktop": {
-                    "impression": _n_count(col(cols, idx["di"])),
-                    "click": _n_count(col(cols, idx["dc"])),
-                    "ctr": _n(col(cols, idx["dtr"])),
-                },
-                "mobileweb": {
-                    "impression": _n_count(col(cols, idx["mi"])),
-                    "click": _n_count(col(cols, idx["mc"])),
-                    "ctr": _n(col(cols, idx["mtr"])),
-                },
+    iso = _parse_date_smart(col(idx["date"]))
+    if not iso:
+        return None
+    item = {
+        "id": _normalize_id(col(idx["id"])) if idx["id"] >= 0 else "",
+        "text": col(idx["text"]).strip(),
+        "date": iso,
+        "platforms": {
+            "android": {
+                "impression": _n_count(col(idx["ai"])),
+                "click": _n_count(col(idx["ac"])),
+                "ctr": _n(col(idx["atr"])),
             },
-        }
-        if item["text"]:
-            out.append(_sanitize_row(item))
+            "ios": {
+                "click": _n_count(col(idx["ic"])),
+                "ctr": _n(col(idx["itr"])),
+            },
+            "desktop": {
+                "impression": _n_count(col(idx["di"])),
+                "click": _n_count(col(idx["dc"])),
+                "ctr": _n(col(idx["dtr"])),
+            },
+            "mobileweb": {
+                "impression": _n_count(col(idx["mi"])),
+                "click": _n_count(col(idx["mc"])),
+                "ctr": _n(col(idx["mtr"])),
+            },
+        },
+    }
+    if not item["text"]:
+        return None
+    return _sanitize_row(item)
+
+
+def _parse_tabular_rows(header_cells: list[str], data_rows: list[list[str]]) -> list[dict]:
+    headers = [_normalize_header(h) for h in header_cells]
+    idx = _column_indices(headers)
+    if idx is None:
+        return []
+    out: list[dict] = []
+    for raw_row in data_rows:
+        cols = list(raw_row)
+        if idx["text"] >= len(cols) and idx["date"] >= len(cols) and not any(cols):
+            continue
+        item = _build_row_from_cells(cols, idx)
+        if item:
+            out.append(item)
     return out
+
+
+def parse_csv_text(text: str) -> list[dict]:
+    raw = (text or "").strip()
+    if not raw:
+        return []
+    lines = [ln for ln in raw.splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return []
+    delim = _detect_delimiter(lines[0])
+    header_cells = lines[0].split(delim)
+    data_rows = [line.split(delim) for line in lines[1:]]
+    return _parse_tabular_rows(header_cells, data_rows)
+
+
+def _load_notification_workbook(data: bytes):
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Workbook contains no default style*",
+            category=UserWarning,
+        )
+        return load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+
+
+def parse_xlsx_bytes(raw: bytes) -> list[dict]:
+    if not raw:
+        return []
+    wb = _load_notification_workbook(raw)
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
+    if len(all_rows) < 2:
+        return []
+    header_cells: list[str] | None = None
+    header_idx = -1
+    for i, row in enumerate(all_rows[:_HEADER_SCAN_MAX_ROWS]):
+        if not _row_has_cells(row):
+            continue
+        cells = [_cell_to_str(c) for c in row]
+        headers_norm = [_normalize_header(c) for c in cells]
+        if _column_indices(headers_norm) is not None:
+            header_cells = cells
+            header_idx = i
+            break
+    if header_cells is None:
+        return []
+    data_rows: list[list[str]] = []
+    for row in all_rows[header_idx + 1 :]:
+        if not _row_has_cells(row):
+            continue
+        data_rows.append([_cell_to_str(c) for c in row])
+    return _parse_tabular_rows(header_cells, data_rows)
+
+
+def parse_upload_bytes(raw: bytes, filename: str = "") -> list[dict]:
+    name = (filename or "").lower()
+    is_xlsx = name.endswith((".xlsx", ".xlsm", ".xltx"))
+    if not is_xlsx and not name.endswith((".csv", ".txt", ".tsv")) and raw[:4] == b"PK\x03\x04":
+        is_xlsx = True
+    if is_xlsx:
+        return parse_xlsx_bytes(raw)
+    return parse_csv_text(decode_csv_bytes(raw))
 
 
 def _highest_id(rows: list[dict]) -> int:
@@ -422,7 +527,15 @@ def append_rows(db: Session, incoming: list[dict]) -> dict:
 
 def upload_csv_text(db: Session, csv_text: str) -> dict:
     """CSV satırlarını id|text|date anahtarıyla birleştirir (mevcut ID'ler de güncellenir)."""
-    parsed = parse_csv_text(csv_text)
+    return upload_parsed_rows(db, parse_csv_text(csv_text))
+
+
+def upload_file_bytes(db: Session, raw: bytes, filename: str = "") -> dict:
+    """CSV veya Excel (.xlsx) — aynı sütun eşlemesi ve birleştirme mantığı."""
+    return upload_parsed_rows(db, parse_upload_bytes(raw, filename))
+
+
+def upload_parsed_rows(db: Session, parsed: list[dict]) -> dict:
     if not parsed:
         return {
             **workspace_state(db, include_rows=False),
@@ -430,8 +543,8 @@ def upload_csv_text(db: Session, csv_text: str) -> dict:
             "updated": 0,
             "parsed": 0,
             "message": (
-                "CSV parse edilemedi. Başlık satırında metin (text/title/başlık) ve tarih (date/tarih) "
-                "sütunları ve en az bir veri satırı gerekli."
+                "Dosya parse edilemedi. Başlık satırında metin (text/title/başlık) ve tarih (date/tarih) "
+                "sütunları ve en az bir veri satırı gerekli (CSV veya .xlsx)."
             ),
         }
     row = _get_workspace(db)

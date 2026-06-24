@@ -6,8 +6,8 @@
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70 nt-filter-panel">
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-12">
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
-          <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV dosyası</label>
-          <input id="nt-csv-file" type="file" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+          <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV veya Excel (.xlsx)</label>
+          <input id="nt-csv-file" type="file" accept=".csv,.txt,.tsv,.xlsx,.xlsm,.xltx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
         </div>
         <div class="min-w-0 xl:col-span-3">
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
@@ -45,7 +45,7 @@
           </div>
         </div>
         <div class="min-w-0 xl:col-span-4 flex flex-col gap-2">
-          <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-slate-100 dark:hover:bg-indigo-700">CSV yükle ve ekle</button>
+          <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-slate-100 dark:hover:bg-indigo-700">CSV / Excel yükle ve ekle</button>
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <button id="nt-clear-file" type="button" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Dosya seçimini temizle</button>
             <button id="nt-reset-all" type="button" class="w-full rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/50">Tüm birikimi sıfırla</button>
@@ -2182,12 +2182,12 @@
     var fileInput = document.getElementById("nt-csv-file");
     var file = fileInput && fileInput.files && fileInput.files[0];
     if (!file) {
-      status("Önce bir CSV dosyası seçin.");
+      status("Önce bir CSV veya Excel (.xlsx) dosyası seçin.");
       return;
     }
     var btn = document.getElementById("nt-add-data");
     if (btn) btn.disabled = true;
-    status("CSV yükleniyor… (" + file.name + ")");
+    status("Dosya yükleniyor… (" + file.name + ")");
     var fd = new FormData();
     fd.append("file", file, file.name || "upload.csv");
     apiFetch("/api/notification-analytics/upload-file", {
@@ -2197,7 +2197,7 @@
       .then(function (data) {
         var msg = data.message || "Yükleme tamamlandı.";
         if (data.parsed === 0 && !data.added && !data.updated) {
-          msg = data.message || "CSV okunamadı veya satır çıkarılamadı.";
+          msg = data.message || "Dosya okunamadı veya satır çıkarılamadı.";
         }
         status(msg + " Veriler yenileniyor…");
         if (data.updated_at) ntDbUpdatedAt = data.updated_at;
@@ -2223,7 +2223,7 @@
           });
       })
       .catch(function (err) {
-        status((err && err.detail) || (err && err.message) || "CSV sunucuya kaydedilemedi.");
+        status((err && err.detail) || (err && err.message) || "Dosya sunucuya kaydedilemedi.");
       })
       .finally(function () {
         if (btn) btn.disabled = false;
@@ -2326,7 +2326,7 @@
         status(
           rowsCache.length
             ? rowsCache.length.toLocaleString("tr-TR") +
-              " kayıt gösteriliyor (veritabanı; CSV yalnızca «CSV yükle ve ekle» ile güncellenir)."
+              " kayıt gösteriliyor (veritabanı; «CSV / Excel yükle ve ekle» ile güncellenir)."
             : "Henüz kayıt yok — CSV yükleyin."
         );
       }
