@@ -12071,6 +12071,22 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
         LOGGER.exception("TMDB upcoming hatası")
         error = str(exc)
 
+    try:
+        from backend.services.sinemalar_match import attach_to_upcoming_data
+        import threading
+
+        attach_to_upcoming_data(data, max_lookups=0)
+
+        def _sinemalar_bg_warm() -> None:
+            try:
+                attach_to_upcoming_data(data, max_lookups=45)
+            except Exception:
+                LOGGER.exception("Sinemalar arka plan eşleştirme hatası")
+
+        threading.Thread(target=_sinemalar_bg_warm, daemon=True).start()
+    except Exception:
+        LOGGER.exception("Sinemalar eşleştirme (sayfa) atlandı")
+
     # OMDB zenginleştirme verisini DB'den çek ve filmlere merge et
     if (settings.omdb_api_key or "").strip():
         try:
@@ -16271,8 +16287,13 @@ def _run_inbox_scheduled_sync_job() -> None:
 
         with SessionLocal() as db:
             run_inbox_scheduled_sync(db)
-    except Exception:
-        LOGGER.exception("Inbox scheduled sync job failed")
+    except Exception as exc:
+        if "invalid_grant" in str(exc) or type(exc).__name__ == "RefreshError":
+            LOGGER.warning(
+                "Inbox scheduled sync job atlandı: Gmail OAuth yenilenemedi — panelden Gmail yeniden bağlayın."
+            )
+        else:
+            LOGGER.exception("Inbox scheduled sync job failed")
     finally:
         INBOX_SYNC_LOCK.release()
 

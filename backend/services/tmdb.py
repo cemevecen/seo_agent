@@ -140,6 +140,12 @@ def _do_refresh(months_ahead: int) -> None:
             if _cache_fresh():
                 return  # başkası yetişti
         fresh = fetch_combined_upcoming(months_ahead)
+        try:
+            from backend.services.sinemalar_match import attach_to_upcoming_data
+
+            attach_to_upcoming_data(fresh, max_lookups=250)
+        except Exception:
+            logger.exception("Sinemalar eşleştirme (TMDB cache refresh) atlandı")
         with _cache_lock:
             _cache_data = fresh
             _cache_mono = time.monotonic()

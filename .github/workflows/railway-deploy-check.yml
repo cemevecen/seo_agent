@@ -104,6 +104,14 @@ jobs:
           # 3) Statik hata pattern'leri (Türkçe açıklama)
           # ─────────────────────────────────────────────────────────────
           PATTERNS = [
+              (r"günlük kota aşıldı|Realtime günlük kota|RESOURCE_EXHAUSTED|quota exceeded",
+               "GA4 Realtime günlük kotası dolmuş — deploy kaynaklı değil; 06:00 (Europe/Istanbul) sonrası otomatik devam eder."),
+              (r"is not a valid dimension|invalid dimension|Did you mean \w+\?",
+               "GA4 Realtime API boyut hatası — seçilen dimension bu akışta desteklenmiyor."),
+              (r"invalid_grant|RefreshError|Token has been expired or revoked",
+               "Gmail OAuth refresh token geçersiz — panelden Gmail bağlantısını yeniden yapın."),
+              (r"Sayfa alarm: top pages API|Haber alarm: top-news API|Realtime 404 fetch hatası",
+               "GA4 realtime alarm job veri çekemedi — genelde kota veya geçici Google API."),
               (r"(read )?time(d)? ?out|TimeoutError|ETIMEDOUT",
                "Dış servise istek zaman aşımına uğradı — üçüncü taraf yavaş ya da cevap vermiyor."),
               (r"psycopg2|OperationalError|connection (lost|refused|reset).*postgres|could not connect to server",
@@ -122,11 +130,9 @@ jobs:
                "Port çakışması — eski instance hala bağlı olabilir, redeploy gerekebilir."),
               (r"healthcheck|/health.*(failed|timeout)|Healthcheck failed",
                "Sağlık kontrolü başarısız — /health endpoint cevap vermiyor ya da app boot olmadı."),
-              (r"oauth.*(refresh|expired|invalid_grant)|invalid_grant|RefreshError|token (expired|invalid)",
-               "OAuth token yenilenemedi — refresh token geçersiz, yeniden bağlantı gerek."),
               (r"401|Unauthorized|forbidden|permission denied|403",
                "Yetkilendirme hatası — token/API key/izinler kontrol edilmeli."),
-              (r"5\d\d|bad gateway|service unavailable",
+              (r"(?:HTTP[/\s]+|status\s*[=:]?\s*|returned\s+)5\d{2}\b|bad gateway|service unavailable",
                "Upstream/dış servis 5xx döndü — geçici hata, retry gerekebilir."),
               (r"SSLError|certificate|SSL handshake",
                "SSL/TLS hatası — sertifika geçersiz ya da eksik."),
@@ -149,6 +155,19 @@ jobs:
               (r"yenileme|refresh.*fail|scheduled.*refresh.*error",
                "Yenileme job'ı hata verdi — kaynak servis veya iç scheduler kontrol."),
           ]
+
+          STATIC_COZUM = {
+              "günlük kota": ["Kota sıfırlanana kadar bekleyin; GA4_REALTIME_LIGHT_DOMAINS ile profil sayısını azaltmayı değerlendirin."],
+              "invalid_grant": ["Panel → Gmail / Inbox bağlantısını kesip Google ile yeniden yetkilendirin."],
+              "not a valid dimension": ["Kodda Realtime için geçersiz GA4 dimension kullanımı — ga4_realtime.py boyut listesini kontrol edin."],
+          }
+
+          def static_cozum_for(line: str) -> list[str]:
+              low = line.lower()
+              for key, steps in STATIC_COZUM.items():
+                  if key in low:
+                      return steps
+              return []
 
           def static_explain(line: str):
               for pat, desc in PATTERNS:
@@ -276,10 +295,15 @@ jobs:
                       out[ln] = ai_res[ln]
                       continue
                   sp = static_explain(ln)
+                  cozum = static_cozum_for(ln) or (
+                      ["Railway dashboard → Deployments → Logs üzerinden tam stack trace'i incele."]
+                      if not sp
+                      else []
+                  )
                   out[ln] = {
                       "sorun": sp or "Bilinmeyen hata pattern'ı (AI yanıtı alınamadı).",
                       "anlam": "",
-                      "cozum": ["Railway dashboard → Deployments → Logs üzerinden tam stack trace'i incele."],
+                      "cozum": cozum,
                   }
               return out
 
@@ -307,6 +331,66 @@ jobs:
               r"Giden posta alıcıları @nokta\.com dışı bırakıldı",
           ]
 
+          STACK_NOISE_RE = [
+              r"^Traceback \(most recent call last\):",
+              r"^\^+$",
+              r'^  File "',
+              r'^File "/',
+              r"^    ",
+              r"^  File ",
+              r"^google\.(auth|oauth2)\.",
+              r"^raise exceptions\.",
+              r"^self\._perform_refresh_token",
+              r"^creds\.refresh\(",
+              r"^for evt in iterator:",
+              r"^\) = reauth\.refresh_grant",
+              r"^_client\._handle_error_response",
+              r"^out = sync_inbox_threads\(",
+              r"^out = inbox_sync\.sync_scheduled",
+              r"^run_inbox_scheduled_sync\(",
+          ]
+
+          TRANSIENT_ONLY_RE = [
+              r"GA4 Realtime günlük kota aşıldı",
+              r"RESOURCE_EXHAUSTED",
+              r"quota exceeded",
+          ]
+
+          def log_msg(line: str) -> str:
+              m = re.match(r"^\S+\s+\[[^\]]+\]\s+(.*)$", line)
+              return (m.group(1) if m else line).strip()
+
+          def is_stack_noise_msg(msg: str) -> bool:
+              return any(re.search(p, msg) for p in STACK_NOISE_RE)
+
+          def collapse_incidents(lines: list[str]) -> tuple[list[str], int]:
+              """Stack satırlarını at; aynı mesajı tek olaya indir."""
+              seen: dict[str, str] = {}
+              order: list[str] = []
+              for ln in lines:
+                  msg = log_msg(ln)
+                  if is_stack_noise_msg(msg):
+                      continue
+                  if "invalid_grant" in msg or "RefreshError" in msg:
+                      fp = "gmail_oauth_invalid_grant"
+                  elif "günlük kota aşıldı" in msg:
+                      fp = "ga4_realtime_daily_quota"
+                  else:
+                      fp = re.sub(r"line \d+", "line N", msg)
+                  if fp not in seen:
+                      order.append(fp)
+                  seen[fp] = ln
+              return [seen[k] for k in order], len(lines)
+
+          def incidents_are_transient_only(lines: list[str]) -> bool:
+              if not lines:
+                  return True
+              for ln in lines:
+                  msg = log_msg(ln)
+                  if not any(re.search(p, msg, re.IGNORECASE) for p in TRANSIENT_ONLY_RE):
+                      return False
+              return True
+
           def is_ignored(msg: str) -> bool:
               return any(re.search(p, msg, re.IGNORECASE) for p in IGNORE_PATTERNS)
 
@@ -314,6 +398,7 @@ jobs:
           # 7) Ana akış
           # ─────────────────────────────────────────────────────────────
           force = os.environ.get("FORCE_ALERT","false").lower() == "true"
+          runtime_raw_count = 0
           dep = fetch_latest_deployment()
           status = dep["status"]
           tr_status = TR_STATUS.get(status, status)
@@ -340,6 +425,7 @@ jobs:
                   for r in raw
                   if r.get("message","").strip() and not is_ignored(r["message"])
               ]
+              alert_lines, runtime_raw_count = collapse_incidents(alert_lines)
               ignored_count = raw_count - len(alert_lines)
               if ignored_count:
                   print(f"[Filter] {ignored_count} whitelisted log satırı atlandı.")
@@ -369,10 +455,21 @@ jobs:
               if ignored_count:
                   print(f"[Filter] {ignored_count} whitelisted log satırı atlandı.")
               if recent:
+                  collapsed, raw_n = collapse_incidents(recent)
+                  if alert_type != "deploy_failed" and incidents_are_transient_only(collapsed):
+                      print(
+                          f"[Skip] Yalnızca geçici GA4 kota uyarıları ({len(collapsed)} olay, {raw_n} ham satır); mail yok."
+                      )
+                      print("::notice title=Sağlıklı::GA4 kota — deploy sonrası beklenen gürültü, alert yok.")
+                      raise SystemExit(0)
                   alert_type = "runtime_errors"
-                  alert_lines = recent
-                  print(f"[Trigger] Çalışma hataları: son 60dk içinde {len(recent)} satır.")
+                  alert_lines = collapsed
+                  runtime_raw_count = raw_n
+                  print(
+                      f"[Trigger] Çalışma hataları: {raw_n} ham satır → {len(collapsed)} olay (stack/tekrar elendi)."
+                  )
               else:
+                  runtime_raw_count = 0
                   print("[Healthy] Deploy SUCCESS ve son 60dk içinde error log yok.")
           else:
               print(f"[Skip] Status={status}, geçici durum; alert yok.")
@@ -397,7 +494,8 @@ jobs:
           # ─────────────────────────────────────────────────────────────
           # 7) Mail derle (Türkçe başlık + body)
           # ─────────────────────────────────────────────────────────────
-          alert_lines = alert_lines[-80:]  # max 80 satır
+          runtime_raw_count = locals().get("runtime_raw_count", len(alert_lines))
+          alert_lines = alert_lines[-25:]  # max 25 olay (ham 80 değil)
           expls = explain_all(alert_lines)
 
           def annotated(lines: list[str]) -> str:
@@ -422,20 +520,22 @@ jobs:
           last_three = annotated(alert_lines[-3:])
           full_block = annotated(alert_lines)
           n_lines = len(alert_lines)
+          n_incidents = n_lines
 
           # Subject (her zaman Türkçe). [TEST] sadece sentetik test alert için.
           prefix = "[TEST] " if is_synthetic_test else ""
           if alert_type == "deploy_failed":
-              subject = f"{prefix}[Deploy: {tr_status}] seo-agent — {n_lines} hata"
+              subject = f"{prefix}[Deploy: {tr_status}] seo-agent — {n_incidents} hata"
               top = (
                   f"DURUM:  Deploy {tr_status.lower()}\n"
                   f"COMMIT: {commit}\n"
                   f"ZAMAN:  {created}"
               )
           else:  # runtime_errors
-              subject = f"{prefix}[Çalışma hatası] seo-agent — son 60dk içinde {n_lines} hata"
+              subject = f"{prefix}[Çalışma] seo-agent — {n_incidents} olay (son 60dk)"
               top = (
-                  f"DURUM:  Deploy başarılı ama uygulamada {n_lines} hata son 60dk\n"
+                  f"DURUM:  Deploy başarılı; son 60dk içinde {n_incidents} anlamlı olay"
+                  f" ({runtime_raw_count} ham error satırından birleştirildi)\n"
                   f"COMMIT: {commit}\n"
                   f"ZAMAN:  {created}"
               )
@@ -453,7 +553,7 @@ jobs:
               f"Deployment: {dep_id}",
               f"Workflow:   {os.environ['RUN_URL']}",
               "",
-              f"── Tam hata günlüğü ({n_lines} satır, açıklamalı) ──",
+              f"── Tam hata günlüğü ({n_incidents} olay, açıklamalı) ──",
               full_block,
           ]
           if commit_msg:

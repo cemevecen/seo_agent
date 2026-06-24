@@ -81,6 +81,13 @@ def run_inbox_scheduled_sync(db: Session) -> dict[str, Any] | None:
         logger.warning("Inbox sync failed: %s", exc)
         raise
     except Exception as exc:
+        err = str(exc)
+        if "invalid_grant" in err or type(exc).__name__ == "RefreshError":
+            logger.warning(
+                "Inbox sync failed (Gmail OAuth yenilenemedi): %s — panelden Gmail'i yeniden bağlayın.",
+                exc,
+            )
+            return None
         logger.exception("Inbox sync failed: %s", exc)
         raise
 

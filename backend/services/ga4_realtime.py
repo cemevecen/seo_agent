@@ -1408,12 +1408,12 @@ def _merge_realtime_page_active_users(
 
 
 # Firebase / Android stream bazen unifiedScreenName boş kalır; Realtime şemasında denenecek sıra.
+# pageTitle Realtime API'de geçerli boyut değil (yalnızca standart raporlarda).
 _REALTIME_APP_SCREEN_DIMENSIONS: tuple[str, ...] = (
     "unifiedScreenName",
     "screenName",
     "unifiedScreenClass",
     "screenClass",
-    "pageTitle",
 )
 
 
