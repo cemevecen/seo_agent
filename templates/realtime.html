@@ -2957,15 +2957,29 @@
     return document.getElementById('rt-global-total-panel');
   }
 
+  function _rtSiteSparkRoot(siteEl) {
+    if (!siteEl) return siteEl;
+    if (siteEl.matches && siteEl.matches('[data-rt-site-sparks], [data-rt-global-site-spark]')) {
+      return siteEl;
+    }
+    if (siteEl.hasAttribute('data-rt-global-total')) {
+      return siteEl.querySelector('[data-rt-site-sparks="global"]') || siteEl;
+    }
+    return siteEl.querySelector('[data-rt-site-sparks]') || siteEl;
+  }
+
   function _rtMergeSiteTrends(trendList) {
+    var bucketMs = 15 * 60 * 1000;
     var map = {};
     (trendList || []).forEach(function (trend) {
       (trend || []).forEach(function (pt) {
-        var key = String(pt.collected_at || '');
-        if (!key) return;
+        var d = _parseSnapshotTs(pt.collected_at);
+        if (!d) return;
+        var bucketKey = Math.floor(d.getTime() / bucketMs) * bucketMs;
+        var key = String(bucketKey);
         if (!map[key]) {
           map[key] = {
-            collected_at: pt.collected_at,
+            collected_at: new Date(bucketKey).toISOString(),
             active_users: 0,
             pageviews: 0,
             active_users_prev_week: 0,
@@ -2988,7 +3002,7 @@
       });
     });
     return Object.keys(map)
-      .sort()
+      .sort(function (a, b) { return Number(a) - Number(b); })
       .map(function (k) {
         var p = map[k];
         if (!p._hasPrevAu) p.active_users_prev_week = null;
@@ -3036,7 +3050,7 @@
     var trendsBySite = globalEl._rtSiteTrends || {};
     globalEl.querySelectorAll('[data-rt-global-site-spark]').forEach(function (wrap) {
       var sid = wrap.getAttribute('data-rt-global-site-spark');
-      var trend = trendsBySite[sid];
+      var trend = trendsBySite[String(sid)];
       wrap._rtSparkRangeKey = rangeKey;
       wrap._rtSparkMetric = 'au';
       var barsEl = wrap.querySelector('[data-rt-site-spark-bars]');
@@ -3231,22 +3245,27 @@
   }
 
   function _renderSiteSparkMetric(siteEl, trend, metric) {
-    var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
-    var yEl = siteEl.querySelector('[data-rt-site-spark-y]');
-    var xEl = siteEl.querySelector('[data-rt-site-spark-x]');
-    var lastEl = siteEl.querySelector('[data-rt-site-spark-last]');
-    var rowEl = siteEl.querySelector('[data-rt-site-spark-row]');
+    var root = _rtSiteSparkRoot(siteEl);
+    var barsEl = root.querySelector('[data-rt-site-spark-bars]');
+    var yEl = root.querySelector('[data-rt-site-spark-y]');
+    var xEl = root.querySelector('[data-rt-site-spark-x]');
+    var lastEl = root.querySelector('[data-rt-site-spark-last]');
+    var rowEl = root.querySelector('[data-rt-site-spark-row]');
     if (rowEl) {
       rowEl.classList.toggle('rt-site-spark-row--pv', metric === 'pv');
       rowEl.classList.toggle('rt-site-spark-row--brand-blue', _rtSiteSparkUsesBlue(siteEl, metric));
     }
     if (!barsEl) return;
-    _wireSiteYfTabs(siteEl);
-    var rangeKey = _rtSiteSparkRangeKey(siteEl);
-    siteEl._rtSparkRangeKey = rangeKey;
-    if (siteEl._rtSparkRenderRange !== rangeKey) {
+    _wireSiteYfTabs(siteEl.hasAttribute('data-rt-global-total') ? siteEl : root);
+    var rangeKey = _rtSiteSparkRangeKey(siteEl.hasAttribute('data-rt-global-total') ? siteEl : root);
+    if (siteEl.hasAttribute('data-rt-global-total')) {
+      siteEl._rtSparkRangeKey = rangeKey;
+    } else {
+      root._rtSparkRangeKey = rangeKey;
+    }
+    if (root._rtSparkRenderRange !== rangeKey) {
       if (barsEl) barsEl.removeAttribute('data-slot-bars-ready');
-      siteEl._rtSparkRenderRange = rangeKey;
+      root._rtSparkRenderRange = rangeKey;
     }
     var filteredTrend = _filterTrendForRange(trend || [], rangeKey);
     var trendPoints = [];
@@ -3297,6 +3316,8 @@
     var barPx = 68;
     siteEl._rtSparkDisplay = display;
     siteEl._rtSparkMetricCurrent = metric;
+    root._rtSparkDisplay = display;
+    root._rtSparkMetricCurrent = metric;
     var barFill = _rtSiteSparkBarFill(siteEl, metric);
     var siteBarSpecs = display.map(function (d, i) {
       var v = Number(d.v) || 0;
@@ -3310,7 +3331,7 @@
     });
     _slotBars(barsEl, siteBarSpecs, { barClass: 'rt-spark-mini-bar' });
     barsEl._rtSiteTipWired = false;
-    _wireSiteSparkBarTips(siteEl);
+    _wireSiteSparkBarTips(root);
     if (yEl) {
       yEl.innerHTML = _sparkYAxisTicks(mx)
         .slice()
@@ -3323,14 +3344,14 @@
         .map(function (l) { return '<span>' + l + '</span>'; })
         .join('');
     }
-    var sublabelEl = siteEl.querySelector('[data-rt-site-spark-sublabel]');
+    var sublabelEl = root.querySelector('[data-rt-site-spark-sublabel]');
     if (sublabelEl) {
       var rangeLbl = rangeKey === '15m' ? '15 dk' : rangeKey === '1h' ? '1 saat' : '24 saat';
       var wow =
         hasPrevWeekData && rangeKey === '24h' ? ' · WoW grafik' : '';
       sublabelEl.textContent = rangeLbl + ' · anlık toplam' + wow;
     }
-    var compareEl = siteEl.querySelector('[data-rt-site-spark-compare]');
+    var compareEl = root.querySelector('[data-rt-site-spark-compare]');
     if (compareEl) {
       var lastDisp = display.length ? display[display.length - 1] : null;
       var curV = lastDisp ? Number(lastDisp.v) || 0 : 0;
@@ -3996,6 +4017,7 @@
     /* Total sekmesi: yalnızca birleşik Döviz+Sinemalar spark mavi; alt site satırları yeşil */
     if (siteEl.hasAttribute('data-rt-global-site-spark')) return false;
     if (siteEl.hasAttribute('data-rt-global-total')) return true;
+    if (siteEl.matches && siteEl.matches('[data-rt-site-sparks="global"]')) return true;
     var slug = siteEl.getAttribute('data-rt-site-slug');
     return slug === 'doviz' || slug === 'sinemalar';
   }
