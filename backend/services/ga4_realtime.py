@@ -2496,6 +2496,17 @@ def _site_for_digest_brand(sites: list, brand: str):
     return None
 
 
+def realtime_periodic_digest_skip_no_site_match(db: Session) -> bool:
+    """True ise periyodik özet maili gönderilmemeli (6 alanda da marka→site yok)."""
+    from backend.models import Site as SiteModel
+
+    sites = db.query(SiteModel).filter(SiteModel.is_active.is_(True)).all()
+    for brand, _profile in REALTIME_DIGEST_AREAS:
+        if _site_for_digest_brand(sites, brand):
+            return False
+    return True
+
+
 def _latest_collected_at(
     db: Session,
     model: type,

@@ -223,6 +223,7 @@ def realtime_email_batch_flush() -> bool:
     from backend.database import SessionLocal
     from backend.services.ga4_realtime import (
         build_realtime_periodic_digest_html,
+        realtime_periodic_digest_skip_no_site_match,
         realtime_periodic_digest_subject,
     )
 
@@ -234,6 +235,14 @@ def realtime_email_batch_flush() -> bool:
                     min_gap_min,
                     len(items),
                 )
+            return False
+
+        if not items and realtime_periodic_digest_skip_no_site_match(db):
+            logging.info(
+                "SEO Realtime özet maili atlandı: aktif site yok veya döviz/sinemalar için site eşleşmedi."
+            )
+            _batch_ctx.collecting = False
+            _batch_ctx.items = []
             return False
 
         try:

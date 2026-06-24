@@ -9,6 +9,7 @@ from backend.services.ga4_realtime import (
     _digest_profile_block,
     _site_for_digest_brand,
     build_realtime_periodic_digest_html,
+    realtime_periodic_digest_skip_no_site_match,
     realtime_periodic_digest_subject,
 )
 
@@ -45,6 +46,25 @@ def test_site_for_digest_brand():
 def test_site_for_digest_brand_normalizes_url():
     sites = [SimpleNamespace(domain="https://www.doviz.com/path")]
     assert _site_for_digest_brand(sites, "doviz").domain.startswith("https://")
+
+
+def test_periodic_digest_skip_when_no_site_match():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.all.return_value = []
+    assert realtime_periodic_digest_skip_no_site_match(db) is True
+
+    db.query.return_value.filter.return_value.all.return_value = [
+        SimpleNamespace(domain="example.com", is_active=True),
+    ]
+    assert realtime_periodic_digest_skip_no_site_match(db) is True
+
+
+def test_periodic_digest_send_when_brands_match():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.all.return_value = [
+        SimpleNamespace(domain="www.doviz.com", is_active=True),
+    ]
+    assert realtime_periodic_digest_skip_no_site_match(db) is False
 
 
 def test_digest_profile_block_uses_window_aggregation(monkeypatch):
