@@ -1273,10 +1273,15 @@ def _record_session(request: Request) -> None:
     aal.record_admin_nav(fp, (request.url.path or ""))
 
 
-def get_online_presence_users(request: Request | None = None) -> list[dict]:
-    from backend.services.panel_presence import dedupe_online_users
+def get_online_presence_api_payload(request: Request | None = None) -> dict:
+    from backend.services import app_member_auth as ama
+    from backend.services.panel_presence import build_online_presence_api_payload
 
-    return dedupe_online_users(_get_active_sessions(request))
+    sessions = _get_active_sessions(request)
+    return build_online_presence_api_payload(
+        sessions,
+        viewer_emails=ama.ONLINE_PRESENCE_VIEWER_EMAILS,
+    )
 
 
 def _get_active_sessions(request: Request | None = None) -> list[dict]:

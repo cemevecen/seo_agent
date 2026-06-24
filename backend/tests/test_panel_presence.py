@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from backend.services.panel_presence import dedupe_online_users
+from backend.services.panel_presence import build_online_presence_api_payload, dedupe_online_users
 
 
 def test_dedupe_online_users_merges_tabs():
@@ -34,6 +34,28 @@ def test_dedupe_online_users_merges_tabs():
     onur = next(r for r in out if r["email"] == "onurtorun@nokta.com")
     assert onur["is_current"] is True
     assert onur["last_seen_tr"] == "10:05"
+
+
+def test_build_online_presence_hides_when_other_member_online():
+    from backend.services.app_member_auth import ONLINE_PRESENCE_VIEWER_EMAILS
+
+    sessions = [
+        {
+            "email": "cemevecen@nokta.com",
+            "label": "Cem",
+            "last_seen": datetime(2026, 6, 24, 10, 0, 0),
+            "last_seen_tr": "10:00",
+        },
+        {
+            "email": "onurtorun@nokta.com",
+            "label": "Onur",
+            "last_seen": datetime(2026, 6, 24, 10, 1, 0),
+            "last_seen_tr": "10:01",
+        },
+    ]
+    out = build_online_presence_api_payload(sessions, viewer_emails=ONLINE_PRESENCE_VIEWER_EMAILS)
+    assert out["show"] is False
+    assert out["users"] == []
 
 
 def test_dedupe_skips_sessions_without_email():

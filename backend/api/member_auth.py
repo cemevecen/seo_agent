@@ -147,8 +147,8 @@ def api_panel_online_users(request: Request) -> JSONResponse:
         return JSONResponse(status_code=403, content={"detail": "Forbidden"})
     import backend.main as main_mod
 
-    users = main_mod.get_online_presence_users(request)
-    return JSONResponse({"users": users, "count": len(users)})
+    payload = main_mod.get_online_presence_api_payload(request)
+    return JSONResponse(payload)
 
 
 @router.post("/auth/logout")
