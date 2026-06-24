@@ -1204,14 +1204,46 @@ def _parse_device(ua: str) -> str:
     return parse_device_label(ua)
 
 
+def _current_panel_session_key(request: Request | None) -> str:
+    if not request:
+        return ""
+    from backend.services import app_member_auth as ama
+
+    member_tok = str(request.cookies.get(ama.APP_MEMBER_COOKIE) or "")
+    if member_tok:
+        return "m:" + _session_key(member_tok)
+    admin_tok = str(request.cookies.get(_ADMIN_AUTH_COOKIE) or "")
+    if admin_tok:
+        return "a:" + _session_key(admin_tok)
+    return ""
+
+
 def _record_session(request: Request) -> None:
-    token = str(request.cookies.get(_ADMIN_AUTH_COOKIE) or "")
-    if not token:
+    from backend.services import app_member_auth as ama
+
+    member = _app_member_from_request(request)
+    member_tok = str(request.cookies.get(ama.APP_MEMBER_COOKIE) or "")
+    admin_tok = str(request.cookies.get(_ADMIN_AUTH_COOKIE) or "")
+
+    key = ""
+    email = ""
+    label = ""
+    session_kind = ""
+
+    if member and member_tok:
+        key = "m:" + _session_key(member_tok)
+        email = (member.email or "").strip()
+        label = (member.display_name or member.email or "").strip()
+        session_kind = "member"
+    elif admin_tok and _is_admin_authenticated(request):
+        key = "a:" + _session_key(admin_tok)
+        label = "Admin şifre"
+        session_kind = "admin"
+    else:
         return
-    key = _session_key(token)
+
     now = datetime.utcnow()
     cutoff = now - timedelta(minutes=_SESSION_IDLE_MINUTES)
-    # Eskiyen oturumları temizle
     dead = [k for k, v in _active_sessions.items() if v.get("last_seen", now) < cutoff]
     for k in dead:
         del _active_sessions[k]
@@ -1220,6 +1252,10 @@ def _record_session(request: Request) -> None:
     if key in _active_sessions:
         _active_sessions[key]["last_seen"] = now
         _active_sessions[key]["ip"] = ip
+        if email:
+            _active_sessions[key]["email"] = email
+        if label:
+            _active_sessions[key]["label"] = label
     else:
         _active_sessions[key] = {
             "ip": ip,
@@ -1227,6 +1263,9 @@ def _record_session(request: Request) -> None:
             "user_agent": ua[:512],
             "first_seen": now,
             "last_seen": now,
+            "email": email,
+            "label": label,
+            "session_kind": session_kind,
         }
     from backend.services import admin_access_log as aal
 
@@ -1234,16 +1273,18 @@ def _record_session(request: Request) -> None:
     aal.record_admin_nav(fp, (request.url.path or ""))
 
 
+def get_online_presence_users(request: Request | None = None) -> list[dict]:
+    from backend.services.panel_presence import dedupe_online_users
+
+    return dedupe_online_users(_get_active_sessions(request))
+
+
 def _get_active_sessions(request: Request | None = None) -> list[dict]:
     from backend.services import admin_access_log as aal
 
     now = datetime.utcnow()
     cutoff = now - timedelta(minutes=_SESSION_IDLE_MINUTES)
-    current_key = ""
-    if request:
-        token = str(request.cookies.get(_ADMIN_AUTH_COOKIE) or "")
-        if token:
-            current_key = _session_key(token)
+    current_key = _current_panel_session_key(request)
     trusted_fps: set[str] = set()
     try:
         with SessionLocal() as db:
@@ -1467,6 +1508,15 @@ def _template_settings_menu_visible(request: Request | None) -> bool:
 
 
 jinja_env.globals["settings_menu_visible"] = _template_settings_menu_visible
+
+
+def _template_online_presence_visible(request: Request | None) -> bool:
+    from backend.services import app_member_auth as ama
+
+    return ama.can_view_online_presence(request)
+
+
+jinja_env.globals["online_presence_visible"] = _template_online_presence_visible
 
 
 def _tmdb_guest_login_response(request: Request, *, redirect_path: str) -> RedirectResponse:

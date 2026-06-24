@@ -1557,6 +1557,93 @@
     .header-top-actions {
       align-items: center;
     }
+    #header-online-presence {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    #header-online-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      background: transparent;
+      cursor: default;
+      padding: 0;
+    }
+    #header-online-trigger:hover,
+    #header-online-presence:focus-within #header-online-trigger {
+      border-color: rgb(203 213 225);
+      background: rgb(255 255 255 / 0.85);
+    }
+    html.dark #header-online-trigger:hover,
+    html.dark #header-online-presence:focus-within #header-online-trigger {
+      border-color: rgb(63 63 70);
+      background: rgb(24 24 27 / 0.9);
+    }
+    #header-online-popover {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      z-index: 80;
+      min-width: 12rem;
+      max-width: min(18rem, calc(100vw - 1.5rem));
+      padding: 0.5rem 0.65rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgb(226 232 240);
+      background: rgb(255 255 255);
+      box-shadow: 0 8px 24px rgb(15 23 42 / 0.12);
+      font-size: 11px;
+      line-height: 1.4;
+      color: rgb(51 65 85);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+    html.dark #header-online-popover {
+      border-color: rgb(63 63 70);
+      background: rgb(24 24 27);
+      color: rgb(212 212 216);
+      box-shadow: 0 8px 28px rgb(0 0 0 / 0.45);
+    }
+    #header-online-presence:hover #header-online-popover,
+    #header-online-presence:focus-within #header-online-popover {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #header-online-popover ul {
+      margin: 0.35rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    #header-online-popover li {
+      padding: 0.2rem 0;
+      word-break: break-all;
+    }
+    #header-online-dot-wrap {
+      position: relative;
+      display: inline-flex;
+      height: 0.625rem;
+      width: 0.625rem;
+    }
+    #header-online-ping {
+      position: absolute;
+      display: inline-flex;
+      height: 100%;
+      width: 100%;
+      border-radius: 9999px;
+      background: rgb(52 211 153);
+      opacity: 0.55;
+      animation: header-online-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    @keyframes header-online-ping {
+      0% { transform: scale(0.85); opacity: 0.65; }
+      70% { transform: scale(1.85); opacity: 0; }
+      100% { transform: scale(1.85); opacity: 0; }
+    }
     #pc-ptr-indicator {
       position: fixed;
       left: 50%;
@@ -1805,6 +1892,20 @@
                 <span id="header-site-title-text" class="sr-only">{{ site_name or "SEO Agent" }}</span>
               </h2>
               <div class="header-top-actions flex shrink-0 items-center gap-1">
+              {% if online_presence_visible(request) %}
+              <div id="header-online-presence" class="hidden" aria-live="polite">
+                <button type="button" id="header-online-trigger" aria-label="Çevrimiçi kullanıcılar" aria-describedby="header-online-popover">
+                  <span id="header-online-dot-wrap">
+                    <span id="header-online-ping" class="hidden" aria-hidden="true"></span>
+                    <span id="header-online-dot" class="relative inline-flex h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-zinc-600" aria-hidden="true"></span>
+                  </span>
+                </button>
+                <div id="header-online-popover" role="tooltip">
+                  <p id="header-online-title" class="font-bold text-slate-800 dark:text-zinc-100">Çevrimiçi</p>
+                  <ul id="header-online-list"></ul>
+                </div>
+              </div>
+              {% endif %}
               <button
                 type="button"
                 id="header-page-refresh"
@@ -2322,6 +2423,64 @@
       }
       return layout || {};
     };
+  </script>
+  <script>
+    (function () {
+      function esc(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+      function renderOnlinePresence(data) {
+        var root = document.getElementById("header-online-presence");
+        if (!root) return;
+        var ping = document.getElementById("header-online-ping");
+        var dot = document.getElementById("header-online-dot");
+        var list = document.getElementById("header-online-list");
+        var title = document.getElementById("header-online-title");
+        var users = (data && data.users) || [];
+        root.classList.remove("hidden");
+        if (!list || !title || !dot) return;
+        if (users.length > 0) {
+          if (ping) ping.classList.remove("hidden");
+          dot.className = "relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500";
+          title.textContent = "Çevrimiçi (" + users.length + ")";
+          list.innerHTML = users
+            .map(function (u) {
+              var line = esc(u.email || "");
+              if (u.display_name && u.display_name !== u.email) {
+                line = esc(u.display_name) + " · " + line;
+              }
+              return "<li>" + line + "</li>";
+            })
+            .join("");
+        } else {
+          if (ping) ping.classList.add("hidden");
+          dot.className = "relative inline-flex h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-zinc-600";
+          title.textContent = "Çevrimiçi";
+          list.innerHTML = '<li class="text-slate-500 dark:text-zinc-400">Şu an başka üye yok</li>';
+        }
+      }
+      function pollOnlinePresence() {
+        fetch("/api/panel/online-users", { credentials: "same-origin" })
+          .then(function (r) {
+            if (r.status === 403) return null;
+            if (!r.ok) return null;
+            return r.json();
+          })
+          .then(function (data) {
+            if (data) renderOnlinePresence(data);
+          })
+          .catch(function () {});
+      }
+      document.addEventListener("DOMContentLoaded", function () {
+        if (!document.getElementById("header-online-presence")) return;
+        pollOnlinePresence();
+        window.setInterval(pollOnlinePresence, 20000);
+      });
+    })();
   </script>
   <script src="/static/alerts_page.js" defer></script>
   <script>

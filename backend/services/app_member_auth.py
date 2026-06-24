@@ -46,6 +46,9 @@ ADMIN_MEMBER_EMAILS = frozenset(
     }
 )
 
+# Header çevrimiçi göstergesi yalnızca bu hesaplara görünür.
+ONLINE_PRESENCE_VIEWER_EMAILS = ADMIN_MEMBER_EMAILS
+
 # Üyelik: @nokta.com dışında yalnızca bu adresler (küçük harf).
 MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS = frozenset(
     {
@@ -326,6 +329,15 @@ def member_from_request(request: Request) -> AppMember | None:
 
 def is_member_authenticated(request: Request) -> bool:
     return member_from_request(request) is not None
+
+
+def can_view_online_presence(request: Request | None) -> bool:
+    if request is None:
+        return False
+    member = member_from_request(request)
+    if member is None:
+        return False
+    return _normalize_email(member.email) in ONLINE_PRESENCE_VIEWER_EMAILS
 
 
 def is_membership_admin(request: Request) -> bool:

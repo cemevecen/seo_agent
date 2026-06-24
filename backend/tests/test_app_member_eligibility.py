@@ -33,3 +33,23 @@ def test_oauth_prompt_returning_browser():
     req = MagicMock()
     req.cookies = {ama.PANEL_MEMBER_SEEN_COOKIE: "1"}
     assert ama.member_oauth_authorization_extra_params(req) == {}
+
+
+def test_online_presence_visible_only_for_cem_accounts():
+    from unittest.mock import MagicMock
+
+    from backend.models import AppMember
+
+    req = MagicMock()
+    req.cookies = {}
+    assert ama.can_view_online_presence(req) is False
+
+    with __import__("unittest").mock.patch.object(
+        ama, "member_from_request", return_value=AppMember(email="cemevecen@nokta.com")
+    ):
+        assert ama.can_view_online_presence(req) is True
+
+    with __import__("unittest").mock.patch.object(
+        ama, "member_from_request", return_value=AppMember(email="onurtorun@nokta.com")
+    ):
+        assert ama.can_view_online_presence(req) is False

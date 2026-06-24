@@ -141,6 +141,16 @@ def google_member_oauth_callback(request: Request, db: Session = Depends(get_db)
     return resp
 
 
+@router.get("/api/panel/online-users")
+def api_panel_online_users(request: Request) -> JSONResponse:
+    if not ama.can_view_online_presence(request):
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    import backend.main as main_mod
+
+    users = main_mod.get_online_presence_users(request)
+    return JSONResponse({"users": users, "count": len(users)})
+
+
 @router.post("/auth/logout")
 def member_logout_post(request: Request):
     resp = RedirectResponse(url="/admin/login", status_code=303)
