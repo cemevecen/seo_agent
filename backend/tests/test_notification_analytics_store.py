@@ -5,11 +5,17 @@ import io
 from openpyxl import Workbook
 
 from backend.services.notification_analytics_store import (
+    _iso_utc_z,
     _merge_rows,
     filter_rows_by_date,
     parse_csv_text,
     parse_xlsx_bytes,
 )
+from datetime import datetime
+
+
+def test_iso_utc_z_suffix():
+    assert _iso_utc_z(datetime(2026, 6, 25, 6, 55, 36)) == "2026-06-25T06:55:36Z"
 
 
 def test_parse_csv_minimal():

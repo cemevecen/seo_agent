@@ -19,6 +19,17 @@ LOGGER = logging.getLogger(__name__)
 WORKSPACE_ID = 1
 
 
+def _iso_utc_z(dt: datetime | None) -> str | None:
+    """Naive UTC datetime → ISO string with Z (tarayıcıda Europe/Istanbul dönüşümü için)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        from datetime import timezone
+
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.isoformat() + "Z"
+
+
 def _n(value: Any) -> float:
     """Oran / CTR — ondalık korunur (3,877 → 3.877)."""
     if value is None:
@@ -464,8 +475,8 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "row_count": len(rows),
         "data_min_date": _min_d or "",
         "data_max_date": _max_d or "",
-        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-        "last_file_upload_at": row.last_file_upload_at.isoformat() if row.last_file_upload_at else None,
+        "updated_at": _iso_utc_z(row.updated_at),
+        "last_file_upload_at": _iso_utc_z(row.last_file_upload_at),
     }
     if include_rows:
         out["rows"] = rows

@@ -930,10 +930,18 @@
   var ntDbUpdatedAt = "";
   var ntLastFileUploadAt = "";
 
+  function ntParseApiUtcIso(iso) {
+    var s = String(iso || "").trim();
+    if (!s) return null;
+    if (/[zZ]$/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+    var norm = s.indexOf("T") >= 0 ? s : s.replace(" ", "T");
+    return new Date(norm + "Z");
+  }
+
   function ntFormatFileUploadAt(iso) {
     if (!iso) return "—";
-    var d = new Date(iso);
-    if (isNaN(d.getTime())) return "—";
+    var d = ntParseApiUtcIso(iso);
+    if (!d || isNaN(d.getTime())) return "—";
     var parts = new Intl.DateTimeFormat("tr-TR", {
       timeZone: "Europe/Istanbul",
       day: "numeric",
