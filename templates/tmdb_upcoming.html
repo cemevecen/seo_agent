@@ -73,6 +73,14 @@
       <span class="font-semibold text-amber-700 dark:text-amber-400">
         {% if is_tv %}Sinemalar'da yayın tarihi yok{% else %}Sinemalar'da vizyon tarihi yok{% endif %}
       </span>
+      {% if not is_tv %}
+        {% set tr_vizyon = item.release_date_tr or item.release_date %}
+        {% if tr_vizyon %}
+      <span class="mt-0.5 block font-semibold text-indigo-700 dark:text-indigo-300" title="TMDB — Türkiye sinema vizyonu">
+        TMDB TR vizyon: {{ tr_vizyon }}
+      </span>
+        {% endif %}
+      {% endif %}
     {% endif %}
   </p>
   {% endif %}
@@ -93,6 +101,7 @@
   data-media-title="{{ movie.title | e }}"
   data-media-original="{{ movie.original_title | e }}"
   data-media-date="{{ movie.release_date or '' }}"
+  data-tmdb-tr-date="{{ movie.release_date_tr or movie.release_date or '' }}"
   data-media-type="{{ movie.media_type or 'movie' }}"
   data-sinemalar-state="{{ sinemalar_state(movie) }}">
 
@@ -815,6 +824,12 @@
           html += vizLabel + ' <span class="font-semibold text-emerald-700 dark:text-emerald-400">' + esc(p.sinemalar_release_label || p.sinemalar_release_date) + '</span>';
         } else {
           html += '<span class="font-semibold text-amber-700 dark:text-amber-400">' + noDate + '</span>';
+          if (!isTv) {
+            var trDate = card.getAttribute('data-tmdb-tr-date') || card.getAttribute('data-media-date') || '';
+            if (trDate) {
+              html += '<span class="mt-0.5 block font-semibold text-indigo-700 dark:text-indigo-300" title="TMDB — Türkiye sinema vizyonu">TMDB TR vizyon: ' + esc(trDate) + '</span>';
+            }
+          }
         }
         html += '</p>';
       } else {
