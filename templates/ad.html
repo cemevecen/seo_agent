@@ -4788,8 +4788,10 @@
 
   async function onPeerOverlayToggle(chartKey) {
     if (anyPeerOverlayOn() || anyPeerSeparateOn()) await ensurePeerSummary();
-    if (chartKey === "kpi") scheduleKpiSparklines(state.lastSummary);
-    else if (chartKey === "line") refreshChartLine();
+    if (chartKey === "kpi") {
+      renderKpisWithPeer(state.lastSummary);
+      scheduleKpiSparklines(state.lastSummary);
+    } else if (chartKey === "line") refreshChartLine();
     else if (chartKey === "dual" || chartKey === "quality") {
       if (state.lastSummary) renderExtendedCharts(state.lastSummary).then(scheduleMzChartsResizeBurst);
     }     else if (chartKey === "stacked") refreshChartStacked();
@@ -7485,7 +7487,7 @@
 
   function redrawAll() {
     if (state.lastSummary) {
-      renderKpis(state.lastSummary.kpis || {}, state.lastSummary);
+      renderKpisWithPeer(state.lastSummary);
       renderCharts(state.lastSummary);
       finalizeMzTrendAndSparks(state.lastSummary);
       renderCompareMatrix(state.lastSummary);
@@ -7497,7 +7499,53 @@
     renderTopMxUnitsWeek();
   }
 
-  function renderKpis(k, sum) {
+  function peerDeltaPct(primary, peer) {
+    if (primary == null || peer == null || isNaN(primary) || isNaN(peer)) return null;
+    var p = Number(primary);
+    var q = Number(peer);
+    if (q === 0) return p === 0 ? 0 : 100;
+    return ((p - q) / Math.abs(q)) * 100;
+  }
+
+  function peerKpiSublineHtml(def, primaryVal, peerVal) {
+    if (!state.peerOverlay.kpi || !state.peerBranchAvailable) return "";
+    if (peerVal == null || peerVal === undefined || (typeof peerVal === "number" && isNaN(peerVal))) {
+      return "";
+    }
+    var label = peerBranchLabel();
+    if (!label) return "";
+    var peer = Number(peerVal);
+    var pct = peerDeltaPct(primaryVal, peer);
+    var pctPart = pct != null ? " · " + fmtDeltaPct(pct) : "";
+    return (
+      "<p class=\"mt-0.5 text-[10px] font-semibold text-blue-700 dark:text-sky-300\">+" +
+      label +
+      ": <span class=\"tabular-nums\">" +
+      fmt(peer, def.dec) +
+      "</span>" +
+      pctPart +
+      "</p>"
+    );
+  }
+
+  function renderKpisWithPeer(sum) {
+    var s = sum || state.lastSummary;
+    if (!s) return;
+    var k = s.kpis || {};
+    if (state.peerOverlay.kpi && state.peerBranchAvailable) {
+      ensurePeerSummary()
+        .then(function (peerSum) {
+          renderKpis(k, s, peerSum && peerSum.kpis ? peerSum.kpis : null);
+        })
+        .catch(function () {
+          renderKpis(k, s, null);
+        });
+    } else {
+      renderKpis(k, s, null);
+    }
+  }
+
+  function renderKpis(k, sum, peerKpis) {
     var cmp = sum ? compareBlock(sum) : null;
     var defs = activeKpiDefs(sum);
     ensureActiveKpi(defs);
@@ -7521,15 +7569,16 @@
           "<p class=\"mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400\">Karş: " + fmt(d.compare, def.dec) +
           pctPart + "</p>";
       }
+      var peerHtml = peerKpis ? peerKpiSublineHtml(def, k[def.key], peerKpis[def.key]) : "";
       var sparkId = "mz-spark-" + def.key;
       card.innerHTML =
         "<p lang=\"en\" data-seo-en-caps class=\"seo-en-caps text-[10px] font-semibold tracking-wide text-slate-500 dark:text-zinc-400\">" + enCaps(def.label) + "</p>" +
         "<p class=\"mt-1 text-base font-black text-slate-900 dark:text-zinc-300\">" +
-        fmt(k[def.key], def.dec) + "</p>" + deltaHtml +
+        fmt(k[def.key], def.dec) + "</p>" + deltaHtml + peerHtml +
         "<div id=\"" + sparkId + "\" class=\"mz-kpi-spark mt-2 h-9 w-full\"></div>";
       card.addEventListener("click", function () {
         state.activeKpiKey = def.key;
-        renderKpis(k, sum || state.lastSummary);
+        renderKpisWithPeer(sum || state.lastSummary);
         finalizeMzTrendAndSparks(sum || state.lastSummary);
       });
       grid.appendChild(card);
@@ -8209,11 +8258,11 @@
       state.kpiAvailable = sum.kpi_available || [];
       updateRangeLabel();
       updateRangeEmptyNotice(sum);
-      renderKpis(sum.kpis || {}, sum);
       renderCharts(sum);
       renderCompareMatrix(sum);
       finalizeMzTrendAndSparks(sum);
       await refreshPeerBranchAvailability();
+      renderKpisWithPeer(sum);
       if (state.peerOverlay.month) refreshChartMonth();
       if (state.peerOverlay.kpi) scheduleKpiSparklines(sum);
       if (state.peerOverlay.line || state.peerSeparate.line) refreshChartLine();
