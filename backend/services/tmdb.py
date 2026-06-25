@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 from typing import Any
 
@@ -143,9 +144,9 @@ def _do_refresh(months_ahead: int) -> None:
         try:
             from backend.services.sinemalar_match import attach_to_upcoming_data
 
-            attach_to_upcoming_data(fresh, max_lookups=250)
+            attach_to_upcoming_data(fresh, max_lookups=0)
         except Exception:
-            logger.exception("Sinemalar eşleştirme (TMDB cache refresh) atlandı")
+            logger.exception("Sinemalar önbellek (TMDB cache refresh) atlandı")
         with _cache_lock:
             _cache_data = fresh
             _cache_mono = time.monotonic()
@@ -212,6 +213,10 @@ _release_dates_cache: dict[int, dict[str, Any]] = {}
 _RELEASE_TYPE_THEATRICAL = frozenset({1, 2, 3})  # prömiyer, sınırlı, geniş vizyon
 _RELEASE_TYPE_DIGITAL = frozenset({4})
 
+# TR release_dates — tek refresh'te TMDB'yi tıkamamak için üst sınır + paralel istek
+_TR_RELEASE_DATES_MAX_MOVIES = 140
+_TR_RELEASE_DATES_WORKERS = 8
+
 
 def _clear_release_dates_cache() -> None:
     global _release_dates_cache
@@ -273,11 +278,33 @@ def _apply_tr_release_dates_for_catalog(
             continue
         by_id.setdefault(int(m["id"]), []).append(m)
 
-    for mid, items in by_id.items():
-        payload = _fetch_movie_release_dates_payload(mid)
+    if not by_id:
+        return
+
+    def _max_pop(mid: int) -> float:
+        return max(float(it.get("popularity") or 0) for it in by_id[mid])
+
+    movie_ids = sorted(by_id.keys(), key=_max_pop, reverse=True)[:_TR_RELEASE_DATES_MAX_MOVIES]
+    payloads: dict[int, dict[str, Any]] = {}
+
+    def _fetch(mid: int) -> tuple[int, dict[str, Any]]:
+        return mid, _fetch_movie_release_dates_payload(mid)
+
+    workers = min(_TR_RELEASE_DATES_WORKERS, max(1, len(movie_ids)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_fetch, mid) for mid in movie_ids]
+        for fut in as_completed(futures):
+            try:
+                mid, payload = fut.result()
+                payloads[mid] = payload
+            except Exception as exc:
+                logger.debug("TR release_dates paralel atlandı: %s", exc)
+
+    for mid in movie_ids:
+        payload = payloads.get(mid) or {}
         tr_theatrical, tr_digital = _tr_movie_release_dates(payload)
         streaming_only = mid in streaming_movie_ids and mid not in theatrical_ids and mid not in turkish_ids
-        for item in items:
+        for item in by_id[mid]:
             primary = (item.get("release_date") or "")[:10]
             tr_date = (tr_digital if streaming_only else None) or tr_theatrical or tr_digital
             if not tr_date:
@@ -287,7 +314,6 @@ def _apply_tr_release_dates_for_catalog(
             item["release_date"] = tr_date
             item["release_month"] = tr_date[:7]
             item["release_date_tr"] = tr_date
-        time.sleep(0.035)
 
 
 def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:

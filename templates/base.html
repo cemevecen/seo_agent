@@ -1941,7 +1941,11 @@
               <div class="header-nav-track" id="header-nav-track">
               {% if is_tmdb_guest_view(request) %}
               <span class="rounded-full border border-violet-300 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-900 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200 sm:text-xs">Vizyon takvimi</span>
+              {% if is_tmdb_only_member(request) %}
+              <a href="/auth/logout" class="header-nav-link header-nav-link--guest">Çıkış</a>
+              {% else %}
               <a href="/tmdb-upcoming?guest_logout=1" class="header-nav-link header-nav-link--guest">Çıkış</a>
+              {% endif %}
               {% else %}
               <a href="/" data-nav-match="/" class="header-nav-link">home</a>
               <a href="/realtime" data-nav-match="/realtime" class="header-nav-link">realtime</a>

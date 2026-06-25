@@ -60,6 +60,14 @@
     min-width: 0;
     height: 2.25rem;
   }
+  .mz-page .mz-chart-plot--pie-flat {
+    border-radius: 0.75rem;
+    background: linear-gradient(165deg, rgb(248 250 252) 0%, rgb(226 232 240) 100%);
+  }
+  html.dark .mz-page .mz-chart-plot--pie-flat,
+  html.midnight .mz-page .mz-chart-plot--pie-flat {
+    background: linear-gradient(165deg, rgb(39 39 42) 0%, rgb(24 24 27) 100%);
+  }
 </style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
@@ -330,11 +338,11 @@
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi payı (pasta)</h2>
-          <div id="mz-chart-pie-income" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
+          <div id="mz-chart-pie-income" class="mz-chart-plot mz-chart-plot--tile mz-chart-plot--pie-flat w-full min-h-0"></div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
-          <div id="mz-chart-pie-surface" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
+          <div id="mz-chart-pie-surface" class="mz-chart-plot mz-chart-plot--tile mz-chart-plot--pie-flat w-full min-h-0"></div>
         </div>
       </div>
 
@@ -2127,33 +2135,40 @@
 
   function renderBreakdownPiePair(elId, rows, labelKey, cmp, sum) {
     var labels = rows.map(function (x) { return x[labelKey]; });
+    var values = rows.map(function (x) { return x.net_revenue; });
     setPieCompareCaptions(elId, null, false);
     if (!cmp || !compareEnabled()) {
       plotChart(
         elId,
-        [pieTrace(labels, rows.map(function (x) { return x.net_revenue; }))],
-        plotThemePie(),
-        { minHeight: 208 }
+        [pieTraceFlat(labels, values)],
+        plotThemePieFlat(),
+        { minHeight: 228, tightX: false }
       );
       return;
     }
     plotChart(
       elId,
       [
-        Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue; })), {
+        Object.assign(pieTraceFlat(labels, values), {
           domain: { x: [0, 0.46], y: [0, 1] },
           showlegend: false,
         }),
-        Object.assign(pieTrace(labels, rows.map(function (x) { return x.net_revenue_compare || 0; })), {
-          domain: { x: [0.54, 1], y: [0, 1] },
-          showlegend: false,
-        }),
+        Object.assign(
+          pieTraceFlat(
+            labels,
+            rows.map(function (x) { return x.net_revenue_compare || 0; })
+          ),
+          {
+            domain: { x: [0.54, 1], y: [0, 1] },
+            showlegend: false,
+          }
+        ),
       ],
-      plotThemePie({
+      plotThemePieFlat({
         showlegend: false,
         margin: { l: 4, r: 4, t: 8, b: 28 },
       }),
-      { minHeight: 208 }
+      { minHeight: 228, tightX: false }
     ).then(function () {
       setPieCompareCaptions(elId, sum, true);
     });
@@ -6278,7 +6293,6 @@
 
   function plotThemePie(extra) {
     extra = extra || {};
-    var dark = isDarkTheme();
     var lay = plotTheme(extra);
     lay.margin = Object.assign({ l: 8, r: 8, t: 12, b: 56 }, extra.margin || {});
     if (extra.showlegend === false || (extra.annotations && extra.annotations.length)) {
@@ -6299,17 +6313,66 @@
     return lay;
   }
 
-  function pieTrace(labels, values, opts) {
-    opts = opts || {};
+  /** Referans pasta stili — düz dilim, iç yüzde, ikinci en büyük + en küçük dilim hafif ayrık */
+  var MZ_PIE_FLAT_PALETTE = [
+    "#E8845C",
+    "#2F3D4C",
+    "#5A8F8F",
+    "#9BB68A",
+    "#E8C95C",
+    "#8B7EC8",
+    "#C97B84",
+    "#6B9BD1",
+  ];
+
+  function pieFlatPull(values) {
+    var pull = values.map(function () { return 0; });
+    if (values.length < 2) return pull;
+    var ranked = values
+      .map(function (v, i) { return { i: i, v: Number(v) || 0 }; })
+      .sort(function (a, b) { return b.v - a.v; });
+    var offset = 0.07;
+    pull[ranked[ranked.length - 1].i] = offset;
+    if (ranked.length >= 2) pull[ranked[1].i] = offset;
+    return pull;
+  }
+
+  function plotThemePieFlat(extra) {
+    extra = extra || {};
+    var lay = plotThemePie(extra);
+    lay.paper_bgcolor = "rgba(0,0,0,0)";
+    lay.plot_bgcolor = "rgba(0,0,0,0)";
+    lay.uniformtext = { mode: "show", minsize: 9 };
+    return lay;
+  }
+
+  function pieTraceFlat(labels, values) {
+    var vals = values.map(function (v) { return Number(v) || 0; });
+    var colors = labels.map(function (_lb, i) {
+      return MZ_PIE_FLAT_PALETTE[i % MZ_PIE_FLAT_PALETTE.length];
+    });
     return {
       labels: labels,
-      values: values,
+      values: vals,
       type: "pie",
-      hole: opts.hole != null ? opts.hole : 0.42,
-      textinfo: opts.textinfo || "percent",
+      hole: 0,
+      sort: false,
+      direction: "clockwise",
+      rotation: 90,
+      pull: pieFlatPull(vals),
+      marker: {
+        colors: colors,
+        line: { color: "#ffffff", width: 2 },
+      },
+      textinfo: "percent",
       textposition: "inside",
-      insidetextorientation: "radial",
-      textfont: plotFont(),
+      insidetextorientation: "horizontal",
+      texttemplate: "%{percent:.0%}",
+      textfont: {
+        color: "#0f172a",
+        size: 12,
+        family: "system-ui, -apple-system, Segoe UI, sans-serif",
+      },
       hovertemplate: "%{label}<br>%{value:,.2f} TL<br>%{percent}<extra></extra>",
       automargin: true,
     };

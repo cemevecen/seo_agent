@@ -56,6 +56,13 @@ MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS = frozenset(
     }
 )
 
+# Google üyeliği — yalnızca /tmdb-upcoming (üst menü gizli, diğer sayfalar 403/yönlendirme).
+TMDB_ONLY_MEMBER_EMAILS = frozenset(
+    {
+        "gozdeunaldi@nokta.com",
+    }
+)
+
 
 def member_oauth_configured() -> bool:
     cid, secret = _member_oauth_client_credentials()
@@ -107,6 +114,16 @@ def format_member_oauth_login_error(error_code: str, *, request: Request | None 
     if code == "access_denied":
         return "Google girişi iptal edildi veya erişim reddedildi."
     return str(error_code or "").strip()[:240]
+
+
+def is_tmdb_only_member_email(email: str) -> bool:
+    return _normalize_email(email) in TMDB_ONLY_MEMBER_EMAILS
+
+
+def tmdb_only_home_path() -> str:
+    from backend.services.tmdb_guest_auth import TMDB_GUEST_PATH
+
+    return TMDB_GUEST_PATH
 
 
 def is_email_eligible_for_membership(email: str) -> bool:

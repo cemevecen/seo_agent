@@ -1506,6 +1506,15 @@ def _template_is_tmdb_guest_view(request: Request | None) -> bool:
 jinja_env.globals["is_tmdb_guest_view"] = _template_is_tmdb_guest_view
 
 
+def _template_is_tmdb_only_member(request: Request | None) -> bool:
+    if request is None:
+        return False
+    return bool(getattr(request.state, "tmdb_only_member", False))
+
+
+jinja_env.globals["is_tmdb_only_member"] = _template_is_tmdb_only_member
+
+
 def _template_settings_menu_visible(request: Request | None) -> bool:
     if request is None:
         return False
@@ -1580,6 +1589,20 @@ async def ip_allowlist_middleware(request: Request, call_next):
             member_email=member.email if member else None,
             admin_authenticated=_is_admin_authenticated(request),
         )
+        if member is not None:
+            from backend.services import app_member_auth as _ama_tmdb
+            from backend.services import tmdb_guest_auth as _tga_member
+
+            if _ama_tmdb.is_tmdb_only_member_email(member.email):
+                if path.startswith("/api/") and not _tga_member.tmdb_only_member_path_allowed(path):
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Bu hesap yalnızca vizyon takvimine erişebilir."},
+                    )
+                if not _tga_member.tmdb_only_member_path_allowed(path):
+                    return RedirectResponse(url=_tga_member.TMDB_GUEST_PATH, status_code=303)
+                request.state.tmdb_guest_view = True
+                request.state.tmdb_only_member = True
         if path.startswith("/settings") and not _is_settings_authenticated(request):
             if _member_denied_settings_menu(request):
                 return RedirectResponse(url="/admin/settings-denied", status_code=303)
@@ -12077,7 +12100,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
 
         attach_to_upcoming_data(
             data,
-            max_lookups=40,
+            max_lookups=0,
             current_month=_date.today().strftime("%Y-%m"),
         )
     except Exception:

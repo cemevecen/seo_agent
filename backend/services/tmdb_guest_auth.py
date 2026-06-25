@@ -57,3 +57,15 @@ def guest_path_allowed(path: str) -> bool:
     if p == TMDB_GUEST_PATH or p.startswith(TMDB_GUEST_PATH + "/"):
         return True
     return any(p.startswith(prefix) for prefix in _GUEST_STATIC_PREFIXES)
+
+
+def tmdb_only_member_path_allowed(path: str) -> bool:
+    """Google üyesi — yalnızca vizyon takvimi sayfası + gerekli API + çıkış."""
+    p = (path or "").strip()
+    if guest_path_allowed(p):
+        return True
+    if p.startswith("/api/tmdb-upcoming/"):
+        return True
+    if p in ("/auth/logout",):
+        return True
+    return False
