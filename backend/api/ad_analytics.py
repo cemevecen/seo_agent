@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.services import ad_analytics_store as store
+from backend.api.app_empower import router as app_empower_router
 
 router = APIRouter(tags=["mz-analytics"])
+router.include_router(app_empower_router)
 
 LOGGER = logging.getLogger(__name__)
 

@@ -964,6 +964,45 @@ class MarketDailyQuote(Base):
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AppEmpowerImport(Base):
+    """Empower uygulama export dosyası (androidempowerN / iosempowerN)."""
+
+    __tablename__ = "app_empower_imports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_file: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    doc_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    raw_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AppEmpowerDailyRow(Base):
+    """Empower günlük satırlar — aynı günde yüksek doc_index kazanır."""
+
+    __tablename__ = "app_empower_daily_rows"
+    __table_args__ = (
+        UniqueConstraint("platform", "doc_index", "report_date", name="uq_app_empower_plat_doc_date"),
+        Index("ix_app_empower_plat_date", "platform", "report_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    platform: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    doc_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_file: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    report_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    sessions: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    dau_7d: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    crash_affected_users: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    avg_session_duration: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    engagement_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    arpdau_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    app_version: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AdReportRowArchive(Base):
     """Bir dosya başka bir dosyayla üstüne yazmadan önce saklanan satır anlık görüntüsü."""
 

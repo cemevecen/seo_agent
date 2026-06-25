@@ -122,6 +122,27 @@
         <button id="mz-append-upload" type="button" class="mt-2 w-full rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">Seçili dala ekle</button>
         <p id="mz-append-stream-hint" class="mt-1.5 text-[10px] text-emerald-800/90 dark:text-emerald-300/90">Dal: —</p>
       </details>
+      <details class="mt-2 rounded-lg border border-violet-200/90 bg-violet-50/50 p-2.5 dark:border-violet-900/50 dark:bg-violet-950/25">
+        <summary class="cursor-pointer text-xs font-semibold text-violet-900 dark:text-violet-200">Empower uygulama verisi (Android / iOS)</summary>
+        <p class="mt-2 text-[10px] leading-snug text-violet-900/80 dark:text-violet-200/80">
+          Dosya adı: <code class="text-[10px]">dovizandroidempower1.xlsx</code>,
+          <code class="text-[10px]">doviziosempower2.xlsx</code> — aynı günde büyük numara kazanır.
+          Grafiklerde Empower overlay; GA4 uygulama sekmeleri bu veriyi buradan okur.
+        </p>
+        <input id="mz-empower-file" type="file" accept=".xlsx,.xlsm" multiple class="mt-2 w-full rounded-lg border border-violet-200 bg-white px-2 py-1.5 text-xs dark:border-violet-900 dark:bg-black dark:text-zinc-200" />
+        <button id="mz-empower-upload" type="button" class="mt-2 w-full rounded-lg border border-violet-600 bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-500 disabled:opacity-50">Yükle (toplu)</button>
+        <details id="mz-empower-imports-wrap" class="group mt-2 rounded-lg border border-violet-200/80 bg-white/60 dark:border-violet-900/40 dark:bg-black/20">
+          <summary class="cursor-pointer px-2 py-1.5 text-[10px] font-semibold text-violet-800 dark:text-violet-200">
+            Yüklü Empower dosyaları (<span id="mz-empower-imports-count">0</span>)
+          </summary>
+          <div id="mz-empower-imports" class="max-h-32 space-y-1 overflow-y-auto border-t border-violet-100 px-2 py-1.5 text-[10px] dark:border-violet-900/50"></div>
+          <div id="mz-empower-bulk-bar" class="hidden flex flex-wrap items-center gap-1.5 border-t border-violet-100 px-2 py-1.5 dark:border-violet-900/50">
+            <button type="button" id="mz-empower-select-all" class="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] dark:border-zinc-600">Tümünü seç</button>
+            <button type="button" id="mz-empower-bulk-delete" disabled class="rounded border border-rose-500 bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white disabled:opacity-50">Seçilenleri sil</button>
+          </div>
+        </details>
+        <p id="mz-empower-status" class="mt-1 min-h-[1rem] text-[10px] text-violet-800/90 dark:text-violet-300/90" role="status"></p>
+      </details>
       <div id="mz-upload-progress" class="hidden space-y-1.5 rounded-lg border border-indigo-200 bg-indigo-50/80 p-2.5 dark:border-indigo-900/60 dark:bg-indigo-950/30" data-upload-theme="active">
         <div class="flex items-center justify-between gap-2 text-[11px] font-semibold text-indigo-900 dark:text-indigo-200">
           <span id="mz-upload-progress-title">Yükleniyor</span>
@@ -278,6 +299,15 @@
         </p>
         {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
         {% include 'partials/market_overlay_select.html' %}
+        {% endwith %}
+      </div>
+
+      <div id="mz-empower-overlay-bar" class="mb-2 hidden flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50/80 px-3 py-2 dark:border-violet-900/60 dark:bg-violet-950/30">
+        <p class="text-[10px] font-medium leading-snug text-violet-800 dark:text-violet-200">
+          Empower — Android/iOS dalında günlük çizgilere ikinci eksen (veri /ad üzerinden)
+        </p>
+        {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
+        {% include 'partials/app_empower_overlay_select.html' %}
         {% endwith %}
       </div>
 
@@ -5097,6 +5127,40 @@
     }
   };
 
+  async function mzMaybeApplyEmpowerOverlay(traces, layoutExtra, dateKeys, opts) {
+    if (!mzIsMobileAppStream() || !window.AppEmpowerOverlay) return false;
+    var plat = mzActivePlatform();
+    if (!plat) return false;
+    var keys = AppEmpowerOverlay.modes("mz-empower-overlay-root");
+    if (!keys.length || !dateKeys || !dateKeys.length) return false;
+    var o = Object.assign({}, opts || {});
+    if (!o.yaxisId) o.yaxisId = mzPickMarketYaxisId(layoutExtra);
+    return AppEmpowerOverlay.apply(traces, layoutExtra, dateKeys, plat, keys, o);
+  }
+
+  window.mzOnEmpowerOverlayChange = function mzOnEmpowerOverlayChange() {
+    if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+    refreshChartLine();
+    if (state.lastSummary) {
+      renderExtendedCharts(state.lastSummary).then(function () {
+        scheduleMzChartsResizeBurst();
+      });
+    }
+  };
+
+  function syncEmpowerOverlayBarVisibility() {
+    var bar = document.getElementById("mz-empower-overlay-bar");
+    if (bar) bar.classList.toggle("hidden", !mzIsMobileAppStream());
+    if (mzIsMobileAppStream() && window.AppEmpowerOverlay && AppEmpowerOverlay.bindWhenReady) {
+      AppEmpowerOverlay.bindWhenReady("mz-empower-overlay-root", mzOnEmpowerOverlayChange);
+    }
+  }
+
+  async function mzMaybeApplyChartOverlays(traces, layoutExtra, dateKeys, opts) {
+    await mzMaybeApplyChartOverlays(traces, layoutExtra, dateKeys, opts);
+    await mzMaybeApplyEmpowerOverlay(traces, layoutExtra, dateKeys, opts);
+  }
+
   function hideGa4SplitChart(scope) {
     var isSummary = scope === "summary";
     var wrap = document.getElementById(isSummary ? "mz-summary-drill-ga4-chart-wrap" : "mz-drill-ga4-chart-wrap");
@@ -6208,6 +6272,7 @@
     if (typeof window.__mzChartsRelayout === "function") {
       window.__mzChartsRelayout();
     }
+    syncEmpowerOverlayBarVisibility();
   }
 
   // App sürüm yayın listesini bir kez yükle (iOS/Android), paylaş.
@@ -6604,7 +6669,7 @@
         var peerYs = peerMetricYForPlotX(peerSum, peerX, kpiKey);
         if (peerYs.some(function (v) { return v != null && v !== 0; })) {
           if (marketDates && marketDates.length) {
-            await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
+            await mzMaybeApplyChartOverlays(traces, lineLay, marketDates);
           }
           lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
           await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
@@ -6621,7 +6686,7 @@
           ];
           var peerLay = plotTheme({ yTitle: def.axis || "" });
           if (marketDates && marketDates.length) {
-            await mzMaybeApplyMarketOverlay(peerTraces, peerLay, marketDates);
+            await mzMaybeApplyChartOverlays(peerTraces, peerLay, marketDates);
           }
           await plotPeerSplitChart(
             "line",
@@ -6643,7 +6708,7 @@
       hidePeerSplitChart("line");
     }
     if (marketDates && marketDates.length) {
-      await mzMaybeApplyMarketOverlay(traces, lineLay, marketDates);
+      await mzMaybeApplyChartOverlays(traces, lineLay, marketDates);
     }
     await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
   }
@@ -7204,7 +7269,7 @@
         },
       ];
       if (!revAligned && dates.length) {
-        await mzMaybeApplyMarketOverlay(dualTraces, dualLay, dates);
+        await mzMaybeApplyChartOverlays(dualTraces, dualLay, dates);
       }
       dualLay.xaxis = Object.assign({}, dualLay.xaxis || {}, { showticklabels: false });
       await plotChart("mz-chart-dual", dualTraces, dualLay, {
@@ -7216,7 +7281,7 @@
         yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
       });
       if (dates.length) {
-        await mzMaybeApplyMarketOverlay(dualPeerTraces, dualPeerLay, dates);
+        await mzMaybeApplyChartOverlays(dualPeerTraces, dualPeerLay, dates);
       }
       await plotPeerSplitChart("dual", dualPeerTraces, {
         yaxis: { title: "TL" },
@@ -7232,7 +7297,7 @@
         appendPeerScatterTrace(dualTraces, dates, "impression", peerSum, peerBranchLabel() + " · Gösterim", "y2");
       }
       if (!revAligned && dates.length) {
-        await mzMaybeApplyMarketOverlay(dualTraces, dualLay, dates);
+        await mzMaybeApplyChartOverlays(dualTraces, dualLay, dates);
       }
       await plotChart("mz-chart-dual", dualTraces, dualLay, {
         minHeight: revAligned && impAligned ? 320 : 220,
@@ -7314,7 +7379,7 @@
         });
       });
       if (dates.length) {
-        await mzMaybeApplyMarketOverlay(qualityTraces, qualityLay, dates);
+        await mzMaybeApplyChartOverlays(qualityTraces, qualityLay, dates);
       }
       qualityLay.xaxis = Object.assign({}, qualityLay.xaxis || {}, { showticklabels: false });
       await plotChart("mz-chart-quality", qualityTraces, qualityLay, {
@@ -7323,7 +7388,7 @@
       });
       var qPeerLay = plotTheme({ yTitle: "%" });
       if (dates.length) {
-        await mzMaybeApplyMarketOverlay(qPeerTraces, qPeerLay, dates);
+        await mzMaybeApplyChartOverlays(qPeerTraces, qPeerLay, dates);
       }
       await plotPeerSplitChart("quality", qPeerTraces, { yTitle: "%" }, {
         xaxis: Object.assign({}, qualityLay.xaxis, { type: "date", showticklabels: true }),
@@ -7338,7 +7403,7 @@
         });
       }
       if (!qualityAligned && dates.length) {
-        await mzMaybeApplyMarketOverlay(qualityTraces, qualityLay, dates);
+        await mzMaybeApplyChartOverlays(qualityTraces, qualityLay, dates);
       }
       await plotChart("mz-chart-quality", qualityTraces, qualityLay, {
         minHeight: qualityAligned ? 320 : 220,
@@ -9233,6 +9298,54 @@
     doneUl.scrollTop = doneUl.scrollHeight;
   }
 
+  function mzEmpowerSelectedFiles() {
+    return Array.prototype.slice
+      .call(document.querySelectorAll("#mz-empower-imports .mz-empower-select:checked"))
+      .map(function (cb) {
+        return cb.getAttribute("data-file");
+      })
+      .filter(Boolean);
+  }
+
+  async function refreshMzEmpowerImports() {
+    var countEl = document.getElementById("mz-empower-imports-count");
+    var root = document.getElementById("mz-empower-imports");
+    var bulkBar = document.getElementById("mz-empower-bulk-bar");
+    if (!root) return;
+    try {
+      var r = await fetch("/api/mz-analytics/app-empower/imports", { credentials: "same-origin" });
+      var d = await r.json();
+      var list = (d && d.imports) || [];
+      if (countEl) countEl.textContent = String(list.length);
+      root.innerHTML = "";
+      list.forEach(function (item) {
+        var row = document.createElement("div");
+        row.className = "flex flex-wrap items-center gap-1 rounded border border-violet-100 px-1 py-0.5 dark:border-violet-900/40";
+        var sf = String(item.source_file || "");
+        row.innerHTML =
+          '<label class="flex min-w-0 flex-1 items-center gap-1"><input type="checkbox" class="mz-empower-select rounded" data-file="' +
+          sf.replace(/"/g, "&quot;") +
+          '" /> <span class="truncate font-mono">' +
+          sf +
+          '</span> <span class="text-violet-600 dark:text-violet-400">' +
+          item.platform +
+          " #" +
+          item.doc_index +
+          "</span></label>" +
+          '<button type="button" class="mz-empower-refresh shrink-0 rounded border border-violet-400 px-1 text-[9px] font-semibold text-violet-800 dark:text-violet-200" data-file="' +
+          sf.replace(/"/g, "&quot;") +
+          '">Yenile</button>' +
+          '<button type="button" class="mz-empower-del shrink-0 rounded border border-rose-400 px-1 text-[9px] font-bold text-rose-700" data-file="' +
+          sf.replace(/"/g, "&quot;") +
+          '">×</button>';
+        root.appendChild(row);
+      });
+      if (bulkBar) bulkBar.classList.toggle("hidden", list.length < 2);
+    } catch (e) {
+      if (countEl) countEl.textContent = "?";
+    }
+  }
+
   document.getElementById("mz-imports").addEventListener("change", function (ev) {
     if (ev.target && ev.target.classList && ev.target.classList.contains("mz-import-select")) {
       mzUpdateImportBulkUi();
@@ -9384,9 +9497,113 @@
     restoreDetailFavoritesBackup();
   });
 
+  on("mz-empower-upload", "click", async function () {
+    var inp = document.getElementById("mz-empower-file");
+    var st = document.getElementById("mz-empower-status");
+    if (!inp || !inp.files || !inp.files.length) {
+      if (st) st.textContent = "Dosya seçin.";
+      return;
+    }
+    var fd = new FormData();
+    for (var i = 0; i < inp.files.length; i++) fd.append("files", inp.files[i]);
+    if (st) st.textContent = "Yükleniyor…";
+    try {
+      var r = await fetch("/api/mz-analytics/app-empower/upload-bulk", {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error((d && d.detail) || "Yükleme başarısız");
+      if (st) st.textContent = "Tamam: " + (d.ok_count || 0) + "/" + (d.total || 0);
+      inp.value = "";
+      await refreshMzEmpowerImports();
+      if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+      mzOnEmpowerOverlayChange();
+    } catch (err) {
+      if (st) st.textContent = (err && err.message) || "Hata";
+    }
+  });
+
+  document.getElementById("mz-empower-imports").addEventListener("click", async function (ev) {
+    var t = ev.target;
+    if (!t || !t.getAttribute) return;
+    var file = t.getAttribute("data-file");
+    if (!file) return;
+    var st = document.getElementById("mz-empower-status");
+    if (t.classList.contains("mz-empower-del")) {
+      if (!confirm(file + " silinsin mi?")) return;
+      if (st) st.textContent = "Siliniyor…";
+      try {
+        var r = await fetch("/api/mz-analytics/app-empower/delete-import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ source_file: file }),
+        });
+        if (!r.ok) throw new Error("Silinemedi");
+        await refreshMzEmpowerImports();
+        if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+        mzOnEmpowerOverlayChange();
+        if (st) st.textContent = "Silindi.";
+      } catch (e) {
+        if (st) st.textContent = (e && e.message) || "Hata";
+      }
+    }
+    if (t.classList.contains("mz-empower-refresh")) {
+      if (st) st.textContent = "Yeniden okunuyor…";
+      try {
+        var r2 = await fetch("/api/mz-analytics/app-empower/refresh-import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ source_file: file }),
+        });
+        var d2 = await r2.json();
+        if (!r2.ok) throw new Error((d2 && d2.detail) || "Yenilenemedi");
+        await refreshMzEmpowerImports();
+        if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+        mzOnEmpowerOverlayChange();
+        if (st) st.textContent = "Yenilendi.";
+      } catch (e2) {
+        if (st) st.textContent = (e2 && e2.message) || "Hata";
+      }
+    }
+  });
+
+  on("mz-empower-bulk-delete", "click", async function () {
+    var files = mzEmpowerSelectedFiles();
+    if (!files.length || !confirm(files.length + " Empower dosyası silinsin mi?")) return;
+    var st = document.getElementById("mz-empower-status");
+    if (st) st.textContent = "Toplu siliniyor…";
+    try {
+      var r = await fetch("/api/mz-analytics/app-empower/delete-imports-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ source_files: files }),
+      });
+      if (!r.ok) throw new Error("Toplu silme başarısız");
+      await refreshMzEmpowerImports();
+      if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+      mzOnEmpowerOverlayChange();
+      if (st) st.textContent = "Seçilenler silindi.";
+    } catch (e) {
+      if (st) st.textContent = (e && e.message) || "Hata";
+    }
+  });
+
+  on("mz-empower-select-all", "click", function () {
+    document.querySelectorAll("#mz-empower-imports .mz-empower-select").forEach(function (cb) {
+      cb.checked = true;
+    });
+  });
+
   window.addEventListener("resize", scheduleMzChartsResizeBurst);
 
   loadFacets().then(function () {
+    refreshMzEmpowerImports().catch(function () {});
+    syncEmpowerOverlayBarVisibility();
     var keepDrills = applyMzUrlDrillState(mzUrlState);
     mzUrlBootPending = false;
     return runQuery({ resetTableDrills: !keepDrills });

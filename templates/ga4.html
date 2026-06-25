@@ -1620,6 +1620,23 @@
                   chartWidth: chartW,
                 })
               : Promise.resolve();
+          var empowerPlat = ga4ActiveAppProfileFromChart(element);
+          var empowerKeys =
+            empowerPlat && window.AppEmpowerOverlay ? AppEmpowerOverlay.modes('ga4-empower-overlay-root') : [];
+          overlayPromise = overlayPromise.then(function () {
+            if (
+              !empowerKeys.length ||
+              !trend.dates ||
+              !trend.dates.length ||
+              !window.AppEmpowerOverlay
+            ) {
+              return;
+            }
+            return AppEmpowerOverlay.apply(traces, layoutObj, trend.dates, empowerPlat, empowerKeys, {
+              marginRight: 72,
+              chartWidth: chartW,
+            });
+          });
           overlayPromise.then(runPlot);
         } catch (error) {
           console.warn('GA4 trend render failed:', error);
@@ -1861,6 +1878,7 @@
             }
           });
         }
+        ga4SyncEmpowerOverlayVisibility();
         window.setTimeout(function () {
           initGa4Tables(hostCard || document);
           fitGa4Text(hostCard || document);
@@ -2041,7 +2059,35 @@
         SeoMarketOverlay.bindWhenReady('seo-market-overlay-root', ga4RerenderTrendChartsForMarket);
       }
     }
+    if (window.AppEmpowerOverlay && AppEmpowerOverlay.bindWhenReady) {
+      AppEmpowerOverlay.bindWhenReady('ga4-empower-overlay-root', ga4OnEmpowerOverlayChange);
+    }
+    ga4SyncEmpowerOverlayVisibility();
   }
+
+  function ga4ActiveAppProfileFromChart(el) {
+    if (!el) return '';
+    var panel = el.closest('[data-ga4-profile-panel]');
+    if (!panel) return el.getAttribute('data-ga4-platform') || '';
+    if (panel.classList.contains('hidden')) return '';
+    return panel.getAttribute('data-ga4-profile-panel') || el.getAttribute('data-ga4-platform') || '';
+  }
+
+  function ga4SyncEmpowerOverlayVisibility() {
+    var wrap = document.getElementById('ga4-empower-overlay-wrap');
+    if (!wrap) return;
+    var visible = false;
+    document.querySelectorAll('[data-ga4-profile-panel]:not(.hidden)').forEach(function (p) {
+      var k = p.getAttribute('data-ga4-profile-panel');
+      if (k === 'android' || k === 'ios') visible = true;
+    });
+    wrap.classList.toggle('hidden', !visible);
+  }
+
+  window.ga4OnEmpowerOverlayChange = function ga4OnEmpowerOverlayChange() {
+    if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+    ga4RerenderTrendChartsForMarket();
+  };
 
   function parkGa4GlobalFilterChrome() {
     var chrome = document.getElementById('ga4-global-filter-chrome');
