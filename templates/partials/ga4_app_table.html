@@ -25,16 +25,14 @@
     <p class="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">Veri bulunamadı.</p>
   {% else %}
   {# overflow-x-auto + min-width > viewport → mobilde yatay scroll aktif #}
-  <div class="overflow-x-auto overscroll-x-contain" style="-webkit-overflow-scrolling:touch;">
-    <table class="table-fixed text-xs sm:table-fixed" style="min-width:30rem;width:max-content;max-width:none;" data-ga4-table data-ga4-metric-table>
+  <div class="ga4-table-scroll w-full min-w-0 overflow-x-auto overscroll-x-contain" style="-webkit-overflow-scrolling:touch;">
+    <table class="w-full min-w-[30rem] table-fixed text-xs" data-ga4-table data-ga4-metric-table data-ga4-breakdown-table>
       <colgroup>
-        {# İsim sütunu: sticky, geri kalan alana yayılır #}
-        <col style="width:10rem;min-width:8rem;" />
-        {# Sayısal sütunlar: sabit genişlik, sayı kırılmaz #}
-        <col style="width:5rem;min-width:5rem;" />
-        <col style="width:5rem;min-width:5rem;" />
-        <col style="width:5rem;min-width:5rem;" />
-        <col style="width:4rem;min-width:4rem;" />
+        <col style="width:38%" />
+        <col style="width:15.5%" />
+        <col style="width:15.5%" />
+        <col style="width:15.5%" />
+        <col style="width:15.5%" />
       </colgroup>
       <thead class="text-slate-500 dark:text-slate-400" style="border-bottom:1px solid rgba(255,255,255,0.08);">
         <tr>
@@ -104,7 +102,7 @@
           data-delta="{{ delta | int }}"
           data-delta-pct="{{ pct }}">
           {# İsim: sticky, truncate ile taşmaz #}
-          <td class="sticky left-0 bg-inherit px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300 truncate max-w-0" title="{{ name | e }}">{{ name }}</td>
+          <td class="sticky left-0 z-[1] bg-inherit px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300 ga4-path-cell break-all sm:break-normal" title="{{ name | e }}"><span class="line-clamp-2 sm:line-clamp-none">{{ name }}</span></td>
           {# Sayısal sütunlar: whitespace-nowrap → virgülden kırılma yok #}
           <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ "{:,.0f}".format(val) }}</td>
           <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-500 dark:text-slate-400">{{ "{:,.0f}".format(val_prev) }}</td>
