@@ -2693,6 +2693,8 @@
   var WINDOW = {{ window_minutes }};
   var RT_TREND_LIMIT = 288;
   var RT_TREND_RANGE_MS = { '15m': 15 * 60 * 1000, '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 };
+  /** 15 dk dilimde ölçüm yoksa en fazla bu kadar dilim son değer taşınır; sonrası boş (kesik grafik). */
+  var RT_SPARK_CARRY_MAX_BUCKETS = 2;
   var RT_TREND_RANGE_DEFAULT = '24h';
   var RT_LIST_RANGE_LABELS = { '15m': '15 dk', '1h': '1 saat', '24h': '24 saat' };
   /** iOS/Android etkinlik listesi — GA4 Realtime üst sınırı (dk) */
@@ -4152,11 +4154,14 @@
 
     var out = [];
     var lastCarry = null;
+    var carryStreak = 0;
+    var carryBridgeOpen = false;
     for (var t = gridStart; t <= gridEnd; t += bucketMs) {
       var label = _sparkBucketLabel(t, bucketMs);
       var slot = map[t];
       if (!slot || !slot.users.length) {
-        if (lastCarry) {
+        if (lastCarry && carryBridgeOpen && carryStreak < RT_SPARK_CARRY_MAX_BUCKETS) {
+          carryStreak += 1;
           out.push({
             v: lastCarry.v,
             pv: lastCarry.pv,
@@ -4169,6 +4174,8 @@
             tMs: t,
           });
         } else {
+          carryStreak = 0;
+          carryBridgeOpen = false;
           out.push({
             v: 0,
             pv: 0,
@@ -4229,34 +4236,9 @@
         tMs: t,
       };
       lastCarry = { v: peak, pv: pvPeak };
+      carryStreak = 0;
+      carryBridgeOpen = true;
       out.push(bucket);
-    }
-
-    var firstIdx = -1;
-    for (var fi = 0; fi < out.length; fi++) {
-      if (!out[fi].empty && out[fi].bucketCount > 0) {
-        firstIdx = fi;
-        break;
-      }
-    }
-    if (firstIdx > 0) {
-      var seed = out[firstIdx];
-      for (var bi = 0; bi < firstIdx; bi++) {
-        if (out[bi].empty) {
-          out[bi] = {
-            v: seed.v,
-            pv: seed.pv,
-            bucketCount: 0,
-            empty: false,
-            carried: true,
-            backfilled: true,
-            label: out[bi].label,
-            tStart: out[bi].tStart,
-            tEnd: '',
-            tMs: out[bi].tMs,
-          };
-        }
-      }
     }
 
     return out;
