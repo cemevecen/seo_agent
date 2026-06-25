@@ -143,6 +143,7 @@
         <option value="custom">Özel aralık</option>
         <option value="yesterday">Dün</option>
         <option value="7d">Son 7 gün</option>
+        <option value="14d">Son 2 hafta</option>
         <option value="30d">Son 30 gün</option>
         <option value="90d">Son 90 gün</option>
         <option value="6m">Son 6 ay</option>
@@ -1685,6 +1686,7 @@
   var MZ_PRESET_LABELS = {
     yesterday: "Dün",
     "7d": "Son 7 gün",
+    "14d": "Son 2 hafta",
     "30d": "Son 30 gün",
     "90d": "Son 90 gün",
     "6m": "Son 6 ay",
@@ -7997,6 +7999,7 @@
       return;
     }
     if (v === "7d") s.setDate(s.getDate() - 7);
+    else if (v === "14d") s.setDate(s.getDate() - 13);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "90d") s.setDate(s.getDate() - 90);
     else if (v === "6m") s.setMonth(s.getMonth() - 6);
