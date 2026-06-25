@@ -197,7 +197,7 @@
             y: ys,
             type: "scatter",
             mode: "lines",
-            name: "Empower · " + axisTitle,
+            name: axisTitle,
             visible: true,
             yaxis: traceYaxis,
             line: { color: lineColor, width: 2 },
