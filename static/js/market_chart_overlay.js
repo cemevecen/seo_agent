@@ -8,11 +8,12 @@
   var SERIES_COLORS = [
     "#9D174D",
     "#2563EB",
-    "#059669",
-    "#D97706",
-    "#7C3AED",
-    "#DC2626",
+    "#CA8A04",
+    "#16A34A",
+    "#EA580C",
+    "#C026D3",
     "#0891B2",
+    "#BE123C",
   ];
   var INDEXED_KEYS = ["gram_altin", "usd_try", "eur_try", "bist100", "gram_gumus", "brent"];
   var OPTION_LABELS = {

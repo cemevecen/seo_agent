@@ -4,8 +4,18 @@
 (function (global) {
   "use strict";
 
-  var LINE_COLOR = "#6D28D9";
-  var SERIES_COLORS = ["#6D28D9", "#2563EB", "#059669", "#D97706", "#DC2626", "#0891B2"];
+  /** Tezatlı sıra: mavi → sarı → yeşil → turuncu → magenta … (birbirine yakın mor/lacivert yok) */
+  var SERIES_COLORS = [
+    "#2563EB",
+    "#CA8A04",
+    "#16A34A",
+    "#EA580C",
+    "#C026D3",
+    "#0891B2",
+    "#BE123C",
+    "#4F46E5",
+  ];
+  var LINE_COLOR = SERIES_COLORS[0];
 
   var cache = { payload: null, rangeKey: "", pending: null };
 
