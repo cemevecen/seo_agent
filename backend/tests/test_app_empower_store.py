@@ -21,6 +21,7 @@ def test_parse_filename_meta():
     assert parse_filename_meta("doviz Android Empower 1.xlsx") == ("android", 1)
     assert parse_filename_meta("doviz.android.empower.2.xlsx") == ("android", 2)
     assert parse_filename_meta("dovizandroidempove1.xlsx") == ("android", 1)
+    assert parse_filename_meta("dovizanroidempower2.xlsx") == ("android", 2)
 
 
 def test_parse_empower_xlsx_excel_serial_date():

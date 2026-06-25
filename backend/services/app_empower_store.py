@@ -27,7 +27,10 @@ def _compact_filename_stem(filename: str) -> str:
     """Boşluk, nokta, tire → tek parça (doviz Android Empower 1 → dovizandroidempower1)."""
     base = (filename or "").strip().split("/")[-1]
     stem = base.rsplit(".", 1)[0] if "." in base else base
-    return re.sub(r"[^a-z0-9]", "", stem.lower())
+    compact = re.sub(r"[^a-z0-9]", "", stem.lower())
+    # Sık yazım: dovizanroidempower → dovizandroidempower
+    compact = re.sub(r"anroidempow", "androidempow", compact)
+    return compact
 
 
 def _norm_header(cell: str) -> str:

@@ -9237,11 +9237,12 @@
   }
 
   function mzIsEmpowerFilename(name) {
-    var stem = String(name || "")
+    var compact = String(name || "")
       .replace(/\.[^.]+$/, "")
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
-    return /(android|ios)(?:empower|empove)\d+/.test(stem);
+    compact = compact.replace(/anroidempow/g, "androidempow");
+    return /(android|ios)(?:empower|empove)\d+/.test(compact);
   }
 
   function mzEmpowerUploadResultMessage(d) {
