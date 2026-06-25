@@ -221,6 +221,70 @@
       });
   }
 
+  function dockPanel(panel) {
+    if (!panel || panel.dataset.appEmpowerOverlayDocked === "1") return;
+    panel._appEmpowerHome = { parent: panel.parentNode, next: panel.nextSibling };
+    document.body.appendChild(panel);
+    panel.dataset.appEmpowerOverlayDocked = "1";
+  }
+
+  function undockPanel(panel) {
+    if (!panel || panel.dataset.appEmpowerOverlayDocked !== "1") return;
+    var home = panel._appEmpowerHome;
+    if (home && home.parent) {
+      if (home.next) home.parent.insertBefore(panel, home.next);
+      else home.parent.appendChild(panel);
+    }
+    delete panel._appEmpowerHome;
+    delete panel.dataset.appEmpowerOverlayDocked;
+  }
+
+  function resetPanelPosition(panel) {
+    if (!panel) return;
+    panel.style.position = "";
+    panel.style.top = "";
+    panel.style.left = "";
+    panel.style.right = "";
+    panel.style.zIndex = "";
+    panel.style.width = "";
+    panel.style.maxWidth = "";
+    panel.style.maxHeight = "";
+    panel.style.overflowY = "";
+  }
+
+  function positionPanel(trigger, panel) {
+    if (!trigger || !panel) return;
+    dockPanel(panel);
+    var margin = 8;
+    var maxW = Math.max(220, Math.min(320, window.innerWidth - margin * 2));
+    panel.style.width = maxW + "px";
+    panel.style.maxWidth = maxW + "px";
+    panel.style.maxHeight = Math.min(Math.round(window.innerHeight * 0.7), 360) + "px";
+    panel.style.overflowY = "auto";
+    var w = panel.offsetWidth || maxW;
+    var r = trigger.getBoundingClientRect();
+    var left = Math.round(Math.min(r.right - w, window.innerWidth - w - margin));
+    if (left < margin) left = margin;
+    var top = Math.round(r.bottom + 4);
+    var panelH = panel.offsetHeight || 280;
+    if (top + panelH > window.innerHeight - margin) {
+      top = Math.max(margin, Math.round(r.top - panelH - 4));
+    }
+    panel.style.position = "fixed";
+    panel.style.top = top + "px";
+    panel.style.left = left + "px";
+    panel.style.right = "auto";
+    panel.style.zIndex = "10000";
+  }
+
+  function closePanel(root, trigger, panel) {
+    if (!panel) return;
+    panel.classList.add("hidden");
+    resetPanelPosition(panel);
+    undockPanel(panel);
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
+  }
+
   function bindRoot(root, onChange) {
     if (!root || root.dataset.appEmpowerOverlayBound === "1") return;
     root.dataset.appEmpowerOverlayBound = "1";
@@ -231,6 +295,7 @@
       panel.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
         cb.checked = stored.indexOf(cb.value) >= 0;
       });
+      if (root.id) panel.setAttribute("data-app-empower-overlay-for", root.id);
     }
     updateTriggerLabel(root);
     function fire() {
@@ -249,15 +314,38 @@
     if (trigger && panel) {
       trigger.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        var open = !panel.classList.contains("hidden");
-        panel.classList.toggle("hidden", open);
-        trigger.setAttribute("aria-expanded", open ? "false" : "true");
-      });
-      document.addEventListener("click", function (ev) {
-        if (!root.contains(ev.target)) {
-          panel.classList.add("hidden");
-          trigger.setAttribute("aria-expanded", "false");
+        global.__appEmpowerOverlayIgnoreCloseUntil = Date.now() + 120;
+        if (panel.classList.contains("hidden")) {
+          panel.classList.remove("hidden");
+          positionPanel(trigger, panel);
+          trigger.setAttribute("aria-expanded", "true");
+        } else {
+          closePanel(root, trigger, panel);
         }
+      });
+    }
+    if (!global.__appEmpowerOverlayDocClose) {
+      global.__appEmpowerOverlayDocClose = true;
+      document.addEventListener("click", function (ev) {
+        if (global.__appEmpowerOverlayIgnoreCloseUntil && Date.now() < global.__appEmpowerOverlayIgnoreCloseUntil) {
+          return;
+        }
+        var target = ev.target;
+        document.querySelectorAll("[data-app-empower-overlay-root]").forEach(function (r) {
+          var p = panelForRoot(r);
+          var t = r.querySelector("[data-app-empower-overlay-trigger]");
+          if (target && (r.contains(target) || (p && p.contains(target)))) return;
+          closePanel(r, t, p);
+        });
+      });
+      global.addEventListener("resize", function () {
+        document.querySelectorAll("[data-app-empower-overlay-panel]").forEach(function (p) {
+          if (p.classList.contains("hidden")) return;
+          var forId = p.getAttribute("data-app-empower-overlay-for");
+          var r = forId ? document.getElementById(forId) : null;
+          var t = r && r.querySelector("[data-app-empower-overlay-trigger]");
+          if (t) positionPanel(t, p);
+        });
       });
     }
   }
