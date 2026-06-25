@@ -4354,8 +4354,8 @@
     mweb: "#60a5fa",
   };
   var PEER_LINE_WIDTH = 1.25;
-  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — devamlı kırmızı */
-  var PEER_ON_CHART_COLOR = { light: "#dc2626", dark: "#f87171" };
+  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — mavi (mean-split yeşil/kırmızı ile karışmasın) */
+  var PEER_ON_CHART_COLOR = { light: "#2563eb", dark: "#60a5fa" };
   var PEER_ON_CHART_LINE_OPACITY = 0.52;
   var PEER_ON_CHART_FILL_OPACITY = 0.28;
   var PEER_LINE_ALT_COLORS = ["#38bdf8", "#7dd3fc", "#0284c7", "#0ea5e9", "#2563eb"];
@@ -4427,12 +4427,12 @@
   function peerOverlayOnChartLineColor(opacity) {
     var a = opacity != null ? opacity : PEER_ON_CHART_LINE_OPACITY;
     if (isDarkTheme()) {
-      return "rgba(248, 113, 113, " + a + ")";
+      return "rgba(96, 165, 250, " + a + ")";
     }
-    return "rgba(220, 38, 38, " + a + ")";
+    return "rgba(37, 99, 235, " + a + ")";
   }
 
-  /** Karşı dal, ana grafikte (overlay) — solid kırmızı, hafif şeffaf */
+  /** Karşı dal, ana grafikte (overlay) — mavi, hafif şeffaf */
   function peerOverlayOnChartLineStyle() {
     return { color: peerOverlayOnChartLineColor(), width: 2 };
   }
