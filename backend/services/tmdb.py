@@ -205,6 +205,91 @@ def _popularity_label(pop: float) -> str:
     return "Düşük"
 
 
+# /movie/{id}/release_dates — aynı refresh döngüsünde tekrar çağrıyı keser
+_release_dates_cache: dict[int, dict[str, Any]] = {}
+
+# TMDB release_dates.type — https://developer.themoviedb.org/reference/movie-release-dates
+_RELEASE_TYPE_THEATRICAL = frozenset({1, 2, 3})  # prömiyer, sınırlı, geniş vizyon
+_RELEASE_TYPE_DIGITAL = frozenset({4})
+
+
+def _clear_release_dates_cache() -> None:
+    global _release_dates_cache
+    _release_dates_cache = {}
+
+
+def _fetch_movie_release_dates_payload(movie_id: int) -> dict[str, Any]:
+    if movie_id in _release_dates_cache:
+        return _release_dates_cache[movie_id]
+    try:
+        data = _get(f"/movie/{movie_id}/release_dates")
+    except Exception as exc:
+        logger.debug("release_dates atlandı movie=%s: %s", movie_id, exc)
+        data = {}
+    _release_dates_cache[movie_id] = data
+    return data
+
+
+def _earliest_tr_release_by_types(data: dict[str, Any], allowed_types: frozenset[int]) -> str | None:
+    """TR bölgesinde belirtilen yayın tiplerinden en erken tarih (YYYY-MM-DD)."""
+    best: str | None = None
+    for country in data.get("results") or []:
+        if (country.get("iso_3166_1") or "").upper() != "TR":
+            continue
+        for rd in country.get("release_dates") or []:
+            if int(rd.get("type") or 0) not in allowed_types:
+                continue
+            raw = (rd.get("release_date") or "")[:10]
+            if len(raw) < 10:
+                continue
+            if best is None or raw < best:
+                best = raw
+    return best
+
+
+def _tr_movie_release_dates(data: dict[str, Any]) -> tuple[str | None, str | None]:
+    """(Türkiye sinema vizyonu, Türkiye dijital) — yoksa None."""
+    theatrical = _earliest_tr_release_by_types(data, _RELEASE_TYPE_THEATRICAL)
+    digital = _earliest_tr_release_by_types(data, _RELEASE_TYPE_DIGITAL)
+    return theatrical, digital
+
+
+def _apply_tr_release_dates_for_catalog(
+    theatrical: list[dict[str, Any]],
+    streaming: list[dict[str, Any]],
+    turkish: list[dict[str, Any]],
+) -> None:
+    """Kartlarda mümkün olduğunda Türkiye vizyon / dijital tarihini göster."""
+    theatrical_ids = {int(m["id"]) for m in theatrical}
+    turkish_ids = {int(m["id"]) for m in turkish}
+    streaming_movie_ids = {
+        int(m["id"])
+        for m in streaming
+        if (m.get("media_type") or "movie") == "movie"
+    }
+    by_id: dict[int, list[dict[str, Any]]] = {}
+    for m in theatrical + turkish + streaming:
+        if (m.get("media_type") or "movie") != "movie":
+            continue
+        by_id.setdefault(int(m["id"]), []).append(m)
+
+    for mid, items in by_id.items():
+        payload = _fetch_movie_release_dates_payload(mid)
+        tr_theatrical, tr_digital = _tr_movie_release_dates(payload)
+        streaming_only = mid in streaming_movie_ids and mid not in theatrical_ids and mid not in turkish_ids
+        for item in items:
+            primary = (item.get("release_date") or "")[:10]
+            tr_date = (tr_digital if streaming_only else None) or tr_theatrical or tr_digital
+            if not tr_date:
+                continue
+            if tr_date != primary and primary:
+                item["release_date_global"] = primary
+            item["release_date"] = tr_date
+            item["release_month"] = tr_date[:7]
+            item["release_date_tr"] = tr_date
+        time.sleep(0.035)
+
+
 def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
     release = (m.get("release_date") or "")[:10]
     prov = providers or []
@@ -744,6 +829,7 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
     Dashboard için tek çağrı — üç liste döner:
     theatrical, streaming, turkish_only (diğerlerinde olmayan Türk yapımları)
     """
+    _clear_release_dates_cache()
     theatrical: list[dict] = []
     streaming:  list[dict] = []
     turkish:    list[dict] = []
@@ -835,6 +921,11 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         for m in lst:
             if m.get("original_language") == "tr":
                 m["is_turkish"] = True
+
+    try:
+        _apply_tr_release_dates_for_catalog(theatrical, streaming, turkish)
+    except Exception as exc:
+        logger.error("TMDB TR vizyon tarihi zenginleştirme hatası: %s", exc)
 
     def group_by_month(lst: list[dict]) -> dict[str, list]:
         by_m: dict[str, list] = {}

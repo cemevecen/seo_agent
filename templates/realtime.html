@@ -3013,6 +3013,28 @@
       });
   }
 
+  function _rtRenderGlobalMergedSpark(globalEl) {
+    if (!globalEl || !globalEl.hasAttribute('data-rt-global-total')) return;
+    var trendsBySite = globalEl._rtSiteTrends || {};
+    var trendList = [];
+    Object.keys(trendsBySite).forEach(function (sid) {
+      var t = trendsBySite[sid];
+      if (t && t.length) trendList.push(t);
+    });
+    var merged = _rtMergeSiteTrends(trendList);
+    globalEl._rtCombinedTrend = merged;
+    if (!globalEl._rtSparkMetric) globalEl._rtSparkMetric = 'au';
+    if (merged.length) {
+      _rtSetSiteSparkMetric(globalEl, globalEl._rtSparkMetric);
+    } else {
+      var barsEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-bars]');
+      if (barsEl) {
+        barsEl.innerHTML =
+          '<p class="rt-site-spark-empty-msg" role="status">Birleşik 24s snapshot henüz yok — Tümünü Kontrol Et.</p>';
+      }
+    }
+  }
+
   function _rtSyncGlobalTotalLive() {
     var globalEl = _rtGetGlobalTotalEl();
     if (!globalEl) return;
@@ -3114,27 +3136,15 @@
     )
       .then(function (results) {
         var trendsBySite = {};
-        var trendList = [];
         results.forEach(function (r) {
           trendsBySite[String(r.sid)] = r.trend;
-          trendList.push(r.trend);
         });
         globalEl._rtSiteTrends = trendsBySite;
-        var merged = _rtMergeSiteTrends(trendList);
-        globalEl._rtCombinedTrend = merged;
         globalEl._rtSparkMetric = 'au';
         if (!globalEl._rtSparkRangeKey) globalEl._rtSparkRangeKey = '24h';
         _wireSiteYfTabs(globalEl);
-        if (merged.length) {
-          _rtSetSiteSparkMetric(globalEl, 'au');
-        } else {
-          var barsEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-bars]');
-          if (barsEl) {
-            barsEl.innerHTML =
-              '<p class="rt-site-spark-empty-msg" role="status">Birleşik 24s snapshot henüz yok — Tümünü Kontrol Et.</p>';
-          }
-        }
         _rtRenderGlobalSiteSparkRows(globalEl);
+        _rtRenderGlobalMergedSpark(globalEl);
         _setGlobalTotalLoading(globalEl, false);
         var tsEl = globalEl.querySelector('[data-rt-global-total-ts]');
         if (tsEl) {
@@ -3159,7 +3169,8 @@
 
   function _rtSyncSiteSparkLiveTotal(siteEl) {
     if (!siteEl) return;
-    var lastEl = siteEl.querySelector('[data-rt-site-spark-last]');
+    var root = _rtSiteSparkRoot(siteEl);
+    var lastEl = root.querySelector('[data-rt-site-spark-last]');
     if (!lastEl) return;
     var metric = siteEl._rtSparkMetric || 'au';
     var val = metric === 'pv' ? siteEl._rtSiteSumPv : siteEl._rtSiteSumAu;
@@ -3205,6 +3216,7 @@
         }
         if (siteEl.hasAttribute('data-rt-global-total')) {
           _rtRenderGlobalSiteSparkRows(siteEl);
+          _rtRenderGlobalMergedSpark(siteEl);
         }
       });
     });
@@ -3220,14 +3232,15 @@
       btn.classList.toggle('is-active', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    var rowEl = siteEl.querySelector('[data-rt-site-spark-row]');
+    var root = _rtSiteSparkRoot(siteEl);
+    var rowEl = root.querySelector('[data-rt-site-spark-row]');
     if (rowEl) {
       rowEl.classList.toggle('rt-site-spark-row--pv', metric === 'pv');
       rowEl.classList.toggle('rt-site-spark-row--brand-blue', _rtSiteSparkUsesBlue(siteEl, metric));
     }
-    var labelEl = siteEl.querySelector('[data-rt-site-spark-label]');
+    var labelEl = root.querySelector('[data-rt-site-spark-label]');
     if (labelEl) labelEl.textContent = metric === 'pv' ? 'Toplam görüntüleme' : 'Toplam aktif';
-    var barsEl = siteEl.querySelector('[data-rt-site-spark-bars]');
+    var barsEl = root.querySelector('[data-rt-site-spark-bars]');
     if (barsEl) {
       var rk = _rtSiteSparkRangeKey(siteEl);
       barsEl.setAttribute(

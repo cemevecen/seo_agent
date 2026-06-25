@@ -465,6 +465,7 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "data_min_date": _min_d or "",
         "data_max_date": _max_d or "",
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "last_file_upload_at": row.last_file_upload_at.isoformat() if row.last_file_upload_at else None,
     }
     if include_rows:
         out["rows"] = rows
@@ -570,6 +571,7 @@ def upload_parsed_rows(db: Session, parsed: list[dict]) -> dict:
         row.filter_end = max_day
     row.rows_json = json.dumps(merged, ensure_ascii=False)
     row.last_id = max(int(row.last_id or 0), _highest_id(merged))
+    row.last_file_upload_at = datetime.utcnow()
     row.updated_at = datetime.utcnow()
     db.commit()
     return {
@@ -599,6 +601,7 @@ def reset_workspace(db: Session) -> dict:
     row = _get_workspace(db)
     row.rows_json = "[]"
     row.last_id = 0
+    row.last_file_upload_at = None
     row.updated_at = datetime.utcnow()
     db.commit()
     return workspace_state(db)

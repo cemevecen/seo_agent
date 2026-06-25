@@ -76,6 +76,12 @@
         </span>
       </summary>
       <div id="mz-imports" class="flex max-h-40 flex-wrap gap-2 overflow-y-auto border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400"></div>
+      <div id="mz-imports-bulk-bar" class="hidden flex flex-wrap items-center gap-2 border-t border-slate-200 px-3 py-2 dark:border-slate-700">
+        <button type="button" id="mz-imports-select-all" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Tümünü seç</button>
+        <button type="button" id="mz-imports-select-none" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Seçimi kaldır</button>
+        <button type="button" id="mz-imports-bulk-delete" disabled class="rounded-md border border-rose-400 bg-rose-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-800">Seçilenleri sil</button>
+        <span id="mz-imports-bulk-count" class="text-[10px] text-slate-500 dark:text-zinc-400">0 seçili</span>
+      </div>
     </details>
   </div>
 
@@ -662,7 +668,9 @@
         <div class="mz-delete-spinner" aria-hidden="true"></div>
         <div class="min-w-0 flex-1">
           <p id="mz-delete-overlay-title" class="text-base font-extrabold tracking-tight text-rose-800 dark:text-rose-200">Dosya siliniyor</p>
+          <p id="mz-delete-overlay-progress" class="hidden text-xs font-semibold text-rose-700 dark:text-rose-300"></p>
           <p id="mz-delete-overlay-file" class="mt-1.5 break-all rounded-lg border border-rose-200 bg-rose-50/80 px-2 py-1.5 font-mono text-[11px] font-semibold text-rose-950 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"></p>
+          <ul id="mz-delete-overlay-done" class="mt-2 hidden max-h-32 list-none space-y-1 overflow-y-auto text-[11px] text-slate-700 dark:text-zinc-300"></ul>
           <p id="mz-delete-overlay-desc" class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-zinc-400">
             Yüklü dosyalar listesinden kaldırılıyor; veritabanı ve grafikler güncelleniyor. Bu sürede sayfayı kapatmayın.
           </p>
@@ -838,9 +846,29 @@
     return el;
   }
 
-  function mzShowDeleteOverlay(sourceFile) {
+  function mzShowDeleteOverlay(sourceFile, opts) {
+    opts = opts || {};
     var el = mzEnsureDeleteOverlayInBody();
     var fileEl = document.getElementById("mz-delete-overlay-file");
+    var titleEl = document.getElementById("mz-delete-overlay-title");
+    var progEl = document.getElementById("mz-delete-overlay-progress");
+    var doneUl = document.getElementById("mz-delete-overlay-done");
+    if (titleEl) {
+      titleEl.textContent = opts.bulk ? "Dosyalar siliniyor" : "Dosya siliniyor";
+    }
+    if (progEl) {
+      if (opts.progressText) {
+        progEl.textContent = opts.progressText;
+        progEl.classList.remove("hidden");
+      } else {
+        progEl.textContent = "";
+        progEl.classList.add("hidden");
+      }
+    }
+    if (doneUl && !opts.keepDoneList) {
+      doneUl.innerHTML = "";
+      doneUl.classList.add("hidden");
+    }
     if (fileEl) fileEl.textContent = sourceFile || "—";
     if (el) {
       el.classList.remove("hidden");
@@ -863,6 +891,18 @@
       el.classList.remove("flex", "mz-delete-overlay--nudge");
       el.setAttribute("aria-hidden", "true");
     }
+    var progEl = document.getElementById("mz-delete-overlay-progress");
+    var doneUl = document.getElementById("mz-delete-overlay-done");
+    if (progEl) {
+      progEl.textContent = "";
+      progEl.classList.add("hidden");
+    }
+    if (doneUl) {
+      doneUl.innerHTML = "";
+      doneUl.classList.add("hidden");
+    }
+    var titleEl = document.getElementById("mz-delete-overlay-title");
+    if (titleEl) titleEl.textContent = "Dosya siliniyor";
     var wrap = document.getElementById("mz-imports-wrap");
     if (wrap) wrap.classList.remove("mz-imports-wrap--deleting");
   }
@@ -8012,20 +8052,25 @@
       var countEl = document.getElementById("mz-imports-count");
       if (countEl) countEl.textContent = String(imports.length);
       var imp = document.getElementById("mz-imports");
+      var bulkBar = document.getElementById("mz-imports-bulk-bar");
       if (imp) {
         if (!imports.length) {
           imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi.</span>";
+          if (bulkBar) bulkBar.classList.add("hidden");
         } else {
+          if (bulkBar) bulkBar.classList.remove("hidden");
           imp.innerHTML = imports.map(function (x) {
             var inc = x.incremental ? " <span class=\"text-emerald-600 dark:text-emerald-400\">+günlük</span>" : "";
             var fileAttr = mzHtmlAttr(x.source_file || "");
-            return "<span class=\"inline-flex items-center gap-1 rounded-full border border-slate-200 py-0.5 pl-2 pr-1 dark:border-zinc-600 midnight:border-zinc-700\">" +
-              "<span>" + x.channel + " · " + x.source_file + " · " + x.row_count + " satır" + inc + "</span>" +
+            return "<span class=\"inline-flex items-center gap-1 rounded-full border border-slate-200 py-0.5 pl-1 pr-1 dark:border-zinc-600 midnight:border-zinc-700\">" +
+              "<input type=\"checkbox\" class=\"mz-import-select h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600\" data-source-file=\"" + fileAttr + "\" aria-label=\"Seç: " + fileAttr + "\" />" +
+              "<span class=\"pl-0.5\">" + x.channel + " · " + x.source_file + " · " + x.row_count + " satır" + inc + "</span>" +
               "<button type=\"button\" class=\"mz-import-delete shrink-0 cursor-pointer rounded-full border border-transparent p-0.5 text-slate-500 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 dark:text-zinc-300 dark:hover:border-rose-800 dark:hover:bg-rose-950/50 dark:hover:text-rose-400\" " +
               "title=\"Dosyayı sil\" aria-label=\"Dosyayı sil: " + fileAttr + "\" data-source-file=\"" + fileAttr + "\">×</button>" +
               "</span>";
           }).join("");
           state._mzImportFiles = imports;
+          mzUpdateImportBulkUi();
           if ((f.extra_columns || []).length) {
             imp.innerHTML += "<span class=\"w-full text-[10px] text-slate-400\">Ek sütunlar: " +
               f.extra_columns.join(", ") + "</span>";
@@ -8976,10 +9021,157 @@
     });
   }, true);
 
+  function mzGetSelectedImportFiles() {
+    var root = document.getElementById("mz-imports");
+    if (!root) return [];
+    var out = [];
+    root.querySelectorAll(".mz-import-select:checked").forEach(function (cb) {
+      var name = cb.getAttribute("data-source-file") || "";
+      if (name) out.push(name);
+    });
+    return out;
+  }
+
+  function mzUpdateImportBulkUi() {
+    var n = mzGetSelectedImportFiles().length;
+    var countEl = document.getElementById("mz-imports-bulk-count");
+    var delBtn = document.getElementById("mz-imports-bulk-delete");
+    if (countEl) countEl.textContent = n + " seçili";
+    if (delBtn) delBtn.disabled = n < 1 || state._mzDeleteBusy;
+  }
+
+  function mzFilenamePeriodRank(name) {
+    var stem = String(name || "").replace(/\.[^.]+$/, "");
+    var m = stem.match(/(\d+)\s*$/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  function mzSortImportsForDelete(files) {
+    return files.slice().sort(function (a, b) {
+      var ra = mzFilenamePeriodRank(a);
+      var rb = mzFilenamePeriodRank(b);
+      if (ra !== rb) return rb - ra;
+      return String(b).localeCompare(String(a), "tr");
+    });
+  }
+
+  function mzAppendDeleteOverlayDoneItem(sourceFile, payload) {
+    var doneUl = document.getElementById("mz-delete-overlay-done");
+    if (!doneUl) return;
+    doneUl.classList.remove("hidden");
+    var li = document.createElement("li");
+    li.className = "rounded border border-emerald-200/80 bg-emerald-50/90 px-2 py-1 font-mono text-[10px] text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-100";
+    var rows = payload && payload.deleted_rows != null ? payload.deleted_rows : 0;
+    var restored = payload && payload.restored_rows ? payload.restored_rows : 0;
+    li.textContent = "✓ " + sourceFile + " (" + rows.toLocaleString("tr-TR") + " satır silindi" +
+      (restored ? "; " + restored.toLocaleString("tr-TR") + " geri yüklendi" : "") + ")";
+    doneUl.appendChild(li);
+    doneUl.scrollTop = doneUl.scrollHeight;
+  }
+
+  document.getElementById("mz-imports").addEventListener("change", function (ev) {
+    if (ev.target && ev.target.classList && ev.target.classList.contains("mz-import-select")) {
+      mzUpdateImportBulkUi();
+    }
+  });
+
+  on("mz-imports-select-all", "click", function () {
+    document.querySelectorAll("#mz-imports .mz-import-select").forEach(function (cb) {
+      cb.checked = true;
+    });
+    mzUpdateImportBulkUi();
+  });
+
+  on("mz-imports-select-none", "click", function () {
+    document.querySelectorAll("#mz-imports .mz-import-select").forEach(function (cb) {
+      cb.checked = false;
+    });
+    mzUpdateImportBulkUi();
+  });
+
+  on("mz-imports-bulk-delete", "click", function () {
+    if (state._mzDeleteBusy) return;
+    var files = mzSortImportsForDelete(mzGetSelectedImportFiles());
+    if (!files.length) return;
+    var preview = files.length <= 4
+      ? files.join(", ")
+      : files.slice(0, 3).join(", ") + " … +" + (files.length - 3) + " dosya";
+    mzConfirmTwoStep({
+      title: "Seçili dosyaları sil",
+      step1: files.length + " dosya silinsin mi? Sırayla kaldırılır; grafikler sonunda yenilenir.",
+      detail: preview,
+      step2Warn: "Son onay: seçili dosyalar veritabanından tamamen kaldırılır. Üst üste bindirilmiş günler önceki dosyadan geri gelir.",
+      confirmFinal: "Evet, " + files.length + " dosyayı sil",
+    }).then(function (ok) {
+      if (!ok) return;
+      runMzImportDeleteBulk(files);
+    });
+  });
+
+  async function runMzImportDeleteBulk(files) {
+    if (!files || !files.length || state._mzDeleteBusy) return;
+    state._mzDeleteBusy = true;
+    mzUpdateImportBulkUi();
+    var statusEl = document.getElementById("mz-status");
+    var total = files.length;
+    var deletedOk = 0;
+    var totalRowsRemoved = 0;
+    mzShowDeleteOverlay(files[0], { bulk: true, progressText: "0 / " + total + " tamamlandı" });
+    try {
+      for (var i = 0; i < files.length; i++) {
+        var sourceFile = files[i];
+        state._mzDeletePendingFile = sourceFile;
+        mzShowDeleteOverlay(sourceFile, {
+          bulk: true,
+          progressText: (i + 1) + " / " + total + " — siliniyor…",
+          keepDoneList: true,
+        });
+        if (statusEl) statusEl.textContent = "Siliniyor (" + (i + 1) + "/" + total + "): " + sourceFile + "…";
+        mzNudgeDeleteOverlay();
+        var r = await fetch("/api/mz-analytics/delete-import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source_file: sourceFile }),
+          credentials: "same-origin",
+        });
+        var payload = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Silme başarısız: " + sourceFile));
+        if (state.source && state.source.delete) state.source.delete(sourceFile);
+        totalRowsRemoved += Number(payload.deleted_rows) || 0;
+        deletedOk += 1;
+        mzAppendDeleteOverlayDoneItem(sourceFile, payload);
+      }
+      if (statusEl) {
+        statusEl.textContent =
+          deletedOk + " dosya silindi · " + totalRowsRemoved.toLocaleString("tr-TR") + " satır kaldırıldı — veriler yenileniyor…";
+      }
+      document.querySelectorAll("#mz-imports .mz-import-select").forEach(function (cb) {
+        cb.checked = false;
+      });
+      showPageError("");
+      await loadFacets({ cacheBust: true });
+      await runQuery({ resetTableDrills: true });
+      if (statusEl) {
+        statusEl.textContent = deletedOk + " dosya silindi; grafikler ve tablolar güncellendi.";
+      }
+    } catch (err) {
+      if (statusEl) statusEl.textContent = (err && err.message) || "Toplu silme yarıda kaldı";
+      showPageError((err && err.message) || "Toplu silme yarıda kaldı");
+      await loadFacets({ cacheBust: true }).catch(function () {});
+      await runQuery({ resetTableDrills: true }).catch(function () {});
+    } finally {
+      state._mzDeleteBusy = false;
+      state._mzDeletePendingFile = "";
+      mzHideDeleteOverlay();
+      mzUpdateImportBulkUi();
+    }
+  }
+
   async function runMzImportDelete(sourceFile, btn) {
     if (state._mzDeleteBusy) return;
     state._mzDeleteBusy = true;
     state._mzDeletePendingFile = sourceFile;
+    mzUpdateImportBulkUi();
     mzShowDeleteOverlay(sourceFile);
     if (btn) btn.disabled = true;
     var statusEl = document.getElementById("mz-status");
@@ -9011,6 +9203,7 @@
       state._mzDeleteBusy = false;
       state._mzDeletePendingFile = "";
       mzHideDeleteOverlay();
+      mzUpdateImportBulkUi();
     }
   }
 

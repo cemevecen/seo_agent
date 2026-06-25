@@ -8,6 +8,7 @@
         <div class="min-w-0 space-y-1.5 xl:col-span-3">
           <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV veya Excel (.xlsx)</label>
           <input id="nt-csv-file" type="file" accept=".csv,.txt,.tsv,.xlsx,.xlsm,.xltx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+          <p id="nt-last-file-upload" class="text-[11px] font-medium leading-snug text-slate-500 dark:text-slate-400">Son dosya tarihi: —</p>
         </div>
         <div class="min-w-0 xl:col-span-3">
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
@@ -898,6 +899,7 @@
       setPresetSelectors(data.preset);
     }
     serverReady = true;
+    applyLastFileUploadFromMeta(data);
   }
 
   function saveRows(rows) {
@@ -926,6 +928,49 @@
 
   var NT_ROWS_CHUNK = 2500;
   var ntDbUpdatedAt = "";
+  var ntLastFileUploadAt = "";
+
+  function ntFormatFileUploadAt(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    var parts = new Intl.DateTimeFormat("tr-TR", {
+      timeZone: "Europe/Istanbul",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    var map = {};
+    parts.forEach(function (p) {
+      if (p.type !== "literal") map[p.type] = p.value;
+    });
+    var day = map.day || "";
+    var mon = (map.month || "").replace(/\.$/, "");
+    var year = map.year || "";
+    var hour = map.hour || "00";
+    var minute = map.minute || "00";
+    var second = map.second || "00";
+    if (!day || !year) return "—";
+    return day + " " + mon + " " + year + " - " + hour + ":" + minute + ":" + second;
+  }
+
+  function renderLastFileUploadLabel(iso) {
+    var el = document.getElementById("nt-last-file-upload");
+    if (!el) return;
+    var when = ntFormatFileUploadAt(iso || ntLastFileUploadAt);
+    el.textContent = when === "—" ? "Son dosya tarihi: —" : "Son dosya tarihi: " + when;
+  }
+
+  function applyLastFileUploadFromMeta(meta) {
+    if (meta && meta.last_file_upload_at !== undefined) {
+      ntLastFileUploadAt = meta.last_file_upload_at || "";
+    }
+    renderLastFileUploadLabel(ntLastFileUploadAt);
+  }
 
   function ntSessionCacheKey(updatedAt, range) {
     return (
@@ -1154,6 +1199,7 @@
   function loadServerState() {
     return apiFetch("/api/notification-analytics/state?include_rows=false").then(function (meta) {
       ntDbUpdatedAt = meta.updated_at || "";
+      applyLastFileUploadFromMeta(meta);
       applyServerState(meta, { keepRows: false });
       var totalAll = n(meta.row_count);
       if (!totalAll) {
@@ -2201,6 +2247,8 @@
         }
         status(msg + " Veriler yenileniyor…");
         if (data.updated_at) ntDbUpdatedAt = data.updated_at;
+        if (data.last_file_upload_at) ntLastFileUploadAt = data.last_file_upload_at;
+        renderLastFileUploadLabel(ntLastFileUploadAt);
         clearNtSessionCache();
         if (fileInput) fileInput.value = "";
         return loadServerState()

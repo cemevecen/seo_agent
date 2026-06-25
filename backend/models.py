@@ -1000,6 +1000,7 @@ class NotificationAnalyticsWorkspace(Base):
     filter_end: Mapped[str] = mapped_column(String(10), nullable=False, default="")
     preset: Mapped[str] = mapped_column(String(16), nullable=False, default="3m")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_file_upload_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
 
 class DovizAssetMonitorUrl(Base):
