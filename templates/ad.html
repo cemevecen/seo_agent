@@ -87,6 +87,11 @@
         </span>
       </summary>
       <div id="mz-imports" class="flex max-h-40 flex-wrap gap-2 overflow-y-auto border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400"></div>
+      <div class="flex flex-wrap items-center gap-2 border-t border-slate-200 px-3 py-2 dark:border-slate-700">
+        <button type="button" id="mz-imports-empower-add" class="rounded-md border border-violet-400 bg-violet-50 px-2.5 py-1 text-[10px] font-semibold text-violet-900 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100 dark:hover:bg-violet-950/60">Empower ekle</button>
+        <input id="mz-imports-empower-file" type="file" accept=".xlsx,.xlsm" multiple class="hidden" aria-hidden="true" tabindex="-1" />
+        <span class="text-[10px] text-slate-400 dark:text-zinc-500">ör. dovizandroidempower1.xlsx</span>
+      </div>
       <div id="mz-imports-bulk-bar" class="hidden flex flex-wrap items-center gap-2 border-t border-slate-200 px-3 py-2 dark:border-slate-700">
         <button type="button" id="mz-imports-select-all" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Tümünü seç</button>
         <button type="button" id="mz-imports-select-none" class="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800">Seçimi kaldır</button>
@@ -8285,7 +8290,7 @@
           imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi. Reklam MX üstteki dosya alanından; Empower violet bölümden veya <code class=\"text-[10px]\">*androidempower1.xlsx</code> adıyla üstten yüklenebilir.</span>";
           if (bulkBar) bulkBar.classList.add("hidden");
         } else {
-          if (bulkBar) bulkBar.classList.toggle("hidden", imports.length < 2);
+          if (bulkBar) bulkBar.classList.toggle("hidden", imports.length + empowerImports.length < 2);
           var htmlParts = imports.map(function (x) {
             var inc = x.incremental ? " <span class=\"text-emerald-600 dark:text-emerald-400\">+günlük</span>" : "";
             var fileAttr = mzHtmlAttr(x.source_file || "");
@@ -8299,9 +8304,25 @@
           empowerImports.forEach(function (x) {
             var sf = mzHtmlAttr(x.source_file || "");
             htmlParts.push(
-              "<span class=\"inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50/80 py-0.5 px-2 dark:border-violet-900/60 dark:bg-violet-950/30\" title=\"Empower — violet bölümden yönetilir\">" +
-              "<span class=\"font-semibold text-violet-800 dark:text-violet-200\">Empower</span>" +
-              "<span>· " + (x.platform || "?") + " · " + sf + " · " + (x.row_count || 0) + " gün</span>" +
+              "<span class=\"inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50/80 py-0.5 pl-1 pr-1 dark:border-violet-900/60 dark:bg-violet-950/30\">" +
+              "<input type=\"checkbox\" class=\"mz-import-select-empower h-3.5 w-3.5 shrink-0 rounded border-violet-300 text-violet-600 focus:ring-violet-500 dark:border-violet-700\" data-source-file=\"" +
+              sf +
+              "\" aria-label=\"Seç: " +
+              sf +
+              "\" />" +
+              "<span class=\"pl-0.5 text-violet-900 dark:text-violet-100\">" +
+              (x.platform || "?") +
+              " · " +
+              sf +
+              " · " +
+              (x.row_count || 0) +
+              " gün</span>" +
+              "<button type=\"button\" class=\"mz-empower-import-delete shrink-0 cursor-pointer rounded-full border border-transparent p-0.5 text-violet-600 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 dark:text-violet-300 dark:hover:border-rose-800 dark:hover:bg-rose-950/50 dark:hover:text-rose-400\" " +
+              "title=\"Empower dosyasını sil\" aria-label=\"Empower dosyasını sil: " +
+              sf +
+              "\" data-source-file=\"" +
+              sf +
+              "\">×</button>" +
               "</span>"
             );
           });
@@ -9215,6 +9236,49 @@
       .replace(/\u0000/g, "");
   }
 
+  function mzIsEmpowerFilename(name) {
+    return /(android|ios)empower\d+/i.test(String(name || "").replace(/[-_]/g, ""));
+  }
+
+  async function mzUploadEmpowerFiles(fileList, statusEl) {
+    if (!fileList || !fileList.length) {
+      if (statusEl) statusEl.textContent = "Dosya seçin.";
+      return;
+    }
+    var fd = new FormData();
+    for (var i = 0; i < fileList.length; i++) fd.append("files", fileList[i]);
+    if (statusEl) statusEl.textContent = "Yükleniyor…";
+    var r = await fetch("/api/mz-analytics/app-empower/upload-bulk", {
+      method: "POST",
+      body: fd,
+      credentials: "same-origin",
+    });
+    var d = await r.json();
+    if (!r.ok) throw new Error(mzApiErrorDetail(d, "Yükleme başarısız"));
+    if (statusEl) statusEl.textContent = "Tamam: " + (d.ok_count || 0) + "/" + (d.total || 0);
+    await refreshMzEmpowerImports();
+    await loadFacets({ cacheBust: true });
+    if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+    if (typeof mzOnEmpowerOverlayChange === "function") mzOnEmpowerOverlayChange();
+    return d;
+  }
+
+  async function mzDeleteEmpowerImport(sourceFile) {
+    var r = await fetch("/api/mz-analytics/app-empower/delete-import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ source_file: sourceFile }),
+    });
+    var payload = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Empower silinemedi"));
+    await refreshMzEmpowerImports();
+    await loadFacets({ cacheBust: true });
+    if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
+    if (typeof mzOnEmpowerOverlayChange === "function") mzOnEmpowerOverlayChange();
+    return payload;
+  }
+
   function mzResolveImportSourceFile(btn) {
     if (!btn) return "";
     var fromAttr = btn.getAttribute("data-source-file");
@@ -9230,6 +9294,40 @@
   }
 
   document.addEventListener("click", function (ev) {
+    var empowerBtn = ev.target && ev.target.closest ? ev.target.closest(".mz-empower-import-delete") : null;
+    if (empowerBtn) {
+      var importsRoot = document.getElementById("mz-imports");
+      if (!importsRoot || !importsRoot.contains(empowerBtn)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (state._mzDeleteBusy) return;
+      var empowerFile = empowerBtn.getAttribute("data-source-file") || "";
+      if (!empowerFile) return;
+      var statusEl = document.getElementById("mz-status");
+      mzConfirmTwoStep({
+        title: "Empower dosyasını sil",
+        step1: "Bu Empower dosyası silinsin mi?",
+        detail: empowerFile,
+        step2Warn: "Son onay: dosya Empower deposundan kaldırılır; grafik overlay bu dosyayı kullanmaz.",
+        confirmFinal: "Evet, sil",
+      }).then(function (ok) {
+        if (!ok) return;
+        state._mzDeleteBusy = true;
+        if (statusEl) statusEl.textContent = "Siliniyor: " + empowerFile + "…";
+        mzDeleteEmpowerImport(empowerFile)
+          .then(function () {
+            if (statusEl) statusEl.textContent = "Silindi: " + empowerFile;
+          })
+          .catch(function (err) {
+            if (statusEl) statusEl.textContent = (err && err.message) || "Silinemedi";
+          })
+          .finally(function () {
+            state._mzDeleteBusy = false;
+            mzUpdateImportBulkUi();
+          });
+      });
+      return;
+    }
     var btn = ev.target && ev.target.closest ? ev.target.closest(".mz-import-delete") : null;
     if (!btn) return;
     var importsRoot = document.getElementById("mz-imports");
@@ -9264,7 +9362,7 @@
     var root = document.getElementById("mz-imports");
     if (!root) return [];
     var out = [];
-    root.querySelectorAll(".mz-import-select:checked").forEach(function (cb) {
+    root.querySelectorAll(".mz-import-select:checked, .mz-import-select-empower:checked").forEach(function (cb) {
       var name = cb.getAttribute("data-source-file") || "";
       if (name) out.push(name);
     });
@@ -9363,20 +9461,24 @@
   }
 
   document.getElementById("mz-imports").addEventListener("change", function (ev) {
-    if (ev.target && ev.target.classList && ev.target.classList.contains("mz-import-select")) {
+    if (
+      ev.target &&
+      ev.target.classList &&
+      (ev.target.classList.contains("mz-import-select") || ev.target.classList.contains("mz-import-select-empower"))
+    ) {
       mzUpdateImportBulkUi();
     }
   });
 
   on("mz-imports-select-all", "click", function () {
-    document.querySelectorAll("#mz-imports .mz-import-select").forEach(function (cb) {
+    document.querySelectorAll("#mz-imports .mz-import-select, #mz-imports .mz-import-select-empower").forEach(function (cb) {
       cb.checked = true;
     });
     mzUpdateImportBulkUi();
   });
 
   on("mz-imports-select-none", "click", function () {
-    document.querySelectorAll("#mz-imports .mz-import-select").forEach(function (cb) {
+    document.querySelectorAll("#mz-imports .mz-import-select, #mz-imports .mz-import-select-empower").forEach(function (cb) {
       cb.checked = false;
     });
     mzUpdateImportBulkUi();
@@ -9421,6 +9523,12 @@
         });
         if (statusEl) statusEl.textContent = "Siliniyor (" + (i + 1) + "/" + total + "): " + sourceFile + "…";
         mzNudgeDeleteOverlay();
+        if (mzIsEmpowerFilename(sourceFile)) {
+          await mzDeleteEmpowerImport(sourceFile);
+          mzAppendDeleteOverlayDoneItem(sourceFile, { deleted_rows: 0 });
+          deletedOk += 1;
+          continue;
+        }
         var r = await fetch("/api/mz-analytics/delete-import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -9438,7 +9546,7 @@
         statusEl.textContent =
           deletedOk + " dosya silindi · " + totalRowsRemoved.toLocaleString("tr-TR") + " satır kaldırıldı — veriler yenileniyor…";
       }
-      document.querySelectorAll("#mz-imports .mz-import-select").forEach(function (cb) {
+      document.querySelectorAll("#mz-imports .mz-import-select, #mz-imports .mz-import-select-empower").forEach(function (cb) {
         cb.checked = false;
       });
       showPageError("");
@@ -9513,19 +9621,23 @@
     restoreDetailFavoritesBackup();
   });
 
-  function mzApiErrorDetail(payload) {
-    if (!payload || payload.detail == null) return "";
-    var d = payload.detail;
-    if (typeof d === "string") return d;
-    if (Array.isArray(d)) {
-      return d
-        .map(function (x) {
-          return (x && (x.msg || x.message)) || JSON.stringify(x);
-        })
-        .join("; ");
+  on("mz-imports-empower-add", "click", function () {
+    var inp = document.getElementById("mz-imports-empower-file");
+    if (inp) inp.click();
+  });
+
+  on("mz-imports-empower-file", "change", async function () {
+    var inp = document.getElementById("mz-imports-empower-file");
+    var st = document.getElementById("mz-status");
+    if (!inp || !inp.files || !inp.files.length) return;
+    try {
+      await mzUploadEmpowerFiles(inp.files, st);
+      inp.value = "";
+    } catch (err) {
+      if (st) st.textContent = (err && err.message) || "Yükleme başarısız";
+      inp.value = "";
     }
-    return String(d);
-  }
+  });
 
   on("mz-empower-upload", "click", async function () {
     var inp = document.getElementById("mz-empower-file");
@@ -9534,23 +9646,9 @@
       if (st) st.textContent = "Dosya seçin.";
       return;
     }
-    var fd = new FormData();
-    for (var i = 0; i < inp.files.length; i++) fd.append("files", inp.files[i]);
-    if (st) st.textContent = "Yükleniyor…";
     try {
-      var r = await fetch("/api/mz-analytics/app-empower/upload-bulk", {
-        method: "POST",
-        body: fd,
-        credentials: "same-origin",
-      });
-      var d = await r.json();
-      if (!r.ok) throw new Error(mzApiErrorDetail(d) || "Yükleme başarısız");
-      if (st) st.textContent = "Tamam: " + (d.ok_count || 0) + "/" + (d.total || 0);
+      await mzUploadEmpowerFiles(inp.files, st);
       inp.value = "";
-      await refreshMzEmpowerImports();
-      await loadFacets({ cacheBust: true });
-      if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
-      mzOnEmpowerOverlayChange();
     } catch (err) {
       if (st) st.textContent = (err && err.message) || "Hata";
     }
