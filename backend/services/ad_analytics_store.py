@@ -1505,6 +1505,12 @@ def facets(db: Session, *, skip_cache: bool = False) -> dict[str, Any]:
             )
 
     gmin, gmax, total_rows = _global_date_bounds_and_count(db)
+    try:
+        from backend.services import app_empower_store as _empower_store
+
+        empower_imports = _empower_store.list_imports(db)
+    except Exception:  # noqa: BLE001
+        empower_imports = []
     payload = {
         "streams": streams_out,
         "kpi_union": sorted(kpi_union, key=lambda k: {x: i for i, x in enumerate(KPI_METRIC_KEYS)}.get(k, 999)),
@@ -1525,6 +1531,7 @@ def facets(db: Session, *, skip_cache: bool = False) -> dict[str, Any]:
             }
             for c in catalogs
         ],
+        "empower_imports": empower_imports,
         "min_date": gmin,
         "max_date": gmax,
         "total_rows": total_rows,

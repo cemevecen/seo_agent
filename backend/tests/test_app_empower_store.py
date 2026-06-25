@@ -7,7 +7,12 @@ import io
 import pytest
 from openpyxl import Workbook
 
-from backend.services.app_empower_store import parse_filename_meta, parse_empower_xlsx
+from backend.services.app_empower_store import (
+    is_empower_filename,
+    parse_filename_meta,
+    parse_empower_xlsx,
+    partition_mz_upload_files,
+)
 
 
 def test_parse_filename_meta():
@@ -43,3 +48,19 @@ def test_parse_empower_xlsx_minimal():
 def test_parse_filename_invalid():
     with pytest.raises(ValueError):
         parse_filename_meta("dovizweb1.xlsx")
+
+
+def test_is_empower_filename():
+    assert is_empower_filename("dovizandroidempower1.xlsx")
+    assert not is_empower_filename("dovizweb1.xlsx")
+
+
+def test_partition_mz_upload_files():
+    ad, emp = partition_mz_upload_files(
+        [
+            (b"a", "dovizweb1.xlsx"),
+            (b"b", "doviziosempower2.xlsx"),
+        ]
+    )
+    assert len(ad) == 1 and ad[0][1] == "dovizweb1.xlsx"
+    assert len(emp) == 1 and emp[0][1] == "doviziosempower2.xlsx"

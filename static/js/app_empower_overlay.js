@@ -42,10 +42,18 @@
 
   function panelForRoot(root) {
     if (!root) return null;
+    var rid = root.id;
+    if (rid) {
+      var docked = document.querySelector(
+        '[data-app-empower-overlay-panel][data-app-empower-overlay-for="' + rid + '"]'
+      );
+      if (docked) return docked;
+    }
     return root.querySelector("[data-app-empower-overlay-panel]");
   }
 
   function selectedFromDom(root) {
+    if (!root) return [];
     var panel = panelForRoot(root);
     if (!panel) return [];
     var keys = [];
@@ -60,6 +68,7 @@
     var labelEl = root.querySelector("[data-app-empower-overlay-label]");
     if (!labelEl) return;
     var keys = selectedFromDom(root);
+    if (!keys.length) keys = readStored(root);
     if (!keys.length) {
       labelEl.textContent = "Empower: kapalı";
       return;
@@ -74,9 +83,6 @@
   function modes(controlId) {
     var root = rootEl(controlId);
     if (!root) return [];
-    if (root.dataset.appEmpowerOverlayBound === "1") {
-      return selectedFromDom(root);
-    }
     var keys = selectedFromDom(root);
     if (!keys.length) keys = readStored(root);
     return keys;
@@ -164,8 +170,6 @@
       return Promise.resolve(false);
     }
     opts = opts || {};
-    var yaxisId = opts.yaxisId || pickFreeYaxisId(layout, traces);
-    var layoutKey = layoutKeyForYaxis(yaxisId);
     var startIso = normalizeDateKey(dateKeys[0]);
     var endIso = normalizeDateKey(dateKeys[dateKeys.length - 1]);
     return ensureOverlay(platform, startIso, endIso)
@@ -173,6 +177,7 @@
         var series = (payload && payload.series) || {};
         var added = false;
         var colorIdx = 0;
+        var empowerTraceCount = 0;
         keys.forEach(function (sk) {
           var block = series[sk];
           if (!block) return;
@@ -184,35 +189,40 @@
           if (!ys.some(function (v) { return v != null; })) return;
           var lineColor = SERIES_COLORS[colorIdx % SERIES_COLORS.length];
           colorIdx += 1;
+          var traceYaxis = opts.yaxisId || pickFreeYaxisId(layout, traces);
+          var layoutKey = layoutKeyForYaxis(traceYaxis);
+          var axisTitle = block.label || sk;
           traces.push({
             x: dateKeys,
             y: ys,
             type: "scatter",
             mode: "lines",
-            name: "Empower · " + (block.label || sk),
+            name: "Empower · " + axisTitle,
             visible: true,
-            yaxis: yaxisId,
+            yaxis: traceYaxis,
             line: { color: lineColor, width: 2 },
             connectgaps: false,
           });
+          empowerTraceCount += 1;
+          layout[layoutKey] = Object.assign(
+            {
+              title: { text: axisTitle, font: { size: 10, color: lineColor } },
+              tickfont: { size: 10, color: lineColor },
+              overlaying: "y",
+              side: "right",
+              showgrid: false,
+              zeroline: false,
+              automargin: true,
+            },
+            layout[layoutKey] || {}
+          );
           added = true;
         });
         if (!added) return false;
-        layout[layoutKey] = Object.assign(
-          {
-            title: { text: "Empower", font: { size: 11, color: LINE_COLOR } },
-            tickfont: { size: 10, color: LINE_COLOR },
-            overlaying: "y",
-            side: "right",
-            showgrid: false,
-            zeroline: false,
-            automargin: true,
-          },
-          layout[layoutKey] || {}
-        );
         var m = layout.margin || { l: 52, r: 52, t: 20, b: 56 };
-        var minR = opts.marginRight != null ? opts.marginRight : 72;
-        layout.margin = Object.assign({}, m, { r: Math.max(m.r || 12, minR) });
+        var baseR = opts.marginRight != null ? opts.marginRight : 72;
+        var bump = Math.max(0, empowerTraceCount - 1) * 44;
+        layout.margin = Object.assign({}, m, { r: Math.max(m.r || 12, baseR + bump) });
         layout.showlegend = true;
         return true;
       })

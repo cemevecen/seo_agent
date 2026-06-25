@@ -44,6 +44,28 @@ def parse_filename_meta(filename: str) -> tuple[str, int]:
     return platform, doc_index
 
 
+def is_empower_filename(filename: str) -> bool:
+    try:
+        parse_filename_meta(filename)
+        return True
+    except ValueError:
+        return False
+
+
+def partition_mz_upload_files(
+    files: list[tuple[bytes, str]],
+) -> tuple[list[tuple[bytes, str]], list[tuple[bytes, str]]]:
+    """Reklam MX yüklemesinden Empower xlsx dosyalarını ayırır."""
+    empower: list[tuple[bytes, str]] = []
+    ad: list[tuple[bytes, str]] = []
+    for raw, name in files:
+        if is_empower_filename(name):
+            empower.append((raw, name))
+        else:
+            ad.append((raw, name))
+    return ad, empower
+
+
 def _parse_float(raw: Any) -> float | None:
     if raw is None:
         return None
@@ -224,6 +246,12 @@ def import_file(db: Session, raw: bytes, filename: str) -> dict[str, Any]:
         )
     db.commit()
     dates = [p["report_date"] for p in parsed]
+    try:
+        from backend.services.ad_analytics_store import invalidate_facets_cache
+
+        invalidate_facets_cache()
+    except Exception:  # noqa: BLE001
+        pass
     return {
         "ok": True,
         "source_file": name,

@@ -127,7 +127,6 @@
         <p class="mt-2 text-[10px] leading-snug text-violet-900/80 dark:text-violet-200/80">
           Dosya adı: <code class="text-[10px]">dovizandroidempower1.xlsx</code>,
           <code class="text-[10px]">doviziosempower2.xlsx</code> — aynı günde büyük numara kazanır.
-          Grafiklerde Empower overlay; GA4 uygulama sekmeleri bu veriyi buradan okur.
         </p>
         <input id="mz-empower-file" type="file" accept=".xlsx,.xlsm" multiple class="mt-2 w-full rounded-lg border border-violet-200 bg-white px-2 py-1.5 text-xs dark:border-violet-900 dark:bg-black dark:text-zinc-200" />
         <button id="mz-empower-upload" type="button" class="mt-2 w-full rounded-lg border border-violet-600 bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-500 disabled:opacity-50">Yükle (toplu)</button>
@@ -5133,9 +5132,7 @@
     if (!plat) return false;
     var keys = AppEmpowerOverlay.modes("mz-empower-overlay-root");
     if (!keys.length || !dateKeys || !dateKeys.length) return false;
-    var o = Object.assign({}, opts || {});
-    if (!o.yaxisId) o.yaxisId = mzPickMarketYaxisId(layoutExtra);
-    return AppEmpowerOverlay.apply(traces, layoutExtra, dateKeys, plat, keys, o);
+    return AppEmpowerOverlay.apply(traces, layoutExtra, dateKeys, plat, keys, opts || {});
   }
 
   window.mzOnEmpowerOverlayChange = function mzOnEmpowerOverlayChange() {
@@ -8278,17 +8275,18 @@
       filterChips("mz-filter-platform", f.platforms || [], state.platform);
       filterBox("mz-filter-source", f.source_files || [], state.source);
       var imports = f.imports || [];
+      var empowerImports = f.empower_imports || [];
       var countEl = document.getElementById("mz-imports-count");
-      if (countEl) countEl.textContent = String(imports.length);
+      if (countEl) countEl.textContent = String(imports.length + empowerImports.length);
       var imp = document.getElementById("mz-imports");
       var bulkBar = document.getElementById("mz-imports-bulk-bar");
       if (imp) {
-        if (!imports.length) {
-          imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi.</span>";
+        if (!imports.length && !empowerImports.length) {
+          imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi. Reklam MX üstteki dosya alanından; Empower violet bölümden veya <code class=\"text-[10px]\">*androidempower1.xlsx</code> adıyla üstten yüklenebilir.</span>";
           if (bulkBar) bulkBar.classList.add("hidden");
         } else {
-          if (bulkBar) bulkBar.classList.remove("hidden");
-          imp.innerHTML = imports.map(function (x) {
+          if (bulkBar) bulkBar.classList.toggle("hidden", imports.length < 2);
+          var htmlParts = imports.map(function (x) {
             var inc = x.incremental ? " <span class=\"text-emerald-600 dark:text-emerald-400\">+günlük</span>" : "";
             var fileAttr = mzHtmlAttr(x.source_file || "");
             return "<span class=\"inline-flex items-center gap-1 rounded-full border border-slate-200 py-0.5 pl-1 pr-1 dark:border-zinc-600 midnight:border-zinc-700\">" +
@@ -8297,7 +8295,17 @@
               "<button type=\"button\" class=\"mz-import-delete shrink-0 cursor-pointer rounded-full border border-transparent p-0.5 text-slate-500 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 dark:text-zinc-300 dark:hover:border-rose-800 dark:hover:bg-rose-950/50 dark:hover:text-rose-400\" " +
               "title=\"Dosyayı sil\" aria-label=\"Dosyayı sil: " + fileAttr + "\" data-source-file=\"" + fileAttr + "\">×</button>" +
               "</span>";
-          }).join("");
+          });
+          empowerImports.forEach(function (x) {
+            var sf = mzHtmlAttr(x.source_file || "");
+            htmlParts.push(
+              "<span class=\"inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50/80 py-0.5 px-2 dark:border-violet-900/60 dark:bg-violet-950/30\" title=\"Empower — violet bölümden yönetilir\">" +
+              "<span class=\"font-semibold text-violet-800 dark:text-violet-200\">Empower</span>" +
+              "<span>· " + (x.platform || "?") + " · " + sf + " · " + (x.row_count || 0) + " gün</span>" +
+              "</span>"
+            );
+          });
+          imp.innerHTML = htmlParts.join("");
           state._mzImportFiles = imports;
           mzUpdateImportBulkUi();
           if ((f.extra_columns || []).length) {
@@ -8988,6 +8996,7 @@
       setUploadProgress(100, "Tamamlandı", phaseLabel(done), { allowDecrease: true });
       showUploadFinalSummary(done);
       await loadFacets();
+      await refreshMzEmpowerImports();
       await runQuery({ resetTableDrills: false });
       scheduleReloadAfterUploadSummary(useSequential ? 2 : 3);
     } catch (err) {
@@ -8998,6 +9007,7 @@
           setUploadProgress(100, "Tamamlandı", phaseLabel(doneRetry), { allowDecrease: true });
           showUploadFinalSummary(doneRetry);
           await loadFacets();
+          await refreshMzEmpowerImports();
           await runQuery({ resetTableDrills: false });
           scheduleReloadAfterUploadSummary(2);
           return;
@@ -9318,6 +9328,10 @@
       var list = (d && d.imports) || [];
       if (countEl) countEl.textContent = String(list.length);
       root.innerHTML = "";
+      if (!list.length) {
+        root.innerHTML =
+          '<p class="text-violet-700/80 dark:text-violet-300/80">Henüz Empower dosyası yok. Dosya adı <code class="text-[9px]">dovizandroidempower1.xlsx</code> biçiminde olmalı.</p>';
+      }
       list.forEach(function (item) {
         var row = document.createElement("div");
         row.className = "flex flex-wrap items-center gap-1 rounded border border-violet-100 px-1 py-0.5 dark:border-violet-900/40";
@@ -9341,6 +9355,8 @@
         root.appendChild(row);
       });
       if (bulkBar) bulkBar.classList.toggle("hidden", list.length < 2);
+      var wrap = document.getElementById("mz-empower-imports-wrap");
+      if (wrap && list.length) wrap.open = true;
     } catch (e) {
       if (countEl) countEl.textContent = "?";
     }
@@ -9497,6 +9513,20 @@
     restoreDetailFavoritesBackup();
   });
 
+  function mzApiErrorDetail(payload) {
+    if (!payload || payload.detail == null) return "";
+    var d = payload.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) {
+      return d
+        .map(function (x) {
+          return (x && (x.msg || x.message)) || JSON.stringify(x);
+        })
+        .join("; ");
+    }
+    return String(d);
+  }
+
   on("mz-empower-upload", "click", async function () {
     var inp = document.getElementById("mz-empower-file");
     var st = document.getElementById("mz-empower-status");
@@ -9514,10 +9544,11 @@
         credentials: "same-origin",
       });
       var d = await r.json();
-      if (!r.ok) throw new Error((d && d.detail) || "Yükleme başarısız");
+      if (!r.ok) throw new Error(mzApiErrorDetail(d) || "Yükleme başarısız");
       if (st) st.textContent = "Tamam: " + (d.ok_count || 0) + "/" + (d.total || 0);
       inp.value = "";
       await refreshMzEmpowerImports();
+      await loadFacets({ cacheBust: true });
       if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
       mzOnEmpowerOverlayChange();
     } catch (err) {

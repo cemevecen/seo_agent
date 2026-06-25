@@ -7,8 +7,9 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Upload
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
+from backend.database import SessionLocal, get_db
 from backend.services import ad_analytics_store as store
+from backend.services import app_empower_store as empower_store
 from backend.api.app_empower import router as app_empower_router
 
 router = APIRouter(tags=["mz-analytics"])
@@ -17,6 +18,44 @@ router.include_router(app_empower_router)
 LOGGER = logging.getLogger(__name__)
 
 _MAX_BULK_BYTES = 120 * 1024 * 1024  # 12 dosya × ~10 MB
+
+
+async def _read_upload_payload(files: list[UploadFile]) -> list[tuple[bytes, str]]:
+    if not files:
+        raise HTTPException(status_code=400, detail="Dosya seçilmedi")
+    payload: list[tuple[bytes, str]] = []
+    total_bytes = 0
+    for uf in files:
+        name = (uf.filename or "upload.xlsx").strip()
+        low = name.lower()
+        if not low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
+            raise HTTPException(status_code=400, detail=f"Desteklenmeyen format: {name}")
+        raw = await uf.read()
+        total_bytes += len(raw)
+        if total_bytes > _MAX_BULK_BYTES:
+            raise HTTPException(status_code=413, detail="Toplam yükleme 120 MB sınırını aşıyor")
+        if not raw:
+            LOGGER.warning("Ad bulk upload empty body: %s", name)
+        payload.append((raw, name))
+    return payload
+
+
+def _merge_bulk_upload_result(
+    ad_result: dict,
+    empower_result: dict | None,
+) -> dict:
+    out = dict(ad_result)
+    if empower_result is not None:
+        out["empower"] = empower_result
+    return out
+
+
+def _bulk_upload_succeeded(ad_result: dict, empower_result: dict | None) -> bool:
+    if int(ad_result.get("parsed") or 0) > 0:
+        return True
+    if empower_result and int(empower_result.get("ok_count") or 0) > 0:
+        return True
+    return False
 
 
 def _filter_kwargs(
@@ -221,45 +260,52 @@ async def post_ad_analytics_upload_bulk(
     db: Session = Depends(get_db),
 ):
     """12 xlsx tek seferde: dal başına 2025+2026 birleşir; aynı günler güncellenir (upsert)."""
-    if not files:
-        raise HTTPException(status_code=400, detail="Dosya seçilmedi")
-    payload: list[tuple[bytes, str]] = []
-    total_bytes = 0
-    for uf in files:
-        name = (uf.filename or "upload.xlsx").strip()
-        low = name.lower()
-        if not low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
-            raise HTTPException(status_code=400, detail=f"Desteklenmeyen format: {name}")
-        raw = await uf.read()
-        total_bytes += len(raw)
-        if total_bytes > _MAX_BULK_BYTES:
-            raise HTTPException(status_code=413, detail="Toplam yükleme 120 MB sınırını aşıyor")
-        if not raw:
-            LOGGER.warning("Ad bulk upload empty body: %s", name)
-        payload.append((raw, name))
-    try:
-        result = store.import_upload_files_bulk(payload)
-        if result.get("parsed", 0) <= 0:
-            hints: list[str] = []
-            for item in result.get("files") or []:
-                name = item.get("filename") or "?"
-                if item.get("error"):
-                    hints.append(f"{name}: {item['error']}")
-                elif item.get("parse_error"):
-                    hints.append(f"{name}: {item['parse_error']}")
-                elif item.get("columns"):
-                    hints.append(f"{name}: başlık={item['columns'][:6]}")
-            detail = "Hiçbir dosyadan satır okunamadı"
-            if hints:
-                detail += " — " + "; ".join(hints[:4])
-            raise HTTPException(status_code=400, detail=detail)
-        return result
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:  # noqa: BLE001
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    payload = await _read_upload_payload(files)
+    empower_files, ad_files = empower_store.partition_mz_upload_files(payload)
+    empower_result = None
+    if empower_files:
+        empower_result = empower_store.import_files_bulk(db, empower_files)
+    if ad_files:
+        try:
+            result = store.import_upload_files_bulk(ad_files)
+        except HTTPException:
+            db.rollback()
+            raise
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+    else:
+        result = {
+            "files": [],
+            "file_count": 0,
+            "inserted": 0,
+            "parsed": 0,
+            "total": store.count_rows(db),
+            "unknown_files": [],
+            "summary": store.build_upload_batch_summary([]),
+        }
+    result = _merge_bulk_upload_result(result, empower_result)
+    if not _bulk_upload_succeeded(result, empower_result):
+        hints: list[str] = []
+        for item in result.get("files") or []:
+            name = item.get("filename") or "?"
+            if item.get("error"):
+                hints.append(f"{name}: {item['error']}")
+            elif item.get("parse_error"):
+                hints.append(f"{name}: {item['parse_error']}")
+            elif item.get("columns"):
+                hints.append(f"{name}: başlık={item['columns'][:6]}")
+        if empower_result:
+            for item in empower_result.get("results") or []:
+                if not item.get("ok"):
+                    hints.append(
+                        f"{item.get('source_file') or '?'}: {item.get('error') or 'Empower içe aktarılamadı'}"
+                    )
+        detail = "Hiçbir dosyadan satır okunamadı"
+        if hints:
+            detail += " — " + "; ".join(hints[:6])
+        raise HTTPException(status_code=400, detail=detail)
+    return result
 
 
 @router.post("/mz-analytics/upload-bulk-stream")
@@ -267,35 +313,78 @@ async def post_ad_analytics_upload_bulk_stream(
     files: list[UploadFile] = File(...),
 ):
     """Çoklu dosya: yanıt gövdesi NDJSON — satır/satır gerçek ilerleme."""
-    if not files:
-        raise HTTPException(status_code=400, detail="Dosya seçilmedi")
-    payload: list[tuple[bytes, str]] = []
-    total_bytes = 0
-    for uf in files:
-        name = (uf.filename or "upload.xlsx").strip()
-        low = name.lower()
-        if not low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
-            raise HTTPException(status_code=400, detail=f"Desteklenmeyen format: {name}")
-        raw = await uf.read()
-        total_bytes += len(raw)
-        if total_bytes > _MAX_BULK_BYTES:
-            raise HTTPException(status_code=413, detail="Toplam yükleme 120 MB sınırını aşıyor")
-        if not raw:
-            LOGGER.warning("Ad bulk-stream upload empty body: %s", name)
-        payload.append((raw, name))
+    payload = await _read_upload_payload(files)
+    empower_files, ad_files = empower_store.partition_mz_upload_files(payload)
+    total_bytes = sum(len(raw) for raw, _ in payload)
 
     def _ndjson_stream():
+        empower_result = None
         try:
+            if empower_files:
+                yield json.dumps(
+                    {
+                        "phase": "empower_start",
+                        "file_count": len(empower_files),
+                        "pct": 2,
+                    },
+                    ensure_ascii=False,
+                ) + "\n"
+                with SessionLocal() as db:
+                    empower_result = empower_store.import_files_bulk(db, empower_files)
+                yield json.dumps(
+                    {
+                        "phase": "empower_done",
+                        "empower": empower_result,
+                        "pct": 10,
+                    },
+                    ensure_ascii=False,
+                ) + "\n"
+            if not ad_files:
+                ok_emp = bool(empower_result and int(empower_result.get("ok_count") or 0) > 0)
+                if ok_emp:
+                    with SessionLocal() as db:
+                        total_rows = store.count_rows(db)
+                    yield json.dumps(
+                        {
+                            "phase": "batch_done",
+                            "pct": 100,
+                            "parsed": 0,
+                            "inserted": 0,
+                            "total": total_rows,
+                            "empower": empower_result,
+                            "summary": store.build_upload_batch_summary([]),
+                        },
+                        ensure_ascii=False,
+                    ) + "\n"
+                elif not empower_files:
+                    yield json.dumps(
+                        {"phase": "batch_error", "error": "Dosya seçilmedi", "pct": 0},
+                        ensure_ascii=False,
+                    ) + "\n"
+                else:
+                    yield json.dumps(
+                        {
+                            "phase": "batch_error",
+                            "error": "Empower dosyaları içe aktarılamadı",
+                            "empower": empower_result,
+                            "pct": 0,
+                        },
+                        ensure_ascii=False,
+                    ) + "\n"
+                return
             yield json.dumps(
                 {
                     "phase": "batch_ready",
-                    "file_count": len(payload),
+                    "file_count": len(ad_files),
                     "total_bytes": total_bytes,
                     "pct": 12,
                 },
                 ensure_ascii=False,
             ) + "\n"
-            for event in store.iter_bulk_import_events(payload):
+            for event in store.iter_bulk_import_events(ad_files):
+                if event.get("phase") == "batch_done" and empower_result is not None:
+                    event = dict(event)
+                    event["empower"] = empower_result
                 yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as exc:  # noqa: BLE001
             yield json.dumps({"phase": "batch_error", "error": str(exc), "pct": 0}, ensure_ascii=False) + "\n"

@@ -1638,15 +1638,12 @@
                 })
               : Promise.resolve();
           var empowerPlat = ga4ActiveAppProfileFromChart(element);
-          var empowerKeys =
-            empowerPlat && window.AppEmpowerOverlay ? AppEmpowerOverlay.modes('ga4-empower-overlay-root') : [];
           overlayPromise = overlayPromise.then(function () {
-            if (
-              !empowerKeys.length ||
-              !trend.dates ||
-              !trend.dates.length ||
-              !window.AppEmpowerOverlay
-            ) {
+            if (!empowerPlat || !trend.dates || !trend.dates.length || !window.AppEmpowerOverlay) {
+              return;
+            }
+            var empowerKeys = AppEmpowerOverlay.modes('ga4-empower-overlay-root');
+            if (!empowerKeys.length) {
               return;
             }
             return AppEmpowerOverlay.apply(traces, layoutObj, trend.dates, empowerPlat, empowerKeys, {
