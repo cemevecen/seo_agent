@@ -19,8 +19,15 @@ from backend.services.app_empower_config import APP_EMPOWER_SERIES, SERIES_BY_KE
 
 LOGGER = logging.getLogger(__name__)
 
-_FILENAME_RE = re.compile(r"(?i)(android|ios)empower(\d+)")
+_FILENAME_RE = re.compile(r"(?i)(android|ios)(?:empower|empove)(\d+)")
 _MAX_BYTES = 25 * 1024 * 1024
+
+
+def _compact_filename_stem(filename: str) -> str:
+    """Boşluk, nokta, tire → tek parça (doviz Android Empower 1 → dovizandroidempower1)."""
+    base = (filename or "").strip().split("/")[-1]
+    stem = base.rsplit(".", 1)[0] if "." in base else base
+    return re.sub(r"[^a-z0-9]", "", stem.lower())
 
 
 def _norm_header(cell: str) -> str:
@@ -31,11 +38,12 @@ def _norm_header(cell: str) -> str:
 
 def parse_filename_meta(filename: str) -> tuple[str, int]:
     """dovizandroidempower1.xlsx → ('android', 1)."""
-    base = (filename or "").strip().split("/")[-1]
-    m = _FILENAME_RE.search(base.replace("-", "").replace("_", ""))
+    compact = _compact_filename_stem(filename)
+    m = _FILENAME_RE.search(compact)
     if not m:
         raise ValueError(
-            "Dosya adı androidempower1 / iosempower2 biçiminde olmalı (ör. dovizandroidempower1.xlsx)"
+            "Dosya adı androidempower1 / iosempower2 biçiminde olmalı "
+            "(ör. dovizandroidempower1.xlsx; boşluk/nokta kabul edilir)"
         )
     platform = m.group(1).lower()
     doc_index = int(m.group(2))
@@ -88,11 +96,29 @@ def _parse_date_cell(raw: Any) -> date | None:
         return raw.date()
     if isinstance(raw, date):
         return raw
+    if isinstance(raw, (int, float)):
+        n = float(raw)
+        if 1 < n < 600000:
+            try:
+                from openpyxl.utils.datetime import from_excel
+
+                dt = from_excel(n)
+                if isinstance(dt, datetime):
+                    return dt.date()
+                if isinstance(dt, date):
+                    return dt
+            except Exception:  # noqa: BLE001
+                pass
     s = str(raw).strip()
     if not s:
         return None
     if re.match(r"^\d{4}-\d{2}-\d{2}", s):
         return date.fromisoformat(s[:10])
+    for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%m/%d/%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(s[:10], fmt).date()
+        except ValueError:
+            continue
     return None
 
 
@@ -107,7 +133,7 @@ def _header_map(headers: list[str]) -> dict[str, int]:
                 return norm.index(c)
         return None
 
-    date_i = pick("date", "tarih")
+    date_i = pick("date", "tarih", "gun", "gün", "day")
     if date_i is None:
         raise ValueError("Date sütunu bulunamadı")
     idx["date"] = date_i

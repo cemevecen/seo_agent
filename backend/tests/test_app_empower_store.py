@@ -18,6 +18,22 @@ from backend.services.app_empower_store import (
 def test_parse_filename_meta():
     assert parse_filename_meta("dovizandroidempower1.xlsx") == ("android", 1)
     assert parse_filename_meta("doviziosempower3.xlsx") == ("ios", 3)
+    assert parse_filename_meta("doviz Android Empower 1.xlsx") == ("android", 1)
+    assert parse_filename_meta("doviz.android.empower.2.xlsx") == ("android", 2)
+    assert parse_filename_meta("dovizandroidempove1.xlsx") == ("android", 1)
+
+
+def test_parse_empower_xlsx_excel_serial_date():
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Date", "Sessions"])
+    ws.append([45323, 42])
+    buf = io.BytesIO()
+    wb.save(buf)
+    rows = parse_empower_xlsx(buf.getvalue())
+    assert len(rows) == 1
+    assert rows[0]["sessions"] == 42
+    assert rows[0]["report_date"].year >= 2020
 
 
 def test_parse_empower_xlsx_minimal():

@@ -259,6 +259,13 @@ _STREAM_BY_KEY = {s.key: s for s in AD_STREAMS}
 
 def detect_stream(filename: str) -> AdStream | None:
     """Dosya adından proje + dal (6 akış)."""
+    try:
+        from backend.services.app_empower_store import is_empower_filename
+
+        if is_empower_filename(filename):
+            return None
+    except Exception:  # noqa: BLE001
+        pass
     low = (filename or "").lower().replace(" ", "")
     stem = low.rsplit(".", 1)[0] if "." in low else low
     if "m.sinemalar" in low or "m_sinemalar" in low:

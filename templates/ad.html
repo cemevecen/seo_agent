@@ -9237,7 +9237,26 @@
   }
 
   function mzIsEmpowerFilename(name) {
-    return /(android|ios)empower\d+/i.test(String(name || "").replace(/[-_]/g, ""));
+    var stem = String(name || "")
+      .replace(/\.[^.]+$/, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    return /(android|ios)(?:empower|empove)\d+/.test(stem);
+  }
+
+  function mzEmpowerUploadResultMessage(d) {
+    var results = (d && d.results) || [];
+    var failed = results.filter(function (r) {
+      return r && !r.ok;
+    });
+    if (!failed.length) {
+      return "Tamam: " + (d.ok_count || 0) + "/" + (d.total || 0);
+    }
+    var parts = failed.map(function (r) {
+      return (r.source_file || "?") + ": " + (r.error || "yüklenemedi");
+    });
+    var head = (d.ok_count || 0) + "/" + (d.total || 0) + " başarılı";
+    return head + " — " + parts.join(" · ");
   }
 
   async function mzUploadEmpowerFiles(fileList, statusEl) {
@@ -9255,7 +9274,11 @@
     });
     var d = await r.json();
     if (!r.ok) throw new Error(mzApiErrorDetail(d, "Yükleme başarısız"));
-    if (statusEl) statusEl.textContent = "Tamam: " + (d.ok_count || 0) + "/" + (d.total || 0);
+    var msg = mzEmpowerUploadResultMessage(d);
+    if (statusEl) statusEl.textContent = msg;
+    if ((d.ok_count || 0) < (d.total || 0) && !(d.ok_count || 0)) {
+      throw new Error(msg);
+    }
     await refreshMzEmpowerImports();
     await loadFacets({ cacheBust: true });
     if (window.AppEmpowerOverlay) AppEmpowerOverlay.clearCache();
