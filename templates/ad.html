@@ -68,6 +68,9 @@
   html.midnight .mz-page .mz-chart-plot--pie-flat {
     background: linear-gradient(165deg, rgb(39 39 42) 0%, rgb(24 24 27) 100%);
   }
+  .mz-page .mz-income-month-row--single {
+    grid-template-columns: minmax(0, 1fr);
+  }
 </style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
@@ -367,8 +370,8 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+      <div id="mz-charts-income-month-row" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div id="mz-chart-bar-income-wrap" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
             <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipine göre (sütun)</h2>
             <div id="mz-bd-toolbar-income-bar" class="mz-bd-toolbar" data-bd-scope="chartIncome" data-bd-mode="dim"></div>
@@ -3805,6 +3808,7 @@
 
   async function refreshChartIncomeBar() {
     if (!window.Plotly || !state.lastSummary) return;
+    if (mzIsMobileAppStream()) return;
     var cfg = state.breakdowns.chartIncome;
     var cmp = compareBlock(state.lastSummary);
     var dim = Array.from(cfg.bdDims)[0] || "income_type";
@@ -6179,15 +6183,27 @@
     var wrap = document.getElementById("mz-chart-pie-surface-wrap");
     var el = document.getElementById("mz-chart-pie-surface");
     var row = document.getElementById("mz-charts-row-3");
+    var barWrap = document.getElementById("mz-chart-bar-income-wrap");
+    var barEl = document.getElementById("mz-chart-bar-income");
+    var incomeMonthRow = document.getElementById("mz-charts-income-month-row");
+    var mobileApp = mzIsMobileAppStream();
     if (!wrap) return;
-    var show = !mzIsMobileAppStream();
-    wrap.classList.toggle("hidden", !show);
-    if (row) row.classList.toggle("mz-charts-row-3--surface-hidden", !show);
-    if (!show && el && window.Plotly) {
+    var showSurface = !mobileApp;
+    wrap.classList.toggle("hidden", !showSurface);
+    if (row) row.classList.toggle("mz-charts-row-3--surface-hidden", !showSurface);
+    if (barWrap) barWrap.classList.toggle("hidden", mobileApp);
+    if (incomeMonthRow) incomeMonthRow.classList.toggle("mz-income-month-row--single", mobileApp);
+    if (!showSurface && el && window.Plotly) {
       try {
         Plotly.purge(el);
       } catch (_) { /* ignore */ }
       el.innerHTML = "";
+    }
+    if (mobileApp && barEl && window.Plotly) {
+      try {
+        Plotly.purge(barEl);
+      } catch (_) { /* ignore */ }
+      barEl.innerHTML = "";
     }
     if (typeof window.__mzChartsRelayout === "function") {
       window.__mzChartsRelayout();
