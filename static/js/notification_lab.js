@@ -124,10 +124,10 @@
       })
       .filter(function (x) { return x.total > 0; })
       .sort(function (a, b) {
-        if (a.day !== b.day) return a.day < b.day ? -1 : a.day > b.day ? 1 : 0;
+        if (a.day !== b.day) return a.day > b.day ? -1 : a.day < b.day ? 1 : 0;
         var ta = String(a.row.date || "");
         var tb = String(b.row.date || "");
-        if (ta !== tb) return ta < tb ? -1 : 1;
+        if (ta !== tb) return ta > tb ? -1 : 1;
         return b.total - a.total;
       });
     var truncated = sorted.length > MAX;
@@ -185,9 +185,9 @@
     el.innerHTML = parts.join("");
     bindChronoReveal(el);
     if (hint) {
-      var extra = truncated ? " İlk " + MAX + " gönderim gösteriliyor; aralığı daraltın." : "";
+      var extra = truncated ? " İlk " + MAX + " gönderim (en yeniler); daha eskiler için aralığı daraltın." : "";
       hint.textContent =
-        (dup ? "Benzer platform karışımı tekrar eden gönderimler var." : sorted.length + " gönderim, eskiden yeniye.") + extra;
+        (dup ? "Benzer platform karışımı tekrar eden gönderimler var." : sorted.length + " gönderim, yeniden eskiye.") + extra;
     }
   }
 
