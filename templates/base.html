@@ -2462,6 +2462,7 @@
         }
         pop.style.left = left + "px";
         pop.style.top = top + "px";
+        pop.style.removeProperty("visibility");
       }
       function setPopoverOpen(open) {
         var pop = document.getElementById("header-online-popover");
@@ -2486,17 +2487,23 @@
         var list = document.getElementById("header-online-list");
         var title = document.getElementById("header-online-title");
         var users = (data && data.users) || [];
+        var others = users.filter(function (u) {
+          return u.is_current !== true;
+        });
         root.classList.remove("hidden");
         if (!list || !title || !dot) return;
-        if (users.length > 0) {
+        if (others.length > 0) {
           if (ping) ping.classList.remove("hidden");
           dot.className = "relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500";
-          title.textContent = "Çevrimiçi (" + users.length + ")";
+          title.textContent = "Çevrimiçi (" + others.length + ")";
           list.innerHTML = users
             .map(function (u) {
               var line = esc(u.email || "");
               if (u.display_name && u.display_name !== u.email) {
                 line = esc(u.display_name) + " · " + line;
+              }
+              if (u.is_current) {
+                line = line + ' <span class="text-slate-500 dark:text-zinc-400">(sen)</span>';
               }
               return "<li>" + line + "</li>";
             })
