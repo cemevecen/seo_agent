@@ -1028,6 +1028,17 @@
     return typeof html === 'string' && html.indexOf('data-ga4-site-card') !== -1;
   }
 
+  /** Refresh-all sonrası eager site-list: kartlar veya bilinen boş liste metni. */
+  function isGa4SiteListReloadMarkup(html) {
+    if (typeof html !== 'string' || !String(html).trim()) {
+      return false;
+    }
+    if (html.indexOf('data-ga4-site-card') !== -1) {
+      return true;
+    }
+    return html.indexOf('GA4 için kayıtlı site bulunmuyor') !== -1;
+  }
+
   function reloadGa4SiteListMarkup() {
     // Lazy varsayılan iskelet HTML'de data-ga4-site-card yok; kurtarma yolunda tam kartlar şart.
     return fetch('/ga4/site-list?mode=eager', {
@@ -1051,8 +1062,13 @@
     function finishWithReload(doneTitle, doneDetail) {
       return reloadGa4SiteListMarkup()
         .then(function (html) {
-          if (!isGa4CardsMarkup(html)) {
-            throw new Error('site-list markup invalid');
+          if (!isGa4SiteListReloadMarkup(html)) {
+            progress.complete(
+              doneTitle || 'Veri güncellendi',
+              (doneDetail ? doneDetail + ' ' : '') +
+                'Kart listesi otomatik yenilenemedi; sayfayı yenileyin (F5).'
+            );
+            return;
           }
           if (target) {
             target.innerHTML = html;
@@ -1211,7 +1227,7 @@
         }
         return reloadGa4SiteListMarkup().then(function (html) {
           var target = document.getElementById('ga4-site-list');
-          if (target && isGa4CardsMarkup(html)) {
+          if (target && isGa4SiteListReloadMarkup(html)) {
             target.innerHTML = html;
             window.setTimeout(function () {
               initGa4Panels(target);

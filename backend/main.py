@@ -10744,8 +10744,9 @@ def _ga4_profile_payload_for_same_weekday_day(
             "daily_trend": (
                 pl.get("daily_trend")
                 if isinstance(pl.get("daily_trend"), dict) and (pl.get("daily_trend") or {}).get("dates")
-                else {"dates": [], "sessions": [], "activeUsers": [], "engagedSessions": [], "engagementRate": []}
+                else _ga4_empty_daily_trend_dict()
             ),
+            "daily_trend_spark": _ga4_empty_daily_trend_dict(),
             "same_weekday_kpi": swk,
             "has_snapshot": bool(snap_ref),
             "has_period_data": False,
@@ -10983,7 +10984,7 @@ def _ga4_daily_trends_for_ui(
     profile: str,
     period_daily: dict | None,
 ) -> tuple[dict, dict]:
-    """Kart spark: son 14 gün; eski snapshot'larda eksik metrikleri 12ay serisinden tamamlar."""
+    """Kart spark: son 30 gün; eski snapshot'larda eksik metrikleri 12ay serisinden tamamlar."""
     period = _ga4_align_daily_trend(period_daily)
     pd_12m = int(settings.ga4_trend_12m_period_days)
     long_snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=pd_12m)
