@@ -1101,6 +1101,19 @@
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid [data-rt-profile="android"] {
     display: none !important;
   }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-split-panel {
+    grid-template-columns: minmax(5.25rem, 28%) minmax(0, 1fr);
+  }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-split-kpis {
+    padding: 0.35rem 0.15rem 0.35rem 0.4rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-split-chart .rt-spark-mini-bars,
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-split-chart .rt-spark-y-axis {
+    height: 6.35rem;
+  }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-split-chart .rt-spark-plot {
+    min-height: 6.5rem;
+  }
   html.rt-view--compact .rt-profile-box {
     min-height: 0;
     padding: 0.55rem 0.65rem;
@@ -1200,6 +1213,12 @@
   html.dark .rt-split-panel {
     background: var(--rt-d-split);
     border-color: rgba(63, 63, 70, 0.55);
+  }
+  [data-rt-site-slug="sinemalar"] .rt-split-panel {
+    grid-template-columns: minmax(6rem, 30%) minmax(0, 1fr);
+  }
+  [data-rt-site-slug="sinemalar"] .rt-split-kpis {
+    padding-right: 0.25rem;
   }
   .rt-split-kpis {
     display: flex;
