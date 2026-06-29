@@ -299,6 +299,9 @@ def _empty_daily_trend() -> dict[str, list]:
         "activeUsers": [],
         "engagedSessions": [],
         "engagementRate": [],
+        "newUsers": [],
+        "screenPageViews": [],
+        "averageSessionDuration": [],
     }
 
 
@@ -309,8 +312,16 @@ def _run_daily_kpi_trend(
     start: str,
     end: str,
 ) -> dict[str, list]:
-    """Son tarih aralığında günlük: sessions, activeUsers, engagedSessions, engagementRate (0–100)."""
-    trend_metrics = ("sessions", "activeUsers", "engagedSessions", "engagementRate")
+    """Son tarih aralığında günlük KPI serileri (kart spark + büyük trend grafik)."""
+    trend_metrics = (
+        "sessions",
+        "activeUsers",
+        "engagedSessions",
+        "engagementRate",
+        "newUsers",
+        "screenPageViews",
+        "averageSessionDuration",
+    )
     response = client.run_report(
         RunReportRequest(
             property=f"properties/{property_id}",
@@ -327,6 +338,9 @@ def _run_daily_kpi_trend(
     users: list[float] = []
     engaged: list[float] = []
     er_pct: list[float] = []
+    new_users: list[float] = []
+    pageviews: list[float] = []
+    avg_sess: list[float] = []
     for row in response.rows or []:
         raw = str(row.dimension_values[0].value or "")
         if len(raw) == 8 and raw.isdigit():
@@ -341,11 +355,17 @@ def _run_daily_kpi_trend(
             users.append(float(m.get("activeUsers", 0.0)))
             engaged.append(float(m.get("engagedSessions", 0.0)))
             er_raw = float(m.get("engagementRate", 0.0))
+            new_users.append(float(m.get("newUsers", 0.0)))
+            pageviews.append(float(m.get("screenPageViews", 0.0)))
+            avg_sess.append(float(m.get("averageSessionDuration", 0.0)))
         else:
             sessions.append(float(vals[0].value or 0) if len(vals) > 0 else 0.0)
             users.append(float(vals[1].value or 0) if len(vals) > 1 else 0.0)
             engaged.append(float(vals[2].value or 0) if len(vals) > 2 else 0.0)
             er_raw = float(vals[3].value or 0) if len(vals) > 3 else 0.0
+            new_users.append(float(vals[4].value or 0) if len(vals) > 4 else 0.0)
+            pageviews.append(float(vals[5].value or 0) if len(vals) > 5 else 0.0)
+            avg_sess.append(float(vals[6].value or 0) if len(vals) > 6 else 0.0)
         er_pct.append(er_raw * 100.0 if er_raw <= 1.0 else er_raw)
     return {
         "dates": dates,
@@ -353,6 +373,9 @@ def _run_daily_kpi_trend(
         "activeUsers": users,
         "engagedSessions": engaged,
         "engagementRate": er_pct,
+        "newUsers": new_users,
+        "screenPageViews": pageviews,
+        "averageSessionDuration": avg_sess,
     }
 
 
@@ -379,12 +402,24 @@ def _fill_daily_trend_calendar(
             "engagementRate": float(
                 (daily.get("engagementRate") or [0])[idx] if idx < len(daily.get("engagementRate") or []) else 0
             ),
+            "newUsers": float((daily.get("newUsers") or [0])[idx] if idx < len(daily.get("newUsers") or []) else 0),
+            "screenPageViews": float(
+                (daily.get("screenPageViews") or [0])[idx] if idx < len(daily.get("screenPageViews") or []) else 0
+            ),
+            "averageSessionDuration": float(
+                (daily.get("averageSessionDuration") or [0])[idx]
+                if idx < len(daily.get("averageSessionDuration") or [])
+                else 0
+            ),
         }
     out_dates: list[str] = []
     out_sessions: list[float] = []
     out_users: list[float] = []
     out_engaged: list[float] = []
     out_er: list[float] = []
+    out_new: list[float] = []
+    out_pv: list[float] = []
+    out_avg: list[float] = []
     day = start
     while day <= end:
         key = day.isoformat()
@@ -394,6 +429,9 @@ def _fill_daily_trend_calendar(
         out_users.append(float(bucket.get("activeUsers") or 0.0))
         out_engaged.append(float(bucket.get("engagedSessions") or 0.0))
         out_er.append(float(bucket.get("engagementRate") or 0.0))
+        out_new.append(float(bucket.get("newUsers") or 0.0))
+        out_pv.append(float(bucket.get("screenPageViews") or 0.0))
+        out_avg.append(float(bucket.get("averageSessionDuration") or 0.0))
         day += timedelta(days=1)
     return {
         "mode": "last_12m",
@@ -402,6 +440,9 @@ def _fill_daily_trend_calendar(
         "activeUsers": out_users,
         "engagedSessions": out_engaged,
         "engagementRate": out_er,
+        "newUsers": out_new,
+        "screenPageViews": out_pv,
+        "averageSessionDuration": out_avg,
     }
 
 

@@ -42,6 +42,47 @@
     overflow-wrap: anywhere;
     word-break: break-word;
   }
+  .ga4-kpi-spark {
+    height: 2.35rem;
+    min-height: 2.35rem;
+    width: 100%;
+    min-width: 0;
+  }
+  .ga4-kpi-spark__bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    width: 100%;
+    height: 100%;
+  }
+  .ga4-kpi-spark__bar {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 6px;
+    border-radius: 1px 1px 0 0;
+    height: var(--ga4-spark-h, 12%);
+    transform-origin: bottom center;
+    transition: height 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: 0.9;
+  }
+  .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(52 211 153 / 0.95), rgb(16 185 129 / 0.75));
+  }
+  .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(251 113 133 / 0.95), rgb(244 63 94 / 0.75));
+  }
+  .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(148 163 184 / 0.85), rgb(100 116 139 / 0.65));
+  }
+  .dark .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(52 211 153 / 0.85), rgb(5 150 105 / 0.55));
+  }
+  .dark .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(251 113 133 / 0.85), rgb(225 29 72 / 0.55));
+  }
+  .dark .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(148 163 184 / 0.55), rgb(71 85 105 / 0.45));
+  }
   @keyframes ga4-indeterminate {
     0% {
       transform: translateX(-100%);
@@ -1388,6 +1429,100 @@
     // Diğer kod initGa4Tables çağırmaya devam edebilir, işlem yok.
   }
 
+  function ga4DownsampleSparkSeries(values, target) {
+    if (!values || !values.length) {
+      return [];
+    }
+    if (values.length <= target) {
+      return values.map(function (v) {
+        return parseFloat(v || 0) || 0;
+      });
+    }
+    var out = [];
+    var step = values.length / target;
+    for (var i = 0; i < target; i++) {
+      var start = Math.floor(i * step);
+      var end = Math.min(values.length, Math.floor((i + 1) * step));
+      var sum = 0;
+      var n = 0;
+      for (var j = start; j < end; j++) {
+        sum += parseFloat(values[j] || 0) || 0;
+        n += 1;
+      }
+      out.push(n ? sum / n : 0);
+    }
+    return out;
+  }
+
+  function renderGa4KpiSparks(root) {
+    (root || document).querySelectorAll('[data-ga4-kpi-row][data-ga4-daily-trend]').forEach(function (row) {
+      if (row.closest('.hidden')) {
+        return;
+      }
+      var trendRaw = row.getAttribute('data-ga4-daily-trend') || '{}';
+      var trend;
+      try {
+        trend = JSON.parse(trendRaw);
+      } catch (err) {
+        return;
+      }
+      if (!trend.dates || !trend.dates.length) {
+        return;
+      }
+      row.querySelectorAll('[data-ga4-kpi-spark]').forEach(function (spark) {
+        var key = spark.getAttribute('data-ga4-kpi-spark-key') || 'sessions';
+        var tone = spark.getAttribute('data-ga4-kpi-spark-tone') || 'flat';
+        var sig = trendRaw + '|' + key + '|' + tone;
+        if (spark.dataset.ga4KpiSparkSig === sig && spark.dataset.ga4KpiSparkReady === '1') {
+          return;
+        }
+        var series = trend[key] || [];
+        var sampled = ga4DownsampleSparkSeries(series, 32);
+        if (!sampled.length) {
+          spark.textContent = '';
+          spark.classList.remove('ga4-kpi-spark--tone-up', 'ga4-kpi-spark--tone-down', 'ga4-kpi-spark--tone-flat');
+          spark.dataset.ga4KpiSparkReady = '0';
+          return;
+        }
+        var max = 0;
+        sampled.forEach(function (v) {
+          if (v > max) {
+            max = v;
+          }
+        });
+        if (max <= 0) {
+          max = 1;
+        }
+        spark.classList.remove('ga4-kpi-spark--tone-up', 'ga4-kpi-spark--tone-down', 'ga4-kpi-spark--tone-flat');
+        spark.classList.add(
+          tone === 'up' ? 'ga4-kpi-spark--tone-up' : tone === 'down' ? 'ga4-kpi-spark--tone-down' : 'ga4-kpi-spark--tone-flat'
+        );
+        var bars = document.createElement('div');
+        bars.className = 'ga4-kpi-spark__bars';
+        bars.setAttribute('aria-hidden', 'true');
+        sampled.forEach(function (v) {
+          var bar = document.createElement('span');
+          bar.className = 'ga4-kpi-spark__bar';
+          var pct = Math.max(8, Math.min(100, (v / max) * 100));
+          bar.style.setProperty('--ga4-spark-h', '4%');
+          bar.dataset.ga4SparkTarget = String(pct);
+          bars.appendChild(bar);
+        });
+        spark.textContent = '';
+        spark.appendChild(bars);
+        spark.dataset.ga4KpiSparkSig = sig;
+        spark.dataset.ga4KpiSparkReady = '1';
+        window.requestAnimationFrame(function () {
+          bars.querySelectorAll('.ga4-kpi-spark__bar').forEach(function (bar, idx) {
+            window.setTimeout(function () {
+              bar.style.setProperty('--ga4-spark-h', bar.dataset.ga4SparkTarget + '%');
+            }, 12 + idx * 6);
+          });
+        });
+      });
+    });
+  }
+
   function renderGa4TrendCharts(root) {
     (root || document).querySelectorAll('[data-ga4-kpi-trend]').forEach(function (element) {
       if (element.closest('.hidden')) {
@@ -1751,6 +1886,7 @@
         window.setTimeout(function () {
           initGa4Tables(card || document);
           fitGa4Text(card || document);
+          renderGa4KpiSparks(card || document);
           renderGa4TrendCharts(card || document);
         }, 40);
       };
@@ -1897,6 +2033,7 @@
         window.setTimeout(function () {
           initGa4Tables(hostCard || document);
           fitGa4Text(hostCard || document);
+          renderGa4KpiSparks(hostCard || document);
           renderGa4TrendCharts(hostCard || document);
         }, 40);
       };
@@ -1946,6 +2083,7 @@
             // (özellikle refresh-all sonrası innerHTML swap). Aktif panel için otomatik tetikle.
             triggerGa4Load(panel);
             fitGa4Text(panel);
+            renderGa4KpiSparks(panel);
             renderGa4TrendCharts(panel);
           }, 60);
         }
@@ -2021,6 +2159,7 @@
     window.setTimeout(function () {
       initGa4Tables(grid);
       fitGa4Text(grid);
+      renderGa4KpiSparks(grid);
       renderGa4TrendCharts(grid);
       grid.querySelectorAll('.overflow-x-auto').forEach(function (wrap) {
         wrap.scrollLeft = 0;
@@ -2174,6 +2313,7 @@
     bindGa4SiteRefreshButtons(root);
     window.requestAnimationFrame(function () {
       fitGa4Text(root);
+      renderGa4KpiSparks(root);
       renderGa4TrendCharts(root);
     });
     mountGa4GlobalFilters();
@@ -2183,6 +2323,7 @@
   window.addEventListener('resize', function () {
     window.requestAnimationFrame(function () {
       fitGa4Text(document);
+      renderGa4KpiSparks(document);
       renderGa4TrendCharts(document);
     });
     if (_ga4FilterMountResizeTimer) window.clearTimeout(_ga4FilterMountResizeTimer);
@@ -2344,6 +2485,7 @@
         try { Plotly.purge(el); } catch (_) { /* ignore */ }
       }
     });
+    renderGa4KpiSparks(document);
     renderGa4TrendCharts(document);
   }
 

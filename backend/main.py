@@ -10825,6 +10825,9 @@ def _ga4_profile_payload_for_same_weekday_day(
             "activeUsers": [],
             "engagedSessions": [],
             "engagementRate": [],
+            "newUsers": [],
+            "screenPageViews": [],
+            "averageSessionDuration": [],
         }
 
     return {

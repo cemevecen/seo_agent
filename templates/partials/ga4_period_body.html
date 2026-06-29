@@ -82,10 +82,12 @@
 {% set avg_session_pct_class = pct_cls(asp) | trim %}
 {% set pageviews_pct_class = pct_cls(pvp) | trim %}
 
-{# GA4 KPI: SC kartlarına benzer dikey blok; auto-fit ile sarmalanır, truncate yok #}
-{% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, alt_bg=False) %}
+{% set dt = p.daily_trend | default({}) %}
+
+{# GA4 KPI: SC kartlarına benzer dikey blok + günlük mini spark #}
+{% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, spark_key, spark_tone, alt_bg=False) %}
   {% set card_bg = 'bg-slate-50/80 dark:bg-slate-900/55' if alt_bg else 'bg-white dark:bg-slate-900' %}
-  <article class="ga4-kpi-card flex min-h-[13rem] min-w-0 flex-col justify-between gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 {{ card_bg }} p-3 sm:min-h-[14rem] sm:p-4">
+  <article class="ga4-kpi-card flex min-h-[11.5rem] min-w-0 flex-col justify-between gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 {{ card_bg }} p-3 sm:min-h-[12rem] sm:p-4">
     <p lang="en" class="min-h-[2.75em] shrink-0 text-xl font-semibold leading-tight tracking-wide sm:min-h-[2.5em] sm:text-[22px] sm:tracking-[0.12em] {{ label_tone }}">{{ label }}</p>
     <div class="min-w-0 flex flex-col gap-1.5">
       <p
@@ -96,26 +98,33 @@
       >{{ pct_signed }}%</p>
       <p class="min-w-0 break-words text-center text-xs font-semibold tabular-nums leading-snug text-slate-800 dark:text-slate-100 sm:text-left sm:text-sm">{{ main_line }}</p>
     </div>
-    <div class="mt-1 shrink-0 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+    <div
+      class="ga4-kpi-spark mt-1 shrink-0"
+      data-ga4-kpi-spark
+      data-ga4-kpi-spark-key="{{ spark_key }}"
+      data-ga4-kpi-spark-tone="{{ spark_tone }}"
+      role="img"
+      aria-label="{{ label }} günlük trend"
+    ></div>
+    <div class="mt-1 shrink-0 border-t border-slate-100 pt-2 dark:border-slate-800">
       <p class="min-w-0 break-words text-center text-[10px] font-medium leading-snug text-slate-500 dark:text-slate-400 sm:text-left sm:text-[11px]">{{ prev_line }}</p>
     </div>
   </article>
 {% endmacro %}
 
-<div class="w-full min-w-0" data-ga4-kpi-row>
+<div class="w-full min-w-0" data-ga4-kpi-row {% if dt.dates and dt.dates|length > 0 %}data-ga4-daily-trend='{{ dt | tojson }}'{% endif %}>
   <div
     class="ga4-kpi-grid grid w-full min-w-0 gap-2.5 sm:gap-3 md:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.25rem),1fr))]"
   >
-    {{ ga4_kpi_card('SESSIONS', 'text-slate-600 dark:text-slate-300', sessions_pct_class, p.sessions_pct_change | signed_pct_tr, p.last_total | tr_int, 'prev: ' ~ (p.prev_total | tr_int), false) }}
-    {{ ga4_kpi_card('USERS', 'text-slate-600 dark:text-slate-300', users_pct_class, p.users_pct_change | signed_pct_tr, p.users_last | tr_int, 'prev: ' ~ (p.users_prev | tr_int), false) }}
-    {{ ga4_kpi_card('ENGAGED SESSIONS', 'text-slate-600 dark:text-slate-300', engaged_pct_class, p.engaged_pct_change | signed_pct_tr, p.engaged_last | tr_int, 'prev: ' ~ (p.engaged_prev | tr_int), false) }}
-    {{ ga4_kpi_card('NEW USERS', 'text-slate-600 dark:text-slate-300', new_users_pct_class, p.new_users_pct_change | signed_pct_tr, p.new_users_last | tr_int, 'prev: ' ~ (p.new_users_prev | tr_int), true) }}
-    {{ ga4_kpi_card('AVG. SESSION', 'text-slate-600 dark:text-slate-300', avg_session_pct_class, p.avg_session_pct_change | signed_pct_tr, (p.avg_session_last_sec | default(0) | int | tr_int) ~ ' s', 'prev: ' ~ (p.avg_session_prev_sec | default(0) | int | tr_int) ~ ' s', true) }}
-    {{ ga4_kpi_card('PAGE VIEWS', 'text-slate-600 dark:text-slate-300', pageviews_pct_class, p.pageviews_pct_change | signed_pct_tr, p.pageviews_last | tr_int, 'prev: ' ~ (p.pageviews_prev | tr_int), true) }}
+    {{ ga4_kpi_card('SESSIONS', 'text-slate-600 dark:text-slate-300', sessions_pct_class, p.sessions_pct_change | signed_pct_tr, p.last_total | tr_int, 'prev: ' ~ (p.prev_total | tr_int), 'sessions', 'down' if sp < 0 else ('up' if sp > 0 else 'flat'), false) }}
+    {{ ga4_kpi_card('USERS', 'text-slate-600 dark:text-slate-300', users_pct_class, p.users_pct_change | signed_pct_tr, p.users_last | tr_int, 'prev: ' ~ (p.users_prev | tr_int), 'activeUsers', 'down' if up < 0 else ('up' if up > 0 else 'flat'), false) }}
+    {{ ga4_kpi_card('ENGAGED SESSIONS', 'text-slate-600 dark:text-slate-300', engaged_pct_class, p.engaged_pct_change | signed_pct_tr, p.engaged_last | tr_int, 'prev: ' ~ (p.engaged_prev | tr_int), 'engagedSessions', 'down' if ep < 0 else ('up' if ep > 0 else 'flat'), false) }}
+    {{ ga4_kpi_card('NEW USERS', 'text-slate-600 dark:text-slate-300', new_users_pct_class, p.new_users_pct_change | signed_pct_tr, p.new_users_last | tr_int, 'prev: ' ~ (p.new_users_prev | tr_int), 'newUsers', 'down' if nup < 0 else ('up' if nup > 0 else 'flat'), true) }}
+    {{ ga4_kpi_card('AVG. SESSION', 'text-slate-600 dark:text-slate-300', avg_session_pct_class, p.avg_session_pct_change | signed_pct_tr, (p.avg_session_last_sec | default(0) | int | tr_int) ~ ' s', 'prev: ' ~ (p.avg_session_prev_sec | default(0) | int | tr_int) ~ ' s', 'averageSessionDuration', 'down' if asp < 0 else ('up' if asp > 0 else 'flat'), true) }}
+    {{ ga4_kpi_card('PAGE VIEWS', 'text-slate-600 dark:text-slate-300', pageviews_pct_class, p.pageviews_pct_change | signed_pct_tr, p.pageviews_last | tr_int, 'prev: ' ~ (p.pageviews_prev | tr_int), 'screenPageViews', 'down' if pvp < 0 else ('up' if pvp > 0 else 'flat'), true) }}
   </div>
 </div>
 
-{% set dt = p.daily_trend | default({}) %}
 {% if _has_period %}
   {% if dt.dates and dt.dates|length > 0 %}
   <div

@@ -15,7 +15,16 @@ from backend.services.ga4_auth import get_ga4_credentials_record
 
 LOGGER = logging.getLogger(__name__)
 
-_SERIES_KEYS = ("dates", "sessions", "activeUsers", "engagedSessions", "engagementRate")
+_SERIES_KEYS = (
+    "dates",
+    "sessions",
+    "activeUsers",
+    "engagedSessions",
+    "engagementRate",
+    "newUsers",
+    "screenPageViews",
+    "averageSessionDuration",
+)
 _FETCH_CACHE_TTL_SEC = 20 * 60
 _fetch_cache: dict[tuple, tuple[float, dict[str, Any]]] = {}
 
@@ -42,9 +51,25 @@ def merge_ga4_daily_trends(base: dict[str, Any] | None, extra: dict[str, Any] | 
                 continue
             row = by_date.setdefault(
                 d,
-                {"sessions": 0.0, "activeUsers": 0.0, "engagedSessions": 0.0, "engagementRate": 0.0},
+                {
+                    "sessions": 0.0,
+                    "activeUsers": 0.0,
+                    "engagedSessions": 0.0,
+                    "engagementRate": 0.0,
+                    "newUsers": 0.0,
+                    "screenPageViews": 0.0,
+                    "averageSessionDuration": 0.0,
+                },
             )
-            for key in ("sessions", "activeUsers", "engagedSessions", "engagementRate"):
+            for key in (
+                "sessions",
+                "activeUsers",
+                "engagedSessions",
+                "engagementRate",
+                "newUsers",
+                "screenPageViews",
+                "averageSessionDuration",
+            ):
                 arr = src.get(key) or []
                 if i < len(arr):
                     row[key] = float(arr[i] or 0)
@@ -61,6 +86,9 @@ def merge_ga4_daily_trends(base: dict[str, Any] | None, extra: dict[str, Any] | 
         out["activeUsers"].append(row["activeUsers"])
         out["engagedSessions"].append(row["engagedSessions"])
         out["engagementRate"].append(row["engagementRate"])
+        out["newUsers"].append(row["newUsers"])
+        out["screenPageViews"].append(row["screenPageViews"])
+        out["averageSessionDuration"].append(row["averageSessionDuration"])
     return out
 
 
