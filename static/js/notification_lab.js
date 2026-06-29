@@ -53,30 +53,64 @@
   }
 
   var chronoRevealObs = null;
+  var chronoRevealScrollBound = false;
 
-  function bindChronoReveal(scrollRoot) {
+  function revealChronoNode(node) {
+    if (!node || node.classList.contains("is-revealed")) return;
+    node.classList.add("is-revealed");
+    if (node.classList.contains("nt-lab-chrono-day-gap")) {
+      var next = node.nextElementSibling;
+      if (next && next.classList.contains("nt-lab-chrono-item")) revealChronoNode(next);
+    }
+  }
+
+  function flushChronoRevealInView(container) {
+    if (!container) return;
+    var margin = 120;
+    var vh = window.innerHeight || document.documentElement.clientHeight || 800;
+    var viewTop = -margin;
+    var viewBottom = vh + margin;
+    container.querySelectorAll(".nt-lab-chrono-item:not(.is-revealed)").forEach(function (node) {
+      var r = node.getBoundingClientRect();
+      if (r.bottom >= viewTop && r.top <= viewBottom) revealChronoNode(node);
+    });
+    container.querySelectorAll(".nt-lab-chrono-day-gap:not(.is-revealed)").forEach(function (node) {
+      var r = node.getBoundingClientRect();
+      if (r.bottom >= viewTop && r.top <= viewBottom) revealChronoNode(node);
+    });
+  }
+
+  function bindChronoReveal(container) {
     if (chronoRevealObs) {
       chronoRevealObs.disconnect();
       chronoRevealObs = null;
     }
-    var items = scrollRoot.querySelectorAll(".nt-lab-chrono-item:not(.is-revealed)");
-    if (!items.length) return;
+    var pending = container.querySelectorAll(".nt-lab-chrono-item:not(.is-revealed), .nt-lab-chrono-day-gap:not(.is-revealed)");
+    if (!pending.length) return;
     if (typeof IntersectionObserver === "undefined") {
-      items.forEach(function (node) { node.classList.add("is-revealed"); });
+      pending.forEach(function (node) { revealChronoNode(node); });
       return;
     }
     chronoRevealObs = new IntersectionObserver(
       function (entries) {
         entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-revealed");
-            chronoRevealObs.unobserve(entry.target);
-          }
+          if (entry.isIntersecting) revealChronoNode(entry.target);
         });
       },
-      { root: scrollRoot, rootMargin: "0px 0px -8% 0px", threshold: 0.12 }
+      { root: null, rootMargin: "0px 0px 160px 0px", threshold: 0 }
     );
-    items.forEach(function (node) { chronoRevealObs.observe(node); });
+    pending.forEach(function (node) { chronoRevealObs.observe(node); });
+    flushChronoRevealInView(container);
+    requestAnimationFrame(function () { flushChronoRevealInView(container); });
+    if (!chronoRevealScrollBound) {
+      chronoRevealScrollBound = true;
+      var onScroll = function () {
+        var root = document.getElementById("nt-lab-dna-chrono");
+        if (root) flushChronoRevealInView(root);
+      };
+      window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+    }
   }
 
   function renderDnaChronology(nt, rows) {

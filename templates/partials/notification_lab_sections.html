@@ -15,7 +15,7 @@
       <span class="inline-flex items-center gap-1"><span class="nt-lab-legend-swatch nt-lab-dna-seg-desktop"></span> Web</span>
       <span class="inline-flex items-center gap-1"><span class="nt-lab-legend-swatch nt-lab-dna-seg-mweb"></span> MWeb</span>
     </div>
-    <div id="nt-lab-dna-chrono" class="nt-lab-dna-chrono-scroll mt-4 max-h-[min(70vh,720px)] overflow-y-auto pr-1 text-xs"></div>
+    <div id="nt-lab-dna-chrono" class="nt-lab-dna-chrono-scroll mt-4 text-xs"></div>
     <p id="nt-lab-dna-hint" class="mt-2 text-[10px] text-slate-500 dark:text-slate-500"></p>
   </div>
 
@@ -105,6 +105,17 @@
       padding-bottom: 1rem;
     }
     .notification-page .nt-lab-chrono-day-gap {
+      opacity: 0;
+      max-height: 0;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      border: none;
+      transition: opacity 0.35s ease, max-height 0.35s ease, margin 0.35s ease, padding 0.35s ease;
+    }
+    .notification-page .nt-lab-chrono-day-gap.is-revealed {
+      opacity: 1;
+      max-height: 4rem;
       margin-top: 0.75rem;
       padding-top: 0.5rem;
       border-top: 1px dashed rgb(226 232 240);
@@ -114,7 +125,7 @@
       text-transform: uppercase;
       color: rgb(100 116 139);
     }
-    html.dark .notification-page .nt-lab-chrono-day-gap {
+    html.dark .notification-page .nt-lab-chrono-day-gap.is-revealed {
       border-top-color: rgb(63 63 70);
       color: rgb(161 161 170);
     }
