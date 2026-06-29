@@ -1702,6 +1702,19 @@
     #theme-pill {
       pointer-events: none;
     }
+    #theme-switcher .theme-icon {
+      display: block;
+      width: 1.125rem;
+      height: 1.125rem;
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+    @media (min-width: 640px) {
+      #theme-switcher .theme-icon {
+        width: 1rem;
+        height: 1rem;
+      }
+    }
     .header-nav-link {
       flex: none;
       width: auto;
@@ -1928,11 +1941,51 @@
                 aria-label="Tema seçimi"
               >
                 <span id="theme-pill" class="absolute h-6 rounded-full bg-white shadow-md transition-all duration-300 ease-out dark:bg-zinc-600/90" style="top:2px;left:2px;width:28px"></span>
-                <button type="button" role="radio" aria-checked="false" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none text-amber-500 dark:text-amber-400/70 sm:w-7" title="Açık" aria-label="Açık tema">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>
+                <button type="button" role="radio" aria-checked="false" data-theme-value="light" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none sm:w-7" title="Açık" aria-label="Açık tema">
+                  <svg class="theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <defs>
+                      <radialGradient id="seo-theme-sun-core" cx="42%" cy="38%" r="58%">
+                        <stop offset="0%" stop-color="#FFF9C4"/>
+                        <stop offset="45%" stop-color="#FCD34D"/>
+                        <stop offset="85%" stop-color="#F59E0B"/>
+                        <stop offset="100%" stop-color="#EA580C"/>
+                      </radialGradient>
+                    </defs>
+                    <g stroke="#F59E0B" stroke-width="1.35" stroke-linecap="round">
+                      <line x1="12" y1="2.2" x2="12" y2="5.2"/>
+                      <line x1="12" y1="18.8" x2="12" y2="21.8"/>
+                      <line x1="2.2" y1="12" x2="5.2" y2="12"/>
+                      <line x1="18.8" y1="12" x2="21.8" y2="12"/>
+                      <line x1="5.05" y1="5.05" x2="7.15" y2="7.15"/>
+                      <line x1="16.85" y1="16.85" x2="18.95" y2="18.95"/>
+                      <line x1="18.95" y1="5.05" x2="16.85" y2="7.15"/>
+                      <line x1="7.15" y1="16.85" x2="5.05" y2="18.95"/>
+                    </g>
+                    <circle cx="12" cy="12" r="5.35" fill="url(#seo-theme-sun-core)"/>
+                    <circle cx="10.1" cy="10.2" r="1.65" fill="#FEF3C7" opacity="0.55"/>
+                  </svg>
                 </button>
-                <button type="button" role="radio" aria-checked="false" data-theme-value="midnight" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none text-slate-400 dark:text-slate-300 sm:w-7" title="Midnight — true black" aria-label="Midnight tema">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+                <button type="button" role="radio" aria-checked="false" data-theme-value="midnight" class="theme-btn relative z-10 flex h-6 w-8 items-center justify-center rounded-full transition-colors focus:outline-none sm:w-7" title="Midnight — true black" aria-label="Midnight tema">
+                  <svg class="theme-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <defs>
+                      <radialGradient id="seo-theme-moon-lit" cx="38%" cy="35%" r="65%">
+                        <stop offset="0%" stop-color="#FAFAFA"/>
+                        <stop offset="55%" stop-color="#D4D4D8"/>
+                        <stop offset="100%" stop-color="#71717A"/>
+                      </radialGradient>
+                      <radialGradient id="seo-theme-moon-shade" cx="72%" cy="68%" r="45%">
+                        <stop offset="0%" stop-color="#3F3F46" stop-opacity="0.45"/>
+                        <stop offset="100%" stop-color="#18181B" stop-opacity="0"/>
+                      </radialGradient>
+                    </defs>
+                    <circle cx="12" cy="12" r="6.85" fill="url(#seo-theme-moon-lit)"/>
+                    <circle cx="12" cy="12" r="6.85" fill="url(#seo-theme-moon-shade)"/>
+                    <circle cx="9.1" cy="10.4" r="1.05" fill="#A1A1AA" opacity="0.35"/>
+                    <circle cx="13.8" cy="9.2" r="0.75" fill="#A1A1AA" opacity="0.28"/>
+                    <circle cx="14.6" cy="13.5" r="1.25" fill="#71717A" opacity="0.32"/>
+                    <circle cx="10.2" cy="14.8" r="0.65" fill="#A1A1AA" opacity="0.25"/>
+                    <ellipse cx="8.8" cy="12.5" rx="0.9" ry="0.55" fill="#E4E4E7" opacity="0.4"/>
+                  </svg>
                 </button>
               </div>
               </div>
