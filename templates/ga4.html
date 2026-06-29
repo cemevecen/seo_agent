@@ -1529,7 +1529,7 @@
               autosize: true,
               margin: {
                 l: 56,
-                r: hasScPos ? 72 : 56,
+                r: Math.min(hasScPos ? 72 : 56, Math.max(44, Math.round(chartW * 0.1))),
                 t: compactLeg ? compactLeg.marginTop : 16,
                 b: isLongDaily ? 110 : 88,
               },
@@ -1581,6 +1581,7 @@
                     zeroline: false,
                     automargin: true,
                     showgrid: false,
+                    nticks: 5,
                   },
               hovermode: 'x unified',
             };
@@ -1647,7 +1648,7 @@
               return;
             }
             return AppEmpowerOverlay.apply(traces, layoutObj, trend.dates, empowerPlat, empowerKeys, {
-              marginRight: 72,
+              marginRight: Math.min(56, Math.max(44, Math.round(chartW * 0.1))),
               chartWidth: chartW,
             });
           });

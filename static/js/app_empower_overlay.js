@@ -174,6 +174,45 @@
     return n ? "yaxis" + n : "yaxis";
   }
 
+  function applyResponsiveMarginRight(layout, opts) {
+    var m = layout.margin || { l: 52, r: 52, t: 20, b: 56 };
+    var w = opts.chartWidth;
+    if (!w && typeof global.innerWidth === "number") {
+      w = global.innerWidth;
+    }
+    w = w || 640;
+    var base = opts.marginRight != null ? opts.marginRight : 56;
+    var capped = Math.min(base, Math.max(40, Math.round(w * 0.1)));
+    layout.margin = Object.assign({}, m, { r: Math.max(m.r || 12, capped) });
+  }
+
+  function hiddenOverlayYaxisLayout() {
+    return {
+      overlaying: "y",
+      side: "right",
+      showgrid: false,
+      zeroline: false,
+      automargin: false,
+      showticklabels: false,
+      showline: false,
+      ticks: "",
+      title: { text: "" },
+    };
+  }
+
+  function visibleEmpowerYaxisLayout(lineColor) {
+    return {
+      title: { text: "Empower", font: { size: 10, color: lineColor } },
+      tickfont: { size: 10, color: lineColor },
+      overlaying: "y",
+      side: "right",
+      showgrid: false,
+      zeroline: false,
+      automargin: true,
+      nticks: 5,
+    };
+  }
+
   function apply(traces, layout, dateKeys, platform, overlayKeys, opts) {
     var keys = overlayKeys || [];
     if (!keys.length || !platform || !dateKeys || !dateKeys.length || !traces || !layout) {
@@ -187,7 +226,7 @@
         var series = (payload && payload.series) || {};
         var added = false;
         var colorIdx = 0;
-        var empowerTraceCount = 0;
+        var empowerAxisCount = 0;
         keys.forEach(function (sk) {
           var block = series[sk];
           if (!block) return;
@@ -199,9 +238,10 @@
           if (!ys.some(function (v) { return v != null; })) return;
           var lineColor = SERIES_COLORS[colorIdx % SERIES_COLORS.length];
           colorIdx += 1;
-          var traceYaxis = opts.yaxisId || pickFreeYaxisId(layout, traces);
+          var traceYaxis = pickFreeYaxisId(layout, traces);
           var layoutKey = layoutKeyForYaxis(traceYaxis);
           var axisTitle = block.label || sk;
+          var showAxisChrome = empowerAxisCount === 0;
           traces.push({
             x: dateKeys,
             y: ys,
@@ -212,27 +252,17 @@
             yaxis: traceYaxis,
             line: { color: lineColor, width: 2 },
             connectgaps: false,
+            hovertemplate: axisTitle + ": %{y:,.4~g}<extra></extra>",
           });
-          empowerTraceCount += 1;
+          empowerAxisCount += 1;
           layout[layoutKey] = Object.assign(
-            {
-              title: { text: axisTitle, font: { size: 10, color: lineColor } },
-              tickfont: { size: 10, color: lineColor },
-              overlaying: "y",
-              side: "right",
-              showgrid: false,
-              zeroline: false,
-              automargin: true,
-            },
+            showAxisChrome ? visibleEmpowerYaxisLayout(lineColor) : hiddenOverlayYaxisLayout(),
             layout[layoutKey] || {}
           );
           added = true;
         });
         if (!added) return false;
-        var m = layout.margin || { l: 52, r: 52, t: 20, b: 56 };
-        var baseR = opts.marginRight != null ? opts.marginRight : 72;
-        var bump = Math.max(0, empowerTraceCount - 1) * 44;
-        layout.margin = Object.assign({}, m, { r: Math.max(m.r || 12, baseR + bump) });
+        applyResponsiveMarginRight(layout, opts);
         layout.showlegend = true;
         return true;
       })
