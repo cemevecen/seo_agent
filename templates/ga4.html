@@ -58,6 +58,14 @@
   .ga4-kpi-spark__bars--dense {
     gap: 0;
   }
+  .ga4-kpi-spark__bars--fill {
+    justify-content: stretch;
+  }
+  .ga4-kpi-spark__bars--fill .ga4-kpi-spark__bar {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
   .ga4-kpi-spark__bar {
     flex: 1 1 0;
     min-width: 1px;
@@ -68,14 +76,17 @@
     transition: height 0.62s cubic-bezier(0.22, 1, 0.36, 1);
     opacity: 0.9;
   }
+  .ga4-kpi-spark__bars--dense .ga4-kpi-spark__bar {
+    flex: 1 1 0;
+    min-width: 1px;
+    max-width: 5px;
+  }
   @media (min-width: 480px) {
     .ga4-kpi-spark__bar {
       min-width: 2px;
     }
-  }
-  @media (min-width: 1024px) {
-    .ga4-kpi-spark__bars:not(.ga4-kpi-spark__bars--dense) .ga4-kpi-spark__bar {
-      max-width: 7px;
+    .ga4-kpi-spark__bars--dense .ga4-kpi-spark__bar {
+      max-width: 6px;
     }
   }
   .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
@@ -1488,6 +1499,17 @@
     return n > 0 ? n : 7;
   }
 
+  function ga4SparkBarsLayoutClass(barCount) {
+    var n = parseInt(barCount, 10) || 0;
+    if (n > 45) {
+      return 'ga4-kpi-spark__bars--dense';
+    }
+    if (n > 0 && n <= 31) {
+      return 'ga4-kpi-spark__bars--fill';
+    }
+    return '';
+  }
+
   function ga4SparkVisibleBarCount(sparkEl, periodDays, seriesLen) {
     var len = Math.max(0, parseInt(seriesLen, 10) || 0);
     if (!len) {
@@ -1495,13 +1517,17 @@
     }
     var pd = Math.max(1, parseInt(periodDays, 10) || len);
     var want = Math.min(len, pd);
+    /* Kısa dönemler (7g vb.): her gün bir çubuk, genişlik flex ile dolar */
+    if (want <= 31) {
+      return want;
+    }
     var w = sparkEl && sparkEl.clientWidth ? sparkEl.clientWidth : 0;
     if (w < 8) {
       return want;
     }
     var minBar = w < 120 ? 2 : w < 180 ? 2.5 : 3;
     var gap = 1;
-    var fit = Math.max(4, Math.floor((w + gap) / (minBar + gap)));
+    var fit = Math.max(8, Math.floor((w + gap) / (minBar + gap)));
     return Math.min(want, fit);
   }
 
@@ -1543,8 +1569,9 @@
     spark.classList.add('ga4-kpi-spark--placeholder', ga4SparkToneClass(tone));
     var bars = document.createElement('div');
     bars.className = 'ga4-kpi-spark__bars';
-    if (n > 45) {
-      bars.classList.add('ga4-kpi-spark__bars--dense');
+    var layoutCls = ga4SparkBarsLayoutClass(n);
+    if (layoutCls) {
+      bars.classList.add(layoutCls);
     }
     bars.setAttribute('aria-hidden', 'true');
     for (var i = 0; i < n; i++) {
@@ -1628,8 +1655,9 @@
         spark.classList.add(ga4SparkToneClass(tone));
         var bars = document.createElement('div');
         bars.className = 'ga4-kpi-spark__bars';
-        if (sampled.length > 45) {
-          bars.classList.add('ga4-kpi-spark__bars--dense');
+        var layoutCls = ga4SparkBarsLayoutClass(sampled.length);
+        if (layoutCls) {
+          bars.classList.add(layoutCls);
         }
         bars.setAttribute('aria-hidden', 'true');
         var animStep = sampled.length > 60 ? 2 : sampled.length > 30 ? 3 : 4;
