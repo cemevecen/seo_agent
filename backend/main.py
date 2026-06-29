@@ -10817,18 +10817,12 @@ def _ga4_profile_payload_for_same_weekday_day(
     # Grafik: 7g snapshot ile aynı günlük seri (2 noktalı WoW çizgisi yanıltıcı oluyordu)
     _dt = pl.get("daily_trend") if isinstance(pl.get("daily_trend"), dict) else {}
     if _dt.get("dates"):
-        daily_trend = _dt
+        daily_trend, daily_trend_spark = _ga4_daily_trends_for_ui(
+            db, site_id=site_id, profile=profile, period_daily=_dt
+        )
     else:
-        daily_trend = {
-            "dates": [],
-            "sessions": [],
-            "activeUsers": [],
-            "engagedSessions": [],
-            "engagementRate": [],
-            "newUsers": [],
-            "screenPageViews": [],
-            "averageSessionDuration": [],
-        }
+        daily_trend = _ga4_empty_daily_trend_dict()
+        daily_trend_spark = _ga4_empty_daily_trend_dict()
 
     return {
         "property_id": prop_id,
@@ -10878,6 +10872,7 @@ def _ga4_profile_payload_for_same_weekday_day(
         "pages_news": _enrich_ga4_page_rows(pl.get("pages_news"), keep_news_articles=True),
         "sources": pl.get("sources") or [],
         "daily_trend": daily_trend,
+        "daily_trend_spark": daily_trend_spark,
         "same_weekday_kpi": swk,
         "has_snapshot": bool(snap_ref),
         "has_period_data": True,
@@ -10893,6 +10888,116 @@ def _ga4_trend_has_signal(daily_trend: dict) -> bool:
             except (TypeError, ValueError):
                 continue
     return False
+
+
+_GA4_DAILY_TREND_METRICS = (
+    "sessions",
+    "activeUsers",
+    "engagedSessions",
+    "engagementRate",
+    "newUsers",
+    "screenPageViews",
+    "averageSessionDuration",
+)
+
+_GA4_KPI_SPARK_DAYS = 14
+
+
+def _ga4_empty_daily_trend_dict() -> dict:
+    return {k: [] for k in ("dates", *_GA4_DAILY_TREND_METRICS)}
+
+
+def _ga4_align_daily_trend(daily: dict | None) -> dict:
+    src = daily if isinstance(daily, dict) else {}
+    dates = [str(d)[:10] for d in (src.get("dates") or []) if d]
+    n = len(dates)
+    out: dict = {"dates": dates}
+    if src.get("mode"):
+        out["mode"] = src["mode"]
+    for key in _GA4_DAILY_TREND_METRICS:
+        raw = list(src.get(key) or [])
+        if len(raw) < n:
+            raw = raw + [0.0] * (n - len(raw))
+        elif len(raw) > n:
+            raw = raw[:n]
+        out[key] = [float(v or 0) for v in raw]
+    return out
+
+
+def _ga4_daily_series_has_signal(arr: list) -> bool:
+    for value in arr or []:
+        try:
+            if float(value or 0) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def _ga4_fill_daily_trend_from_source(
+    base: dict,
+    source: dict,
+    *,
+    keys: tuple[str, ...] = _GA4_DAILY_TREND_METRICS,
+) -> dict:
+    """Tarih eşlemesiyle base'de sinyalsiz kalan serileri source ile doldurur."""
+    out = _ga4_align_daily_trend(base)
+    src = _ga4_align_daily_trend(source)
+    if not src.get("dates"):
+        return out
+    by_date: dict[str, dict[str, float]] = {}
+    for idx, d in enumerate(src["dates"]):
+        row = by_date.setdefault(d, {})
+        for key in keys:
+            arr = src.get(key) or []
+            row[key] = float(arr[idx] if idx < len(arr) else 0.0)
+    for key in keys:
+        if _ga4_daily_series_has_signal(out.get(key) or []):
+            continue
+        filled: list[float] = []
+        for d in out["dates"]:
+            filled.append(float((by_date.get(d) or {}).get(key, 0.0)))
+        if _ga4_daily_series_has_signal(filled):
+            out[key] = filled
+    return out
+
+
+def _ga4_slice_daily_trend_last_days(daily: dict | None, days: int = _GA4_KPI_SPARK_DAYS) -> dict:
+    aligned = _ga4_align_daily_trend(daily)
+    dates = aligned.get("dates") or []
+    if not dates:
+        return _ga4_empty_daily_trend_dict()
+    n = min(max(int(days), 1), len(dates))
+    start = len(dates) - n
+    out: dict = {"dates": dates[start:]}
+    for key in _GA4_DAILY_TREND_METRICS:
+        arr = aligned.get(key) or []
+        out[key] = list(arr[start:])
+    return out
+
+
+def _ga4_daily_trends_for_ui(
+    db,
+    *,
+    site_id: int,
+    profile: str,
+    period_daily: dict | None,
+) -> tuple[dict, dict]:
+    """Kart spark: son 14 gün; eski snapshot'larda eksik metrikleri 12ay serisinden tamamlar."""
+    period = _ga4_align_daily_trend(period_daily)
+    pd_12m = int(settings.ga4_trend_12m_period_days)
+    long_snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=pd_12m)
+    long_raw = ((long_snap or {}).get("payload") or {}).get("daily_trend") if long_snap else {}
+    long_daily = _ga4_align_daily_trend(long_raw if isinstance(long_raw, dict) else {})
+
+    daily = _ga4_fill_daily_trend_from_source(period, long_daily)
+    spark_base = long_daily if len(long_daily.get("dates") or []) >= _GA4_KPI_SPARK_DAYS else daily
+    if not spark_base.get("dates"):
+        spark_base = daily
+    spark_base = _ga4_fill_daily_trend_from_source(spark_base, daily)
+    spark_base = _ga4_fill_daily_trend_from_source(spark_base, long_daily)
+    spark = _ga4_slice_daily_trend_last_days(spark_base, _GA4_KPI_SPARK_DAYS)
+    return daily, spark
 
 
 _GA4_PROFILE_SC_DEVICE = {"web": "DESKTOP", "mweb": "MOBILE"}
@@ -11286,6 +11391,11 @@ def _ga4_profile_payload_for_period(
         or 0.0
     )
 
+    _period_daily = pl.get("daily_trend") if isinstance(pl.get("daily_trend"), dict) else {}
+    daily_trend, daily_trend_spark = _ga4_daily_trends_for_ui(
+        db, site_id=site_id, profile=profile, period_daily=_period_daily
+    )
+
     return {
         "property_id": prop_id,
         "period_days": pd,
@@ -11323,14 +11433,8 @@ def _ga4_profile_payload_for_period(
         "pages_no_news": _enrich_ga4_page_rows(pl.get("pages_no_news")),
         "pages_news": _enrich_ga4_page_rows(pl.get("pages_news"), keep_news_articles=True),
         "sources": pl.get("sources") or [],
-        "daily_trend": pl.get("daily_trend")
-        or {
-            "dates": [],
-            "sessions": [],
-            "activeUsers": [],
-            "engagedSessions": [],
-            "engagementRate": [],
-        },
+        "daily_trend": daily_trend,
+        "daily_trend_spark": daily_trend_spark,
         "same_weekday_kpi": pl.get("same_weekday_kpi") if isinstance(pl.get("same_weekday_kpi"), dict) else {},
         "has_snapshot": bool(snap),
         "has_period_data": bool(

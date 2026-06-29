@@ -42,6 +42,7 @@
 
 {% if _trend_only %}
 {% set dt = p.daily_trend | default({}) %}
+{% set dt_spark = p.daily_trend_spark | default(dt) %}
 {% if _has_period and dt.dates and dt.dates|length > 0 %}
   <p class="text-sm font-medium leading-snug text-slate-700 dark:text-slate-200">
     Günlük trend — oturum, kullanıcı{% if pk in ('web', 'mweb') %} ve Search Console ortalama pozisyon{% endif %} (engaged / engagement rate legend'den açılabilir)
@@ -83,6 +84,7 @@
 {% set pageviews_pct_class = pct_cls(pvp) | trim %}
 
 {% set dt = p.daily_trend | default({}) %}
+{% set dt_spark = p.daily_trend_spark | default(dt) %}
 
 {# GA4 KPI: SC kartlarına benzer dikey blok + günlük mini spark #}
 {% macro ga4_kpi_card(label, label_tone, pct_class, pct_signed, main_line, prev_line, spark_key, spark_tone, alt_bg=False) %}
@@ -112,7 +114,7 @@
   </article>
 {% endmacro %}
 
-<div class="w-full min-w-0" data-ga4-kpi-row {% if dt.dates and dt.dates|length > 0 %}data-ga4-daily-trend='{{ dt | tojson }}'{% endif %}>
+<div class="w-full min-w-0" data-ga4-kpi-row {% if dt_spark.dates and dt_spark.dates|length > 0 %}data-ga4-daily-trend='{{ dt_spark | tojson }}'{% endif %}>
   <div
     class="ga4-kpi-grid grid w-full min-w-0 gap-2.5 sm:gap-3 md:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.25rem),1fr))]"
   >

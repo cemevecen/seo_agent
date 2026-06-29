@@ -1429,6 +1429,8 @@
     // Diğer kod initGa4Tables çağırmaya devam edebilir, işlem yok.
   }
 
+  var GA4_KPI_SPARK_DAYS = 14;
+
   function ga4DownsampleSparkSeries(values, target) {
     if (!values || !values.length) {
       return [];
@@ -1477,7 +1479,7 @@
           return;
         }
         var series = trend[key] || [];
-        var sampled = ga4DownsampleSparkSeries(series, 32);
+        var sampled = ga4DownsampleSparkSeries(series, GA4_KPI_SPARK_DAYS);
         if (!sampled.length) {
           spark.textContent = '';
           spark.classList.remove('ga4-kpi-spark--tone-up', 'ga4-kpi-spark--tone-down', 'ga4-kpi-spark--tone-flat');
