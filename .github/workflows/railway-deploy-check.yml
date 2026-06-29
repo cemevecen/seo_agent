@@ -1,8 +1,7 @@
 name: Deploy Health Check
 
 on:
-  schedule:
-    - cron: '7 * * * *'
+  # Saatlik runtime mail + LLM çağrısı kapatıldı — yalnızca manuel tetik (deploy FAILED maili).
   workflow_dispatch:
     inputs:
       force_alert:
@@ -329,6 +328,14 @@ jobs:
           IGNORE_PATTERNS = [
               # mailer.py'nin gmail koruması — sistem doğru davranıyor, hata değil
               r"Giden posta alıcıları @nokta\.com dışı bırakıldı",
+              # Uvicorn boot — Railway @level:error altında INFO görünebilir
+              r"^INFO:\s+Started server process",
+              r"^INFO:\s+Waiting for application startup",
+              r"^INFO:\s+Application startup complete",
+              r"^INFO:\s+Uvicorn running on",
+              # GA4 realtime iş kuralları (alarm), deploy hatası değil
+              r"GA4 Realtime ALARM \[",
+              r"Sayfa alarm: top pages API hatası",
           ]
 
           STACK_NOISE_RE = [
@@ -456,17 +463,9 @@ jobs:
                   print(f"[Filter] {ignored_count} whitelisted log satırı atlandı.")
               if recent:
                   collapsed, raw_n = collapse_incidents(recent)
-                  if alert_type != "deploy_failed" and incidents_are_transient_only(collapsed):
-                      print(
-                          f"[Skip] Yalnızca geçici GA4 kota uyarıları ({len(collapsed)} olay, {raw_n} ham satır); mail yok."
-                      )
-                      print("::notice title=Sağlıklı::GA4 kota — deploy sonrası beklenen gürültü, alert yok.")
-                      raise SystemExit(0)
-                  alert_type = "runtime_errors"
-                  alert_lines = collapsed
-                  runtime_raw_count = raw_n
                   print(
-                      f"[Trigger] Çalışma hataları: {raw_n} ham satır → {len(collapsed)} olay (stack/tekrar elendi)."
+                      f"[Info] Deploy SUCCESS — son 60dk log: {raw_n} ham satır → "
+                      f"{len(collapsed)} olay (runtime [Çalışma] maili devre dışı)."
                   )
               else:
                   runtime_raw_count = 0
