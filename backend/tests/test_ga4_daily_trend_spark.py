@@ -80,6 +80,52 @@ def test_daily_trends_for_ui_spark_window(monkeypatch):
         "engagedSessions": [2.0] * 7,
         "engagementRate": [2.0] * 7,
     }
-    _daily, spark = _ga4_daily_trends_for_ui(None, site_id=1, profile="web", period_daily=period)
-    assert len(spark["dates"]) == 30
-    assert spark["newUsers"] == [5.0] * 30
+    _daily, spark = _ga4_daily_trends_for_ui(
+        None, site_id=1, profile="web", period_daily=period, period_days=7
+    )
+    assert len(spark["dates"]) == 7
+    assert spark["newUsers"] == [5.0] * 7
+
+
+def test_daily_trends_for_ui_spark_respects_90d_period(monkeypatch):
+    class _Snap:
+        def __init__(self, payload):
+            self.payload = payload
+
+    long_dates = [f"2026-01-{d:02d}" for d in range(1, 32)]
+    long_payload = {
+        "daily_trend": {
+            "dates": long_dates,
+            "sessions": [1.0] * 31,
+            "activeUsers": [1.0] * 31,
+            "engagedSessions": [1.0] * 31,
+            "engagementRate": [1.0] * 31,
+            "newUsers": [5.0] * 31,
+            "screenPageViews": [9.0] * 31,
+            "averageSessionDuration": [120.0] * 31,
+        }
+    }
+
+    def _fake_snap(db, *, site_id, profile, period_days):
+        if period_days == 365:
+            return {"payload": long_payload}
+        return None
+
+    monkeypatch.setattr("backend.main.settings.ga4_trend_12m_period_days", 365)
+    monkeypatch.setattr("backend.main.get_latest_ga4_report_snapshot", _fake_snap)
+
+    from datetime import date, timedelta
+
+    start = date(2026, 1, 1)
+    period_dates = [(start + timedelta(days=i)).isoformat() for i in range(90)]
+    period = {
+        "dates": period_dates,
+        "sessions": [2.0] * 90,
+        "activeUsers": [2.0] * 90,
+        "engagedSessions": [2.0] * 90,
+        "engagementRate": [2.0] * 90,
+    }
+    _daily, spark = _ga4_daily_trends_for_ui(
+        None, site_id=1, profile="web", period_daily=period, period_days=90
+    )
+    assert len(spark["dates"]) == 90

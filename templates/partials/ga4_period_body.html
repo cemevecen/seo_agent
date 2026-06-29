@@ -114,7 +114,7 @@
   </article>
 {% endmacro %}
 
-<div class="w-full min-w-0" data-ga4-kpi-row data-ga4-daily-trend='{{ dt_spark | tojson }}'>
+<div class="w-full min-w-0" data-ga4-kpi-row data-ga4-spark-period-days="{{ pd }}" data-ga4-daily-trend='{{ dt_spark | tojson }}'>
   <div
     class="ga4-kpi-grid grid w-full min-w-0 gap-2.5 sm:gap-3 md:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.25rem),1fr))]"
   >

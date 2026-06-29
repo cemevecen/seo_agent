@@ -10819,7 +10819,7 @@ def _ga4_profile_payload_for_same_weekday_day(
     _dt = pl.get("daily_trend") if isinstance(pl.get("daily_trend"), dict) else {}
     if _dt.get("dates"):
         daily_trend, daily_trend_spark = _ga4_daily_trends_for_ui(
-            db, site_id=site_id, profile=profile, period_daily=_dt
+            db, site_id=site_id, profile=profile, period_daily=_dt, period_days=1
         )
     else:
         daily_trend = _ga4_empty_daily_trend_dict()
@@ -10901,7 +10901,8 @@ _GA4_DAILY_TREND_METRICS = (
     "averageSessionDuration",
 )
 
-_GA4_KPI_SPARK_DAYS = 30
+def _ga4_spark_period_days(period_days: int) -> int:
+    return max(1, int(period_days) if int(period_days) > 0 else 7)
 
 
 def _ga4_empty_daily_trend_dict() -> dict:
@@ -10963,7 +10964,7 @@ def _ga4_fill_daily_trend_from_source(
     return out
 
 
-def _ga4_slice_daily_trend_last_days(daily: dict | None, days: int = _GA4_KPI_SPARK_DAYS) -> dict:
+def _ga4_slice_daily_trend_last_days(daily: dict | None, days: int) -> dict:
     aligned = _ga4_align_daily_trend(daily)
     dates = aligned.get("dates") or []
     if not dates:
@@ -10983,8 +10984,10 @@ def _ga4_daily_trends_for_ui(
     site_id: int,
     profile: str,
     period_daily: dict | None,
+    period_days: int,
 ) -> tuple[dict, dict]:
-    """Kart spark: son 30 gün; eski snapshot'larda eksik metrikleri 12ay serisinden tamamlar."""
+    """Kart spark: seçili dönem uzunluğu; eksik metrikleri 12ay serisinden tamamlar."""
+    pd = _ga4_spark_period_days(period_days)
     period = _ga4_align_daily_trend(period_daily)
     pd_12m = int(settings.ga4_trend_12m_period_days)
     long_snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=pd_12m)
@@ -10992,12 +10995,14 @@ def _ga4_daily_trends_for_ui(
     long_daily = _ga4_align_daily_trend(long_raw if isinstance(long_raw, dict) else {})
 
     daily = _ga4_fill_daily_trend_from_source(period, long_daily)
-    spark_base = long_daily if long_daily.get("dates") else daily
-    if daily.get("dates") and len(daily["dates"]) > len(spark_base.get("dates") or []):
-        spark_base = daily
-    spark_base = _ga4_fill_daily_trend_from_source(spark_base, daily)
-    spark_base = _ga4_fill_daily_trend_from_source(spark_base, long_daily)
-    spark = _ga4_slice_daily_trend_last_days(spark_base, _GA4_KPI_SPARK_DAYS)
+    spark_merged = _ga4_fill_daily_trend_from_source(long_daily, daily)
+    if len(daily.get("dates") or []) >= len(spark_merged.get("dates") or []):
+        spark_merged = _ga4_fill_daily_trend_from_source(daily, long_daily)
+    n_avail = len(spark_merged.get("dates") or [])
+    if n_avail <= 0:
+        spark = _ga4_empty_daily_trend_dict()
+    else:
+        spark = _ga4_slice_daily_trend_last_days(spark_merged, min(pd, n_avail))
     return daily, spark
 
 
@@ -11394,7 +11399,7 @@ def _ga4_profile_payload_for_period(
 
     _period_daily = pl.get("daily_trend") if isinstance(pl.get("daily_trend"), dict) else {}
     daily_trend, daily_trend_spark = _ga4_daily_trends_for_ui(
-        db, site_id=site_id, profile=profile, period_daily=_period_daily
+        db, site_id=site_id, profile=profile, period_daily=_period_daily, period_days=pd
     )
 
     return {

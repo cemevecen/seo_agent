@@ -55,15 +55,28 @@
     width: 100%;
     height: 100%;
   }
+  .ga4-kpi-spark__bars--dense {
+    gap: 0;
+  }
   .ga4-kpi-spark__bar {
     flex: 1 1 0;
-    min-width: 0;
-    max-width: 6px;
+    min-width: 1px;
+    max-width: none;
     border-radius: 1px 1px 0 0;
     height: var(--ga4-spark-h, 12%);
     transform-origin: bottom center;
     transition: height 0.62s cubic-bezier(0.22, 1, 0.36, 1);
     opacity: 0.9;
+  }
+  @media (min-width: 480px) {
+    .ga4-kpi-spark__bar {
+      min-width: 2px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .ga4-kpi-spark__bars:not(.ga4-kpi-spark__bars--dense) .ga4-kpi-spark__bar {
+      max-width: 7px;
+    }
   }
   .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
     background: linear-gradient(180deg, rgb(52 211 153 / 0.95), rgb(16 185 129 / 0.75));
@@ -1469,7 +1482,35 @@
     // Diğer kod initGa4Tables çağırmaya devam edebilir, işlem yok.
   }
 
-  var GA4_KPI_SPARK_DAYS = 30;
+  function ga4SparkPeriodDays(row) {
+    var raw = row && row.getAttribute('data-ga4-spark-period-days');
+    var n = parseInt(raw || '0', 10);
+    return n > 0 ? n : 7;
+  }
+
+  function ga4SparkVisibleBarCount(sparkEl, periodDays, seriesLen) {
+    var len = Math.max(0, parseInt(seriesLen, 10) || 0);
+    if (!len) {
+      return 0;
+    }
+    var pd = Math.max(1, parseInt(periodDays, 10) || len);
+    var want = Math.min(len, pd);
+    var w = sparkEl && sparkEl.clientWidth ? sparkEl.clientWidth : 0;
+    if (w < 8) {
+      return want;
+    }
+    var minBar = w < 120 ? 2 : w < 180 ? 2.5 : 3;
+    var gap = 1;
+    var fit = Math.max(4, Math.floor((w + gap) / (minBar + gap)));
+    return Math.min(want, fit);
+  }
+
+  function ga4ClearSparkRenderCache(root) {
+    (root || document).querySelectorAll('[data-ga4-kpi-spark]').forEach(function (el) {
+      delete el.dataset.ga4KpiSparkReady;
+      delete el.dataset.ga4KpiSparkSig;
+    });
+  }
 
   function ga4SparkToneClass(tone) {
     return tone === 'up'
@@ -1491,7 +1532,8 @@
     return false;
   }
 
-  function ga4RenderSparkPlaceholder(spark, tone) {
+  function ga4RenderSparkPlaceholder(spark, tone, barCount) {
+    var n = Math.max(4, parseInt(barCount, 10) || 7);
     spark.classList.remove(
       'ga4-kpi-spark--tone-up',
       'ga4-kpi-spark--tone-down',
@@ -1501,8 +1543,11 @@
     spark.classList.add('ga4-kpi-spark--placeholder', ga4SparkToneClass(tone));
     var bars = document.createElement('div');
     bars.className = 'ga4-kpi-spark__bars';
+    if (n > 45) {
+      bars.classList.add('ga4-kpi-spark__bars--dense');
+    }
     bars.setAttribute('aria-hidden', 'true');
-    for (var i = 0; i < GA4_KPI_SPARK_DAYS; i++) {
+    for (var i = 0; i < n; i++) {
       var bar = document.createElement('span');
       bar.className = 'ga4-kpi-spark__bar';
       bars.appendChild(bar);
@@ -1541,6 +1586,7 @@
       if (row.closest('.hidden')) {
         return;
       }
+      var periodDays = ga4SparkPeriodDays(row);
       var trendRaw = row.getAttribute('data-ga4-daily-trend') || '';
       var trend = { dates: [] };
       if (trendRaw) {
@@ -1550,17 +1596,19 @@
           trend = { dates: [] };
         }
       }
+      var seriesLen = trend && trend.dates ? trend.dates.length : 0;
       row.querySelectorAll('[data-ga4-kpi-spark]').forEach(function (spark) {
         var key = spark.getAttribute('data-ga4-kpi-spark-key') || 'sessions';
         var tone = spark.getAttribute('data-ga4-kpi-spark-tone') || 'flat';
-        var sig = trendRaw + '|' + key + '|' + tone;
+        var barTarget = ga4SparkVisibleBarCount(spark, periodDays, seriesLen);
+        var sig = trendRaw + '|' + key + '|' + tone + '|' + periodDays + '|' + barTarget + '|' + spark.clientWidth;
         if (spark.dataset.ga4KpiSparkSig === sig && spark.dataset.ga4KpiSparkReady === '1') {
           return;
         }
         var series = trend && trend.dates && trend.dates.length ? trend[key] || [] : [];
-        var sampled = ga4DownsampleSparkSeries(series, GA4_KPI_SPARK_DAYS);
+        var sampled = ga4DownsampleSparkSeries(series, barTarget || periodDays);
         if (!ga4SparkSeriesHasSignal(sampled)) {
-          ga4RenderSparkPlaceholder(spark, tone);
+          ga4RenderSparkPlaceholder(spark, tone, barTarget || periodDays);
           spark.dataset.ga4KpiSparkSig = sig + '|placeholder';
           spark.dataset.ga4KpiSparkReady = '1';
           return;
@@ -1580,7 +1628,11 @@
         spark.classList.add(ga4SparkToneClass(tone));
         var bars = document.createElement('div');
         bars.className = 'ga4-kpi-spark__bars';
+        if (sampled.length > 45) {
+          bars.classList.add('ga4-kpi-spark__bars--dense');
+        }
         bars.setAttribute('aria-hidden', 'true');
+        var animStep = sampled.length > 60 ? 2 : sampled.length > 30 ? 3 : 4;
         sampled.forEach(function (v) {
           var bar = document.createElement('span');
           bar.className = 'ga4-kpi-spark__bar';
@@ -1597,7 +1649,7 @@
           bars.querySelectorAll('.ga4-kpi-spark__bar').forEach(function (bar, idx) {
             window.setTimeout(function () {
               bar.style.setProperty('--ga4-spark-h', bar.dataset.ga4SparkTarget + '%');
-            }, 8 + idx * 4);
+            }, 6 + idx * animStep);
           });
         });
       });
@@ -2404,6 +2456,7 @@
   window.addEventListener('resize', function () {
     window.requestAnimationFrame(function () {
       fitGa4Text(document);
+      ga4ClearSparkRenderCache(document);
       renderGa4KpiSparks(document);
       renderGa4TrendCharts(document);
     });
