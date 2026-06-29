@@ -194,3 +194,102 @@ html.dark .rt-slot-delta-pulse--down {
     box-shadow: none;
   }
 }
+
+/* Split KPI blok — değer güncellenince kısa renk flaşı */
+.rt-split-kpis [data-rt-kpi] {
+  border-radius: 0.35rem;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.rt-split-kpis [data-rt-kpi].rt-kpi-flash--up {
+  animation: rt-kpi-flash-up 0.34s ease;
+}
+.rt-split-kpis [data-rt-kpi].rt-kpi-flash--down {
+  animation: rt-kpi-flash-down 0.34s ease;
+}
+.rt-split-kpis [data-rt-kpi].rt-kpi-flash--flat {
+  animation: rt-kpi-flash-flat 0.34s ease;
+}
+@keyframes rt-kpi-flash-up {
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  40% {
+    background-color: rgba(22, 163, 74, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.28);
+  }
+}
+@keyframes rt-kpi-flash-down {
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  40% {
+    background-color: rgba(220, 38, 38, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.24);
+  }
+}
+@keyframes rt-kpi-flash-flat {
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  40% {
+    background-color: rgba(100, 116, 139, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(100, 116, 139, 0.2);
+  }
+}
+html.dark .rt-split-kpis [data-rt-kpi].rt-kpi-flash--up {
+  animation-name: rt-kpi-flash-up-dark;
+}
+html.dark .rt-split-kpis [data-rt-kpi].rt-kpi-flash--down {
+  animation-name: rt-kpi-flash-down-dark;
+}
+@keyframes rt-kpi-flash-up-dark {
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  40% {
+    background-color: rgba(74, 222, 128, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.22);
+  }
+}
+@keyframes rt-kpi-flash-down-dark {
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+  40% {
+    background-color: rgba(248, 113, 113, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.2);
+  }
+}
+
+/* Site toplam spark — yeni dilim hissi (yalnız .rt-site-spark-bars) */
+.rt-site-spark-bars.rt-site-spark-pan {
+  animation: rt-site-spark-pan 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes rt-site-spark-pan {
+  0% {
+    transform: translateX(10px);
+    opacity: 0.92;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rt-split-kpis [data-rt-kpi].rt-kpi-flash--up,
+  .rt-split-kpis [data-rt-kpi].rt-kpi-flash--down,
+  .rt-split-kpis [data-rt-kpi].rt-kpi-flash--flat,
+  .rt-site-spark-bars.rt-site-spark-pan {
+    animation: none !important;
+  }
+}

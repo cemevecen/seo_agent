@@ -2703,8 +2703,8 @@
 </div>
 
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
-<script src="/static/js/rt_slot_fx.js?v=2"></script>
+<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=3">
+<script src="/static/js/rt_slot_fx.js?v=3"></script>
 <script>
 (function () {
   var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
@@ -3361,7 +3361,7 @@
       hPx = Math.max(3, Math.min(barPx, hPx));
       return { i: i, empty: false, hPx: hPx, bg: barFill(v, mx) };
     });
-    _slotBars(barsEl, siteBarSpecs, { barClass: 'rt-spark-mini-bar' });
+    _slotBars(barsEl, siteBarSpecs, { barClass: 'rt-spark-mini-bar', siteTotalSpark: true });
     barsEl._rtSiteTipWired = false;
     _wireSiteSparkBarTips(root);
     if (yEl) {
