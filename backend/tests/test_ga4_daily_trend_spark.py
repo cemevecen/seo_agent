@@ -6,21 +6,21 @@ from backend.main import (
 )
 
 
-def test_slice_daily_trend_last_14_days():
+def test_slice_daily_trend_last_30_days():
     daily = {
-        "dates": [f"2026-06-{d:02d}" for d in range(1, 21)],
-        "sessions": [float(i) for i in range(1, 21)],
-        "activeUsers": [1.0] * 20,
-        "engagedSessions": [1.0] * 20,
-        "engagementRate": [50.0] * 20,
-        "newUsers": [2.0] * 20,
-        "screenPageViews": [3.0] * 20,
-        "averageSessionDuration": [100.0] * 20,
+        "dates": [f"2026-06-{d:02d}" for d in range(1, 41)],
+        "sessions": [float(i) for i in range(1, 41)],
+        "activeUsers": [1.0] * 40,
+        "engagedSessions": [1.0] * 40,
+        "engagementRate": [50.0] * 40,
+        "newUsers": [2.0] * 40,
+        "screenPageViews": [3.0] * 40,
+        "averageSessionDuration": [100.0] * 40,
     }
-    out = _ga4_slice_daily_trend_last_days(daily, 14)
-    assert len(out["dates"]) == 14
-    assert out["dates"][0] == "2026-06-07"
-    assert out["sessions"][-1] == 20.0
+    out = _ga4_slice_daily_trend_last_days(daily, 30)
+    assert len(out["dates"]) == 30
+    assert out["dates"][0] == "2026-06-11"
+    assert out["sessions"][-1] == 40.0
 
 
 def test_fill_missing_metrics_from_long_series():
@@ -81,5 +81,5 @@ def test_daily_trends_for_ui_spark_window(monkeypatch):
         "engagementRate": [2.0] * 7,
     }
     _daily, spark = _ga4_daily_trends_for_ui(None, site_id=1, profile="web", period_daily=period)
-    assert len(spark["dates"]) == 14
-    assert spark["newUsers"] == [5.0] * 14
+    assert len(spark["dates"]) == 30
+    assert spark["newUsers"] == [5.0] * 30

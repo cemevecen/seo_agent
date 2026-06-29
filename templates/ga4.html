@@ -74,6 +74,30 @@
   .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
     background: linear-gradient(180deg, rgb(148 163 184 / 0.85), rgb(100 116 139 / 0.65));
   }
+  .ga4-kpi-spark--placeholder .ga4-kpi-spark__bar {
+    height: 28% !important;
+    opacity: 0.72;
+    background: transparent !important;
+    box-sizing: border-box;
+    border: 2px dashed currentColor;
+    border-bottom: none;
+    border-radius: 2px 2px 0 0;
+  }
+  .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
+    color: rgb(16 185 129);
+  }
+  .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
+    color: rgb(244 63 94);
+  }
+  .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-flat {
+    color: rgb(100 116 139);
+  }
+  .dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
+    color: rgb(52 211 153);
+  }
+  .dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
+    color: rgb(251 113 133);
+  }
   .dark .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
     background: linear-gradient(180deg, rgb(52 211 153 / 0.85), rgb(5 150 105 / 0.55));
   }
@@ -1429,7 +1453,47 @@
     // Diğer kod initGa4Tables çağırmaya devam edebilir, işlem yok.
   }
 
-  var GA4_KPI_SPARK_DAYS = 14;
+  var GA4_KPI_SPARK_DAYS = 30;
+
+  function ga4SparkToneClass(tone) {
+    return tone === 'up'
+      ? 'ga4-kpi-spark--tone-up'
+      : tone === 'down'
+        ? 'ga4-kpi-spark--tone-down'
+        : 'ga4-kpi-spark--tone-flat';
+  }
+
+  function ga4SparkSeriesHasSignal(sampled) {
+    if (!sampled || !sampled.length) {
+      return false;
+    }
+    for (var i = 0; i < sampled.length; i++) {
+      if (sampled[i] > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function ga4RenderSparkPlaceholder(spark, tone) {
+    spark.classList.remove(
+      'ga4-kpi-spark--tone-up',
+      'ga4-kpi-spark--tone-down',
+      'ga4-kpi-spark--tone-flat',
+      'ga4-kpi-spark--placeholder'
+    );
+    spark.classList.add('ga4-kpi-spark--placeholder', ga4SparkToneClass(tone));
+    var bars = document.createElement('div');
+    bars.className = 'ga4-kpi-spark__bars';
+    bars.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < GA4_KPI_SPARK_DAYS; i++) {
+      var bar = document.createElement('span');
+      bar.className = 'ga4-kpi-spark__bar';
+      bars.appendChild(bar);
+    }
+    spark.textContent = '';
+    spark.appendChild(bars);
+  }
 
   function ga4DownsampleSparkSeries(values, target) {
     if (!values || !values.length) {
@@ -1457,19 +1521,18 @@
   }
 
   function renderGa4KpiSparks(root) {
-    (root || document).querySelectorAll('[data-ga4-kpi-row][data-ga4-daily-trend]').forEach(function (row) {
+    (root || document).querySelectorAll('[data-ga4-kpi-row]').forEach(function (row) {
       if (row.closest('.hidden')) {
         return;
       }
-      var trendRaw = row.getAttribute('data-ga4-daily-trend') || '{}';
-      var trend;
-      try {
-        trend = JSON.parse(trendRaw);
-      } catch (err) {
-        return;
-      }
-      if (!trend.dates || !trend.dates.length) {
-        return;
+      var trendRaw = row.getAttribute('data-ga4-daily-trend') || '';
+      var trend = { dates: [] };
+      if (trendRaw) {
+        try {
+          trend = JSON.parse(trendRaw);
+        } catch (err) {
+          trend = { dates: [] };
+        }
       }
       row.querySelectorAll('[data-ga4-kpi-spark]').forEach(function (spark) {
         var key = spark.getAttribute('data-ga4-kpi-spark-key') || 'sessions';
@@ -1478,12 +1541,12 @@
         if (spark.dataset.ga4KpiSparkSig === sig && spark.dataset.ga4KpiSparkReady === '1') {
           return;
         }
-        var series = trend[key] || [];
+        var series = trend && trend.dates && trend.dates.length ? trend[key] || [] : [];
         var sampled = ga4DownsampleSparkSeries(series, GA4_KPI_SPARK_DAYS);
-        if (!sampled.length) {
-          spark.textContent = '';
-          spark.classList.remove('ga4-kpi-spark--tone-up', 'ga4-kpi-spark--tone-down', 'ga4-kpi-spark--tone-flat');
-          spark.dataset.ga4KpiSparkReady = '0';
+        if (!ga4SparkSeriesHasSignal(sampled)) {
+          ga4RenderSparkPlaceholder(spark, tone);
+          spark.dataset.ga4KpiSparkSig = sig + '|placeholder';
+          spark.dataset.ga4KpiSparkReady = '1';
           return;
         }
         var max = 0;
@@ -1492,13 +1555,13 @@
             max = v;
           }
         });
-        if (max <= 0) {
-          max = 1;
-        }
-        spark.classList.remove('ga4-kpi-spark--tone-up', 'ga4-kpi-spark--tone-down', 'ga4-kpi-spark--tone-flat');
-        spark.classList.add(
-          tone === 'up' ? 'ga4-kpi-spark--tone-up' : tone === 'down' ? 'ga4-kpi-spark--tone-down' : 'ga4-kpi-spark--tone-flat'
+        spark.classList.remove(
+          'ga4-kpi-spark--tone-up',
+          'ga4-kpi-spark--tone-down',
+          'ga4-kpi-spark--tone-flat',
+          'ga4-kpi-spark--placeholder'
         );
+        spark.classList.add(ga4SparkToneClass(tone));
         var bars = document.createElement('div');
         bars.className = 'ga4-kpi-spark__bars';
         bars.setAttribute('aria-hidden', 'true');
@@ -1518,7 +1581,7 @@
           bars.querySelectorAll('.ga4-kpi-spark__bar').forEach(function (bar, idx) {
             window.setTimeout(function () {
               bar.style.setProperty('--ga4-spark-h', bar.dataset.ga4SparkTarget + '%');
-            }, 12 + idx * 6);
+            }, 8 + idx * 4);
           });
         });
       });

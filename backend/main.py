@@ -10900,7 +10900,7 @@ _GA4_DAILY_TREND_METRICS = (
     "averageSessionDuration",
 )
 
-_GA4_KPI_SPARK_DAYS = 14
+_GA4_KPI_SPARK_DAYS = 30
 
 
 def _ga4_empty_daily_trend_dict() -> dict:
@@ -10991,8 +10991,8 @@ def _ga4_daily_trends_for_ui(
     long_daily = _ga4_align_daily_trend(long_raw if isinstance(long_raw, dict) else {})
 
     daily = _ga4_fill_daily_trend_from_source(period, long_daily)
-    spark_base = long_daily if len(long_daily.get("dates") or []) >= _GA4_KPI_SPARK_DAYS else daily
-    if not spark_base.get("dates"):
+    spark_base = long_daily if long_daily.get("dates") else daily
+    if daily.get("dates") and len(daily["dates"]) > len(spark_base.get("dates") or []):
         spark_base = daily
     spark_base = _ga4_fill_daily_trend_from_source(spark_base, daily)
     spark_base = _ga4_fill_daily_trend_from_source(spark_base, long_daily)
