@@ -169,18 +169,6 @@
     });
   }
 
-  function ntSceneAxis(title) {
-    var dark = ntIsDark();
-    return {
-      title: { text: title, font: ntFont() },
-      tickfont: ntFont(),
-      backgroundcolor: "rgba(0,0,0,0)",
-      gridcolor: dark ? "#27272a" : "#e2e8f0",
-      zerolinecolor: dark ? "#3f3f46" : "#cbd5e1",
-      showbackground: true,
-    };
-  }
-
   function renderPareto(nt, rows) {
     var el = document.getElementById("nt-lab-pareto");
     var sumEl = document.getElementById("nt-lab-pareto-summary");
@@ -198,72 +186,96 @@
     var cum = 0;
     var rankX = [];
     var clicksY = [];
-    var cumZ = [];
+    var cumPct = [];
     var titles = [];
-    var maxClick = top[0] ? top[0].clicks : 1;
     top.forEach(function (x, i) {
       cum += x.clicks;
       titles.push(x.headline);
-      rankX.push(i + 1);
+      rankX.push(String(i + 1));
       clicksY.push(x.clicks);
-      cumZ.push((cum / total) * 100);
-    });
-    var sizes = clicksY.map(function (c) {
-      return 4 + (maxClick > 0 ? (c / maxClick) * 14 : 0);
+      cumPct.push((cum / total) * 100);
     });
     var lc = ntLabColors();
     var sz = paretoChartSize(el, nTop);
+    var dense = top.length > 18;
     var layout = plotLayout({
       width: sz.w,
       height: sz.h,
       autosize: true,
-      margin: { l: 0, r: 0, t: 28, b: 0 },
-      scene: {
-        xaxis: ntSceneAxis("Sıra (1 = en yüksek click)"),
-        yaxis: ntSceneAxis("Click"),
-        zaxis: ntSceneAxis("Kümülatif %"),
-        bgcolor: "rgba(0,0,0,0)",
-        camera: {
-          eye: { x: 1.45, y: 1.35, z: 0.95 },
-          center: { x: 0, y: 0, z: 0 },
-        },
-      },
-      legend: { font: ntFont(), orientation: "h", y: 1.02, x: 0 },
+      margin: { l: 56, r: 56, t: 12, b: dense ? 48 : 40 },
+      barmode: "overlay",
+      hovermode: "x unified",
+      xaxis: Object.assign(ntAxis({ title: "Sıra (1 = en yüksek click)", type: "category", tickangle: dense ? -45 : 0 }), {
+        categoryorder: "array",
+        categoryarray: rankX,
+      }),
+      yaxis: Object.assign(ntAxis({ title: "Click" }), { rangemode: "tozero" }),
+      yaxis2: Object.assign(ntAxis({ title: "Kümülatif %" }), {
+        overlaying: "y",
+        side: "right",
+        range: [0, Math.min(100, Math.ceil(Math.max.apply(null, cumPct) / 5) * 5 + 5)],
+        ticksuffix: "%",
+      }),
+      legend: { font: ntFont(), orientation: "h", y: 1.08, x: 0 },
+      shapes: [{
+        type: "line",
+        xref: "paper",
+        x0: 0,
+        x1: 1,
+        yref: "y2",
+        y0: 80,
+        y1: 80,
+        line: { color: ntIsDark() ? "#f87171" : "#dc2626", width: 1, dash: "dot" },
+      }],
+      annotations: [{
+        xref: "paper",
+        x: 1,
+        xanchor: "right",
+        yref: "y2",
+        y: 80,
+        yanchor: "bottom",
+        text: "80%",
+        showarrow: false,
+        font: { size: 10, color: ntIsDark() ? "#fca5a5" : "#b91c1c" },
+      }],
     });
-    var scatter3d = {
-      type: "scatter3d",
-      mode: "markers",
-      name: "Başlık",
+    var barTrace = {
+      type: "bar",
+      name: "Click",
       x: rankX,
       y: clicksY,
-      z: cumZ,
-      text: titles,
-      customdata: titles,
-      marker: {
-        size: sizes,
-        color: cumZ,
-        colorscale: ntIsDark()
-          ? [[0, "#4f46e5"], [0.5, "#a78bfa"], [1, "#fbbf24"]]
-          : [[0, "#6366f1"], [0.5, "#818cf8"], [1, "#f59e0b"]],
-        colorbar: {
-          title: { text: "Küm. %", font: ntFont() },
-          tickfont: ntFont(),
-          len: 0.55,
-          thickness: 12,
-        },
-        line: { color: ntIsDark() ? "#18181b" : "#ffffff", width: 0.5 },
-        opacity: 0.92,
-      },
-      hovertemplate:
-        "<b>%{text}</b><br>Sıra: %{x}<br>Click: %{y}<br>Kümülatif: %{z:.1f}%<extra></extra>",
+      marker: { color: lc.bar, opacity: 0.88 },
+      hovertext: titles,
+      hovertemplate: "<b>%{hovertext}</b><br>Sıra %{x}<br>Click: %{y:,}<extra></extra>",
     };
-    Plotly.newPlot(el, [scatter3d], layout, { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ["toImage"] });
+    var lineTrace = {
+      type: "scatter",
+      mode: dense ? "lines" : "lines+markers",
+      name: "Kümülatif %",
+      x: rankX,
+      y: cumPct,
+      yaxis: "y2",
+      line: { color: lc.line, width: 2.5 },
+      marker: { size: dense ? 0 : 5, color: lc.line },
+      customdata: titles,
+      hovertemplate: "<b>%{customdata}</b><br>Kümülatif: %{y:.1f}%<extra></extra>",
+    };
+    Plotly.newPlot(el, [barTrace, lineTrace], layout, { responsive: true, displayModeBar: false });
     bindParetoResize();
     window.requestAnimationFrame(resizeParetoPlot);
     var share = (top.reduce(function (s, x) { return s + x.clicks; }, 0) / total) * 100;
+    var idx80 = -1;
+    for (var i = 0; i < cumPct.length; i++) {
+      if (cumPct[i] >= 80) { idx80 = i; break; }
+    }
+    var platNote = "";
+    var lp = nt.getListPlatform ? nt.getListPlatform() : "";
+    if (lp) platNote = " · Liste platformu: " + lp;
     if (sumEl) {
       sumEl.textContent =
-        "Top " + top.length + " başlık toplam click'in %" + share.toFixed(1) + "'ini taşıyor (80/20). 3D: sıra × click × kümülatif %.";
+        "Top " + top.length + " başlık toplam click'in %" + share.toFixed(1) + "'ini taşıyor."
+        + (idx80 >= 0 ? " %80 eşiği ≈ sıra " + (idx80 + 1) + " (" + cumPct[idx80].toFixed(1) + "% kümülatif)." : "")
+        + platNote;
     }
   }
 
