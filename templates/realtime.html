@@ -1096,6 +1096,7 @@
     width: 100%;
     max-width: 100%;
   }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row,
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row {
     grid-template-columns: minmax(7rem, 8.5rem) minmax(0, 1fr);
   }
@@ -1172,7 +1173,7 @@
   html.rt-view--total .rt-site-spark-bars {
     min-height: 5.25rem;
   }
-  html.rt-view--total .rt-site-spark-last {
+  html.rt-view--total .rt-site-spark-last:not(.rt-slot-reel) {
     font-size: 2rem;
     line-height: 1.1;
   }
@@ -1193,7 +1194,7 @@
   html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-bars {
     min-height: 4rem;
   }
-  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-last {
+  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-last:not(.rt-slot-reel) {
     font-size: 1.5rem;
     line-height: 1.1;
   }
@@ -1889,10 +1890,10 @@
     color: rgb(99 102 241);
   }
   .rt-site-spark-kpi-stack {
-    display: flex;
+    display: inline-flex;
     flex-direction: column;
     align-items: stretch;
-    width: fit-content;
+    width: auto;
     max-width: 100%;
     min-width: 0;
     margin-top: 0.2rem;
@@ -1900,9 +1901,14 @@
     container-name: rt-kpi-stack;
     --rt-slot-chars: 6;
   }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-kpi-stack,
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-kpi-stack {
+    align-self: flex-start;
+  }
   .rt-site-spark-kpi-stack .rt-site-spark-last.rt-slot-reel {
-    width: 100%;
+    width: auto;
     max-width: 100%;
+    align-self: flex-start;
     box-sizing: border-box;
     font-size: clamp(
       0.82rem,
@@ -3191,11 +3197,15 @@
     if (!stack) return;
     var last = stack.querySelector('[data-rt-site-spark-last]');
     var compare = stack.querySelector('[data-rt-site-spark-compare]');
+    stack.style.width = '';
+    stack.style.maxWidth = '100%';
     if (last) {
       stack.style.setProperty(
         '--rt-slot-chars',
         String(_rtSparkKpiCharCount(last.getAttribute('data-rt-slot-cur') || last.textContent))
       );
+      var slotW = Math.ceil(last.getBoundingClientRect().width);
+      if (slotW > 0) stack.style.width = slotW + 'px';
     }
     if (!compare || compare.classList.contains('hidden')) {
       if (compare) compare.style.fontSize = '';
@@ -3208,6 +3218,7 @@
     var minPx = 5.5;
     var fs = maxPx;
     var w = stack.clientWidth;
+    if (w < 8 && last) w = Math.ceil(last.getBoundingClientRect().width);
     if (w < 8) return;
     compare.style.fontSize = fs + 'px';
     var guard = 0;
