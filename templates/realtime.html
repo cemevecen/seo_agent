@@ -2263,6 +2263,133 @@
     }
     .rt-cd-ring { transition: none; }
   }
+
+  /* Spark sayısal tablo — sağ çekmece, ana içerik sola kayar */
+  .rt-layout-main {
+    transition: margin-right 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  html.rt-spark-table-open .rt-layout-main {
+    margin-right: min(22.5rem, 94vw);
+  }
+  .rt-spark-table-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 55;
+    display: flex;
+    flex-direction: column;
+    width: min(22.5rem, 94vw);
+    height: 100dvh;
+    max-height: 100vh;
+    border-left: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: -12px 0 40px rgba(15, 23, 42, 0.12);
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+  }
+  html.dark .rt-spark-table-drawer {
+    border-left-color: rgba(63, 63, 70, 0.65);
+    background: rgba(24, 24, 27, 0.98);
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45);
+  }
+  html.rt-spark-table-open .rt-spark-table-drawer {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .rt-spark-table-drawer-head {
+    flex-shrink: 0;
+    padding: 0.85rem 1rem 0.65rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  }
+  html.dark .rt-spark-table-drawer-head {
+    border-bottom-color: rgba(63, 63, 70, 0.55);
+  }
+  .rt-spark-table-drawer-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 0.5rem 0.75rem 1rem;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rt-spark-table-open-btn {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.45rem;
+    border-radius: 0.375rem;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    color: rgb(71 85 105);
+    background: rgba(248, 250, 252, 0.9);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  html.dark .rt-spark-table-open-btn {
+    color: rgb(161 161 170);
+    border-color: rgba(82, 82, 91, 0.8);
+    background: rgba(39, 39, 42, 0.85);
+  }
+  .rt-spark-table-open-btn:hover {
+    border-color: rgba(99, 102, 241, 0.55);
+    color: rgb(67 56 202);
+  }
+  html.dark .rt-spark-table-open-btn:hover {
+    color: rgb(165 180 252);
+  }
+  .rt-spark-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rt-spark-data-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: right;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgb(100 116 139);
+    padding: 0.35rem 0.4rem;
+    background: rgba(248, 250, 252, 0.95);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+  }
+  html.dark .rt-spark-data-table th {
+    color: rgb(161 161 170);
+    background: rgba(24, 24, 27, 0.98);
+    border-bottom-color: rgba(63, 63, 70, 0.6);
+  }
+  .rt-spark-data-table th:first-child {
+    text-align: left;
+  }
+  .rt-spark-data-table td {
+    padding: 0.32rem 0.4rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    text-align: right;
+    color: rgb(30 41 59);
+  }
+  html.dark .rt-spark-data-table td {
+    color: rgb(228 228 231);
+    border-bottom-color: rgba(63, 63, 70, 0.35);
+  }
+  .rt-spark-data-table td:first-child {
+    text-align: left;
+    font-weight: 600;
+    color: rgb(71 85 105);
+  }
+  html.dark .rt-spark-data-table td:first-child {
+    color: rgb(161 161 170);
+  }
+  .rt-spark-data-table tr.is-carried td {
+    opacity: 0.55;
+    font-style: italic;
+  }
+  [data-rt-chart].rt-spark-table-clickable,
+  [data-rt-site-spark-chart].rt-spark-table-clickable {
+    cursor: pointer;
+  }
 </style>
 
 <div class="realtime-root mx-auto w-full min-w-0 max-w-[1800px] space-y-2 sm:space-y-3">
@@ -2330,6 +2457,8 @@
     </div>
   </div>
 
+  <div class="rt-layout-main" id="rt-layout-main">
+
   <div
     id="rt-global-total-panel"
     class="rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none"
@@ -2350,12 +2479,13 @@
             <button type="button" class="rt-yf-tab" data-rt-site-yf-range="1h" title="Son 1 saat">1s</button>
             <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
           </div>
+          <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · Döviz + Sinemalar</p>
           <p class="rt-site-spark-last" data-rt-site-spark-last title="Birleşik anlık toplam aktif">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
         </div>
-        <div class="rt-site-spark-plot" data-rt-site-spark-chart>
+        <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
           <div class="rt-site-spark-main">
             <div class="rt-site-spark-load" data-rt-site-spark-load aria-hidden="true">
@@ -2392,7 +2522,7 @@
             <p class="rt-site-spark-last" data-rt-site-spark-last title="Site toplam aktif">—</p>
             <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
           </div>
-          <div class="rt-site-spark-plot" data-rt-site-spark-chart>
+          <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
             <div class="rt-site-spark-y" data-rt-site-spark-y></div>
             <div class="rt-site-spark-main">
               <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="{{ site.display_name or site.domain }} 24 saat trend"></div>
@@ -2440,12 +2570,13 @@
             <button type="button" class="rt-yf-tab" data-rt-site-yf-range="1h" title="Son 1 saat">1s</button>
             <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
           </div>
+          <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · anlık toplam</p>
           <p class="rt-site-spark-last" data-rt-site-spark-last title="Anlık toplam aktif (tüm profiller)">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
         </div>
-        <div class="rt-site-spark-plot" data-rt-site-spark-chart>
+        <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
           <div class="rt-site-spark-main">
             <div class="rt-site-spark-load" data-rt-site-spark-load aria-hidden="true">
@@ -2529,13 +2660,16 @@
               <button type="button" class="rt-yf-tab is-active" data-rt-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
             </div>
             <div class="rt-spark-head flex items-start justify-between gap-2 px-1.5 pt-2 pb-0.5">
-              <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Aktif kullanıcı</p>
+              <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Aktif kullanıcı</p>
+                <button type="button" class="rt-spark-table-open-btn" data-rt-spark-table-open title="Spark dilimlerini tablo olarak aç">Tablo</button>
+              </div>
               <div class="text-right leading-tight">
                 <p class="text-xl font-black tabular-nums text-slate-900 dark:text-zinc-50" data-rt-spark-last-val>—</p>
                 <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500" data-rt-spark-last-label>son ölçüm</p>
               </div>
             </div>
-            <div class="rt-spark-plot w-full min-h-[4.5rem] px-1.5 pb-2" data-rt-chart aria-label="Aktif kullanıcı — dakikalık mini sütunlar">
+            <div class="rt-spark-plot w-full min-h-[4.5rem] px-1.5 pb-2 rt-spark-table-clickable" data-rt-chart aria-label="Aktif kullanıcı — dakikalık mini sütunlar" title="Tablo için tıklayın">
               <div class="rt-spark-chart-body">
                 <div class="rt-spark-y-axis" data-rt-spark-y-axis aria-hidden="true"></div>
                 <div class="rt-spark-plot-area">
@@ -2734,7 +2868,35 @@
     </div>
   </div>
 
-  </div>
+  </div>{# /.rt-layout-main #}
+
+  <aside
+    id="rt-spark-table-drawer"
+    class="rt-spark-table-drawer"
+    aria-hidden="true"
+    aria-labelledby="rt-spark-table-title"
+  >
+    <div class="rt-spark-table-drawer-head">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">Spark verisi</p>
+          <h2 id="rt-spark-table-title" class="truncate text-sm font-extrabold text-slate-900 dark:text-zinc-100">—</h2>
+          <p id="rt-spark-table-sub" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">—</p>
+        </div>
+        <button
+          type="button"
+          id="rt-spark-table-close"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          aria-label="Tabloyu kapat"
+          title="Kapat"
+        >×</button>
+      </div>
+    </div>
+    <div class="rt-spark-table-drawer-body" id="rt-spark-table-body">
+      <p class="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">Bir spark alanına veya <strong class="font-semibold">Tablo</strong> düğmesine tıklayın.</p>
+    </div>
+  </aside>
+
 </div>
 
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
@@ -3272,6 +3434,7 @@
           _rtRenderGlobalSiteSparkRows(siteEl);
           _rtRenderGlobalMergedSpark(siteEl);
         }
+        rtRefreshSparkTableIfOpen();
       });
     });
     _syncSiteYfTabs(siteEl, _rtSiteSparkRangeKey(siteEl));
@@ -3925,6 +4088,7 @@
         if (!d || d.error || !d.trend) return;
         box._rtTrendFull = d.trend || [];
         _renderChart(box, siteId, profile, box._rtTrendFull);
+        rtRefreshSparkTableIfOpen();
       })
       .catch(function () {});
   }
@@ -4568,6 +4732,7 @@
         _syncRtYfTabs(box, key);
         rtFetchTrend(siteId, profile);
         rtFetchTopPages(siteId, profile);
+        rtRefreshSparkTableIfOpen();
       });
     });
   }
@@ -6157,6 +6322,215 @@
     _startPolling();
     _restoreRealtimeScroll();
   });
+
+  var _rtSparkTableAnchor = null;
+
+  function _rtProfileDisplayName(profile) {
+    if (profile === 'web') return 'Desktop';
+    if (profile === 'mweb') return 'Mobile Web';
+    if (profile === 'android') return 'Android';
+    if (profile === 'ios') return 'iOS';
+    return profile || 'Profil';
+  }
+
+  function _rtSiteShortName(siteEl) {
+    if (!siteEl) return 'Site';
+    var slug = siteEl.getAttribute('data-rt-site-slug') || '';
+    if (slug === 'doviz') return 'Döviz';
+    if (slug === 'sinemalar') return 'Sinemalar';
+    var h = siteEl.querySelector('.rt-site-chrome h2');
+    if (h) {
+      var t = (h.textContent || '').trim();
+      if (t) return t.split(/\s+/)[0];
+    }
+    return slug || 'Site';
+  }
+
+  function _rtSparkTableTimeLabel(tMs, rangeKey) {
+    var bucketMs = _sparkBucketMs(rangeKey);
+    var showMs = bucketMs > 60 * 1000 ? tMs + bucketMs - 60000 : tMs;
+    var d = new Date(showMs);
+    var now = new Date();
+    if (
+      d.getFullYear() !== now.getFullYear() ||
+      d.getMonth() !== now.getMonth() ||
+      d.getDate() !== now.getDate()
+    ) {
+      return _sparkFmtClock(d);
+    }
+    return _sparkFmtTime(d);
+  }
+
+  function _rtTrendPointsFromRaw(trend, rangeKey) {
+    var filtered = _filterTrendForRange(trend || [], rangeKey);
+    var trendPoints = [];
+    filtered.forEach(function (t) {
+      var d = _parseSnapshotTs(t.collected_at);
+      if (!d) return;
+      trendPoints.push({
+        ts: d,
+        users: Number(t.active_users) || 0,
+        pv: Number(t.pageviews) || 0,
+        usersPrevWeek:
+          t.active_users_prev_week == null ? null : Number(t.active_users_prev_week) || 0,
+        pvPrevWeek: t.pageviews_prev_week == null ? null : Number(t.pageviews_prev_week) || 0,
+      });
+    });
+    return trendPoints;
+  }
+
+  function _rtSparkTableRowsFromTrend(trend, rangeKey) {
+    var trendPoints = _rtTrendPointsFromRaw(trend, rangeKey);
+    if (!trendPoints.length) return [];
+    var display = _sparkBarsForDisplay(trendPoints, rangeKey);
+    var rows = [];
+    for (var i = display.length - 1; i >= 0; i--) {
+      var b = display[i];
+      if (b.empty) continue;
+      rows.push({
+        time: _rtSparkTableTimeLabel(b.tMs, rangeKey),
+        users: b.v,
+        pv: b.pv,
+        carried: !!b.carried,
+      });
+    }
+    return rows;
+  }
+
+  function _rtSparkTableFmtInt(n) {
+    return (Number(n) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 });
+  }
+
+  function _rtResolveSparkTableContext(fromEl) {
+    if (!fromEl) return null;
+    var box = fromEl.closest('[data-rt-profile-box]');
+    if (box) {
+      var siteId = box.getAttribute('data-rt-site-id');
+      var profile = box.getAttribute('data-rt-profile') || '';
+      var domain = box.getAttribute('data-rt-domain') || '';
+      var siteEl = box.closest('[data-rt-site]');
+      return {
+        anchor: box,
+        title: _rtSiteShortName(siteEl) + ' · ' + _rtProfileDisplayName(profile),
+        sub: (RT_LIST_RANGE_LABELS[_rtTrendRangeForBox(box)] || '24 saat') + ' · spark dilimleri (tepe aktif / tepe görüntüleme)',
+        trend: box._rtTrendFull || [],
+        rangeKey: _rtTrendRangeForBox(box),
+      };
+    }
+    var globalEl = fromEl.closest('[data-rt-global-total]');
+    if (globalEl) {
+      return {
+        anchor: globalEl,
+        title: 'Döviz + Sinemalar · toplam',
+        sub:
+          (RT_LIST_RANGE_LABELS[_rtSiteSparkRangeKey(globalEl)] || '24 saat') +
+          ' · birleşik site toplamları',
+        trend: globalEl._rtCombinedTrend || [],
+        rangeKey: _rtSiteSparkRangeKey(globalEl),
+      };
+    }
+    var siteEl = fromEl.closest('[data-rt-site]');
+    if (siteEl) {
+      var metric = siteEl._rtSparkMetric || 'au';
+      var metricLabel = metric === 'pv' ? 'görüntüleme' : 'aktif kullanıcı';
+      return {
+        anchor: siteEl,
+        title: _rtSiteShortName(siteEl) + ' · site toplam',
+        sub:
+          (RT_LIST_RANGE_LABELS[_rtSiteSparkRangeKey(siteEl)] || '24 saat') +
+          ' · ' +
+          metricLabel +
+          ' (tüm profiller)',
+        trend: siteEl._rtCombinedTrend || [],
+        rangeKey: _rtSiteSparkRangeKey(siteEl),
+      };
+    }
+    return null;
+  }
+
+  function _rtRenderSparkTableBody(rows) {
+    var body = document.getElementById('rt-spark-table-body');
+    if (!body) return;
+    if (!rows.length) {
+      body.innerHTML =
+        '<p class="py-8 text-center text-xs text-slate-400 dark:text-zinc-500">Bu aralık için henüz spark verisi yok. Kartı yenileyin veya aralığı değiştirin.</p>';
+      return;
+    }
+    var html =
+      '<table class="rt-spark-data-table"><thead><tr><th scope="col">Saat</th><th scope="col">Kullanıcı</th><th scope="col">Gösterim</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      html +=
+        '<tr' +
+        (r.carried ? ' class="is-carried" title="Önceki ölçümden taşınan dilim"' : '') +
+        '><td>' +
+        r.time +
+        '</td><td>' +
+        _rtSparkTableFmtInt(r.users) +
+        '</td><td>' +
+        _rtSparkTableFmtInt(r.pv) +
+        '</td></tr>';
+    });
+    html += '</tbody></table>';
+    html +=
+      '<p class="mt-3 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">Sütunlar grafikle aynı dilimleri kullanır: kısa aralıklarda 1 dk, 24 saatte 15 dk. Değerler dilim içindeki <strong class="font-semibold">tepe</strong> aktif kullanıcı ve tepe sayfa görüntüleme.</p>';
+    body.innerHTML = html;
+  }
+
+  function rtCloseSparkTable() {
+    document.documentElement.classList.remove('rt-spark-table-open');
+    var drawer = document.getElementById('rt-spark-table-drawer');
+    if (drawer) drawer.setAttribute('aria-hidden', 'true');
+    _rtSparkTableAnchor = null;
+  }
+  window.rtCloseSparkTable = rtCloseSparkTable;
+
+  function rtOpenSparkTable(fromEl) {
+    var ctx = _rtResolveSparkTableContext(fromEl);
+    if (!ctx) return;
+    _rtSparkTableAnchor = ctx.anchor;
+    var titleEl = document.getElementById('rt-spark-table-title');
+    var subEl = document.getElementById('rt-spark-table-sub');
+    if (titleEl) titleEl.textContent = ctx.title;
+    if (subEl) subEl.textContent = ctx.sub;
+    _rtRenderSparkTableBody(_rtSparkTableRowsFromTrend(ctx.trend, ctx.rangeKey));
+    document.documentElement.classList.add('rt-spark-table-open');
+    var drawer = document.getElementById('rt-spark-table-drawer');
+    if (drawer) drawer.setAttribute('aria-hidden', 'false');
+  }
+  window.rtOpenSparkTable = rtOpenSparkTable;
+
+  function rtRefreshSparkTableIfOpen() {
+    if (!_rtSparkTableAnchor || !document.documentElement.classList.contains('rt-spark-table-open')) return;
+    rtOpenSparkTable(_rtSparkTableAnchor);
+  }
+
+  function _initSparkTableDrawer() {
+    var root = document.querySelector('.realtime-root');
+    if (!root) return;
+    var closeBtn = document.getElementById('rt-spark-table-close');
+    if (closeBtn) closeBtn.addEventListener('click', rtCloseSparkTable);
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') rtCloseSparkTable();
+    });
+    root.addEventListener('click', function (ev) {
+      if (ev.target.closest('#rt-spark-table-drawer')) return;
+      var openBtn = ev.target.closest('[data-rt-spark-table-open]');
+      if (openBtn) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        rtOpenSparkTable(openBtn);
+        return;
+      }
+      if (ev.target.closest('.rt-yf-tab, [data-rt-yf-range], [data-rt-site-yf-range]')) return;
+      var plot = ev.target.closest(
+        '[data-rt-chart], [data-rt-site-spark-chart], [data-rt-spark-bars], [data-rt-site-spark-bars]'
+      );
+      if (plot) {
+        rtOpenSparkTable(plot);
+      }
+    });
+  }
+  _initSparkTableDrawer();
 
   window.__pcPageContext = function () {
     var first = document.querySelector('[data-rt-profile-box]');
