@@ -30,7 +30,7 @@
   height: var(--kpi-spark-h, 12%);
   transform-origin: bottom center;
   transition: height 0.62s cubic-bezier(0.22, 1, 0.36, 1);
-  opacity: 0.88;
+  opacity: 1;
 }
 .kpi-mini-spark__bars--dense .kpi-mini-spark__bar {
   flex: 1 1 0;
@@ -46,23 +46,49 @@
   }
 }
 .kpi-mini-spark--tone-up .kpi-mini-spark__bar {
-  background: rgb(16 185 129 / 0.55);
+  background: linear-gradient(180deg, rgb(5 150 105 / 0.95), rgb(4 120 87 / 0.82));
 }
 .kpi-mini-spark--tone-down .kpi-mini-spark__bar {
-  background: rgb(244 63 94 / 0.5);
+  background: linear-gradient(180deg, rgb(225 29 72 / 0.94), rgb(190 18 60 / 0.8));
 }
 .kpi-mini-spark--tone-flat .kpi-mini-spark__bar {
-  background: rgb(100 116 139 / 0.45);
+  background: linear-gradient(180deg, rgb(100 116 139 / 0.9), rgb(71 85 105 / 0.78));
 }
 .kpi-mini-spark--placeholder .kpi-mini-spark__bar {
-  background: rgb(148 163 184 / 0.22);
+  height: 28% !important;
+  opacity: 0.85;
+  background: transparent !important;
+  box-sizing: border-box;
+  border: 2px dashed currentColor;
+  border-bottom: none;
+  border-radius: 2px 2px 0 0;
 }
-.dark .kpi-mini-spark--tone-up .kpi-mini-spark__bar {
-  background: rgb(52 211 153 / 0.5);
+.kpi-mini-spark--placeholder.kpi-mini-spark--tone-up {
+  color: rgb(4 120 87);
 }
-.dark .kpi-mini-spark--tone-down .kpi-mini-spark__bar {
-  background: rgb(251 113 133 / 0.48);
+.kpi-mini-spark--placeholder.kpi-mini-spark--tone-down {
+  color: rgb(190 18 60);
 }
-.dark .kpi-mini-spark--tone-flat .kpi-mini-spark__bar {
-  background: rgb(148 163 184 / 0.38);
+.kpi-mini-spark--placeholder.kpi-mini-spark--tone-flat {
+  color: rgb(100 116 139);
+}
+html.dark .kpi-mini-spark--tone-up .kpi-mini-spark__bar,
+html.midnight .kpi-mini-spark--tone-up .kpi-mini-spark__bar {
+  background: linear-gradient(180deg, rgb(52 211 153 / 0.88), rgb(5 150 105 / 0.72));
+}
+html.dark .kpi-mini-spark--tone-down .kpi-mini-spark__bar,
+html.midnight .kpi-mini-spark--tone-down .kpi-mini-spark__bar {
+  background: linear-gradient(180deg, rgb(251 113 133 / 0.88), rgb(190 18 60 / 0.68));
+}
+html.dark .kpi-mini-spark--tone-flat .kpi-mini-spark__bar,
+html.midnight .kpi-mini-spark--tone-flat .kpi-mini-spark__bar {
+  background: linear-gradient(180deg, rgb(113 113 122 / 0.75), rgb(63 63 70 / 0.65));
+}
+html.dark .kpi-mini-spark--placeholder.kpi-mini-spark--tone-up,
+html.midnight .kpi-mini-spark--placeholder.kpi-mini-spark--tone-up {
+  color: rgb(52 211 153);
+}
+html.dark .kpi-mini-spark--placeholder.kpi-mini-spark--tone-down,
+html.midnight .kpi-mini-spark--placeholder.kpi-mini-spark--tone-down {
+  color: rgb(251 113 133);
 }

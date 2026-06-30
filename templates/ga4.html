@@ -90,17 +90,17 @@
     }
   }
   .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(52 211 153 / 0.95), rgb(16 185 129 / 0.75));
+    background: linear-gradient(180deg, rgb(5 150 105 / 0.95), rgb(4 120 87 / 0.82));
   }
   .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(251 113 133 / 0.95), rgb(244 63 94 / 0.75));
+    background: linear-gradient(180deg, rgb(225 29 72 / 0.94), rgb(190 18 60 / 0.8));
   }
   .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(148 163 184 / 0.85), rgb(100 116 139 / 0.65));
+    background: linear-gradient(180deg, rgb(100 116 139 / 0.9), rgb(71 85 105 / 0.78));
   }
   .ga4-kpi-spark--placeholder .ga4-kpi-spark__bar {
     height: 28% !important;
-    opacity: 0.72;
+    opacity: 0.85;
     background: transparent !important;
     box-sizing: border-box;
     border: 2px dashed currentColor;
@@ -108,28 +108,33 @@
     border-radius: 2px 2px 0 0;
   }
   .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
-    color: rgb(16 185 129);
+    color: rgb(4 120 87);
   }
   .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
-    color: rgb(244 63 94);
+    color: rgb(190 18 60);
   }
   .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-flat {
     color: rgb(100 116 139);
   }
-  .dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
+  html.dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up,
+  html.midnight .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
     color: rgb(52 211 153);
   }
-  .dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
+  html.dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down,
+  html.midnight .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
     color: rgb(251 113 133);
   }
-  .dark .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(52 211 153 / 0.85), rgb(5 150 105 / 0.55));
+  html.dark .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar,
+  html.midnight .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(52 211 153 / 0.88), rgb(5 150 105 / 0.72));
   }
-  .dark .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(251 113 133 / 0.85), rgb(225 29 72 / 0.55));
+  html.dark .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar,
+  html.midnight .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(251 113 133 / 0.88), rgb(190 18 60 / 0.68));
   }
-  .dark .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(148 163 184 / 0.55), rgb(71 85 105 / 0.45));
+  html.dark .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar,
+  html.midnight .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
+    background: linear-gradient(180deg, rgb(113 113 122 / 0.75), rgb(63 63 70 / 0.65));
   }
   @keyframes ga4-indeterminate {
     0% {
