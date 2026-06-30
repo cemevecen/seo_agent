@@ -46,6 +46,14 @@ def test_fill_missing_metrics_from_long_series():
     assert merged["screenPageViews"] == [200.0, 210.0]
 
 
+def test_ga4_spark_period_days_1d_uses_week():
+    from backend.main import _ga4_spark_period_days
+
+    assert _ga4_spark_period_days(1) == 7
+    assert _ga4_spark_period_days(7) == 7
+    assert _ga4_spark_period_days(30) == 30
+
+
 def test_daily_trends_for_ui_spark_window(monkeypatch):
     class _Snap:
         def __init__(self, payload):
@@ -85,6 +93,47 @@ def test_daily_trends_for_ui_spark_window(monkeypatch):
     )
     assert len(spark["dates"]) == 7
     assert spark["newUsers"] == [5.0] * 7
+
+
+def test_daily_trends_for_ui_spark_window_1d(monkeypatch):
+    class _Snap:
+        def __init__(self, payload):
+            self.payload = payload
+
+    long_dates = [f"2026-06-{d:02d}" for d in range(1, 31)]
+    long_payload = {
+        "daily_trend": {
+            "dates": long_dates,
+            "sessions": [1.0] * 30,
+            "activeUsers": [1.0] * 30,
+            "engagedSessions": [1.0] * 30,
+            "engagementRate": [1.0] * 30,
+            "newUsers": [5.0] * 30,
+            "screenPageViews": [9.0] * 30,
+            "averageSessionDuration": [120.0] * 30,
+        }
+    }
+
+    def _fake_snap(db, *, site_id, profile, period_days):
+        if period_days == 365:
+            return {"payload": long_payload}
+        return None
+
+    monkeypatch.setattr("backend.main.settings.ga4_trend_12m_period_days", 365)
+    monkeypatch.setattr("backend.main.get_latest_ga4_report_snapshot", _fake_snap)
+
+    period = {
+        "dates": [long_dates[-1]],
+        "sessions": [2.0],
+        "activeUsers": [2.0],
+        "engagedSessions": [2.0],
+        "engagementRate": [2.0],
+    }
+    _daily, spark = _ga4_daily_trends_for_ui(
+        None, site_id=1, profile="web", period_daily=period, period_days=1
+    )
+    assert len(spark["dates"]) == 7
+    assert spark["sessions"][-1] == 2.0
 
 
 def test_daily_trends_for_ui_spark_respects_90d_period(monkeypatch):

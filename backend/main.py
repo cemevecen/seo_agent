@@ -10748,6 +10748,7 @@ def _ga4_profile_payload_for_same_weekday_day(
                 else _ga4_empty_daily_trend_dict()
             ),
             "daily_trend_spark": _ga4_empty_daily_trend_dict(),
+            "spark_period_days": _ga4_spark_period_days(1),
             "same_weekday_kpi": swk,
             "has_snapshot": bool(snap_ref),
             "has_period_data": False,
@@ -10875,6 +10876,7 @@ def _ga4_profile_payload_for_same_weekday_day(
         "sources": pl.get("sources") or [],
         "daily_trend": daily_trend,
         "daily_trend_spark": daily_trend_spark,
+        "spark_period_days": _ga4_spark_period_days(1),
         "same_weekday_kpi": swk,
         "has_snapshot": bool(snap_ref),
         "has_period_data": True,
@@ -10903,7 +10905,11 @@ _GA4_DAILY_TREND_METRICS = (
 )
 
 def _ga4_spark_period_days(period_days: int) -> int:
-    return max(1, int(period_days) if int(period_days) > 0 else 7)
+    """KPI mini spark çubuk sayısı: 1g KPI kartında da son 7 gün trendi."""
+    pd = int(period_days) if int(period_days) > 0 else 7
+    if pd == 1:
+        return 7
+    return pd
 
 
 def _ga4_empty_daily_trend_dict() -> dict:
@@ -11442,6 +11448,7 @@ def _ga4_profile_payload_for_period(
         "sources": pl.get("sources") or [],
         "daily_trend": daily_trend,
         "daily_trend_spark": daily_trend_spark,
+        "spark_period_days": _ga4_spark_period_days(pd),
         "same_weekday_kpi": pl.get("same_weekday_kpi") if isinstance(pl.get("same_weekday_kpi"), dict) else {},
         "has_snapshot": bool(snap),
         "has_period_data": bool(
