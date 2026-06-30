@@ -1099,6 +1099,11 @@
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+  }
+  html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row {
+    grid-template-columns: minmax(7rem, 8.5rem) minmax(0, 1fr);
   }
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid [data-rt-profile="ios"],
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-profiles-grid [data-rt-profile="android"] {
@@ -2309,7 +2314,7 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: 0.5rem 0.75rem 1rem;
+    padding: 0.5rem 0.5rem 1rem 0.65rem;
     -webkit-overflow-scrolling: touch;
   }
   .rt-spark-table-open-btn {
@@ -2338,9 +2343,21 @@
   }
   .rt-spark-data-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
+  }
+  .rt-spark-data-table th:nth-child(1),
+  .rt-spark-data-table td:nth-child(1) {
+    width: 30%;
+    padding-right: 0.25rem;
+  }
+  .rt-spark-data-table th:nth-child(2),
+  .rt-spark-data-table td:nth-child(2),
+  .rt-spark-data-table th:nth-child(3),
+  .rt-spark-data-table td:nth-child(3) {
+    width: 35%;
   }
   .rt-spark-data-table th {
     position: sticky;
@@ -2385,6 +2402,26 @@
   .rt-spark-data-table tr.is-carried td {
     opacity: 0.55;
     font-style: italic;
+  }
+  .rt-spark-data-table td.rt-spark-td--up {
+    color: rgb(21 128 61);
+    font-weight: 700;
+  }
+  html.dark .rt-spark-data-table td.rt-spark-td--up {
+    color: rgb(74 222 128);
+  }
+  .rt-spark-data-table td.rt-spark-td--down {
+    color: rgb(220 38 38);
+    font-weight: 700;
+  }
+  html.dark .rt-spark-data-table td.rt-spark-td--down {
+    color: rgb(248 113 113);
+  }
+  .rt-spark-data-table td.rt-spark-td--flat {
+    color: rgb(100 116 139);
+  }
+  html.dark .rt-spark-data-table td.rt-spark-td--flat {
+    color: rgb(161 161 170);
   }
   [data-rt-chart].rt-spark-table-clickable,
   [data-rt-site-spark-chart].rt-spark-table-clickable {
@@ -6448,6 +6485,15 @@
     return null;
   }
 
+  function _rtSparkTableDeltaClass(cur, prev) {
+    if (prev == null || prev === undefined) return '';
+    var c = Number(cur) || 0;
+    var p = Number(prev) || 0;
+    if (c > p) return 'rt-spark-td--up';
+    if (c < p) return 'rt-spark-td--down';
+    return 'rt-spark-td--flat';
+  }
+
   function _rtRenderSparkTableBody(rows) {
     var body = document.getElementById('rt-spark-table-body');
     if (!body) return;
@@ -6458,21 +6504,28 @@
     }
     var html =
       '<table class="rt-spark-data-table"><thead><tr><th scope="col">Saat</th><th scope="col">Kullanıcı</th><th scope="col">Gösterim</th></tr></thead><tbody>';
-    rows.forEach(function (r) {
+    rows.forEach(function (r, i) {
+      var older = rows[i + 1];
+      var uCls = older ? _rtSparkTableDeltaClass(r.users, older.users) : '';
+      var pCls = older ? _rtSparkTableDeltaClass(r.pv, older.pv) : '';
       html +=
         '<tr' +
         (r.carried ? ' class="is-carried" title="Önceki ölçümden taşınan dilim"' : '') +
         '><td>' +
         r.time +
-        '</td><td>' +
+        '</td><td class="' +
+        uCls +
+        '">' +
         _rtSparkTableFmtInt(r.users) +
-        '</td><td>' +
+        '</td><td class="' +
+        pCls +
+        '">' +
         _rtSparkTableFmtInt(r.pv) +
         '</td></tr>';
     });
     html += '</tbody></table>';
     html +=
-      '<p class="mt-3 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">Sütunlar grafikle aynı dilimleri kullanır: kısa aralıklarda 1 dk, 24 saatte 15 dk. Değerler dilim içindeki <strong class="font-semibold">tepe</strong> aktif kullanıcı ve tepe sayfa görüntüleme.</p>';
+      '<p class="mt-3 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">Sütunlar grafikle aynı dilimleri kullanır. <span class="text-emerald-600 dark:text-emerald-400">Yeşil</span> / <span class="text-rose-600 dark:text-rose-400">kırmızı</span>: bir alttaki (daha eski) dilime göre artış / düşüş. Tepe aktif ve tepe görüntüleme.</p>';
     body.innerHTML = html;
   }
 
