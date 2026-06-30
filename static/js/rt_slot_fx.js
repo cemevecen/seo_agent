@@ -102,12 +102,26 @@
     }, 340);
   }
 
+  function colClassForChar(ch) {
+    if (ch === '.' || ch === ',' || ch === ' ' || ch === '—' || ch === '-') {
+      return 'rt-slot-col rt-slot-col--sep';
+    }
+    return 'rt-slot-col';
+  }
+
+  function ensureReelClass(el) {
+    if (el && el.hasAttribute('data-rt-slot-reel')) {
+      el.classList.add('rt-slot-reel');
+    }
+  }
+
   function setText(el, text) {
     if (!el) return;
     if (el.hasAttribute('data-rt-slot-delta') || el.classList.contains('rt-slot-delta')) {
       setDeltaText(el, text, {});
       return;
     }
+    ensureReelClass(el);
     text = text == null || text === '' ? '—' : String(text);
     var prev = el.getAttribute('data-rt-slot-cur');
     if (prev === text) return;
@@ -117,7 +131,7 @@
       el.textContent = '';
       text.split('').forEach(function (ch) {
         var col = document.createElement('span');
-        col.className = 'rt-slot-col';
+        col.className = colClassForChar(ch);
         col.innerHTML = '<span class="rt-slot-strip"><span class="rt-slot-ch">' + esc(ch) + '</span></span>';
         el.appendChild(col);
       });
@@ -143,7 +157,7 @@
 
     while (cols.length < chars.length) {
       var colNew = document.createElement('span');
-      colNew.className = 'rt-slot-col';
+      colNew.className = colClassForChar(chars[cols.length]);
       colNew.innerHTML =
         '<span class="rt-slot-strip"><span class="rt-slot-ch">' + esc(chars[cols.length]) + '</span></span>';
       el.appendChild(colNew);
@@ -155,6 +169,7 @@
 
     chars.forEach(function (ch, idx) {
       var col = cols[idx];
+      col.className = colClassForChar(ch);
       var strip = col.querySelector('.rt-slot-strip');
       if (!strip) return;
       var cur = strip.querySelector('.rt-slot-ch');

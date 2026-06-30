@@ -1038,10 +1038,10 @@
   }
   html.rt-view--compact .rt-masonry-total-row .rt-site-spark-row {
     min-height: 6.75rem;
-    grid-template-columns: minmax(8.5rem, 10.5rem) minmax(0, 1fr);
+    grid-template-columns: minmax(9.25rem, 11.5rem) minmax(0, 1fr);
     border-radius: 0.625rem;
   }
-  html.rt-view--compact .rt-masonry-total-row .rt-site-spark-last {
+  html.rt-view--compact .rt-masonry-total-row .rt-site-spark-last:not(.rt-slot-reel) {
     font-size: 1.55rem;
     line-height: 1.05;
   }
@@ -2482,7 +2482,7 @@
           <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · Döviz + Sinemalar</p>
-          <p class="rt-site-spark-last" data-rt-site-spark-last title="Birleşik anlık toplam aktif">—</p>
+          <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Birleşik anlık toplam aktif">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
         </div>
         <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
@@ -2519,7 +2519,7 @@
           <div class="rt-site-spark-meta">
             <p class="rt-site-spark-label">{{ site.display_name or site.domain }}</p>
             <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · site toplam</p>
-            <p class="rt-site-spark-last" data-rt-site-spark-last title="Site toplam aktif">—</p>
+            <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Site toplam aktif">—</p>
             <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
           </div>
           <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
@@ -2573,7 +2573,7 @@
           <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · anlık toplam</p>
-          <p class="rt-site-spark-last" data-rt-site-spark-last title="Anlık toplam aktif (tüm profiller)">—</p>
+          <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Anlık toplam aktif (tüm profiller)">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
         </div>
         <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
@@ -2900,8 +2900,8 @@
 </div>
 
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=3">
-<script src="/static/js/rt_slot_fx.js?v=3"></script>
+<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=4">
+<script src="/static/js/rt_slot_fx.js?v=4"></script>
 <script>
 (function () {
   var LIVE_POLL_SEC = {{ ui_poll_seconds|int }};
@@ -3923,7 +3923,7 @@
       compareEl.classList.add('hidden');
     }
     if (lastEl) {
-      lastEl.textContent = reason === 'error' ? '—' : '—';
+      _slotText(lastEl, '—');
     }
     if (barsEl) {
       var msg =

@@ -293,3 +293,97 @@ html.dark .rt-split-kpis [data-rt-kpi].rt-kpi-flash--down {
     animation: none !important;
   }
 }
+
+/* Site toplam KPI — slot makinesi makarası (tema uyumlu) */
+.rt-slot-text.rt-slot-reel,
+.rt-site-spark-last.rt-slot-reel {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  gap: 0;
+  padding: 0.22rem 0.38rem 0.26rem;
+  border-radius: 0.55rem;
+  background: linear-gradient(165deg, #52525b 0%, #3f3f46 38%, #27272a 72%, #18181b 100%);
+  border: 1px solid rgba(161, 161, 170, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.45),
+    0 3px 10px rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+html:not(.dark) .rt-slot-text.rt-slot-reel,
+html:not(.dark) .rt-site-spark-last.rt-slot-reel {
+  background: linear-gradient(165deg, #d4d4d8 0%, #f4f4f5 42%, #fafafa 68%, #e4e4e7 100%);
+  border-color: rgba(113, 113, 122, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+}
+.rt-slot-reel .rt-slot-col {
+  position: relative;
+  height: 1.28em;
+  line-height: 1.28em;
+  min-width: 0.58em;
+  margin: 0 0.06rem;
+  padding: 0 0.14em;
+  border-radius: 0.3rem;
+  text-align: center;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f4f5 48%, #e4e4e7 100%);
+  border: 1px solid rgba(113, 113, 122, 0.45);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.65);
+}
+html.dark .rt-slot-reel .rt-slot-col {
+  background: linear-gradient(180deg, #fafafa 0%, #f4f4f5 42%, #e4e4e7 100%);
+  border-color: rgba(63, 63, 70, 0.95);
+  box-shadow:
+    inset 0 3px 7px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.rt-slot-reel .rt-slot-col--sep {
+  min-width: 0.28em;
+  padding: 0 0.02em;
+  margin: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.rt-slot-reel .rt-slot-col--sep .rt-slot-ch {
+  font-size: 0.72em;
+  font-weight: 800;
+  opacity: 0.55;
+  background: none;
+  -webkit-text-stroke: 0;
+  color: rgb(161 161 170);
+}
+.rt-slot-reel .rt-slot-ch {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #ea580c 0%, #fb923c 42%, #fbbf24 78%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 0.35px rgba(124, 45, 18, 0.45);
+}
+html.dark .rt-slot-reel .rt-slot-ch {
+  background: linear-gradient(180deg, #fdba74 0%, #fbbf24 45%, #f59e0b 100%);
+  -webkit-text-stroke: 0.4px rgba(69, 26, 3, 0.55);
+}
+html.rt-view--compact .rt-masonry-total-row .rt-site-spark-last.rt-slot-reel {
+  font-size: clamp(1.35rem, 4.2vw, 1.75rem);
+  padding: 0.3rem 0.42rem 0.34rem;
+}
+html.rt-view--compact .rt-masonry-total-row .rt-slot-reel .rt-slot-col {
+  height: 1.22em;
+  line-height: 1.22em;
+  min-width: 0.52em;
+}
+html.rt-view--total .rt-site-spark-last.rt-slot-reel,
+html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-last.rt-slot-reel {
+  font-size: clamp(1.1rem, 3vw, 1.45rem);
+}
