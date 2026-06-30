@@ -2938,6 +2938,7 @@ def _search_console_report_payload(
             _lp = prev_lbl
         periods[period_key] = {
             "period_days": pd_days,
+            "spark_period_days": 7 if pd_days == 1 else pd_days,
             "heading": _heading,
             "subtitle": _subtitle,
             "label_current": _lc,

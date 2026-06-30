@@ -389,6 +389,8 @@
   </div>
 </div>
 
+<link rel="stylesheet" href="/static/css/kpi_mini_spark.css?v=1" />
+<script src="/static/js/kpi_mini_spark.js?v=1"></script>
 <script>
   function createSearchConsolePageLoadController() {
     const panel = document.getElementById('search-console-page-load-panel');
@@ -1124,7 +1126,7 @@
           return;
         }
         try {
-          const trend = JSON.parse(element.dataset.searchConsoleTrend || '{}');
+          const trend = JSON.parse(element.getAttribute('data-search-console-trend') || '{}');
           const isDailyTrend = trend.mode === 'last_28d' || trend.mode === 'last_12m';
           const isLongDaily = trend.mode === 'last_12m';
           const labels = trend.labels || ['1', '2', '3', '4', '5', '6', '7'];
@@ -1475,6 +1477,7 @@
         scRunWhenIdle(function () {
           initSearchConsoleTables(scope);
           renderSearchConsoleTrendCharts(scope);
+          if (window.renderScKpiSparks) renderScKpiSparks(scope);
           fitSearchConsoleText(scope);
         }, 400);
       };
@@ -1550,6 +1553,7 @@
           syncDeviceForActivePeriod();
           initSearchConsoleTables(visiblePeriod || hostCard);
           renderSearchConsoleTrendCharts(visiblePeriod || hostCard);
+          if (window.renderScKpiSparks) renderScKpiSparks(visiblePeriod || hostCard);
           fitSearchConsoleText(visiblePeriod || hostCard);
         }, periodKey === '12m' ? 900 : 400);
       };
@@ -1634,6 +1638,7 @@
             fitSearchConsoleText(panel);
             initSearchConsoleTables(panel);
             renderSearchConsoleTrendCharts(panel);
+            if (window.renderScKpiSparks) renderScKpiSparks(panel);
           }, 60);
         }
       };
@@ -1782,6 +1787,7 @@
     window.setTimeout(function () {
       initSearchConsoleTables(grid);
       renderSearchConsoleTrendCharts(grid);
+      if (window.renderScKpiSparks) renderScKpiSparks(grid);
       fitSearchConsoleText(grid);
     }, 40);
   }
@@ -2104,6 +2110,7 @@
     initSearchConsoleTableSwitch(root);
     bindSearchConsoleRefreshForms(root);
     renderSearchConsoleTrendCharts(root);
+    if (window.renderScKpiSparks) renderScKpiSparks(root);
     initSearchConsoleTables(root);
     fitSearchConsoleText(root);
     mountScGlobalFilters();
@@ -2198,6 +2205,10 @@
       }
     });
     renderSearchConsoleTrendCharts(document);
+    if (window.KpiMiniSpark) {
+      KpiMiniSpark.clearCache(document);
+      KpiMiniSpark.render(document);
+    }
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -2521,7 +2532,7 @@
         plot_bgcolor: th.plot,
       });
       try {
-        var trend = JSON.parse(el.dataset.searchConsoleTrend || '{}');
+        var trend = JSON.parse(el.getAttribute('data-search-console-trend') || '{}');
         var isDaily = trend.mode === 'last_28d' || trend.mode === 'last_12m';
         if (isDaily) {
           Plotly.restyle(el, {
