@@ -160,12 +160,14 @@ def get_combined_upcoming(months_ahead: int = 5) -> dict:
     • Cache hiç yok (ilk başlatma) → bekle, prewarm thread bitene kadar.
     """
     global _cache_data, _cache_mono
+    months_ahead = max(1, min(int(months_ahead), TMDB_MAX_CACHE_MONTHS))
+    fetch_months = TMDB_MAX_CACHE_MONTHS
     with _cache_lock:
         fresh  = _cache_fresh()
         stale  = _cache_data  # None veya eski dict
 
     if fresh:
-        return stale  # type: ignore[return-value]
+        return _filter_combined_horizon(stale, months_ahead)  # type: ignore[arg-type]
 
     if stale is not None:
         # Eski veriyi anında dön, arka planda yenile
@@ -173,22 +175,23 @@ def get_combined_upcoming(months_ahead: int = 5) -> dict:
             _bg_refresh_active.set()
             def _bg():
                 try:
-                    _do_refresh(months_ahead)
+                    _do_refresh(fetch_months)
                 finally:
                     _bg_refresh_active.clear()
             threading.Thread(target=_bg, daemon=True, name="tmdb-stale-refresh").start()
-        return stale
+        return _filter_combined_horizon(stale, months_ahead)
 
     # İlk başlatma — veri hiç yok, beklemek zorunda
-    _do_refresh(months_ahead)
+    _do_refresh(fetch_months)
     with _cache_lock:
-        return _cache_data or {}
+        return _filter_combined_horizon(_cache_data or {}, months_ahead)
 
 
 def refresh_combined_cache(months_ahead: int = 5) -> dict:
     """Scheduler job'u veya manuel tetik için: cache'i zorunlu yeniler."""
     global _cache_data, _cache_mono
-    fresh = fetch_combined_upcoming(months_ahead)
+    fetch_months = TMDB_MAX_CACHE_MONTHS
+    fresh = fetch_combined_upcoming(TMDB_MAX_CACHE_MONTHS)
     with _cache_lock:
         _cache_data = fresh
         _cache_mono = time.monotonic()
@@ -381,6 +384,95 @@ TV_FIRST_AIR_FLOOR = "2024-01-01"
 TR_OTT_TV_PROVIDER_IDS = "341|1869|4893"  # BluTV, exxen, Tabii
 
 
+TMDB_MAX_CACHE_MONTHS = 12  # önbellek her zaman tam ufuk; sayfa ?months= ile dilimlenir
+
+
+def _horizon_end_date(months_ahead: int) -> str:
+    """Bugünden itibaren N takvim ayı sonu (dahil) — örn. 12 → gelecek 1 yıl."""
+    import calendar
+
+    n = max(1, min(int(months_ahead), TMDB_MAX_CACHE_MONTHS))
+    d = date.today()
+    total_m = d.year * 12 + (d.month - 1) + n
+    y = total_m // 12
+    m = total_m % 12 + 1
+    last_day = calendar.monthrange(y, m)[1]
+    return date(y, m, last_day).isoformat()
+
+
+def _date_to_for_fetch(months_ahead: int) -> str:
+    """TMDB discover üst sınırı — seçili ay ufkunun son günü."""
+    return _horizon_end_date(months_ahead)
+
+
+def _release_in_horizon(m: dict, *, start: str, end: str) -> bool:
+    rd = (m.get("release_date") or "")[:10]
+    if not rd:
+        return True
+    return start <= rd <= end
+
+
+def _filter_movie_list(lst: list[dict], *, start: str, end: str) -> list[dict]:
+    return [m for m in lst if _release_in_horizon(m, start=start, end=end)]
+
+
+def _group_by_month(lst: list[dict]) -> dict[str, list]:
+    by_m: dict[str, list] = {}
+    for m in sorted(lst, key=lambda x: x["release_date"] or "9999"):
+        key = m["release_month"] or "Tarih yok"
+        by_m.setdefault(key, []).append(m)
+    for k in by_m:
+        by_m[k].sort(key=lambda x: x["release_date"] or "9999")
+    return by_m
+
+
+def _filter_combined_horizon(data: dict[str, Any], months_ahead: int) -> dict[str, Any]:
+    """Önbellekteki tam listeyi seçili ay ufkuyla dilimler (3/5/8/12 ay)."""
+    if not data:
+        return data
+    months_ahead = max(1, min(int(months_ahead), TMDB_MAX_CACHE_MONTHS))
+    start = _current_month_start()
+    end = _horizon_end_date(months_ahead)
+
+    theatrical = _filter_movie_list(list(data.get("theatrical") or []), start=start, end=end)
+    streaming = _filter_movie_list(list(data.get("streaming") or []), start=start, end=end)
+    turkish_only = _filter_movie_list(list(data.get("turkish_only") or []), start=start, end=end)
+    tv_series = _filter_movie_list(list(data.get("tv_series") or []), start=start, end=end)
+
+    theatrical_ids = {m["id"] for m in theatrical}
+    streaming_movie_ids = {
+        m["id"] for m in streaming if (m.get("media_type") or "movie") == "movie"
+    }
+    all_combined = theatrical + [
+        m for m in streaming
+        if (m.get("media_type") or "movie") == "movie" and m["id"] not in theatrical_ids
+    ] + turkish_only
+    high_potential = sorted(
+        [m for m in all_combined if m.get("popularity", 0) >= 100],
+        key=lambda x: -x["popularity"],
+    )
+
+    out = dict(data)
+    out.update({
+        "theatrical": theatrical,
+        "theatrical_by_month": _group_by_month(theatrical),
+        "streaming": streaming,
+        "streaming_by_month": _group_by_month(streaming),
+        "turkish_only": turkish_only,
+        "turkish_by_month": _group_by_month(turkish_only),
+        "tv_series": tv_series,
+        "tv_by_month": _group_by_month(tv_series),
+        "high_potential": high_potential[:15],
+        "months_ahead": months_ahead,
+        "horizon_end": end,
+        "total_theatrical": len(theatrical),
+        "total_streaming": len(streaming),
+        "total_turkish": len(turkish_only),
+        "total_tv": len(tv_series),
+    })
+    return out
+
+
 def _year_end() -> str:
     """Vizyon ufku: bir sonraki takvim yılının sonu — yıl geçişinde otomatik ilerler."""
     return f"{date.today().year + 1}-12-31"
@@ -429,7 +521,7 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     İkisi birleştirilip ID bazlı tekrar önlenir.
     """
     date_from = _current_month_start()
-    date_to   = _year_end()
+    date_to   = _date_to_for_fetch(months_ahead)
 
     seen: set[int] = set()
     raw: list[dict] = []
@@ -461,6 +553,21 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
         if m["id"] not in seen:
             seen.add(m["id"])
             raw.append(m)
+
+    # C: ABD + İngiltere bölgesel vizyon (TR tarihi henüz yoksa da planlama için)
+    for region, lang in (("US", "en-US"), ("GB", "en-GB")):
+        for m in _fetch_pages({
+            "region":            region,
+            "language":          lang,
+            "release_date.gte":  date_from,
+            "release_date.lte":  date_to,
+            "sort_by":           "popularity.desc",
+            "include_adult":     "false",
+            "with_release_type": "3",
+        }, page_limit=8):
+            if m["id"] not in seen:
+                seen.add(m["id"])
+                raw.append(m)
 
     movies = [_enrich(m) for m in raw]
     movies.sort(key=lambda x: x["release_date"] or "9999")
@@ -578,7 +685,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     flatrate ile doğrulanır (global discover rozet biriktirmez).
     """
     date_from = _current_month_start()
-    date_to   = _year_end()
+    date_to   = _date_to_for_fetch(months_ahead)
     store: dict[str, dict] = {}
 
     movie_base = {
@@ -651,7 +758,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
 def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
     """Türk yapımı filmler — dil TR veya origin_country TR; vizyon + global prömiyer."""
     date_from = _current_month_start()
-    date_to   = _year_end()
+    date_to   = _date_to_for_fetch(months_ahead)
 
     seen: set[int] = set()
     raw: list[dict] = []
@@ -766,7 +873,7 @@ def fetch_turkish_tv_karasal(months_ahead: int = 6) -> list[dict[str, Any]]:
     Kaynaklar: with_networks (ATV, Kanal D, …), dil TR, origin_country TR.
     """
     date_from = _current_month_start()
-    date_to   = _year_end()
+    date_to   = _date_to_for_fetch(months_ahead)
 
     base_params = {
         "language":          "tr-TR",
@@ -811,7 +918,7 @@ def fetch_turkish_tv_planned_production() -> list[dict[str, Any]]:
 def fetch_turkish_tv_ott() -> list[dict[str, Any]]:
     """BluTV, exxen, Tabii vb. TR OTT — flatrate discover (bölüm tarihi penceresi)."""
     date_from = _current_month_start()
-    date_to   = _year_end()
+    date_to   = _date_to_for_fetch(months_ahead)
     seen: set[int] = set()
     raw: list[dict] = []
     base = {
@@ -855,13 +962,14 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
     Dashboard için tek çağrı — üç liste döner:
     theatrical, streaming, turkish_only (diğerlerinde olmayan Türk yapımları)
     """
+    fetch_horizon = TMDB_MAX_CACHE_MONTHS
     _clear_release_dates_cache()
     theatrical: list[dict] = []
     streaming:  list[dict] = []
     turkish:    list[dict] = []
 
     try:
-        theatrical = fetch_theatrical_turkey(months_ahead)
+        theatrical = fetch_theatrical_turkey(fetch_horizon)
     except Exception as exc:
         logger.error("TMDB theatrical hatası: %s", exc)
 
@@ -885,12 +993,12 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         logger.error("BOT gişe entegrasyon hatası: %s", exc)
 
     try:
-        streaming = fetch_streaming_turkey(months_ahead)
+        streaming = fetch_streaming_turkey(fetch_horizon)
     except Exception as exc:
         logger.error("TMDB streaming hatası: %s", exc)
 
     try:
-        turkish = fetch_turkish_productions(months_ahead)
+        turkish = fetch_turkish_productions(fetch_horizon)
     except Exception as exc:
         logger.error("TMDB Turkish productions hatası: %s", exc)
 
@@ -900,7 +1008,7 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
     tv_ott: list[dict] = []
     tv_returning: list[dict] = []
     try:
-        tv_upcoming = fetch_turkish_tv_karasal(months_ahead)
+        tv_upcoming = fetch_turkish_tv_karasal(fetch_horizon)
     except Exception as exc:
         logger.error("TMDB TV karasal hatası: %s", exc)
     try:
@@ -954,14 +1062,7 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         logger.error("TMDB TR vizyon tarihi zenginleştirme hatası: %s", exc)
 
     def group_by_month(lst: list[dict]) -> dict[str, list]:
-        by_m: dict[str, list] = {}
-        for m in sorted(lst, key=lambda x: x["release_date"] or "9999"):
-            key = m["release_month"] or "Tarih yok"
-            by_m.setdefault(key, []).append(m)
-        # Ay içinde tarihe göre artan sıra (05-13 önce, 05-27 sonra)
-        for k in by_m:
-            by_m[k].sort(key=lambda x: x["release_date"] or "9999")
-        return by_m
+        return _group_by_month(lst)
 
     all_combined = theatrical + [
         m for m in streaming
@@ -982,7 +1083,8 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         "tv_series":           tv_upcoming,
         "tv_by_month":         group_by_month(tv_upcoming),
         "high_potential":      high_potential[:15],
-        "months_ahead":        months_ahead,
+        "months_ahead":        fetch_horizon,
+        "horizon_end":         _horizon_end_date(fetch_horizon),
         "total_theatrical":    len(theatrical),
         "total_streaming":     len(streaming),
         "total_turkish":       len(turkish),

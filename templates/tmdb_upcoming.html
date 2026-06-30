@@ -354,12 +354,12 @@
         </div>
         {# Ay seçici #}
         <div class="flex gap-1">
-          {% for m in [3,5,8] %}
+          {% for m in [3,5,8,12] %}
           <a href="/tmdb-upcoming?months={{ m }}"
              class="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition sm:px-3 sm:py-1.5 sm:text-xs
                     {% if data.months_ahead == m %}bg-slate-900 text-white border-slate-900 dark:bg-zinc-200 dark:text-zinc-900 dark:border-zinc-300
                     {% else %}border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700{% endif %}">
-            {{ m }} ay
+            {% if m == 12 %}1 yıl{% else %}{{ m }} ay{% endif %}
           </a>
           {% endfor %}
         </div>
