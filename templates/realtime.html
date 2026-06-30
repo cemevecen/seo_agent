@@ -1058,14 +1058,17 @@
     padding: 0.45rem 0.5rem;
   }
   html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-panel {
-    grid-template-columns: minmax(0, 34%) minmax(0, 1fr);
+    grid-template-columns: minmax(5.5rem, 38%) minmax(0, 1fr);
     min-height: 6.75rem;
   }
   html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis {
     padding: 0.35rem 0.3rem 0.35rem 0.4rem;
   }
-  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis [data-rt-kpi] [data-rt-val] {
-    font-size: clamp(0.7rem, 4.8cqi, 1rem);
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-val] {
+    font-size: clamp(1.05rem, 9.5cqi, 1.85rem);
+  }
+  html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis [data-rt-kpi="screenPageViews"] [data-rt-val] {
+    font-size: clamp(0.7rem, 4.5cqi, 0.95rem);
   }
   html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis .rt-kpi-title,
   html.rt-view--compact [data-rt-site-slug="doviz"] .rt-split-kpis [data-rt-kpi] p.text-xs {
@@ -1121,10 +1124,13 @@
   html.rt-view--compact .rt-split-panel {
     min-height: 7.25rem;
     margin-bottom: 0;
-    grid-template-columns: minmax(0, 40%) minmax(0, 60%);
+    grid-template-columns: minmax(5.25rem, 42%) minmax(0, 58%);
   }
-  html.rt-view--compact .rt-split-kpis [data-rt-kpi] [data-rt-val] {
-    font-size: clamp(0.8rem, 5.5cqi, 1.2rem);
+  html.rt-view--compact .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-val] {
+    font-size: clamp(1.05rem, 9cqi, 1.8rem);
+  }
+  html.rt-view--compact .rt-split-kpis [data-rt-kpi="screenPageViews"] [data-rt-val] {
+    font-size: clamp(0.75rem, 5cqi, 1.05rem);
   }
   html.rt-view--compact .rt-split-kpis [data-rt-kpi="activeUsers"] {
     padding-bottom: 0.45rem;
@@ -1261,10 +1267,25 @@
   html.dark .rt-split-kpis [data-rt-kpi] [data-rt-halves] {
     color: #52525b !important;
   }
-  .rt-split-kpis [data-rt-kpi] [data-rt-val] {
-    font-size: clamp(0.875rem, 6.25cqi, 1.35rem);
+  .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-val] {
+    font-size: clamp(1.2rem, 11.5cqi, 2.05rem);
+    line-height: 1.05;
+    margin-top: 0.15rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: -0.02em;
+    font-weight: 900;
+    color: rgb(15 23 42);
+  }
+  html.dark .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-val] {
+    color: rgb(250 250 250);
+  }
+  .rt-split-kpis [data-rt-kpi="screenPageViews"] [data-rt-val] {
+    font-size: clamp(0.8125rem, 5.5cqi, 1.125rem);
     line-height: 1.1;
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1288,6 +1309,17 @@
     min-width: 0;
     max-width: 100%;
     margin-top: 0.2rem;
+  }
+  .rt-split-kpis [data-rt-kpi="activeUsers"] .rt-kpi-title {
+    font-size: clamp(6px, 2.15cqi, 9px);
+  }
+  .rt-split-kpis [data-rt-kpi="activeUsers"] .rt-kpi-delta-row {
+    margin-top: 0.1rem;
+  }
+  .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-halves],
+  .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-pct] {
+    font-size: clamp(7px, 2cqi, 10px) !important;
+    font-weight: 600;
   }
   .rt-split-kpis [data-rt-kpi] [data-rt-halves],
   .rt-split-kpis [data-rt-kpi] [data-rt-pct] {
@@ -2075,8 +2107,8 @@
       flex: 1 1 0;
       min-width: 0;
     }
-    html.rt-view--compact .rt-split-kpis [data-rt-kpi] [data-rt-val] {
-      font-size: clamp(0.85rem, 5.75cqi, 1.35rem) !important;
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-val] {
+      font-size: clamp(1.05rem, 8cqi, 1.75rem) !important;
     }
     html.rt-view--compact .rt-split-kpis .rt-kpi-title,
     html.rt-view--compact .rt-split-kpis [data-rt-kpi] p.text-xs {
@@ -2217,8 +2249,11 @@
       min-width: 2.35rem;
       font-size: 0.625rem;
     }
-    html.rt-view--compact .rt-split-kpis [data-rt-kpi] [data-rt-val] {
-      font-size: clamp(0.75rem, 5cqi, 1.2rem) !important;
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi="activeUsers"] [data-rt-val] {
+      font-size: clamp(1rem, 8.5cqi, 1.65rem) !important;
+    }
+    html.rt-view--compact .rt-split-kpis [data-rt-kpi="screenPageViews"] [data-rt-val] {
+      font-size: clamp(0.7rem, 5cqi, 1rem) !important;
     }
   }
 
@@ -2468,10 +2503,10 @@
           <div class="rt-split-kpis">
             <div class="min-w-0" data-rt-kpi="activeUsers">
               <p class="rt-kpi-title text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Aktif kullanıcı</p>
-              <p class="rt-kpi-val mt-1 font-black tabular-nums text-slate-900 dark:text-slate-100" data-rt-val>—</p>
+              <p class="rt-kpi-val mt-0.5 text-[clamp(1.2rem,11.5cqi,2.05rem)] font-black leading-none tabular-nums text-slate-900 dark:text-zinc-50" data-rt-val>—</p>
               <div class="rt-kpi-delta-row">
                 <span class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-halves data-rt-slot-delta>—</span>
-                <span class="text-sm font-bold tabular-nums rt-change-flat" data-rt-pct data-rt-slot-delta>—</span>
+                <span class="text-[10px] font-semibold tabular-nums rt-change-flat" data-rt-pct data-rt-slot-delta>—</span>
               </div>
             </div>
             <div class="min-w-0" data-rt-kpi="screenPageViews">
