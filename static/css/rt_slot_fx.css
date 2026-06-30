@@ -304,24 +304,23 @@ html.dark .rt-split-kpis [data-rt-kpi].rt-kpi-flash--down {
   gap: 0;
   padding: 0.22rem 0.38rem 0.26rem;
   border-radius: 0.55rem;
-  background: linear-gradient(165deg, #52525b 0%, #3f3f46 38%, #27272a 72%, #18181b 100%);
-  border: 1px solid rgba(161, 161, 170, 0.55);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -3px 8px rgba(0, 0, 0, 0.45),
-    0 3px 10px rgba(0, 0, 0, 0.28);
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
-}
-html:not(.dark) .rt-slot-text.rt-slot-reel,
-html:not(.dark) .rt-site-spark-last.rt-slot-reel {
   background: linear-gradient(165deg, #d4d4d8 0%, #f4f4f5 42%, #fafafa 68%, #e4e4e7 100%);
-  border-color: rgba(113, 113, 122, 0.55);
+  border: 1px solid rgba(113, 113, 122, 0.55);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     inset 0 -2px 5px rgba(0, 0, 0, 0.1),
     0 2px 6px rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+html.dark .rt-slot-text.rt-slot-reel,
+html.dark .rt-site-spark-last.rt-slot-reel {
+  background: linear-gradient(180deg, rgba(39, 39, 42, 0.55) 0%, rgba(24, 24, 27, 0.85) 100%);
+  border: 1px solid rgba(63, 63, 70, 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.35);
 }
 .rt-slot-reel .rt-slot-col {
   position: relative;
@@ -339,11 +338,11 @@ html:not(.dark) .rt-site-spark-last.rt-slot-reel {
     0 1px 0 rgba(255, 255, 255, 0.65);
 }
 html.dark .rt-slot-reel .rt-slot-col {
-  background: linear-gradient(180deg, #fafafa 0%, #f4f4f5 42%, #e4e4e7 100%);
-  border-color: rgba(63, 63, 70, 0.95);
+  background: linear-gradient(180deg, #3f3f46 0%, #323238 48%, #27272a 100%);
+  border-color: rgba(82, 82, 91, 0.75);
   box-shadow:
-    inset 0 3px 7px rgba(0, 0, 0, 0.28),
-    0 1px 0 rgba(255, 255, 255, 0.35);
+    inset 0 2px 5px rgba(0, 0, 0, 0.42),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
 .rt-slot-reel .rt-slot-col--sep {
   min-width: 0.28em;
@@ -359,29 +358,43 @@ html.dark .rt-slot-reel .rt-slot-col {
   opacity: 0.55;
   background: none;
   -webkit-text-stroke: 0;
-  color: rgb(161 161 170);
+  color: rgb(113 113 122);
+}
+html.dark .rt-slot-reel .rt-slot-col--sep .rt-slot-ch {
+  opacity: 0.85;
+  color: rgb(113 113 122);
 }
 .rt-slot-reel .rt-slot-ch {
   font-weight: 900;
   letter-spacing: -0.02em;
-  background: linear-gradient(180deg, #ea580c 0%, #fb923c 42%, #fbbf24 78%, #f59e0b 100%);
+  background: linear-gradient(180deg, #c2410c 0%, #ea580c 38%, #d97706 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  -webkit-text-stroke: 0.35px rgba(124, 45, 18, 0.45);
+  -webkit-text-stroke: 0.25px rgba(124, 45, 18, 0.35);
 }
 html.dark .rt-slot-reel .rt-slot-ch {
-  background: linear-gradient(180deg, #fdba74 0%, #fbbf24 45%, #f59e0b 100%);
-  -webkit-text-stroke: 0.4px rgba(69, 26, 3, 0.55);
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-stroke: 0;
+  color: rgb(244 244 245);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 html.rt-view--compact .rt-masonry-total-row .rt-site-spark-last.rt-slot-reel {
-  font-size: clamp(1.35rem, 4.2vw, 1.75rem);
-  padding: 0.3rem 0.42rem 0.34rem;
+  font-size: clamp(1.2rem, 3.8vw, 1.55rem);
+  padding: 0.24rem 0.34rem 0.28rem;
+}
+html.dark.rt-view--compact .rt-masonry-total-row .rt-site-spark-last.rt-slot-reel {
+  font-size: clamp(1.1rem, 3.5vw, 1.45rem);
+  padding: 0.2rem 0.3rem 0.24rem;
 }
 html.rt-view--compact .rt-masonry-total-row .rt-slot-reel .rt-slot-col {
   height: 1.22em;
   line-height: 1.22em;
-  min-width: 0.52em;
+  min-width: 0.5em;
+  margin: 0 0.04rem;
+  padding: 0 0.1em;
 }
 html.rt-view--total .rt-site-spark-last.rt-slot-reel,
 html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-last.rt-slot-reel {
