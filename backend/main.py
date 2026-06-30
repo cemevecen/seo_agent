@@ -1631,6 +1631,9 @@ async def ip_allowlist_middleware(request: Request, call_next):
 
         if tga.is_tmdb_guest_authenticated(request):
             if path.startswith("/api/"):
+                if path.startswith("/api/tmdb-upcoming/sinemalar-lookup"):
+                    request.state.tmdb_guest_view = True
+                    return await call_next(request)
                 return JSONResponse(status_code=403, content={"detail": "Misafir erişimi yalnızca vizyon takvimi."})
             if not tga.guest_path_allowed(path):
                 return RedirectResponse(url=tga.TMDB_GUEST_PATH, status_code=303)
@@ -12221,7 +12224,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
 
         attach_to_upcoming_data(
             data,
-            max_lookups=0,
+            max_lookups=24,
             current_month=_date.today().strftime("%Y-%m"),
         )
     except Exception:

@@ -799,6 +799,8 @@
 
   (function sinemalarEnrichQueue() {
     var busy = false;
+    var FETCH_MS = 28000;
+    var BATCH = 6;
     function esc(s) {
       var d = document.createElement('div');
       d.textContent = s == null ? '' : String(s);
@@ -844,7 +846,7 @@
     }
     function tick() {
       if (busy) return;
-      var cards = pendingCards().slice(0, 12);
+      var cards = pendingCards().slice(0, BATCH);
       if (!cards.length) return;
       busy = true;
       var items = cards.map(function (c) {
@@ -855,25 +857,53 @@
           release_date: c.getAttribute('data-media-date') || '',
           media_type: c.getAttribute('data-media-type') || 'movie',
         };
-      });
+      }).filter(function (it) { return Number.isFinite(it.id); });
+      if (!items.length) {
+        busy = false;
+        return;
+      }
+      var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (ctrl) ctrl.abort();
+      }, FETCH_MS);
       fetch('/api/tmdb-upcoming/sinemalar-lookup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         credentials: 'same-origin',
+        signal: ctrl ? ctrl.signal : undefined,
         body: JSON.stringify({ items: items }),
       })
-        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (r) {
+          if (!r.ok) throw new Error('http_' + r.status);
+          return r.json();
+        })
         .then(function (data) {
-          if (!data || !data.results) return;
+          var results = (data && data.results) ? data.results : {};
           cards.forEach(function (card) {
             var id = card.getAttribute('data-tmdb-id');
-            if (data.results[id]) renderSlot(card, data.results[id]);
+            var p = results[id];
+            if (p) {
+              renderSlot(card, p);
+            } else if (card.getAttribute('data-sinemalar-state') === 'pending') {
+              renderSlot(card, { sinemalar_found: false });
+            }
           });
         })
-        .catch(function () {})
+        .catch(function () {
+          cards.forEach(function (card) {
+            if (card.getAttribute('data-sinemalar-state') === 'pending') {
+              var tries = parseInt(card.getAttribute('data-sinemalar-tries') || '0', 10) + 1;
+              card.setAttribute('data-sinemalar-tries', String(tries));
+              if (tries >= 3) {
+                renderSlot(card, { sinemalar_found: false });
+              }
+            }
+          });
+        })
         .finally(function () {
+          clearTimeout(timer);
           busy = false;
-          if (pendingCards().length) setTimeout(tick, 350);
+          if (pendingCards().length) setTimeout(tick, 400);
         });
     }
     setTimeout(tick, 500);

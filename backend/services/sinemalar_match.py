@@ -340,11 +340,15 @@ def warm_sinemalar_cache(
 
 def lookup_items_batch(items: list[dict[str, Any]], *, max_items: int = 20) -> dict[str, dict[str, Any]]:
     """API / istemci: TMDB id → sinemalar payload."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     out: dict[str, dict[str, Any]] = {}
-    for raw in items[:max_items]:
+    slice_ = items[:max_items]
+
+    def _one(raw: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
         tid = raw.get("id")
         if tid is None:
-            continue
+            return None
         media_type: Literal["movie", "tv"] = (
             "tv" if raw.get("media_type") == "tv" else "movie"
         )
@@ -355,7 +359,18 @@ def lookup_items_batch(items: list[dict[str, Any]], *, max_items: int = 20) -> d
             media_type=media_type,
             use_cache=True,
         )
-        out[str(int(tid))] = payload
+        return str(int(tid)), payload
+
+    workers = min(4, max(1, len(slice_)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_one, raw) for raw in slice_]
+        for fut in as_completed(futures, timeout=45):
+            try:
+                row = fut.result()
+                if row:
+                    out[row[0]] = row[1]
+            except Exception as exc:
+                logger.debug("Sinemalar batch satırı atlandı: %s", exc)
     return out
 
 
