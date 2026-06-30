@@ -4,17 +4,19 @@
 (function (global) {
   "use strict";
 
-  var LINE_COLOR = "#9D174D";
-  var SERIES_COLORS = [
-    "#9D174D",
-    "#2563EB",
-    "#CA8A04",
-    "#16A34A",
-    "#EA580C",
-    "#C026D3",
-    "#0891B2",
-    "#BE123C",
+  var SERIES_COLORS = global.seoMatteMarketOverlayPalette
+    ? global.seoMatteMarketOverlayPalette()
+    : [
+    "#7a3d52",
+    "#4a6f8c",
+    "#9a7a2e",
+    "#3d8b6e",
+    "#b87333",
+    "#7a5a8a",
+    "#3d7a8a",
+    "#9f4a52",
   ];
+  var LINE_COLOR = SERIES_COLORS[0];
   var INDEXED_KEYS = ["gram_altin", "usd_try", "eur_try", "bist100", "gram_gumus", "brent"];
   var OPTION_LABELS = {
     usd_try: "USD/TRY",

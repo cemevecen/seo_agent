@@ -74,7 +74,7 @@
     height: var(--ga4-spark-h, 12%);
     transform-origin: bottom center;
     transition: height 0.62s cubic-bezier(0.22, 1, 0.36, 1);
-    opacity: 0.9;
+    opacity: 1;
   }
   .ga4-kpi-spark__bars--dense .ga4-kpi-spark__bar {
     flex: 1 1 0;
@@ -118,19 +118,19 @@
   }
   html.dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up,
   html.midnight .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-up {
-    color: rgb(52 211 153);
+    color: rgb(74 143 115);
   }
   html.dark .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down,
   html.midnight .ga4-kpi-spark--placeholder.ga4-kpi-spark--tone-down {
-    color: rgb(251 113 133);
+    color: rgb(168 90 102);
   }
   html.dark .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar,
   html.midnight .ga4-kpi-spark--tone-up .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(52 211 153 / 0.88), rgb(5 150 105 / 0.72));
+    background: linear-gradient(180deg, rgb(74 143 115 / 0.9), rgb(45 106 79 / 0.78));
   }
   html.dark .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar,
   html.midnight .ga4-kpi-spark--tone-down .ga4-kpi-spark__bar {
-    background: linear-gradient(180deg, rgb(251 113 133 / 0.88), rgb(190 18 60 / 0.68));
+    background: linear-gradient(180deg, rgb(168 90 102 / 0.88), rgb(127 45 62 / 0.72));
   }
   html.dark .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar,
   html.midnight .ga4-kpi-spark--tone-flat .ga4-kpi-spark__bar {
@@ -1760,7 +1760,16 @@
               : plat === 'mweb'
                 ? 'SC Position (Mobile Web)'
                 : 'SC Position';
-          var scPink = '#ec4899';
+          var gaLines = window.seoMatteGa4TrendLines
+            ? window.seoMatteGa4TrendLines()
+            : {
+                sessions: '#4b6a9b',
+                users: '#0f766e',
+                engaged: '#6d5b9e',
+                engagementRate: '#b45309',
+                scPosition: '#9d4d6a',
+              };
+          var scPink = gaLines.scPosition;
           var traces = [
             {
               x: trend.dates,
@@ -1768,7 +1777,7 @@
               type: 'scatter',
               mode: lineMode,
               name: 'Sessions',
-              line: { color: '#4f83e3', width: lineWidth },
+              line: { color: gaLines.sessions, width: lineWidth },
               marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y',
             },
@@ -1779,7 +1788,7 @@
               mode: lineMode,
               name: 'Users',
               visible: 'legendonly',
-              line: { color: '#0d9488', width: lineWidth },
+              line: { color: gaLines.users, width: lineWidth },
               marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y',
             },
@@ -1790,7 +1799,7 @@
               mode: lineMode,
               name: 'Engaged sessions',
               visible: 'legendonly',
-              line: { color: '#7c3aed', width: lineWidth },
+              line: { color: gaLines.engaged, width: lineWidth },
               marker: shortSeries ? { size: 9 } : {},
               yaxis: 'y',
             },
@@ -1801,7 +1810,7 @@
               mode: lineMode,
               name: 'Engagement rate',
               visible: 'legendonly',
-              line: { color: '#dd7a2a', width: lineWidth },
+              line: { color: gaLines.engagementRate, width: lineWidth },
               marker: shortSeries ? { size: 9 } : {},
               yaxis: hasScPos ? 'y3' : 'y2',
             },

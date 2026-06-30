@@ -7,8 +7,8 @@
   html.dark .rt-profile-box:hover{box-shadow:0 6px 28px rgba(0,0,0,.55)}
   .rt-spin{animation:rt-spin-kf .8s linear infinite}
   @keyframes rt-spin-kf{to{transform:rotate(360deg)}}
-  .rt-change-up{color:#16a34a}.dark .rt-change-up{color:#86efac}
-  .rt-change-down{color:#dc2626}.dark .rt-change-down{color:#f87171}
+  .rt-change-up{color:#047857}.dark .rt-change-up{color:#6b9a82}
+  .rt-change-down{color:#b91c3c}.dark .rt-change-down{color:#a85a66}
   .rt-change-flat{color:#64748b}.dark .rt-change-flat{color:#a1a1aa}
   /* Dark: tek palet — antrasit/siyah zinc */
   html.dark {
@@ -141,42 +141,42 @@
   .rt-bar-fill-sky {
     border-radius: 9999px;
     height: 0.25rem;
-    background: rgb(14 165 233);
+    background: rgb(74 111 140);
   }
   html.dark .rt-bar-fill-sky {
-    background: rgb(56 189 248);
+    background: rgb(91 124 153);
   }
   .rt-bar-fill-indigo {
     height: 0.375rem;
     border-radius: 9999px;
-    background: rgba(79, 70, 229, 0.88);
+    background: rgba(91, 95, 158, 0.88);
   }
   html.dark .rt-bar-fill-indigo {
-    background: rgba(161, 161, 170, 0.75);
+    background: rgba(122, 125, 168, 0.78);
   }
   .rt-bar-fill-violet {
     height: 0.375rem;
     border-radius: 9999px;
-    background: rgba(139, 92, 246, 0.88);
+    background: rgba(109, 91, 158, 0.88);
   }
   html.dark .rt-bar-fill-violet {
-    background: rgba(167, 139, 250, 0.9);
+    background: rgba(139, 122, 168, 0.82);
   }
   .rt-bar-fill-amber {
     height: 0.375rem;
     border-radius: 9999px;
-    background: rgba(245, 158, 11, 0.85);
+    background: rgba(180, 115, 51, 0.85);
   }
   html.dark .rt-bar-fill-amber {
-    background: rgba(251, 191, 36, 0.88);
+    background: rgba(184, 115, 51, 0.82);
   }
   .rt-mini-spark-bar {
     width: 0.25rem;
     border-radius: 0.125rem 0.125rem 0 0;
-    background: rgb(14 165 233);
+    background: rgb(74 111 140);
   }
   html.dark .rt-mini-spark-bar {
-    background: rgb(56 189 248);
+    background: rgb(91 124 153);
   }
   .rt-ts-foot {
     font-size: 10px;
@@ -827,20 +827,20 @@
     overflow: visible;
   }
   .rt-spark-line-area {
-    fill: rgba(34, 197, 94, 0.14);
+    fill: rgba(4, 120, 87, 0.12);
   }
   html.dark .rt-spark-line-area {
-    fill: rgba(74, 222, 128, 0.12);
+    fill: rgba(74, 143, 115, 0.1);
   }
   .rt-spark-line-stroke {
     fill: none;
-    stroke: rgb(22 163 74);
+    stroke: rgb(4 120 87);
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
   html.dark .rt-spark-line-stroke {
-    stroke: rgb(74 222 128);
+    stroke: rgb(74 143 115);
   }
   .rt-spark-line-hit {
     cursor: crosshair;
@@ -849,13 +849,13 @@
     opacity: 1;
   }
   .rt-spark-line-dot {
-    fill: rgb(22 163 74);
+    fill: rgb(4 120 87);
     opacity: 0;
     transition: opacity 0.12s ease;
     pointer-events: none;
   }
   html.dark .rt-spark-line-dot {
-    fill: rgb(74 222 128);
+    fill: rgb(74 143 115);
   }
   .rt-spark-line-sparse {
     fill: rgb(100 116 139);
@@ -869,7 +869,7 @@
     min-width: 2px;
     width: 0;
     border-radius: 2px 2px 0 0;
-    background: rgb(34 197 94);
+    background: rgb(4 120 87);
     align-self: flex-end;
     cursor: crosshair;
     transition: filter 0.12s ease, opacity 0.12s ease;
@@ -879,11 +879,11 @@
   }
   .rt-spark-mini-bar:hover,
   .rt-spark-mini-bar.is-hovered {
-    filter: brightness(1.12);
+    filter: brightness(1.05);
     opacity: 1;
   }
   html.dark .rt-spark-mini-bar {
-    background: rgb(34 197 94);
+    background: rgb(74 143 115);
   }
   .rt-spark-plot {
     position: relative;
@@ -1619,7 +1619,7 @@
     line-height: 1.2;
     max-width: 100%;
   }
-  html.dark .rt-site-spark-label { color: rgb(165 180 252); }
+  html.dark .rt-site-spark-label { color: rgb(122 125 168); }
   .rt-site-spark-row--pv .rt-site-spark-label { color: rgb(100 116 139); }
   html.dark .rt-site-spark-row--pv .rt-site-spark-label { color: rgb(161 161 170); }
   .rt-site-spark-sublabel {
@@ -1785,7 +1785,7 @@
     flex: 0 1 38%;
     min-width: 0;
     max-width: none;
-    background: #a5b4fc !important;
+    background: #8b8fb8 !important;
     opacity: 0.38;
     z-index: 0;
   }
@@ -1797,28 +1797,28 @@
     position: relative;
   }
   html.dark .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
-    background: #a5b4fc !important;
+    background: #8b8fb8 !important;
     opacity: 0.45;
   }
   /* Döviz + Sinemalar toplam aktif: mavi spark paleti */
   .rt-site-spark-row--brand-blue .rt-site-spark-label {
-    color: rgb(29 78 216);
+    color: rgb(59 78 120);
   }
   html.dark .rt-site-spark-row--brand-blue .rt-site-spark-label {
-    color: rgb(147 197 253);
+    color: rgb(122 140 173);
   }
   .rt-site-spark-row--brand-blue .rt-site-spark-compare:not(.is-up):not(.is-down) {
-    color: rgb(37 99 235);
+    color: rgb(75 106 155);
   }
   html.dark .rt-site-spark-row--brand-blue .rt-site-spark-compare:not(.is-up):not(.is-down) {
-    color: rgb(147 197 253);
+    color: rgb(122 140 173);
   }
   .rt-site-spark-row--brand-blue .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
-    background: #93c5fd !important;
+    background: #6b8aad !important;
     opacity: 0.42;
   }
   html.dark .rt-site-spark-row--brand-blue .rt-site-spark-bars .rt-spark-mini-bar--prev-week {
-    background: #60a5fa !important;
+    background: #5b7c99 !important;
     opacity: 0.38;
   }
   [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
@@ -1852,11 +1852,11 @@
     line-height: 1.3;
     color: rgb(99 102 241);
   }
-  html.dark .rt-site-spark-compare { color: rgb(165 180 252); }
-  .rt-site-spark-compare.is-down { color: rgb(220 38 38); }
-  html.dark .rt-site-spark-compare.is-down { color: rgb(248 113 113); }
-  .rt-site-spark-compare.is-up { color: rgb(5 150 105); }
-  html.dark .rt-site-spark-compare.is-up { color: rgb(52 211 153); }
+  html.dark .rt-site-spark-compare { color: rgb(122 125 168); }
+  .rt-site-spark-compare.is-down { color: rgb(185 28 60); }
+  html.dark .rt-site-spark-compare.is-down { color: rgb(168 90 102); }
+  .rt-site-spark-compare.is-up { color: rgb(4 120 87); }
+  html.dark .rt-site-spark-compare.is-up { color: rgb(74 143 115); }
   .rt-site-spark-bars > .rt-spark-mini-bar {
     flex: 1 1 0;
     min-width: 1px;

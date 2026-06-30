@@ -1850,17 +1850,20 @@
   }
 
   function compareColors() {
+    if (window.seoMatteAdCompareColors) {
+      return window.seoMatteAdCompareColors();
+    }
     var dark = isDarkTheme();
     return {
-      primary: dark ? "#818cf8" : "#4f46e5",
-      sparkCompare: dark ? "#38bdf8" : "#0284c7",
-      compare: dark ? "#fb7185" : "#e11d48",
-      rev: dark ? "#34d399" : "#059669",
-      revCmp: dark ? "#fbbf24" : "#d97706",
-      imp: dark ? "#38bdf8" : "#0284c7",
-      impCmp: dark ? "#67e8f9" : "#0369a1",
-      barPrimary: dark ? "#38bdf8" : "#0ea5e9",
-      barCompare: dark ? "#fb7185" : "#f97316",
+      primary: dark ? "#8b7aa8" : "#5b5f9e",
+      sparkCompare: dark ? "#5b7c99" : "#4a6f8c",
+      compare: dark ? "#a85a66" : "#b91c3c",
+      rev: dark ? "#4a8f73" : "#047857",
+      revCmp: dark ? "#b87333" : "#c2410c",
+      imp: dark ? "#5b7c99" : "#4a6f8c",
+      impCmp: dark ? "#5b7c99" : "#0369a1",
+      barPrimary: dark ? "#5b7c99" : "#4a6f8c",
+      barCompare: dark ? "#b87333" : "#c2410c",
     };
   }
 
@@ -1937,7 +1940,7 @@
       orientation: "h",
       marker: {
         color: chartRows.map(function (r) {
-          return unitDeltaPct(r) >= 0 ? "#10b981" : "#f43f5e";
+          return unitDeltaPct(r) >= 0 ? "#047857" : "#b91c3c";
         }),
       },
       hovertemplate: "%{y}<br>%{x:.1f}%<extra></extra>",
@@ -4393,17 +4396,17 @@
 
   /** Karşı dal overlay — düz ince çizgi; mavi ton (mean-split kırmızı düşüşle karışmasın). */
   var PEER_BRANCH_COLORS = {
-    android: "#0ea5e9",
-    ios: "#38bdf8",
-    desktop: "#0284c7",
-    mweb: "#60a5fa",
+    android: "#4a6f8c",
+    ios: "#5b7c99",
+    desktop: "#4b6a9b",
+    mweb: "#6b8aad",
   };
   var PEER_LINE_WIDTH = 1.25;
-  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — mavi (mean-split yeşil/kırmızı ile karışmasın) */
-  var PEER_ON_CHART_COLOR = { light: "#2563eb", dark: "#60a5fa" };
+  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — mat mavi (mean-split ile karışmasın) */
+  var PEER_ON_CHART_COLOR = { light: "#4b6a9b", dark: "#6b8aad" };
   var PEER_ON_CHART_LINE_OPACITY = 0.52;
   var PEER_ON_CHART_FILL_OPACITY = 0.28;
-  var PEER_LINE_ALT_COLORS = ["#38bdf8", "#7dd3fc", "#0284c7", "#0ea5e9", "#2563eb"];
+  var PEER_LINE_ALT_COLORS = ["#5b7c99", "#6b8aad", "#4a6f8c", "#4b6a9b", "#5b6f8a"];
 
   /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
   var PEER_STREAM_BY_KEY = {
@@ -4485,7 +4488,7 @@
   function peerOverlayLineColor(variant) {
     var dark = isDarkTheme();
     var k = peerBranchKey();
-    var fallback = dark ? "#38bdf8" : "#0284c7";
+    var fallback = dark ? "#5b7c99" : "#4a6f8c";
     var base = (k && PEER_BRANCH_COLORS[k]) || fallback;
     if (!variant) return base;
     return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || base;
@@ -4988,29 +4991,29 @@
         platformKey: "web",
         label: "Web",
         trend: overlay.web && overlay.web.daily_trend,
-        sessColor: "#2563eb",
-        userColor: "#0891b2",
+        sessColor: "#4b6a9b",
+        userColor: "#0f766e",
       },
       {
         platformKey: "mweb",
         label: "Mobil Web",
         trend: overlay.mweb && overlay.mweb.daily_trend,
-        sessColor: "#7c3aed",
-        userColor: "#0d9488",
+        sessColor: "#6d5b9e",
+        userColor: "#3d8b6e",
       },
       {
         platformKey: "android",
         label: "Android",
         trend: overlay.android && overlay.android.daily_trend,
-        sessColor: "#4f83e3",
-        userColor: "#0d9488",
+        sessColor: "#4a6f8c",
+        userColor: "#0f766e",
       },
       {
         platformKey: "ios",
         label: "iOS",
         trend: overlay.ios && overlay.ios.daily_trend,
-        sessColor: "#6366f1",
-        userColor: "#14b8a6",
+        sessColor: "#5b5f9e",
+        userColor: "#3d8b6e",
       },
     ];
     return specs.filter(function (spec) {
@@ -5102,7 +5105,7 @@
   }
 
   /** Piyasa overlay — ortak SeoMarketOverlay (çoklu seri) */
-  var MZ_MARKET_OVERLAY_LINE_COLOR = "#9D174D";
+  var MZ_MARKET_OVERLAY_LINE_COLOR = "#7a3d52";
 
   function mzPickMarketYaxisId(layoutExtra) {
     layoutExtra = layoutExtra || {};
@@ -5633,7 +5636,7 @@
             arrowhead: 2,
             ax: 0,
             ay: 28,
-            font: { size: 9, color: isDarkTheme() ? "#fb7185" : "#be123c" },
+            font: { size: 9, color: isDarkTheme() ? "#a85a66" : "#9f1239" },
             bgcolor: annotBg,
             bordercolor: annotBorder,
             borderwidth: 1,
@@ -5648,7 +5651,7 @@
             arrowhead: 2,
             ax: 0,
             ay: -28,
-            font: { size: 9, color: isDarkTheme() ? "#a5b4fc" : "#4338ca" },
+            font: { size: 9, color: isDarkTheme() ? "#7a7da8" : "#5b5f9e" },
             bgcolor: annotBg,
             bordercolor: annotBorder,
             borderwidth: 1,
@@ -6089,7 +6092,7 @@
       trace.mode = mzLineModeForCount(n);
     }
     if (String(trace.mode).indexOf("markers") >= 0) {
-      var mc = (trace.marker && trace.marker.color) || (trace.line && trace.line.color) || "#6366f1";
+      var mc = (trace.marker && trace.marker.color) || (trace.line && trace.line.color) || "#5b5f9e";
       trace.marker = Object.assign(
         {
           size: mzLineMarkerSize(n),
@@ -6187,7 +6190,7 @@
             y: ys,
             type: "scatter",
             mode: opts.mode || "lines",
-            line: { color: opts.fallbackColor || "#6366f1", width: opts.lineWidth || 2 },
+            line: { color: opts.fallbackColor || "#5b5f9e", width: opts.lineWidth || 2 },
           },
           opts.baseTrace || {}
         )
@@ -6931,8 +6934,8 @@
       var revs = rows.map(function (x) { return Number(x.net_revenue) || 0; });
       var colors = rows.map(function (_, i) {
         return isDarkTheme()
-          ? (i === 0 ? "#fbbf24" : "#818cf8")
-          : (i === 0 ? "#d97706" : "#4f46e5");
+          ? (i === 0 ? "#b87333" : "#8b7aa8")
+          : (i === 0 ? "#c2410c" : "#5b5f9e");
       });
       try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
       chartEl.innerHTML = "";
@@ -7312,9 +7315,11 @@
       { key: "ctr_pct", label: "CTR %", idx: 1 },
       { key: "coverage_pct", label: "Coverage %", idx: 2 },
     ];
-    var qualityPalette = isDarkTheme()
-      ? ["#38bdf8", "#f472b6", "#a78bfa"]
-      : ["#0284c7", "#db2777", "#7c3aed"];
+    var qualityPalette = window.seoMatteSeriesPalette
+      ? window.seoMatteSeriesPalette().slice(0, 3)
+      : isDarkTheme()
+      ? ["#5b7c99", "#a86b7f", "#8b7aa8"]
+      : ["#4a6f8c", "#9d4d6a", "#6d5b9e"];
     var qualityTraces = [];
     var qualityLayoutExtra = { yTitle: "%" };
     var qualityAligned = cmp ? alignedDateSeries(cmp, "viewability_pct") : null;

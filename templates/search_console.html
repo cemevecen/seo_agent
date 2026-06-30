@@ -389,7 +389,7 @@
   </div>
 </div>
 
-<link rel="stylesheet" href="/static/css/kpi_mini_spark.css?v=2" />
+<link rel="stylesheet" href="/static/css/kpi_mini_spark.css?v=3" />
 <script src="/static/js/kpi_mini_spark.js?v=1"></script>
 <script>
   function createSearchConsolePageLoadController() {
@@ -1091,14 +1091,17 @@
   }
 
   function scTrendLineColors() {
+    if (window.seoMatteScTrendLines) {
+      return window.seoMatteScTrendLines();
+    }
     var dark =
       document.documentElement.classList.contains('dark') ||
       document.documentElement.classList.contains('midnight');
     return {
-      clicks: dark ? '#60a5fa' : '#3b82f6',
-      impressions: dark ? '#a78bfa' : '#8b5cf6',
-      ctr: dark ? '#34d399' : '#10b981',
-      position: dark ? '#fb923c' : '#f97316',
+      clicks: dark ? '#6b8aad' : '#4b6a9b',
+      impressions: dark ? '#8b7aa8' : '#6d5b9e',
+      ctr: dark ? '#4a8f73' : '#047857',
+      position: dark ? '#b87333' : '#b45309',
     };
   }
 
@@ -1187,7 +1190,7 @@
                 x: xValues, y: previousClicks,
                 type: 'scatter', mode: 'lines',
                 name: 'Clicks (önceki)',
-                line: { color: '#3b82f6', width: 1.5, dash: 'dash' },
+                line: { color: lc.clicks, width: 1.5, dash: 'dash' },
                 yaxis: 'y1',
               },
               {
@@ -1195,7 +1198,7 @@
                 type: 'scatter', mode: 'lines',
                 name: 'Impressions (önceki)',
                 visible: 'legendonly',
-                line: { color: '#8b5cf6', width: 1.5, dash: 'dash' },
+                line: { color: lc.impressions, width: 1.5, dash: 'dash' },
                 yaxis: 'y3',
               },
               {
@@ -1203,14 +1206,14 @@
                 type: 'scatter', mode: 'lines',
                 name: 'CTR % (önceki)',
                 visible: 'legendonly',
-                line: { color: '#10b981', width: 1.5, dash: 'dash' },
+                line: { color: lc.ctr, width: 1.5, dash: 'dash' },
                 yaxis: 'y4',
               },
               {
                 x: xValues, y: previousPosition,
                 type: 'scatter', mode: 'lines',
                 name: 'Position (önceki)',
-                line: { color: '#f97316', width: 1.5, dash: 'dash' },
+                line: { color: lc.position, width: 1.5, dash: 'dash' },
                 yaxis: 'y2',
               }
             );

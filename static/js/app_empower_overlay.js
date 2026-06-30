@@ -4,16 +4,17 @@
 (function (global) {
   "use strict";
 
-  /** Tezatlı sıra: mavi → sarı → yeşil → turuncu → magenta … (birbirine yakın mor/lacivert yok) */
-  var SERIES_COLORS = [
-    "#2563EB",
-    "#CA8A04",
-    "#16A34A",
-    "#EA580C",
-    "#C026D3",
-    "#0891B2",
-    "#BE123C",
-    "#4F46E5",
+  var SERIES_COLORS = global.seoMatteMarketOverlayPalette
+    ? global.seoMatteMarketOverlayPalette()
+    : [
+    "#7a3d52",
+    "#4a6f8c",
+    "#9a7a2e",
+    "#3d8b6e",
+    "#b87333",
+    "#7a5a8a",
+    "#3d7a8a",
+    "#9f4a52",
   ];
   var LINE_COLOR = SERIES_COLORS[0];
 

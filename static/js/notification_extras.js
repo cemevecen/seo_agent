@@ -8,15 +8,17 @@
   var HEATMAP_HOUR_START = 7;
   var HEATMAP_HOUR_END = 23;
   // Düşük click → kırmızı, yüksek click → koyu yeşil (önemli saatler belirgin)
-  var HEATMAP_COLORSCALE = [
-    [0, "#7f1d1d"],
-    [0.14, "#ef4444"],
-    [0.28, "#f97316"],
-    [0.42, "#fde047"],
-    [0.57, "#eab308"],
-    [0.71, "#86efac"],
-    [0.85, "#22c55e"],
-    [1, "#14532d"],
+  var HEATMAP_COLORSCALE = window.seoMatteHeatmapScale
+    ? window.seoMatteHeatmapScale()
+    : [
+    [0, "#6b2d2d"],
+    [0.14, "#a85a66"],
+    [0.28, "#b87333"],
+    [0.42, "#a89a4a"],
+    [0.57, "#8a9a5a"],
+    [0.71, "#5a9a78"],
+    [0.85, "#3d8b6e"],
+    [1, "#1e4d3a"],
   ];
   var HEATMAP_NO_DATA = null;
 
@@ -114,11 +116,14 @@
   }
 
   function ntCompareSparkColors() {
+    if (window.seoMatteChartColors) {
+      var c = window.seoMatteChartColors();
+      return { primary: c.positive, compare: c.compare };
+    }
     var dark = ntIsDark();
-    // Seçili = yeşil, önceki = turuncu — mavi/mor tonları üst üste karışmasın diye.
     return {
-      primary: dark ? "#34d399" : "#059669",
-      compare: dark ? "#fb923c" : "#ea580c",
+      primary: dark ? "#4a8f73" : "#047857",
+      compare: dark ? "#b87333" : "#c2410c",
     };
   }
 
@@ -310,10 +315,15 @@
       var keys = ["desktop", "mobileweb", "android", "ios"];
       var curY = keys.map(function (k) { return cur.platform[k]; });
       var prevY = keys.map(function (k) { return prev.platform[k]; });
-      var barColors = ntIsDark()
-        ? ["#7176c4", "#bf8f4a", "#4ade80", "#f87171"]
-        : ["#6366f1", "#f59e0b", "#22c55e", "#ef4444"];
-      var prevBar = ntIsDark() ? "rgba(251,146,60,0.35)" : "rgba(234,88,12,0.35)";
+      var barColors = window.seoMattePlatformColors
+        ? (function () {
+            var p = window.seoMattePlatformColors();
+            return [p.desktop, p.mobileweb, p.android, p.ios];
+          })()
+        : ntIsDark()
+        ? ["#7a7da8", "#a67c3d", "#4a8f73", "#a85a66"]
+        : ["#5b5f9e", "#b8732e", "#15803d", "#b91c3c"];
+      var prevBar = ntIsDark() ? "rgba(184,115,51,0.32)" : "rgba(194,65,12,0.32)";
       global.Plotly.newPlot(platEl, [
         {
           x: labels,

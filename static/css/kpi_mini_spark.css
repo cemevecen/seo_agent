@@ -74,11 +74,11 @@
 }
 html.dark .kpi-mini-spark--tone-up .kpi-mini-spark__bar,
 html.midnight .kpi-mini-spark--tone-up .kpi-mini-spark__bar {
-  background: linear-gradient(180deg, rgb(52 211 153 / 0.88), rgb(5 150 105 / 0.72));
+  background: linear-gradient(180deg, rgb(74 143 115 / 0.9), rgb(45 106 79 / 0.78));
 }
 html.dark .kpi-mini-spark--tone-down .kpi-mini-spark__bar,
 html.midnight .kpi-mini-spark--tone-down .kpi-mini-spark__bar {
-  background: linear-gradient(180deg, rgb(251 113 133 / 0.88), rgb(190 18 60 / 0.68));
+  background: linear-gradient(180deg, rgb(168 90 102 / 0.88), rgb(127 45 62 / 0.72));
 }
 html.dark .kpi-mini-spark--tone-flat .kpi-mini-spark__bar,
 html.midnight .kpi-mini-spark--tone-flat .kpi-mini-spark__bar {
@@ -86,9 +86,9 @@ html.midnight .kpi-mini-spark--tone-flat .kpi-mini-spark__bar {
 }
 html.dark .kpi-mini-spark--placeholder.kpi-mini-spark--tone-up,
 html.midnight .kpi-mini-spark--placeholder.kpi-mini-spark--tone-up {
-  color: rgb(52 211 153);
+  color: rgb(74 143 115);
 }
 html.dark .kpi-mini-spark--placeholder.kpi-mini-spark--tone-down,
 html.midnight .kpi-mini-spark--placeholder.kpi-mini-spark--tone-down {
-  color: rgb(251 113 133);
+  color: rgb(168 90 102);
 }

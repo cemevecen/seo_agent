@@ -38,10 +38,11 @@
     if (!isFinite(mean)) mean = 0;
 
     var dark = !!opts.dark;
-    var green = opts.green || (dark ? "#34d399" : "#10b981");
-    var red = opts.red || (dark ? "#fb7185" : "#ef4444");
-    var greenFill = opts.greenFill || (dark ? "rgba(52,211,153,0.18)" : "rgba(16,185,129,0.2)");
-    var redFill = opts.redFill || (dark ? "rgba(251,113,133,0.18)" : "rgba(239,68,68,0.2)");
+    var ms = window.seoMatteMeanSplit ? window.seoMatteMeanSplit() : null;
+    var green = opts.green || (ms ? ms.green : dark ? "#4a8f73" : "#047857");
+    var red = opts.red || (ms ? ms.red : dark ? "#a85a66" : "#b91c3c");
+    var greenFill = opts.greenFill || (ms ? ms.greenFill : dark ? "rgba(74,143,115,0.14)" : "rgba(4,120,87,0.16)");
+    var redFill = opts.redFill || (ms ? ms.redFill : dark ? "rgba(168,90,102,0.14)" : "rgba(185,28,60,0.14)");
     var width = opts.lineWidth != null ? opts.lineWidth : 2;
     var mode = opts.mode || "lines";
     var traces = [];

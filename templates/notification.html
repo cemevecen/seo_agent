@@ -1473,10 +1473,12 @@
   }
   function ntIsDark() { return document.documentElement.classList.contains("dark"); }
   function ntChartColors() {
-    // Android yeşil, iOS kırmızı — app trend grafiğinde net ayrım için.
+    if (window.seoMattePlatformColors) {
+      return window.seoMattePlatformColors();
+    }
     return ntIsDark()
-      ? { android: "#4ade80", ios: "#f87171", desktop: "#7176c4", mobileweb: "#bf8f4a" }
-      : { android: "#22c55e", ios: "#ef4444", desktop: "#6366f1", mobileweb: "#f59e0b" };
+      ? { android: "#4a8f73", ios: "#a85a66", desktop: "#7a7da8", mobileweb: "#a67c3d" }
+      : { android: "#15803d", ios: "#b91c3c", desktop: "#5b5f9e", mobileweb: "#b8732e" };
   }
   function ntFont() { return { color: ntIsDark() ? "#a1a1aa" : "#475569" }; }
   function ntAxisLayout(title) {
@@ -2416,6 +2418,6 @@
 })();
 </script>
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<script src="/static/js/notification_extras.js"></script>
+<script src="/static/js/notification_extras.js?v=2"></script>
 <script src="/static/js/notification_lab.js?v=5"></script>
 {% endblock %}
