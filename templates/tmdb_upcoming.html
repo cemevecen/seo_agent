@@ -91,12 +91,12 @@
 {# Dikey kart — afiş üstte tam genişlik, içerik altta #}
 <div class="tmdb-card group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
   {% if movie.is_turkish %}border-rose-200 dark:border-rose-800/60
-  {% elif movie.popularity >= 200 %}border-amber-200 dark:border-amber-800/60
+  {% elif movie.importance_tier == 'high' %}border-amber-200 dark:border-amber-800/60
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
   bg-white dark:bg-slate-800"
   data-country="{{ movie.country_code }}"
   data-provider-slugs="{{ movie.provider_slugs or '' }}"
-  data-pop="{% if movie.popularity >= 200 %}high{% elif movie.popularity >= 80 %}medium{% else %}low{% endif %}"
+  data-pop="{{ movie.importance_tier or 'low' }}"
   data-tmdb-id="{{ movie.id }}"
   data-media-title="{{ movie.title | e }}"
   data-media-original="{{ movie.original_title | e }}"
@@ -162,11 +162,11 @@
     <div class="mt-2 flex flex-wrap items-center gap-1.5">
       {{ tmdb_release_date_line(movie) }}
       <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
-        {% if movie.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300
-        {% elif movie.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
-        {% elif movie.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
-        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}">
-        {{ movie.popularity_label }}
+        {% if movie.importance_tier == 'high' %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+        {% elif movie.importance_tier == 'medium' %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}"
+        title="Planlama önemi: TMDB ilgi + oy sayısı (ham pop {{ movie.popularity }})">
+        {{ movie.importance_label or movie.popularity_label }}
       </span>
       {% if movie.vote_average > 0 %}
         <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ movie.vote_average }}</span>
@@ -192,12 +192,12 @@
 
 {% macro tv_card(show) %}
 <div class="tmdb-card group flex flex-col overflow-hidden rounded-2xl border shadow-sm transition hover:shadow-lg
-  {% if show.popularity >= 200 %}border-emerald-200 dark:border-emerald-800/60
+  {% if show.importance_tier == 'high' %}border-emerald-200 dark:border-emerald-800/60
   {% else %}border-slate-200 dark:border-slate-600{% endif %}
   bg-white dark:bg-slate-800"
   data-country="{{ show.country_code }}"
   data-provider-slugs="{{ show.provider_slugs or '' }}"
-  data-pop="{% if show.popularity >= 200 %}high{% elif show.popularity >= 80 %}medium{% else %}low{% endif %}"
+  data-pop="{{ show.importance_tier or 'low' }}"
   data-tmdb-id="{{ show.id }}"
   data-media-title="{{ show.title | e }}"
   data-media-original="{{ show.original_title | e }}"
@@ -249,11 +249,11 @@
 
     <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
       <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
-        {% if show.popularity >= 500 %}bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300
-        {% elif show.popularity >= 200 %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
-        {% elif show.popularity >= 80 %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
-        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}">
-        {{ show.popularity_label }}
+        {% if show.importance_tier == 'high' %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300
+        {% elif show.importance_tier == 'medium' %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300
+        {% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400{% endif %}"
+        title="Planlama önemi (ham pop {{ show.popularity }})">
+        {{ show.importance_label or show.popularity_label }}
       </span>
       {% if show.vote_average > 0 %}
         <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{{ show.vote_average }}</span>
@@ -348,9 +348,12 @@
         {# Önem filtresi #}
         <div class="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60">
           <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="all">Tümü</button>
-          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="high">Yüksek</button>
-          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="medium">Orta</button>
-          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="low">Düşük</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="high"
+                  title="Yüksek: TMDB pop ≥35 veya oy ≥120 veya güçlü pop+oy birlikte">Yüksek</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="medium"
+                  title="Orta: TR yapımı veya pop ≥8 veya oy ≥12">Orta</button>
+          <button type="button" class="tmdb-pop-btn rounded-lg px-2 py-1 text-[11px] font-semibold transition sm:px-2.5" data-pop="low"
+                  title="Düşük: niş / az veri — planlama önceliği düşük">Düşük</button>
         </div>
         {# Ay seçici #}
         <div class="flex gap-1">

@@ -202,11 +202,32 @@ def refresh_combined_cache(months_ahead: int = 5) -> dict:
     return fresh
 
 
-def _popularity_label(pop: float) -> str:
-    if pop >= 500: return "Çok Yüksek"
-    if pop >= 200: return "Yüksek"
-    if pop >= 80:  return "Orta"
-    return "Düşük"
+def _importance_tier(m: dict) -> str:
+    """
+    Takvim planlama önemi — ham TMDB popularity tek başına yanıltıcı (gelecek vizyon
+    düşük trend skoru alır). Popülerlik + oy sayısı + TR yapımı birlikte değerlendirilir.
+    """
+    pop = float(m.get("popularity") or 0)
+    votes = int(m.get("vote_count") or 0)
+    # Yüksek: güncel TMDB ilgisi veya topluluk tarafından bilinen yapım
+    if pop >= 35 or votes >= 120 or (pop >= 18 and votes >= 45):
+        return "high"
+    # Orta: takvimde takip edilmeye değer; Türk yapımları editoryal öncelik
+    if m.get("is_turkish") or pop >= 8 or votes >= 12:
+        return "medium"
+    return "low"
+
+
+def _importance_label(tier: str) -> str:
+    return {"high": "Yüksek", "medium": "Orta", "low": "Düşük"}.get(tier, "Düşük")
+
+
+def _attach_importance_fields(d: dict[str, Any]) -> None:
+    tier = _importance_tier(d)
+    d["importance_tier"] = tier
+    d["importance_label"] = _importance_label(tier)
+    # Kart rozeti — eski popularity_label alanı ile uyum
+    d["popularity_label"] = d["importance_label"]
 
 
 # /movie/{id}/release_dates — aynı refresh döngüsünde tekrar çağrıyı keser
@@ -322,7 +343,7 @@ def _apply_tr_release_dates_for_catalog(
 def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
     release = (m.get("release_date") or "")[:10]
     prov = providers or []
-    return {
+    out: dict[str, Any] = {
         "id":               m["id"],
         "title":            m.get("title") or m.get("original_title") or "",
         "original_title":   m.get("original_title") or "",
@@ -331,7 +352,6 @@ def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
         "release_month":    release[:7] if release else "",
         "poster_url":       _poster_url(m.get("poster_path")),
         "popularity":       round(float(m.get("popularity") or 0), 1),
-        "popularity_label": _popularity_label(float(m.get("popularity") or 0)),
         "vote_average":     round(float(m.get("vote_average") or 0), 1),
         "vote_count":       int(m.get("vote_count") or 0),
         "overview":         (m.get("overview") or "")[:280],
@@ -343,6 +363,8 @@ def _enrich(m: dict, providers: list[str] | None = None) -> dict[str, Any]:
         "provider_slugs":   _provider_slugs(prov),
         "media_type":       "movie",
     }
+    _attach_importance_fields(out)
+    return out
 
 
 def search_movie_by_title(title: str) -> dict[str, Any] | None:
@@ -439,6 +461,10 @@ def _filter_combined_horizon(data: dict[str, Any], months_ahead: int) -> dict[st
     turkish_only = _filter_movie_list(list(data.get("turkish_only") or []), start=start, end=end)
     tv_series = _filter_movie_list(list(data.get("tv_series") or []), start=start, end=end)
 
+    for lst in (theatrical, streaming, turkish_only, tv_series):
+        for m in lst:
+            _attach_importance_fields(m)
+
     theatrical_ids = {m["id"] for m in theatrical}
     streaming_movie_ids = {
         m["id"] for m in streaming if (m.get("media_type") or "movie") == "movie"
@@ -448,8 +474,8 @@ def _filter_combined_horizon(data: dict[str, Any], months_ahead: int) -> dict[st
         if (m.get("media_type") or "movie") == "movie" and m["id"] not in theatrical_ids
     ] + turkish_only
     high_potential = sorted(
-        [m for m in all_combined if m.get("popularity", 0) >= 100],
-        key=lambda x: -x["popularity"],
+        [m for m in all_combined if m.get("importance_tier") == "high"],
+        key=lambda x: (-float(x.get("popularity") or 0), -(x.get("vote_count") or 0)),
     )
 
     out = dict(data)
@@ -816,7 +842,7 @@ def _enrich_tv(m: dict) -> dict[str, Any]:
     networks = m.get("networks") or []
     network_names = [n.get("name", "") for n in networks if n.get("name")]
     status_en = m.get("status", "")
-    return {
+    out: dict[str, Any] = {
         "id":               m["id"],
         "title":            m.get("name") or m.get("original_name") or "",
         "original_title":   m.get("original_name") or "",
@@ -826,7 +852,6 @@ def _enrich_tv(m: dict) -> dict[str, Any]:
         "release_month":    first_air[:7] if first_air else "",
         "poster_url":       _poster_url(m.get("poster_path")),
         "popularity":       round(float(m.get("popularity") or 0), 1),
-        "popularity_label": _popularity_label(float(m.get("popularity") or 0)),
         "vote_average":     round(float(m.get("vote_average") or 0), 1),
         "vote_count":       int(m.get("vote_count") or 0),
         "overview":         (m.get("overview") or "")[:280],
@@ -841,6 +866,8 @@ def _enrich_tv(m: dict) -> dict[str, Any]:
         "providers":        [],
         "provider_slugs":   "",
     }
+    _attach_importance_fields(out)
+    return out
 
 
 def _fetch_tv_pages(params: dict, page_limit: int = 4) -> list[dict]:
@@ -1069,8 +1096,8 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         if (m.get("media_type") or "movie") == "movie" and m["id"] not in theatrical_ids
     ] + turkish_only
     high_potential = sorted(
-        [m for m in all_combined if m["popularity"] >= 100],
-        key=lambda x: -x["popularity"],
+        [m for m in all_combined if m.get("importance_tier") == "high"],
+        key=lambda x: (-float(x.get("popularity") or 0), -(x.get("vote_count") or 0)),
     )
 
     return {
