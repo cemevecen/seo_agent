@@ -1882,11 +1882,56 @@
     color: rgb(161 161 170);
   }
   .rt-site-spark-compare {
-    margin-top: 0.35rem;
+    margin-top: 0;
     font-size: 10px;
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1.2;
     color: rgb(99 102 241);
+  }
+  .rt-site-spark-kpi-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    margin-top: 0.2rem;
+    container-type: inline-size;
+    container-name: rt-kpi-stack;
+    --rt-slot-chars: 6;
+  }
+  .rt-site-spark-kpi-stack .rt-site-spark-last.rt-slot-reel {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(
+      0.82rem,
+      calc(1.62rem - (var(--rt-slot-chars) - 5) * 0.11rem),
+      1.62rem
+    );
+    padding: 0.2rem 0.32rem 0.24rem;
+  }
+  html.rt-view--compact .rt-masonry-total-row .rt-site-spark-kpi-stack .rt-site-spark-last.rt-slot-reel {
+    font-size: clamp(
+      0.78rem,
+      calc(1.48rem - (var(--rt-slot-chars) - 5) * 0.1rem),
+      1.48rem
+    );
+  }
+  .rt-site-spark-kpi-stack .rt-site-spark-compare {
+    margin-top: 0.28rem;
+    width: 100%;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+    font-size: clamp(7px, 2.65cqi, 10px);
+    letter-spacing: -0.01em;
+  }
+  @container rt-kpi-stack (max-width: 8.5rem) {
+    .rt-site-spark-kpi-stack .rt-site-spark-compare {
+      font-size: clamp(6.5px, 3cqi, 8.5px);
+    }
   }
   html.dark .rt-site-spark-compare { color: rgb(122 125 168); }
   .rt-site-spark-compare.is-down { color: rgb(185 28 60); }
@@ -2156,18 +2201,12 @@
     html.dark.rt-view--total .rt-site-spark-meta {
       border-bottom-color: rgba(63, 63, 70, 0.45);
     }
-    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-last,
-    html.rt-view--total .rt-site-spark-last {
-      font-size: 1.65rem !important;
-    }
     .rt-site-spark-bars,
     html.rt-view--compact .rt-masonry-total-row .rt-site-spark-bars {
       min-height: 3.5rem !important;
     }
-    .rt-site-spark-compare {
-      font-size: 9px;
-      line-height: 1.35;
-      overflow-wrap: anywhere;
+    .rt-site-spark-kpi-stack .rt-site-spark-compare {
+      line-height: 1.2;
     }
     .rt-site-spark-range .rt-yf-tab,
     .rt-yf-tab {
@@ -2518,8 +2557,10 @@
           <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · Döviz + Sinemalar</p>
+          <div class="rt-site-spark-kpi-stack" data-rt-site-spark-kpi-stack>
           <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Birleşik anlık toplam aktif">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
+          </div>
         </div>
         <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
@@ -2555,8 +2596,10 @@
           <div class="rt-site-spark-meta">
             <p class="rt-site-spark-label">{{ site.display_name or site.domain }}</p>
             <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · site toplam</p>
+            <div class="rt-site-spark-kpi-stack" data-rt-site-spark-kpi-stack>
             <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Site toplam aktif">—</p>
             <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
+            </div>
           </div>
           <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
             <div class="rt-site-spark-y" data-rt-site-spark-y></div>
@@ -2609,8 +2652,10 @@
           <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
           <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
           <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · anlık toplam</p>
+          <div class="rt-site-spark-kpi-stack" data-rt-site-spark-kpi-stack>
           <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Anlık toplam aktif (tüm profiller)">—</p>
           <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
+          </div>
         </div>
         <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
           <div class="rt-site-spark-y" data-rt-site-spark-y></div>
@@ -2936,7 +2981,7 @@
 </div>
 
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=5">
+<link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=6">
 <script src="/static/js/rt_slot_fx.js?v=4"></script>
 <script>
 (function () {
@@ -3121,6 +3166,62 @@
     if (!el) return;
     if (window.RtSlotFx && window.RtSlotFx.setText) window.RtSlotFx.setText(el, text);
     else el.textContent = text;
+    var root = el.closest('[data-rt-site-spark-row]') || el.closest('[data-rt-site-sparks]');
+    if (root) {
+      _rtFitSparkKpiStack(root);
+      window.setTimeout(function () {
+        _rtFitSparkKpiStack(root);
+      }, 460);
+    }
+  }
+
+  function _rtSparkKpiCharCount(displayText) {
+    var t = String(displayText == null ? '' : displayText).trim();
+    if (!t || t === '—') return 5;
+    return Math.max(4, Math.min(t.replace(/\s/g, '').length, 14));
+  }
+
+  function _rtFitSparkKpiStack(rootOrStack) {
+    var stack = rootOrStack;
+    if (!stack) return;
+    if (!stack.hasAttribute('data-rt-site-spark-kpi-stack')) {
+      stack =
+        rootOrStack.querySelector && rootOrStack.querySelector('[data-rt-site-spark-kpi-stack]');
+    }
+    if (!stack) return;
+    var last = stack.querySelector('[data-rt-site-spark-last]');
+    var compare = stack.querySelector('[data-rt-site-spark-compare]');
+    if (last) {
+      stack.style.setProperty(
+        '--rt-slot-chars',
+        String(_rtSparkKpiCharCount(last.getAttribute('data-rt-slot-cur') || last.textContent))
+      );
+    }
+    if (!compare || compare.classList.contains('hidden')) {
+      if (compare) compare.style.fontSize = '';
+      return;
+    }
+    var txt = (compare.textContent || '').trim();
+    if (!txt) return;
+    compare.style.fontSize = '';
+    var maxPx = 10;
+    var minPx = 5.5;
+    var fs = maxPx;
+    var w = stack.clientWidth;
+    if (w < 8) return;
+    compare.style.fontSize = fs + 'px';
+    var guard = 0;
+    while (fs > minPx && compare.scrollWidth > w + 0.5 && guard < 50) {
+      fs -= 0.3;
+      compare.style.fontSize = fs + 'px';
+      guard++;
+    }
+  }
+
+  function _rtFitAllSparkKpiStacks() {
+    document.querySelectorAll('[data-rt-site-spark-kpi-stack]').forEach(function (s) {
+      _rtFitSparkKpiStack(s);
+    });
   }
 
   function _slotDelta(el, text, tone) {
@@ -3634,6 +3735,10 @@
         compareEl.classList.remove('is-up', 'is-down');
       }
     }
+    _rtFitSparkKpiStack(root);
+    window.setTimeout(function () {
+      _rtFitSparkKpiStack(root);
+    }, 80);
     _rtSyncSiteSparkLiveTotal(siteEl);
   }
 
@@ -6350,6 +6455,12 @@
     _primeSiteCombinedTrends();
     _startPolling();
     _restoreRealtimeScroll();
+    _rtFitAllSparkKpiStacks();
+    var _rtKpiStackResizeT;
+    window.addEventListener('resize', function () {
+      clearTimeout(_rtKpiStackResizeT);
+      _rtKpiStackResizeT = window.setTimeout(_rtFitAllSparkKpiStacks, 120);
+    });
   });
 
   var _rtSparkTableAnchor = null;
