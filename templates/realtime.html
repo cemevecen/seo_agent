@@ -985,13 +985,7 @@
     display: none !important;
   }
   html.rt-view--compact .rt-masonry-site-label {
-    display: block;
-    margin: 0 0 0.25rem;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: rgb(100 116 139);
+    display: none !important;
   }
   html.dark.rt-view--compact .rt-masonry-site-label {
     color: rgb(161 161 170);
@@ -1667,8 +1661,13 @@
     letter-spacing: 0.04em;
     color: rgb(148 163 184);
   }
+  /* Üst açıklama satırları (24 saat · anlık toplam · WoW vb.) — UI’da gösterme */
+  .realtime-root .rt-site-spark-meta .rt-site-spark-label,
+  .realtime-root .rt-site-spark-meta .rt-site-spark-sublabel {
+    display: none !important;
+  }
   .rt-site-spark-last {
-    margin-top: 0.35rem;
+    margin-top: 0.15rem;
     font-size: clamp(0.85rem, 5.5cqi, 1.05rem);
     font-weight: 900;
     font-variant-numeric: tabular-nums;
@@ -3610,13 +3609,6 @@
       xEl.innerHTML = _sparkXAxisLabels({ display: display, rangeKey: rangeKey, useLine: false })
         .map(function (l) { return '<span>' + l + '</span>'; })
         .join('');
-    }
-    var sublabelEl = root.querySelector('[data-rt-site-spark-sublabel]');
-    if (sublabelEl) {
-      var rangeLbl = rangeKey === '15m' ? '15 dk' : rangeKey === '1h' ? '1 saat' : '24 saat';
-      var wow =
-        hasPrevWeekData && rangeKey === '24h' ? ' · WoW grafik' : '';
-      sublabelEl.textContent = rangeLbl + ' · anlık toplam' + wow;
     }
     var compareEl = root.querySelector('[data-rt-site-spark-compare]');
     if (compareEl) {
