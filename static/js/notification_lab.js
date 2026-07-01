@@ -297,12 +297,201 @@
     listRender(oEl, opp, subLine);
   }
 
+  function normalizeHeadlineText(s) {
+    return String(s || "")
+      .toLocaleLowerCase("tr-TR")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function headlineSimilarity(a, b) {
+    var na = normalizeHeadlineText(a);
+    var nb = normalizeHeadlineText(b);
+    if (!na || !nb) return 0;
+    if (na === nb) return 1;
+    if (na.length >= 4 && nb.length >= 4 && (na.indexOf(nb) >= 0 || nb.indexOf(na) >= 0)) {
+      return Math.min(na.length, nb.length) / Math.max(na.length, nb.length);
+    }
+    var wa = na.split(" ").filter(Boolean);
+    var wb = nb.split(" ").filter(Boolean);
+    var setA = {};
+    var setB = {};
+    wa.forEach(function (w) {
+      setA[w] = 1;
+    });
+    wb.forEach(function (w) {
+      setB[w] = 1;
+    });
+    var inter = 0;
+    var union = 0;
+    var all = {};
+    wa.forEach(function (w) {
+      all[w] = 1;
+    });
+    wb.forEach(function (w) {
+      all[w] = 1;
+    });
+    Object.keys(all).forEach(function (w) {
+      var inA = !!setA[w];
+      var inB = !!setB[w];
+      if (inA && inB) inter++;
+      if (inA || inB) union++;
+    });
+    var jaccard = union ? inter / union : 0;
+    var maxLen = Math.max(na.length, nb.length);
+    var minLen = Math.min(na.length, nb.length);
+    var charOverlap = 0;
+    if (maxLen > 0) {
+      var i = 0;
+      var j = 0;
+      var match = 0;
+      while (i < na.length && j < nb.length) {
+        if (na[i] === nb[j]) {
+          match++;
+          i++;
+          j++;
+        } else if (na[i] < nb[j]) i++;
+        else j++;
+      }
+      charOverlap = (2 * match) / (na.length + nb.length);
+    }
+    return Math.max(jaccard, charOverlap, minLen / maxLen * 0.85);
+  }
+
+  function buildSimilarHeadlineClusters(stats, minSim, minSize) {
+    minSim = minSim == null ? 0.58 : minSim;
+    minSize = minSize || 2;
+    var byHeadline = {};
+    stats.forEach(function (s) {
+      byHeadline[s.headline] = s;
+    });
+    var unique = Object.keys(byHeadline);
+    if (unique.length < minSize) return [];
+    var parent = {};
+    unique.forEach(function (h) {
+      parent[h] = h;
+    });
+    function find(x) {
+      while (parent[x] !== x) {
+        parent[x] = parent[parent[x]];
+        x = parent[x];
+      }
+      return x;
+    }
+    function union(a, b) {
+      a = find(a);
+      b = find(b);
+      if (a !== b) parent[b] = a;
+    }
+    for (var i = 0; i < unique.length; i++) {
+      for (var j = i + 1; j < unique.length; j++) {
+        if (headlineSimilarity(unique[i], unique[j]) >= minSim) union(unique[i], unique[j]);
+      }
+    }
+    var groups = {};
+    unique.forEach(function (h) {
+      var r = find(h);
+      if (!groups[r]) groups[r] = [];
+      groups[r].push(h);
+    });
+    return Object.keys(groups)
+      .map(function (k) {
+        return groups[k];
+      })
+      .filter(function (members) {
+        return members.length >= minSize;
+      })
+      .map(function (members) {
+        var totalImpr = 0;
+        var totalClicks = 0;
+        var totalRows = 0;
+        members.forEach(function (m) {
+          var s = byHeadline[m];
+          if (!s) return;
+          totalImpr += s.impressions;
+          totalClicks += s.clicks;
+          totalRows += s.rows;
+        });
+        members.sort(function (a, b) {
+          var sa = byHeadline[a];
+          var sb = byHeadline[b];
+          return (sb ? sb.impressions : 0) - (sa ? sa.impressions : 0) || b.length - a.length;
+        });
+        return {
+          members: members,
+          totalImpr: totalImpr,
+          totalClicks: totalClicks,
+          totalRows: totalRows,
+        };
+      })
+      .sort(function (a, b) {
+        return b.members.length - a.members.length || b.totalImpr - a.totalImpr;
+      })
+      .slice(0, 15);
+  }
+
+  function renderSimilarHeadlines(nt, rows) {
+    var el = document.getElementById("nt-lab-similar-headlines");
+    if (!el) return;
+    if (!rows.length) {
+      emptyMsg(el, "Önce CSV yükleyin veya tarih filtresini genişletin.");
+      return;
+    }
+    var stats = buildHeadlineStatsAllPlatforms(nt, rows);
+    var clusters = buildSimilarHeadlineClusters(stats, 0.58, 2);
+    if (!clusters.length) {
+      emptyMsg(el, "Belirgin benzer başlık grubu yok (eşik: %58 kelime/harf benzerliği).");
+      return;
+    }
+    el.innerHTML = clusters
+      .map(function (cl, idx) {
+        var items = cl.members
+          .map(function (h) {
+            var s = stats.find(function (x) {
+              return x.headline === h;
+            });
+            var ctr = s && s.impressions > 0 ? (s.clicks / s.impressions) * 100 : 0;
+            var meta =
+              s && s.impressions > 0
+                ? "impr " + nt.fmt(s.impressions) + " · CTR " + ctr.toFixed(2) + "%"
+                : nt.fmt(s ? s.clicks : 0) + " click";
+            return (
+              '<li class="rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-900/50">' +
+              '<span class="font-medium text-slate-800 dark:text-zinc-200">' +
+              nt.escapeHtml(h) +
+              "</span>" +
+              '<span class="mt-0.5 block text-[10px] text-slate-500 dark:text-zinc-500">' +
+              meta +
+              (s && s.rows > 1 ? " · " + s.rows + " gönderim" : "") +
+              "</span></li>"
+            );
+          })
+          .join("");
+        return (
+          '<div class="rounded-xl border border-slate-200 px-3 py-2.5 dark:border-zinc-700">' +
+          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-500">Grup ' +
+          (idx + 1) +
+          " · " +
+          cl.members.length +
+          " başlık · impr " +
+          nt.fmt(cl.totalImpr) +
+          "</p>" +
+          '<ul class="mt-2 space-y-1.5">' +
+          items +
+          "</ul></div>"
+        );
+      })
+      .join("");
+  }
+
   function renderLab(detail) {
     var nt = api();
     if (!nt) return;
     var rows = detail && detail.rows ? detail.rows : nt.getFilteredRows();
-    renderDnaChronology(nt, rows);
     renderQualityOpportunity(nt, rows);
+    renderSimilarHeadlines(nt, rows);
+    renderDnaChronology(nt, rows);
   }
 
   function boot() {
