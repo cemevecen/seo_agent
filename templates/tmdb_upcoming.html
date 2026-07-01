@@ -31,6 +31,18 @@
   {% elif p == 'TV+' %}bg-cyan-700 text-white
   {% else %}bg-slate-500 text-white{% endif %}">{{ p }}</span>{% endmacro %}
 
+{% macro poster_media_badge(media_type) %}
+{% set is_tv = (media_type or 'movie') == 'tv' %}
+<div class="pointer-events-none absolute left-2 top-2 z-[1] drop-shadow-md" aria-hidden="true">
+  <span class="inline-block rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ring-2 ring-white/90
+    {% if is_tv %}bg-violet-600 text-white dark:bg-violet-700 dark:ring-slate-800
+    {% else %}bg-slate-900/92 text-white dark:bg-slate-950/92 dark:ring-slate-600{% endif %}"
+    title="{% if is_tv %}Dizi{% else %}Film{% endif %}">
+    {% if is_tv %}Dizi{% else %}Film{% endif %}
+  </span>
+</div>
+{% endmacro %}
+
 {% macro sinemalar_state(item) -%}
 {%- if item.sinemalar_found is none -%}pending{%- elif item.sinemalar_found -%}found{%- else -%}missing{%- endif -%}
 {%- endmacro %}
@@ -114,6 +126,7 @@
     {% else %}
       <div class="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">Afiş yok</div>
     {% endif %}
+    {{ poster_media_badge(movie.media_type) }}
     {# Bayrak — poster üstü sağ köşe #}
     {% if movie.country_code %}
     <div class="absolute right-2 top-2 drop-shadow">
@@ -215,6 +228,7 @@
     {% else %}
       <div class="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">Afiş yok</div>
     {% endif %}
+    {{ poster_media_badge('tv') }}
     {% if show.country_code %}
     <div class="absolute right-2 top-2 drop-shadow">
       <img src="https://flagcdn.com/w40/{{ show.country_code }}.png"
@@ -433,11 +447,17 @@
       {% for movie in data.high_potential %}
       <a href="{{ movie.tmdb_url }}" target="_blank" rel="noopener"
          class="flex flex-col items-center gap-1 rounded-xl border border-amber-200 bg-white p-2 text-center transition hover:shadow-md dark:border-amber-900/40 dark:bg-slate-900">
+        <div class="relative">
         {% if movie.poster_url %}
           <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-24 w-16 rounded-lg object-cover">
         {% else %}
           <div class="flex h-24 w-16 items-center justify-center rounded-lg bg-slate-100 text-3xl dark:bg-slate-800">🎬</div>
         {% endif %}
+        <span class="absolute -left-0.5 -top-0.5 rounded px-1 py-px text-[7px] font-extrabold uppercase tracking-wide text-white ring-1 ring-white/80
+          {% if (movie.media_type or 'movie') == 'tv' %}bg-violet-600{% else %}bg-slate-900/90{% endif %}">
+          {% if (movie.media_type or 'movie') == 'tv' %}Dizi{% else %}Film{% endif %}
+        </span>
+        </div>
         <p class="line-clamp-2 text-[10px] font-semibold leading-tight text-slate-800 dark:text-slate-200">{{ movie.title }}</p>
         <p class="text-[9px] text-slate-400">{{ movie.release_date }}{% if movie.release_date_global %} · pröm. {{ movie.release_date_global }}{% endif %}</p>
         {% if movie.country_code %}
