@@ -103,6 +103,7 @@
   data-media-date="{{ movie.release_date or '' }}"
   data-tmdb-tr-date="{{ movie.release_date_tr or movie.release_date or '' }}"
   data-media-type="{{ movie.media_type or 'movie' }}"
+  data-is-turkish="{{ '1' if movie.is_turkish else '0' }}"
   data-sinemalar-state="{{ sinemalar_state(movie) }}">
 
   {# Afiş #}
@@ -203,6 +204,7 @@
   data-media-original="{{ show.original_title | e }}"
   data-media-date="{{ show.release_date or show.first_air_date or '' }}"
   data-media-type="tv"
+  data-is-turkish="1"
   data-sinemalar-state="{{ sinemalar_state(show) }}">
 
   {# Afiş #}
@@ -460,6 +462,7 @@
   /* ── Önem / popülerlik filtresi ── */
   var _activePop = 'all';
   var _activeProvider = 'all';
+  var ALLOWED_COUNTRY_CODES = { tr: 1, us: 1, fr: 1, es: 1, it: 1, de: 1, in: 1 };
   var popBtns = document.querySelectorAll('.tmdb-pop-btn');
 
   function setActivePopBtn(val) {
@@ -475,7 +478,25 @@
     });
   }
 
+  function cardAllowedCountry(card) {
+    var cc = (card.getAttribute('data-country') || '').toLowerCase();
+    if (cc && ALLOWED_COUNTRY_CODES[cc]) return true;
+    if (card.getAttribute('data-is-turkish') === '1') return true;
+    return false;
+  }
+
+  function applyCountryWhitelist(panel) {
+    if (!panel) return;
+    panel.querySelectorAll('.tmdb-card').forEach(function (card) {
+      var ok = cardAllowedCountry(card);
+      card.setAttribute('data-country-hidden', ok ? '0' : '1');
+      applyCardVisibility(card);
+    });
+    refreshPanelSections(panel);
+  }
+
   function cardVisible(card) {
+    if (!cardAllowedCountry(card)) return false;
     return card.getAttribute('data-pop-hidden') !== '1'
       && card.getAttribute('data-country-hidden') !== '1'
       && card.getAttribute('data-provider-hidden') !== '1';
@@ -545,6 +566,7 @@
     var counts = {};
     panel.querySelectorAll('.tmdb-card[data-country]').forEach(function (c) {
       var cc = c.getAttribute('data-country');
+      if (!cc || !ALLOWED_COUNTRY_CODES[cc]) return;
       if (cc) counts[cc] = (counts[cc] || 0) + 1;
     });
 
@@ -600,7 +622,7 @@
     setActiveCF(bar, cf);
     panel.querySelectorAll('.tmdb-card').forEach(function (card) {
       var cc = card.getAttribute('data-country') || '';
-      var countryOk = (cf === 'all' || cc === cf);
+      var countryOk = cardAllowedCountry(card) && (cf === 'all' || cc === cf);
       card.setAttribute('data-country-hidden', countryOk ? '0' : '1');
       applyCardVisibility(card);
     });
@@ -672,12 +694,11 @@
     var panel = document.getElementById(panelId);
     if (!panel) return;
     panel.querySelectorAll('.tmdb-card').forEach(function (c) {
-      c.setAttribute('data-country-hidden', '0');
       c.setAttribute('data-provider-hidden', '0');
       c.setAttribute('data-pop-hidden', '0');
       applyCardVisibility(c);
     });
-    refreshPanelSections(panel);
+    applyCountryWhitelist(panel);
     var bar = document.getElementById('cbar-' + panelId.replace('panel-',''));
     if (bar) setActiveCF(bar, 'all');
     if (panelId === 'panel-streaming') {
@@ -753,6 +774,10 @@
 
   // İlk sekme için ülke barı
   buildCountryBar('panel-theatrical');
+  applyCountryWhitelist(document.getElementById('panel-theatrical'));
+  ['panel-streaming', 'panel-turkish', 'panel-tv'].forEach(function (pid) {
+    applyCountryWhitelist(document.getElementById(pid));
+  });
 
   /* ── "Bu aya git" sticky butonu ── */
   var currentAnchor = document.getElementById('current-month');

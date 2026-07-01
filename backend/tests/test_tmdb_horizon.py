@@ -34,3 +34,19 @@ def test_filter_combined_horizon_drops_far_releases():
 
         out12 = tmdb._filter_combined_horizon(raw, 12)
         assert sorted(m["id"] for m in out12["theatrical"]) == [1, 2]
+
+
+def test_filter_combined_horizon_country_whitelist():
+    with _mock_today(date(2026, 6, 17)):
+        raw = {
+            "theatrical": [
+                {"id": 1, "release_date": "2026-07-01", "release_month": "2026-07", "country_code": "us", "popularity": 50},
+                {"id": 2, "release_date": "2026-07-05", "release_month": "2026-07", "country_code": "jp", "popularity": 40},
+                {"id": 3, "release_date": "2026-07-10", "release_month": "2026-07", "country_code": "in", "popularity": 30},
+            ],
+            "streaming": [],
+            "turkish_only": [],
+            "tv_series": [],
+        }
+        out = tmdb._filter_combined_horizon(raw, 12)
+        assert [m["id"] for m in out["theatrical"]] == [1, 3]

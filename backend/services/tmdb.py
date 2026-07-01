@@ -73,6 +73,22 @@ _LANG_TO_COUNTRY: dict[str, str] = {
     "is": "IS",
 }
 
+# Vizyon sayfasında gösterilecek yapım ülkeleri (ISO 3166-1 alpha-2, küçük harf)
+UPCOMING_VISIBLE_COUNTRY_CODES = frozenset({"tr", "us", "fr", "es", "it", "de", "in"})
+
+
+def _upcoming_country_visible(m: dict) -> bool:
+    cc = (m.get("country_code") or "").lower().strip()
+    if cc in UPCOMING_VISIBLE_COUNTRY_CODES:
+        return True
+    if not cc and m.get("is_turkish"):
+        return True
+    return False
+
+
+def _filter_upcoming_countries(lst: list[dict]) -> list[dict]:
+    return [m for m in lst if _upcoming_country_visible(m)]
+
 
 def _country_flag(country_code: str) -> str:
     """ISO 3166-1 alpha-2 → bayrak emoji (ör. 'US' → '🇺🇸')."""
@@ -460,6 +476,10 @@ def _filter_combined_horizon(data: dict[str, Any], months_ahead: int) -> dict[st
     streaming = _filter_movie_list(list(data.get("streaming") or []), start=start, end=end)
     turkish_only = _filter_movie_list(list(data.get("turkish_only") or []), start=start, end=end)
     tv_series = _filter_movie_list(list(data.get("tv_series") or []), start=start, end=end)
+    theatrical = _filter_upcoming_countries(theatrical)
+    streaming = _filter_upcoming_countries(streaming)
+    tv_series = _filter_upcoming_countries(tv_series)
+    turkish_only = _filter_upcoming_countries(turkish_only)
 
     for lst in (theatrical, streaming, turkish_only, tv_series):
         for m in lst:
@@ -1064,20 +1084,7 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
 
     tv_upcoming.sort(key=lambda x: (-x["popularity"], x["release_date"] or "9999"))
 
-    # theatrical + platform film ID'lerini işaretle (diziler Türk film listesinden düşülmez)
-    theatrical_ids = {m["id"] for m in theatrical}
-    streaming_movie_ids = {
-        m["id"] for m in streaming if (m.get("media_type") or "movie") == "movie"
-    }
-    known_movie_ids = theatrical_ids | streaming_movie_ids
-
-    # Türk yapımlarından diğerlerinde olmayanları ayır
-    # Sinema/platformda da olsa Türk Filmleri sekmesinde tam liste
-    turkish_only = [m for m in turkish if m["id"] not in known_movie_ids]
-    for m in turkish:
-        m["in_theatrical_or_streaming"] = m["id"] in known_movie_ids
-
-    # theatrical ve streaming'e de Türk işareti ekle
+    # theatrical ve streaming'e Türk işareti ekle
     for lst in (theatrical, streaming):
         for m in lst:
             if m.get("original_language") == "tr":
@@ -1087,6 +1094,21 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
         _apply_tr_release_dates_for_catalog(theatrical, streaming, turkish)
     except Exception as exc:
         logger.error("TMDB TR vizyon tarihi zenginleştirme hatası: %s", exc)
+
+    theatrical = _filter_upcoming_countries(theatrical)
+    streaming = _filter_upcoming_countries(streaming)
+    tv_upcoming = _filter_upcoming_countries(tv_upcoming)
+    turkish = _filter_upcoming_countries(turkish)
+
+    theatrical_ids = {m["id"] for m in theatrical}
+    streaming_movie_ids = {
+        m["id"] for m in streaming if (m.get("media_type") or "movie") == "movie"
+    }
+    known_movie_ids = theatrical_ids | streaming_movie_ids
+
+    turkish_only = [m for m in turkish if m["id"] not in known_movie_ids]
+    for m in turkish:
+        m["in_theatrical_or_streaming"] = m["id"] in known_movie_ids
 
     def group_by_month(lst: list[dict]) -> dict[str, list]:
         return _group_by_month(lst)
