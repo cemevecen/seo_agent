@@ -14098,13 +14098,22 @@ def api_ga4_realtime_trend_combined(site_id: int, hours: float = 24, bucket_page
             return JSONResponse({"error": "site_not_found"}, status_code=404)
         h = hours if hours > 0 else REALTIME_TREND_HOURS_DEFAULT
         trend = get_combined_site_snapshots(db, site_id, hours=h)
-        bucket_top_pages = (
-            get_combined_bucket_top_pages(
+        bucket_top_pages: dict = {}
+        if bucket_pages:
+            from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+            from backend.services.ga4_realtime import _maybe_save_page_snapshots_for_tooltip
+
+            record = get_ga4_credentials_record(db, site.id)
+            properties = load_ga4_properties(record)
+            for prof in ("web", "mweb"):
+                pid = (properties.get(prof) or properties.get("web") or "").strip()
+                if pid:
+                    _maybe_save_page_snapshots_for_tooltip(
+                        db, site_id, prof, pid, min_interval_sec=90
+                    )
+            bucket_top_pages = get_combined_bucket_top_pages(
                 db, site_id, hours=h, top_n=REALTIME_BUCKET_TOP_PAGES_N
             )
-            if bucket_pages
-            else {}
-        )
     return JSONResponse(
         {"site_id": site_id, "hours": hours, "trend": trend, "bucket_top_pages": bucket_top_pages}
     )

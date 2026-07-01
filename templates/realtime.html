@@ -3895,6 +3895,127 @@
     rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false, pagesOnly: true });
   }
 
+  function _mapTopPagesApiToTip(pages, metric) {
+    return (pages || []).slice(0, 5).map(function (p) {
+      var label = String((p && p.page_title) || (p && p.page) || '').trim();
+      if (label.length > 48) label = label.slice(0, 47) + '…';
+      return {
+        label: label || String((p && p.page) || '').slice(0, 48),
+        page_path: String((p && p.page) || ''),
+        active_users: Number((p && p.activeUsers) || 0),
+        pageviews: Number((p && p.screenPageViews) || 0),
+      };
+    });
+  }
+
+  function _fetchSiteSparkLiveTopPages(siteEl, metric) {
+    var sid = siteEl.getAttribute('data-rt-site');
+    if (!sid) return Promise.resolve(null);
+    var type = metric === 'pv' ? 'views' : 'pages';
+    var cacheKey = metric + ':' + type;
+    var now = Date.now();
+    if (
+      siteEl._rtSparkLivePages &&
+      siteEl._rtSparkLivePagesKey === cacheKey &&
+      siteEl._rtSparkLivePagesAt &&
+      now - siteEl._rtSparkLivePagesAt < 90000
+    ) {
+      return Promise.resolve(siteEl._rtSparkLivePages);
+    }
+    return Promise.all([
+      fetch(
+        '/api/ga4/realtime/' +
+          encodeURIComponent(sid) +
+          '/top-pages?profile=web&limit=5&type=' +
+          type,
+        { credentials: 'same-origin', cache: 'no-store' }
+      ),
+      fetch(
+        '/api/ga4/realtime/' +
+          encodeURIComponent(sid) +
+          '/top-pages?profile=mweb&limit=5&type=' +
+          type,
+        { credentials: 'same-origin', cache: 'no-store' }
+      ),
+    ])
+      .then(function (rs) {
+        return Promise.all(
+          rs.map(function (r) {
+            return r.ok ? r.json() : { pages: [] };
+          })
+        );
+      })
+      .then(function (arr) {
+        var bundle = {
+          web: _mapTopPagesApiToTip(arr[0] && arr[0].pages, metric),
+          mweb: _mapTopPagesApiToTip(arr[1] && arr[1].pages, metric),
+          live: true,
+        };
+        siteEl._rtSparkLivePages = bundle;
+        siteEl._rtSparkLivePagesKey = cacheKey;
+        siteEl._rtSparkLivePagesAt = Date.now();
+        return bundle;
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function _fetchProfileSparkLiveTopPages(box, metric) {
+    var sid = box.getAttribute('data-rt-site-id');
+    var profile = box.getAttribute('data-rt-profile') || 'web';
+    if (!sid || (profile !== 'web' && profile !== 'mweb')) return Promise.resolve([]);
+    var type = metric === 'pv' ? 'views' : 'pages';
+    return fetch(
+      '/api/ga4/realtime/' +
+        encodeURIComponent(sid) +
+        '/top-pages?profile=' +
+        encodeURIComponent(profile) +
+        '&limit=5&type=' +
+        type,
+      { credentials: 'same-origin', cache: 'no-store' }
+    )
+      .then(function (r) {
+        return r.ok ? r.json() : { pages: [] };
+      })
+      .then(function (d) {
+        return _mapTopPagesApiToTip(d && d.pages, metric);
+      })
+      .catch(function () {
+        return [];
+      });
+  }
+
+  function _sparkTipPageGroupsHtml(metric, webPages, mwebPages, title) {
+    function tipPageGroup(label, pages) {
+      if (!pages || !pages.length) return '';
+      var block =
+        '<div class="rt-tip-pages-group"><div style="font-weight:600;margin-bottom:0.2rem">' +
+        _esc(label) +
+        '</div>';
+      for (var i = 0; i < pages.length; i++) {
+        var p = pages[i];
+        var n = metric === 'pv' ? p.pageviews || 0 : p.active_users || 0;
+        var unit = metric === 'pv' ? ' gör.' : ' kul.';
+        block +=
+          '<div>' +
+          _esc(String(i + 1) + '. ' + (p.label || p.page_path) + ' · ' + _fmt(n) + unit) +
+          '</div>';
+      }
+      block += '</div>';
+      return block;
+    }
+    var pagesHtml = tipPageGroup('Web', webPages) + tipPageGroup('Mweb', mwebPages);
+    if (!pagesHtml) return '';
+    return (
+      '<div class="rt-tip-pages"><div class="rt-tip-pages-title">' +
+      _esc(title || 'Top içerik') +
+      '</div>' +
+      pagesHtml +
+      '</div>'
+    );
+  }
+
   function _sparkBarTipLinesToHtml(text) {
     return String(text || '')
       .split('\n')
@@ -3907,7 +4028,7 @@
       .join('');
   }
 
-  function _profileSparkTipInnerHtml(box, row) {
+  function _profileSparkTipInnerHtml(box, row, livePages) {
     var plain = row ? _sparkBarTipHtml(row) : '';
     if (!box || !row) return _sparkBarTipLinesToHtml(plain);
     var profile = box.getAttribute('data-rt-profile') || '';
@@ -3917,32 +4038,37 @@
       return _sparkBarTipLinesToHtml(plain);
     }
     var siteEl = box.closest('[data-rt-site]');
-    if (!siteEl || !siteEl._rtBucketTopPages) return _sparkBarTipLinesToHtml(plain);
-    var rangeKey = _rtTrendRangeForBox(box);
-    var bucket = _lookupBucketTopPages(siteEl._rtBucketTopPages, row, rangeKey) || {};
-    var pages = profile === 'web' ? bucket.web || [] : bucket.mweb || [];
     var html = _sparkBarTipLinesToHtml(plain);
-    if (!pages.length) {
-      if (!row.empty && row.bucketCount) {
-        html += '<div class="rt-tip-pages"><div>Bu dilim için sayfa snapshot yok</div></div>';
-      }
-      return html;
+    var pages = [];
+    if (livePages && livePages.length) {
+      pages = livePages;
+    } else if (siteEl && siteEl._rtBucketTopPages) {
+      var rangeKey = _rtTrendRangeForBox(box);
+      var bucket = _lookupBucketTopPages(siteEl._rtBucketTopPages, row, rangeKey) || {};
+      pages = profile === 'web' ? bucket.web || [] : bucket.mweb || [];
     }
-    var block =
-      '<div class="rt-tip-pages"><div class="rt-tip-pages-title">Top içerik</div>';
-    for (var i = 0; i < pages.length; i++) {
-      var p = pages[i];
-      var n = Number(p.active_users) || 0;
-      block +=
-        '<div>' +
-        _esc(String(i + 1) + '. ' + (p.label || p.page_path || '') + ' · ' + _fmt(n)) +
+    if (pages.length) {
+      var title = livePages && livePages.length ? 'Top içerik (canlı)' : 'Top içerik';
+      html +=
+        '<div class="rt-tip-pages"><div class="rt-tip-pages-title">' +
+        _esc(title) +
         '</div>';
+      for (var i = 0; i < pages.length; i++) {
+        var p = pages[i];
+        var n = Number(p.active_users) || 0;
+        html +=
+          '<div>' +
+          _esc(String(i + 1) + '. ' + (p.label || p.page_path || '') + ' · ' + _fmt(n)) +
+          '</div>';
+      }
+      html += '</div>';
+    } else if (!row.empty && row.bucketCount) {
+      html += '<div class="rt-tip-pages"><div>Bu dilim için sayfa snapshot yok</div></div>';
     }
-    block += '</div>';
-    return html + block;
+    return html;
   }
 
-  function _siteSparkTipInnerHtml(siteEl, row, metric) {
+  function _siteSparkTipInnerHtml(siteEl, row, metric, liveBundle) {
     if (!row) return '';
     var v = Number(row.v) || 0;
     var html =
@@ -3963,33 +4089,24 @@
         _esc(_fmtExact(Number(row.pvPrev))) +
         '</div>';
     }
-    var tops = siteEl._rtBucketTopPages || {};
-    var rangeKey = siteEl._rtSparkRangeKey || '24h';
-    var bucket = _lookupBucketTopPages(tops, row, rangeKey) || {};
-    var webPages = metric === 'pv' ? bucket.web_by_pv || bucket.web || [] : bucket.web || [];
-    var mwebPages = metric === 'pv' ? bucket.mweb_by_pv || bucket.mweb || [] : bucket.mweb || [];
-    function tipPageGroup(label, pages) {
-      if (!pages.length) return '';
-      var block = '<div class="rt-tip-pages-group"><div style="font-weight:600;margin-bottom:0.2rem">' + _esc(label) + '</div>';
-      for (var i = 0; i < pages.length; i++) {
-        var p = pages[i];
-        var n = metric === 'pv' ? p.pageviews || 0 : p.active_users || 0;
-        var unit = metric === 'pv' ? ' gör.' : ' kul.';
-        block +=
-          '<div>' +
-          _esc(String(i + 1) + '. ' + (p.label || p.page_path) + ' · ' + _fmt(n) + unit) +
-          '</div>';
-      }
-      block += '</div>';
-      return block;
+    var webPages = [];
+    var mwebPages = [];
+    var pagesTitle = 'Top içerik';
+    if (liveBundle && liveBundle.live) {
+      webPages = liveBundle.web || [];
+      mwebPages = liveBundle.mweb || [];
+      pagesTitle = 'Top içerik (canlı)';
+    } else {
+      var tops = siteEl._rtBucketTopPages || {};
+      var rangeKey = siteEl._rtSparkRangeKey || '24h';
+      var bucket = _lookupBucketTopPages(tops, row, rangeKey) || {};
+      webPages = metric === 'pv' ? bucket.web_by_pv || bucket.web || [] : bucket.web || [];
+      mwebPages = metric === 'pv' ? bucket.mweb_by_pv || bucket.mweb || [] : bucket.mweb || [];
     }
-    var pagesHtml = tipPageGroup('Web', webPages) + tipPageGroup('Mweb', mwebPages);
-    if (pagesHtml) {
-      html +=
-        '<div class="rt-tip-pages"><div class="rt-tip-pages-title">Top içerik</div>' +
-        pagesHtml +
-        '</div>';
-    } else if (!row.empty && row.bucketCount) {
+    var pagesBlock = _sparkTipPageGroupsHtml(metric, webPages, mwebPages, pagesTitle);
+    if (pagesBlock) {
+      html += pagesBlock;
+    } else if (!row.empty && row.bucketCount && !(liveBundle && liveBundle.live)) {
       html += '<div class="rt-tip-pages">Bu dilim için sayfa snapshot yok</div>';
     }
     return html;
@@ -4045,11 +4162,21 @@
       }
       siteEl._rtSparkHoverIdx = idx;
       metric = siteEl._rtSparkMetricCurrent || 'au';
+      var sid = parseInt(siteEl.getAttribute('data-rt-site'), 10);
+      if (!isNaN(sid)) rtEnsureBucketTopPages(sid);
       var tipHtml = _siteSparkTipInnerHtml(siteEl, row, metric);
       tipEl.innerHTML = tipHtml;
       tipEl.classList.toggle('rt-site-spark-tip--rich', tipHtml.indexOf('rt-tip-pages') !== -1);
       tipEl.classList.remove('hidden');
       place(ev.clientX, ev.clientY);
+      if (tipHtml.indexOf('Top içerik') === -1 && !row.empty && row.bucketCount) {
+        _fetchSiteSparkLiveTopPages(siteEl, metric).then(function (bundle) {
+          if (!bundle || siteEl._rtSparkHoverIdx !== idx) return;
+          var rich = _siteSparkTipInnerHtml(siteEl, row, metric, bundle);
+          tipEl.innerHTML = rich;
+          tipEl.classList.toggle('rt-site-spark-tip--rich', rich.indexOf('rt-tip-pages') !== -1);
+        });
+      }
     }
     function place(clientX, clientY) {
       _rtPlaceFixedTip(tipEl, clientX, clientY);
@@ -4218,8 +4345,7 @@
   window.rtFetchSiteCombinedTrend = rtFetchSiteCombinedTrend;
 
   function _pollSiteCombinedTrend(siteId) {
-    rtFetchSiteCombinedTrend(siteId, { bucketPages: false, showLoading: false, pagesOnly: false });
-    _maybeRefreshBucketTopPages(siteId);
+    rtFetchSiteCombinedTrend(siteId, { bucketPages: true, showLoading: false, pagesOnly: false });
   }
 
   function _esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
@@ -4901,6 +5027,20 @@
         tipEl.classList.toggle('rt-spark-bar-tip--rich', tipHtml.indexOf('rt-tip-pages') !== -1);
         tipEl.classList.remove('hidden');
         place(ev.clientX, ev.clientY);
+        var siteCard = box.closest('[data-rt-site]');
+        if (siteCard) {
+          var sidInt = parseInt(siteCard.getAttribute('data-rt-site'), 10);
+          if (!isNaN(sidInt)) rtEnsureBucketTopPages(sidInt);
+        }
+        if (row && tipHtml.indexOf('Top içerik') === -1 && !row.empty && row.bucketCount) {
+          var profMetric = box._rtSparkMetricCurrent || 'au';
+          _fetchProfileSparkLiveTopPages(box, profMetric).then(function (livePages) {
+            if (!livePages || !livePages.length) return;
+            var rich = _profileSparkTipInnerHtml(box, row, livePages);
+            tipEl.innerHTML = rich;
+            tipEl.classList.toggle('rt-spark-bar-tip--rich', rich.indexOf('rt-tip-pages') !== -1);
+          });
+        }
       },
       true
     );
