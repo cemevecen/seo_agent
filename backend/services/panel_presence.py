@@ -51,17 +51,13 @@ def dedupe_online_users(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def build_online_presence_api_payload(
     sessions: list[dict[str, Any]],
     *,
-    viewer_emails: frozenset[str],
+    tracked_emails: frozenset[str],
 ) -> dict[str, Any]:
     """
-    Gösterge yalnızca çevrimiçi üyeler viewer listesindeyse açılır.
-    Başka biri (ör. onurtorun@nokta.com) aktifse show=False — nokta hiç görünmez.
+    Yalnızca tracked_emails içindeki üyeler listelenir.
+    Başka üyeler çevrimiçi olsa bile gösterge gizlenmez (onlar listede görünmez).
     """
-    allowed = {_normalize_email_key(e) for e in viewer_emails if _normalize_email_key(e)}
-    online_members = collect_member_emails(sessions)
-    if online_members and not online_members.issubset(allowed):
-        return {"show": False, "users": [], "count": 0}
-
+    tracked = {_normalize_email_key(e) for e in tracked_emails if _normalize_email_key(e)}
     users = dedupe_online_users(sessions)
-    users = [u for u in users if _normalize_email_key(u.get("email") or "") in allowed]
+    users = [u for u in users if _normalize_email_key(u.get("email") or "") in tracked]
     return {"show": True, "users": users, "count": len(users)}

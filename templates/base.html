@@ -1626,6 +1626,34 @@
       padding: 0.2rem 0;
       white-space: nowrap;
     }
+    #header-online-toast {
+      position: fixed;
+      z-index: 320;
+      left: 50%;
+      bottom: 1.25rem;
+      transform: translateX(-50%) translateY(12px);
+      max-width: min(24rem, calc(100vw - 24px));
+      padding: 0.55rem 0.85rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgb(167 243 208);
+      background: rgb(236 253 245);
+      color: rgb(6 78 59);
+      font-size: 12px;
+      line-height: 1.4;
+      box-shadow: 0 8px 24px rgb(15 23 42 / 0.12);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    html.dark #header-online-toast {
+      border-color: rgb(6 95 70);
+      background: rgb(6 78 59);
+      color: rgb(209 250 229);
+    }
+    #header-online-toast.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
     #header-online-dot-wrap {
       position: relative;
       display: inline-flex;
@@ -1894,6 +1922,9 @@
     aria-hidden="true"
     aria-live="polite"
   >Yenilemek için bırakın</div>
+  {% if online_presence_visible(request) %}
+  <div id="header-online-toast" aria-live="polite"></div>
+  {% endif %}
   <div id="app-shell" class="relative flex min-h-screen min-h-[100dvh] w-full max-w-[100vw] flex-col overflow-x-hidden">
     <main class="min-h-0 min-w-0 w-full flex-1 max-w-full overflow-x-hidden">
       <header class="px-3 py-1.5 sm:px-5 sm:py-2 md:px-6 md:py-2">
@@ -2528,6 +2559,45 @@
           pop.classList.remove("is-visible");
         }
       }
+      var _onlinePresenceOtherKeys = null;
+      var _onlineToastTimer = null;
+      function showOnlinePresenceToast(user) {
+        var el = document.getElementById("header-online-toast");
+        if (!el) return;
+        var name = (user && user.display_name) || (user && user.email) || "Üye";
+        el.textContent = name + " panele bağlandı (çevrimiçi).";
+        el.classList.add("is-visible");
+        if (_onlineToastTimer) clearTimeout(_onlineToastTimer);
+        _onlineToastTimer = setTimeout(function () {
+          el.classList.remove("is-visible");
+        }, 6000);
+      }
+      function noteOnlinePresenceArrivals(users) {
+        var others = (users || []).filter(function (u) {
+          return u.is_current !== true;
+        });
+        var keys = others
+          .map(function (u) {
+            return String(u.email || "").toLowerCase();
+          })
+          .filter(Boolean)
+          .sort()
+          .join("|");
+        if (_onlinePresenceOtherKeys === null) {
+          _onlinePresenceOtherKeys = keys;
+          return;
+        }
+        if (!keys || keys === _onlinePresenceOtherKeys) {
+          _onlinePresenceOtherKeys = keys;
+          return;
+        }
+        var prev = _onlinePresenceOtherKeys ? _onlinePresenceOtherKeys.split("|") : [];
+        others.forEach(function (u) {
+          var k = String(u.email || "").toLowerCase();
+          if (k && prev.indexOf(k) < 0) showOnlinePresenceToast(u);
+        });
+        _onlinePresenceOtherKeys = keys;
+      }
       function renderOnlinePresence(data) {
         var root = document.getElementById("header-online-presence");
         if (!root) return;
@@ -2550,6 +2620,7 @@
           if (ping) ping.classList.remove("hidden");
           dot.className = "relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500";
           title.textContent = "Çevrimiçi (" + others.length + ")";
+          noteOnlinePresenceArrivals(users);
           list.innerHTML = users
             .map(function (u) {
               var line = esc(u.email || "");

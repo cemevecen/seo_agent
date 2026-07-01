@@ -824,7 +824,17 @@
       _inboxLottieShow(els.player, els.fallback, true);
       await _inboxLottiePlay(els.player, INBOX_LOTTIE_SUCCESS, false);
       await _waitMs(INBOX_SEND_SUCCESS_MIN_MS);
-      window.location.reload();
+      var sid = selectedId;
+      await loadThreads({ preserveScroll: true });
+      if (sid) {
+        try {
+          await openDetail(sid);
+        } catch (e) {
+          /* liste güncellendi */
+        }
+      }
+      _hideInboxSendOverlay();
+      _setInboxSendButtonsDisabled(false);
     } catch (e) {
       clearTimeout(stageTimer);
       _setInboxSendOverlay(
@@ -1407,8 +1417,14 @@
     }
     if (!confirm(_INBOX_DELETE_CONFIRM)) return;
     try {
+      var wasSelected = selectedId === id;
       await jfetch("/api/inbox/threads/" + id, { method: "DELETE" });
-      window.location.reload();
+      if (wasSelected) {
+        selectedId = null;
+        document.getElementById("inbox-detail").classList.add("hidden");
+        document.getElementById("inbox-detail-empty").classList.remove("hidden");
+      }
+      await loadThreads({ preserveScroll: true });
     } catch (e) {
       showBanner(String(e.message || e));
     }
@@ -1433,7 +1449,32 @@
     });
   }
 
-  async function loadThreads() {
+  function inboxListScrollEl() {
+    return document.getElementById("inbox-list");
+  }
+
+  function inboxCaptureListScroll() {
+    var el = inboxListScrollEl();
+    if (!el) return null;
+    return { top: el.scrollTop, left: el.scrollLeft };
+  }
+
+  function inboxRestoreListScroll(saved) {
+    if (!saved) return;
+    var el = inboxListScrollEl();
+    if (!el) return;
+    var top = saved.top;
+    var left = saved.left;
+    requestAnimationFrame(function () {
+      el.scrollTop = top;
+      el.scrollLeft = left;
+    });
+  }
+
+  async function loadThreads(opts) {
+    opts = opts || {};
+    var preserveScroll = !!opts.preserveScroll;
+    var saved = preserveScroll ? inboxCaptureListScroll() : null;
     var route = inboxActiveRoute || INBOX_DEFAULT_ROUTE;
     var qParts = ["limit=50", "route=" + encodeURIComponent(route)];
     var data = await jfetch("/api/inbox/threads?" + qParts.join("&"));
@@ -1460,6 +1501,7 @@
           ? "Henüz cevaplanan mail yok. Bir maili cevapladığında veya «Cevaplandı» işaretlediğinde buraya taşınır."
           : "Henüz kayıt yok. «Senkronize et» deyin.";
       box.innerHTML = '<p class="inbox-empty-hint text-slate-500 dark:text-slate-400">' + emptyMsg + "</p>";
+      if (saved) inboxRestoreListScroll(saved);
       return;
     }
     box.innerHTML = items
@@ -1512,6 +1554,7 @@
         );
       })
       .join("");
+    if (saved) inboxRestoreListScroll(saved);
   }
 
   async function openDetail(id, opts) {
@@ -1656,7 +1699,7 @@
       return;
     }
     try {
-      await loadThreads();
+      await loadThreads({ preserveScroll: true });
     } catch (e) {
       showBanner("Liste yenilenemedi (Gmail senkronu tamam): " + String(e.message || e));
       return;
@@ -1682,7 +1725,7 @@
     if (_inboxPollBusy || !status.connected || document.hidden) return;
     _inboxPollBusy = true;
     try {
-      await loadThreads();
+      await loadThreads({ preserveScroll: true });
     } catch (e) {
       /* sessiz arka plan yenileme */
     } finally {
@@ -1712,6 +1755,18 @@
     loadReplyTemplates(currentTemplateFocusGmid || undefined, undefined, true);
   });
 
+  async function inboxRefreshAfterThreadAction() {
+    var sid = selectedId;
+    await loadThreads({ preserveScroll: true });
+    if (sid) {
+      try {
+        await openDetail(sid, { skipRefresh: true });
+      } catch (e) {
+        showBanner(String(e.message || e));
+      }
+    }
+  }
+
   async function postRead(read) {
     if (!selectedId) return;
     try { await _ensureInboxActionAuth(); } catch (e) { return; }
@@ -1720,7 +1775,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ read: read }),
     });
-    window.location.reload();
+    await inboxRefreshAfterThreadAction();
   }
   document.getElementById("btn-read").addEventListener("click", function () {
     postRead(true);
@@ -1737,7 +1792,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ answered: v }),
     });
-    window.location.reload();
+    await inboxRefreshAfterThreadAction();
   }
   document.getElementById("btn-answered").addEventListener("click", function () {
     patchAnswered(true);

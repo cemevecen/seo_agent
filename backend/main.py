@@ -1280,7 +1280,7 @@ def get_online_presence_api_payload(request: Request | None = None) -> dict:
     sessions = _get_active_sessions(request)
     return build_online_presence_api_payload(
         sessions,
-        viewer_emails=ama.ONLINE_PRESENCE_VIEWER_EMAILS,
+        tracked_emails=ama.ONLINE_PRESENCE_TRACKED_MEMBER_EMAILS,
     )
 
 

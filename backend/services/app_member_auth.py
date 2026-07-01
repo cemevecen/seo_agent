@@ -63,6 +63,11 @@ TMDB_ONLY_MEMBER_EMAILS = frozenset(
     }
 )
 
+# Listede / yeşil noktada gösterilecek üyeler (gizlilik: diğer @nokta üyeleri sayılmaz).
+ONLINE_PRESENCE_TRACKED_MEMBER_EMAILS = frozenset(
+    set(ADMIN_MEMBER_EMAILS) | set(TMDB_ONLY_MEMBER_EMAILS)
+)
+
 
 def member_oauth_configured() -> bool:
     cid, secret = _member_oauth_client_credentials()
