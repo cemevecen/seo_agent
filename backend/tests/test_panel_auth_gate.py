@@ -11,13 +11,8 @@ def test_panel_session_granted_member_without_admin_password():
     )
 
 
-def test_panel_session_granted_admin_requires_password_row():
+def test_panel_session_granted_admin_password_no_longer_opens_panel():
     assert not panel_session_granted(
-        password_ready=False,
-        admin_authenticated=True,
-        member_authenticated=False,
-    )
-    assert panel_session_granted(
         password_ready=True,
         admin_authenticated=True,
         member_authenticated=False,

@@ -40,8 +40,5 @@ def panel_session_granted(
     admin_authenticated: bool,
     member_authenticated: bool,
 ) -> bool:
-    if not (admin_authenticated or member_authenticated):
-        return False
-    if member_authenticated:
-        return True
-    return bool(password_ready and admin_authenticated)
+    del password_ready, admin_authenticated
+    return bool(member_authenticated)

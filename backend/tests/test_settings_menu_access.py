@@ -24,4 +24,4 @@ def test_nav_visible():
     assert resolve_settings_menu_visible(
         member_email="cemevecen@gmail.com", admin_authenticated=False
     ) is True
-    assert resolve_settings_menu_visible(member_email=None, admin_authenticated=True) is True
+    assert resolve_settings_menu_visible(member_email=None, admin_authenticated=True) is False

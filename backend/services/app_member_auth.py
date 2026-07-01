@@ -63,6 +63,33 @@ TMDB_ONLY_MEMBER_EMAILS = frozenset(
     }
 )
 
+# Tam panel @nokta.com — ilk Google girişinden önce Settings listesinde gri satır.
+INVITED_NOKTA_MEMBER_EMAILS = frozenset(
+    {
+        "melihengin@nokta.com",
+    }
+)
+
+
+def prelogin_display_member_emails() -> frozenset[str]:
+    """Kodda tanımlı; henüz OAuth yapmamış olsa da üyelik listesinde gösterilir."""
+    return frozenset(
+        set(TMDB_ONLY_MEMBER_EMAILS)
+        | set(MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS)
+        | set(INVITED_NOKTA_MEMBER_EMAILS)
+    )
+
+
+def prelogin_access_note(email: str) -> str:
+    em = _normalize_email(email)
+    if em in TMDB_ONLY_MEMBER_EMAILS:
+        return "tmdb-only"
+    if em in MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS:
+        return "allowlist"
+    if em in INVITED_NOKTA_MEMBER_EMAILS:
+        return "invited"
+    return "invited"
+
 # Listede / yeşil noktada gösterilecek üyeler (gizlilik: diğer @nokta üyeleri sayılmaz).
 ONLINE_PRESENCE_TRACKED_MEMBER_EMAILS = frozenset(
     set(ADMIN_MEMBER_EMAILS) | set(TMDB_ONLY_MEMBER_EMAILS)
@@ -455,10 +482,10 @@ def member_list_payload(db: Session) -> list[dict[str, Any]]:
                 "access_note": "",
             }
         )
-    for em in sorted(set(TMDB_ONLY_MEMBER_EMAILS) | set(MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS)):
+    for em in sorted(prelogin_display_member_emails()):
         if em in seen:
             continue
-        note = "tmdb-only" if em in TMDB_ONLY_MEMBER_EMAILS else "allowlist"
+        note = prelogin_access_note(em)
         out.append(
             {
                 "id": None,

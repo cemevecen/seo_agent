@@ -179,7 +179,8 @@
         <p class="text-xs text-slate-500 dark:text-slate-400">
           Tablo, en az bir kez <strong>Google ile giriş</strong> yapmış üyeleri veritabanından listeler.
           Tüm <span class="font-mono text-[10px]">@nokta.com</span> adresleri girişte otomatik eklenir (giriş yapmadan listede görünmez).
-          Kodda ön tanımlı özel hesaplar (ör. TMDB kısıtlı) ilk giriş öncesi gri satır olarak gösterilir.
+          Kodda ön tanımlı / davetli hesaplar (TMDB kısıtlı veya davet listesi) ilk giriş öncesi gri satır olarak gösterilir.
+          Panele erişim yalnızca <strong>Google ile giriş</strong> ile açılır.
           Ekran kısıtları <span class="font-mono text-[10px]">screen_permissions_json</span> ile ileride genişletilecek.
         </p>
       </div>
@@ -211,7 +212,7 @@
               <div class="font-medium text-slate-900 dark:text-slate-100">{{ m.email }}</div>
               {% if m.display_name %}<div class="text-[10px] text-slate-500">{{ m.display_name }}</div>{% endif %}
               {% if m.pending_first_login %}
-              <div class="mt-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Henüz Google ile giriş yapmadı{% if m.access_note == 'tmdb-only' %} · yalnızca TMDB ekranı{% endif %}</div>
+              <div class="mt-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Henüz Google ile giriş yapmadı{% if m.access_note == 'tmdb-only' %} · yalnızca TMDB ekranı{% elif m.access_note == 'invited' %} · davetli tam panel{% elif m.access_note == 'allowlist' %} · özel e-posta izni{% endif %}</div>
               {% endif %}
             </td>
             <td class="px-3 py-2">

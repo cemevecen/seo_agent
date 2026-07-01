@@ -1317,25 +1317,15 @@ def _get_active_sessions(request: Request | None = None) -> list[dict]:
 
 
 def _is_settings_authenticated(request: Request) -> bool:
-    """Settings sayfası: allowlist üyeleri veya admin şifre + isteğe bağlı settings şifresi."""
+    """Settings sayfası: allowlist Google üyeleri."""
     from backend.services.settings_menu_access import is_settings_menu_allowed_email
 
     member = _app_member_from_request(request)
-    if member is not None:
-        if not is_settings_menu_allowed_email(member.email):
-            return False
-        return True
-    if not _is_admin_authenticated(request):
+    if member is None:
         return False
-    raw_pwd = (getattr(settings, "settings_password", "") or "").strip()
-    if not raw_pwd:
-        return True
-    token = str(request.cookies.get(_SETTINGS_AUTH_COOKIE) or "")
-    if not token:
+    if not is_settings_menu_allowed_email(member.email):
         return False
-    secret = str(getattr(settings, "secret_key", "") or "").encode("utf-8")
-    expected = hmac.new(secret, raw_pwd.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
-    return hmac.compare_digest(token, expected)
+    return True
 
 
 def _member_denied_settings_menu(request: Request) -> bool:
@@ -1428,13 +1418,11 @@ def _app_member_authenticated(request: Request) -> bool:
 
 
 def _is_app_panel_authenticated(request: Request) -> bool:
-    """Uygulama kapısı: admin şifresi veya Google üye oturumu (site SC/GA4 OAuth ayrı)."""
-    return _is_admin_authenticated(request) or _app_member_authenticated(request)
+    """Uygulama kapısı: yalnızca Google üye oturumu."""
+    return _app_member_authenticated(request)
 
 
 def _is_membership_admin(request: Request) -> bool:
-    if _is_admin_authenticated(request):
-        return True
     from backend.services import app_member_auth as ama
 
     return ama.is_membership_admin(request)
@@ -10139,7 +10127,7 @@ def settings_site_list(request: Request):
 def admin_login_page(request: Request):
     if not _auth_gate_enabled(request):
         return RedirectResponse(url="/", status_code=303)
-    if _is_admin_authenticated(request) or _app_member_authenticated(request):
+    if _app_member_authenticated(request):
         return RedirectResponse(url="/", status_code=303)
     from backend.services import app_member_auth as ama
 
@@ -10178,47 +10166,14 @@ def admin_auth_login_get():
 
 
 def _admin_password_login_submit(request: Request, password: str):
-    from backend.services import admin_access_log as aal
+    from urllib.parse import quote
 
-    if not _admin_auth_active():
-        return RedirectResponse(url="/", status_code=303)
-    raw_password = str(password or "").strip()
-    client_ip = _extract_client_ip(request)
-    client_ua = request.headers.get("user-agent", "")
-    with SessionLocal() as db:
-        if not _admin_password_configured(db):
-            return JSONResponse(status_code=503, content={"ok": False, "detail": "Admin şifresi henüz ayarlanmadı."})
-        if not raw_password or not _verify_admin_password(db, raw_password):
-            aal.record_access_event(
-                db,
-                event_type="login_fail",
-                ip=client_ip,
-                user_agent=client_ua,
-                referer=(request.headers.get("referer") or "")[:512],
-                accept_language=(request.headers.get("accept-language") or "")[:120],
-            )
-            return JSONResponse(status_code=401, content={"ok": False, "detail": "Şifre hatalı."})
-        row = _admin_auth_row(db)
-        token = _build_admin_cookie_token(row.password_hash if row else "")
-        aal.record_access_event(
-            db,
-            event_type="login_ok",
-            ip=client_ip,
-            user_agent=client_ua,
-            referer=(request.headers.get("referer") or "")[:512],
-            accept_language=(request.headers.get("accept-language") or "")[:120],
-        )
-    response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(
-        key=_ADMIN_AUTH_COOKIE,
-        value=token,
-        httponly=True,
-        secure=_admin_auth_cookie_secure(request),
-        samesite="lax",
-        max_age=60 * 60 * 12,
-        path="/",
+    del password
+    return RedirectResponse(
+        url="/admin/login?oauth_error="
+        + quote("Panele yalnızca Google ile giriş yapın (@nokta.com hesabınız)."),
+        status_code=303,
     )
-    return response
 
 
 @app.post("/admin/login")

@@ -65,3 +65,7 @@ def test_member_list_shows_pending_tmdb_only_before_first_login():
     assert gozde is not None
     assert gozde["pending_first_login"] is True
     assert gozde["access_note"] == "tmdb-only"
+    melih = next((r for r in out if r["email"] == "melihengin@nokta.com"), None)
+    assert melih is not None
+    assert melih["pending_first_login"] is True
+    assert melih["access_note"] == "invited"

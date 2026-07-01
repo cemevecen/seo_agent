@@ -32,10 +32,11 @@ def resolve_settings_menu_visible(
     member_email: str | None,
     admin_authenticated: bool,
 ) -> bool:
-    """Üst menüde settings linki: Google üyesi allowlist veya (üye yok) admin şifre oturumu."""
+    """Üst menüde settings linki: yalnızca Google üyesi allowlist."""
+    del admin_authenticated
     if member_email:
         return is_settings_menu_allowed_email(member_email)
-    return bool(admin_authenticated)
+    return False
 
 
 def member_denied_settings_access(member_email: str) -> bool:
