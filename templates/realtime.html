@@ -1679,6 +1679,11 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .rt-site-spark-last.rt-slot-reel {
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.2;
+  }
   html.dark .rt-site-spark-last { color: rgb(244 244 245); }
   .rt-site-spark-plot {
     display: grid;
@@ -1892,14 +1897,13 @@
   .rt-site-spark-kpi-stack {
     display: inline-flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
     width: auto;
     max-width: 100%;
     min-width: 0;
     margin-top: 0.2rem;
-    container-type: inline-size;
-    container-name: rt-kpi-stack;
     --rt-slot-chars: 6;
+    --rt-slot-w: auto;
   }
   html.rt-view--compact [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-kpi-stack,
   html.rt-view--compact [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-kpi-stack {
@@ -1908,6 +1912,7 @@
   .rt-site-spark-kpi-stack .rt-site-spark-last.rt-slot-reel {
     width: auto;
     max-width: 100%;
+    flex-shrink: 0;
     align-self: flex-start;
     box-sizing: border-box;
     font-size: clamp(
@@ -1926,18 +1931,16 @@
   }
   .rt-site-spark-kpi-stack .rt-site-spark-compare {
     margin-top: 0.28rem;
-    width: 100%;
-    max-width: 100%;
+    box-sizing: border-box;
+    width: var(--rt-slot-w, auto);
+    max-width: min(100%, var(--rt-slot-w, 100%));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: clip;
-    font-size: clamp(7px, 2.65cqi, 10px);
+    line-height: 1.25;
+    min-height: 1.25em;
+    font-size: 10px;
     letter-spacing: -0.01em;
-  }
-  @container rt-kpi-stack (max-width: 8.5rem) {
-    .rt-site-spark-kpi-stack .rt-site-spark-compare {
-      font-size: clamp(6.5px, 3cqi, 8.5px);
-    }
   }
   html.dark .rt-site-spark-compare { color: rgb(122 125 168); }
   .rt-site-spark-compare.is-down { color: rgb(185 28 60); }
@@ -3195,17 +3198,36 @@
         rootOrStack.querySelector && rootOrStack.querySelector('[data-rt-site-spark-kpi-stack]');
     }
     if (!stack) return;
+    var row = stack.closest('.rt-site-spark-row');
+    if (row && row.classList.contains('is-loading')) return;
     var last = stack.querySelector('[data-rt-site-spark-last]');
     var compare = stack.querySelector('[data-rt-site-spark-compare]');
     stack.style.width = '';
+    stack.style.removeProperty('width');
     stack.style.maxWidth = '100%';
+    var meta = stack.closest('.rt-site-spark-meta');
+    var metaW = meta && meta.clientWidth ? meta.clientWidth : 0;
+    var slotW = 0;
     if (last) {
-      stack.style.setProperty(
-        '--rt-slot-chars',
-        String(_rtSparkKpiCharCount(last.getAttribute('data-rt-slot-cur') || last.textContent))
+      var baseChars = _rtSparkKpiCharCount(
+        last.getAttribute('data-rt-slot-cur') || last.textContent
       );
-      var slotW = Math.ceil(last.getBoundingClientRect().width);
-      if (slotW > 0) stack.style.width = slotW + 'px';
+      var tryChars = baseChars;
+      var guardChars = 0;
+      while (guardChars < 12) {
+        stack.style.setProperty('--rt-slot-chars', String(tryChars));
+        slotW = Math.ceil(last.getBoundingClientRect().width);
+        if (!metaW || slotW <= metaW || tryChars >= 14) break;
+        tryChars += 1;
+        guardChars += 1;
+      }
+      if (slotW > 0) {
+        stack.style.setProperty('--rt-slot-w', slotW + 'px');
+      } else {
+        stack.style.removeProperty('--rt-slot-w');
+      }
+    } else {
+      stack.style.removeProperty('--rt-slot-w');
     }
     if (!compare || compare.classList.contains('hidden')) {
       if (compare) compare.style.fontSize = '';
@@ -3217,8 +3239,7 @@
     var maxPx = 10;
     var minPx = 5.5;
     var fs = maxPx;
-    var w = stack.clientWidth;
-    if (w < 8 && last) w = Math.ceil(last.getBoundingClientRect().width);
+    var w = slotW || stack.clientWidth;
     if (w < 8) return;
     compare.style.fontSize = fs + 'px';
     var guard = 0;
