@@ -364,13 +364,20 @@ def lookup_items_batch(items: list[dict[str, Any]], *, max_items: int = 20) -> d
     workers = min(4, max(1, len(slice_)))
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(_one, raw) for raw in slice_]
-        for fut in as_completed(futures, timeout=45):
-            try:
-                row = fut.result()
-                if row:
-                    out[row[0]] = row[1]
-            except Exception as exc:
-                logger.debug("Sinemalar batch satırı atlandı: %s", exc)
+        try:
+            for fut in as_completed(futures, timeout=50):
+                try:
+                    row = fut.result()
+                    if row:
+                        out[row[0]] = row[1]
+                except Exception as exc:
+                    logger.debug("Sinemalar batch satırı atlandı: %s", exc)
+        except TimeoutError:
+            logger.warning(
+                "Sinemalar batch kısmi zaman aşımı (%d/%d tamamlandı)",
+                len(out),
+                len(slice_),
+            )
     return out
 
 

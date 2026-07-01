@@ -292,7 +292,7 @@
         {% if is_past %}border-violet-200/90 bg-gradient-to-br from-violet-50/50 to-white ring-1 ring-violet-100/60 dark:border-violet-800/50 dark:from-violet-950/25 dark:to-slate-900/40 dark:ring-violet-900/30
         {% elif is_current %}border-amber-200/90 bg-gradient-to-br from-amber-50/40 to-white ring-1 ring-amber-100/70 dark:border-amber-800/45 dark:from-amber-950/20 dark:to-slate-900/40 dark:ring-amber-900/25
         {% else %}border-slate-200 bg-white ring-1 ring-slate-100/80 dark:border-slate-700 dark:bg-slate-900/50 dark:ring-slate-800/60{% endif %}"
-        {% if is_current %}id="current-month"{% endif %}>
+        {% if is_current %}id="current-month" open{% endif %}>
         <summary class="flex cursor-pointer list-none select-none flex-wrap items-center gap-2 px-4 py-3.5 transition-colors sm:gap-2.5 sm:px-5 sm:py-4
           {% if is_past %}hover:bg-violet-100/40 dark:hover:bg-violet-900/20
           {% elif is_current %}hover:bg-amber-100/40 dark:hover:bg-amber-900/15
@@ -799,17 +799,23 @@
 
   (function sinemalarEnrichQueue() {
     var busy = false;
-    var FETCH_MS = 28000;
-    var BATCH = 6;
+    var FETCH_MS = 36000;
+    var BATCH = 8;
     function esc(s) {
       var d = document.createElement('div');
       d.textContent = s == null ? '' : String(s);
       return d.innerHTML;
     }
+    function cardEligible(card) {
+      if (!card || card.getAttribute('data-sinemalar-state') !== 'pending') return false;
+      if (typeof cardVisible === 'function' && !cardVisible(card)) return false;
+      var month = card.closest('details.tmdb-month-group');
+      return !month || month.open;
+    }
     function pendingCards() {
       return Array.prototype.slice.call(
         document.querySelectorAll('.tmdb-card[data-sinemalar-state="pending"]')
-      );
+      ).filter(cardEligible);
     }
     function renderSlot(card, p) {
       var slot = card.querySelector('.sinemalar-slot');
@@ -874,6 +880,12 @@
         body: JSON.stringify({ items: items }),
       })
         .then(function (r) {
+          if (r.status === 401 || r.status === 403) {
+            cards.forEach(function (card) {
+              renderSlot(card, { sinemalar_found: false });
+            });
+            throw new Error('auth_' + r.status);
+          }
           if (!r.ok) throw new Error('http_' + r.status);
           return r.json();
         })
@@ -908,6 +920,11 @@
     }
     setTimeout(tick, 500);
     setInterval(function () { if (pendingCards().length) tick(); }, 3000);
+    document.querySelectorAll('details.tmdb-month-group').forEach(function (det) {
+      det.addEventListener('toggle', function () {
+        if (det.open) setTimeout(tick, 80);
+      });
+    });
   })();
 
   window.__pcPageContext = function () {
