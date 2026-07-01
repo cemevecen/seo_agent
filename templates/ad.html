@@ -110,11 +110,12 @@
         <summary class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-zinc-200">Dosya adlandırma (1 · 2 · 3 …)</summary>
         <p class="mt-2 text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
           Her dal için sıra numarası kullan: <strong>1</strong> = 2025 tam yıl,
-          <strong>2</strong> = 01.01–31.05.2026,
-          <strong>3+</strong> = sonraki aylar. Örnek: <code class="text-[10px]">dovizweb1.xlsx</code>,
+          <strong>2</strong> = 01.01.2026 – ay sonu (dönem bitince genişletilmiş export; örn. Haziran dahil),
+          <strong>3+</strong> = içinde bulunulan ay (Temmuz dosyası ay başından veya yeni export’tan itibaren).
+          Örnek: <code class="text-[10px]">dovizweb1.xlsx</code>,
           <code class="text-[10px]">dovizweb2.xlsx</code>, <code class="text-[10px]">dovizmweb3.xlsx</code>.
-          Aynı gün üst üste gelirse büyük numara kazanır. Dosya yanındaki × ile tekil silebilirsin;
-          aynı isimle yeniden yüklersen duplike olmaz, hesaplama aynı kalır.
+          Aynı gün üst üste gelirse büyük numara kazanır. Eski 2/3’ü silip yeniden yüklersen duplike olmaz;
+          önce <strong>3</strong> sonra <strong>2</strong> silmek, arşivden geri dönüşü daha öngörülebilir kılar.
         </p>
       </details>
       <details class="mt-2 rounded-lg border border-emerald-200/90 bg-emerald-50/50 p-2.5 dark:border-emerald-900/50 dark:bg-emerald-950/25 midnight:border-emerald-900/40">
