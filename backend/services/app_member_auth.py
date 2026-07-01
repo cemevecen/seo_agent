@@ -435,7 +435,10 @@ def member_list_payload(db: Session) -> list[dict[str, Any]]:
 
     rows = db.query(AppMember).order_by(AppMember.created_at.desc()).all()
     out: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for r in rows:
+        em = _normalize_email(r.email)
+        seen.add(em)
         last_raw = r.last_login_at
         out.append(
             {
@@ -448,6 +451,33 @@ def member_list_payload(db: Session) -> list[dict[str, Any]]:
                 "created_at": r.created_at.isoformat() if r.created_at else "",
                 "last_login_at": last_raw.isoformat() if last_raw else "",
                 "last_login_at_tr": format_local_datetime(last_raw, fallback="—"),
+                "pending_first_login": False,
+                "access_note": "",
             }
         )
+    for em in sorted(set(TMDB_ONLY_MEMBER_EMAILS) | set(MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS)):
+        if em in seen:
+            continue
+        note = "tmdb-only" if em in TMDB_ONLY_MEMBER_EMAILS else "allowlist"
+        out.append(
+            {
+                "id": None,
+                "email": em,
+                "display_name": "",
+                "role": "member",
+                "is_active": None,
+                "screen_permissions_json": default_screen_permissions(),
+                "created_at": "",
+                "last_login_at": "",
+                "last_login_at_tr": "—",
+                "pending_first_login": True,
+                "access_note": note,
+            }
+        )
+    out.sort(
+        key=lambda row: (
+            1 if row.get("pending_first_login") else 0,
+            str(row.get("email") or "").lower(),
+        )
+    )
     return out

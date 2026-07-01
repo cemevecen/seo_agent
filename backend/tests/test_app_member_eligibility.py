@@ -53,3 +53,15 @@ def test_online_presence_visible_only_for_cem_accounts():
         ama, "member_from_request", return_value=AppMember(email="onurtorun@nokta.com")
     ):
         assert ama.can_view_online_presence(req) is False
+
+
+def test_member_list_shows_pending_tmdb_only_before_first_login():
+    from unittest.mock import MagicMock
+
+    db = MagicMock()
+    db.query.return_value.order_by.return_value.all.return_value = []
+    out = ama.member_list_payload(db)
+    gozde = next((r for r in out if r["email"] == "gozdeunaldi@nokta.com"), None)
+    assert gozde is not None
+    assert gozde["pending_first_login"] is True
+    assert gozde["access_note"] == "tmdb-only"

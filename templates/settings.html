@@ -177,7 +177,10 @@
     <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p class="text-xs text-slate-500 dark:text-slate-400">
-          İlk aşamada tüm üyeler tüm ekranları görür. Ekran kısıtları <span class="font-mono text-[10px]">screen_permissions_json</span> ile ileride genişletilecek.
+          Tablo, en az bir kez <strong>Google ile giriş</strong> yapmış üyeleri veritabanından listeler.
+          Tüm <span class="font-mono text-[10px]">@nokta.com</span> adresleri girişte otomatik eklenir (giriş yapmadan listede görünmez).
+          Kodda ön tanımlı özel hesaplar (ör. TMDB kısıtlı) ilk giriş öncesi gri satır olarak gösterilir.
+          Ekran kısıtları <span class="font-mono text-[10px]">screen_permissions_json</span> ile ileride genişletilecek.
         </p>
       </div>
       {% if current_app_member %}
@@ -203,21 +206,32 @@
         </thead>
         <tbody id="app-members-tbody">
           {% for m in app_members %}
-          <tr class="border-b border-slate-100 dark:border-slate-800" data-member-id="{{ m.id }}">
+          <tr class="border-b border-slate-100 dark:border-slate-800{% if m.pending_first_login %} bg-slate-50/80 dark:bg-slate-900/40{% endif %}"{% if m.id %} data-member-id="{{ m.id }}"{% endif %}>
             <td class="px-3 py-2">
               <div class="font-medium text-slate-900 dark:text-slate-100">{{ m.email }}</div>
               {% if m.display_name %}<div class="text-[10px] text-slate-500">{{ m.display_name }}</div>{% endif %}
+              {% if m.pending_first_login %}
+              <div class="mt-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Henüz Google ile giriş yapmadı{% if m.access_note == 'tmdb-only' %} · yalnızca TMDB ekranı{% endif %}</div>
+              {% endif %}
             </td>
             <td class="px-3 py-2">
+              {% if m.pending_first_login %}
+              <span class="text-slate-500 dark:text-slate-400">member{% if m.access_note == 'tmdb-only' %} (tmdb){% endif %}</span>
+              {% else %}
               <select class="member-role-select rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-950" data-member-id="{{ m.id }}" {% if m.email in ['cemevecen@nokta.com', 'cemevecen@gmail.com'] %}disabled title="Sabit admin"{% endif %}>
                 <option value="member" {% if m.role == 'member' %}selected{% endif %}>member</option>
                 <option value="admin" {% if m.role == 'admin' %}selected{% endif %}>admin</option>
               </select>
+              {% endif %}
             </td>
             <td class="px-3 py-2">
+              {% if m.pending_first_login %}
+              <span class="text-slate-400" title="İlk girişten sonra düzenlenebilir">—</span>
+              {% else %}
               <input type="checkbox" class="member-active-toggle h-4 w-4 rounded" data-member-id="{{ m.id }}" {% if m.is_active %}checked{% endif %} />
+              {% endif %}
             </td>
-            <td class="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">{{ m.last_login_at_tr or '—' }}</td>
+            <td class="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">{% if m.pending_first_login %}Henüz giriş yok{% else %}{{ m.last_login_at_tr or '—' }}{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
