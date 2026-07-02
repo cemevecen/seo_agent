@@ -2627,11 +2627,54 @@
   }
 
   /** Sidebar’daki seçili aralık; özet by_date tam yıl kalsa bile grafikte yalnızca bu dilim. */
+  function mzEmptyDaySeriesRow(iso) {
+    return {
+      date: iso,
+      net_revenue: 0,
+      impression: 0,
+      click: 0,
+      ad_request: 0,
+      matched_request: 0,
+      empower_pageview: 0,
+      empower_unique_visitor: 0,
+      ad_request_ecpm: 0,
+      pageview_ecpm: 0,
+      unique_visitor_ecpm: 0,
+      ad_ecpm: 0,
+      ctr_pct: 0,
+      coverage_pct: 0,
+      viewability_pct: 0,
+      above_the_fold_ratio_pct: 0,
+    };
+  }
+
+  /** Günlük seride seçili start–end aralığının her günü (veri yoksa 0) — Son 7 gün gibi kısa aralıklarda eksik gün algısı. */
+  function mzFillDailySeriesInRange(rows, startIso, endIso) {
+    var start = String(startIso || "").slice(0, 10);
+    var end = String(endIso || "").slice(0, 10);
+    if (!start || !end || start > end) return rows || [];
+    var byDay = {};
+    (rows || []).forEach(function (d) {
+      var dt = String(d.date != null ? d.date : "").slice(0, 10);
+      if (dt) byDay[dt] = d;
+    });
+    var out = [];
+    var cur = new Date(start + "T12:00:00");
+    var endD = new Date(end + "T12:00:00");
+    if (isNaN(cur.getTime()) || isNaN(endD.getTime())) return rows || [];
+    while (cur <= endD) {
+      var iso = isoCalendarDate(cur);
+      out.push(byDay[iso] ? Object.assign({}, byDay[iso]) : mzEmptyDaySeriesRow(iso));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }
+
   function filterSeriesBySelectedRange(series, timeKey) {
     var r = selectedDateRange();
     if (!r.start && !r.end) return series || [];
     var key = timeKey || "date";
-    return (series || []).filter(function (d) {
+    var filtered = (series || []).filter(function (d) {
       var raw = d[key] != null ? d[key] : d.date;
       if (raw == null) return false;
       var s = String(raw);
@@ -2650,6 +2693,10 @@
       if (r.end && dt > r.end) return false;
       return true;
     });
+    if (key === "date" && r.start && r.end) {
+      return mzFillDailySeriesInRange(filtered, r.start, r.end);
+    }
+    return filtered;
   }
 
   function filterSeriesForChartView(series, timeKey, sum) {
@@ -6417,7 +6464,7 @@
       ms.sort(function (a, b) { return a - b; });
       var t0 = ms[0];
       var t1 = ms[ms.length - 1];
-      var padDays = ms.length === 1 ? 0.35 : 0.5;
+      var padDays = ms.length === 1 ? 0.35 : ms.length <= 10 ? 0.65 : 0.5;
       return {
         type: "date",
         autorange: false,
@@ -8637,7 +8684,7 @@
       updateRangeEmptyNotice(state.lastSummary);
       return;
     }
-    if (v === "7d") s.setDate(s.getDate() - 7);
+    if (v === "7d") s.setDate(s.getDate() - 6);
     else if (v === "14d") s.setDate(s.getDate() - 13);
     else if (v === "30d") s.setDate(s.getDate() - 30);
     else if (v === "60d") s.setDate(s.getDate() - 60);
@@ -8925,7 +8972,7 @@
       if (!sumR.ok) throw new Error("Özet alınamadı");
       var sum = await sumR.json();
       state.lastSummary = sum;
-      state.lastByDate = sum.by_date || [];
+      state.lastByDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
       state.kpiAvailable = sum.kpi_available || [];
       updateRangeLabel();
       updateRangeEmptyNotice(sum);
