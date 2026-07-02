@@ -146,19 +146,13 @@
   }
   html.mz-range-single-day #mz-kpi-grid,
   .mz-page #mz-kpi-grid.mz-kpi-grid--compact {
-    grid-template-columns: repeat(auto-fill, minmax(6.75rem, 1fr));
     gap: 0.375rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  @media (min-width: 480px) {
+  @media (min-width: 640px) {
     html.mz-range-single-day #mz-kpi-grid,
     .mz-page #mz-kpi-grid.mz-kpi-grid--compact {
-      grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
-    }
-  }
-  @media (min-width: 1024px) {
-    html.mz-range-single-day #mz-kpi-grid,
-    .mz-page #mz-kpi-grid.mz-kpi-grid--compact {
-      grid-template-columns: repeat(auto-fill, minmax(8.25rem, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
   }
   html.mz-range-single-day #mz-kpi-grid > .mz-kpi-card,
@@ -190,6 +184,16 @@
     display: none !important;
     height: 0 !important;
     margin: 0 !important;
+  }
+  .mz-page #mz-kpi-grid {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 640px) {
+    .mz-page #mz-kpi-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
   }
 </style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
@@ -372,7 +376,7 @@
         <p id="mz-compare-period-lines" class="mt-1.5 text-sm leading-snug text-slate-800 dark:text-zinc-100"></p>
         <p id="mz-compare-period-mode" class="mt-1 text-[10px] text-indigo-700 dark:text-indigo-400"></p>
       </div>
-      <div id="mz-kpi-grid" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div id="mz-kpi-grid" class="mz-kpi-grid">
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
       <div id="mz-peer-toggle-kpi" class="hidden flex flex-wrap justify-end"></div>
