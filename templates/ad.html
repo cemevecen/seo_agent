@@ -7326,6 +7326,20 @@
     });
   }
 
+  function mzTruncChartCategoryLabel(text, maxLen) {
+    var s = String(text == null ? "" : text).trim();
+    if (!maxLen || s.length <= maxLen) return s || "—";
+    return s.slice(0, Math.max(1, maxLen - 1)) + "…";
+  }
+
+  function mzTopUnitsTickMaxLen(barCount) {
+    var n = barCount || 0;
+    if (n <= 8) return 26;
+    if (n <= 12) return 20;
+    if (n <= 18) return 16;
+    return 14;
+  }
+
   async function renderTopMxUnitsWeek() {
     var chartEl = document.getElementById("mz-top-units-chart");
     var statusEl = document.getElementById("mz-top-units-status");
@@ -7367,7 +7381,10 @@
         return;
       }
       var labels = rows.map(function (x) { return x.ad_unit || "—"; });
+      var tickMax = mzTopUnitsTickMaxLen(labels.length);
+      var tickLabels = labels.map(function (l) { return mzTruncChartCategoryLabel(l, tickMax); });
       var revs = rows.map(function (x) { return Number(x.net_revenue) || 0; });
+      var xIdx = rows.map(function (_, i) { return i; });
       var colors = rows.map(function (_, i) {
         return isDarkTheme()
           ? (i === 0 ? "#b87333" : "#8b7aa8")
@@ -7379,22 +7396,33 @@
         chartEl,
         [{
           type: "bar",
-          x: labels,
+          x: xIdx,
           y: revs,
+          customdata: labels,
           marker: { color: colors },
-          hovertemplate: "%{x}<br>%{y:,.2f} TL<extra></extra>",
+          hovertemplate: "%{customdata}<br>%{y:,.2f} TL<extra></extra>",
         }],
         plotTheme({
           yTitle: "Net Revenue (TL)",
-          margin: { l: 34, r: 6, t: 18, b: 96 },
-          xaxis: { tickangle: -35 },
+          margin: { l: 48, r: 8, t: 18, b: 72 },
+          xaxis: {
+            type: "category",
+            tickmode: "array",
+            tickvals: xIdx,
+            ticktext: tickLabels,
+            tickangle: -40,
+            automargin: false,
+            fixedrange: true,
+          },
         }),
         plotlyCfg()
       );
       (gd || chartEl).on("plotly_click", function (ev) {
         var pt = ev && ev.points && ev.points[0];
-        if (!pt || pt.x == null) return;
-        chooseDetailAdUnit(String(pt.x), true);
+        if (!pt) return;
+        var idx = pt.pointIndex;
+        if (idx == null || idx < 0 || idx >= rows.length) return;
+        chooseDetailAdUnit(String(rows[idx].ad_unit || ""), true);
         var det = document.getElementById("mz-table-head");
         if (det) det.scrollIntoView({ behavior: "smooth", block: "start" });
       });
