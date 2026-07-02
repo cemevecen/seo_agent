@@ -94,28 +94,30 @@
     gap: 1rem;
     grid-template-columns: minmax(0, 1fr);
   }
-  @media (min-width: 768px) {
-    .mz-page .mz-dashboard-cards {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      align-items: start;
-    }
-    .mz-page .mz-dashboard-cards > #mz-charts-row-3,
-    .mz-page .mz-dashboard-cards > #mz-top-units-wrap {
-      grid-column: 1 / -1;
-    }
+  .mz-page .mz-dashboard-cards > * {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
   @media (min-width: 1280px) {
-    html.mz-range-single-day .mz-page .mz-dashboard-cards {
+    .mz-page .mz-dashboard-cards.mz-dashboard-cards--split {
       grid-template-columns: repeat(12, minmax(0, 1fr));
+      align-items: start;
     }
-    html.mz-range-single-day .mz-page .mz-dashboard-cards > #mz-charts-row-3 {
+    .mz-page .mz-dashboard-cards.mz-dashboard-cards--split > #mz-charts-row-3 {
       grid-column: span 7;
     }
-    html.mz-range-single-day .mz-page .mz-dashboard-cards > #mz-charts-income-month-row {
+    .mz-page .mz-dashboard-cards.mz-dashboard-cards--split > #mz-charts-income-month-row {
       grid-column: span 5;
     }
-    html.mz-range-single-day .mz-page .mz-dashboard-cards > #mz-top-units-wrap {
-      grid-column: 1 / -1;
+    .mz-page .mz-dashboard-cards.mz-dashboard-cards--sparse.mz-dashboard-cards--has-top-units {
+      grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
+      align-items: start;
+    }
+    .mz-page .mz-dashboard-cards.mz-dashboard-cards--sparse.mz-dashboard-cards--has-top-units > #mz-charts-row-3 {
+      grid-column: 1;
+    }
+    .mz-page .mz-dashboard-cards.mz-dashboard-cards--sparse.mz-dashboard-cards--has-top-units > #mz-top-units-wrap {
+      grid-column: 2;
     }
     html.mz-range-single-day .mz-page #mz-main {
       min-height: 0;
@@ -123,7 +125,19 @@
   }
   .mz-page .mz-charts-row-3.mz-charts-row-3--n-1 {
     grid-template-columns: minmax(0, 1fr) !important;
-    max-width: 28rem;
+    width: 100%;
+    justify-items: stretch;
+  }
+  .mz-page .mz-charts-row-3.mz-charts-row-3--centered {
+    justify-items: center;
+  }
+  .mz-page .mz-charts-row-3.mz-charts-row-3--centered > .mz-chart-card:not(.hidden) {
+    width: 100%;
+    max-width: min(100%, 22rem);
+  }
+  .mz-page .mz-dashboard-cards--sparse .mz-chart-plot--tile {
+    height: clamp(10.5rem, 38vw, 15rem);
+    min-height: 10.5rem;
   }
   @media (min-width: 640px) {
     .mz-page .mz-charts-row-3.mz-charts-row-3--n-2 {
@@ -826,6 +840,7 @@
     apply();
     window.addEventListener("resize", function () {
       apply();
+      mzReflowChartRows();
       if (typeof window.__mzChartsRelayout === "function") {
         window.__mzChartsRelayout();
       }
@@ -1840,6 +1855,9 @@
   }
 
   function mzReflowChartRows() {
+    var row3 = document.getElementById("mz-charts-row-3");
+    var incomeRow = document.getElementById("mz-charts-income-month-row");
+    var topUnits = document.getElementById("mz-top-units-wrap");
     ["mz-charts-row-3", "mz-charts-income-month-row"].forEach(function (rowId) {
       var row = document.getElementById(rowId);
       if (!row) return;
@@ -1848,22 +1866,40 @@
       });
       row.classList.toggle("hidden", visible.length === 0);
       if (rowId === "mz-charts-row-3") {
-        row.classList.remove("mz-charts-row-3--n-1", "mz-charts-row-3--n-2", "mz-charts-row-3--n-3");
-        if (visible.length === 1) row.classList.add("mz-charts-row-3--n-1");
-        else if (visible.length === 2) row.classList.add("mz-charts-row-3--n-2");
-        else if (visible.length >= 3) row.classList.add("mz-charts-row-3--n-3");
+        row.classList.remove("mz-charts-row-3--n-1", "mz-charts-row-3--n-2", "mz-charts-row-3--n-3", "mz-charts-row-3--centered");
+        if (visible.length === 1) {
+          row.classList.add("mz-charts-row-3--n-1", "mz-charts-row-3--centered");
+        } else if (visible.length === 2) {
+          row.classList.add("mz-charts-row-3--n-2");
+        } else if (visible.length >= 3) {
+          row.classList.add("mz-charts-row-3--n-3");
+        }
       }
       if (rowId === "mz-charts-income-month-row") {
         row.classList.toggle("mz-income-month-row--single", visible.length <= 1);
       }
     });
     var dash = document.getElementById("mz-dashboard-cards");
-    if (dash) {
-      var anyDash = Array.from(dash.children).some(function (c) {
-        return !c.classList.contains("hidden");
-      });
-      dash.classList.toggle("hidden", !anyDash);
-    }
+    if (!dash) return;
+    var visibleBlocks = Array.from(dash.children).filter(function (c) {
+      return !c.classList.contains("hidden");
+    });
+    dash.classList.toggle("hidden", visibleBlocks.length === 0);
+    var row3Visible = row3 && !row3.classList.contains("hidden");
+    var incomeVisible = incomeRow && !incomeRow.classList.contains("hidden");
+    var topVisible = topUnits && !topUnits.classList.contains("hidden");
+    var row3ChildCount = row3Visible
+      ? Array.from(row3.children).filter(function (c) { return !c.classList.contains("hidden"); }).length
+      : 0;
+    var split =
+      row3Visible &&
+      incomeVisible &&
+      row3ChildCount >= 2 &&
+      (isMzSingleDayRange() || window.innerWidth >= 1280);
+    var sparse = row3Visible && row3ChildCount <= 1 && !incomeVisible;
+    dash.classList.toggle("mz-dashboard-cards--split", !!split);
+    dash.classList.toggle("mz-dashboard-cards--sparse", !!sparse);
+    dash.classList.toggle("mz-dashboard-cards--has-top-units", !!(sparse && topVisible));
   }
 
   var MZ_SINGLE_DAY_SUPPRESSED_PLOTS = {
