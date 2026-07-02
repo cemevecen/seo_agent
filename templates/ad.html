@@ -31,7 +31,9 @@
   html.mz-range-single-day .mz-bd-pill[data-v="period_6"],
   html.mz-range-single-day .mz-bd-pill[data-v="period_9"],
   html.mz-range-single-day #mz-market-overlay-section,
-  html.mz-range-single-day #mz-empower-overlay-bar {
+  html.mz-range-single-day #mz-empower-overlay-bar,
+  html.mz-range-single-day #mz-drill-wrap,
+  html.mz-range-single-day #mz-summary-drill-wrap {
     display: none !important;
   }
   #mz-delete-overlay.mz-delete-overlay--nudge > div {
@@ -653,7 +655,7 @@
             Tümünü gör
           </button>
         </div>
-        <div id="mz-drill-wrap" class="mt-4 rounded-xl border border-indigo-200/80 bg-indigo-50/30 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+        <div id="mz-drill-wrap" class="mt-4 rounded-xl border border-indigo-200/80 bg-indigo-50/30 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/20" data-mz-hide-single-day>
           <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Seçili dilim — zaman içi trend</h3>
@@ -721,7 +723,7 @@
             Genişlet
           </button>
         </div>
-        <div id="mz-summary-drill-wrap" class="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+        <div id="mz-summary-drill-wrap" class="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20" data-mz-hide-single-day>
           <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Seçili gelir tipi — zaman içi trend</h3>
@@ -1878,6 +1880,10 @@
       if (single) card.setAttribute("data-mz-range-suppressed", "1");
       else card.removeAttribute("data-mz-range-suppressed");
     });
+    if (single) {
+      mzPurgeScopeDrillCharts("detail");
+      mzPurgeScopeDrillCharts("summary");
+    }
     var kpiGrid = document.getElementById("mz-kpi-grid");
     if (kpiGrid) kpiGrid.classList.toggle("mz-kpi-grid--compact", single);
     var mainEl = document.getElementById("mz-main");
@@ -5597,6 +5603,25 @@
     }
   }
 
+  function mzPurgeScopeDrillCharts(scope) {
+    var isSummary = scope === "summary";
+    [
+      isSummary ? "mz-summary-drill-chart" : "mz-drill-chart",
+      isSummary ? "mz-summary-drill-ga4-chart" : "mz-drill-ga4-chart",
+      isSummary ? "mz-summary-drill-peer-chart" : "mz-drill-peer-chart",
+    ].forEach(mzPurgePlot);
+    hideGa4SplitChart(scope);
+    var peerWrap = document.getElementById(
+      isSummary ? "mz-summary-drill-peer-chart-wrap" : "mz-drill-peer-chart-wrap"
+    );
+    if (peerWrap) peerWrap.classList.add("hidden");
+    var insights = document.getElementById(isSummary ? "mz-summary-drill-insights" : "mz-drill-insights");
+    if (insights) {
+      insights.classList.add("hidden");
+      insights.innerHTML = "";
+    }
+  }
+
   async function renderGa4SplitChart(scope, plotX, bucketKeys, chartTimeKey, overlay, syncOpts) {
     syncOpts = syncOpts || {};
     var isSummary = scope === "summary";
@@ -5845,6 +5870,11 @@
     if (isSummary) updateSummaryDrillSubtitle();
     else updateDrillSubtitle();
     if (!chartEl) return;
+    if (isMzSingleDayRange()) {
+      mzPurgeScopeDrillCharts(scope);
+      if (statusEl) statusEl.textContent = "";
+      return;
+    }
     if (!slice || !Object.keys(slice).length) {
       if (statusEl) statusEl.textContent = "";
       chartEl.innerHTML =
