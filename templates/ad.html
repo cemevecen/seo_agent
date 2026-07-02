@@ -18,6 +18,21 @@
     border-color: rgba(251, 113, 133, 0.25);
     border-top-color: rgb(251 113 133);
   }
+  html.mz-range-single-day #mz-chart-line-card,
+  html.mz-range-single-day #mz-dual-quality-row,
+  html.mz-range-single-day #mz-chart-stacked-card,
+  html.mz-range-single-day #mz-chart-heatmap-wrap,
+  html.mz-range-single-day #mz-chart-bar-month-card {
+    display: none !important;
+  }
+  html.mz-range-single-day .mz-bd-pill[data-v="week"],
+  html.mz-range-single-day .mz-bd-pill[data-v="month"],
+  html.mz-range-single-day .mz-bd-pill[data-v="period_3"],
+  html.mz-range-single-day .mz-bd-pill[data-v="period_6"],
+  html.mz-range-single-day .mz-bd-pill[data-v="period_9"],
+  html.mz-range-single-day .mz-drill-chart-time-toolbar {
+    display: none !important;
+  }
   #mz-delete-overlay.mz-delete-overlay--nudge > div {
     animation: mz-delete-nudge 0.45s ease;
   }
@@ -316,10 +331,10 @@
         {% endwith %}
       </div>
 
-      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+      <div id="mz-chart-line-card" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
           <h2 id="mz-chart-line-title" class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük trend (çizgi)</h2>
-            <div class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex flex-wrap items-center justify-end gap-2">
             <div id="mz-peer-toggle-line" class="hidden shrink-0"></div>
             <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
           </div>
@@ -331,7 +346,7 @@
         </div>
       </div>
 
-      <div id="mz-dual-quality-row" class="compare-dual-quality-row grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div id="mz-dual-quality-row" class="compare-dual-quality-row grid grid-cols-1 gap-4 lg:grid-cols-2" data-mz-hide-single-day>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük — gelir ve gösterim (çift eksen)</h2>
@@ -356,7 +371,7 @@
         </div>
       </div>
 
-      <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+      <div id="mz-chart-stacked-card" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
         <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
           <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi — zaman (yığılmış alan)</h2>
           <div class="flex flex-wrap items-center justify-end gap-2">
@@ -372,7 +387,7 @@
       </div>
 
       <div id="mz-charts-row-3" class="mz-charts-row-3">
-        <div id="mz-chart-heatmap-wrap" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <div id="mz-chart-heatmap-wrap" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
           <div id="mz-chart-heatmap" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
         </div>
@@ -413,7 +428,7 @@
           </div>
           <div id="mz-chart-bar-income" class="mz-chart-plot" data-mz-chart-h="280"></div>
         </div>
-        <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <div id="mz-chart-bar-month-card" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
           <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
             <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Aylık gelir (çubuk)</h2>
             <div class="flex flex-wrap items-center justify-end gap-2">
@@ -534,7 +549,7 @@
               <p id="mz-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Seçili reklam biriminin zaman içi seyri.</p>
             </div>
             <div class="flex flex-col items-end gap-1.5">
-              <div class="flex flex-wrap items-center justify-end gap-2">
+              <div class="mz-drill-chart-time-toolbar flex flex-wrap items-center justify-end gap-2">
                 <span class="mz-bd-toolbar-label mz-bd-label-time" style="min-width: auto; padding-left: 0.35rem; padding-right: 0.35rem;">Grafik kırılımı</span>
                 <div id="mz-drill-chart-time" class="flex flex-wrap gap-1"></div>
               </div>
@@ -602,7 +617,7 @@
               <p id="mz-summary-drill-subtitle" class="mt-0.5 text-[10px] text-slate-600 dark:text-zinc-400">Özet tabloda bir satıra tıklayın (gelir tipi).</p>
             </div>
             <div class="flex flex-col items-end gap-1.5">
-              <div class="flex flex-wrap items-center justify-end gap-2">
+              <div class="mz-drill-chart-time-toolbar flex flex-wrap items-center justify-end gap-2">
                 <span class="mz-bd-toolbar-label mz-bd-label-time" style="min-width: auto; padding-left: 0.35rem; padding-right: 0.35rem;">Grafik kırılımı</span>
                 <div id="mz-summary-drill-chart-time" class="flex flex-wrap gap-1"></div>
               </div>
@@ -1618,6 +1633,222 @@
     };
   }
 
+  function mzSelectedSpanDays() {
+    var r = selectedDateRange();
+    if (!r.start || !r.end) return null;
+    var ps = new Date(r.start + "T12:00:00");
+    var pe = new Date(r.end + "T12:00:00");
+    if (isNaN(ps.getTime()) || isNaN(pe.getTime())) return null;
+    return Math.round((pe - ps) / 86400000) + 1;
+  }
+
+  function isMzSingleDayRange() {
+    return mzSelectedSpanDays() === 1;
+  }
+
+  function isMzTimeSeriesDim(dim) {
+    var d = String(dim || "");
+    return d === "date" || d === "week" || d === "month" || d.indexOf("period_") === 0;
+  }
+
+  function bdTimeChartOptsForRange() {
+    var span = mzSelectedSpanDays();
+    if (span === 1) return BD_TIME_OPTS.filter(function (o) { return o.v === "date"; });
+    if (span != null && span <= 7) {
+      return BD_TIME_CHART.filter(function (o) { return o.v === "date" || o.v === "week"; });
+    }
+    return BD_TIME_CHART;
+  }
+
+  function bdTimeMonthOptsForRange() {
+    var span = mzSelectedSpanDays();
+    if (span === 1) return [{ v: "date", l: "Gün" }];
+    if (span != null && span <= 13) {
+      return BD_TIME_MONTH.filter(function (o) { return o.v.indexOf("period_") < 0; });
+    }
+    return BD_TIME_MONTH;
+  }
+
+  function normalizeMzBreakdownsForRange() {
+    var span = mzSelectedSpanDays();
+    if (span == null) return;
+    ["chartLine", "chartStacked", "chartMonth"].forEach(function (scope) {
+      var cfg = state.breakdowns[scope];
+      if (!cfg) return;
+      cfg = ensureBdCfg(cfg);
+      state.breakdowns[scope] = cfg;
+      if (span === 1 && isMzTimeSeriesDim(cfg.bdTime) && cfg.bdTime !== "date") {
+        cfg.bdTime = "date";
+      }
+      if (span != null && span <= 7 && String(cfg.bdTime).indexOf("period_") === 0) {
+        cfg.bdTime = span === 1 ? "date" : "week";
+      }
+    });
+    if (span === 1) {
+      state.drillChartTime = "date";
+      state.summaryDrillChartTime = "date";
+    }
+  }
+
+  function remountMzBdTimeToolbars() {
+    document.querySelectorAll(".mz-bd-toolbar[data-bd-mode]").forEach(function (toolbar) {
+      var mode = toolbar.getAttribute("data-bd-mode") || "";
+      if (mode !== "time" && mode !== "month" && mode !== "stacked") return;
+      var scope = toolbar.getAttribute("data-bd-scope");
+      if (!scope || scope === "detail") return;
+      var cfg = ensureBdCfg(state.breakdowns[scope]);
+      state.breakdowns[scope] = cfg;
+      toolbar.innerHTML = "";
+      function row(label, mountFn, labelKind) {
+        var wrap = document.createElement("div");
+        wrap.className = "flex flex-wrap items-center gap-1.5";
+        if (label) {
+          var sp = document.createElement("span");
+          sp.className = "mz-bd-toolbar-label";
+          if (labelKind) sp.classList.add("mz-bd-label-" + labelKind);
+          sp.textContent = label;
+          wrap.appendChild(sp);
+        }
+        var inner = document.createElement("div");
+        inner.className = "flex flex-wrap gap-1";
+        mountFn(inner);
+        wrap.appendChild(inner);
+        toolbar.appendChild(wrap);
+      }
+      if (mode === "time") {
+        row("", function (el) {
+          mountBdPills(el, cfg, bdTimeChartOptsForRange(), "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
+        });
+      } else if (mode === "month") {
+        row("", function (el) {
+          mountBdPills(el, cfg, bdTimeMonthOptsForRange(), "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
+        });
+      } else if (mode === "stacked") {
+        row("Zaman", function (el) {
+          mountBdPills(el, cfg, bdTimeChartOptsForRange(), "time", function (v) {
+            cfg.bdTime = v;
+            refreshWidget(scope);
+          });
+        }, "time");
+        row("Seri", function (el) {
+          mountBdPills(el, cfg, BD_STACKED_DIM_OPTS, "stackedDim", function (v) {
+            cfg.stackedDim = v;
+            if (!cfg.bdDims.has(v)) cfg.bdDims.add(v);
+            refreshWidget(scope);
+          });
+        }, "seri");
+      }
+    });
+  }
+
+  function applyMzRangeSensitiveUi() {
+    normalizeMzBreakdownsForRange();
+    var single = isMzSingleDayRange();
+    document.documentElement.classList.toggle("mz-range-single-day", single);
+    remountMzBdTimeToolbars();
+    ["mz-drill-chart-type", "mz-summary-drill-chart-type"].forEach(function (id) {
+      var sel = document.getElementById(id);
+      if (!sel) return;
+      Array.from(sel.options).forEach(function (opt) {
+        if (opt.value === "bar") opt.disabled = single;
+      });
+      if (single && sel.value === "bar") sel.value = "line";
+    });
+    document.querySelectorAll("[data-mz-hide-single-day]").forEach(function (card) {
+      card.classList.toggle("hidden", single);
+      if (single) card.setAttribute("data-mz-range-suppressed", "1");
+      else card.removeAttribute("data-mz-range-suppressed");
+    });
+    mzReflowChartRows();
+  }
+
+  function mzChartCardFromPlot(plotId) {
+    var plot = document.getElementById(plotId);
+    if (!plot) return null;
+    return plot.closest(".mz-chart-card");
+  }
+
+  function mzPurgePlot(plotId) {
+    var el = document.getElementById(plotId);
+    if (!el) return;
+    try {
+      if (window.Plotly) Plotly.purge(el);
+    } catch (_) { /* ignore */ }
+    el.innerHTML = "";
+  }
+
+  function mzChartPlotIsEmpty(plotEl) {
+    if (!plotEl) return true;
+    if (plotEl.querySelector(".js-plotly-plot")) return false;
+    var html = (plotEl.innerHTML || "").trim();
+    if (!html) return true;
+    if (plotEl.querySelector("p.py-8, p.text-center")) return true;
+    return false;
+  }
+
+  function mzReflowChartRows() {
+    ["mz-charts-row-3", "mz-charts-income-month-row"].forEach(function (rowId) {
+      var row = document.getElementById(rowId);
+      if (!row) return;
+      var anyVisible = Array.from(row.children).some(function (c) {
+        return !c.classList.contains("hidden");
+      });
+      row.classList.toggle("hidden", !anyVisible);
+    });
+  }
+
+  var MZ_SINGLE_DAY_SUPPRESSED_PLOTS = {
+    "mz-chart-line": true,
+    "mz-chart-dual": true,
+    "mz-chart-quality": true,
+    "mz-chart-stacked-income": true,
+    "mz-chart-heatmap": true,
+    "mz-chart-bar-month": true,
+  };
+
+  function mzPlotSuppressedOnSingleDay(plotId) {
+    return isMzSingleDayRange() && !!MZ_SINGLE_DAY_SUPPRESSED_PLOTS[plotId];
+  }
+
+  function mzSyncChartCardFromPlot(plotId) {
+    var card = mzChartCardFromPlot(plotId);
+    if (!card) return;
+    if (card.hasAttribute("data-mz-hide-single-day") && isMzSingleDayRange()) {
+      card.classList.add("hidden");
+      card.setAttribute("data-mz-range-suppressed", "1");
+      mzReflowChartRows();
+      return;
+    }
+    if (card.getAttribute("data-mz-range-suppressed") === "1") {
+      mzReflowChartRows();
+      return;
+    }
+    var plot = document.getElementById(plotId);
+    card.classList.toggle("hidden", mzChartPlotIsEmpty(plot));
+    mzReflowChartRows();
+  }
+
+  function mzFinalizeEmptyChartCards() {
+    [
+      "mz-chart-line",
+      "mz-chart-dual",
+      "mz-chart-quality",
+      "mz-chart-stacked-income",
+      "mz-chart-heatmap",
+      "mz-chart-pie-income",
+      "mz-chart-pie-surface",
+      "mz-chart-bar-income",
+      "mz-chart-bar-month",
+    ].forEach(mzSyncChartCardFromPlot);
+    mzReflowChartRows();
+  }
+
   var COMPARE_MODE_LABELS = {
     previous_period: "Önceki dönem (aynı uzunluk)",
     previous_year: "Geçen yıl (aynı tarihler)",
@@ -2182,6 +2413,13 @@
   }
 
   function renderBreakdownPiePair(elId, rows, labelKey, cmp, sum) {
+    rows = rows || [];
+    if (!rows.length) {
+      mzPurgePlot(elId);
+      mzSyncChartCardFromPlot(elId);
+      setPieCompareCaptions(elId, null, false);
+      return;
+    }
     var labels = rows.map(function (x) { return x[labelKey]; });
     var values = rows.map(function (x) { return x.net_revenue; });
     setPieCompareCaptions(elId, null, false);
@@ -2191,7 +2429,9 @@
         [pieTraceFlat(labels, values)],
         plotThemePieFlat(),
         { minHeight: 228, tightX: false }
-      );
+      ).then(function () {
+        mzSyncChartCardFromPlot(elId);
+      });
       return;
     }
     plotChart(
@@ -2219,6 +2459,7 @@
       { minHeight: 228, tightX: false }
     ).then(function () {
       setPieCompareCaptions(elId, sum, true);
+      mzSyncChartCardFromPlot(elId);
     });
   }
 
@@ -2532,14 +2773,14 @@
       }
       if (mode === "time") {
         row("", function (el) {
-          mountBdPills(el, cfg, BD_TIME_CHART, "time", function (v) {
+          mountBdPills(el, cfg, bdTimeChartOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
             refreshWidget(scope);
           });
         });
       } else if (mode === "month") {
         row("", function (el) {
-          mountBdPills(el, cfg, BD_TIME_MONTH, "time", function (v) {
+          mountBdPills(el, cfg, bdTimeMonthOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
             refreshWidget(scope);
           });
@@ -2553,7 +2794,7 @@
         });
       } else if (mode === "stacked") {
         row("Zaman", function (el) {
-          mountBdPills(el, cfg, BD_TIME_CHART, "time", function (v) {
+          mountBdPills(el, cfg, bdTimeChartOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
             refreshWidget(scope);
           });
@@ -2849,9 +3090,18 @@
     var el = document.getElementById(containerId);
     if (!el) return;
     var cfg = state.breakdowns[scope === "summary" ? "summary" : "detail"];
+    if (isMzSingleDayRange()) {
+      if (scope === "summary") state.summaryDrillChartTime = "date";
+      else state.drillChartTime = "date";
+    }
     var active = getDrillChartTimeKey(scope, cfg);
+    var opts = isMzSingleDayRange()
+      ? DRILL_CHART_TIME_OPTS.filter(function (o) { return o.v === "date"; })
+      : mzSelectedSpanDays() != null && mzSelectedSpanDays() <= 7
+        ? DRILL_CHART_TIME_OPTS.filter(function (o) { return o.v !== "month"; })
+        : DRILL_CHART_TIME_OPTS;
     el.innerHTML = "";
-    DRILL_CHART_TIME_OPTS.forEach(function (o) {
+    opts.forEach(function (o) {
       var b = document.createElement("button");
       b.type = "button";
       b.className = "mz-bd-pill" + (active === o.v ? " is-active" : "");
@@ -3787,6 +4037,10 @@
 
   async function refreshChartLine() {
     if (!window.Plotly || !state.lastSummary) return;
+    if (isMzSingleDayRange()) {
+      mzPurgePlot("mz-chart-line");
+      return;
+    }
     var peerSum =
       state.peerOverlay.line || state.peerSeparate.line ? await ensurePeerSummary() : null;
     var cfg = state.breakdowns.chartLine;
@@ -3826,6 +4080,10 @@
     }
     var cfg = state.breakdowns.chartMonth;
     var cmp = compareBlock(state.lastSummary);
+    if (isMzSingleDayRange()) {
+      mzPurgePlot("mz-chart-bar-month");
+      return;
+    }
     if (cfg.bdTime === "month" && !cfg.bdArea && !cfg.bdDims.size && !mzScopedDrillFiltersActive()) {
       var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (state.lastSummary.by_month || []);
       mo = sortChartRowsChronological(mo, "month");
@@ -3866,6 +4124,10 @@
 
   async function refreshChartStacked() {
     if (!window.Plotly || !state.lastSummary) return;
+    if (isMzSingleDayRange()) {
+      mzPurgePlot("mz-chart-stacked-income");
+      return;
+    }
     var needPeer = state.peerOverlay.stacked || state.peerSeparate.stacked;
     var peerSum = needPeer ? await ensurePeerSummary() : null;
     var cfg = state.breakdowns.chartStacked;
@@ -5441,6 +5703,7 @@
     }
     var tableTimeKey = drillTimeKeyFromCfg(cfg);
     var chartTimeKey = getDrillChartTimeKey(scope, cfg);
+    if (isMzSingleDayRange()) chartTimeKey = "date";
     mountDrillChartTimePills(
       isSummary ? "mz-summary-drill-chart-time" : "mz-drill-chart-time",
       scope
@@ -5452,6 +5715,7 @@
     if (isSummary) state.summaryDrillMetric = metricKey;
     else state.drillMetric = metricKey;
     var chartType = chartTypeSel ? chartTypeSel.value : "line";
+    if (isMzSingleDayRange() && chartType === "bar") chartType = "line";
     var mDef = DRILL_METRICS.find(function (d) { return d.key === metricKey; }) || DRILL_METRICS[0];
     var genKey = isSummary ? "_drillChartGenSummary" : "_drillChartGenDetail";
     var abortKey = isSummary ? "_drillFetchAbortSummary" : "_drillFetchAbortDetail";
@@ -6359,6 +6623,12 @@
 
   function plotChart(elOrId, traces, layout, opts) {
     opts = opts || {};
+    var plotId = typeof elOrId === "string" ? elOrId : elOrId && elOrId.id;
+    if (plotId && mzPlotSuppressedOnSingleDay(plotId)) {
+      mzPurgePlot(plotId);
+      applyMzRangeSensitiveUi();
+      return Promise.resolve();
+    }
     var el = typeof elOrId === "string" ? document.getElementById(elOrId) : elOrId;
     if (!el || !window.Plotly) return Promise.resolve();
     var minH = opts.minHeight || 200;
@@ -6396,6 +6666,8 @@
         })
         .then(function () {
           scheduleMzChartsResizeBurst();
+          var pid = typeof elOrId === "string" ? elOrId : el.id;
+          if (pid) mzSyncChartCardFromPlot(pid);
         });
     }
     return new Promise(function (resolve) {
@@ -6575,6 +6847,10 @@
 
   async function renderLineChart(byDate, kpiKey, cmp, timeKey, peerSum) {
     if (!window.Plotly) return;
+    if (isMzSingleDayRange()) {
+      mzPurgePlot("mz-chart-line");
+      return;
+    }
     timeKey = timeKey || "date";
     var def =
       KPI_DEFS.find(function (d) { return d.key === kpiKey; }) ||
@@ -6744,12 +7020,15 @@
 
   function groupedBarPlot(elId, rows, labelKey, cmp, peerSum) {
     rows = rows || [];
+    var plotEl = document.getElementById(elId);
+    if (isMzSingleDayRange() && isMzTimeSeriesDim(labelKey)) {
+      mzPurgePlot(elId);
+      mzSyncChartCardFromPlot(elId);
+      return;
+    }
     if (!rows.length) {
-      var emptyEl = document.getElementById(elId);
-      if (emptyEl) {
-        emptyEl.innerHTML =
-          '<p class="py-8 text-center text-xs text-slate-500 dark:text-zinc-400">Seçili dilim için aylık gelir verisi yok.</p>';
-      }
+      mzPurgePlot(elId);
+      mzSyncChartCardFromPlot(elId);
       return;
     }
     var colors = compareColors();
@@ -6797,7 +7076,9 @@
       traces.push(peerTrace);
     }
     if (cmp) barLayout = applyCompareLayout(barLayout, labels.length);
-    plotChart(elId, traces, plotTheme(barLayout), { minHeight: 220, tightX: false });
+    plotChart(elId, traces, plotTheme(barLayout), { minHeight: 220, tightX: false }).then(function () {
+      mzSyncChartCardFromPlot(elId);
+    });
   }
 
   var MZ_TOP_UNITS_PRESET_LABELS = {
@@ -6979,6 +7260,7 @@
 
   function renderCharts(sum) {
     if (!window.Plotly) return;
+    applyMzRangeSensitiveUi();
     mountAllPeerBranchToggles();
     state.lastByDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
     syncSurfacePieChartVisibility();
@@ -6993,6 +7275,8 @@
     refreshChartIncomeBar();
     refreshChartStacked();
     scheduleMzChartsResizeBurst();
+    applyMzRangeSensitiveUi();
+    setTimeout(mzFinalizeEmptyChartCards, 120);
   }
 
   function mzSparkFillRgba(hex, alpha) {
@@ -7131,7 +7415,13 @@
 
   function finalizeMzTrendAndSparks(sum) {
     scheduleKpiSparklines(sum);
+    if (isMzSingleDayRange()) {
+      mzPurgePlot("mz-chart-line");
+      applyMzRangeSensitiveUi();
+      return;
+    }
     setTimeout(function () {
+      if (isMzSingleDayRange()) return;
       refreshChartLine().then(function () {
         scheduleMzChartsResizeBurst();
       });
@@ -7159,6 +7449,14 @@
       state.peerSeparate.quality;
     var peerPromise = peerNeeded ? ensurePeerSummary() : Promise.resolve(null);
     return peerPromise.then(async function (peerSum) {
+    if (isMzSingleDayRange()) {
+      mzPurgePlot("mz-chart-dual");
+      mzPurgePlot("mz-chart-quality");
+      mzPurgePlot("mz-chart-heatmap");
+      renderUnitDeltaChart(compareBlock(sum));
+      mzFinalizeEmptyChartCards();
+      return;
+    }
     var cmp = compareBlock(sum);
     var colors = compareColors();
     var byDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
@@ -7420,7 +7718,7 @@
     }
 
     var hm = sum.heatmap_calendar || [];
-    if (hm.length) {
+    if (!isMzSingleDayRange() && hm.length) {
       var weeks = [];
       hm.forEach(function (h) {
         var k = h.year + "-W" + h.week;
@@ -7447,15 +7745,13 @@
         yaxis: { automargin: true, tickfont: plotFont() },
       }), { minHeight: 208 });
     } else {
-      var hmEl = document.getElementById("mz-chart-heatmap");
-      if (hmEl) {
-        try { Plotly.purge(hmEl); } catch (_) { /* ignore */ }
-        hmEl.innerHTML = "<p class=\"py-8 text-center text-xs text-slate-500\">Isı haritası verisi yok.</p>";
-      }
+      mzPurgePlot("mz-chart-heatmap");
+      mzSyncChartCardFromPlot("mz-chart-heatmap");
     }
 
     renderUnitDeltaChart(cmp);
 
+    mzFinalizeEmptyChartCards();
     return Promise.resolve();
     });
   }
@@ -8380,6 +8676,7 @@
     }
     rangeLbl.textContent = parts.join(" · ");
     updateComparePeriodBanner(state.lastSummary);
+    applyMzRangeSensitiveUi();
   }
 
   async function runQuery(opts) {

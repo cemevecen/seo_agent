@@ -165,6 +165,7 @@
           day: k,
           clicks: 0,
           impressions: 0,
+          rows: 0,
           desktop: 0,
           mobileweb: 0,
           android: 0,
@@ -172,8 +173,12 @@
           app: 0,
           web: 0,
           ctr: 0,
+          _hl: {},
         };
       }
+      byDay[k].rows += 1;
+      var headline = String(r.text || "").trim();
+      if (headline) byDay[k]._hl[headline] = 1;
       var pc = rowPlatformClicks(r);
       byDay[k].clicks += pc.desktop + pc.mobileweb + pc.android + pc.ios;
       byDay[k].desktop += pc.desktop;
@@ -190,6 +195,8 @@
     return Object.keys(byDay).sort().map(function (k) {
       var d = byDay[k];
       d.ctr = d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0;
+      d.headlines = d._hl ? Object.keys(d._hl).length : 0;
+      delete d._hl;
       return d;
     });
   }
@@ -362,6 +369,10 @@
     _ntPeriodChartTimer = setTimeout(function () {
       _ntPeriodChartTimer = null;
       var sparkDefs = [
+        ["nt-kpi-spark-rows", "rows"],
+        ["nt-kpi-spark-headlines", "headlines"],
+        ["nt-kpi-spark-clicks", "clicks"],
+        ["nt-kpi-spark-impr", "impressions"],
         ["nt-spark-clicks", "clicks"],
         ["nt-spark-impressions", "impressions"],
         ["nt-spark-ctr", "ctr"],
@@ -424,16 +435,90 @@
     return c.desktop + c.mobileweb + c.android + c.ios;
   }
 
+  function compareDelta(cur, prev) {
+    if (prev == null || prev === undefined) return null;
+    if (!prev) return cur > 0 ? null : 0;
+    return ((cur - prev) / prev) * 100;
+  }
+
+  var TOP_KPI_COMPARE_IDS = [
+    { meta: "nt-kpi-rows-meta", spark: "nt-kpi-spark-rows", curKey: "rows", prevKey: "rows", dailyKey: "rows", fmt: "count" },
+    { meta: "nt-kpi-headlines-meta", spark: "nt-kpi-spark-headlines", curKey: "headlines", prevKey: "headlines", dailyKey: "headlines", fmt: "count" },
+    { meta: "nt-kpi-clicks-meta", spark: "nt-kpi-spark-clicks", curKey: "clicks", prevKey: "clicks", dailyKey: "clicks", fmt: "count" },
+    { meta: "nt-kpi-impr-meta", spark: "nt-kpi-spark-impr", curKey: "impressions", prevKey: "impressions", dailyKey: "impressions", fmt: "count" },
+  ];
+
+  function formatTopKpiPrevValue(val, fmt) {
+    if (fmt === "count" && nt().fmtCount) return nt().fmtCount(val);
+    if (nt().fmt) return nt().fmt(val);
+    return String(val);
+  }
+
+  function clearTopKpiCompare() {
+    TOP_KPI_COMPARE_IDS.forEach(function (def) {
+      var meta = global.document.getElementById(def.meta);
+      var spark = global.document.getElementById(def.spark);
+      if (meta) {
+        meta.textContent = "";
+        meta.classList.add("hidden");
+      }
+      if (spark) {
+        spark.classList.add("hidden");
+        spark.innerHTML = "";
+        if (global.Plotly) {
+          try { global.Plotly.purge(spark); } catch (e) { /* ignore */ }
+        }
+      }
+    });
+  }
+
+  function setTopKpiCompareLoading() {
+    TOP_KPI_COMPARE_IDS.forEach(function (def) {
+      var meta = global.document.getElementById(def.meta);
+      var spark = global.document.getElementById(def.spark);
+      if (meta) {
+        meta.textContent = "Önceki dönem yükleniyor…";
+        meta.classList.remove("hidden");
+      }
+      if (spark) {
+        spark.classList.add("hidden");
+        spark.innerHTML = "";
+      }
+    });
+  }
+
+  function renderTopKpiCompare(curStats, prevStats) {
+    if (!curStats || !prevStats) {
+      clearTopKpiCompare();
+      return;
+    }
+    TOP_KPI_COMPARE_IDS.forEach(function (def) {
+      var meta = global.document.getElementById(def.meta);
+      var spark = global.document.getElementById(def.spark);
+      if (!meta) return;
+      var cur = curStats[def.curKey];
+      var prev = prevStats[def.prevKey];
+      var delta = compareDelta(cur, prev);
+      meta.innerHTML = "Önceki: " + formatTopKpiPrevValue(prev, def.fmt) + " · " + fmtDeltaHtml(delta);
+      meta.classList.remove("hidden");
+      if (spark) spark.classList.remove("hidden");
+    });
+  }
+
   function aggregatePeriod(rows) {
     var stats = {
       rows: rows.length,
+      headlines: 0,
       clicks: 0,
       impressions: 0,
       platform: { desktop: 0, mobileweb: 0, android: 0, ios: 0 },
       app: 0,
       web: 0,
     };
+    var headlineSet = {};
     (rows || []).forEach(function (r) {
+      var headline = String(r.text || "").trim();
+      if (headline) headlineSet[headline] = 1;
       var pc = rowPlatformClicks(r);
       stats.clicks += pc.desktop + pc.mobileweb + pc.android + pc.ios;
       stats.platform.desktop += pc.desktop;
@@ -447,6 +532,7 @@
         if (nt().platformImpression) stats.impressions += nt().platformImpression(k, p[k] || {});
       });
     });
+    stats.headlines = Object.keys(headlineSet).length;
     stats.ctr = stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0;
     return stats;
   }
@@ -492,17 +578,18 @@
     var prev = previousPeriodRange(range.start, range.end);
     if (!prev) {
       el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Dönem karşılaştırması için başlangıç ve bitiş tarihi seçin.</p>';
+      clearTopKpiCompare();
       return;
     }
     el.innerHTML = '<p class="text-xs text-slate-500 dark:text-slate-400">Karşılaştırma yükleniyor…</p>';
+    setTopKpiCompareLoading();
     var curStats = aggregatePeriod(primaryRows);
     fetchRowsForRange(prev).then(function (prevRows) {
       var prevStats = aggregatePeriod(prevRows);
+      renderTopKpiCompare(curStats, prevStats);
       lastComparePayload = { current: curStats, previous: prevStats, ranges: { primary: range, compare: prev } };
-      function delta(cur, prev) {
-        if (!prev) return null;
-        if (prev === 0) return cur > 0 ? null : 0;
-        return ((cur - prev) / prev) * 100;
+      function delta(cur, prevVal) {
+        return compareDelta(cur, prevVal);
       }
       var clickD = delta(curStats.clicks, prevStats.clicks);
       var imprD = delta(curStats.impressions, prevStats.impressions);
@@ -542,6 +629,7 @@
       scheduleNtPeriodCharts(curDaily, prevDaily);
     }).catch(function () {
       el.innerHTML = '<p class="text-xs text-rose-600">Karşılaştırma verisi yüklenemedi.</p>';
+      clearTopKpiCompare();
     });
   }
 
@@ -1284,6 +1372,7 @@
       drill: global.NTDrill ? global.NTDrill.get() : null,
       kpis: {
         row_count: rows.length,
+        unique_headlines: stats.headlines,
         total_clicks: stats.clicks,
         total_impressions: stats.impressions,
         ctr: stats.ctr,
