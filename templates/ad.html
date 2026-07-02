@@ -30,7 +30,8 @@
   html.mz-range-single-day .mz-bd-pill[data-v="period_3"],
   html.mz-range-single-day .mz-bd-pill[data-v="period_6"],
   html.mz-range-single-day .mz-bd-pill[data-v="period_9"],
-  html.mz-range-single-day .mz-drill-chart-time-toolbar {
+  html.mz-range-single-day #mz-market-overlay-section,
+  html.mz-range-single-day #mz-empower-overlay-bar {
     display: none !important;
   }
   #mz-delete-overlay.mz-delete-overlay--nudge > div {
@@ -85,6 +86,49 @@
   }
   .mz-page .mz-income-month-row--single {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .mz-page .mz-dashboard-cards {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 768px) {
+    .mz-page .mz-dashboard-cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+    .mz-page .mz-dashboard-cards > #mz-charts-row-3,
+    .mz-page .mz-dashboard-cards > #mz-top-units-wrap {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (min-width: 1280px) {
+    html.mz-range-single-day .mz-page .mz-dashboard-cards {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+    html.mz-range-single-day .mz-page .mz-dashboard-cards > #mz-charts-row-3 {
+      grid-column: span 7;
+    }
+    html.mz-range-single-day .mz-page .mz-dashboard-cards > #mz-charts-income-month-row {
+      grid-column: span 5;
+    }
+    html.mz-range-single-day .mz-page .mz-dashboard-cards > #mz-top-units-wrap {
+      grid-column: 1 / -1;
+    }
+    html.mz-range-single-day .mz-page #mz-main {
+      min-height: 0;
+    }
+  }
+  .mz-page .mz-charts-row-3.mz-charts-row-3--n-1 {
+    grid-template-columns: minmax(0, 1fr) !important;
+    max-width: 28rem;
+  }
+  @media (min-width: 640px) {
+    .mz-page .mz-charts-row-3.mz-charts-row-3--n-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
   }
 </style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
@@ -313,7 +357,7 @@
         </section>
       </div>
 
-      <div class="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-black/40">
+      <div id="mz-market-overlay-section" class="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-black/40" data-mz-hide-single-day>
         <p class="text-[10px] font-medium leading-snug text-slate-600 dark:text-zinc-400">
           Piyasa kapanış — günlük çizgi, gelir/gösterim ve kalite grafiklerine ikinci eksen (tümünü kapatmak için seçimleri kaldırın)
         </p>
@@ -322,7 +366,7 @@
         {% endwith %}
       </div>
 
-      <div id="mz-empower-overlay-bar" class="mb-2 hidden flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50/80 px-3 py-2 dark:border-violet-900/60 dark:bg-violet-950/30">
+      <div id="mz-empower-overlay-bar" class="mb-2 hidden flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50/80 px-3 py-2 dark:border-violet-900/60 dark:bg-violet-950/30" data-mz-hide-single-day>
         <p class="text-[10px] font-medium leading-snug text-violet-800 dark:text-violet-200">
           Empower — Android/iOS dalında günlük çizgilere ikinci eksen (veri /ad üzerinden)
         </p>
@@ -386,6 +430,7 @@
         </div>
       </div>
 
+      <div id="mz-dashboard-cards" class="mz-dashboard-cards">
       <div id="mz-charts-row-3" class="mz-charts-row-3">
         <div id="mz-chart-heatmap-wrap" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
@@ -465,6 +510,7 @@
         <div id="mz-top-units-chart" class="mz-chart-plot w-full" data-mz-chart-h="300"></div>
         <p id="mz-top-units-status" class="mt-1 text-[10px] text-slate-600 dark:text-zinc-400"></p>
         <div id="mz-top-units-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
+      </div>
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
@@ -769,11 +815,12 @@
         s.style.setProperty('margin-bottom', wide ? '0' : '1rem', P);
       }
       if (m) {
-        m.style.setProperty('flex', wide ? '1 1 auto' : 'none', P);
+        m.style.setProperty('flex', wide ? '1 1 0%' : 'none', P);
+        m.style.setProperty('width', wide ? 'auto' : '100%', P);
+        m.style.setProperty('max-width', wide ? '100%' : '100%', P);
         m.style.setProperty('min-width', '0', P);
-        m.style.setProperty('min-height', '24rem', P);
+        m.style.setProperty('min-height', wide ? '0' : '24rem', P);
         m.style.setProperty('box-sizing', 'border-box', P);
-        if (!wide) m.style.setProperty('width', '100%', P);
       }
     }
     apply();
@@ -1796,11 +1843,27 @@
     ["mz-charts-row-3", "mz-charts-income-month-row"].forEach(function (rowId) {
       var row = document.getElementById(rowId);
       if (!row) return;
-      var anyVisible = Array.from(row.children).some(function (c) {
+      var visible = Array.from(row.children).filter(function (c) {
         return !c.classList.contains("hidden");
       });
-      row.classList.toggle("hidden", !anyVisible);
+      row.classList.toggle("hidden", visible.length === 0);
+      if (rowId === "mz-charts-row-3") {
+        row.classList.remove("mz-charts-row-3--n-1", "mz-charts-row-3--n-2", "mz-charts-row-3--n-3");
+        if (visible.length === 1) row.classList.add("mz-charts-row-3--n-1");
+        else if (visible.length === 2) row.classList.add("mz-charts-row-3--n-2");
+        else if (visible.length >= 3) row.classList.add("mz-charts-row-3--n-3");
+      }
+      if (rowId === "mz-charts-income-month-row") {
+        row.classList.toggle("mz-income-month-row--single", visible.length <= 1);
+      }
     });
+    var dash = document.getElementById("mz-dashboard-cards");
+    if (dash) {
+      var anyDash = Array.from(dash.children).some(function (c) {
+        return !c.classList.contains("hidden");
+      });
+      dash.classList.toggle("hidden", !anyDash);
+    }
   }
 
   var MZ_SINGLE_DAY_SUPPRESSED_PLOTS = {
@@ -6543,6 +6606,7 @@
       window.__mzChartsRelayout();
     }
     syncEmpowerOverlayBarVisibility();
+    mzReflowChartRows();
   }
 
   // App sürüm yayın listesini bir kez yükle (iOS/Android), paylaş.
