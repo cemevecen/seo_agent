@@ -77,6 +77,23 @@ def _normalize_header_label(label: str) -> str:
     return h
 
 
+def _mobile_header_label(label: str) -> str:
+    hl = (label or "").strip().lower()
+    mapping = {
+        "bugün": "Bugün",
+        "bugun": "Bugün",
+        "dün": "Dün",
+        "dun": "Dün",
+        "günlük fark": "Günlük",
+        "gunluk fark": "Günlük",
+        "geçen hafta": "Hafta",
+        "gecen hafta": "Hafta",
+        "haftalık fark": "Haftalık",
+        "haftalik fark": "Haftalık",
+    }
+    return mapping.get(hl, (label or "").strip())
+
+
 def _is_pct_column(header: str) -> bool:
     hl = (header or "").strip().lower()
     if hl in ("günlük fark", "gunluk fark", "haftalık fark", "haftalik fark"):
@@ -270,7 +287,15 @@ def _render_table_html(rows: list[list[str]], *, title: str = "") -> str:
     thead_parts: list[str] = []
     for i, c in enumerate(header):
         cls = ' class="inbox-ziyaret-url"' if i == 0 else ""
-        thead_parts.append(f"<th{cls}>{html.escape(c)}</th>")
+        if i == 0:
+            label_html = html.escape(c)
+        else:
+            short = _mobile_header_label(c)
+            label_html = (
+                f'<span class="inbox-ziyaret-head-full">{html.escape(c)}</span>'
+                f'<span class="inbox-ziyaret-head-short">{html.escape(short)}</span>'
+            )
+        thead_parts.append(f'<th{cls} title="{html.escape(c)}">{label_html}</th>')
     thead = "".join(thead_parts)
     tbody_parts: list[str] = []
     for row in body_rows:
@@ -283,10 +308,15 @@ def _render_table_html(rows: list[list[str]], *, title: str = "") -> str:
         if (title or "").strip()
         else ""
     )
+    colgroup = (
+        '<colgroup><col class="inbox-ziyaret-col-url">'
+        + '<col class="inbox-ziyaret-col-metric">' * max(0, len(header) - 1)
+        + "</colgroup>"
+    )
     return (
         f'<section class="inbox-ziyaret-section">{title_html}'
         '<div class="inbox-ziyaret-report">'
-        '<table class="inbox-ziyaret-table"><thead><tr>'
+        f'<table class="inbox-ziyaret-table">{colgroup}<thead><tr>'
         f"{thead}</tr></thead><tbody>{''.join(tbody_parts)}</tbody></table></div></section>"
     )
 
