@@ -783,8 +783,8 @@
     "https://assets10.lottiefiles.com/packages/lf20_u4yrau.json";
   var INBOX_LOTTIE_SUCCESS =
     "https://assets4.lottiefiles.com/packages/lf20_s2lryxtd.json";
-  var INBOX_SEND_SUCCESS_MIN_MS = 550;
-  var INBOX_SEND_SUCCESS_MAX_MS = 1200;
+  var INBOX_SEND_SUCCESS_MIN_MS = 120;
+  var INBOX_SEND_SUCCESS_MAX_MS = 220;
 
   function _waitMs(ms) {
     return new Promise(function (resolve) {
@@ -889,13 +889,13 @@
       if (els.sub && els.overlay && els.overlay.dataset.phase === "sending") {
         els.sub.textContent = "Gönderen: " + fromEmail + " · Alıcıya iletiliyor…";
       }
-    }, 450);
+    }, 160);
     try {
       await sendFn();
       clearTimeout(stageTimer);
       els = _setInboxSendOverlay("success", "İletildi", "Gönderen: " + fromEmail + " · Liste yenileniyor…");
       _inboxLottieShow(els.player, els.fallback, true);
-      await _inboxLottiePlay(els.player, INBOX_LOTTIE_SUCCESS, false);
+      _inboxLottiePlay(els.player, INBOX_LOTTIE_SUCCESS, false);
       await _waitMs(INBOX_SEND_SUCCESS_MIN_MS);
       var sid = selectedId;
       await loadThreads({ preserveScroll: true });
@@ -917,7 +917,7 @@
       );
       _inboxLottieShow(els.player, els.fallback, false);
       _setInboxSendButtonsDisabled(false);
-      await _waitMs(1600);
+      await _waitMs(500);
       _hideInboxSendOverlay();
       throw e;
     }
