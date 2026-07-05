@@ -4411,6 +4411,27 @@
       return slug ? 'https://' + host + '/' + slug + suffix : '';
     }
     if (host.indexOf('doviz.com') !== -1) {
+      var low = raw.toLowerCase();
+      var mappedPath = '';
+      if (low.indexOf('döviz çevirici') !== -1 || low.indexOf('doviz cevirici') !== -1) mappedPath = '/doviz-cevirici';
+      else if (low.indexOf('serbest piyasa euro') !== -1) mappedPath = '/serbest-piyasa/euro';
+      else if (low.indexOf('serbest piyasa') !== -1 && (low.indexOf('dolar') !== -1 || low.indexOf('amerikan doları') !== -1)) mappedPath = '/serbest-piyasa/amerikan-dolari';
+      else if (low.indexOf('harem gram altın') !== -1 || low.indexOf('harem gram altin') !== -1) mappedPath = '/harem/gram-altin';
+      else if (low.indexOf('harem euro') !== -1) mappedPath = '/harem/euro';
+      else if (low.indexOf('canlı gram altın') !== -1 || low.indexOf('canli gram altin') !== -1 || low.indexOf('gram altın fiyatı') !== -1 || low.indexOf('gram altin fiyati') !== -1) mappedPath = '/gram-altin';
+      else if (low.indexOf('canlı çeyrek') !== -1 || low.indexOf('canli ceyrek') !== -1 || low.indexOf('çeyrek altın') !== -1 || low.indexOf('ceyrek altin') !== -1) mappedPath = '/ceyrek-altin';
+      else if (low.indexOf('yarım altın') !== -1 || low.indexOf('yarim altin') !== -1) mappedPath = '/yarim-altin';
+      else if (low.indexOf('tam altın') !== -1 || low.indexOf('tam altin') !== -1) mappedPath = '/tam-altin';
+      else if (low.indexOf('cumhuriyet altını') !== -1 || low.indexOf('cumhuriyet altini') !== -1) mappedPath = '/cumhuriyet-altini';
+      else if (low.indexOf('reşat altın') !== -1 || low.indexOf('resat altin') !== -1) mappedPath = '/resat-altin';
+      else if (low.indexOf('ata altın') !== -1 || low.indexOf('ata altin') !== -1) mappedPath = '/ata-altin';
+      else if (low.indexOf('altın fiyat') !== -1 || low.indexOf('altin fiyat') !== -1) mappedPath = '/altin';
+      else if (low.indexOf('canlı dolar') !== -1 || low.indexOf('canli dolar') !== -1 || low.indexOf('dolar kuru') !== -1) mappedPath = '/dolar';
+      else if (low.indexOf('canlı euro') !== -1 || low.indexOf('canli euro') !== -1 || low.indexOf('euro kuru') !== -1) mappedPath = '/euro';
+      else if (low.indexOf('kripto') !== -1) mappedPath = '/kripto-paralar';
+      else if (low.indexOf('borsa') !== -1 && low.indexOf('hisseler') !== -1) mappedPath = '/hisseler';
+      else if (low.indexOf('ekonomi haber') !== -1) mappedPath = '/gundem-haberleri';
+      if (mappedPath) return 'https://' + host + mappedPath;
       var dSlug = _rtSlugifyTitle(raw);
       return dSlug ? 'https://' + host + '/' + dSlug : '';
     }
