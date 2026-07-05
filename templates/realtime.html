@@ -4381,6 +4381,42 @@
     return '';
   }
 
+  function _rtSlugifyTitle(raw) {
+    var s = String(raw || '').trim();
+    if (!s) return '';
+    s = s.replace(/\s*-\s*Sinemalar\.com\s*$/i, '');
+    s = s.replace(/\s*-\s*doviz\.com\s*$/i, '');
+    s = s.replace(/\s+/g, ' ').trim().toLowerCase();
+    var trMap = { 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'i̇': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u' };
+    s = s.replace(/[çğıöşü]|i̇/g, function (ch) { return trMap[ch] || ch; });
+    s = s.replace(/&/g, ' ve ');
+    s = s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-');
+    return s;
+  }
+
+  function _rtTitleFallbackHref(domain, title) {
+    var host = _rtCleanHost(domain).toLowerCase();
+    var raw = String(title || '').trim();
+    if (!host || !raw || raw.charAt(0) === '/' || /^https?:\/\//i.test(raw)) return '';
+    if (host.indexOf('sinemalar.com') !== -1) {
+      var clean = raw.replace(/\s*-\s*Sinemalar\.com\s*$/i, '').trim();
+      var suffix = '';
+      var base = clean;
+      var castMatch = clean.match(/^(.*?)\s+Oyuncular[ıi]\s+ve\s+Kadrosu$/i);
+      if (castMatch && castMatch[1]) {
+        base = castMatch[1].trim();
+        suffix = '/oyunculari';
+      }
+      var slug = _rtSlugifyTitle(base);
+      return slug ? 'https://' + host + '/' + slug + suffix : '';
+    }
+    if (host.indexOf('doviz.com') !== -1) {
+      var dSlug = _rtSlugifyTitle(raw);
+      return dSlug ? 'https://' + host + '/' + dSlug : '';
+    }
+    return '';
+  }
+
   function _rtPageHref(domain, row) {
     if (!row) return '';
     var direct = String(row.page_url || row.link_url || row.url || '').trim();
@@ -4392,7 +4428,7 @@
       var href = _rtUrlFromDomainAndPath(domain, candidates[i]);
       if (href) return href;
     }
-    return '';
+    return _rtTitleFallbackHref(domain, row.page || row.page_title || row.title || row.screen_title || row.screenTitle);
   }
 
   function _rtLinkedTitleHtml(labelHtml, href, titleAttr, className) {
