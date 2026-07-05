@@ -78,6 +78,7 @@ class SendBody(BaseModel):
         validation_alias=AliasChoices("text", "body"),
     )
     reply_to_gmail_message_id: str | None = Field(default=None, max_length=128)
+    from_email: str | None = Field(default=None, max_length=255)
 
 
 class ReplyTemplatesBody(BaseModel):
@@ -863,6 +864,7 @@ async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depe
     _require_inbox_action_auth(request)
     subject: str = ""
     body_text: str = ""
+    from_email: str = ""
     reply_to_gmail_message_id: str | None = None
     try:
         raw = await request.body()
@@ -872,6 +874,7 @@ async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depe
                 to_email = str(parsed.get("to") or "").strip()
                 subject = str(parsed.get("subject") or "").strip()
                 body_text = str(parsed.get("text") or parsed.get("body") or "").strip()
+                from_email = str(parsed.get("from_email") or parsed.get("from") or "").strip()
                 rgmid = parsed.get("reply_to_gmail_message_id")
                 if rgmid and isinstance(rgmid, str):
                     reply_to_gmail_message_id = rgmid.strip() or None
@@ -895,6 +898,7 @@ async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depe
             subject=subj,
             body=body_text,
             reply_to_gmail_message_id=reply_to_gmail_message_id,
+            from_email=from_email or None,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -903,4 +907,4 @@ async def inbox_thread_send(request: Request, thread_id: int, db: Session = Depe
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     t.answered_flag = True
     db.commit()
-    return {"ok": True, "gmail_message_id": mid}
+    return {"ok": True, "gmail_message_id": mid, "from_email": from_email or None}

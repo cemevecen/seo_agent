@@ -1538,6 +1538,11 @@ def trash_thread_gmail_and_delete_local(db: Session, *, thread_id: int) -> None:
 
 
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+INBOX_SEND_AS_CHOICES: tuple[str, ...] = (
+    "cemevecen@nokta.com",
+    "info@doviz.com",
+    "info@sinemalar.com",
+)
 
 
 def _emails_in(text: str) -> list[str]:
@@ -1548,6 +1553,19 @@ def _emails_in(text: str) -> list[str]:
         if e not in out:
             out.append(e)
     return out
+
+
+def normalize_requested_send_as(value: str | None) -> str:
+    """UI'dan gelen From seçimini güvenli allow-list'e indirger."""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    emails = _emails_in(raw)
+    email = (emails[0] if emails else raw).strip().lower()
+    if email not in INBOX_SEND_AS_CHOICES:
+        allowed = ", ".join(INBOX_SEND_AS_CHOICES)
+        raise RuntimeError(f"Gönderen adresi izinli değil: {email}. İzinli adresler: {allowed}")
+    return email
 
 
 def _list_send_as_aliases(service) -> list[dict]:
@@ -1612,6 +1630,26 @@ def _resolve_reply_from(db: Session, service, *, gmail_thread_id: str, account_e
     return account_email
 
 
+def _resolve_requested_send_as(service, requested_from_email: str, *, account_email: str) -> str:
+    """Seçilen From adresini Gmail send-as alias listesinde doğrular."""
+    requested = normalize_requested_send_as(requested_from_email)
+    if not requested:
+        return ""
+    aliases = _list_send_as_aliases(service)
+    alias_map = {(a.get("sendAsEmail") or "").strip().lower(): a for a in aliases}
+    alias = alias_map.get(requested)
+    if not alias:
+        if requested == (account_email or "").strip().lower():
+            return account_email
+        raise RuntimeError(
+            f"Gmail hesabında '{requested}' gönderici alias olarak tanımlı/doğrulanmış değil. "
+            "Gmail Settings > Accounts > Send mail as alanından eklenmeli."
+        )
+    email = (alias.get("sendAsEmail") or "").strip()
+    disp = (alias.get("displayName") or "").strip()
+    return formataddr((disp, email)) if disp else email
+
+
 def send_reply_plain(
     db: Session,
     *,
@@ -1620,6 +1658,7 @@ def send_reply_plain(
     subject: str,
     body: str,
     reply_to_gmail_message_id: str | None = None,
+    from_email: str | None = None,
 ) -> str:
     creds = inbox_gmail_auth.load_inbox_credentials(db)
     if creds is None:
@@ -1629,10 +1668,13 @@ def send_reply_plain(
     cred_row = inbox_gmail_auth.get_inbox_credential_row(db)
     from_account = (cred_row.account_email if cred_row else "").strip()
 
-    # Mesaj hangi adrese geldiyse cevap o adresten gitsin (doğrulanmış send-as alias ise).
-    from_value = _resolve_reply_from(
-        db, service, gmail_thread_id=gmail_thread_id, account_email=from_account
-    )
+    if from_email:
+        from_value = _resolve_requested_send_as(service, from_email, account_email=from_account)
+    else:
+        # Mesaj hangi adrese geldiyse cevap o adresten gitsin (doğrulanmış send-as alias ise).
+        from_value = _resolve_reply_from(
+            db, service, gmail_thread_id=gmail_thread_id, account_email=from_account
+        )
 
     msg = MIMEText(body, "plain", "utf-8")
     msg["to"] = to_email.strip()

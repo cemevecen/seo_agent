@@ -456,6 +456,20 @@
         </div>
 
         <div id="inbox-compose-anchor" class="space-y-2">
+          <div class="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-xs text-indigo-950 dark:border-indigo-800/60 dark:bg-indigo-950/30 dark:text-indigo-100">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <label for="inbox-send-from" class="font-bold uppercase tracking-wide">Gönderen</label>
+              <select id="inbox-send-from" class="rounded-md border border-indigo-200 bg-white px-2 py-1 text-sm font-bold text-slate-900 dark:border-indigo-700 dark:bg-slate-950 dark:text-slate-100">
+                <option value="cemevecen@nokta.com">cemevecen@nokta.com</option>
+                <option value="info@doviz.com">info@doviz.com</option>
+                <option value="info@sinemalar.com">info@sinemalar.com</option>
+              </select>
+            </div>
+            <p id="inbox-send-from-note" class="mt-2 leading-relaxed">
+              Bu yanıt <span class="font-extrabold">cemevecen@nokta.com</span> adresiyle gönderilecek.
+            </p>
+            <p class="mt-1 text-[11px] text-indigo-800/75 dark:text-indigo-200/75">Not: Seçilen adres Gmail hesabında “Send mail as” alias olarak doğrulanmış olmalı.</p>
+          </div>
           <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Alıcı</label>
           <input id="inbox-send-to" type="email" class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100" />
           <label class="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Konu</label>
@@ -502,6 +516,7 @@
   var _inboxPollBusy = false;
   var _inboxPollTimer = null;
   var _pinnedAlertAnalysis = { id: null, text: "" };
+  var INBOX_SEND_FROM_CHOICES = ["cemevecen@nokta.com", "info@doviz.com", "info@sinemalar.com"];
 
   function parseAnalysisPct(raw) {
     var s = String(raw || "").replace(/%/g, "").trim();
@@ -804,23 +819,24 @@
   }
 
   async function runInboxSendWithOverlay(sendFn) {
+    var fromEmail = getInboxSendFrom();
     var els = _setInboxSendOverlay(
       "sending",
       "Gönderiliyor…",
-      "Mesaj Gmail hesabınıza bağlanıyor ve iletiliyor"
+      "Gönderen: " + fromEmail + " · Mesaj Gmail hesabınıza bağlanıyor"
     );
     _setInboxSendButtonsDisabled(true);
     _inboxLottieShow(els.player, els.fallback, true);
     await _inboxLottiePlay(els.player, INBOX_LOTTIE_SENDING, true);
     var stageTimer = setTimeout(function () {
       if (els.sub && els.overlay && els.overlay.dataset.phase === "sending") {
-        els.sub.textContent = "Alıcıya iletiliyor…";
+        els.sub.textContent = "Gönderen: " + fromEmail + " · Alıcıya iletiliyor…";
       }
     }, 450);
     try {
       await sendFn();
       clearTimeout(stageTimer);
-      els = _setInboxSendOverlay("success", "İletildi", "Liste yenileniyor…");
+      els = _setInboxSendOverlay("success", "İletildi", "Gönderen: " + fromEmail + " · Liste yenileniyor…");
       _inboxLottieShow(els.player, els.fallback, true);
       await _inboxLottiePlay(els.player, INBOX_LOTTIE_SUCCESS, false);
       await _waitMs(INBOX_SEND_SUCCESS_MIN_MS);
@@ -913,6 +929,33 @@
     }
   }
 
+  function inboxSendFromForRoute(routeTag) {
+    routeTag = normalizeInboxRouteTag(routeTag);
+    if (routeTag === "doviz" || routeTag === "nstat") return "info@doviz.com";
+    if (routeTag === "sinemalar") return "info@sinemalar.com";
+    return "cemevecen@nokta.com";
+  }
+
+  function getInboxSendFrom() {
+    var sel = document.getElementById("inbox-send-from");
+    return sel && sel.value ? sel.value : "cemevecen@nokta.com";
+  }
+
+  function updateInboxSendFromNote() {
+    var note = document.getElementById("inbox-send-from-note");
+    if (!note) return;
+    var from = getInboxSendFrom();
+    note.innerHTML = 'Bu yanıt <span class="font-extrabold">' + esc(from) + '</span> adresiyle gönderilecek.';
+  }
+
+  function setInboxSendFrom(value) {
+    var sel = document.getElementById("inbox-send-from");
+    if (!sel) return;
+    var v = INBOX_SEND_FROM_CHOICES.indexOf(value) !== -1 ? value : "cemevecen@nokta.com";
+    sel.value = v;
+    updateInboxSendFromNote();
+  }
+
   function lastInboundFrom(messages) {
     for (var i = messages.length - 1; i >= 0; i--) {
       if (!messages[i].is_outbound) return messages[i].from || "";
@@ -974,10 +1017,12 @@
     var to = document.getElementById("inbox-send-to").value.trim();
     var subj = document.getElementById("inbox-send-subject").value.trim();
     var bodyEl = document.getElementById("inbox-send-body");
+    var fromEmail = getInboxSendFrom();
     var textRaw = bodyEl && bodyEl.value != null ? bodyEl.value : "";
     var text = String(textRaw);
     var payload = {
       to: String(to),
+      from_email: String(fromEmail),
       subject: String(subj),
       text: text,
     };
@@ -1588,6 +1633,7 @@
       " · Cevaplandı: " +
       (t.answered_flag ? "evet" : "hayır");
     toggleInboxReplyMode(t.route_tag);
+    setInboxSendFrom(inboxSendFromForRoute(t.route_tag));
     if (isInboxAlertRoute(t.route_tag)) {
       restoreAlertAnalysisIfPinned(id);
     } else {
