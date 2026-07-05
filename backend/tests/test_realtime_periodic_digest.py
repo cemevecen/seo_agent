@@ -94,6 +94,9 @@ def test_digest_profile_block_uses_window_aggregation(monkeypatch):
     assert "Top sayfalar · son 1,5s zirve" in html
     assert "altin-fiyatlari" in html
     assert "42 kul" in html
+    assert 'role="presentation"' in html
+    assert "Aktif kullanıcı" in html
+    assert "background:#1f2937" in html
 
 
 def test_build_periodic_digest_empty_shows_diagnostics(monkeypatch):
@@ -162,6 +165,8 @@ def test_build_periodic_digest_html_lists_six_areas(monkeypatch):
 
     html = build_realtime_periodic_digest_html(db)
     assert len(blocks_seen) == 6
-    assert "6 alanda" in html
+    assert "6 alan" in html
+    assert "SEO Realtime" in html
+    assert "background:#0b1120" in html
     assert 'data-area="www.doviz.com:web"' in html
     assert 'data-area="www.sinemalar.com:mweb"' in html

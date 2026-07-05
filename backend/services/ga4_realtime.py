@@ -150,6 +150,18 @@ def _html_email_section_header(domain: str, profile: str) -> str:
     return f'<p style="font-size:14px;font-weight:700;margin:0 0 10px;">{short}{suffix}</p>'
 
 
+def _html_digest_section_header(domain: str, profile: str) -> str:
+    short = html.escape(_email_site_short_label(domain))
+    prof = html.escape(_email_profile_abbr(profile))
+    suffix = f" [{prof}]" if prof not in ("web", "") else ""
+    return (
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;">'
+        f'<div style="font-size:16px;font-weight:900;color:#f8fafc;letter-spacing:-.01em;">{short}{suffix}</div>'
+        '<div style="font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;">Realtime</div>'
+        '</div>'
+    )
+
+
 def _email_metric_subject_slug(metric: str, rule_id: str) -> str:
     """Konu satırı: kullanıcı isteği gibi kısa İngilizce küçük harf."""
     m = (metric or "").strip()
@@ -2669,26 +2681,31 @@ def _html_digest_top_list(
 ) -> str:
     if not rows:
         return ""
-    items = []
+    row_html = []
     for idx, (label, val, href) in enumerate(rows, start=1):
         label_e = html.escape(label)
         if href:
             link = html.escape(href, quote=True)
             label_html = (
-                f'<a href="{link}" style="color:#1e293b;text-decoration:none;border-bottom:1px solid rgba(30,41,59,.15);">'
+                f'<a href="{link}" style="color:#dbeafe;text-decoration:none;border-bottom:1px solid rgba(219,234,254,.35);">'
                 f"{label_e}</a>"
             )
         else:
             label_html = label_e
-        items.append(
-            f'<li style="margin:3px 0;">'
-            f'<span style="color:#94a3b8;margin-right:6px;">{idx}.</span>'
-            f"{label_html} "
-            f'<span style="color:#64748b;">· {val:,} {value_label}</span></li>'
+        row_html.append(
+            '<tr>'
+            f'<td style="width:28px;padding:7px 7px 7px 0;color:#94a3b8;font-size:12px;text-align:right;vertical-align:top;">{idx}</td>'
+            f'<td style="padding:7px 8px 7px 0;color:#e5e7eb;font-size:12px;line-height:1.35;vertical-align:top;">{label_html}</td>'
+            f'<td style="width:74px;padding:7px 0;color:#cbd5e1;font-size:12px;font-weight:800;text-align:right;white-space:nowrap;vertical-align:top;">{val:,} {html.escape(value_label)}</td>'
+            '</tr>'
         )
     return (
-        f'<div style="margin:10px 0 4px;font-size:11px;font-weight:800;color:#475569;">{html.escape(title)}</div>'
-        f'<ol style="margin:0 0 8px;padding:0 0 0 22px;font-size:12px;line-height:1.45;">{"".join(items)}</ol>'
+        '<div style="margin:12px 0 8px;">'
+        f'<div style="font-size:10px;font-weight:900;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin:0 0 5px;">{html.escape(title)}</div>'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">'
+        f'{"".join(row_html)}'
+        '</table>'
+        '</div>'
     )
 
 
@@ -2713,7 +2730,7 @@ def _digest_profile_block(
         .first()
     )
 
-    header = _html_email_section_header(site.domain, profile)
+    header = _html_digest_section_header(site.domain, profile)
     body_parts: list[str] = [header]
 
     if snap:
@@ -2723,15 +2740,24 @@ def _digest_profile_block(
         pv_prev = int(round(float(snap.pageviews_previous or 0)))
         delta = au_cur - au_prev
         delta_c = "#16a34a" if delta >= 0 else "#dc2626"
+        delta_bg = "rgba(16,185,129,.12)" if delta >= 0 else "rgba(244,63,94,.16)"
         delta_sign = f"{delta:+d}" if au_prev > 0 or delta != 0 else "—"
         body_parts.append(
-            f'<div style="font-size:12px;color:#64748b;margin:0 0 8px;">'
-            f"Aktif kullanıcı <strong style=\"color:#0f172a;\">{au_cur:,}</strong>"
-            f' <span style="color:#94a3b8;">(önceki {au_prev:,}, </span>'
-            f'<span style="color:{delta_c};font-weight:700;">{delta_sign}</span>'
-            f'<span style="color:#94a3b8;">)</span>'
-            f" · Görüntüleme <strong style=\"color:#0f172a;\">{pv_cur:,}</strong>"
-            f' <span style="color:#94a3b8;">(önceki {pv_prev:,})</span></div>'
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0 8px;margin:4px 0 6px;">'
+            '<tr>'
+            '<td style="width:50%;padding:10px 12px;border:1px solid rgba(148,163,184,.22);border-radius:12px;background:rgba(15,23,42,.35);">'
+            '<div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;">Aktif kullanıcı</div>'
+            f'<div style="margin-top:3px;font-size:22px;line-height:1;font-weight:900;color:#f8fafc;">{au_cur:,}</div>'
+            f'<div style="margin-top:4px;font-size:11px;color:#94a3b8;">önceki {au_prev:,} · <span style="display:inline-block;border-radius:999px;background:{delta_bg};color:{delta_c};font-weight:900;padding:1px 6px;">{delta_sign}</span></div>'
+            '</td>'
+            '<td style="width:8px;font-size:0;line-height:0;">&nbsp;</td>'
+            '<td style="width:50%;padding:10px 12px;border:1px solid rgba(148,163,184,.22);border-radius:12px;background:rgba(15,23,42,.35);">'
+            '<div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;">Görüntüleme</div>'
+            f'<div style="margin-top:3px;font-size:22px;line-height:1;font-weight:900;color:#f8fafc;">{pv_cur:,}</div>'
+            f'<div style="margin-top:4px;font-size:11px;color:#94a3b8;">önceki {pv_prev:,}</div>'
+            '</td>'
+            '</tr>'
+            '</table>'
         )
 
     has_ranked_content = False
@@ -2797,12 +2823,12 @@ def _digest_profile_block(
 
     if snap and not has_ranked_content:
         body_parts.append(
-            f'<p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">'
+            f'<p style="font-size:12px;color:#94a3b8;margin:10px 0 0;">'
             f"Son {window_label} penceresinde sıralanacak sayfa/haber/event verisi yok.</p>"
         )
 
     return (
-        f'<div style="margin:14px 0;padding:12px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fafafa;">'
+        '<div style="margin:14px 0;padding:14px 14px 12px;border:1px solid rgba(148,163,184,.24);border-radius:18px;background:#1f2937;box-shadow:0 14px 34px rgba(15,23,42,.18);">'
         f'{"".join(body_parts)}</div>'
     )
 
@@ -2845,23 +2871,27 @@ def build_realtime_periodic_digest_html(db: Session, *, queued_alarm_sections: i
     queued_line = ""
     if queued_alarm_sections > 0:
         queued_line = (
-            f'<p style="font-size:11px;color:#64748b;margin:0 0 14px;">'
+            f'<p style="font-size:11px;color:#cbd5e1;margin:0 4px 14px;">'
             f"Bu dönemde kuyruğa alınan alarm bölümü: {queued_alarm_sections}</p>"
         )
 
     pre = _preheader(f"SEO Realtime {interval_short} özet · {stamp}")
     return (
+        '<div style="background:#0b1120;margin:0;padding:18px 10px;">'
         f'<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
-        f'max-width:620px;margin:0 auto;color:#0f172a;">'
+        f'max-width:680px;margin:0 auto;color:#e5e7eb;">'
         f"{pre}"
-        f'<p style="font-size:15px;font-weight:800;margin:0 0 4px;">'
-        f"SEO Realtime · {interval_long} özet</p>"
-        f'<p style="font-size:12px;color:#64748b;margin:0 0 18px;">{html.escape(stamp)} · '
-        f"6 alanda (döviz web/mweb/android/ios + sinemalar web/mweb) "
-        f"son {interval_short} pencerede en çok {top_n} sayfa/haber/event · zirve aktif kullanıcı</p>"
+        '<div style="border:1px solid rgba(148,163,184,.24);border-radius:22px;background:linear-gradient(135deg,#111827,#1e1b4b);padding:18px 18px 16px;margin:0 0 16px;">'
+        f'<div style="font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd;margin:0 0 6px;">SEO Realtime</div>'
+        f'<div style="font-size:22px;font-weight:950;line-height:1.15;color:#ffffff;margin:0 0 8px;">{html.escape(interval_long)} özet</div>'
+        f'<div style="font-size:12px;line-height:1.55;color:#cbd5e1;margin:0;">{html.escape(stamp)} · '
+        f"6 alan · son {html.escape(interval_short)} pencerede en çok {top_n} içerik · zirve aktif kullanıcı</div>"
+        '</div>'
         f"{queued_line}"
         f"{inner}"
-        f"</div>"
+        '<div style="font-size:11px;color:#94a3b8;line-height:1.45;margin:18px 4px 0;">'
+        'Döviz: web / mweb / android / ios · Sinemalar: web / mweb. Linkli satırlar gerçek sayfaya gider.</div>'
+        f"</div></div>"
     )
 
 
