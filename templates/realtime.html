@@ -4363,11 +4363,41 @@
     return host;
   }
 
-  function _rtUrlFromDomainAndPath(domain, raw) {
+  function _rtDovizCanonicalUrl(path, profile) {
+    var p = String(path || '').trim();
+    if (!p) return '';
+    if (!p.startsWith('/')) p = '/' + p;
+    var low = p.toLowerCase();
+    var isMweb = String(profile || '').toLowerCase() === 'mweb';
+    var altinPaths = [
+      '/altin', '/gram-altin', '/ceyrek-altin', '/yarim-altin', '/tam-altin',
+      '/cumhuriyet-altini', '/resat-altin', '/ata-altin', '/gumus', '/ons',
+      '/harem', '/harem/gram-altin', '/harem/gumus', '/harem/ons'
+    ];
+    var isHaremKur = low.indexOf('/harem/') === 0 && !/(gram-altin|gumus|ons|ceyrek|yarim|tam|resat|ata|altin)/.test(low);
+    var isAltin = !isHaremKur && altinPaths.some(function (x) { return low === x || low.indexOf(x + '/') === 0; });
+    var isKur = isHaremKur || low === '/dolar' || low === '/euro' || low.indexOf('/serbest-piyasa/') === 0;
+    var isBorsa = low.indexOf('/hisseler') === 0 || low.indexOf('/endeksler') === 0;
+    if (isMweb) {
+      if (isAltin && low.indexOf('/altin/') !== 0 && low !== '/altin') p = '/altin' + p;
+      if (isKur && low.indexOf('/kur/') !== 0) p = '/kur' + p;
+      if (isBorsa && low.indexOf('/borsa/') !== 0) p = '/borsa' + p;
+      return 'https://m.doviz.com' + encodeURI(p);
+    }
+    if (isAltin) return 'https://altin.doviz.com' + encodeURI(p === '/altin' ? '/' : p);
+    if (isKur) return 'https://kur.doviz.com' + encodeURI(p);
+    if (isBorsa) return 'https://borsa.doviz.com' + encodeURI(p);
+    return 'https://www.doviz.com' + encodeURI(p);
+  }
+
+  function _rtUrlFromDomainAndPath(domain, raw, profile) {
     var value = String(raw || '').trim();
     if (!value || value === '(not set)' || value === '(other)' || value === '—') return '';
     if (/^https?:\/\//i.test(value)) return value;
     var host = _rtCleanHost(domain);
+    if (host.toLowerCase().indexOf('doviz.com') !== -1 && value.charAt(0) === '/') {
+      return _rtDovizCanonicalUrl(value, profile);
+    }
     if (value.charAt(0) === '/' && host) {
       try {
         return new URL(value, 'https://' + host).href;
@@ -4394,7 +4424,7 @@
     return s;
   }
 
-  function _rtTitleFallbackHref(domain, title) {
+  function _rtTitleFallbackHref(domain, title, profile) {
     var host = _rtCleanHost(domain).toLowerCase();
     var raw = String(title || '').trim();
     if (!host || !raw || raw.charAt(0) === '/' || /^https?:\/\//i.test(raw)) return '';
@@ -4426,30 +4456,30 @@
       else if (low.indexOf('reşat altın') !== -1 || low.indexOf('resat altin') !== -1) mappedPath = '/resat-altin';
       else if (low.indexOf('ata altın') !== -1 || low.indexOf('ata altin') !== -1) mappedPath = '/ata-altin';
       else if (low.indexOf('altın fiyat') !== -1 || low.indexOf('altin fiyat') !== -1) mappedPath = '/altin';
-      else if (low.indexOf('canlı dolar') !== -1 || low.indexOf('canli dolar') !== -1 || low.indexOf('dolar kuru') !== -1) mappedPath = '/dolar';
-      else if (low.indexOf('canlı euro') !== -1 || low.indexOf('canli euro') !== -1 || low.indexOf('euro kuru') !== -1) mappedPath = '/euro';
+      else if (low.indexOf('canlı dolar') !== -1 || low.indexOf('canli dolar') !== -1 || low.indexOf('dolar kuru') !== -1) mappedPath = '/serbest-piyasa/amerikan-dolari';
+      else if (low.indexOf('canlı euro') !== -1 || low.indexOf('canli euro') !== -1 || low.indexOf('euro kuru') !== -1) mappedPath = '/serbest-piyasa/euro';
       else if (low.indexOf('kripto') !== -1) mappedPath = '/kripto-paralar';
       else if (low.indexOf('borsa') !== -1 && low.indexOf('hisseler') !== -1) mappedPath = '/hisseler';
       else if (low.indexOf('ekonomi haber') !== -1) mappedPath = '/gundem-haberleri';
-      if (mappedPath) return 'https://' + host + mappedPath;
+      if (mappedPath) return _rtDovizCanonicalUrl(mappedPath, profile);
       var dSlug = _rtSlugifyTitle(raw);
-      return dSlug ? 'https://' + host + '/' + dSlug : '';
+      return dSlug ? _rtDovizCanonicalUrl('/' + dSlug, profile) : '';
     }
     return '';
   }
 
-  function _rtPageHref(domain, row) {
+  function _rtPageHref(domain, row, profile) {
     if (!row) return '';
     var direct = String(row.page_url || row.link_url || row.url || '').trim();
-    if (direct) return _rtUrlFromDomainAndPath(domain, direct);
+    if (direct) return _rtUrlFromDomainAndPath(domain, direct, profile);
     var candidates = [];
     if (row.page_paths && row.page_paths.length) candidates = candidates.concat(row.page_paths);
     candidates.push(row.page_path, row.path, row.page);
     for (var i = 0; i < candidates.length; i++) {
-      var href = _rtUrlFromDomainAndPath(domain, candidates[i]);
+      var href = _rtUrlFromDomainAndPath(domain, candidates[i], profile);
       if (href) return href;
     }
-    return _rtTitleFallbackHref(domain, row.page || row.page_title || row.title || row.screen_title || row.screenTitle);
+    return _rtTitleFallbackHref(domain, row.page || row.page_title || row.title || row.screen_title || row.screenTitle, profile);
   }
 
   function _rtLinkedTitleHtml(labelHtml, href, titleAttr, className) {
@@ -5341,7 +5371,7 @@
         var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
           return !_isRealtimeNoiseTitle(p && p.page);
         });
-        _renderNewsList(listEl, rows, d.comparison_enabled !== false, domain);
+        _renderNewsList(listEl, rows, d.comparison_enabled !== false, domain, profile);
         _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
@@ -5349,7 +5379,7 @@
       });
   }
 
-  function _renderNewsList(listEl, pages, showComparison, domain) {
+  function _renderNewsList(listEl, pages, showComparison, domain, profile) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber trafiği yok (makale URL’si veya uygulama ekran başlığı).</p>';
@@ -5366,7 +5396,7 @@
       var tipParts = [titleRaw];
       if (subRaw) tipParts.push(subRaw);
       var tipAttr = _attr(tipParts.join(' — '));
-      var hrefAttr = _rtPageHref(domain, p);
+      var hrefAttr = _rtPageHref(domain, p, profile);
       var usersPrev = p.activeUsers_previous;
       var viewsPrev = p.screenPageViews_previous;
       var usersComp = cmp ? _renderComparison(p.activeUsers, usersPrev) : '';
@@ -5479,7 +5509,7 @@
     return last.replace(/-/g, ' ');
   }
 
-  function _renderWowDayNews(listEl, pages, domain, meta) {
+  function _renderWowDayNews(listEl, pages, domain, meta, profile) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu günde haber trafiği yok.</p>';
@@ -5493,7 +5523,7 @@
     var metaLbl = meta && meta.prev_week_day_label ? meta.prev_week_day_label : 'geçen hafta';
     listEl.innerHTML = pages.map(function (p, i) {
       var pathRaw = p.page || '(bilinmiyor)';
-      var pageUrl = _rtPageHref(domain, p);
+      var pageUrl = _rtPageHref(domain, p, profile);
       var titleRaw = _wowNewsTitleFromPage(p);
       var titleDisp = _esc(titleRaw);
       var subEsc = _esc(pathRaw);
@@ -5522,7 +5552,7 @@
     }).join('');
   }
 
-  function _renderWowDayPages(listEl, pages, domain, meta) {
+  function _renderWowDayPages(listEl, pages, domain, meta, profile) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="rt-empty text-sm italic">veri yok</p>';
@@ -5539,7 +5569,7 @@
       var prevViews = Number(p.screenPageViews) || 0;
       var ydayViews = p.screenPageViews_current;
       var ydayComp = _renderComparison(ydayViews, prevViews);
-      var pageUrl = _rtPageHref(domain, p);
+      var pageUrl = _rtPageHref(domain, p, profile);
       var titleHtml;
       if (pageUrl) {
         titleHtml = '<a class="rt-list-title rt-news-link text-sm" href="' + _attr(pageUrl) + '" target="_blank" rel="noopener noreferrer" title="' + _attr(pathRaw) + '">' + path + '</a>';
@@ -5603,9 +5633,9 @@
             ' · dün: ' + (d.meta.current_day_label || '');
         }
         if (respMode === 'news') {
-          _renderWowDayNews(listEl, d.pages, domain, d.meta || {});
+          _renderWowDayNews(listEl, d.pages, domain, d.meta || {}, profile);
         } else {
-          _renderWowDayPages(listEl, d.pages, domain, d.meta || {});
+          _renderWowDayPages(listEl, d.pages, domain, d.meta || {}, profile);
         }
         if (tsEl) {
           var dt = d.fetched_at ? new Date(d.fetched_at) : new Date();
@@ -6033,7 +6063,7 @@
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var barColor = viewsMode ? 'rt-bar-fill-violet' : 'rt-bar-fill-indigo';
 
-      var hrefAttr = _rtPageHref(domain, p);
+      var hrefAttr = _rtPageHref(domain, p, profile);
       var titleTip = _attr(pathRaw + (hrefAttr ? '\n' + hrefAttr : ''));
       var titleHtml = _rtLinkedTitleHtml(path, hrefAttr, titleTip, 'rt-list-title rt-news-link text-sm');
 
@@ -6730,7 +6760,7 @@
       var domain = box.getAttribute('data-rt-domain') || '';
       pagesEl.innerHTML = data.pages.slice(0, 5).map(function(p) {
         var label = p.title || p.page || p.page_path || p.path || '';
-        var href = _rtPageHref(domain, p);
+        var href = _rtPageHref(domain, p, profile);
         var labelHtml = href
           ? '<a href="' + _attr(href) + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;text-underline-offset:2px">' + _esc(label) + '</a>'
           : _esc(label);
