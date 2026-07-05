@@ -4358,6 +4358,50 @@
       .replace(/>/g, '&gt;');
   }
 
+  function _rtCleanHost(domain) {
+    var host = String(domain || '').trim().replace(/^https?:\/\//i, '').split('/')[0].trim();
+    return host;
+  }
+
+  function _rtUrlFromDomainAndPath(domain, raw) {
+    var value = String(raw || '').trim();
+    if (!value || value === '(not set)' || value === '(other)' || value === '—') return '';
+    if (/^https?:\/\//i.test(value)) return value;
+    var host = _rtCleanHost(domain);
+    if (value.charAt(0) === '/' && host) {
+      try {
+        return new URL(value, 'https://' + host).href;
+      } catch (eUrl) {
+        return 'https://' + host + encodeURI(value);
+      }
+    }
+    if (/^[a-z0-9.-]+\.[a-z]{2,}(?:\/|$)/i.test(value)) {
+      return 'https://' + encodeURI(value);
+    }
+    return '';
+  }
+
+  function _rtPageHref(domain, row) {
+    if (!row) return '';
+    var direct = String(row.page_url || row.link_url || row.url || '').trim();
+    if (direct) return _rtUrlFromDomainAndPath(domain, direct);
+    var candidates = [];
+    if (row.page_paths && row.page_paths.length) candidates = candidates.concat(row.page_paths);
+    candidates.push(row.page_path, row.path, row.page);
+    for (var i = 0; i < candidates.length; i++) {
+      var href = _rtUrlFromDomainAndPath(domain, candidates[i]);
+      if (href) return href;
+    }
+    return '';
+  }
+
+  function _rtLinkedTitleHtml(labelHtml, href, titleAttr, className) {
+    if (href) {
+      return '<a class="' + className + '" href="' + _attr(href) + '" target="_blank" rel="noopener noreferrer" title="' + titleAttr + '">' + labelHtml + '</a>';
+    }
+    return '<span class="rt-list-title text-sm" title="' + titleAttr + '">' + labelHtml + '</span>';
+  }
+
   function _chartId(siteId, profile) { return 'rt-chart-' + siteId + '-' + profile; }
 
   /** Sunucu UTC gönderir (`...Z`); eski kayıtlar için sonek yoksa Z eklenir (eksene TZ kayması olmasın). */
@@ -5224,6 +5268,7 @@
     if (!box) return;
     var listEl = box.querySelector('[data-rt-news-list]');
     var tsEl = box.querySelector('[data-rt-news-ts]');
+    var domain = box.getAttribute('data-rt-domain') || '';
     if (!listEl) return;
     var rangeKey = _rtTrendRangeForBox(box);
     fetch('/api/ga4/realtime/' + siteId + '/top-news?profile=' + encodeURIComponent(profile) + '&range=' + encodeURIComponent(rangeKey) + '&limit=12&type=pages', {
@@ -5239,7 +5284,7 @@
         var rows = (Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
           return !_isRealtimeNoiseTitle(p && p.page);
         });
-        _renderNewsList(listEl, rows, d.comparison_enabled !== false);
+        _renderNewsList(listEl, rows, d.comparison_enabled !== false, domain);
         _rtUpdateListTimestamp(tsEl, d, rangeKey);
       })
       .catch(function () {
@@ -5247,7 +5292,7 @@
       });
   }
 
-  function _renderNewsList(listEl, pages, showComparison) {
+  function _renderNewsList(listEl, pages, showComparison, domain) {
     if (!listEl) return;
     if (!pages.length) {
       listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber trafiği yok (makale URL’si veya uygulama ekran başlığı).</p>';
@@ -5264,8 +5309,7 @@
       var tipParts = [titleRaw];
       if (subRaw) tipParts.push(subRaw);
       var tipAttr = _attr(tipParts.join(' — '));
-      var primaryHref = (p.link_url || '').trim();
-      var hrefAttr = primaryHref ? encodeURI(primaryHref) : '';
+      var hrefAttr = _rtPageHref(domain, p);
       var usersPrev = p.activeUsers_previous;
       var viewsPrev = p.screenPageViews_previous;
       var usersComp = cmp ? _renderComparison(p.activeUsers, usersPrev) : '';
@@ -5275,9 +5319,7 @@
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
-      var linkHtml = hrefAttr
-        ? '<a class="rt-news-link text-sm hover:underline" href="' + hrefAttr + '" target="_blank" rel="noopener noreferrer" title="' + tipAttr + '">' + titleDisp + '</a>'
-        : '<span class="rt-list-title text-sm" title="' + tipAttr + '">' + titleDisp + '</span>';
+      var linkHtml = _rtLinkedTitleHtml(titleDisp, hrefAttr, tipAttr, 'rt-news-link text-sm hover:underline');
       return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
         + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
         + '<div class="rt-top-list-mid">'
@@ -5394,15 +5436,12 @@
     var metaLbl = meta && meta.prev_week_day_label ? meta.prev_week_day_label : 'geçen hafta';
     listEl.innerHTML = pages.map(function (p, i) {
       var pathRaw = p.page || '(bilinmiyor)';
-      var pageUrl = (p.page_url || '').trim();
+      var pageUrl = _rtPageHref(domain, p);
       var titleRaw = _wowNewsTitleFromPage(p);
       var titleDisp = _esc(titleRaw);
       var subEsc = _esc(pathRaw);
       var tipAttr = _attr(pathRaw);
-      var hrefAttr = pageUrl ? encodeURI(pageUrl) : '';
-      if (!hrefAttr && pathRaw.startsWith('/') && domain) {
-        hrefAttr = 'https://' + domain.replace(/^https?:\/\//, '') + encodeURI(pathRaw);
-      }
+      var hrefAttr = pageUrl;
       var prevViews = Number(p.screenPageViews) || 0;
       var ydayViews = p.screenPageViews_current;
       var ydayComp = _renderComparison(ydayViews, prevViews);
@@ -5443,14 +5482,10 @@
       var prevViews = Number(p.screenPageViews) || 0;
       var ydayViews = p.screenPageViews_current;
       var ydayComp = _renderComparison(ydayViews, prevViews);
-      var pageUrl = (p.page_url || '').trim();
-      var firstPath = pathRaw.startsWith('/') ? pathRaw : '';
+      var pageUrl = _rtPageHref(domain, p);
       var titleHtml;
       if (pageUrl) {
         titleHtml = '<a class="rt-list-title rt-news-link text-sm" href="' + _attr(pageUrl) + '" target="_blank" rel="noopener noreferrer" title="' + _attr(pathRaw) + '">' + path + '</a>';
-      } else if (firstPath && domain) {
-        var fullUrl = 'https://' + domain.replace(/^https?:\/\//, '') + encodeURI(firstPath);
-        titleHtml = '<a class="rt-list-title rt-news-link text-sm" href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" title="' + _attr(pathRaw) + '">' + path + '</a>';
       } else {
         titleHtml = '<div class="rt-list-title text-sm" title="' + _attr(pathRaw) + '">' + path + '</div>';
       }
@@ -5941,15 +5976,9 @@
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var barColor = viewsMode ? 'rt-bar-fill-violet' : 'rt-bar-fill-indigo';
 
-      // Tıklanabilir link: page_paths[0] varsa tam URL oluştur
-      var firstPath = (p.page_paths && p.page_paths[0]) ? p.page_paths[0] : (p.page_path || '');
-      var titleHtml;
-      if (firstPath && firstPath.startsWith('/') && domain) {
-        var fullUrl = 'https://' + domain.replace(/^https?:\/\//, '') + encodeURI(firstPath);
-        titleHtml = '<a class="rt-list-title rt-news-link text-sm" href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" title="' + _attr(pathRaw + '\n' + firstPath) + '">' + path + '</a>';
-      } else {
-        titleHtml = '<div class="rt-list-title text-sm" title="' + _attr(pathRaw) + '">' + path + '</div>';
-      }
+      var hrefAttr = _rtPageHref(domain, p);
+      var titleTip = _attr(pathRaw + (hrefAttr ? '\n' + hrefAttr : ''));
+      var titleHtml = _rtLinkedTitleHtml(path, hrefAttr, titleTip, 'rt-list-title rt-news-link text-sm');
 
       var primary = viewsMode
         ? '<strong class="text-sm">' + views + '</strong>' + viewsComp + ' <span class="rt-list-meta">gör.</span>'
@@ -6641,10 +6670,16 @@
       sub.textContent = 'önceki ' + prev + ' → şimdi ' + total + ' (' + deltaStr + ')';
     }
     if (pagesEl && data.pages && data.pages.length) {
+      var domain = box.getAttribute('data-rt-domain') || '';
       pagesEl.innerHTML = data.pages.slice(0, 5).map(function(p) {
+        var label = p.title || p.page || p.page_path || p.path || '';
+        var href = _rtPageHref(domain, p);
+        var labelHtml = href
+          ? '<a href="' + _attr(href) + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;text-underline-offset:2px">' + _esc(label) + '</a>'
+          : _esc(label);
         return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0">'
           + '<span style="color:#78716c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(260px,45vw)">'
-          + _esc(p.title) + '</span>'
+          + labelHtml + '</span>'
           + '<strong style="color:#d97706;margin-left:8px;flex-shrink:0">' + p.activeUsers + ' kul.</strong>'
           + '</div>';
       }).join('');
