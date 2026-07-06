@@ -9,6 +9,7 @@ from backend.services.ga4_app_event_enrich import (
     enrich_event_param_row,
     merge_enriched_event_rows,
     section_enriches_news,
+    section_uses_article_lookup,
 )
 
 
@@ -17,6 +18,57 @@ def test_section_enriches_news_detects_params():
     assert section_enriches_news("news_id", "news_title")
     assert not section_enriches_news("firebase_screen")
     assert not section_enriches_news("from")
+    assert section_uses_article_lookup("unifiedScreenName")
+    assert section_uses_article_lookup("news_id", "news_title")
+
+
+def test_enrich_combined_not_set_with_title():
+    lookup = {
+        "by_id": {
+            "900001": {
+                "page": "/gundem/ornek-haber/900001",
+                "page_host": "www.doviz.com",
+                "page_url": "https://www.doviz.com/gundem/ornek-haber/900001",
+                "page_title": "Ornek haber basligi",
+                "views": 10.0,
+            }
+        },
+        "by_title": {"ornek haber basligi": "900001"},
+    }
+    row = enrich_event_param_row(
+        {"value": "(not set) · Ornek haber basligi", "count": 3, "count_prev": 0},
+        param="news_id",
+        param2="news_title",
+        lookup=lookup,
+        site_domain="doviz.com",
+    )
+    assert row["page_url"].endswith("/900001")
+    assert row["display_text"] == "ornek-haber"
+
+
+def test_enrich_unified_screen_path():
+    lookup = {
+        "by_id": {
+            "894744": {
+                "page": "/ekonomi/haziran-enflasyonu/894744",
+                "page_host": "www.doviz.com",
+                "page_url": "https://www.doviz.com/ekonomi/haziran-enflasyonu/894744",
+                "page_title": "Haziran ayı enflasyonu açıklandı",
+                "views": 100.0,
+                "article_id": "894744",
+            }
+        },
+        "by_title": {},
+    }
+    row = enrich_event_param_row(
+        {"value": "/ekonomi/haziran-enflasyonu/894744", "count": 12, "count_prev": 0},
+        param="unifiedScreenName",
+        param2=None,
+        lookup=lookup,
+        site_domain="doviz.com",
+    )
+    assert row["page_url"].endswith("/894744")
+    assert row["display_text"] == "haziran-enflasyonu"
 
 
 def test_enrich_event_param_row_maps_news_id_to_url():
@@ -105,6 +157,8 @@ def test_enrich_sections_only_for_news_params(mock_lookup):
     assert out[0]["rows"][0]["page_url"].endswith("/1")
     assert "page_url" not in out[1]["rows"][0]
     mock_lookup.assert_called_once()
+    _args, kwargs = mock_lookup.call_args
+    assert kwargs.get("lookup_days") == 90
 
 
 def test_merge_enriched_event_rows_by_article_id():

@@ -24,7 +24,7 @@ _COMBINED_SEP = " · "
 _EVENT_DETAIL_CACHE: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
 _LOOKUP_CACHE: dict[tuple, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL_SEC = 180.0
-_CACHE_VER = 5
+_CACHE_VER = 6
 
 
 def _param_key(name: str | None) -> str:
@@ -37,6 +37,78 @@ def section_enriches_news(param: str | None, param2: str | None = None) -> bool:
     return bool(keys & (_NEWS_ID_PARAMS | _NEWS_TITLE_PARAMS))
 
 
+def section_uses_article_lookup(param: str | None, param2: str | None = None) -> bool:
+    """Haber URL indeksi gerektiren bölümler (news_* + iOS ekran path/başlık)."""
+    if section_enriches_news(param, param2):
+        return True
+    return _param_key(param) == "unifiedscreenname"
+
+
+def _value_looks_like_page_path(value: str) -> bool:
+    v = str(value or "").strip()
+    if not v:
+        return False
+    if v.lower().startswith(("http://", "https://")):
+        return True
+    return v.startswith("/")
+
+
+def _path_from_value(value: str) -> str:
+    raw = str(value or "").strip()
+    if raw.lower().startswith("http://") or raw.lower().startswith("https://"):
+        from urllib.parse import urlparse
+
+        parsed = urlparse(raw)
+        return str(parsed.path or "").split("?", 1)[0] or "/"
+    path = raw.split("?", 1)[0].strip()
+    if path and not path.startswith("/"):
+        path = "/" + path
+    return path
+
+
+def _lookup_page_row_by_path(path: str, by_id: dict[str, dict]) -> dict | None:
+    norm = _path_from_value(path)
+    if not norm or norm == "/":
+        return None
+    for row in by_id.values():
+        pg = str(row.get("page") or "").split("?", 1)[0]
+        if not pg:
+            continue
+        if pg == norm or norm.endswith(pg) or pg.endswith(norm):
+            return row
+    return None
+
+
+def _apply_page_row_to_out(
+    out: dict,
+    *,
+    page_row: dict,
+    article_id: str,
+    site_domain: str | None,
+    title_hint: str,
+    value: str,
+    param: str,
+    param2: str | None,
+) -> dict:
+    page_url = ga4_row_page_href(page_row, site_domain)
+    page_path = ga4_row_page_label(page_row, site_domain)
+    slug = ga4_row_news_display_text(page_row, site_domain)
+    page_title = str(page_row.get("page_title") or "").strip()
+    out["page_url"] = page_url
+    out["page_path"] = page_path
+    out["article_id"] = article_id
+    out["display_text"] = slug or page_title or title_hint or value
+    if _param_key(param) in _NEWS_ID_PARAMS and not param2:
+        out["display_sub"] = page_title or page_path
+    elif param2 or _param_key(param) in _NEWS_TITLE_PARAMS:
+        out["display_sub"] = page_path or (f"ID {article_id}" if article_id else "")
+    elif _param_key(param) == "unifiedscreenname":
+        out["display_sub"] = page_path or page_title or (f"ID {article_id}" if article_id else "")
+    else:
+        out["display_sub"] = page_path
+    return out
+
+
 def _normalize_title_key(title: str) -> str:
     return re.sub(r"\s+", " ", str(title or "").strip().lower())
 
@@ -45,11 +117,14 @@ def build_news_article_lookup(
     property_ids: Iterable[str],
     *,
     days: int,
+    lookup_days: int | None = None,
 ) -> dict[str, Any]:
     """Web/mweb GA4 haber detay listesinden article_id → sayfa satırı indeksi."""
     from backend.collectors.ga4 import _calendar_windows, fetch_ga4_news_detail_pages_metrics
 
-    (last_start, last_end), _ = _calendar_windows(max(1, int(days)))
+    span = max(1, int(lookup_days if lookup_days is not None else days))
+    span = min(span, 365)
+    (last_start, last_end), _ = _calendar_windows(span)
     by_id: dict[str, dict] = {}
     by_title: dict[str, str] = {}
     pids = [str(raw_pid or "").strip() for raw_pid in property_ids]
@@ -63,7 +138,7 @@ def build_news_article_lookup(
                 property_id=pid,
                 start=last_start,
                 end=last_end,
-                limit=500,
+                limit=2000,
             )
         except Exception:
             return []
@@ -121,10 +196,13 @@ def _resolve_article_id(
 
     if param2:
         id_part, title_hint = _parse_combined_value(value)
-        aid = normalize_article_id(id_part)
-        if aid:
-            return aid, title_hint
-        title_hint = title_hint or id_part
+        id_low = id_part.lower()
+        if id_low not in ("(not set)", "not set", ""):
+            aid = normalize_article_id(id_part)
+            if aid:
+                return aid, title_hint
+        if not title_hint and id_part and id_low not in ("(not set)", "not set"):
+            title_hint = id_part
     elif param_k in _NEWS_ID_PARAMS:
         return normalize_article_id(value), ""
     elif param_k in _NEWS_TITLE_PARAMS:
@@ -170,23 +248,53 @@ def enrich_event_param_row(
         by_title=by_title,
     )
 
+    if not article_id and _value_looks_like_page_path(value):
+        article_id = extract_article_id_from_path(_path_from_value(value))
+
     page_row = by_id.get(article_id) if article_id else None
+    if not page_row and _value_looks_like_page_path(value):
+        path = _path_from_value(value)
+        page_row = _lookup_page_row_by_path(path, by_id)
+        if page_row and not article_id:
+            article_id = str(page_row.get("article_id") or extract_article_id_from_path(path) or "")
+
+    if not page_row and _param_key(param) == "unifiedscreenname" and title_hint:
+        nk = _normalize_title_key(title_hint)
+        if nk in by_title:
+            article_id = by_title[nk]
+            page_row = by_id.get(article_id)
+
     if page_row:
-        page_url = ga4_row_page_href(page_row, site_domain)
-        page_path = ga4_row_page_label(page_row, site_domain)
-        slug = ga4_row_news_display_text(page_row, site_domain)
-        page_title = str(page_row.get("page_title") or "").strip()
-        out["page_url"] = page_url
-        out["page_path"] = page_path
-        out["article_id"] = article_id
-        out["display_text"] = slug or page_title or title_hint or value
-        if _param_key(param) in _NEWS_ID_PARAMS and not param2:
-            out["display_sub"] = page_title or page_path
-        elif param2 or _param_key(param) in _NEWS_TITLE_PARAMS:
-            out["display_sub"] = page_path or (f"ID {article_id}" if article_id else "")
-        else:
-            out["display_sub"] = page_path
-        return out
+        return _apply_page_row_to_out(
+            out,
+            page_row=page_row,
+            article_id=article_id,
+            site_domain=site_domain,
+            title_hint=title_hint,
+            value=value,
+            param=param,
+            param2=param2,
+        )
+
+    if _param_key(param) == "unifiedscreenname" and not _value_looks_like_page_path(value):
+        from backend.services.realtime_news_paths import unified_screen_news_candidate
+
+        if unified_screen_news_candidate(value, site_domain=site_domain or ""):
+            nk = _normalize_title_key(value)
+            if nk in by_title:
+                aid = by_title[nk]
+                screen_row = by_id.get(aid)
+                if screen_row:
+                    return _apply_page_row_to_out(
+                        out,
+                        page_row=screen_row,
+                        article_id=aid,
+                        site_domain=site_domain,
+                        title_hint=value,
+                        value=value,
+                        param=param,
+                        param2=param2,
+                    )
 
     if _param_key(param) in _NEWS_ID_PARAMS or param2:
         out["display_text"] = title_hint or value
@@ -270,17 +378,18 @@ def enrich_app_event_detail_sections(
 ) -> list[dict]:
     if not sections:
         return []
-    needs_lookup = any(section_enriches_news(s.get("param"), s.get("param2")) for s in sections)
+    needs_lookup = any(section_uses_article_lookup(s.get("param"), s.get("param2")) for s in sections)
+    lookup_span = min(max(int(days), 90), 365)
     resolved_lookup: dict[str, Any] = lookup or {"by_id": {}, "by_title": {}}
     if needs_lookup and lookup is None:
-        resolved_lookup = build_news_article_lookup(property_ids, days=days)
+        resolved_lookup = build_news_article_lookup(property_ids, days=days, lookup_days=lookup_span)
 
     out_sections: list[dict] = []
     for section in sections:
         sec = dict(section)
         param = str(sec.get("param") or "")
         param2 = sec.get("param2")
-        if section_enriches_news(param, param2) and sec.get("rows"):
+        if section_uses_article_lookup(param, param2) and sec.get("rows"):
             enriched = [
                 enrich_event_param_row(
                     r,
@@ -303,9 +412,10 @@ def enrich_app_event_detail_sections(
     return out_sections
 
 
-def _lookup_cache_key(property_ids: Iterable[str], days: int) -> tuple:
+def _lookup_cache_key(property_ids: Iterable[str], days: int, lookup_days: int | None = None) -> tuple:
     pids = tuple(sorted(str(p or "").strip() for p in property_ids if str(p or "").strip()))
-    return pids + (max(1, int(days)),)
+    span = lookup_days if lookup_days is not None else max(int(days), 90)
+    return pids + (min(max(1, int(span)), 365),)
 
 
 def fetch_enriched_app_event_detail_sections(
@@ -325,7 +435,8 @@ def fetch_enriched_app_event_detail_sections(
     if cached and (time.monotonic() - cached[0]) < _CACHE_TTL_SEC:
         return cached[1]
 
-    lookup_key = _lookup_cache_key(lookup_property_ids, days)
+    lookup_span = min(max(int(days), 90), 365)
+    lookup_key = _lookup_cache_key(lookup_property_ids, days, lookup_days=lookup_span)
     lookup_cached = _LOOKUP_CACHE.get(lookup_key)
     lookup: dict[str, Any] | None = None
     if lookup_cached and (time.monotonic() - lookup_cached[0]) < _CACHE_TTL_SEC:
@@ -354,7 +465,12 @@ def fetch_enriched_app_event_detail_sections(
                 days=days,
                 limit=limit,
             )
-            fut_lookup = pool.submit(build_news_article_lookup, lookup_property_ids, days=days)
+            fut_lookup = pool.submit(
+                build_news_article_lookup,
+                lookup_property_ids,
+                days=days,
+                lookup_days=lookup_span,
+            )
             sections = fut_sections.result()
             lookup = fut_lookup.result()
         _LOOKUP_CACHE[lookup_key] = (time.monotonic(), lookup)

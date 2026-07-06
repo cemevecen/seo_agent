@@ -1493,7 +1493,7 @@ def fetch_ga4_news_detail_pages_metrics(
         ],
         "metrics": [Metric(name="screenPageViews"), Metric(name="sessions")],
         "date_ranges": [DateRange(start_date=start, end_date=end)],
-        "limit": max(10, min(int(limit or 500), 500)),
+        "limit": max(10, min(int(limit or 2000), 2000)),
         "order_bys": [
             OrderBy(metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"), desc=True),
         ],
