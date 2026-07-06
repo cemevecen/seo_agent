@@ -1976,7 +1976,7 @@
   function triggerGa4Load(panel) {
     if (!panel || panel.classList.contains('hidden')) return;
     panel
-      .querySelectorAll('[data-ga4-pages-placeholder],[data-ga4-sources-placeholder],[data-ga4-pages-placeholder-news]')
+      .querySelectorAll('[data-ga4-pages-placeholder],[data-ga4-sources-placeholder],[data-ga4-pages-placeholder-news],[data-ga4-pages-placeholder-event-detail]')
       .forEach(function (el) {
         var kindPanel = el.closest('[data-ga4-pages-kind-panel]');
         if (kindPanel && kindPanel.classList.contains('hidden')) {

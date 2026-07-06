@@ -2078,3 +2078,202 @@ def fetch_ga4_app_events(
     ]
     rows.sort(key=lambda r: r["count"], reverse=True)
     return rows[:safe_limit]
+
+
+def _custom_event_dimension_candidates(param_key: str, alt_params: list[str] | None = None) -> list[str]:
+    keys: list[str] = []
+    for raw in [param_key, *(alt_params or [])]:
+        k = str(raw or "").strip()
+        if k and k not in keys:
+            keys.append(k)
+    out: list[str] = []
+    seen: set[str] = set()
+    for k in keys:
+        dim = f"customEvent:{k}"
+        if dim not in seen:
+            seen.add(dim)
+            out.append(dim)
+    return out
+
+
+def _event_name_filter_expression(event_name: str) -> FilterExpression:
+    return FilterExpression(
+        filter=Filter(
+            field_name="eventName",
+            string_filter=Filter.StringFilter(
+                match_type=Filter.StringFilter.MatchType.EXACT,
+                value=str(event_name or "").strip(),
+            ),
+        )
+    )
+
+
+def _run_event_param_report(
+    client: BetaAnalyticsDataClient,
+    *,
+    property_id: str,
+    event_name: str,
+    dimension_names: list[str],
+    start: str,
+    end: str,
+    limit: int,
+) -> dict[str, float]:
+    if not dimension_names:
+        return {}
+    req = RunReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name=d) for d in dimension_names],
+        metrics=[Metric(name="eventCount")],
+        date_ranges=[DateRange(start_date=start, end_date=end)],
+        dimension_filter=_event_name_filter_expression(event_name),
+        limit=limit,
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount"), desc=True)],
+    )
+    resp = client.run_report(req)
+    out: dict[str, float] = {}
+    for row in resp.rows or []:
+        parts = [str(dv.value or "").strip() for dv in (row.dimension_values or [])]
+        if len(parts) == 1:
+            key = parts[0] or "(not set)"
+        else:
+            key = " · ".join(p if p else "(not set)" for p in parts)
+        val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        out[key] = out.get(key, 0.0) + val
+    return out
+
+
+def fetch_ga4_event_param_breakdown(
+    *,
+    property_id: str,
+    event_name: str,
+    param_key: str,
+    param_key_2: str | None = None,
+    alt_params: list[str] | None = None,
+    alt_params_2: list[str] | None = None,
+    days: int = 30,
+    limit: int = 100,
+) -> list[dict]:
+    """Tek veya çift custom event parametresi — eventName filtresi ile eventCount (dönem karşılaştırmalı)."""
+    safe_days = max(1, int(days))
+    safe_limit = max(10, min(int(limit), 500))
+    (last_start, last_end), (prev_start, prev_end) = _calendar_windows(safe_days)
+    client = _client()
+
+    dim_sets: list[list[str]] = []
+    if param_key_2:
+        for d1 in _custom_event_dimension_candidates(param_key, alt_params):
+            for d2 in _custom_event_dimension_candidates(param_key_2, alt_params_2):
+                dim_sets.append([d1, d2])
+    else:
+        for d1 in _custom_event_dimension_candidates(param_key, alt_params):
+            dim_sets.append([d1])
+
+    last_map: dict[str, float] = {}
+    prev_map: dict[str, float] = {}
+    last_err: Exception | None = None
+
+    for dims in dim_sets:
+        try:
+            last_map = _run_event_param_report(
+                client,
+                property_id=property_id,
+                event_name=event_name,
+                dimension_names=dims,
+                start=last_start,
+                end=last_end,
+                limit=safe_limit,
+            )
+            prev_map = _run_event_param_report(
+                client,
+                property_id=property_id,
+                event_name=event_name,
+                dimension_names=dims,
+                start=prev_start,
+                end=prev_end,
+                limit=safe_limit,
+            )
+            last_err = None
+            break
+        except Exception as exc:
+            last_err = exc
+            continue
+
+    if last_err is not None and not last_map:
+        raise last_err
+
+    merged = _merge_period_maps(last_map, prev_map)
+    rows = [
+        {
+            "value": k,
+            "count": last_val,
+            "count_prev": prev_val,
+            "change_pct": round((last_val - prev_val) / prev_val * 100, 1) if prev_val else None,
+        }
+        for k, (last_val, prev_val) in merged.items()
+        if last_val > 0 or prev_val > 0
+    ]
+    rows.sort(key=lambda r: (r["value"] == "(not set)", -r["count"]))
+    return rows[:safe_limit]
+
+
+def fetch_ga4_app_event_detail_sections(
+    *,
+    property_id: str,
+    profile: str,
+    days: int = 30,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Profil için tanımlı tüm event parametre tablolarını çeker."""
+    from backend.services.ga4_app_event_config import app_event_detail_config
+
+    cfg = app_event_detail_config(profile)
+    if not cfg:
+        return []
+
+    sections: list[dict[str, Any]] = []
+    for spec in cfg.get("sections") or []:
+        param = str(spec.get("param") or "").strip()
+        if not param:
+            continue
+        label = str(spec.get("label") or param)
+        alt = spec.get("alt_params") or []
+        param2 = str(spec.get("param2") or "").strip() or None
+        try:
+            rows = fetch_ga4_event_param_breakdown(
+                property_id=property_id,
+                event_name=str(cfg["event_name"]),
+                param_key=param,
+                param_key_2=param2,
+                alt_params=list(alt) if alt else None,
+                days=days,
+                limit=limit,
+            )
+            sections.append(
+                {
+                    "label": label,
+                    "event_name": cfg["event_name"],
+                    "param": param,
+                    "param2": param2,
+                    "rows": rows,
+                    "error": None,
+                }
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "GA4 event param breakdown failed [%s %s %s]: %s",
+                profile,
+                cfg.get("event_name"),
+                param,
+                exc,
+            )
+            sections.append(
+                {
+                    "label": label,
+                    "event_name": cfg["event_name"],
+                    "param": param,
+                    "param2": param2,
+                    "rows": [],
+                    "error": str(exc),
+                }
+            )
+    return sections

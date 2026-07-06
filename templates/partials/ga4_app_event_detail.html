@@ -1,0 +1,98 @@
+{% if days | int == 1 %}
+  {% set last_l = 'Son gün' %}
+  {% set prev_l = 'Önceki gün' %}
+{% elif days | int == 7 %}
+  {% set last_l = 'Son 7 gün' %}
+  {% set prev_l = 'Önceki 7 gün' %}
+{% else %}
+  {% set last_l = 'Son 30 gün' %}
+  {% set prev_l = 'Önceki 30 gün' %}
+{% endif %}
+
+<div class="space-y-4">
+  <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
+    <p class="font-semibold">{{ detail_title }}</p>
+    <p class="mt-0.5 text-[11px] opacity-90">Event: <code class="font-mono">{{ event_name }}</code> · GA4 customEvent parametreleri · {{ last_l }} vs {{ prev_l }}</p>
+  </div>
+
+  {% if not sections %}
+    <p class="rounded-2xl border border-slate-200 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+      Bu profil için event detay yapılandırması yok.
+    </p>
+  {% endif %}
+
+  {% for section in sections %}
+    <div class="rounded-2xl border border-slate-200 dark:border-slate-700">
+      <p class="border-b border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 sm:px-3">
+        {{ section.label }}
+        {% if section.param2 %}
+          <span class="ml-1 text-[10px] font-normal text-slate-500 dark:text-slate-400">({{ section.param }} + {{ section.param2 }})</span>
+        {% else %}
+          <span class="ml-1 text-[10px] font-normal text-slate-500 dark:text-slate-400">({{ section.param }})</span>
+        {% endif %}
+      </p>
+
+      {% if section.error %}
+        <p class="px-3 py-4 text-xs text-amber-800 dark:text-amber-300">
+          Veri alınamadı: {{ section.error }}
+        </p>
+      {% elif not section.rows %}
+        <p class="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">Satır yok veya parametre GA4’te tanımlı değil.</p>
+      {% else %}
+        <div class="overflow-x-auto overscroll-x-contain" style="-webkit-overflow-scrolling:touch;">
+          <table class="table-fixed text-xs" style="min-width:28rem;width:max-content;max-width:none;" data-ga4-table data-ga4-metric-table>
+            <colgroup>
+              <col style="width:12rem;min-width:10rem;" />
+              <col style="width:5rem;min-width:5rem;" />
+              <col style="width:5rem;min-width:5rem;" />
+              <col style="width:5rem;min-width:5rem;" />
+              <col style="width:4rem;min-width:4rem;" />
+            </colgroup>
+            <thead class="text-slate-500 dark:text-slate-400" style="border-bottom:1px solid rgba(255,255,255,0.08);">
+              <tr>
+                <th class="sticky left-0 z-[1] bg-slate-50 px-2 py-1.5 text-left font-semibold dark:bg-slate-900/50">Değer</th>
+                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">Event</th>
+                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">Önceki</th>
+                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">Fark</th>
+                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">%</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700/40">
+              {% for row in section.rows %}
+                {% set val = row.count %}
+                {% set val_prev = row.count_prev %}
+                {% set delta = val - val_prev %}
+                {% set pct = row.change_pct if row.change_pct is not none else 0 %}
+                {% if delta > 0 %}
+                  {% set delta_cls = 'text-emerald-600 dark:text-emerald-400' %}
+                  {% set delta_sign = '+' %}
+                {% elif delta < 0 %}
+                  {% set delta_cls = 'text-rose-600 dark:text-rose-400' %}
+                  {% set delta_sign = '' %}
+                {% else %}
+                  {% set delta_cls = 'text-slate-400' %}
+                  {% set delta_sign = '' %}
+                {% endif %}
+                <tr class="{% if loop.index is odd %}bg-slate-50/40 dark:bg-slate-800/20{% endif %}"
+                  data-ga4-row
+                  data-page="{{ row.value | e }}"
+                  data-last="{{ val | int }}"
+                  data-prev="{{ val_prev | int }}"
+                  data-delta="{{ delta | int }}"
+                  data-delta-pct="{{ pct }}">
+                  <td class="sticky left-0 bg-inherit max-w-0 truncate px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300" title="{{ row.value | e }}">{{ row.value }}</td>
+                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ "{:,.0f}".format(val) }}</td>
+                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-500 dark:text-slate-400">{{ "{:,.0f}".format(val_prev) }}</td>
+                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold {{ delta_cls }}">{{ delta_sign }}{{ "{:,.0f}".format(delta) }}</td>
+                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums {{ delta_cls }}">
+                    {% if row.change_pct is not none %}{{ delta_sign }}{{ "{:.1f}".format(row.change_pct) }}%{% else %}—{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>

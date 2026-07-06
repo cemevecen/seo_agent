@@ -13814,9 +13814,9 @@ def ga4_pages_partial(request: Request, site_id: int):
 
 @app.get("/ga4/app-detail/{site_id}")
 def ga4_app_detail_partial(request: Request, site_id: int):
-    """iOS / Android için ekran veya etkinlik kırılımı tablosu (HTMX partial)."""
+    """iOS / Android için ekran, etkinlik veya event parametre kırılımı (HTMX partial)."""
     profile = (request.query_params.get("profile") or "android").strip().lower()
-    kind = (request.query_params.get("kind") or "screens").strip().lower()  # screens | events
+    kind = (request.query_params.get("kind") or "screens").strip().lower()
     raw_days = (request.query_params.get("days") or "30").strip()
     try:
         days = max(1, int(raw_days))
@@ -13834,14 +13834,47 @@ def ga4_app_detail_partial(request: Request, site_id: int):
             return HTMLResponse("Bu profil için GA4 property tanımlı değil.", status_code=422)
 
     try:
-        from backend.collectors.ga4 import fetch_ga4_app_screens, fetch_ga4_app_events
+        from backend.collectors.ga4 import (
+            fetch_ga4_app_event_detail_sections,
+            fetch_ga4_app_events,
+            fetch_ga4_app_screens,
+        )
+        from backend.services.ga4_app_event_config import app_event_detail_config
+
+        if kind == "event_detail":
+            cfg = app_event_detail_config(profile)
+            sections = fetch_ga4_app_event_detail_sections(
+                property_id=property_id,
+                profile=profile,
+                days=days,
+                limit=100,
+            )
+            resp = templates.TemplateResponse(
+                request,
+                "partials/ga4_app_event_detail.html",
+                context={
+                    "request": request,
+                    "sections": sections,
+                    "days": days,
+                    "profile": profile,
+                    "event_name": (cfg or {}).get("event_name", ""),
+                    "detail_title": (cfg or {}).get("title", "Event detay"),
+                },
+            )
+            resp.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
+            return resp
         if kind == "events":
             rows = fetch_ga4_app_events(property_id=property_id, days=days, limit=50)
         else:
             rows = fetch_ga4_app_screens(property_id=property_id, days=days, limit=50)
     except Exception as exc:
         LOGGER.exception("GA4 app detail hatası [site=%s, profile=%s, kind=%s]", site_id, profile, kind)
-        label = "Eventler" if kind == "events" else "Ekranlar"
+        if kind == "event_detail":
+            label = "Event detay"
+        elif kind == "events":
+            label = "Eventler"
+        else:
+            label = "Ekranlar"
         return HTMLResponse(
             f'<div class="rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-6 text-sm text-slate-500 dark:text-slate-400">'
             f'{label} verisi çekilemedi: {__import__("html").escape(str(exc))}'
