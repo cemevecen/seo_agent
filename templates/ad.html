@@ -954,6 +954,7 @@
     summaryDrillSlice: null,
     summaryDrillMetric: "net_revenue",
     _summaryDrillUserPicked: false,
+    _chartLineBdTimeUserPicked: false,
     drillChartTime: "date",
     summaryDrillChartTime: "date",
     bdTime: "date",
@@ -1728,10 +1729,15 @@
       if (state.drillSlice && state.drillSlice.ad_unit) {
         p.set("ad_unit", state.drillSlice.ad_unit);
         p.set("ad_units", state.drillSlice.ad_unit);
-        if (state.drillSlice.area) p.set("area", state.drillSlice.area);
+        if (state.drillSlice.area) {
+          p.set("area", state.drillSlice.area);
+          if (state.drillSlice.area === "mweb") p.set("surfaces", "mweb");
+          else if (state.drillSlice.area === "web") p.set("surfaces", "web");
+        }
       }
       if (state.summaryDrillSlice && state.summaryDrillSlice.income_type) {
         p.set("drill_income_type", state.summaryDrillSlice.income_type);
+        p.set("income_types", state.summaryDrillSlice.income_type);
       }
     }
     var preset = document.getElementById("mz-preset").value;
@@ -1799,6 +1805,11 @@
         cfg.bdTime = span === 1 ? "date" : "week";
       }
     });
+    var lineCfg = state.breakdowns.chartLine;
+    if (lineCfg && !state._chartLineBdTimeUserPicked && span != null && span > 1) {
+      if (span > 120 && lineCfg.bdTime === "date") lineCfg.bdTime = "month";
+      else if (span > 14 && lineCfg.bdTime === "date") lineCfg.bdTime = "week";
+    }
     if (span === 1) {
       state.drillChartTime = "date";
       state.summaryDrillChartTime = "date";
@@ -1834,6 +1845,7 @@
         row("", function (el) {
           mountBdPills(el, cfg, bdTimeChartOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
+            if (scope === "chartLine") state._chartLineBdTimeUserPicked = true;
             refreshWidget(scope);
           });
         });
@@ -1841,6 +1853,7 @@
         row("", function (el) {
           mountBdPills(el, cfg, bdTimeMonthOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
+            if (scope === "chartLine") state._chartLineBdTimeUserPicked = true;
             refreshWidget(scope);
           });
         });
@@ -1848,6 +1861,7 @@
         row("Zaman", function (el) {
           mountBdPills(el, cfg, bdTimeChartOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
+            if (scope === "chartLine") state._chartLineBdTimeUserPicked = true;
             refreshWidget(scope);
           });
         }, "time");
@@ -2985,6 +2999,7 @@
         row("", function (el) {
           mountBdPills(el, cfg, bdTimeChartOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
+            if (scope === "chartLine") state._chartLineBdTimeUserPicked = true;
             refreshWidget(scope);
           });
         });
@@ -2992,6 +3007,7 @@
         row("", function (el) {
           mountBdPills(el, cfg, bdTimeMonthOptsForRange(), "time", function (v) {
             cfg.bdTime = v;
+            if (scope === "chartLine") state._chartLineBdTimeUserPicked = true;
             refreshWidget(scope);
           });
         });
@@ -4260,14 +4276,17 @@
       state.lastByDate || state.lastSummary.by_date || [],
       "date"
     );
-    if (dim === "date" && !cfg.bdArea && !cfg.bdDims.size) {
+    var useStreamSummary = !cfg.bdArea && !cfg.bdDims.size && !mzScopedDrillFiltersActive();
+    if (useStreamSummary && dim === "date") {
       await renderLineChart(byDate, state.activeKpiKey, cmp, "date", peerSum);
       return;
     }
     try {
       var fetchLimit = dim === "date" ? 800 : 2000;
-      var data = await fetchTableForScope("chartLine", fetchLimit);
-      var pseudo = aggregateTableRowsByDim(data.rows, dim);
+      var fetchCfg = chartLineBreakdownCfgForFetch(cfg);
+      var data = await fetchTableWithBreakdownCfg("chartLine", fetchLimit, fetchCfg, null);
+      var scopedRows = filterRowsForScopedDrill(data.rows || []);
+      var pseudo = aggregateTableRowsByDim(scopedRows, dim);
       pseudo = filterSeriesForChartView(pseudo, dim, state.lastSummary);
       await renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, cmp, dim, peerSum);
     } catch (e) {
@@ -4280,6 +4299,25 @@
       !!(state.drillSlice && state.drillSlice.ad_unit) ||
       !!(state.summaryDrillSlice && state.summaryDrillSlice.income_type)
     );
+  }
+
+  function filterRowsForScopedDrill(rows) {
+    var out = rows || [];
+    if (state.drillSlice && state.drillSlice.area) {
+      var want = String(state.drillSlice.area);
+      out = out.filter(function (r) { return String(r.area || "") === want; });
+    }
+    return out;
+  }
+
+  function chartLineBreakdownCfgForFetch(cfg) {
+    cfg = ensureBdCfg(cfg);
+    if (!mzScopedDrillFiltersActive()) return cfg;
+    return ensureBdCfg({
+      bdTime: cfg.bdTime || "date",
+      bdArea: state.drillSlice && state.drillSlice.area ? "area" : "",
+      bdDims: new Set(),
+    });
   }
 
   async function refreshChartMonth() {
