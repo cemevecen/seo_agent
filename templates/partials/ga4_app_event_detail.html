@@ -9,10 +9,10 @@
   {% set prev_l = 'Önceki 30 gün' %}
 {% endif %}
 
-<div class="space-y-4">
-  <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
-    <p class="font-semibold">{{ detail_title }}</p>
-    <p class="mt-0.5 text-[11px] opacity-90">Event: <code class="font-mono">{{ event_name }}</code> · GA4 customEvent parametreleri · {{ last_l }} vs {{ prev_l }}</p>
+<div class="w-full min-w-0 max-w-full space-y-4">
+  <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 px-2 py-2 text-xs text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200 sm:px-3">
+    <p class="font-semibold leading-snug">{{ detail_title }}</p>
+    <p class="mt-0.5 text-[10px] leading-snug opacity-90 sm:text-[11px]">Event: <code class="font-mono">{{ event_name }}</code> · GA4 customEvent parametreleri · {{ last_l }} vs {{ prev_l }}</p>
   </div>
 
   {% if not sections %}
@@ -22,8 +22,8 @@
   {% endif %}
 
   {% for section in sections %}
-    <div class="rounded-2xl border border-slate-200 dark:border-slate-700">
-      <p class="border-b border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 sm:px-3">
+    <div class="w-full min-w-0 max-w-full rounded-2xl border border-slate-200 dark:border-slate-700">
+      <p class="border-b border-slate-200 bg-slate-50 px-2 py-2 text-sm font-semibold leading-snug text-slate-800 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 sm:px-3">
         {{ section.label }}
         {% if section.param2 %}
           <span class="ml-1 text-[10px] font-normal text-slate-500 dark:text-slate-400">({{ section.param }} + {{ section.param2 }})</span>
@@ -39,25 +39,31 @@
       {% elif not section.rows %}
         <p class="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">Satır yok veya parametre GA4’te tanımlı değil.</p>
       {% else %}
-        <div class="overflow-x-auto overscroll-x-contain" style="-webkit-overflow-scrolling:touch;">
-          <table class="table-fixed text-xs" style="min-width:28rem;width:max-content;max-width:none;" data-ga4-table data-ga4-metric-table>
+        <p class="px-2 pt-1.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400 sm:hidden">Sütunlar için tabloyu yatay kaydırın.</p>
+        <div class="ga4-table-scroll w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+          <table class="w-full min-w-[30rem] table-fixed text-[10px] sm:text-xs" data-ga4-table data-ga4-metric-table data-ga4-breakdown-table data-ga4-app-event-table>
             <colgroup>
-              <col style="width:12rem;min-width:10rem;" />
-              <col style="width:5rem;min-width:5rem;" />
-              <col style="width:5rem;min-width:5rem;" />
-              <col style="width:5rem;min-width:5rem;" />
-              <col style="width:4rem;min-width:4rem;" />
+              <col style="width:38%" />
+              <col style="width:15.5%" />
+              <col style="width:15.5%" />
+              <col style="width:15.5%" />
+              <col style="width:15.5%" />
             </colgroup>
-            <thead class="text-slate-500 dark:text-slate-400" style="border-bottom:1px solid rgba(255,255,255,0.08);">
+            <thead class="border-b border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <tr>
-                <th class="sticky left-0 z-[1] bg-slate-50 px-2 py-1.5 text-left font-semibold dark:bg-slate-900/50">Değer</th>
-                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">Event</th>
-                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">Önceki</th>
-                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">Fark</th>
-                <th class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">%</th>
+                <th scope="col" class="sticky left-0 z-[1] bg-slate-50 px-1 py-1.5 text-left align-top font-semibold shadow-[4px_0_12px_-6px_rgba(15,23,42,0.25)] dark:bg-slate-900/50 sm:px-2 sm:py-2">
+                  <span class="flex flex-col items-start gap-0.5 text-left leading-tight">
+                    <span>Değer</span>
+                    <span class="text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]">Sayfa / parametre</span>
+                  </span>
+                </th>
+                <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right align-top font-semibold sm:px-2 sm:py-2">Event</th>
+                <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right align-top font-semibold sm:px-2 sm:py-2">Önceki</th>
+                <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right align-top font-semibold sm:px-2 sm:py-2">Fark</th>
+                <th scope="col" class="whitespace-nowrap px-1 py-1.5 text-right align-top font-semibold sm:px-2 sm:py-2">%</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-700/40">
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
               {% for row in section.rows %}
                 {% set val = row.count %}
                 {% set val_prev = row.count_prev %}
@@ -73,18 +79,38 @@
                   {% set delta_cls = 'text-slate-400' %}
                   {% set delta_sign = '' %}
                 {% endif %}
-                <tr class="{% if loop.index is odd %}bg-slate-50/40 dark:bg-slate-800/20{% endif %}"
+                {% set display = row.display_text if row.display_text is defined else row.value %}
+                {% set sub = row.display_sub if row.display_sub is defined else '' %}
+                {% set href = row.page_url if row.page_url is defined else '' %}
+                {% set raw = row.raw_value if row.raw_value is defined else row.value %}
+                <tr class="group {% if loop.index is odd %}bg-slate-50/40 dark:bg-slate-800/20{% endif %}"
                   data-ga4-row
-                  data-page="{{ row.value | e }}"
+                  data-page="{{ raw | e }}"
                   data-last="{{ val | int }}"
                   data-prev="{{ val_prev | int }}"
                   data-delta="{{ delta | int }}"
                   data-delta-pct="{{ pct }}">
-                  <td class="sticky left-0 bg-inherit max-w-0 truncate px-2 py-2 font-mono text-xs text-slate-700 dark:text-slate-300" title="{{ row.value | e }}">{{ row.value }}</td>
-                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-slate-800 dark:text-slate-200">{{ "{:,.0f}".format(val) }}</td>
-                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-500 dark:text-slate-400">{{ "{:,.0f}".format(val_prev) }}</td>
-                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold {{ delta_cls }}">{{ delta_sign }}{{ "{:,.0f}".format(delta) }}</td>
-                  <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums {{ delta_cls }}">
+                  <td class="ga4-path-cell sticky left-0 z-[1] min-w-0 bg-white px-1 py-1.5 text-left group-hover:bg-slate-50 dark:bg-slate-900 dark:group-hover:bg-slate-800 sm:px-2 sm:py-2 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.18)]">
+                    {% if href %}
+                      <a href="{{ href }}" target="_blank" rel="noopener noreferrer" title="{{ href }}" class="block max-w-full text-sky-600 underline decoration-sky-400/80 underline-offset-2 hover:text-sky-700 dark:text-sky-300 dark:decoration-sky-400/90 dark:hover:text-sky-200">
+                        <span class="block max-w-full overflow-hidden text-ellipsis font-medium leading-snug sm:whitespace-nowrap">{{ display }}</span>
+                      </a>
+                      {% if sub %}
+                        <span class="mt-0.5 block max-w-full truncate text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]" title="{{ sub }}">{{ sub }}</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="block max-w-full font-medium leading-snug text-slate-800 dark:text-slate-200 break-all sm:break-normal" title="{{ raw | e }}">
+                        <span class="line-clamp-2 sm:line-clamp-none">{{ display }}</span>
+                      </span>
+                      {% if sub %}
+                        <span class="mt-0.5 block max-w-full truncate text-[9px] font-normal text-slate-500 dark:text-slate-400 sm:text-[10px]" title="{{ sub }}">{{ sub }}</span>
+                      {% endif %}
+                    {% endif %}
+                  </td>
+                  <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold text-slate-800 dark:text-slate-200 sm:px-2 sm:py-2">{{ "{:,.0f}".format(val) }}</td>
+                  <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums text-slate-500 dark:text-slate-400 sm:px-2 sm:py-2">{{ "{:,.0f}".format(val_prev) }}</td>
+                  <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums font-semibold {{ delta_cls }} sm:px-2 sm:py-2">{{ delta_sign }}{{ "{:,.0f}".format(delta) }}</td>
+                  <td class="whitespace-nowrap px-1 py-1.5 text-right tabular-nums {{ delta_cls }} sm:px-2 sm:py-2">
                     {% if row.change_pct is not none %}{{ delta_sign }}{{ "{:.1f}".format(row.change_pct) }}%{% else %}—{% endif %}
                   </td>
                 </tr>
