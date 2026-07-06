@@ -7,6 +7,9 @@ from unittest.mock import MagicMock, patch
 from backend.collectors.ga4 import (
     _build_dimension_candidate_list,
     _event_dimension_candidates,
+    _is_junk_event_param_key,
+    _run_event_param_compare_report,
+    _split_compare_row_dimensions,
     fetch_ga4_event_param_breakdown,
 )
 from backend.services.ga4_app_event_config import app_event_detail_config
@@ -100,3 +103,57 @@ def test_fetch_ga4_event_param_breakdown_merges_periods(mock_dims, mock_windows,
     first_req = client.run_report.call_args_list[0][0][0]
     assert first_req.dimension_filter.filter.field_name == "eventName"
     assert len(first_req.date_ranges) == 2
+
+
+def test_split_compare_row_dimensions_strips_date_range():
+    class _DV:
+        def __init__(self, v):
+            self.value = v
+
+    key, tag = _split_compare_row_dimensions(
+        [_DV("(not set)"), _DV("date_range_1")],
+        requested_dim_count=1,
+    )
+    assert key == "(not set)"
+    assert tag == "date_range_1"
+    assert _is_junk_event_param_key("(not set) · date_range_1") is True
+
+
+@patch("backend.collectors.ga4._client")
+def test_compare_report_aggregates_date_range_rows(mock_client):
+    client = MagicMock()
+    mock_client.return_value = client
+
+    class _DV:
+        def __init__(self, v):
+            self.value = v
+
+    class _MV:
+        def __init__(self, v):
+            self.value = str(v)
+
+    row0 = MagicMock()
+    row0.dimension_values = [_DV("(not set)"), _DV("date_range_0")]
+    row0.metric_values = [_MV(100)]
+
+    row1 = MagicMock()
+    row1.dimension_values = [_DV("(not set)"), _DV("date_range_1")]
+    row1.metric_values = [_MV(80)]
+
+    resp = MagicMock()
+    resp.rows = [row0, row1]
+    client.run_report.return_value = resp
+
+    last_map, prev_map = _run_event_param_compare_report(
+        client,
+        property_id="1",
+        event_name="screen_view",
+        dimension_names=["customEvent:news_id"],
+        last_start="2026-06-01",
+        last_end="2026-06-07",
+        prev_start="2026-05-25",
+        prev_end="2026-05-31",
+        limit=100,
+    )
+    assert last_map == {"(not set)": 100.0}
+    assert prev_map == {"(not set)": 80.0}

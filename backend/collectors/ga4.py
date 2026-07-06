@@ -2226,21 +2226,56 @@ def _run_event_param_report(
     resp = client.run_report(req)
     out: dict[str, float] = {}
     for row in resp.rows or []:
-        parts = [str(dv.value or "").strip() for dv in (row.dimension_values or [])]
-        if len(parts) == 1:
-            key = parts[0] or "(not set)"
-        else:
-            key = " · ".join(p if p else "(not set)" for p in parts)
+        key = _event_param_row_key(row.dimension_values or [])
+        if _is_junk_event_param_key(key):
+            continue
         val = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
         out[key] = out.get(key, 0.0) + val
     return out
 
 
+_DATE_RANGE_VALUE_RE = re.compile(r"^date_range_\d+$", re.I)
+
+
+def _join_event_dim_parts(parts: list[str]) -> str:
+    clean = [str(p or "").strip() for p in parts if str(p or "").strip()]
+    if not clean:
+        return "(not set)"
+    if len(clean) == 1:
+        return clean[0] or "(not set)"
+    return " · ".join(p if p else "(not set)" for p in clean)
+
+
+def _is_junk_event_param_key(key: str) -> bool:
+    """GA4 çoklu date range yanıtında sızabilen date_range_* parçalarını ele."""
+    parts = [p.strip() for p in str(key or "").split(" · ")]
+    return any(_DATE_RANGE_VALUE_RE.match(p) for p in parts)
+
+
+def _split_compare_row_dimensions(
+    dimension_values: list,
+    *,
+    requested_dim_count: int,
+) -> tuple[str, str | None]:
+    """Çoklu date range isteğinde GA4'ün eklediği date_range_0/1 değerini ayırır."""
+    parts = [str(dv.value or "").strip() for dv in (dimension_values or [])]
+    range_tag: str | None = None
+    kept: list[str] = []
+    for p in parts:
+        if _DATE_RANGE_VALUE_RE.match(p):
+            if range_tag is None:
+                range_tag = p
+            continue
+        kept.append(p)
+    if requested_dim_count > 0 and len(kept) > requested_dim_count:
+        kept = kept[:requested_dim_count]
+    return _join_event_dim_parts(kept), range_tag
+
+
 def _event_param_row_key(dimension_values: list) -> str:
     parts = [str(dv.value or "").strip() for dv in (dimension_values or [])]
-    if len(parts) == 1:
-        return parts[0] or "(not set)"
-    return " · ".join(p if p else "(not set)" for p in parts)
+    kept = [p for p in parts if not _DATE_RANGE_VALUE_RE.match(p)]
+    return _join_event_dim_parts(kept)
 
 
 def _run_event_param_compare_report(
@@ -2273,13 +2308,26 @@ def _run_event_param_compare_report(
     resp = client.run_report(req)
     last_map: dict[str, float] = {}
     prev_map: dict[str, float] = {}
+    req_dim_count = len(dimension_names)
     for row in resp.rows or []:
-        key = _event_param_row_key(row.dimension_values or [])
+        key, range_tag = _split_compare_row_dimensions(
+            row.dimension_values or [],
+            requested_dim_count=req_dim_count,
+        )
+        if _is_junk_event_param_key(key):
+            continue
         metrics = row.metric_values or []
-        last_val = float(metrics[0].value or 0.0) if len(metrics) > 0 else 0.0
-        prev_val = float(metrics[1].value or 0.0) if len(metrics) > 1 else 0.0
-        last_map[key] = last_map.get(key, 0.0) + last_val
-        prev_map[key] = prev_map.get(key, 0.0) + prev_val
+        if range_tag == "date_range_0":
+            val = float(metrics[0].value or 0.0) if metrics else 0.0
+            last_map[key] = last_map.get(key, 0.0) + val
+        elif range_tag == "date_range_1":
+            val = float(metrics[0].value or 0.0) if metrics else 0.0
+            prev_map[key] = prev_map.get(key, 0.0) + val
+        else:
+            last_val = float(metrics[0].value or 0.0) if len(metrics) > 0 else 0.0
+            prev_val = float(metrics[1].value or 0.0) if len(metrics) > 1 else 0.0
+            last_map[key] = last_map.get(key, 0.0) + last_val
+            prev_map[key] = prev_map.get(key, 0.0) + prev_val
     return last_map, prev_map
 
 
@@ -2350,6 +2398,7 @@ def fetch_ga4_event_param_breakdown(
         if last_val > 0 or prev_val > 0
     ]
     rows.sort(key=lambda r: (r["value"] == "(not set)", -r["count"]))
+    rows = [r for r in rows if not _is_junk_event_param_key(str(r.get("value") or ""))]
     return rows[:safe_limit]
 
 
