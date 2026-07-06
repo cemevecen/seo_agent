@@ -45,12 +45,10 @@ APP_EVENT_DETAIL_BY_PROFILE: dict[str, AppEventDetailProfile] = {
         "event_name": "news_detail_opened",
         "title": "news_detail_opened — haber açılışı",
         "sections": [
-            {"param": "news_id", "label": "News ID", "alt_params": ["newsId", "newsID"]},
-            {"param": "news_title", "label": "News Title", "alt_params": ["newsTitle"]},
             {
                 "param": "news_id",
                 "param2": "news_title",
-                "label": "News ID + başlık",
+                "label": "Haberler",
                 "combined": True,
                 "alt_params": ["newsId"],
             },

@@ -24,6 +24,7 @@ _COMBINED_SEP = " · "
 _EVENT_DETAIL_CACHE: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
 _LOOKUP_CACHE: dict[tuple, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL_SEC = 180.0
+_CACHE_VER = 2
 
 
 def _param_key(name: str | None) -> str:
@@ -201,6 +202,64 @@ def enrich_event_param_row(
     return out
 
 
+def _row_merge_key(row: dict, *, param: str, param2: str | None) -> str:
+    """Aynı haber/sayfa için tek satır — article_id, URL veya normalize başlık."""
+    aid = str(row.get("article_id") or "").strip()
+    if aid:
+        return f"id:{aid}"
+    page_url = str(row.get("page_url") or "").strip().lower()
+    if page_url:
+        return f"url:{page_url}"
+    raw = str(row.get("raw_value") or row.get("value") or "").strip()
+    raw_l = raw.lower()
+    if raw_l in ("(not set)", "not set"):
+        return "raw:(not set)"
+    if section_enriches_news(param, param2):
+        display = str(row.get("display_text") or "").strip().lower()
+        if display and display not in ("(not set)", "not set"):
+            return f"display:{display}"
+        nk = _normalize_title_key(raw)
+        if nk:
+            return f"title:{nk}"
+    return f"raw:{raw_l}"
+
+
+def merge_enriched_event_rows(
+    rows: list[dict],
+    *,
+    param: str,
+    param2: str | None,
+) -> list[dict]:
+    """Enrichment sonrası aynı habere ait satırları toplar."""
+    if not rows:
+        return []
+    buckets: dict[str, dict] = {}
+    order: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        key = _row_merge_key(row, param=param, param2=param2)
+        if key not in buckets:
+            buckets[key] = dict(row)
+            order.append(key)
+            continue
+        bucket = buckets[key]
+        bucket["count"] = float(bucket.get("count") or 0) + float(row.get("count") or 0)
+        bucket["count_prev"] = float(bucket.get("count_prev") or 0) + float(row.get("count_prev") or 0)
+        if row.get("page_url") and not bucket.get("page_url"):
+            for field in ("page_url", "page_path", "display_text", "display_sub", "article_id"):
+                if row.get(field):
+                    bucket[field] = row[field]
+    merged = [buckets[k] for k in order]
+    merged.sort(
+        key=lambda r: (
+            str(r.get("display_text") or r.get("value") or "").lower() in ("(not set)", "not set"),
+            -float(r.get("count") or 0),
+        )
+    )
+    return merged
+
+
 def enrich_app_event_detail_sections(
     sections: list[dict],
     *,
@@ -222,7 +281,7 @@ def enrich_app_event_detail_sections(
         param = str(sec.get("param") or "")
         param2 = sec.get("param2")
         if section_enriches_news(param, param2) and sec.get("rows"):
-            sec["rows"] = [
+            enriched = [
                 enrich_event_param_row(
                     r,
                     param=param,
@@ -233,6 +292,13 @@ def enrich_app_event_detail_sections(
                 for r in sec["rows"]
                 if isinstance(r, dict)
             ]
+            sec["rows"] = merge_enriched_event_rows(enriched, param=param, param2=param2)
+        elif sec.get("rows"):
+            sec["rows"] = merge_enriched_event_rows(
+                [dict(r) for r in sec["rows"] if isinstance(r, dict)],
+                param=param,
+                param2=param2,
+            )
         out_sections.append(sec)
     return out_sections
 
@@ -254,7 +320,7 @@ def fetch_enriched_app_event_detail_sections(
     """Event detay bölümlerini çeker, URL ile zenginleştirir; kısa süreli bellek önbelleği."""
     from backend.collectors.ga4 import fetch_ga4_app_event_detail_sections
 
-    cache_key = (str(property_id), str(profile).lower(), max(1, int(days)), max(10, int(limit)))
+    cache_key = (str(property_id), str(profile).lower(), max(1, int(days)), max(10, int(limit)), _CACHE_VER)
     cached = _EVENT_DETAIL_CACHE.get(cache_key)
     if cached and (time.monotonic() - cached[0]) < _CACHE_TTL_SEC:
         return cached[1]

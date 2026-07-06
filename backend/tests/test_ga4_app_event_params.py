@@ -21,9 +21,10 @@ def test_app_event_detail_config_android_news():
     cfg = app_event_detail_config("android")
     assert cfg is not None
     assert cfg["event_name"] == "news_detail_opened"
-    params = [s.get("param") for s in cfg["sections"]]
-    assert "news_id" in params
-    assert "news_title" in params
+    labels = [s.get("label") for s in cfg["sections"]]
+    assert "Haberler" in labels
+    assert "from (kaynak)" in labels
+    assert len(cfg["sections"]) == 2
 
 
 def _mock_row(value: str, count: float, count_prev: float | None = None):

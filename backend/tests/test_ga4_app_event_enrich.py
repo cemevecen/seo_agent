@@ -7,6 +7,7 @@ from unittest.mock import patch
 from backend.services.ga4_app_event_enrich import (
     enrich_app_event_detail_sections,
     enrich_event_param_row,
+    merge_enriched_event_rows,
     section_enriches_news,
 )
 
@@ -104,3 +105,36 @@ def test_enrich_sections_only_for_news_params(mock_lookup):
     assert out[0]["rows"][0]["page_url"].endswith("/1")
     assert "page_url" not in out[1]["rows"][0]
     mock_lookup.assert_called_once()
+
+
+def test_merge_enriched_event_rows_by_article_id():
+    rows = [
+        {
+            "article_id": "894385",
+            "page_url": "https://haber.doviz.com/gundem/894385",
+            "display_text": "haziran-ayinin-zam-sampiyonlari-aciklandi",
+            "count": 120,
+            "count_prev": 0,
+            "raw_value": "894385",
+        },
+        {
+            "article_id": "894385",
+            "page_url": "https://haber.doviz.com/gundem/894385",
+            "display_text": "haziran-ayinin-zam-sampiyonlari-aciklandi",
+            "count": 80,
+            "count_prev": 0,
+            "raw_value": "894385 · Haziran ayının zam şampiyonları",
+        },
+    ]
+    merged = merge_enriched_event_rows(rows, param="news_id", param2="news_title")
+    assert len(merged) == 1
+    assert merged[0]["count"] == 200
+
+
+def test_merge_enriched_event_rows_keeps_not_set_separate():
+    rows = [
+        {"display_text": "(not set)", "count": 100, "raw_value": "(not set)"},
+        {"article_id": "1", "display_text": "haber-a", "count": 5, "raw_value": "1"},
+    ]
+    merged = merge_enriched_event_rows(rows, param="news_id", param2="news_title")
+    assert len(merged) == 2
