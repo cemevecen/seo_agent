@@ -2110,8 +2110,9 @@
       switcher.dataset.pagesKindBound = '1';
       const section = switcher.closest('[data-ga4-pages-section]');
       const buttons = switcher.querySelectorAll('[data-ga4-pages-kind]');
+      const defaultKind = switcher.getAttribute('data-ga4-default-pages-kind') || 'content';
       const activate = function (kind) {
-        var k = kind == null ? 'content' : String(kind);
+        var k = kind == null ? defaultKind : String(kind);
         buttons.forEach(function (button) {
           var isActive = ga4DataAttr(button, 'data-ga4-pages-kind') === k;
           button.dataset.active = isActive ? 'true' : 'false';

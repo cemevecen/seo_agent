@@ -181,7 +181,7 @@
   {# Dönem pill kopyası — header pill ile senkron çalışır #}
   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
     <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-      Ekranlar · {% if pk == 'ios' %}screen_view{% elif pk == 'android' %}Haber detay{% else %}Event detay{% endif %} · Eventler · Kaynak
+      Haber detay · Ekranlar · Eventler · Kaynak
     </p>
     <div class="ga4-period-proxy-wrap inline-flex shrink-0 items-stretch gap-0.5 rounded-full border border-violet-200 bg-violet-50 p-1 dark:border-slate-600 dark:bg-slate-800/95"
          data-period-proxy-pk="{{ pk }}" role="group" aria-label="Dönem seç">
@@ -243,13 +243,13 @@
   })();
   </script>
 
-  <div class="w-full min-w-0" data-ga4-pages-kind-switch role="tablist" aria-label="Ekranlar, event detay, eventler ve kaynak">
+  <div class="w-full min-w-0" data-ga4-pages-kind-switch data-ga4-default-pages-kind="event_detail" role="tablist" aria-label="Haber detay, ekranlar, eventler ve kaynak">
     <button type="button" role="tab"
       class="ga4-pages-kind-btn rounded-xl border border-slate-200 bg-slate-900 text-sm font-semibold text-white shadow-sm dark:border-slate-600 dark:bg-slate-600"
-      data-ga4-pages-kind="content" data-active="true">Ekranlar</button>
+      data-ga4-pages-kind="event_detail" data-active="true">Haber detay</button>
     <button type="button" role="tab"
       class="ga4-pages-kind-btn rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm transition dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
-      data-ga4-pages-kind="event_detail" data-active="false">{% if pk == 'ios' %}screen_view{% elif pk == 'android' %}Haber detay{% else %}Event detay{% endif %}</button>
+      data-ga4-pages-kind="content" data-active="false">Ekranlar</button>
     <button type="button" role="tab"
       class="ga4-pages-kind-btn rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm transition dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-300"
       data-ga4-pages-kind="news" data-active="false">Eventler</button>
@@ -258,24 +258,24 @@
       data-ga4-pages-kind="sources" data-active="false">Kaynak</button>
   </div>
 
+  {# Haber detay — varsayılan sekme #}
+  <div data-ga4-pages-kind-panel="event_detail" class="min-w-0">
+    <div data-ga4-pages-placeholder-event-detail
+      hx-get="/ga4/app-detail/{{ site.id }}?kind=event_detail&days={{ period_days }}&profile={{ pk }}"
+      hx-trigger="ga4-load" hx-swap="outerHTML" hx-timeout="120000"
+      class="rounded-2xl border border-slate-200 dark:border-slate-700">
+      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Haber detay</p>
+      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
+    </div>
+  </div>
+
   {# Ekranlar paneli #}
-  <div data-ga4-pages-kind-panel="content" class="min-w-0">
+  <div data-ga4-pages-kind-panel="content" class="hidden min-w-0">
     <div data-ga4-pages-placeholder
       hx-get="/ga4/app-detail/{{ site.id }}?kind=screens&days={{ period_days }}&profile={{ pk }}"
       hx-trigger="ga4-load" hx-swap="outerHTML"
       class="rounded-2xl border border-slate-200 dark:border-slate-700">
       <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Ekranlar (unifiedScreenName)</p>
-      <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
-    </div>
-  </div>
-
-  {# Event parametre detayı — iOS screen_view / Android news_detail_opened #}
-  <div data-ga4-pages-kind-panel="event_detail" class="hidden min-w-0">
-    <div data-ga4-pages-placeholder-event-detail
-      hx-get="/ga4/app-detail/{{ site.id }}?kind=event_detail&days={{ period_days }}&profile={{ pk }}"
-      hx-trigger="ga4-load" hx-swap="outerHTML" hx-timeout="120000"
-      class="rounded-2xl border border-slate-200 dark:border-slate-700">
-      <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">{% if pk == 'ios' %}screen_view parametreleri{% elif pk == 'android' %}news_detail_opened{% else %}Event detay{% endif %}</p>
       <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>
     </div>
   </div>

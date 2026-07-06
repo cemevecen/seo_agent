@@ -68,8 +68,6 @@ def app_event_detail_tab_label(profile: str) -> str:
     cfg = app_event_detail_config(profile)
     if not cfg:
         return "Event detay"
-    if profile == "ios":
-        return "screen_view"
-    if profile == "android":
+    if profile in ("ios", "android"):
         return "Haber detay"
     return cfg.get("event_name") or "Event detay"
