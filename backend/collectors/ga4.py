@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -14,6 +15,7 @@ from google.analytics.data_v1beta.types import (
     Filter,
     FilterExpression,
     FilterExpressionList,
+    GetMetadataRequest,
     Metric,
     OrderBy,
     RunReportRequest,
@@ -2081,6 +2083,71 @@ def fetch_ga4_app_events(
 
 
 def _custom_event_dimension_candidates(param_key: str, alt_params: list[str] | None = None) -> list[str]:
+    """Geriye uyumluluk — property_id olmadan aday üretir."""
+    return _event_dimension_candidates(param_key, alt_params)
+
+
+_STANDARD_GA4_DIMENSIONS = frozenset(
+    {
+        "unifiedScreenName",
+        "screenName",
+        "pageTitle",
+        "eventName",
+        "sessionSource",
+        "sessionMedium",
+        "sessionCampaignName",
+        "deviceCategory",
+        "platform",
+        "country",
+        "city",
+    }
+)
+
+_PARAM_STANDARD_FALLBACKS: dict[str, list[str]] = {
+    "firebase_screen": ["unifiedScreenName", "screenName"],
+    "screen": ["unifiedScreenName", "screenName"],
+    "firebase_screen_class": ["unifiedScreenName"],
+}
+
+_GA4_DIMENSION_METADATA_CACHE: dict[str, tuple[float, set[str]]] = {}
+_GA4_DIMENSION_METADATA_TTL_SEC = 3600.0
+
+
+def _param_name_variants(name: str) -> list[str]:
+    raw = str(name or "").strip()
+    if not raw:
+        return []
+    out: list[str] = []
+    for v in (raw, raw.lower()):
+        if v and v not in out:
+            out.append(v)
+    if "_" in raw:
+        parts = raw.split("_")
+        camel = parts[0] + "".join(p[:1].upper() + p[1:] for p in parts[1:] if p)
+        if camel and camel not in out:
+            out.append(camel)
+    return out
+
+
+def _ga4_valid_dimensions(property_id: str) -> set[str]:
+    pid = str(property_id or "").strip()
+    if not pid:
+        return set()
+    cached = _GA4_DIMENSION_METADATA_CACHE.get(pid)
+    if cached and (time.monotonic() - cached[0]) < _GA4_DIMENSION_METADATA_TTL_SEC:
+        return cached[1]
+    try:
+        client = _client()
+        meta = client.get_metadata(GetMetadataRequest(name=f"properties/{pid}/metadata"))
+        names = {str(d.api_name) for d in (meta.dimensions or []) if d.api_name}
+        _GA4_DIMENSION_METADATA_CACHE[pid] = (time.monotonic(), names)
+        return names
+    except Exception:
+        LOGGER.debug("GA4 metadata alınamadı property=%s", pid, exc_info=True)
+        return set()
+
+
+def _build_dimension_candidate_list(param_key: str, alt_params: list[str] | None = None) -> list[str]:
     keys: list[str] = []
     for raw in [param_key, *(alt_params or [])]:
         k = str(raw or "").strip()
@@ -2088,12 +2155,39 @@ def _custom_event_dimension_candidates(param_key: str, alt_params: list[str] | N
             keys.append(k)
     out: list[str] = []
     seen: set[str] = set()
+
+    def _add(dim: str) -> None:
+        d = str(dim or "").strip()
+        if d and d not in seen:
+            seen.add(d)
+            out.append(d)
+
     for k in keys:
-        dim = f"customEvent:{k}"
-        if dim not in seen:
-            seen.add(dim)
-            out.append(dim)
+        if k in _STANDARD_GA4_DIMENSIONS:
+            _add(k)
+        for std in _PARAM_STANDARD_FALLBACKS.get(k.lower(), []):
+            _add(std)
+        for variant in _param_name_variants(k):
+            _add(f"customEvent:{variant}")
     return out
+
+
+def _event_dimension_candidates(
+    param_key: str,
+    alt_params: list[str] | None = None,
+    *,
+    property_id: str | None = None,
+) -> list[str]:
+    """GA4 Data API dimension adayları — standart + customEvent, metadata ile süzülür."""
+    raw = _build_dimension_candidate_list(param_key, alt_params)
+    pid = str(property_id or "").strip()
+    if not pid:
+        return raw
+    valid = _ga4_valid_dimensions(pid)
+    if not valid:
+        return raw
+    filtered = [d for d in raw if d in valid]
+    return filtered if filtered else raw
 
 
 def _event_name_filter_expression(event_name: str) -> FilterExpression:
@@ -2208,12 +2302,15 @@ def fetch_ga4_event_param_breakdown(
 
     dim_sets: list[list[str]] = []
     if param_key_2:
-        for d1 in _custom_event_dimension_candidates(param_key, alt_params):
-            for d2 in _custom_event_dimension_candidates(param_key_2, alt_params_2):
+        for d1 in _event_dimension_candidates(param_key, alt_params, property_id=property_id):
+            for d2 in _event_dimension_candidates(param_key_2, alt_params_2, property_id=property_id):
                 dim_sets.append([d1, d2])
     else:
-        for d1 in _custom_event_dimension_candidates(param_key, alt_params):
+        for d1 in _event_dimension_candidates(param_key, alt_params, property_id=property_id):
             dim_sets.append([d1])
+
+    if not dim_sets:
+        return []
 
     last_map: dict[str, float] = {}
     prev_map: dict[str, float] = {}
@@ -2282,6 +2379,7 @@ def fetch_ga4_app_event_detail_sections(
         param = str(spec.get("param") or "").strip()
         label = str(spec.get("label") or param)
         alt = spec.get("alt_params") or []
+        alt2 = spec.get("alt_params_2") or []
         param2 = str(spec.get("param2") or "").strip() or None
         try:
             rows = fetch_ga4_event_param_breakdown(
@@ -2290,6 +2388,7 @@ def fetch_ga4_app_event_detail_sections(
                 param_key=param,
                 param_key_2=param2,
                 alt_params=list(alt) if alt else None,
+                alt_params_2=list(alt2) if alt2 else None,
                 days=days,
                 limit=limit,
             )

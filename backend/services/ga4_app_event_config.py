@@ -10,6 +10,7 @@ class AppEventParamSection(TypedDict, total=False):
     param2: str
     label: str
     alt_params: list[str]
+    alt_params_2: list[str]
     combined: bool
 
 
@@ -19,26 +20,23 @@ class AppEventDetailProfile(TypedDict):
     sections: list[AppEventParamSection]
 
 
-# Doviz mobil — GA4 UI event drill-down ile uyumlu parametreler.
+# Doviz mobil — GA4 property'de kayıtlı custom dimension'lar ile uyumlu parametreler.
+# iOS: screen_view + news_* (firebase_screen GA4'te custom dimension değil → unifiedScreenName).
 APP_EVENT_DETAIL_BY_PROFILE: dict[str, AppEventDetailProfile] = {
     "ios": {
         "event_name": "screen_view",
-        "title": "screen_view — ekran ve içerik parametreleri",
+        "title": "screen_view — haber ve ekran",
         "sections": [
-            {"param": "firebase_screen", "label": "firebase_screen (ekran adı)"},
-            {"param": "news_title", "label": "news_title (haber başlığı)"},
-            {"param": "from", "label": "from (navigasyon kaynağı)"},
-            {"param": "search_text", "label": "search_text (arama metni)"},
-            {"param": "asset_key", "label": "asset_key (varlık)"},
-            {"param": "action", "label": "action"},
-            {"param": "category", "label": "category"},
             {
                 "param": "news_id",
                 "param2": "news_title",
-                "label": "news_id + news_title (haber)",
+                "label": "Haberler",
                 "combined": True,
                 "alt_params": ["newsId"],
+                "alt_params_2": ["newsTitle"],
             },
+            {"param": "unifiedScreenName", "label": "Ekranlar"},
+            {"param": "from", "label": "from (kaynak)"},
         ],
     },
     "android": {
@@ -51,6 +49,7 @@ APP_EVENT_DETAIL_BY_PROFILE: dict[str, AppEventDetailProfile] = {
                 "label": "Haberler",
                 "combined": True,
                 "alt_params": ["newsId"],
+                "alt_params_2": ["newsTitle"],
             },
             {"param": "from", "label": "from (kaynak)"},
         ],

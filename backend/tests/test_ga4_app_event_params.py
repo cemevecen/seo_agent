@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from backend.collectors.ga4 import fetch_ga4_event_param_breakdown
+from backend.collectors.ga4 import (
+    _build_dimension_candidate_list,
+    _event_dimension_candidates,
+    fetch_ga4_event_param_breakdown,
+)
 from backend.services.ga4_app_event_config import app_event_detail_config
 
 
@@ -13,8 +17,9 @@ def test_app_event_detail_config_ios_screen_view():
     assert cfg is not None
     assert cfg["event_name"] == "screen_view"
     labels = [s["label"] for s in cfg["sections"]]
-    assert "firebase_screen (ekran adı)" in labels
-    assert "news_title (haber başlığı)" in labels
+    assert "Haberler" in labels
+    assert "Ekranlar" in labels
+    assert "firebase_screen" not in str(cfg["sections"])
 
 
 def test_app_event_detail_config_android_news():
@@ -25,6 +30,27 @@ def test_app_event_detail_config_android_news():
     assert "Haberler" in labels
     assert "from (kaynak)" in labels
     assert len(cfg["sections"]) == 2
+
+
+def test_build_dimension_candidate_list_firebase_screen_fallback():
+    dims = _build_dimension_candidate_list("firebase_screen")
+    assert "unifiedScreenName" in dims
+    assert "customEvent:firebase_screen" in dims
+
+
+def test_build_dimension_candidate_list_news_variants():
+    dims = _build_dimension_candidate_list("news_title", ["newsTitle"])
+    assert "customEvent:news_title" in dims
+    assert "customEvent:newsTitle" in dims
+
+
+@patch("backend.collectors.ga4._ga4_valid_dimensions")
+def test_event_dimension_candidates_filters_invalid(mock_valid):
+    mock_valid.return_value = {"customEvent:news_title", "unifiedScreenName"}
+    dims = _event_dimension_candidates("firebase_screen", property_id="123")
+    assert "unifiedScreenName" in dims
+    assert "customEvent:firebase_screen" not in dims
+    assert "customEvent:news_title" not in dims
 
 
 def _mock_row(value: str, count: float, count_prev: float | None = None):
@@ -39,7 +65,9 @@ def _mock_row(value: str, count: float, count_prev: float | None = None):
 
 @patch("backend.collectors.ga4._client")
 @patch("backend.collectors.ga4._calendar_windows")
-def test_fetch_ga4_event_param_breakdown_merges_periods(mock_windows, mock_client):
+@patch("backend.collectors.ga4._event_dimension_candidates")
+def test_fetch_ga4_event_param_breakdown_merges_periods(mock_dims, mock_windows, mock_client):
+    mock_dims.return_value = ["customEvent:news_title"]
     mock_windows.return_value = (("2026-06-01", "2026-06-07"), ("2026-05-25", "2026-05-31"))
     client = MagicMock()
     mock_client.return_value = client
@@ -57,7 +85,7 @@ def test_fetch_ga4_event_param_breakdown_merges_periods(mock_windows, mock_clien
     rows = fetch_ga4_event_param_breakdown(
         property_id="163175967",
         event_name="screen_view",
-        param_key="firebase_screen",
+        param_key="news_title",
         days=7,
         limit=50,
     )
@@ -68,7 +96,7 @@ def test_fetch_ga4_event_param_breakdown_merges_periods(mock_windows, mock_clien
     assert home["count_prev"] == 80
     assert home["change_pct"] == 25.0
     assert client.run_report.call_count == 1
+    mock_dims.assert_called()
     first_req = client.run_report.call_args_list[0][0][0]
     assert first_req.dimension_filter.filter.field_name == "eventName"
-    assert first_req.dimensions[0].name == "customEvent:firebase_screen"
     assert len(first_req.date_ranges) == 2
