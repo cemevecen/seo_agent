@@ -273,7 +273,7 @@
   <div data-ga4-pages-kind-panel="event_detail" class="hidden min-w-0">
     <div data-ga4-pages-placeholder-event-detail
       hx-get="/ga4/app-detail/{{ site.id }}?kind=event_detail&days={{ period_days }}&profile={{ pk }}"
-      hx-trigger="ga4-load" hx-swap="outerHTML"
+      hx-trigger="ga4-load" hx-swap="outerHTML" hx-timeout="120000"
       class="rounded-2xl border border-slate-200 dark:border-slate-700">
       <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">{% if pk == 'ios' %}screen_view parametreleri{% elif pk == 'android' %}news_detail_opened{% else %}Event detay{% endif %}</p>
       <div class="px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>

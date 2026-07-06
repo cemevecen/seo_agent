@@ -26,10 +26,13 @@ def test_app_event_detail_config_android_news():
     assert "news_title" in params
 
 
-def _mock_row(value: str, count: float):
+def _mock_row(value: str, count: float, count_prev: float | None = None):
     row = MagicMock()
     row.dimension_values = [MagicMock(value=value)]
-    row.metric_values = [MagicMock(value=str(count))]
+    if count_prev is None:
+        row.metric_values = [MagicMock(value=str(count))]
+    else:
+        row.metric_values = [MagicMock(value=str(count)), MagicMock(value=str(count_prev))]
     return row
 
 
@@ -42,11 +45,10 @@ def test_fetch_ga4_event_param_breakdown_merges_periods(mock_windows, mock_clien
 
     def _side_effect(req):
         resp = MagicMock()
-        end = req.date_ranges[0].end_date
-        if end == "2026-06-07":
-            resp.rows = [_mock_row("home", 100), _mock_row("(not set)", 50)]
-        else:
-            resp.rows = [_mock_row("home", 80)]
+        resp.rows = [
+            _mock_row("home", 100, 80),
+            _mock_row("(not set)", 50, 0),
+        ]
         return resp
 
     client.run_report.side_effect = _side_effect
@@ -64,7 +66,8 @@ def test_fetch_ga4_event_param_breakdown_merges_periods(mock_windows, mock_clien
     assert home["count"] == 100
     assert home["count_prev"] == 80
     assert home["change_pct"] == 25.0
-    assert client.run_report.call_count == 2
+    assert client.run_report.call_count == 1
     first_req = client.run_report.call_args_list[0][0][0]
     assert first_req.dimension_filter.filter.field_name == "eventName"
     assert first_req.dimensions[0].name == "customEvent:firebase_screen"
+    assert len(first_req.date_ranges) == 2

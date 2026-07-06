@@ -13835,29 +13835,25 @@ def ga4_app_detail_partial(request: Request, site_id: int):
 
     try:
         from backend.collectors.ga4 import (
-            fetch_ga4_app_event_detail_sections,
             fetch_ga4_app_events,
             fetch_ga4_app_screens,
         )
         from backend.services.ga4_app_event_config import app_event_detail_config
 
         if kind == "event_detail":
-            from backend.services.ga4_app_event_enrich import enrich_app_event_detail_sections
+            from backend.services.ga4_app_event_enrich import fetch_enriched_app_event_detail_sections
 
             cfg = app_event_detail_config(profile)
             lookup_pids = [
                 str(properties.get("web") or "").strip(),
                 str(properties.get("mweb") or "").strip(),
             ]
-            sections = enrich_app_event_detail_sections(
-                fetch_ga4_app_event_detail_sections(
-                    property_id=property_id,
-                    profile=profile,
-                    days=days,
-                    limit=100,
-                ),
-                property_ids=lookup_pids,
+            sections = fetch_enriched_app_event_detail_sections(
+                property_id=property_id,
+                profile=profile,
                 days=days,
+                limit=100,
+                lookup_property_ids=lookup_pids,
                 site_domain=site.domain,
             )
             resp = templates.TemplateResponse(

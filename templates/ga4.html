@@ -1978,21 +1978,36 @@
 
   // Bir panel görünür hale gelince içindeki henüz yüklenmemiş
   // placeholder'lara ga4-load event'i gönderir (HTMX fetch tetikler).
+  var GA4_PLACEHOLDER_SEL =
+    '[data-ga4-pages-placeholder],[data-ga4-sources-placeholder],[data-ga4-pages-placeholder-news],[data-ga4-pages-placeholder-event-detail]';
+
+  function triggerGa4Placeholders(scope, hiddenOnly) {
+    if (!scope) return;
+    scope.querySelectorAll(GA4_PLACEHOLDER_SEL).forEach(function (el) {
+      var kindPanel = el.closest('[data-ga4-pages-kind-panel]');
+      var isHidden = kindPanel && kindPanel.classList.contains('hidden');
+      if (hiddenOnly ? !isHidden : isHidden) {
+        return;
+      }
+      if (el.classList.contains('htmx-request')) {
+        return;
+      }
+      htmx.trigger(el, 'ga4-load');
+    });
+  }
+
+  function prefetchGa4HiddenKindPanels(scope) {
+    triggerGa4Placeholders(scope, true);
+  }
+
   function triggerGa4Load(panel) {
     if (!panel || panel.classList.contains('hidden')) return;
-    panel
-      .querySelectorAll('[data-ga4-pages-placeholder],[data-ga4-sources-placeholder],[data-ga4-pages-placeholder-news],[data-ga4-pages-placeholder-event-detail]')
-      .forEach(function (el) {
-        var kindPanel = el.closest('[data-ga4-pages-kind-panel]');
-        if (kindPanel && kindPanel.classList.contains('hidden')) {
-          return;
-        }
-        // data-ga4-loaded istek ÖNCESİ set edilmesin: hata / boş yanıtta yeniden deneme kilitleniyordu.
-        if (el.classList.contains('htmx-request')) {
-          return;
-        }
-        htmx.trigger(el, 'ga4-load');
-      });
+    triggerGa4Placeholders(panel, false);
+    // Haber detay / eventler / kaynak: görünür sekme yüklenirken arka planda ön-getir
+    var prefetchScope = panel.closest('[data-ga4-profile-panel]') || panel;
+    window.setTimeout(function () {
+      prefetchGa4HiddenKindPanels(prefetchScope);
+    }, 80);
   }
 
   function initGa4PeriodSwitch(root) {
@@ -2551,6 +2566,7 @@
       el &&
       (el.hasAttribute('data-ga4-pages-placeholder') ||
         el.hasAttribute('data-ga4-pages-placeholder-news') ||
+        el.hasAttribute('data-ga4-pages-placeholder-event-detail') ||
         el.hasAttribute('data-ga4-sources-placeholder'))
     ) {
       /* outerHTML swap sonrası yeni kök için event.target doğru düğüm; detail.target eski placeholder olabilir */

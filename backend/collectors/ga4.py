@@ -2142,6 +2142,53 @@ def _run_event_param_report(
     return out
 
 
+def _event_param_row_key(dimension_values: list) -> str:
+    parts = [str(dv.value or "").strip() for dv in (dimension_values or [])]
+    if len(parts) == 1:
+        return parts[0] or "(not set)"
+    return " · ".join(p if p else "(not set)" for p in parts)
+
+
+def _run_event_param_compare_report(
+    client: BetaAnalyticsDataClient,
+    *,
+    property_id: str,
+    event_name: str,
+    dimension_names: list[str],
+    last_start: str,
+    last_end: str,
+    prev_start: str,
+    prev_end: str,
+    limit: int,
+) -> tuple[dict[str, float], dict[str, float]]:
+    """İki dönemi tek GA4 isteğinde çeker (eventCount × 2 date range)."""
+    if not dimension_names:
+        return {}, {}
+    req = RunReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name=d) for d in dimension_names],
+        metrics=[Metric(name="eventCount")],
+        date_ranges=[
+            DateRange(start_date=last_start, end_date=last_end),
+            DateRange(start_date=prev_start, end_date=prev_end),
+        ],
+        dimension_filter=_event_name_filter_expression(event_name),
+        limit=limit,
+        order_bys=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name="eventCount"), desc=True)],
+    )
+    resp = client.run_report(req)
+    last_map: dict[str, float] = {}
+    prev_map: dict[str, float] = {}
+    for row in resp.rows or []:
+        key = _event_param_row_key(row.dimension_values or [])
+        metrics = row.metric_values or []
+        last_val = float(metrics[0].value or 0.0) if len(metrics) > 0 else 0.0
+        prev_val = float(metrics[1].value or 0.0) if len(metrics) > 1 else 0.0
+        last_map[key] = last_map.get(key, 0.0) + last_val
+        prev_map[key] = prev_map.get(key, 0.0) + prev_val
+    return last_map, prev_map
+
+
 def fetch_ga4_event_param_breakdown(
     *,
     property_id: str,
@@ -2174,22 +2221,15 @@ def fetch_ga4_event_param_breakdown(
 
     for dims in dim_sets:
         try:
-            last_map = _run_event_param_report(
+            last_map, prev_map = _run_event_param_compare_report(
                 client,
                 property_id=property_id,
                 event_name=event_name,
                 dimension_names=dims,
-                start=last_start,
-                end=last_end,
-                limit=safe_limit,
-            )
-            prev_map = _run_event_param_report(
-                client,
-                property_id=property_id,
-                event_name=event_name,
-                dimension_names=dims,
-                start=prev_start,
-                end=prev_end,
+                last_start=last_start,
+                last_end=last_end,
+                prev_start=prev_start,
+                prev_end=prev_end,
                 limit=safe_limit,
             )
             last_err = None
@@ -2223,57 +2263,65 @@ def fetch_ga4_app_event_detail_sections(
     days: int = 30,
     limit: int = 100,
 ) -> list[dict[str, Any]]:
-    """Profil için tanımlı tüm event parametre tablolarını çeker."""
+    """Profil için tanımlı tüm event parametre tablolarını çeker (bölümler paralel)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from backend.services.ga4_app_event_config import app_event_detail_config
 
     cfg = app_event_detail_config(profile)
     if not cfg:
         return []
 
-    sections: list[dict[str, Any]] = []
-    for spec in cfg.get("sections") or []:
+    specs = [s for s in (cfg.get("sections") or []) if str(s.get("param") or "").strip()]
+    if not specs:
+        return []
+
+    event_name = str(cfg["event_name"])
+
+    def _one_section(spec: dict) -> dict[str, Any]:
         param = str(spec.get("param") or "").strip()
-        if not param:
-            continue
         label = str(spec.get("label") or param)
         alt = spec.get("alt_params") or []
         param2 = str(spec.get("param2") or "").strip() or None
         try:
             rows = fetch_ga4_event_param_breakdown(
                 property_id=property_id,
-                event_name=str(cfg["event_name"]),
+                event_name=event_name,
                 param_key=param,
                 param_key_2=param2,
                 alt_params=list(alt) if alt else None,
                 days=days,
                 limit=limit,
             )
-            sections.append(
-                {
-                    "label": label,
-                    "event_name": cfg["event_name"],
-                    "param": param,
-                    "param2": param2,
-                    "rows": rows,
-                    "error": None,
-                }
-            )
+            return {
+                "label": label,
+                "event_name": event_name,
+                "param": param,
+                "param2": param2,
+                "rows": rows,
+                "error": None,
+            }
         except Exception as exc:
             LOGGER.warning(
                 "GA4 event param breakdown failed [%s %s %s]: %s",
                 profile,
-                cfg.get("event_name"),
+                event_name,
                 param,
                 exc,
             )
-            sections.append(
-                {
-                    "label": label,
-                    "event_name": cfg["event_name"],
-                    "param": param,
-                    "param2": param2,
-                    "rows": [],
-                    "error": str(exc),
-                }
-            )
-    return sections
+            return {
+                "label": label,
+                "event_name": event_name,
+                "param": param,
+                "param2": param2,
+                "rows": [],
+                "error": str(exc),
+            }
+
+    workers = min(6, max(1, len(specs)))
+    ordered: list[dict[str, Any] | None] = [None] * len(specs)
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ga4-evparam") as pool:
+        future_map = {pool.submit(_one_section, spec): i for i, spec in enumerate(specs)}
+        for fut in as_completed(future_map):
+            ordered[future_map[fut]] = fut.result()
+    return [s for s in ordered if s is not None]

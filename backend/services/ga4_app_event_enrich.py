@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Iterable
 
 from backend.services.ga4_page_urls import (
@@ -19,6 +21,9 @@ from backend.services.notification_content_traffic import (
 _NEWS_ID_PARAMS = frozenset({"news_id", "newsid"})
 _NEWS_TITLE_PARAMS = frozenset({"news_title", "newstitle"})
 _COMBINED_SEP = " · "
+_EVENT_DETAIL_CACHE: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
+_LOOKUP_CACHE: dict[tuple, tuple[float, dict[str, Any]]] = {}
+_CACHE_TTL_SEC = 180.0
 
 
 def _param_key(name: str | None) -> str:
@@ -46,22 +51,29 @@ def build_news_article_lookup(
     (last_start, last_end), _ = _calendar_windows(max(1, int(days)))
     by_id: dict[str, dict] = {}
     by_title: dict[str, str] = {}
-    seen: set[str] = set()
+    pids = [str(raw_pid or "").strip() for raw_pid in property_ids]
+    pids = list(dict.fromkeys(p for p in pids if p))
+    if not pids:
+        return {"by_id": by_id, "by_title": by_title}
 
-    for raw_pid in property_ids:
-        pid = str(raw_pid or "").strip()
-        if not pid or pid in seen:
-            continue
-        seen.add(pid)
+    def _fetch_pid(pid: str) -> list[dict]:
         try:
-            raw_rows = fetch_ga4_news_detail_pages_metrics(
+            return fetch_ga4_news_detail_pages_metrics(
                 property_id=pid,
                 start=last_start,
                 end=last_end,
                 limit=500,
             )
         except Exception:
-            continue
+            return []
+
+    raw_by_pid: list[list[dict]] = []
+    workers = min(2, len(pids))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ga4-news-lookup") as pool:
+        for rows in pool.map(_fetch_pid, pids):
+            raw_by_pid.append(rows)
+
+    for raw_rows in raw_by_pid:
         rows = enrich_ga4_page_rows(raw_rows, keep_news_articles=True)
         for row in rows:
             if not isinstance(row, dict):
@@ -195,13 +207,14 @@ def enrich_app_event_detail_sections(
     property_ids: Iterable[str],
     days: int,
     site_domain: str | None,
+    lookup: dict[str, Any] | None = None,
 ) -> list[dict]:
     if not sections:
         return []
     needs_lookup = any(section_enriches_news(s.get("param"), s.get("param2")) for s in sections)
-    lookup: dict[str, Any] = {"by_id": {}, "by_title": {}}
-    if needs_lookup:
-        lookup = build_news_article_lookup(property_ids, days=days)
+    resolved_lookup: dict[str, Any] = lookup or {"by_id": {}, "by_title": {}}
+    if needs_lookup and lookup is None:
+        resolved_lookup = build_news_article_lookup(property_ids, days=days)
 
     out_sections: list[dict] = []
     for section in sections:
@@ -214,7 +227,7 @@ def enrich_app_event_detail_sections(
                     r,
                     param=param,
                     param2=str(param2) if param2 else None,
-                    lookup=lookup,
+                    lookup=resolved_lookup,
                     site_domain=site_domain,
                 )
                 for r in sec["rows"]
@@ -222,3 +235,70 @@ def enrich_app_event_detail_sections(
             ]
         out_sections.append(sec)
     return out_sections
+
+
+def _lookup_cache_key(property_ids: Iterable[str], days: int) -> tuple:
+    pids = tuple(sorted(str(p or "").strip() for p in property_ids if str(p or "").strip()))
+    return pids + (max(1, int(days)),)
+
+
+def fetch_enriched_app_event_detail_sections(
+    *,
+    property_id: str,
+    profile: str,
+    days: int,
+    limit: int,
+    lookup_property_ids: Iterable[str],
+    site_domain: str | None,
+) -> list[dict]:
+    """Event detay bölümlerini çeker, URL ile zenginleştirir; kısa süreli bellek önbelleği."""
+    from backend.collectors.ga4 import fetch_ga4_app_event_detail_sections
+
+    cache_key = (str(property_id), str(profile).lower(), max(1, int(days)), max(10, int(limit)))
+    cached = _EVENT_DETAIL_CACHE.get(cache_key)
+    if cached and (time.monotonic() - cached[0]) < _CACHE_TTL_SEC:
+        return cached[1]
+
+    lookup_key = _lookup_cache_key(lookup_property_ids, days)
+    lookup_cached = _LOOKUP_CACHE.get(lookup_key)
+    lookup: dict[str, Any] | None = None
+    if lookup_cached and (time.monotonic() - lookup_cached[0]) < _CACHE_TTL_SEC:
+        lookup = lookup_cached[1]
+
+    if lookup is not None:
+        sections = fetch_ga4_app_event_detail_sections(
+            property_id=property_id,
+            profile=profile,
+            days=days,
+            limit=limit,
+        )
+        out = enrich_app_event_detail_sections(
+            sections,
+            property_ids=lookup_property_ids,
+            days=days,
+            site_domain=site_domain,
+            lookup=lookup,
+        )
+    else:
+        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="ga4-evdetail") as pool:
+            fut_sections = pool.submit(
+                fetch_ga4_app_event_detail_sections,
+                property_id=property_id,
+                profile=profile,
+                days=days,
+                limit=limit,
+            )
+            fut_lookup = pool.submit(build_news_article_lookup, lookup_property_ids, days=days)
+            sections = fut_sections.result()
+            lookup = fut_lookup.result()
+        _LOOKUP_CACHE[lookup_key] = (time.monotonic(), lookup)
+        out = enrich_app_event_detail_sections(
+            sections,
+            property_ids=lookup_property_ids,
+            days=days,
+            site_domain=site_domain,
+            lookup=lookup,
+        )
+
+    _EVENT_DETAIL_CACHE[cache_key] = (time.monotonic(), out)
+    return out
