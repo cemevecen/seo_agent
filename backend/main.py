@@ -14921,6 +14921,69 @@ def api_ga4_realtime_top_events(
     return JSONResponse(result)
 
 
+@app.get("/api/ga4/realtime/{site_id}/app-event-detail")
+def api_ga4_realtime_app_event_detail(
+    site_id: int,
+    profile: str = "ios",
+    window: int = 30,
+    limit: int = 25,
+):
+    """Realtime iOS/Android Haber detay — screen_view / news_detail_opened kırılımları."""
+    from backend.services.ga4_auth import get_ga4_credentials_record, load_ga4_properties
+    from backend.services.ga4_realtime_app_event import fetch_realtime_app_event_detail
+    from backend.services.realtime_cache import get_or_call
+
+    with SessionLocal() as db:
+        site = db.query(Site).filter(Site.id == site_id).first()
+        if site is None:
+            return JSONResponse({"error": "site_not_found"}, status_code=404)
+        record = get_ga4_credentials_record(db, site.id)
+        properties = load_ga4_properties(record)
+        property_id = str(properties.get(profile) or "").strip()
+        if not property_id:
+            return JSONResponse(
+                {"error": "no_property", "message": f"{profile} profili tanımlı değil"},
+                status_code=404,
+            )
+        lookup_pids = [
+            str(properties.get("web") or "").strip(),
+            str(properties.get("mweb") or "").strip(),
+        ]
+        site_domain = str(site.domain or "")
+
+    def _produce():
+        try:
+            result = fetch_realtime_app_event_detail(
+                property_id,
+                profile,
+                site_domain=site_domain,
+                lookup_property_ids=lookup_pids,
+                window_minutes=min(window, 29),
+                limit=min(limit, 50),
+            )
+            result["site_id"] = site_id
+            return result
+        except Exception as exc:
+            LOGGER.exception("Realtime app event detail hatası [site=%s, profile=%s]", site_id, profile)
+            return {
+                "site_id": site_id,
+                "profile": profile,
+                "sections": [],
+                "window_minutes": min(window, 29),
+                "error": "api_error",
+                "message": str(exc),
+            }
+
+    result = get_or_call(
+        f"rt:appdetail:{site_id}:{profile}:{window}:{limit}",
+        settings.ga4_realtime_list_cache_seconds,
+        _produce,
+        is_error=lambda r: bool(r.get("error")),
+        last_good_ttl=settings.ga4_realtime_last_good_seconds,
+    )
+    return JSONResponse(result)
+
+
 @app.post("/api/ga4/realtime/check-all")
 def api_ga4_realtime_check_all(request: Request):
     """Tüm aktif siteleri kontrol et — manuel tetik veya scheduler'dan çağrılır."""
