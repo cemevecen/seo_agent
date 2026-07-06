@@ -1981,6 +1981,104 @@
   var GA4_PLACEHOLDER_SEL =
     '[data-ga4-pages-placeholder],[data-ga4-sources-placeholder],[data-ga4-pages-placeholder-news],[data-ga4-pages-placeholder-event-detail]';
 
+  function ga4SetKindTabUi(profilePanel, kind) {
+    if (!profilePanel) return;
+    var k = kind == null ? 'content' : String(kind);
+    var switcher = profilePanel.querySelector('[data-ga4-pages-kind-switch]');
+    if (!switcher) return;
+    switcher.querySelectorAll('[data-ga4-pages-kind]').forEach(function (button) {
+      var isActive = ga4DataAttr(button, 'data-ga4-pages-kind') === k;
+      button.dataset.active = isActive ? 'true' : 'false';
+      button.classList.toggle('bg-slate-900', isActive);
+      button.classList.toggle('dark:bg-slate-600', isActive);
+      button.classList.toggle('text-white', isActive);
+      button.classList.toggle('text-slate-600', !isActive);
+      button.classList.toggle('dark:text-slate-300', !isActive);
+      button.classList.toggle('bg-white', !isActive);
+      button.classList.toggle('dark:bg-slate-800/90', !isActive);
+    });
+    profilePanel.querySelectorAll('[data-ga4-pages-kind-panel]').forEach(function (panel) {
+      panel.classList.toggle('hidden', ga4DataAttr(panel, 'data-ga4-pages-kind-panel') !== k);
+    });
+  }
+
+  function ga4BuildKindPanelUrl(kindPanel) {
+    if (!kindPanel) return '';
+    var profilePanel = kindPanel.closest('[data-ga4-profile-panel]');
+    var card = kindPanel.closest('[data-ga4-site-card]');
+    if (!profilePanel || !card) return '';
+    var siteId = card.getAttribute('data-site-id');
+    var profile = profilePanel.getAttribute('data-ga4-profile-panel') || '';
+    var days = profilePanel.getAttribute('data-ga4-period-days') || '7';
+    var kind = kindPanel.getAttribute('data-ga4-pages-kind-panel') || '';
+    var d = encodeURIComponent(days);
+    var p = encodeURIComponent(profile);
+    if (profile === 'ios' || profile === 'android') {
+      if (kind === 'event_detail') return '/ga4/app-detail/' + siteId + '?kind=event_detail&days=' + d + '&profile=' + p;
+      if (kind === 'content') return '/ga4/app-detail/' + siteId + '?kind=screens&days=' + d + '&profile=' + p;
+      if (kind === 'news') return '/ga4/app-detail/' + siteId + '?kind=events&days=' + d + '&profile=' + p;
+      if (kind === 'sources') return '/ga4/sources/' + siteId + '?days=' + d + '&profile=' + p;
+    } else {
+      if (kind === 'content') return '/ga4/pages/' + siteId + '?days=' + d + '&profile=' + p;
+      if (kind === 'sources') return '/ga4/sources/' + siteId + '?days=' + d + '&profile=' + p;
+      if (kind === 'news') {
+        var newsBtn =
+          kindPanel.querySelector('[data-ga4-news-days][data-active="true"]') ||
+          kindPanel.querySelector('[data-ga4-news-days="7"]');
+        var newsDays = newsBtn ? newsBtn.getAttribute('data-ga4-news-days') || days : days;
+        return '/ga4/pages/' + siteId + '?days=' + encodeURIComponent(newsDays) + '&profile=' + p + '&news=1';
+      }
+    }
+    return '';
+  }
+
+  function ga4ReloadKindPanel(kindPanel) {
+    if (!kindPanel) return;
+    var url = ga4BuildKindPanelUrl(kindPanel);
+    if (!url) return;
+    var kind = kindPanel.getAttribute('data-ga4-pages-kind-panel') || '';
+    var newsBody = kind === 'news' ? kindPanel.querySelector('[data-ga4-news-body]') : null;
+    var target = newsBody || kindPanel;
+    var swap = newsBody ? 'innerHTML' : 'innerHTML';
+    if (!newsBody) {
+      kindPanel.innerHTML =
+        '<div class="rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>';
+    } else {
+      newsBody.innerHTML =
+        '<div class="rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-6 text-center text-sm text-slate-400 animate-pulse dark:text-slate-500">Yükleniyor…</div>';
+    }
+    htmx.ajax('GET', url, { target: target, swap: swap });
+  }
+
+  function ga4LoadKindPanel(kindPanel, forceReload) {
+    if (!kindPanel || kindPanel.classList.contains('hidden')) return;
+    var placeholder = kindPanel.querySelector(GA4_PLACEHOLDER_SEL);
+    if (!forceReload && placeholder && !placeholder.classList.contains('htmx-request')) {
+      htmx.trigger(placeholder, 'ga4-load');
+      return;
+    }
+    ga4ReloadKindPanel(kindPanel);
+  }
+
+  function ga4LoadActiveProfilePanel(profilePanel, forceReload) {
+    if (!profilePanel || profilePanel.classList.contains('hidden')) return;
+    var kindSwitch = profilePanel.querySelector('[data-ga4-pages-kind-switch]');
+    if (kindSwitch) {
+      var defaultKind = kindSwitch.getAttribute('data-ga4-default-pages-kind') || 'content';
+      var activeBtn = kindSwitch.querySelector('[data-ga4-pages-kind][data-active="true"]');
+      var kind = activeBtn ? ga4DataAttr(activeBtn, 'data-ga4-pages-kind') : defaultKind;
+      ga4SetKindTabUi(profilePanel, kind);
+      ga4LoadKindPanel(profilePanel.querySelector('[data-ga4-pages-kind-panel="' + kind + '"]'), forceReload);
+      if (!forceReload) {
+        window.setTimeout(function () {
+          prefetchGa4HiddenKindPanels(profilePanel);
+        }, 80);
+      }
+      return;
+    }
+    triggerGa4Placeholders(profilePanel, false);
+  }
+
   function triggerGa4Placeholders(scope, hiddenOnly) {
     if (!scope) return;
     scope.querySelectorAll(GA4_PLACEHOLDER_SEL).forEach(function (el) {
@@ -2002,12 +2100,25 @@
 
   function triggerGa4Load(panel) {
     if (!panel || panel.classList.contains('hidden')) return;
-    triggerGa4Placeholders(panel, false);
-    // Haber detay / eventler / kaynak: görünür sekme yüklenirken arka planda ön-getir
-    var prefetchScope = panel.closest('[data-ga4-profile-panel]') || panel;
-    window.setTimeout(function () {
-      prefetchGa4HiddenKindPanels(prefetchScope);
-    }, 80);
+    ga4LoadActiveProfilePanel(panel, false);
+  }
+
+  function ga4AfterPeriodPanelShown(periodPanel, savedKind) {
+    var profilePanel = periodPanel.querySelector('[data-ga4-profile-panel]:not(.hidden)') || periodPanel;
+    var kindSwitch = profilePanel.querySelector('[data-ga4-pages-kind-switch]');
+    if (kindSwitch) {
+      var defaultKind = kindSwitch.getAttribute('data-ga4-default-pages-kind') || 'content';
+      var activeKind = savedKind || defaultKind;
+      ga4SetKindTabUi(profilePanel, activeKind);
+      ga4LoadKindPanel(profilePanel.querySelector('[data-ga4-pages-kind-panel="' + activeKind + '"]'), true);
+      window.setTimeout(function () {
+        prefetchGa4HiddenKindPanels(profilePanel);
+      }, 80);
+      return;
+    }
+    profilePanel.querySelectorAll('[data-ga4-pages-kind-panel]:not(.hidden)').forEach(function (kindPanel) {
+      ga4LoadKindPanel(kindPanel, true);
+    });
   }
 
   function initGa4PeriodSwitch(root) {
@@ -2049,28 +2160,7 @@
             const isActive = ga4DataAttr(panel, 'data-ga4-period-panel') === pk;
             panel.classList.toggle('hidden', !isActive);
             if (isActive) {
-              // ── Kayıtlı sekmeyi yeni döneme uygula ───────────────────────
-              if (savedKind && savedKind !== 'content') {
-                var newProfile = panel.querySelector('[data-ga4-profile-panel]:not(.hidden)') || panel;
-                var kindSwitch = newProfile.querySelector('[data-ga4-pages-kind-switch]');
-                if (kindSwitch) {
-                  var targetKindBtn = kindSwitch.querySelector('[data-ga4-pages-kind="' + savedKind + '"]');
-                  if (targetKindBtn) {
-                    targetKindBtn.click();
-                    return; // click zaten triggerGa4Load'u tetikler; çift yüklemeyi önle
-                  }
-                }
-              }
-              // Aktif period panelindeki aktif profile panelindeki placeholder'ları tetikle
-              panel.querySelectorAll('[data-ga4-profile-panel]').forEach(function (pp) {
-                if (!pp.classList.contains('hidden')) {
-                  triggerGa4Load(pp);
-                }
-              });
-              // Hiç profile panel yoksa direkt period paneline bak
-              if (!panel.querySelector('[data-ga4-profile-panel]')) {
-                triggerGa4Load(panel);
-              }
+              ga4AfterPeriodPanelShown(panel, savedKind);
             }
           });
           card.querySelectorAll('[data-ga4-period-heading]').forEach(function (heading) {
@@ -2113,29 +2203,13 @@
       const defaultKind = switcher.getAttribute('data-ga4-default-pages-kind') || 'content';
       const activate = function (kind) {
         var k = kind == null ? defaultKind : String(kind);
-        buttons.forEach(function (button) {
-          var isActive = ga4DataAttr(button, 'data-ga4-pages-kind') === k;
-          button.dataset.active = isActive ? 'true' : 'false';
-          button.classList.toggle('bg-slate-900', isActive);
-          button.classList.toggle('dark:bg-slate-600', isActive);
-          button.classList.toggle('text-white', isActive);
-          button.classList.toggle('text-slate-600', !isActive);
-          button.classList.toggle('dark:text-slate-300', !isActive);
-          button.classList.toggle('bg-white', !isActive);
-          button.classList.toggle('dark:bg-slate-800/90', !isActive);
-        });
-        if (section) {
-          section.querySelectorAll('[data-ga4-pages-kind-panel]').forEach(function (panel) {
-            var match = ga4DataAttr(panel, 'data-ga4-pages-kind-panel') === k;
-            panel.classList.toggle('hidden', !match);
-            if (match) {
-              // İki frame: layout/paint sonrası ga4-load (tek frame bazen HTMX isteği kaçırıyordu).
-              window.requestAnimationFrame(function () {
-                window.requestAnimationFrame(function () {
-                  triggerGa4Load(panel);
-                });
-              });
-            }
+        ga4SetKindTabUi(section, k);
+        var kindPanel = section ? section.querySelector('[data-ga4-pages-kind-panel="' + k + '"]') : null;
+        if (kindPanel) {
+          window.requestAnimationFrame(function () {
+            window.requestAnimationFrame(function () {
+              ga4LoadKindPanel(kindPanel, false);
+            });
           });
         }
         window.setTimeout(function () {

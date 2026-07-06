@@ -2,8 +2,16 @@
   {% set last_l = 'Son gün' %}
 {% elif days | int == 7 %}
   {% set last_l = 'Son 7 gün' %}
-{% else %}
+{% elif days | int == 30 %}
   {% set last_l = 'Son 30 gün' %}
+{% elif days | int == 60 %}
+  {% set last_l = 'Son 60 gün' %}
+{% elif days | int == 90 %}
+  {% set last_l = 'Son 90 gün' %}
+{% elif days | int >= 300 %}
+  {% set last_l = 'Son 12 ay' %}
+{% else %}
+  {% set last_l = 'Son ' ~ (days | int) ~ ' gün' %}
 {% endif %}
 
 <div class="w-full min-w-0 max-w-full space-y-4">

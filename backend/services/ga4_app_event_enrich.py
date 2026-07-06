@@ -24,7 +24,7 @@ _COMBINED_SEP = " · "
 _EVENT_DETAIL_CACHE: dict[tuple, tuple[float, list[dict[str, Any]]]] = {}
 _LOOKUP_CACHE: dict[tuple, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL_SEC = 180.0
-_CACHE_VER = 2
+_CACHE_VER = 3
 
 
 def _param_key(name: str | None) -> str:

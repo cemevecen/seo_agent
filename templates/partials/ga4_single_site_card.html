@@ -176,6 +176,7 @@
                 {% set period_days = p.period_days %}
                 <div
                   data-ga4-profile-panel="{{ pk }}"
+                  data-ga4-period-days="{{ period_days }}"
                   class="{% if pk != site.default_profile %}hidden {% endif %}space-y-5"
                 >
                   {% include 'partials/ga4_period_body.html' %}
