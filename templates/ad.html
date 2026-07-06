@@ -2465,6 +2465,24 @@
     return d.toISOString().slice(0, 10);
   }
 
+  function isoWeekKeyFromDate(isoDate) {
+    var s = String(isoDate || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+    var d = new Date(s + "T12:00:00Z");
+    if (isNaN(d.getTime())) return "";
+    var target = new Date(d.valueOf());
+    var dayNr = (d.getUTCDay() + 6) % 7;
+    target.setUTCDate(target.getUTCDate() - dayNr + 3);
+    var firstThursday = target.valueOf();
+    target.setUTCMonth(0, 1);
+    if (target.getUTCDay() !== 4) {
+      target.setUTCMonth(0, 1 + ((4 - target.getUTCDay()) + 7) % 7);
+    }
+    var week = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+    var year = new Date(firstThursday).getUTCFullYear();
+    return year + "-W" + (week < 10 ? "0" : "") + week;
+  }
+
   function rowInPeriodRange(row, timeKey, range) {
     if (!range || !range.start || !range.end) return false;
     var val = rowTimeValue(row, timeKey);
@@ -4201,6 +4219,7 @@
         });
         map[k]._cov_w = 0;
         map[k]._view_w = 0;
+        map[k]._atf_w = 0;
         map[k]._cov_w_cmp = 0;
         map[k]._view_w_cmp = 0;
       }
@@ -4225,6 +4244,8 @@
       else if (r.view_w != null) b._view_w += Number(r.view_w) || 0;
       var viewFracCmp = normRatePctToFraction(r.viewability_pct_compare);
       if (viewFracCmp != null && imCmp > 0) b._view_w_cmp += viewFracCmp * imCmp;
+      var atfFrac = normRatePctToFraction(r.above_the_fold_ratio_pct);
+      if (atfFrac != null && im > 0) b._atf_w += atfFrac * im;
     });
     return Object.keys(map)
       .sort(function (a, b) {
@@ -4243,12 +4264,17 @@
         var rev = b.net_revenue || 0;
         b.coverage_pct = ar > 0 ? (b._cov_w / ar) * 100.0 : 0;
         b.viewability_pct = im > 0 ? (b._view_w / im) * 100.0 : 0;
+        b.above_the_fold_ratio_pct = im > 0 ? (b._atf_w / im) * 100.0 : 0;
         b.coverage_pct_compare = arCmp > 0 ? (b._cov_w_cmp / arCmp) * 100.0 : 0;
         b.viewability_pct_compare = imCmp > 0 ? (b._view_w_cmp / imCmp) * 100.0 : 0;
         b.ctr_pct = im > 0 ? ((b.click || 0) / im) * 100.0 : 0;
         b.ctr_pct_compare = imCmp > 0 ? ((b.click_compare || 0) / imCmp) * 100.0 : 0;
         b.computed_ecpm = b.ad_ecpm = im > 0 ? (rev / im) * 1000.0 : 0;
         b.ad_request_ecpm = ar > 0 ? (rev / ar) * 1000.0 : 0;
+        var epv = b.empower_pageview || 0;
+        var euv = b.empower_unique_visitor || 0;
+        b.pageview_ecpm = epv > 0 ? (rev / epv) * 1000.0 : 0;
+        b.unique_visitor_ecpm = euv > 0 ? (rev / euv) * 1000.0 : 0;
         return b;
       });
   }
@@ -4262,12 +4288,23 @@
 
   function chartLineStreamSeries(dim, cmp, sum) {
     if (!sum) return [];
-    if (dim === "date") {
-      return filterSeriesBySelectedRange(state.lastByDate || sum.by_date || [], "date");
-    }
+    var daily = filterSeriesBySelectedRange(state.lastByDate || sum.by_date || [], "date");
+    if (dim === "date") return daily;
     if (dim === "month") {
-      var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (sum.by_month || []);
-      return sortChartRowsChronological(mo, "month");
+      return aggregateTableRowsByDim(
+        daily.map(function (r) {
+          return Object.assign({}, r, { month: String(r.date || "").slice(0, 7) });
+        }),
+        "month"
+      );
+    }
+    if (dim === "week") {
+      return aggregateTableRowsByDim(
+        daily.map(function (r) {
+          return Object.assign({}, r, { week: isoWeekKeyFromDate(r.date) });
+        }).filter(function (r) { return !!r.week; }),
+        "week"
+      );
     }
     return [];
   }
@@ -4288,7 +4325,7 @@
       "date"
     );
     var useStreamSummary = !cfg.bdArea && !cfg.bdDims.size && !mzScopedDrillFiltersActive();
-    if (useStreamSummary && (dim === "date" || dim === "month")) {
+    if (useStreamSummary && (dim === "date" || dim === "month" || dim === "week")) {
       var streamSeries = chartLineStreamSeries(dim, cmp, state.lastSummary);
       streamSeries = filterSeriesForChartView(streamSeries, dim, state.lastSummary);
       await renderLineChart(streamSeries, state.activeKpiKey, cmp, dim, peerSum);
@@ -7221,6 +7258,16 @@
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def) + " (hizalı)";
     } else {
       var series = filterSeriesBySelectedRange(byDate, timeKey);
+      if (!series.length) {
+        mzPurgePlot("mz-chart-line");
+        var emptyEl = document.getElementById("mz-chart-line");
+        if (emptyEl) {
+          emptyEl.innerHTML =
+            "<p class=\"py-6 text-center text-xs text-slate-500 dark:text-zinc-400\">Bu metrik için seçili aralıkta trend verisi yok.</p>";
+        }
+        if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
+        return;
+      }
       var labels = series.map(function (x) { return seriesTimeLabel(x, timeKey); });
       var vals = series.map(function (x) {
         var v = x[kpiKey];
@@ -7238,7 +7285,9 @@
       if (titleEl) titleEl.textContent = chartLineTrendTitle(def);
     }
     mzStylizeLineTraces(traces, { def: def, releaseTextPerPoint: releaseTextPerPoint });
-    var lineLay = plotTheme(mzMergeTimeSeriesHoverLayout(layoutExtra));
+    var lineLay = plotTheme(
+      timeKey === "date" ? mzMergeTimeSeriesHoverLayout(layoutExtra) : layoutExtra
+    );
     if (timeKey === "date" && !aligned && !periodPair) {
       lineLay.xaxis = Object.assign({}, lineLay.xaxis, {
         type: "date",
@@ -8340,7 +8389,10 @@
       card.addEventListener("click", function () {
         state.activeKpiKey = def.key;
         renderKpisWithPeer(sum || state.lastSummary);
-        finalizeMzTrendAndSparks(sum || state.lastSummary);
+        refreshChartLine().then(function () {
+          scheduleMzChartsResizeBurst();
+        });
+        scheduleKpiSparklines(sum || state.lastSummary);
       });
       grid.appendChild(card);
     });
