@@ -1806,9 +1806,8 @@
       }
     });
     var lineCfg = state.breakdowns.chartLine;
-    if (lineCfg && !state._chartLineBdTimeUserPicked && span != null && span > 1) {
-      if (span > 120 && lineCfg.bdTime === "date") lineCfg.bdTime = "month";
-      else if (span > 14 && lineCfg.bdTime === "date") lineCfg.bdTime = "week";
+    if (lineCfg && !state._chartLineBdTimeUserPicked && span != null && span > 31 && lineCfg.bdTime === "date") {
+      lineCfg.bdTime = "week";
     }
     if (span === 1) {
       state.drillChartTime = "date";
@@ -4261,6 +4260,18 @@
     return String(row.date || "");
   }
 
+  function chartLineStreamSeries(dim, cmp, sum) {
+    if (!sum) return [];
+    if (dim === "date") {
+      return filterSeriesBySelectedRange(state.lastByDate || sum.by_date || [], "date");
+    }
+    if (dim === "month") {
+      var mo = (cmp && cmp.by_month && cmp.by_month.length) ? cmp.by_month : (sum.by_month || []);
+      return sortChartRowsChronological(mo, "month");
+    }
+    return [];
+  }
+
   async function refreshChartLine() {
     if (!window.Plotly || !state.lastSummary) return;
     if (isMzSingleDayRange()) {
@@ -4277,8 +4288,10 @@
       "date"
     );
     var useStreamSummary = !cfg.bdArea && !cfg.bdDims.size && !mzScopedDrillFiltersActive();
-    if (useStreamSummary && dim === "date") {
-      await renderLineChart(byDate, state.activeKpiKey, cmp, "date", peerSum);
+    if (useStreamSummary && (dim === "date" || dim === "month")) {
+      var streamSeries = chartLineStreamSeries(dim, cmp, state.lastSummary);
+      streamSeries = filterSeriesForChartView(streamSeries, dim, state.lastSummary);
+      await renderLineChart(streamSeries, state.activeKpiKey, cmp, dim, peerSum);
       return;
     }
     try {
@@ -4288,9 +4301,23 @@
       var scopedRows = filterRowsForScopedDrill(data.rows || []);
       var pseudo = aggregateTableRowsByDim(scopedRows, dim);
       pseudo = filterSeriesForChartView(pseudo, dim, state.lastSummary);
-      await renderLineChart(pseudo.length ? pseudo : byDate, state.activeKpiKey, cmp, dim, peerSum);
+      var fallback = chartLineStreamSeries(dim, cmp, state.lastSummary);
+      await renderLineChart(
+        pseudo.length ? pseudo : fallback,
+        state.activeKpiKey,
+        cmp,
+        dim,
+        peerSum
+      );
     } catch (e) {
-      await renderLineChart(byDate, state.activeKpiKey, cmp, "date", peerSum);
+      var errFallback = chartLineStreamSeries(dim, cmp, state.lastSummary);
+      await renderLineChart(
+        errFallback.length ? errFallback : byDate,
+        state.activeKpiKey,
+        cmp,
+        errFallback.length ? dim : "date",
+        peerSum
+      );
     }
   }
 
@@ -6512,7 +6539,14 @@
     var n = categoryAxisPointCount(opts.traces, xValues);
     if (!n) return {};
     var patch = { autorange: false, range: [-0.5, Math.max(0.5, n - 0.5)] };
-    if (opts.forceCategoryType || timeKey === "category") patch.type = "category";
+    if (
+      opts.forceCategoryType ||
+      timeKey === "category" ||
+      timeKey === "month" ||
+      timeKey === "week"
+    ) {
+      patch.type = "category";
+    }
     return patch;
   }
 
@@ -7210,6 +7244,8 @@
         type: "date",
         tickformat: "%d %b %Y",
       });
+    } else if ((timeKey === "week" || timeKey === "month") && !aligned && !periodPair) {
+      lineLay.xaxis = Object.assign({}, lineLay.xaxis, { type: "category" });
     }
     var marketDates =
       timeKey === "date" && !aligned && !periodPair
