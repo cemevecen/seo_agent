@@ -543,9 +543,13 @@
       min-width: 0;
       box-sizing: border-box;
     }
-    #content :where(h1, h2, h3, h4, h5, h6, p, span, a, button, label, li, dt, dd, th, td) {
+    #content :where(h1, h2, h3, h4, h5, h6, p, span, a, button, label, li, dt, dd) {
       overflow-wrap: anywhere;
       word-break: break-word;
+    }
+    #content table :where(th, td) {
+      overflow-wrap: normal;
+      word-break: normal;
     }
     #content :where(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[1\.5rem\], .rounded-\[2rem\]) {
       max-width: 100%;
@@ -566,8 +570,17 @@
 
     /* Mobil: dar sütunda dikey harf kırılması + ezilmiş fixed tablolar */
     @media (max-width: 639px) {
-      #content :where(table.table-fixed, table[style*="table-layout:fixed"], table[style*="table-layout: fixed"]):not([data-ga4-metric-table]):not([data-ga4-breakdown-table]):not([data-ga4-news-table]) {
+      #content :where(table.table-fixed, table[style*="table-layout:fixed"], table[style*="table-layout: fixed"]):not([data-ga4-metric-table]):not([data-ga4-breakdown-table]):not([data-ga4-news-table]):not([data-search-console-table]):not([data-sc-mobile-cards]) {
         table-layout: auto !important;
+      }
+      #content #search-console-page table[data-search-console-table]:not([data-sc-mobile-cards]) {
+        table-layout: fixed !important;
+        width: max-content !important;
+        min-width: 42rem !important;
+        max-width: none !important;
+      }
+      #content #search-console-page table[data-search-console-table][data-sc-down-table]:not([data-sc-mobile-cards]) {
+        min-width: 36rem !important;
       }
       #content table[data-ga4-metric-table]:not([data-ga4-breakdown-table]) {
         table-layout: fixed !important;
@@ -615,7 +628,13 @@
       #content :where(th, td):not(.whitespace-nowrap):not(.tabular-nums) {
         white-space: normal !important;
       }
-      #content :where(.sc-extra-th-text, .sc-extra-td-text) {
+      #content :where(.sc-extra-th-text, .sc-extra-td-text):not([data-sc-mobile-cards] *) {
+        max-width: none !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+      }
+      #content #search-console-page .sc-extra-table[data-sc-mobile-cards] :where(.sc-extra-th-text, .sc-extra-td-text) {
         max-width: none !important;
         white-space: normal !important;
         overflow: visible !important;

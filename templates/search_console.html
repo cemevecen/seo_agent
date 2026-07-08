@@ -80,28 +80,115 @@
   .sc-extra-col-date {
     width: 5.25rem;
   }
-  @media (max-width: 640px) {
-    .sc-extra-table {
-      table-layout: auto;
-      min-width: 100% !important;
+  /* Mobil: extras kart düzeni; ana tablolar yatay kaydırma */
+  @media (max-width: 639px) {
+    .sc-table-scroll-hint {
+      position: relative;
     }
-    .sc-extra-table[data-sc-cols="6"],
-    .sc-extra-table[data-sc-cols="5"] {
-      min-width: 100% !important;
+    .sc-table-scroll-hint::after {
+      content: "Kaydır →";
+      pointer-events: none;
+      position: absolute;
+      top: 0.35rem;
+      right: 0.5rem;
+      z-index: 2;
+      border-radius: 9999px;
+      background: rgba(15, 23, 42, 0.72);
+      padding: 0.15rem 0.45rem;
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: #f8fafc;
     }
-    .sc-extra-th-text,
-    .sc-extra-td-text {
+    html.dark .sc-table-scroll-hint::after {
+      background: rgba(30, 41, 59, 0.92);
+    }
+    .sc-extra-table-wrap[data-sc-mobile-cards] {
+      overflow: visible;
+      border: 0;
+      background: transparent;
+    }
+    .sc-extra-table[data-sc-mobile-cards] {
+      display: block;
+      min-width: 0 !important;
+      width: 100%;
+      table-layout: auto !important;
+    }
+    .sc-extra-table[data-sc-mobile-cards] thead {
+      display: none;
+    }
+    .sc-extra-table[data-sc-mobile-cards] tbody {
+      display: block;
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] {
+      display: block;
+      margin-bottom: 0.625rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgb(226 232 240);
+      background: #fff;
+      padding: 0.625rem 0.75rem;
+    }
+    html.dark .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] {
+      border-color: rgb(51 65 85);
+      background: rgb(15 23 42);
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.3rem 0;
       max-width: none !important;
       white-space: normal !important;
       overflow: visible !important;
       text-overflow: clip !important;
+      word-break: break-word;
     }
-    .sc-extra-table { font-size: 10px; }
-    .sc-extra-th-num, .sc-extra-td-num { width: 3.75rem; min-width: 3.75rem; }
-    .sc-extra-col-metric { width: 3.75rem; }
-    .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table] {
-      table-layout: auto !important;
-      min-width: 36rem !important;
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td::before {
+      content: attr(data-label);
+      flex: 0 0 5.25rem;
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: rgb(100 116 139);
+    }
+    html.dark .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td::before {
+      color: rgb(148 163 184);
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td.sc-extra-td-primary {
+      display: block;
+      padding-bottom: 0.45rem;
+      margin-bottom: 0.35rem;
+      border-bottom: 1px solid rgb(226 232 240);
+    }
+    html.dark .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td.sc-extra-td-primary {
+      border-bottom-color: rgb(51 65 85);
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td.sc-extra-td-primary::before {
+      display: none;
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-sort-row] td.sc-extra-td-num {
+      white-space: nowrap !important;
+      word-break: normal !important;
+      text-align: right;
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-extra-row-error] {
+      display: block;
+      margin: -0.35rem 0 0.625rem;
+      padding: 0 0.75rem 0.5rem;
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-extra-row-error] td {
+      display: block;
+      padding: 0;
+      font-size: 0.6875rem;
+    }
+    .sc-extra-table[data-sc-mobile-cards] tr[data-sc-extra-row-error] td::before {
+      display: none;
+    }
+    .sc-split--focused [data-sc-site-card]:not(.hidden) table[data-search-console-table]:not([data-sc-mobile-cards]) {
+      table-layout: fixed !important;
+      min-width: 42rem !important;
       width: max-content !important;
     }
   }

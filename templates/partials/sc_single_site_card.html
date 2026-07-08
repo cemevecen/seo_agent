@@ -333,8 +333,8 @@
                 <button type="button" class="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300" data-sc-table-toggle="pages" data-active="false">Pages</button>
               </div>
 
-              <div data-sc-table-panel="queries" class="w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">
-                <table class="w-full min-w-[42rem] text-[10px] sm:min-w-0 sm:table-fixed sm:text-xs md:text-sm" data-search-console-table>
+              <div data-sc-table-panel="queries" class="sc-table-scroll-hint w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">
+                <table class="w-full min-w-[42rem] table-fixed text-[10px] sm:text-xs md:text-sm" data-search-console-table>
                   <colgroup>
                     <col style="width: 28%" />
                     <col style="width: 12%" />
@@ -358,7 +358,9 @@
                   <tbody>
                     {% for row in view.top_queries %}
                       <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80" data-query="{{ row.query|lower }}" data-clicks-current="{{ row.clicks_current }}" data-clicks-previous="{{ row.clicks_previous }}" data-clicks-diff="{{ row.clicks_diff }}" data-position-current="{{ row.position_current }}" data-position-previous="{{ row.position_previous }}" data-position-diff="{{ row.position_diff }}">
-                        <td class="sticky left-0 z-[1] max-w-[min(60vw,18rem)] bg-white px-1.5 py-2 text-left text-[11px] font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 break-words shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-2 sm:py-2.5 sm:text-xs md:text-sm">{{ row.query }}</td>
+                        <td class="sticky left-0 z-[1] max-w-[min(60vw,18rem)] bg-white px-1.5 py-2 text-left text-[11px] font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-2 sm:py-2.5 sm:text-xs md:text-sm">
+                          <span class="block max-w-full truncate" title="{{ row.query }}">{{ row.query }}</span>
+                        </td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-2 sm:py-2.5">{{ "{:,.0f}".format(row.clicks_previous).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-1.5 py-2 text-right tabular-nums font-semibold {% if row.clicks_diff > 0 %}text-emerald-600 dark:text-emerald-400{% elif row.clicks_diff < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %} sm:px-2 sm:py-2.5">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
@@ -376,8 +378,8 @@
               <div data-sc-table-panel="pages" class="hidden w-full min-w-0">
                 <div class="rounded-2xl border border-slate-200 dark:border-slate-700">
                   <p class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 sm:px-3">Top pages</p>
-                  <div class="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-                    <table class="w-full min-w-[42rem] text-[10px] sm:min-w-0 sm:table-fixed sm:text-xs md:text-sm" data-search-console-table data-sc-pages-table>
+                  <div class="sc-table-scroll-hint overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                    <table class="w-full min-w-[42rem] table-fixed text-[10px] sm:text-xs md:text-sm" data-search-console-table data-sc-pages-table>
                       <colgroup>
                         <col style="width: 28%" />
                         <col style="width: 12%" />
@@ -447,8 +449,8 @@
               {% if period_key in ('30', '60', '90') %}
               <div class="mt-1 space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Düşen içerikler (Son {{ period_key }} gün vs Önceki {{ period_key }} gün · tıklama)</p>
-                <div class="w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">
-                  <table class="w-full min-w-[56rem] text-[10px] sm:text-xs" data-search-console-table>
+                <div class="sc-table-scroll-hint w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-200 dark:border-slate-700 [-webkit-overflow-scrolling:touch]">
+                  <table class="w-full min-w-[36rem] table-fixed text-[10px] sm:text-xs" data-search-console-table data-sc-down-table>
                     <thead class="border-b border-slate-200 dark:border-slate-700">
                       <tr>
                         <th class="sticky left-0 z-[1] bg-slate-50 dark:bg-slate-900/50 px-2 py-2 text-left text-slate-500 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.2)] sm:px-3"><button type="button" class="text-left font-semibold hover:text-slate-800 dark:hover:text-slate-200" data-sort-key="query" data-sort-type="string">Sayfa</button></th>
@@ -461,7 +463,9 @@
                     <tbody>
                       {% for row in view.content_trending_down %}
                       <tr class="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-900/50 dark:hover:bg-slate-800/80" data-query="{{ row.page|lower }}" data-drop-pct="{{ row.clicks_drop_pct or 0 }}" data-clicks-diff="{{ row.clicks_diff }}" data-clicks-current="{{ row.clicks_current }}" data-clicks-previous="{{ row.clicks_previous }}">
-                        <td class="sticky left-0 z-[1] max-w-[min(100vw,30rem)] bg-white px-2 py-2 text-left font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 break-all shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-3 sm:text-sm">{{ row.page }}</td>
+                        <td class="sticky left-0 z-[1] max-w-[min(100vw,30rem)] bg-white px-2 py-2 text-left font-medium text-slate-900 dark:bg-slate-900 dark:text-slate-100 shadow-[4px_0_12px_-6px_rgba(15,23,42,0.15)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800 sm:px-3 sm:text-sm">
+                          <span class="block max-w-full truncate" title="{{ row.page }}">{{ row.page }}</span>
+                        </td>
                         <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">-{{ "{:.1f}".format(row.clicks_drop_pct or 0) }}%</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums font-semibold text-rose-600 dark:text-rose-400 sm:px-3">{{ "{:+,.0f}".format(row.clicks_diff).replace(",", ",") }}</td>
                         <td class="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-900 dark:text-slate-100 sm:px-3">{{ "{:,.0f}".format(row.clicks_current).replace(",", ",") }}</td>
