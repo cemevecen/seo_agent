@@ -10850,6 +10850,77 @@
     return asc;
   }
 
+  function mzTargetsPopulatePiePeriods(rows) {
+    var sel = document.getElementById("mz-targets-pie-period");
+    if (!sel) return;
+    var chartRows = mzTargetsChartRows(rows);
+    var cur = mzTargetsUi.piePeriodKey;
+    sel.innerHTML = "";
+    chartRows.slice().reverse().forEach(function (r) {
+      var opt = document.createElement("option");
+      opt.value = r.period_key || "";
+      opt.textContent = r.period || r.period_key || "—";
+      sel.appendChild(opt);
+    });
+    if (!cur || !chartRows.some(function (r) { return r.period_key === cur; })) {
+      var last = chartRows[chartRows.length - 1];
+      cur = last ? (last.period_key || "") : "";
+      mzTargetsUi.piePeriodKey = cur;
+    }
+    sel.value = cur;
+  }
+
+  function mzTargetsPieRow(chartRows) {
+    if (!chartRows || !chartRows.length) return null;
+    var key = mzTargetsUi.piePeriodKey;
+    if (key) {
+      var hit = chartRows.find(function (r) { return r.period_key === key; });
+      if (hit) return hit;
+    }
+    return chartRows[chartRows.length - 1];
+  }
+
+  function mzTargetsRenderPieChart(row, projLabel) {
+    if (!window.Plotly) return;
+    mzPurgePlot("mz-targets-chart-pie");
+    if (!row) return;
+    var pieLabels = [];
+    var pieVals = [];
+    var pieColors = [];
+    if (row.kazanc != null && row.kazanc > 0) {
+      pieLabels.push("Kazanç");
+      pieVals.push(row.kazanc);
+      pieColors.push("#4f46e5");
+    }
+    var kalan = row.kalan;
+    if (kalan != null && kalan > 0) {
+      pieLabels.push("Kalan");
+      pieVals.push(kalan);
+      pieColors.push("#f97316");
+    } else if (row.hedef != null && row.kazanc != null && row.kazanc > row.hedef) {
+      pieLabels.push("Hedef üstü");
+      pieVals.push(row.kazanc - row.hedef);
+      pieColors.push("#10b981");
+      pieLabels.unshift("Hedef");
+      pieVals.unshift(row.hedef);
+      pieColors.unshift("#94a3b8");
+    } else if (row.hedef != null) {
+      pieLabels.push("Hedef (tamamlanmamış)");
+      pieVals.push(Math.max(0, row.hedef - (row.kazanc || 0)));
+      pieColors.push("#e2e8f0");
+    }
+    if (!pieLabels.length) return;
+    var pieLay = plotTheme({ margin: { l: 8, r: 8, t: 28, b: 8 } });
+    pieLay.title = { text: (row.period || "") + " — " + projLabel, font: plotFont(), x: 0 };
+    pieLay.showlegend = true;
+    Plotly.newPlot(
+      "mz-targets-chart-pie",
+      [{ type: "pie", labels: pieLabels, values: pieVals, marker: { colors: pieColors }, textinfo: "label+percent", hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>" }],
+      pieLay,
+      plotlyCfg()
+    );
+  }
+
   function mzTargetsRenderCharts(rows) {
     if (!window.Plotly) return;
     var chartRows = mzTargetsChartRows(rows);
@@ -10864,6 +10935,8 @@
     mzPurgePlot("mz-targets-chart-pie");
 
     if (!chartRows.length) return;
+
+    mzTargetsPopulatePiePeriods(rows);
 
     var lineTraces = [
       { x: labels, y: hedef, name: "Hedef", type: "scatter", mode: "lines+markers", line: { color: "#94a3b8", width: 2 }, marker: { size: 5 } },
@@ -10882,41 +10955,7 @@
     barLay.title = { text: projLabel + " — aylık", font: plotFont(), x: 0 };
     Plotly.newPlot("mz-targets-chart-bar", barTraces, barLay, plotlyCfg());
 
-    var last = chartRows[chartRows.length - 1];
-    var pieLabels = [];
-    var pieVals = [];
-    var pieColors = [];
-    if (last.kazanc != null && last.kazanc > 0) {
-      pieLabels.push("Kazanç");
-      pieVals.push(last.kazanc);
-      pieColors.push("#4f46e5");
-    }
-    var kalan = last.kalan;
-    if (kalan != null && kalan > 0) {
-      pieLabels.push("Kalan");
-      pieVals.push(kalan);
-      pieColors.push("#f97316");
-    } else if (last.hedef != null && last.kazanc != null && last.kazanc > last.hedef) {
-      pieLabels.push("Hedef üstü");
-      pieVals.push(last.kazanc - last.hedef);
-      pieColors.push("#10b981");
-      pieLabels.unshift("Hedef");
-      pieVals.unshift(last.hedef);
-      pieColors.unshift("#94a3b8");
-    } else if (last.hedef != null) {
-      pieLabels.push("Hedef (tamamlanmamış)");
-      pieVals.push(Math.max(0, last.hedef - (last.kazanc || 0)));
-      pieColors.push("#e2e8f0");
-    }
-    var pieLay = plotTheme({ margin: { l: 8, r: 8, t: 36, b: 8 } });
-    pieLay.title = { text: (last.period || "") + " — " + projLabel, font: plotFont(), x: 0 };
-    pieLay.showlegend = true;
-    Plotly.newPlot(
-      "mz-targets-chart-pie",
-      [{ type: "pie", labels: pieLabels, values: pieVals, marker: { colors: pieColors }, textinfo: "label+percent", hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>" }],
-      pieLay,
-      plotlyCfg()
-    );
+    mzTargetsRenderPieChart(mzTargetsPieRow(chartRows), projLabel);
   }
 
   function mzTargetsRenderAll() {
@@ -11033,6 +11072,15 @@
   on("mz-targets-colorize", "click", function () {
     mzTargetsUi.colorize = !mzTargetsUi.colorize;
     mzTargetsRenderTable(mzTargetsFilteredRows());
+  });
+
+  on("mz-targets-pie-period", "change", function (ev) {
+    mzTargetsUi.piePeriodKey = (ev.target && ev.target.value) || "";
+    var rows = mzTargetsFilteredRows();
+    var chartRows = mzTargetsChartRows(rows);
+    var projLabel = mzTargetsUi.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com";
+    mzTargetsRenderPieChart(mzTargetsPieRow(chartRows), projLabel);
+    scheduleMzChartsResizeBurst();
   });
 
   document.querySelectorAll(".mz-targets-table th[data-sort]").forEach(function (th) {
