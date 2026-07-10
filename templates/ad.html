@@ -5383,6 +5383,9 @@
     p.set("project", state.activeStream.project || "doviz");
     p.set("branch", pk);
     p.set("stream", targetKey);
+    // Karşı dal tam kırılım — gelir tipi filtresi iOS/Android'de farklı isimlerde olabildiği için overlay'de kullanma.
+    p.delete("income_types");
+    p.delete("drill_income_type");
     return p;
   }
 
@@ -5434,21 +5437,49 @@
     });
   }
 
-  function appendPeerScatterTrace(traces, plotX, metricKey, peerSum, label, yaxis) {
-    if (!state.peerSummary && !peerSum) return;
-    var src = peerSum || state.peerSummary;
-    var ys = peerMetricYForPlotX(src, plotX, metricKey);
+  function peerMetricYForChartSeries(peerSum, primarySeries, timeKey, metricKey) {
+    if (!peerSum || !primarySeries || !primarySeries.length) return [];
+    if (timeKey === "date") {
+      var dates = primarySeries.map(function (r) {
+        return r.date != null ? r.date : seriesTimeLabel(r, "date");
+      });
+      return peerMetricYForPlotX(peerSum, dates, metricKey);
+    }
+    var peerDaily = filterSeriesBySelectedRange(peerSum.by_date || [], "date");
+    var peerAgg = chartLineStreamSeries(timeKey, null, { by_date: peerDaily });
+    var lookup = {};
+    peerAgg.forEach(function (r) {
+      lookup[seriesTimeLabel(r, timeKey)] = r[metricKey];
+    });
+    return primarySeries.map(function (r) {
+      var k = seriesTimeLabel(r, timeKey);
+      var v = lookup[k];
+      if (v == null || isNaN(v)) return null;
+      return Number(v);
+    });
+  }
+
+  function appendPeerScatterTrace(traces, plotX, metricKey, peerSum, label, yaxis, precomputedYs) {
+    var def = KPI_DEFS.find(function (d) { return d.key === metricKey; }) || {};
+    var ys = precomputedYs;
+    if (!ys || !ys.length) {
+      if (!state.peerSummary && !peerSum) return;
+      var src = peerSum || state.peerSummary;
+      ys = peerMetricYForPlotX(src, plotX, metricKey);
+    }
     if (!ys.some(function (v) { return v != null && v !== 0; })) return;
     var tr = {
       type: "scatter",
-      mode: "lines",
-      name: (label || peerBranchLabel()) + " · " + (KPI_DEFS.find(function (d) { return d.key === metricKey; }) || {}).label,
+      mode: (plotX || []).length > 120 ? "lines" : "lines+markers",
+      name: (label || peerBranchLabel()) + " · " + (def.label || metricKey),
       x: plotX,
       y: ys,
-      connectgaps: false,
-      line: Object.assign({}, peerOverlayOnChartLineStyle()),
+      connectgaps: true,
+      line: Object.assign({}, peerOverlayLineStyle(), { width: 2.25 }),
+      marker: { size: 4, color: peerOverlayLineColor() },
     };
     if (yaxis) tr.yaxis = yaxis;
+    mzApplyLineHoverStyle(tr, { def: def });
     traces.push(tr);
   }
 
@@ -5525,6 +5556,7 @@
   }
 
   async function onPeerOverlayToggle(chartKey) {
+    clearPeerSummaryCache();
     if (anyPeerOverlayOn() || anyPeerSeparateOn()) await ensurePeerSummary();
     if (chartKey === "kpi") {
       renderKpisWithPeer(state.lastSummary);
@@ -7320,6 +7352,8 @@
     var layoutExtra = { yTitle: def.axis || "" };
     var titleEl = document.getElementById("mz-chart-line-title");
     var sum = state.lastSummary;
+    var primaryPlotX = null;
+    var primarySeriesRows = null;
     var aligned = cmp && timeKey === "date" ? alignedDateSeries(cmp, kpiKey) : null;
     var periodPair = cmp && timeKey !== "date" ? buildPeriodCompareLinePair(byDate, timeKey, kpiKey, sum) : null;
     var plotTimeKey = aligned || periodPair ? "category" : timeKey;
@@ -7388,6 +7422,8 @@
         var v = x[kpiKey];
         return v != null && !isNaN(v) ? Number(v) : 0;
       });
+      primaryPlotX = labels;
+      primarySeriesRows = series;
       traces.push({
         x: labels,
         y: vals,
@@ -7416,12 +7452,10 @@
         ? filterSeriesBySelectedRange(byDate, timeKey).map(function (x) { return x.date; })
         : null;
 
-    if (peerSum && timeKey === "date" && !cmp) {
-      var seriesPeer = filterSeriesBySelectedRange(byDate, timeKey);
-      var peerX = seriesPeer.map(function (x) { return x.date; });
+    if (peerSum && !cmp && primaryPlotX && primarySeriesRows) {
+      var peerYs = peerMetricYForChartSeries(peerSum, primarySeriesRows, timeKey, kpiKey);
       if (state.peerSeparate.line) {
         hidePeerSplitChart("line");
-        var peerYs = peerMetricYForPlotX(peerSum, peerX, kpiKey);
         if (peerYs.some(function (v) { return v != null && v !== 0; })) {
           if (marketDates && marketDates.length) {
             await mzMaybeApplyChartOverlays(traces, lineLay, marketDates);
@@ -7430,13 +7464,14 @@
           await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
           var peerTraces = [
             {
-              x: peerX,
+              x: primaryPlotX,
               y: peerYs,
               type: "scatter",
-              mode: "lines",
+              mode: primaryPlotX.length > 120 ? "lines" : "lines+markers",
               name: peerBranchLabel() + " · " + def.label,
               line: peerOverlayLineStyle(),
-              connectgaps: false,
+              marker: { size: 4, color: peerOverlayLineColor() },
+              connectgaps: true,
             },
           ];
           var peerLay = plotTheme({ yTitle: def.axis || "" });
@@ -7448,14 +7483,17 @@
             peerTraces,
             { yTitle: def.axis || "" },
             {
-              xaxis: Object.assign({}, lineLay.xaxis, { type: "date", showticklabels: true }),
+              xaxis: Object.assign({}, lineLay.xaxis, {
+                type: timeKey === "date" ? "date" : "category",
+                showticklabels: true,
+              }),
               yTitle: def.axis || "",
             }
           );
           return;
         }
       } else if (state.peerOverlay.line) {
-        appendPeerScatterTrace(traces, peerX, kpiKey, peerSum, peerBranchLabel());
+        appendPeerScatterTrace(traces, primaryPlotX, kpiKey, peerSum, peerBranchLabel(), null, peerYs);
       } else {
         hidePeerSplitChart("line");
       }
