@@ -10930,33 +10930,43 @@
 
   function mzTargetsBuildPieData(row) {
     if (!row) return null;
+    var hedef = row.hedef;
+    var kazanc = row.kazanc;
+    if (kazanc == null || kazanc <= 0) return null;
+
     var pieLabels = [];
     var pieVals = [];
     var pieColors = [];
-    if (row.kazanc != null && row.kazanc > 0) {
+    var pieText = null;
+    var piePull = null;
+
+    if (hedef != null && hedef > 0 && kazanc > hedef) {
+      var excess = kazanc - hedef;
+      var overPct = (excess / hedef) * 100;
+      pieLabels = ["Kazanç", "Hedef üstü"];
+      pieVals = [hedef, excess];
+      pieColors = ["#4f46e5", "#94a3b8"];
+      pieText = ["100%", "+" + (overPct >= 10 ? overPct.toFixed(1) : overPct.toFixed(2)).replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1") + "%"];
+      piePull = [0, 0.14];
+    } else {
       pieLabels.push("Kazanç");
-      pieVals.push(row.kazanc);
+      pieVals.push(kazanc);
       pieColors.push("#4f46e5");
+      var kalan = row.kalan;
+      if ((kalan == null || kalan <= 0) && hedef != null && kazanc < hedef) {
+        kalan = hedef - kazanc;
+      }
+      if (kalan != null && kalan > 0) {
+        pieLabels.push("Kalan");
+        pieVals.push(kalan);
+        pieColors.push("#f97316");
+      } else if (hedef != null && kazanc >= hedef) {
+        pieText = ["100%"];
+      }
     }
-    var kalan = row.kalan;
-    if (kalan != null && kalan > 0) {
-      pieLabels.push("Kalan");
-      pieVals.push(kalan);
-      pieColors.push("#f97316");
-    } else if (row.hedef != null && row.kazanc != null && row.kazanc > row.hedef) {
-      pieLabels.push("Hedef üstü");
-      pieVals.push(row.kazanc - row.hedef);
-      pieColors.push("#10b981");
-      pieLabels.unshift("Hedef");
-      pieVals.unshift(row.hedef);
-      pieColors.unshift("#94a3b8");
-    } else if (row.hedef != null) {
-      pieLabels.push("Hedef (tamamlanmamış)");
-      pieVals.push(Math.max(0, row.hedef - (row.kazanc || 0)));
-      pieColors.push("#e2e8f0");
-    }
+
     if (!pieLabels.length) return null;
-    return { labels: pieLabels, values: pieVals, colors: pieColors };
+    return { labels: pieLabels, values: pieVals, colors: pieColors, text: pieText, pull: piePull };
   }
 
   function mzTargetsRenderPieSlot(row, slotIdx) {
@@ -10977,12 +10987,24 @@
     pieLay.title = { text: row.period || row.period_key || "", font: plotFont(), x: 0.5, xanchor: "center" };
     pieLay.showlegend = true;
     pieLay.legend = { orientation: "h", y: -0.08, font: { size: 9 } };
-    Plotly.newPlot(
-      plotId,
-      [{ type: "pie", labels: pie.labels, values: pie.values, marker: { colors: pie.colors }, textinfo: "percent", textposition: "inside", insidetextorientation: "radial", hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>" }],
-      pieLay,
-      plotlyCfg()
-    );
+    var pieTrace = {
+      type: "pie",
+      labels: pie.labels,
+      values: pie.values,
+      marker: { colors: pie.colors },
+      textposition: "inside",
+      insidetextorientation: "radial",
+      hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>",
+      sort: false,
+    };
+    if (pie.text) {
+      pieTrace.text = pie.text;
+      pieTrace.textinfo = "text";
+    } else {
+      pieTrace.textinfo = "percent";
+    }
+    if (pie.pull) pieTrace.pull = pie.pull;
+    Plotly.newPlot(plotId, [pieTrace], pieLay, plotlyCfg());
   }
 
   function mzTargetsRenderPieSection(rows) {
