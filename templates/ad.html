@@ -546,9 +546,9 @@
                 <th class="num px-3 py-2" data-sort="hedef">Hedef</th>
                 <th class="num px-3 py-2" data-sort="hedef_80">Hedef (%80)</th>
                 <th class="num px-3 py-2" data-sort="kazanc">Kazanç</th>
-                <th class="num px-3 py-2" data-sort="tamamlama_orani">Hedef Tamamlama</th>
                 <th class="num px-3 py-2" data-sort="gunluk_kazanc">Günlük Kazanç</th>
                 <th class="num px-3 py-2" data-sort="kalan">Kalan</th>
+                <th class="num px-3 py-2" data-sort="tamamlama_orani">Hedef Tamamlama</th>
               </tr>
             </thead>
             <tbody id="mz-targets-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
@@ -10831,9 +10831,9 @@
         "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef) + "</td>" +
         "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef_80) + "</td>" +
         "<td class=\"" + kazancCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(r.kazanc) + "</td>" +
-        "<td class=\"" + tamCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(r.tamamlama_orani) + "</td>" +
         "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtGunlukKazanc(r) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.kalan) + "</td>";
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.kalan) + "</td>" +
+        "<td class=\"" + tamCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(r.tamamlama_orani) + "</td>";
       tbody.appendChild(tr);
     });
     mzTargetsSyncColorizeButton();
