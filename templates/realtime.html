@@ -2861,46 +2861,18 @@
         </div>
 
         {% if profile in ('android', 'ios') %}
-        {# Mobil: Haber detay (GA4 event parametreleri — realtime yaklaşımı) + iOS ekran + etkinlik #}
+        {# Mobil: iOS ekran+etkinlik sekmeleri; Android yalnızca etkinlik (GA4 ekran kırılımı güvenilir değil) #}
         <div class="mt-4 flex min-h-[200px] min-w-0 flex-1 flex-col" data-rt-top-section>
           {% if profile == 'ios' %}
-          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(3,1fr)">
-            <button type="button" onclick="rtSwitchTopTab(this,'detail')"
-              class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="detail">Haber detay</button>
+          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(2,1fr)">
             <button type="button" onclick="rtSwitchTopTab(this,'pages')"
-              class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="pages">Ekranlar</button>
             <button type="button" onclick="rtSwitchTopTab(this,'events')"
               class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               data-rt-top-tab="events">Etkinlik adı</button>
           </div>
-          {% else %}
-          <div class="mb-2 grid w-full gap-0.5" style="grid-template-columns:repeat(2,1fr)">
-            <button type="button" onclick="rtSwitchTopTab(this,'detail')"
-              class="rt-top-tab rt-tab-active focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="detail">Haber detay</button>
-            <button type="button" onclick="rtSwitchTopTab(this,'events')"
-              class="rt-top-tab rt-tab-inactive focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              data-rt-top-tab="events">Etkinlik adı</button>
-          </div>
-          {% endif %}
-          <div data-rt-top-panel="detail" class="min-w-0">
-            <p class="mb-2 text-[10px] leading-snug text-slate-500 dark:text-slate-400" data-rt-app-detail-meta>
-              {% if profile == 'ios' %}<code class="font-mono text-[10px]">screen_view</code>{% else %}<code class="font-mono text-[10px]">news_detail_opened</code>{% endif %}
-              · son ~30 dk · URL eşleşmesi web/mweb indeksinden
-            </p>
-            <div class="min-w-0 space-y-3" data-rt-app-detail-sections>
-              <div class="animate-pulse space-y-2 py-2">
-                <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
-                <div class="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
-                <div class="h-3 w-4/6 rounded bg-slate-200 dark:bg-slate-700/50"></div>
-              </div>
-            </div>
-            <p class="mt-2 rt-ts-foot" data-rt-app-detail-ts></p>
-          </div>
-          {% if profile == 'ios' %}
-          <div data-rt-top-panel="pages" class="hidden min-w-0">
+          <div data-rt-top-panel="pages" class="min-w-0">
             <div class="min-w-0 space-y-1" data-rt-pages-list>
               <div class="animate-pulse space-y-2 py-2">
                 <div class="h-3 w-full rounded bg-slate-200 dark:bg-slate-700/50"></div>
@@ -2911,7 +2883,7 @@
             <p class="mt-2 rt-ts-foot" data-rt-pages-ts></p>
           </div>
           {% endif %}
-          <div data-rt-top-panel="events" class="hidden min-w-0 flex min-h-0 flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-3 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
+          <div data-rt-top-panel="events" class="{% if profile == 'ios' %}hidden {% endif %}min-w-0 flex min-h-0 flex-col rounded-lg border border-slate-200/90 bg-slate-50 p-3 dark:border-slate-600/80 dark:bg-slate-900" data-rt-events-section>
             <p class="mt-1 min-h-[2.25rem] text-[10px] leading-snug text-slate-500 dark:text-slate-400" data-rt-events-basis></p>
             <div class="mt-2 flex gap-3">
               <div class="min-w-0 flex-1">
@@ -5450,91 +5422,6 @@
     }).join('');
   }
 
-  function _fetchAppEventDetail(siteId, profile) {
-    if (profile !== 'ios' && profile !== 'android') return;
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
-    if (!box) return;
-    var sectionsEl = box.querySelector('[data-rt-app-detail-sections]');
-    var tsEl = box.querySelector('[data-rt-app-detail-ts]');
-    var metaEl = box.querySelector('[data-rt-app-detail-meta]');
-    if (!sectionsEl) return;
-    var domain = box.getAttribute('data-rt-domain') || '';
-    var rangeKey = '15m';
-    fetch('/api/ga4/realtime/' + siteId + '/app-event-detail?profile=' + encodeURIComponent(profile) + '&window=29&limit=25', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (metaEl && d.event_name) {
-          metaEl.innerHTML = '<code class="font-mono text-[10px]">' + _esc(d.event_name) + '</code>'
-            + ' · son ~' + (d.window_minutes || 29) + ' dk · URL eşleşmesi web/mweb indeksinden';
-        }
-        if (d.error && (!d.sections || !d.sections.length)) {
-          sectionsEl.innerHTML = '<p class="rt-empty text-sm italic">' + _esc(d.message || 'veri yok') + '</p>';
-          return;
-        }
-        _renderAppEventDetailSections(sectionsEl, d.sections || [], domain, profile);
-        _rtUpdateListTimestamp(tsEl, d, rangeKey);
-      })
-      .catch(function () {
-        sectionsEl.innerHTML = '<p class="rt-empty text-sm italic">hata</p>';
-      });
-  }
-
-  function _renderAppEventDetailSections(container, sections, domain, profile) {
-    if (!container) return;
-    if (!sections.length) {
-      container.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber detay verisi yok.</p>';
-      return;
-    }
-    container.innerHTML = sections.map(function (section) {
-      var label = _esc(section.label || 'Bölüm');
-      var paramHint = section.param2
-        ? _esc(section.param + ' + ' + section.param2)
-        : _esc(section.param || '');
-      var note = section.realtime_note ? '<p class="mb-1.5 text-[10px] leading-snug text-amber-700 dark:text-amber-300">' + _esc(section.realtime_note) + '</p>' : '';
-      var err = section.error ? '<p class="mb-1.5 text-[10px] text-rose-600 dark:text-rose-400">' + _esc(section.error) + '</p>' : '';
-      var rows = Array.isArray(section.rows) ? section.rows : [];
-      if (!rows.length && !section.error) {
-        return '<div class="rounded-lg border border-slate-200/90 bg-white px-2 py-2 dark:border-slate-600/80 dark:bg-slate-900/40">'
-          + '<p class="text-xs font-bold text-slate-700 dark:text-slate-200">' + label + ' <span class="font-normal text-slate-400">(' + paramHint + ')</span></p>'
-          + note + err
-          + '<p class="mt-1 text-[11px] italic text-slate-500 dark:text-slate-400">Satır yok.</p></div>';
-      }
-      var maxVal = rows.reduce(function (m, r) { return Math.max(m, Number(r.count) || 0); }, 1) || 1;
-      var body = rows.map(function (row, i) {
-        var display = _esc(row.display_text != null ? row.display_text : (row.value || ''));
-        var subRaw = (row.display_sub || row.page_path || row.raw_value || '').trim();
-        var subEsc = _esc(subRaw);
-        var href = row.page_url ? _attr(row.page_url) : '';
-        var count = _fmt(row.count || 0);
-        var barW = Math.max(4, Math.round(((Number(row.count) || 0) / maxVal) * 100));
-        var tipAttr = _attr((row.raw_value || row.value || '') + (subRaw ? '\n' + subRaw : ''));
-        var titleHtml = href
-          ? '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="rt-news-link text-sm hover:underline" title="' + tipAttr + '">' + display + '</a>'
-          : '<span class="rt-list-title text-sm" title="' + tipAttr + '">' + display + '</span>';
-        var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
-        return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
-          + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
-          + '<div class="rt-top-list-mid">'
-          + titleHtml
-          + (subEsc ? '<div class="rt-list-sub mt-0.5" title="' + _attr(subRaw) + '">' + subEsc + '</div>' : '')
-          + '<div class="rt-bar-track"><div class="rt-bar-fill-amber" style="width:' + barW + '%"></div></div>'
-          + '</div>'
-          + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
-          + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + count + '</strong> <span class="rt-list-meta">evt.</span></span>'
-          + '</div>'
-          + '</div>';
-      }).join('');
-      return '<div class="rounded-lg border border-slate-200/90 bg-white px-2 py-2 dark:border-slate-600/80 dark:bg-slate-900/40">'
-        + '<p class="mb-1 text-xs font-bold text-slate-700 dark:text-slate-200">' + label + ' <span class="font-normal text-slate-400">(' + paramHint + ')</span></p>'
-        + note + err
-        + '<div class="min-w-0 space-y-0">' + body + '</div>'
-        + '</div>';
-    }).join('');
-  }
-
   function _fetchTopData(siteId, profile, type) {
     if (profile === 'android') return;
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
@@ -5936,9 +5823,9 @@
   window.rtEventsNav = rtEventsNav;
 
   function rtFetchTopPages(siteId, profile) {
-    if (profile === 'android' || profile === 'ios') {
-      _fetchAppEventDetail(siteId, profile);
-      if (profile === 'ios') _fetchTopData(siteId, profile, 'pages');
+    if (profile === 'android') return;
+    if (profile === 'ios') {
+      _fetchTopData(siteId, profile, 'pages');
       return;
     }
     _fetchTopData(siteId, profile, 'pages');
@@ -6140,7 +6027,6 @@
     if (!isNaN(sid) && prof) {
       if (prof === 'android' && tab === 'pages') return;
       if (tab === 'news') _fetchTopNews(sid, prof);
-      if (tab === 'detail') _fetchAppEventDetail(sid, prof);
       if (tab === 'pages') _fetchTopData(sid, prof, 'pages');
       if (tab === 'prevweek') _fetchWowDayPages(sid, prof);
       if (tab === 'events') rtFetchTopEvents(sid, prof);
