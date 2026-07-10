@@ -10891,7 +10891,7 @@
     if (group.length < 6) return "Önceki " + group.length + " ay";
     var oldest = group[0].period || group[0].period_key || "—";
     var newest = group[group.length - 1].period || group[group.length - 1].period_key || "—";
-    return oldest + " — " + newest;
+    return newest + " — " + oldest;
   }
 
   function mzTargetsPopulatePieGroups(rows) {
