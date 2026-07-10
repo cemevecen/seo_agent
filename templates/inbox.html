@@ -783,8 +783,8 @@
     "https://assets10.lottiefiles.com/packages/lf20_u4yrau.json";
   var INBOX_LOTTIE_SUCCESS =
     "https://assets4.lottiefiles.com/packages/lf20_s2lryxtd.json";
-  var INBOX_SEND_SUCCESS_MIN_MS = 120;
-  var INBOX_SEND_SUCCESS_MAX_MS = 220;
+  var INBOX_SEND_OVERLAY_VISIBLE_MS = 1500;
+  var INBOX_SEND_BANNER_SUCCESS_MS = 4000;
 
   function _waitMs(ms) {
     return new Promise(function (resolve) {
@@ -884,41 +884,44 @@
     );
     _setInboxSendButtonsDisabled(true);
     _inboxLottieShow(els.player, els.fallback, true);
-    await _inboxLottiePlay(els.player, INBOX_LOTTIE_SENDING, true);
-    var stageTimer = setTimeout(function () {
-      if (els.sub && els.overlay && els.overlay.dataset.phase === "sending") {
-        els.sub.textContent = "Gönderen: " + fromEmail + " · Alıcıya iletiliyor…";
-      }
-    }, 160);
+    _inboxLottiePlay(els.player, INBOX_LOTTIE_SENDING, true);
+
+    var overlayDismissed = false;
+    function dismissSendOverlay() {
+      if (overlayDismissed) return;
+      overlayDismissed = true;
+      _hideInboxSendOverlay();
+    }
+
+    var overlayTimer = setTimeout(function () {
+      dismissSendOverlay();
+      showBanner("Gönderiliyor… (arka planda) · " + fromEmail);
+    }, INBOX_SEND_OVERLAY_VISIBLE_MS);
+
     try {
       await sendFn();
-      clearTimeout(stageTimer);
-      els = _setInboxSendOverlay("success", "İletildi", "Gönderen: " + fromEmail + " · Liste yenileniyor…");
-      _inboxLottieShow(els.player, els.fallback, true);
-      _inboxLottiePlay(els.player, INBOX_LOTTIE_SUCCESS, false);
-      await _waitMs(INBOX_SEND_SUCCESS_MIN_MS);
+      clearTimeout(overlayTimer);
+      dismissSendOverlay();
+      showBanner("✓ Gönderildi · " + fromEmail);
       var sid = selectedId;
-      await loadThreads({ preserveScroll: true });
-      if (sid) {
-        try {
-          await openDetail(sid);
-        } catch (e) {
-          /* liste güncellendi */
-        }
-      }
-      _hideInboxSendOverlay();
+      loadThreads({ preserveScroll: true })
+        .then(function () {
+          if (sid) {
+            return openDetail(sid).catch(function () {
+              /* liste güncellendi */
+            });
+          }
+        })
+        .catch(function () {
+          /* arka plan yenileme */
+        });
       _setInboxSendButtonsDisabled(false);
+      setTimeout(hideBanner, INBOX_SEND_BANNER_SUCCESS_MS);
     } catch (e) {
-      clearTimeout(stageTimer);
-      _setInboxSendOverlay(
-        "error",
-        "Gönderilemedi",
-        String(e.message || e).slice(0, 200)
-      );
-      _inboxLottieShow(els.player, els.fallback, false);
+      clearTimeout(overlayTimer);
+      dismissSendOverlay();
+      showBanner("✗ Gönderilemedi: " + String(e.message || e).slice(0, 200));
       _setInboxSendButtonsDisabled(false);
-      await _waitMs(500);
-      _hideInboxSendOverlay();
       throw e;
     }
   }
