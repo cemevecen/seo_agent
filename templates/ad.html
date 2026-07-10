@@ -502,7 +502,14 @@
               <button type="button" data-mz-inline-view="targets" class="mz-view-tab mz-view-tab--active rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-zinc-100">Gelir hedefleri</button>
             </div>
           </div>
-          <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit" target="_blank" rel="noopener" class="shrink-0 self-start rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Kaynak tablo ↗</a>
+          <div class="flex shrink-0 flex-wrap items-center gap-2 self-start">
+            <button
+              type="button"
+              id="mz-targets-refresh"
+              class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200 dark:hover:bg-teal-950/40"
+            >Yenile</button>
+            <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit" target="_blank" rel="noopener" class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Kaynak tablo ↗</a>
+          </div>
         </div>
         <p id="mz-targets-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
         <p id="mz-targets-loading" class="text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
@@ -11069,11 +11076,15 @@
     var charts = document.getElementById("mz-targets-charts");
     var pieSection = document.getElementById("mz-targets-pie-section");
     var err = document.getElementById("mz-targets-error");
+    var refreshBtn = document.getElementById("mz-targets-refresh");
     if (loading) loading.classList.remove("hidden");
     if (err) err.classList.add("hidden");
+    if (refreshBtn) refreshBtn.disabled = true;
     try {
       if (!mzTargetsCache || force) {
-        var r = await fetch("/api/mz-analytics/revenue-targets", { credentials: "same-origin" });
+        var url = "/api/mz-analytics/revenue-targets";
+        if (force) url += (url.indexOf("?") >= 0 ? "&" : "?") + "force=1";
+        var r = await fetch(url, { credentials: "same-origin" });
         if (!r.ok) throw new Error("Hedef tablosu yüklenemedi (" + r.status + ")");
         mzTargetsCache = await r.json();
       }
@@ -11090,6 +11101,8 @@
         err.textContent = (e && e.message) || "Yükleme hatası";
         err.classList.remove("hidden");
       }
+    } finally {
+      if (refreshBtn) refreshBtn.disabled = false;
     }
   }
 
@@ -11149,6 +11162,10 @@
   on("mz-targets-colorize", "click", function () {
     mzTargetsUi.colorize = !mzTargetsUi.colorize;
     mzTargetsRenderTable(mzTargetsFilteredRows());
+  });
+
+  on("mz-targets-refresh", "click", function () {
+    mzTargetsLoad(true);
   });
 
   on("mz-targets-pie-group", "change", function (ev) {

@@ -693,10 +693,11 @@ def get_app_lab_preview(
 def get_revenue_targets(
     project: str | None = Query(None, description="doviz | sinemalar"),
     year: int | None = Query(None, ge=2000, le=2100),
+    force: bool = Query(False, description="Google Sheet önbelleğini atla"),
 ):
     """Google Sheets aylık gelir hedef tablosu (Döviz / Sinemalar)."""
     try:
-        return revenue_targets_payload(project=project, year=year)
+        return revenue_targets_payload(project=project, year=year, force=force)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001

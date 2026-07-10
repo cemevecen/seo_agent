@@ -28,9 +28,15 @@ def test_parse_revenue_targets_csv():
 
 
 def test_revenue_targets_payload_filter(monkeypatch):
+    calls: list[bool] = []
+
+    def _fetch(**kwargs):
+        calls.append(bool(kwargs.get("force")))
+        return parse_revenue_targets_csv(SAMPLE_CSV)
+
     monkeypatch.setattr(
         "backend.services.revenue_targets_sheet.fetch_revenue_targets_rows",
-        lambda **_: parse_revenue_targets_csv(SAMPLE_CSV),
+        _fetch,
     )
     all_rows = revenue_targets_payload()["rows"]
     assert len(all_rows) == 4
@@ -39,3 +45,5 @@ def test_revenue_targets_payload_filter(monkeypatch):
     assert all(r["project"] == "doviz" for r in doviz)
     y2023 = revenue_targets_payload(year=2023)["rows"]
     assert len(y2023) == 4
+    revenue_targets_payload(force=True)
+    assert calls[-1] is True

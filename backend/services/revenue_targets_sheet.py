@@ -171,15 +171,21 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
     return rows
 
 
-def revenue_targets_payload(*, project: str | None = None, year: int | None = None) -> dict[str, Any]:
-    rows = fetch_revenue_targets_rows()
+def revenue_targets_payload(
+    *,
+    project: str | None = None,
+    year: int | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    all_rows = fetch_revenue_targets_rows(force=force)
+    rows = all_rows
     pk = (project or "").strip().lower()
     if pk in ("doviz", "sinemalar"):
         rows = [r for r in rows if r.get("project") == pk]
     if year is not None:
         rows = [r for r in rows if int(r.get("year") or 0) == int(year)]
 
-    years = sorted({int(r["year"]) for r in fetch_revenue_targets_rows() if r.get("year")})
+    years = sorted({int(r["year"]) for r in all_rows if r.get("year")})
     return {
         "source_url": REVENUE_TARGETS_SHEET_URL,
         "rows": rows,
