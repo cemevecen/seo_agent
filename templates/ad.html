@@ -562,7 +562,13 @@
             <div id="mz-targets-chart-bar" class="mz-chart-plot min-h-[280px] w-full"></div>
           </div>
           <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Son dönem dağılımı (pasta)</h3>
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık dağılım (pasta)</h3>
+              <label class="flex items-center gap-1.5 text-xs">
+                <span class="text-[10px] font-bold uppercase text-slate-500">Dönem</span>
+                <select id="mz-targets-pie-period" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"></select>
+              </label>
+            </div>
             <div id="mz-targets-chart-pie" class="mz-chart-plot min-h-[280px] w-full"></div>
           </div>
         </div>
@@ -10693,7 +10699,7 @@
   });
 
   var mzTargetsCache = null;
-  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc", colorize: true };
+  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc", colorize: true, piePeriodKey: "" };
 
   function mzTargetsFmtPct(v) {
     if (v == null || isNaN(v)) return "—";
