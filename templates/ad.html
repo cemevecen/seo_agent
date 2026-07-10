@@ -1907,10 +1907,6 @@
         cfg.bdTime = span === 1 ? "date" : "week";
       }
     });
-    var lineCfg = state.breakdowns.chartLine;
-    if (lineCfg && !state._chartLineBdTimeUserPicked && span != null && span > 31 && lineCfg.bdTime === "date") {
-      lineCfg.bdTime = "week";
-    }
     if (span === 1) {
       state.drillChartTime = "date";
       state.summaryDrillChartTime = "date";
