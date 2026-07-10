@@ -89,6 +89,7 @@ def test_summary_html_five_sections_no_reklam_all():
         assert title in html_out
     assert ">reklam<" not in html_out
     assert ">all<" not in html_out
+    assert "son 24 saat" in html_out
     assert "Crash" in html_out
     assert "NPE stack" in html_out
     assert "Bu sekmede konuşma yok." in html_out

@@ -42,7 +42,11 @@ INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
 
 INBOX_SUMMARY_TAB_ORDER: tuple[str, ...] = tuple(s[0] for s in INBOX_SUMMARY_SECTIONS)
 _SUMMARY_ROUTE_KEYS = frozenset(INBOX_SUMMARY_TAB_ORDER)
-SUMMARY_DETAIL_MAX_AGE_DAYS = 7
+SUMMARY_DETAIL_MAX_AGE_HOURS = 24
+
+
+def _summary_window_label() -> str:
+    return f"son {SUMMARY_DETAIL_MAX_AGE_HOURS} saat"
 
 
 def _inbox_summary_email_disabled() -> bool:
@@ -56,7 +60,7 @@ def _normalize_summary_route(route_tag: str | None) -> str:
 
 
 def _summary_cutoff_ms() -> int:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=SUMMARY_DETAIL_MAX_AGE_DAYS)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=SUMMARY_DETAIL_MAX_AGE_HOURS)
     return int(cutoff.timestamp() * 1000)
 
 
@@ -226,7 +230,7 @@ def build_inbox_summary_html(
         "max-width:680px;margin:0 auto;'>",
         "<h2 style='color:#1d4ed8;margin:0 0 6px;'>Gelen Kutusu Özeti</h2>",
         f"<p style='color:#64748b;font-size:13px;margin:0 0 16px;'>{now_str} · "
-        f"<b>{total}</b> konuşma (son {SUMMARY_DETAIL_MAX_AGE_DAYS} gün) · sıra: "
+        f"<b>{total}</b> konuşma ({_summary_window_label()}) · sıra: "
         f"{order_label}</p>",
         _render_overview_table(grouped),
     ]
@@ -284,7 +288,7 @@ def build_inbox_summary_html(
             if message_count == 0:
                 parts.append(
                     "<li style='list-style:none;padding:10px 0;color:#64748b;font-size:13px;'>"
-                    f"Son {SUMMARY_DETAIL_MAX_AGE_DAYS} günde gösterilecek ileti yok.</li>"
+                    f"Son {SUMMARY_DETAIL_MAX_AGE_HOURS} saatte gösterilecek ileti yok.</li>"
                 )
             parts.append("</ul>")
         parts.append("</section>")
@@ -292,7 +296,7 @@ def build_inbox_summary_html(
     parts.append(
         "<p style='margin-top:8px;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;"
         "padding-top:12px;'>SEO Agent · 2 saatte bir otomatik özet · "
-        f"Detay: son {SUMMARY_DETAIL_MAX_AGE_DAYS} gün, ileti bazında · "
+        f"Detay: {_summary_window_label()}, ileti bazında · "
         "<a href='https://projectcontrol.up.railway.app/inbox'>Gelen kutusunu aç</a></p>"
     )
     parts.append("</div>")
