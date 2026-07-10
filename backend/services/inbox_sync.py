@@ -236,6 +236,7 @@ def _update_thread_row_from_gmail(
     row.last_synced_at = now
 
 
+def _delete_inbox_thread_by_gmail_id(db: Session, gmail_thread_id: str) -> bool:
     if not gmail_thread_id:
         return False
     row = (
