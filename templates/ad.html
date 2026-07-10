@@ -130,12 +130,23 @@
   html.mz-view-targets #mz-targets-charts {
     grid-template-columns: minmax(0, 1fr);
   }
+  html.mz-view-targets #mz-targets-pie-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 640px) {
+    html.mz-view-targets #mz-targets-pie-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
   @media (min-width: 1024px) {
     html.mz-view-targets #mz-targets-charts {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     html.mz-view-targets #mz-targets-charts > .mz-targets-chart-line-card {
       grid-column: 1 / -1;
+    }
+    html.mz-view-targets #mz-targets-pie-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
     }
   }
   html.mz-range-single-day .mz-bd-pill[data-v="period_6"],
@@ -561,15 +572,25 @@
             <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık karşılaştırma (sütun)</h3>
             <div id="mz-targets-chart-bar" class="mz-chart-plot min-h-[280px] w-full"></div>
           </div>
-          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        </div>
+        <div id="mz-targets-pie-section" class="hidden mt-4 rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
               <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık dağılım (pasta)</h3>
-              <label class="flex items-center gap-1.5 text-xs">
-                <span class="text-[10px] font-bold uppercase text-slate-500">Dönem</span>
-                <select id="mz-targets-pie-period" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"></select>
-              </label>
+              <p id="mz-targets-pie-subtitle" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400"></p>
             </div>
-            <div id="mz-targets-chart-pie" class="mz-chart-plot min-h-[280px] w-full"></div>
+            <label class="flex items-center gap-1.5 text-xs">
+              <span class="text-[10px] font-bold uppercase text-slate-500">Dönem</span>
+              <select id="mz-targets-pie-group" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"></select>
+            </label>
+          </div>
+          <div id="mz-targets-pie-grid" class="grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="mz-targets-pie-slot min-w-0" data-slot="0"><div id="mz-targets-chart-pie-0" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="1"><div id="mz-targets-chart-pie-1" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="2"><div id="mz-targets-chart-pie-2" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="3"><div id="mz-targets-chart-pie-3" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="4"><div id="mz-targets-chart-pie-4" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="5"><div id="mz-targets-chart-pie-5" class="mz-chart-plot min-h-[220px] w-full"></div></div>
           </div>
         </div>
       </section>
@@ -10699,7 +10720,7 @@
   });
 
   var mzTargetsCache = null;
-  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc", colorize: true, piePeriodKey: "" };
+  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc", colorize: true, pieGroupIndex: 0 };
 
   function mzTargetsFmtPct(v) {
     if (v == null || isNaN(v)) return "—";
@@ -10850,40 +10871,64 @@
     return asc;
   }
 
-  function mzTargetsPopulatePiePeriods(rows) {
-    var sel = document.getElementById("mz-targets-pie-period");
-    if (!sel) return;
-    var chartRows = mzTargetsChartRows(rows);
-    var cur = mzTargetsUi.piePeriodKey;
+  function mzTargetsPieGroups(chartRows) {
+    var groups = [];
+    var n = chartRows.length;
+    for (var end = n; end > 0; ) {
+      var start = Math.max(0, end - 6);
+      groups.push(chartRows.slice(start, end));
+      if (start === 0) break;
+      end = start;
+    }
+    return groups;
+  }
+
+  function mzTargetsPieGroupLabel(group, idx) {
+    if (!group || !group.length) return "—";
+    if (idx === 0 && group.length < 6) return "Son " + group.length + " ay";
+    if (idx === 0) return "Son 6 ay";
+    if (group.length < 6) return "Önceki " + group.length + " ay";
+    var oldest = group[0].period || group[0].period_key || "—";
+    var newest = group[group.length - 1].period || group[group.length - 1].period_key || "—";
+    return oldest + " — " + newest;
+  }
+
+  function mzTargetsPopulatePieGroups(rows) {
+    var sel = document.getElementById("mz-targets-pie-group");
+    if (!sel) return mzTargetsPieGroups(mzTargetsChartRows(rows));
+    var groups = mzTargetsPieGroups(mzTargetsChartRows(rows));
+    var cur = Number(mzTargetsUi.pieGroupIndex) || 0;
     sel.innerHTML = "";
-    chartRows.slice().reverse().forEach(function (r) {
+    groups.forEach(function (group, idx) {
       var opt = document.createElement("option");
-      opt.value = r.period_key || "";
-      opt.textContent = r.period || r.period_key || "—";
+      opt.value = String(idx);
+      opt.textContent = mzTargetsPieGroupLabel(group, idx);
       sel.appendChild(opt);
     });
-    if (!cur || !chartRows.some(function (r) { return r.period_key === cur; })) {
-      var last = chartRows[chartRows.length - 1];
-      cur = last ? (last.period_key || "") : "";
-      mzTargetsUi.piePeriodKey = cur;
+    if (!groups.length) {
+      mzTargetsUi.pieGroupIndex = 0;
+      return groups;
     }
-    sel.value = cur;
+    if (cur < 0 || cur >= groups.length) cur = 0;
+    mzTargetsUi.pieGroupIndex = cur;
+    sel.value = String(cur);
+    return groups;
   }
 
-  function mzTargetsPieRow(chartRows) {
-    if (!chartRows || !chartRows.length) return null;
-    var key = mzTargetsUi.piePeriodKey;
-    if (key) {
-      var hit = chartRows.find(function (r) { return r.period_key === key; });
-      if (hit) return hit;
-    }
-    return chartRows[chartRows.length - 1];
+  function mzTargetsPieGroupRows(chartRows) {
+    var groups = mzTargetsPieGroups(chartRows);
+    if (!groups.length) return [];
+    var idx = Number(mzTargetsUi.pieGroupIndex) || 0;
+    if (idx < 0 || idx >= groups.length) idx = 0;
+    return groups[idx] || [];
   }
 
-  function mzTargetsRenderPieChart(row, projLabel) {
-    if (!window.Plotly) return;
-    mzPurgePlot("mz-targets-chart-pie");
-    if (!row) return;
+  function mzTargetsPurgePieCharts() {
+    for (var i = 0; i < 6; i++) mzPurgePlot("mz-targets-chart-pie-" + i);
+  }
+
+  function mzTargetsBuildPieData(row) {
+    if (!row) return null;
     var pieLabels = [];
     var pieVals = [];
     var pieColors = [];
@@ -10909,16 +10954,56 @@
       pieVals.push(Math.max(0, row.hedef - (row.kazanc || 0)));
       pieColors.push("#e2e8f0");
     }
-    if (!pieLabels.length) return;
-    var pieLay = plotTheme({ margin: { l: 8, r: 8, t: 28, b: 8 } });
-    pieLay.title = { text: (row.period || "") + " — " + projLabel, font: plotFont(), x: 0 };
+    if (!pieLabels.length) return null;
+    return { labels: pieLabels, values: pieVals, colors: pieColors };
+  }
+
+  function mzTargetsRenderPieSlot(row, slotIdx) {
+    var slot = document.querySelector('.mz-targets-pie-slot[data-slot="' + slotIdx + '"]');
+    var plotId = "mz-targets-chart-pie-" + slotIdx;
+    mzPurgePlot(plotId);
+    if (!row) {
+      if (slot) slot.classList.add("hidden");
+      return;
+    }
+    if (slot) slot.classList.remove("hidden");
+    var pie = mzTargetsBuildPieData(row);
+    if (!pie || !window.Plotly) {
+      if (slot) slot.classList.add("hidden");
+      return;
+    }
+    var pieLay = plotTheme({ margin: { l: 4, r: 4, t: 28, b: 4 } });
+    pieLay.title = { text: row.period || row.period_key || "", font: plotFont(), x: 0.5, xanchor: "center" };
     pieLay.showlegend = true;
+    pieLay.legend = { orientation: "h", y: -0.08, font: { size: 9 } };
     Plotly.newPlot(
-      "mz-targets-chart-pie",
-      [{ type: "pie", labels: pieLabels, values: pieVals, marker: { colors: pieColors }, textinfo: "label+percent", hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>" }],
+      plotId,
+      [{ type: "pie", labels: pie.labels, values: pie.values, marker: { colors: pie.colors }, textinfo: "percent", textposition: "inside", insidetextorientation: "radial", hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>" }],
       pieLay,
       plotlyCfg()
     );
+  }
+
+  function mzTargetsRenderPieSection(rows) {
+    if (!window.Plotly) return;
+    var chartRows = mzTargetsChartRows(rows);
+    var projLabel = mzTargetsUi.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com";
+    var groups = mzTargetsPopulatePieGroups(rows);
+    var groupRows = mzTargetsPieGroupRows(chartRows);
+    var subtitle = document.getElementById("mz-targets-pie-subtitle");
+    if (subtitle) {
+      subtitle.textContent = groupRows.length
+        ? mzTargetsPieGroupLabel(groupRows, mzTargetsUi.pieGroupIndex) + " · " + projLabel
+        : projLabel;
+    }
+    mzTargetsPurgePieCharts();
+    if (!groups.length) {
+      document.querySelectorAll(".mz-targets-pie-slot").forEach(function (el) { el.classList.add("hidden"); });
+      return;
+    }
+    for (var i = 0; i < 6; i++) {
+      mzTargetsRenderPieSlot(groupRows[i] || null, i);
+    }
   }
 
   function mzTargetsRenderCharts(rows) {
@@ -10932,11 +11017,8 @@
 
     mzPurgePlot("mz-targets-chart-line");
     mzPurgePlot("mz-targets-chart-bar");
-    mzPurgePlot("mz-targets-chart-pie");
 
     if (!chartRows.length) return;
-
-    mzTargetsPopulatePiePeriods(rows);
 
     var lineTraces = [
       { x: labels, y: hedef, name: "Hedef", type: "scatter", mode: "lines+markers", line: { color: "#94a3b8", width: 2 }, marker: { size: 5 } },
@@ -10954,14 +11036,13 @@
     var barLay = plotTheme({ yTitle: "TL", barmode: "group", margin: { l: 56, r: 8, t: 28, b: 72 } });
     barLay.title = { text: projLabel + " — aylık", font: plotFont(), x: 0 };
     Plotly.newPlot("mz-targets-chart-bar", barTraces, barLay, plotlyCfg());
-
-    mzTargetsRenderPieChart(mzTargetsPieRow(chartRows), projLabel);
   }
 
   function mzTargetsRenderAll() {
     var rows = mzTargetsFilteredRows();
     mzTargetsRenderTable(rows);
     mzTargetsRenderCharts(rows);
+    mzTargetsRenderPieSection(rows);
     var err = document.getElementById("mz-targets-error");
     if (err) err.classList.add("hidden");
     if (!rows.length && mzTargetsCache) {
@@ -10992,6 +11073,7 @@
     var controls = document.getElementById("mz-targets-controls");
     var tableWrap = document.getElementById("mz-targets-table-wrap");
     var charts = document.getElementById("mz-targets-charts");
+    var pieSection = document.getElementById("mz-targets-pie-section");
     var err = document.getElementById("mz-targets-error");
     if (loading) loading.classList.remove("hidden");
     if (err) err.classList.add("hidden");
@@ -11006,6 +11088,7 @@
       if (controls) controls.classList.remove("hidden");
       if (tableWrap) tableWrap.classList.remove("hidden");
       if (charts) charts.classList.remove("hidden");
+      if (pieSection) pieSection.classList.remove("hidden");
       mzTargetsSetProject(mzTargetsUi.project);
     } catch (e) {
       if (loading) loading.classList.add("hidden");
@@ -11074,12 +11157,9 @@
     mzTargetsRenderTable(mzTargetsFilteredRows());
   });
 
-  on("mz-targets-pie-period", "change", function (ev) {
-    mzTargetsUi.piePeriodKey = (ev.target && ev.target.value) || "";
-    var rows = mzTargetsFilteredRows();
-    var chartRows = mzTargetsChartRows(rows);
-    var projLabel = mzTargetsUi.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com";
-    mzTargetsRenderPieChart(mzTargetsPieRow(chartRows), projLabel);
+  on("mz-targets-pie-group", "change", function (ev) {
+    mzTargetsUi.pieGroupIndex = Number((ev.target && ev.target.value) || 0) || 0;
+    mzTargetsRenderPieSection(mzTargetsFilteredRows());
     scheduleMzChartsResizeBurst();
   });
 
