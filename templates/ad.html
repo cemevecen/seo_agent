@@ -110,9 +110,9 @@
     text-align: right;
     white-space: nowrap;
   }
-  html.mz-view-targets .mz-targets-table th.period,
-  html.mz-view-targets .mz-targets-table td.period {
-    white-space: nowrap;
+  html.mz-view-targets .mz-targets-table td.mz-targets-heat {
+    border-radius: 0.35rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
   @media (min-width: 1280px) {
     html.mz-view-targets .mz-targets-table {
@@ -10724,7 +10724,7 @@
     return null;
   }
 
-  /** Tamamlama % — koyu kırmızı (≤60) → koyu yeşil (≥100). */
+  /** Tamamlama % — hafif opak kırmızı (≤60) → yeşil (≥100). */
   function mzTargetsHeatStyle(pct) {
     if (pct == null || isNaN(pct)) return "";
     var lo = 60;
@@ -10732,10 +10732,21 @@
     var t = (pct - lo) / (hi - lo);
     if (t < 0) t = 0;
     if (t > 1) t = 1;
-    var r = Math.round(127 + (20 - 127) * t);
-    var g = Math.round(29 + (83 - 29) * t);
-    var b = Math.round(29 + (45 - 29) * t);
-    return "background-color:rgb(" + r + "," + g + "," + b + ");color:#fff;";
+    var dark = isDarkTheme();
+    var rLo = 220;
+    var gLo = 38;
+    var bLo = 38;
+    var rHi = 22;
+    var gHi = 163;
+    var bHi = 74;
+    var r = Math.round(rLo + (rHi - rLo) * t);
+    var g = Math.round(gLo + (gHi - gLo) * t);
+    var b = Math.round(bLo + (bHi - bLo) * t);
+    var alpha = dark ? 0.28 : 0.17;
+    var text = t >= 0.52
+      ? (dark ? "#6ee7b7" : "#166534")
+      : (dark ? "#fca5a5" : "#b91c1c");
+    return "background-color:rgba(" + r + "," + g + "," + b + "," + alpha + ");color:" + text + ";";
   }
 
   function mzTargetsSyncColorizeButton() {
@@ -10806,17 +10817,18 @@
       var pct = mzTargetsCompletionPct(r);
       var heat = colorize ? mzTargetsHeatStyle(pct) : "";
       var heatAttr = heat ? " style=\"" + heat + "\"" : "";
+      var heatCls = colorize && heat ? " mz-targets-heat" : "";
       var kazancCls = colorize
-        ? "px-3 py-2 tabular-nums font-semibold"
+        ? "px-3 py-2 tabular-nums font-semibold" + heatCls
         : "px-3 py-2 tabular-nums font-semibold text-indigo-700 dark:text-indigo-300";
-      var tamCls = colorize ? "px-3 py-2 tabular-nums font-semibold" : "px-3 py-2 tabular-nums";
+      var tamCls = colorize ? "px-3 py-2 tabular-nums font-semibold" + heatCls : "px-3 py-2 tabular-nums";
       tr.innerHTML =
         "<td class=\"period px-3 py-2 font-medium\">" + (r.period || "—") + "</td>" +
         "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef) + "</td>" +
         "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef_80) + "</td>" +
         "<td class=\"" + kazancCls + " num\"" + heatAttr + ">" + mzTargetsFmtMoney(r.kazanc) + "</td>" +
         "<td class=\"" + tamCls + " num\"" + heatAttr + ">" + mzTargetsFmtPct(r.tamamlama_orani) + "</td>" +
-        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.gunluk_kazanc) + "</td>" +
+        "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtGunlukKazanc(r) + "</td>" +
         "<td class=\"num px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.kalan) + "</td>";
       tbody.appendChild(tr);
     });
