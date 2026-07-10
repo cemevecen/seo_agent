@@ -48,6 +48,15 @@
     background: rgb(15 23 42);
     color: white;
   }
+  #mz-targets-colorize.is-active {
+    border-color: rgb(20 83 45);
+    background: rgb(20 83 45);
+    color: #fff;
+  }
+  html.dark #mz-targets-colorize.is-active {
+    border-color: rgb(34 197 94);
+    background: rgb(20 83 45);
+  }
   html.dark .mz-view-tab.mz-view-tab--active {
     background: rgb(63 63 70);
   }
@@ -438,6 +447,14 @@
           </label>
         </div>
         <div id="mz-targets-table-wrap" class="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <div class="flex items-center justify-end border-b border-slate-200 px-3 py-2 dark:border-zinc-700">
+            <button
+              type="button"
+              id="mz-targets-colorize"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+              aria-pressed="false"
+            >Renklendir</button>
+          </div>
           <table class="mz-targets-table min-w-full text-left text-xs">
             <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
               <tr>
@@ -10549,7 +10566,7 @@
   });
 
   var mzTargetsCache = null;
-  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc" };
+  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc", colorize: false };
 
   function mzTargetsFmtPct(v) {
     if (v == null || isNaN(v)) return "—";
@@ -10559,6 +10576,38 @@
   function mzTargetsFmtMoney(v) {
     if (v == null || isNaN(v)) return "—";
     return fmt(v, 0);
+  }
+
+  function mzTargetsCompletionPct(row) {
+    if (!row) return null;
+    if (row.tamamlama_orani != null && !isNaN(row.tamamlama_orani)) return Number(row.tamamlama_orani);
+    var hedef = Number(row.hedef);
+    var kazanc = Number(row.kazanc);
+    if (hedef > 0 && !isNaN(kazanc)) return (kazanc / hedef) * 100;
+    return null;
+  }
+
+  /** Tamamlama % — koyu kırmızı (≤60) → koyu yeşil (≥100). */
+  function mzTargetsHeatStyle(pct) {
+    if (pct == null || isNaN(pct)) return "";
+    var lo = 60;
+    var hi = 100;
+    var t = (pct - lo) / (hi - lo);
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    var r = Math.round(127 + (20 - 127) * t);
+    var g = Math.round(29 + (83 - 29) * t);
+    var b = Math.round(29 + (45 - 29) * t);
+    return "background-color:rgb(" + r + "," + g + "," + b + ");color:#fff;";
+  }
+
+  function mzTargetsSyncColorizeButton() {
+    var btn = document.getElementById("mz-targets-colorize");
+    if (!btn) return;
+    var on = !!mzTargetsUi.colorize;
+    btn.classList.toggle("is-active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.textContent = on ? "Renklendirmeyi kaldır" : "Renklendir";
   }
 
   function mzTargetsFilteredRows() {
@@ -10613,19 +10662,28 @@
     var tbody = document.getElementById("mz-targets-tbody");
     if (!tbody) return;
     tbody.innerHTML = "";
+    var colorize = !!mzTargetsUi.colorize;
     rows.forEach(function (r) {
       var tr = document.createElement("tr");
       tr.className = "text-slate-800 dark:text-zinc-200";
+      var pct = mzTargetsCompletionPct(r);
+      var heat = colorize ? mzTargetsHeatStyle(pct) : "";
+      var heatAttr = heat ? " style=\"" + heat + "\"" : "";
+      var kazancCls = colorize
+        ? "px-3 py-2 tabular-nums font-semibold"
+        : "px-3 py-2 tabular-nums font-semibold text-indigo-700 dark:text-indigo-300";
+      var tamCls = colorize ? "px-3 py-2 tabular-nums font-semibold" : "px-3 py-2 tabular-nums";
       tr.innerHTML =
         "<td class=\"px-3 py-2 font-medium\">" + (r.period || "—") + "</td>" +
         "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef) + "</td>" +
         "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef_80) + "</td>" +
-        "<td class=\"px-3 py-2 tabular-nums font-semibold text-indigo-700 dark:text-indigo-300\">" + mzTargetsFmtMoney(r.kazanc) + "</td>" +
-        "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtPct(r.tamamlama_orani) + "</td>" +
+        "<td class=\"" + kazancCls + "\"" + heatAttr + ">" + mzTargetsFmtMoney(r.kazanc) + "</td>" +
+        "<td class=\"" + tamCls + "\"" + heatAttr + ">" + mzTargetsFmtPct(r.tamamlama_orani) + "</td>" +
         "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.gunluk_kazanc) + "</td>" +
         "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.kalan) + "</td>";
       tbody.appendChild(tr);
     });
+    mzTargetsSyncColorizeButton();
   }
 
   function mzTargetsChartRows(rows) {
@@ -10801,6 +10859,11 @@
     mzTargetsUi.sort = (ev.target && ev.target.value) || "period_key_desc";
     mzTargetsUi.headerSort = null;
     mzTargetsRenderAll();
+  });
+
+  on("mz-targets-colorize", "click", function () {
+    mzTargetsUi.colorize = !mzTargetsUi.colorize;
+    mzTargetsRenderTable(mzTargetsFilteredRows());
   });
 
   document.querySelectorAll(".mz-targets-table th[data-sort]").forEach(function (th) {
