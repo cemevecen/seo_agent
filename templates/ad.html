@@ -28,6 +28,29 @@
   html.mz-range-single-day .mz-bd-pill[data-v="week"],
   html.mz-range-single-day .mz-bd-pill[data-v="month"],
   html.mz-range-single-day .mz-bd-pill[data-v="period_3"],
+  html.mz-view-targets #mz-analytics-stack {
+    display: none !important;
+  }
+  html.mz-view-targets #mz-targets-panel {
+    display: block !important;
+  }
+  #mz-targets-panel {
+    display: none;
+  }
+  .mz-targets-table th[data-sort] {
+    cursor: pointer;
+    user-select: none;
+  }
+  .mz-targets-table th[data-sort]:hover {
+    color: rgb(79 70 229);
+  }
+  .mz-view-tab.mz-view-tab--active {
+    background: rgb(15 23 42);
+    color: white;
+  }
+  html.dark .mz-view-tab.mz-view-tab--active {
+    background: rgb(63 63 70);
+  }
   html.mz-range-single-day .mz-bd-pill[data-v="period_6"],
   html.mz-range-single-day .mz-bd-pill[data-v="period_9"],
   html.mz-range-single-day #mz-market-overlay-section,
@@ -229,6 +252,13 @@
 
   <div id="mz-body-grid" class="mz-body-grid grid grid-cols-1 gap-4 xl:grid-cols-12">
     <aside id="mz-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black xl:col-span-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+      <nav class="rounded-xl border border-teal-200/90 bg-teal-50/70 p-2.5 dark:border-teal-900/60 dark:bg-teal-950/30" aria-label="Sayfa görünümü">
+        <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-teal-800 dark:text-teal-300">Görünüm</p>
+        <div class="grid grid-cols-1 gap-1">
+          <button type="button" id="mz-view-analytics" class="mz-view-tab mz-view-tab--active w-full rounded-lg border border-transparent px-2.5 py-2 text-left text-xs font-bold text-slate-800 hover:bg-white/80 dark:text-zinc-100 dark:hover:bg-zinc-900/80">Monetizasyon analizi</button>
+          <button type="button" id="mz-view-targets" class="mz-view-tab w-full rounded-lg border border-transparent px-2.5 py-2 text-left text-xs font-bold text-slate-700 hover:bg-white/80 dark:text-zinc-300 dark:hover:bg-zinc-900/80">Gelir hedefleri (Sheets)</button>
+        </div>
+      </nav>
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="mz-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
       <button id="mz-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">Yükle ve birleştir</button>
@@ -369,6 +399,77 @@
       <div id="mz-loading" class="pointer-events-none absolute inset-0 z-10 hidden rounded-2xl bg-white/60 dark:bg-black/50" aria-hidden="true">
         <div class="flex h-32 items-center justify-center text-sm font-semibold text-slate-600 dark:text-zinc-300">Yükleniyor…</div>
       </div>
+
+      <section id="mz-targets-panel" class="hidden space-y-4" aria-label="Gelir hedefleri">
+        <div class="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50/50 p-4 dark:border-teal-900/50 dark:bg-teal-950/20">
+          <div>
+            <h2 class="text-lg font-extrabold tracking-tight text-teal-950 dark:text-teal-100">Aylık gelir hedefleri</h2>
+            <p class="mt-1 text-xs text-teal-900/80 dark:text-teal-200/80">Google Sheets — Proje, Hedef, Kazanç ve tamamlama oranı (Döviz &amp; Sinemalar ayrı).</p>
+          </div>
+          <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit" target="_blank" rel="noopener" class="shrink-0 rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Kaynak tablo ↗</a>
+        </div>
+        <p id="mz-targets-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
+        <p id="mz-targets-loading" class="text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
+        <div id="mz-targets-controls" class="hidden flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <div>
+            <p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Proje</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white">Doviz.com</button>
+              <button type="button" data-mz-target-project="sinemalar" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Sinemalar.com</button>
+            </div>
+          </div>
+          <label class="text-xs">
+            <span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Yıl</span>
+            <select id="mz-targets-year" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
+              <option value="">Tümü</option>
+            </select>
+          </label>
+          <label class="text-xs">
+            <span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Sıralama</span>
+            <select id="mz-targets-sort" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
+              <option value="period_key_desc">Dönem (yeniden eskiye)</option>
+              <option value="period_key_asc">Dönem (eskiden yeniye)</option>
+              <option value="kazanc_desc">Kazanç (yüksek)</option>
+              <option value="kazanc_asc">Kazanç (düşük)</option>
+              <option value="hedef_desc">Hedef (yüksek)</option>
+              <option value="tamamlama_orani_desc">Tamamlama % (yüksek)</option>
+              <option value="kalan_desc">Kalan (yüksek)</option>
+            </select>
+          </label>
+        </div>
+        <div id="mz-targets-table-wrap" class="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <table class="mz-targets-table min-w-full text-left text-xs">
+            <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
+              <tr>
+                <th class="px-3 py-2" data-sort="period_key">Dönem</th>
+                <th class="px-3 py-2" data-sort="hedef">Hedef</th>
+                <th class="px-3 py-2" data-sort="hedef_80">Hedef (%80)</th>
+                <th class="px-3 py-2" data-sort="kazanc">Kazanç</th>
+                <th class="px-3 py-2" data-sort="tamamlama_orani">Hedef Tamamlama</th>
+                <th class="px-3 py-2" data-sort="gunluk_kazanc">Günlük Kazanç</th>
+                <th class="px-3 py-2" data-sort="kalan">Kalan</th>
+              </tr>
+            </thead>
+            <tbody id="mz-targets-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+          </table>
+        </div>
+        <div id="mz-targets-charts" class="hidden grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 lg:col-span-2">
+            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Hedef · Kazanç trendi (çizgi)</h3>
+            <div id="mz-targets-chart-line" class="mz-chart-plot min-h-[280px] w-full"></div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık karşılaştırma (sütun)</h3>
+            <div id="mz-targets-chart-bar" class="mz-chart-plot min-h-[280px] w-full"></div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Son dönem dağılımı (pasta)</h3>
+            <div id="mz-targets-chart-pie" class="mz-chart-plot min-h-[280px] w-full"></div>
+          </div>
+        </div>
+      </section>
+
+      <div id="mz-analytics-stack" class="space-y-4">
       <p id="mz-boot-hint" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">KPI ve grafikler yükleniyor…</p>
       <p id="mz-import-audit" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"></p>
       <p id="mz-page-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
@@ -814,6 +915,7 @@
         </div>
 
       </section>
+      </div>
     </div>
   </div>
 
@@ -10449,6 +10551,280 @@
       cb.checked = true;
     });
   });
+
+  var mzTargetsCache = null;
+  var mzTargetsUi = { project: "doviz", year: "", sort: "period_key_desc", headerSort: null, headerDir: "desc" };
+
+  function mzTargetsFmtPct(v) {
+    if (v == null || isNaN(v)) return "—";
+    return fmt(v, 2) + "%";
+  }
+
+  function mzTargetsFmtMoney(v) {
+    if (v == null || isNaN(v)) return "—";
+    return fmt(v, 0);
+  }
+
+  function mzTargetsFilteredRows() {
+    if (!mzTargetsCache || !mzTargetsCache.rows) return [];
+    var rows = mzTargetsCache.rows.filter(function (r) {
+      return r.project === mzTargetsUi.project;
+    });
+    if (mzTargetsUi.year) {
+      var y = parseInt(mzTargetsUi.year, 10);
+      rows = rows.filter(function (r) { return Number(r.year) === y; });
+    }
+    var sortKey = mzTargetsUi.headerSort || mzTargetsUi.sort;
+    var desc = mzTargetsUi.headerSort ? mzTargetsUi.headerDir === "desc" : String(sortKey).indexOf("_desc") >= 0;
+    var field = String(sortKey).replace(/_desc$|_asc$/, "");
+    rows = rows.slice().sort(function (a, b) {
+      var av = a[field];
+      var bv = b[field];
+      if (field === "period_key") {
+        av = a.period_key || "";
+        bv = b.period_key || "";
+      }
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === "string") {
+        return desc ? (bv < av ? -1 : bv > av ? 1 : 0) : (av < bv ? -1 : av > bv ? 1 : 0);
+      }
+      return desc ? bv - av : av - bv;
+    });
+    return rows;
+  }
+
+  function mzTargetsSetProject(pk) {
+    mzTargetsUi.project = pk;
+    document.querySelectorAll(".mz-targets-proj").forEach(function (btn) {
+      var on = btn.getAttribute("data-mz-target-project") === pk;
+      btn.classList.toggle("border-indigo-300", on);
+      btn.classList.toggle("bg-indigo-600", on);
+      btn.classList.toggle("text-white", on);
+      btn.classList.toggle("font-bold", on);
+      btn.classList.toggle("border-slate-300", !on);
+      btn.classList.toggle("bg-white", !on);
+      btn.classList.toggle("text-slate-700", !on);
+      btn.classList.toggle("font-semibold", !on);
+      btn.classList.toggle("dark:bg-zinc-950", !on);
+      btn.classList.toggle("dark:text-zinc-200", !on);
+    });
+    mzTargetsRenderAll();
+  }
+
+  function mzTargetsRenderTable(rows) {
+    var tbody = document.getElementById("mz-targets-tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    rows.forEach(function (r) {
+      var tr = document.createElement("tr");
+      tr.className = "text-slate-800 dark:text-zinc-200";
+      tr.innerHTML =
+        "<td class=\"px-3 py-2 font-medium\">" + (r.period || "—") + "</td>" +
+        "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef) + "</td>" +
+        "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.hedef_80) + "</td>" +
+        "<td class=\"px-3 py-2 tabular-nums font-semibold text-indigo-700 dark:text-indigo-300\">" + mzTargetsFmtMoney(r.kazanc) + "</td>" +
+        "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtPct(r.tamamlama_orani) + "</td>" +
+        "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.gunluk_kazanc) + "</td>" +
+        "<td class=\"px-3 py-2 tabular-nums\">" + mzTargetsFmtMoney(r.kalan) + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function mzTargetsChartRows(rows) {
+    var asc = rows.slice().sort(function (a, b) {
+      return String(a.period_key || "").localeCompare(String(b.period_key || ""));
+    });
+    return asc;
+  }
+
+  function mzTargetsRenderCharts(rows) {
+    if (!window.Plotly) return;
+    var chartRows = mzTargetsChartRows(rows);
+    var labels = chartRows.map(function (r) { return r.period; });
+    var hedef = chartRows.map(function (r) { return r.hedef; });
+    var hedef80 = chartRows.map(function (r) { return r.hedef_80; });
+    var kazanc = chartRows.map(function (r) { return r.kazanc; });
+    var projLabel = mzTargetsUi.project === "sinemalar" ? "Sinemalar.com" : "Doviz.com";
+
+    mzPurgePlot("mz-targets-chart-line");
+    mzPurgePlot("mz-targets-chart-bar");
+    mzPurgePlot("mz-targets-chart-pie");
+
+    if (!chartRows.length) return;
+
+    var lineTraces = [
+      { x: labels, y: hedef, name: "Hedef", type: "scatter", mode: "lines+markers", line: { color: "#94a3b8", width: 2 }, marker: { size: 5 } },
+      { x: labels, y: hedef80, name: "Hedef (%80)", type: "scatter", mode: "lines+markers", line: { color: "#f59e0b", width: 2, dash: "dot" }, marker: { size: 5 } },
+      { x: labels, y: kazanc, name: "Kazanç", type: "scatter", mode: "lines+markers", line: { color: "#4f46e5", width: 2.5 }, marker: { size: 6 } },
+    ];
+    var lineLay = plotTheme({ yTitle: "TL", margin: { l: 56, r: 12, t: 24, b: 72 }, legend: { orientation: "h", y: 1.12 } });
+    lineLay.title = { text: projLabel, font: plotFont(), x: 0 };
+    Plotly.newPlot("mz-targets-chart-line", lineTraces, lineLay, plotlyCfg());
+
+    var barTraces = [
+      { x: labels, y: hedef, name: "Hedef", type: "bar", marker: { color: "#cbd5e1" } },
+      { x: labels, y: kazanc, name: "Kazanç", type: "bar", marker: { color: "#6366f1" } },
+    ];
+    var barLay = plotTheme({ yTitle: "TL", barmode: "group", margin: { l: 56, r: 8, t: 28, b: 72 } });
+    barLay.title = { text: projLabel + " — aylık", font: plotFont(), x: 0 };
+    Plotly.newPlot("mz-targets-chart-bar", barTraces, barLay, plotlyCfg());
+
+    var last = chartRows[chartRows.length - 1];
+    var pieLabels = [];
+    var pieVals = [];
+    var pieColors = [];
+    if (last.kazanc != null && last.kazanc > 0) {
+      pieLabels.push("Kazanç");
+      pieVals.push(last.kazanc);
+      pieColors.push("#4f46e5");
+    }
+    var kalan = last.kalan;
+    if (kalan != null && kalan > 0) {
+      pieLabels.push("Kalan");
+      pieVals.push(kalan);
+      pieColors.push("#f97316");
+    } else if (last.hedef != null && last.kazanc != null && last.kazanc > last.hedef) {
+      pieLabels.push("Hedef üstü");
+      pieVals.push(last.kazanc - last.hedef);
+      pieColors.push("#10b981");
+      pieLabels.unshift("Hedef");
+      pieVals.unshift(last.hedef);
+      pieColors.unshift("#94a3b8");
+    } else if (last.hedef != null) {
+      pieLabels.push("Hedef (tamamlanmamış)");
+      pieVals.push(Math.max(0, last.hedef - (last.kazanc || 0)));
+      pieColors.push("#e2e8f0");
+    }
+    var pieLay = plotTheme({ margin: { l: 8, r: 8, t: 36, b: 8 } });
+    pieLay.title = { text: (last.period || "") + " — " + projLabel, font: plotFont(), x: 0 };
+    pieLay.showlegend = true;
+    Plotly.newPlot(
+      "mz-targets-chart-pie",
+      [{ type: "pie", labels: pieLabels, values: pieVals, marker: { colors: pieColors }, textinfo: "label+percent", hovertemplate: "%{label}: %{value:,.0f} TL<extra></extra>" }],
+      pieLay,
+      plotlyCfg()
+    );
+  }
+
+  function mzTargetsRenderAll() {
+    var rows = mzTargetsFilteredRows();
+    mzTargetsRenderTable(rows);
+    mzTargetsRenderCharts(rows);
+    var err = document.getElementById("mz-targets-error");
+    if (err) err.classList.add("hidden");
+    if (!rows.length && mzTargetsCache) {
+      if (err) {
+        err.textContent = "Seçili filtreler için kayıt bulunamadı.";
+        err.classList.remove("hidden");
+      }
+    }
+  }
+
+  function mzTargetsPopulateYears(years) {
+    var sel = document.getElementById("mz-targets-year");
+    if (!sel) return;
+    var cur = mzTargetsUi.year;
+    sel.innerHTML = "<option value=\"\">Tümü</option>";
+    (years || []).slice().sort(function (a, b) { return b - a; }).forEach(function (y) {
+      var opt = document.createElement("option");
+      opt.value = String(y);
+      opt.textContent = String(y);
+      sel.appendChild(opt);
+    });
+    sel.value = cur;
+  }
+
+  async function mzTargetsLoad(force) {
+    var loading = document.getElementById("mz-targets-loading");
+    var controls = document.getElementById("mz-targets-controls");
+    var tableWrap = document.getElementById("mz-targets-table-wrap");
+    var charts = document.getElementById("mz-targets-charts");
+    var err = document.getElementById("mz-targets-error");
+    if (loading) loading.classList.remove("hidden");
+    if (err) err.classList.add("hidden");
+    try {
+      if (!mzTargetsCache || force) {
+        var r = await fetch("/api/mz-analytics/revenue-targets", { credentials: "same-origin" });
+        if (!r.ok) throw new Error("Hedef tablosu yüklenemedi (" + r.status + ")");
+        mzTargetsCache = await r.json();
+      }
+      mzTargetsPopulateYears(mzTargetsCache.years);
+      if (loading) loading.classList.add("hidden");
+      if (controls) controls.classList.remove("hidden");
+      if (tableWrap) tableWrap.classList.remove("hidden");
+      if (charts) charts.classList.remove("hidden");
+      mzTargetsSetProject(mzTargetsUi.project);
+    } catch (e) {
+      if (loading) loading.classList.add("hidden");
+      if (err) {
+        err.textContent = (e && e.message) || "Yükleme hatası";
+        err.classList.remove("hidden");
+      }
+    }
+  }
+
+  function mzSetPageView(view) {
+    var isTargets = view === "targets";
+    document.documentElement.classList.toggle("mz-view-targets", isTargets);
+    var btnA = document.getElementById("mz-view-analytics");
+    var btnT = document.getElementById("mz-view-targets");
+    if (btnA) btnA.classList.toggle("mz-view-tab--active", !isTargets);
+    if (btnT) btnT.classList.toggle("mz-view-tab--active", isTargets);
+    if (isTargets) {
+      mzTargetsLoad(false);
+    } else {
+      scheduleMzChartsResizeBurst();
+    }
+    try {
+      var u = new URL(window.location.href);
+      if (isTargets) u.searchParams.set("view", "targets");
+      else u.searchParams.delete("view");
+      window.history.replaceState({}, "", u.pathname + u.search + u.hash);
+    } catch (_) { /* ignore */ }
+  }
+
+  on("mz-view-analytics", "click", function () { mzSetPageView("analytics"); });
+  on("mz-view-targets", "click", function () { mzSetPageView("targets"); });
+
+  document.querySelectorAll(".mz-targets-proj").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      mzTargetsUi.headerSort = null;
+      mzTargetsSetProject(btn.getAttribute("data-mz-target-project") || "doviz");
+    });
+  });
+
+  on("mz-targets-year", "change", function (ev) {
+    mzTargetsUi.year = (ev.target && ev.target.value) || "";
+    mzTargetsUi.headerSort = null;
+    mzTargetsRenderAll();
+  });
+
+  on("mz-targets-sort", "change", function (ev) {
+    mzTargetsUi.sort = (ev.target && ev.target.value) || "period_key_desc";
+    mzTargetsUi.headerSort = null;
+    mzTargetsRenderAll();
+  });
+
+  document.querySelectorAll(".mz-targets-table th[data-sort]").forEach(function (th) {
+    th.addEventListener("click", function () {
+      var key = th.getAttribute("data-sort") || "period_key";
+      if (mzTargetsUi.headerSort === key) {
+        mzTargetsUi.headerDir = mzTargetsUi.headerDir === "desc" ? "asc" : "desc";
+      } else {
+        mzTargetsUi.headerSort = key;
+        mzTargetsUi.headerDir = key === "period_key" ? "asc" : "desc";
+      }
+      mzTargetsRenderAll();
+    });
+  });
+
+  try {
+    if (new URL(window.location.href).searchParams.get("view") === "targets") {
+      mzSetPageView("targets");
+    }
+  } catch (_) { /* ignore */ }
 
   window.addEventListener("resize", scheduleMzChartsResizeBurst);
 

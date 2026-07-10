@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.database import SessionLocal, get_db
 from backend.services import ad_analytics_store as store
 from backend.services import app_empower_store as empower_store
+from backend.services.revenue_targets_sheet import revenue_targets_payload
 from backend.api.app_empower import router as app_empower_router
 
 router = APIRouter(tags=["mz-analytics"])
@@ -686,6 +687,21 @@ def get_app_lab_preview(
         project=(project or "doviz").strip().lower(),
         branch=(branch or "desktop").strip().lower(),
     )
+
+
+@router.get("/mz-analytics/revenue-targets")
+def get_revenue_targets(
+    project: str | None = Query(None, description="doviz | sinemalar"),
+    year: int | None = Query(None, ge=2000, le=2100),
+):
+    """Google Sheets aylık gelir hedef tablosu (Döviz / Sinemalar)."""
+    try:
+        return revenue_targets_payload(project=project, year=year)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("revenue-targets fetch failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/mz-analytics/reset")
