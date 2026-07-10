@@ -10921,7 +10921,7 @@
     if (!groups.length) return [];
     var idx = Number(mzTargetsUi.pieGroupIndex) || 0;
     if (idx < 0 || idx >= groups.length) idx = 0;
-    return groups[idx] || [];
+    return (groups[idx] || []).slice().reverse();
   }
 
   function mzTargetsPurgePieCharts() {
