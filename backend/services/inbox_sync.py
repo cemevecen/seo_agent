@@ -15,6 +15,7 @@ from typing import Any
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.config import settings
@@ -41,6 +42,17 @@ INBOX_ROUTE_NSTAT = "nstat"
 INBOX_ROUTE_ALL = "all"
 # Sanal sekme: cevaplanan tüm konuşmalar (tek bir route_tag değil; answered_flag'e göre).
 INBOX_ROUTE_ANSWERED = "answered"
+
+# Aynı Gmail thread birden fazla sekme sorgusunda görünürse en spesifik sekme kazanır.
+_INBOX_ROUTE_RANK: dict[str, int] = {
+    INBOX_ROUTE_FIREBASE: 0,
+    INBOX_ROUTE_NSTAT: 1,
+    INBOX_ROUTE_REKLAM: 2,
+    INBOX_ROUTE_MEDYA: 3,
+    INBOX_ROUTE_SINEMALAR: 4,
+    INBOX_ROUTE_DOVIZ: 5,
+    INBOX_ROUTE_ALL: 6,
+}
 
 # all sekmesinde gösterilen paylaşılan destek adresleri
 INBOX_ALL_SHARED_ADDRESSES: tuple[str, ...] = (
@@ -179,7 +191,51 @@ def _thread_from_addrs_from_gmail(full: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
-def _delete_inbox_thread_by_gmail_id(db: Session, gmail_thread_id: str) -> bool:
+def _pick_unique_thread_refs(
+    thread_refs: list[tuple[str, dict[str, Any]]],
+) -> list[tuple[str, dict[str, Any]]]:
+    """Sekme taramalarından gelen thread listesini gmail_thread_id ile tekilleştirir."""
+    seen_ids: dict[str, str] = {}
+    for route, tref in thread_refs:
+        tid = str(tref.get("id") or "")
+        if not tid:
+            continue
+        prev = seen_ids.get(tid)
+        if prev is None or _INBOX_ROUTE_RANK.get(route, 99) < _INBOX_ROUTE_RANK.get(prev, 99):
+            seen_ids[tid] = route
+
+    unique_refs: list[tuple[str, dict[str, Any]]] = []
+    seen_final: set[str] = set()
+    for route, tref in thread_refs:
+        tid = str(tref.get("id") or "")
+        if not tid or tid in seen_final:
+            continue
+        if seen_ids.get(tid) == route:
+            seen_final.add(tid)
+            unique_refs.append((route, tref))
+    return unique_refs
+
+
+def _update_thread_row_from_gmail(
+    row: SupportInboxThread,
+    *,
+    subject0: str,
+    snippet: str,
+    route_tag: str,
+    gmail_unread: bool,
+    answered_from_gmail: bool,
+    last_ms: int,
+    now: datetime,
+) -> None:
+    row.subject = subject0[:998] or row.subject or "(konu yok)"
+    row.snippet = snippet or row.snippet
+    row.route_tag = route_tag
+    row.gmail_unread = gmail_unread
+    row.answered_flag = answered_from_gmail
+    row.last_internal_ms = last_ms
+    row.last_synced_at = now
+
+
     if not gmail_thread_id:
         return False
     row = (
@@ -1052,27 +1108,7 @@ def iter_sync_inbox_all_routes(
         route_counts[route] = n_route
         LOGGER.info("Inbox sync route=%s listed %d threads (query=%s)", route, n_route, q)
 
-    unique_refs: list[tuple[str, dict[str, Any]]] = []
-    seen_ids: dict[str, str] = {}
-    route_rank = {
-        INBOX_ROUTE_FIREBASE: 0,
-        INBOX_ROUTE_NSTAT: 1,
-        INBOX_ROUTE_REKLAM: 2,
-        INBOX_ROUTE_SINEMALAR: 3,
-        INBOX_ROUTE_DOVIZ: 4,
-        INBOX_ROUTE_ALL: 5,
-    }
-    for route, tref in thread_refs:
-        tid = str(tref.get("id") or "")
-        if not tid:
-            continue
-        prev = seen_ids.get(tid)
-        if prev is None or route_rank.get(route, 99) < route_rank.get(prev, 99):
-            seen_ids[tid] = route
-    for route, tref in thread_refs:
-        tid = str(tref.get("id") or "")
-        if tid and seen_ids.get(tid) == route:
-            unique_refs.append((route, tref))
+    unique_refs = _pick_unique_thread_refs(thread_refs)
 
     n = len(unique_refs)
     yield {
@@ -1363,15 +1399,43 @@ def _upsert_thread_from_gmail(
             last_synced_at=now,
         )
         db.add(row)
-        db.flush()
+        try:
+            with db.begin_nested():
+                db.flush()
+        except IntegrityError:
+            db.expunge(row)
+            row = (
+                db.query(SupportInboxThread)
+                .filter(SupportInboxThread.gmail_thread_id == tid)
+                .first()
+            )
+            if row is None:
+                raise
+            LOGGER.info(
+                "Inbox thread upsert race resolved for gmail_thread_id=%s (concurrent insert)",
+                tid,
+            )
+            _update_thread_row_from_gmail(
+                row,
+                subject0=subject0,
+                snippet=snippet,
+                route_tag=route_tag,
+                gmail_unread=gmail_unread,
+                answered_from_gmail=answered_from_gmail,
+                last_ms=last_ms,
+                now=now,
+            )
     else:
-        row.subject = subject0[:998] or row.subject
-        row.snippet = snippet or row.snippet
-        row.route_tag = route_tag
-        row.gmail_unread = gmail_unread
-        row.answered_flag = answered_from_gmail
-        row.last_internal_ms = last_ms
-        row.last_synced_at = now
+        _update_thread_row_from_gmail(
+            row,
+            subject0=subject0,
+            snippet=snippet,
+            route_tag=route_tag,
+            gmail_unread=gmail_unread,
+            answered_from_gmail=answered_from_gmail,
+            last_ms=last_ms,
+            now=now,
+        )
 
     db.query(SupportInboxMessage).filter(SupportInboxMessage.thread_id == row.id).delete()
     for m in sorted(msgs_raw, key=lambda x: int(x.get("internalDate") or 0)):
