@@ -10703,6 +10703,18 @@
     return fmt(v, 0);
   }
 
+  /** Sheet bazen aylık kazancı günlük sütuna kopyalıyor — aynıysa gösterme. */
+  function mzTargetsFmtGunlukKazanc(row) {
+    if (!row) return "—";
+    var kazanc = row.kazanc;
+    var gunluk = row.gunluk_kazanc;
+    if (gunluk == null || isNaN(gunluk)) return "—";
+    if (kazanc != null && !isNaN(kazanc) && Math.abs(Number(gunluk) - Number(kazanc)) < 0.5) {
+      return "—";
+    }
+    return mzTargetsFmtMoney(gunluk);
+  }
+
   function mzTargetsCompletionPct(row) {
     if (!row) return null;
     if (row.tamamlama_orani != null && !isNaN(row.tamamlama_orani)) return Number(row.tamamlama_orani);
