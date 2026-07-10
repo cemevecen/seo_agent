@@ -42,10 +42,16 @@ INBOX_SUMMARY_SECTIONS: tuple[tuple[str, str, str, str, str], ...] = (
 
 INBOX_SUMMARY_TAB_ORDER: tuple[str, ...] = tuple(s[0] for s in INBOX_SUMMARY_SECTIONS)
 _SUMMARY_ROUTE_KEYS = frozenset(INBOX_SUMMARY_TAB_ORDER)
+# Konuşma sayımı: okunmamış thread'ler bu pencerede; ileti detayı ayrı (24 saat).
+SUMMARY_THREAD_MAX_AGE_DAYS = 7
 SUMMARY_DETAIL_MAX_AGE_HOURS = 24
 
 
-def _summary_window_label() -> str:
+def _summary_thread_window_label() -> str:
+    return f"son {SUMMARY_THREAD_MAX_AGE_DAYS} gün, okunmamış"
+
+
+def _summary_detail_window_label() -> str:
     return f"son {SUMMARY_DETAIL_MAX_AGE_HOURS} saat"
 
 
@@ -59,9 +65,27 @@ def _normalize_summary_route(route_tag: str | None) -> str:
     return inbox_sync.normalize_inbox_route_tag(route_tag)
 
 
-def _summary_cutoff_ms() -> int:
+def _summary_thread_cutoff_ms() -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=SUMMARY_THREAD_MAX_AGE_DAYS)
+    return int(cutoff.timestamp() * 1000)
+
+
+def _summary_detail_cutoff_ms() -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=SUMMARY_DETAIL_MAX_AGE_HOURS)
     return int(cutoff.timestamp() * 1000)
+
+
+def _sync_inbox_before_summary(db: Session) -> None:
+    """Özetten önce son N günlük konuşmaları DB'ye çeker (incremental değil, tam pencere)."""
+    try:
+        inbox_sync.sync_inbox_threads(
+            db,
+            max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS,
+            lookback_days=SUMMARY_THREAD_MAX_AGE_DAYS,
+            after_unix=None,
+        )
+    except Exception as exc:
+        logger.warning("Inbox sync before summary failed (continuing): %s", exc)
 
 
 def run_inbox_scheduled_sync(db: Session) -> dict[str, Any] | None:
@@ -222,7 +246,7 @@ def build_inbox_summary_html(
     db: Session,
 ) -> str:
     now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
-    cutoff_ms = _summary_cutoff_ms()
+    detail_cutoff_ms = _summary_detail_cutoff_ms()
     total = sum(len(grouped.get(key) or []) for key in INBOX_SUMMARY_TAB_ORDER)
     order_label = " → ".join(INBOX_SUMMARY_TAB_ORDER)
     parts = [
@@ -230,7 +254,8 @@ def build_inbox_summary_html(
         "max-width:680px;margin:0 auto;'>",
         "<h2 style='color:#1d4ed8;margin:0 0 6px;'>Gelen Kutusu Özeti</h2>",
         f"<p style='color:#64748b;font-size:13px;margin:0 0 16px;'>{now_str} · "
-        f"<b>{total}</b> konuşma ({_summary_window_label()}) · sıra: "
+        f"<b>{total}</b> konuşma ({_summary_thread_window_label()}) · detay: "
+        f"{_summary_detail_window_label()} · sıra: "
         f"{order_label}</p>",
         _render_overview_table(grouped),
     ]
@@ -261,7 +286,7 @@ def build_inbox_summary_html(
             parts.append("<ul style='margin:0;padding:0 16px 8px;'>")
             message_count = 0
             for thread in threads:
-                messages = _inbound_messages_for_summary(db, thread.id, cutoff_ms=cutoff_ms)
+                messages = _inbound_messages_for_summary(db, thread.id, cutoff_ms=detail_cutoff_ms)
                 if not messages:
                     continue
                 medya_kind = None
@@ -296,7 +321,7 @@ def build_inbox_summary_html(
     parts.append(
         "<p style='margin-top:8px;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;"
         "padding-top:12px;'>SEO Agent · 2 saatte bir otomatik özet · "
-        f"Detay: {_summary_window_label()}, ileti bazında · "
+        f"Detay: {_summary_detail_window_label()}, ileti bazında · "
         "<a href='https://projectcontrol.up.railway.app/inbox'>Gelen kutusunu aç</a></p>"
     )
     parts.append("</div>")
@@ -338,10 +363,7 @@ def run_inbox_summary_email(db: Session) -> bool:
         logger.info("Inbox summary email atlandı: Gmail bağlı değil.")
         return False
 
-    try:
-        inbox_sync.sync_scheduled_inbox_threads(db, max_threads=inbox_sync.INBOX_SYNC_MAX_THREADS)
-    except Exception as exc:
-        logger.warning("Inbox sync before summary failed (continuing): %s", exc)
+    _sync_inbox_before_summary(db)
 
     unread_threads = (
         db.query(SupportInboxThread)
@@ -351,8 +373,8 @@ def run_inbox_summary_email(db: Session) -> bool:
     )
     logger.info("Unread threads for summary: %d", len(unread_threads))
 
-    cutoff_ms = _summary_cutoff_ms()
-    grouped = _group_unread_threads(unread_threads, cutoff_ms=cutoff_ms)
+    thread_cutoff_ms = _summary_thread_cutoff_ms()
+    grouped = _group_unread_threads(unread_threads, cutoff_ms=thread_cutoff_ms)
     total = sum(len(grouped.get(key) or []) for key in INBOX_SUMMARY_TAB_ORDER)
     section_counts = {key: len(grouped.get(key) or []) for key in INBOX_SUMMARY_TAB_ORDER}
     chips = " · ".join(f"{k}:{v}" for k, v in section_counts.items() if v > 0)

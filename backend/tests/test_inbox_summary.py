@@ -5,9 +5,10 @@ from datetime import datetime, timedelta, timezone
 from backend.services.inbox_summary import (
     INBOX_SUMMARY_SECTIONS,
     INBOX_SUMMARY_TAB_ORDER,
+    SUMMARY_THREAD_MAX_AGE_DAYS,
     _group_unread_threads,
     _normalize_summary_route,
-    _summary_cutoff_ms,
+    _summary_thread_cutoff_ms,
     build_inbox_summary_html,
 )
 
@@ -90,6 +91,7 @@ def test_summary_html_five_sections_no_reklam_all():
     assert ">reklam<" not in html_out
     assert ">all<" not in html_out
     assert "son 24 saat" in html_out
+    assert f"son {SUMMARY_THREAD_MAX_AGE_DAYS} gün" in html_out
     assert "Crash" in html_out
     assert "NPE stack" in html_out
     assert "Bu sekmede konuşma yok." in html_out
@@ -104,6 +106,17 @@ def test_group_excludes_reklam_all_and_old_threads():
         _Thread(id=3, subject="C", route_tag="all", last_internal_ms=now_ms),
         _Thread(id=4, subject="D", route_tag="firebase", last_internal_ms=old_ms),
     ]
-    grouped = _group_unread_threads(threads, cutoff_ms=_summary_cutoff_ms())
+    grouped = _group_unread_threads(threads, cutoff_ms=_summary_thread_cutoff_ms())
     assert list(grouped.keys()) == ["doviz"]
     assert len(grouped["doviz"]) == 1
+
+
+def test_group_includes_thread_within_7_days():
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    three_days_ms = int((datetime.now(timezone.utc) - timedelta(days=3)).timestamp() * 1000)
+    threads = [
+        _Thread(id=1, subject="Recent", route_tag="doviz", last_internal_ms=now_ms),
+        _Thread(id=2, subject="Three days", route_tag="doviz", last_internal_ms=three_days_ms),
+    ]
+    grouped = _group_unread_threads(threads, cutoff_ms=_summary_thread_cutoff_ms())
+    assert len(grouped["doviz"]) == 2
