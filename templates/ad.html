@@ -5783,15 +5783,21 @@
     var src = peerSum || state.peerSummary;
     var xs = plotX;
     var ys = precomputedYs;
-    // Günlük peer: kendi by_date X/Y'si (KPI toplamı ile uyumlu). Hizalı Y sıfırsa yine buna düş.
-    var own = peerDailySeriesXY(src, metricKey);
-    if (peerSeriesHasSignal(own.y)) {
-      xs = own.x;
-      ys = own.y;
-    } else if (!peerSeriesHasSignal(ys)) {
-      if (!src) return;
-      ys = peerMetricYForPlotX(src, plotX, metricKey);
+    var plotLen = (plotX || []).length;
+    // Önce çağıranın serisi (hafta/ay kırılımı hizalıysa). Uzunluk uyuşmuyorsa veya
+    // sıfır düz çizgiyse peer'in kendi günlük by_date X/Y'sine düş.
+    if (peerSeriesHasSignal(ys) && ys.length === plotLen) {
       xs = plotX;
+    } else {
+      var own = peerDailySeriesXY(src, metricKey);
+      if (peerSeriesHasSignal(own.y)) {
+        xs = own.x;
+        ys = own.y;
+      } else if (!peerSeriesHasSignal(ys)) {
+        if (!src) return;
+        ys = peerMetricYForPlotX(src, plotX, metricKey);
+        xs = plotX;
+      }
     }
     if (!peerSeriesHasSignal(ys)) return;
     var tr = {
@@ -7855,7 +7861,7 @@
           return;
         }
       } else if (state.peerOverlay.line) {
-        appendPeerScatterTrace(traces, primaryPlotX, kpiKey, peerSum, peerBranchLabel(), null, peerPlotY);
+        appendPeerScatterTrace(traces, peerPlotX, kpiKey, peerSum, peerBranchLabel(), null, peerPlotY);
       } else {
         hidePeerSplitChart("line");
       }
