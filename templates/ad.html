@@ -606,6 +606,20 @@
         <p id="mz-compare-period-lines" class="mt-1.5 text-sm leading-snug text-slate-800 dark:text-zinc-100"></p>
         <p id="mz-compare-period-mode" class="mt-1 text-[10px] text-indigo-700 dark:text-indigo-400"></p>
       </div>
+      <div id="mz-project-totals" class="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Proje toplam gelirleri">
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
+          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Döviz toplam gelir</p>
+          <p class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-zinc-500">Web · MWeb · Android · iOS</p>
+          <p id="mz-total-doviz" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100">—</p>
+          <p id="mz-total-doviz-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
+          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sinemalar toplam gelir</p>
+          <p class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-zinc-500">Web · MWeb</p>
+          <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100">—</p>
+          <p id="mz-total-sinemalar-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+        </div>
+      </div>
       <div id="mz-kpi-grid" class="mz-kpi-grid">
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
@@ -1981,6 +1995,58 @@
     appendCompareQs(p);
     if (compareEnabled()) p.set("compare", "1");
     return p;
+  }
+
+  /** Proje toplamı: tüm dallar (branch yok), drill yok, seçili tarih/gelir filtreleri korunur. */
+  function qsForProjectTotal(project) {
+    var p = qs({ global: true });
+    p.set("project", project);
+    p.delete("branch");
+    p.delete("stream");
+    return p;
+  }
+
+  function renderProjectTotalCard(sum, valueElId, deltaElId) {
+    var valueEl = document.getElementById(valueElId);
+    var deltaEl = document.getElementById(deltaElId);
+    if (!valueEl) return;
+    var rev = sum && sum.kpis ? sum.kpis.net_revenue : null;
+    valueEl.textContent = rev == null ? "—" : fmt(rev, 2);
+    if (!deltaEl) return;
+    var cmp = sum ? compareBlock(sum) : null;
+    var d = cmp && cmp.deltas ? cmp.deltas.net_revenue : null;
+    if (d && d.compare != null) {
+      var pctPart = d.pct != null ? " · " + fmtDeltaPct(d.pct) : "";
+      deltaEl.textContent = "Karş: " + fmt(d.compare, 2) + pctPart;
+      deltaEl.classList.remove("hidden");
+    } else {
+      deltaEl.textContent = "";
+      deltaEl.classList.add("hidden");
+    }
+  }
+
+  async function refreshProjectTotals() {
+    var dovizEl = document.getElementById("mz-total-doviz");
+    var sinEl = document.getElementById("mz-total-sinemalar");
+    if (dovizEl) dovizEl.textContent = "…";
+    if (sinEl) sinEl.textContent = "…";
+    try {
+      var [dovizR, sinR] = await Promise.all([
+        fetch("/api/mz-analytics/summary?" + qsForProjectTotal("doviz").toString()),
+        fetch("/api/mz-analytics/summary?" + qsForProjectTotal("sinemalar").toString()),
+      ]);
+      var dovizSum = dovizR.ok ? await dovizR.json() : null;
+      var sinSum = sinR.ok ? await sinR.json() : null;
+      renderProjectTotalCard(dovizSum, "mz-total-doviz", "mz-total-doviz-delta");
+      renderProjectTotalCard(sinSum, "mz-total-sinemalar", "mz-total-sinemalar-delta");
+    } catch (_) {
+      if (dovizEl) dovizEl.textContent = "—";
+      if (sinEl) sinEl.textContent = "—";
+      var dDelta = document.getElementById("mz-total-doviz-delta");
+      var sDelta = document.getElementById("mz-total-sinemalar-delta");
+      if (dDelta) dDelta.classList.add("hidden");
+      if (sDelta) sDelta.classList.add("hidden");
+    }
   }
 
   function selectedDateRange() {
@@ -9377,6 +9443,7 @@
       finalizeMzTrendAndSparks(sum);
       await refreshPeerBranchAvailability();
       renderKpisWithPeer(sum);
+      refreshProjectTotals().catch(function () {});
       if (state.peerOverlay.month) refreshChartMonth();
       if (state.peerOverlay.kpi) scheduleKpiSparklines(sum);
       if (state.peerOverlay.line || state.peerSeparate.line) refreshChartLine();
