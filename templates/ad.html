@@ -260,6 +260,31 @@
     .mz-page .mz-charts-row-3.mz-charts-row-3--n-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
+    .mz-page .mz-charts-row-3.mz-charts-row-3--n-3 {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+  }
+  @media (min-width: 1024px) {
+    .mz-page .mz-charts-row-3.mz-charts-row-3--n-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+  }
+  .mz-page .mz-charts-row-3 > .mz-chart-card {
+    width: 100%;
+    min-width: 0;
+    align-self: stretch;
+  }
+  .mz-page .mz-charts-row-3 .mz-chart-plot--tile {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .mz-page #mz-charts-income-month-row {
+    width: 100%;
+    min-width: 0;
+  }
+  .mz-page #mz-charts-income-month-row > .mz-chart-card {
+    min-width: 0;
+    width: 100%;
   }
   html.mz-range-single-day #mz-kpi-grid,
   .mz-page #mz-kpi-grid.mz-kpi-grid--compact {
@@ -2269,7 +2294,7 @@
     var split =
       row3Visible &&
       incomeVisible &&
-      row3ChildCount >= 2 &&
+      row3ChildCount === 2 &&
       (isMzSingleDayRange() || window.innerWidth >= 1280);
     var sparse = row3Visible && row3ChildCount <= 1 && !incomeVisible;
     dash.classList.toggle("mz-dashboard-cards--split", !!split);

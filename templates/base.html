@@ -993,13 +993,23 @@
     }
     .mz-page .mz-charts-row-3 {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+      grid-template-columns: minmax(0, 1fr);
       gap: 0.75rem;
       align-items: stretch;
+      width: 100%;
+      min-width: 0;
+    }
+    @media (min-width: 640px) {
+      .mz-page .mz-charts-row-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
     @media (min-width: 1024px) {
+      .mz-page .mz-charts-row-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
       .mz-page .mz-charts-row-3.mz-charts-row-3--surface-hidden {
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
     .mz-page #mz-main {
