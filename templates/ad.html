@@ -3019,8 +3019,10 @@
     if (!start || !end || start > end) return rows || [];
     var byDay = {};
     (rows || []).forEach(function (d) {
-      var dt = String(d.date != null ? d.date : "").slice(0, 10);
-      if (dt) byDay[dt] = d;
+      // String(date).slice kırılgan (Date → "Wed Jul 01…"). Peer ile aynı anahtar.
+      var dt = mzIsoDateKey(d && d.date != null ? d.date : d);
+      if (!dt && d && d.date != null) dt = String(d.date).trim().slice(0, 10);
+      if (dt && /^\d{4}-\d{2}-\d{2}$/.test(dt)) byDay[dt] = d;
     });
     var out = [];
     var cur = new Date(start + "T12:00:00");
@@ -3028,7 +3030,7 @@
     if (isNaN(cur.getTime()) || isNaN(endD.getTime())) return rows || [];
     while (cur <= endD) {
       var iso = isoCalendarDate(cur);
-      out.push(byDay[iso] ? Object.assign({}, byDay[iso]) : mzEmptyDaySeriesRow(iso));
+      out.push(byDay[iso] ? Object.assign({}, byDay[iso], { date: iso }) : mzEmptyDaySeriesRow(iso));
       cur.setDate(cur.getDate() + 1);
     }
     return out;
@@ -3039,8 +3041,17 @@
     if (!r.start && !r.end) return series || [];
     var key = timeKey || "date";
     var filtered = (series || []).filter(function (d) {
-      var raw = d[key] != null ? d[key] : d.date;
+      var raw = key === "date"
+        ? (d.date != null ? d.date : d[key])
+        : (d[key] != null ? d[key] : d.date);
       if (raw == null) return false;
+      if (key === "date") {
+        var dt = mzIsoDateKey(raw) || String(raw).trim().slice(0, 10);
+        if (!dt || dt.length < 10) return true;
+        if (r.start && dt < r.start) return false;
+        if (r.end && dt > r.end) return false;
+        return true;
+      }
       var s = String(raw);
       if (key === "week" || /^(\d{4})-W\d/i.test(s)) {
         return rowInPeriodRange({ week: s }, "week", r);
@@ -3051,10 +3062,10 @@
         if (r.end && m > r.end.slice(0, 7)) return false;
         return true;
       }
-      var dt = s.slice(0, 10);
-      if (dt.length < 10) return true;
-      if (r.start && dt < r.start) return false;
-      if (r.end && dt > r.end) return false;
+      var dt2 = s.slice(0, 10);
+      if (dt2.length < 10) return true;
+      if (r.start && dt2 < r.start) return false;
+      if (r.end && dt2 > r.end) return false;
       return true;
     });
     if (key === "date" && r.start && r.end) {
@@ -4622,11 +4633,36 @@
   function chartLineStreamSeries(dim, cmp, sum, opts) {
     if (!sum) return [];
     opts = opts || {};
-    // Peer serisinde lastByDate (aktif dal) kullanma — aksi halde karşı dal yerine birincil çizilir.
-    var srcDaily = opts.useSumDaily
-      ? (sum.by_date || [])
-      : (state.lastByDate || sum.by_date || []);
+    // Özet by_date kaynak; lastByDate yalnızca dolu ve sinyal varsa (boş [] truthy tuzağı yok).
+    var fromSum = sum.by_date || [];
+    var fromLast = state.lastByDate;
+    var srcDaily;
+    if (opts.useSumDaily) {
+      srcDaily = fromSum;
+    } else if (fromSum.length) {
+      srcDaily = fromSum;
+    } else if (fromLast && fromLast.length) {
+      srcDaily = fromLast;
+    } else {
+      srcDaily = [];
+    }
     var daily = filterSeriesBySelectedRange(srcDaily, "date");
+    // Doldurma sonrası metrik tamamen 0 ise ham by_date'den tekrar dene (tarih anahtarı uyumsuzluğu).
+    var metricKey = opts.metricKey || state.activeKpiKey || "net_revenue";
+    if (
+      dim === "date" &&
+      fromSum.length &&
+      !peerSeriesHasSignal(daily.map(function (d) { return d[metricKey]; }))
+    ) {
+      var raw = peerDailySeriesXY(sum, metricKey);
+      if (peerSeriesHasSignal(raw.y)) {
+        return raw.x.map(function (x, i) {
+          var row = { date: x };
+          row[metricKey] = raw.y[i];
+          return row;
+        });
+      }
+    }
     if (dim === "date") return daily;
     if (dim === "month") {
       return aggregateTableRowsByDim(
@@ -7965,6 +8001,24 @@
         var v = x[kpiKey];
         return v != null && !isNaN(v) ? Number(v) : 0;
       });
+      // Birincil seri düz 0 ama özet KPI/by_date doluysa (tarih anahtarı uyumsuzluğu) ham seriden kurtar.
+      if (
+        timeKey === "date" &&
+        !peerSeriesHasSignal(vals) &&
+        sum &&
+        ((sum.kpis && Number(sum.kpis[kpiKey]) > 0) || (sum.by_date && sum.by_date.length))
+      ) {
+        var rawPrimary = peerDailySeriesXY(sum, kpiKey);
+        if (peerSeriesHasSignal(rawPrimary.y)) {
+          labels = rawPrimary.x;
+          vals = rawPrimary.y;
+          series = rawPrimary.x.map(function (x, i) {
+            var row = { date: x };
+            row[kpiKey] = rawPrimary.y[i];
+            return row;
+          });
+        }
+      }
       primaryPlotX = labels;
       primarySeriesRows = series;
       traces.push({
