@@ -70,6 +70,8 @@ def test_parse_filename_invalid():
 def test_is_empower_filename():
     assert is_empower_filename("dovizandroidempower1.xlsx")
     assert not is_empower_filename("dovizweb1.xlsx")
+    assert not is_empower_filename("dovizandroid3.xlsx")
+    assert not is_empower_filename("dovizandroid2.xlsx")
 
 
 def test_partition_mz_upload_files():
@@ -77,7 +79,12 @@ def test_partition_mz_upload_files():
         [
             (b"a", "dovizweb1.xlsx"),
             (b"b", "doviziosempower2.xlsx"),
+            (b"c", "dovizandroid3.xlsx"),
         ]
     )
-    assert len(ad) == 1 and ad[0][1] == "dovizweb1.xlsx"
-    assert len(emp) == 1 and emp[0][1] == "doviziosempower2.xlsx"
+    assert [name for _, name in ad] == ["dovizweb1.xlsx", "dovizandroid3.xlsx"]
+    assert [name for _, name in emp] == ["doviziosempower2.xlsx"]
+    # Dönüş sırası (ad, empower) — API unpack'i buna bağlı
+    first, second = partition_mz_upload_files([(b"x", "dovizandroid3.xlsx")])
+    assert len(first) == 1 and first[0][1] == "dovizandroid3.xlsx"
+    assert second == []

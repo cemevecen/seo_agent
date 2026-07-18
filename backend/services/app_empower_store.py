@@ -66,7 +66,11 @@ def is_empower_filename(filename: str) -> bool:
 def partition_mz_upload_files(
     files: list[tuple[bytes, str]],
 ) -> tuple[list[tuple[bytes, str]], list[tuple[bytes, str]]]:
-    """Reklam MX yüklemesinden Empower xlsx dosyalarını ayırır."""
+    """Reklam MX yüklemesinden Empower xlsx dosyalarını ayırır.
+
+    Returns:
+        (ad_files, empower_files) — sıra önemli; çağıranlar bunu ters unpack etmemeli.
+    """
     empower: list[tuple[bytes, str]] = []
     ad: list[tuple[bytes, str]] = []
     for raw, name in files:

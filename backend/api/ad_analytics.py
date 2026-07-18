@@ -262,7 +262,7 @@ async def post_ad_analytics_upload_bulk(
 ):
     """12 xlsx tek seferde: dal başına 2025+2026 birleşir; aynı günler güncellenir (upsert)."""
     payload = await _read_upload_payload(files)
-    empower_files, ad_files = empower_store.partition_mz_upload_files(payload)
+    ad_files, empower_files = empower_store.partition_mz_upload_files(payload)
     empower_result = None
     if empower_files:
         empower_result = empower_store.import_files_bulk(db, empower_files)
@@ -315,7 +315,7 @@ async def post_ad_analytics_upload_bulk_stream(
 ):
     """Çoklu dosya: yanıt gövdesi NDJSON — satır/satır gerçek ilerleme."""
     payload = await _read_upload_payload(files)
-    empower_files, ad_files = empower_store.partition_mz_upload_files(payload)
+    ad_files, empower_files = empower_store.partition_mz_upload_files(payload)
     total_bytes = sum(len(raw) for raw, _ in payload)
 
     def _ndjson_stream():
