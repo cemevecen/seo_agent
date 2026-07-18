@@ -4609,9 +4609,14 @@
     return String(row.date || "");
   }
 
-  function chartLineStreamSeries(dim, cmp, sum) {
+  function chartLineStreamSeries(dim, cmp, sum, opts) {
     if (!sum) return [];
-    var daily = filterSeriesBySelectedRange(state.lastByDate || sum.by_date || [], "date");
+    opts = opts || {};
+    // Peer serisinde lastByDate (aktif dal) kullanma — aksi halde karşı dal yerine birincil çizilir.
+    var srcDaily = opts.useSumDaily
+      ? (sum.by_date || [])
+      : (state.lastByDate || sum.by_date || []);
+    var daily = filterSeriesBySelectedRange(srcDaily, "date");
     if (dim === "date") return daily;
     if (dim === "month") {
       return aggregateTableRowsByDim(
@@ -5591,9 +5596,22 @@
     p.set("project", state.activeStream.project || "doviz");
     p.set("branch", pk);
     p.set("stream", targetKey);
-    // Karşı dal tam kırılım — gelir tipi filtresi iOS/Android'de farklı isimlerde olabildiği için overlay'de kullanma.
-    p.delete("income_types");
-    p.delete("drill_income_type");
+    // Karşı dalı kendi gerçek kırılımıyla çiz: aktif dalın facet/drill filtreleri
+    // (gelir tipi adı, kaynak dosya, arama…) diğer dalda sıfır satır bırakabiliyor.
+    [
+      "income_types",
+      "drill_income_type",
+      "ad_unit",
+      "ad_units",
+      "area",
+      "sources",
+      "search",
+      "platforms",
+      "channels",
+      "surfaces",
+    ].forEach(function (k) {
+      p.delete(k);
+    });
     return p;
   }
 
@@ -5630,18 +5648,35 @@
     return state._peerSummaryPromise;
   }
 
+  function mzIsoDateKey(raw) {
+    if (raw == null || raw === "") return "";
+    if (Object.prototype.toString.call(raw) === "[object Date]" && !isNaN(raw.getTime())) {
+      return isoCalendarDate(raw);
+    }
+    var s = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    return "";
+  }
+
   function peerMetricYForPlotX(peerSum, plotX, metricKey) {
     if (!peerSum || !plotX || !plotX.length) return [];
+    var range = selectedDateRange();
     var lookup = {};
-    filterSeriesBySelectedRange(peerSum.by_date || [], "date").forEach(function (d) {
-      lookup[String(d.date).slice(0, 10)] = d[metricKey];
+    // Sıfır-doldurulmuş seri kullanma: eksik günler null kalsın (connectgaps),
+    // yoksa overlay tabanda düz sıfır çizgisi gibi görünür.
+    (peerSum.by_date || []).forEach(function (d) {
+      var k = mzIsoDateKey(d.date);
+      if (!k) return;
+      if (range.start && k < range.start) return;
+      if (range.end && k > range.end) return;
+      var v = d[metricKey];
+      if (v == null || v === "" || isNaN(Number(v))) return;
+      lookup[k] = Number(v);
     });
     return plotX.map(function (x) {
-      var iso = String(x).slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return null;
-      var v = lookup[iso];
-      if (v == null || isNaN(v)) return null;
-      return Number(v);
+      var iso = mzIsoDateKey(x);
+      if (!iso) return null;
+      return Object.prototype.hasOwnProperty.call(lookup, iso) ? lookup[iso] : null;
     });
   }
 
@@ -5653,8 +5688,23 @@
       });
       return peerMetricYForPlotX(peerSum, dates, metricKey);
     }
-    var peerDaily = filterSeriesBySelectedRange(peerSum.by_date || [], "date");
-    var peerAgg = chartLineStreamSeries(timeKey, null, { by_date: peerDaily });
+    var peerDaily = filterSeriesBySelectedRange(peerSum.by_date || [], "date").filter(function (r) {
+      // fill'in eklediği boş günleri aggregation'a alma
+      return (peerSum.by_date || []).some(function (src) {
+        return mzIsoDateKey(src.date) === mzIsoDateKey(r.date);
+      });
+    });
+    if (!peerDaily.length) {
+      peerDaily = (peerSum.by_date || []).filter(function (r) {
+        var k = mzIsoDateKey(r.date);
+        var range = selectedDateRange();
+        if (!k) return false;
+        if (range.start && k < range.start) return false;
+        if (range.end && k > range.end) return false;
+        return true;
+      });
+    }
+    var peerAgg = chartLineStreamSeries(timeKey, null, { by_date: peerDaily }, { useSumDaily: true });
     var lookup = {};
     peerAgg.forEach(function (r) {
       lookup[seriesTimeLabel(r, timeKey)] = r[metricKey];
@@ -5675,7 +5725,7 @@
       var src = peerSum || state.peerSummary;
       ys = peerMetricYForPlotX(src, plotX, metricKey);
     }
-    if (!ys.some(function (v) { return v != null && v !== 0; })) return;
+    if (!ys.some(function (v) { return v != null && Number(v) !== 0 && !isNaN(Number(v)); })) return;
     var tr = {
       type: "scatter",
       mode: (plotX || []).length > 120 ? "lines" : "lines+markers",
@@ -5683,8 +5733,8 @@
       x: plotX,
       y: ys,
       connectgaps: true,
-      line: Object.assign({}, peerOverlayLineStyle(), { width: 2.25 }),
-      marker: { size: 4, color: peerOverlayLineColor() },
+      line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
+      marker: { size: 5, color: peerOverlayOnChartLineColor(0.85) },
     };
     if (yaxis) tr.yaxis = yaxis;
     mzApplyLineHoverStyle(tr, { def: def });
@@ -7677,8 +7727,8 @@
               type: "scatter",
               mode: primaryPlotX.length > 120 ? "lines" : "lines+markers",
               name: peerBranchLabel() + " · " + def.label,
-              line: peerOverlayLineStyle(),
-              marker: { size: 4, color: peerOverlayLineColor() },
+              line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
+              marker: { size: 5, color: peerOverlayOnChartLineColor(0.85) },
               connectgaps: true,
             },
           ];
@@ -7722,18 +7772,18 @@
         lookup[String(r.month || "").slice(0, 7)] = Number(r.net_revenue) || 0;
       });
     } else if (labelKey === "date") {
-      filterSeriesBySelectedRange(peerSum.by_date || [], "date").forEach(function (r) {
-        var k = String(r.date || "").slice(0, 10);
+      (peerSum.by_date || []).forEach(function (r) {
+        var k = mzIsoDateKey(r.date);
         if (k) lookup[k] = Number(r.net_revenue) || 0;
       });
     } else {
       return null;
     }
     var ys = labels.map(function (lbl) {
-      var k = labelKey === "month" ? String(lbl).slice(0, 7) : String(lbl).slice(0, 10);
-      return lookup[k] != null ? lookup[k] : 0;
+      var k = labelKey === "month" ? String(lbl).slice(0, 7) : mzIsoDateKey(lbl);
+      return lookup[k] != null ? lookup[k] : null;
     });
-    if (!ys.some(function (v) { return v > 0; })) return null;
+    if (!ys.some(function (v) { return v != null && Number(v) !== 0; })) return null;
     return ys;
   }
 
