@@ -949,6 +949,7 @@
                   <input id="mz-drill-ga4-separate" type="checkbox" class="rounded border-slate-300 dark:border-zinc-600" />
                   GA4 ayrı grafik
                 </label>
+                <span id="mz-peer-toggle-drill-detail" class="hidden"></span>
               </div>
             </div>
           </div>
@@ -5508,8 +5509,7 @@
   function peerChartToggleVisible(chartKey) {
     if (!peerBranchKey()) return false;
     if (chartKey === "stacked") return !!state.peerStackedAvailable;
-    if (chartKey === "drillDetail") return false;
-    if (chartKey === "drillSummary") {
+    if (chartKey === "drillDetail" || chartKey === "drillSummary") {
       return !!state.peerBranchAvailable;
     }
     return !!state.peerBranchAvailable;
@@ -5648,6 +5648,73 @@
     return state._peerSummaryPromise;
   }
 
+  function peerMappedAdUnit(unit) {
+    var u = String(unit || "");
+    if (!u) return u;
+    var active = state.activeStream && state.activeStream.branch;
+    var peer = peerBranchKey();
+    if (!active || !peer || active === peer) return u;
+    if (active === "ios" && peer === "android") {
+      return u
+        .replace(/doviz_ios_/gi, "doviz_android_")
+        .replace(/_ios_/gi, "_android_")
+        .replace(/(^|[^a-z])ios([^a-z]|$)/gi, "$1android$2");
+    }
+    if (active === "android" && peer === "ios") {
+      return u
+        .replace(/doviz_android_/gi, "doviz_ios_")
+        .replace(/_android_/gi, "_ios_")
+        .replace(/(^|[^a-z])android([^a-z]|$)/gi, "$1ios$2");
+    }
+    if (active === "desktop" && peer === "mweb") {
+      return u.replace(/_web_/gi, "_mweb_").replace(/\/web\//gi, "/mweb/");
+    }
+    if (active === "mweb" && peer === "desktop") {
+      return u.replace(/_mweb_/gi, "_web_").replace(/\/mweb\//gi, "/web/");
+    }
+    return u;
+  }
+
+  function qsForPeerDrill(slice) {
+    var p = qsForPeerBranch();
+    if (!p) return null;
+    if (slice && slice.income_type) {
+      p.set("income_types", slice.income_type);
+    }
+    if (slice && slice.ad_unit) {
+      p.set("ad_units", peerMappedAdUnit(slice.ad_unit));
+      p.delete("ad_unit");
+    }
+    return p;
+  }
+
+  function peerDailySeriesXY(peerSum, metricKey) {
+    var range = selectedDateRange();
+    var pairs = [];
+    (peerSum && peerSum.by_date ? peerSum.by_date : []).forEach(function (d) {
+      var k = mzIsoDateKey(d.date);
+      if (!k) return;
+      if (range.start && k < range.start) return;
+      if (range.end && k > range.end) return;
+      var v = Number(d[metricKey]);
+      if (isNaN(v)) return;
+      pairs.push({ x: k, y: v });
+    });
+    pairs.sort(function (a, b) {
+      return a.x < b.x ? -1 : a.x > b.x ? 1 : 0;
+    });
+    return {
+      x: pairs.map(function (p) { return p.x; }),
+      y: pairs.map(function (p) { return p.y; }),
+    };
+  }
+
+  function peerSeriesHasSignal(ys) {
+    return !!(ys && ys.some(function (v) {
+      return v != null && !isNaN(Number(v)) && Number(v) !== 0;
+    }));
+  }
+
   function mzIsoDateKey(raw) {
     if (raw == null || raw === "") return "";
     if (Object.prototype.toString.call(raw) === "[object Date]" && !isNaN(raw.getTime())) {
@@ -5662,8 +5729,6 @@
     if (!peerSum || !plotX || !plotX.length) return [];
     var range = selectedDateRange();
     var lookup = {};
-    // Sıfır-doldurulmuş seri kullanma: eksik günler null kalsın (connectgaps),
-    // yoksa overlay tabanda düz sıfır çizgisi gibi görünür.
     (peerSum.by_date || []).forEach(function (d) {
       var k = mzIsoDateKey(d.date);
       if (!k) return;
@@ -5686,24 +5751,19 @@
       var dates = primarySeries.map(function (r) {
         return r.date != null ? r.date : seriesTimeLabel(r, "date");
       });
-      return peerMetricYForPlotX(peerSum, dates, metricKey);
+      var aligned = peerMetricYForPlotX(peerSum, dates, metricKey);
+      if (peerSeriesHasSignal(aligned)) return aligned;
+      // Hizalama boş/zayıfsa null dön; çağıran kendi tarihli peer seriyi çizecek.
+      return aligned;
     }
-    var peerDaily = filterSeriesBySelectedRange(peerSum.by_date || [], "date").filter(function (r) {
-      // fill'in eklediği boş günleri aggregation'a alma
-      return (peerSum.by_date || []).some(function (src) {
-        return mzIsoDateKey(src.date) === mzIsoDateKey(r.date);
-      });
+    var peerDaily = (peerSum.by_date || []).filter(function (r) {
+      var k = mzIsoDateKey(r.date);
+      var range = selectedDateRange();
+      if (!k) return false;
+      if (range.start && k < range.start) return false;
+      if (range.end && k > range.end) return false;
+      return true;
     });
-    if (!peerDaily.length) {
-      peerDaily = (peerSum.by_date || []).filter(function (r) {
-        var k = mzIsoDateKey(r.date);
-        var range = selectedDateRange();
-        if (!k) return false;
-        if (range.start && k < range.start) return false;
-        if (range.end && k > range.end) return false;
-        return true;
-      });
-    }
     var peerAgg = chartLineStreamSeries(timeKey, null, { by_date: peerDaily }, { useSumDaily: true });
     var lookup = {};
     peerAgg.forEach(function (r) {
@@ -5719,18 +5779,26 @@
 
   function appendPeerScatterTrace(traces, plotX, metricKey, peerSum, label, yaxis, precomputedYs) {
     var def = KPI_DEFS.find(function (d) { return d.key === metricKey; }) || {};
+    var name = (label || peerBranchLabel()) + " · " + (def.label || metricKey);
+    var src = peerSum || state.peerSummary;
+    var xs = plotX;
     var ys = precomputedYs;
-    if (!ys || !ys.length) {
-      if (!state.peerSummary && !peerSum) return;
-      var src = peerSum || state.peerSummary;
+    // Günlük peer: kendi by_date X/Y'si (KPI toplamı ile uyumlu). Hizalı Y sıfırsa yine buna düş.
+    var own = peerDailySeriesXY(src, metricKey);
+    if (peerSeriesHasSignal(own.y)) {
+      xs = own.x;
+      ys = own.y;
+    } else if (!peerSeriesHasSignal(ys)) {
+      if (!src) return;
       ys = peerMetricYForPlotX(src, plotX, metricKey);
+      xs = plotX;
     }
-    if (!ys.some(function (v) { return v != null && Number(v) !== 0 && !isNaN(Number(v)); })) return;
+    if (!peerSeriesHasSignal(ys)) return;
     var tr = {
       type: "scatter",
-      mode: (plotX || []).length > 120 ? "lines" : "lines+markers",
-      name: (label || peerBranchLabel()) + " · " + (def.label || metricKey),
-      x: plotX,
+      mode: (xs || []).length > 120 ? "lines" : "lines+markers",
+      name: name,
+      x: xs,
       y: ys,
       connectgaps: true,
       line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
@@ -5810,6 +5878,7 @@
     mountPeerBranchToggle("mz-peer-toggle-quality", "quality");
     mountPeerBranchToggle("mz-peer-toggle-stacked", "stacked");
     mountPeerBranchToggle("mz-peer-toggle-month", "month");
+    mountPeerBranchToggle("mz-peer-toggle-drill-detail", "drillDetail");
     mountPeerBranchToggle("mz-peer-toggle-drill-summary", "drillSummary");
   }
 
@@ -5839,17 +5908,20 @@
       if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
       var chartCfg = attempts[i];
       var safeCfg = ensureBdCfg(chartCfg);
-      var p = qsForDrillSlice(slice || null);
-      p.set("project", state.activeStream.project || "doviz");
-      p.set("branch", pk);
-      if (peerSt.key) p.set("stream", peerSt.key);
+      var p = qsForPeerDrill(slice || null);
+      if (!p) continue;
       var tb = breakdownStrFrom(safeCfg);
       var url =
         "/api/mz-analytics/table?" + p.toString() + "&breakdown=" + encodeURIComponent(tb) + "&limit=" + limit;
       var data = await fetchJsonWithRetry(url, { signal: signal }, { tries: 3, delayMs: 400 });
       if (!data) continue;
       var breakdown = data.breakdown || [];
-      var filtered = drillRowsForChart(scope, data.rows || [], slice, breakdown);
+      // Peer isteğinde ad_unit zaten map edildi; filtreyi orijinal iOS birimine göre uygulama.
+      var peerSlice = slice ? Object.assign({}, slice) : null;
+      if (peerSlice && peerSlice.ad_unit) {
+        peerSlice = Object.assign({}, peerSlice, { ad_unit: peerMappedAdUnit(peerSlice.ad_unit) });
+      }
+      var filtered = drillRowsForChart(scope, data.rows || [], peerSlice, breakdown);
       last = { data: data, filtered: filtered, breakdown: breakdown, chartCfg: chartCfg };
       if (breakdown.indexOf(chartTimeKey) >= 0 && filtered.length) return last;
     }
@@ -6706,20 +6778,45 @@
       if (!isSummary) {
         hidePeerSplitChart("drillDetail");
       }
-      var peerChartKey = "drillSummary";
-      var peerOverlayDrill = isSummary && state.peerOverlay.drillSummary;
-      var peerSeparateDrill = isSummary && state.peerSeparate.drillSummary;
-      if (isSummary && (peerOverlayDrill || peerSeparateDrill) && peerBranchKey() && !comparePair && state.peerBranchAvailable) {
+      var peerChartKey = isSummary ? "drillSummary" : "drillDetail";
+      var peerOverlayDrill = isSummary ? state.peerOverlay.drillSummary : state.peerOverlay.drillDetail;
+      var peerSeparateDrill = isSummary ? state.peerSeparate.drillSummary : state.peerSeparate.drillDetail;
+      if ((peerOverlayDrill || peerSeparateDrill) && peerBranchKey() && !comparePair && state.peerBranchAvailable) {
         try {
           var peerDrill = await fetchPeerDrillChartData(scope, chartTimeKey, cfg, slice, drillSignal);
           if (!drillStale() && peerDrill && peerDrill.filtered && peerDrill.filtered.length) {
             var peerSeries = drillSeriesForMetric(peerDrill.filtered, chartTimeKey, metricKey);
             if (peerSeries.length) {
-              var peerXs = peerSeries.map(function (p) { return p.x; });
-              var peerYs = peerSeries.map(function (p) {
-                var y = Number(p.y);
-                return isNaN(y) ? 0 : y;
-              });
+              var peerXs;
+              var peerYs;
+              if (chartTimeKey === "date") {
+                var peerLookup = {};
+                peerSeries.forEach(function (p) {
+                  var dk = mzIsoDateKey(p.x);
+                  if (dk) peerLookup[dk] = Number(p.y);
+                });
+                peerXs = plotX.slice();
+                peerYs = plotX.map(function (x) {
+                  var dk = mzIsoDateKey(x);
+                  if (!dk || !Object.prototype.hasOwnProperty.call(peerLookup, dk)) return null;
+                  var y = peerLookup[dk];
+                  return isNaN(y) ? null : y;
+                });
+                if (!peerSeriesHasSignal(peerYs)) {
+                  peerXs = peerSeries.map(function (p) { return mzIsoDateKey(p.x) || p.x; });
+                  peerYs = peerSeries.map(function (p) {
+                    var y = Number(p.y);
+                    return isNaN(y) ? null : y;
+                  });
+                }
+              } else {
+                peerXs = peerSeries.map(function (p) { return p.x; });
+                peerYs = peerSeries.map(function (p) {
+                  var y = Number(p.y);
+                  return isNaN(y) ? null : y;
+                });
+              }
+              if (peerSeriesHasSignal(peerYs)) {
               if (peerSeparateDrill) {
                 var stackXPeer = drillStackXaxisSync(layout.xaxis, chartTimeKey, plotX, dense);
                 layout.xaxis = Object.assign({}, stackXPeer, { showticklabels: false });
@@ -6740,7 +6837,7 @@
                     x: peerXs,
                     y: peerYs,
                     connectgaps: true,
-                    line: Object.assign({}, peerOverlayLineStyle(), { width: lineW || PEER_LINE_WIDTH }),
+                    line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: lineW || 2.5 }),
                   });
                 }
                 await plotPeerSplitChart(peerChartKey, peerOnlyTraces, { yTitle: mDef.axis || "" }, {
@@ -6770,6 +6867,9 @@
                   });
                 }
               }
+              } else {
+                hidePeerSplitChart(peerChartKey);
+              }
             } else {
               hidePeerSplitChart(peerChartKey);
             }
@@ -6779,8 +6879,8 @@
         } catch (_peerDrillErr) {
           hidePeerSplitChart(peerChartKey);
         }
-      } else if (isSummary) {
-        hidePeerSplitChart("drillSummary");
+      } else {
+        hidePeerSplitChart(peerChartKey);
       }
       if (drillStale()) return;
       await plotDrillChartEl(chartEl, traces, layout);
@@ -7712,9 +7812,13 @@
 
     if (peerSum && !cmp && primaryPlotX && primarySeriesRows) {
       var peerYs = peerMetricYForChartSeries(peerSum, primarySeriesRows, timeKey, kpiKey);
+      var peerOwn = timeKey === "date" ? peerDailySeriesXY(peerSum, kpiKey) : null;
+      var useOwnX = timeKey === "date" && peerSeriesHasSignal(peerOwn && peerOwn.y);
+      var peerPlotX = useOwnX ? peerOwn.x : primaryPlotX;
+      var peerPlotY = useOwnX ? peerOwn.y : peerYs;
       if (state.peerSeparate.line) {
         hidePeerSplitChart("line");
-        if (peerYs.some(function (v) { return v != null && v !== 0; })) {
+        if (peerSeriesHasSignal(peerPlotY)) {
           if (marketDates && marketDates.length) {
             await mzMaybeApplyChartOverlays(traces, lineLay, marketDates);
           }
@@ -7722,10 +7826,10 @@
           await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
           var peerTraces = [
             {
-              x: primaryPlotX,
-              y: peerYs,
+              x: peerPlotX,
+              y: peerPlotY,
               type: "scatter",
-              mode: primaryPlotX.length > 120 ? "lines" : "lines+markers",
+              mode: peerPlotX.length > 120 ? "lines" : "lines+markers",
               name: peerBranchLabel() + " · " + def.label,
               line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
               marker: { size: 5, color: peerOverlayOnChartLineColor(0.85) },
@@ -7751,7 +7855,7 @@
           return;
         }
       } else if (state.peerOverlay.line) {
-        appendPeerScatterTrace(traces, primaryPlotX, kpiKey, peerSum, peerBranchLabel(), null, peerYs);
+        appendPeerScatterTrace(traces, primaryPlotX, kpiKey, peerSum, peerBranchLabel(), null, peerPlotY);
       } else {
         hidePeerSplitChart("line");
       }
@@ -8145,16 +8249,37 @@
       if (!ys.some(function (v) { return v !== 0; })) return;
       if (state.peerOverlay.kpi && peerSum && !cmp) {
         var peerYs = peerMetricYForPlotX(peerSum, xs, key);
-        if (peerYs.some(function (v) { return v != null && v !== 0; })) {
-          traces.push(
-            mzSparkOverlayFillTrace(
+        if (!peerSeriesHasSignal(peerYs)) {
+          var own = peerDailySeriesXY(peerSum, key);
+          if (peerSeriesHasSignal(own.y)) {
+            // Son 14 güne kırp / primary xs ile hizala
+            peerYs = peerMetricYForPlotX(
+              { by_date: own.x.map(function (x, i) {
+                var row = { date: x };
+                row[key] = own.y[i];
+                return row;
+              }) },
               xs,
-              peerYs,
-              isDarkTheme() ? PEER_ON_CHART_COLOR.dark : PEER_ON_CHART_COLOR.light,
-              dark,
-              PEER_ON_CHART_FILL_OPACITY
-            )
-          );
+              key
+            );
+          }
+        }
+        if (peerSeriesHasSignal(peerYs)) {
+          // spark fill null→0 yapmasın diye null yerine önceki değerle bağlama yerine doğrudan çiz
+          var sparkPeerYs = peerYs.map(function (v) {
+            return v == null || isNaN(Number(v)) ? 0 : Number(v);
+          });
+          if (sparkPeerYs.some(function (v) { return v !== 0; })) {
+            traces.push(
+              mzSparkOverlayFillTrace(
+                xs,
+                sparkPeerYs,
+                isDarkTheme() ? PEER_ON_CHART_COLOR.dark : PEER_ON_CHART_COLOR.light,
+                dark,
+                PEER_ON_CHART_FILL_OPACITY
+              )
+            );
+          }
         }
       }
       mzPushMeanSplitTraces(traces, xs, ys, {
