@@ -2317,6 +2317,15 @@
   }
 
   function mzSyncChartCardFromPlot(plotId) {
+    // Peer / GA4 split plot'ları ana kartın görünürlüğünü yönetmez.
+    if (
+      plotId &&
+      (/-peer$/.test(plotId) ||
+        plotId.indexOf("-peer-") >= 0 ||
+        plotId.indexOf("-ga4-chart") >= 0)
+    ) {
+      return;
+    }
     var card = mzChartCardFromPlot(plotId);
     if (!card) return;
     if (card.hasAttribute("data-mz-hide-single-day") && isMzSingleDayRange()) {
@@ -4828,16 +4837,24 @@
       var peerSplit = peerSum && !revAligned && state.peerSeparate.stacked && state.peerStackedAvailable;
       if (peerSplit) {
         var peerStackTraces = stackedIncomeTracesFromSummary(peerSum, dates, dates, null, "peer");
-        if (peerStackTraces.length) {
-          stackedLayout.xaxis = Object.assign({}, stackedLayout.xaxis || {}, { showticklabels: false });
-          await plotPeerSplitChart("stacked", peerStackTraces, { yTitle: "TL" }, {
-            xaxis: Object.assign({}, stackedLayout.xaxis, { showticklabels: true }),
-            yTitle: "TL",
-            minHeight: 240,
-          });
-        } else {
-          hidePeerSplitChart("stacked");
+        if (!peerStackTraces.length) {
+          // Gelir tipi kırılımı yoksa toplam net gelir çizgisi
+          var peerStackLine = buildPeerSeparateLineTraces(peerSum, "net_revenue", peerBranchLabel(), "date", null);
+          peerStackTraces = peerStackLine;
         }
+        stackedLayout.xaxis = Object.assign({}, stackedLayout.xaxis || {}, { showticklabels: false });
+        await plotChart("mz-chart-stacked-income", stackTraces, stackedLayout, {
+          minHeight: 240,
+          timeKey: "date",
+        });
+        await plotPeerSplitChart("stacked", peerStackTraces, { yTitle: "TL" }, {
+          xaxis: Object.assign({}, stackedLayout.xaxis, { type: "date", showticklabels: true }),
+          yTitle: "TL",
+          minHeight: 240,
+          timeKey: "date",
+          emptyMsg: peerBranchLabel() + " için yığılmış gelir ayrı grafik verisi yok.",
+        });
+        return;
       } else {
         hidePeerSplitChart("stacked");
         if (peerSum && !revAligned && state.peerOverlay.stacked) {
@@ -5531,29 +5548,100 @@
     return peerBranchLabel() + " — aynı tarih aralığı ve filtreler";
   }
 
-  async function plotPeerSplitChart(chartKey, traces, layout, syncOpts) {
-    syncOpts = syncOpts || {};
+  function showPeerSplitEmpty(chartKey, msg) {
     var dom = PEER_SPLIT_DOM[chartKey];
-    if (!dom || !traces || !traces.length) {
-      hidePeerSplitChart(chartKey);
-      return false;
-    }
+    if (!dom) return false;
     var wrap = document.getElementById(dom.wrap);
     var chartEl = document.getElementById(dom.el);
     var cap = document.getElementById(dom.cap);
     if (!wrap || !chartEl) return false;
     wrap.classList.remove("hidden");
     if (cap) cap.textContent = peerSplitCaptionText();
+    if (window.Plotly) {
+      try { Plotly.purge(chartEl); } catch (_) { /* ignore */ }
+    }
+    chartEl.innerHTML =
+      "<p class=\"py-6 text-center text-xs text-slate-500 dark:text-zinc-400\">" +
+      (msg || (peerBranchLabel() + " için bu metrikte çizilecek veri yok.")) +
+      "</p>";
+    return true;
+  }
+
+  function buildPeerSeparateLineTraces(peerSum, metricKey, label, timeKey, primarySeriesRows) {
+    timeKey = timeKey || "date";
+    var name = (label || peerBranchLabel()) + " · " + (
+      (KPI_DEFS.find(function (d) { return d.key === metricKey; }) || {}).label || metricKey
+    );
+    if (timeKey === "date") {
+      var own = peerDailySeriesXY(peerSum, metricKey);
+      if (peerSeriesHasSignal(own.y)) {
+        return [{
+          type: "scatter",
+          mode: own.x.length > 120 ? "lines" : "lines+markers",
+          name: name,
+          x: own.x,
+          y: own.y,
+          connectgaps: true,
+          line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
+          marker: { size: 5, color: peerOverlayOnChartLineColor(0.85) },
+        }];
+      }
+    }
+    if (!primarySeriesRows || !primarySeriesRows.length) return [];
+    var ys = peerMetricYForChartSeries(peerSum, primarySeriesRows, timeKey, metricKey);
+    if (!peerSeriesHasSignal(ys)) return [];
+    var xs = primarySeriesRows.map(function (r) { return seriesTimeLabel(r, timeKey); });
+    return [{
+      type: "scatter",
+      mode: xs.length > 120 ? "lines" : "lines+markers",
+      name: name,
+      x: xs,
+      y: ys,
+      connectgaps: true,
+      line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
+      marker: { size: 5, color: peerOverlayOnChartLineColor(0.85) },
+    }];
+  }
+
+  async function plotPeerSplitChart(chartKey, traces, layout, syncOpts) {
+    syncOpts = syncOpts || {};
+    var dom = PEER_SPLIT_DOM[chartKey];
+    if (!dom) return false;
+    if (!traces || !traces.length) {
+      return showPeerSplitEmpty(chartKey, syncOpts.emptyMsg);
+    }
+    var wrap = document.getElementById(dom.wrap);
+    var chartEl = document.getElementById(dom.el);
+    var cap = document.getElementById(dom.cap);
+    if (!wrap || !chartEl) return false;
+    // Önce paneli aç — aksi halde Plotly 0 genişlikte çizip görünmez kalabiliyor.
+    wrap.classList.remove("hidden");
+    try { void wrap.offsetHeight; } catch (_) { /* ignore */ }
+    if (cap) cap.textContent = peerSplitCaptionText();
     var lay = plotTheme(Object.assign({ margin: Object.assign({}, DRILL_STACK_MARGIN) }, layout || {}));
     if (syncOpts.xaxis) {
       lay.xaxis = Object.assign({}, syncOpts.xaxis, { showticklabels: true });
     }
     if (syncOpts.yTitle) lay.yaxis = Object.assign({}, lay.yaxis, { title: syncOpts.yTitle });
-    await plotChart(chartEl, traces, lay, {
-      minHeight: syncOpts.minHeight || 220,
-      timeKey: syncOpts.timeKey || (syncOpts.xaxis && syncOpts.xaxis.type === "date" ? "date" : undefined),
-    });
-    return true;
+    var isDrill = chartKey === "drillDetail" || chartKey === "drillSummary";
+    try {
+      if (isDrill) {
+        lay._mzChartTimeKey = syncOpts.timeKey || (syncOpts.xaxis && syncOpts.xaxis.type === "date" ? "date" : undefined);
+        await plotDrillChartEl(chartEl, traces, lay);
+      } else {
+        await plotChart(dom.el, traces, lay, {
+          minHeight: syncOpts.minHeight || 220,
+          timeKey: syncOpts.timeKey || (syncOpts.xaxis && syncOpts.xaxis.type === "date" ? "date" : undefined),
+        });
+      }
+      return true;
+    } catch (err) {
+      showPeerSplitEmpty(
+        chartKey,
+        "Ayrı grafik çizilemedi" + (err && err.message ? ": " + err.message : "")
+      );
+      return false;
+    }
   }
 
   function stackedIncomeTracesFromSummary(sum, dates, xAxis, revAligned, stackgroupName) {
@@ -5894,13 +5982,13 @@
     if (chartKey === "kpi") {
       renderKpisWithPeer(state.lastSummary);
       scheduleKpiSparklines(state.lastSummary);
-    } else if (chartKey === "line") refreshChartLine();
+    } else if (chartKey === "line") await refreshChartLine();
     else if (chartKey === "dual" || chartKey === "quality") {
-      if (state.lastSummary) renderExtendedCharts(state.lastSummary).then(scheduleMzChartsResizeBurst);
-    }     else if (chartKey === "stacked") refreshChartStacked();
-    else if (chartKey === "month") refreshChartMonth();
-    else if (chartKey === "drillDetail") renderTableDrillChart();
-    else if (chartKey === "drillSummary") renderSummaryDrillChart();
+      if (state.lastSummary) await renderExtendedCharts(state.lastSummary).then(scheduleMzChartsResizeBurst);
+    } else if (chartKey === "stacked") await refreshChartStacked();
+    else if (chartKey === "month") await refreshChartMonth();
+    else if (chartKey === "drillDetail") await renderTableDrillChart();
+    else if (chartKey === "drillSummary") await renderSummaryDrillChart();
   }
 
   async function fetchPeerDrillChartData(scope, chartTimeKey, cfg, slice, signal) {
@@ -6783,6 +6871,8 @@
       }
       if (!isSummary) {
         hidePeerSplitChart("drillDetail");
+      } else {
+        hidePeerSplitChart("drillSummary");
       }
       var peerChartKey = isSummary ? "drillSummary" : "drillDetail";
       var peerOverlayDrill = isSummary ? state.peerOverlay.drillSummary : state.peerOverlay.drillDetail;
@@ -6826,6 +6916,7 @@
               if (peerSeparateDrill) {
                 var stackXPeer = drillStackXaxisSync(layout.xaxis, chartTimeKey, plotX, dense);
                 layout.xaxis = Object.assign({}, stackXPeer, { showticklabels: false });
+                layout.margin = Object.assign({}, layout.margin, DRILL_STACK_MARGIN);
                 var peerOnlyTraces = [];
                 if (chartType === "bar") {
                   peerOnlyTraces.push({
@@ -6847,9 +6938,13 @@
                   });
                 }
                 await plotPeerSplitChart(peerChartKey, peerOnlyTraces, { yTitle: mDef.axis || "" }, {
-                  xaxis: Object.assign({}, stackXPeer, { showticklabels: true }),
+                  xaxis: Object.assign({}, stackXPeer, {
+                    type: chartTimeKey === "date" ? "date" : "category",
+                    showticklabels: true,
+                  }),
                   yTitle: mDef.axis || "",
                   minHeight: 200,
+                  timeKey: chartTimeKey,
                 });
               } else {
                 hidePeerSplitChart(peerChartKey);
@@ -6873,17 +6968,36 @@
                   });
                 }
               }
+              } else if (peerSeparateDrill) {
+                showPeerSplitEmpty(
+                  peerChartKey,
+                  peerBranchLabel() + " için bu dilimde çizilecek metrik verisi yok."
+                );
               } else {
                 hidePeerSplitChart(peerChartKey);
               }
+            } else if (peerSeparateDrill) {
+              showPeerSplitEmpty(peerChartKey, peerBranchLabel() + " serisi boş.");
             } else {
               hidePeerSplitChart(peerChartKey);
             }
+          } else if (peerSeparateDrill) {
+            showPeerSplitEmpty(
+              peerChartKey,
+              peerBranchLabel() + " verisi alınamadı (birim eşlemesi veya filtre)."
+            );
           } else {
             hidePeerSplitChart(peerChartKey);
           }
         } catch (_peerDrillErr) {
-          hidePeerSplitChart(peerChartKey);
+          if (peerSeparateDrill) {
+            showPeerSplitEmpty(
+              peerChartKey,
+              peerBranchLabel() + " ayrı grafik hatası."
+            );
+          } else {
+            hidePeerSplitChart(peerChartKey);
+          }
         }
       } else {
         hidePeerSplitChart(peerChartKey);
@@ -7823,50 +7937,62 @@
       var peerPlotX = useOwnX ? peerOwn.x : primaryPlotX;
       var peerPlotY = useOwnX ? peerOwn.y : peerYs;
       if (state.peerSeparate.line) {
-        hidePeerSplitChart("line");
-        if (peerSeriesHasSignal(peerPlotY)) {
-          if (marketDates && marketDates.length) {
-            await mzMaybeApplyChartOverlays(traces, lineLay, marketDates);
-          }
-          lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
-          await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
-          var peerTraces = [
-            {
-              x: peerPlotX,
-              y: peerPlotY,
-              type: "scatter",
-              mode: peerPlotX.length > 120 ? "lines" : "lines+markers",
-              name: peerBranchLabel() + " · " + def.label,
-              line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
-              marker: { size: 5, color: peerOverlayOnChartLineColor(0.85) },
-              connectgaps: true,
-            },
-          ];
-          var peerLay = plotTheme({ yTitle: def.axis || "" });
-          if (marketDates && marketDates.length) {
-            await mzMaybeApplyChartOverlays(peerTraces, peerLay, marketDates);
-          }
-          await plotPeerSplitChart(
-            "line",
-            peerTraces,
-            { yTitle: def.axis || "" },
-            {
-              xaxis: Object.assign({}, lineLay.xaxis, {
-                type: timeKey === "date" ? "date" : "category",
-                showticklabels: true,
-              }),
-              yTitle: def.axis || "",
-            }
-          );
-          return;
+        if (marketDates && marketDates.length) {
+          try { await mzMaybeApplyChartOverlays(traces, lineLay, marketDates); } catch (_) { /* ignore */ }
         }
+        lineLay.xaxis = Object.assign({}, lineLay.xaxis || {}, { showticklabels: false });
+        await plotChart("mz-chart-line", traces, lineLay, { minHeight: 220, timeKey: plotTimeKey });
+        var peerTraces = buildPeerSeparateLineTraces(
+          peerSum,
+          kpiKey,
+          peerBranchLabel(),
+          timeKey,
+          primarySeriesRows
+        );
+        if (!peerTraces.length && peerSeriesHasSignal(peerPlotY)) {
+          peerTraces = [{
+            type: "scatter",
+            mode: peerPlotX.length > 120 ? "lines" : "lines+markers",
+            name: peerBranchLabel() + " · " + def.label,
+            x: peerPlotX,
+            y: peerPlotY,
+            connectgaps: true,
+            line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: 2.5 }),
+            marker: { size: 5, color: peerOverlayOnChartLineColor(0.85) },
+          }];
+        }
+        try {
+          if (peerTraces.length && marketDates && marketDates.length && timeKey === "date") {
+            var peerLayTmp = plotTheme({ yTitle: def.axis || "" });
+            await mzMaybeApplyChartOverlays(peerTraces, peerLayTmp, peerTraces[0].x || marketDates);
+          }
+        } catch (_) { /* overlay opsiyonel */ }
+        await plotPeerSplitChart(
+          "line",
+          peerTraces,
+          { yTitle: def.axis || "" },
+          {
+            xaxis: Object.assign({}, lineLay.xaxis, {
+              type: timeKey === "date" ? "date" : "category",
+              showticklabels: true,
+            }),
+            yTitle: def.axis || "",
+            timeKey: timeKey === "date" ? "date" : "category",
+            emptyMsg: peerBranchLabel() + " için bu metrikte ayrı grafik verisi yok.",
+          }
+        );
+        return;
       } else if (state.peerOverlay.line) {
         appendPeerScatterTrace(traces, peerPlotX, kpiKey, peerSum, peerBranchLabel(), null, peerPlotY);
       } else {
         hidePeerSplitChart("line");
       }
     } else {
-      hidePeerSplitChart("line");
+      if (state.peerSeparate.line) {
+        showPeerSplitEmpty("line", peerBranchLabel() + " özeti yüklenemedi; ayrı grafik çizilemedi.");
+      } else {
+        hidePeerSplitChart("line");
+      }
     }
     if (marketDates && marketDates.length) {
       await mzMaybeApplyChartOverlays(traces, lineLay, marketDates);
@@ -8479,49 +8605,77 @@
       releaseTextPerPoint: dualReleaseText,
     });
     if (peerSum && !revAligned && !impAligned && state.peerSeparate.dual) {
-      var dualPeerTraces = [
-        {
-          x: dates,
-          y: peerMetricYForPlotX(peerSum, dates, "net_revenue"),
+      var dualPeerRev = peerDailySeriesXY(peerSum, "net_revenue");
+      var dualPeerImp = peerDailySeriesXY(peerSum, "impression");
+      var dualPeerTraces = [];
+      if (peerSeriesHasSignal(dualPeerRev.y)) {
+        dualPeerTraces.push({
+          x: dualPeerRev.x,
+          y: dualPeerRev.y,
           type: "scatter",
           mode: "lines",
           name: peerBranchLabel() + " · Net gelir",
           yaxis: "y",
           line: peerOverlayLineStyle(0),
-          connectgaps: false,
-        },
-        {
-          x: dates,
-          y: peerMetricYForPlotX(peerSum, dates, "impression"),
+          connectgaps: true,
+        });
+      } else {
+        var revY = peerMetricYForPlotX(peerSum, dates, "net_revenue");
+        if (peerSeriesHasSignal(revY)) {
+          dualPeerTraces.push({
+            x: dates,
+            y: revY,
+            type: "scatter",
+            mode: "lines",
+            name: peerBranchLabel() + " · Net gelir",
+            yaxis: "y",
+            line: peerOverlayLineStyle(0),
+            connectgaps: true,
+          });
+        }
+      }
+      if (peerSeriesHasSignal(dualPeerImp.y)) {
+        dualPeerTraces.push({
+          x: dualPeerImp.x,
+          y: dualPeerImp.y,
           type: "scatter",
           mode: "lines",
           name: peerBranchLabel() + " · Gösterim",
           yaxis: "y2",
           line: peerOverlayLineStyle(1),
-          connectgaps: false,
-        },
-      ];
+          connectgaps: true,
+        });
+      } else {
+        var impY = peerMetricYForPlotX(peerSum, dates, "impression");
+        if (peerSeriesHasSignal(impY)) {
+          dualPeerTraces.push({
+            x: dates,
+            y: impY,
+            type: "scatter",
+            mode: "lines",
+            name: peerBranchLabel() + " · Gösterim",
+            yaxis: "y2",
+            line: peerOverlayLineStyle(1),
+            connectgaps: true,
+          });
+        }
+      }
       if (!revAligned && dates.length) {
-        await mzMaybeApplyChartOverlays(dualTraces, dualLay, dates);
+        try { await mzMaybeApplyChartOverlays(dualTraces, dualLay, dates); } catch (_) { /* ignore */ }
       }
       dualLay.xaxis = Object.assign({}, dualLay.xaxis || {}, { showticklabels: false });
       await plotChart("mz-chart-dual", dualTraces, dualLay, {
         minHeight: revAligned && impAligned ? 320 : 220,
         timeKey: revAligned && impAligned ? "category" : "date",
       });
-      var dualPeerLay = plotTheme({
-        yaxis: { title: "TL" },
-        yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
-      });
-      if (dates.length) {
-        await mzMaybeApplyChartOverlays(dualPeerTraces, dualPeerLay, dates);
-      }
       await plotPeerSplitChart("dual", dualPeerTraces, {
         yaxis: { title: "TL" },
         yaxis2: { title: "Gösterim", overlaying: "y", side: "right" },
       }, {
         xaxis: Object.assign({}, dualLay.xaxis, { type: "date", showticklabels: true }),
         minHeight: 220,
+        timeKey: "date",
+        emptyMsg: peerBranchLabel() + " için gelir/gösterim ayrı grafik verisi yok.",
       });
     } else {
       hidePeerSplitChart("dual");
@@ -8603,32 +8757,46 @@
     if (peerSum && !qualityAligned && state.peerSeparate.quality) {
       var qPeerTraces = [];
       qualityKeys.forEach(function (q, idx) {
-        qPeerTraces.push({
-          x: dates,
-          y: peerMetricYForPlotX(peerSum, dates, q.key),
-          name: peerBranchLabel() + " · " + q.label,
-          type: "scatter",
-          mode: "lines",
-          line: peerOverlayLineStyle(idx),
-          connectgaps: false,
-        });
+        var ownQ = peerDailySeriesXY(peerSum, q.key);
+        if (peerSeriesHasSignal(ownQ.y)) {
+          qPeerTraces.push({
+            x: ownQ.x,
+            y: ownQ.y,
+            name: peerBranchLabel() + " · " + q.label,
+            type: "scatter",
+            mode: "lines",
+            line: peerOverlayLineStyle(idx),
+            connectgaps: true,
+          });
+          return;
+        }
+        var alignedQ = peerMetricYForPlotX(peerSum, dates, q.key);
+        if (peerSeriesHasSignal(alignedQ)) {
+          qPeerTraces.push({
+            x: dates,
+            y: alignedQ,
+            name: peerBranchLabel() + " · " + q.label,
+            type: "scatter",
+            mode: "lines",
+            line: peerOverlayLineStyle(idx),
+            connectgaps: true,
+          });
+        }
       });
       if (dates.length) {
-        await mzMaybeApplyChartOverlays(qualityTraces, qualityLay, dates);
+        try { await mzMaybeApplyChartOverlays(qualityTraces, qualityLay, dates); } catch (_) { /* ignore */ }
       }
       qualityLay.xaxis = Object.assign({}, qualityLay.xaxis || {}, { showticklabels: false });
       await plotChart("mz-chart-quality", qualityTraces, qualityLay, {
         minHeight: qualityAligned ? 320 : 220,
         timeKey: qualityAligned ? "category" : "date",
       });
-      var qPeerLay = plotTheme({ yTitle: "%" });
-      if (dates.length) {
-        await mzMaybeApplyChartOverlays(qPeerTraces, qPeerLay, dates);
-      }
       await plotPeerSplitChart("quality", qPeerTraces, { yTitle: "%" }, {
         xaxis: Object.assign({}, qualityLay.xaxis, { type: "date", showticklabels: true }),
         yTitle: "%",
         minHeight: 220,
+        timeKey: "date",
+        emptyMsg: peerBranchLabel() + " için kalite metrikleri ayrı grafik verisi yok.",
       });
     } else {
       hidePeerSplitChart("quality");
