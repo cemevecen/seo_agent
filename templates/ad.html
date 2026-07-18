@@ -5803,6 +5803,61 @@
     }));
   }
 
+  function seriesFiniteMaxAbs(ys) {
+    var m = 0;
+    (ys || []).forEach(function (v) {
+      if (v == null || v === "") return;
+      var n = Math.abs(Number(v));
+      if (!isNaN(n) && n > m) m = n;
+    });
+    return m;
+  }
+
+  /** iOS~300 vs Android~20k gibi ölçek farkında ortak eksen küçük seriyi yutar. */
+  function peerOverlayScaleMismatch(primaryYs, peerYs) {
+    var a = seriesFiniteMaxAbs(primaryYs);
+    var b = seriesFiniteMaxAbs(peerYs);
+    if (b <= 0) return false;
+    if (a <= 0) return true;
+    return Math.max(a, b) / Math.min(a, b) >= 2.2;
+  }
+
+  function nextFreeOverlayYaxisId(layout) {
+    layout = layout || {};
+    for (var n = 2; n <= 6; n++) {
+      if (!layout["yaxis" + n]) return "y" + n;
+    }
+    return "y6";
+  }
+
+  function ensurePeerOverlaySecondaryAxis(layout, peerLabel, axisTitle) {
+    if (!layout) return "y2";
+    var axisId = nextFreeOverlayYaxisId(layout);
+    var layoutKey = "yaxis" + String(axisId).replace(/^y/, "");
+    var title = (peerLabel ? peerLabel + " · " : "") + (axisTitle || "");
+    layout[layoutKey] = Object.assign({}, plotAxis(title), {
+      overlaying: "y",
+      side: "right",
+      showgrid: false,
+      zeroline: false,
+    });
+    var m = layout.margin || { l: 32, r: 6, t: 18, b: 38 };
+    layout.margin = Object.assign({}, m, {
+      r: Math.max(Number(m.r) || 6, 52),
+      t: Math.max(Number(m.t) || 18, 40),
+    });
+    layout.showlegend = true;
+    layout.legend = Object.assign({}, layout.legend || {}, {
+      orientation: "h",
+      x: 0,
+      xanchor: "left",
+      y: 1.08,
+      yanchor: "bottom",
+      bgcolor: "rgba(0,0,0,0)",
+    });
+    return axisId;
+  }
+
   function mzIsoDateKey(raw) {
     if (raw == null || raw === "") return "";
     if (Object.prototype.toString.call(raw) === "[object Date]" && !isNaN(raw.getTime())) {
@@ -6948,6 +7003,11 @@
                 });
               } else {
                 hidePeerSplitChart(peerChartKey);
+                var useDrillPeerY2 =
+                  chartType !== "bar" && peerOverlayScaleMismatch(
+                    series.map(function (p) { return p.y; }),
+                    peerYs
+                  );
                 if (chartType === "bar") {
                   traces.push({
                     type: "bar",
@@ -6957,6 +7017,10 @@
                     marker: { color: peerOverlayOnChartLineColor() },
                   });
                 } else {
+                  var drillPeerAxis = null;
+                  if (useDrillPeerY2) {
+                    drillPeerAxis = ensurePeerOverlaySecondaryAxis(layout, peerBranchLabel(), mDef.axis || "");
+                  }
                   traces.push({
                     type: "scatter",
                     mode: traceMode || "lines",
@@ -6964,6 +7028,7 @@
                     x: peerXs,
                     y: peerYs,
                     connectgaps: true,
+                    yaxis: drillPeerAxis || "y",
                     line: Object.assign({}, peerOverlayOnChartLineStyle(), { width: lineW || 2 }),
                   });
                 }
@@ -7983,7 +8048,27 @@
         );
         return;
       } else if (state.peerOverlay.line) {
-        appendPeerScatterTrace(traces, peerPlotX, kpiKey, peerSum, peerBranchLabel(), null, peerPlotY);
+        hidePeerSplitChart("line");
+        var primaryYsForPeer = traces.length && traces[0] ? traces[0].y : null;
+        // appendPeerScatterTrace kendi X/Y'sini seçebilir; ölçek için nihai peer Y'yi al.
+        var peerYsForAxis = peerPlotY;
+        if (!peerSeriesHasSignal(peerYsForAxis) || (timeKey === "date" && peerOwn && peerSeriesHasSignal(peerOwn.y))) {
+          peerYsForAxis = peerOwn && peerSeriesHasSignal(peerOwn.y) ? peerOwn.y : peerPlotY;
+        }
+        var usePeerY2 = peerOverlayScaleMismatch(primaryYsForPeer, peerYsForAxis);
+        var peerAxisId = null;
+        if (usePeerY2) {
+          peerAxisId = ensurePeerOverlaySecondaryAxis(lineLay, peerBranchLabel(), def.axis || "");
+        }
+        appendPeerScatterTrace(
+          traces,
+          peerPlotX,
+          kpiKey,
+          peerSum,
+          peerBranchLabel(),
+          peerAxisId,
+          peerPlotY
+        );
       } else {
         hidePeerSplitChart("line");
       }
