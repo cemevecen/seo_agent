@@ -1510,9 +1510,6 @@
     }
   }
 
-  var _INBOX_DELETE_CONFIRM =
-    "Bu konuşma Gmail’de çöp kutusuna taşınacak ve panelden kaldırılacak. Emin misiniz?";
-
   async function deleteInboxThread(threadId) {
     var id = parseInt(threadId, 10);
     if (!id || isNaN(id)) return;
@@ -1521,7 +1518,6 @@
     } catch (e) {
       return;
     }
-    if (!confirm(_INBOX_DELETE_CONFIRM)) return;
     try {
       var wasSelected = selectedId === id;
       await jfetch("/api/inbox/threads/" + id, { method: "DELETE" });
