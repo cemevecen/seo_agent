@@ -79,3 +79,44 @@ def test_auto_refresh_log_excludes_manual_runs():
         db.query(Site).delete()
         db.commit()
         db.close()
+
+
+def test_last_auto_refresh_finds_success_beyond_recent_manual_flood():
+    """Son 80+ manuel run olsa bile eski otomatik başarıyı bulmalı."""
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        site = _seed_site(db)
+        auto_finished = datetime(2026, 4, 21, 2, 0, 0)
+        run = start_collector_run(
+            db,
+            site_id=site.id,
+            provider="pagespeed",
+            strategy="mobile",
+            trigger_source="system",
+        )
+        finish_collector_run(db, run, status="success", finished_at=auto_finished)
+        for i in range(120):
+            m = start_collector_run(
+                db,
+                site_id=site.id,
+                provider="pagespeed",
+                strategy="mobile",
+                trigger_source="manual",
+            )
+            finish_collector_run(
+                db,
+                m,
+                status="success",
+                finished_at=datetime(2026, 6, 1, 10, 0, 0),
+            )
+        db.commit()
+        label = _data_explorer_last_auto_refresh_label(db, site.id)
+        assert "21.04.2026" in label
+        log = _build_data_explorer_auto_refresh_log(db, site.id)
+        assert any(r["label"] == "PSI · Mobil" and r["status_ok"] for r in log)
+    finally:
+        db.query(CollectorRun).delete()
+        db.query(Site).delete()
+        db.commit()
+        db.close()

@@ -1870,32 +1870,71 @@ def _latest_scheduled_provider_run(
     )
     if strategy is not None:
         query = query.filter(CollectorRun.strategy == strategy)
-    candidates = query.order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc()).limit(80).all()
-    for run in candidates:
-        if not _collector_run_counts_as_scheduled(run):
-            continue
-        if success_only and str(run.status or "").lower() != "success":
-            continue
-        return run
+    if success_only:
+        query = query.filter(CollectorRun.status == "success")
+    query = query.order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
+    # Manuel yenilemeler araya girince eski otomatik başarıyı kaçırmamak için sayfala.
+    batch_size = 100
+    offset = 0
+    max_scan = 2500
+    while offset < max_scan:
+        candidates = query.offset(offset).limit(batch_size).all()
+        if not candidates:
+            break
+        for run in candidates:
+            if not _collector_run_counts_as_scheduled(run):
+                continue
+            return run
+        if len(candidates) < batch_size:
+            break
+        offset += batch_size
     return None
 
 
 def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
     times: list[datetime] = []
-    for provider, strategy in (("pagespeed", None), ("crux_history", None)):
+    for provider in ("pagespeed", "crux_history"):
         run = _latest_scheduled_provider_run(
             db,
             site_id=site_id,
             provider=provider,
-            strategy=strategy,
+            strategy=None,
             success_only=True,
         )
         finished = getattr(run, "finished_at", None) if run else None
         if isinstance(finished, datetime):
             times.append(finished)
-    if not times:
-        return "Henüz otomatik yenileme kaydı yok"
-    return format_local_datetime(max(times), fallback="Henüz otomatik yenileme kaydı yok")
+    if times:
+        return format_local_datetime(max(times), fallback="Henüz otomatik yenileme kaydı yok")
+
+    # Başarılı otomatik run yoksa son denemeyi göster (kota skip / hata).
+    attempt_times: list[datetime] = []
+    for provider in ("pagespeed", "crux_history"):
+        run = _latest_scheduled_provider_run(
+            db,
+            site_id=site_id,
+            provider=provider,
+            strategy=None,
+            success_only=False,
+        )
+        finished = (getattr(run, "finished_at", None) or getattr(run, "requested_at", None)) if run else None
+        if isinstance(finished, datetime):
+            attempt_times.append(finished)
+    if attempt_times:
+        return format_local_datetime(max(attempt_times), fallback="Henüz otomatik yenileme kaydı yok")
+
+    # Collector kaydı yoksa ölçüm zamanına düş (eski legacy veri).
+    fallback_times = [
+        t
+        for t in (
+            _psi_lighthouse_metrics_latest_collected_at(db, site_id),
+            _crux_history_latest_collected_at(db, site_id),
+        )
+        if isinstance(t, datetime)
+    ]
+    if fallback_times:
+        return format_local_datetime(max(fallback_times), fallback="Henüz otomatik yenileme kaydı yok")
+    return "Henüz otomatik yenileme kaydı yok"
 
 
 def _build_data_explorer_auto_refresh_log(db, site_id: int, *, limit: int = 12) -> list[dict]:
@@ -1915,7 +1954,7 @@ def _build_data_explorer_auto_refresh_log(db, site_id: int, *, limit: int = 12) 
                 CollectorRun.strategy == strategy,
             )
             .order_by(CollectorRun.requested_at.desc(), CollectorRun.id.desc())
-            .limit(40)
+            .limit(250)
             .all()
         )
         per_label = 0
@@ -3898,6 +3937,7 @@ def _run_daily_refresh_job() -> None:
                     include_crawler=True,
                     include_search_console=False,
                     force=True,
+                    bypass_pagespeed_quota=True,
                     trigger_source="system",
                 )
                 db.commit()

@@ -1275,10 +1275,30 @@ def collect_pagespeed_metrics(
             send_alert_emails=send_notifications,
         )
         if not decision.allowed:
+            blocked_at = datetime.utcnow()
+            reason = str(decision.reason or "PageSpeed kota sınırı")
+            for strategy in ("mobile", "desktop"):
+                run = start_collector_run(
+                    db,
+                    site_id=site.id,
+                    provider="pagespeed",
+                    strategy=strategy,
+                    target_url=resolve_pagespeed_target_url(site, strategy),
+                    requested_at=blocked_at,
+                    trigger_source=trigger_source,
+                )
+                finish_collector_run(
+                    db,
+                    run,
+                    status="skipped",
+                    finished_at=blocked_at,
+                    error_message=reason,
+                    summary={"blocked": True, "reason": reason},
+                )
             return {
                 "site_id": site.id,
                 "blocked": True,
-                "reason": decision.reason,
+                "reason": reason,
             }
 
     collected_at = datetime.utcnow()
