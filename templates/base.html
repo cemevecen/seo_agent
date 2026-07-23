@@ -703,9 +703,10 @@
       #content .ga4-card-filter-bar [data-ga4-profile-switch],
       #content .sc-card-filter-bar [data-sc-period-switch],
       #content .sc-card-filter-bar [data-search-console-device-switch] {
-        flex: 0 1 auto;
-        width: max-content;
-        max-width: 100%;
+        display: inline-flex !important;
+        flex: 0 0 auto !important;
+        width: fit-content !important;
+        max-width: 100% !important;
         -webkit-overflow-scrolling: touch;
       }
       #content [data-ga4-period-switch] button,
