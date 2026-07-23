@@ -7,7 +7,7 @@
   data-site-id="{{ site.id }}"
   data-expanded="true"
 >
-  <div class="relative z-20 flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+  <div class="relative z-20 flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3" data-ga4-align="title">
     <button
       type="button"
       class="min-w-0 flex-1 text-left leading-snug"
@@ -52,6 +52,7 @@
         <div
           class="ga4-card-filter-bar rounded-2xl border border-slate-200/80 bg-white/90 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-2.5"
           data-ga4-card-filter-bar
+          data-ga4-align="filters"
         >
           <div data-ga4-global-filter-slot class="flex min-w-0 flex-wrap items-center gap-2"></div>
           <span class="ga4-card-filter-bar__divider ga4-card-filter-bar__divider--after-global" aria-hidden="true"></span>
@@ -134,7 +135,7 @@
           </div>
         </div>
         {% endif %}
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4" data-ga4-align="range">
           <div class="min-w-0 flex-1">
             {% set _dp = site.default_profile %}
             {% if _dp in site.profiles %}

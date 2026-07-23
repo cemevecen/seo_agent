@@ -370,6 +370,33 @@
     0%, 100% { transform: scaleY(.55); opacity: .55; }
     50% { transform: scaleY(1.08); opacity: 1; }
   }
+  @media (min-width: 640px) {
+    .ga4-global-filter-desktop-dock:not(.hidden) {
+      display: flex;
+    }
+  }
+  @media (max-width: 639px) {
+    .ga4-global-filter-desktop-dock {
+      display: none !important;
+    }
+  }
+  /* Split: kart gövdeleri aynı akışta; başlık/filtre/tarih min-height JS ile eşitlenir */
+  @media (min-width: 1280px) {
+    [data-ga4-split-root]:not(.ga4-split--focused) > [data-ga4-site-card] {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    [data-ga4-split-root]:not(.ga4-split--focused) > [data-ga4-site-card] > [id^="ga4-panel-"] {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"] {
+      align-content: flex-start;
+    }
+  }
   .ga4-card-filter-bar {
     display: flex;
     flex-wrap: wrap;
@@ -492,6 +519,13 @@
     <div
       class="ga4-global-filter-mobile-dock ga4-card-filter-bar mb-4 rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-0 sm:hidden"
       data-ga4-global-filter-slot-mobile
+      aria-label="Piyasa ve tarih karşılaştırması"
+    ></div>
+
+    {# Split (iki sütun) görünümde ortak filtre şeridi — kart içine gömülünce döviz/sinemalar KPI’ları hizasız kalıyordu #}
+    <div
+      class="ga4-global-filter-desktop-dock ga4-card-filter-bar mb-4 hidden rounded-2xl border border-slate-200/80 bg-white/90 p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-4"
+      data-ga4-global-filter-slot-desktop
       aria-label="Piyasa ve tarih karşılaştırması"
     ></div>
 
@@ -2173,6 +2207,7 @@
           fitGa4Text(card || document);
           renderGa4KpiSparks(card || document);
           renderGa4TrendCharts(card || document);
+          ga4ScheduleSplitCardChromeSync();
         }, 40);
       };
 
@@ -2305,6 +2340,7 @@
           fitGa4Text(hostCard || document);
           renderGa4KpiSparks(hostCard || document);
           renderGa4TrendCharts(hostCard || document);
+          ga4ScheduleSplitCardChromeSync();
         }, 40);
       };
 
@@ -2451,6 +2487,12 @@
       if (dock) return dock;
     }
     var fid = ga4GetGlobalFocus();
+    var desktopDock = document.querySelector('[data-ga4-global-filter-slot-desktop]');
+    // İki sütunlu split: ortak şerit (kart yüksekliklerini eşitlemek için)
+    if (!fid && desktopDock) {
+      var visibleCards = document.querySelectorAll('[data-ga4-site-card]:not(.hidden)');
+      if (visibleCards.length >= 2) return desktopDock;
+    }
     if (fid) {
       var focused = document.querySelector(
         '[data-ga4-site-card][data-site-id="' + fid + '"]:not(.hidden) [data-ga4-global-filter-slot]'
@@ -2459,6 +2501,7 @@
     }
     var visible = document.querySelector('[data-ga4-site-card]:not(.hidden) [data-ga4-global-filter-slot]');
     if (visible) return visible;
+    if (desktopDock) return desktopDock;
     return document.querySelector('[data-ga4-site-card] [data-ga4-global-filter-slot]');
   }
 
@@ -2467,11 +2510,16 @@
     if (!chrome) return;
     var slot = pickGa4GlobalFilterSlot();
     var holder = document.getElementById('ga4-global-filter-chrome-holder');
+    var desktopDock = document.querySelector('[data-ga4-global-filter-slot-desktop]');
     if (!slot) {
       if (holder && chrome.parentElement !== holder) holder.appendChild(chrome);
+      if (desktopDock) desktopDock.classList.add('hidden');
       return;
     }
     if (chrome.parentElement !== slot) slot.appendChild(chrome);
+    if (desktopDock) {
+      desktopDock.classList.toggle('hidden', slot !== desktopDock);
+    }
     if (window.SeoAnalyticsCompare && SeoAnalyticsCompare.bindWhenReady) {
       SeoAnalyticsCompare.bindWhenReady('ga4');
     }
@@ -2487,6 +2535,7 @@
       AppEmpowerOverlay.bindWhenReady('ga4-empower-overlay-root', ga4OnEmpowerOverlayChange);
     }
     ga4SyncEmpowerOverlayVisibility();
+    ga4SyncSplitCardChromeHeights();
   }
 
   function ga4ActiveAppProfileFromChart(el) {
@@ -2506,6 +2555,57 @@
       if (k === 'android' || k === 'ios') visible = true;
     });
     wrap.classList.toggle('hidden', !visible);
+  }
+
+  /** Split görünümde başlık / filtre / tarih satırlarını kartlar arasında aynı yüksekliğe çek. */
+  function ga4SyncSplitCardChromeHeights() {
+    var grid = document.querySelector('[data-ga4-split-root]:not(.ga4-split--focused)');
+    if (!grid) return;
+    try {
+      if (!window.matchMedia('(min-width: 1280px)').matches) {
+        grid.querySelectorAll('[data-ga4-align]').forEach(function (el) {
+          el.style.minHeight = '';
+        });
+        return;
+      }
+    } catch (e) {
+      return;
+    }
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('[data-ga4-site-card]:not(.hidden)'));
+    if (cards.length < 2) {
+      grid.querySelectorAll('[data-ga4-align]').forEach(function (el) {
+        el.style.minHeight = '';
+      });
+      return;
+    }
+    ['title', 'filters', 'range'].forEach(function (zone) {
+      var nodes = cards
+        .map(function (c) {
+          return c.querySelector('[data-ga4-align="' + zone + '"]');
+        })
+        .filter(Boolean);
+      nodes.forEach(function (n) {
+        n.style.minHeight = '';
+      });
+      var maxH = 0;
+      nodes.forEach(function (n) {
+        maxH = Math.max(maxH, n.offsetHeight || 0);
+      });
+      if (maxH > 0) {
+        nodes.forEach(function (n) {
+          n.style.minHeight = maxH + 'px';
+        });
+      }
+    });
+  }
+
+  var _ga4AlignChromeTimer = null;
+  function ga4ScheduleSplitCardChromeSync() {
+    if (_ga4AlignChromeTimer) clearTimeout(_ga4AlignChromeTimer);
+    _ga4AlignChromeTimer = setTimeout(function () {
+      _ga4AlignChromeTimer = null;
+      ga4SyncSplitCardChromeHeights();
+    }, 60);
   }
 
   window.ga4OnEmpowerOverlayChange = function ga4OnEmpowerOverlayChange() {
@@ -2587,6 +2687,7 @@
       renderGa4TrendCharts(root);
     });
     mountGa4GlobalFilters();
+    ga4ScheduleSplitCardChromeSync();
   }
 
   var _ga4FilterMountResizeTimer = null;
