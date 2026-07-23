@@ -81,7 +81,7 @@
       align-items: start;
     }
   }
-  /* Split sütun: viewport 6-sütun kuralını ez — kartlar sütunu doldursun */
+  /* Split sütun: viewport 6-sütun kuralını ez — kart sayısı kadar eşit paylaşım */
   #app-crashlytics-root [data-crash-plat-col] .crash-kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
@@ -90,19 +90,16 @@
   #app-crashlytics-root [data-crash-plat-col] .crash-kpi-grid .crash-kpi-cf {
     grid-column: auto;
   }
-  @container crash-plat (max-width: 420px) {
+  /* Dar sütun: tek kolon; orta+: 2 kart (iOS) veya 3 kart (Android) eşit doldursun */
+  @container crash-plat (max-width: 380px) {
     .crash-kpi-grid {
       grid-template-columns: 1fr !important;
     }
   }
-  @container crash-plat (min-width: 421px) and (max-width: 560px) {
+  @container crash-plat (min-width: 381px) {
     .crash-kpi-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    }
-  }
-  @container crash-plat (min-width: 561px) {
-    .crash-kpi-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      /* ~33% min → 3 kart yan yana; 2 kartta boş track collapse, ikisi eşit genişler */
+      grid-template-columns: repeat(auto-fit, minmax(max(8.5rem, 30%), 1fr)) !important;
     }
   }
   #app-crashlytics-root [data-crash-plat-col] .crash-kpi-cf .crash-kpi-cf-value {
