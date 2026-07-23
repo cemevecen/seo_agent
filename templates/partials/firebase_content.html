@@ -70,14 +70,49 @@
   }
   #app-crashlytics-root .crash-plat-col {
     min-width: 0;
+    container-type: inline-size;
+    container-name: crash-plat;
   }
   @media (min-width: 1280px) {
     #app-crashlytics-root [data-crash-split-root] {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 1.25rem;
       align-items: start;
     }
+  }
+  /* Split sütun: viewport 6-sütun kuralını ez — kartlar sütunu doldursun */
+  #app-crashlytics-root [data-crash-plat-col] .crash-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+    gap: 0.5rem;
+  }
+  #app-crashlytics-root [data-crash-plat-col] .crash-kpi-grid .crash-kpi-cf {
+    grid-column: auto;
+  }
+  @container crash-plat (max-width: 420px) {
+    .crash-kpi-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+  @container crash-plat (min-width: 421px) and (max-width: 560px) {
+    .crash-kpi-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+  }
+  @container crash-plat (min-width: 561px) {
+    .crash-kpi-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+  }
+  #app-crashlytics-root [data-crash-plat-col] .crash-kpi-cf .crash-kpi-cf-value {
+    font-size: clamp(1.15rem, 3.2cqi, 1.75rem);
+    line-height: 1.15;
+    word-break: break-word;
+  }
+  #app-crashlytics-root [data-crash-plat-col] .crash-kpi-cf .crash-kpi-cf-sub {
+    font-size: 0.625rem;
+    line-height: 1.35;
   }
   /* Sürüm dropdown — fixed katman; alttaki sparkline/grafikler üstüne binmesin */
   #crash-version-mobile-backdrop {

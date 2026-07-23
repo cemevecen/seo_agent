@@ -11,23 +11,21 @@
   html.dark .crash-spark--neon.crash-spark--amber { filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.38)); }
   html.dark .crash-spark--neon.crash-spark--slate { filter: drop-shadow(0 0 4px rgba(148, 163, 184, 0.32)); }
   .crash-spark--muted { opacity: 0.72; }
-  /* KPI grid — mobil 2 sütun, tablet 3, geniş ekran tek satır 6 */
+  /* KPI grid — dar sütun/mobil uyumlu; geniş tek panelde 6’ya kadar */
   .crash-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
     gap: 0.5rem;
   }
   @media (min-width: 640px) {
-    .crash-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+    .crash-kpi-grid { gap: 0.75rem; }
   }
-  @media (min-width: 1024px) {
-    .crash-kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  }
-  .crash-kpi-grid .crash-kpi-cf { grid-column: span 2; }
-  @media (min-width: 640px) {
-    .crash-kpi-grid .crash-kpi-cf { grid-column: span 1; }
-  }
+  .crash-kpi-grid .crash-kpi-cf { grid-column: auto; }
   .crash-kpi-cell { min-width: 0; }
+  .crash-kpi-cell > div,
+  .crash-kpi-cf {
+    height: 100%;
+  }
 </style>
 {% set cf = data.crash_free_pct %}
 {% set cfs = data.crash_free_sessions_pct %}
@@ -102,8 +100,8 @@
 
 {# Platform kartı — mat grafik; neon yalnızca üst toplam KPI'larda #}
 {% macro plat_metric_card(plat, cf_p, s, value, label, theme, series, suffix, show_meta=false) %}
-  <div class="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white px-2.5 py-3 dark:border-slate-700/50 dark:bg-slate-900/35 sm:px-3 sm:py-4">
-    <div class="mb-2 flex min-h-[2.25rem] flex-col gap-0.5">
+  <div class="flex h-full min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white px-2.5 py-3 dark:border-slate-700/50 dark:bg-slate-900/35 sm:px-3 sm:py-4">
+    <div class="mb-1.5 flex min-h-0 flex-col gap-0.5">
       <span class="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider {% if plat == 'android' %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-600 dark:text-slate-300{% endif %}">
         <span class="plat-badge {% if plat == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}" style="width:0.75rem;height:0.75rem">
           <svg aria-hidden="true"><use href="{% if plat == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
@@ -118,9 +116,9 @@
         <span class="text-[8px] tabular-nums text-slate-400">{{ s.affected_users }} kul.</span>
       {% endif %}
     </div>
-    <div class="flex flex-1 flex-col items-center justify-center">
-      <p class="text-xl font-black tabular-nums text-slate-800 sm:text-2xl dark:text-slate-100">{{ value }}</p>
-      <p class="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:text-[10px] dark:text-slate-400">{{ label }}</p>
+    <div class="flex flex-1 flex-col items-center justify-center py-1 text-center">
+      <p class="text-xl font-black tabular-nums leading-none text-slate-800 sm:text-2xl dark:text-slate-100">{{ value }}</p>
+      <p class="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:text-[10px] dark:text-slate-400">{{ label }}</p>
     </div>
     <div class="mt-1.5 sm:mt-2">{{ spark(series, 'p-' ~ plat ~ '-' ~ suffix, theme, false) }}</div>
   </div>
@@ -182,21 +180,22 @@
   {# Crash-Free + platform kırılım — responsive grid #}
   <div class="crash-kpi-grid min-w-0">
     {% if cf is not none %}
-    <div class="crash-kpi-cf crash-kpi-cell flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-4 dark:border-slate-700/60 dark:bg-slate-800/40 transition-opacity{% if cf_dim %} opacity-40{% endif %}">
-      <div class="flex flex-1 flex-col items-center justify-center">
-        <p class="text-2xl font-black tabular-nums sm:text-3xl {% if cf >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ cf_fmt(cf) }}%</p>
+    <div class="crash-kpi-cf crash-kpi-cell flex flex-col rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700/60 dark:bg-slate-800/40 transition-opacity sm:py-4{% if cf_dim %} opacity-40{% endif %}">
+      <div class="flex flex-1 flex-col items-center justify-center text-center">
+        <p class="crash-kpi-cf-value text-2xl font-black tabular-nums sm:text-3xl {% if cf >= 99 %}text-emerald-600 dark:text-emerald-300/85{% elif cf >= 95 %}text-amber-600 dark:text-amber-300/85{% else %}text-rose-600 dark:text-rose-300/85{% endif %}">{{ cf_fmt(cf) }}%</p>
         <p class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash-Free</p>
         {% if cfu is not none or cfs is not none %}
-        <p class="mt-1 text-center text-[9px] leading-snug text-slate-500 dark:text-slate-400">
-          {% if cfu is not none %}<span>Kullanıcı {{ cf_fmt(cfu) }}%</span>{% endif %}
+        <p class="crash-kpi-cf-sub mt-1 text-center leading-snug text-slate-500 dark:text-slate-400">
+          {% if cfu is not none %}<span class="whitespace-nowrap">Kullanıcı {{ cf_fmt(cfu) }}%</span>{% endif %}
           {% if cfu is not none and cfs is not none %}<span class="mx-1">·</span>{% endif %}
-          {% if cfs is not none %}<span>Oturum {{ cf_fmt(cfs) }}%</span>{% endif %}
+          {% if cfs is not none %}<span class="whitespace-nowrap">Oturum {{ cf_fmt(cfs) }}%</span>{% endif %}
         </p>
         {% endif %}
         {% if data.crash_free_method %}<p class="mt-0.5 text-[9px] text-slate-400">kaynak: {{ data.crash_free_method }}</p>{% endif %}
         {% set cfbp = data.crash_free_by_platform or {} %}
-        {% if cfbp %}
-        <div class="mt-2 flex items-center gap-3">
+        {% set _pf = (data.platform_filter or 'all')|lower %}
+        {% if cfbp and _pf == 'all' %}
+        <div class="mt-2 flex flex-wrap items-center justify-center gap-3">
           {% for pkey in ['ios', 'android'] %}
             {% set pdata = cfbp.get(pkey) %}
             {% if pdata and pdata.crash_free_pct is not none %}
