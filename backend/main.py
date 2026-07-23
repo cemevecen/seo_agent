@@ -8161,6 +8161,23 @@ def _home_cf_fmt(pct: float | None) -> str:
     return f"{v:.2f}%"
 
 
+def _home_crash_latest_version(payload: dict, plat: str) -> str | None:
+    """Platform için semver-desc listedeki ilk sürüm (cache filter_versions)."""
+    from backend.services import crashlytics_bq as cbq
+
+    versions = (payload.get("filter_versions_by_platform") or {}).get(plat) or []
+    if versions:
+        ranked = cbq._semver_sort_versions([str(v).strip() for v in versions if str(v).strip()])
+        return ranked[0] if ranked else None
+    # Fallback: versions_by_platform satırlarından
+    rows = (payload.get("versions_by_platform") or {}).get(plat) or []
+    vers = [str(r.get("app_version") or "").strip() for r in rows if r.get("app_version")]
+    if not vers:
+        return None
+    ranked = cbq._semver_sort_versions(vers)
+    return ranked[0] if ranked else None
+
+
 def _home_crashlytics_card(product_id: str) -> dict:
     """Ana sayfa Firebase/Crashlytics mini kart — cache-only, soğuksa arka planda ısıtır."""
     from backend.services import crashlytics_bq as cbq
@@ -8195,6 +8212,7 @@ def _home_crashlytics_card(product_id: str) -> dict:
     summary_by = payload.get("summary_by_platform") or {}
     cf_by = payload.get("crash_free_by_platform") or {}
     issues_by = payload.get("issues_by_platform") or {}
+    devices_by = payload.get("device_breakdown_by_platform") or {}
 
     platforms: list[dict] = []
     for plat, plat_label in (("ios", "iOS"), ("android", "Android")):
@@ -8205,18 +8223,44 @@ def _home_crashlytics_card(product_id: str) -> dict:
             cf_pct = cf.get("crash_free_pct")
         issues = issues_by.get(plat) or []
         top = issues[0] if issues else None
+        latest_ver = _home_crash_latest_version(payload, plat)
+        # Son sürüm satırından fatal/ANR (varsa); yoksa platform özeti
+        ver_fatal = summ.get("fatal") or 0
+        ver_anr = summ.get("anr") or 0
+        if latest_ver:
+            for row in (payload.get("versions_by_platform") or {}).get(plat) or []:
+                if str(row.get("app_version") or "").strip() == latest_ver:
+                    ver_fatal = row.get("fatal_count", ver_fatal)
+                    ver_anr = row.get("anr_count", ver_anr)
+                    break
+        top_devices: list[dict] = []
+        if plat == "android":
+            for d in (devices_by.get("android") or [])[:5]:
+                top_devices.append(
+                    {
+                        "label": (d.get("label") or d.get("label_raw") or "—")[:48],
+                        "events_fmt": _home_format_int(d.get("event_count") or 0),
+                        "pct": d.get("pct"),
+                    }
+                )
         platforms.append(
             {
                 "key": plat,
                 "label": plat_label,
+                "latest_version": latest_ver,
                 "crash_free_fmt": _home_cf_fmt(cf_pct),
-                "fatal_fmt": _home_format_int(summ.get("fatal") or 0),
-                "anr_fmt": _home_format_int(summ.get("anr") or 0),
+                "fatal_fmt": _home_format_int(ver_fatal or 0),
+                "anr_fmt": _home_format_int(ver_anr or 0),
                 "top_issue_title": ((top.get("title") or top.get("issue_title") or "")[:72] if top else None),
                 "top_issue_events_fmt": _home_format_int(top.get("event_count") or 0) if top else None,
-                "has_data": bool(summ.get("fatal") or summ.get("anr") or issues),
+                "top_devices": top_devices,
+                "has_data": bool(summ.get("fatal") or summ.get("anr") or issues or latest_ver),
             }
         )
+
+    # Şablon: solda iOS, sağda Android
+    ios_plat = next((p for p in platforms if p["key"] == "ios"), platforms[0] if platforms else None)
+    android_plat = next((p for p in platforms if p["key"] == "android"), None)
 
     top_all = (payload.get("issues") or [])[:1]
     top_global = top_all[0] if top_all else None
@@ -8232,6 +8276,8 @@ def _home_crashlytics_card(product_id: str) -> dict:
             "anr_fmt": _home_format_int(totals.get("anr") or 0),
             "non_fatal_fmt": _home_format_int(totals.get("non_fatal") or 0),
             "platforms": platforms,
+            "ios": ios_plat,
+            "android": android_plat,
             "top_issue_title": (
                 (top_global.get("title") or top_global.get("issue_title") or "")[:72] if top_global else None
             ),

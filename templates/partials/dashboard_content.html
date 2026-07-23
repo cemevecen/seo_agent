@@ -332,8 +332,8 @@
         </section>
       </div>
 
-      {# Row 8 — Firebase Crashlytics (yalnızca döviz) #}
-      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {# Row 8 — Firebase Crashlytics (yalnızca döviz; iOS ‖ Android split) #}
+      <div class="grid grid-cols-1 gap-5">
         <section hx-get="/api/home/crashlytics?product=doviz" hx-trigger="load" hx-swap="innerHTML" hx-timeout="55000"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Firebase · Crashlytics</h3>

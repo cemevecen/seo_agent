@@ -29,6 +29,21 @@ def test_home_crashlytics_card_from_cache(monkeypatch):
             "android": [{"title": "NullPointer in Feed", "event_count": 5}],
         },
         "issues": [{"title": "SIGABRT in main", "event_count": 7}],
+        "filter_versions_by_platform": {
+            "ios": ["9.4.1", "9.4.0"],
+            "android": ["9.5.7", "9.5.6"],
+        },
+        "versions_by_platform": {
+            "ios": [{"app_version": "9.4.1", "fatal_count": 4, "anr_count": 0}],
+            "android": [{"app_version": "9.5.7", "fatal_count": 2, "anr_count": 8}],
+        },
+        "device_breakdown_by_platform": {
+            "android": [
+                {"label": "Samsung Galaxy A54", "event_count": 40},
+                {"label": "Xiaomi Redmi Note", "event_count": 22},
+                {"label": "Pixel 7", "event_count": 11},
+            ],
+        },
     }
 
     monkeypatch.setattr(
@@ -42,6 +57,12 @@ def test_home_crashlytics_card_from_cache(monkeypatch):
     assert card["anr_fmt"] == "3"
     assert card["crash_free_fmt"] == "99.91%"
     assert len(card["platforms"]) == 2
+    assert card["ios"]["latest_version"] == "9.4.1"
+    assert card["ios"]["fatal_fmt"] == "4"
+    assert card["android"]["latest_version"] == "9.5.7"
+    assert card["android"]["anr_fmt"] == "8"
+    assert len(card["android"]["top_devices"]) == 3
+    assert card["android"]["top_devices"][0]["label"] == "Samsung Galaxy A54"
     assert card["platforms"][0]["top_issue_title"] == "SIGABRT in main"
 
 
