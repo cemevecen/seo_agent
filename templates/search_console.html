@@ -294,6 +294,12 @@
     z-index: 48;
     isolation: isolate;
   }
+  .sc-card-filter-bar [data-sc-period-switch],
+  .sc-card-filter-bar [data-search-console-device-switch] {
+    flex: 0 1 auto;
+    width: max-content;
+    max-width: 100%;
+  }
   @media (min-width: 640px) {
     .sc-card-filter-bar {
       gap: 0.625rem;
@@ -342,14 +348,13 @@
       gap: 0.5rem;
       min-height: 5.25rem;
     }
-    #search-console-site-list [data-sc-split-root]:not(.sc-split--focused) [data-sc-align="filters"] [data-sc-period-switch] {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
+    /* Chip grupları: dolgu yalnızca içerik kadar (satır sonuna kadar uzamasın) */
+    #search-console-site-list [data-sc-split-root]:not(.sc-split--focused) [data-sc-align="filters"] [data-sc-period-switch],
     #search-console-site-list [data-sc-split-root]:not(.sc-split--focused) [data-sc-align="filters"] [data-search-console-device-switch] {
-      flex: 1 1 100%;
-      width: 100%;
+      flex: 0 1 auto;
+      width: max-content;
       max-width: 100%;
+      min-width: 0;
       justify-content: flex-start !important;
     }
     #search-console-site-list [data-sc-split-root]:not(.sc-split--focused) [data-sc-align="range"] {
@@ -405,8 +410,8 @@
     }
     .sc-card-filter-bar [data-sc-period-switch],
     .sc-card-filter-bar [data-search-console-device-switch] {
-      flex: 1 1 100%;
-      width: 100%;
+      flex: 0 1 auto;
+      width: max-content;
       max-width: 100%;
     }
     .sc-card-filter-bar .seo-analytics-compare-inline {

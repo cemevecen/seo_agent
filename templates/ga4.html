@@ -393,7 +393,7 @@
       flex: 1 1 auto;
       min-height: 0;
     }
-    /* Filtre şeridi her kartta aynı iskelet: 1) dönem  2) platform — hiza bozulmasın */
+    /* Filtre şeridi: chip dolgusu içerik kadar */
     [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"].ga4-card-filter-bar {
       display: flex;
       flex-wrap: wrap;
@@ -402,14 +402,12 @@
       gap: 0.5rem;
       min-height: 5.25rem;
     }
-    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"] [data-ga4-period-switch] {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"] [data-ga4-period-switch],
     [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"] [data-ga4-profile-switch] {
-      flex: 1 1 100%;
-      width: 100%;
+      flex: 0 1 auto;
+      width: max-content;
       max-width: 100%;
+      min-width: 0;
       justify-content: flex-start !important;
     }
     [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="range"] {
@@ -441,6 +439,12 @@
     position: relative;
     z-index: 48;
     isolation: isolate;
+  }
+  .ga4-card-filter-bar [data-ga4-period-switch],
+  .ga4-card-filter-bar [data-ga4-profile-switch] {
+    flex: 0 1 auto;
+    width: max-content;
+    max-width: 100%;
   }
   html.dark .ga4-card-filter-bar,
   html.midnight .ga4-card-filter-bar {
@@ -512,8 +516,8 @@
     }
     .ga4-card-filter-bar [data-ga4-period-switch],
     .ga4-card-filter-bar [data-ga4-profile-switch] {
-      flex: 1 1 100%;
-      width: 100%;
+      flex: 0 1 auto;
+      width: max-content;
       max-width: 100%;
     }
     .ga4-card-filter-bar .seo-analytics-compare-inline {
