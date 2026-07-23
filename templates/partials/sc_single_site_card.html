@@ -8,7 +8,7 @@
   data-expanded="true"
 >
   <!-- SC card template ga4-v1 (1d/7d/30d). If you still see 1g, the running server uses an old image; rebuild Docker / redeploy Railway. -->
-  <div class="relative z-20 flex w-full flex-col gap-2 sm:gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+  <div class="relative z-20 flex w-full flex-col gap-2 sm:gap-2.5 lg:flex-row lg:items-center lg:justify-between lg:gap-3" data-sc-align="title">
     <button
       type="button"
       class="min-w-0 flex-1 text-left leading-snug"
@@ -33,6 +33,7 @@
       <div
         class="sc-card-filter-bar rounded-2xl border border-slate-200/80 bg-white/90 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-2.5"
         data-sc-card-filter-bar
+        data-sc-align="filters"
       >
         <div data-sc-global-filter-slot class="flex min-w-0 flex-wrap items-center gap-2"></div>
         <span class="sc-card-filter-bar__divider sc-card-filter-bar__divider--after-global" aria-hidden="true"></span>
@@ -153,7 +154,7 @@
           </button>
         </div>
       </div>
-      <div class="min-w-0" data-sc-period-date-wrap>
+      <div class="min-w-0" data-sc-period-date-wrap data-sc-align="range">
           {% for period_key in ['1', '7', '30', '60', '90', '12m'] %}
             {% if period_key not in site.report.periods %}{% else %}
             {% set _pd = site.report.periods[period_key] %}
@@ -191,11 +192,13 @@
           >
             {% if period.get('trend_only') %}
             <p class="text-sm font-medium leading-snug text-slate-700 dark:text-slate-200">{{ period.trend_caption }}</p>
+            <div data-sc-align="chart" class="w-full min-w-0">
             <div
               id="search-console-trend-{{ site.id }}-{{ period_key }}-{{ device_key }}"
               class="h-[min(360px,55vh)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[440px]"
               data-search-console-trend='{{ view.trend|tojson }}'
             ></div>
+            </div>
             {% if not view.has_data %}
             <p class="text-center text-sm text-slate-500 dark:text-slate-400">12 aylık trend için veri henüz yok. Search Console verisini yenileyin.</p>
             {% endif %}
@@ -222,7 +225,7 @@
               {% set ctr_tone = 'flat' if cmp_na else ('up' if tp > 0 else ('down' if tp < 0 else 'flat')) %}
               {% set position_tone = 'flat' if cmp_na else ('up' if pd > 0 else ('down' if pd < 0 else 'flat')) %}
 
-              <div class="min-w-0" data-kpi-spark-row data-kpi-spark-period-days="{{ spark_pd }}">
+              <div class="min-w-0" data-sc-align="kpis" data-kpi-spark-row data-kpi-spark-period-days="{{ spark_pd }}">
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 items-stretch">
               <article class="flex h-full min-h-[13rem] min-w-0 flex-col rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:min-h-[14rem] sm:p-4 xl:min-h-0">
                 <p lang="en" class="shrink-0 text-[10px] font-medium tracking-[0.1em] text-slate-500 dark:text-slate-400 sm:text-xs sm:tracking-[0.12em]">CLICKS</p>
@@ -321,11 +324,13 @@
             <p class="rounded-lg border border-amber-200/90 bg-amber-50/90 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">{{ view.compare_unavailable_note }}</p>
             {% endif %}
 
+            <div data-sc-align="chart" class="w-full min-w-0">
             <div
               id="search-console-trend-{{ site.id }}-{{ period_key }}-{{ device_key }}"
               class="h-[min(360px,55vh)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[440px]"
               data-search-console-trend='{{ view.trend|tojson }}'
             ></div>
+            </div>
 
             <div class="space-y-3">
               <div class="inline-flex rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 p-1" data-sc-table-switch>

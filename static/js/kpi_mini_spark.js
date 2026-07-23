@@ -25,15 +25,13 @@
   }
 
   function visibleBarCount(sparkEl, periodDays, seriesLen) {
+    var pd = Math.max(1, parseInt(periodDays, 10) || 7);
+    /* Kısa dönemler: siteler arası aynı çubuk sayısı (eksik günler pad edilir) */
+    if (pd <= 31) {
+      return pd;
+    }
     var len = Math.max(0, parseInt(seriesLen, 10) || 0);
-    if (!len) {
-      return 0;
-    }
-    var pd = Math.max(1, parseInt(periodDays, 10) || len);
-    var want = Math.min(len, pd);
-    if (want <= 31) {
-      return want;
-    }
+    var want = Math.min(len || pd, pd);
     var w = sparkEl && sparkEl.clientWidth ? sparkEl.clientWidth : 0;
     if (w < 8) {
       return want;
@@ -65,20 +63,28 @@
   }
 
   function downsampleSeries(values, target) {
-    if (!values || !values.length) {
+    var t = Math.max(0, parseInt(target, 10) || 0);
+    if (!t) {
       return [];
     }
-    if (values.length <= target) {
-      return values.map(function (v) {
+    if (!values || !values.length) {
+      return Array(t).fill(0);
+    }
+    if (values.length <= t) {
+      var mapped = values.map(function (v) {
         if (v == null || v === '') {
           return 0;
         }
         return parseFloat(v) || 0;
       });
+      while (mapped.length < t) {
+        mapped.unshift(0);
+      }
+      return mapped;
     }
     var out = [];
-    var step = values.length / target;
-    for (var i = 0; i < target; i++) {
+    var step = values.length / t;
+    for (var i = 0; i < t; i++) {
       var start = Math.floor(i * step);
       var end = Math.min(values.length, Math.floor((i + 1) * step));
       var sum = 0;
