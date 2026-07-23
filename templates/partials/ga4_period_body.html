@@ -115,7 +115,7 @@
 {% endmacro %}
 
 {% set spark_pd = p.spark_period_days | default(7 if pd == 1 else pd) %}
-<div class="w-full min-w-0" data-ga4-kpi-row data-ga4-spark-period-days="{{ spark_pd }}" data-ga4-daily-trend='{{ dt_spark | tojson }}'>
+<div class="w-full min-w-0" data-ga4-align="kpis" data-ga4-kpi-row data-ga4-spark-period-days="{{ spark_pd }}" data-ga4-daily-trend='{{ dt_spark | tojson }}'>
   <div
     class="ga4-kpi-grid grid w-full min-w-0 gap-2.5 sm:gap-3 md:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.25rem),1fr))]"
   >
@@ -130,6 +130,7 @@
 
 {% if _has_period %}
   {% if dt.dates and dt.dates|length > 0 %}
+  <div data-ga4-align="chart" class="w-full min-w-0">
   <div
     id="ga4-trend-{{ site.id }}-{{ period_key }}-{{ pk }}"
     class="ga4-kpi-trend h-[min(360px,55vh)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 md:h-[440px]"
@@ -138,9 +139,12 @@
     data-ga4-daily-trend='{{ dt | tojson }}'
     data-ga4-sc-position-trend='{{ (p.sc_position_trend | default({})) | tojson }}'
   ></div>
+  </div>
   {% else %}
+  <div data-ga4-align="chart" class="w-full min-w-0">
   <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/55 px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
     No daily series for this window yet. Use <strong>Refresh GA4</strong> to collect.
+  </div>
   </div>
   {% endif %}
 {% endif %}

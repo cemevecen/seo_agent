@@ -393,8 +393,42 @@
       flex: 1 1 auto;
       min-height: 0;
     }
-    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"] {
+    /* Filtre şeridi her kartta aynı iskelet: 1) dönem  2) platform — hiza bozulmasın */
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"].ga4-card-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
       align-content: flex-start;
+      gap: 0.5rem;
+      min-height: 5.25rem;
+    }
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"] [data-ga4-period-switch] {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="filters"] [data-ga4-profile-switch] {
+      flex: 1 1 100%;
+      width: 100%;
+      max-width: 100%;
+      justify-content: flex-start !important;
+    }
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="range"] {
+      display: flex;
+      align-items: center;
+      min-height: 1.25rem;
+    }
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="kpis"],
+    [data-ga4-split-root]:not(.ga4-split--focused) [data-ga4-align="chart"] {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+  @media (min-width: 640px) {
+    [data-ga4-global-filter-slot-desktop]:not(:empty) {
+      display: flex !important;
+    }
+    [data-ga4-global-filter-slot-desktop]:empty {
+      display: none !important;
     }
   }
   .ga4-card-filter-bar {
@@ -1555,16 +1589,13 @@
   }
 
   function ga4SparkVisibleBarCount(sparkEl, periodDays, seriesLen) {
+    var pd = Math.max(1, parseInt(periodDays, 10) || 7);
+    /* Kısa dönemler: siteler arası aynı çubuk sayısı (eksik günler pad edilir) */
+    if (pd <= 31) {
+      return pd;
+    }
     var len = Math.max(0, parseInt(seriesLen, 10) || 0);
-    if (!len) {
-      return 0;
-    }
-    var pd = Math.max(1, parseInt(periodDays, 10) || len);
-    var want = Math.min(len, pd);
-    /* Kısa dönemler (7g vb.): her gün bir çubuk, genişlik flex ile dolar */
-    if (want <= 31) {
-      return want;
-    }
+    var want = Math.min(len || pd, pd);
     var w = sparkEl && sparkEl.clientWidth ? sparkEl.clientWidth : 0;
     if (w < 8) {
       return want;
@@ -1628,17 +1659,25 @@
   }
 
   function ga4DownsampleSparkSeries(values, target) {
-    if (!values || !values.length) {
+    var t = Math.max(0, parseInt(target, 10) || 0);
+    if (!t) {
       return [];
     }
-    if (values.length <= target) {
-      return values.map(function (v) {
+    if (!values || !values.length) {
+      return Array(t).fill(0);
+    }
+    if (values.length <= t) {
+      var mapped = values.map(function (v) {
         return parseFloat(v || 0) || 0;
       });
+      while (mapped.length < t) {
+        mapped.unshift(0);
+      }
+      return mapped;
     }
     var out = [];
-    var step = values.length / target;
-    for (var i = 0; i < target; i++) {
+    var step = values.length / t;
+    for (var i = 0; i < t; i++) {
       var start = Math.floor(i * step);
       var end = Math.min(values.length, Math.floor((i + 1) * step));
       var sum = 0;
@@ -2486,22 +2525,22 @@
       var dock = document.querySelector('[data-ga4-global-filter-slot-mobile]');
       if (dock) return dock;
     }
-    var fid = ga4GetGlobalFocus();
     var desktopDock = document.querySelector('[data-ga4-global-filter-slot-desktop]');
-    // İki sütunlu split: ortak şerit (kart yüksekliklerini eşitlemek için)
-    if (!fid && desktopDock) {
-      var visibleCards = document.querySelectorAll('[data-ga4-site-card]:not(.hidden)');
-      if (visibleCards.length >= 2) return desktopDock;
+    var grid = document.querySelector('[data-ga4-split-root]');
+    var isFocused = !!(grid && grid.classList.contains('ga4-split--focused'));
+    // Split (odaklı değil): Piyasa/karşılaştırma asla kart içine girmez — KPI/spark hizası bozulmasın
+    if (!isFocused && desktopDock) {
+      return desktopDock;
     }
-    if (fid) {
+    if (isFocused) {
       var focused = document.querySelector(
-        '[data-ga4-site-card][data-site-id="' + fid + '"]:not(.hidden) [data-ga4-global-filter-slot]'
+        '[data-ga4-site-card]:not(.hidden) [data-ga4-global-filter-slot]'
       );
       if (focused) return focused;
     }
+    if (desktopDock) return desktopDock;
     var visible = document.querySelector('[data-ga4-site-card]:not(.hidden) [data-ga4-global-filter-slot]');
     if (visible) return visible;
-    if (desktopDock) return desktopDock;
     return document.querySelector('[data-ga4-site-card] [data-ga4-global-filter-slot]');
   }
 
@@ -2535,7 +2574,7 @@
       AppEmpowerOverlay.bindWhenReady('ga4-empower-overlay-root', ga4OnEmpowerOverlayChange);
     }
     ga4SyncEmpowerOverlayVisibility();
-    ga4SyncSplitCardChromeHeights();
+    ga4ScheduleSplitCardChromeSync();
   }
 
   function ga4ActiveAppProfileFromChart(el) {
@@ -2557,10 +2596,28 @@
     wrap.classList.toggle('hidden', !visible);
   }
 
-  /** Split görünümde başlık / filtre / tarih satırlarını kartlar arasında aynı yüksekliğe çek. */
+  /** Split görünümde başlık / filtre / tarih / KPI / grafik satırlarını kartlar arasında hizala. */
+  function ga4AlignNodeInCard(card, zone) {
+    if (!card) return null;
+    if (zone === 'title' || zone === 'filters' || zone === 'range') {
+      return card.querySelector('[data-ga4-align="' + zone + '"]');
+    }
+    return card.querySelector(
+      '[data-ga4-period-panel]:not(.hidden) [data-ga4-profile-panel]:not(.hidden) [data-ga4-align="' +
+        zone +
+        '"]'
+    );
+  }
+
   function ga4SyncSplitCardChromeHeights() {
     var grid = document.querySelector('[data-ga4-split-root]:not(.ga4-split--focused)');
-    if (!grid) return;
+    var zones = ['title', 'filters', 'range', 'kpis', 'chart'];
+    if (!grid) {
+      document.querySelectorAll('[data-ga4-align]').forEach(function (el) {
+        el.style.minHeight = '';
+      });
+      return;
+    }
     try {
       if (!window.matchMedia('(min-width: 1280px)').matches) {
         grid.querySelectorAll('[data-ga4-align]').forEach(function (el) {
@@ -2578,34 +2635,41 @@
       });
       return;
     }
-    ['title', 'filters', 'range'].forEach(function (zone) {
-      var nodes = cards
-        .map(function (c) {
-          return c.querySelector('[data-ga4-align="' + zone + '"]');
-        })
-        .filter(Boolean);
-      nodes.forEach(function (n) {
-        n.style.minHeight = '';
+    zones.forEach(function (zone) {
+      cards.forEach(function (c) {
+        var n = ga4AlignNodeInCard(c, zone);
+        if (n) n.style.minHeight = '';
       });
-      var maxH = 0;
-      nodes.forEach(function (n) {
-        maxH = Math.max(maxH, n.offsetHeight || 0);
-      });
-      if (maxH > 0) {
-        nodes.forEach(function (n) {
-          n.style.minHeight = maxH + 'px';
+    });
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        zones.forEach(function (zone) {
+          var nodes = cards.map(function (c) {
+            return ga4AlignNodeInCard(c, zone);
+          }).filter(Boolean);
+          var maxH = 0;
+          nodes.forEach(function (n) {
+            maxH = Math.max(maxH, Math.ceil(n.getBoundingClientRect().height) || 0);
+          });
+          if (maxH > 0) {
+            nodes.forEach(function (n) {
+              n.style.minHeight = maxH + 'px';
+            });
+          }
         });
-      }
+      });
     });
   }
 
-  var _ga4AlignChromeTimer = null;
+  var _ga4AlignChromeGen = 0;
   function ga4ScheduleSplitCardChromeSync() {
-    if (_ga4AlignChromeTimer) clearTimeout(_ga4AlignChromeTimer);
-    _ga4AlignChromeTimer = setTimeout(function () {
-      _ga4AlignChromeTimer = null;
-      ga4SyncSplitCardChromeHeights();
-    }, 60);
+    var gen = ++_ga4AlignChromeGen;
+    [50, 200, 550].forEach(function (delay) {
+      setTimeout(function () {
+        if (gen !== _ga4AlignChromeGen) return;
+        ga4SyncSplitCardChromeHeights();
+      }, delay);
+    });
   }
 
   window.ga4OnEmpowerOverlayChange = function ga4OnEmpowerOverlayChange() {
