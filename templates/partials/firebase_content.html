@@ -56,6 +56,29 @@
   }
   #crash-version-mobile-panel[data-open="true"] { display: flex; }
   .crash-ver-mobile-row:active { background: rgba(148, 163, 184, 0.15); }
+  /* Chip dolgusu yalnızca içerik kadar — satır sonuna uzamasın */
+  #app-crashlytics-root .crash-filter-scroll {
+    flex: 0 1 auto;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+  }
+  #app-crashlytics-root .crash-filter-scroll > .inline-flex {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+  }
+  #app-crashlytics-root .crash-plat-col {
+    min-width: 0;
+  }
+  @media (min-width: 1280px) {
+    #app-crashlytics-root [data-crash-split-root] {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+  }
   /* Sürüm dropdown — fixed katman; alttaki sparkline/grafikler üstüne binmesin */
   #crash-version-mobile-backdrop {
     position: fixed;
@@ -161,7 +184,7 @@
   </defs>
 </svg>
 
-<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 px-1">
+<div class="mx-auto w-full min-w-0 max-w-[1800px] space-y-5 px-1">
 
   {# ── Firebase Crashlytics tam panel ── #}
   <section id="app-crashlytics-root" class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:ring-slate-800/80">
@@ -194,31 +217,13 @@
       </div>
     </div>
 
-    {# Filtre bar — mobilde dikey, chip grupları yatay kaydırma #}
+    {# Filtre bar — ortak dönem/tür; platform split sütunlarda #}
     <div class="crash-filter-bar flex flex-col gap-3 border-b border-slate-100 bg-slate-50/60 px-3 py-3 dark:border-slate-800 dark:bg-slate-800/30 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5 sm:gap-y-2.5 sm:px-5">
-      {# Platform #}
-      <div class="crash-filter-row flex items-center gap-2 sm:items-center">
-        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Platform</span>
-        <div class="crash-filter-scroll min-w-0 flex-1">
-        <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
-          {% for pv, pl in [("all","Tümü"),("android","Android"),("ios","iOS")] %}
-            <button type="button" data-crash-platform="{{ pv }}"
-              class="crash-platform-btn inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition
-                {% if pv == 'all' %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">
-              {% if pv == 'android' %}<span class="plat-badge plat-badge--android"><svg aria-hidden="true"><use href="#plat-android"/></svg></span>{% endif %}
-              {% if pv == 'ios' %}<span class="plat-badge plat-badge--apple"><svg aria-hidden="true"><use href="#plat-apple"/></svg></span>{% endif %}
-              {{ pl }}
-            </button>
-          {% endfor %}
-        </div>
-        </div>
-      </div>
-
       {# Dönem #}
       <div class="crash-filter-row flex items-center gap-2 sm:items-center">
         <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Dönem</span>
-        <div class="crash-filter-scroll min-w-0 flex-1">
-        <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
+        <div class="crash-filter-scroll min-w-0">
+        <div class="inline-flex w-fit max-w-full rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for dv, dl in [(1,"1g"),(7,"7g"),(30,"30g"),(90,"90g")] %}
             <button type="button" data-crash-days="{{ dv }}"
               class="crash-days-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
@@ -231,8 +236,8 @@
       {# Tür #}
       <div class="crash-filter-row flex items-center gap-2 sm:items-center">
         <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tür</span>
-        <div class="crash-filter-scroll min-w-0 flex-1">
-        <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
+        <div class="crash-filter-scroll min-w-0">
+        <div class="inline-flex w-fit max-w-full rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900">
           {% for tv, tl in [("","Tümü"),("FATAL","Fatal"),("ANR","ANR"),("NON_FATAL","Non-Fatal")] %}
             <button type="button" data-crash-type="{{ tv }}"
               class="crash-type-btn rounded-md px-2.5 py-1 text-[11px] font-semibold transition
@@ -262,29 +267,12 @@
       <span class="text-[11px] text-amber-700 dark:text-amber-300">Bu dönem için BigQuery'de yeterli geçmiş veri olmayabilir — streaming export yakın zamanda etkinleştirildiğinden veriler eksik görünebilir.</span>
     </div>
 
-    {# Versiyon filtresi — masaüstü chip, mobil dropdown #}
-    <div id="crash-version-bar" class="hidden flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/30 sm:px-5">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
-        <button type="button" id="crash-version-all-btn" class="shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition bg-slate-900 text-white dark:bg-slate-600">Tümü</button>
-        {# Mobil: tek satır dropdown tetikleyici #}
-        <div class="relative min-w-0 flex-1 md:hidden">
-          <button type="button" id="crash-version-mobile-trigger" aria-expanded="false" aria-haspopup="listbox"
-            class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
-            <span id="crash-version-mobile-label" class="truncate">Tüm sürümler</span>
-            <svg class="h-4 w-4 shrink-0 text-slate-400 transition-transform" id="crash-version-mobile-chevron" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
-          </button>
-        </div>
-        <input type="search" id="crash-version-search" placeholder="Sürüm ara (ör. 7.0.0)…"
-          class="hidden min-w-[10rem] flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none md:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
-        <span id="crash-version-count" class="hidden shrink-0 text-[10px] tabular-nums text-slate-400 md:inline"></span>
-      </div>
-      <div id="crash-version-chips" class="hidden max-h-32 flex-wrap gap-1 overflow-y-auto overscroll-contain md:flex"></div>
-    </div>
+    {# Versiyon filtresi — sütun içine taşındı (split) #}
+    <div id="crash-version-bar" class="hidden" aria-hidden="true"></div>
 
-    {# Mobil sürüm dropdown — fixed katman (section içi absolute alttaki grafiklerin üstüne biner) #}
+    {# Mobil sürüm dropdown — fixed katman #}
     <div id="crash-version-mobile-backdrop" class="fixed inset-0 z-[44] hidden md:hidden" aria-hidden="true"></div>
-    <div id="crash-version-mobile-panel" role="listbox" data-open="false"
+    <div id="crash-version-mobile-panel" role="listbox" data-open="false" data-crash-ver-plat=""
       class="fixed z-[45] hidden flex-col overflow-hidden rounded-xl border border-slate-200 md:hidden dark:border-slate-600">
       <div class="border-b border-slate-100 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
         <input type="search" id="crash-version-search-mobile" placeholder="Sürüm ara…" autocomplete="off"
@@ -297,56 +285,76 @@
       </div>
     </div>
 
-    {# Tüm içerik: Özet + Crash'ler + ANR + Versiyonlar dikey sıralı #}
-    <div class="divide-y divide-slate-100 dark:divide-slate-800">
-
-      {# Özet #}
-      <div class="p-3 sm:p-5">
-        <div id="crash-sec-summary" class="min-h-[120px]">
-          <div class="flex items-center gap-2 py-8 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+    {# Android ‖ iOS split #}
+    <div class="space-y-4 p-3 sm:p-5" data-crash-split-root>
+      {% for plat, plabel in [('android', 'Android'), ('ios', 'iOS')] %}
+      <section class="crash-plat-col overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/40" data-crash-plat-col="{{ plat }}">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 bg-white px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900 sm:px-4">
+          <div class="flex items-center gap-2">
+            <span class="plat-badge plat-badge--lg {% if plat == 'android' %}plat-badge--android{% else %}plat-badge--apple{% endif %}">
+              <svg aria-hidden="true"><use href="{% if plat == 'android' %}#plat-android{% else %}#plat-apple{% endif %}"/></svg>
+            </span>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ plabel }}</h3>
+          </div>
+          <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400" data-crash-plat-ver-label="{{ plat }}">Son sürüm…</span>
         </div>
-      </div>
 
-      {# Versiyon × zaman grafiği #}
-      <div class="p-3 sm:p-5">
-        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon trendi</p>
-        <div id="crash-sec-version-chart" class="min-h-[80px]">
-          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+        <div class="flex flex-col gap-2 border-b border-slate-100 bg-white/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900/80 sm:px-4" data-crash-version-bar="{{ plat }}">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Versiyon</span>
+            <button type="button" data-crash-version-all="{{ plat }}" class="crash-version-all-btn shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold transition text-slate-500 hover:text-slate-800 dark:text-slate-400">Tümü</button>
+            <div class="relative min-w-0 flex-1 md:hidden">
+              <button type="button" data-crash-version-mobile-trigger="{{ plat }}" aria-expanded="false" aria-haspopup="listbox"
+                class="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+                <span data-crash-version-mobile-label="{{ plat }}" class="truncate">Tüm sürümler</span>
+                <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+              </button>
+            </div>
+            <input type="search" data-crash-version-search="{{ plat }}" placeholder="Sürüm ara…"
+              class="hidden min-w-[8rem] flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none md:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
+          </div>
+          <div data-crash-version-chips="{{ plat }}" class="hidden max-h-28 flex-wrap gap-1 overflow-y-auto overscroll-contain md:flex"></div>
         </div>
-      </div>
 
-      {# Cihaz / OS / Durum #}
-      <div class="p-3 sm:p-5">
-        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dağılım (cihaz · OS · durum)</p>
-        <div id="crash-sec-breakdown" class="min-h-[80px]">
-          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+          <div class="p-3 sm:p-4">
+            <div id="crash-sec-summary-{{ plat }}" class="min-h-[100px]">
+              <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+            </div>
+          </div>
+          <div class="p-3 sm:p-4">
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyon trendi</p>
+            <div id="crash-sec-version-chart-{{ plat }}" class="min-h-[80px]">
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+            </div>
+          </div>
+          <div class="p-3 sm:p-4">
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dağılım</p>
+            <div id="crash-sec-breakdown-{{ plat }}" class="min-h-[80px]">
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+            </div>
+          </div>
+          <div class="p-3 sm:p-4">
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash'ler</p>
+            <div id="crash-sec-crashes-{{ plat }}" class="min-h-[80px]">
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+            </div>
+          </div>
+          <div class="p-3 sm:p-4">
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">ANR</p>
+            <div id="crash-sec-anr-{{ plat }}" class="min-h-[80px]">
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+            </div>
+          </div>
+          <div class="p-3 sm:p-4">
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyonlar</p>
+            <div id="crash-sec-versions-{{ plat }}" class="min-h-[80px]">
+              <div class="flex items-center gap-2 py-4 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {# Crash'ler #}
-      <div class="p-3 sm:p-5">
-        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Crash'ler</p>
-        <div id="crash-sec-crashes" class="min-h-[80px]">
-          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
-        </div>
-      </div>
-
-      {# ANR #}
-      <div class="p-3 sm:p-5">
-        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">ANR</p>
-        <div id="crash-sec-anr" class="min-h-[80px]">
-          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
-        </div>
-      </div>
-
-      {# Versiyonlar #}
-      <div class="p-3 sm:p-5">
-        <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Versiyonlar</p>
-        <div id="crash-sec-versions" class="min-h-[80px]">
-          <div class="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500"><span class="animate-spin inline-block">⟳</span> Yükleniyor…</div>
-        </div>
-      </div>
-
+      </section>
+      {% endfor %}
     </div>
   </section>
 
@@ -386,15 +394,58 @@
   crashRoot.dataset.crashBound = "1";
 
   var crashState = {
-    platform: "all", days: 7, type: "", version: "",
+    days: 7, type: "", version: "",
     versions: [],
+    byPlat: {
+      android: { versions: [] },
+      ios: { versions: [] }
+    },
     product: (new URLSearchParams(window.location.search).get("product") || "doviz").toLowerCase(),
     pollTimer: null, debounceTimer: null,
     htmlCache: {},
     filterVersionsByPlat: { ios: [], android: [] },
-    seqs: { summary: 0, "version-chart": 0, breakdown: 0, crashes: 0, anr: 0, versions: 0 },
+    activeVerPlat: "android",
+    seqs: {},
     detailCtx: null
   };
+  var PLATS = ["android", "ios"];
+  PLATS.forEach(function (plat) {
+    ["summary", "version-chart", "breakdown", "crashes", "anr", "versions"].forEach(function (n) {
+      crashState.seqs[n + "|" + plat] = 0;
+    });
+  });
+
+  function platVersions(plat) {
+    if (!crashState.byPlat[plat]) crashState.byPlat[plat] = { versions: [] };
+    return crashState.byPlat[plat].versions || [];
+  }
+  function setPlatVersions(plat, vers) {
+    if (!crashState.byPlat[plat]) crashState.byPlat[plat] = { versions: [] };
+    crashState.byPlat[plat].versions = vers || [];
+  }
+  function latestVersionFor(plat) {
+    var list = semverSort(crashState.filterVersionsByPlat[plat] || []);
+    return list.length ? list[0] : "";
+  }
+  function applyDefaultLatestVersions(force) {
+    PLATS.forEach(function (plat) {
+      if (!force && platVersions(plat).length) return;
+      var latest = latestVersionFor(plat);
+      setPlatVersions(plat, latest ? [latest] : []);
+    });
+    renderAllVersionChips();
+    syncPlatVerLabels();
+  }
+  function syncPlatVerLabels() {
+    PLATS.forEach(function (plat) {
+      var el = crashRoot.querySelector('[data-crash-plat-ver-label="' + plat + '"]');
+      if (!el) return;
+      var vers = platVersions(plat);
+      if (!vers.length) el.textContent = "Tüm sürümler";
+      else if (vers.length === 1) el.textContent = "v" + vers[0];
+      else el.textContent = vers.length + " sürüm";
+    });
+  }
   var crashScrollLock = {
     locks: {},
     active: false,
@@ -469,17 +520,15 @@
   }
 
   var SECTIONS = ["summary", "version-chart", "breakdown", "crashes", "anr", "versions"];
-  var SEC_IDS  = {
-    summary: "crash-sec-summary",
-    "version-chart": "crash-sec-version-chart",
-    breakdown: "crash-sec-breakdown",
-    crashes: "crash-sec-crashes",
-    anr: "crash-sec-anr",
-    versions: "crash-sec-versions"
-  };
+  function secId(name, plat) {
+    return "crash-sec-" + name + "-" + plat;
+  }
+  function seqKey(name, plat) {
+    return name + "|" + plat;
+  }
 
   // Buton ref'leri init sırasında bir kez alınır — sınıf değişimlerinden etkilenmez
-  var platformBtns = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-platform-btn"));
+  var platformBtns = [];
   var daysBtns     = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-days-btn"));
   var typeBtns     = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-type-btn"));
   var productBtns  = Array.prototype.slice.call(crashRoot.querySelectorAll(".crash-product-btn"));
@@ -502,7 +551,6 @@
   }
 
   function syncBtns() {
-    platformBtns.forEach(function (b) { setBtnActive(b, b.dataset.crashPlatform === crashState.platform); });
     daysBtns.forEach(function (b)     { setBtnActive(b, parseInt(b.dataset.crashDays) === crashState.days); });
     typeBtns.forEach(function (b)     { setBtnActive(b, b.dataset.crashType === crashState.type); });
     productBtns.forEach(function (b)  { setBtnActive(b, b.dataset.crashProduct === crashState.product); });
@@ -514,46 +562,45 @@
     }
   }
 
-  function syncVersionChips() {
-    var chipsEl = document.getElementById("crash-version-chips");
-    var allBtn = document.getElementById("crash-version-all-btn");
-    var selected = crashState.versions || [];
-    if (allBtn) setBtnActive(allBtn, selected.length === 0);
-    if (chipsEl) {
-      chipsEl.querySelectorAll("button[data-ver]").forEach(function (b) {
-        var v = b.getAttribute("data-ver");
-        if (!v) return;
-        var on = selected.indexOf(v) !== -1;
-        b.classList.toggle("ring-2", on);
-        b.classList.toggle("ring-indigo-400", on);
-        b.classList.toggle("bg-indigo-100", on);
-        b.classList.toggle("dark:bg-indigo-900/40", on);
-        b.classList.toggle("border-indigo-400", on);
-      });
-    }
+  function syncVersionChips(plat) {
+    var plats = plat ? [plat] : PLATS;
+    plats.forEach(function (p) {
+      var selected = platVersions(p);
+      var allBtn = crashRoot.querySelector('[data-crash-version-all="' + p + '"]');
+      if (allBtn) setBtnActive(allBtn, selected.length === 0);
+      var chipsEl = crashRoot.querySelector('[data-crash-version-chips="' + p + '"]');
+      if (chipsEl) {
+        chipsEl.querySelectorAll("button[data-ver]").forEach(function (b) {
+          var v = b.getAttribute("data-ver");
+          if (!v) return;
+          var on = selected.indexOf(v) !== -1;
+          b.classList.toggle("ring-2", on);
+          b.classList.toggle("ring-indigo-400", on);
+          b.classList.toggle("bg-indigo-100", on);
+          b.classList.toggle("dark:bg-indigo-900/40", on);
+          b.classList.toggle("border-indigo-400", on);
+        });
+      }
+      var label = crashRoot.querySelector('[data-crash-version-mobile-label="' + p + '"]');
+      if (label) {
+        if (!selected.length) label.textContent = "Tüm sürümler";
+        else if (selected.length === 1) label.textContent = selected[0];
+        else label.textContent = selected.length + " sürüm seçili";
+      }
+    });
     var mobileList = document.getElementById("crash-version-mobile-list");
+    var activePlat = crashState.activeVerPlat || "android";
     if (mobileList) {
       mobileList.querySelectorAll("input[data-ver]").forEach(function (cb) {
         var v = cb.getAttribute("data-ver");
-        if (v) cb.checked = selected.indexOf(v) !== -1;
+        if (v) cb.checked = platVersions(activePlat).indexOf(v) !== -1;
       });
     }
-    updateVersionMobileLabel();
+    syncPlatVerLabels();
   }
 
   function updateVersionMobileLabel() {
-    var label = document.getElementById("crash-version-mobile-label");
-    if (!label) return;
-    var sel = crashState.versions || [];
-    if (!sel.length) {
-      label.textContent = "Tüm sürümler";
-      return;
-    }
-    if (sel.length === 1) {
-      label.textContent = sel[0];
-      return;
-    }
-    label.textContent = sel.length + " sürüm seçili";
+    syncVersionChips(crashState.activeVerPlat || "android");
   }
 
   function versionSearchQuery() {
@@ -565,20 +612,21 @@
     return (raw || "").trim().toLowerCase();
   }
 
-  function toggleVersionSelection(v) {
-    var list = (crashState.versions || []).slice();
+  function toggleVersionSelection(v, plat) {
+    plat = plat || crashState.activeVerPlat || "android";
+    var list = platVersions(plat).slice();
     var idx = list.indexOf(v);
     if (idx === -1) list.push(v);
     else list.splice(idx, 1);
-    crashState.versions = list;
-    crashState.version = list.length === 1 ? list[0] : "";
-    syncVersionChips();
+    setPlatVersions(plat, list);
+    syncVersionChips(plat);
     loadDebounced("version");
   }
 
   function positionVersionMobilePanel() {
     var panel = document.getElementById("crash-version-mobile-panel");
-    var trigger = document.getElementById("crash-version-mobile-trigger");
+    var plat = crashState.activeVerPlat || "android";
+    var trigger = crashRoot.querySelector('[data-crash-version-mobile-trigger="' + plat + '"]');
     if (!panel || !trigger || panel.classList.contains("hidden")) return;
     var rect = trigger.getBoundingClientRect();
     var margin = 8;
@@ -605,20 +653,16 @@
   function setVersionMobileOpen(open) {
     var panel = document.getElementById("crash-version-mobile-panel");
     var backdrop = document.getElementById("crash-version-mobile-backdrop");
-    var trigger = document.getElementById("crash-version-mobile-trigger");
-    var chevron = document.getElementById("crash-version-mobile-chevron");
-    if (!panel || !trigger) return;
+    var plat = crashState.activeVerPlat || "android";
+    var trigger = crashRoot.querySelector('[data-crash-version-mobile-trigger="' + plat + '"]');
+    if (!panel) return;
     panel.setAttribute("data-open", open ? "true" : "false");
     panel.classList.toggle("hidden", !open);
     panel.classList.toggle("flex", open);
     if (backdrop) backdrop.classList.toggle("hidden", !open);
-    trigger.setAttribute("aria-expanded", open ? "true" : "false");
-    if (chevron) chevron.classList.toggle("rotate-180", open);
+    if (trigger) trigger.setAttribute("aria-expanded", open ? "true" : "false");
     setCrashPageScrollLock("version-mobile", open);
     if (open) {
-      var mobSearch = document.getElementById("crash-version-search-mobile");
-      var deskSearch = document.getElementById("crash-version-search");
-      if (mobSearch && deskSearch) mobSearch.value = deskSearch.value;
       renderVersionMobileList();
       positionVersionMobilePanel();
       setTimeout(function () {
@@ -635,11 +679,10 @@
 
   function sectionUrl(name, overrides) {
     var o = overrides || {};
-    var plat = o.platform != null ? o.platform : crashState.platform;
+    var plat = o.platform != null ? o.platform : "android";
     var days = o.days != null ? o.days : crashState.days;
     var typ = o.type != null ? o.type : crashState.type;
-    var ver = o.version != null ? o.version : crashState.version;
-    var vers = o.versions != null ? o.versions : crashState.versions;
+    var vers = o.versions != null ? o.versions : platVersions(plat);
     var prod = o.product != null ? o.product : crashState.product;
     var base = "/api/app/crashlytics/" + name
       + "?product=" + encodeURIComponent(prod)
@@ -649,18 +692,18 @@
     if (vers && vers.length) {
       return base + "&versions=" + encodeURIComponent(vers.join(","));
     }
-    if (ver) return base + "&version=" + encodeURIComponent(ver);
     return base;
   }
 
   function cacheKey(name, overrides) {
     var o = overrides || {};
-    var vers = o.versions != null ? o.versions : crashState.versions;
-    var verKey = (vers && vers.length) ? vers.join(",") : (o.version != null ? o.version : crashState.version);
+    var plat = o.platform != null ? o.platform : "android";
+    var vers = o.versions != null ? o.versions : platVersions(plat);
+    var verKey = (vers && vers.length) ? vers.join(",") : "";
     return [
       o.product != null ? o.product : crashState.product,
       o.days != null ? o.days : crashState.days,
-      o.platform != null ? o.platform : crashState.platform,
+      plat,
       o.type != null ? o.type : crashState.type,
       verKey,
       name
@@ -671,14 +714,14 @@
 
   function ingestFilterVersionsMeta(root) {
     if (!root) return;
-    var el = root.querySelector ? root.querySelector("#crash-filter-versions-meta") : document.getElementById("crash-filter-versions-meta");
+    var el = root.querySelector ? root.querySelector("#crash-filter-versions-meta") : null;
     if (!el) return;
     try {
       var j = JSON.parse(el.textContent || "{}");
-      if (j.ios) crashState.filterVersionsByPlat.ios = j.ios;
-      if (j.android) crashState.filterVersionsByPlat.android = j.android;
+      if (j.ios && j.ios.length) crashState.filterVersionsByPlat.ios = j.ios;
+      if (j.android && j.android.length) crashState.filterVersionsByPlat.android = j.android;
     } catch (_) {}
-    renderVersionChips();
+    renderAllVersionChips();
   }
 
   var SECTION_LABELS = {
@@ -723,45 +766,21 @@
     _load.pending = {};
     _load.done = 0;
     _load.loading = {};
-    SECTIONS.forEach(function (n) { _load.pending[n] = true; });
+    PLATS.forEach(function (plat) {
+      SECTIONS.forEach(function (n) { _load.pending[seqKey(n, plat)] = true; });
+    });
   }
 
   function sectionProgressInfo(name) {
-    var total = SECTIONS.length;
+    var total = SECTIONS.length * PLATS.length;
     var done = _load.done;
     var label = SECTION_LABELS[name] || name;
-    var basePct = total ? Math.round((done / total) * 100) : 0;
-
-    if (!_load.pending[name]) {
-      return { pct: 100, step: label + " hazır" };
-    }
-
-    if (_load.phase === "bq" && (_load.bq.running || _load.bq.pct < 100)) {
-      return {
-        pct: _load.bq.pct || 0,
-        step: _load.bq.step || "BigQuery sorgulanıyor…"
-      };
-    }
-
-    var isLoading = !!_load.loading[name];
-    var nextName = SECTIONS.find(function (n) { return _load.pending[n]; });
-    var active = isLoading || name === nextName;
-    var activePct = total ? Math.round(((done + (active ? 0.35 : 0)) / total) * 100) : 0;
-
-    if (active) {
-      return {
-        pct: Math.max(basePct, activePct, 4),
-        step: label + " yükleniyor · " + done + "/" + total
-      };
-    }
-    return {
-      pct: Math.max(basePct, 2),
-      step: label + " bekliyor · " + done + "/" + total
-    };
+    var pct = total ? Math.round((done / total) * 100) : 0;
+    return { pct: Math.min(99, Math.max(8, pct)), step: label + " yükleniyor…" };
   }
 
   function applyCombinedProgress() {
-    var total = SECTIONS.length;
+    var total = SECTIONS.length * PLATS.length;
     var done = _load.done;
 
     if (_load.phase === "bq" && (_load.bq.running || (_load.bq.pct > 0 && _load.bq.pct < 100))) {
@@ -769,44 +788,38 @@
     } else if (done >= total) {
       setProgress(100, "Tamamlandı · " + total + "/" + total);
     } else {
-      var nextName = SECTIONS.find(function (n) { return _load.pending[n]; });
-      var loadingNames = SECTIONS.filter(function (n) { return _load.pending[n] && _load.loading[n]; });
       var pct = total ? Math.round((done / total) * 100) : 0;
-      if (loadingNames.length) {
-        pct = Math.max(pct, Math.round(((done + 0.35) / total) * 100), 4);
-      } else if (nextName) {
-        pct = Math.max(pct, 2);
-      }
-      var step;
-      if (loadingNames.length > 1) {
-        step = loadingNames.length + " bölüm yükleniyor · " + done + "/" + total;
-      } else if (nextName) {
-        step = (SECTION_LABELS[nextName] || nextName) + " yükleniyor · " + done + "/" + total;
-      } else {
-        step = done + "/" + total;
-      }
+      var loadingCount = 0;
+      Object.keys(_load.loading || {}).forEach(function (k) { if (_load.loading[k]) loadingCount++; });
+      if (loadingCount) pct = Math.max(pct, Math.round(((done + 0.35) / total) * 100), 4);
+      var step = loadingCount
+        ? (loadingCount + " bölüm yükleniyor · " + done + "/" + total)
+        : (done + "/" + total);
       setProgress(pct, step);
     }
 
-    SECTIONS.forEach(function (n) {
-      if (!_load.pending[n]) return;
-      var info = sectionProgressInfo(n);
-      updateSecProgress(n, info.pct, info.step);
+    PLATS.forEach(function (plat) {
+      SECTIONS.forEach(function (n) {
+        var sk = seqKey(n, plat);
+        if (!_load.pending[sk]) return;
+        var info = sectionProgressInfo(n);
+        updateSecProgress(n, plat, info.pct, info.step);
+      });
     });
   }
 
-  function setSecLoading(name, pct, step) {
-    var box = document.getElementById(SEC_IDS[name]);
+  function setSecLoading(name, plat, pct, step) {
+    var box = document.getElementById(secId(name, plat));
     if (!box) return;
     if (box.querySelector(".crash-sec-loading")) {
-      updateSecProgress(name, pct, step);
+      updateSecProgress(name, plat, pct, step);
       return;
     }
     box.innerHTML = secLoadingHtml(name, pct, step);
   }
 
-  function updateSecProgress(name, pct, step) {
-    var box = document.getElementById(SEC_IDS[name]);
+  function updateSecProgress(name, plat, pct, step) {
+    var box = document.getElementById(secId(name, plat));
     if (!box) return;
     var wrap = box.querySelector(".crash-sec-loading");
     if (!wrap) return;
@@ -819,10 +832,11 @@
     if (pctEl) pctEl.textContent = pct + "%";
   }
 
-  function onSectionLoaded(name) {
-    delete _load.loading[name];
-    if (_load.pending[name]) {
-      _load.pending[name] = false;
+  function onSectionLoaded(name, plat) {
+    var sk = seqKey(name, plat);
+    delete _load.loading[sk];
+    if (_load.pending[sk]) {
+      _load.pending[sk] = false;
       _load.done++;
     }
     applyCombinedProgress();
@@ -832,10 +846,17 @@
   function tryFinishLoadCycle() {
     if (!_load.active) return;
     if (_load.phase === "bq") return;
-    if (SECTIONS.some(function (n) { return _load.pending[n]; })) return;
+    var pendingLeft = false;
+    PLATS.forEach(function (plat) {
+      SECTIONS.forEach(function (n) {
+        if (_load.pending[seqKey(n, plat)]) pendingLeft = true;
+      });
+    });
+    if (pendingLeft) return;
     _load.active = false;
     stopPoll();
-    setProgress(100, "Tamamlandı · " + SECTIONS.length + "/" + SECTIONS.length);
+    var total = SECTIONS.length * PLATS.length;
+    setProgress(100, "Tamamlandı · " + total + "/" + total);
     setTimeout(function () { showProgress(false); }, 450);
   }
 
@@ -884,60 +905,63 @@
       .catch(function () {});
   }
 
-  // Her section için aktif AbortController — eski in-flight isteği iptal etmek için
+  // Her section×platform için aktif AbortController
   var _abortCtrls = {};
 
   function loadSection(name, opts) {
     opts = opts || {};
-    var key = cacheKey(name, opts.overrides);
+    var plat = (opts.overrides && opts.overrides.platform) || opts.plat || "android";
+    var overrides = Object.assign({ platform: plat, versions: platVersions(plat) }, opts.overrides || {});
+    var key = cacheKey(name, overrides);
+    var sk = seqKey(name, plat);
+    var box = document.getElementById(secId(name, plat));
+    if (!box) return;
+
     if (crashState.htmlCache[key] && !opts.force) {
-      applySectionHtml(name, crashState.htmlCache[key]);
-      if (name === "summary") ingestFilterVersionsMeta(document.getElementById(SEC_IDS.summary));
-      onSectionLoaded(name);
+      applySectionHtml(name, plat, crashState.htmlCache[key]);
+      if (name === "summary") ingestFilterVersionsMeta(box);
+      onSectionLoaded(name, plat);
       return;
     }
-    // Önceki uçuştaki isteği iptal et
-    if (_abortCtrls[name]) { try { _abortCtrls[name].abort(); } catch (_) {} }
-    var box = document.getElementById(SEC_IDS[name]);
-    if (!box) return;
+    if (_abortCtrls[sk]) { try { _abortCtrls[sk].abort(); } catch (_) {} }
     if (!_load.active) beginLoadCycle();
-    crashState.seqs[name] = (crashState.seqs[name] || 0) + 1;
-    var seq = crashState.seqs[name];
-    _load.loading[name] = true;
+    crashState.seqs[sk] = (crashState.seqs[sk] || 0) + 1;
+    var seq = crashState.seqs[sk];
+    _load.loading[sk] = true;
     applyCombinedProgress();
     if (!opts.silent) {
       var info = sectionProgressInfo(name);
-      setSecLoading(name, info.pct, info.step);
+      setSecLoading(name, plat, info.pct, info.step);
     }
     var ctrl = new AbortController();
-    _abortCtrls[name] = ctrl;
+    _abortCtrls[sk] = ctrl;
     var timer = setTimeout(function () { ctrl.abort(); }, 35000);
-    var url = sectionUrl(name, opts.overrides || null);
+    var url = sectionUrl(name, overrides);
     fetch(url, { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
       .then(function (r) {
         clearTimeout(timer);
-        if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
-        if (crashState.seqs[name] !== seq) return null;
+        if (_abortCtrls[sk] === ctrl) _abortCtrls[sk] = null;
+        if (crashState.seqs[sk] !== seq) return null;
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.text();
       })
       .then(function (html) {
-        if (!html || crashState.seqs[name] !== seq) return;
+        if (!html || crashState.seqs[sk] !== seq) return;
         crashState.htmlCache[key] = html;
-        applySectionHtml(name, html);
+        applySectionHtml(name, plat, html);
         if (name === "summary") ingestFilterVersionsMeta(box);
-        onSectionLoaded(name);
+        onSectionLoaded(name, plat);
       })
       .catch(function (e) {
-        if (_abortCtrls[name] === ctrl) _abortCtrls[name] = null;
-        delete _load.loading[name];
-        if (!box || crashState.seqs[name] !== seq) return;
+        if (_abortCtrls[sk] === ctrl) _abortCtrls[sk] = null;
+        delete _load.loading[sk];
+        if (!box || crashState.seqs[sk] !== seq) return;
         if (e.name === "AbortError") {
-          delete _load.loading[name];
+          delete _load.loading[sk];
           applyCombinedProgress();
           return;
         }
-        onSectionLoaded(name);
+        onSectionLoaded(name, plat);
         if (!opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
       });
   }
@@ -945,58 +969,67 @@
   function loadAllSections(opts) {
     opts = opts || {};
     if (!opts.skipBeginCycle && !_load.active) beginLoadCycle({ phase: opts.bqPhase ? "bq" : "sections" });
-    SECTIONS.forEach(function (n) { loadSection(n, opts); });
-    if (!opts.skipPrefetch) setTimeout(prefetchPlatformCache, 400);
+    PLATS.forEach(function (plat) {
+      SECTIONS.forEach(function (n) {
+        loadSection(n, Object.assign({}, opts, { plat: plat, overrides: Object.assign({ platform: plat, versions: platVersions(plat) }, opts.overrides || {}) }));
+      });
+    });
   }
 
-  function applySectionHtml(name, html) {
-    var box = document.getElementById(SEC_IDS[name]);
+  function applySectionHtml(name, plat, html) {
+    var box = document.getElementById(secId(name, plat));
     if (!box) return;
     box.innerHTML = html;
     wireTableEnhancements(box);
     wireBreakdownTabs(box);
     wireBreakdownExpand(box);
     wireCrashPlatSections(box);
-    if (name === "versions") populateVersionChips(box);
+    if (name === "versions") populateVersionChips(box, plat);
   }
 
   function loadPlatformSections() {
-    applyFilterChange("platform");
+    applyFilterChange("days");
   }
 
-  function prefetchPlatformCache() {
-    var cur = crashState.platform;
-    var targets = ["all", "ios", "android"].filter(function (p) { return p !== cur; });
-    targets.forEach(function (plat) {
-      SECTIONS.forEach(function (name) {
-        var key = cacheKey(name, { platform: plat });
-        if (crashState.htmlCache[key]) return;
-        fetch(sectionUrl(name, { platform: plat }), { cache: "no-store", headers: { "HX-Request": "true" } })
-          .then(function (r) { return r.ok ? r.text() : null; })
-          .then(function (html) { if (html) crashState.htmlCache[key] = html; })
-          .catch(function () {});
-      });
-    });
-  }
+  function prefetchPlatformCache() { /* split görünümde her iki platform zaten yüklenir */ }
 
   // Filtre tipine göre hangi section'ların etkilendiğini bilir (hepsi yenilenir).
   var _pendingFilterType = "all";
   function applyFilterChange(scope) {
-    if (scope === "platform" || scope === "days") {
+    if (scope === "days" || scope === "product") {
       clearHtmlCache();
+      crashState.filterVersionsByPlat = { ios: [], android: [] };
+      setPlatVersions("android", []);
+      setPlatVersions("ios", []);
     }
     syncBtns();
-    if (scope === "platform" || scope === "days") {
-      crashState.versions = [];
-      crashState.version = "";
-      renderVersionChips();
+    if (scope === "days" || scope === "product") {
+      bootstrapSplitLoad({ force: true });
+      return;
     }
-    var silent = scope === "platform";
-    var forceReload = scope === "platform" || scope === "days";
     beginLoadCycle({ phase: "sections" });
-    SECTIONS.forEach(function (n) { loadSection(n, { force: forceReload, silent: silent }); });
-    var hasVersionFilter = (crashState.versions || []).length > 0;
-    if (scope !== "platform" && !hasVersionFilter) prefetchPlatformCache();
+    loadAllSections({ skipBeginCycle: true, force: scope === "type" || scope === "version", silent: false });
+  }
+
+  function bootstrapSplitLoad(opts) {
+    opts = opts || {};
+    beginLoadCycle({ phase: "sections" });
+    // Önce sürüm listesini almak için platform=all özet
+    fetch(sectionUrl("summary", { platform: "all", versions: [] }), { cache: "no-store", headers: { "HX-Request": "true" } })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (html) {
+          var tmp = document.createElement("div");
+          tmp.innerHTML = html;
+          ingestFilterVersionsMeta(tmp);
+        }
+        applyDefaultLatestVersions(true);
+        loadAllSections(Object.assign({ skipBeginCycle: true, force: !!opts.force }, opts));
+      })
+      .catch(function () {
+        applyDefaultLatestVersions(true);
+        loadAllSections(Object.assign({ skipBeginCycle: true, force: !!opts.force }, opts));
+      });
   }
 
   function loadDebounced(filterType) {
@@ -1026,13 +1059,13 @@
     });
   }
 
-  function makeVersionChip(v) {
+  function makeVersionChip(v, plat) {
     var btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("data-ver", v);
     btn.textContent = v;
     btn.className = "rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
-    btn.addEventListener("click", function () { toggleVersionSelection(v); });
+    btn.addEventListener("click", function () { toggleVersionSelection(v, plat); });
     return btn;
   }
 
@@ -1043,17 +1076,12 @@
     cb.type = "checkbox";
     cb.setAttribute("data-ver", v);
     cb.className = "h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600";
-    cb.checked = (crashState.versions || []).indexOf(v) !== -1;
-    cb.addEventListener("change", function () { toggleVersionSelection(v); });
+    cb.checked = platVersions(platKey).indexOf(v) !== -1;
+    cb.addEventListener("change", function () { toggleVersionSelection(v, platKey); });
     var span = document.createElement("span");
     span.className = "min-w-0 flex-1 truncate font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-200";
     span.textContent = v;
     label.appendChild(cb);
-    if (platKey && crashState.platform === "all") {
-      var badge = platBadge(platKey);
-      badge.classList.add("shrink-0");
-      label.appendChild(badge);
-    }
     label.appendChild(span);
     return label;
   }
@@ -1068,110 +1096,69 @@
     return span;
   }
 
+  function versionSearchQueryFor(plat) {
+    var desktop = crashRoot.querySelector('[data-crash-version-search="' + plat + '"]');
+    var panel = document.getElementById("crash-version-mobile-panel");
+    var mobile = document.getElementById("crash-version-search-mobile");
+    var mobileOpen = panel && panel.getAttribute("data-open") === "true" && (panel.getAttribute("data-crash-ver-plat") || "") === plat;
+    var raw = mobileOpen && mobile ? mobile.value : (desktop ? desktop.value : "");
+    return (raw || "").trim().toLowerCase();
+  }
+
   function renderVersionMobileList() {
     var listEl = document.getElementById("crash-version-mobile-list");
     var mobCount = document.getElementById("crash-version-mobile-count");
     if (!listEl) return;
-    var plat = crashState.platform;
-    var iosV = crashState.filterVersionsByPlat.ios || [];
-    var andV = crashState.filterVersionsByPlat.android || [];
-    var q = versionSearchQuery();
+    var plat = crashState.activeVerPlat || "android";
+    var vers = crashState.filterVersionsByPlat[plat] || [];
+    var q = versionSearchQueryFor(plat);
     listEl.innerHTML = "";
-    var shown = 0;
-
-    function addMobileGroup(title, platKey, vers) {
-      var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
-      if (!filtered.length) return;
-      if (title) {
-        var head = document.createElement("p");
-        head.className = "sticky top-0 z-10 bg-white px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:bg-slate-900 dark:text-slate-500";
-        head.textContent = title;
-        listEl.appendChild(head);
-      }
-      filtered.forEach(function (v) {
-        listEl.appendChild(makeVersionMobileRow(v, platKey));
-        shown++;
-      });
-    }
-
-    if (plat === "ios") addMobileGroup(null, "ios", iosV);
-    else if (plat === "android") addMobileGroup(null, "android", andV);
-    else {
-      addMobileGroup("iOS", "ios", iosV);
-      addMobileGroup("Android", "android", andV);
-    }
-
-    if (!shown) {
+    var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
+    filtered.forEach(function (v) { listEl.appendChild(makeVersionMobileRow(v, plat)); });
+    if (!filtered.length) {
       var empty = document.createElement("p");
       empty.className = "px-2 py-6 text-center text-[11px] text-slate-400";
       empty.textContent = q ? "Aramanızla eşleşen sürüm yok." : "Sürüm listesi boş.";
       listEl.appendChild(empty);
     }
-
     if (mobCount) {
-      var sel = (crashState.versions || []).length;
-      mobCount.textContent = shown + " sürüm" + (sel ? " · " + sel + " seçili" : "");
+      var sel = platVersions(plat).length;
+      mobCount.textContent = filtered.length + " sürüm" + (sel ? " · " + sel + " seçili" : "");
     }
-    syncVersionChips();
+    syncVersionChips(plat);
   }
 
-  function renderVersionChips() {
-    var bar = document.getElementById("crash-version-bar");
-    var chipsEl = document.getElementById("crash-version-chips");
-    var countEl = document.getElementById("crash-version-count");
-    if (!bar) return;
-
-    var plat = crashState.platform;
-    var iosV = crashState.filterVersionsByPlat.ios || [];
-    var andV = crashState.filterVersionsByPlat.android || [];
-    var q = versionSearchQuery();
-
-    if (!iosV.length && !andV.length) {
-      bar.classList.add("hidden");
-      bar.classList.remove("flex");
-      setVersionMobileOpen(false);
+  function renderVersionChipsFor(plat) {
+    var chipsEl = crashRoot.querySelector('[data-crash-version-chips="' + plat + '"]');
+    var bar = crashRoot.querySelector('[data-crash-version-bar="' + plat + '"]');
+    if (!chipsEl || !bar) return;
+    var vers = crashState.filterVersionsByPlat[plat] || [];
+    var q = versionSearchQueryFor(plat);
+    chipsEl.innerHTML = "";
+    if (!vers.length) {
+      chipsEl.classList.add("hidden");
+      chipsEl.classList.remove("flex");
       return;
     }
-
-    if (chipsEl) {
-      chipsEl.innerHTML = "";
-      var shown = 0;
-
-      function addGroup(platKey, vers) {
-        var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
-        if (!filtered.length) return;
-        if (plat === "all") chipsEl.appendChild(platBadge(platKey));
-        filtered.forEach(function (v) { chipsEl.appendChild(makeVersionChip(v)); shown++; });
-      }
-
-      if (plat === "ios") addGroup("ios", iosV);
-      else if (plat === "android") addGroup("android", andV);
-      else {
-        addGroup("ios", iosV);
-        if (iosV.length && andV.length) {
-          var sep = document.createElement("span");
-          sep.className = "mx-1 h-4 w-px self-center bg-slate-300 dark:bg-slate-600";
-          chipsEl.appendChild(sep);
-        }
-        addGroup("android", andV);
-      }
-
-      if (countEl) {
-        var sel = (crashState.versions || []).length;
-        countEl.textContent = shown + " sürüm" + (sel ? " · " + sel + " seçili" : "");
-      }
-    }
-
-    renderVersionMobileList();
-    bar.classList.remove("hidden");
-    bar.classList.add("flex");
-    syncVersionChips();
+    var filtered = semverSort(vers).filter(function (v) { return !q || v.toLowerCase().indexOf(q) !== -1; });
+    filtered.forEach(function (v) { chipsEl.appendChild(makeVersionChip(v, plat)); });
+    chipsEl.classList.remove("hidden");
+    chipsEl.classList.add("flex");
+    syncVersionChips(plat);
   }
 
-  function populateVersionChips(versionsBox) {
+  function renderAllVersionChips() {
+    PLATS.forEach(renderVersionChipsFor);
+    renderVersionMobileList();
+    syncPlatVerLabels();
+  }
+
+  function renderVersionChips() { renderAllVersionChips(); }
+
+  function populateVersionChips(versionsBox, plat) {
     var meta = versionsBox && versionsBox.querySelector
       ? versionsBox.querySelector("#crash-versions-by-plat")
-      : document.getElementById("crash-versions-by-plat");
+      : null;
     if (meta) {
       try {
         var fi = JSON.parse(meta.getAttribute("data-filter-ios") || "[]");
@@ -1180,7 +1167,8 @@
         if (fa.length) crashState.filterVersionsByPlat.android = fa;
       } catch (_) {}
     }
-    renderVersionChips();
+    if (plat) renderVersionChipsFor(plat);
+    else renderAllVersionChips();
   }
 
   // ── Progress bar ──
@@ -1520,10 +1508,9 @@
       + "&platform=" + encodeURIComponent(info.platform || "android")
       + "&issue_id=" + encodeURIComponent(info.issue_id)
       + "&days=" + crashState.days;
-    if (crashState.versions && crashState.versions.length) {
-      url += "&versions=" + encodeURIComponent(crashState.versions.join(","));
-    } else if (crashState.version) {
-      url += "&version=" + encodeURIComponent(crashState.version);
+    var detailVers = platVersions((info.platform || "android").toLowerCase());
+    if (detailVers && detailVers.length) {
+      url += "&versions=" + encodeURIComponent(detailVers.join(","));
     }
     crashState.detailCtx = info;
     fetch(url, { cache: "no-store", headers: { "HX-Request": "true" } })
@@ -1535,9 +1522,9 @@
           var badge = platLower === "android"
             ? '<span class="plat-badge plat-badge--android"><svg aria-hidden="true"><use href="#plat-android"/></svg></span>'
             : platLower === "ios" ? '<span class="plat-badge plat-badge--apple"><svg aria-hidden="true"><use href="#plat-apple"/></svg></span>' : "";
-          var verNote = (crashState.versions && crashState.versions.length)
-            ? " · filtre: v" + escapeHtml(crashState.versions.join(", v"))
-            : (crashState.version ? " · filtre: v" + escapeHtml(crashState.version) : "");
+          var verNote = (detailVers && detailVers.length)
+            ? " · filtre: v" + escapeHtml(detailVers.join(", v"))
+            : "";
           metaEl.innerHTML = '<span class="inline-flex items-center gap-1.5">' + badge + escapeHtml((window.seoEnUppercase || function (s) { return String(s).toLocaleUpperCase("en-US"); })(info.platform || ""))
             + "</span> · " + escapeHtml(s.error_type || info.error_type || "")
             + " · " + (s.total_events || 0) + " olay · " + (s.affected_users || 0) + " kullanıcı" + verNote;
@@ -1649,24 +1636,16 @@
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j.already_running) {
-          loadAllSections({ force: true });
+          bootstrapSplitLoad({ force: true });
           return;
         }
-        startPoll(function () { loadAllSections({ skipBeginCycle: true, force: true }); });
+        startPoll(function () { bootstrapSplitLoad({ force: true, skipBeginCycle: true }); });
       })
-      .catch(function () { loadAllSections({ force: true }); })
+      .catch(function () { bootstrapSplitLoad({ force: true }); })
       .finally(function () { if (btn) btn.disabled = false; if (icon) icon.textContent = "↺"; });
   }
 
   // ── Filtre butonları ──
-  platformBtns.forEach(function (b) {
-    b.addEventListener("click", function () {
-      if (b.dataset.crashPlatform === crashState.platform) return;
-      crashState.platform = b.dataset.crashPlatform;
-      setVersionMobileOpen(false);
-      loadDebounced("platform");
-    });
-  });
   daysBtns.forEach(function (b) {
     b.addEventListener("click", function () {
       var d = parseInt(b.dataset.crashDays, 10);
@@ -1686,44 +1665,51 @@
     b.addEventListener("click", function () {
       if (b.dataset.crashProduct === crashState.product) return;
       crashState.product = b.dataset.crashProduct;
-      crashState.versions = [];
-      crashState.version = "";
+      setPlatVersions("android", []);
+      setPlatVersions("ios", []);
       try { var u = new URL(window.location.href); u.searchParams.set("product", crashState.product); history.replaceState(null, "", u); } catch (_) {}
-      loadDebounced("days");
+      loadDebounced("product");
     });
   });
-  var verAllBtn = document.getElementById("crash-version-all-btn");
-  if (verAllBtn) verAllBtn.addEventListener("click", function () {
-    crashState.versions = [];
-    crashState.version = "";
-    syncVersionChips();
-    setVersionMobileOpen(false);
-    loadDebounced("version");
+
+  crashRoot.querySelectorAll("[data-crash-version-all]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var plat = btn.getAttribute("data-crash-version-all");
+      setPlatVersions(plat, []);
+      syncVersionChips(plat);
+      setVersionMobileOpen(false);
+      loadDebounced("version");
+    });
   });
-  var verSearch = document.getElementById("crash-version-search");
-  if (verSearch) verSearch.addEventListener("input", function () {
-    var mob = document.getElementById("crash-version-search-mobile");
-    if (mob) mob.value = verSearch.value;
-    renderVersionChips();
+  crashRoot.querySelectorAll("[data-crash-version-search]").forEach(function (inp) {
+    inp.addEventListener("input", function () {
+      renderVersionChipsFor(inp.getAttribute("data-crash-version-search"));
+    });
+  });
+  crashRoot.querySelectorAll("[data-crash-version-mobile-trigger]").forEach(function (trig) {
+    trig.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var plat = trig.getAttribute("data-crash-version-mobile-trigger");
+      crashState.activeVerPlat = plat;
+      var panel = document.getElementById("crash-version-mobile-panel");
+      if (panel) panel.setAttribute("data-crash-ver-plat", plat);
+      var open = panel && panel.getAttribute("data-open") === "true";
+      if (open) setVersionMobileOpen(false);
+      else {
+        renderVersionMobileList();
+        setVersionMobileOpen(true);
+      }
+    });
   });
   var verSearchMob = document.getElementById("crash-version-search-mobile");
-  if (verSearchMob) verSearchMob.addEventListener("input", function () {
-    if (verSearch) verSearch.value = verSearchMob.value;
-    renderVersionMobileList();
-  });
-  var verMobTrigger = document.getElementById("crash-version-mobile-trigger");
-  if (verMobTrigger) verMobTrigger.addEventListener("click", function (e) {
-    e.stopPropagation();
-    var panel = document.getElementById("crash-version-mobile-panel");
-    var open = panel && panel.getAttribute("data-open") === "true";
-    setVersionMobileOpen(!open);
-  });
+  if (verSearchMob) verSearchMob.addEventListener("input", function () { renderVersionMobileList(); });
   var verMobDone = document.getElementById("crash-version-mobile-done");
   if (verMobDone) verMobDone.addEventListener("click", function () { setVersionMobileOpen(false); });
   document.addEventListener("click", function (e) {
     var panel = document.getElementById("crash-version-mobile-panel");
-    var trigger = document.getElementById("crash-version-mobile-trigger");
     if (!panel || panel.getAttribute("data-open") !== "true") return;
+    var plat = crashState.activeVerPlat || "android";
+    var trigger = crashRoot.querySelector('[data-crash-version-mobile-trigger="' + plat + '"]');
     if (panel.contains(e.target) || (trigger && trigger.contains(e.target))) return;
     setVersionMobileOpen(false);
   });
@@ -1734,6 +1720,7 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") setVersionMobileOpen(false);
   });
+
   var diagBtn = document.getElementById("crash-diagnose-btn");
   if (diagBtn) diagBtn.addEventListener("click", function () {
     var days = crashState.days || 7;
@@ -1752,47 +1739,37 @@
         pa.findings.forEach(function (f) {
           html += '<p class="text-xs leading-snug text-amber-900 dark:text-amber-200">• ' + escapeHtml(f) + '</p>';
         });
-        html += '</div>';
+        html += "</div>";
       }
-      if (pa && pa.comparison) {
-        var c = pa.comparison;
-        html += '<p class="mb-2 text-xs text-slate-600 dark:text-slate-300"><strong>Son ' + (pa.days || days) + 'g:</strong> Android ' + (c.android_events || 0) + ' olay · iOS ' + (c.ios_events || 0) + ' olay';
-        if (c.ios_vs_android_pct != null) html += ' (iOS Android\'in %' + c.ios_vs_android_pct + '\'i)';
-        html += '</p>';
-      }
-      html += '<pre class="max-h-[50vh] overflow-auto text-[10px]">' + escapeHtml(JSON.stringify({ diagnose: j, platform_analysis: pa }, null, 2)) + '</pre>';
+      html += '<pre class="max-h-[50vh] overflow-auto text-[10px]">' + escapeHtml(JSON.stringify({ diagnose: j, platform_analysis: pa }, null, 2)) + "</pre>";
       if (bodyEl) bodyEl.innerHTML = html;
-      if (detailModal) {
-        setCrashPageScrollLock("issue-detail", true);
-        detailModal.classList.remove("hidden");
-        detailModal.classList.add("flex");
-        detailModal.setAttribute("data-modal-state", "open");
-      }
-    });
+      var modal = document.getElementById("crash-detail-modal");
+      if (modal) { modal.classList.remove("hidden"); modal.classList.add("flex"); modal.setAttribute("data-modal-state", "open"); }
+    }).catch(function () {});
   });
 
   var refreshBtn = document.getElementById("crash-refresh-btn");
   if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
-  // ── İlk yükleme ──
+  // ── İlk yükleme: 7g + her platformda son sürüm ──
   syncBtns();
   fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
     .then(function (r) { return r.json(); })
     .then(function (j) {
       if (j.cache_warm) {
-        loadAllSections();
+        bootstrapSplitLoad();
       } else if (j.running) {
-        startPoll(function () { loadAllSections({ skipBeginCycle: true }); });
+        startPoll(function () { bootstrapSplitLoad({ skipBeginCycle: true }); });
       } else {
         fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
           { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
           .then(function () {
-            startPoll(function () { loadAllSections({ skipBeginCycle: true }); });
+            startPoll(function () { bootstrapSplitLoad({ skipBeginCycle: true }); });
           })
-          .catch(function () { loadAllSections(); });
+          .catch(function () { bootstrapSplitLoad(); });
       }
     })
-    .catch(function () { loadAllSections(); });
+    .catch(function () { bootstrapSplitLoad(); });
 
   window.__pcPageContext = function () {
     try {
@@ -1800,19 +1777,21 @@
         page: "firebase",
         filters: {
           product: crashState.product,
-          platform: crashState.platform,
           days: crashState.days,
           type: crashState.type || null,
-          versions: (crashState.versions || []).slice(0, 10),
+          android_versions: platVersions("android").slice(0, 10),
+          ios_versions: platVersions("ios").slice(0, 10),
         },
         visible_text: (function () {
           var parts = [];
-          SECTIONS.forEach(function (s) {
-            var el = document.getElementById(SEC_IDS[s]);
-            if (el) {
-              var t = (el.innerText || "").replace(/\s+/g, " ").trim();
-              if (t.length > 30) parts.push("[" + s + "] " + t.slice(0, 900));
-            }
+          PLATS.forEach(function (plat) {
+            SECTIONS.forEach(function (s) {
+              var el = document.getElementById(secId(s, plat));
+              if (el) {
+                var t = (el.innerText || "").replace(/\s+/g, " ").trim();
+                if (t.length > 30) parts.push("[" + plat + "/" + s + "] " + t.slice(0, 500));
+              }
+            });
           });
           return parts.join("\n").slice(0, 5200);
         })(),
