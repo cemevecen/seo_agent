@@ -304,21 +304,7 @@
         </section>
       </div>
 
-      {# Row 6 — 404 #}
-      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/top-404s?site=doviz" hx-trigger="load" hx-swap="innerHTML"
-                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Dün · Kritik 404 URL'leri</h3>
-          {{ _placeholder_tall | safe }}
-        </section>
-        <section hx-get="/api/home/top-404s?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
-                 class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Dün · Kritik 404 URL'leri</h3>
-          {{ _placeholder_tall | safe }}
-        </section>
-      </div>
-
-      {# Row 7 — SEO Errors #}
+      {# Row 6 — SEO Errors #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/seo-errors?site=doviz" hx-trigger="load" hx-swap="innerHTML"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -332,7 +318,7 @@
         </section>
       </div>
 
-      {# Row 8 — Firebase Crashlytics (yalnızca döviz; iOS ‖ Android split) #}
+      {# Row 7 — Firebase Crashlytics (yalnızca döviz; iOS ‖ Android split) #}
       <div class="grid grid-cols-1 gap-5">
         <section hx-get="/api/home/crashlytics?product=doviz" hx-trigger="load" hx-swap="innerHTML" hx-timeout="55000"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -341,7 +327,7 @@
         </section>
       </div>
 
-      {# Row 9 — Mobil uygulama (yalnızca döviz) #}
+      {# Row 8 — Mobil uygulama (yalnızca döviz) #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/app-release" hx-trigger="load" hx-swap="innerHTML" hx-timeout="55000"
                  class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
