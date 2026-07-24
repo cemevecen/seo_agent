@@ -199,6 +199,72 @@
     width: 100% !important;
     max-width: 100% !important;
   }
+  .mz-page #mz-project-totals {
+    align-items: stretch;
+  }
+  .mz-page .mz-project-total-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .mz-page .mz-project-break {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mz-page .mz-project-break--wide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 480px) {
+    .mz-page .mz-project-break--wide {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1280px) {
+    .mz-page .mz-project-break--wide {
+      grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
+    }
+  }
+  .mz-page .mz-project-break-item {
+    min-width: 0;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 0.35rem 0.45rem;
+  }
+  html.dark .mz-page .mz-project-break-item,
+  html.midnight .mz-page .mz-project-break-item {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+  }
+  .mz-page .mz-project-break-label {
+    display: block;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+    line-height: 1.2;
+  }
+  html.dark .mz-page .mz-project-break-label,
+  html.midnight .mz-page .mz-project-break-label {
+    color: rgb(161 161 170);
+  }
+  .mz-page .mz-project-break-value {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: rgb(15 23 42);
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  html.dark .mz-page .mz-project-break-value,
+  html.midnight .mz-page .mz-project-break-value {
+    color: rgb(244 244 245);
+  }
   .mz-page .mz-chart-plot--pie-flat {
     border-radius: 0.75rem;
     background: linear-gradient(165deg, rgb(248 250 252) 0%, rgb(226 232 240) 100%);
@@ -638,17 +704,17 @@
         <p id="mz-compare-period-mode" class="mt-1 text-[10px] text-indigo-700 dark:text-indigo-400"></p>
       </div>
       <div id="mz-project-totals" class="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Proje toplam gelirleri">
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
+        <div class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
           <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Döviz toplam gelir</p>
-          <p class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-zinc-500">Web · MWeb · Android · iOS</p>
           <p id="mz-total-doviz" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100">—</p>
           <p id="mz-total-doviz-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+          <div id="mz-total-doviz-break" class="mz-project-break mz-project-break--wide" aria-label="Döviz kırılım"></div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
+        <div class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
           <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sinemalar toplam gelir</p>
-          <p class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-zinc-500">Web · MWeb</p>
           <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100">—</p>
           <p id="mz-total-sinemalar-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
+          <div id="mz-total-sinemalar-break" class="mz-project-break" aria-label="Sinemalar kırılım"></div>
         </div>
       </div>
       <div id="mz-kpi-grid" class="mz-kpi-grid">
@@ -2044,12 +2110,83 @@
     return p;
   }
 
-  function renderProjectTotalCard(sum, valueElId, deltaElId) {
+  var MZ_PROJECT_AREA_ORDER = {
+    doviz: ["web", "mweb", "android", "ios"],
+    sinemalar: ["web", "mweb"],
+  };
+
+  var MZ_PROJECT_AREA_LABELS = {
+    web: "Web",
+    mweb: "MWeb",
+    android: "Android",
+    ios: "iOS",
+    site: "Site",
+    desktop: "Web",
+  };
+
+  function mzProjectAreaLabel(areaKey) {
+    var k = String(areaKey || "").trim().toLowerCase();
+    if (MZ_PROJECT_AREA_LABELS[k]) return MZ_PROJECT_AREA_LABELS[k];
+    if (!k || k === "—") return "Diğer";
+    return k.charAt(0).toUpperCase() + k.slice(1);
+  }
+
+  function mzProjectAreaRows(sum, project) {
+    var preferred = (MZ_PROJECT_AREA_ORDER[project] || []).slice();
+    var byArea = (sum && sum.by_area) || [];
+    var map = {};
+    byArea.forEach(function (row) {
+      var key = String(row.area || "").trim().toLowerCase() || "other";
+      if (key === "desktop") key = "web";
+      if (!map[key]) map[key] = 0;
+      map[key] += Number(row.net_revenue) || 0;
+    });
+    var rows = [];
+    preferred.forEach(function (key) {
+      if (map[key] == null) return;
+      rows.push({ key: key, label: mzProjectAreaLabel(key), net_revenue: map[key] });
+      delete map[key];
+    });
+    Object.keys(map)
+      .sort()
+      .forEach(function (key) {
+        rows.push({ key: key, label: mzProjectAreaLabel(key), net_revenue: map[key] });
+      });
+    return rows;
+  }
+
+  function renderProjectTotalBreakdown(breakElId, sum, project) {
+    var el = document.getElementById(breakElId);
+    if (!el) return;
+    var rows = mzProjectAreaRows(sum, project);
+    if (!rows.length) {
+      el.innerHTML =
+        '<p class="col-span-full text-[10px] text-slate-400 dark:text-zinc-500">Kırılım verisi yok</p>';
+      return;
+    }
+    el.innerHTML = rows
+      .map(function (r) {
+        return (
+          '<div class="mz-project-break-item">' +
+          '<span class="mz-project-break-label">' +
+          r.label +
+          "</span>" +
+          '<span class="mz-project-break-value">' +
+          fmt(r.net_revenue, 2) +
+          "</span>" +
+          "</div>"
+        );
+      })
+      .join("");
+  }
+
+  function renderProjectTotalCard(sum, valueElId, deltaElId, breakElId, project) {
     var valueEl = document.getElementById(valueElId);
     var deltaEl = document.getElementById(deltaElId);
     if (!valueEl) return;
     var rev = sum && sum.kpis ? sum.kpis.net_revenue : null;
     valueEl.textContent = rev == null ? "—" : fmt(rev, 2);
+    if (breakElId) renderProjectTotalBreakdown(breakElId, sum, project);
     if (!deltaEl) return;
     var cmp = sum ? compareBlock(sum) : null;
     var d = cmp && cmp.deltas ? cmp.deltas.net_revenue : null;
@@ -2066,8 +2203,12 @@
   async function refreshProjectTotals() {
     var dovizEl = document.getElementById("mz-total-doviz");
     var sinEl = document.getElementById("mz-total-sinemalar");
+    var dovizBreak = document.getElementById("mz-total-doviz-break");
+    var sinBreak = document.getElementById("mz-total-sinemalar-break");
     if (dovizEl) dovizEl.textContent = "…";
     if (sinEl) sinEl.textContent = "…";
+    if (dovizBreak) dovizBreak.innerHTML = "";
+    if (sinBreak) sinBreak.innerHTML = "";
     try {
       var [dovizR, sinR] = await Promise.all([
         fetch("/api/mz-analytics/summary?" + qsForProjectTotal("doviz").toString()),
@@ -2075,11 +2216,13 @@
       ]);
       var dovizSum = dovizR.ok ? await dovizR.json() : null;
       var sinSum = sinR.ok ? await sinR.json() : null;
-      renderProjectTotalCard(dovizSum, "mz-total-doviz", "mz-total-doviz-delta");
-      renderProjectTotalCard(sinSum, "mz-total-sinemalar", "mz-total-sinemalar-delta");
+      renderProjectTotalCard(dovizSum, "mz-total-doviz", "mz-total-doviz-delta", "mz-total-doviz-break", "doviz");
+      renderProjectTotalCard(sinSum, "mz-total-sinemalar", "mz-total-sinemalar-delta", "mz-total-sinemalar-break", "sinemalar");
     } catch (_) {
       if (dovizEl) dovizEl.textContent = "—";
       if (sinEl) sinEl.textContent = "—";
+      if (dovizBreak) dovizBreak.innerHTML = "";
+      if (sinBreak) sinBreak.innerHTML = "";
       var dDelta = document.getElementById("mz-total-doviz-delta");
       var sDelta = document.getElementById("mz-total-sinemalar-delta");
       if (dDelta) dDelta.classList.add("hidden");
