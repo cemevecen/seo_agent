@@ -8659,13 +8659,20 @@ def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
         SearchConsoleQuerySnapshot.site_id == site_id
     ).scalar()
 
-    def _sum(scope: str) -> tuple[float, float]:
+    def _sum(scope: str) -> tuple[float, float, float]:
+        """clicks, impressions, impression-weighted avg position."""
         if not latest_ts:
-            return (0.0, 0.0)
+            return (0.0, 0.0, 0.0)
         row = (
             db.query(
                 sa_func.coalesce(sa_func.sum(SearchConsoleQuerySnapshot.clicks), 0.0),
                 sa_func.coalesce(sa_func.sum(SearchConsoleQuerySnapshot.impressions), 0.0),
+                sa_func.coalesce(
+                    sa_func.sum(
+                        SearchConsoleQuerySnapshot.position * SearchConsoleQuerySnapshot.impressions
+                    ),
+                    0.0,
+                ),
             )
             .filter(
                 SearchConsoleQuerySnapshot.site_id == site_id,
@@ -8675,23 +8682,35 @@ def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
             )
             .first()
         )
-        return (float(row[0] or 0.0), float(row[1] or 0.0)) if row else (0.0, 0.0)
+        if not row:
+            return (0.0, 0.0, 0.0)
+        clicks = float(row[0] or 0.0)
+        impr = float(row[1] or 0.0)
+        weighted = float(row[2] or 0.0)
+        pos = (weighted / impr) if impr > 0 else 0.0
+        return (clicks, impr, pos)
 
-    c_clicks, c_impr = _sum("current_7d")
-    p_clicks, p_impr = _sum("previous_7d")
+    c_clicks, _c_impr, c_pos = _sum("current_7d")
+    p_clicks, _p_impr, p_pos = _sum("previous_7d")
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
-    impr_delta, impr_tone, impr_delta_pct = _home_pct_delta(c_impr, p_impr)
+    pos_diff = _sc_position_delta(c_pos, p_pos)
+    if pos_diff > 0:
+        pos_tone = "up"
+    elif pos_diff < 0:
+        pos_tone = "down"
+    else:
+        pos_tone = "flat"
     return {
         "clicks_last_fmt": _home_format_int(c_clicks),
         "clicks_prev_fmt": _home_format_int(p_clicks),
         "clicks_delta_fmt": clicks_delta,
         "clicks_tone": clicks_tone,
         "clicks_delta_pct": clicks_delta_pct,
-        "impr_last_fmt": _home_format_int(c_impr),
-        "impr_prev_fmt": _home_format_int(p_impr),
-        "impr_delta_fmt": impr_delta,
-        "impr_tone": impr_tone,
-        "impr_delta_pct": impr_delta_pct,
+        "pos_last_fmt": _format_max_two_decimals(c_pos) if c_pos else "—",
+        "pos_prev_fmt": _format_max_two_decimals(p_pos) if p_pos else "—",
+        "pos_delta_fmt": _format_signed_max_two_decimals(pos_diff),
+        "pos_delta": pos_diff,
+        "pos_tone": pos_tone,
     }
 
 
