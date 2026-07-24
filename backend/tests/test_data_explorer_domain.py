@@ -46,14 +46,14 @@ def test_data_explorer_context_resolves_www_and_sets_section_dates():
     db = SessionLocal()
     try:
         site = _seed_site(db, domain="www.sinemalar.com", display_name="Sinemalar")
-        collected = datetime(2026, 4, 21, 2, 4, 0)
+        collected = datetime(2026, 7, 20, 2, 4, 0)
         db.add(
             CruxHistorySnapshot(
                 site_id=site.id,
                 form_factor="mobile",
                 target_url="https://www.sinemalar.com/",
-                summary_json='{"series": {}}',
-                payload_json='{"history": {}}',
+                summary_json='{"series":{"largest_contentful_paint":{"points":[{"label":"2026-07-18","period_last":"2026-07-18","value":1}]}}}',
+                payload_json='{"history":{}}',
                 collected_at=collected,
             )
         )
@@ -62,8 +62,8 @@ def test_data_explorer_context_resolves_www_and_sets_section_dates():
                 site_id=site.id,
                 form_factor="desktop",
                 target_url="https://www.sinemalar.com/",
-                summary_json='{"series": {}}',
-                payload_json='{"history": {}}',
+                summary_json='{"series":{"largest_contentful_paint":{"points":[{"label":"2026-07-18","period_last":"2026-07-18","value":1}]}}}',
+                payload_json='{"history":{}}',
                 collected_at=collected,
             )
         )
@@ -71,9 +71,10 @@ def test_data_explorer_context_resolves_www_and_sets_section_dates():
 
         ctx = _data_explorer_context("sinemalar.com")
         assert ctx["domain"] == "www.sinemalar.com"
-        assert "21.04.2026" in ctx["crux_history_last_updated"]
-        assert "21.04.2026" in ctx["crux_mobile_last_updated"]
-        assert "21.04.2026" in ctx["crux_desktop_last_updated"]
+        assert "20.07.2026" in ctx["crux_history_last_updated"]
+        assert "20.07.2026" in ctx["crux_mobile_last_updated"]
+        assert "20.07.2026" in ctx["crux_desktop_last_updated"]
+        assert ctx["crux_mobile_period_last_label"] == "18.07.2026"
         assert ctx["data_explorer_schedule"] == "07:00"
     finally:
         db.query(CruxHistorySnapshot).delete()

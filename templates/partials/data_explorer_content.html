@@ -522,7 +522,10 @@ text-slate-500 dark:text-slate-400
         <div>
           <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_mobile_last_updated|e }}</p>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_mobile_last_updated|e }}{% if crux_mobile_period_last_label %} · Son dönem: {{ crux_mobile_period_last_label|e }}{% endif %}</p>
+          {% if crux_stale %}
+          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if crux_refresh_queued %}Veri geride — arka planda yenileniyor…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
+          {% endif %}
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
       </div>
@@ -587,7 +590,10 @@ text-slate-500 dark:text-slate-400
         <div>
           <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_desktop_last_updated|e }}</p>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_desktop_last_updated|e }}{% if crux_desktop_period_last_label %} · Son dönem: {{ crux_desktop_period_last_label|e }}{% endif %}</p>
+          {% if crux_stale %}
+          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if crux_refresh_queued %}Veri geride — arka planda yenileniyor…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
+          {% endif %}
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
       </div>

@@ -1106,6 +1106,122 @@ def _crux_history_latest_collected_at(db, site_id: int) -> datetime | None:
     return ts if isinstance(ts, datetime) else None
 
 
+def _parse_iso_date(value: str | None) -> date | None:
+    raw = str(value or "").strip()[:10]
+    if len(raw) < 10:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _crux_latest_period_date(snapshot: dict | None) -> date | None:
+    """CrUX history serisindeki en son collectionPeriod.lastDate (ISO gün)."""
+    if not snapshot:
+        return None
+    summary = snapshot.get("summary") or {}
+    series = summary.get("series") or {}
+    # Ham payload varsa yeniden çıkar (eski summary.series eksik olabilir)
+    payload = snapshot.get("payload") or {}
+    hist = payload.get("history") if isinstance(payload.get("history"), dict) else {}
+    raw_record = hist.get("record") if isinstance(hist, dict) else None
+    if isinstance(raw_record, dict) and (
+        raw_record.get("collectionPeriods") or raw_record.get("metrics") is not None
+    ):
+        try:
+            from backend.collectors.crux_history import _extract_crux_points
+
+            series = _extract_crux_points(raw_record) or series
+        except Exception:  # noqa: BLE001
+            pass
+    latest: date | None = None
+    for item in (series or {}).values():
+        points = (item or {}).get("points") or []
+        for point in reversed(points):
+            if not isinstance(point, dict):
+                continue
+            if point.get("value") is None and point.get("period_last") is None:
+                continue
+            d = _parse_iso_date(point.get("period_last") or point.get("label"))
+            if d and (latest is None or d > latest):
+                latest = d
+            break
+    cur_period = summary.get("current_collection_period") or {}
+    if isinstance(cur_period, dict):
+        d = _parse_iso_date(cur_period.get("last_date") or cur_period.get("lastDate"))
+        if d and (latest is None or d > latest):
+            latest = d
+    return latest
+
+
+def _crux_today_tsi() -> date:
+    try:
+        tz = ZoneInfo(settings.scheduled_refresh_timezone or "Europe/Istanbul")
+    except Exception:  # noqa: BLE001
+        tz = ZoneInfo("Europe/Istanbul")
+    return datetime.now(tz).date()
+
+
+def _crux_snapshot_is_stale(
+    snapshot: dict | None,
+    *,
+    today: date | None = None,
+    max_lag_days: int = 14,
+) -> bool:
+    """Son dönem tarihi veya collected_at, TSI bugüne göre max_lag_days'ten eskiyse stale."""
+    if not snapshot:
+        return True
+    today = today or _crux_today_tsi()
+    period = _crux_latest_period_date(snapshot)
+    if period is not None:
+        return (today - period).days > max_lag_days
+    collected_raw = snapshot.get("collected_at")
+    collected_day: date | None = None
+    if isinstance(collected_raw, datetime):
+        collected_day = collected_raw.date()
+    elif isinstance(collected_raw, str):
+        collected_day = _parse_iso_date(collected_raw)
+    if collected_day is None:
+        return True
+    return (today - collected_day).days > max_lag_days
+
+
+_CRUX_STALE_REFRESH_LOCK = threading.Lock()
+_CRUX_STALE_REFRESH_PENDING: set[int] = set()
+
+
+def _schedule_crux_refresh_if_stale(site_id: int, domain: str) -> bool:
+    """Stale CrUX için arka planda yenileme tetikler. True = job kuyruğa alındı."""
+    with _CRUX_STALE_REFRESH_LOCK:
+        if site_id in _CRUX_STALE_REFRESH_PENDING:
+            return False
+        _CRUX_STALE_REFRESH_PENDING.add(site_id)
+
+    def _run() -> None:
+        try:
+            with SessionLocal() as db:
+                site = db.query(Site).filter(Site.id == site_id).first()
+                if site is None:
+                    return
+                LOGGER.info("CrUX stale refresh starting for %s (site_id=%s)", domain, site_id)
+                collect_crux_history(db, site, trigger_source="system")
+                db.commit()
+                LOGGER.info("CrUX stale refresh finished for %s", domain)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("CrUX stale refresh failed for %s: %s", domain, exc)
+        finally:
+            with _CRUX_STALE_REFRESH_LOCK:
+                _CRUX_STALE_REFRESH_PENDING.discard(site_id)
+
+    threading.Thread(
+        target=_run,
+        daemon=True,
+        name=f"crux-stale-refresh-{site_id}",
+    ).start()
+    return True
+
+
 def _psi_lighthouse_metrics_latest_collected_at(db, site_id: int) -> datetime | None:
     latest = {m.metric_type: m for m in get_latest_metrics(db, site_id)}
     times: list[datetime] = []
@@ -6181,26 +6297,61 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
         series = _extract_crux_points(raw_record) or series
     current = summary.get("current") or {}
     current_override = current_override or {}
+    current_period = summary.get("current_collection_period") or {}
+    current_period_last = ""
+    if isinstance(current_period, dict):
+        current_period_last = str(
+            current_period.get("last_date") or current_period.get("lastDate") or ""
+        ).strip()[:10]
     formatted: dict[str, dict] = {}
     metric_keys = list(dict.fromkeys([*series.keys(), *current.keys(), *current_override.keys()]))
     for metric_key in metric_keys:
         item = series.get(metric_key) or {}
         current_item = current.get(metric_key) or {}
         override_item = current_override.get(metric_key) or {}
-        points = item.get("points") or []
+        points = list(item.get("points") or [])
         latest_value = override_item.get("latest")
         if latest_value is None:
             latest_value = current_item.get("latest") if current_item.get("latest") is not None else item.get("latest")
         good_share = override_item.get("good_share")
         if good_share is None:
             good_share = current_item.get("good_share") if current_item.get("good_share") is not None else item.get("good_share")
+        # queryRecord dönemi history'nin son noktasından yeniyse eksene ekle (TSI'ye daha yakın uç).
+        if current_period_last and latest_value is not None:
+            last_hist = ""
+            for p in reversed(points):
+                if isinstance(p, dict) and (p.get("period_last") or p.get("label")):
+                    last_hist = str(p.get("period_last") or p.get("label") or "")[:10]
+                    break
+            if (not last_hist) or current_period_last > last_hist:
+                points.append(
+                    {
+                        "label": current_period_last,
+                        "period_first": str(current_period.get("first_date") or "")[:10],
+                        "period_last": current_period_last,
+                        "value": latest_value,
+                        "good_share": good_share,
+                        "ni_share": None,
+                        "poor_share": None,
+                        "p25": None,
+                        "p50": None,
+                        "p90": None,
+                    }
+                )
+            elif current_period_last == last_hist and points:
+                # Aynı gün: uç değeri current/override ile hizala
+                tip = dict(points[-1])
+                tip["value"] = latest_value
+                if good_share is not None:
+                    tip["good_share"] = good_share
+                points[-1] = tip
         # Son dönem dolu bir noktanın metadata'sı (collection period bilgisi için)
         latest_period_first = ""
         latest_period_last = ""
         for p in reversed(points):
             if p.get("value") is not None:
                 latest_period_first = p.get("period_first", "")
-                latest_period_last = p.get("period_last", "")
+                latest_period_last = p.get("period_last", "") or p.get("label", "")
                 break
         formatted[metric_key] = {
             "label": current_item.get("label") or item.get("label") or metric_key.upper(),
@@ -6594,17 +6745,42 @@ def _data_explorer_context(domain: str) -> dict:
         desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
         psi_collected = _psi_lighthouse_metrics_latest_collected_at(db, site.id)
         crux_collected = _crux_history_latest_collected_at(db, site.id)
+        today_tsi = _crux_today_tsi()
+        mobile_stale = _crux_snapshot_is_stale(mobile_crux, today=today_tsi)
+        desktop_stale = _crux_snapshot_is_stale(desktop_crux, today=today_tsi)
+        crux_stale = mobile_stale or desktop_stale
+        crux_refresh_queued = False
+        if crux_stale:
+            crux_refresh_queued = _schedule_crux_refresh_if_stale(site.id, site.domain)
+        mobile_period = _crux_latest_period_date(mobile_crux)
+        desktop_period = _crux_latest_period_date(desktop_crux)
+        def _snap_collected_dt(snap: dict | None) -> datetime | None:
+            if not snap:
+                return None
+            raw = snap.get("collected_at")
+            if isinstance(raw, datetime):
+                return raw
+            if isinstance(raw, str) and raw:
+                try:
+                    return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+                except ValueError:
+                    d = _parse_iso_date(raw)
+                    return datetime.combine(d, datetime.min.time()) if d else None
+            return None
+
         mobile_state = _data_state_badge(
-            "live" if mobile_crux else "failed",
+            "stale" if mobile_stale else ("live" if mobile_crux else "failed"),
             "CrUX güncel kaydı ve history serisi mevcut",
-            "Son başarılı CrUX kaydı gösteriliyor",
+            "CrUX dönemi geride — arka planda yenileniyor" if mobile_stale else "Son başarılı CrUX kaydı gösteriliyor",
             "CrUX geçmiş verisi henüz yok",
+            stale_collected_at=_snap_collected_dt(mobile_crux),
         )
         desktop_state = _data_state_badge(
-            "live" if desktop_crux else "failed",
+            "stale" if desktop_stale else ("live" if desktop_crux else "failed"),
             "CrUX güncel kaydı ve history serisi mevcut",
-            "Son başarılı CrUX kaydı gösteriliyor",
+            "CrUX dönemi geride — arka planda yenileniyor" if desktop_stale else "Son başarılı CrUX kaydı gösteriliyor",
             "CrUX geçmiş verisi henüz yok",
+            stale_collected_at=_snap_collected_dt(desktop_crux),
         )
         mobile_cwv  = _build_crux_cwv_chart(mobile_crux.get("payload") or {})  if mobile_crux  else None
         desktop_cwv = _build_crux_cwv_chart(desktop_crux.get("payload") or {}) if desktop_crux else None
@@ -6651,6 +6827,16 @@ def _data_explorer_context(domain: str) -> dict:
                 (desktop_crux or {}).get("collected_at"),
                 fallback="Henüz masaüstü CrUX kaydı yok",
             ),
+            "crux_mobile_period_last": mobile_period.isoformat() if mobile_period else "",
+            "crux_desktop_period_last": desktop_period.isoformat() if desktop_period else "",
+            "crux_mobile_period_last_label": (
+                mobile_period.strftime("%d.%m.%Y") if mobile_period else ""
+            ),
+            "crux_desktop_period_last_label": (
+                desktop_period.strftime("%d.%m.%Y") if desktop_period else ""
+            ),
+            "crux_stale": crux_stale,
+            "crux_refresh_queued": crux_refresh_queued,
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
         }
