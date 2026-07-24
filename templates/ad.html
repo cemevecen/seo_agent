@@ -6561,8 +6561,11 @@
   function syncEmpowerOverlayBarVisibility() {
     var bar = document.getElementById("mz-empower-overlay-bar");
     if (bar) bar.classList.toggle("hidden", !mzIsMobileAppStream());
-    if (mzIsMobileAppStream() && window.AppEmpowerOverlay && AppEmpowerOverlay.bindWhenReady) {
-      AppEmpowerOverlay.bindWhenReady("mz-empower-overlay-root", mzOnEmpowerOverlayChange);
+    if (window.AppEmpowerOverlay) {
+      if (AppEmpowerOverlay.autoBindEmpowerOverlays) AppEmpowerOverlay.autoBindEmpowerOverlays();
+      else if (AppEmpowerOverlay.bindWhenReady) {
+        AppEmpowerOverlay.bindWhenReady("mz-empower-overlay-root", mzOnEmpowerOverlayChange);
+      }
     }
   }
 

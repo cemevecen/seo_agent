@@ -893,6 +893,37 @@
     html.midnight [data-market-overlay-panel] [data-market-overlay-option]:hover {
       background-color: #27272a !important;
     }
+    /* Empower overlay — Piyasa ile aynı tıklanabilirlik / stacking */
+    [data-app-empower-overlay-root] {
+      position: relative;
+      z-index: 120;
+      isolation: isolate;
+      pointer-events: auto;
+    }
+    [data-app-empower-overlay-trigger] {
+      cursor: pointer;
+      position: relative;
+      z-index: 1;
+      pointer-events: auto;
+      background-color: #ffffff !important;
+    }
+    html.dark [data-app-empower-overlay-trigger],
+    html.midnight [data-app-empower-overlay-trigger] {
+      background-color: #18181b !important;
+    }
+    html.midnight .mz-page [data-app-empower-overlay-trigger] {
+      background-color: #09090b !important;
+    }
+    #mz-empower-overlay-bar {
+      position: relative;
+      z-index: 60;
+      isolation: isolate;
+      pointer-events: auto;
+    }
+    [data-app-empower-overlay-panel]:not(.hidden) {
+      pointer-events: auto;
+      z-index: 10100 !important;
+    }
     .mz-page .mz-chart-card > div:first-of-type {
       position: relative;
       z-index: 25;
@@ -1934,7 +1965,7 @@
   <script src="/static/ai_brief_charts.js?v=2" defer></script>
   <script src="/static/js/app-refresh.js?v=1" defer></script>
   <script src="/static/js/market_chart_overlay.js?v=20" defer></script>
-  <script src="/static/js/app_empower_overlay.js?v=7" defer></script>
+  <script src="/static/js/app_empower_overlay.js?v=8" defer></script>
   <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" defer></script>
   <script src="/static/js/analytics_date_compare.js?v=8" defer></script>
 </head>

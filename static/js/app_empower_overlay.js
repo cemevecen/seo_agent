@@ -364,8 +364,9 @@
     }
     if (trigger && panel) {
       trigger.addEventListener("click", function (ev) {
+        ev.preventDefault();
         ev.stopPropagation();
-        global.__appEmpowerOverlayIgnoreCloseUntil = Date.now() + 120;
+        global.__appEmpowerOverlayIgnoreCloseUntil = Date.now() + 280;
         if (panel.classList.contains("hidden")) {
           panel.classList.remove("hidden");
           positionPanel(trigger, panel);
@@ -373,6 +374,9 @@
         } else {
           closePanel(root, trigger, panel);
         }
+      });
+      panel.addEventListener("click", function (ev) {
+        ev.stopPropagation();
       });
     }
     if (!global.__appEmpowerOverlayDocClose) {
@@ -416,11 +420,52 @@
     }, 100);
   }
 
+  function resolveEmpowerOverlayOnChange(root) {
+    if (!root) return null;
+    var attr = root.getAttribute("data-overlay-on-change");
+    if (attr && typeof global[attr] === "function") return global[attr];
+    return null;
+  }
+
+  function autoBindEmpowerOverlays() {
+    document.querySelectorAll("[data-app-empower-overlay-root]").forEach(function (root) {
+      if (root.dataset.appEmpowerOverlayBound === "1") return;
+      bindRoot(root, resolveEmpowerOverlayOnChange(root));
+    });
+  }
+
+  function installEmpowerOverlayAutoBind() {
+    if (global.__appEmpowerOverlayAutoBindInstalled) return;
+    global.__appEmpowerOverlayAutoBindInstalled = true;
+    function run() {
+      autoBindEmpowerOverlays();
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    if (document.body) {
+      document.body.addEventListener("htmx:afterSwap", run);
+      document.body.addEventListener("htmx:load", run);
+    } else {
+      document.addEventListener("DOMContentLoaded", function () {
+        if (document.body) {
+          document.body.addEventListener("htmx:afterSwap", run);
+          document.body.addEventListener("htmx:load", run);
+        }
+      });
+    }
+  }
+
+  installEmpowerOverlayAutoBind();
+
   global.AppEmpowerOverlay = {
     modes: modes,
     apply: apply,
     clearCache: clearCache,
     bindWhenReady: bindWhenReady,
     ensureBound: bindWhenReady,
+    autoBindEmpowerOverlays: autoBindEmpowerOverlays,
   };
 })(typeof window !== "undefined" ? window : this);
