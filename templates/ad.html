@@ -175,7 +175,8 @@
   }
   .mz-page .mz-chart-plot {
     display: block;
-    width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
     min-width: 0;
     box-sizing: border-box;
   }
@@ -189,7 +190,8 @@
     width: 100% !important;
   }
   .mz-page .mz-kpi-spark {
-    width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
     min-width: 0;
     height: 2.25rem;
   }
@@ -7798,42 +7800,68 @@
 
   function mzPlotHostWidth(el) {
     if (!el) return 0;
-    var w = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
-    if (w >= 16) return w;
-    var parent = el.parentElement;
-    if (parent) {
-      w = Math.round(parent.getBoundingClientRect().width || parent.clientWidth || 0);
+    /* Plotly gd.style.width'i px olarak kilitler; kendi genişliğini okumak
+       yarım-çizimi sonsuza kadar yeniden üretir. Önce %100'e aç, karttan ölç. */
+    el.style.width = "100%";
+    el.style.maxWidth = "100%";
+    var host =
+      el.closest(
+        ".mz-chart-card, .mz-kpi-card, .mz-targets-chart-line-card, .mz-project-total-card, .mz-targets-pie-slot"
+      ) || el.parentElement;
+    var w = 0;
+    if (host && host !== el) {
+      w = Math.round(host.clientWidth || host.getBoundingClientRect().width || 0);
+      try {
+        var cs = window.getComputedStyle(host);
+        w -= Math.round((parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0));
+      } catch (_) { /* ignore */ }
+    }
+    if (w < 16) {
+      w = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
     }
     return w >= 16 ? w : 0;
   }
 
-  function mzEnsurePlotlyFillsContainer(el) {
-    if (!el || !window.Plotly) return Promise.resolve();
-    if (!el.querySelector || !el.querySelector(".js-plotly-plot")) return Promise.resolve();
-    var w = mzPlotHostWidth(el);
-    if (w < 16) return Promise.resolve();
+  function mzUnlockPlotlyHostWidth(el) {
+    if (!el) return;
     el.style.width = "100%";
     el.style.maxWidth = "100%";
     el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container").forEach(function (node) {
       node.style.setProperty("width", "100%", "important");
       node.style.setProperty("max-width", "100%", "important");
     });
-    /* Flex/grid ilk boyutta yarım çizimi düzelt: autosize + açık piksel genişlik */
+  }
+
+  function mzEnsurePlotlyFillsContainer(el) {
+    if (!el || !window.Plotly) return Promise.resolve();
+    if (!el.querySelector || !el.querySelector(".js-plotly-plot")) return Promise.resolve();
+    mzUnlockPlotlyHostWidth(el);
+    var w = mzPlotHostWidth(el);
+    if (w < 16) return Promise.resolve();
+    /* Flex/grid ilk boyutta yarım çizimi düzelt: autosize + kart genişliği */
     return Plotly.relayout(el, { autosize: true, width: w })
       .then(function () {
+        mzUnlockPlotlyHostWidth(el);
         return Plotly.Plots.resize(el);
       })
       .then(function () {
+        mzUnlockPlotlyHostWidth(el);
         var w2 = mzPlotHostWidth(el);
         if (w2 >= 16 && Math.abs(w2 - w) > 2) {
           return Plotly.relayout(el, { autosize: true, width: w2 }).then(function () {
-            return Plotly.Plots.resize(el);
+            mzUnlockPlotlyHostWidth(el);
+            return Plotly.Plots.resize(el).then(function () {
+              mzUnlockPlotlyHostWidth(el);
+            });
           });
         }
+        mzUnlockPlotlyHostWidth(el);
       })
       .catch(function () {
         try {
+          mzUnlockPlotlyHostWidth(el);
           Plotly.Plots.resize(el);
+          mzUnlockPlotlyHostWidth(el);
         } catch (_) { /* ignore */ }
       });
   }
@@ -8045,7 +8073,7 @@
   function scheduleMzChartsResizeBurst() {
     mzChartResizeBurstTimers.forEach(clearTimeout);
     mzChartResizeBurstTimers = [];
-    [0, 120, 320, 700, 1400].forEach(function (ms) {
+    [0, 50, 150, 350, 700, 1400, 2400].forEach(function (ms) {
       mzChartResizeBurstTimers.push(setTimeout(scheduleMzChartsResize, ms));
     });
   }
@@ -8066,7 +8094,7 @@
       clearTimeout(roTimer);
       roTimer = setTimeout(scheduleMzChartsResizeBurst, 80);
     });
-    ["mz-main", "mz-kpi-grid", "mz-chart-line-card", "mz-dashboard-cards"].forEach(function (id) {
+    ["mz-body-grid", "mz-main", "mz-kpi-grid", "mz-chart-line-card", "mz-dashboard-cards"].forEach(function (id) {
       var node = document.getElementById(id);
       if (node) window.__mzChartHostRo.observe(node);
     });
