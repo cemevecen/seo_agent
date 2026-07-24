@@ -33,9 +33,10 @@
       { w: (c.ios / t) * 100, cls: "nt-lab-dna-seg-ios", label: "iOS" },
       { w: (c.desktop / t) * 100, cls: "nt-lab-dna-seg-desktop", label: "Web" },
       { w: (c.mobileweb / t) * 100, cls: "nt-lab-dna-seg-mweb", label: "MWeb" },
-    ];
-    return segs
+    ]
       .filter(function (s) { return s.w > 0.35; })
+      .sort(function (a, b) { return b.w - a.w; });
+    return segs
       .map(function (s) {
         return (
           '<div class="' +
