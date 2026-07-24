@@ -19,6 +19,21 @@
 {% else %}
   {% set ios = card.ios %}
   {% set android = card.android %}
+  {% macro crash_rank_list(title, rows) -%}
+    {% if rows %}
+      <div class="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
+        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ title }}</p>
+        <ul class="mt-1.5 space-y-1">
+          {% for d in rows %}
+            <li class="flex items-center justify-between gap-2 text-[11px]">
+              <span class="min-w-0 truncate text-slate-600 dark:text-slate-300" title="{{ d.label }}">{{ loop.index }}. {{ d.label }}</span>
+              <span class="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{{ d.events_fmt }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  {%- endmacro %}
   <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
     {# ── Sol: iOS ── #}
     <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 px-3.5 py-3 dark:border-slate-800 dark:bg-slate-800/30">
@@ -46,6 +61,13 @@
             <p class="mt-1 text-xl font-semibold tabular-nums text-rose-600 dark:text-rose-400">{{ ios.fatal_fmt }}</p>
           </div>
         </div>
+        {% if ios.top_devices %}
+          {{ crash_rank_list("En çok hata · cihaz", ios.top_devices) }}
+        {% elif ios.top_issues %}
+          {{ crash_rank_list("En çok crash · issue", ios.top_issues) }}
+        {% elif ios.top_os %}
+          {{ crash_rank_list("En çok hata · OS", ios.top_os) }}
+        {% endif %}
       {% else %}
         <p class="mt-3 text-[11px] text-slate-400 dark:text-slate-500">Veri yok</p>
       {% endif %}
@@ -78,17 +100,9 @@
           </div>
         </div>
         {% if android.top_devices %}
-          <div class="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
-            <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">En çok hata · cihaz</p>
-            <ul class="mt-1.5 space-y-1">
-              {% for d in android.top_devices %}
-                <li class="flex items-center justify-between gap-2 text-[11px]">
-                  <span class="min-w-0 truncate text-slate-600 dark:text-slate-300" title="{{ d.label }}">{{ loop.index }}. {{ d.label }}</span>
-                  <span class="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{{ d.events_fmt }}</span>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
+          {{ crash_rank_list("En çok hata · cihaz", android.top_devices) }}
+        {% elif android.top_issues %}
+          {{ crash_rank_list("En çok crash · issue", android.top_issues) }}
         {% endif %}
       {% else %}
         <p class="mt-3 text-[11px] text-slate-400 dark:text-slate-500">Veri yok</p>

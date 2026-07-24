@@ -38,10 +38,21 @@ def test_home_crashlytics_card_from_cache(monkeypatch):
             "android": [{"app_version": "9.5.7", "fatal_count": 2, "anr_count": 8}],
         },
         "device_breakdown_by_platform": {
+            "ios": [
+                {"label": "iPhone 15 Pro", "event_count": 48},
+                {"label": "iPhone 13", "event_count": 31},
+                {"label": "iPhone 14", "event_count": 19},
+            ],
             "android": [
                 {"label": "Samsung Galaxy A54", "event_count": 40},
                 {"label": "Xiaomi Redmi Note", "event_count": 22},
                 {"label": "Pixel 7", "event_count": 11},
+            ],
+        },
+        "os_breakdown_by_platform": {
+            "ios": [
+                {"os_version": "18.5", "event_count": 55},
+                {"os_version": "17.6", "event_count": 20},
             ],
         },
     }
@@ -59,6 +70,10 @@ def test_home_crashlytics_card_from_cache(monkeypatch):
     assert len(card["platforms"]) == 2
     assert card["ios"]["latest_version"] == "9.4.1"
     assert card["ios"]["fatal_fmt"] == "4"
+    assert len(card["ios"]["top_devices"]) == 3
+    assert card["ios"]["top_devices"][0]["label"] == "iPhone 15 Pro"
+    assert card["ios"]["top_issues"][0]["label"] == "SIGABRT in main"
+    assert card["ios"]["top_os"][0]["label"] == "iOS 18.5"
     assert card["android"]["latest_version"] == "9.5.7"
     assert card["android"]["anr_fmt"] == "8"
     assert len(card["android"]["top_devices"]) == 3

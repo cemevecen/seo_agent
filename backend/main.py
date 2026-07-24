@@ -8213,6 +8213,7 @@ def _home_crashlytics_card(product_id: str) -> dict:
     cf_by = payload.get("crash_free_by_platform") or {}
     issues_by = payload.get("issues_by_platform") or {}
     devices_by = payload.get("device_breakdown_by_platform") or {}
+    os_by = payload.get("os_breakdown_by_platform") or {}
 
     platforms: list[dict] = []
     for plat, plat_label in (("ios", "iOS"), ("android", "Android")):
@@ -8234,15 +8235,34 @@ def _home_crashlytics_card(product_id: str) -> dict:
                     ver_anr = row.get("anr_count", ver_anr)
                     break
         top_devices: list[dict] = []
-        if plat == "android":
-            for d in (devices_by.get("android") or [])[:5]:
-                top_devices.append(
-                    {
-                        "label": (d.get("label") or d.get("label_raw") or "—")[:48],
-                        "events_fmt": _home_format_int(d.get("event_count") or 0),
-                        "pct": d.get("pct"),
-                    }
-                )
+        for d in (devices_by.get(plat) or [])[:5]:
+            top_devices.append(
+                {
+                    "label": (d.get("label") or d.get("label_raw") or d.get("model") or "—")[:48],
+                    "events_fmt": _home_format_int(d.get("event_count") or 0),
+                    "pct": d.get("pct"),
+                }
+            )
+        top_issues: list[dict] = []
+        for iss in issues[:5]:
+            title = (iss.get("title") or iss.get("issue_title") or "").strip()
+            if not title:
+                continue
+            top_issues.append(
+                {
+                    "label": title[:56],
+                    "events_fmt": _home_format_int(iss.get("event_count") or 0),
+                }
+            )
+        top_os: list[dict] = []
+        for o in (os_by.get(plat) or [])[:5]:
+            ver = (o.get("os_version") or o.get("label") or "—").strip()
+            top_os.append(
+                {
+                    "label": ("iOS " if plat == "ios" else "") + ver[:40],
+                    "events_fmt": _home_format_int(o.get("event_count") or 0),
+                }
+            )
         platforms.append(
             {
                 "key": plat,
@@ -8254,6 +8274,8 @@ def _home_crashlytics_card(product_id: str) -> dict:
                 "top_issue_title": ((top.get("title") or top.get("issue_title") or "")[:72] if top else None),
                 "top_issue_events_fmt": _home_format_int(top.get("event_count") or 0) if top else None,
                 "top_devices": top_devices,
+                "top_issues": top_issues,
+                "top_os": top_os,
                 "has_data": bool(summ.get("fatal") or summ.get("anr") or issues or latest_ver),
             }
         )
