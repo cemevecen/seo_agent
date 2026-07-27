@@ -3,11 +3,10 @@
 <div class="flex items-start justify-between gap-3">
   <div class="min-w-0">
     {% if block and block.display_name %}
-      <p class="text-[10px] font-semibold uppercase tracking-wider {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-rose-600 dark:text-rose-300{% endif %}">{{ block.display_name }}</p>
+      <p class="text-[10px] font-semibold uppercase tracking-wider {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ block.display_name }}</p>
     {% endif %}
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100{% if block and block.display_name %} mt-0.5{% endif %}">Pozisyon · düşüş / yükseliş · Top 50 · 7g</h3>
     {% if block and block.as_of_label %}
-      <p class="mt-0.5 text-[10px] font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
+      <p class="{% if block.display_name %}mt-0.5 {% endif %}text-[10px] font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
     {% endif %}
   </div>
   {% if not hide_nav_link %}
