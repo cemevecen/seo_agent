@@ -138,29 +138,45 @@
       </div>
     </div>
 
-    {# Top 5 #}
+    {# Top 5 — aynı sütunlar: # ID İçerik Toplam Web MWeb Android iOS Gönderim #}
     <div class="mt-4 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-white p-4 ring-1 ring-slate-200 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-2">
         <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 dark:text-slate-300">En çok tıklanan · Top 5 · son 7g</p>
-        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ top_titles|length }} başlık</span>
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ top_titles|length }} gönderim</span>
       </div>
       {% if top_titles %}
-        <ol class="mt-3 space-y-2.5">
-          {% for item in top_titles %}
-            <li class="group">
-              <div class="flex items-start justify-between gap-3">
-                <div class="flex min-w-0 items-start gap-2.5">
-                  <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white dark:bg-slate-100 dark:text-slate-900">{{ item.rank }}</span>
-                  <span class="min-w-0 truncate text-xs font-medium text-slate-800 dark:text-slate-200" title="{{ item.text }}">{{ item.text }}</span>
-                </div>
-                <span class="shrink-0 text-xs font-bold tabular-nums text-slate-900 dark:text-slate-50">{{ item.clicks_fmt }}</span>
-              </div>
-              <div class="mt-1.5 ml-7 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                <div class="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 dark:from-sky-400 dark:to-emerald-300" style="width: {{ item.bar_pct }}%"></div>
-              </div>
-            </li>
-          {% endfor %}
-        </ol>
+        <div class="mt-3 overflow-x-auto rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+          <table class="min-w-full text-left text-xs">
+            <thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+              <tr>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold text-right">#</th>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold">ID</th>
+                <th class="min-w-[12rem] px-2.5 py-2.5 font-semibold">İçerik</th>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold text-right">Toplam</th>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold text-right">Web</th>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold text-right">MWeb</th>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold text-right">Android</th>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold text-right">iOS</th>
+                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold">Gönderim</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white dark:divide-slate-800 dark:bg-slate-900/40">
+              {% for item in top_titles %}
+                <tr>
+                  <td class="px-2.5 py-2.5 text-right tabular-nums font-semibold text-slate-500 dark:text-slate-400">{{ item.rank }}</td>
+                  <td class="px-2.5 py-2.5 font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ item.id }}</td>
+                  <td class="max-w-[18rem] truncate px-2.5 py-2.5 font-medium text-slate-800 dark:text-slate-200" title="{{ item.text }}">{{ item.text }}</td>
+                  <td class="px-2.5 py-2.5 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-300">{{ item.total_fmt }}</td>
+                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.web_fmt }}</td>
+                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.mweb_fmt }}</td>
+                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.android_fmt }}</td>
+                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.ios_fmt }}</td>
+                  <td class="whitespace-nowrap px-2.5 py-2.5 tabular-nums text-slate-500 dark:text-slate-400">{{ item.send_label }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% else %}
         <p class="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">Son 7 günde tıklama yok</p>
       {% endif %}

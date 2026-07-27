@@ -92,17 +92,41 @@ def _period_stats(rows: list[dict]) -> dict[str, Any]:
     }
 
 
-def _top_titles_by_clicks(rows: list[dict], *, limit: int = 5) -> list[dict[str, Any]]:
-    by_title: dict[str, float] = {}
+def _platform_click(row: dict, key: str) -> float:
+    plat = (row.get("platforms") or {}).get(key) or {}
+    try:
+        return float(plat.get("click") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _top_sends_by_clicks(rows: list[dict], *, limit: int = 5) -> list[dict[str, Any]]:
+    """Her gönderim (id + tarih) için platform click kırılımı; toplam click'e göre Top N."""
+    items: list[dict[str, Any]] = []
     for row in rows:
-        text = str(row.get("text") or "").strip() or "(başlıksız)"
-        by_title[text] = by_title.get(text, 0.0) + _row_clicks(row)
-    ranked = sorted(by_title.items(), key=lambda kv: (-kv[1], kv[0].lower()))
-    return [
-        {"text": text, "clicks": round(clicks, 2)}
-        for text, clicks in ranked[: max(0, int(limit))]
-        if clicks > 0
-    ]
+        text = str(row.get("text") or "").strip()
+        desktop = _platform_click(row, "desktop")
+        mobileweb = _platform_click(row, "mobileweb")
+        android = _platform_click(row, "android")
+        ios = _platform_click(row, "ios")
+        total = desktop + mobileweb + android + ios
+        if not text or total <= 0:
+            continue
+        send_day = _row_day_key(row.get("date")) or str(row.get("date") or "")[:10]
+        items.append(
+            {
+                "id": str(row.get("id") or "").strip() or "—",
+                "text": text,
+                "send_day": send_day or "—",
+                "clicks": round(total, 2),
+                "desktop": round(desktop, 2),
+                "mobileweb": round(mobileweb, 2),
+                "android": round(android, 2),
+                "ios": round(ios, 2),
+            }
+        )
+    items.sort(key=lambda x: (-float(x["clicks"]), str(x["text"]).lower()))
+    return items[: max(0, int(limit))]
 
 
 def _week_windows(reference_day: date) -> tuple[date, date, date, date]:
@@ -170,7 +194,7 @@ def build_notification_week_compare(
             "rows_prev": prev["rows"],
         },
         "platforms": platforms,
-        "top_titles": _top_titles_by_clicks(cur_rows, limit=top_n),
+        "top_titles": _top_sends_by_clicks(cur_rows, limit=top_n),
         "empty": cur["rows"] == 0 and prev["rows"] == 0,
     }
 

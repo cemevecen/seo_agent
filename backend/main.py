@@ -9183,17 +9183,27 @@ def _home_notification_week_context(db) -> dict:
     )
 
     top_raw = list(raw.get("top_titles") or [])
-    max_clicks = max((float(item.get("clicks") or 0) for item in top_raw), default=0.0)
     top_titles = []
     for idx, item in enumerate(top_raw, start=1):
-        clicks = float(item.get("clicks") or 0)
-        bar_pct = (clicks / max_clicks * 100.0) if max_clicks > 0 else 0.0
+        send_raw = str(item.get("send_day") or "").strip()
+        send_label = send_raw
+        try:
+            if len(send_raw) >= 10:
+                send_label = date.fromisoformat(send_raw[:10]).strftime("%d.%m.%Y")
+        except ValueError:
+            pass
         top_titles.append(
             {
                 "rank": idx,
+                "id": str(item.get("id") or "—"),
                 "text": item.get("text") or "",
-                "clicks_fmt": _home_format_int(clicks),
-                "bar_pct": round(bar_pct, 1),
+                "send_day": send_raw,
+                "send_label": send_label or "—",
+                "total_fmt": _home_format_int(item.get("clicks") or 0),
+                "web_fmt": _home_format_int(item.get("desktop") or 0),
+                "mweb_fmt": _home_format_int(item.get("mobileweb") or 0),
+                "android_fmt": _home_format_int(item.get("android") or 0),
+                "ios_fmt": _home_format_int(item.get("ios") or 0),
             }
         )
 
