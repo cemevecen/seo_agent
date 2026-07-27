@@ -21,13 +21,11 @@ PROJECT_CHIP_MAP: dict[str, dict[str, str]] = {
 HOME_CHIPS: dict[str, list[dict[str, str]]] = {
     "doviz": [
         {"id": "web", "label": "Web"},
-        {"id": "mweb", "label": "MWeb"},
         {"id": "ios", "label": "iOS"},
         {"id": "android", "label": "Android"},
     ],
     "sinemalar": [
         {"id": "web", "label": "Web"},
-        {"id": "mweb", "label": "MWeb"},
     ],
 }
 

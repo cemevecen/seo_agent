@@ -12,9 +12,9 @@ def test_resolve_chip_for_doviz_ios():
     assert meta == {"product": "doviz", "platform": "ios", "source_label": "iOS"}
 
 
-def test_home_chips_include_web_mweb():
-    assert [c["id"] for c in HOME_CHIPS["doviz"]] == ["web", "mweb", "ios", "android"]
-    assert [c["id"] for c in HOME_CHIPS["sinemalar"]] == ["web", "mweb"]
+def test_home_chips_include_web_only_once():
+    assert [c["id"] for c in HOME_CHIPS["doviz"]] == ["web", "ios", "android"]
+    assert [c["id"] for c in HOME_CHIPS["sinemalar"]] == ["web"]
 
 
 def test_classify_board_list():
