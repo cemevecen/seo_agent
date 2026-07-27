@@ -9314,16 +9314,19 @@ def api_home_app_release(request: Request):
 
 
 @app.get("/api/home/priority-board", response_class=HTMLResponse)
-def api_home_priority_board(request: Request):
-    """Ana sayfa — Döviz & Sinemalar öncelik panosu (Open / Doing / Testing / Closed)."""
-    from backend.services.priority_board import get_priority_board_sections
+async def api_home_priority_board(request: Request):
+    """Ana sayfa — git.nokta (GitLab board Open/Doing/Testing/Closed özeti)."""
+    from backend.services.priority_board import build_git_nokta_home_board
 
+    data = await build_git_nokta_home_board(limit=3)
     return templates.TemplateResponse(
         request,
         "partials/home/priority_board.html",
         context={
             "request": request,
-            "priority_sections": get_priority_board_sections(),
+            "priority_sections": data.get("sections") or [],
+            "error": data.get("error"),
+            "ok": bool(data.get("ok", True)),
         },
     )
 

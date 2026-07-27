@@ -1,4 +1,4 @@
-{# Ana sayfa — Döviz / Sinemalar öncelik panosu (Open · Doing · Testing · Closed) #}
+{# Ana sayfa — git.nokta (GitLab /boards ile aynı kaynak) #}
 {% set _accent = {
   'sky': {
     'badge': 'bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800',
@@ -19,55 +19,76 @@
 } %}
 
 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-  <div>
-    <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Öncelik panosu</p>
-    <h3 class="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
-    <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Ürün bazlı kritik notlar — Open · Doing · Testing · Closed.</p>
+  <div class="min-w-0">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white dark:bg-slate-100 dark:text-slate-900">git.nokta</span>
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
+    </div>
+    <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">GitLab board maddeleri · Open &amp; Closed’da en son tarihli 3</p>
   </div>
+  <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+     class="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
 </div>
 
-<div class="mt-5 space-y-8">
-    {% for section in priority_sections %}
-      {% set ac = _accent.get(section.accent, _accent.sky) %}
-      <div>
-        <div class="mb-3 flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ ac.badge }}">
-            <span class="h-1.5 w-1.5 rounded-full {{ ac.dot }}" aria-hidden="true"></span>
-            {{ section.label }}
-          </span>
-          <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ section.subtitle }}</span>
-        </div>
+{% if error %}
+  <div class="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+    <p class="text-xs font-medium text-amber-800 dark:text-amber-300">{{ error }}</p>
+    <p class="mt-1 text-[10px] text-amber-700/80 dark:text-amber-400/80">VPN / git.nokta erişimi ve GITLAB_PRIVATE_TOKEN gerekli (GitLab sekmesi ile aynı).</p>
+  </div>
+{% endif %}
 
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {% for col in section.columns %}
-            <div class="flex min-h-[12rem] flex-col rounded-xl border-t-4 bg-slate-50/80 ring-1 ring-slate-200 dark:bg-slate-800/40 dark:ring-slate-700 {% if col.id == 'open' %}{{ ac.bar }}{% elif col.id == 'doing' %}border-amber-400{% elif col.id == 'testing' %}border-indigo-400{% else %}border-emerald-400{% endif %}">
-              <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-2.5 dark:border-slate-700/80">
-                <div class="min-w-0">
-                  <p class="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">{{ col.label }}</p>
-                  <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ col.hint }}</p>
-                </div>
-                <span class="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums {{ _status_tone.get(col.id, _status_tone.open) }}">{{ col.count }}</span>
-              </div>
-              <ul class="flex flex-1 flex-col gap-2 p-2.5">
-                {% if col.entries %}
-                  {% for item in col.entries %}
-                    <li class="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700">
-                      <div class="flex items-start justify-between gap-2">
-                        <p class="text-xs font-semibold leading-snug text-slate-900 dark:text-slate-100">{{ item.title }}</p>
-                        <span class="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ item.source_label }}</span>
-                      </div>
-                      {% if item.note %}
-                        <p class="mt-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{{ item.note }}</p>
-                      {% endif %}
-                    </li>
-                  {% endfor %}
-                {% else %}
-                  <li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 text-center text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">Madde yok</li>
-                {% endif %}
-              </ul>
-            </div>
-          {% endfor %}
-        </div>
+<div class="mt-5 space-y-8">
+  {% for section in priority_sections %}
+    {% set ac = _accent.get(section.accent, _accent.sky) %}
+    <div>
+      <div class="mb-3 flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ ac.badge }}">
+          <span class="h-1.5 w-1.5 rounded-full {{ ac.dot }}" aria-hidden="true"></span>
+          {{ section.label }}
+        </span>
+        <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ section.subtitle }}</span>
       </div>
-    {% endfor %}
+
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {% for col in section.columns %}
+          <div class="flex min-h-[11rem] flex-col rounded-xl border-t-4 bg-slate-50/80 ring-1 ring-slate-200 dark:bg-slate-800/40 dark:ring-slate-700 {% if col.id == 'open' %}{{ ac.bar }}{% elif col.id == 'doing' %}border-amber-400{% elif col.id == 'testing' %}border-indigo-400{% else %}border-emerald-400{% endif %}">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-2.5 dark:border-slate-700/80">
+              <div class="min-w-0">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">{{ col.label }}</p>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ col.hint }}</p>
+              </div>
+              <span class="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums {{ _status_tone.get(col.id, _status_tone.open) }}">{{ col.count }}</span>
+            </div>
+            <ul class="flex flex-1 flex-col gap-2 p-2.5">
+              {% if col.entries %}
+                {% for item in col.entries %}
+                  <li class="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700">
+                    <div class="flex items-start justify-between gap-2">
+                      {% if item.web_url %}
+                        <a href="{{ item.web_url }}" target="_blank" rel="noopener noreferrer"
+                           class="min-w-0 text-xs font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">{{ item.title }}</a>
+                      {% else %}
+                        <p class="min-w-0 text-xs font-semibold leading-snug text-slate-900 dark:text-slate-100">{{ item.title }}</p>
+                      {% endif %}
+                      <span class="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ item.source_label }}</span>
+                    </div>
+                    <div class="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                      {% if item.iid %}
+                        <span class="font-mono tabular-nums">#{{ item.iid }}</span>
+                      {% endif %}
+                      {% if item.date_label or item.note %}
+                        <span class="tabular-nums">{{ item.date_label or item.note }}</span>
+                      {% endif %}
+                    </div>
+                  </li>
+                {% endfor %}
+              {% else %}
+                <li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 text-center text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">Madde yok</li>
+              {% endif %}
+            </ul>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
 </div>

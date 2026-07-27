@@ -272,13 +272,6 @@
   })();
   </script>
 
-  {# Öncelik panosu — full width (GitLab /boards değil; ana sayfa) #}
-  <section hx-get="/api/home/priority-board" hx-trigger="load" hx-swap="innerHTML"
-           class="mt-5 rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Öncelik panosu</h3>
-    {{ _placeholder_tall | safe }}
-  </section>
-
   {# Ana içerik #}
   <div class="mt-5 space-y-5">
     {# Sütun başlıkları #}
@@ -373,6 +366,13 @@
              class="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Firebase · Crashlytics</h3>
       {{ _placeholder_mid | safe }}
+    </section>
+
+    {# git.nokta — Crashlytics hemen altı; GitLab /boards ile aynı kaynak #}
+    <section hx-get="/api/home/priority-board" hx-trigger="load" hx-swap="innerHTML" hx-timeout="55000"
+             class="rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">git.nokta</h3>
+      {{ _placeholder_tall | safe }}
     </section>
 
     {# Mobil Mağaza Durumu — full width (Crashlytics gibi) #}

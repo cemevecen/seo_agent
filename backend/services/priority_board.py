@@ -1,215 +1,222 @@
-"""Ana sayfa — Döviz / Sinemalar öncelik panosu (Open · Doing · Testing · Closed)."""
+"""Ana sayfa — git.nokta panosu (GitLab /boards ile aynı kaynak).
+
+Open / Doing / Testing / Closed maddeleri git.nokta.com issue’larından gelir
+(GITLAB_PRIVATE_TOKEN + VPN / relay). Railway proje maddeleri değil.
+"""
 
 from __future__ import annotations
 
+import asyncio
+import logging
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
-# status: open | doing | testing | closed
-# source: web | ios | android | cross (hangi GitLab sekmesiyle ilişkili)
+from backend.services.gitlab_board import fetch_all_issues_async, get_gitlab_token
+
+LOGGER = logging.getLogger(__name__)
 
 PRIORITY_BOARD_COLUMNS: list[dict[str, str]] = [
-    {"id": "open", "label": "Open", "hint": "Sırada / alınacak"},
-    {"id": "doing", "label": "Doing", "hint": "Aktif iş"},
-    {"id": "testing", "label": "Testing", "hint": "Doğrulama"},
-    {"id": "closed", "label": "Closed", "hint": "Tamam / arşiv"},
+    {"id": "open", "label": "Open", "hint": "Son güncellenen 3"},
+    {"id": "doing", "label": "Doing", "hint": "Aktif · son 3"},
+    {"id": "testing", "label": "Testing", "hint": "Doğrulama · son 3"},
+    {"id": "closed", "label": "Closed", "hint": "Son kapanan 3"},
 ]
 
-_PRIORITY_BOARD: dict[str, dict[str, Any]] = {
+# /boards sekmesi ile aynı proje yolları
+_GITLAB_HOME_PROJECTS: list[dict[str, str]] = [
+    {"path": "nokta/doviz", "product": "doviz", "source": "web", "source_label": "Web"},
+    {"path": "ios/doviz", "product": "doviz", "source": "ios", "source_label": "iOS"},
+    {"path": "android/doviz", "product": "doviz", "source": "android", "source_label": "Android"},
+    {"path": "nokta/sinemalar", "product": "sinemalar", "source": "web", "source_label": "Web"},
+]
+
+_PRODUCT_META: dict[str, dict[str, str]] = {
     "doviz": {
         "id": "doviz",
         "label": "Döviz",
         "subtitle": "Web · iOS · Android",
         "accent": "sky",
-        "items": [
-            {
-                "id": "dvz-open-1",
-                "status": "open",
-                "title": "Mobil CrUX LCP / INP iyileştirme backlog",
-                "note": "Saha verisinde mobil yavaş metrikler; LCP ve INP için sayfa bazlı öncelik listesi çıkar.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "dvz-open-2",
-                "status": "open",
-                "title": "Notification click / CTR düşüş alarmları",
-                "note": "7g vs önceki 7g click drop ve CTR medyan altı — eşik ve mail alıcılarını gözden geçir.",
-                "source": "cross",
-                "source_label": "Web+App",
-            },
-            {
-                "id": "dvz-open-3",
-                "status": "open",
-                "title": "Crashlytics iOS top issue triage",
-                "note": "Ana sayfa Crashlytics kartındaki en kritik iOS crash’leri sahiplen ve ticket’a bağla.",
-                "source": "ios",
-                "source_label": "iOS",
-            },
-            {
-                "id": "dvz-open-4",
-                "status": "open",
-                "title": "Android release crash-free izleme",
-                "note": "Yeni sürüm sonrası CF% ve top crash’leri 48 saat takip et.",
-                "source": "android",
-                "source_label": "Android",
-            },
-            {
-                "id": "dvz-doing-1",
-                "status": "doing",
-                "title": "Notification 7g WoW ana sayfa izleme",
-                "note": "Platform click/impression farkları + Top 5 gönderim tablosu canlıda takip ediliyor.",
-                "source": "cross",
-                "source_label": "Web+App",
-            },
-            {
-                "id": "dvz-doing-2",
-                "status": "doing",
-                "title": "SC Top 50 pozisyon düşüş / yükseliş",
-                "note": "7g kartındaki anlamlı hareketleri içerik / teknik aksiyona çevir.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "dvz-doing-3",
-                "status": "doing",
-                "title": "GA4 realtime alarm kalibrasyonu",
-                "note": "Yanlış pozitifleri azalt; kritik trafik düşüşlerinin kaçırılmadığını doğrula.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "dvz-test-1",
-                "status": "testing",
-                "title": "CrUX stale auto-refresh (Data Explorer)",
-                "note": "Nisan’da takılan serinin Temmuz ucuna gelmesini production’da doğrula; nightly job’ı kontrol et.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "dvz-test-2",
-                "status": "testing",
-                "title": "Notification Top 5 tablo sütunları",
-                "note": "# · ID · İçerik · Toplam · Web · MWeb · Android · iOS · Gönderim — panel ile birebir mi bak.",
-                "source": "cross",
-                "source_label": "Web+App",
-            },
-            {
-                "id": "dvz-closed-1",
-                "status": "closed",
-                "title": "Ana sayfa Kritik 404 kartları kaldırıldı",
-                "note": "Dün · Kritik 404 URL container’ları home’dan çıkarıldı.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "dvz-closed-2",
-                "status": "closed",
-                "title": "Home Data Explorer CWV özeti kaldırıldı",
-                "note": "Core Web Vitals özet kartları ana sayfadan alındı; detay /data-explorer’da.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "dvz-closed-3",
-                "status": "closed",
-                "title": "Notification home WoW kartı yayında",
-                "note": "Döviz full-width 7g vs önceki 7g özet + donut + platform tablosu.",
-                "source": "cross",
-                "source_label": "Web+App",
-            },
-        ],
     },
     "sinemalar": {
         "id": "sinemalar",
         "label": "Sinemalar",
         "subtitle": "Web",
         "accent": "violet",
-        "items": [
-            {
-                "id": "snm-open-1",
-                "status": "open",
-                "title": "SC Top 50 pozisyon düşüş aksiyonları",
-                "note": "Film / seans sayfalarında anlamlı düşüşleri içerik ve dahili link ile ele al.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-open-2",
-                "status": "open",
-                "title": "SEO kritik hatalar (title / canonical / index)",
-                "note": "Ana sayfa SEO · Kritik Hatalar kartındaki maddeleri sprint’e al.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-open-3",
-                "status": "open",
-                "title": "Mobil CWV (LCP / CLS) iyileştirme",
-                "note": "CrUX saha verisine göre en kötü şablonları önceliklendir.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-doing-1",
-                "status": "doing",
-                "title": "Search Console 7g cihaz kırılımı",
-                "note": "Web / MWeb click ve pozisyon farklarını haftalık gözden geçir.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-doing-2",
-                "status": "doing",
-                "title": "Pozisyon düşüş / yükseliş kartı takibi",
-                "note": "Top 50 · 7g hareketlerini editöryel takvimle hizala.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-test-1",
-                "status": "testing",
-                "title": "Data Explorer CrUX güncelliği",
-                "note": "Sinemalar CrUX son döneminin TSI’ye yakın olduğunu doğrula.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-test-2",
-                "status": "testing",
-                "title": "www / apex domain alias",
-                "note": "Data Explorer ve site çözümlemesinin www.sinemalar.com ile tutarlı olduğunu kontrol et.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-closed-1",
-                "status": "closed",
-                "title": "Home CWV özet kartı kaldırıldı",
-                "note": "Ana sayfa Data Explorer özeti Sinemalar için de kaldırıldı.",
-                "source": "web",
-                "source_label": "Web",
-            },
-            {
-                "id": "snm-closed-2",
-                "status": "closed",
-                "title": "Home Kritik 404 kartı kaldırıldı",
-                "note": "404 özet container’ı Sinemalar kolonundan çıkarıldı.",
-                "source": "web",
-                "source_label": "Web",
-            },
-        ],
     },
 }
 
+_TZ_IST = ZoneInfo("Europe/Istanbul")
 
-def get_priority_board_sections() -> list[dict[str, Any]]:
-    """UI için section + column + item listesi."""
+
+def _issue_label_names(issue: dict[str, Any]) -> list[str]:
+    raw = issue.get("labels") or []
+    out: list[str] = []
+    for lab in raw:
+        if isinstance(lab, str):
+            out.append(lab)
+        elif isinstance(lab, dict) and lab.get("name"):
+            out.append(str(lab["name"]))
+    return out
+
+
+def _has_label(issue: dict[str, Any], name: str) -> bool:
+    target = name.strip().lower()
+    return any(n.strip().lower() == target for n in _issue_label_names(issue))
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _issue_sort_ts(issue: dict[str, Any], *, prefer_closed: bool = False) -> float:
+    if prefer_closed:
+        dt = _parse_iso(issue.get("closed_at")) or _parse_iso(issue.get("updated_at"))
+    else:
+        dt = _parse_iso(issue.get("updated_at")) or _parse_iso(issue.get("created_at"))
+    if dt is None:
+        return 0.0
+    return dt.timestamp()
+
+
+def _fmt_issue_date(issue: dict[str, Any], *, prefer_closed: bool = False) -> str:
+    if prefer_closed:
+        dt = _parse_iso(issue.get("closed_at")) or _parse_iso(issue.get("updated_at"))
+    else:
+        dt = _parse_iso(issue.get("updated_at")) or _parse_iso(issue.get("created_at"))
+    if dt is None:
+        return ""
+    try:
+        return dt.astimezone(_TZ_IST).strftime("%d.%m.%Y")
+    except Exception:
+        return dt.strftime("%d.%m.%Y")
+
+
+def _classify_bucket(issue: dict[str, Any]) -> str:
+    """Boards UI ile uyumlu: Closed / Doing / Testing / Open (backlog)."""
+    state = str(issue.get("state") or "").lower()
+    if state == "closed":
+        return "closed"
+    if _has_label(issue, "Doing"):
+        return "doing"
+    if _has_label(issue, "Testing"):
+        return "testing"
+    return "open"
+
+
+def _normalize_entry(
+    issue: dict[str, Any],
+    *,
+    status: str,
+    source_label: str,
+    project_path: str,
+) -> dict[str, Any]:
+    prefer_closed = status == "closed"
+    iid = issue.get("iid")
+    title = str(issue.get("title") or "").strip() or f"Issue #{iid}"
+    date_label = _fmt_issue_date(issue, prefer_closed=prefer_closed)
+    return {
+        "id": f"{project_path}#{iid}",
+        "iid": iid,
+        "status": status,
+        "title": title,
+        "note": date_label,
+        "date_label": date_label,
+        "web_url": issue.get("web_url") or "",
+        "source_label": source_label,
+        "project_path": project_path,
+        "updated_at": issue.get("updated_at") or issue.get("closed_at") or "",
+        "_sort": _issue_sort_ts(issue, prefer_closed=prefer_closed),
+    }
+
+
+async def _fetch_project_issues(project: dict[str, str]) -> tuple[str, list[dict[str, Any]], str | None]:
+    path = project["path"]
+    try:
+        opened, _ = await fetch_all_issues_async(
+            path,
+            "opened",
+            order_by="updated_at",
+            sort="desc",
+            max_pages=1,
+        )
+        closed, _ = await fetch_all_issues_async(
+            path,
+            "closed",
+            order_by="updated_at",
+            sort="desc",
+            max_pages=1,
+        )
+        tagged: list[dict[str, Any]] = []
+        for issue in opened + closed:
+            row = dict(issue)
+            row["_pc_source_label"] = project["source_label"]
+            row["_pc_project_path"] = path
+            row["_pc_product"] = project["product"]
+            tagged.append(row)
+        return path, tagged, None
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("git.nokta home board fetch failed for %s: %s", path, exc)
+        return path, [], str(exc)
+
+
+def _top_entries(
+    issues: list[dict[str, Any]],
+    *,
+    status: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    bucket = [i for i in issues if _classify_bucket(i) == status]
+    prefer_closed = status == "closed"
+    bucket.sort(key=lambda i: _issue_sort_ts(i, prefer_closed=prefer_closed), reverse=True)
+    out: list[dict[str, Any]] = []
+    for issue in bucket[:limit]:
+        out.append(
+            _normalize_entry(
+                issue,
+                status=status,
+                source_label=str(issue.get("_pc_source_label") or "GitLab"),
+                project_path=str(issue.get("_pc_project_path") or ""),
+            )
+        )
+    return out
+
+
+async def build_git_nokta_home_board(*, limit: int = 3) -> dict[str, Any]:
+    """Döviz + Sinemalar için Open/Doing/Testing/Closed — her kolonda en son `limit` madde."""
+    if not get_gitlab_token():
+        return {
+            "ok": False,
+            "error": "GITLAB_PRIVATE_TOKEN tanımlı değil — git.nokta maddeleri yüklenemedi.",
+            "sections": _empty_sections(),
+        }
+
+    results = await asyncio.gather(
+        *[_fetch_project_issues(p) for p in _GITLAB_HOME_PROJECTS],
+        return_exceptions=False,
+    )
+    by_product: dict[str, list[dict[str, Any]]] = {"doviz": [], "sinemalar": []}
+    errors: list[str] = []
+    for path, issues, err in results:
+        if err:
+            errors.append(f"{path}: {err}")
+        for issue in issues:
+            prod = str(issue.get("_pc_product") or "")
+            if prod in by_product:
+                by_product[prod].append(issue)
+
     sections: list[dict[str, Any]] = []
-    for key in ("doviz", "sinemalar"):
-        raw = _PRIORITY_BOARD[key]
+    for product in ("doviz", "sinemalar"):
+        meta = _PRODUCT_META[product]
+        issues = by_product[product]
         columns = []
         for col in PRIORITY_BOARD_COLUMNS:
-            entries = [it for it in raw["items"] if it.get("status") == col["id"]]
+            entries = _top_entries(issues, status=col["id"], limit=limit)
             columns.append(
                 {
                     "id": col["id"],
@@ -221,11 +228,44 @@ def get_priority_board_sections() -> list[dict[str, Any]]:
             )
         sections.append(
             {
-                "id": raw["id"],
-                "label": raw["label"],
-                "subtitle": raw["subtitle"],
-                "accent": raw["accent"],
+                "id": meta["id"],
+                "label": meta["label"],
+                "subtitle": meta["subtitle"],
+                "accent": meta["accent"],
                 "columns": columns,
             }
         )
+
+    ok = any(
+        sum(c["count"] for c in s["columns"]) > 0 for s in sections
+    ) or not errors
+    return {
+        "ok": ok or not errors,
+        "error": "; ".join(errors[:3]) if errors and not any(
+            sum(c["count"] for c in s["columns"]) > 0 for s in sections
+        ) else None,
+        "sections": sections,
+    }
+
+
+def _empty_sections() -> list[dict[str, Any]]:
+    sections: list[dict[str, Any]] = []
+    for product in ("doviz", "sinemalar"):
+        meta = _PRODUCT_META[product]
+        columns = [
+            {
+                "id": col["id"],
+                "label": col["label"],
+                "hint": col["hint"],
+                "count": 0,
+                "entries": [],
+            }
+            for col in PRIORITY_BOARD_COLUMNS
+        ]
+        sections.append({**meta, "columns": columns})
     return sections
+
+
+# Geriye uyumluluk — sync çağrılar boş/static yerine boş şablon döner
+def get_priority_board_sections() -> list[dict[str, Any]]:
+    return _empty_sections()
