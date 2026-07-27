@@ -207,6 +207,91 @@
     0%, 100% { transform: rotate(-42deg); }
     50% { transform: rotate(42deg); }
   }
+  .home-rt-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    padding: 0.45rem 0.75rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+  }
+  .home-rt-pill--doviz {
+    background: linear-gradient(180deg, rgba(219,234,254,0.95), rgba(239,246,255,0.9));
+    border-color: rgba(96, 165, 250, 0.34);
+  }
+  .home-rt-pill--sinemalar {
+    background: linear-gradient(180deg, rgba(255,228,230,0.95), rgba(255,241,242,0.9));
+    border-color: rgba(251, 113, 133, 0.3);
+  }
+  html.dark .home-rt-pill--doviz {
+    background: linear-gradient(180deg, rgba(30,58,138,0.35), rgba(30,41,59,0.45));
+    border-color: rgba(96, 165, 250, 0.28);
+  }
+  html.dark .home-rt-pill--sinemalar {
+    background: linear-gradient(180deg, rgba(127,29,29,0.32), rgba(51, 65, 85, 0.45));
+    border-color: rgba(251, 113, 133, 0.26);
+  }
+  .home-rt-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(16, 185, 129, 0.24);
+    background: linear-gradient(180deg, rgba(236,253,245,0.95), rgba(240,253,250,0.92));
+    padding: 0.35rem 0.65rem 0.35rem 0.45rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+  }
+  html.dark .home-rt-countdown {
+    background: linear-gradient(180deg, rgba(6,78,59,0.42), rgba(15,23,42,0.52));
+    border-color: rgba(52, 211, 153, 0.24);
+  }
+  .home-rt-countdown.is-urgent {
+    border-color: rgba(245, 158, 11, 0.34);
+    background: linear-gradient(180deg, rgba(255,247,237,0.98), rgba(255,251,235,0.94));
+  }
+  .home-rt-countdown.is-refresh {
+    border-color: rgba(14, 165, 233, 0.34);
+    background: linear-gradient(180deg, rgba(239,246,255,0.98), rgba(240,249,255,0.94));
+  }
+  html.dark .home-rt-countdown.is-urgent {
+    background: linear-gradient(180deg, rgba(120,53,15,0.35), rgba(15,23,42,0.5));
+  }
+  html.dark .home-rt-countdown.is-refresh {
+    background: linear-gradient(180deg, rgba(12,74,110,0.38), rgba(15,23,42,0.52));
+  }
+  .home-rt-countdown-svg {
+    width: 1.7rem;
+    height: 1.7rem;
+    overflow: visible;
+  }
+  .home-rt-countdown-track {
+    stroke: rgba(148, 163, 184, 0.24);
+    stroke-width: 2.8;
+    fill: none;
+  }
+  .home-rt-countdown-ring {
+    stroke: rgb(16 185 129);
+    stroke-width: 2.8;
+    fill: none;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.9s linear, stroke 0.25s ease;
+  }
+  .home-rt-countdown.is-urgent .home-rt-countdown-ring { stroke: rgb(245 158 11); }
+  .home-rt-countdown.is-refresh .home-rt-countdown-ring { stroke: rgb(14 165 233); }
+  .home-rt-countdown-num {
+    min-width: 1.6rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: rgb(5 150 105);
+  }
+  .home-rt-countdown.is-urgent .home-rt-countdown-num { color: rgb(180 83 9); }
+  .home-rt-countdown.is-refresh .home-rt-countdown-num { color: rgb(3 105 161); }
+  html.dark .home-rt-countdown-num { color: rgb(167 243 208); }
+  html.dark .home-rt-countdown.is-urgent .home-rt-countdown-num { color: rgb(253 230 138); }
+  html.dark .home-rt-countdown.is-refresh .home-rt-countdown-num { color: rgb(186 230 253); }
 </style>
 
 <div class="mx-auto w-full min-w-0 max-w-[1600px]">
@@ -244,7 +329,35 @@
     var pollSec = parseInt(section.getAttribute('data-poll-seconds'), 10);
     if (!pollSec || pollSec < 5) pollSec = 60;
     var pollTimer = null;
+    var countdownTimer = null;
     var warmRefreshDone = false;
+    var countdownState = { total: pollSec, remaining: pollSec };
+
+    function renderCountdown() {
+      var badge = section.querySelector('[data-home-rt-countdown]');
+      var num = section.querySelector('[data-home-rt-countdown-num]');
+      var ring = section.querySelector('[data-home-rt-countdown-ring]');
+      if (!badge || !num || !ring) return;
+      var total = countdownState.total || pollSec;
+      var remain = Math.max(0, countdownState.remaining || 0);
+      var circ = 100.53;
+      var ratio = total > 0 ? remain / total : 0;
+      ring.setAttribute('stroke-dasharray', circ.toFixed(2));
+      ring.setAttribute('stroke-dashoffset', ((1 - ratio) * circ).toFixed(2));
+      num.textContent = String(remain);
+      badge.classList.toggle('is-urgent', remain > 0 && remain <= 5);
+      badge.classList.toggle('is-refresh', remain === 0);
+    }
+
+    function startCountdown() {
+      if (countdownTimer) window.clearInterval(countdownTimer);
+      countdownState = { total: pollSec, remaining: pollSec };
+      renderCountdown();
+      countdownTimer = window.setInterval(function () {
+        countdownState.remaining = Math.max(0, countdownState.remaining - 1);
+        renderCountdown();
+      }, 1000);
+    }
 
     function loadHomeRealtime() {
       var prevSnap = window.RtSlotFx && window.RtSlotFx.snapshotHome
@@ -257,6 +370,7 @@
           if (prevSnap && window.RtSlotFx && window.RtSlotFx.animateHome) {
             window.RtSlotFx.animateHome(section, prevSnap);
           }
+          startCountdown();
         })
         .catch(function () {});
     }
