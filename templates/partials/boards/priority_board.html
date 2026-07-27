@@ -1,0 +1,75 @@
+{# Döviz / Sinemalar öncelik panosu — Open · Doing · Testing · Closed #}
+{% set _accent = {
+  'sky': {
+    'badge': 'bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800',
+    'bar': 'border-sky-500',
+    'dot': 'bg-sky-500',
+  },
+  'violet': {
+    'badge': 'bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-200 dark:ring-violet-800',
+    'bar': 'border-violet-500',
+    'dot': 'bg-violet-500',
+  },
+} %}
+{% set _status_tone = {
+  'open': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  'doing': 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
+  'testing': 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200',
+  'closed': 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
+} %}
+
+<section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5">
+  <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Öncelik panosu</p>
+      <h3 class="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
+      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">4 GitLab sekmesinden türetilmiş en kritik notlar — ürün section’ları ayrı.</p>
+    </div>
+  </div>
+
+  <div class="mt-5 space-y-8">
+    {% for section in priority_sections %}
+      {% set ac = _accent.get(section.accent, _accent.sky) %}
+      <div>
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ ac.badge }}">
+            <span class="h-1.5 w-1.5 rounded-full {{ ac.dot }}" aria-hidden="true"></span>
+            {{ section.label }}
+          </span>
+          <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ section.subtitle }}</span>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {% for col in section.columns %}
+            <div class="flex min-h-[12rem] flex-col rounded-xl border-t-4 bg-slate-50/80 ring-1 ring-slate-200 dark:bg-slate-800/40 dark:ring-slate-700 {% if col.id == 'open' %}{{ ac.bar }}{% elif col.id == 'doing' %}border-amber-400{% elif col.id == 'testing' %}border-indigo-400{% else %}border-emerald-400{% endif %}">
+              <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-2.5 dark:border-slate-700/80">
+                <div class="min-w-0">
+                  <p class="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">{{ col.label }}</p>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ col.hint }}</p>
+                </div>
+                <span class="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums {{ _status_tone.get(col.id, _status_tone.open) }}">{{ col.count }}</span>
+              </div>
+              <ul class="flex flex-1 flex-col gap-2 p-2.5">
+                {% if col.items %}
+                  {% for item in col.items %}
+                    <li class="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700">
+                      <div class="flex items-start justify-between gap-2">
+                        <p class="text-xs font-semibold leading-snug text-slate-900 dark:text-slate-100">{{ item.title }}</p>
+                        <span class="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ item.source_label }}</span>
+                      </div>
+                      {% if item.note %}
+                        <p class="mt-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{{ item.note }}</p>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                {% else %}
+                  <li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 text-center text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">Madde yok</li>
+                {% endif %}
+              </ul>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>

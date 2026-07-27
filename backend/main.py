@@ -17393,6 +17393,8 @@ from backend.services.gitlab_board import (
 @app.get("/boards", response_class=HTMLResponse)
 def page_boards(request: Request):
     """GitLab Kanban Board ana sayfası."""
+    from backend.services.priority_board import get_priority_board_sections
+
     token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
     projects = [
         {"name": "Döviz Web", "path": "nokta/doviz", "platform": "web", "product": "doviz"},
@@ -17407,6 +17409,7 @@ def page_boards(request: Request):
             "projects": projects,
             "token": token,
             "default_board_project": "ios/doviz",
+            "priority_sections": get_priority_board_sections(),
         },
     )
 
