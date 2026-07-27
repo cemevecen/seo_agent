@@ -9314,19 +9314,25 @@ def api_home_app_release(request: Request):
 
 
 @app.get("/api/home/priority-board", response_class=HTMLResponse)
-async def api_home_priority_board(request: Request):
-    """Ana sayfa — git.nokta (GitLab board Open/Doing/Testing/Closed özeti)."""
-    from backend.services.priority_board import build_git_nokta_home_board
+def api_home_priority_board(request: Request):
+    """Ana sayfa git.nokta — boards ile aynı: tarayıcı/VPN → git.nokta.com (anında shell + JS)."""
+    import json
 
-    data = await build_git_nokta_home_board(limit=3)
+    token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
+    projects = [
+        {"path": "nokta/doviz", "product": "doviz", "source_label": "Web"},
+        {"path": "ios/doviz", "product": "doviz", "source_label": "iOS"},
+        {"path": "android/doviz", "product": "doviz", "source_label": "Android"},
+        {"path": "nokta/sinemalar", "product": "sinemalar", "source_label": "Web"},
+    ]
     return templates.TemplateResponse(
         request,
         "partials/home/priority_board.html",
         context={
             "request": request,
-            "priority_sections": data.get("sections") or [],
-            "error": data.get("error"),
-            "ok": bool(data.get("ok", True)),
+            "token": token,
+            "limit": 3,
+            "projects_json": json.dumps(projects, ensure_ascii=False),
         },
     )
 
