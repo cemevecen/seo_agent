@@ -415,6 +415,66 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
 
 HOME_POSITION_DROPS_ROW_LIMIT = 12
 
+# Ana sayfa / uyarılar pozisyon listelerinden çıkarılacak +18 / erotik sorgular.
+_ADULT_QUERY_TOKEN_RE = re.compile(
+    r"(?:"
+    r"(?<!\d)(?:\+|plus)?\s*18\s*(?:\+|plus)?(?!\d)"  # 18+, +18, 18 +
+    r"|\berotik\b"
+    r"|\berotic\b"
+    r"|\byetiskin\b"
+    r"|\byetiskinlere?\b"
+    r"|\bporn(?:o|ografi)?\b"
+    r"|\bxxx\b"
+    r"|\badult\b"
+    r"|\bseks\b"
+    r"|\bsex\b"
+    r"|\bnude\b"
+    r"|\bnude[sz]?\b"
+    r"|\bciplak\b"
+    r"|\bsikis\b"
+    r"|\bamcik\b"
+    r"|\bg[oö]t\b"
+    r"|\bam\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _normalize_query_for_adult_filter(query: str) -> str:
+    s = (query or "").casefold()
+    # Türkçe karakterleri ASCII'ye yaklaştır (eşleşme için)
+    trans = str.maketrans(
+        {
+            "ı": "i",
+            "İ": "i",
+            "ş": "s",
+            "Ş": "s",
+            "ğ": "g",
+            "Ğ": "g",
+            "ü": "u",
+            "Ü": "u",
+            "ö": "o",
+            "Ö": "o",
+            "ç": "c",
+            "Ç": "c",
+        }
+    )
+    return s.translate(trans)
+
+
+def is_adult_position_query(query: str) -> bool:
+    """Erotik / +18 / yetişkin içerik sorgusu mu? (pozisyon listelerinden elenir)."""
+    raw = (query or "").strip()
+    if not raw:
+        return False
+    norm = _normalize_query_for_adult_filter(raw)
+    if _ADULT_QUERY_TOKEN_RE.search(norm):
+        return True
+    # Ham metinde Türkçe özel karakterli eşleşmeler (normalize kaçırırsa)
+    if re.search(r"(?i)\b(?:yetişkin|çıplak|erotik|amcık|sikiş|göt)\b", raw):
+        return True
+    return False
+
 
 def _position_drop_from_row(row: dict, *, min_diff: float) -> dict[str, Any] | None:
     prev = float(row.get("previous_position") or 0.0)
@@ -533,6 +593,8 @@ def list_sc_position_changes_7d(
     drops: list[dict[str, Any]] = []
     rises: list[dict[str, Any]] = []
     for row in ordered_rows:
+        if is_adult_position_query(str(row.get("query") or "")):
+            continue
         drop_item = _position_drop_from_row(row, min_diff=min_diff)
         if drop_item:
             drops.append(drop_item)
