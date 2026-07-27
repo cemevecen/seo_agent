@@ -32,18 +32,12 @@
     <div class="home-rt-grid" style="display: grid; grid-template-columns: repeat(6, minmax(var(--home-rt-mobile-card-min, 0), 1fr)); gap: 0.5rem;">
       {% for site in sites %}
         {% for prof in site.profiles %}
-          {% set _p = prof.delta_pct | default(0) | float %}
           <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2 py-2.5 xl:px-2.5" data-home-rt-key="{{ site.site_id }}-{{ prof.key }}">
             <div class="relative z-[1] min-w-0">
               <p class="truncate text-[10px] font-semibold uppercase tracking-wider {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ site.display_name or site.domain }}</p>
               <p class="mt-0.5 truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
               <p class="mt-1 truncate text-xl font-semibold tabular-nums text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
             </div>
-            {% if prof.delta_fmt %}
-              <p class="relative z-[1] mt-0.5 truncate text-xs font-medium tabular-nums {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-red-600 dark:text-red-400{% else %}text-slate-500 dark:text-slate-400{% endif %}" data-rt-slot-delta>{{ prof.delta_fmt }}</p>
-            {% else %}
-              <p class="relative z-[1] mt-0.5 text-xs text-slate-400 dark:text-slate-500">—</p>
-            {% endif %}
             <div class="home-rt-spark relative z-[1] mt-2" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime sparkline">
               {% if prof.spark and prof.spark.has_points and prof.spark.bar_slots %}
                 <div class="home-rt-spark-bars" role="img" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime spark bar chart">
