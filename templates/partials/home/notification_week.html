@@ -1,4 +1,4 @@
-{# Home — Notification 7g vs önceki hafta · full-width responsive #}
+{# Home — Notification 7g vs önceki hafta · compact + full responsive #}
 {% macro tone_text(pct) -%}
 {%- set p = pct | default(0) | float -%}
 {%- if p > 0.5 -%}text-emerald-600 dark:text-emerald-400
@@ -16,7 +16,7 @@
 {%- endmacro %}
 
 {% macro nt_pie(pie) -%}
-  <div class="home-nt-pie relative h-28 w-28 shrink-0 sm:h-32 sm:w-32 lg:h-36 lg:w-36">
+  <div class="home-nt-pie relative h-24 w-24 shrink-0 sm:h-28 sm:w-28">
     <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
       <circle cx="18" cy="18" r="15.9155" fill="none" stroke="currentColor" stroke-width="3.2" class="text-slate-100 dark:text-slate-800"></circle>
       {% if pie and pie.segments %}
@@ -30,15 +30,15 @@
     </svg>
     <div class="absolute inset-[22%] flex flex-col items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:ring-slate-700">
       {% if pie and pie.center_label %}
-        <p class="text-[8px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 sm:text-[9px]">{{ pie.center_label }}</p>
+        <p class="text-[7px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 sm:text-[8px]">{{ pie.center_label }}</p>
       {% endif %}
-      <p class="mt-0.5 text-sm font-black tabular-nums leading-none text-slate-900 dark:text-slate-50 sm:text-base lg:text-lg">{{ pie.total_fmt if pie else '—' }}</p>
+      <p class="mt-0.5 text-xs font-black tabular-nums leading-none text-slate-900 dark:text-slate-50 sm:text-sm">{{ pie.total_fmt if pie else '—' }}</p>
     </div>
   </div>
 {%- endmacro %}
 
 {% macro nt_pie_mini(pie) -%}
-  <svg class="h-7 w-7 shrink-0 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+  <svg class="h-6 w-6 shrink-0 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
     <circle cx="18" cy="18" r="15.9155" fill="none" stroke="currentColor" stroke-width="5" class="text-slate-100 dark:text-slate-800"></circle>
     {% if pie and pie.segments %}
       {% for seg in pie.segments %}
@@ -56,9 +56,8 @@
     min-width: 0;
     max-width: 100%;
   }
-  .home-nt-week * {
-    box-sizing: border-box;
-  }
+  .home-nt-week * { box-sizing: border-box; }
+
   .home-nt-week .home-nt-scroll {
     width: 100%;
     overflow-x: auto;
@@ -66,82 +65,7 @@
     overscroll-behavior-x: contain;
     scrollbar-width: thin;
   }
-  .home-nt-week .home-nt-pies {
-    display: grid;
-    width: 100%;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-  @media (min-width: 768px) {
-    .home-nt-week .home-nt-pies {
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-  }
-  .home-nt-week .home-nt-pie-card {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    min-width: 0;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(226 232 240);
-    background: linear-gradient(180deg, rgb(255 255 255 / 0.95), rgb(248 250 252 / 0.92));
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.85);
-    padding: 1rem;
-  }
-  html.dark .home-nt-week .home-nt-pie-card {
-    border-color: rgb(51 65 85);
-    background: linear-gradient(180deg, rgb(15 23 42 / 0.9), rgb(30 41 59 / 0.72));
-  }
-  .home-nt-week .home-nt-pie-body {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem 1.5rem;
-    width: 100%;
-    margin-top: 0.75rem;
-  }
-  .home-nt-week .home-nt-legend {
-    flex: 1 1 9rem;
-    min-width: 8rem;
-    max-width: 14rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .home-nt-week .home-nt-legend li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    font-size: 0.6875rem;
-    line-height: 1.35;
-  }
-  .home-nt-week .home-nt-legend li + li {
-    margin-top: 0.375rem;
-  }
-  .home-nt-week .home-nt-plat {
-    width: 100%;
-    min-width: 0;
-    margin-top: 0;
-    border-radius: 0;
-    border: none;
-    background: transparent;
-    overflow: visible;
-  }
-  html.dark .home-nt-week .home-nt-plat {
-    border-color: transparent;
-    background: transparent;
-  }
-  .home-nt-week .home-nt-plat table {
-    width: 100%;
-    min-width: 28rem;
-    border-collapse: collapse;
-    text-align: left;
-    font-size: 0.75rem;
-  }
+
   .home-nt-week .home-nt-panel {
     border: 1px solid rgb(226 232 240);
     background: linear-gradient(180deg, rgb(255 255 255 / 0.96), rgb(248 250 252 / 0.9));
@@ -159,18 +83,182 @@
     border-bottom-color: rgb(51 65 85);
     background: rgb(15 23 42 / 0.7);
   }
+
+  /* KPI */
+  .home-nt-week .home-nt-kpi {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  @media (min-width: 640px) {
+    .home-nt-week .home-nt-kpi { grid-template-columns: 1fr 1fr; }
+  }
+  .home-nt-week .home-nt-kpi-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+    border-radius: 0.625rem;
+    border: 1px solid rgb(241 245 249);
+    background: rgb(248 250 252 / 0.7);
+    padding: 0.55rem 0.75rem;
+  }
+  html.dark .home-nt-week .home-nt-kpi-card {
+    border-color: rgb(30 41 59);
+    background: rgb(30 41 59 / 0.35);
+  }
+
+  /* Pie grid */
+  .home-nt-week .home-nt-pies {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  @media (min-width: 700px) {
+    .home-nt-week .home-nt-pies { grid-template-columns: 1fr 1fr; }
+  }
+  .home-nt-week .home-nt-pie-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    border-radius: 0.625rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.9);
+    padding: 0.55rem 0.65rem 0.65rem;
+  }
+  html.dark .home-nt-week .home-nt-pie-card {
+    border-color: rgb(51 65 85);
+    background: rgb(15 23 42 / 0.55);
+  }
+  .home-nt-week .home-nt-pie-body {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: 0.45rem;
+  }
+  .home-nt-week .home-nt-legend {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .home-nt-week .home-nt-legend li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    font-size: 0.6875rem;
+    line-height: 1.25;
+  }
+  .home-nt-week .home-nt-legend li + li { margin-top: 0.25rem; }
+
+  /* Platform compare */
+  .home-nt-week .home-nt-plat table {
+    width: 100%;
+    min-width: 0;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.75rem;
+  }
+  .home-nt-week .home-nt-plat th,
+  .home-nt-week .home-nt-plat td {
+    padding: 0.4rem 0.5rem;
+    vertical-align: middle;
+  }
+  .home-nt-week .home-nt-plat th:first-child,
+  .home-nt-week .home-nt-plat td:first-child {
+    width: 7.5rem;
+  }
+  .home-nt-week .home-nt-plat th:last-child,
+  .home-nt-week .home-nt-plat td:last-child {
+    width: 7rem;
+  }
+  .home-nt-week .home-nt-share {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .home-nt-week .home-nt-share-bar {
+    flex: 1 1 auto;
+    height: 0.35rem;
+    min-width: 2.5rem;
+    max-width: 5.5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgb(241 245 249);
+  }
+  html.dark .home-nt-week .home-nt-share-bar { background: rgb(30 41 59); }
+
+  /* Mobile: stack platform as compact cards */
+  .home-nt-week .home-nt-plat-cards { display: none; }
+  @media (max-width: 639px) {
+    .home-nt-week .home-nt-plat-table { display: none; }
+    .home-nt-week .home-nt-plat-cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.4rem;
+    }
+    .home-nt-week .home-nt-plat-card {
+      border-radius: 0.5rem;
+      border: 1px solid rgb(226 232 240);
+      background: rgb(255 255 255 / 0.85);
+      padding: 0.5rem 0.65rem;
+    }
+    html.dark .home-nt-week .home-nt-plat-card {
+      border-color: rgb(51 65 85);
+      background: rgb(15 23 42 / 0.55);
+    }
+    .home-nt-week .home-nt-plat-card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem 0.75rem;
+      margin-top: 0.35rem;
+    }
+  }
+
+  /* Top 5 */
+  .home-nt-week .home-nt-top table {
+    width: 100%;
+    min-width: 36rem;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.75rem;
+  }
+  .home-nt-week .home-nt-top th,
+  .home-nt-week .home-nt-top td {
+    padding: 0.35rem 0.45rem;
+    vertical-align: middle;
+  }
+  .home-nt-week .home-nt-top th:nth-child(3),
+  .home-nt-week .home-nt-top td:nth-child(3) {
+    max-width: 14rem;
+  }
+  @media (min-width: 1100px) {
+    .home-nt-week .home-nt-top table { min-width: 0; }
+  }
 </style>
 
 <div class="home-nt-week">
-  <div class="flex w-full flex-wrap items-start justify-between gap-2 sm:gap-3">
+  <div class="flex w-full flex-wrap items-center justify-between gap-1.5">
     <div class="min-w-0 flex-1">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
-        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Notification</span>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Notification</span>
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">7 gün · önceki haftaya göre</h3>
       </div>
-      <h3 class="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">7 gün · önceki haftaya göre</h3>
       {% if not empty %}
-        <p class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+        <p class="mt-0.5 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
           <span class="font-medium text-slate-700 dark:text-slate-200">{{ period_current_label }}</span>
           <span class="mx-1 text-slate-300 dark:text-slate-600">vs</span>
           {{ period_previous_label }}
@@ -178,71 +266,46 @@
       {% endif %}
     </div>
     <a href="/notification" hx-get="/notification" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+       class="shrink-0 text-[11px] font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
   </div>
 
   {% if empty %}
-    <p class="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
+    <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
   {% else %}
-    {# KPI — full width #}
-    <div class="mt-4 grid w-full grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-      <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 px-3.5 py-3 dark:border-slate-800 dark:bg-slate-800/30">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam impression</p>
-            <p class="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100">{{ totals.impressions.cur_fmt }}</p>
-            <p class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.impressions.prev_fmt }}</p>
-          </div>
-          <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ring-1 {{ tone_badge(totals.impressions.delta_pct) }}">{{ totals.impressions.delta_fmt }}</span>
+    <div class="home-nt-kpi">
+      <div class="home-nt-kpi-card">
+        <div class="min-w-0">
+          <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam impression</p>
+          <p class="mt-0.5 text-xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">{{ totals.impressions.cur_fmt }}</p>
+          <p class="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.impressions.prev_fmt }}</p>
         </div>
+        <span class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ring-1 {{ tone_badge(totals.impressions.delta_pct) }}">{{ totals.impressions.delta_fmt }}</span>
       </div>
-      <div class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/50 px-3.5 py-3 dark:border-slate-800 dark:bg-slate-800/30">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam click</p>
-            <p class="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100">{{ totals.clicks.cur_fmt }}</p>
-            <p class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.clicks.prev_fmt }}</p>
-          </div>
-          <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ring-1 {{ tone_badge(totals.clicks.delta_pct) }}">{{ totals.clicks.delta_fmt }}</span>
+      <div class="home-nt-kpi-card">
+        <div class="min-w-0">
+          <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam click</p>
+          <p class="mt-0.5 text-xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">{{ totals.clicks.cur_fmt }}</p>
+          <p class="text-[10px] tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.clicks.prev_fmt }}</p>
         </div>
+        <span class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ring-1 {{ tone_badge(totals.clicks.delta_pct) }}">{{ totals.clicks.delta_fmt }}</span>
       </div>
     </div>
 
-    {# Pie charts — Pay dağilimi #}
-    <div class="home-nt-panel mt-4 rounded-xl p-3 dark:border-slate-800 dark:bg-slate-800/30">
-      <div class="home-nt-panel-head -mx-3 -mt-3 mb-3 flex items-center gap-2 rounded-t-xl px-3 py-2.5">
-        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500"></span>
-        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Pay Dağılımı (Click · Impression)</p>
+    <div class="home-nt-panel mt-2.5 rounded-xl">
+      <div class="home-nt-panel-head flex items-center gap-1.5 rounded-t-xl px-2.5 py-1.5">
+        <span class="h-2 w-2 shrink-0 rounded-full bg-sky-500"></span>
+        <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Pay Dağılımı (Click · Impression)</p>
       </div>
-      <div class="home-nt-pies">
-      <div class="home-nt-pie-card">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Click payı · son 7g</p>
-        <div class="home-nt-pie-body">
-          {{ nt_pie(click_pie) }}
-          <ul class="home-nt-legend">
-            {% for row in click_pie.legend %}
-              <li>
-                <span class="inline-flex min-w-0 items-center gap-1.5">
-                  <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
-                  <span class="truncate text-slate-600 dark:text-slate-300">{{ row.label }}</span>
-                </span>
-                <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
-              </li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
-
-      <div class="home-nt-pie-card">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Impression payı · son 7g</p>
-        {% if impr_pie and not impr_pie.empty %}
+      <div class="home-nt-pies p-2">
+        <div class="home-nt-pie-card">
+          <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Click payı · son 7g</p>
           <div class="home-nt-pie-body">
-            {{ nt_pie(impr_pie) }}
+            {{ nt_pie(click_pie) }}
             <ul class="home-nt-legend">
-              {% for row in impr_pie.legend %}
+              {% for row in click_pie.legend %}
                 <li>
-                  <span class="inline-flex min-w-0 items-center gap-1.5">
-                    <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
+                  <span class="inline-flex min-w-0 items-center gap-1">
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
                     <span class="truncate text-slate-600 dark:text-slate-300">{{ row.label }}</span>
                   </span>
                   <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
@@ -250,111 +313,164 @@
               {% endfor %}
             </ul>
           </div>
-        {% else %}
-          <p class="mt-6 text-center text-[11px] text-slate-400 dark:text-slate-500">Impression payı yok</p>
-        {% endif %}
-      </div>
+        </div>
+
+        <div class="home-nt-pie-card">
+          <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Impression payı · son 7g</p>
+          {% if impr_pie and not impr_pie.empty %}
+            <div class="home-nt-pie-body">
+              {{ nt_pie(impr_pie) }}
+              <ul class="home-nt-legend">
+                {% for row in impr_pie.legend %}
+                  <li>
+                    <span class="inline-flex min-w-0 items-center gap-1">
+                      <span class="h-1.5 w-1.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
+                      <span class="truncate text-slate-600 dark:text-slate-300">{{ row.label }}</span>
+                    </span>
+                    <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% else %}
+            <p class="mt-3 text-center text-[11px] text-slate-400 dark:text-slate-500">Impression payı yok</p>
+          {% endif %}
+        </div>
       </div>
     </div>
 
-    {# Platform compare — full width below pies #}
-    <div class="home-nt-panel mt-4 rounded-xl p-3 dark:border-slate-800 dark:bg-slate-800/30">
-      <div class="home-nt-panel-head -mx-3 -mt-3 mb-3 flex items-center gap-2 rounded-t-xl px-3 py-2.5">
-        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span>
-        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Platform Karşılaştırma</p>
+    <div class="home-nt-panel mt-2.5 rounded-xl">
+      <div class="home-nt-panel-head flex items-center gap-1.5 rounded-t-xl px-2.5 py-1.5">
+        <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+        <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Platform Karşılaştırma</p>
       </div>
-      <div class="home-nt-plat">
-      <div class="home-nt-scroll">
-        <table>
-          <thead class="bg-white/80 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
-            <tr>
-              <th class="px-3 py-2.5 font-semibold">Platform</th>
-              <th class="px-3 py-2.5 font-semibold">Impression</th>
-              <th class="px-3 py-2.5 font-semibold">Click</th>
-              <th class="px-3 py-2.5 font-semibold">Pay</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 bg-white/60 dark:divide-slate-800 dark:bg-slate-900/40">
-            {% for plat in platforms %}
+      <div class="p-1.5 sm:p-2">
+        <div class="home-nt-plat home-nt-plat-table home-nt-scroll">
+          <table>
+            <thead class="bg-white/80 text-[9px] uppercase tracking-wider text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
               <tr>
-                <td class="px-3 py-3">
-                  <span class="inline-flex items-center gap-2">
-                    <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
-                    <span class="font-semibold text-slate-800 dark:text-slate-100">{{ plat.label }}</span>
-                  </span>
-                </td>
-                <td class="px-3 py-3">
-                  {% if plat.impressions.available %}
-                    <p class="font-bold tabular-nums {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
-                    <p class="mt-0.5 tabular-nums text-[10px] text-slate-500 dark:text-slate-400">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
-                  {% else %}
-                    <p class="font-medium text-slate-400 dark:text-slate-500">—</p>
-                    <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">veri yok</p>
-                  {% endif %}
-                </td>
-                <td class="px-3 py-3">
-                  <p class="font-bold tabular-nums {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
-                  <p class="mt-0.5 tabular-nums text-[10px] text-slate-500 dark:text-slate-400">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
-                </td>
-                <td class="px-3 py-3">
-                  <div class="flex min-w-[5.5rem] items-center gap-2">
-                    <div class="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 sm:w-24">
-                      <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
-                    </div>
-                    <span class="tabular-nums font-semibold text-slate-700 dark:text-slate-200">{{ plat.share_fmt }}</span>
-                  </div>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      </div>
-    </div>
-
-    {# Top 5 — full width #}
-    <div class="home-nt-panel mt-4 w-full rounded-xl p-3.5 dark:border-slate-800 dark:bg-slate-800/30 sm:p-4">
-      <div class="home-nt-panel-head -mx-3.5 -mt-3.5 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-t-xl px-3.5 py-2.5 sm:-mx-4 sm:-mt-4 sm:px-4">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Top 5 · son 7g</p>
-        <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700">{{ top_titles|length }} gönderim</span>
-      </div>
-      {% if top_titles %}
-        <div class="mt-3 home-nt-scroll rounded-lg bg-white ring-1 ring-slate-200/80 dark:bg-slate-900 dark:ring-slate-700">
-          <table class="w-full min-w-[40rem] text-left text-xs">
-            <thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
-              <tr>
-                <th class="px-2.5 py-2.5 text-right font-semibold">#</th>
-                <th class="hidden whitespace-nowrap px-2.5 py-2.5 font-semibold sm:table-cell">ID</th>
-                <th class="min-w-[10rem] px-2.5 py-2.5 font-semibold">İçerik</th>
-                <th class="whitespace-nowrap px-2.5 py-2.5 text-right font-semibold">Toplam</th>
-                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold">Pay</th>
-                <th class="whitespace-nowrap px-2.5 py-2.5 text-right font-semibold">Web</th>
-                <th class="whitespace-nowrap px-2.5 py-2.5 text-right font-semibold">MWeb</th>
-                <th class="whitespace-nowrap px-2.5 py-2.5 text-right font-semibold">Android</th>
-                <th class="whitespace-nowrap px-2.5 py-2.5 text-right font-semibold">iOS</th>
-                <th class="whitespace-nowrap px-2.5 py-2.5 font-semibold">Gönderim</th>
+                <th class="font-semibold">Platform</th>
+                <th class="font-semibold">Impression</th>
+                <th class="font-semibold">Click</th>
+                <th class="font-semibold">Pay</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-              {% for item in top_titles %}
+            <tbody class="divide-y divide-slate-100 bg-white/60 dark:divide-slate-800 dark:bg-slate-900/40">
+              {% for plat in platforms %}
                 <tr>
-                  <td class="px-2.5 py-2.5 text-right font-semibold tabular-nums text-slate-500 dark:text-slate-400">{{ item.rank }}</td>
-                  <td class="hidden px-2.5 py-2.5 font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-400 sm:table-cell">{{ item.id }}</td>
-                  <td class="max-w-[16rem] truncate px-2.5 py-2.5 font-medium text-slate-800 dark:text-slate-200" title="{{ item.text }}">{{ item.text }}</td>
-                  <td class="px-2.5 py-2.5 text-right font-bold tabular-nums text-indigo-600 dark:text-indigo-300">{{ item.total_fmt }}</td>
-                  <td class="px-2.5 py-2.5">{{ nt_pie_mini(item.pie) }}</td>
-                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.web_fmt }}</td>
-                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.mweb_fmt }}</td>
-                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.android_fmt }}</td>
-                  <td class="px-2.5 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.ios_fmt }}</td>
-                  <td class="whitespace-nowrap px-2.5 py-2.5 tabular-nums text-slate-500 dark:text-slate-400">{{ item.send_label }}</td>
+                  <td>
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="h-2 w-2 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
+                      <span class="font-semibold text-slate-800 dark:text-slate-100">{{ plat.label }}</span>
+                    </span>
+                  </td>
+                  <td>
+                    {% if plat.impressions.available %}
+                      <p class="font-bold tabular-nums leading-tight {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
+                      <p class="tabular-nums text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
+                    {% else %}
+                      <p class="font-medium text-slate-400 dark:text-slate-500">—</p>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <p class="font-bold tabular-nums leading-tight {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
+                    <p class="tabular-nums text-[10px] leading-tight text-slate-500 dark:text-slate-400">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
+                  </td>
+                  <td>
+                    <div class="home-nt-share">
+                      <div class="home-nt-share-bar">
+                        <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
+                      </div>
+                      <span class="shrink-0 tabular-nums text-[11px] font-semibold text-slate-700 dark:text-slate-200">{{ plat.share_fmt }}</span>
+                    </div>
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+
+        <div class="home-nt-plat-cards">
+          {% for plat in platforms %}
+            <div class="home-nt-plat-card">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="h-2 w-2 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
+                  <span class="text-xs font-semibold text-slate-800 dark:text-slate-100">{{ plat.label }}</span>
+                </span>
+                <span class="tabular-nums text-[11px] font-semibold text-slate-600 dark:text-slate-300">{{ plat.share_fmt }}</span>
+              </div>
+              <div class="home-nt-plat-card-grid">
+                <div>
+                  <p class="text-[9px] uppercase tracking-wider text-slate-400">Impression</p>
+                  {% if plat.impressions.available %}
+                    <p class="text-xs font-bold tabular-nums {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
+                    <p class="text-[10px] tabular-nums text-slate-500">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
+                  {% else %}
+                    <p class="text-xs text-slate-400">—</p>
+                  {% endif %}
+                </div>
+                <div>
+                  <p class="text-[9px] uppercase tracking-wider text-slate-400">Click</p>
+                  <p class="text-xs font-bold tabular-nums {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
+                  <p class="text-[10px] tabular-nums text-slate-500">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
+                </div>
+              </div>
+              <div class="home-nt-share mt-1.5">
+                <div class="home-nt-share-bar" style="max-width: none;">
+                  <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="home-nt-panel home-nt-top mt-2.5 w-full rounded-xl">
+      <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-1.5 rounded-t-xl px-2.5 py-1.5">
+        <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Top 5 · son 7g</p>
+        <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700">{{ top_titles|length }} gönderim</span>
+      </div>
+      {% if top_titles %}
+        <div class="home-nt-scroll p-1.5 sm:p-2">
+          <div class="rounded-lg bg-white ring-1 ring-slate-200/80 dark:bg-slate-900 dark:ring-slate-700">
+            <table>
+              <thead class="bg-slate-50 text-[9px] uppercase tracking-wider text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+                <tr>
+                  <th class="text-right font-semibold">#</th>
+                  <th class="hidden whitespace-nowrap font-semibold sm:table-cell">ID</th>
+                  <th class="font-semibold">İçerik</th>
+                  <th class="whitespace-nowrap text-right font-semibold">Toplam</th>
+                  <th class="font-semibold">Pay</th>
+                  <th class="whitespace-nowrap text-right font-semibold">Web</th>
+                  <th class="whitespace-nowrap text-right font-semibold">MWeb</th>
+                  <th class="whitespace-nowrap text-right font-semibold">Android</th>
+                  <th class="whitespace-nowrap text-right font-semibold">iOS</th>
+                  <th class="whitespace-nowrap font-semibold">Gönderim</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                {% for item in top_titles %}
+                  <tr>
+                    <td class="text-right font-semibold tabular-nums text-slate-500 dark:text-slate-400">{{ item.rank }}</td>
+                    <td class="hidden font-mono text-[10px] tabular-nums text-slate-500 dark:text-slate-400 sm:table-cell">{{ item.id }}</td>
+                    <td class="truncate font-medium text-slate-800 dark:text-slate-200" title="{{ item.text }}">{{ item.text }}</td>
+                    <td class="text-right font-bold tabular-nums text-indigo-600 dark:text-indigo-300">{{ item.total_fmt }}</td>
+                    <td>{{ nt_pie_mini(item.pie) }}</td>
+                    <td class="text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.web_fmt }}</td>
+                    <td class="text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.mweb_fmt }}</td>
+                    <td class="text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.android_fmt }}</td>
+                    <td class="text-right tabular-nums text-slate-700 dark:text-slate-300">{{ item.ios_fmt }}</td>
+                    <td class="whitespace-nowrap tabular-nums text-slate-500 dark:text-slate-400">{{ item.send_label }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
       {% else %}
-        <p class="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">Son 7 günde tıklama yok</p>
+        <p class="px-2 py-3 text-center text-xs text-slate-400 dark:text-slate-500">Son 7 günde tıklama yok</p>
       {% endif %}
     </div>
   {% endif %}
