@@ -8449,6 +8449,7 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
     baseline = height - pad
     area_path = f"{path_d} L {last_x:.2f} {baseline:.2f} L {first_x:.2f} {baseline:.2f} Z"
     last_value = clean[-1]
+    last_below = last_value < mean_v
 
     return {
         "has_points": True,
@@ -8458,6 +8459,7 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
         "mean_value": mean_v,
         "end_x": points[-1][0],
         "end_y": points[-1][1],
+        "last_below": last_below,
         "last_value_fmt": _home_format_int(last_value),
         "point_count": len(clean),
     }

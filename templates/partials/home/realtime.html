@@ -40,15 +40,20 @@
               {% if prof.spark and prof.spark.has_points %}
                 <svg class="home-rt-spark-svg h-full w-full overflow-visible" viewBox="0 0 128 38" preserveAspectRatio="none" role="img">
                   <path class="home-rt-spark-area" d="{{ prof.spark.area_path }}" fill="var(--home-rt-spark-area-fill)"></path>
-                  {% for seg in prof.spark.line_segments or [] %}
-                  <path class="home-rt-spark-line" d="{{ seg.path_d }}" fill="none" stroke="{% if seg.above %}var(--home-rt-mean-above){% else %}var(--home-rt-mean-below){% endif %}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
+                  {% if prof.spark.line_segments %}
+                    {% for seg in prof.spark.line_segments %}
+                    <path class="home-rt-spark-line" d="{{ seg.path_d }}" fill="none" stroke="{% if seg.above %}var(--home-rt-mean-above){% else %}var(--home-rt-mean-below){% endif %}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                    {% endfor %}
                   {% else %}
-                  <path class="home-rt-spark-line" d="{{ prof.spark.path_d }}" fill="none" stroke="var(--home-rt-mean-above)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
-                  {% endfor %}
+                    <path class="home-rt-spark-line" d="{{ prof.spark.path_d }}" fill="none" stroke="var(--home-rt-mean-above)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                  {% endif %}
+                  {% if prof.spark.end_x is defined and prof.spark.end_y is defined %}
+                  <circle class="home-rt-spark-end{% if prof.spark.last_below %} is-below{% endif %}" cx="{{ '%.2f'|format(prof.spark.end_x) }}" cy="{{ '%.2f'|format(prof.spark.end_y) }}" r="2.2"></circle>
+                  {% endif %}
                 </svg>
               {% else %}
-                <div class="home-rt-spark-empty flex h-full items-end gap-1">
-                  <span></span><span></span><span></span><span></span><span></span>
+                <div class="home-rt-spark-empty flex h-full w-full">
+                  <span aria-hidden="true"></span>
                 </div>
               {% endif %}
             </div>
