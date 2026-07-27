@@ -28,7 +28,7 @@
         {% endfor %}
       {% endif %}
     </svg>
-    <div class="home-nt-pie-center absolute inset-[18%] flex flex-col items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:ring-slate-700">
+    <div class="home-nt-pie-center absolute inset-[18%] flex flex-col items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-100 dark:bg-zinc-900 dark:ring-zinc-700">
       <p class="max-w-full truncate px-0.5 text-sm font-black tabular-nums leading-none text-slate-900 dark:text-slate-50 sm:text-base">{{ pie.total_fmt if pie else '—' }}</p>
     </div>
   </div>
@@ -73,16 +73,17 @@
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.88);
   }
   html.dark .home-nt-week .home-nt-panel {
-    border-color: rgb(51 65 85);
-    background: linear-gradient(180deg, rgb(15 23 42 / 0.92), rgb(30 41 59 / 0.72));
+    border-color: rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(39, 39, 42, 0.72), rgba(24, 24, 27, 0.55));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
   .home-nt-week .home-nt-panel-head {
     border-bottom: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.95);
   }
   html.dark .home-nt-week .home-nt-panel-head {
-    border-bottom-color: rgb(51 65 85);
-    background: rgb(15 23 42 / 0.7);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+    background: rgba(39, 39, 42, 0.55);
   }
 
   /* KPI */
@@ -107,8 +108,8 @@
     padding: 0.55rem 0.75rem;
   }
   html.dark .home-nt-week .home-nt-kpi-card {
-    border-color: rgb(30 41 59);
-    background: rgb(30 41 59 / 0.35);
+    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(39, 39, 42, 0.45);
   }
 
   /* Pie grid */
@@ -133,8 +134,8 @@
     padding: 0.55rem 0.65rem 0.65rem;
   }
   html.dark .home-nt-week .home-nt-pie-card {
-    border-color: rgb(51 65 85);
-    background: rgb(15 23 42 / 0.55);
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(24, 24, 27, 0.55);
   }
   .home-nt-week .home-nt-pie-body {
     display: flex;
@@ -208,7 +209,7 @@
     border-radius: 999px;
     background: rgb(241 245 249);
   }
-  html.dark .home-nt-week .home-nt-share-bar { background: rgb(30 41 59); }
+  html.dark .home-nt-week .home-nt-share-bar { background: rgba(63, 63, 70, 0.85); }
 
   /* Mobile: stack platform as compact cards */
   .home-nt-week .home-nt-plat-cards { display: none; }
@@ -226,8 +227,8 @@
       padding: 0.5rem 0.65rem;
     }
     html.dark .home-nt-week .home-nt-plat-card {
-      border-color: rgb(51 65 85);
-      background: rgb(15 23 42 / 0.55);
+      border-color: rgba(255, 255, 255, 0.08);
+      background: rgba(24, 24, 27, 0.55);
     }
     .home-nt-week .home-nt-plat-card-grid {
       display: grid;
@@ -365,7 +366,7 @@
       <div class="p-1.5 sm:p-2">
         <div class="home-nt-plat home-nt-plat-table home-nt-scroll">
           <table>
-            <thead class="bg-white/80 text-[9px] uppercase tracking-wider text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
+            <thead class="bg-white/80 text-[9px] uppercase tracking-wider text-slate-500 dark:bg-zinc-900/60 dark:text-zinc-400">
               <tr>
                 <th class="font-semibold">Platform</th>
                 <th class="font-semibold">Impression</th>
@@ -373,7 +374,7 @@
                 <th class="font-semibold">Pay</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 bg-white/60 dark:divide-slate-800 dark:bg-slate-900/40">
+            <tbody class="divide-y divide-slate-100 bg-white/60 dark:divide-zinc-800 dark:bg-zinc-900/40">
               {% for plat in platforms %}
                 <tr>
                   <td>
@@ -448,13 +449,13 @@
     <div class="home-nt-panel home-nt-top mt-2.5 w-full rounded-xl">
       <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-1.5 rounded-t-xl px-2.5 py-1.5">
         <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Top 5 · son 7g</p>
-        <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700">{{ top_titles|length }} gönderim</span>
+        <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200 dark:bg-zinc-900 dark:text-zinc-400 dark:ring-zinc-700">{{ top_titles|length }} gönderim</span>
       </div>
       {% if top_titles %}
         <div class="home-nt-scroll p-1.5 sm:p-2">
-          <div class="rounded-lg bg-white ring-1 ring-slate-200/80 dark:bg-slate-900 dark:ring-slate-700">
+          <div class="rounded-lg bg-white ring-1 ring-slate-200/80 dark:bg-zinc-900 dark:ring-zinc-700">
             <table>
-              <thead class="bg-slate-50 text-[9px] uppercase tracking-wider text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+              <thead class="bg-slate-50 text-[9px] uppercase tracking-wider text-slate-500 dark:bg-zinc-800/80 dark:text-zinc-400">
                 <tr>
                   <th class="text-right font-semibold">#</th>
                   <th class="hidden whitespace-nowrap font-semibold sm:table-cell">ID</th>
