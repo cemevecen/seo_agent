@@ -9280,29 +9280,35 @@ def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, 
 
 @app.get("/api/home/crashlytics", response_class=HTMLResponse)
 def api_home_crashlytics(request: Request, product: str | None = None):
-    """Ana sayfa Firebase Crashlytics özeti — yalnızca doviz (Sinemalar BQ yok)."""
+    """Ana sayfa Firebase Crashlytics + mağaza özeti — yalnızca doviz (Sinemalar BQ yok)."""
     pid = (product or "doviz").strip().lower()
     if pid != "doviz":
         pid = "doviz"
     card = _home_crashlytics_card(pid)
+    store_platforms = _home_app_release_platforms(pid)
+    store_by_key = {p.get("key"): p for p in store_platforms if p.get("key")}
     return templates.TemplateResponse(
         request,
         "partials/home/crashlytics.html",
         context={
             "request": request,
             "card": card,
+            "store": {
+                "ios": store_by_key.get("ios"),
+                "android": store_by_key.get("android"),
+            },
             "firebase_url": f"/firebase?product={pid}",
+            "app_url": "/app",
         },
     )
 
 
-@app.get("/api/home/app-release", response_class=HTMLResponse)
-def api_home_app_release(request: Request):
-    product_id = "doviz"
-    platforms = []
+def _home_app_release_platforms(product_id: str = "doviz") -> list[dict]:
+    """Ana sayfa mağaza özeti — iOS/Android platform kartları."""
+    product_id = (product_id or "doviz").strip().lower() or "doviz"
+    platforms: list[dict] = []
     raw = None
 
-    # 1. In-memory / disk / DB cache zinciri
     try:
         from backend.services.app_intel import get_raw_product_data
         result = get_raw_product_data(product_id, force_refresh=False, cache_only=True)
@@ -9311,7 +9317,6 @@ def api_home_app_release(request: Request):
     except Exception:
         pass
 
-    # 2. Cache yoksa doğrudan AppIntelRawCache tablosundan oku
     if raw is None:
         with SessionLocal() as db:
             raw = _home_app_raw_from_db(db, product_id)
@@ -9335,7 +9340,12 @@ def api_home_app_release(request: Request):
                 "version": None, "updated_label": None, "is_recent": False,
                 "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
             })
+    return platforms
 
+
+@app.get("/api/home/app-release", response_class=HTMLResponse)
+def api_home_app_release(request: Request):
+    platforms = _home_app_release_platforms("doviz")
     return templates.TemplateResponse(
         request, "partials/home/app_release.html",
         context={"request": request, "platforms": platforms},
