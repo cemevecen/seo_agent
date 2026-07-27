@@ -8993,6 +8993,59 @@ _HOME_NT_PLATFORM_STYLE = {
 }
 
 
+def _home_nt_pie_chart(
+    parts: list[tuple[str, float, str]],
+    *,
+    total_fmt: str,
+    center_label: str,
+) -> dict:
+    """SVG donut dilimleri — stroke-dasharray (çevre ≈ 100).
+
+    parts: (hex, value, label)
+    """
+    total = sum(max(0.0, float(v or 0)) for _, v, _ in parts)
+    segments: list[dict] = []
+    if total <= 0:
+        return {
+            "segments": [],
+            "legend": [],
+            "total_fmt": total_fmt,
+            "center_label": center_label,
+            "empty": True,
+        }
+    cursor = 0.0
+    legend: list[dict] = []
+    for hex_color, value, label in parts:
+        val = max(0.0, float(value or 0))
+        pct = val / total * 100.0
+        legend.append(
+            {
+                "hex": hex_color,
+                "label": label,
+                "pct": round(pct, 1),
+                "share_fmt": f"{pct:.1f}%",
+            }
+        )
+        if pct < 0.05:
+            continue
+        segments.append(
+            {
+                "hex": hex_color,
+                "pct": round(pct, 3),
+                "dash": f"{pct:.3f} {max(0.0, 100.0 - pct):.3f}",
+                "offset": round(-cursor, 3),
+            }
+        )
+        cursor += pct
+    return {
+        "segments": segments,
+        "legend": legend,
+        "total_fmt": total_fmt,
+        "center_label": center_label,
+        "empty": False,
+    }
+
+
 def _home_notification_week_context(db) -> dict:
     from backend.services.notification_analytics_alerts import build_notification_week_compare
 
@@ -9009,19 +9062,22 @@ def _home_notification_week_context(db) -> dict:
 
     platforms_raw = list(raw.get("platforms") or [])
     click_total = sum(float(p.get("clicks_cur") or 0) for p in platforms_raw)
+    impr_total = 0.0
     platforms_out = []
-    pie_stops: list[str] = []
-    cursor = 0.0
+    click_parts: list[tuple[str, float, str]] = []
+    impr_parts: list[tuple[str, float, str]] = []
     for plat in platforms_raw:
         key = str(plat.get("key") or "")
         style = _HOME_NT_PLATFORM_STYLE.get(key) or _HOME_NT_PLATFORM_STYLE["desktop"]
         has_impr = bool(plat.get("has_impressions"))
         clicks_cur = float(plat.get("clicks_cur") or 0)
         share = (clicks_cur / click_total * 100.0) if click_total > 0 else 0.0
-        start = cursor
-        cursor = min(100.0, cursor + share)
-        if share > 0.05:
-            pie_stops.append(f"{style['hex']} {start:.2f}% {cursor:.2f}%")
+        label = str(plat.get("label") or key)
+        click_parts.append((style["hex"], clicks_cur, label))
+        if has_impr:
+            impr_cur = float(plat.get("impressions_cur") or 0)
+            impr_total += impr_cur
+            impr_parts.append((style["hex"], impr_cur, label))
         platforms_out.append(
             {
                 "key": key,
@@ -9039,10 +9095,22 @@ def _home_notification_week_context(db) -> dict:
                 ),
             }
         )
-    pie_gradient = (
-        f"conic-gradient(from -90deg, {', '.join(pie_stops)})"
-        if pie_stops
-        else "conic-gradient(#e2e8f0 0 100%)"
+
+    clicks_block = _home_metric_compare_block(
+        totals.get("clicks_cur"), totals.get("clicks_prev")
+    )
+    impr_block = _home_metric_compare_block(
+        totals.get("impressions_cur"), totals.get("impressions_prev")
+    )
+    click_pie = _home_nt_pie_chart(
+        click_parts,
+        total_fmt=clicks_block["cur_fmt"],
+        center_label="Click",
+    )
+    impr_pie = _home_nt_pie_chart(
+        impr_parts,
+        total_fmt=_home_format_int(impr_total) if impr_total > 0 else impr_block["cur_fmt"],
+        center_label="Impression",
     )
 
     top_raw = list(raw.get("top_titles") or [])
@@ -9055,6 +9123,20 @@ def _home_notification_week_context(db) -> dict:
                 send_label = date.fromisoformat(send_raw[:10]).strftime("%d.%m.%Y")
         except ValueError:
             pass
+        plat_clicks = [
+            ("desktop", float(item.get("desktop") or 0)),
+            ("mobileweb", float(item.get("mobileweb") or 0)),
+            ("android", float(item.get("android") or 0)),
+            ("ios", float(item.get("ios") or 0)),
+        ]
+        mini_parts = [
+            (
+                (_HOME_NT_PLATFORM_STYLE.get(k) or _HOME_NT_PLATFORM_STYLE["desktop"])["hex"],
+                v,
+                k,
+            )
+            for k, v in plat_clicks
+        ]
         top_titles.append(
             {
                 "rank": idx,
@@ -9067,15 +9149,14 @@ def _home_notification_week_context(db) -> dict:
                 "mweb_fmt": _home_format_int(item.get("mobileweb") or 0),
                 "android_fmt": _home_format_int(item.get("android") or 0),
                 "ios_fmt": _home_format_int(item.get("ios") or 0),
+                "pie": _home_nt_pie_chart(
+                    mini_parts,
+                    total_fmt=_home_format_int(item.get("clicks") or 0),
+                    center_label="",
+                ),
             }
         )
 
-    clicks_block = _home_metric_compare_block(
-        totals.get("clicks_cur"), totals.get("clicks_prev")
-    )
-    impr_block = _home_metric_compare_block(
-        totals.get("impressions_cur"), totals.get("impressions_prev")
-    )
     return {
         "empty": bool(raw.get("empty")),
         "period_current_label": _home_fmt_day_range(
@@ -9089,8 +9170,8 @@ def _home_notification_week_context(db) -> dict:
             "impressions": impr_block,
         },
         "platforms": platforms_out,
-        "pie_gradient": pie_gradient,
-        "pie_total_fmt": clicks_block["cur_fmt"],
+        "click_pie": click_pie,
+        "impr_pie": impr_pie,
         "top_titles": top_titles,
     }
 
