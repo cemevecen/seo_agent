@@ -1,4 +1,4 @@
-"""Boards sayfası — Döviz / Sinemalar öncelik panosu (Open · Doing · Testing · Closed)."""
+"""Ana sayfa — Döviz / Sinemalar öncelik panosu (Open · Doing · Testing · Closed)."""
 
 from __future__ import annotations
 

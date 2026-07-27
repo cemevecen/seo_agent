@@ -1,4 +1,4 @@
-"""Priority board sections for /boards."""
+"""Priority board sections for home page."""
 
 from backend.services.priority_board import PRIORITY_BOARD_COLUMNS, get_priority_board_sections
 

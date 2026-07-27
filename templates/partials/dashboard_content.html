@@ -87,14 +87,24 @@
   }
   .home-rt-spark-line {
     opacity: 1;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
   }
+  .home-rt-spark-line.is-above {
+    stroke: #047857;
+  }
+  .home-rt-spark-line.is-below {
+    stroke: #b91c3c;
+  }
   .home-rt-spark-end {
-    fill: var(--home-rt-mean-above);
+    fill: #047857;
     pointer-events: none;
   }
   .home-rt-spark-end.is-below {
-    fill: var(--home-rt-mean-below);
+    fill: #b91c3c;
   }
   .home-rt-spark-empty {
     align-items: center;
@@ -114,6 +124,18 @@
     border-color: rgba(255,255,255,0.06);
     background: linear-gradient(180deg, rgba(39, 39, 42, 0.82), rgba(24, 24, 27, 0.52));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 34px rgba(0,0,0,0.18);
+  }
+  html.dark .home-rt-spark-line.is-above {
+    stroke: #4a8f73;
+  }
+  html.dark .home-rt-spark-line.is-below {
+    stroke: #a85a66;
+  }
+  html.dark .home-rt-spark-end {
+    fill: #4a8f73;
+  }
+  html.dark .home-rt-spark-end.is-below {
+    fill: #a85a66;
   }
   .home-motion-crash-pulse {
     position: relative;
@@ -245,6 +267,13 @@
     window.__pcHomeRealtimeReload = loadHomeRealtime;
   })();
   </script>
+
+  {# Öncelik panosu — full width (GitLab /boards değil; ana sayfa) #}
+  <section hx-get="/api/home/priority-board" hx-trigger="load" hx-swap="innerHTML"
+           class="mt-5 rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
+    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Öncelik panosu</h3>
+    {{ _placeholder_tall | safe }}
+  </section>
 
   {# Ana içerik #}
   <div class="mt-5 space-y-5">

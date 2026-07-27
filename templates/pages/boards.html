@@ -62,8 +62,6 @@
     </span>
   </div>
 
-  {% include "partials/boards/priority_board.html" %}
-
   <div class="flex items-center gap-2 overflow-x-auto pb-2">
     <template x-for="project in configProjects" :key="project.path">
       <button

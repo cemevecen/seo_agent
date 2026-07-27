@@ -9232,6 +9232,21 @@ def api_home_app_release(request: Request):
     )
 
 
+@app.get("/api/home/priority-board", response_class=HTMLResponse)
+def api_home_priority_board(request: Request):
+    """Ana sayfa — Döviz & Sinemalar öncelik panosu (Open / Doing / Testing / Closed)."""
+    from backend.services.priority_board import get_priority_board_sections
+
+    return templates.TemplateResponse(
+        request,
+        "partials/home/priority_board.html",
+        context={
+            "request": request,
+            "priority_sections": get_priority_board_sections(),
+        },
+    )
+
+
 def _home_shorten_url(u: str, max_len: int = 60) -> str:
     if not u:
         return ""
@@ -17395,8 +17410,6 @@ from backend.services.gitlab_board import (
 @app.get("/boards", response_class=HTMLResponse)
 def page_boards(request: Request):
     """GitLab Kanban Board ana sayfası."""
-    from backend.services.priority_board import get_priority_board_sections
-
     token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
     projects = [
         {"name": "Döviz Web", "path": "nokta/doviz", "platform": "web", "product": "doviz"},
@@ -17411,7 +17424,6 @@ def page_boards(request: Request):
             "projects": projects,
             "token": token,
             "default_board_project": "ios/doviz",
-            "priority_sections": get_priority_board_sections(),
         },
     )
 

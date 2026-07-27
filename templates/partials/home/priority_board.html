@@ -1,4 +1,4 @@
-{# Döviz / Sinemalar öncelik panosu — Open · Doing · Testing · Closed #}
+{# Ana sayfa — Döviz / Sinemalar öncelik panosu (Open · Doing · Testing · Closed) #}
 {% set _accent = {
   'sky': {
     'badge': 'bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800',
@@ -18,16 +18,15 @@
   'closed': 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
 } %}
 
-<section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-5">
-  <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Öncelik panosu</p>
-      <h3 class="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
-      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">4 GitLab sekmesinden türetilmiş en kritik notlar — ürün section’ları ayrı.</p>
-    </div>
+<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Öncelik panosu</p>
+    <h3 class="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
+    <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Ürün bazlı kritik notlar — Open · Doing · Testing · Closed.</p>
   </div>
+</div>
 
-  <div class="mt-5 space-y-8">
+<div class="mt-5 space-y-8">
     {% for section in priority_sections %}
       {% set ac = _accent.get(section.accent, _accent.sky) %}
       <div>
@@ -71,5 +70,4 @@
         </div>
       </div>
     {% endfor %}
-  </div>
-</section>
+</div>

@@ -42,10 +42,10 @@
                   <path class="home-rt-spark-area" d="{{ prof.spark.area_path }}" fill="var(--home-rt-spark-area-fill)"></path>
                   {% if prof.spark.line_segments %}
                     {% for seg in prof.spark.line_segments %}
-                    <path class="home-rt-spark-line" d="{{ seg.path_d }}" fill="none" stroke="{% if seg.above %}var(--home-rt-mean-above){% else %}var(--home-rt-mean-below){% endif %}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                    <path class="home-rt-spark-line {% if seg.above %}is-above{% else %}is-below{% endif %}" d="{{ seg.path_d }}"></path>
                     {% endfor %}
                   {% else %}
-                    <path class="home-rt-spark-line" d="{{ prof.spark.path_d }}" fill="none" stroke="var(--home-rt-mean-above)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                    <path class="home-rt-spark-line is-above" d="{{ prof.spark.path_d }}"></path>
                   {% endif %}
                   {% if prof.spark.end_x is defined and prof.spark.end_y is defined %}
                   <circle class="home-rt-spark-end{% if prof.spark.last_below %} is-below{% endif %}" cx="{{ '%.2f'|format(prof.spark.end_x) }}" cy="{{ '%.2f'|format(prof.spark.end_y) }}" r="2.2"></circle>
