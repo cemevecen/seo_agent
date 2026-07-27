@@ -8450,12 +8450,23 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
     area_path = f"{path_d} L {last_x:.2f} {baseline:.2f} L {first_x:.2f} {baseline:.2f} Z"
     last_value = clean[-1]
     last_below = last_value < mean_v
+    bar_slots: list[dict[str, float | bool]] = []
+    for value in clean:
+        ratio = (value - min_v) / span if span > 0 else 0.5
+        ratio = max(0.06, min(1.0, ratio))
+        bar_slots.append(
+            {
+                "height_pct": round(ratio * 100.0, 2),
+                "above": value >= mean_v,
+            }
+        )
 
     return {
         "has_points": True,
         "path_d": path_d,
         "area_path": area_path,
         "line_segments": line_segments,
+        "bar_slots": bar_slots,
         "mean_value": mean_v,
         "end_x": points[-1][0],
         "end_y": points[-1][1],

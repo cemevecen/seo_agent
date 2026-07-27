@@ -46,19 +46,13 @@
             {% endif %}
             <div class="home-rt-spark relative z-[1] mt-2 h-9" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime sparkline">
               {% if prof.spark and prof.spark.has_points %}
-                <svg class="home-rt-spark-svg h-full w-full overflow-visible" viewBox="0 0 128 38" preserveAspectRatio="none" role="img">
-                  <path class="home-rt-spark-area" d="{{ prof.spark.area_path }}" fill="var(--home-rt-spark-area-fill)"></path>
-                  {% if prof.spark.line_segments %}
-                    {% for seg in prof.spark.line_segments %}
-                    <path class="home-rt-spark-line {% if seg.above %}is-above{% else %}is-below{% endif %}" d="{{ seg.path_d }}"></path>
-                    {% endfor %}
-                  {% else %}
-                    <path class="home-rt-spark-line is-above" d="{{ prof.spark.path_d }}"></path>
-                  {% endif %}
-                  {% if prof.spark.end_x is defined and prof.spark.end_y is defined %}
-                  <circle class="home-rt-spark-end{% if prof.spark.last_below %} is-below{% endif %}" cx="{{ '%.2f'|format(prof.spark.end_x) }}" cy="{{ '%.2f'|format(prof.spark.end_y) }}" r="2.2"></circle>
-                  {% endif %}
-                </svg>
+                <div class="home-rt-spark-bars" role="img" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime spark bar chart">
+                  {% for bar in prof.spark.bar_slots or [] %}
+                    <span class="home-rt-spark-bar-slot" aria-hidden="true">
+                      <span class="home-rt-spark-bar {% if bar.above %}is-above{% else %}is-below{% endif %}" style="height: {{ bar.height_pct }}%"></span>
+                    </span>
+                  {% endfor %}
+                </div>
               {% else %}
                 <div class="home-rt-spark-empty flex h-full w-full">
                   <span aria-hidden="true"></span>
