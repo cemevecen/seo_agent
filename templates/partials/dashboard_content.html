@@ -72,7 +72,7 @@
   .home-rt-metric {
     /* Ortalama üstü yeşil / altı kırmızı — realtime mean-split ile aynı palet */
     --home-rt-mean-above: #047857;
-    --home-rt-mean-below: #b91c3c;
+    --home-rt-mean-below: #ef4444;
     --home-rt-spark-area-fill: rgba(4, 120, 87, 0.12);
     position: relative;
     overflow: hidden;
@@ -112,7 +112,7 @@
     background: rgb(4 120 87);
   }
   .home-rt-spark-bar.is-below {
-    background: rgb(185 28 60);
+    background: rgb(239 68 68);
   }
   .home-rt-spark-bar.is-empty {
     background: rgba(148, 163, 184, 0.35);
@@ -133,14 +133,14 @@
     stroke: #047857;
   }
   .home-rt-spark-line.is-below {
-    stroke: #b91c3c;
+    stroke: #ef4444;
   }
   .home-rt-spark-end {
     fill: #047857;
     pointer-events: none;
   }
   .home-rt-spark-end.is-below {
-    fill: #b91c3c;
+    fill: #ef4444;
   }
   .home-rt-spark-empty {
     align-items: center;
@@ -155,7 +155,7 @@
   }
   html.dark .home-rt-metric {
     --home-rt-mean-above: #4a8f73;
-    --home-rt-mean-below: #a85a66;
+    --home-rt-mean-below: #f87171;
     --home-rt-spark-area-fill: rgba(74, 143, 115, 0.12);
     border-color: rgba(255,255,255,0.06);
     background: linear-gradient(180deg, rgba(39, 39, 42, 0.82), rgba(24, 24, 27, 0.52));
@@ -165,13 +165,13 @@
     stroke: #4a8f73;
   }
   html.dark .home-rt-spark-line.is-below {
-    stroke: #a85a66;
+    stroke: #f87171;
   }
   html.dark .home-rt-spark-bar.is-above {
     background: rgb(74 143 115);
   }
   html.dark .home-rt-spark-bar.is-below {
-    background: rgb(168 90 102);
+    background: rgb(248 113 113);
   }
   html.dark .home-rt-spark-bar.is-empty {
     background: rgba(161, 161, 170, 0.45);
@@ -180,7 +180,7 @@
     fill: #4a8f73;
   }
   html.dark .home-rt-spark-end.is-below {
-    fill: #a85a66;
+    fill: #f87171;
   }
   .home-motion-crash-pulse {
     position: relative;
@@ -262,16 +262,16 @@
     border-color: rgba(96, 165, 250, 0.34);
   }
   .home-rt-pill--sinemalar {
-    background: linear-gradient(180deg, rgba(255,228,230,0.95), rgba(255,241,242,0.9));
-    border-color: rgba(251, 113, 133, 0.3);
+    background: linear-gradient(180deg, rgba(254,226,226,0.95), rgba(254,242,242,0.92));
+    border-color: rgba(248, 113, 113, 0.45);
   }
   html.dark .home-rt-pill--doviz {
     background: linear-gradient(180deg, rgba(30,58,138,0.35), rgba(30,41,59,0.45));
     border-color: rgba(96, 165, 250, 0.28);
   }
   html.dark .home-rt-pill--sinemalar {
-    background: linear-gradient(180deg, rgba(127,29,29,0.32), rgba(51, 65, 85, 0.45));
-    border-color: rgba(251, 113, 133, 0.26);
+    background: linear-gradient(180deg, rgba(153,27,27,0.38), rgba(51, 65, 85, 0.45));
+    border-color: rgba(248, 113, 113, 0.35);
   }
   .home-rt-countdown {
     display: inline-flex;
