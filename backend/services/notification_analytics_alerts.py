@@ -57,19 +57,30 @@ def _row_impressions(row: dict) -> float:
     return total
 
 
+_PLATFORM_KEYS = ("desktop", "mobileweb", "android", "ios")
+_PLATFORM_WITH_IMPRESSIONS = ("desktop", "mobileweb", "android")
+
+
 def _period_stats(rows: list[dict]) -> dict[str, Any]:
     clicks = 0.0
     impressions = 0.0
-    platform: dict[str, float] = {"desktop": 0.0, "mobileweb": 0.0, "android": 0.0, "ios": 0.0}
+    platform: dict[str, float] = {k: 0.0 for k in _PLATFORM_KEYS}
+    platform_impr: dict[str, float] = {k: 0.0 for k in _PLATFORM_KEYS}
     for row in rows:
         clicks += _row_clicks(row)
         impressions += _row_impressions(row)
-        for key in platform:
-            plat = (row.get("platforms") or {}).get(key) or {}
+        plats = row.get("platforms") or {}
+        for key in _PLATFORM_KEYS:
+            plat = plats.get(key) or {}
             try:
                 platform[key] += float(plat.get("click") or 0)
             except (TypeError, ValueError):
                 pass
+            if key in _PLATFORM_WITH_IMPRESSIONS:
+                try:
+                    platform_impr[key] += float(plat.get("impression") or 0)
+                except (TypeError, ValueError):
+                    pass
     ctr = (clicks / impressions * 100.0) if impressions > 0 else 0.0
     return {
         "rows": len(rows),
@@ -77,6 +88,90 @@ def _period_stats(rows: list[dict]) -> dict[str, Any]:
         "impressions": round(impressions, 2),
         "ctr": round(ctr, 4),
         "platform_clicks": {k: round(v, 2) for k, v in platform.items()},
+        "platform_impressions": {k: round(v, 2) for k, v in platform_impr.items()},
+    }
+
+
+def _top_titles_by_clicks(rows: list[dict], *, limit: int = 5) -> list[dict[str, Any]]:
+    by_title: dict[str, float] = {}
+    for row in rows:
+        text = str(row.get("text") or "").strip() or "(başlıksız)"
+        by_title[text] = by_title.get(text, 0.0) + _row_clicks(row)
+    ranked = sorted(by_title.items(), key=lambda kv: (-kv[1], kv[0].lower()))
+    return [
+        {"text": text, "clicks": round(clicks, 2)}
+        for text, clicks in ranked[: max(0, int(limit))]
+        if clicks > 0
+    ]
+
+
+def _week_windows(reference_day: date) -> tuple[date, date, date, date]:
+    cur_end = reference_day
+    cur_start = reference_day - timedelta(days=WINDOW_DAYS - 1)
+    prev_end = cur_start - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=WINDOW_DAYS - 1)
+    return cur_start, cur_end, prev_start, prev_end
+
+
+def build_notification_week_compare(
+    db: Session,
+    *,
+    reference_day: date | None = None,
+    top_n: int = 5,
+) -> dict[str, Any]:
+    """Son 7 gün vs önceki 7 gün — platform click/impression + top başlıklar (Döviz workspace)."""
+    ref = reference_day or date.today()
+    cur_start, cur_end, prev_start, prev_end = _week_windows(ref)
+    all_rows = _load_rows(_get_workspace(db))
+    cur_rows = filter_rows_by_date(
+        all_rows,
+        start=cur_start.isoformat(),
+        end=cur_end.isoformat(),
+    )
+    prev_rows = filter_rows_by_date(
+        all_rows,
+        start=prev_start.isoformat(),
+        end=prev_end.isoformat(),
+    )
+    cur = _period_stats(cur_rows)
+    prev = _period_stats(prev_rows)
+    platforms: list[dict[str, Any]] = []
+    labels = {
+        "desktop": "Web",
+        "mobileweb": "Mobil Web",
+        "ios": "iOS",
+        "android": "Android",
+    }
+    for key in ("desktop", "mobileweb", "ios", "android"):
+        has_impr = key in _PLATFORM_WITH_IMPRESSIONS
+        platforms.append(
+            {
+                "key": key,
+                "label": labels[key],
+                "clicks_cur": cur["platform_clicks"].get(key, 0.0),
+                "clicks_prev": prev["platform_clicks"].get(key, 0.0),
+                "impressions_cur": cur["platform_impressions"].get(key, 0.0) if has_impr else None,
+                "impressions_prev": prev["platform_impressions"].get(key, 0.0) if has_impr else None,
+                "has_impressions": has_impr,
+            }
+        )
+    return {
+        "reference_day": ref.isoformat(),
+        "windows": {
+            "current": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
+            "previous": {"start": prev_start.isoformat(), "end": prev_end.isoformat()},
+        },
+        "totals": {
+            "clicks_cur": cur["clicks"],
+            "clicks_prev": prev["clicks"],
+            "impressions_cur": cur["impressions"],
+            "impressions_prev": prev["impressions"],
+            "rows_cur": cur["rows"],
+            "rows_prev": prev["rows"],
+        },
+        "platforms": platforms,
+        "top_titles": _top_titles_by_clicks(cur_rows, limit=top_n),
+        "empty": cur["rows"] == 0 and prev["rows"] == 0,
     }
 
 
@@ -115,10 +210,7 @@ def evaluate_notification_analytics_alerts(
 ) -> dict[str, Any]:
     """Son 7 gün vs önceki 7 gün click; CTR medyan altı kontrolü."""
     ref = reference_day or date.today()
-    cur_end = ref
-    cur_start = ref - timedelta(days=WINDOW_DAYS - 1)
-    prev_end = cur_start - timedelta(days=1)
-    prev_start = prev_end - timedelta(days=WINDOW_DAYS - 1)
+    cur_start, cur_end, prev_start, prev_end = _week_windows(ref)
     median_start = ref - timedelta(days=MEDIAN_LOOKBACK_DAYS - 1)
 
     row = _get_workspace(db)

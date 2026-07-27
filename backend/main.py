@@ -9062,6 +9062,109 @@ def api_home_position_drops(request: Request, site: str | None = None):
     )
 
 
+def _home_fmt_day_range(start_iso: str, end_iso: str) -> str:
+    try:
+        s = date.fromisoformat(str(start_iso)[:10])
+        e = date.fromisoformat(str(end_iso)[:10])
+        return f"{s.strftime('%d.%m')}–{e.strftime('%d.%m.%Y')}"
+    except ValueError:
+        return f"{start_iso} – {end_iso}"
+
+
+def _home_metric_compare_block(cur: float | None, prev: float | None, *, available: bool = True) -> dict:
+    if not available:
+        return {
+            "cur_fmt": "—",
+            "prev_fmt": "—",
+            "delta_fmt": "—",
+            "tone": "flat",
+            "delta_pct": 0.0,
+            "available": False,
+        }
+    c = float(cur or 0.0)
+    p = float(prev or 0.0)
+    delta_fmt, tone, delta_pct = _home_pct_delta(c, p)
+    return {
+        "cur_fmt": _home_format_int(c),
+        "prev_fmt": _home_format_int(p),
+        "delta_fmt": delta_fmt,
+        "tone": tone,
+        "delta_pct": delta_pct,
+        "available": True,
+    }
+
+
+def _home_notification_week_context(db) -> dict:
+    from backend.services.notification_analytics_alerts import build_notification_week_compare
+
+    try:
+        tz = ZoneInfo(settings.scheduled_refresh_timezone or "Europe/Istanbul")
+    except Exception:  # noqa: BLE001
+        tz = ZoneInfo("Europe/Istanbul")
+    ref = datetime.now(tz).date()
+    raw = build_notification_week_compare(db, reference_day=ref, top_n=5)
+    totals = raw.get("totals") or {}
+    windows = raw.get("windows") or {}
+    cur_w = windows.get("current") or {}
+    prev_w = windows.get("previous") or {}
+    platforms_out = []
+    for plat in raw.get("platforms") or []:
+        has_impr = bool(plat.get("has_impressions"))
+        platforms_out.append(
+            {
+                "key": plat.get("key"),
+                "label": plat.get("label"),
+                "clicks": _home_metric_compare_block(
+                    plat.get("clicks_cur"), plat.get("clicks_prev")
+                ),
+                "impressions": _home_metric_compare_block(
+                    plat.get("impressions_cur"),
+                    plat.get("impressions_prev"),
+                    available=has_impr,
+                ),
+            }
+        )
+    top_titles = []
+    for item in raw.get("top_titles") or []:
+        top_titles.append(
+            {
+                "text": item.get("text") or "",
+                "clicks_fmt": _home_format_int(item.get("clicks") or 0),
+            }
+        )
+    return {
+        "empty": bool(raw.get("empty")),
+        "period_current_label": _home_fmt_day_range(
+            str(cur_w.get("start") or ""), str(cur_w.get("end") or "")
+        ),
+        "period_previous_label": _home_fmt_day_range(
+            str(prev_w.get("start") or ""), str(prev_w.get("end") or "")
+        ),
+        "totals": {
+            "clicks": _home_metric_compare_block(
+                totals.get("clicks_cur"), totals.get("clicks_prev")
+            ),
+            "impressions": _home_metric_compare_block(
+                totals.get("impressions_cur"), totals.get("impressions_prev")
+            ),
+        },
+        "platforms": platforms_out,
+        "top_titles": top_titles,
+    }
+
+
+@app.get("/api/home/notification-week", response_class=HTMLResponse)
+def api_home_notification_week(request: Request):
+    """Döviz notification: son 7g vs önceki 7g özet (full-width home kartı)."""
+    with SessionLocal() as db:
+        ctx = _home_notification_week_context(db)
+    return templates.TemplateResponse(
+        request,
+        "partials/home/notification_week.html",
+        context={"request": request, **ctx},
+    )
+
+
 def _home_parse_iso_date(s: str | None) -> datetime | None:
     if not s:
         return None
