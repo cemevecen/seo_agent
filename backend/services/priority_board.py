@@ -209,14 +209,14 @@ def get_priority_board_sections() -> list[dict[str, Any]]:
         raw = _PRIORITY_BOARD[key]
         columns = []
         for col in PRIORITY_BOARD_COLUMNS:
-            items = [it for it in raw["items"] if it.get("status") == col["id"]]
+            entries = [it for it in raw["items"] if it.get("status") == col["id"]]
             columns.append(
                 {
                     "id": col["id"],
                     "label": col["label"],
                     "hint": col["hint"],
-                    "count": len(items),
-                    "items": items,
+                    "count": len(entries),
+                    "entries": entries,
                 }
             )
         sections.append(

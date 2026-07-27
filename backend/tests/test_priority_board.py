@@ -16,8 +16,8 @@ def test_priority_board_columns_populated():
         total = sum(c["count"] for c in section["columns"])
         assert total >= 4
         for col in section["columns"]:
-            assert col["count"] == len(col["items"])
-            for item in col["items"]:
+            assert col["count"] == len(col["entries"])
+            for item in col["entries"]:
                 assert item["status"] == col["id"]
                 assert item["title"]
                 assert item.get("source_label")
