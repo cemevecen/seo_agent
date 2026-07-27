@@ -1,27 +1,41 @@
-{# Ana sayfa — git.nokta · boards ile aynı tarayıcı/VPN GitLab kaynağı #}
+{# Ana sayfa — git.nokta · boards yıldızları + platform chip tab'leri #}
 {% set _cols = [
-  {"id": "open", "label": "Open", "hint": "Son güncellenen 3", "bar": "sky"},
-  {"id": "doing", "label": "Doing", "hint": "Aktif · son 3", "bar": "amber"},
-  {"id": "testing", "label": "Testing", "hint": "Doğrulama · son 3", "bar": "indigo"},
-  {"id": "closed", "label": "Closed", "hint": "Son kapanan 3", "bar": "emerald"},
+  {"id": "open", "label": "Open", "hint": "Yıldızlı · Open", "bar": "sky"},
+  {"id": "doing", "label": "Doing", "hint": "Yıldızlı · Doing", "bar": "amber"},
+  {"id": "testing", "label": "Testing", "hint": "Yıldızlı · Testing", "bar": "indigo"},
+  {"id": "closed", "label": "Closed", "hint": "Yıldızlı · Closed", "bar": "emerald"},
 ] %}
 {% set _products = [
-  {"id": "doviz", "label": "Döviz", "subtitle": "Web · iOS · Android", "accent": "sky"},
-  {"id": "sinemalar", "label": "Sinemalar", "subtitle": "Web", "accent": "violet"},
+  {
+    "id": "doviz",
+    "label": "Döviz",
+    "accent": "sky",
+    "chips": [
+      {"id": "web", "label": "Web"},
+      {"id": "mweb", "label": "MWeb"},
+      {"id": "ios", "label": "iOS"},
+      {"id": "android", "label": "Android"},
+    ],
+  },
+  {
+    "id": "sinemalar",
+    "label": "Sinemalar",
+    "accent": "violet",
+    "chips": [
+      {"id": "web", "label": "Web"},
+      {"id": "mweb", "label": "MWeb"},
+    ],
+  },
 ] %}
 
-<div id="home-git-nokta" class="home-git-nokta"
-     data-token="{{ token | e }}"
-     data-limit="{{ limit | default(3) }}"
-     data-base-url="https://git.nokta.com/api/v4"
-     data-projects='{{ projects_json | safe }}'>
+<div id="home-git-nokta" class="home-git-nokta" data-limit="{{ limit | default(20) }}">
   <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
     <div class="min-w-0">
       <div class="flex flex-wrap items-center gap-2">
         <span class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white dark:bg-slate-100 dark:text-slate-900">git.nokta</span>
         <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
       </div>
-      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">GitLab board maddeleri · boards sekmesi ile aynı kaynak (VPN)</p>
+      <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Boards’ta yıldızlanan maddeler · chip’e göre filtrelenir</p>
     </div>
     <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
        class="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
@@ -29,23 +43,32 @@
 
   <div data-gn-error class="mt-4 hidden rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-950/20">
     <p data-gn-error-msg class="text-xs font-medium text-amber-800 dark:text-amber-300"></p>
-    <p class="mt-1 text-[10px] text-amber-700/80 dark:text-amber-400/80">VPN açık olmalı · git.nokta erişimi boards sekmesi ile aynı.</p>
   </div>
 
   <div data-gn-loading class="mt-4 flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
     <span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-slate-600 dark:border-t-slate-200" aria-hidden="true"></span>
-    GitLab maddeleri yükleniyor…
+    Yıldızlı maddeler yükleniyor…
   </div>
 
   <div data-gn-body class="mt-5 space-y-8 opacity-60 pointer-events-none" aria-busy="true">
     {% for product in _products %}
-      <div data-gn-product="{{ product.id }}">
+      <div data-gn-product="{{ product.id }}" data-gn-active-chip="{{ product.chips[0].id }}">
         <div class="mb-3 flex flex-wrap items-center gap-2">
           <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 {% if product.accent == 'sky' %}bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800{% else %}bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-200 dark:ring-violet-800{% endif %}">
             <span class="h-1.5 w-1.5 rounded-full {% if product.accent == 'sky' %}bg-sky-500{% else %}bg-violet-500{% endif %}" aria-hidden="true"></span>
             {{ product.label }}
           </span>
-          <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ product.subtitle }}</span>
+          <div class="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="{{ product.label }} platform">
+            {% for chip in product.chips %}
+              <button type="button"
+                      data-gn-chip="{{ product.id }}-{{ chip.id }}"
+                      data-gn-product-id="{{ product.id }}"
+                      data-gn-chip-id="{{ chip.id }}"
+                      class="gn-chip inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 transition {% if loop.first %}{% if product.accent == 'sky' %}bg-sky-600 text-white ring-sky-600{% else %}bg-violet-600 text-white ring-violet-600{% endif %}{% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800{% endif %}"
+                      role="tab"
+                      aria-selected="{{ 'true' if loop.first else 'false' }}">{{ chip.label }}</button>
+            {% endfor %}
+          </div>
         </div>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {% for col in _cols %}

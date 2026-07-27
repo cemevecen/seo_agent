@@ -9315,24 +9315,13 @@ def api_home_app_release(request: Request):
 
 @app.get("/api/home/priority-board", response_class=HTMLResponse)
 def api_home_priority_board(request: Request):
-    """Ana sayfa git.nokta — boards ile aynı: tarayıcı/VPN → git.nokta.com (anında shell + JS)."""
-    import json
-
-    token = os.environ.get("GITLAB_PRIVATE_TOKEN", "")
-    projects = [
-        {"path": "nokta/doviz", "product": "doviz", "source_label": "Web"},
-        {"path": "ios/doviz", "product": "doviz", "source_label": "iOS"},
-        {"path": "android/doviz", "product": "doviz", "source_label": "Android"},
-        {"path": "nokta/sinemalar", "product": "sinemalar", "source_label": "Web"},
-    ]
+    """Ana sayfa git.nokta — boards yıldızları + platform chip shell."""
     return templates.TemplateResponse(
         request,
         "partials/home/priority_board.html",
         context={
             "request": request,
-            "token": token,
-            "limit": 3,
-            "projects_json": json.dumps(projects, ensure_ascii=False),
+            "limit": 20,
         },
     )
 
@@ -17516,6 +17505,68 @@ def page_boards(request: Request):
             "default_board_project": "ios/doviz",
         },
     )
+
+@app.get("/api/boards/stars")
+def api_boards_list_stars(
+    product: str | None = None,
+    platform: str | None = None,
+    project_path: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Yıldızlı GitLab maddeleri — ana sayfa chip / boards UI."""
+    from backend.services.gitlab_board_stars import HOME_CHIPS, list_starred_iids, list_stars
+
+    if project_path:
+        return {
+            "project_path": project_path,
+            "issue_iids": list_starred_iids(db, project_path),
+            "items": list_stars(db, project_path=project_path),
+        }
+    return {
+        "chips": HOME_CHIPS,
+        "items": list_stars(db, product=product, platform=platform),
+    }
+
+
+@app.post("/api/boards/stars")
+async def api_boards_star_issue(request: Request, db: Session = Depends(get_db)):
+    """Board maddesini yıldızla (ana sayfa chip'ine düşer)."""
+    from backend.services.gitlab_board_stars import upsert_star
+
+    body = await request.json()
+    project_path = str(body.get("project_path") or "").strip()
+    issue_iid = body.get("issue_iid")
+    if not project_path or issue_iid is None:
+        raise HTTPException(status_code=400, detail="project_path ve issue_iid gerekli")
+    try:
+        item = upsert_star(
+            db,
+            project_path=project_path,
+            issue_iid=int(issue_iid),
+            title=str(body.get("title") or ""),
+            web_url=str(body.get("web_url") or ""),
+            state=str(body.get("state") or "opened"),
+            labels=list(body.get("labels") or []),
+            platform_override=(str(body.get("platform")).strip() if body.get("platform") else None),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "item": item}
+
+
+@app.delete("/api/boards/stars")
+async def api_boards_unstar_issue(request: Request, db: Session = Depends(get_db)):
+    """Board yıldızını kaldır."""
+    from backend.services.gitlab_board_stars import remove_star
+
+    body = await request.json()
+    project_path = str(body.get("project_path") or "").strip()
+    issue_iid = body.get("issue_iid")
+    if not project_path or issue_iid is None:
+        raise HTTPException(status_code=400, detail="project_path ve issue_iid gerekli")
+    ok = remove_star(db, project_path=project_path, issue_iid=int(issue_iid))
+    return {"ok": ok}
+
 
 @app.get("/api/boards/content")
 async def api_boards_content(request: Request, project_path: str):

@@ -1093,6 +1093,28 @@ class GitlabBoardProjectSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class GitlabBoardStar(Base):
+    """Boards'ta yıldızlanan maddeler — ana sayfa git.nokta chip'lerinde gösterilir."""
+
+    __tablename__ = "gitlab_board_stars"
+    __table_args__ = (
+        UniqueConstraint("project_path", "issue_iid", name="uq_gitlab_board_star"),
+        Index("ix_gitlab_board_star_product_platform", "product", "platform"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_path: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    issue_iid: Mapped[int] = mapped_column(Integer, nullable=False)
+    product: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # doviz | sinemalar
+    platform: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # web | mweb | ios | android
+    title: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    web_url: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="opened")  # opened | closed
+    labels_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    board_list: Mapped[str] = mapped_column(String(64), nullable=False, default="open")  # open|doing|testing|closed
+    starred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class AiTalkAlert(Base):
     """Proaktif izleme uyarıları."""
     __tablename__ = "ai_talk_alerts"
