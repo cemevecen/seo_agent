@@ -124,15 +124,15 @@
   .home-nt-week .home-nt-plat {
     width: 100%;
     min-width: 0;
-    margin-top: 0.75rem;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(241 245 249);
-    background: rgb(248 250 252 / 0.5);
-    overflow: hidden;
+    margin-top: 0;
+    border-radius: 0;
+    border: none;
+    background: transparent;
+    overflow: visible;
   }
   html.dark .home-nt-week .home-nt-plat {
-    border-color: rgb(30 41 59);
-    background: rgb(30 41 59 / 0.3);
+    border-color: transparent;
+    background: transparent;
   }
   .home-nt-week .home-nt-plat table {
     width: 100%;
@@ -190,8 +190,13 @@
       </div>
     </div>
 
-    {# Pie charts — full width, side by side from md #}
-    <div class="home-nt-pies mt-4">
+    {# Pie charts — Pay dağilimi #}
+    <div class="mt-4 rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-800/30">
+      <div class="mb-3 flex items-center gap-2">
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500"></span>
+        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Pay Dağılımı (Click · Impression)</p>
+      </div>
+      <div class="home-nt-pies">
       <div class="home-nt-pie-card">
         <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Click payı · son 7g</p>
         <div class="home-nt-pie-body">
@@ -231,10 +236,16 @@
           <p class="mt-6 text-center text-[11px] text-slate-400 dark:text-slate-500">Impression payı yok</p>
         {% endif %}
       </div>
+      </div>
     </div>
 
     {# Platform compare — full width below pies #}
-    <div class="home-nt-plat">
+    <div class="mt-4 rounded-xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-800/30">
+      <div class="mb-3 flex items-center gap-2">
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span>
+        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Platform Karşılaştırma</p>
+      </div>
+      <div class="home-nt-plat">
       <div class="home-nt-scroll">
         <table>
           <thead class="bg-white/80 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
@@ -280,12 +291,13 @@
           </tbody>
         </table>
       </div>
+      </div>
     </div>
 
     {# Top 5 — full width #}
     <div class="mt-4 w-full rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 dark:border-slate-800 dark:bg-slate-800/30 sm:p-4">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">En çok tıklanan · Top 5 · son 7g</p>
+      <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/70 px-3 py-2 ring-1 ring-slate-200/80 dark:bg-slate-900/40 dark:ring-slate-700/80">
+        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Top 5 · son 7g</p>
         <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700">{{ top_titles|length }} gönderim</span>
       </div>
       {% if top_titles %}
