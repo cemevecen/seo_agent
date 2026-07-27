@@ -68,9 +68,8 @@
             '</p>';
         return (
           '<li class="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700 cursor-grab" data-gn-iid="' + escapeHtml(item.issue_iid) + '">' +
-          '<div class="flex items-start justify-between gap-2">' +
+          '<div class="flex items-start gap-2">' +
           titleHtml +
-          '<span class="shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800">★</span>' +
           '</div>' +
           '<div class="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">' +
           (item.issue_iid ? '<span class="font-mono tabular-nums">#' + escapeHtml(item.issue_iid) + '</span>' : '') +
