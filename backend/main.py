@@ -9214,12 +9214,12 @@ def api_home_app_release(request: Request):
         except Exception:
             LOGGER.debug("Home app-release Android sıra zenginleştirmesi atlandı", exc_info=True)
         for key, label, version_key, date_key in [
-            ("android", "Android · Play", "play_version", "play_last_updated_at"),
-            ("ios", "iOS · App Store", "version", "currentVersionReleaseDate"),
+            ("ios", "iOS", "version", "currentVersionReleaseDate"),
+            ("android", "Android", "play_version", "play_last_updated_at"),
         ]:
             platforms.append(_home_build_app_platform(raw, key, label, version_key, date_key))
     else:
-        for key, label in [("android", "Android · Play"), ("ios", "iOS · App Store")]:
+        for key, label in [("ios", "iOS"), ("android", "Android")]:
             platforms.append({
                 "key": key, "label": label, "subtitle": "Veri henüz toplanmadı",
                 "version": None, "updated_label": None, "is_recent": False,
