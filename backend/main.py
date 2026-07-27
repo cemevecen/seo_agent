@@ -8386,8 +8386,22 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
     if len(clean) == 1:
         clean = [clean[0], clean[0]]
 
+    # Compact home cards can't render ~120 trend points; downsample for visible bars.
+    max_bars = 36
+    if len(clean) > max_bars:
+        step = len(clean) / float(max_bars)
+        sampled: list[float] = []
+        for i in range(max_bars):
+            start = int(i * step)
+            end = max(start + 1, int((i + 1) * step))
+            chunk = clean[start:end]
+            sampled.append(max(chunk) if chunk else 0.0)
+        sampled[-1] = clean[-1]
+        clean = sampled
+
     min_v = min(clean)
     max_v = max(clean)
+    raw_max = max_v
     span = max_v - min_v
     if span <= 0:
         span = max(abs(max_v) * 0.12, 1.0)
@@ -8450,14 +8464,18 @@ def _home_spark_paths(values: list[float], *, width: int = 128, height: int = 38
     area_path = f"{path_d} L {last_x:.2f} {baseline:.2f} L {first_x:.2f} {baseline:.2f} Z"
     last_value = clean[-1]
     last_below = last_value < mean_v
-    bar_slots: list[dict[str, float | bool]] = []
+    bar_px = 52
+    bar_slots: list[dict[str, float | bool | int]] = []
     for value in clean:
-        ratio = (value - min_v) / span if span > 0 else 0.5
-        ratio = max(0.06, min(1.0, ratio))
+        # Scale vs max like /realtime (not padded min/max span), so bars stay vivid.
+        ratio = (value / raw_max) if raw_max > 0 else 0.0
+        h_px = max(3, min(bar_px, int(round(ratio * bar_px)))) if value > 0 else 2
         bar_slots.append(
             {
-                "height_pct": round(ratio * 100.0, 2),
+                "height_pct": round(max(0.06, min(1.0, ratio)) * 100.0, 2),
+                "height_px": h_px,
                 "above": value >= mean_v,
+                "empty": value <= 0,
             }
         )
 

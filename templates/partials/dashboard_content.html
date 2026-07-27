@@ -66,7 +66,7 @@
       padding: 0.75rem 0.7rem !important;
     }
     .home-rt-spark {
-    height: 3.8rem !important;
+      height: 3.5rem !important;
     }
   }
   .home-rt-metric {
@@ -83,38 +83,40 @@
   .home-rt-metric::before {
     content: none;
   }
+  .home-rt-spark {
+    height: 3.5rem;
+  }
   .home-rt-spark-svg {
     display: block;
   }
   .home-rt-spark-bars {
     display: flex;
     align-items: flex-end;
-    gap: 2px;
+    gap: 1px;
     width: 100%;
-    height: 100%;
-    min-height: 3.75rem;
-    padding-top: 0.15rem;
-  }
-  .home-rt-spark-bar-slot {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    flex: 1 1 0;
-    min-width: 0;
-    height: 100%;
+    height: 3.5rem;
+    min-height: 3.5rem;
+    padding-top: 0.1rem;
   }
   .home-rt-spark-bar {
-    width: 100%;
-    border-radius: 999px 999px 0 0;
-    background: rgba(148, 163, 184, 0.25);
-    min-height: 3px;
+    flex: 1 1 0;
+    min-width: 2px;
+    width: 0;
+    border-radius: 2px 2px 0 0;
+    background: rgb(4 120 87);
+    align-self: flex-end;
+    min-height: 2px;
     transition: height 0.25s ease, background 0.25s ease, opacity 0.25s ease;
   }
   .home-rt-spark-bar.is-above {
-    background: linear-gradient(180deg, rgba(52, 211, 153, 0.92), rgba(4, 120, 87, 0.96));
+    background: rgb(4 120 87);
   }
   .home-rt-spark-bar.is-below {
-    background: linear-gradient(180deg, rgba(251, 113, 133, 0.82), rgba(185, 28, 60, 0.92));
+    background: rgb(185 28 60);
+  }
+  .home-rt-spark-bar.is-empty {
+    background: rgba(148, 163, 184, 0.35);
+    opacity: 0.35;
   }
   .home-rt-spark-area {
     pointer-events: none;
@@ -166,10 +168,13 @@
     stroke: #a85a66;
   }
   html.dark .home-rt-spark-bar.is-above {
-    background: linear-gradient(180deg, rgba(110, 231, 183, 0.82), rgba(74, 143, 115, 0.96));
+    background: rgb(74 143 115);
   }
   html.dark .home-rt-spark-bar.is-below {
-    background: linear-gradient(180deg, rgba(251, 146, 153, 0.72), rgba(168, 90, 102, 0.92));
+    background: rgb(168 90 102);
+  }
+  html.dark .home-rt-spark-bar.is-empty {
+    background: rgba(161, 161, 170, 0.45);
   }
   html.dark .home-rt-spark-end {
     fill: #4a8f73;

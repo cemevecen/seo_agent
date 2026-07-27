@@ -44,13 +44,11 @@
             {% else %}
               <p class="relative z-[1] mt-0.5 text-xs text-slate-400 dark:text-slate-500">—</p>
             {% endif %}
-            <div class="home-rt-spark relative z-[1] mt-2 h-9" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime sparkline">
-              {% if prof.spark and prof.spark.has_points %}
+            <div class="home-rt-spark relative z-[1] mt-2" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime sparkline">
+              {% if prof.spark and prof.spark.has_points and prof.spark.bar_slots %}
                 <div class="home-rt-spark-bars" role="img" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime spark bar chart">
-                  {% for bar in prof.spark.bar_slots or [] %}
-                    <span class="home-rt-spark-bar-slot" aria-hidden="true">
-                      <span class="home-rt-spark-bar {% if bar.above %}is-above{% else %}is-below{% endif %}" style="height: {{ bar.height_pct }}%"></span>
-                    </span>
+                  {% for bar in prof.spark.bar_slots %}
+                    <div class="home-rt-spark-bar {% if bar.empty %}is-empty{% elif bar.above %}is-above{% else %}is-below{% endif %}" style="height: {{ bar.height_px }}px" aria-hidden="true"></div>
                   {% endfor %}
                 </div>
               {% else %}
