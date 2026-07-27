@@ -1,75 +1,169 @@
-<div class="flex items-start justify-between gap-3">
-  <div class="min-w-0">
-    <p class="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-300">Döviz</p>
-    <h3 class="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-100">Notification · 7g vs önceki 7g</h3>
-    {% if not empty %}
-      <p class="mt-0.5 text-[10px] font-medium tabular-nums text-slate-600 dark:text-slate-300">
-        {{ period_current_label }} ← {{ period_previous_label }}
-      </p>
-    {% endif %}
-  </div>
-  <a href="/notification" hx-get="/notification" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
-</div>
+{# Home — Döviz notification week compare (visual) #}
+{% macro tone_text(pct) -%}
+{%- set p = pct | default(0) | float -%}
+{%- if p > 0.5 -%}text-emerald-600 dark:text-emerald-400
+{%- elif p < -0.5 -%}text-rose-600 dark:text-rose-400
+{%- else -%}text-slate-800 dark:text-slate-100
+{%- endif -%}
+{%- endmacro %}
 
-{% if empty %}
-  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
-{% else %}
-  <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:max-w-md">
-    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/60">
-      <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam impression</p>
-      {% set _ip = totals.impressions.delta_pct | default(0) | float %}
-      <p class="mt-1 text-base font-semibold tabular-nums {% if _ip > 0.5 %}text-emerald-600 dark:text-emerald-400{% elif _ip < -0.5 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ totals.impressions.delta_fmt }}</p>
-      <p class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ totals.impressions.cur_fmt }} ← {{ totals.impressions.prev_fmt }}</p>
+{% macro tone_badge(pct) -%}
+{%- set p = pct | default(0) | float -%}
+{%- if p > 0.5 -%}bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/60
+{%- elif p < -0.5 -%}bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800/60
+{%- else -%}bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700
+{%- endif -%}
+{%- endmacro %}
+
+<div class="home-nt-week">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Notification</span>
+      </div>
+      <h3 class="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100">7 gün · önceki haftaya göre</h3>
+      {% if not empty %}
+        <p class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+          <span class="font-medium text-slate-700 dark:text-slate-200">{{ period_current_label }}</span>
+          <span class="mx-1 text-slate-300 dark:text-slate-600">vs</span>
+          {{ period_previous_label }}
+        </p>
+      {% endif %}
     </div>
-    <div class="min-w-0 rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/60">
-      <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Toplam click</p>
-      {% set _cp = totals.clicks.delta_pct | default(0) | float %}
-      <p class="mt-1 text-base font-semibold tabular-nums {% if _cp > 0.5 %}text-emerald-600 dark:text-emerald-400{% elif _cp < -0.5 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ totals.clicks.delta_fmt }}</p>
-      <p class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ totals.clicks.cur_fmt }} ← {{ totals.clicks.prev_fmt }}</p>
-    </div>
+    <a href="/notification" hx-get="/notification" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+       class="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100">Detay →</a>
   </div>
 
-  <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    {% for plat in platforms %}
-      <div class="min-w-0 rounded-xl ring-1 ring-slate-200 px-3 py-3 dark:ring-slate-700">
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ plat.label }}</p>
-        <div class="mt-2 grid grid-cols-2 gap-3">
+  {% if empty %}
+    <p class="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
+  {% else %}
+    {# KPI strip #}
+    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-50 via-white to-cyan-50/70 p-4 ring-1 ring-sky-200/80 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 dark:ring-slate-700">
+        <div class="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-sky-200/40 blur-2xl dark:bg-sky-900/30" aria-hidden="true"></div>
+        <div class="relative flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Impression</p>
-            {% if plat.impressions.available %}
-              {% set _p = plat.impressions.delta_pct | default(0) | float %}
-              <p class="mt-1 truncate text-sm font-semibold tabular-nums {% if _p > 0.5 %}text-emerald-600 dark:text-emerald-400{% elif _p < -0.5 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ plat.impressions.delta_fmt }}</p>
-              <p class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
-            {% else %}
-              <p class="mt-1 text-sm font-semibold tabular-nums text-slate-400 dark:text-slate-500">—</p>
-              <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">iOS impression yok</p>
-            {% endif %}
+            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">Toplam impression</p>
+            <p class="mt-2 text-2xl font-black tabular-nums tracking-tight text-slate-900 dark:text-slate-50">{{ totals.impressions.cur_fmt }}</p>
+            <p class="mt-1 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.impressions.prev_fmt }}</p>
           </div>
-          <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Click</p>
-            {% set _pc = plat.clicks.delta_pct | default(0) | float %}
-            <p class="mt-1 truncate text-sm font-semibold tabular-nums {% if _pc > 0.5 %}text-emerald-600 dark:text-emerald-400{% elif _pc < -0.5 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ plat.clicks.delta_fmt }}</p>
-            <p class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
-          </div>
+          <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ring-1 {{ tone_badge(totals.impressions.delta_pct) }}">{{ totals.impressions.delta_fmt }}</span>
         </div>
       </div>
-    {% endfor %}
-  </div>
+      <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-teal-50/70 p-4 ring-1 ring-emerald-200/80 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 dark:ring-slate-700">
+        <div class="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-200/40 blur-2xl dark:bg-emerald-900/30" aria-hidden="true"></div>
+        <div class="relative flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Toplam click</p>
+            <p class="mt-2 text-2xl font-black tabular-nums tracking-tight text-slate-900 dark:text-slate-50">{{ totals.clicks.cur_fmt }}</p>
+            <p class="mt-1 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.clicks.prev_fmt }}</p>
+          </div>
+          <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ring-1 {{ tone_badge(totals.clicks.delta_pct) }}">{{ totals.clicks.delta_fmt }}</span>
+        </div>
+      </div>
+    </div>
 
-  <div class="mt-5">
-    <p class="text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">En çok tıklanan · Top 5 · son 7g</p>
-    {% if top_titles %}
-      <ul class="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
-        {% for item in top_titles %}
-          <li class="flex items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
-            <span class="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300" title="{{ item.text }}">{{ item.text }}</span>
-            <span class="shrink-0 text-xs font-medium tabular-nums text-slate-600 dark:text-slate-300">{{ item.clicks_fmt }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">Son 7 günde tıklama yok</p>
-    {% endif %}
-  </div>
-{% endif %}
+    {# Donut + platform table #}
+    <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div class="flex flex-col items-center justify-center rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-200/80 dark:bg-slate-800/40 dark:ring-slate-700 lg:col-span-4">
+        <p class="self-start text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Click payı · son 7g</p>
+        <div class="relative mt-3 h-36 w-36 shrink-0">
+          <div class="absolute inset-0 rounded-full shadow-inner ring-1 ring-slate-200/80 dark:ring-slate-700"
+               style="background: {{ pie_gradient }};"></div>
+          <div class="absolute inset-[22%] flex flex-col items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-100 dark:bg-slate-900 dark:ring-slate-700">
+            <p class="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Click</p>
+            <p class="mt-0.5 text-lg font-black tabular-nums leading-none text-slate-900 dark:text-slate-50">{{ pie_total_fmt }}</p>
+          </div>
+        </div>
+        <ul class="mt-4 w-full space-y-1.5">
+          {% for plat in platforms %}
+            <li class="flex items-center justify-between gap-2 text-[11px]">
+              <span class="inline-flex min-w-0 items-center gap-1.5">
+                <span class="h-2 w-2 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
+                <span class="truncate text-slate-600 dark:text-slate-300">{{ plat.label }}</span>
+              </span>
+              <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ plat.share_fmt }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="overflow-hidden rounded-2xl ring-1 ring-slate-200 dark:ring-slate-700 lg:col-span-8">
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-xs">
+            <thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+              <tr>
+                <th class="px-3 py-2.5 font-semibold">Platform</th>
+                <th class="px-3 py-2.5 font-semibold">Impression</th>
+                <th class="px-3 py-2.5 font-semibold">Click</th>
+                <th class="hidden px-3 py-2.5 font-semibold sm:table-cell">Pay</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              {% for plat in platforms %}
+                <tr class="bg-white dark:bg-slate-900/40">
+                  <td class="px-3 py-3">
+                    <span class="inline-flex items-center gap-2">
+                      <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
+                      <span class="font-semibold text-slate-800 dark:text-slate-100">{{ plat.label }}</span>
+                    </span>
+                  </td>
+                  <td class="px-3 py-3">
+                    {% if plat.impressions.available %}
+                      <p class="font-bold tabular-nums {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
+                      <p class="mt-0.5 tabular-nums text-[10px] text-slate-500 dark:text-slate-400">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
+                    {% else %}
+                      <p class="font-medium text-slate-400 dark:text-slate-500">—</p>
+                      <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">veri yok</p>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-3">
+                    <p class="font-bold tabular-nums {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
+                    <p class="mt-0.5 tabular-nums text-[10px] text-slate-500 dark:text-slate-400">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
+                  </td>
+                  <td class="hidden px-3 py-3 sm:table-cell">
+                    <div class="flex items-center gap-2">
+                      <div class="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
+                      </div>
+                      <span class="tabular-nums font-semibold text-slate-700 dark:text-slate-200">{{ plat.share_fmt }}</span>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {# Top 5 #}
+    <div class="mt-4 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-white p-4 ring-1 ring-slate-200 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 dark:ring-slate-700">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 dark:text-slate-300">En çok tıklanan · Top 5 · son 7g</p>
+        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ top_titles|length }} başlık</span>
+      </div>
+      {% if top_titles %}
+        <ol class="mt-3 space-y-2.5">
+          {% for item in top_titles %}
+            <li class="group">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex min-w-0 items-start gap-2.5">
+                  <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white dark:bg-slate-100 dark:text-slate-900">{{ item.rank }}</span>
+                  <span class="min-w-0 truncate text-xs font-medium text-slate-800 dark:text-slate-200" title="{{ item.text }}">{{ item.text }}</span>
+                </div>
+                <span class="shrink-0 text-xs font-bold tabular-nums text-slate-900 dark:text-slate-50">{{ item.clicks_fmt }}</span>
+              </div>
+              <div class="mt-1.5 ml-7 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div class="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 dark:from-sky-400 dark:to-emerald-300" style="width: {{ item.bar_pct }}%"></div>
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">Son 7 günde tıklama yok</p>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>

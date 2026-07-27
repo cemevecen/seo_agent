@@ -9079,6 +9079,8 @@ def _home_metric_compare_block(cur: float | None, prev: float | None, *, availab
             "delta_fmt": "—",
             "tone": "flat",
             "delta_pct": 0.0,
+            "cur": 0.0,
+            "prev": 0.0,
             "available": False,
         }
     c = float(cur or 0.0)
@@ -9090,8 +9092,42 @@ def _home_metric_compare_block(cur: float | None, prev: float | None, *, availab
         "delta_fmt": delta_fmt,
         "tone": tone,
         "delta_pct": delta_pct,
+        "cur": c,
+        "prev": p,
         "available": True,
     }
+
+
+_HOME_NT_PLATFORM_STYLE = {
+    "desktop": {
+        "dot": "bg-sky-500",
+        "bar": "bg-sky-500",
+        "chip": "bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800",
+        "accent": "from-sky-50/90 to-white dark:from-sky-950/40 dark:to-slate-900",
+        "hex": "#0ea5e9",
+    },
+    "mobileweb": {
+        "dot": "bg-violet-500",
+        "bar": "bg-violet-500",
+        "chip": "bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-200 dark:ring-violet-800",
+        "accent": "from-violet-50/90 to-white dark:from-violet-950/40 dark:to-slate-900",
+        "hex": "#8b5cf6",
+    },
+    "ios": {
+        "dot": "bg-slate-500",
+        "bar": "bg-slate-500",
+        "chip": "bg-slate-100 text-slate-800 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600",
+        "accent": "from-slate-50/90 to-white dark:from-slate-800/50 dark:to-slate-900",
+        "hex": "#64748b",
+    },
+    "android": {
+        "dot": "bg-emerald-500",
+        "bar": "bg-emerald-500",
+        "chip": "bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800",
+        "accent": "from-emerald-50/90 to-white dark:from-emerald-950/40 dark:to-slate-900",
+        "hex": "#10b981",
+    },
+}
 
 
 def _home_notification_week_context(db) -> dict:
@@ -9107,13 +9143,29 @@ def _home_notification_week_context(db) -> dict:
     windows = raw.get("windows") or {}
     cur_w = windows.get("current") or {}
     prev_w = windows.get("previous") or {}
+
+    platforms_raw = list(raw.get("platforms") or [])
+    click_total = sum(float(p.get("clicks_cur") or 0) for p in platforms_raw)
     platforms_out = []
-    for plat in raw.get("platforms") or []:
+    pie_stops: list[str] = []
+    cursor = 0.0
+    for plat in platforms_raw:
+        key = str(plat.get("key") or "")
+        style = _HOME_NT_PLATFORM_STYLE.get(key) or _HOME_NT_PLATFORM_STYLE["desktop"]
         has_impr = bool(plat.get("has_impressions"))
+        clicks_cur = float(plat.get("clicks_cur") or 0)
+        share = (clicks_cur / click_total * 100.0) if click_total > 0 else 0.0
+        start = cursor
+        cursor = min(100.0, cursor + share)
+        if share > 0.05:
+            pie_stops.append(f"{style['hex']} {start:.2f}% {cursor:.2f}%")
         platforms_out.append(
             {
-                "key": plat.get("key"),
+                "key": key,
                 "label": plat.get("label"),
+                "style": style,
+                "share_pct": round(share, 1),
+                "share_fmt": f"{share:.1f}%",
                 "clicks": _home_metric_compare_block(
                     plat.get("clicks_cur"), plat.get("clicks_prev")
                 ),
@@ -9124,14 +9176,33 @@ def _home_notification_week_context(db) -> dict:
                 ),
             }
         )
+    pie_gradient = (
+        f"conic-gradient(from -90deg, {', '.join(pie_stops)})"
+        if pie_stops
+        else "conic-gradient(#e2e8f0 0 100%)"
+    )
+
+    top_raw = list(raw.get("top_titles") or [])
+    max_clicks = max((float(item.get("clicks") or 0) for item in top_raw), default=0.0)
     top_titles = []
-    for item in raw.get("top_titles") or []:
+    for idx, item in enumerate(top_raw, start=1):
+        clicks = float(item.get("clicks") or 0)
+        bar_pct = (clicks / max_clicks * 100.0) if max_clicks > 0 else 0.0
         top_titles.append(
             {
+                "rank": idx,
                 "text": item.get("text") or "",
-                "clicks_fmt": _home_format_int(item.get("clicks") or 0),
+                "clicks_fmt": _home_format_int(clicks),
+                "bar_pct": round(bar_pct, 1),
             }
         )
+
+    clicks_block = _home_metric_compare_block(
+        totals.get("clicks_cur"), totals.get("clicks_prev")
+    )
+    impr_block = _home_metric_compare_block(
+        totals.get("impressions_cur"), totals.get("impressions_prev")
+    )
     return {
         "empty": bool(raw.get("empty")),
         "period_current_label": _home_fmt_day_range(
@@ -9141,14 +9212,12 @@ def _home_notification_week_context(db) -> dict:
             str(prev_w.get("start") or ""), str(prev_w.get("end") or "")
         ),
         "totals": {
-            "clicks": _home_metric_compare_block(
-                totals.get("clicks_cur"), totals.get("clicks_prev")
-            ),
-            "impressions": _home_metric_compare_block(
-                totals.get("impressions_cur"), totals.get("impressions_prev")
-            ),
+            "clicks": clicks_block,
+            "impressions": impr_block,
         },
         "platforms": platforms_out,
+        "pie_gradient": pie_gradient,
+        "pie_total_fmt": clicks_block["cur_fmt"],
         "top_titles": top_titles,
     }
 
