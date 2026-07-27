@@ -29,7 +29,7 @@
     if (!list) return;
     if (!entries.length) {
       list.innerHTML =
-        '<li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 text-center text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">Yıldızlı madde yok</li>';
+        '<li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 dark:border-slate-700" aria-hidden="true"></li>';
       return;
     }
     list.innerHTML = entries
