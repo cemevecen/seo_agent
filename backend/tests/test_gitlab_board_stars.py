@@ -3,6 +3,7 @@
 from backend.services.gitlab_board_stars import (
     HOME_CHIPS,
     classify_board_list,
+    home_order_project_key,
     resolve_chip_for_project,
 )
 
@@ -22,3 +23,7 @@ def test_classify_board_list():
     assert classify_board_list("opened", ["Doing"]) == "doing"
     assert classify_board_list("opened", ["Testing"]) == "testing"
     assert classify_board_list("opened", []) == "open"
+
+
+def test_home_order_project_key():
+    assert home_order_project_key("doviz", "ios") == "home_git_nokta::doviz::ios"

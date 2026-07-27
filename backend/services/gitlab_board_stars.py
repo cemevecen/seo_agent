@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from backend.models import GitlabBoardStar
+from backend.services.gitlab_board import get_board_column_orders, save_board_column_order
 
 # boards sekmeleri → ana sayfa chip
 PROJECT_CHIP_MAP: dict[str, dict[str, str]] = {
@@ -28,6 +29,12 @@ HOME_CHIPS: dict[str, list[dict[str, str]]] = {
         {"id": "web", "label": "Web"},
     ],
 }
+
+HOME_ORDER_PRODUCTS: tuple[str, ...] = ("doviz", "sinemalar")
+
+
+def home_order_project_key(product: str, platform: str) -> str:
+    return f"home_git_nokta::{(product or '').strip().lower()}::{(platform or '').strip().lower()}"
 
 
 def resolve_chip_for_project(project_path: str) -> dict[str, str] | None:
@@ -98,6 +105,33 @@ def list_stars(
         q = q.filter(GitlabBoardStar.project_path == project_path)
     rows = q.order_by(GitlabBoardStar.starred_at.desc()).all()
     return [star_to_dict(r) for r in rows]
+
+
+def list_home_star_orders(db: Session) -> dict[str, list[int]]:
+    out: dict[str, list[int]] = {}
+    for product, chips in HOME_CHIPS.items():
+        for chip in chips:
+            project_key = home_order_project_key(product, chip["id"])
+            orders = get_board_column_orders(db, project_key)
+            for list_key, iids in orders.items():
+                out[f"{product}:{chip['id']}:{list_key}"] = iids
+    return out
+
+
+def save_home_star_order(
+    db: Session,
+    *,
+    product: str,
+    platform: str,
+    board_list: str,
+    issue_iids: list[int],
+) -> None:
+    save_board_column_order(
+        db,
+        home_order_project_key(product, platform),
+        (board_list or "").strip().lower(),
+        issue_iids,
+    )
 
 
 def list_starred_iids(db: Session, project_path: str) -> list[int]:

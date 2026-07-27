@@ -17514,7 +17514,7 @@ def api_boards_list_stars(
     db: Session = Depends(get_db),
 ):
     """Yıldızlı GitLab maddeleri — ana sayfa chip / boards UI."""
-    from backend.services.gitlab_board_stars import HOME_CHIPS, list_starred_iids, list_stars
+    from backend.services.gitlab_board_stars import HOME_CHIPS, list_home_star_orders, list_starred_iids, list_stars
 
     if project_path:
         return {
@@ -17524,6 +17524,7 @@ def api_boards_list_stars(
         }
     return {
         "chips": HOME_CHIPS,
+        "orders": list_home_star_orders(db),
         "items": list_stars(db, product=product, platform=platform),
     }
 
@@ -17566,6 +17567,30 @@ async def api_boards_unstar_issue(request: Request, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail="project_path ve issue_iid gerekli")
     ok = remove_star(db, project_path=project_path, issue_iid=int(issue_iid))
     return {"ok": ok}
+
+
+@app.put("/api/boards/stars/order")
+async def api_boards_save_star_order(request: Request, db: Session = Depends(get_db)):
+    """Ana sayfa git.nokta yıldızlı madde sırası."""
+    from backend.services.gitlab_board_stars import save_home_star_order
+
+    body = await request.json()
+    product = str(body.get("product") or "").strip().lower()
+    platform = str(body.get("platform") or "").strip().lower()
+    board_list = str(body.get("board_list") or "").strip().lower()
+    issue_iids = body.get("issue_iids") or []
+    if not product or not platform or not board_list:
+        raise HTTPException(status_code=400, detail="product, platform, board_list gerekli")
+    if not isinstance(issue_iids, list):
+        raise HTTPException(status_code=400, detail="issue_iids liste olmalı")
+    save_home_star_order(
+        db,
+        product=product,
+        platform=platform,
+        board_list=board_list,
+        issue_iids=issue_iids,
+    )
+    return {"ok": True, "product": product, "platform": platform, "board_list": board_list, "count": len(issue_iids)}
 
 
 @app.get("/api/boards/content")

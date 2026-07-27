@@ -22,6 +22,28 @@
     return 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800';
   }
 
+  function orderKey(productId, platformId, boardList) {
+    return [productId, platformId, boardList].join(':');
+  }
+
+  function sortBySavedOrder(entries, savedOrder) {
+    if (!Array.isArray(savedOrder) || !savedOrder.length) return entries.slice();
+    var rank = {};
+    savedOrder.forEach(function (iid, idx) {
+      rank[String(iid)] = idx;
+    });
+    return entries.slice().sort(function (a, b) {
+      var ra = rank[String(a.issue_iid)];
+      var rb = rank[String(b.issue_iid)];
+      if (ra != null && rb != null) return ra - rb;
+      if (ra != null) return -1;
+      if (rb != null) return 1;
+      var ta = Date.parse(a.starred_at || '') || 0;
+      var tb = Date.parse(b.starred_at || '') || 0;
+      return tb - ta;
+    });
+  }
+
   function renderList(root, productId, colId, entries) {
     var list = root.querySelector('[data-gn-list="' + productId + '-' + colId + '"]');
     var count = root.querySelector('[data-gn-count="' + productId + '-' + colId + '"]');
@@ -45,7 +67,7 @@
             title +
             '</p>';
         return (
-          '<li class="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700">' +
+          '<li class="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700 cursor-grab" data-gn-iid="' + escapeHtml(item.issue_iid) + '">' +
           '<div class="flex items-start justify-between gap-2">' +
           titleHtml +
           '<span class="shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800">★</span>' +
@@ -63,6 +85,53 @@
       .join('');
   }
 
+  function iidsFromListEl(listEl) {
+    return Array.from(listEl.querySelectorAll('[data-gn-iid]'))
+      .map(function (el) { return parseInt(el.getAttribute('data-gn-iid') || '', 10); })
+      .filter(function (n) { return !isNaN(n); });
+  }
+
+  async function saveOrder(root, productId, platformId, boardList, issueIids) {
+    var res = await fetch('/api/boards/stars/order', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product: productId,
+        platform: platformId,
+        board_list: boardList,
+        issue_iids: issueIids,
+      }),
+    });
+    if (!res.ok) throw new Error('Sıralama kaydedilemedi');
+    root._gnOrders = root._gnOrders || {};
+    root._gnOrders[orderKey(productId, platformId, boardList)] = issueIids.slice();
+  }
+
+  function initSortables(root) {
+    if (typeof Sortable === 'undefined') return;
+    root.querySelectorAll('[data-gn-list]').forEach(function (listEl) {
+      if (listEl._gnSortable) return;
+      listEl._gnSortable = Sortable.create(listEl, {
+        animation: 150,
+        draggable: '[data-gn-iid]',
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function () {
+          var productId = (listEl.getAttribute('data-gn-list') || '').split('-')[0];
+          var boardList = listEl.getAttribute('data-gn-board-list') || '';
+          var section = listEl.closest('[data-gn-product]');
+          var platformId = section ? (section.getAttribute('data-gn-active-chip') || 'web') : 'web';
+          var issueIids = iidsFromListEl(listEl);
+          if (!productId || !boardList || !issueIids.length) return;
+          saveOrder(root, productId, platformId, boardList, issueIids).catch(function (err) {
+            console.warn('home git.nokta order save failed', err);
+          });
+        },
+      });
+    });
+  }
+
   function renderProduct(root, productId, items) {
     var section = root.querySelector('[data-gn-product="' + productId + '"]');
     if (!section) return;
@@ -74,8 +143,10 @@
       var entries = filtered.filter(function (it) {
         return (it.board_list || 'open') === colId;
       });
+      entries = sortBySavedOrder(entries, (root._gnOrders || {})[orderKey(productId, chip, colId)]);
       renderList(root, productId, colId, entries);
     });
+    initSortables(root);
   }
 
   function setActiveChip(root, productId, chipId) {
@@ -134,6 +205,7 @@
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var data = await res.json();
       root._gnItems = data.items || [];
+      root._gnOrders = data.orders || {};
       ['doviz', 'sinemalar'].forEach(function (pid) {
         renderProduct(root, pid, root._gnItems);
       });
