@@ -7,6 +7,8 @@ from backend.services import tmdb_guest_auth as tga
 def test_tmdb_only_email_in_allowlist():
     assert ama.is_tmdb_only_member_email("gozdeunaldi@nokta.com")
     assert ama.is_tmdb_only_member_email("GozdeUnaldi@nokta.com")
+    assert ama.is_tmdb_only_member_email("berendemirci@gmail.com")
+    assert ama.is_email_eligible_for_membership("berendemirci@gmail.com") is True
     assert not ama.is_tmdb_only_member_email("other@nokta.com")
 
 

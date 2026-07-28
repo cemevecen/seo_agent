@@ -13,6 +13,12 @@ def test_other_gmail_rejected():
     assert ama.is_email_eligible_for_membership("other@gmail.com") is False
 
 
+def test_tmdb_only_gmail_allowed():
+    assert ama.is_email_eligible_for_membership("berendemirci@gmail.com") is True
+    assert ama.is_tmdb_only_member_email("berendemirci@gmail.com") is True
+    assert ama.prelogin_access_note("berendemirci@gmail.com") == "tmdb-only"
+
+
 def test_redirect_mismatch_message():
     msg = ama.format_member_oauth_login_error("redirect_uri_mismatch", request=None)
     assert "redirect_uri_mismatch" in msg

@@ -60,6 +60,7 @@ MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS = frozenset(
 TMDB_ONLY_MEMBER_EMAILS = frozenset(
     {
         "gozdeunaldi@nokta.com",
+        "berendemirci@gmail.com",
     }
 )
 
@@ -163,6 +164,8 @@ def is_email_eligible_for_membership(email: str) -> bool:
     if not em or "@" not in em:
         return False
     if em in MEMBER_EMAIL_ALLOWLIST_EXCEPTIONS:
+        return True
+    if em in TMDB_ONLY_MEMBER_EMAILS:
         return True
     return em.endswith("@nokta.com")
 
