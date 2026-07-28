@@ -392,6 +392,7 @@ def _deliver_unknown_login_alert(
     accept_language: str = "",
     nav_paths: list[dict[str, str]] | None = None,
     actor_email: str = "",
+    is_nav_followup: bool = False,
 ) -> bool:
     from backend.services.mailer import normalize_outbound_recipients, send_admin_security_email
 
@@ -497,13 +498,23 @@ def _deliver_unknown_login_alert(
             sess_html = "<ul style=\"margin:0;padding-left:18px;font-size:12px;\">" + "".join(bits) + "</ul>"
 
         delay = int(settings.admin_login_alert_nav_delay_seconds or 0)
-        nav_note = (
-            f"Girişten sonra ~{delay} sn içinde ziyaret edilen menüler/sayfalar."
-            if delay > 0
-            else "Anlık uyarı (gezinti penceresi kapalı)."
-        )
+        delay_min = max(1, round(delay / 60)) if delay >= 60 else 0
+        if is_nav_followup:
+            nav_note = (
+                f"Giriş/kayıttan sonra ~{delay_min} dk içinde ziyaret edilen menüler/sayfalar."
+                if delay_min
+                else f"Giriş/kayıttan sonra ~{delay} sn içinde ziyaret edilen menüler/sayfalar."
+            )
+        else:
+            nav_note = (
+                f"Anlık uyarı — menü özeti ~{delay_min} dk sonra ayrı mail olarak gelir."
+                if delay >= 60
+                else "Anlık uyarı (gezinti penceresi kapalı)."
+            )
 
-        if event_type == "member_login_fail":
+        if is_nav_followup:
+            alert_heading = f"Menü gezintisi özeti (~{delay_min} dk)" if delay_min else "Menü gezintisi özeti"
+        elif event_type == "member_login_fail":
             alert_heading = "Başarısız panel girişi"
         elif event_type == "member_register_ok":
             alert_heading = "Yeni üye kaydı (Google)"
@@ -516,9 +527,30 @@ def _deliver_unknown_login_alert(
         else:
             alert_heading = "Tanınmayan admin erişimi"
 
+        heading_color = "#0369a1" if is_nav_followup else "#b91c1c"
+        detail_block = ""
+        if not is_nav_followup:
+            detail_block = (
+                f"<p style=\"margin:0 0 8px;\"><strong>Dil (Accept-Language):</strong> {html.escape(accept_language or '—')}</p>"
+                + f"<p style=\"margin:0 0 8px;\"><strong>Referer (giriş):</strong> {html.escape(referer or '—')}</p>"
+                + f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>User-Agent:</strong><br>"
+                + f"{html.escape(user_agent or '')}</p>"
+                + f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>Parmak izi:</strong> "
+                + f"<code>{html.escape(fingerprint)}</code></p>"
+                + f"<p style=\"margin:0 0 8px;font-size:12px;\"><strong>Tanıdık cihaz sayısı (DB):</strong> {trusted_count}</p>"
+            )
+        footer_block = ""
+        if not is_nav_followup:
+            footer_block = (
+                _html_section("Bu IP / cihaz — son kayıtlar", prior_html)
+                + _html_section("Aktif oturum (bellek)", sess_html)
+                + "<p style=\"margin:20px 0 0;font-size:13px;\">Bu sizseniz Settings → "
+                "«Bu cihaz benim» ile tanıdık olarak işaretleyin.</p>"
+            )
+
         body = (
             '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;max-width:640px;line-height:1.45;">'
-            f"<h2 style=\"color:#b91c1c;margin:0 0 12px;\">"
+            f"<h2 style=\"color:{heading_color};margin:0 0 12px;\">"
             f"{html.escape(alert_heading)}</h2>"
             f"<p style=\"margin:0 0 8px;\"><strong>Olay:</strong> {html.escape(et)}</p>"
             + actor_line
@@ -529,23 +561,19 @@ def _deliver_unknown_login_alert(
             + f"<p style=\"margin:0 0 8px;\"><strong>İşletim sistemi:</strong> {html.escape(ua_details.get('os') or '—')}</p>"
             + f"<p style=\"margin:0 0 8px;\"><strong>Tarayıcı:</strong> {html.escape(ua_details.get('browser_version') or '—')} "
             + f"· <strong>Mimari:</strong> {html.escape(ua_details.get('arch') or '—')}</p>"
-            + f"<p style=\"margin:0 0 8px;\"><strong>Dil (Accept-Language):</strong> {html.escape(accept_language or '—')}</p>"
-            + f"<p style=\"margin:0 0 8px;\"><strong>Referer (giriş):</strong> {html.escape(referer or '—')}</p>"
-            + f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>User-Agent:</strong><br>"
-            + f"{html.escape(user_agent or '')}</p>"
-            + f"<p style=\"margin:0 0 8px;font-size:12px;color:#64748b;\"><strong>Parmak izi:</strong> "
-            + f"<code>{html.escape(fingerprint)}</code></p>"
-            + f"<p style=\"margin:0 0 8px;font-size:12px;\"><strong>Tanıdık cihaz sayısı (DB):</strong> {trusted_count}</p>"
+            + detail_block
             + _html_section("Menü / sayfa gezintisi", f"<p style=\"margin:0 0 6px;font-size:11px;color:#64748b;\">{html.escape(nav_note)}</p>{nav_html}")
-            + _html_section("Bu IP / cihaz — son kayıtlar", prior_html)
-            + _html_section("Aktif oturum (bellek)", sess_html)
-            + "<p style=\"margin:20px 0 0;font-size:13px;\">Bu sizseniz Settings → "
-            "«Bu cihaz benim» ile tanıdık olarak işaretleyin; bir daha uyarı gelmez.</p>"
-            "</div>"
+            + footer_block
+            + "</div>"
         )
         browser = parse_browser_short(user_agent)
         ip_disp = (ip or "?").strip() or "?"
-        if event_type == "member_login_fail":
+        if is_nav_followup:
+            if em:
+                subject = f"panel gezinti - '{em}' - '{ip_disp}'"
+            else:
+                subject = f"panel gezinti - '{browser}' - '{ip_disp}'"
+        elif event_type == "member_login_fail":
             if em:
                 subject = f"panel girişi başarısız - '{em}' - '{ip_disp}'"
             else:
@@ -579,7 +607,7 @@ def schedule_unknown_login_alert(
     actor_email: str = "",
     force_immediate: bool = False,
 ) -> bool:
-    """Gezinti toplamak için gecikmeli gönderim; panel girişlerinde force_immediate=True."""
+    """Anlık giriş/kayıt uyarısı. force_immediate=True ise gecikmesiz gönderir."""
     delay = 0 if force_immediate else max(0, int(settings.admin_login_alert_nav_delay_seconds or 0))
     meta = {
         "ip": ip,
@@ -630,6 +658,60 @@ def schedule_unknown_login_alert(
         target=_run,
         daemon=True,
         name=f"admin-alert-{fingerprint[:8]}",
+    ).start()
+    return True
+
+
+def schedule_login_nav_summary(
+    *,
+    ip: str,
+    device_label: str,
+    user_agent: str,
+    fingerprint: str,
+    event_type: str,
+    referer: str = "",
+    accept_language: str = "",
+    actor_email: str = "",
+) -> bool:
+    """Başarılı giriş/kayıt sonrası menü gezintisini topla; N sn sonra özet mail gönder."""
+    delay = max(0, int(settings.admin_login_alert_nav_delay_seconds or 0))
+    if delay <= 0 or not settings.admin_login_alert_enabled:
+        return False
+    meta = {
+        "ip": ip,
+        "device_label": device_label,
+        "user_agent": user_agent,
+        "fingerprint": fingerprint,
+        "event_type": event_type,
+        "referer": referer,
+        "accept_language": accept_language,
+        "actor_email": (actor_email or "").strip(),
+        "is_nav_followup": True,
+    }
+    begin_nav_watch(fingerprint, meta=meta)
+
+    def _run() -> None:
+        time.sleep(delay)
+        bucket = _pop_nav_watch(fingerprint) or {"meta": meta, "paths": []}
+        m = bucket.get("meta") or meta
+        paths = bucket.get("paths") or []
+        _deliver_unknown_login_alert(
+            ip=str(m.get("ip") or ""),
+            device_label=str(m.get("device_label") or ""),
+            user_agent=str(m.get("user_agent") or ""),
+            fingerprint=str(m.get("fingerprint") or fingerprint),
+            event_type=str(m.get("event_type") or event_type),
+            referer=str(m.get("referer") or ""),
+            accept_language=str(m.get("accept_language") or ""),
+            nav_paths=paths,
+            actor_email=str(m.get("actor_email") or ""),
+            is_nav_followup=True,
+        )
+
+    threading.Thread(
+        target=_run,
+        daemon=True,
+        name=f"admin-nav-{fingerprint[:8]}",
     ).start()
     return True
 
@@ -693,6 +775,18 @@ def record_access_event(
             force_immediate=True,
         )
         row.alert_sent = sent
+        # Başarılı giriş/kayıt: ~10 dk sonra menü gezinti özeti
+        if event_type in ("member_login_ok", "member_register_ok", "login_ok"):
+            schedule_login_nav_summary(
+                ip=ip,
+                device_label=device,
+                user_agent=ua,
+                fingerprint=fp,
+                event_type=event_type,
+                referer=referer,
+                accept_language=accept_language,
+                actor_email=em,
+            )
 
     db.commit()
     _trim_old_events(db)

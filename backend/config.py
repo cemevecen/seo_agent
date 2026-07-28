@@ -158,13 +158,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ADMIN_LOGIN_ALERT_ENABLED", "admin_login_alert_enabled"),
     )
     admin_login_alert_nav_delay_seconds: int = Field(
-        default=90,
+        default=600,
         ge=0,
-        le=300,
+        le=1800,
         validation_alias=AliasChoices(
             "ADMIN_LOGIN_ALERT_NAV_DELAY_SECONDS",
             "admin_login_alert_nav_delay_seconds",
         ),
+        description="Başarılı giriş/kayıt sonrası menü gezintisi özeti e-postası gecikmesi (sn). Varsayılan 600 = 10 dk.",
     )
     smtp_host: str = ""
     smtp_port: int = 587

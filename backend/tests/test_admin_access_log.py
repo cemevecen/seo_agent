@@ -20,16 +20,18 @@ def test_first_login_auto_trust_still_sends_alert():
 
     with patch.object(aal, "trust_fingerprint") as mock_trust:
         with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
-            with patch.object(aal, "_trim_old_events"):
-                aal.record_access_event(
-                    db,
-                    event_type="login_ok",
-                    ip="78.187.20.15",
-                    user_agent="Firefox",
-                )
+            with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+                with patch.object(aal, "_trim_old_events"):
+                    aal.record_access_event(
+                        db,
+                        event_type="login_ok",
+                        ip="78.187.20.15",
+                        user_agent="Firefox",
+                    )
     mock_trust.assert_called_once()
     mock_alert.assert_called_once()
     assert mock_alert.call_args.kwargs.get("force_immediate") is True
+    mock_nav.assert_called_once()
 
 
 def test_login_fail_triggers_immediate_alert():
@@ -37,15 +39,17 @@ def test_login_fail_triggers_immediate_alert():
     db.query.return_value.filter.return_value.first.return_value = None
 
     with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
-        with patch.object(aal, "_trim_old_events"):
-            row = aal.record_access_event(
-                db,
-                event_type="login_fail",
-                ip="203.0.113.9",
-                user_agent="Chrome",
-            )
+        with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+            with patch.object(aal, "_trim_old_events"):
+                row = aal.record_access_event(
+                    db,
+                    event_type="login_fail",
+                    ip="203.0.113.9",
+                    user_agent="Chrome",
+                )
     mock_alert.assert_called_once()
     assert mock_alert.call_args.kwargs.get("force_immediate") is True
+    mock_nav.assert_not_called()
     assert row.alert_sent is True
 
 
@@ -56,15 +60,17 @@ def test_unknown_device_sends_alert():
 
     with patch.object(aal, "is_trusted", return_value=False):
         with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
-            with patch.object(aal, "_trim_old_events"):
-                row = aal.record_access_event(
-                    db,
-                    event_type="login_ok",
-                    ip="203.0.113.9",
-                    user_agent="Chrome",
-                )
+            with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+                with patch.object(aal, "_trim_old_events"):
+                    row = aal.record_access_event(
+                        db,
+                        event_type="login_ok",
+                        ip="203.0.113.9",
+                        user_agent="Chrome",
+                    )
     mock_alert.assert_called_once()
     assert mock_alert.call_args.kwargs.get("force_immediate") is True
+    mock_nav.assert_called_once()
     assert row.alert_sent is True
 
 
@@ -98,16 +104,18 @@ def test_member_login_fail_record_triggers_alert():
     db.query.return_value.filter.return_value.first.return_value = None
 
     with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
-        with patch.object(aal, "_trim_old_events"):
-            row = aal.record_access_event(
-                db,
-                event_type="member_login_fail",
-                ip="203.0.113.9",
-                user_agent="Chrome",
-                actor_email="outsider@gmail.com",
-            )
+        with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+            with patch.object(aal, "_trim_old_events"):
+                row = aal.record_access_event(
+                    db,
+                    event_type="member_login_fail",
+                    ip="203.0.113.9",
+                    user_agent="Chrome",
+                    actor_email="outsider@gmail.com",
+                )
     mock_alert.assert_called_once()
     assert mock_alert.call_args.kwargs.get("actor_email") == "outsider@gmail.com"
+    mock_nav.assert_not_called()
     assert row.alert_sent is True
 
 
@@ -137,17 +145,66 @@ def test_member_login_record_triggers_alert():
     db.query.return_value.filter.return_value.first.return_value = None
 
     with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
-        with patch.object(aal, "_trim_old_events"):
-            row = aal.record_access_event(
-                db,
-                event_type="member_login_ok",
-                ip="203.0.113.9",
-                user_agent="Chrome",
-                actor_email="colleague@nokta.com",
-            )
+        with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+            with patch.object(aal, "_trim_old_events"):
+                row = aal.record_access_event(
+                    db,
+                    event_type="member_login_ok",
+                    ip="203.0.113.9",
+                    user_agent="Chrome",
+                    actor_email="colleague@nokta.com",
+                )
     mock_alert.assert_called_once()
     assert mock_alert.call_args.kwargs.get("actor_email") == "colleague@nokta.com"
+    mock_nav.assert_called_once()
     assert row.alert_sent is True
+
+
+def test_member_register_schedules_nav_summary():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with patch.object(aal, "schedule_unknown_login_alert", return_value=True):
+        with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+            with patch.object(aal, "_trim_old_events"):
+                aal.record_access_event(
+                    db,
+                    event_type="member_register_ok",
+                    ip="203.0.113.9",
+                    user_agent="Chrome",
+                    actor_email="new@nokta.com",
+                )
+    mock_nav.assert_called_once()
+    assert mock_nav.call_args.kwargs.get("actor_email") == "new@nokta.com"
+
+
+def test_nav_followup_alert_subject():
+    mock_db = MagicMock()
+    mock_db.query.return_value.count.return_value = 0
+    with patch.object(aal, "_lookup_ip_geo", return_value={}):
+        with patch("backend.database.SessionLocal") as mock_sl:
+            mock_sl.return_value.__enter__.return_value = mock_db
+            with patch("backend.services.mailer.send_admin_security_email", return_value=True) as mock_send:
+                with patch.object(aal.settings, "admin_login_alert_enabled", True):
+                    with patch.object(aal.settings, "admin_login_alert_email", "cemevecen@nokta.com"):
+                        with patch.object(aal.settings, "admin_login_alert_nav_delay_seconds", 600):
+                            ok = aal._deliver_unknown_login_alert(
+                                ip="78.187.20.15",
+                                device_label="Masaüstü / Chrome",
+                                user_agent="Mozilla/5.0 Chrome",
+                                fingerprint="abc123",
+                                event_type="member_login_ok",
+                                actor_email="user@nokta.com",
+                                nav_paths=[{"at_tr": "12:00:01", "label": "GA4", "path": "/ga4"}],
+                                is_nav_followup=True,
+                            )
+    assert ok is True
+    subject = mock_send.call_args[0][0]
+    body = mock_send.call_args[0][1]
+    assert subject == "panel gezinti - 'user@nokta.com' - '78.187.20.15'"
+    assert "Menü gezintisi özeti" in body
+    assert "GA4" in body
+    assert "User-Agent" not in body
 
 
 def test_unknown_login_alert_subject_format():
