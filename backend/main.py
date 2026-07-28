@@ -12562,7 +12562,7 @@ def tmdb_upcoming_page(request: Request, months: int = 5):
 
         attach_to_upcoming_data(
             data,
-            max_lookups=24,
+            max_lookups=0,
             current_month=_date.today().strftime("%Y-%m"),
         )
     except Exception:

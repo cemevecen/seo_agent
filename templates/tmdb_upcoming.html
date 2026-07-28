@@ -502,7 +502,7 @@
   /* ── Önem / popülerlik filtresi ── */
   var _activePop = 'all';
   var _activeProvider = 'all';
-  var ALLOWED_COUNTRY_CODES = { tr: 1, us: 1, fr: 1, es: 1, it: 1, de: 1, in: 1 };
+  var ALLOWED_COUNTRY_CODES = null; // null = tüm ülkeler
   var popBtns = document.querySelectorAll('.tmdb-pop-btn');
 
   function setActivePopBtn(val) {
@@ -519,6 +519,7 @@
   }
 
   function cardAllowedCountry(card) {
+    if (!ALLOWED_COUNTRY_CODES) return true;
     var cc = (card.getAttribute('data-country') || '').toLowerCase();
     if (cc && ALLOWED_COUNTRY_CODES[cc]) return true;
     if (card.getAttribute('data-is-turkish') === '1') return true;
@@ -595,6 +596,13 @@
     nl:'Hollanda', be:'Belçika', ch:'İsviçre', at:'Avusturya', pl:'Polonya',
     hu:'Macaristan', cz:'Çekya', ro:'Romanya', th:'Tayland', id:'Endonezya',
     sa:'Suudi Arabistan', il:'İsrail', ie:'İrlanda', nz:'Yeni Zelanda',
+    pt:'Portekiz', gr:'Yunanistan', eg:'Mısır', za:'Güney Afrika', ng:'Nijerya',
+    pk:'Pakistan', bd:'Bangladeş', ph:'Filipinler', vn:'Vietnam', my:'Malezya',
+    sg:'Singapur', tw:'Tayvan', hk:'Hong Kong', ua:'Ukrayna', fi:'Finlandiya',
+    cl:'Şili', co:'Kolombiya', pe:'Peru', ae:'BAE', qa:'Katar', kw:'Kuveyt',
+    ir:'İran', iq:'Irak', az:'Azerbaycan', ge:'Gürcistan', kz:'Kazakistan',
+    rs:'Sırbistan', hr:'Hırvatistan', bg:'Bulgaristan', sk:'Slovakya', si:'Slovenya',
+    lt:'Litvanya', lv:'Letonya', ee:'Estonya', is:'İzlanda', lu:'Lüksemburg',
   };
 
   function buildCountryBar(panelId) {
@@ -602,12 +610,13 @@
     var bar   = document.getElementById('cbar-' + panelId.replace('panel-',''));
     if (!panel || !bar) return;
 
-    // Sayfadaki kartları tara
+    // Sayfadaki kartları tara — tüm ülkeler
     var counts = {};
     panel.querySelectorAll('.tmdb-card[data-country]').forEach(function (c) {
-      var cc = c.getAttribute('data-country');
-      if (!cc || !ALLOWED_COUNTRY_CODES[cc]) return;
-      if (cc) counts[cc] = (counts[cc] || 0) + 1;
+      var cc = (c.getAttribute('data-country') || '').toLowerCase();
+      if (!cc) return;
+      if (ALLOWED_COUNTRY_CODES && !ALLOWED_COUNTRY_CODES[cc]) return;
+      counts[cc] = (counts[cc] || 0) + 1;
     });
 
     var codes = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });

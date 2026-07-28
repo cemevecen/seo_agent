@@ -21,7 +21,8 @@ def test_filter_combined_horizon_drops_far_releases():
         raw = {
             "theatrical": [
                 {"id": 1, "release_date": "2026-07-01", "release_month": "2026-07", "popularity": 50},
-                {"id": 2, "release_date": "2027-08-01", "release_month": "2027-08", "popularity": 50},
+                {"id": 2, "release_date": "2027-06-15", "release_month": "2027-06", "popularity": 50},
+                {"id": 3, "release_date": "2027-08-01", "release_month": "2027-08", "popularity": 50},
             ],
             "streaming": [],
             "turkish_only": [],
@@ -36,7 +37,8 @@ def test_filter_combined_horizon_drops_far_releases():
         assert sorted(m["id"] for m in out12["theatrical"]) == [1, 2]
 
 
-def test_filter_combined_horizon_country_whitelist():
+def test_filter_combined_horizon_shows_all_countries():
+    """Ülke whitelist kapalı — JP dahil tüm origin ülkeler görünür."""
     with _mock_today(date(2026, 6, 17)):
         raw = {
             "theatrical": [
@@ -49,4 +51,4 @@ def test_filter_combined_horizon_country_whitelist():
             "tv_series": [],
         }
         out = tmdb._filter_combined_horizon(raw, 12)
-        assert [m["id"] for m in out["theatrical"]] == [1, 3]
+        assert [m["id"] for m in out["theatrical"]] == [1, 2, 3]

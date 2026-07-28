@@ -73,13 +73,18 @@ _LANG_TO_COUNTRY: dict[str, str] = {
     "is": "IS",
 }
 
-# Vizyon sayfasında gösterilecek yapım ülkeleri (ISO 3166-1 alpha-2, küçük harf)
-UPCOMING_VISIBLE_COUNTRY_CODES = frozenset({"tr", "us", "fr", "es", "it", "de", "in"})
+# Vizyon sayfasında gösterilecek yapım ülkeleri.
+# None / boş = tüm ülkeler (whitelist yok).
+UPCOMING_VISIBLE_COUNTRY_CODES: frozenset[str] | None = None
 
 
 def _upcoming_country_visible(m: dict) -> bool:
+    """Whitelist yoksa tüm yapımlar görünür; set varsa yalnızca listedekiler."""
+    allowed = UPCOMING_VISIBLE_COUNTRY_CODES
+    if not allowed:
+        return True
     cc = (m.get("country_code") or "").lower().strip()
-    if cc in UPCOMING_VISIBLE_COUNTRY_CODES:
+    if cc in allowed:
         return True
     if not cc and m.get("is_turkish"):
         return True
@@ -87,6 +92,8 @@ def _upcoming_country_visible(m: dict) -> bool:
 
 
 def _filter_upcoming_countries(lst: list[dict]) -> list[dict]:
+    if not UPCOMING_VISIBLE_COUNTRY_CODES:
+        return lst
     return [m for m in lst if _upcoming_country_visible(m)]
 
 
@@ -131,7 +138,8 @@ def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
     empty = [m for m in movies if not m.get("country_code")][:limit]
     if not empty:
         return
-    for m in empty:
+
+    def _one(m: dict) -> None:
         try:
             detail = _get(f"/movie/{m['id']}")
             prod = detail.get("production_countries") or []
@@ -144,9 +152,12 @@ def _enrich_missing_countries(movies: list[dict], limit: int = 25) -> None:
                 if oc:
                     m["country_code"] = oc[0].lower()
                     m["country_flag"] = _country_flag(oc[0].upper())
-            time.sleep(0.05)
         except Exception as exc:
             logger.debug("Country detail fetch atlandı [%s]: %s", m.get("id"), exc)
+
+    workers = min(8, max(1, len(empty)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(_one, empty))
 
 
 def _do_refresh(months_ahead: int) -> None:
@@ -600,8 +611,10 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             seen.add(m["id"])
             raw.append(m)
 
-    # C: ABD + İngiltere bölgesel vizyon (TR tarihi henüz yoksa da planlama için)
-    for region, lang in (("US", "en-US"), ("GB", "en-GB")):
+    # C: ABD + İngiltere bölgesel vizyon (TR tarihi henüz yoksa da planlama için) — paralel
+    def _fetch_region(region_lang: tuple[str, str]) -> list[dict]:
+        region, lang = region_lang
+        out: list[dict] = []
         for m in _fetch_pages({
             "region":            region,
             "language":          lang,
@@ -611,9 +624,15 @@ def fetch_theatrical_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             "include_adult":     "false",
             "with_release_type": "3",
         }, page_limit=8):
-            if m["id"] not in seen:
-                seen.add(m["id"])
-                raw.append(m)
+            out.append(m)
+        return out
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        for batch in pool.map(_fetch_region, (("US", "en-US"), ("GB", "en-GB"))):
+            for m in batch:
+                if m["id"] not in seen:
+                    seen.add(m["id"])
+                    raw.append(m)
 
     movies = [_enrich(m) for m in raw]
     movies.sort(key=lambda x: x["release_date"] or "9999")
@@ -716,12 +735,22 @@ def _fetch_tr_ott_provider_names(media_type: str, tmdb_id: int) -> list[str]:
 
 def _apply_tr_watch_providers_to_store(store: dict[str, dict]) -> None:
     """Discover birleşiminden sonra rozetleri TMDB TR watch/providers ile doğrula."""
-    for entry in store.values():
-        mt = entry.get("media_type") or "movie"
-        names = _fetch_tr_ott_provider_names(mt, int(entry["id"]))
-        entry["providers"] = names
-        entry["provider_slugs"] = _provider_slugs(names)
-        time.sleep(0.04)
+    entries = list(store.values())
+    if not entries:
+        return
+
+    def _one(entry: dict) -> None:
+        try:
+            mt = entry.get("media_type") or "movie"
+            names = _fetch_tr_ott_provider_names(mt, int(entry["id"]))
+            entry["providers"] = names
+            entry["provider_slugs"] = _provider_slugs(names)
+        except Exception as exc:
+            logger.debug("watch/providers atlandı id=%s: %s", entry.get("id"), exc)
+
+    workers = min(12, max(1, len(entries)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(_one, entries))
 
 
 def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
@@ -733,6 +762,7 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
     date_from = _current_month_start()
     date_to   = _date_to_for_fetch(months_ahead)
     store: dict[str, dict] = {}
+    store_lock = threading.Lock()
 
     movie_base = {
         "language":      "tr-TR",
@@ -747,10 +777,9 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
         "air_date.lte":      date_to,
     }
 
-    for prov in TR_STREAMING_PROVIDERS:
+    def _discover_provider(prov: dict[str, Any]) -> list[tuple[str, dict]]:
         pid = str(int(prov["id"]))
-
-        # Film — TR bölgesel yayın tarihi
+        found: list[tuple[str, dict]] = []
         for m in _fetch_pages({
             **movie_base,
             "watch_region":            "TR",
@@ -758,35 +787,39 @@ def fetch_streaming_turkey(months_ahead: int = 4) -> list[dict[str, Any]]:
             "with_watch_monetization_types": "flatrate",
             "release_date.gte":        date_from,
             "release_date.lte":        date_to,
-        }, page_limit=10):
-            _merge_streaming_movie(store, m)
-
-        # Film — global keşif (TR vizyon tarihi yoksa; rozet discover'dan eklenmez)
+        }, page_limit=8):
+            found.append(("movie", m))
         for m in _fetch_pages({
             **movie_base,
             "with_watch_providers":         pid,
             "with_watch_monetization_types": "flatrate",
             "primary_release_date.gte":     date_from,
             "primary_release_date.lte":     date_to,
-        }, page_limit=6):
-            _merge_streaming_movie(store, m)
-
-        # Dizi — TR
+        }, page_limit=5):
+            found.append(("movie", m))
         for m in _fetch_tv_pages({
             **tv_base,
             "watch_region":            "TR",
             "with_watch_providers":    pid,
             "with_watch_monetization_types": "flatrate",
-        }, page_limit=8):
-            _merge_streaming_tv(store, m)
-
-        # Dizi — global (aday; rozet API ile)
+        }, page_limit=6):
+            found.append(("tv", m))
         for m in _fetch_tv_pages({
             **tv_base,
             "with_watch_providers":         pid,
             "with_watch_monetization_types": "flatrate",
-        }, page_limit=5):
-            _merge_streaming_tv(store, m)
+        }, page_limit=4):
+            found.append(("tv", m))
+        return found
+
+    with ThreadPoolExecutor(max_workers=min(6, max(1, len(TR_STREAMING_PROVIDERS)))) as pool:
+        for batch in pool.map(_discover_provider, TR_STREAMING_PROVIDERS):
+            with store_lock:
+                for kind, m in batch:
+                    if kind == "movie":
+                        _merge_streaming_movie(store, m)
+                    else:
+                        _merge_streaming_tv(store, m)
 
     if store:
         _apply_tr_watch_providers_to_store(store)
@@ -1014,15 +1047,63 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
     theatrical: list[dict] = []
     streaming:  list[dict] = []
     turkish:    list[dict] = []
+    tv_upcoming: list[dict] = []
+    tv_planned: list[dict] = []
+    tv_ott: list[dict] = []
+    tv_returning: list[dict] = []
 
-    try:
-        theatrical = fetch_theatrical_turkey(fetch_horizon)
-    except Exception as exc:
-        logger.error("TMDB theatrical hatası: %s", exc)
+    def _safe_theatrical() -> list[dict]:
+        return fetch_theatrical_turkey(fetch_horizon)
+
+    def _safe_streaming() -> list[dict]:
+        return fetch_streaming_turkey(fetch_horizon)
+
+    def _safe_turkish() -> list[dict]:
+        return fetch_turkish_productions(fetch_horizon)
+
+    def _safe_tv_karasal() -> list[dict]:
+        return fetch_turkish_tv_karasal(fetch_horizon)
+
+    def _safe_tv_planned() -> list[dict]:
+        return fetch_turkish_tv_planned_production()
+
+    def _safe_tv_ott() -> list[dict]:
+        return fetch_turkish_tv_ott()
+
+    def _safe_tv_returning() -> list[dict]:
+        return fetch_turkish_tv_returning()
+
+    # Ana kataloglar + TV kaynakları paralel (TMDB rate limit için worker sınırı)
+    jobs = {
+        "theatrical": _safe_theatrical,
+        "streaming": _safe_streaming,
+        "turkish": _safe_turkish,
+        "tv_upcoming": _safe_tv_karasal,
+        "tv_planned": _safe_tv_planned,
+        "tv_ott": _safe_tv_ott,
+        "tv_returning": _safe_tv_returning,
+    }
+    results: dict[str, list[dict]] = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futs = {pool.submit(fn): name for name, fn in jobs.items()}
+        for fut in as_completed(futs):
+            name = futs[fut]
+            try:
+                results[name] = fut.result()
+            except Exception as exc:
+                logger.error("TMDB %s hatası: %s", name, exc)
+                results[name] = []
+
+    theatrical = results.get("theatrical") or []
+    streaming = results.get("streaming") or []
+    turkish = results.get("turkish") or []
+    tv_upcoming = results.get("tv_upcoming") or []
+    tv_planned = results.get("tv_planned") or []
+    tv_ott = results.get("tv_ott") or []
+    tv_returning = results.get("tv_returning") or []
 
     # Box office Turkey — gişedeki ama TMDB theatrical listesinde olmayan filmleri ekle
     # Sadece bu hafta fiilen vizyonda olan filmler aranır (weekly_audience > 0).
-    # Takvimde listelenen ama seyircisi olmayan filmler TMDB'de zaten vardır.
     try:
         from backend.services.boxoffice_turkey import fetch_current_boxoffice, find_missing_from_tmdb
         boxoffice_films = fetch_current_boxoffice()
@@ -1038,40 +1119,6 @@ def fetch_combined_upcoming(months_ahead: int = 5) -> dict[str, Any]:
                 logger.info("Gişe takviminden %d film eklendi", len(extra))
     except Exception as exc:
         logger.error("BOT gişe entegrasyon hatası: %s", exc)
-
-    try:
-        streaming = fetch_streaming_turkey(fetch_horizon)
-    except Exception as exc:
-        logger.error("TMDB streaming hatası: %s", exc)
-
-    try:
-        turkish = fetch_turkish_productions(fetch_horizon)
-    except Exception as exc:
-        logger.error("TMDB Turkish productions hatası: %s", exc)
-
-    # ── Diziler ──────────────────────────────────────────────────────────────
-    tv_upcoming: list[dict] = []
-    tv_planned: list[dict] = []
-    tv_ott: list[dict] = []
-    tv_returning: list[dict] = []
-    try:
-        tv_upcoming = fetch_turkish_tv_karasal(fetch_horizon)
-    except Exception as exc:
-        logger.error("TMDB TV karasal hatası: %s", exc)
-    try:
-        tv_planned = fetch_turkish_tv_planned_production()
-    except Exception as exc:
-        logger.error("TMDB TV planned hatası: %s", exc)
-        tv_planned = []
-    try:
-        tv_ott = fetch_turkish_tv_ott()
-    except Exception as exc:
-        logger.error("TMDB TV OTT hatası: %s", exc)
-        tv_ott = []
-    try:
-        tv_returning = fetch_turkish_tv_returning()
-    except Exception as exc:
-        logger.error("TMDB TV returning hatası: %s", exc)
 
     tv_seen = {m["id"] for m in tv_upcoming}
     for extra_batch in (tv_planned, tv_ott, tv_returning):
