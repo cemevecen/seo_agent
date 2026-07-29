@@ -2876,7 +2876,7 @@
         line: {
           color: opts.compareColor || colors.compare,
           width: 2,
-          dash: opts.compareDash || "dot",
+          dash: opts.compareDash || "dash",
         },
         marker: { color: opts.compareColor || colors.compare, size: 4 },
         yaxis: opts.yaxis || "y",
@@ -5031,7 +5031,7 @@
           type: "scatter",
           mode: "lines",
           connectgaps: false,
-          line: { color: compareColors().compare, width: 2.5, dash: "dot" },
+          line: { color: compareColors().compare, width: 2.5, dash: "dash" },
         });
       }
       var stackedLayout = plotTheme({ yTitle: "TL" });
@@ -5519,19 +5519,25 @@
     state._ga4MobileOverlayPromise = null;
   }
 
-  /** Karşı dal overlay — düz ince çizgi; mavi ton (mean-split kırmızı düşüşle karışmasın). */
+  /** Ana seri mürekkep rengi (açıkta siyah, koyu temada okunaklı açık gri). */
+  function mzInkColor() {
+    return isDarkTheme() ? "#f4f4f5" : "#0a0a0a";
+  }
+
+  /** Karşı dal overlay — kesik siyah çizgi (iOS↔Android, Web↔Mobil web). */
   var PEER_BRANCH_COLORS = {
-    android: "#4a6f8c",
-    ios: "#5b7c99",
-    desktop: "#4b6a9b",
-    mweb: "#6b8aad",
+    android: "#0a0a0a",
+    ios: "#0a0a0a",
+    desktop: "#0a0a0a",
+    mweb: "#0a0a0a",
   };
-  var PEER_LINE_WIDTH = 1.25;
-  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — mat mavi (mean-split ile karışmasın) */
-  var PEER_ON_CHART_COLOR = { light: "#4b6a9b", dark: "#6b8aad" };
-  var PEER_ON_CHART_LINE_OPACITY = 0.52;
-  var PEER_ON_CHART_FILL_OPACITY = 0.28;
-  var PEER_LINE_ALT_COLORS = ["#5b7c99", "#6b8aad", "#4a6f8c", "#4b6a9b", "#5b6f8a"];
+  var PEER_LINE_WIDTH = 1.75;
+  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — kesik siyah */
+  var PEER_ON_CHART_COLOR = { light: "#0a0a0a", dark: "#f4f4f5" };
+  var PEER_ON_CHART_LINE_OPACITY = 0.92;
+  var PEER_ON_CHART_FILL_OPACITY = 0.12;
+  var PEER_LINE_ALT_COLORS = ["#0a0a0a", "#262626", "#404040", "#525252", "#737373"];
+  var PEER_LINE_DASH = "dash";
 
   /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
   var PEER_STREAM_BY_KEY = {
@@ -5600,27 +5606,28 @@
   function peerOverlayOnChartLineColor(opacity) {
     var a = opacity != null ? opacity : PEER_ON_CHART_LINE_OPACITY;
     if (isDarkTheme()) {
-      return "rgba(96, 165, 250, " + a + ")";
+      return "rgba(244, 244, 245, " + a + ")";
     }
-    return "rgba(37, 99, 235, " + a + ")";
+    return "rgba(10, 10, 10, " + a + ")";
   }
 
-  /** Karşı dal, ana grafikte (overlay) — mavi, hafif şeffaf */
+  /** Karşı dal, ana grafikte (overlay) — kesik siyah */
   function peerOverlayOnChartLineStyle() {
-    return { color: peerOverlayOnChartLineColor(), width: 2 };
+    return { color: peerOverlayOnChartLineColor(), width: 2, dash: PEER_LINE_DASH };
   }
 
   function peerOverlayLineColor(variant) {
-    var dark = isDarkTheme();
-    var k = peerBranchKey();
-    var fallback = dark ? "#5b7c99" : "#4a6f8c";
-    var base = (k && PEER_BRANCH_COLORS[k]) || fallback;
-    if (!variant) return base;
-    return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || base;
+    var ink = mzInkColor();
+    if (!variant) return ink;
+    if (isDarkTheme()) {
+      var darkAlts = ["#f4f4f5", "#e4e4e7", "#d4d4d8", "#a1a1aa", "#71717a"];
+      return darkAlts[variant % darkAlts.length] || ink;
+    }
+    return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || ink;
   }
 
   function peerOverlayLineStyle(variant) {
-    return { color: peerOverlayLineColor(variant), width: PEER_LINE_WIDTH };
+    return { color: peerOverlayLineColor(variant), width: PEER_LINE_WIDTH, dash: PEER_LINE_DASH };
   }
 
   function anyPeerOverlayOn() {
@@ -6509,8 +6516,8 @@
     return true;
   }
 
-  /** Piyasa overlay — ortak SeoMarketOverlay (çoklu seri) */
-  var MZ_MARKET_OVERLAY_LINE_COLOR = "#7a3d52";
+  /** Piyasa overlay — ortak SeoMarketOverlay (çoklu seri); varsayılan mavi */
+  var MZ_MARKET_OVERLAY_LINE_COLOR = "#1d4ed8";
 
   function mzPickMarketYaxisId(layoutExtra) {
     layoutExtra = layoutExtra || {};
@@ -7003,7 +7010,7 @@
             x: comparePair.x,
             y: comparePair.compareY,
             connectgaps: true,
-            line: { color: cmpLineColor, width: lineW, dash: "dot" },
+            line: { color: cmpLineColor, width: lineW, dash: "dash" },
           });
           if (markerSize) {
             traces[traces.length - 1].marker = { color: cmpLineColor, size: markerSize, line: { width: 0 } };
@@ -7687,6 +7694,18 @@
 
   function mzPushMeanSplitTraces(traces, xs, ys, opts) {
     opts = opts || {};
+    var ink = mzInkColor();
+    var inkOpts = Object.assign(
+      {
+        dark: isDarkTheme(),
+        green: ink,
+        red: ink,
+        greenFill: isDarkTheme() ? "rgba(244,244,245,0.08)" : "rgba(10,10,10,0.06)",
+        redFill: isDarkTheme() ? "rgba(244,244,245,0.08)" : "rgba(10,10,10,0.06)",
+        fallbackColor: ink,
+      },
+      opts
+    );
     if (typeof window.mzMeanSplitLineTraces !== "function") {
       traces.push(
         Object.assign(
@@ -7694,19 +7713,15 @@
             x: xs,
             y: ys,
             type: "scatter",
-            mode: opts.mode || "lines",
-            line: { color: opts.fallbackColor || "#5b5f9e", width: opts.lineWidth || 2 },
+            mode: inkOpts.mode || "lines",
+            line: { color: inkOpts.fallbackColor || ink, width: inkOpts.lineWidth || 2 },
           },
-          opts.baseTrace || {}
+          inkOpts.baseTrace || {}
         )
       );
       return;
     }
-    var split = window.mzMeanSplitLineTraces(
-      xs,
-      ys,
-      Object.assign({ dark: isDarkTheme() }, opts)
-    );
+    var split = window.mzMeanSplitLineTraces(xs, ys, inkOpts);
     split.forEach(function (t) {
       traces.push(t);
     });
@@ -8217,7 +8232,7 @@
           type: "scatter",
           mode: mode,
           name: periodLabels.compare,
-          line: { color: colors.compare, width: 2, dash: "dot" },
+          line: { color: colors.compare, width: 2, dash: "dash" },
           marker: { color: colors.compare, size: 4 },
         },
       ];
@@ -8932,7 +8947,7 @@
           name: compareMetricPeriodLabel("Net gelir", "compare", sum),
           yaxis: "y",
           connectgaps: false,
-          line: { color: colors.revCmp, width: 2, dash: "dot" },
+          line: { color: colors.revCmp, width: 2, dash: "dash" },
         },
         {
           x: dx,
@@ -8951,7 +8966,7 @@
           name: compareMetricPeriodLabel("Gösterim", "compare", sum),
           yaxis: "y2",
           connectgaps: false,
-          line: { color: colors.impCmp, width: 2, dash: "dot" },
+          line: { color: colors.impCmp, width: 2, dash: "dash" },
         },
       ];
       dualLayoutExtra = applyCompareLayout(dualLayoutExtra, dx.length, { legendY: 1.18, marginT: 64 });

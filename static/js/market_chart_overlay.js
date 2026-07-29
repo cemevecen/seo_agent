@@ -7,14 +7,14 @@
   var SERIES_COLORS = global.seoMatteMarketOverlayPalette
     ? global.seoMatteMarketOverlayPalette()
     : [
-    "#7a3d52",
-    "#4a6f8c",
-    "#9a7a2e",
-    "#3d8b6e",
-    "#b87333",
-    "#7a5a8a",
-    "#3d7a8a",
-    "#9f4a52",
+    "#1d4ed8",
+    "#0f766e",
+    "#2563eb",
+    "#059669",
+    "#0284c7",
+    "#14b8a6",
+    "#1e40af",
+    "#047857",
   ];
   var LINE_COLOR = SERIES_COLORS[0];
   var INDEXED_KEYS = ["gram_altin", "usd_try", "eur_try", "bist100", "gram_gumus", "brent"];

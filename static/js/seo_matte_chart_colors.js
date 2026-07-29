@@ -64,18 +64,20 @@
     };
   }
 
+  /** /ad ana seriler: mürekkep siyah; karşı dönem de aynı ink (kesikli stil şablonda). */
   function seoMatteAdCompareColors() {
-    var c = seoMatteChartColors();
+    var ink = pick("#0a0a0a", "#f4f4f5");
+    var inkSoft = pick("#525252", "#a1a1aa");
     return {
-      primary: c.compareAlt,
-      sparkCompare: c.sky,
-      compare: c.negative,
-      rev: c.positive,
-      revCmp: c.compare,
-      imp: c.sky,
-      impCmp: pick("#0369a1", "#5b7c99"),
-      barPrimary: c.sky,
-      barCompare: c.compare,
+      primary: ink,
+      sparkCompare: inkSoft,
+      compare: ink,
+      rev: ink,
+      revCmp: ink,
+      imp: ink,
+      impCmp: ink,
+      barPrimary: ink,
+      barCompare: inkSoft,
     };
   }
 
@@ -102,16 +104,31 @@
     ];
   }
 
+  /** Piyasa overlay — mavi / yeşil / teal ağırlıklı. */
   function seoMatteMarketOverlayPalette() {
     return [
-      "#7a3d52",
-      "#4a6f8c",
-      "#9a7a2e",
-      "#3d8b6e",
-      "#b87333",
-      "#7a5a8a",
-      "#3d7a8a",
-      "#9f4a52",
+      "#1d4ed8",
+      "#0f766e",
+      "#2563eb",
+      "#059669",
+      "#0284c7",
+      "#14b8a6",
+      "#1e40af",
+      "#047857",
+    ];
+  }
+
+  /** Empower overlay — sarı / amber / gri. */
+  function seoMatteEmpowerOverlayPalette() {
+    return [
+      "#ca8a04",
+      "#78716c",
+      "#eab308",
+      "#a8a29e",
+      "#d97706",
+      "#57534e",
+      "#b45309",
+      "#a1a1aa",
     ];
   }
 
@@ -130,6 +147,7 @@
   global.seoMatteMeanSplit = seoMatteMeanSplit;
   global.seoMatteHeatmapScale = seoMatteHeatmapScale;
   global.seoMatteMarketOverlayPalette = seoMatteMarketOverlayPalette;
+  global.seoMatteEmpowerOverlayPalette = seoMatteEmpowerOverlayPalette;
   global.seoMatteSeriesPalette = seoMatteSeriesPalette;
   global.seoMatteIsDark = isDark;
   global.seoMattePick = pick;

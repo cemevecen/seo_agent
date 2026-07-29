@@ -4,17 +4,17 @@
 (function (global) {
   "use strict";
 
-  var SERIES_COLORS = global.seoMatteMarketOverlayPalette
-    ? global.seoMatteMarketOverlayPalette()
+  var SERIES_COLORS = global.seoMatteEmpowerOverlayPalette
+    ? global.seoMatteEmpowerOverlayPalette()
     : [
-    "#7a3d52",
-    "#4a6f8c",
-    "#9a7a2e",
-    "#3d8b6e",
-    "#b87333",
-    "#7a5a8a",
-    "#3d7a8a",
-    "#9f4a52",
+    "#ca8a04",
+    "#78716c",
+    "#eab308",
+    "#a8a29e",
+    "#d97706",
+    "#57534e",
+    "#b45309",
+    "#a1a1aa",
   ];
   var LINE_COLOR = SERIES_COLORS[0];
 
