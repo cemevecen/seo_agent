@@ -5524,19 +5524,20 @@
     return isDarkTheme() ? "#f4f4f5" : "#0a0a0a";
   }
 
-  /** Karşı dal overlay — kesik siyah çizgi (iOS↔Android, Web↔Mobil web). */
+  /** Karşı dal overlay — kesik fıstık yeşili (iOS↔Android, Web↔Mobil web). */
+  var PEER_PISTACHIO = "#93C572";
   var PEER_BRANCH_COLORS = {
-    android: "#0a0a0a",
-    ios: "#0a0a0a",
-    desktop: "#0a0a0a",
-    mweb: "#0a0a0a",
+    android: PEER_PISTACHIO,
+    ios: PEER_PISTACHIO,
+    desktop: PEER_PISTACHIO,
+    mweb: PEER_PISTACHIO,
   };
   var PEER_LINE_WIDTH = 1.75;
-  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — kesik siyah */
-  var PEER_ON_CHART_COLOR = { light: "#0a0a0a", dark: "#f4f4f5" };
-  var PEER_ON_CHART_LINE_OPACITY = 0.92;
-  var PEER_ON_CHART_FILL_OPACITY = 0.12;
-  var PEER_LINE_ALT_COLORS = ["#0a0a0a", "#262626", "#404040", "#525252", "#737373"];
+  /** Aynı grafik üzerinde +Android / +iOS vb. overlay — kesik fıstık yeşili */
+  var PEER_ON_CHART_COLOR = { light: "#93C572", dark: "#A8D88A" };
+  var PEER_ON_CHART_LINE_OPACITY = 0.95;
+  var PEER_ON_CHART_FILL_OPACITY = 0.18;
+  var PEER_LINE_ALT_COLORS = ["#93C572", "#7CB342", "#A8D88A", "#6B9E4A", "#B8E0A0"];
   var PEER_LINE_DASH = "dash";
 
   /** Aynı proje içi karşı dal — yalnızca bu çiftler (app↔app, web↔mweb). */
@@ -5606,24 +5607,19 @@
   function peerOverlayOnChartLineColor(opacity) {
     var a = opacity != null ? opacity : PEER_ON_CHART_LINE_OPACITY;
     if (isDarkTheme()) {
-      return "rgba(244, 244, 245, " + a + ")";
+      return "rgba(168, 216, 138, " + a + ")";
     }
-    return "rgba(10, 10, 10, " + a + ")";
+    return "rgba(147, 197, 114, " + a + ")";
   }
 
-  /** Karşı dal, ana grafikte (overlay) — kesik siyah */
+  /** Karşı dal, ana grafikte (overlay) — kesik fıstık yeşili */
   function peerOverlayOnChartLineStyle() {
     return { color: peerOverlayOnChartLineColor(), width: 2, dash: PEER_LINE_DASH };
   }
 
   function peerOverlayLineColor(variant) {
-    var ink = mzInkColor();
-    if (!variant) return ink;
-    if (isDarkTheme()) {
-      var darkAlts = ["#f4f4f5", "#e4e4e7", "#d4d4d8", "#a1a1aa", "#71717a"];
-      return darkAlts[variant % darkAlts.length] || ink;
-    }
-    return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || ink;
+    if (!variant) return PEER_PISTACHIO;
+    return PEER_LINE_ALT_COLORS[variant % PEER_LINE_ALT_COLORS.length] || PEER_PISTACHIO;
   }
 
   function peerOverlayLineStyle(variant) {
