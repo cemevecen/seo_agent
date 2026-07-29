@@ -17580,7 +17580,7 @@ def page_boards(request: Request):
             "request": request,
             "projects": projects,
             "token": token,
-            "default_board_project": "ios/doviz",
+            "default_board_project": "nokta/doviz",
         },
     )
 
