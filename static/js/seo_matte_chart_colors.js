@@ -66,11 +66,12 @@
 
   /** /ad ana seriler: mürekkep siyah; karşı dönem de aynı ink (kesikli stil şablonda). */
   function seoMatteAdCompareColors() {
+    var c = seoMatteChartColors();
     var ink = pick("#0a0a0a", "#f4f4f5");
     var inkSoft = pick("#525252", "#a1a1aa");
     return {
       primary: ink,
-      sparkCompare: inkSoft,
+      sparkCompare: c.sky,
       compare: ink,
       rev: ink,
       revCmp: ink,

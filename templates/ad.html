@@ -8744,6 +8744,27 @@
     if (!el || !el.isConnected) return;
     var colors = compareColors();
     var dark = isDarkTheme();
+    /* KPI spark: önceki mean-split yeşil/kırmızı — ana grafik siyah stilinden ayrı. */
+    var sparkMs = window.seoMatteMeanSplit
+      ? window.seoMatteMeanSplit()
+      : {
+          green: dark ? "#4a8f73" : "#047857",
+          red: dark ? "#a85a66" : "#b91c3c",
+          greenFill: dark ? "rgba(74,143,115,0.14)" : "rgba(4,120,87,0.16)",
+          redFill: dark ? "rgba(168,90,102,0.14)" : "rgba(185,28,60,0.14)",
+        };
+    var sparkMeanOpts = {
+      lineWidth: 1.5,
+      fill: true,
+      hoverinfo: "skip",
+      mode: "lines",
+      green: sparkMs.green,
+      red: sparkMs.red,
+      greenFill: sparkMs.greenFill,
+      redFill: sparkMs.redFill,
+      fallbackColor: sparkMs.green,
+    };
+    var sparkPeerColor = dark ? "#6b8aad" : "#4b6a9b";
     var aligned = cmp ? alignedDateSeries(cmp, key) : null;
     var traces = [];
     var xs;
@@ -8760,12 +8781,7 @@
       if (compareYs.some(function (v) { return v != null && v !== 0; })) {
         traces.push(mzSparkOverlayFillTrace(xs, compareYs, colors.sparkCompare, dark));
       }
-      mzPushMeanSplitTraces(traces, xs, primaryYs, {
-        lineWidth: 1.5,
-        fill: true,
-        hoverinfo: "skip",
-        mode: "lines",
-      });
+      mzPushMeanSplitTraces(traces, xs, primaryYs, sparkMeanOpts);
     } else {
       if (!byDate || byDate.length < 2) return;
       var plainSlice = byDate.slice(-14);
@@ -8799,20 +8815,15 @@
               mzSparkOverlayFillTrace(
                 xs,
                 sparkPeerYs,
-                isDarkTheme() ? PEER_ON_CHART_COLOR.dark : PEER_ON_CHART_COLOR.light,
+                sparkPeerColor,
                 dark,
-                PEER_ON_CHART_FILL_OPACITY
+                0.28
               )
             );
           }
         }
       }
-      mzPushMeanSplitTraces(traces, xs, ys, {
-        lineWidth: 1.5,
-        fill: true,
-        hoverinfo: "skip",
-        mode: "lines",
-      });
+      mzPushMeanSplitTraces(traces, xs, ys, sparkMeanOpts);
     }
 
     try { Plotly.purge(el); } catch (e) { /* ignore */ }
