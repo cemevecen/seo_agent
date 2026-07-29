@@ -2095,7 +2095,9 @@
               <a href="/ga4" data-nav-match="/ga4" class="header-nav-link">ga4</a>
               <a href="/search-console" data-nav-match="/search-console" class="header-nav-link">console</a>
               <a href="/notification" data-nav-match="/notification" class="header-nav-link">notification</a>
+              {% if ad_menu_visible(request) %}
               <a href="/ad" data-nav-match="/ad" class="header-nav-link">ad</a>
+              {% endif %}
               <a href="/firebase" data-nav-match="/firebase" class="header-nav-link">firebase</a>
               <a href="/alerts" data-nav-match="/alerts" class="header-nav-link">alerts</a>
               <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link">speed</a>
