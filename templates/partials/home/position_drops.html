@@ -124,7 +124,7 @@
         <p class="home-label {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ block.display_name }}</p>
       {% endif %}
       {% if block and block.as_of_label %}
-        <p class="{% if block.display_name %}mt-1 {% endif %}home-meta font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
+        <p class="{% if block.display_name %}mt-1 {% endif %}home-meta font-medium tabular-nums text-slate-600 dark:text-slate-300">{{ block.as_of_label }}</p>
       {% endif %}
     </div>
     {% if not hide_nav_link %}
@@ -186,9 +186,6 @@
         {% endif %}
       </div>
     </div>
-    {% if block.sort_label %}
-      <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">{{ block.sort_label }}</p>
-    {% endif %}
   {% else %}
     <p class="mt-4 text-center text-sm text-slate-400 dark:text-slate-500">Top 50 içinde anlamlı pozisyon değişimi yok</p>
   {% endif %}

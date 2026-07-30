@@ -67,7 +67,6 @@
 </div>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
-  <p class="home-label mt-3 text-slate-500 dark:text-slate-400">son 7g vs önceki 7g</p>
   <div class="home-ga4-spark-grid">
     {% for prof in site.profiles %}
       {% set _tone = prof.tone | default('flat') %}

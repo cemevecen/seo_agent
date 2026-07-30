@@ -619,7 +619,7 @@ def list_sc_position_changes_7d(
         "scope_label": "Mobil+Web (gösterim ağırlıklı) · önce Top 50, sonra diğer sorgular",
         "row_limit": row_limit,
         "period_label": "Son 7 gün vs önceki 7 gün",
-        "sort_label": "Sıra: pozisyon farkı × tıklama",
+        "sort_label": "",
     }
 
 
