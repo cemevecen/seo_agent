@@ -8773,6 +8773,82 @@ def _home_ga4_sessions_from_snap(db, site_id: int, prof_key: str, period_days: i
     return (last_v, prev_v)
 
 
+def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int = 7) -> list[float]:
+    """GA4 günlük session serisi — kart spark (son N gün)."""
+    values: list[float] = []
+    try:
+        period_daily = None
+        for pd in (7, 30):
+            snap = get_latest_ga4_report_snapshot(
+                db, site_id=site_id, profile=prof_key, period_days=pd
+            )
+            if not snap:
+                continue
+            payload = snap.get("payload") or {}
+            period_daily = payload.get("daily_trend")
+            if isinstance(period_daily, dict) and (period_daily.get("sessions") or period_daily.get("dates")):
+                break
+        _daily, spark_daily = _ga4_daily_trends_for_ui(
+            db,
+            site_id=site_id,
+            profile=prof_key,
+            period_daily=period_daily if isinstance(period_daily, dict) else {},
+            period_days=days,
+        )
+        raw = list((spark_daily or {}).get("sessions") or [])
+        values = [float(v or 0) for v in raw[-max(2, int(days)) :]]
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("home ga4 spark failed site=%s profile=%s", site_id, prof_key, exc_info=True)
+        values = []
+    return values
+
+
+def _home_sc_trend_series(
+    summary_payload: dict | None,
+    device: str,
+    metric: str,
+    *,
+    days: int = 7,
+) -> list[float]:
+    """Search Console günlük serisi (clicks / position) — son N gün."""
+    if not summary_payload:
+        return []
+    by_dev = (
+        summary_payload.get("trend_28d_summary_by_device")
+        or summary_payload.get("trend_7d_summary_by_device")
+        or {}
+    )
+    trend = by_dev.get(device) or {}
+    raw = list(trend.get(metric) or [])
+    out: list[float] = []
+    for v in raw[-max(2, int(days)) :]:
+        try:
+            out.append(float(v or 0))
+        except (TypeError, ValueError):
+            out.append(0.0)
+    if len(out) >= 2:
+        return out
+    # trend_28d_rows fallback
+    rows = summary_payload.get("trend_28d_rows") or summary_payload.get("trend_7d_rows") or []
+    if not rows:
+        return out
+    by_day: dict[str, float] = {}
+    for row in rows:
+        if str(row.get("device") or "").upper() != device.upper():
+            continue
+        d = str(row.get("date") or "")[:10]
+        if not d:
+            continue
+        try:
+            by_day[d] = float(row.get(metric) or 0)
+        except (TypeError, ValueError):
+            by_day[d] = 0.0
+    if not by_day:
+        return out
+    keys = sorted(by_day.keys())[-max(2, int(days)) :]
+    return [by_day[k] for k in keys]
+
+
 def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
     # Metrik tablosundan fallback için
     try:
@@ -8796,13 +8872,17 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
                     prev_v = float(latest_metrics.get(f"ga4_{prof_key}_sessions_prev{pd}d_total") or 0.0)
                     break
         delta_fmt, tone, delta_pct = _home_pct_delta(last_v, prev_v)
+        spark_vals = _home_ga4_session_spark_values(db, site_id, prof_key, days=7)
+        spark = _home_spark_paths(spark_vals, width=96, height=28, pad=2)
         out.append({
+            "key": prof_key,
             "label": prof_label,
             "last_fmt": _home_format_int(last_v),
             "prev_fmt": _home_format_int(prev_v),
             "delta_fmt": delta_fmt,
             "tone": tone,
             "delta_pct": delta_pct,
+            "spark": spark,
         })
     return out
 
@@ -8903,17 +8983,31 @@ def _home_sc_device_aggregate(
         pos_tone = "down"
     else:
         pos_tone = "flat"
+    clicks_spark = _home_spark_paths(
+        _home_sc_trend_series(summary, device, "clicks", days=7),
+        width=96,
+        height=28,
+        pad=2,
+    )
+    pos_spark = _home_spark_paths(
+        _home_sc_trend_series(summary, device, "position", days=7),
+        width=96,
+        height=28,
+        pad=2,
+    )
     return {
         "clicks_last_fmt": _home_format_int(c_clicks),
         "clicks_prev_fmt": _home_format_int(p_clicks),
         "clicks_delta_fmt": clicks_delta,
         "clicks_tone": clicks_tone,
         "clicks_delta_pct": clicks_delta_pct,
+        "clicks_spark": clicks_spark,
         "pos_last_fmt": _format_max_two_decimals(c_pos) if c_pos else "—",
         "pos_prev_fmt": _format_max_two_decimals(p_pos) if p_pos else "—",
         "pos_delta_fmt": _format_signed_max_two_decimals(pos_diff),
         "pos_delta": pos_diff,
         "pos_tone": pos_tone,
+        "pos_spark": pos_spark,
     }
 
 

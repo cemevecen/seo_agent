@@ -1,3 +1,52 @@
+{# Mini spark + sayı (#5) — cihaz × metrik hücreleri #}
+<style>
+  .home-sc-spark-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+  }
+  .home-sc-spark-cell {
+    min-width: 0;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255);
+    padding: 0.625rem 0.7rem 0.55rem;
+  }
+  html.dark .home-sc-spark-cell {
+    border-color: rgb(51 65 85);
+    background: rgb(15 23 42 / 0.55);
+  }
+  .home-sc-spark-svg {
+    display: block;
+    width: 100%;
+    height: 1.75rem;
+    margin-top: 0.35rem;
+  }
+  .home-sc-spark-line {
+    fill: none;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .home-sc-spark-line.is-up { stroke: #059669; }
+  .home-sc-spark-line.is-down { stroke: #e11d48; }
+  .home-sc-spark-line.is-flat { stroke: #94a3b8; }
+  html.dark .home-sc-spark-line.is-up { stroke: #34d399; }
+  html.dark .home-sc-spark-line.is-down { stroke: #fb7185; }
+  html.dark .home-sc-spark-line.is-flat { stroke: #64748b; }
+  .home-sc-spark-empty {
+    margin-top: 0.35rem;
+    height: 1.75rem;
+    border-radius: 0.35rem;
+    background: rgb(241 245 249);
+  }
+  html.dark .home-sc-spark-empty {
+    background: rgb(30 41 59);
+  }
+</style>
+
 <div class="home-readable flex items-center justify-between gap-3">
   <h3 class="font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
   <a href="/search-console" hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
@@ -5,24 +54,38 @@
 </div>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
-  <div class="home-split home-split-2 mt-4">
+  <div class="home-sc-spark-grid">
     {% for dev in site.devices %}
-      <div class="min-w-0">
+      {% set _cp = dev.clicks_delta_pct | default(0) | float %}
+      {% set _ctone = 'up' if _cp > 0 else ('down' if _cp < 0 else 'flat') %}
+      <div class="home-sc-spark-cell">
         <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
-        <div class="mt-2 grid grid-cols-2 gap-3">
-          <div class="min-w-0">
-            <p lang="en" class="home-label text-slate-400 dark:text-slate-500">Clicks</p>
-            {% set _p = dev.clicks_delta_pct | default(0) | float %}
-            <p class="home-kpi mt-1 {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
-            <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
-          </div>
-          <div class="min-w-0">
-            <p class="home-label text-slate-400 dark:text-slate-500">Position fark</p>
-            {% set _pd = dev.pos_delta | default(0) | float %}
-            <p class="home-kpi mt-1 {% if _pd > 0 %}text-emerald-600 dark:text-emerald-400{% elif _pd < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.pos_delta_fmt }}</p>
-            <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
-          </div>
-        </div>
+        <p lang="en" class="home-label mt-0.5 text-slate-400 dark:text-slate-500">Clicks</p>
+        {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
+          <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+            <path class="home-sc-spark-line is-{{ _ctone }}" d="{{ dev.clicks_spark.path_d }}"></path>
+          </svg>
+        {% else %}
+          <div class="home-sc-spark-empty" aria-hidden="true"></div>
+        {% endif %}
+        <p class="home-kpi mt-1 {% if _ctone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ctone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
+        <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
+      </div>
+
+      {% set _pd = dev.pos_delta | default(0) | float %}
+      {% set _ptone = 'up' if _pd > 0 else ('down' if _pd < 0 else 'flat') %}
+      <div class="home-sc-spark-cell">
+        <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+        <p class="home-label mt-0.5 text-slate-400 dark:text-slate-500">Position fark</p>
+        {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
+          <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+            <path class="home-sc-spark-line is-{{ _ptone }}" d="{{ dev.pos_spark.path_d }}"></path>
+          </svg>
+        {% else %}
+          <div class="home-sc-spark-empty" aria-hidden="true"></div>
+        {% endif %}
+        <p class="home-kpi mt-1 {% if _ptone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ptone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.pos_delta_fmt }}</p>
+        <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
       </div>
     {% endfor %}
   </div>
