@@ -8769,15 +8769,33 @@ def api_home_ga4_sessions(request: Request, site: str | None = None):
     )
 
 
-def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
-    """Tek site & device için current_7d ve previous_7d toplamları."""
-    from sqlalchemy import func as sa_func
-    latest_ts = db.query(sa_func.max(SearchConsoleQuerySnapshot.collected_at)).filter(
-        SearchConsoleQuerySnapshot.site_id == site_id
-    ).scalar()
+def _home_sc_device_aggregate(
+    db,
+    site_id: int,
+    device: str,
+    *,
+    summary_payload: dict | None = None,
+) -> dict:
+    """Tek site & device için current_7d ve previous_7d toplamları.
 
-    def _sum(scope: str) -> tuple[float, float, float]:
-        """clicks, impressions, impression-weighted avg position."""
+    Pozisyon/click: CollectorRun summary'deki date×device site-geneli özet
+    (GSC Performance ile aynı popülasyon). Query snapshot (top ~2500) yalnızca
+    özet yoksa yedek — uzun kuyruk eksik kaldığı için pozisyonu iyimser gösterir.
+    """
+    from sqlalchemy import func as sa_func
+
+    summary = summary_payload
+    if summary is None:
+        summary = _latest_successful_provider_summary(
+            db, site_id=site_id, provider="search_console"
+        )
+    cur_sum = (summary.get("current_7d_summary_by_device") or {}).get(device) or {}
+    prev_sum = (summary.get("previous_7d_summary_by_device") or {}).get(device) or {}
+
+    def _from_snapshot(scope: str) -> tuple[float, float, float]:
+        latest_ts = db.query(sa_func.max(SearchConsoleQuerySnapshot.collected_at)).filter(
+            SearchConsoleQuerySnapshot.site_id == site_id
+        ).scalar()
         if not latest_ts:
             return (0.0, 0.0, 0.0)
         row = (
@@ -8807,8 +8825,15 @@ def _home_sc_device_aggregate(db, site_id: int, device: str) -> dict:
         pos = (weighted / impr) if impr > 0 else 0.0
         return (clicks, impr, pos)
 
-    c_clicks, _c_impr, c_pos = _sum("current_7d")
-    p_clicks, _p_impr, p_pos = _sum("previous_7d")
+    if cur_sum or prev_sum:
+        c_clicks = float(cur_sum.get("clicks") or 0.0)
+        p_clicks = float(prev_sum.get("clicks") or 0.0)
+        c_pos = float(cur_sum.get("position") or 0.0)
+        p_pos = float(prev_sum.get("position") or 0.0)
+    else:
+        c_clicks, _c_impr, c_pos = _from_snapshot("current_7d")
+        p_clicks, _p_impr, p_pos = _from_snapshot("previous_7d")
+
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
     if pos_diff > 0:
@@ -8843,8 +8868,13 @@ def api_home_sc_summary(request: Request, site: str | None = None):
             if site_obj is None:
                 continue
             devices = []
+            sc_summary = _latest_successful_provider_summary(
+                db, site_id=site_id, provider="search_console"
+            )
             for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
-                agg = _home_sc_device_aggregate(db, site_id, dev_code)
+                agg = _home_sc_device_aggregate(
+                    db, site_id, dev_code, summary_payload=sc_summary
+                )
                 agg["label"] = dev_label
                 devices.append(agg)
             sites_out.append({
@@ -8935,8 +8965,13 @@ def home_summary_payload(db) -> dict:
             continue
         ga4_profs = _HOME_DOVIZ_PROFILES if site_id == 1 else _HOME_SINEMA_PROFILES
         sc_devices = []
+        sc_summary = _latest_successful_provider_summary(
+            db, site_id=site_id, provider="search_console"
+        )
         for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
-            agg = _home_sc_device_aggregate(db, site_id, dev_code)
+            agg = _home_sc_device_aggregate(
+                db, site_id, dev_code, summary_payload=sc_summary
+            )
             sc_devices.append({"label": dev_label, **agg})
         sites_out.append(
             {
