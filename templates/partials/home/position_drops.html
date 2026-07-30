@@ -83,6 +83,38 @@
   .home-pos-drops .home-pos-pad {
     min-height: 2.75rem;
   }
+  /* Varsayılan ~7 satır; kalanı (toplam 17'ye kadar) dikey scroll */
+  .home-pos-drops .home-pos-list {
+    max-height: calc(7 * 3.55rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184 / 0.7) transparent;
+    padding-right: 0.15rem;
+    margin-top: 0.5rem;
+  }
+  .home-pos-drops .home-pos-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .home-pos-drops .home-pos-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgb(148 163 184 / 0.65);
+  }
+  html.dark .home-pos-drops .home-pos-list {
+    scrollbar-color: rgb(113 113 122 / 0.85) transparent;
+  }
+  html.dark .home-pos-drops .home-pos-list::-webkit-scrollbar-thumb {
+    background: rgb(113 113 122 / 0.75);
+  }
+  .home-pos-drops .home-pos-list .home-pos-row:last-child {
+    border-bottom: 1px solid rgb(241 245 249);
+    padding-bottom: 0.65rem;
+  }
+  html.dark .home-pos-drops .home-pos-list .home-pos-row:last-child {
+    border-bottom-color: rgb(39 39 42);
+  }
 </style>
 
 <div class="home-pos-drops">
@@ -110,11 +142,8 @@
       <div class="min-w-0">
         <p class="home-label text-rose-700 dark:text-rose-300">Düşüşler</p>
         {% if _real_drops %}
-          <ul class="mt-2">
-            {% for d in block.drops %}
-              {% if d.is_pad %}
-              <li class="home-pos-row" aria-hidden="true"><span class="home-pos-pad block"></span></li>
-              {% else %}
+          <ul class="home-pos-list">
+            {% for d in _real_drops %}
               <li class="home-pos-row">
                 <span class="home-pos-query" title="{{ d.query }}">{{ d.query }}</span>
                 <span class="home-pos-meta">
@@ -127,7 +156,6 @@
                   {% endif %}
                 </span>
               </li>
-              {% endif %}
             {% endfor %}
           </ul>
         {% else %}
@@ -137,11 +165,8 @@
       <div class="min-w-0">
         <p class="home-label text-emerald-700 dark:text-emerald-300">Yükselişler</p>
         {% if _real_rises %}
-          <ul class="mt-2">
-            {% for d in block.rises %}
-              {% if d.is_pad %}
-              <li class="home-pos-row" aria-hidden="true"><span class="home-pos-pad block"></span></li>
-              {% else %}
+          <ul class="home-pos-list">
+            {% for d in _real_rises %}
               <li class="home-pos-row">
                 <span class="home-pos-query" title="{{ d.query }}">{{ d.query }}</span>
                 <span class="home-pos-meta">
@@ -154,7 +179,6 @@
                   {% endif %}
                 </span>
               </li>
-              {% endif %}
             {% endfor %}
           </ul>
         {% else %}

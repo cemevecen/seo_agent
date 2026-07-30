@@ -413,7 +413,8 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
         return {"top_50": [], "all_queries": [], "dropped_queries": []}
 
 
-HOME_POSITION_DROPS_ROW_LIMIT = 12
+HOME_POSITION_DROPS_ROW_LIMIT = 17  # ana sayfa: 7 görünür + 10 scroll
+HOME_POSITION_DROPS_VISIBLE_ROWS = 7
 
 # Ana sayfa / uyarılar pozisyon listelerinden çıkarılacak +18 / erotik sorgular.
 _ADULT_QUERY_TOKEN_RE = re.compile(
@@ -604,8 +605,9 @@ def list_sc_position_changes_7d(
 
     drops.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
     rises.sort(key=lambda item: float(item.get("impact") or 0.0), reverse=True)
-    drops = _pad_position_change_rows(drops, row_limit)
-    rises = _pad_position_change_rows(rises, row_limit)
+    # Pad yok — scroll listede boş satır istemiyoruz; sadece üst N gerçek satır
+    drops = drops[:row_limit]
+    rises = rises[:row_limit]
 
     _as_of_raw, as_of_label, as_of_iso = _sc_position_data_as_of(db, site)
 

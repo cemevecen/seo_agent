@@ -575,11 +575,13 @@
 
       {# Row 4 — Position Drops #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/position-drops?site=doviz" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=2" hx-trigger="load" hx-swap="innerHTML"
+                 hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
-        <section hx-get="/api/home/position-drops?site=sinemalar" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=2" hx-trigger="load" hx-swap="innerHTML"
+                 hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
