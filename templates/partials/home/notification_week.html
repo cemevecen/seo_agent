@@ -16,19 +16,18 @@
 {%- endmacro %}
 
 {% macro nt_pie(pie) -%}
-  <div class="home-nt-pie relative shrink-0 overflow-hidden">
-    <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
-      <circle cx="18" cy="18" r="15.9155" fill="none" stroke="currentColor" stroke-width="3.2" class="text-slate-100 dark:text-slate-800"></circle>
-      {% if pie and pie.segments %}
-        {% for seg in pie.segments %}
-          <circle cx="18" cy="18" r="15.9155" fill="none"
-                  stroke="{{ seg.hex }}" stroke-width="3.2"
-                  stroke-dasharray="{{ seg.dash }}" stroke-dashoffset="{{ seg.offset }}"
-                  stroke-linecap="butt"></circle>
-        {% endfor %}
-      {% endif %}
-    </svg>
-    <div class="home-nt-pie-center absolute inset-[18%] flex flex-col items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-100 dark:bg-zinc-900 dark:ring-zinc-700">
+  {# 3D donut — conic + tilt + extruded side layers #}
+  <div class="home-nt-pie3d" {% if pie and pie.conic %}style="--nt-pie: {{ pie.conic }}"{% endif %}>
+    <div class="home-nt-pie3d-stage" aria-hidden="true">
+      <span class="home-nt-pie3d-shadow"></span>
+      <span class="home-nt-pie3d-rim"></span>
+      <span class="home-nt-pie3d-side home-nt-pie3d-side-a"></span>
+      <span class="home-nt-pie3d-side home-nt-pie3d-side-b"></span>
+      <span class="home-nt-pie3d-side home-nt-pie3d-side-c"></span>
+      <span class="home-nt-pie3d-face"></span>
+      <span class="home-nt-pie3d-gloss"></span>
+    </div>
+    <div class="home-nt-pie3d-center">
       <p class="home-nt-pie-total max-w-full px-1 font-black tabular-nums leading-none text-slate-900 dark:text-slate-50" style="overflow-wrap:anywhere">{{ pie.total_fmt if pie else '—' }}</p>
     </div>
   </div>
@@ -134,6 +133,110 @@
   .home-nt-week .home-nt-pie-center {
     min-width: 0;
     text-align: center;
+  }
+
+  /* ── 3D pasta ── */
+  .home-nt-week .home-nt-pie3d {
+    --nt-pie-size: clamp(8.25rem, 6.5rem + 9cqi, 10.5rem);
+    --nt-pie: conic-gradient(#cbd5e1 0 100%);
+    position: relative;
+    width: var(--nt-pie-size);
+    height: calc(var(--nt-pie-size) * 0.72);
+    margin: 0.15rem 0 0.35rem;
+    flex: 0 0 auto;
+  }
+  .home-nt-week .home-nt-pie3d-stage {
+    position: absolute;
+    left: 50%;
+    top: 8%;
+    width: var(--nt-pie-size);
+    height: var(--nt-pie-size);
+    transform: translateX(-50%) rotateX(58deg);
+    transform-style: preserve-3d;
+    perspective: 900px;
+  }
+  .home-nt-week .home-nt-pie3d-shadow {
+    position: absolute;
+    inset: 8% 4% -18% 4%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgb(15 23 42 / 0.28), transparent 70%);
+    transform: translateZ(-18px) scale(1.05);
+    filter: blur(6px);
+  }
+  .home-nt-week .home-nt-pie3d-rim,
+  .home-nt-week .home-nt-pie3d-side,
+  .home-nt-week .home-nt-pie3d-face,
+  .home-nt-week .home-nt-pie3d-gloss {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+  }
+  .home-nt-week .home-nt-pie3d-rim {
+    background: var(--nt-pie);
+    filter: brightness(0.55) saturate(1.05);
+    transform: translateZ(-14px);
+  }
+  .home-nt-week .home-nt-pie3d-side {
+    background: var(--nt-pie);
+    filter: brightness(0.72) saturate(1.08);
+  }
+  .home-nt-week .home-nt-pie3d-side-a { transform: translateZ(-10px); }
+  .home-nt-week .home-nt-pie3d-side-b { transform: translateZ(-6px); filter: brightness(0.8) saturate(1.05); }
+  .home-nt-week .home-nt-pie3d-side-c { transform: translateZ(-3px); filter: brightness(0.88) saturate(1.02); }
+  .home-nt-week .home-nt-pie3d-face {
+    background: var(--nt-pie);
+    transform: translateZ(0);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.22),
+      inset 0 -10px 18px rgb(15 23 42 / 0.12),
+      0 1px 0 rgb(255 255 255 / 0.35);
+  }
+  .home-nt-week .home-nt-pie3d-gloss {
+    background: linear-gradient(
+      145deg,
+      rgb(255 255 255 / 0.42) 0%,
+      rgb(255 255 255 / 0.08) 38%,
+      transparent 55%
+    );
+    transform: translateZ(1px);
+    pointer-events: none;
+    mix-blend-mode: soft-light;
+  }
+  .home-nt-week .home-nt-pie3d-face,
+  .home-nt-week .home-nt-pie3d-side,
+  .home-nt-week .home-nt-pie3d-rim,
+  .home-nt-week .home-nt-pie3d-gloss {
+    -webkit-mask: radial-gradient(circle, transparent 39%, #000 40.5%);
+            mask: radial-gradient(circle, transparent 39%, #000 40.5%);
+  }
+  .home-nt-week .home-nt-pie3d-center {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42%;
+    height: 42%;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.96);
+    box-shadow:
+      0 6px 16px rgb(15 23 42 / 0.12),
+      inset 0 1px 0 rgb(255 255 255 / 0.9),
+      inset 0 0 0 1px rgb(226 232 240 / 0.9);
+    text-align: center;
+  }
+  html.dark .home-nt-week .home-nt-pie3d-center {
+    background: rgb(24 24 27 / 0.96);
+    box-shadow:
+      0 6px 16px rgb(0 0 0 / 0.45),
+      inset 0 1px 0 rgb(255 255 255 / 0.06),
+      inset 0 0 0 1px rgb(63 63 70 / 0.9);
+  }
+  .home-nt-week .home-nt-pie-total {
+    font-size: clamp(0.8125rem, 0.7rem + 0.5cqi, 1rem);
   }
   .home-nt-week .home-nt-legend {
     width: 100%;
@@ -309,7 +412,7 @@
   }
 </style>
 
-<div class="home-nt-week home-readable">
+<div class="home-nt-week home-readable" data-nt-rev="{{ nt_rev | default('dev') }}">
   <div class="flex w-full flex-wrap items-center justify-between gap-3">
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-2">

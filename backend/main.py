@@ -9163,7 +9163,7 @@ def _home_nt_pie_chart(
     total_fmt: str,
     center_label: str,
 ) -> dict:
-    """SVG donut dilimleri — stroke-dasharray (çevre ≈ 100).
+    """Donut dilimleri — SVG + CSS conic (3D pasta için).
 
     parts: (hex, value, label)
     """
@@ -9176,9 +9176,11 @@ def _home_nt_pie_chart(
             "total_fmt": total_fmt,
             "center_label": center_label,
             "empty": True,
+            "conic": "conic-gradient(#e2e8f0 0 100%)",
         }
     cursor = 0.0
     legend: list[dict] = []
+    conic_stops: list[str] = []
     for hex_color, value, label in parts:
         val = max(0.0, float(value or 0))
         pct = val / total * 100.0
@@ -9192,6 +9194,9 @@ def _home_nt_pie_chart(
         )
         if pct < 0.05:
             continue
+        start = cursor
+        end = min(100.0, cursor + pct)
+        conic_stops.append(f"{hex_color} {start:.3f}% {end:.3f}%")
         segments.append(
             {
                 "hex": hex_color,
@@ -9200,13 +9205,23 @@ def _home_nt_pie_chart(
                 "offset": round(-cursor, 3),
             }
         )
-        cursor += pct
+        cursor = end
+    if conic_stops and cursor < 99.95:
+        last_hex = conic_stops[-1].split()[0]
+        last_start = conic_stops[-1].split()[1]
+        conic_stops[-1] = f"{last_hex} {last_start} 100%"
+    conic = (
+        "conic-gradient(from -90deg, " + ", ".join(conic_stops) + ")"
+        if conic_stops
+        else "conic-gradient(#e2e8f0 0 100%)"
+    )
     return {
         "segments": segments,
         "legend": legend,
         "total_fmt": total_fmt,
         "center_label": center_label,
         "empty": False,
+        "conic": conic,
     }
 
 
@@ -9353,11 +9368,14 @@ def api_home_notification_week(request: Request):
     """Döviz notification: son 7g vs önceki 7g özet (full-width home kartı)."""
     with SessionLocal() as db:
         ctx = _home_notification_week_context(db)
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "partials/home/notification_week.html",
-        context={"request": request, **ctx},
+        context={"request": request, **ctx, "nt_rev": get_app_revision()},
     )
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 
 def _home_parse_iso_date(s: str | None) -> datetime | None:
