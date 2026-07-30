@@ -10,7 +10,8 @@
      class="home-git-nokta home-readable home-gl-board"
      x-data="homeGitlabBoards()"
      x-init="init()"
-     data-default-project="{{ default_board_project | default('nokta/doviz') }}">
+     data-default-project="{{ default_board_project | default('nokta/doviz') }}"
+     data-token="{{ token | default('') }}">
   <script type="application/json" id="home-gl-projects">{{ projects_json | safe }}</script>
 
   <style>

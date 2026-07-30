@@ -1,10 +1,17 @@
 /**
- * Ana sayfa git.nokta — boards ile aynı kanban (tüm issue'lar, yıldız yok).
- * Veri: /api/boards/project-bundle · DnD: /api/boards/move + /api/boards/reorder
+ * Ana sayfa git.nokta — boards ile aynı kanban.
+ * Veri + DnD: tarayıcıdan doğrudan GitLab (VPN); sıra kaydı: /api/boards/order.
+ * Railway sunucusu GitLab'e ulaşamadığı için project-bundle kullanılmaz.
  */
 (function (global) {
+  var GITLAB_API = 'https://git.nokta.com/api/v4';
+  var MAX_OPENED_PAGES = 25;
+  var MAX_CLOSED_PAGES = 8;
+
   function homeGitlabBoards() {
     return {
+      token: '',
+      baseUrl: GITLAB_API,
       configProjects: [],
       activeProject: '',
       projectData: {},
@@ -22,6 +29,7 @@
           this.configProjects = [];
         }
         var root = this.$el;
+        this.token = (root && root.getAttribute('data-token')) || '';
         var def =
           (root && root.getAttribute('data-default-project')) ||
           (this.configProjects[0] && this.configProjects[0].path) ||
@@ -188,6 +196,40 @@
         });
       },
 
+      async fetchAllIssues(encodedPath, state) {
+        var allIssues = [];
+        var page = 1;
+        var oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        var updatedAfter = oneYearAgo.toISOString();
+        var orderBy = state === 'opened' ? 'relative_position' : 'updated_at';
+        var sort = state === 'opened' ? 'asc' : 'desc';
+        var maxPages = state === 'opened' ? MAX_OPENED_PAGES : MAX_CLOSED_PAGES;
+        while (page <= maxPages) {
+          var url =
+            this.baseUrl +
+            '/projects/' +
+            encodedPath +
+            '/issues?state=' +
+            state +
+            '&updated_after=' +
+            encodeURIComponent(updatedAfter) +
+            '&order_by=' +
+            orderBy +
+            '&sort=' +
+            sort +
+            '&per_page=100&page=' +
+            page;
+          var res = await fetch(url, { headers: { 'PRIVATE-TOKEN': this.token } });
+          if (!res.ok) throw new Error('Issues fetch failed (' + state + ')');
+          var data = await res.json();
+          allIssues = allIssues.concat(data);
+          if (data.length < 100) break;
+          page += 1;
+        }
+        return allIssues;
+      },
+
       async fetchProject(path, force) {
         this.ensureProject(path);
         var pd = this.projectData[path];
@@ -197,18 +239,28 @@
         pd.error = null;
         this.statusMsg = '';
         try {
-          await this.loadBoardOrders(path);
-          var res = await fetch(
-            '/api/boards/project-bundle?project_path=' + encodeURIComponent(path),
-            { credentials: 'same-origin', cache: 'no-store' }
-          );
-          var data = await res.json().catch(function () {
-            return {};
-          });
-          if (!res.ok || data.error) {
-            throw new Error(data.error || ('HTTP ' + res.status));
+          if (!this.token) {
+            throw new Error('GitLab token yok — VPN / boards sayfasını kontrol edin.');
           }
-          var board = data.board;
+          await this.loadBoardOrders(path);
+          var encodedPath = encodeURIComponent(path);
+          var headers = { 'PRIVATE-TOKEN': this.token };
+          var boardsRes = await fetch(this.baseUrl + '/projects/' + encodedPath + '/boards', {
+            headers: headers,
+          });
+          if (!boardsRes.ok) {
+            if (boardsRes.status === 0 || boardsRes.type === 'opaque') {
+              throw new Error('GitLab’e ulaşılamadı — VPN açık mı?');
+            }
+            throw new Error('GitLab API hatası: ' + boardsRes.status + ' ' + (boardsRes.statusText || ''));
+          }
+          var boardsData = await boardsRes.json();
+          if (!boardsData || !boardsData.length) {
+            throw new Error('Projede aktif board bulunamadı.');
+          }
+          var openedIssues = await this.fetchAllIssues(encodedPath, 'opened');
+          var closedIssues = await this.fetchAllIssues(encodedPath, 'closed');
+          var board = boardsData[0];
           var actualLists = (board.lists || []).map(function (l) {
             return Object.assign({}, l, {
               isVirtual: false,
@@ -229,13 +281,20 @@
           });
           pd.board = board;
           pd.lists = actualLists;
-          pd.issues = [].concat(data.opened_issues || [], data.closed_issues || []);
+          pd.issues = openedIssues.concat(closedIssues);
           pd.loaded = true;
           if (force) this.statusMsg = 'Güncellendi · ' + pd.issues.length + ' madde';
         } catch (err) {
           console.error(err);
-          pd.error = (err && err.message) || 'Board yüklenemedi';
-          this.statusMsg = pd.error;
+          var msg = (err && err.message) || 'Board yüklenemedi';
+          if (
+            /Failed to fetch|NetworkError|Load failed|network/i.test(msg) ||
+            (err && err.name === 'TypeError')
+          ) {
+            msg = 'GitLab’e ulaşılamadı — VPN açık mı? (boards ile aynı bağlantı)';
+          }
+          pd.error = msg;
+          this.statusMsg = msg;
         } finally {
           pd.loading = false;
         }
@@ -257,58 +316,96 @@
           });
       },
 
-      getReorderParamsFromList(listEl, issueIid) {
+      getReorderParamsFromList(listEl, issueIid, projectPath) {
         var items = Array.from(listEl.querySelectorAll('[data-id]'));
         var idx = items.findIndex(function (el) {
           return String(el.getAttribute('data-id')) === String(issueIid);
         });
         if (idx === -1) return null;
-        var params = {};
-        function globalId(el) {
+        var pd = this.projectData[projectPath];
+        var globalId = function (el) {
           var g = el && el.getAttribute('data-global-id');
-          return g ? parseInt(g, 10) : null;
-        }
+          if (g) return parseInt(g, 10);
+          if (!pd || !pd.issues) return null;
+          var iss = pd.issues.find(function (i) {
+            return String(i.iid) === String(el.getAttribute('data-id'));
+          });
+          return iss && iss.id != null ? parseInt(iss.id, 10) : null;
+        };
+        var params = {};
         if (idx === 0) {
           if (items[1]) {
             var nextId = globalId(items[1]);
-            if (nextId != null) params.move_before_id = nextId;
+            if (nextId != null && !isNaN(nextId)) params.move_before_id = nextId;
           }
         } else {
           var afterId = globalId(items[idx - 1]);
-          if (afterId != null) params.move_after_id = afterId;
+          if (afterId != null && !isNaN(afterId)) params.move_after_id = afterId;
         }
         return params;
       },
 
-      async apiMove(projectPath, issueIid, payload) {
-        var res = await fetch('/api/boards/move', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(Object.assign({ project_path: projectPath, issue_iid: Number(issueIid) }, payload)),
+      async gitlabUpdateIssue(projectPath, issueIid, opts) {
+        opts = opts || {};
+        if (!this.token) return null;
+        var enc = encodeURIComponent(projectPath);
+        var url = this.baseUrl + '/projects/' + enc + '/issues/' + parseInt(issueIid, 10);
+        var body = new URLSearchParams();
+        if (opts.add_labels && opts.add_labels.length) {
+          body.set('add_labels', opts.add_labels.join(','));
+        }
+        if (opts.remove_labels && opts.remove_labels.length) {
+          body.set('remove_labels', opts.remove_labels.join(','));
+        }
+        if (opts.state_event === 'close' || opts.state_event === 'reopen') {
+          body.set('state_event', opts.state_event);
+        }
+        if (!Array.from(body.keys()).length) return null;
+        var res = await fetch(url, {
+          method: 'PUT',
+          headers: { 'PRIVATE-TOKEN': this.token },
+          body: body,
         });
-        var data = await res.json().catch(function () {
-          return {};
-        });
-        return data.issue || null;
+        if (!res.ok) {
+          var detail = 'GitLab issue güncellenemedi';
+          try {
+            var err = await res.json();
+            if (err && (err.message || err.error)) detail = String(err.message || err.error);
+          } catch (e) { /* ignore */ }
+          throw new Error(detail);
+        }
+        return res.json();
       },
 
-      async apiReorder(projectPath, issueIid, params) {
-        var res = await fetch('/api/boards/reorder', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project_path: projectPath,
-            issue_iid: Number(issueIid),
-            move_after_id: params.move_after_id,
-            move_before_id: params.move_before_id,
-          }),
+      async gitlabReorderIssue(projectPath, issueIid, params) {
+        params = params || {};
+        if (!this.token) return null;
+        var enc = encodeURIComponent(projectPath);
+        var iid = parseInt(issueIid, 10);
+        var qs = new URLSearchParams();
+        if (params.move_after_id != null) qs.set('move_after_id', String(params.move_after_id));
+        if (params.move_before_id != null) qs.set('move_before_id', String(params.move_before_id));
+        var q = qs.toString();
+        var url =
+          this.baseUrl + '/projects/' + enc + '/issues/' + iid + '/reorder' + (q ? '?' + q : '');
+        var res = await fetch(url, {
+          method: 'PUT',
+          headers: { 'PRIVATE-TOKEN': this.token },
         });
-        var data = await res.json().catch(function () {
-          return {};
-        });
-        return data.issue || null;
+        if (!res.ok) return null;
+        if (res.status === 204) {
+          var ref = await fetch(this.baseUrl + '/projects/' + enc + '/issues/' + iid, {
+            headers: { 'PRIVATE-TOKEN': this.token },
+          });
+          return ref.ok ? ref.json() : null;
+        }
+        var text = await res.text();
+        if (text && text.trim()) {
+          try {
+            return JSON.parse(text);
+          } catch (e) { /* ignore */ }
+        }
+        return null;
       },
 
       applyIssueUpdate(pd, updated) {
@@ -384,9 +481,8 @@
                 if (isToClosed && !isFromClosed) stateEvent = 'close';
                 else if (!isToClosed && isFromClosed) stateEvent = 'reopen';
 
-                var updated = await self.apiMove(projectPath, issueIid, {
-                  from_label: isFromVirtual || isFromClosed ? '' : fromLabel,
-                  to_label: addLabel || '',
+                var updated = await self.gitlabUpdateIssue(projectPath, issueIid, {
+                  add_labels: addLabel ? [addLabel] : [],
                   remove_labels: labelsToRemove,
                   state_event: stateEvent,
                 });
@@ -415,9 +511,9 @@
               }
 
               if (reorderedInColumn || crossColumn) {
-                var params = self.getReorderParamsFromList(toList, issueIid);
+                var params = self.getReorderParamsFromList(toList, issueIid, projectPath);
                 if (params && (params.move_after_id || params.move_before_id)) {
-                  var reordered = await self.apiReorder(projectPath, issueIid, params);
+                  var reordered = await self.gitlabReorderIssue(projectPath, issueIid, params);
                   if (reordered) self.applyIssueUpdate(pd, reordered);
                 }
               }
@@ -461,7 +557,6 @@
     ensureAlpineAndMount();
     var el = document.getElementById('home-git-nokta');
     if (el && global.Alpine && typeof global.Alpine.initTree === 'function') {
-      // HTMX swap sonrası Alpine ağacını yeniden başlat
       if (!el.__x) {
         try {
           global.Alpine.initTree(el);

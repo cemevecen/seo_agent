@@ -451,7 +451,7 @@
   <script src="/static/js/rt_slot_fx.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-  <script src="/static/js/home_gitlab_boards.js?v=2"></script>
+  <script src="/static/js/home_gitlab_boards.js?v=3"></script>
   <section id="home-realtime-section" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
@@ -605,7 +605,7 @@
     </section>
 
     {# git.nokta — en sonda; boards ile aynı GitLab/VPN kaynağı (tarayıcı fetch) #}
-    <section hx-get="/api/home/priority-board?v=4" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/priority-board?v=5" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">git.nokta</h3>
