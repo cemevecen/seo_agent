@@ -9244,7 +9244,7 @@ def _home_notification_week_context(db) -> dict:
     except Exception:  # noqa: BLE001
         tz = ZoneInfo("Europe/Istanbul")
     ref = datetime.now(tz).date()
-    raw = build_notification_week_compare(db, reference_day=ref, top_n=5)
+    raw = build_notification_week_compare(db, reference_day=ref, top_n=40)
     totals = raw.get("totals") or {}
     windows = raw.get("windows") or {}
     cur_w = windows.get("current") or {}

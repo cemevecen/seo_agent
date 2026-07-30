@@ -306,6 +306,25 @@
     scrollbar-width: thin;
   }
 
+  /* Top 40: ~5 satır görünür, fazlası dikey scroll (her iki sekme) */
+  .home-nt-week .home-nt-top-scroll {
+    max-height: calc(5 * 3.55rem + 2.25rem);
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184 / 0.7) transparent;
+  }
+  .home-nt-week .home-nt-top-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .home-nt-week .home-nt-top-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgb(148 163 184 / 0.65);
+  }
+  html.dark .home-nt-week .home-nt-top-scroll {
+    scrollbar-color: rgb(113 113 122 / 0.85) transparent;
+  }
+
   .home-nt-week .home-nt-panel {
     position: relative;
     z-index: 0;
@@ -426,6 +445,9 @@
     vertical-align: middle;
   }
   .home-nt-week .home-nt-top thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     background: rgb(248 250 252);
     color: rgb(100 116 139);
   }
@@ -433,7 +455,7 @@
     border-top: 1px solid rgb(241 245 249);
   }
   html.dark .home-nt-week .home-nt-top thead {
-    background: rgba(39, 39, 42, 0.95);
+    background: rgba(39, 39, 42, 0.98);
     color: rgb(161 161 170);
   }
   html.dark .home-nt-week .home-nt-top tbody tr + tr td {
@@ -627,14 +649,14 @@
 
     <div class="home-nt-panel home-nt-top mt-4 w-full rounded-xl" data-home-nt-top>
       <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-2 rounded-t-xl">
-        <div class="flex min-w-0 flex-wrap items-center gap-2" role="tablist" aria-label="Top 5 dönem">
+        <div class="flex min-w-0 flex-wrap items-center gap-2" role="tablist" aria-label="Top 40 dönem">
           <button type="button"
                   role="tab"
                   aria-selected="true"
                   data-nt-top-tab="current"
                   class="home-nt-top-tab rounded-full px-3.5 py-1.5 home-label normal-case tracking-wide transition
                          bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
-            Bu hafta ilk 5
+            Bu hafta top 40
           </button>
           <button type="button"
                   role="tab"
@@ -643,7 +665,7 @@
                   class="home-nt-top-tab rounded-full px-3.5 py-1.5 home-label normal-case tracking-wide transition
                          bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50
                          dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">
-            Geçtiğimiz hafta ilk 5
+            Geçtiğimiz hafta top 40
           </button>
         </div>
         <span data-nt-top-count
@@ -654,7 +676,7 @@
 
       {% macro nt_top_table(items, empty_msg) -%}
         {% if items %}
-          <div class="home-nt-scroll p-2 sm:p-2.5">
+          <div class="home-nt-top-scroll p-2 sm:p-2.5">
             <div class="home-nt-top-wrap">
               <table>
                 <thead class="home-label">
