@@ -210,7 +210,12 @@
     });
 
     try {
-      var res = await fetch('/api/boards/stars', { credentials: 'same-origin', cache: 'no-store' });
+      // Önce DB snapshot (anında); GitLab sync ayrı ve timeout'lu
+      var res = await fetch('/api/boards/stars?refresh=0', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
+      });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var data = await res.json();
       root._gnItems = data.items || [];
@@ -219,6 +224,28 @@
         renderProduct(root, pid, root._gnItems);
       });
       showReady();
+
+      // Arka planda GitLab kolon sync — UI'yi bloklamaz
+      fetch('/api/boards/stars?refresh=1', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined,
+      })
+        .then(function (r2) {
+          if (!r2.ok) return null;
+          return r2.json();
+        })
+        .then(function (data2) {
+          if (!data2 || !root.isConnected) return;
+          root._gnItems = data2.items || root._gnItems;
+          root._gnOrders = data2.orders || root._gnOrders;
+          ['doviz', 'sinemalar'].forEach(function (pid) {
+            renderProduct(root, pid, root._gnItems);
+          });
+        })
+        .catch(function (softErr) {
+          console.warn('home git.nokta soft refresh skipped', softErr);
+        });
     } catch (err) {
       console.warn('home git.nokta stars load failed', err);
       showError((err && err.message) || 'Yıldızlı maddeler yüklenemedi.');

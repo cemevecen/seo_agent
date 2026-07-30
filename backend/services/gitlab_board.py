@@ -137,8 +137,13 @@ async def fetch_issues_by_iids_async(
     return out
 
 
-def fetch_issues_by_iids(project_path: str, iids: list[int]) -> dict[int, dict[str, Any]]:
-    """Sync GitLab issues-by-iid — yıldız yenileme (FastAPI sync route güvenli)."""
+def fetch_issues_by_iids(
+    project_path: str,
+    iids: list[int],
+    *,
+    timeout_sec: float = 4.0,
+) -> dict[int, dict[str, Any]]:
+    """Sync GitLab issues-by-iid — yıldız yenileme (kısa timeout, asılı kalmaz)."""
     token = get_gitlab_token()
     if not token:
         raise ValueError("GITLAB_PRIVATE_TOKEN tanımlı değil.")
@@ -149,7 +154,9 @@ def fetch_issues_by_iids(project_path: str, iids: list[int]) -> dict[int, dict[s
     headers = _headers()
     url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
     out: dict[int, dict[str, Any]] = {}
-    with httpx.Client(timeout=20.0) as client:
+    t = max(1.0, float(timeout_sec))
+    timeout = httpx.Timeout(t, connect=min(2.0, t), read=t, write=t, pool=t)
+    with httpx.Client(timeout=timeout) as client:
         for i in range(0, len(clean), 50):
             chunk = clean[i : i + 50]
             params: list[tuple[str, str]] = [("per_page", "100")]

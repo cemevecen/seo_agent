@@ -17693,28 +17693,52 @@ def api_boards_list_stars(
     product: str | None = None,
     platform: str | None = None,
     project_path: str | None = None,
-    refresh: int = 1,
+    refresh: int = 0,
     db: Session = Depends(get_db),
 ):
     """Yıldızlı GitLab maddeleri — ana sayfa chip / boards UI.
 
-    Varsayılan refresh=1: GitLab'dan state/label çekip board_list'i günceller
-    (Closed'a taşınmış yıldızların Doing/Testing'te kalmasını önler).
+    Varsayılan refresh=0: DB'den anında döner (asılı kalmaz).
+    refresh=1: GitLab sync dener; başarısız/timeout olsa bile DB snapshot döner.
     """
-    from backend.services.gitlab_board_stars import HOME_CHIPS, list_home_star_orders, list_starred_iids, list_stars
+    from backend.services.gitlab_board_stars import (
+        HOME_CHIPS,
+        list_home_star_orders,
+        list_starred_iids,
+        list_stars,
+        refresh_stars_from_gitlab,
+    )
 
     do_refresh = bool(int(refresh or 0))
+    refresh_meta: dict | None = None
+    if do_refresh:
+        try:
+            refresh_meta = refresh_stars_from_gitlab(
+                db,
+                product=product,
+                platform=platform,
+                project_path=project_path,
+                per_project_timeout_sec=4.0,
+            )
+        except Exception as exc:
+            LOGGER.warning("boards stars refresh skipped: %s", exc)
+            refresh_meta = {"ok": False, "error": str(exc)[:200]}
+
     if project_path:
-        return {
+        payload = {
             "project_path": project_path,
             "issue_iids": list_starred_iids(db, project_path),
-            "items": list_stars(db, project_path=project_path, refresh=do_refresh),
+            "items": list_stars(db, project_path=project_path, refresh=False),
         }
-    return {
-        "chips": HOME_CHIPS,
-        "orders": list_home_star_orders(db),
-        "items": list_stars(db, product=product, platform=platform, refresh=do_refresh),
-    }
+    else:
+        payload = {
+            "chips": HOME_CHIPS,
+            "orders": list_home_star_orders(db),
+            "items": list_stars(db, product=product, platform=platform, refresh=False),
+        }
+    if refresh_meta is not None:
+        payload["refresh"] = refresh_meta
+    return payload
 
 
 @app.post("/api/boards/stars")

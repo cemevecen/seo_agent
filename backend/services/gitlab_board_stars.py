@@ -102,11 +102,12 @@ def refresh_stars_from_gitlab(
     product: str | None = None,
     platform: str | None = None,
     project_path: str | None = None,
+    per_project_timeout_sec: float = 4.0,
 ) -> dict[str, Any]:
     """Yıldız satırlarını GitLab'daki güncel state/label ile senkronize et.
 
     Ana sayfa board_list'i yıldız anındaki snapshot'tı; Closed'a taşınan maddeler
-    Doing/Testing'te kalıyordu. Bu çağrı stars listesinde kolonları günceller.
+    Doing/Testing'te kalıyordu. Kısa timeout — GitLab erişilemezse asılı kalmaz.
     """
     q = db.query(GitlabBoardStar)
     if product:
@@ -128,7 +129,9 @@ def refresh_stars_from_gitlab(
     for path, project_rows in by_project.items():
         iids = [int(r.issue_iid) for r in project_rows]
         try:
-            issues = fetch_issues_by_iids(path, iids)
+            issues = fetch_issues_by_iids(
+                path, iids, timeout_sec=per_project_timeout_sec
+            )
         except Exception as exc:
             msg = f"{path}: {exc}"
             LOGGER.warning("Star refresh failed: %s", msg)
