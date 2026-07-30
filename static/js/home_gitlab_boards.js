@@ -448,6 +448,15 @@
 
   global.homeGitlabBoards = homeGitlabBoards;
 
+  document.addEventListener('alpine:init', function () {
+    try {
+      if (global.Alpine && typeof global.Alpine.data === 'function') {
+        global.Alpine.data('homeGitlabBoards', homeGitlabBoards);
+        global.__homeGitlabBoardsRegistered = true;
+      }
+    } catch (e) { /* ignore */ }
+  });
+
   function boot() {
     ensureAlpineAndMount();
     var el = document.getElementById('home-git-nokta');
