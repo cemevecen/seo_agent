@@ -112,8 +112,16 @@
   .home-nt-week .home-nt-share-block {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
+    align-items: stretch;
+    gap: 0.65rem;
+    min-width: 0;
+  }
+  .home-nt-week .home-nt-share-body {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.1rem;
     min-width: 0;
   }
   .home-nt-week .home-nt-share-title {
@@ -240,7 +248,9 @@
     font-size: clamp(0.8125rem, 0.7rem + 0.5cqi, 1rem);
   }
   .home-nt-week .home-nt-legend {
-    width: 100%;
+    flex: 1 1 7.5rem;
+    min-width: 6.5rem;
+    max-width: 13rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -450,18 +460,20 @@
         <div class="home-nt-share-block">
           <p class="home-nt-share-title">Impression payı</p>
           {% if impr_pie and not impr_pie.empty %}
-            {{ nt_pie(impr_pie) }}
-            <ul class="home-nt-legend">
-              {% for row in impr_pie.legend %}
-                <li>
-                  <span class="inline-flex min-w-0 items-center gap-1.5">
-                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
-                    <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
-                  </span>
-                  <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
-                </li>
-              {% endfor %}
-            </ul>
+            <div class="home-nt-share-body">
+              {{ nt_pie(impr_pie) }}
+              <ul class="home-nt-legend">
+                {% for row in impr_pie.legend %}
+                  <li>
+                    <span class="inline-flex min-w-0 items-center gap-1.5">
+                      <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
+                      <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
+                    </span>
+                    <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
           {% else %}
             <p class="home-meta text-slate-400 dark:text-slate-500">Impression payı yok</p>
           {% endif %}
@@ -479,18 +491,20 @@
         </div>
         <div class="home-nt-share-block">
           <p class="home-nt-share-title">Click payı</p>
-          {{ nt_pie(click_pie) }}
-          <ul class="home-nt-legend">
-            {% for row in click_pie.legend %}
-              <li>
-                <span class="inline-flex min-w-0 items-center gap-1.5">
-                  <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
-                  <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
-                </span>
-                <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
-              </li>
-            {% endfor %}
-          </ul>
+          <div class="home-nt-share-body">
+            {{ nt_pie(click_pie) }}
+            <ul class="home-nt-legend">
+              {% for row in click_pie.legend %}
+                <li>
+                  <span class="inline-flex min-w-0 items-center gap-1.5">
+                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
+                    <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
+                  </span>
+                  <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
         </div>
       </div>
     </div>
