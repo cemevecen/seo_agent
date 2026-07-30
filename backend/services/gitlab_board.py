@@ -85,6 +85,97 @@ def _gitlab_connect_error_message(exc: Exception) -> str:
     return f"GitLab isteği başarısız: {msg}"
 
 
+async def fetch_issues_by_iids_async(
+    project_path: str,
+    iids: list[int],
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> dict[int, dict[str, Any]]:
+    """GitLab'dan seçili issue'ları iid ile çek — {iid: issue}."""
+    token = get_gitlab_token()
+    if not token:
+        raise ValueError("GITLAB_PRIVATE_TOKEN tanımlı değil.")
+    clean = sorted({int(i) for i in iids if i is not None})
+    if not clean:
+        return {}
+    encoded_path = _encoded_path(project_path)
+    headers = _headers()
+    url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
+    out: dict[int, dict[str, Any]] = {}
+    owns_client = client is None
+    if owns_client:
+        client = httpx.AsyncClient(timeout=20.0)
+    assert client is not None
+    try:
+        # GitLab iids[] — makul batch boyutu
+        for i in range(0, len(clean), 50):
+            chunk = clean[i : i + 50]
+            params: list[tuple[str, str]] = [("per_page", "100")]
+            for iid in chunk:
+                params.append(("iids[]", str(iid)))
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                LOGGER.warning(
+                    "GitLab issues-by-iid failed [%s] %s: %s",
+                    project_path,
+                    resp.status_code,
+                    resp.text[:200],
+                )
+                continue
+            data = resp.json()
+            if not isinstance(data, list):
+                continue
+            for issue in data:
+                try:
+                    iid = int(issue.get("iid"))
+                except (TypeError, ValueError):
+                    continue
+                out[iid] = issue
+    finally:
+        if owns_client:
+            await client.aclose()
+    return out
+
+
+def fetch_issues_by_iids(project_path: str, iids: list[int]) -> dict[int, dict[str, Any]]:
+    """Sync GitLab issues-by-iid — yıldız yenileme (FastAPI sync route güvenli)."""
+    token = get_gitlab_token()
+    if not token:
+        raise ValueError("GITLAB_PRIVATE_TOKEN tanımlı değil.")
+    clean = sorted({int(i) for i in iids if i is not None})
+    if not clean:
+        return {}
+    encoded_path = _encoded_path(project_path)
+    headers = _headers()
+    url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
+    out: dict[int, dict[str, Any]] = {}
+    with httpx.Client(timeout=20.0) as client:
+        for i in range(0, len(clean), 50):
+            chunk = clean[i : i + 50]
+            params: list[tuple[str, str]] = [("per_page", "100")]
+            for iid in chunk:
+                params.append(("iids[]", str(iid)))
+            resp = client.get(url, headers=headers, params=params)
+            if resp.status_code != 200:
+                LOGGER.warning(
+                    "GitLab issues-by-iid failed [%s] %s: %s",
+                    project_path,
+                    resp.status_code,
+                    resp.text[:200],
+                )
+                continue
+            data = resp.json()
+            if not isinstance(data, list):
+                continue
+            for issue in data:
+                try:
+                    iid = int(issue.get("iid"))
+                except (TypeError, ValueError):
+                    continue
+                out[iid] = issue
+    return out
+
+
 async def fetch_gitlab_version_async() -> dict[str, Any]:
     token = get_gitlab_token()
     if not token:

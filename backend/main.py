@@ -17693,21 +17693,27 @@ def api_boards_list_stars(
     product: str | None = None,
     platform: str | None = None,
     project_path: str | None = None,
+    refresh: int = 1,
     db: Session = Depends(get_db),
 ):
-    """Yıldızlı GitLab maddeleri — ana sayfa chip / boards UI."""
+    """Yıldızlı GitLab maddeleri — ana sayfa chip / boards UI.
+
+    Varsayılan refresh=1: GitLab'dan state/label çekip board_list'i günceller
+    (Closed'a taşınmış yıldızların Doing/Testing'te kalmasını önler).
+    """
     from backend.services.gitlab_board_stars import HOME_CHIPS, list_home_star_orders, list_starred_iids, list_stars
 
+    do_refresh = bool(int(refresh or 0))
     if project_path:
         return {
             "project_path": project_path,
             "issue_iids": list_starred_iids(db, project_path),
-            "items": list_stars(db, project_path=project_path),
+            "items": list_stars(db, project_path=project_path, refresh=do_refresh),
         }
     return {
         "chips": HOME_CHIPS,
         "orders": list_home_star_orders(db),
-        "items": list_stars(db, product=product, platform=platform),
+        "items": list_stars(db, product=product, platform=platform, refresh=do_refresh),
     }
 
 
@@ -17731,6 +17737,7 @@ async def api_boards_star_issue(request: Request, db: Session = Depends(get_db))
             state=str(body.get("state") or "opened"),
             labels=list(body.get("labels") or []),
             platform_override=(str(body.get("platform")).strip() if body.get("platform") else None),
+            bump_starred_at=bool(body.get("bump_starred_at", True)),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

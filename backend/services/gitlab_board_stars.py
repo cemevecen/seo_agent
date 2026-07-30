@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from backend.models import GitlabBoardStar
-from backend.services.gitlab_board import get_board_column_orders, save_board_column_order
+from backend.services.gitlab_board import (
+    fetch_issues_by_iids,
+    get_board_column_orders,
+    save_board_column_order,
+)
+
+LOGGER = logging.getLogger(__name__)
 
 # boards sekmeleri → ana sayfa chip
 PROJECT_CHIP_MAP: dict[str, dict[str, str]] = {
@@ -89,13 +96,85 @@ def star_to_dict(row: GitlabBoardStar) -> dict[str, Any]:
     }
 
 
+def refresh_stars_from_gitlab(
+    db: Session,
+    *,
+    product: str | None = None,
+    platform: str | None = None,
+    project_path: str | None = None,
+) -> dict[str, Any]:
+    """Yıldız satırlarını GitLab'daki güncel state/label ile senkronize et.
+
+    Ana sayfa board_list'i yıldız anındaki snapshot'tı; Closed'a taşınan maddeler
+    Doing/Testing'te kalıyordu. Bu çağrı stars listesinde kolonları günceller.
+    """
+    q = db.query(GitlabBoardStar)
+    if product:
+        q = q.filter(GitlabBoardStar.product == product)
+    if platform:
+        q = q.filter(GitlabBoardStar.platform == platform)
+    if project_path:
+        q = q.filter(GitlabBoardStar.project_path == project_path)
+    rows = q.all()
+    if not rows:
+        return {"ok": True, "updated": 0, "checked": 0, "errors": []}
+
+    by_project: dict[str, list[GitlabBoardStar]] = {}
+    for row in rows:
+        by_project.setdefault(row.project_path, []).append(row)
+
+    updated = 0
+    errors: list[str] = []
+    for path, project_rows in by_project.items():
+        iids = [int(r.issue_iid) for r in project_rows]
+        try:
+            issues = fetch_issues_by_iids(path, iids)
+        except Exception as exc:
+            msg = f"{path}: {exc}"
+            LOGGER.warning("Star refresh failed: %s", msg)
+            errors.append(msg)
+            continue
+        for row in project_rows:
+            issue = issues.get(int(row.issue_iid))
+            if not issue:
+                continue
+            state = str(issue.get("state") or row.state or "opened")
+            labels = _label_names(issue.get("labels"))
+            board_list = classify_board_list(state, labels)
+            title = str(issue.get("title") or row.title or "")[:512]
+            web_url = str(issue.get("web_url") or row.web_url or "")[:1024]
+            old_labels = _label_names(row.labels_json)
+            if (
+                (row.state or "") == state[:16]
+                and (row.board_list or "") == board_list
+                and (row.title or "") == title
+                and old_labels == labels
+                and (row.web_url or "") == web_url
+            ):
+                continue
+            row.state = state[:16]
+            row.labels_json = json.dumps(labels, ensure_ascii=False)
+            row.board_list = board_list
+            row.title = title
+            row.web_url = web_url
+            updated += 1
+    if updated:
+        db.commit()
+    return {"ok": True, "updated": updated, "checked": len(rows), "errors": errors}
+
+
 def list_stars(
     db: Session,
     *,
     product: str | None = None,
     platform: str | None = None,
     project_path: str | None = None,
+    refresh: bool = False,
 ) -> list[dict[str, Any]]:
+    if refresh:
+        refresh_stars_from_gitlab(
+            db, product=product, platform=platform, project_path=project_path
+        )
     q = db.query(GitlabBoardStar)
     if product:
         q = q.filter(GitlabBoardStar.product == product)
@@ -153,6 +232,7 @@ def upsert_star(
     state: str = "opened",
     labels: list[str] | None = None,
     platform_override: str | None = None,
+    bump_starred_at: bool = True,
 ) -> dict[str, Any]:
     meta = resolve_chip_for_project(project_path)
     if not meta:
@@ -191,7 +271,8 @@ def upsert_star(
         row.state = (state or row.state or "opened")[:16]
         row.labels_json = json.dumps(labels, ensure_ascii=False)
         row.board_list = board_list
-        row.starred_at = datetime.utcnow()
+        if bump_starred_at or row.starred_at is None:
+            row.starred_at = datetime.utcnow()
     db.commit()
     db.refresh(row)
     return star_to_dict(row)

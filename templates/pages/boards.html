@@ -1139,6 +1139,33 @@
                     pd.issues[issueIndex].labels = labels;
                   }
                 }
+                // Ana sayfa yıldız kolonunu da canlı tut
+                if (this.isStarred(projectPath, issueIid)) {
+                  const cur = pd.issues.find((i) => String(i.iid) === String(issueIid));
+                  if (cur) {
+                    const starLabels = Array.isArray(cur.labels)
+                      ? cur.labels.map((l) => (typeof l === 'string' ? l : (l && l.name) || '')).filter(Boolean)
+                      : [];
+                    try {
+                      await fetch('/api/boards/stars', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          project_path: projectPath,
+                          issue_iid: Number(issueIid),
+                          title: cur.title || '',
+                          web_url: cur.web_url || '',
+                          state: cur.state || (isToClosed ? 'closed' : 'opened'),
+                          labels: starLabels,
+                          bump_starred_at: false,
+                        }),
+                      });
+                    } catch (starErr) {
+                      console.warn('Star column sync failed', starErr);
+                    }
+                  }
+                }
               }
 
               if (reorderParams && (reorderParams.move_after_id || reorderParams.move_before_id)) {
