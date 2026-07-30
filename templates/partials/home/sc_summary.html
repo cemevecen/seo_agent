@@ -1,31 +1,31 @@
-<div class="flex items-center justify-between gap-3">
-  <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
+<div class="home-readable flex items-center justify-between gap-3">
+  <h3 class="font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
   <a href="/search-console" hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
 </div>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
-  <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+  <div class="home-split home-split-2 mt-4">
     {% for dev in site.devices %}
       <div class="min-w-0">
-        <p class="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+        <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
         <div class="mt-2 grid grid-cols-2 gap-3">
           <div class="min-w-0">
-            <p lang="en" class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Clicks</p>
+            <p lang="en" class="home-label text-slate-400 dark:text-slate-500">Clicks</p>
             {% set _p = dev.clicks_delta_pct | default(0) | float %}
-            <p class="mt-1 truncate text-base font-semibold tabular-nums {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
-            <p class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
+            <p class="home-kpi mt-1 {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
+            <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
           </div>
           <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Position fark</p>
+            <p class="home-label text-slate-400 dark:text-slate-500">Position fark</p>
             {% set _pd = dev.pos_delta | default(0) | float %}
-            <p class="mt-1 truncate text-base font-semibold tabular-nums {% if _pd > 0 %}text-emerald-600 dark:text-emerald-400{% elif _pd < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.pos_delta_fmt }}</p>
-            <p class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
+            <p class="home-kpi mt-1 {% if _pd > 0 %}text-emerald-600 dark:text-emerald-400{% elif _pd < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.pos_delta_fmt }}</p>
+            <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
           </div>
         </div>
       </div>
     {% endfor %}
   </div>
 {% else %}
-  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Veri yok</p>
+  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
 {% endif %}

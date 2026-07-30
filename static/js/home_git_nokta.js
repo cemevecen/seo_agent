@@ -67,10 +67,10 @@
         var titleHtml = item.web_url
           ? '<a href="' +
             escapeHtml(item.web_url) +
-            '" target="_blank" rel="noopener noreferrer" class="min-w-0 text-xs font-semibold leading-snug text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">' +
+            '" target="_blank" rel="noopener noreferrer" class="gn-issue-title min-w-0 text-slate-900 underline-offset-2 hover:underline dark:text-slate-100">' +
             title +
             '</a>'
-          : '<p class="min-w-0 text-xs font-semibold leading-snug text-slate-900 dark:text-slate-100">' +
+          : '<p class="gn-issue-title min-w-0 text-slate-900 dark:text-slate-100">' +
             title +
             '</p>';
         return (
@@ -78,10 +78,10 @@
           '<div class="flex items-start gap-2">' +
           titleHtml +
           '</div>' +
-          '<div class="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">' +
+          '<div class="gn-issue-meta mt-1.5 flex flex-wrap items-center gap-2 text-slate-500 dark:text-slate-400">' +
           (item.issue_iid ? '<span class="font-mono tabular-nums">#' + escapeHtml(item.issue_iid) + '</span>' : '') +
           (item.source_label
-            ? '<span class="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold uppercase dark:bg-slate-800">' +
+            ? '<span class="rounded bg-slate-100 px-1.5 py-0.5 home-label dark:bg-slate-800">' +
               escapeHtml(item.source_label) +
               '</span>'
             : '') +
@@ -167,7 +167,7 @@
       var active = btn.getAttribute('data-gn-chip-id') === chipId;
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
       btn.className =
-        'gn-chip inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 transition ' +
+        'gn-chip inline-flex items-center rounded-full px-2.5 py-1 home-meta font-bold ring-1 transition ' +
         (active ? chipActiveClass(productId) : chipIdleClass());
     });
     renderProduct(root, productId, root._gnItems || []);

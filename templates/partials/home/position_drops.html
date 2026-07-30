@@ -73,7 +73,7 @@
   }
   .home-pos-drops .home-pos-clicks {
     margin-top: 0.15rem;
-    font-size: 0.75rem;
+    font-size: clamp(0.75rem, 0.68rem + 0.35cqi, 0.875rem);
     font-weight: 500;
     color: rgb(148 163 184);
   }
@@ -89,17 +89,17 @@
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
       {% if block and block.display_name %}
-        <p class="text-xs font-bold uppercase tracking-wider {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ block.display_name }}</p>
+        <p class="home-label {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ block.display_name }}</p>
       {% endif %}
       {% if block and block.as_of_label %}
-        <p class="{% if block.display_name %}mt-1 {% endif %}text-xs font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
+        <p class="{% if block.display_name %}mt-1 {% endif %}home-meta font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
       {% endif %}
     </div>
     {% if not hide_nav_link %}
     <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
        hx-get="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
        hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="shrink-0 text-sm font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Uyarılar →</a>
+       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Uyarılar →</a>
     {% endif %}
   </div>
 
@@ -108,7 +108,7 @@
   {% if _real_drops or _real_rises %}
     <div class="home-pos-cols mt-4">
       <div class="min-w-0">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300">Düşüşler</p>
+        <p class="home-label text-rose-700 dark:text-rose-300">Düşüşler</p>
         {% if _real_drops %}
           <ul class="mt-2">
             {% for d in block.drops %}
@@ -135,7 +135,7 @@
         {% endif %}
       </div>
       <div class="min-w-0">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Yükselişler</p>
+        <p class="home-label text-emerald-700 dark:text-emerald-300">Yükselişler</p>
         {% if _real_rises %}
           <ul class="mt-2">
             {% for d in block.rises %}
@@ -163,7 +163,7 @@
       </div>
     </div>
     {% if block.sort_label %}
-      <p class="mt-3 text-xs text-slate-400 dark:text-slate-500">{{ block.sort_label }}</p>
+      <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">{{ block.sort_label }}</p>
     {% endif %}
   {% else %}
     <p class="mt-4 text-center text-sm text-slate-400 dark:text-slate-500">Top 50 içinde anlamlı pozisyon değişimi yok</p>

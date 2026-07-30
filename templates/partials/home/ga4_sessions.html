@@ -1,24 +1,24 @@
-<div class="flex items-center justify-between gap-3">
+<div class="home-readable flex items-center justify-between gap-3">
   <div class="flex items-center gap-2">
     <span class="home-motion-ga4-wave" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
+    <h3 class="font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
   </div>
   <a href="/ga4" hx-get="/ga4" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
 </div>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
-  <p class="mt-3 text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">son 7g vs önceki 7g</p>
-  <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+  <p class="home-label mt-3 text-slate-500 dark:text-slate-400">son 7g vs önceki 7g</p>
+  <div class="home-split home-split-4 mt-2 gap-x-4 gap-y-3">
     {% for prof in site.profiles %}
       <div class="min-w-0">
-        <p class="truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
+        <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
         {% set _p = prof.delta_pct | default(0) | float %}
-        <p class="mt-1 truncate text-xl font-semibold tabular-nums {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ prof.delta_fmt }}</p>
-        <p class="mt-0.5 truncate text-xs tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
+        <p class="home-kpi mt-1 {% if _p > 0 %}text-emerald-600 dark:text-emerald-400{% elif _p < 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ prof.delta_fmt }}</p>
+        <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
       </div>
     {% endfor %}
   </div>
 {% else %}
-  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Veri yok</p>
+  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
 {% endif %}

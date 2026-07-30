@@ -26,11 +26,11 @@
   },
 ] %}
 
-<div id="home-git-nokta" class="home-git-nokta" data-limit="{{ limit | default(20) }}">
+<div id="home-git-nokta" class="home-git-nokta home-readable" data-limit="{{ limit | default(20) }}">
   <style>
-    /* ~3 yıldızlı kart görünür; fazlası dikey scroll */
+    /* ~3 yıldızlı kart görünür; fazlası dikey scroll — body text büyüdüğü için yükseklik artırıldı */
     .home-git-nokta .gn-star-scroll {
-      max-height: 14.75rem;
+      max-height: 17.5rem;
       scrollbar-width: thin;
       scrollbar-color: rgb(148 163 184 / 0.7) transparent;
       -webkit-overflow-scrolling: touch;
@@ -54,23 +54,48 @@
     html.dark .home-git-nokta .gn-star-scroll[data-gn-scrollable="1"] {
       box-shadow: inset 0 -12px 12px -12px rgb(0 0 0 / 0.35);
     }
+    .home-git-nokta .gn-issue-title {
+      font-size: var(--home-body, 0.9375rem);
+      font-weight: 650;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .home-git-nokta .gn-issue-meta {
+      font-size: var(--home-meta, 0.8125rem);
+    }
+    .home-git-nokta .gn-board-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+    @container home-card (min-width: 520px) {
+      .home-git-nokta .gn-board-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @container home-card (min-width: 900px) {
+      .home-git-nokta .gn-board-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
   </style>
-  <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+  <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
     <div class="min-w-0">
       <div class="flex flex-wrap items-center gap-2">
-        <span class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white dark:bg-slate-100 dark:text-slate-900">git.nokta</span>
-        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
+        <span class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 home-label text-white dark:bg-slate-100 dark:text-slate-900">git.nokta</span>
+        <h3 class="font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
       </div>
     </div>
     <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="shrink-0 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
+       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
   </div>
 
   <div data-gn-error class="mt-4 hidden rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <p data-gn-error-msg class="text-xs font-medium text-amber-800 dark:text-amber-300"></p>
+    <p data-gn-error-msg class="home-body font-medium text-amber-800 dark:text-amber-300"></p>
   </div>
 
-  <div data-gn-loading class="mt-4 flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+  <div data-gn-loading class="home-meta mt-4 flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
     <span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-slate-600 dark:border-t-slate-200" aria-hidden="true"></span>
     Yıldızlı maddeler yükleniyor…
   </div>
@@ -79,7 +104,7 @@
     {% for product in _products %}
       <div data-gn-product="{{ product.id }}" data-gn-active-chip="{{ product.chips[0].id }}">
         <div class="mb-3 flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ring-1 {% if product.accent == 'sky' %}bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800{% else %}bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-200 dark:ring-violet-800{% endif %}">
+          <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 home-body ring-1 {% if product.accent == 'sky' %}bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-200 dark:ring-sky-800{% else %}bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-200 dark:ring-violet-800{% endif %}">
             <span class="h-1.5 w-1.5 rounded-full {% if product.accent == 'sky' %}bg-sky-500{% else %}bg-violet-500{% endif %}" aria-hidden="true"></span>
             {{ product.label }}
           </span>
@@ -89,26 +114,26 @@
                       data-gn-chip="{{ product.id }}-{{ chip.id }}"
                       data-gn-product-id="{{ product.id }}"
                       data-gn-chip-id="{{ chip.id }}"
-                      class="gn-chip inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 transition {% if loop.first %}{% if product.accent == 'sky' %}bg-sky-600 text-white ring-sky-600{% else %}bg-violet-600 text-white ring-violet-600{% endif %}{% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800{% endif %}"
+                      class="gn-chip inline-flex items-center rounded-full px-2.5 py-1 home-meta font-bold ring-1 transition {% if loop.first %}{% if product.accent == 'sky' %}bg-sky-600 text-white ring-sky-600{% else %}bg-violet-600 text-white ring-violet-600{% endif %}{% else %}bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800{% endif %}"
                       role="tab"
                       aria-selected="{{ 'true' if loop.first else 'false' }}">{{ chip.label }}</button>
             {% endfor %}
           </div>
         </div>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div class="gn-board-grid">
           {% for col in _cols %}
-            <div class="flex min-h-[12.5rem] flex-col overflow-hidden rounded-xl border-t-4 bg-slate-50/80 ring-1 ring-slate-200 dark:bg-slate-800/40 dark:ring-slate-700 {% if col.bar == 'sky' %}{% if product.accent == 'sky' %}border-sky-500{% else %}border-violet-500{% endif %}{% elif col.bar == 'amber' %}border-amber-400{% elif col.bar == 'indigo' %}border-indigo-400{% else %}border-emerald-400{% endif %}">
+            <div class="flex min-h-[14rem] flex-col overflow-hidden rounded-xl border-t-4 bg-slate-50/80 ring-1 ring-slate-200 dark:bg-slate-800/40 dark:ring-slate-700 {% if col.bar == 'sky' %}{% if product.accent == 'sky' %}border-sky-500{% else %}border-violet-500{% endif %}{% elif col.bar == 'amber' %}border-amber-400{% elif col.bar == 'indigo' %}border-indigo-400{% else %}border-emerald-400{% endif %}">
               <div class="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-2.5 dark:border-slate-700/80">
                 <div class="min-w-0">
-                  <p class="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">{{ col.label }}</p>
-                  <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ col.hint }}</p>
+                  <p class="home-label text-slate-800 dark:text-slate-100">{{ col.label }}</p>
+                  <p class="home-meta text-slate-500 dark:text-slate-400">{{ col.hint }}</p>
                 </div>
-                <span data-gn-count="{{ product.id }}-{{ col.id }}" class="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-bold tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-200">0</span>
+                <span data-gn-count="{{ product.id }}-{{ col.id }}" class="inline-flex h-7 min-w-[1.75rem] items-center justify-center rounded-full bg-slate-100 px-1.5 home-meta font-bold tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-200">0</span>
               </div>
               <ul data-gn-list="{{ product.id }}-{{ col.id }}"
                   data-gn-board-list="{{ col.id }}"
                   class="gn-star-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-2.5">
-                <li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 text-center text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">Yükleniyor…</li>
+                <li class="home-meta flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 text-center text-slate-400 dark:border-slate-700 dark:text-slate-500">Yükleniyor…</li>
               </ul>
             </div>
           {% endfor %}

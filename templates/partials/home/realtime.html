@@ -1,18 +1,18 @@
-<div class="flex flex-wrap items-center justify-between gap-3">
+<div class="home-readable flex flex-wrap items-center justify-between gap-3">
   <div class="flex items-center gap-2">
-    <span class="relative flex h-2 w-2">
+    <span class="relative flex h-2.5 w-2.5">
       <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
-      <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+      <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
     </span>
-    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+    <h3 class="font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
   </div>
   <div class="flex flex-wrap items-center justify-end gap-2">
     {% if sites %}
       {% for site in sites %}
       <div class="home-rt-pill {% if site.site_id == 1 %}home-rt-pill--doviz{% else %}home-rt-pill--sinemalar{% endif %}" title="{{ site.display_name or site.domain }} — tüm profiller toplamı">
-        <span class="text-[9px] font-black uppercase tracking-[0.14em] {% if site.site_id == 1 %}text-blue-700 dark:text-blue-200{% else %}text-red-600 dark:text-red-300{% endif %}">{{ site.display_name or site.domain }}</span>
-        <span class="text-[11px] font-black tabular-nums text-slate-900 dark:text-slate-50" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} aktif</span>
-        <span class="text-[10px] font-medium tabular-nums text-slate-600 dark:text-slate-300">· {{ site.total_pageviews_fmt }} gör.</span>
+        <span class="home-label {% if site.site_id == 1 %}text-blue-700 dark:text-blue-200{% else %}text-red-600 dark:text-red-300{% endif %}">{{ site.display_name or site.domain }}</span>
+        <span class="home-body tabular-nums text-slate-900 dark:text-slate-50" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} aktif</span>
+        <span class="home-meta tabular-nums text-slate-600 dark:text-slate-300">· {{ site.total_pageviews_fmt }} gör.</span>
       </div>
       {% endfor %}
     {% endif %}
@@ -21,9 +21,9 @@
         <circle class="home-rt-countdown-track" cx="20" cy="20" r="16"></circle>
         <circle class="home-rt-countdown-ring" data-home-rt-countdown-ring cx="20" cy="20" r="16"></circle>
       </svg>
-      <span class="text-[10px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }}</span>
+      <span class="home-meta font-semibold tabular-nums text-slate-500 dark:text-slate-400">{{ now_label }}</span>
       <span class="home-rt-countdown-num" data-home-rt-countdown-num>{{ poll_seconds | default(60) }}</span>
-      <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">s</span>
+      <span class="home-label text-slate-500 dark:text-slate-400">s</span>
     </span>
   </div>
 </div>
@@ -32,11 +32,11 @@
     <div class="home-rt-grid" style="display: grid; grid-template-columns: repeat(6, minmax(var(--home-rt-mobile-card-min, 0), 1fr)); gap: 0.5rem;">
       {% for site in sites %}
         {% for prof in site.profiles %}
-          <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2 py-2.5 xl:px-2.5" data-home-rt-key="{{ site.site_id }}-{{ prof.key }}">
+          <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2.5 py-3 xl:px-3" data-home-rt-key="{{ site.site_id }}-{{ prof.key }}">
             <div class="relative z-[1] min-w-0">
-              <p class="truncate text-[10px] font-semibold uppercase tracking-wider {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ site.display_name or site.domain }}</p>
-              <p class="mt-0.5 truncate text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
-              <p class="mt-1 truncate text-xl font-semibold tabular-nums text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
+              <p class="home-label {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ site.display_name or site.domain }}</p>
+              <p class="home-label mt-0.5 text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
+              <p class="home-kpi mt-1.5 text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
             </div>
             <div class="home-rt-spark relative z-[1] mt-2" aria-label="{{ site.display_name or site.domain }} {{ prof.label }} realtime sparkline">
               {% if prof.spark and prof.spark.has_points and prof.spark.bar_slots %}
@@ -57,5 +57,5 @@
     </div>
   </div>
 {% else %}
-  <p class="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">Veri yok</p>
+  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
 {% endif %}
