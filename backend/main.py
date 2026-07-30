@@ -9163,7 +9163,7 @@ def _home_nt_pie_chart(
     total_fmt: str,
     center_label: str,
 ) -> dict:
-    """Donut dilimleri — SVG + CSS conic (3D pasta için).
+    """Donut dilimleri — CSS conic (3D) + etkileşim meta.
 
     parts: (hex, value, label)
     """
@@ -9184,25 +9184,32 @@ def _home_nt_pie_chart(
     for hex_color, value, label in parts:
         val = max(0.0, float(value or 0))
         pct = val / total * 100.0
+        start = cursor
+        end = min(100.0, cursor + pct)
         legend.append(
             {
                 "hex": hex_color,
                 "label": label,
                 "pct": round(pct, 1),
                 "share_fmt": f"{pct:.1f}%",
+                "start": round(start, 3),
+                "end": round(end, 3),
             }
         )
         if pct < 0.05:
+            cursor = end
             continue
-        start = cursor
-        end = min(100.0, cursor + pct)
         conic_stops.append(f"{hex_color} {start:.3f}% {end:.3f}%")
         segments.append(
             {
                 "hex": hex_color,
+                "label": label,
                 "pct": round(pct, 3),
+                "share_fmt": f"{pct:.1f}%",
+                "start": round(start, 3),
+                "end": round(end, 3),
                 "dash": f"{pct:.3f} {max(0.0, 100.0 - pct):.3f}",
-                "offset": round(-cursor, 3),
+                "offset": round(-start, 3),
             }
         )
         cursor = end
@@ -9210,6 +9217,10 @@ def _home_nt_pie_chart(
         last_hex = conic_stops[-1].split()[0]
         last_start = conic_stops[-1].split()[1]
         conic_stops[-1] = f"{last_hex} {last_start} 100%"
+        if segments:
+            segments[-1]["end"] = 100.0
+            if legend:
+                legend[-1]["end"] = 100.0
     conic = (
         "conic-gradient(from -90deg, " + ", ".join(conic_stops) + ")"
         if conic_stops

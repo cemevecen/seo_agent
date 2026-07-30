@@ -16,8 +16,11 @@
 {%- endmacro %}
 
 {% macro nt_pie(pie) -%}
-  {# 3D donut — conic + tilt + extruded side layers #}
-  <div class="home-nt-pie3d" {% if pie and pie.conic %}style="--nt-pie: {{ pie.conic }}"{% endif %}>
+  {# 3D donut — ortada toplam yok; hover ile dilim tooltip #}
+  <div class="home-nt-pie3d"
+       data-nt-pie
+       data-nt-conic="{% if pie and pie.conic %}{{ pie.conic }}{% endif %}"
+       {% if pie and pie.conic %}style="--nt-pie: {{ pie.conic }}"{% endif %}>
     <div class="home-nt-pie3d-stage" aria-hidden="true">
       <span class="home-nt-pie3d-shadow"></span>
       <span class="home-nt-pie3d-rim"></span>
@@ -27,9 +30,8 @@
       <span class="home-nt-pie3d-face"></span>
       <span class="home-nt-pie3d-gloss"></span>
     </div>
-    <div class="home-nt-pie3d-center">
-      <p class="home-nt-pie-total max-w-full px-1 font-black tabular-nums leading-none text-slate-900 dark:text-slate-50" style="overflow-wrap:anywhere">{{ pie.total_fmt if pie else '—' }}</p>
-    </div>
+    <div class="home-nt-pie3d-hit" aria-hidden="true"></div>
+    <div class="home-nt-pie-tip" data-nt-pie-tip hidden role="tooltip"></div>
   </div>
 {%- endmacro %}
 
@@ -143,7 +145,7 @@
     text-align: center;
   }
 
-  /* ── 3D pasta ── */
+  /* ── 3D pasta (ortada sayı yok) ── */
   .home-nt-week .home-nt-pie3d {
     --nt-pie-size: clamp(8.25rem, 6.5rem + 9cqi, 10.5rem);
     --nt-pie: conic-gradient(#cbd5e1 0 100%);
@@ -154,6 +156,10 @@
     flex: 0 0 auto;
     perspective: 820px;
     perspective-origin: 50% 35%;
+    cursor: crosshair;
+  }
+  .home-nt-week .home-nt-pie3d.is-active .home-nt-pie3d-stage {
+    transition: transform 160ms ease;
   }
   .home-nt-week .home-nt-pie3d-stage {
     position: absolute;
@@ -163,6 +169,41 @@
     height: var(--nt-pie-size);
     transform: translateX(-50%) rotateX(56deg);
     transform-style: preserve-3d;
+    pointer-events: none;
+    transition: filter 160ms ease;
+  }
+  .home-nt-week .home-nt-pie3d-hit {
+    position: absolute;
+    left: 6%;
+    right: 6%;
+    top: 6%;
+    bottom: 18%;
+    z-index: 3;
+    border-radius: 50%;
+    cursor: crosshair;
+  }
+  .home-nt-week .home-nt-pie-tip {
+    position: absolute;
+    z-index: 5;
+    left: 0;
+    top: 0;
+    max-width: 11rem;
+    padding: 0.4rem 0.65rem;
+    border-radius: 0.55rem;
+    background: rgb(15 23 42 / 0.92);
+    color: rgb(248 250 252);
+    font-size: 0.75rem;
+    font-weight: 650;
+    line-height: 1.25;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 8px 20px rgb(15 23 42 / 0.25);
+    transform: translate(-50%, calc(-100% - 0.45rem));
+  }
+  .home-nt-week .home-nt-pie-tip[hidden] { display: none !important; }
+  html.dark .home-nt-week .home-nt-pie-tip {
+    background: rgb(250 250 250 / 0.95);
+    color: rgb(24 24 27);
   }
   .home-nt-week .home-nt-pie3d-shadow {
     position: absolute;
@@ -218,35 +259,6 @@
     -webkit-mask: radial-gradient(circle, transparent 39%, #000 40.5%);
             mask: radial-gradient(circle, transparent 39%, #000 40.5%);
   }
-  .home-nt-week .home-nt-pie3d-center {
-    position: absolute;
-    left: 50%;
-    top: 42%;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42%;
-    height: 42%;
-    transform: translate(-50%, -50%);
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.96);
-    box-shadow:
-      0 6px 16px rgb(15 23 42 / 0.12),
-      inset 0 1px 0 rgb(255 255 255 / 0.9),
-      inset 0 0 0 1px rgb(226 232 240 / 0.9);
-    text-align: center;
-  }
-  html.dark .home-nt-week .home-nt-pie3d-center {
-    background: rgb(24 24 27 / 0.96);
-    box-shadow:
-      0 6px 16px rgb(0 0 0 / 0.45),
-      inset 0 1px 0 rgb(255 255 255 / 0.06),
-      inset 0 0 0 1px rgb(63 63 70 / 0.9);
-  }
-  .home-nt-week .home-nt-pie-total {
-    font-size: clamp(0.8125rem, 0.7rem + 0.5cqi, 1rem);
-  }
   .home-nt-week .home-nt-legend {
     flex: 1 1 7.5rem;
     min-width: 6.5rem;
@@ -262,13 +274,29 @@
     gap: 0.65rem;
     font-size: clamp(0.8125rem, 0.72rem + 0.4cqi, 0.9375rem);
     line-height: 1.4;
+    border-radius: 0.45rem;
+    padding: 0.2rem 0.35rem;
+    margin: 0 -0.35rem;
+    cursor: pointer;
+    transition: background 140ms ease, opacity 140ms ease;
+  }
+  .home-nt-week .home-nt-legend li:hover,
+  .home-nt-week .home-nt-legend li.is-active {
+    background: rgb(241 245 249 / 0.95);
+  }
+  html.dark .home-nt-week .home-nt-legend li:hover,
+  html.dark .home-nt-week .home-nt-legend li.is-active {
+    background: rgb(39 39 42 / 0.9);
+  }
+  .home-nt-week .home-nt-legend.is-dimmed li:not(.is-active) {
+    opacity: 0.45;
   }
   .home-nt-week .home-nt-legend .home-nt-legend-label {
     overflow-wrap: anywhere;
     word-break: break-word;
     font-weight: 550;
   }
-  .home-nt-week .home-nt-legend li + li { margin-top: 0.35rem; }
+  .home-nt-week .home-nt-legend li + li { margin-top: 0.2rem; }
 
   .home-nt-week .home-nt-scroll {
     width: 100%;
@@ -457,14 +485,14 @@
           </div>
           <p class="home-nt-metric-prev mt-1.5 tabular-nums">önceki · {{ totals.impressions.prev_fmt }}</p>
         </div>
-        <div class="home-nt-share-block">
+        <div class="home-nt-share-block" data-nt-share>
           <p class="home-nt-share-title">Impression payı</p>
           {% if impr_pie and not impr_pie.empty %}
             <div class="home-nt-share-body">
               {{ nt_pie(impr_pie) }}
               <ul class="home-nt-legend">
                 {% for row in impr_pie.legend %}
-                  <li>
+                  <li data-nt-legend-idx="{{ loop.index0 }}" data-nt-legend-hex="{{ row.hex }}" data-nt-legend-start="{{ row.start }}" data-nt-legend-end="{{ row.end }}">
                     <span class="inline-flex min-w-0 items-center gap-1.5">
                       <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
                       <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
@@ -489,13 +517,13 @@
           </div>
           <p class="home-nt-metric-prev mt-1.5 tabular-nums">önceki · {{ totals.clicks.prev_fmt }}</p>
         </div>
-        <div class="home-nt-share-block">
+        <div class="home-nt-share-block" data-nt-share>
           <p class="home-nt-share-title">Click payı</p>
           <div class="home-nt-share-body">
             {{ nt_pie(click_pie) }}
             <ul class="home-nt-legend">
               {% for row in click_pie.legend %}
-                <li>
+                <li data-nt-legend-idx="{{ loop.index0 }}" data-nt-legend-hex="{{ row.hex }}" data-nt-legend-start="{{ row.start }}" data-nt-legend-end="{{ row.end }}">
                   <span class="inline-flex min-w-0 items-center gap-1.5">
                     <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
                     <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
@@ -719,6 +747,121 @@
           activate(btn.getAttribute('data-nt-top-tab') || 'current');
         });
       });
+    })();
+    </script>
+    <script>
+    (function () {
+      var root = document.currentScript && document.currentScript.closest
+        ? document.currentScript.closest('.home-nt-week')
+        : document.querySelector('.home-nt-week');
+      if (!root || root.getAttribute('data-nt-pie-wired') === '1') return;
+      root.setAttribute('data-nt-pie-wired', '1');
+
+      function parseSegments(pieEl) {
+        return [];
+      }
+
+      function fixConic(segments, activeIdx) {
+        if (activeIdx == null || activeIdx < 0) {
+          var parts = [];
+          segments.forEach(function (s) {
+            if ((s.end || 0) - (s.start || 0) < 0.05) return;
+            parts.push(s.hex + ' ' + s.start + '% ' + s.end + '%');
+          });
+          return parts.length ? 'conic-gradient(from -90deg, ' + parts.join(', ') + ')' : null;
+        }
+        var dim = document.documentElement.classList.contains('dark') ? '#3f3f46' : '#e2e8f0';
+        var parts = [];
+        segments.forEach(function (s, i) {
+          if ((s.end || 0) - (s.start || 0) < 0.05) return;
+          parts.push((i === activeIdx ? s.hex : dim) + ' ' + s.start + '% ' + s.end + '%');
+        });
+        return parts.length ? 'conic-gradient(from -90deg, ' + parts.join(', ') + ')' : null;
+      }
+
+      function segmentAt(pieEl, segments, clientX, clientY) {
+        var hit = pieEl.querySelector('.home-nt-pie3d-hit') || pieEl;
+        var rect = hit.getBoundingClientRect();
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        var dx = clientX - cx;
+        var dy = (clientY - cy) / 0.62;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var maxR = Math.min(rect.width, rect.height) / 2;
+        if (dist < maxR * 0.28 || dist > maxR * 1.05) return -1;
+        var ang = Math.atan2(dy, dx) * 180 / Math.PI;
+        var deg = (ang + 90 + 360) % 360;
+        var pct = deg / 360 * 100;
+        for (var i = 0; i < segments.length; i++) {
+          var s = segments[i];
+          var a = Number(s.start) || 0;
+          var b = Number(s.end) || 0;
+          if (pct >= a && pct < b) return i;
+          if (i === segments.length - 1 && pct >= a && pct <= 100) return i;
+        }
+        return -1;
+      }
+
+      function wireShare(share) {
+        var pie = share.querySelector('[data-nt-pie]');
+        var legend = share.querySelector('.home-nt-legend');
+        if (!pie || !legend) return;
+        var segments = parseSegments(pie);
+        if (!segments.length) {
+          legend.querySelectorAll('[data-nt-legend-idx]').forEach(function (li) {
+            segments.push({
+              hex: li.getAttribute('data-nt-legend-hex'),
+              label: (li.querySelector('.home-nt-legend-label') || {}).textContent || '',
+              share_fmt: (li.querySelector('.tabular-nums') || {}).textContent || '',
+              start: Number(li.getAttribute('data-nt-legend-start') || 0),
+              end: Number(li.getAttribute('data-nt-legend-end') || 0),
+            });
+          });
+        }
+        var baseConic = pie.getAttribute('data-nt-conic') || pie.style.getPropertyValue('--nt-pie');
+        var tip = pie.querySelector('[data-nt-pie-tip]');
+        var items = legend.querySelectorAll('[data-nt-legend-idx]');
+
+        function setActive(idx, tipX, tipY) {
+          items.forEach(function (li) {
+            var on = Number(li.getAttribute('data-nt-legend-idx')) === idx;
+            li.classList.toggle('is-active', on);
+          });
+          legend.classList.toggle('is-dimmed', idx >= 0);
+          pie.classList.toggle('is-active', idx >= 0);
+          var next = idx >= 0 ? fixConic(segments, idx) : baseConic;
+          if (next) pie.style.setProperty('--nt-pie', next);
+          if (!tip) return;
+          if (idx < 0 || !segments[idx]) {
+            tip.hidden = true;
+            tip.textContent = '';
+            return;
+          }
+          var s = segments[idx];
+          tip.hidden = false;
+          tip.textContent = (s.label || '') + ' · ' + (s.share_fmt || ((s.pct || 0) + '%'));
+          if (tipX != null && tipY != null) {
+            var prect = pie.getBoundingClientRect();
+            tip.style.left = (tipX - prect.left) + 'px';
+            tip.style.top = (tipY - prect.top) + 'px';
+          }
+        }
+
+        pie.addEventListener('mousemove', function (ev) {
+          var idx = segmentAt(pie, segments, ev.clientX, ev.clientY);
+          setActive(idx, ev.clientX, ev.clientY);
+        });
+        pie.addEventListener('mouseleave', function () { setActive(-1); });
+
+        items.forEach(function (li) {
+          li.addEventListener('mouseenter', function () {
+            setActive(Number(li.getAttribute('data-nt-legend-idx')));
+          });
+          li.addEventListener('mouseleave', function () { setActive(-1); });
+        });
+      }
+
+      root.querySelectorAll('[data-nt-share]').forEach(wireShare);
     })();
     </script>
   {% endif %}
