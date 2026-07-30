@@ -9531,8 +9531,6 @@ def api_home_priority_board(request: Request):
     Token tarayıcıya verilir; veri boards gibi doğrudan GitLab'dan çekilir
     (Railway sunucusu GitLab'e ulaşamayabilir).
     """
-    import os as _os
-
     projects = [
         {"name": "Döviz Web", "path": "nokta/doviz", "platform": "web", "product": "doviz"},
         {"name": "Döviz iOS", "path": "ios/doviz", "platform": "ios", "product": "doviz"},
@@ -9547,7 +9545,7 @@ def api_home_priority_board(request: Request):
             "projects": projects,
             "projects_json": json.dumps(projects, ensure_ascii=False),
             "default_board_project": "nokta/doviz",
-            "token": _os.environ.get("GITLAB_PRIVATE_TOKEN", ""),
+            "token": os.environ.get("GITLAB_PRIVATE_TOKEN", ""),
         },
     )
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
