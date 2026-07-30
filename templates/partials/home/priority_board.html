@@ -27,6 +27,34 @@
 ] %}
 
 <div id="home-git-nokta" class="home-git-nokta" data-limit="{{ limit | default(20) }}">
+  <style>
+    /* ~3 yıldızlı kart görünür; fazlası dikey scroll */
+    .home-git-nokta .gn-star-scroll {
+      max-height: 14.75rem;
+      scrollbar-width: thin;
+      scrollbar-color: rgb(148 163 184 / 0.7) transparent;
+      -webkit-overflow-scrolling: touch;
+    }
+    .home-git-nokta .gn-star-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .home-git-nokta .gn-star-scroll::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgb(148 163 184 / 0.65);
+    }
+    html.dark .home-git-nokta .gn-star-scroll {
+      scrollbar-color: rgb(113 113 122 / 0.8) transparent;
+    }
+    html.dark .home-git-nokta .gn-star-scroll::-webkit-scrollbar-thumb {
+      background: rgb(113 113 122 / 0.75);
+    }
+    .home-git-nokta .gn-star-scroll[data-gn-scrollable="1"] {
+      box-shadow: inset 0 -12px 12px -12px rgb(15 23 42 / 0.12);
+    }
+    html.dark .home-git-nokta .gn-star-scroll[data-gn-scrollable="1"] {
+      box-shadow: inset 0 -12px 12px -12px rgb(0 0 0 / 0.35);
+    }
+  </style>
   <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
     <div class="min-w-0">
       <div class="flex flex-wrap items-center gap-2">
@@ -69,15 +97,17 @@
         </div>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {% for col in _cols %}
-            <div class="flex min-h-[11rem] flex-col rounded-xl border-t-4 bg-slate-50/80 ring-1 ring-slate-200 dark:bg-slate-800/40 dark:ring-slate-700 {% if col.bar == 'sky' %}{% if product.accent == 'sky' %}border-sky-500{% else %}border-violet-500{% endif %}{% elif col.bar == 'amber' %}border-amber-400{% elif col.bar == 'indigo' %}border-indigo-400{% else %}border-emerald-400{% endif %}">
-              <div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-2.5 dark:border-slate-700/80">
+            <div class="flex min-h-[12.5rem] flex-col overflow-hidden rounded-xl border-t-4 bg-slate-50/80 ring-1 ring-slate-200 dark:bg-slate-800/40 dark:ring-slate-700 {% if col.bar == 'sky' %}{% if product.accent == 'sky' %}border-sky-500{% else %}border-violet-500{% endif %}{% elif col.bar == 'amber' %}border-amber-400{% elif col.bar == 'indigo' %}border-indigo-400{% else %}border-emerald-400{% endif %}">
+              <div class="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-2.5 dark:border-slate-700/80">
                 <div class="min-w-0">
                   <p class="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">{{ col.label }}</p>
                   <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ col.hint }}</p>
                 </div>
                 <span data-gn-count="{{ product.id }}-{{ col.id }}" class="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-bold tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-200">0</span>
               </div>
-              <ul data-gn-list="{{ product.id }}-{{ col.id }}" data-gn-board-list="{{ col.id }}" class="flex flex-1 flex-col gap-2 p-2.5">
+              <ul data-gn-list="{{ product.id }}-{{ col.id }}"
+                  data-gn-board-list="{{ col.id }}"
+                  class="gn-star-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-2.5">
                 <li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 text-center text-[11px] text-slate-400 dark:border-slate-700 dark:text-slate-500">Yükleniyor…</li>
               </ul>
             </div>

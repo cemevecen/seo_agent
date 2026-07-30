@@ -44,6 +44,12 @@
     });
   }
 
+  function markScrollable(list) {
+    if (!list) return;
+    var scrollable = list.scrollHeight > list.clientHeight + 2;
+    list.setAttribute('data-gn-scrollable', scrollable ? '1' : '0');
+  }
+
   function renderList(root, productId, colId, entries) {
     var list = root.querySelector('[data-gn-list="' + productId + '-' + colId + '"]');
     var count = root.querySelector('[data-gn-count="' + productId + '-' + colId + '"]');
@@ -52,6 +58,7 @@
     if (!entries.length) {
       list.innerHTML =
         '<li class="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-2 py-6 dark:border-slate-700" aria-hidden="true"></li>';
+      list.setAttribute('data-gn-scrollable', '0');
       return;
     }
     list.innerHTML = entries
@@ -67,7 +74,7 @@
             title +
             '</p>';
         return (
-          '<li class="rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700 cursor-grab" data-gn-iid="' + escapeHtml(item.issue_iid) + '">' +
+          '<li class="shrink-0 rounded-lg bg-white p-2.5 shadow-sm ring-1 ring-slate-200/90 dark:bg-slate-900 dark:ring-slate-700 cursor-grab" data-gn-iid="' + escapeHtml(item.issue_iid) + '">' +
           '<div class="flex items-start gap-2">' +
           titleHtml +
           '</div>' +
@@ -82,6 +89,9 @@
         );
       })
       .join('');
+    requestAnimationFrame(function () {
+      markScrollable(list);
+    });
   }
 
   function iidsFromListEl(listEl) {
