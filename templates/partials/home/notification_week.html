@@ -16,7 +16,7 @@
 {%- endmacro %}
 
 {% macro nt_pie(pie) -%}
-  <div class="home-nt-pie relative h-32 w-32 shrink-0 overflow-hidden sm:h-36 sm:w-36">
+  <div class="home-nt-pie relative shrink-0 overflow-hidden">
     <svg class="h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
       <circle cx="18" cy="18" r="15.9155" fill="none" stroke="currentColor" stroke-width="3.2" class="text-slate-100 dark:text-slate-800"></circle>
       {% if pie and pie.segments %}
@@ -48,7 +48,7 @@
 {%- endmacro %}
 
 <style>
-  /* Status Quo+ — aynı iskelet, daha büyük tipografi / nefes */
+  /* Status Quo+ — mockup #1: büyük KPI + yan yana pastalar, kart-içinde-kart yok */
   .home-nt-week {
     width: 100%;
     min-width: 0;
@@ -58,9 +58,103 @@
   }
   .home-nt-week * { box-sizing: border-box; }
 
-  .home-nt-week .home-nt-pie-total {
-    font-size: clamp(0.9375rem, 0.8rem + 0.7cqi, 1.125rem);
+  .home-nt-week .home-nt-summary {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    margin-top: 1.15rem;
   }
+  @container home-nt (min-width: 520px) {
+    .home-nt-week .home-nt-summary {
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem 1.75rem;
+    }
+  }
+
+  .home-nt-week .home-nt-metric {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .home-nt-week .home-nt-metric-label {
+    font-size: clamp(0.6875rem, 0.6rem + 0.35cqi, 0.8125rem);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+  }
+  html.dark .home-nt-week .home-nt-metric-label { color: rgb(161 161 170); }
+  .home-nt-week .home-nt-metric-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem 0.85rem;
+  }
+  .home-nt-week .home-nt-metric-value {
+    font-size: clamp(1.75rem, 1.35rem + 2.2cqi, 2.35rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+    color: rgb(15 23 42);
+  }
+  html.dark .home-nt-week .home-nt-metric-value { color: rgb(248 250 252); }
+  .home-nt-week .home-nt-kpi-delta {
+    font-size: clamp(0.8125rem, 0.72rem + 0.4cqi, 0.9375rem);
+    font-weight: 700;
+    padding: 0.3rem 0.65rem;
+  }
+  .home-nt-week .home-nt-metric-prev {
+    font-size: clamp(0.8125rem, 0.72rem + 0.35cqi, 0.9375rem);
+    color: rgb(100 116 139);
+  }
+  html.dark .home-nt-week .home-nt-metric-prev { color: rgb(161 161 170); }
+
+  .home-nt-week .home-nt-share-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .home-nt-week .home-nt-share-title {
+    font-size: clamp(0.8125rem, 0.72rem + 0.35cqi, 0.9375rem);
+    font-weight: 650;
+    color: rgb(51 65 85);
+  }
+  html.dark .home-nt-week .home-nt-share-title { color: rgb(212 212 216); }
+
+  .home-nt-week .home-nt-pie {
+    width: clamp(7.5rem, 6rem + 8cqi, 9.5rem);
+    height: clamp(7.5rem, 6rem + 8cqi, 9.5rem);
+  }
+  .home-nt-week .home-nt-pie-total {
+    font-size: clamp(0.875rem, 0.75rem + 0.55cqi, 1.0625rem);
+  }
+  .home-nt-week .home-nt-pie-center {
+    min-width: 0;
+    text-align: center;
+  }
+  .home-nt-week .home-nt-legend {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .home-nt-week .home-nt-legend li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    font-size: clamp(0.8125rem, 0.72rem + 0.4cqi, 0.9375rem);
+    line-height: 1.4;
+  }
+  .home-nt-week .home-nt-legend .home-nt-legend-label {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-weight: 550;
+  }
+  .home-nt-week .home-nt-legend li + li { margin-top: 0.35rem; }
 
   .home-nt-week .home-nt-scroll {
     width: 100%;
@@ -76,123 +170,19 @@
     overflow: hidden;
     isolation: isolate;
     border: 1px solid rgb(226 232 240);
-    background: linear-gradient(180deg, rgb(255 255 255 / 0.96), rgb(248 250 252 / 0.9));
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.88);
+    background: rgb(255 255 255 / 0.55);
   }
   html.dark .home-nt-week .home-nt-panel {
     border-color: rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(39, 39, 42, 0.72), rgba(24, 24, 27, 0.55));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: rgba(39, 39, 42, 0.35);
   }
   .home-nt-week .home-nt-panel-head {
     border-bottom: 1px solid rgb(226 232 240);
-    background: rgb(248 250 252 / 0.95);
-    padding: 0.65rem 0.85rem;
+    padding: 0.7rem 0.95rem;
   }
   html.dark .home-nt-week .home-nt-panel-head {
     border-bottom-color: rgba(255, 255, 255, 0.08);
-    background: rgba(39, 39, 42, 0.55);
   }
-
-  /* KPI */
-  .home-nt-week .home-nt-kpi {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-    margin-top: 1rem;
-  }
-  @container home-nt (min-width: 420px) {
-    .home-nt-week .home-nt-kpi { grid-template-columns: 1fr 1fr; }
-  }
-  .home-nt-week .home-nt-kpi-card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    min-width: 0;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(241 245 249);
-    background: rgb(248 250 252 / 0.7);
-    padding: 0.85rem 1rem;
-  }
-  html.dark .home-nt-week .home-nt-kpi-card {
-    border-color: rgba(255, 255, 255, 0.06);
-    background: rgba(39, 39, 42, 0.45);
-  }
-  .home-nt-week .home-nt-kpi-card .home-kpi {
-    font-size: clamp(1.35rem, 1.1rem + 1.4cqi, 1.85rem);
-    letter-spacing: -0.03em;
-  }
-  .home-nt-week .home-nt-kpi-delta {
-    font-size: clamp(0.875rem, 0.78rem + 0.45cqi, 1rem);
-    padding: 0.35rem 0.7rem;
-  }
-
-  /* Pie grid */
-  .home-nt-week .home-nt-pies {
-    display: grid;
-    width: 100%;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-  @container home-nt (min-width: 560px) {
-    .home-nt-week .home-nt-pies { grid-template-columns: 1fr 1fr; }
-  }
-  .home-nt-week .home-nt-pie-card {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    min-width: 0;
-    overflow: hidden;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(226 232 240);
-    background: rgb(255 255 255 / 0.9);
-    padding: 0.75rem 0.85rem 0.9rem;
-  }
-  html.dark .home-nt-week .home-nt-pie-card {
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(24, 24, 27, 0.55);
-  }
-  .home-nt-week .home-nt-pie-body {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.85rem 1.1rem;
-    width: 100%;
-    min-width: 0;
-    margin-top: 0.65rem;
-  }
-  .home-nt-week .home-nt-pie {
-    flex: 0 0 auto;
-  }
-  .home-nt-week .home-nt-pie-center {
-    min-width: 0;
-    text-align: center;
-  }
-  .home-nt-week .home-nt-legend {
-    flex: 1 1 9rem;
-    min-width: 8rem;
-    max-width: 100%;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .home-nt-week .home-nt-legend li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.55rem;
-    font-size: clamp(0.875rem, 0.78rem + 0.45cqi, 1rem);
-    line-height: 1.4;
-  }
-  .home-nt-week .home-nt-legend .home-nt-legend-label {
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    font-weight: 550;
-  }
-  .home-nt-week .home-nt-legend li + li { margin-top: 0.4rem; }
 
   /* Platform compare */
   .home-nt-week .home-nt-plat table {
@@ -204,38 +194,22 @@
   }
   .home-nt-week .home-nt-plat th,
   .home-nt-week .home-nt-plat td {
-    padding: 0.65rem 0.7rem;
+    padding: 0.7rem 0.75rem;
     vertical-align: middle;
   }
   .home-nt-week .home-nt-plat th:first-child,
-  .home-nt-week .home-nt-plat td:first-child {
-    width: 8rem;
-  }
+  .home-nt-week .home-nt-plat td:first-child { width: 8rem; }
   .home-nt-week .home-nt-plat th:last-child,
-  .home-nt-week .home-nt-plat td:last-child {
-    width: 8rem;
-  }
+  .home-nt-week .home-nt-plat td:last-child { width: 8rem; }
   .home-nt-week .home-nt-plat .home-nt-plat-delta {
     font-size: clamp(0.9375rem, 0.85rem + 0.4cqi, 1.0625rem);
     font-weight: 700;
   }
-  .home-nt-week .home-nt-plat thead {
-    background: rgb(255 255 255 / 0.8);
-    color: rgb(100 116 139);
-  }
-  .home-nt-week .home-nt-plat tbody {
-    background: rgb(255 255 255 / 0.6);
-  }
+  .home-nt-week .home-nt-plat thead { color: rgb(100 116 139); }
   .home-nt-week .home-nt-plat tbody tr + tr td {
     border-top: 1px solid rgb(241 245 249);
   }
-  html.dark .home-nt-week .home-nt-plat thead {
-    background: rgba(39, 39, 42, 0.85);
-    color: rgb(161 161 170);
-  }
-  html.dark .home-nt-week .home-nt-plat tbody {
-    background: rgba(24, 24, 27, 0.55);
-  }
+  html.dark .home-nt-week .home-nt-plat thead { color: rgb(161 161 170); }
   html.dark .home-nt-week .home-nt-plat tbody tr + tr td {
     border-top-color: rgba(63, 63, 70, 0.7);
   }
@@ -256,41 +230,36 @@
   }
   html.dark .home-nt-week .home-nt-share-bar { background: rgba(63, 63, 70, 0.85); }
 
-  /* Mobile: stack platform as compact cards */
   .home-nt-week .home-nt-plat-cards { display: none; }
   @container home-nt (max-width: 519px) {
     .home-nt-week .home-nt-plat-table { display: none; }
     .home-nt-week .home-nt-plat-cards {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 0.55rem;
+      gap: 0.65rem;
     }
     .home-nt-week .home-nt-plat-card {
       border-radius: 0.65rem;
       border: 1px solid rgb(226 232 240);
-      background: rgb(255 255 255 / 0.85);
-      padding: 0.7rem 0.85rem;
+      padding: 0.75rem 0.9rem;
     }
     html.dark .home-nt-week .home-nt-plat-card {
       border-color: rgba(255, 255, 255, 0.08);
-      background: rgba(24, 24, 27, 0.55);
     }
     .home-nt-week .home-nt-plat-card-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0.5rem 0.85rem;
-      margin-top: 0.5rem;
+      margin-top: 0.55rem;
     }
   }
 
   /* Top 5 */
   .home-nt-week .home-nt-top-wrap {
     border-radius: 0.65rem;
-    background: rgb(255 255 255);
     box-shadow: inset 0 0 0 1px rgb(226 232 240 / 0.8);
   }
   html.dark .home-nt-week .home-nt-top-wrap {
-    background: rgba(24, 24, 27, 0.85);
     box-shadow: inset 0 0 0 1px rgba(63, 63, 70, 0.85);
   }
   .home-nt-week .home-nt-top table {
@@ -311,7 +280,7 @@
   }
   .home-nt-week .home-nt-top th,
   .home-nt-week .home-nt-top td {
-    padding: 0.55rem 0.6rem;
+    padding: 0.6rem 0.65rem;
     vertical-align: middle;
   }
   .home-nt-week .home-nt-top thead {
@@ -325,21 +294,11 @@
     background: rgba(39, 39, 42, 0.95);
     color: rgb(161 161 170);
   }
-  html.dark .home-nt-week .home-nt-top tbody {
-    background: transparent;
-  }
-  html.dark .home-nt-week .home-nt-top tbody tr,
-  html.dark .home-nt-week .home-nt-top tbody tr:first-child,
-  html.dark .home-nt-week .home-nt-top tbody td {
-    background: transparent;
-  }
   html.dark .home-nt-week .home-nt-top tbody tr + tr td {
     border-top-color: rgba(63, 63, 70, 0.7);
   }
   .home-nt-week .home-nt-top th:nth-child(3),
-  .home-nt-week .home-nt-top td:nth-child(3) {
-    max-width: 16rem;
-  }
+  .home-nt-week .home-nt-top td:nth-child(3) { max-width: 16rem; }
   @container home-nt (min-width: 900px) {
     .home-nt-week .home-nt-top table { min-width: 0; }
   }
@@ -373,82 +332,66 @@
   {% if empty %}
     <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
   {% else %}
-    <div class="home-nt-kpi">
-      <div class="home-nt-kpi-card">
-        <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">Toplam impression</p>
-          <p class="home-kpi mt-1 tracking-tight text-slate-900 dark:text-slate-100">{{ totals.impressions.cur_fmt }}</p>
-          <p class="home-meta mt-1 tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.impressions.prev_fmt }}</p>
-        </div>
-        <span class="home-nt-kpi-delta inline-flex shrink-0 items-center rounded-full font-bold tabular-nums ring-1 {{ tone_badge(totals.impressions.delta_pct) }}">{{ totals.impressions.delta_fmt }}</span>
-      </div>
-      <div class="home-nt-kpi-card">
-        <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">Toplam click</p>
-          <p class="home-kpi mt-1 tracking-tight text-slate-900 dark:text-slate-100">{{ totals.clicks.cur_fmt }}</p>
-          <p class="home-meta mt-1 tabular-nums text-slate-500 dark:text-slate-400">önceki · {{ totals.clicks.prev_fmt }}</p>
-        </div>
-        <span class="home-nt-kpi-delta inline-flex shrink-0 items-center rounded-full font-bold tabular-nums ring-1 {{ tone_badge(totals.clicks.delta_pct) }}">{{ totals.clicks.delta_fmt }}</span>
-      </div>
-    </div>
-
-    <div class="home-nt-panel mt-3.5 rounded-xl">
-      <div class="home-nt-panel-head flex items-center gap-2 rounded-t-xl">
-        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500"></span>
-        <p class="home-label text-slate-500 dark:text-slate-400">Pay Dağılımı (Impression · Click)</p>
-      </div>
-      <div class="home-nt-pies p-2.5 sm:p-3">
-        <div class="home-nt-pie-card">
-          <div class="flex items-baseline justify-between gap-2">
-            <p class="home-label text-slate-500 dark:text-slate-400">Impression payı · son 7g</p>
-            {% if impr_pie and not impr_pie.empty %}
-              <p class="home-body tabular-nums text-slate-800 dark:text-slate-100">{{ impr_pie.total_fmt }}</p>
-            {% endif %}
+    {# Status Quo+ mockup: KPI + pasta tek yüzey, yan yana iki sütun #}
+    <div class="home-nt-summary">
+      <div class="home-nt-metric">
+        <div>
+          <p class="home-nt-metric-label">Toplam impression</p>
+          <div class="home-nt-metric-row mt-1.5">
+            <p class="home-nt-metric-value tabular-nums">{{ totals.impressions.cur_fmt }}</p>
+            <span class="home-nt-kpi-delta inline-flex shrink-0 items-center rounded-full tabular-nums ring-1 {{ tone_badge(totals.impressions.delta_pct) }}">{{ totals.impressions.delta_fmt }}</span>
           </div>
+          <p class="home-nt-metric-prev mt-1.5 tabular-nums">önceki · {{ totals.impressions.prev_fmt }}</p>
+        </div>
+        <div class="home-nt-share-block">
+          <p class="home-nt-share-title">Impression payı</p>
           {% if impr_pie and not impr_pie.empty %}
-            <div class="home-nt-pie-body">
-              {{ nt_pie(impr_pie) }}
-              <ul class="home-nt-legend">
-                {% for row in impr_pie.legend %}
-                  <li>
-                    <span class="inline-flex min-w-0 items-center gap-1.5">
-                      <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
-                      <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
-                    </span>
-                    <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
-                  </li>
-                {% endfor %}
-              </ul>
-            </div>
-          {% else %}
-            <p class="home-meta mt-3 text-center text-slate-400 dark:text-slate-500">Impression payı yok</p>
-          {% endif %}
-        </div>
-
-        <div class="home-nt-pie-card">
-          <div class="flex items-baseline justify-between gap-2">
-            <p class="home-label text-slate-500 dark:text-slate-400">Click payı · son 7g</p>
-            <p class="home-body tabular-nums text-slate-800 dark:text-slate-100">{{ click_pie.total_fmt if click_pie else '—' }}</p>
-          </div>
-          <div class="home-nt-pie-body">
-            {{ nt_pie(click_pie) }}
+            {{ nt_pie(impr_pie) }}
             <ul class="home-nt-legend">
-              {% for row in click_pie.legend %}
+              {% for row in impr_pie.legend %}
                 <li>
                   <span class="inline-flex min-w-0 items-center gap-1.5">
-                    <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
+                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
                     <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
                   </span>
                   <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
                 </li>
               {% endfor %}
             </ul>
+          {% else %}
+            <p class="home-meta text-slate-400 dark:text-slate-500">Impression payı yok</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="home-nt-metric">
+        <div>
+          <p class="home-nt-metric-label">Toplam click</p>
+          <div class="home-nt-metric-row mt-1.5">
+            <p class="home-nt-metric-value tabular-nums">{{ totals.clicks.cur_fmt }}</p>
+            <span class="home-nt-kpi-delta inline-flex shrink-0 items-center rounded-full tabular-nums ring-1 {{ tone_badge(totals.clicks.delta_pct) }}">{{ totals.clicks.delta_fmt }}</span>
           </div>
+          <p class="home-nt-metric-prev mt-1.5 tabular-nums">önceki · {{ totals.clicks.prev_fmt }}</p>
+        </div>
+        <div class="home-nt-share-block">
+          <p class="home-nt-share-title">Click payı</p>
+          {{ nt_pie(click_pie) }}
+          <ul class="home-nt-legend">
+            {% for row in click_pie.legend %}
+              <li>
+                <span class="inline-flex min-w-0 items-center gap-1.5">
+                  <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
+                  <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
+                </span>
+                <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
+              </li>
+            {% endfor %}
+          </ul>
         </div>
       </div>
     </div>
 
-    <div class="home-nt-panel mt-3.5 rounded-xl">
+    <div class="home-nt-panel mt-5 rounded-xl">
       <div class="home-nt-panel-head flex items-center gap-2 rounded-t-xl">
         <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span>
         <p class="home-label text-slate-500 dark:text-slate-400">Platform Karşılaştırma</p>
@@ -536,7 +479,7 @@
       </div>
     </div>
 
-    <div class="home-nt-panel home-nt-top mt-3.5 w-full rounded-xl" data-home-nt-top>
+    <div class="home-nt-panel home-nt-top mt-4 w-full rounded-xl" data-home-nt-top>
       <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-2 rounded-t-xl">
         <div class="flex min-w-0 flex-wrap items-center gap-2" role="tablist" aria-label="Top 5 dönem">
           <button type="button"
