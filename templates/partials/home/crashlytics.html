@@ -5,14 +5,14 @@
   <div class="flex min-w-0 flex-wrap items-center gap-2">
     <span class="home-motion-crash-pulse" aria-hidden="true"></span>
     <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
-    <h3 class="font-semibold text-slate-900 dark:text-slate-100">Mobil mağaza / Firebase durum</h3>
+    <h3 class="font-semibold text-slate-900 dark:text-slate-100">store & firebase</h3>
     {% if card and card.days %}
       <span class="home-meta font-medium tabular-nums text-slate-500 dark:text-slate-400">· {{ card.days }}g</span>
     {% endif %}
   </div>
   <div class="flex shrink-0 items-center gap-3">
     <a href="{{ app_url | default('/app') }}" hx-get="{{ app_url | default('/app') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Mağaza →</a>
+       class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">store →</a>
     <a href="{{ firebase_url }}" hx-get="{{ firebase_url }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
        class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Firebase →</a>
   </div>
@@ -22,7 +22,7 @@
   {% if plat and (plat.version or plat.score_fmt != '—' or plat.ratings_fmt != '—') %}
     <div class="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="home-label text-slate-500 dark:text-slate-400">Mağaza</p>
+        <p class="home-label text-slate-500 dark:text-slate-400">store</p>
         <div class="flex shrink-0 flex-wrap items-center gap-1.5">
           {% if plat.is_recent %}
             <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">yeni</span>
@@ -111,7 +111,7 @@
           <span class="home-label text-slate-700 dark:text-slate-200">iOS</span>
         </div>
         {% if ios and ios.latest_version %}
-          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="Mağaza / son yayınlanan sürüm">v{{ ios.latest_version }}</span>
+          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="store / latest version">v{{ ios.latest_version }}</span>
         {% else %}
           <span class="home-meta shrink-0 text-slate-400">—</span>
         {% endif %}
@@ -150,7 +150,7 @@
           <span class="home-label text-slate-700 dark:text-slate-200">Android</span>
         </div>
         {% if android and android.latest_version %}
-          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="Mağaza / son yayınlanan sürüm">v{{ android.latest_version }}</span>
+          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="store / latest version">v{{ android.latest_version }}</span>
         {% else %}
           <span class="home-meta shrink-0 text-slate-400">—</span>
         {% endif %}

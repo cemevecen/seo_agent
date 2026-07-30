@@ -2,12 +2,12 @@
   <div class="min-w-0">
     <div class="flex flex-wrap items-center gap-2">
       <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
-      <h3 class="font-semibold text-slate-900 dark:text-slate-100">Mobil Mağaza Durumu</h3>
+      <h3 class="font-semibold text-slate-900 dark:text-slate-100">store & firebase</h3>
     </div>
     <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">App Store · Play Store sürüm ve puan özeti</p>
   </div>
   <a href="/app" hx-get="/app" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+     class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
 </div>
 
 <div class="home-split home-split-2 mt-4">
@@ -69,6 +69,6 @@
       {% endif %}
     </div>
   {% else %}
-    <p class="home-meta col-span-full text-center text-slate-400 dark:text-slate-500">Mağaza verisi yok</p>
+    <p class="home-meta col-span-full text-center text-slate-400 dark:text-slate-500">no store data</p>
   {% endfor %}
 </div>

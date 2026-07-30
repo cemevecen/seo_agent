@@ -3,7 +3,7 @@
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
   section[hx-get="/api/home/notification-week"],
-  section[hx-get*="crashlytics?product=doviz"] {
+  section[hx-get*="crashlytics?product=doviz&v=2"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(59, 130, 246, 0.55) !important;   /* blue-500 @ 55% */
   }
@@ -13,7 +13,7 @@
   }
   html.dark section[hx-get*="site=doviz"],
   html.dark section[hx-get="/api/home/notification-week"],
-  html.dark section[hx-get*="crashlytics?product=doviz"] {
+  html.dark section[hx-get*="crashlytics?product=doviz&v=2"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(96, 165, 250, 0.40) !important;   /* blue-400 @ 40% */
   }
@@ -456,7 +456,7 @@
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
       <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">active users</h3>
     </div>
     {{ _placeholder_short | safe }}
   </section>
@@ -548,40 +548,40 @@
 
       {# Row 1 — GA4 #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&v=3" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&v=5" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=3" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=5" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
       </div>
 
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/sc-summary?site=doviz&v=6" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&v=7" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/sc-summary?site=sinemalar&v=6" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&v=7" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
       </div>
 
       {# Row 4 — Position Drops #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/position-drops?site=doviz&v=2" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=4" hx-trigger="load" hx-swap="innerHTML"
                  hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=2" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=4" hx-trigger="load" hx-swap="innerHTML"
                  hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
@@ -590,7 +590,7 @@
     </div>
 
     {# Full-width — divider yok (Crashlytics ile aynı birleşik kart hissi) #}
-    <section hx-get="/api/home/notification-week?v=16" hx-trigger="load" hx-swap="innerHTML"
+    <section hx-get="/api/home/notification-week?v=18" hx-trigger="load" hx-swap="innerHTML"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Notification · 7g vs önceki 7g</h3>
@@ -598,7 +598,7 @@
     </section>
 
     {# Mobil mağaza / Firebase durum — full width #}
-    <section hx-get="/api/home/crashlytics?product=doviz" hx-trigger="load" hx-swap="innerHTML" hx-timeout="55000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=2" hx-trigger="load" hx-swap="innerHTML" hx-timeout="55000"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Mobil mağaza / Firebase durum</h3>
       {{ _placeholder_mid | safe }}
