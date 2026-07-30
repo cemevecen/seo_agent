@@ -79,6 +79,8 @@ def classify_board_list(state: str, labels: Any) -> str:
 
 def star_to_dict(row: GitlabBoardStar) -> dict[str, Any]:
     labels = _label_names(row.labels_json)
+    # Her zaman state+label'dan türet — stale board_list (Doing/Testing) Closed'ı ezmesin
+    board_list = classify_board_list(row.state, labels)
     return {
         "id": row.id,
         "project_path": row.project_path,
@@ -89,7 +91,7 @@ def star_to_dict(row: GitlabBoardStar) -> dict[str, Any]:
         "web_url": row.web_url,
         "state": row.state,
         "labels": labels,
-        "board_list": row.board_list or classify_board_list(row.state, labels),
+        "board_list": board_list,
         "starred_at": row.starred_at.isoformat() if row.starred_at else None,
         "source_label": (PROJECT_CHIP_MAP.get(row.project_path) or {}).get("source_label")
         or row.platform.upper(),
@@ -137,9 +139,11 @@ def refresh_stars_from_gitlab(
             LOGGER.warning("Star refresh failed: %s", msg)
             errors.append(msg)
             continue
+        missing: list[int] = []
         for row in project_rows:
             issue = issues.get(int(row.issue_iid))
             if not issue:
+                missing.append(int(row.issue_iid))
                 continue
             state = str(issue.get("state") or row.state or "opened")
             labels = _label_names(issue.get("labels"))
@@ -161,6 +165,12 @@ def refresh_stars_from_gitlab(
             row.title = title
             row.web_url = web_url
             updated += 1
+        if missing:
+            sample = ",".join(str(x) for x in missing[:8])
+            more = f"+{len(missing) - 8}" if len(missing) > 8 else ""
+            msg = f"{path}: {len(missing)} issue GitLab'da bulunamadı (#{sample}{more})"
+            LOGGER.warning("Star refresh incomplete: %s", msg)
+            errors.append(msg)
     if updated:
         db.commit()
     return {"ok": True, "updated": updated, "checked": len(rows), "errors": errors}

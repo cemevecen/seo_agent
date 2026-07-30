@@ -91,7 +91,11 @@ async def fetch_issues_by_iids_async(
     *,
     client: httpx.AsyncClient | None = None,
 ) -> dict[int, dict[str, Any]]:
-    """GitLab'dan seçili issue'ları iid ile çek — {iid: issue}."""
+    """GitLab'dan seçili issue'ları iid ile çek — {iid: issue}.
+
+    state=all zorunlu: varsayılan opened kapalı (Closed) issue'ları düşürür;
+    ana sayfa yıldız kolonları Doing/Testing'te kalır.
+    """
     token = get_gitlab_token()
     if not token:
         raise ValueError("GITLAB_PRIVATE_TOKEN tanımlı değil.")
@@ -100,7 +104,7 @@ async def fetch_issues_by_iids_async(
         return {}
     encoded_path = _encoded_path(project_path)
     headers = _headers()
-    url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
+    base = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
     out: dict[int, dict[str, Any]] = {}
     owns_client = client is None
     if owns_client:
@@ -110,10 +114,10 @@ async def fetch_issues_by_iids_async(
         # GitLab iids[] — makul batch boyutu
         for i in range(0, len(clean), 50):
             chunk = clean[i : i + 50]
-            params: list[tuple[str, str]] = [("per_page", "100")]
+            params: list[tuple[str, str]] = [("per_page", "100"), ("state", "all")]
             for iid in chunk:
                 params.append(("iids[]", str(iid)))
-            resp = await client.get(url, headers=headers, params=params)
+            resp = await client.get(base, headers=headers, params=params)
             if resp.status_code != 200:
                 LOGGER.warning(
                     "GitLab issues-by-iid failed [%s] %s: %s",
@@ -131,6 +135,19 @@ async def fetch_issues_by_iids_async(
                 except (TypeError, ValueError):
                     continue
                 out[iid] = issue
+        # Liste endpoint'i hâlâ kaçırırsa tekil GET (state'ten bağımsız)
+        for iid in clean:
+            if iid in out:
+                continue
+            resp = await client.get(f"{base}/{iid}", headers=headers)
+            if resp.status_code != 200:
+                continue
+            issue = resp.json()
+            if isinstance(issue, dict) and issue.get("iid") is not None:
+                try:
+                    out[int(issue["iid"])] = issue
+                except (TypeError, ValueError):
+                    pass
     finally:
         if owns_client:
             await client.aclose()
@@ -143,7 +160,10 @@ def fetch_issues_by_iids(
     *,
     timeout_sec: float = 4.0,
 ) -> dict[int, dict[str, Any]]:
-    """Sync GitLab issues-by-iid — yıldız yenileme (kısa timeout, asılı kalmaz)."""
+    """Sync GitLab issues-by-iid — yıldız yenileme (kısa timeout, asılı kalmaz).
+
+    state=all: Closed issue'lar da gelsin (yıldız board_list sync için kritik).
+    """
     token = get_gitlab_token()
     if not token:
         raise ValueError("GITLAB_PRIVATE_TOKEN tanımlı değil.")
@@ -152,17 +172,17 @@ def fetch_issues_by_iids(
         return {}
     encoded_path = _encoded_path(project_path)
     headers = _headers()
-    url = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
+    base = f"{gitlab_api_v4_base()}/projects/{encoded_path}/issues"
     out: dict[int, dict[str, Any]] = {}
     t = max(1.0, float(timeout_sec))
     timeout = httpx.Timeout(t, connect=min(2.0, t), read=t, write=t, pool=t)
     with httpx.Client(timeout=timeout) as client:
         for i in range(0, len(clean), 50):
             chunk = clean[i : i + 50]
-            params: list[tuple[str, str]] = [("per_page", "100")]
+            params: list[tuple[str, str]] = [("per_page", "100"), ("state", "all")]
             for iid in chunk:
                 params.append(("iids[]", str(iid)))
-            resp = client.get(url, headers=headers, params=params)
+            resp = client.get(base, headers=headers, params=params)
             if resp.status_code != 200:
                 LOGGER.warning(
                     "GitLab issues-by-iid failed [%s] %s: %s",
@@ -180,6 +200,21 @@ def fetch_issues_by_iids(
                 except (TypeError, ValueError):
                     continue
                 out[iid] = issue
+        missing = [iid for iid in clean if iid not in out]
+        for iid in missing:
+            try:
+                resp = client.get(f"{base}/{iid}", headers=headers)
+            except Exception as exc:
+                LOGGER.debug("GitLab issue %s/%s fallback failed: %s", project_path, iid, exc)
+                continue
+            if resp.status_code != 200:
+                continue
+            issue = resp.json()
+            if isinstance(issue, dict) and issue.get("iid") is not None:
+                try:
+                    out[int(issue["iid"])] = issue
+                except (TypeError, ValueError):
+                    pass
     return out
 
 

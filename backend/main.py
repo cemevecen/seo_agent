@@ -17718,7 +17718,7 @@ def api_boards_list_stars(
                 product=product,
                 platform=platform,
                 project_path=project_path,
-                per_project_timeout_sec=4.0,
+                per_project_timeout_sec=8.0,
             )
         except Exception as exc:
             LOGGER.warning("boards stars refresh skipped: %s", exc)

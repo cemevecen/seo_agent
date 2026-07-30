@@ -83,3 +83,61 @@ def test_refresh_stars_moves_closed_from_doing(monkeypatch):
     assert row.state == "closed"
     assert committed["n"] == 1
     assert star_to_dict(row)["board_list"] == "closed"
+
+
+def test_star_to_dict_prefers_state_over_stale_board_list():
+    class _Row:
+        id = 1
+        project_path = "ios/doviz"
+        issue_iid = 315
+        product = "doviz"
+        platform = "ios"
+        title = "Cüzdan"
+        web_url = "https://git.nokta.com/ios/doviz/-/issues/315"
+        state = "closed"
+        labels_json = '["Doing"]'
+        board_list = "doing"
+        starred_at = None
+
+    assert star_to_dict(_Row())["board_list"] == "closed"
+
+
+def test_refresh_stars_reports_missing_iids(monkeypatch):
+    class _Row:
+        def __init__(self):
+            self.project_path = "ios/doviz"
+            self.issue_iid = 999
+            self.product = "doviz"
+            self.platform = "ios"
+            self.title = "Gone"
+            self.web_url = ""
+            self.state = "opened"
+            self.labels_json = '["Doing"]'
+            self.board_list = "doing"
+            self.starred_at = None
+            self.id = 2
+
+    row = _Row()
+
+    class _Query:
+        def filter(self, *a, **k):
+            return self
+
+        def all(self):
+            return [row]
+
+    class _Db:
+        def query(self, *a, **k):
+            return _Query()
+
+        def commit(self):
+            raise AssertionError("should not commit when nothing updated")
+
+    monkeypatch.setattr(
+        "backend.services.gitlab_board_stars.fetch_issues_by_iids",
+        lambda path, iids, timeout_sec=4.0: {},
+    )
+    result = refresh_stars_from_gitlab(_Db())
+    assert result["updated"] == 0
+    assert result["errors"]
+    assert "999" in result["errors"][0]
