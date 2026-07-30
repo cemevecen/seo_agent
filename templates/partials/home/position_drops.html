@@ -117,21 +117,21 @@
   }
 </style>
 
-<div class="home-pos-drops" lang="en">
+<div class="home-pos-drops">
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
       {% if block and block.display_name %}
         <p class="home-label {% if block.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ block.display_name }}</p>
       {% endif %}
       {% if block and block.as_of_label %}
-        <p class="{% if block.display_name %}mt-1 {% endif %}home-meta font-medium tabular-nums text-slate-600 dark:text-slate-300">Fetched: {{ block.as_of_label }}</p>
+        <p class="{% if block.display_name %}mt-1 {% endif %}home-meta font-medium tabular-nums text-slate-600 dark:text-slate-300">Veri çekim: {{ block.as_of_label }}</p>
       {% endif %}
     </div>
     {% if not hide_nav_link %}
     <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
        hx-get="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
        hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Alerts →</a>
+       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Uyarılar →</a>
     {% endif %}
   </div>
 
@@ -140,7 +140,7 @@
   {% if _real_drops or _real_rises %}
     <div class="home-pos-cols mt-4">
       <div class="min-w-0">
-        <p class="home-label text-rose-700 dark:text-rose-300">Drops</p>
+        <p class="home-label text-rose-700 dark:text-rose-300">Düşüşler</p>
         {% if _real_drops %}
           <ul class="home-pos-list">
             {% for d in _real_drops %}
@@ -152,18 +152,18 @@
                     <span class="text-rose-600 dark:text-rose-400">+{{ d.diff_fmt }}</span>
                   </span>
                   {% if d.clicks_fmt %}
-                    <span class="home-pos-clicks block">{{ d.clicks_fmt }} clicks · 7d</span>
+                    <span class="home-pos-clicks block">{{ d.clicks_fmt }} tık · 7g</span>
                   {% endif %}
                 </span>
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">No meaningful drops</p>
+          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı düşüş yok</p>
         {% endif %}
       </div>
       <div class="min-w-0">
-        <p class="home-label text-emerald-700 dark:text-emerald-300">Rises</p>
+        <p class="home-label text-emerald-700 dark:text-emerald-300">Yükselişler</p>
         {% if _real_rises %}
           <ul class="home-pos-list">
             {% for d in _real_rises %}
@@ -175,14 +175,14 @@
                     <span class="text-emerald-600 dark:text-emerald-400">−{{ d.diff_fmt }}</span>
                   </span>
                   {% if d.clicks_fmt %}
-                    <span class="home-pos-clicks block">{{ d.clicks_fmt }} clicks · 7d</span>
+                    <span class="home-pos-clicks block">{{ d.clicks_fmt }} tık · 7g</span>
                   {% endif %}
                 </span>
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">No meaningful rises</p>
+          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı yükseliş yok</p>
         {% endif %}
       </div>
     </div>
@@ -190,6 +190,6 @@
       <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">{{ block.sort_label }}</p>
     {% endif %}
   {% else %}
-    <p class="mt-4 text-center text-sm text-slate-400 dark:text-slate-500">No meaningful position changes in top 50</p>
+    <p class="mt-4 text-center text-sm text-slate-400 dark:text-slate-500">Top 50 içinde anlamlı pozisyon değişimi yok</p>
   {% endif %}
 </div>

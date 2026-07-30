@@ -9087,7 +9087,7 @@ def api_home_sc_summary(request: Request, site: str | None = None):
             sc_summary = _latest_successful_provider_summary(
                 db, site_id=site_id, provider="search_console"
             )
-            for dev_code, dev_label in (("MOBILE", "Mobile Web"), ("DESKTOP", "Web")):
+            for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
                 agg = _home_sc_device_aggregate(
                     db, site_id, dev_code, summary_payload=sc_summary
                 )
@@ -9184,7 +9184,7 @@ def home_summary_payload(db) -> dict:
         sc_summary = _latest_successful_provider_summary(
             db, site_id=site_id, provider="search_console"
         )
-        for dev_code, dev_label in (("MOBILE", "Mobile Web"), ("DESKTOP", "Web")):
+        for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
             agg = _home_sc_device_aggregate(
                 db, site_id, dev_code, summary_payload=sc_summary
             )

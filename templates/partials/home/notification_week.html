@@ -473,13 +473,13 @@
   }
 </style>
 
-<div class="home-nt-week home-readable" lang="en" data-nt-rev="{{ nt_rev | default('dev') }}">
+<div class="home-nt-week home-readable" data-nt-rev="{{ nt_rev | default('dev') }}">
   <div class="flex w-full flex-wrap items-center justify-between gap-3">
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-2">
         <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
         <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 home-label normal-case tracking-normal text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Notification</span>
-        <h3 class="font-semibold text-slate-900 dark:text-slate-100">7 Days · vs previous week</h3>
+        <h3 class="font-semibold text-slate-900 dark:text-slate-100">7 gün · önceki haftaya göre</h3>
       </div>
       {% if not empty %}
         <p class="home-meta mt-1.5 tabular-nums text-slate-500 dark:text-slate-400">
@@ -490,25 +490,25 @@
       {% endif %}
     </div>
     <a href="/notification" hx-get="/notification" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detail →</a>
+       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
   </div>
 
   {% if empty %}
-    <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">No notification data in the last two weeks</p>
+    <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
   {% else %}
     {# Status Quo+ mockup: KPI + pasta tek yüzey, yan yana iki sütun #}
     <div class="home-nt-summary">
       <div class="home-nt-metric">
         <div>
-          <p class="home-nt-metric-label">Total impressions</p>
+          <p class="home-nt-metric-label">Toplam impression</p>
           <div class="home-nt-metric-row mt-1.5">
             <p class="home-nt-metric-value tabular-nums">{{ totals.impressions.cur_fmt }}</p>
             <span class="home-nt-kpi-delta inline-flex shrink-0 items-center rounded-full tabular-nums ring-1 {{ tone_badge(totals.impressions.delta_pct) }}">{{ totals.impressions.delta_fmt }}</span>
           </div>
-          <p class="home-nt-metric-prev mt-1.5 tabular-nums">prev · {{ totals.impressions.prev_fmt }}</p>
+          <p class="home-nt-metric-prev mt-1.5 tabular-nums">önceki · {{ totals.impressions.prev_fmt }}</p>
         </div>
         <div class="home-nt-share-block" data-nt-share>
-          <p class="home-nt-share-title">Impression share</p>
+          <p class="home-nt-share-title">Impression payı</p>
           {% if impr_pie and not impr_pie.empty %}
             <div class="home-nt-share-body">
               {{ nt_pie(impr_pie) }}
@@ -525,22 +525,22 @@
               </ul>
             </div>
           {% else %}
-            <p class="home-meta text-slate-400 dark:text-slate-500">No impression share</p>
+            <p class="home-meta text-slate-400 dark:text-slate-500">Impression payı yok</p>
           {% endif %}
         </div>
       </div>
 
       <div class="home-nt-metric">
         <div>
-          <p class="home-nt-metric-label">Total clicks</p>
+          <p class="home-nt-metric-label">Toplam click</p>
           <div class="home-nt-metric-row mt-1.5">
             <p class="home-nt-metric-value tabular-nums">{{ totals.clicks.cur_fmt }}</p>
             <span class="home-nt-kpi-delta inline-flex shrink-0 items-center rounded-full tabular-nums ring-1 {{ tone_badge(totals.clicks.delta_pct) }}">{{ totals.clicks.delta_fmt }}</span>
           </div>
-          <p class="home-nt-metric-prev mt-1.5 tabular-nums">prev · {{ totals.clicks.prev_fmt }}</p>
+          <p class="home-nt-metric-prev mt-1.5 tabular-nums">önceki · {{ totals.clicks.prev_fmt }}</p>
         </div>
         <div class="home-nt-share-block" data-nt-share>
-          <p class="home-nt-share-title">Click share</p>
+          <p class="home-nt-share-title">Click payı</p>
           <div class="home-nt-share-body">
             {{ nt_pie(click_pie) }}
             <ul class="home-nt-legend">
@@ -562,7 +562,7 @@
     <div class="home-nt-panel mt-5 rounded-xl">
       <div class="home-nt-panel-head flex items-center gap-2 rounded-t-xl">
         <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span>
-        <p class="home-label text-slate-500 dark:text-slate-400">Platform comparison</p>
+        <p class="home-label text-slate-500 dark:text-slate-400">Platform Karşılaştırma</p>
       </div>
       <div class="p-2 sm:p-2.5">
         <div class="home-nt-plat home-nt-plat-table home-nt-scroll">
@@ -572,7 +572,7 @@
                 <th class="font-semibold">Platform</th>
                 <th class="font-semibold">Impression</th>
                 <th class="font-semibold">Click</th>
-                <th class="font-semibold">Share</th>
+                <th class="font-semibold">Pay</th>
               </tr>
             </thead>
             <tbody>
@@ -649,14 +649,14 @@
 
     <div class="home-nt-panel home-nt-top mt-4 w-full rounded-xl" data-home-nt-top>
       <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-2 rounded-t-xl">
-        <div class="flex min-w-0 flex-wrap items-center gap-2" role="tablist" aria-label="Top 40 period">
+        <div class="flex min-w-0 flex-wrap items-center gap-2" role="tablist" aria-label="Top 40 dönem">
           <button type="button"
                   role="tab"
                   aria-selected="true"
                   data-nt-top-tab="current"
                   class="home-nt-top-tab rounded-full px-3.5 py-1.5 home-label normal-case tracking-wide transition
                          bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
-            This week top 40
+            Bu hafta top 40
           </button>
           <button type="button"
                   role="tab"
@@ -665,12 +665,12 @@
                   class="home-nt-top-tab rounded-full px-3.5 py-1.5 home-label normal-case tracking-wide transition
                          bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50
                          dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">
-            Previous week top 40
+            Geçtiğimiz hafta top 40
           </button>
         </div>
         <span data-nt-top-count
               class="home-nt-chip rounded-full bg-white px-2.5 py-1 home-meta font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200">
-          {{ top_titles|length }} sends
+          {{ top_titles|length }} gönderim
         </span>
       </div>
 
@@ -683,14 +683,14 @@
                   <tr>
                     <th class="text-right font-semibold">#</th>
                     <th class="hidden whitespace-nowrap font-semibold sm:table-cell">ID</th>
-                    <th class="font-semibold">Content</th>
-                    <th class="whitespace-nowrap text-right font-semibold">Total</th>
-                    <th class="font-semibold">Share</th>
+                    <th class="font-semibold">İçerik</th>
+                    <th class="whitespace-nowrap text-right font-semibold">Toplam</th>
+                    <th class="font-semibold">Pay</th>
                     <th class="whitespace-nowrap text-right font-semibold">Web</th>
                     <th class="whitespace-nowrap text-right font-semibold">MWeb</th>
                     <th class="whitespace-nowrap text-right font-semibold">Android</th>
                     <th class="whitespace-nowrap text-right font-semibold">iOS</th>
-                    <th class="whitespace-nowrap font-semibold">Sent</th>
+                    <th class="whitespace-nowrap font-semibold">Gönderim</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -718,10 +718,10 @@
       {%- endmacro %}
 
       <div data-nt-top-panel="current">
-        {{ nt_top_table(top_titles, "No clicks this week") }}
+        {{ nt_top_table(top_titles, "Bu haftada tıklama yok") }}
       </div>
       <div data-nt-top-panel="previous" class="hidden">
-        {{ nt_top_table(top_titles_previous|default([]), "No clicks last week") }}
+        {{ nt_top_table(top_titles_previous|default([]), "Geçtiğimiz haftada tıklama yok") }}
       </div>
       <p data-nt-top-range="current" class="home-meta border-t border-slate-100 px-2.5 py-1.5 tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
         {{ period_current_label }}
@@ -761,7 +761,7 @@
         ranges.forEach(function (r) {
           r.classList.toggle('hidden', r.getAttribute('data-nt-top-range') !== which);
         });
-        if (countEl) countEl.textContent = (counts[which] || 0) + ' sends';
+        if (countEl) countEl.textContent = (counts[which] || 0) + ' gönderim';
       }
 
       tabs.forEach(function (btn) {

@@ -1,7 +1,7 @@
-<div class="home-readable flex items-center justify-between gap-3" lang="en">
-  <h3 class="font-semibold text-slate-900 dark:text-slate-100">SEO · Critical Issues</h3>
+<div class="home-readable flex items-center justify-between gap-3">
+  <h3 class="font-semibold text-slate-900 dark:text-slate-100">SEO · Kritik Hatalar</h3>
   <a href="/seo-audit" hx-get="/seo-audit" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detail →</a>
+     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
 </div>
 {% if sites and sites[0] and sites[0].rows %}
   <ul class="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
@@ -11,7 +11,7 @@
           <a href="{{ it.url }}" target="_blank" rel="noopener"
              class="home-body min-w-0 flex-1 text-slate-800 transition hover:text-slate-950 dark:text-slate-200 dark:hover:text-slate-50"
              title="{{ it.url }}">{{ it.url_short }}</a>
-          <span class="home-row-meta home-meta shrink-0 font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ it.issue_count }} issues</span>
+          <span class="home-row-meta home-meta shrink-0 font-semibold tabular-nums text-slate-600 dark:text-slate-300">{{ it.issue_count }} sorun</span>
         </div>
         {% if it.problems %}
           <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">{{ it.problems }}</p>
@@ -20,5 +20,5 @@
     {% endfor %}
   </ul>
 {% else %}
-  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500" lang="en">No critical issues detected</p>
+  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Kritik hata tespit edilmedi</p>
 {% endif %}

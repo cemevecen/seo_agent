@@ -453,7 +453,7 @@
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="/static/js/home_gitlab_boards.js?v=3"></script>
   <section id="home-realtime-section" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
-           class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
+           class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
       <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
       <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
@@ -548,58 +548,58 @@
 
       {# Row 1 — GA4 #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&v=4" hx-trigger="load" hx-swap="innerHTML"
-                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">GA4 · 7-Day Session Change</h3>
+        <section hx-get="/api/home/ga4-sessions?site=doviz&v=3" hx-trigger="load" hx-swap="innerHTML"
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=4" hx-trigger="load" hx-swap="innerHTML"
-                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">GA4 · 7-Day Session Change</h3>
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=3" hx-trigger="load" hx-swap="innerHTML"
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">GA4 · 7 Gün Session Değişimi</h3>
           {{ _placeholder_mid | safe }}
         </section>
       </div>
 
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/sc-summary?site=doviz&v=5" hx-trigger="load" hx-swap="innerHTML"
-                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Days</h3>
+        <section hx-get="/api/home/sc-summary?site=doviz&v=6" hx-trigger="load" hx-swap="innerHTML"
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/sc-summary?site=sinemalar&v=5" hx-trigger="load" hx-swap="innerHTML"
-                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Days</h3>
+        <section hx-get="/api/home/sc-summary?site=sinemalar&v=6" hx-trigger="load" hx-swap="innerHTML"
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
           {{ _placeholder_mid | safe }}
         </section>
       </div>
 
       {# Row 4 — Position Drops #}
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/position-drops?site=doviz&v=3" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=2" hx-trigger="load" hx-swap="innerHTML"
                  hx-headers='{"Cache-Control": "no-cache"}'
-                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=3" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=2" hx-trigger="load" hx-swap="innerHTML"
                  hx-headers='{"Cache-Control": "no-cache"}'
-                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
       </div>
     </div>
 
     {# Full-width — divider yok (Crashlytics ile aynı birleşik kart hissi) #}
-    <section hx-get="/api/home/notification-week?v=17" hx-trigger="load" hx-swap="innerHTML"
+    <section hx-get="/api/home/notification-week?v=16" hx-trigger="load" hx-swap="innerHTML"
              hx-headers='{"Cache-Control": "no-cache"}'
-             class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5" lang="en">
+             class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Notification · 7g vs önceki 7g</h3>
       {{ _placeholder_tall | safe }}
     </section>
 
     {# Mobil mağaza / Firebase durum — full width #}
     <section hx-get="/api/home/crashlytics?product=doviz" hx-trigger="load" hx-swap="innerHTML" hx-timeout="55000"
-             class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" lang="en">
+             class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Mobil mağaza / Firebase durum</h3>
       {{ _placeholder_mid | safe }}
     </section>
@@ -607,7 +607,7 @@
     {# git.nokta — en sonda; boards ile aynı GitLab/VPN kaynağı (tarayıcı fetch) #}
     <section hx-get="/api/home/priority-board?v=7" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              hx-headers='{"Cache-Control": "no-cache"}'
-             class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5" lang="en">
+             class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">git.nokta</h3>
       {{ _placeholder_tall | safe }}
     </section>
