@@ -1,13 +1,13 @@
-<div class="home-readable flex flex-wrap items-center justify-between gap-3">
+<div class="home-readable flex flex-wrap items-center justify-between gap-3" lang="en">
   <div class="min-w-0">
     <div class="flex flex-wrap items-center gap-2">
       <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
-      <h3 class="font-semibold text-slate-900 dark:text-slate-100">Mobil Mağaza Durumu</h3>
+      <h3 class="font-semibold text-slate-900 dark:text-slate-100">App Store Status</h3>
     </div>
-    <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">App Store · Play Store sürüm ve puan özeti</p>
+    <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">App Store · Play Store version and rating summary</p>
   </div>
   <a href="/app" hx-get="/app" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+     class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detail →</a>
 </div>
 
 <div class="home-split home-split-2 mt-4">
@@ -33,7 +33,7 @@
         </div>
         <div class="flex shrink-0 flex-wrap items-center gap-1.5">
           {% if plat.is_recent %}
-            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">yeni</span>
+            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">new</span>
           {% endif %}
           {% if plat.version %}
             <span class="rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">v{{ plat.version }}</span>
@@ -46,29 +46,29 @@
       {% if plat.version or plat.score_fmt != '—' or plat.ratings_fmt != '—' or plat.rank_fmt != '—' %}
         <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div class="min-w-0">
-            <p class="home-label text-slate-500 dark:text-slate-400">Puan</p>
+            <p class="home-label text-slate-500 dark:text-slate-400">Rating</p>
             <p class="home-kpi mt-1 text-slate-900 dark:text-slate-100">{{ plat.score_fmt }}</p>
           </div>
           <div class="min-w-0">
-            <p class="home-label text-slate-500 dark:text-slate-400">Yorum</p>
+            <p class="home-label text-slate-500 dark:text-slate-400">Reviews</p>
             <p class="home-kpi mt-1 text-slate-900 dark:text-slate-100">{{ plat.ratings_fmt }}</p>
           </div>
           <div class="min-w-0 col-span-2 sm:col-span-1">
-            <p class="home-label text-slate-500 dark:text-slate-400">Sıra</p>
+            <p class="home-label text-slate-500 dark:text-slate-400">Rank</p>
             <p class="home-kpi mt-1 text-slate-900 dark:text-slate-100">{{ plat.rank_fmt }}</p>
           </div>
         </div>
         <div class="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
-          <p class="home-label text-slate-500 dark:text-slate-400">Son güncelleme</p>
+          <p class="home-label text-slate-500 dark:text-slate-400">Last update</p>
           <p class="home-meta mt-1 text-slate-600 dark:text-slate-300">
-            {% if plat.updated_label %}{{ plat.updated_label }}{% else %}Veri henüz toplanmadı{% endif %}
+            {% if plat.updated_label %}{{ plat.updated_label }}{% else %}Data not collected yet{% endif %}
           </p>
         </div>
       {% else %}
-        <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">Veri yok</p>
+        <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">No data</p>
       {% endif %}
     </div>
   {% else %}
-    <p class="home-meta col-span-full text-center text-slate-400 dark:text-slate-500">Mağaza verisi yok</p>
+    <p class="home-meta col-span-full text-center text-slate-400 dark:text-slate-500">No store data</p>
   {% endfor %}
 </div>

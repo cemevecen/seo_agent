@@ -1,4 +1,4 @@
-{# Mini spark + sayı — Clicks / Position ayrı bantlar #}
+{# Mini spark + sayı — Clicks / Position bands (neutral greys) #}
 <style>
   .home-sc-metric-band {
     margin-top: 0.85rem;
@@ -26,10 +26,12 @@
     border-radius: 999px;
     flex-shrink: 0;
   }
-  .home-sc-metric-dot.is-clicks { background: #0284c7; }
-  .home-sc-metric-dot.is-pos { background: #d97706; }
-  html.dark .home-sc-metric-dot.is-clicks { background: #38bdf8; }
-  html.dark .home-sc-metric-dot.is-pos { background: #fbbf24; }
+  .home-sc-metric-dot.is-clicks { background: #94a3b8; }
+  .home-sc-metric-dot.is-pos { background: #64748b; }
+  html.dark .home-sc-metric-dot.is-clicks { background: #94a3b8; }
+  html.dark .home-sc-metric-dot.is-pos { background: #cbd5e1; }
+  html.midnight .home-sc-metric-dot.is-clicks { background: #71717a; }
+  html.midnight .home-sc-metric-dot.is-pos { background: #a1a1aa; }
   .home-sc-metric-title {
     font-size: 0.65rem;
     font-weight: 600;
@@ -47,45 +49,38 @@
     min-width: 0;
     border-radius: 0.75rem;
     padding: 0.625rem 0.7rem 0.55rem;
-    border: 1px solid transparent;
-    border-left-width: 3px;
+    border: 1px solid rgb(226 232 240 / 0.9);
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
   }
   html.dark .home-sc-spark-cell,
   html.midnight .home-sc-spark-cell {
     box-shadow: none;
   }
-  /* Clicks = sky band */
+  /* Clicks = same light grey as GA4 KPI cells */
   .home-sc-spark-cell.is-clicks {
-    border-color: rgb(186 230 253);
-    border-left-color: #0284c7;
-    background: rgb(240 249 255);
+    background: rgb(248 250 252);
+    border-color: rgb(226 232 240 / 0.9);
   }
   html.dark .home-sc-spark-cell.is-clicks {
-    border-color: rgb(14 116 144 / 0.45);
-    border-left-color: #38bdf8;
-    background: rgb(8 47 73 / 0.45);
+    border-color: rgb(71 85 105 / 0.8);
+    background: rgb(30 41 59 / 0.85);
   }
   html.midnight .home-sc-spark-cell.is-clicks {
-    border-color: rgb(39 39 42);
-    border-left-color: #38bdf8;
-    background: rgb(12 20 28);
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
   }
-  /* Position = amber band */
+  /* Position = one step darker grey */
   .home-sc-spark-cell.is-pos {
-    border-color: rgb(253 230 138);
-    border-left-color: #d97706;
-    background: rgb(255 251 235);
+    background: rgb(226 232 240);
+    border-color: rgb(203 213 225);
   }
   html.dark .home-sc-spark-cell.is-pos {
-    border-color: rgb(146 64 14 / 0.45);
-    border-left-color: #fbbf24;
-    background: rgb(69 26 3 / 0.35);
+    border-color: rgb(71 85 105);
+    background: rgb(15 23 42);
   }
   html.midnight .home-sc-spark-cell.is-pos {
-    border-color: rgb(39 39 42);
-    border-left-color: #fbbf24;
-    background: rgb(28 22 12);
+    border-color: rgb(63 63 70);
+    background: rgb(9 9 11);
   }
   .home-sc-spark-svg {
     display: block;
@@ -111,37 +106,31 @@
     margin-top: 0.35rem;
     height: 1.75rem;
     border-radius: 0.35rem;
-    background: rgb(226 232 240 / 0.55);
-  }
-  .home-sc-spark-cell.is-clicks .home-sc-spark-empty {
-    background: rgb(186 230 253 / 0.55);
+    background: rgb(226 232 240 / 0.7);
   }
   .home-sc-spark-cell.is-pos .home-sc-spark-empty {
-    background: rgb(253 230 138 / 0.55);
+    background: rgb(203 213 225 / 0.8);
   }
   html.dark .home-sc-spark-empty {
     background: rgb(51 65 85 / 0.7);
   }
-  html.dark .home-sc-spark-cell.is-clicks .home-sc-spark-empty {
-    background: rgb(14 116 144 / 0.35);
-  }
   html.dark .home-sc-spark-cell.is-pos .home-sc-spark-empty {
-    background: rgb(146 64 14 / 0.35);
+    background: rgb(30 41 59);
   }
   html.midnight .home-sc-spark-empty {
     background: rgb(39 39 42);
   }
 </style>
 
-<div class="home-readable flex items-center justify-between gap-3">
-  <h3 class="font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Gün</h3>
+<div class="home-readable flex items-center justify-between gap-3" lang="en">
+  <h3 class="font-semibold text-slate-900 dark:text-slate-100">Search Console · 7 Days</h3>
   <a href="/search-console" hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detay →</a>
+     class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Detail →</a>
 </div>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
 
-  <div class="home-sc-metric-band" data-metric="clicks">
+  <div class="home-sc-metric-band" data-metric="clicks" lang="en">
     <div class="home-sc-metric-head">
       <span class="home-sc-metric-dot is-clicks" aria-hidden="true"></span>
       <p class="home-sc-metric-title">Clicks</p>
@@ -165,10 +154,10 @@
     </div>
   </div>
 
-  <div class="home-sc-metric-band" data-metric="position">
+  <div class="home-sc-metric-band" data-metric="position" lang="en">
     <div class="home-sc-metric-head">
       <span class="home-sc-metric-dot is-pos" aria-hidden="true"></span>
-      <p class="home-sc-metric-title">Position fark</p>
+      <p class="home-sc-metric-title">Position change</p>
     </div>
     <div class="home-sc-spark-grid">
       {% for dev in site.devices %}
@@ -189,5 +178,5 @@
     </div>
   </div>
 {% else %}
-  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
+  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500" lang="en">No data</p>
 {% endif %}

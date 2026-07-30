@@ -1,22 +1,22 @@
-<div class="home-readable flex flex-wrap items-center justify-between gap-3">
+<div class="home-readable flex flex-wrap items-center justify-between gap-3" lang="en">
   <div class="flex items-center gap-2">
     <span class="relative flex h-2.5 w-2.5">
       <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
       <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
     </span>
-    <h3 class="font-semibold text-slate-900 dark:text-slate-100">Anlık Aktif Kullanıcı</h3>
+    <h3 class="font-semibold text-slate-900 dark:text-slate-100">Realtime Active Users</h3>
   </div>
   <div class="flex flex-wrap items-center justify-end gap-2">
     {% if sites %}
       {% for site in sites %}
-      <div class="home-rt-pill {% if site.site_id == 1 %}home-rt-pill--doviz{% else %}home-rt-pill--sinemalar{% endif %}" title="{{ site.display_name or site.domain }} — tüm profiller toplamı">
+      <div class="home-rt-pill {% if site.site_id == 1 %}home-rt-pill--doviz{% else %}home-rt-pill--sinemalar{% endif %}" title="{{ site.display_name or site.domain }} — all profiles total">
         <span class="home-label {% if site.site_id == 1 %}text-blue-700 dark:text-blue-200{% else %}text-red-600 dark:text-red-300{% endif %}">{{ site.display_name or site.domain }}</span>
-        <span class="home-body tabular-nums text-slate-900 dark:text-slate-50" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} aktif</span>
-        <span class="home-meta tabular-nums text-slate-600 dark:text-slate-300">· {{ site.total_pageviews_fmt }} gör.</span>
+        <span class="home-body tabular-nums text-slate-900 dark:text-slate-50" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} active</span>
+        <span class="home-meta tabular-nums text-slate-600 dark:text-slate-300">· {{ site.total_pageviews_fmt }} views</span>
       </div>
       {% endfor %}
     {% endif %}
-    <span class="home-rt-countdown" data-home-rt-countdown title="Realtime alanı için otomatik yenileme geri sayımı">
+    <span class="home-rt-countdown" data-home-rt-countdown title="Realtime auto-refresh countdown">
       <svg class="home-rt-countdown-svg -rotate-90" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <circle class="home-rt-countdown-track" cx="20" cy="20" r="16"></circle>
         <circle class="home-rt-countdown-ring" data-home-rt-countdown-ring cx="20" cy="20" r="16"></circle>
@@ -57,5 +57,5 @@
     </div>
   </div>
 {% else %}
-  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
+  <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">No data</p>
 {% endif %}

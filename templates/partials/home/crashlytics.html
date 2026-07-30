@@ -1,18 +1,18 @@
 {% set store = store | default({}) %}
 {% set store_ios = store.ios if store else none %}
 {% set store_android = store.android if store else none %}
-<div class="home-readable flex flex-wrap items-center justify-between gap-3">
+<div class="home-readable flex flex-wrap items-center justify-between gap-3" lang="en">
   <div class="flex min-w-0 flex-wrap items-center gap-2">
     <span class="home-motion-crash-pulse" aria-hidden="true"></span>
     <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
-    <h3 class="font-semibold text-slate-900 dark:text-slate-100">Mobil mağaza / Firebase durum</h3>
+    <h3 class="font-semibold text-slate-900 dark:text-slate-100">App Store / Firebase Status</h3>
     {% if card and card.days %}
       <span class="home-meta font-medium tabular-nums text-slate-500 dark:text-slate-400">· {{ card.days }}g</span>
     {% endif %}
   </div>
   <div class="flex shrink-0 items-center gap-3">
     <a href="{{ app_url | default('/app') }}" hx-get="{{ app_url | default('/app') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Mağaza →</a>
+       class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Store →</a>
     <a href="{{ firebase_url }}" hx-get="{{ firebase_url }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
        class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Firebase →</a>
   </div>
@@ -22,10 +22,10 @@
   {% if plat and (plat.version or plat.score_fmt != '—' or plat.ratings_fmt != '—') %}
     <div class="mt-3 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="home-label text-slate-500 dark:text-slate-400">Mağaza</p>
+        <p class="home-label text-slate-500 dark:text-slate-400">Store</p>
         <div class="flex shrink-0 flex-wrap items-center gap-1.5">
           {% if plat.is_recent %}
-            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">yeni</span>
+            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">new</span>
           {% endif %}
           {% if plat.version %}
             <span class="rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">v{{ plat.version }}</span>
@@ -34,16 +34,16 @@
       </div>
       <div class="mt-2 grid grid-cols-2 gap-3">
         <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">Puan</p>
+          <p class="home-label text-slate-500 dark:text-slate-400">Rating</p>
           <p class="home-kpi mt-0.5 text-slate-900 dark:text-slate-100">{{ plat.score_fmt }}</p>
         </div>
         <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">Yorum</p>
+          <p class="home-label text-slate-500 dark:text-slate-400">Reviews</p>
           <p class="home-kpi mt-0.5 text-slate-900 dark:text-slate-100">{{ plat.ratings_fmt }}</p>
         </div>
       </div>
       <p class="home-meta mt-2 text-slate-500 dark:text-slate-400">
-        Son güncelleme · {% if plat.updated_label %}{{ plat.updated_label }}{% else %}—{% endif %}
+        Last update · {% if plat.updated_label %}{{ plat.updated_label }}{% else %}—{% endif %}
       </p>
     </div>
   {% endif %}
@@ -51,8 +51,8 @@
 
 {% if card.warming %}
   <div class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-5 text-center dark:border-slate-700 dark:bg-slate-800/40">
-    <p class="home-body text-slate-500 dark:text-slate-400">{{ card.message or "Veri yükleniyor…" }}</p>
-    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">Sayfayı birkaç dakika içinde yenileyin veya Firebase sekmesine gidin.</p>
+    <p class="home-body text-slate-500 dark:text-slate-400">{{ card.message or "Loading…" }}</p>
+    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">Refresh in a few minutes or open the Firebase tab.</p>
     {% if store_ios or store_android %}
       <div class="home-split home-split-2 mt-4 text-left">
         <div class="rounded-xl border border-slate-100 bg-white/70 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40">
@@ -68,7 +68,7 @@
   </div>
 {% elif not card.ok %}
   <div class="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <p class="home-body font-medium text-amber-800 dark:text-amber-300">{{ card.message or "Crashlytics verisi gösterilemiyor" }}</p>
+    <p class="home-body font-medium text-amber-800 dark:text-amber-300">{{ card.message or "Crashlytics data unavailable" }}</p>
     {% if store_ios or store_android %}
       <div class="home-split home-split-2 mt-3">
         <div class="rounded-xl border border-amber-100/80 bg-white/70 px-3 py-2.5 dark:border-amber-900/30 dark:bg-slate-900/40">
@@ -111,7 +111,7 @@
           <span class="home-label text-slate-700 dark:text-slate-200">iOS</span>
         </div>
         {% if ios and ios.latest_version %}
-          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="Mağaza / son yayınlanan sürüm">v{{ ios.latest_version }}</span>
+          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="Store / latest published version">v{{ ios.latest_version }}</span>
         {% else %}
           <span class="home-meta shrink-0 text-slate-400">—</span>
         {% endif %}
@@ -119,7 +119,7 @@
       {% if ios and ios.has_data %}
         <div class="mt-3 grid grid-cols-2 gap-3">
           <div class="min-w-0">
-            <p class="home-label text-slate-500 dark:text-slate-400" title="Tüm sürümler · 7g (sessions)">Crash-free</p>
+            <p class="home-label text-slate-500 dark:text-slate-400" title="All versions · 7d (sessions)">Crash-free</p>
             <p class="home-kpi mt-1 text-emerald-600 dark:text-emerald-400">{{ ios.crash_free_fmt }}</p>
           </div>
           <div class="min-w-0">
@@ -128,14 +128,14 @@
           </div>
         </div>
         {% if ios.top_devices %}
-          {{ crash_rank_list("En çok hata · cihaz" ~ ((" · v" ~ ios.latest_version) if ios.latest_version else ""), ios.top_devices) }}
+          {{ crash_rank_list("Top errors · device" ~ ((" · v" ~ ios.latest_version) if ios.latest_version else ""), ios.top_devices) }}
         {% elif ios.top_issues %}
-          {{ crash_rank_list("En çok crash · issue" ~ ((" · v" ~ ios.latest_version) if ios.latest_version else ""), ios.top_issues) }}
+          {{ crash_rank_list("Top crashes · issue" ~ ((" · v" ~ ios.latest_version) if ios.latest_version else ""), ios.top_issues) }}
         {% elif ios.top_os %}
-          {{ crash_rank_list("En çok hata · OS", ios.top_os) }}
+          {{ crash_rank_list("Top errors · OS", ios.top_os) }}
         {% endif %}
       {% else %}
-        <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">Crashlytics veri yok</p>
+        <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">No Crashlytics data</p>
       {% endif %}
       {{ store_block(store_ios) }}
     </div>
@@ -150,7 +150,7 @@
           <span class="home-label text-slate-700 dark:text-slate-200">Android</span>
         </div>
         {% if android and android.latest_version %}
-          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="Mağaza / son yayınlanan sürüm">v{{ android.latest_version }}</span>
+          <span class="shrink-0 rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" title="Store / latest published version">v{{ android.latest_version }}</span>
         {% else %}
           <span class="home-meta shrink-0 text-slate-400">—</span>
         {% endif %}
@@ -158,7 +158,7 @@
       {% if android and android.has_data %}
         <div class="mt-3 grid grid-cols-2 gap-3">
           <div class="min-w-0">
-            <p class="home-label text-slate-500 dark:text-slate-400" title="Tüm sürümler · 7g (sessions)">Crash-free</p>
+            <p class="home-label text-slate-500 dark:text-slate-400" title="All versions · 7d (sessions)">Crash-free</p>
             <p class="home-kpi mt-1 text-emerald-600 dark:text-emerald-400">{{ android.crash_free_fmt }}</p>
           </div>
           <div class="min-w-0">
@@ -167,12 +167,12 @@
           </div>
         </div>
         {% if android.top_devices %}
-          {{ crash_rank_list("En çok hata · cihaz" ~ ((" · v" ~ android.latest_version) if android.latest_version else ""), android.top_devices) }}
+          {{ crash_rank_list("Top errors · device" ~ ((" · v" ~ android.latest_version) if android.latest_version else ""), android.top_devices) }}
         {% elif android.top_issues %}
-          {{ crash_rank_list("En çok crash · issue" ~ ((" · v" ~ android.latest_version) if android.latest_version else ""), android.top_issues) }}
+          {{ crash_rank_list("Top crashes · issue" ~ ((" · v" ~ android.latest_version) if android.latest_version else ""), android.top_issues) }}
         {% endif %}
       {% else %}
-        <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">Crashlytics veri yok</p>
+        <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">No Crashlytics data</p>
       {% endif %}
       {{ store_block(store_android) }}
     </div>
