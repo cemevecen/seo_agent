@@ -502,51 +502,131 @@
       </div>
     </div>
 
-    <div class="home-nt-panel home-nt-top mt-2.5 w-full rounded-xl">
-      <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-1.5 rounded-t-xl px-2.5 py-1.5">
-        <p class="text-[9px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Top 5 · son 7g</p>
-        <span class="home-nt-chip rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200">{{ top_titles|length }} gönderim</span>
-      </div>
-      {% if top_titles %}
-        <div class="home-nt-scroll p-1.5 sm:p-2">
-          <div class="home-nt-top-wrap">
-            <table>
-              <thead class="text-[9px] uppercase tracking-wider">
-                <tr>
-                  <th class="text-right font-semibold">#</th>
-                  <th class="hidden whitespace-nowrap font-semibold sm:table-cell">ID</th>
-                  <th class="font-semibold">İçerik</th>
-                  <th class="whitespace-nowrap text-right font-semibold">Toplam</th>
-                  <th class="font-semibold">Pay</th>
-                  <th class="whitespace-nowrap text-right font-semibold">Web</th>
-                  <th class="whitespace-nowrap text-right font-semibold">MWeb</th>
-                  <th class="whitespace-nowrap text-right font-semibold">Android</th>
-                  <th class="whitespace-nowrap text-right font-semibold">iOS</th>
-                  <th class="whitespace-nowrap font-semibold">Gönderim</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in top_titles %}
-                  <tr>
-                    <td class="text-right font-semibold tabular-nums text-slate-500 dark:text-zinc-400">{{ item.rank }}</td>
-                    <td class="hidden font-mono text-[10px] tabular-nums text-slate-500 dark:text-zinc-400 sm:table-cell">{{ item.id }}</td>
-                    <td class="truncate font-medium text-slate-800 dark:text-zinc-200" title="{{ item.text }}">{{ item.text }}</td>
-                    <td class="text-right font-bold tabular-nums text-indigo-600 dark:text-indigo-300">{{ item.total_fmt }}</td>
-                    <td>{{ nt_pie_mini(item.pie) }}</td>
-                    <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.web_fmt }}</td>
-                    <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.mweb_fmt }}</td>
-                    <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.android_fmt }}</td>
-                    <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.ios_fmt }}</td>
-                    <td class="whitespace-nowrap tabular-nums text-slate-500 dark:text-zinc-400">{{ item.send_label }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+    <div class="home-nt-panel home-nt-top mt-2.5 w-full rounded-xl" data-home-nt-top>
+      <div class="home-nt-panel-head flex flex-wrap items-center justify-between gap-2 rounded-t-xl px-2.5 py-1.5">
+        <div class="flex min-w-0 flex-wrap items-center gap-1.5" role="tablist" aria-label="Top 5 dönem">
+          <button type="button"
+                  role="tab"
+                  aria-selected="true"
+                  data-nt-top-tab="current"
+                  class="home-nt-top-tab rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition
+                         bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
+            Bu hafta ilk 5
+          </button>
+          <button type="button"
+                  role="tab"
+                  aria-selected="false"
+                  data-nt-top-tab="previous"
+                  class="home-nt-top-tab rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition
+                         bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50
+                         dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">
+            Geçtiğimiz hafta ilk 5
+          </button>
         </div>
-      {% else %}
-        <p class="px-2 py-3 text-center text-xs text-slate-400 dark:text-slate-500">Son 7 günde tıklama yok</p>
-      {% endif %}
+        <span data-nt-top-count
+              class="home-nt-chip rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200">
+          {{ top_titles|length }} gönderim
+        </span>
+      </div>
+
+      {% macro nt_top_table(items, empty_msg) -%}
+        {% if items %}
+          <div class="home-nt-scroll p-1.5 sm:p-2">
+            <div class="home-nt-top-wrap">
+              <table>
+                <thead class="text-[9px] uppercase tracking-wider">
+                  <tr>
+                    <th class="text-right font-semibold">#</th>
+                    <th class="hidden whitespace-nowrap font-semibold sm:table-cell">ID</th>
+                    <th class="font-semibold">İçerik</th>
+                    <th class="whitespace-nowrap text-right font-semibold">Toplam</th>
+                    <th class="font-semibold">Pay</th>
+                    <th class="whitespace-nowrap text-right font-semibold">Web</th>
+                    <th class="whitespace-nowrap text-right font-semibold">MWeb</th>
+                    <th class="whitespace-nowrap text-right font-semibold">Android</th>
+                    <th class="whitespace-nowrap text-right font-semibold">iOS</th>
+                    <th class="whitespace-nowrap font-semibold">Gönderim</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in items %}
+                    <tr>
+                      <td class="text-right font-semibold tabular-nums text-slate-500 dark:text-zinc-400">{{ item.rank }}</td>
+                      <td class="hidden font-mono text-[10px] tabular-nums text-slate-500 dark:text-zinc-400 sm:table-cell">{{ item.id }}</td>
+                      <td class="truncate font-medium text-slate-800 dark:text-zinc-200" title="{{ item.text }}">{{ item.text }}</td>
+                      <td class="text-right font-bold tabular-nums text-indigo-600 dark:text-indigo-300">{{ item.total_fmt }}</td>
+                      <td>{{ nt_pie_mini(item.pie) }}</td>
+                      <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.web_fmt }}</td>
+                      <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.mweb_fmt }}</td>
+                      <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.android_fmt }}</td>
+                      <td class="text-right tabular-nums text-slate-700 dark:text-zinc-300">{{ item.ios_fmt }}</td>
+                      <td class="whitespace-nowrap tabular-nums text-slate-500 dark:text-zinc-400">{{ item.send_label }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% else %}
+          <p class="px-2 py-3 text-center text-xs text-slate-400 dark:text-zinc-500">{{ empty_msg }}</p>
+        {% endif %}
+      {%- endmacro %}
+
+      <div data-nt-top-panel="current">
+        {{ nt_top_table(top_titles, "Bu haftada tıklama yok") }}
+      </div>
+      <div data-nt-top-panel="previous" class="hidden">
+        {{ nt_top_table(top_titles_previous|default([]), "Geçtiğimiz haftada tıklama yok") }}
+      </div>
+      <p data-nt-top-range="current" class="border-t border-slate-100 px-2.5 py-1 text-[9px] tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
+        {{ period_current_label }}
+      </p>
+      <p data-nt-top-range="previous" class="hidden border-t border-slate-100 px-2.5 py-1 text-[9px] tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
+        {{ period_previous_label }}
+      </p>
     </div>
+    <script>
+    (function () {
+      var root = document.currentScript && document.currentScript.previousElementSibling;
+      if (!root || !root.getAttribute || root.getAttribute('data-home-nt-top') === null) {
+        root = document.querySelector('[data-home-nt-top]');
+      }
+      if (!root || root.getAttribute('data-nt-top-wired') === '1') return;
+      root.setAttribute('data-nt-top-wired', '1');
+      var counts = {
+        current: {{ top_titles|length }},
+        previous: {{ (top_titles_previous|default([]))|length }}
+      };
+      var tabs = root.querySelectorAll('[data-nt-top-tab]');
+      var panels = root.querySelectorAll('[data-nt-top-panel]');
+      var ranges = root.querySelectorAll('[data-nt-top-range]');
+      var countEl = root.querySelector('[data-nt-top-count]');
+
+      function activate(which) {
+        tabs.forEach(function (btn) {
+          var on = btn.getAttribute('data-nt-top-tab') === which;
+          btn.setAttribute('aria-selected', on ? 'true' : 'false');
+          if (on) {
+            btn.className = 'home-nt-top-tab rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900';
+          } else {
+            btn.className = 'home-nt-top-tab rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800';
+          }
+        });
+        panels.forEach(function (p) {
+          p.classList.toggle('hidden', p.getAttribute('data-nt-top-panel') !== which);
+        });
+        ranges.forEach(function (r) {
+          r.classList.toggle('hidden', r.getAttribute('data-nt-top-range') !== which);
+        });
+        if (countEl) countEl.textContent = (counts[which] || 0) + ' gönderim';
+      }
+
+      tabs.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          activate(btn.getAttribute('data-nt-top-tab') || 'current');
+        });
+      });
+    })();
+    </script>
   {% endif %}
 </div>

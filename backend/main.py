@@ -9182,48 +9182,55 @@ def _home_notification_week_context(db) -> dict:
     )
 
     top_raw = list(raw.get("top_titles") or [])
-    top_titles = []
-    for idx, item in enumerate(top_raw, start=1):
-        send_raw = str(item.get("send_day") or "").strip()
-        send_label = send_raw
-        try:
-            if len(send_raw) >= 10:
-                send_label = date.fromisoformat(send_raw[:10]).strftime("%d.%m.%Y")
-        except ValueError:
-            pass
-        plat_clicks = [
-            ("desktop", float(item.get("desktop") or 0)),
-            ("mobileweb", float(item.get("mobileweb") or 0)),
-            ("android", float(item.get("android") or 0)),
-            ("ios", float(item.get("ios") or 0)),
-        ]
-        mini_parts = [
-            (
-                (_HOME_NT_PLATFORM_STYLE.get(k) or _HOME_NT_PLATFORM_STYLE["desktop"])["hex"],
-                v,
-                k,
+    top_prev_raw = list(raw.get("top_titles_previous") or [])
+
+    def _format_top_titles(items: list) -> list[dict]:
+        out: list[dict] = []
+        for idx, item in enumerate(items, start=1):
+            send_raw = str(item.get("send_day") or "").strip()
+            send_label = send_raw
+            try:
+                if len(send_raw) >= 10:
+                    send_label = date.fromisoformat(send_raw[:10]).strftime("%d.%m.%Y")
+            except ValueError:
+                pass
+            plat_clicks = [
+                ("desktop", float(item.get("desktop") or 0)),
+                ("mobileweb", float(item.get("mobileweb") or 0)),
+                ("android", float(item.get("android") or 0)),
+                ("ios", float(item.get("ios") or 0)),
+            ]
+            mini_parts = [
+                (
+                    (_HOME_NT_PLATFORM_STYLE.get(k) or _HOME_NT_PLATFORM_STYLE["desktop"])["hex"],
+                    v,
+                    k,
+                )
+                for k, v in plat_clicks
+            ]
+            out.append(
+                {
+                    "rank": idx,
+                    "id": str(item.get("id") or "—"),
+                    "text": item.get("text") or "",
+                    "send_day": send_raw,
+                    "send_label": send_label or "—",
+                    "total_fmt": _home_format_int(item.get("clicks") or 0),
+                    "web_fmt": _home_format_int(item.get("desktop") or 0),
+                    "mweb_fmt": _home_format_int(item.get("mobileweb") or 0),
+                    "android_fmt": _home_format_int(item.get("android") or 0),
+                    "ios_fmt": _home_format_int(item.get("ios") or 0),
+                    "pie": _home_nt_pie_chart(
+                        mini_parts,
+                        total_fmt=_home_format_int(item.get("clicks") or 0),
+                        center_label="",
+                    ),
+                }
             )
-            for k, v in plat_clicks
-        ]
-        top_titles.append(
-            {
-                "rank": idx,
-                "id": str(item.get("id") or "—"),
-                "text": item.get("text") or "",
-                "send_day": send_raw,
-                "send_label": send_label or "—",
-                "total_fmt": _home_format_int(item.get("clicks") or 0),
-                "web_fmt": _home_format_int(item.get("desktop") or 0),
-                "mweb_fmt": _home_format_int(item.get("mobileweb") or 0),
-                "android_fmt": _home_format_int(item.get("android") or 0),
-                "ios_fmt": _home_format_int(item.get("ios") or 0),
-                "pie": _home_nt_pie_chart(
-                    mini_parts,
-                    total_fmt=_home_format_int(item.get("clicks") or 0),
-                    center_label="",
-                ),
-            }
-        )
+        return out
+
+    top_titles = _format_top_titles(top_raw)
+    top_titles_previous = _format_top_titles(top_prev_raw)
 
     return {
         "empty": bool(raw.get("empty")),
@@ -9241,6 +9248,7 @@ def _home_notification_week_context(db) -> dict:
         "click_pie": click_pie,
         "impr_pie": impr_pie,
         "top_titles": top_titles,
+        "top_titles_previous": top_titles_previous,
     }
 
 

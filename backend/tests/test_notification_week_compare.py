@@ -149,6 +149,10 @@ def test_build_notification_week_compare(monkeypatch):
     assert by_key["ios"]["has_impressions"] is False
     assert by_key["ios"]["impressions_cur"] is None
     assert len(result["top_titles"]) <= 3
+    assert len(result["top_titles_previous"]) <= 3
     first = result["top_titles"][0]
     assert first["clicks"] > 0
     assert "desktop" in first and "send_day" in first and "id" in first
+    prev_first = result["top_titles_previous"][0]
+    assert prev_first["clicks"] > 0
+    assert str(prev_first["id"]).startswith("2000") or prev_first["text"].startswith("Prev")

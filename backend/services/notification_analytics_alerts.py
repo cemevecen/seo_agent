@@ -195,6 +195,7 @@ def build_notification_week_compare(
         },
         "platforms": platforms,
         "top_titles": _top_sends_by_clicks(cur_rows, limit=top_n),
+        "top_titles_previous": _top_sends_by_clicks(prev_rows, limit=top_n),
         "empty": cur["rows"] == 0 and prev["rows"] == 0,
     }
 
