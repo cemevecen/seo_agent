@@ -9526,15 +9526,25 @@ def api_home_app_release(request: Request):
 
 @app.get("/api/home/priority-board", response_class=HTMLResponse)
 def api_home_priority_board(request: Request):
-    """Ana sayfa git.nokta — boards yıldızları + platform chip shell."""
-    return templates.TemplateResponse(
+    """Ana sayfa git.nokta — boards ile aynı kanban (tüm maddeler)."""
+    projects = [
+        {"name": "Döviz Web", "path": "nokta/doviz", "platform": "web", "product": "doviz"},
+        {"name": "Döviz iOS", "path": "ios/doviz", "platform": "ios", "product": "doviz"},
+        {"name": "Döviz Android", "path": "android/doviz", "platform": "android", "product": "doviz"},
+        {"name": "Sinemalar Web", "path": "nokta/sinemalar", "platform": "web", "product": "sinemalar"},
+    ]
+    resp = templates.TemplateResponse(
         request,
         "partials/home/priority_board.html",
         context={
             "request": request,
-            "limit": 20,
+            "projects": projects,
+            "projects_json": json.dumps(projects, ensure_ascii=False),
+            "default_board_project": "nokta/doviz",
         },
     )
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
 
 
 def _home_shorten_url(u: str, max_len: int = 60) -> str:
