@@ -31,7 +31,7 @@ _PAGE_ANALYSIS_HINTS: dict[str, str] = {
         "daily_trend + crash_free + top_issues + cihaz/OS ile spike/kronik ayrımı yap; "
         "visible_text/dom_snapshot sadece ekrandaki sekme/filtre için, sayılar tool'dan."
     ),
-    "home": "günün özeti: page_fetch_home_dashboard; anomali ve düşüşleri önceliklendir.",
+    "home": "günün özeti: page_fetch_home_dashboard (ZORUNLU). notification_week (7g vs önceki, top başlıklar), position_drops + position_rises, git_nokta full kanban notunu dikkate al; yıldız listesi yok.",
     "ga4": "trafik: realtime veya site listesi; kaynak/sayfa kayması ve alarm varsa çıkarım.",
     "realtime": "anlık kullanıcı + alarm; baseline'dan sapmayı yorumla.",
     "app": (

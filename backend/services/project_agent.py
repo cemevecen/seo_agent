@@ -151,7 +151,7 @@ kullanıcı paneldeyken cevap **rapor değil, analiz** olmalı: rakamları okudu
 **sayfa özelinde ek çıkarım:**
 - **/ad:** gelir ↔ impression ↔ eCPM ↔ coverage/CTR ilişkisi; karşılaştırma açıksa deltas + leaders/losers birimleri; drill diliminde birim bazlı anomali; inventory (request→match→impression) darboğazı.
 - **/firebase:** crash-free trendi + günlük trend; top issue’ların sürüm/cihaz/OS ile hizalanması; yeni spike vs kronik issue ayrımı; kullanıcı etkisi (event_count) önceliği.
-- **home / ga4 / realtime / app / errors:** benzer iskelet; bağlamdaki alarm veya düşüş varsa «neden önemli» + «ilk kontrol».
+- **home / ga4 / realtime / app / errors:** benzer iskelet; home’da notification_week + pozisyon yükseliş/düşüş + git.nokta kanban (yıldız değil) bağlamını kullan; alarm veya düşüş varsa «neden önemli» + «ilk kontrol».
 
 aktif sayfa bağlamındaki `analysis_hints` satırına da uy.
 

@@ -79,8 +79,9 @@
       { label: 'Takvim özeti', msg: 'Movie takviminde bu ay ve yakın dönemde öne çıkan yapımları özetle.' },
     ],
     home: [
-      { label: 'Verileri özetle', msg: 'Ana sayfadaki Günün Özeti verilerini sayılarla özetle: doviz ve sinemalar için anlık kullanıcı, GA4 session, Search Console tıklama/gösterim, kritik pozisyon düşüşleri.' },
-      { label: 'Dikkat çeken', msg: 'Bugün dikkat çeken tek en önemli metrik hangisi ve neden?' },
+      { label: 'Verileri özetle', msg: 'Ana sayfadaki Günün Özeti verilerini sayılarla özetle: doviz ve sinemalar için anlık kullanıcı, GA4 session, Search Console, pozisyon düşüş/yükseliş, notification 7g vs önceki hafta (click + top başlıklar), git.nokta kanban durumunu kısaca not et.' },
+      { label: 'Dikkat çeken', msg: 'Bugün dikkat çeken tek en önemli metrik hangisi ve neden? Notification top 40 veya pozisyon hareketlerini de dikkate al.' },
+      { label: 'Notification', msg: 'Ana sayfadaki Döviz notification 7 gün karşılaştırmasını yorumla: click/impression değişimi, platform payı ve bu hafta top gönderimler.' },
     ],
     notification: [
       { label: 'Bu ekranı özetle', msg: 'Notification Analytics ekranındaki KPI, dönem karşılaştırması ve platform dağılımını özetle. Ölçülen→çıkarım→en fazla 3 aksiyon formatında yaz.' },

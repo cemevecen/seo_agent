@@ -1328,7 +1328,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "page_fetch_home_dashboard",
-        "description": "Ana sayfa (Günün Özeti): doviz/sinemalar realtime, GA4 session, Search Console, pozisyon düşüşleri. «bu ekranı özetle» / home sayfası sorularında ZORUNLU.",
+        "description": "Ana sayfa (Günün Özeti): doviz/sinemalar GA4+SC, pozisyon düşüş/yükseliş, notification 7g karşılaştırması + top gönderimler, git.nokta full kanban notu. Home sorularında ZORUNLU.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {

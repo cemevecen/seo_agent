@@ -9034,6 +9034,7 @@ def home_summary_payload(db) -> dict:
                 db, site_id, dev_code, summary_payload=sc_summary
             )
             sc_devices.append({"label": dev_label, **agg})
+        pos = _home_position_drops_for_site(db, site_id, limit=8)
         sites_out.append(
             {
                 "site_id": site_id,
@@ -9041,14 +9042,82 @@ def home_summary_payload(db) -> dict:
                 "display_name": site_obj.display_name,
                 "ga4_sessions_7d": _home_load_ga4_sessions_for_site(db, site_id, ga4_profs),
                 "search_console_7d": sc_devices,
-                "position_drops_7d": (_home_position_drops_for_site(db, site_id, limit=8).get("drops") or []),
+                "position_drops_7d": pos.get("drops") or [],
+                "position_rises_7d": pos.get("rises") or [],
+                "position_period_label": pos.get("period_label"),
             }
         )
+
+    notification_week: dict | None = None
+    try:
+        from backend.services.notification_analytics_alerts import build_notification_week_compare
+
+        try:
+            tz = ZoneInfo(settings.scheduled_refresh_timezone or "Europe/Istanbul")
+        except Exception:  # noqa: BLE001
+            tz = ZoneInfo("Europe/Istanbul")
+        nt = build_notification_week_compare(
+            db, reference_day=datetime.now(tz).date(), top_n=10
+        )
+        totals = nt.get("totals") or {}
+        platforms = []
+        for p in nt.get("platforms") or []:
+            platforms.append(
+                {
+                    "key": p.get("key"),
+                    "label": p.get("label"),
+                    "clicks_cur": p.get("clicks_cur"),
+                    "clicks_prev": p.get("clicks_prev"),
+                    "impressions_cur": p.get("impressions_cur"),
+                    "impressions_prev": p.get("impressions_prev"),
+                }
+            )
+
+        def _nt_top(items: list) -> list[dict]:
+            out = []
+            for i, row in enumerate(items or [], start=1):
+                out.append(
+                    {
+                        "rank": i,
+                        "id": row.get("id"),
+                        "text": (str(row.get("text") or ""))[:120],
+                        "clicks": row.get("clicks"),
+                        "send_day": row.get("send_day"),
+                    }
+                )
+            return out
+
+        notification_week = {
+            "windows": nt.get("windows"),
+            "totals": {
+                "clicks_cur": totals.get("clicks_cur"),
+                "clicks_prev": totals.get("clicks_prev"),
+                "impressions_cur": totals.get("impressions_cur"),
+                "impressions_prev": totals.get("impressions_prev"),
+                "rows_cur": totals.get("rows_cur"),
+                "rows_prev": totals.get("rows_prev"),
+            },
+            "platforms": platforms,
+            "top_titles": _nt_top(nt.get("top_titles") or []),
+            "top_titles_previous": _nt_top(nt.get("top_titles_previous") or []),
+            "ui_note": "Ana sayfada notification top listesi Top 40 (sekmeli: bu hafta / geçtiğimiz hafta, scroll).",
+        }
+    except Exception:  # noqa: BLE001
+        notification_week = None
+
     return {
         "page": "home",
         "title": "Günün Özeti",
         "updated_at": datetime.now(ZoneInfo("Europe/Istanbul")).isoformat(),
         "sites": sites_out,
+        "notification_week": notification_week,
+        "git_nokta": {
+            "mode": "full_kanban",
+            "note": (
+                "Ana sayfa git.nokta yıldız listesi değil; /boards ile aynı Open/Doing/Testing/Closed "
+                "kanban (tüm issue'lar). Boş kolonlar daralır; veri tarayıcıdan doğrudan GitLab'e gider."
+            ),
+        },
     }
 
 

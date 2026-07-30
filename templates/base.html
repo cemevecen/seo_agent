@@ -764,7 +764,7 @@
         bottom: max(1rem, env(safe-area-inset-bottom, 0px));
         right: max(0.75rem, env(safe-area-inset-right, 0px));
         left: auto;
-        z-index: 50;
+        z-index: 200;
       }
       #pc-agent-panel {
         position: fixed;
@@ -773,8 +773,9 @@
         bottom: calc(max(1rem, env(safe-area-inset-bottom, 0px)) + 3.25rem);
         width: min(420px, calc(100vw - 1.5rem)) !important;
         max-width: min(420px, calc(100vw - 1.5rem)) !important;
+        height: min(580px, calc(100dvh - 5.5rem)) !important;
         max-height: min(580px, calc(100dvh - 5.5rem)) !important;
-        z-index: 50;
+        z-index: 200;
       }
     }
   </style>
@@ -2769,19 +2770,44 @@
     #pc-agent-btn {
       position: fixed;
       left: auto;
-      z-index: 50;
+      z-index: 200;
     }
     #pc-agent-panel {
       position: fixed;
       left: auto !important;
-      z-index: 50;
+      z-index: 200;
       max-width: min(420px, calc(100vw - 1.5rem));
+      max-height: min(580px, calc(100dvh - 5.5rem));
+      height: min(580px, calc(100dvh - 5.5rem));
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      overscroll-behavior: contain;
+    }
+    #pc-agent-panel.pc-agent-open {
+      display: flex !important;
+    }
+    #pc-agent-panel #pc-agent-messages {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    #pc-agent-panel .pc-agent-chrome {
+      flex-shrink: 0;
+    }
+    #pc-agent-panel .pc-bubble,
+    #pc-agent-panel .pc-msg-assistant .max-w-\[85\%\] {
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
   </style>
   <button id="pc-agent-btn"
     onclick="pcAgentToggle()"
     title="ProjectControl AI Ajan"
-    class="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 rounded-full
+    class="fixed bottom-6 right-6 z-[200] flex items-center gap-1.5 rounded-full
            bg-gradient-to-br from-violet-600 to-indigo-700
            px-2.5 py-1.5 text-white shadow-2xl shadow-violet-900/40
            hover:from-violet-500 hover:to-indigo-600
@@ -2797,19 +2823,19 @@
   </button>
 
   <div id="pc-agent-panel"
-    class="fixed bottom-20 right-6 z-50 hidden
-           flex flex-col rounded-2xl
+    class="fixed bottom-20 right-6 z-[200] hidden
+           flex-col rounded-2xl
            bg-zinc-950 border border-violet-800/40
            shadow-2xl shadow-violet-950/60
-           overflow-hidden select-none"
-    style="width: min(420px, calc(100vw - 1.5rem)); height: min(580px, calc(100vh - 120px)); min-width: 300px; min-height: 280px;">
+           select-none"
+    style="width: min(420px, calc(100vw - 1.5rem)); min-width: 300px; min-height: 280px;">
 
     <!-- Resize handle — sol üst köşe -->
     <div id="pc-agent-resize"
       style="position:absolute;top:0;left:0;width:18px;height:18px;cursor:nw-resize;z-index:10;background:linear-gradient(135deg,#7c3aed 0%,transparent 60%);border-radius:0.75rem 0 0 0;opacity:0.6"
       title="Sürükleyerek boyutlandır"></div>
 
-    <div class="flex items-center gap-3 px-4 py-3
+    <div class="pc-agent-chrome flex items-center gap-3 px-4 py-3
                 bg-gradient-to-r from-violet-900/80 to-indigo-900/80
                 border-b border-violet-800/40">
       <div class="flex h-8 w-8 items-center justify-center rounded-full
@@ -2846,7 +2872,7 @@
     </div>
 
     <div id="pc-agent-messages"
-      class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      class="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
       <div class="pc-msg-assistant flex gap-2.5">
         <div class="shrink-0 mt-0.5 h-6 w-6 rounded-full bg-violet-700 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-violet-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -2877,9 +2903,9 @@
       </div>
     </div>
 
-    <div id="pc-agent-quick" class="px-4 pb-2 flex flex-wrap gap-1.5"></div>
+    <div id="pc-agent-quick" class="pc-agent-chrome px-4 pb-2 flex flex-wrap gap-1.5"></div>
 
-    <div class="px-4 pb-4 pt-1">
+    <div class="pc-agent-chrome px-4 pb-4 pt-1">
       <div class="flex items-end gap-2 rounded-xl border border-zinc-700/60
                   bg-zinc-900/80 px-3 py-2 focus-within:border-violet-600/60 transition-colors">
         <textarea id="pc-agent-input"
@@ -2906,7 +2932,7 @@
   </div>
   {% endif %}
 
-  <script src="/static/js/pc-page-context.js?v=2"></script>
+  <script src="/static/js/pc-page-context.js?v=3"></script>
   <script>
   (function () {
     'use strict';
@@ -3044,14 +3070,32 @@
 
     // Alert badge kaldırıldı — proaktif uyarı sayacı UI'da gösterilmiyor.
 
+    function _pcClampPanelSize() {
+      var panel = document.getElementById('pc-agent-panel');
+      if (!panel) return;
+      var maxW = Math.min(420, window.innerWidth - 24);
+      var maxH = Math.min(580, (window.innerHeight || 800) - 88);
+      if (maxH < 280) maxH = 280;
+      var w = panel.offsetWidth || maxW;
+      var h = panel.offsetHeight || maxH;
+      if (w > maxW) panel.style.width = maxW + 'px';
+      if (h > maxH) panel.style.height = maxH + 'px';
+      panel.style.maxWidth = maxW + 'px';
+      panel.style.maxHeight = maxH + 'px';
+      if (!panel.style.height) panel.style.height = maxH + 'px';
+    }
+
     function _pcResetPanelGeometry() {
       var panel = document.getElementById('pc-agent-panel');
       if (!panel) return;
       panel.style.width = '';
       panel.style.height = '';
+      panel.style.maxWidth = '';
+      panel.style.maxHeight = '';
       panel.style.left = 'auto';
       panel.style.right = '';
       panel.style.bottom = '';
+      _pcClampPanelSize();
     }
 
     window.pcAgentToggle = function () {
@@ -3062,7 +3106,7 @@
       if (_pcOpen) {
         _pcResetPanelGeometry();
         panel.classList.remove('hidden');
-        panel.classList.add('flex');
+        panel.classList.add('pc-agent-open');
         iconChat.classList.add('hidden');
         iconClose.classList.remove('hidden');
         _pcRefreshPageUi();
@@ -3076,10 +3120,14 @@
             })
             .catch(function(){});
         }
-        setTimeout(function () { var i = document.getElementById('pc-agent-input'); if (i) i.focus(); }, 50);
+        setTimeout(function () {
+          _pcClampPanelSize();
+          var i = document.getElementById('pc-agent-input');
+          if (i) i.focus();
+        }, 50);
       } else {
         panel.classList.add('hidden');
-        panel.classList.remove('flex');
+        panel.classList.remove('pc-agent-open');
         iconChat.classList.remove('hidden');
         iconClose.classList.add('hidden');
       }
@@ -3107,13 +3155,15 @@
         if (!dragging) return;
         var dw = startX - e.clientX;
         var dh = startY - e.clientY;
-        var maxW = Math.min(420, window.innerWidth - 48);
-        var maxH = Math.min(580, window.innerHeight - 96);
+        var maxW = Math.min(420, window.innerWidth - 24);
+        var maxH = Math.min(580, window.innerHeight - 88);
         var newW = Math.max(300, Math.min(startW + dw, maxW));
         var newH = Math.max(280, Math.min(startH + dh, maxH));
         panel.style.left = 'auto';
         panel.style.width  = newW + 'px';
         panel.style.height = newH + 'px';
+        panel.style.maxWidth = maxW + 'px';
+        panel.style.maxHeight = maxH + 'px';
       });
 
       document.addEventListener('mouseup', function () {
@@ -3134,16 +3184,21 @@
       document.addEventListener('touchmove', function (e) {
         if (!dragging) return;
         var t = e.touches[0];
-        var maxW = Math.min(420, window.innerWidth - 48);
-        var maxH = Math.min(580, window.innerHeight - 96);
+        var maxW = Math.min(420, window.innerWidth - 24);
+        var maxH = Math.min(580, window.innerHeight - 88);
         var newW = Math.max(300, Math.min(startW + (startX - t.clientX), maxW));
         var newH = Math.max(280, Math.min(startH + (startY - t.clientY), maxH));
         panel.style.left = 'auto';
         panel.style.width  = newW + 'px';
         panel.style.height = newH + 'px';
+        panel.style.maxWidth = maxW + 'px';
+        panel.style.maxHeight = maxH + 'px';
       }, { passive: true });
 
       document.addEventListener('touchend', function () { dragging = false; });
+      window.addEventListener('resize', function () {
+        if (_pcOpen) _pcClampPanelSize();
+      });
     })();
 
     window.pcAgentMinimize = function () {
