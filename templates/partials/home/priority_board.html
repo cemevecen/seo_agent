@@ -15,16 +15,147 @@
   <script type="application/json" id="home-gl-projects">{{ projects_json | safe }}</script>
 
   <style>
-    .home-gl-board .gl-board-col-expanded {
-      width: min(calc(100vw - 2.5rem), 400px);
-      min-width: min(calc(100vw - 2.5rem), 280px);
-      max-width: 400px;
+    .home-gl-board {
+      container-type: inline-size;
+      container-name: home-gl;
     }
-    @media (min-width: 640px) {
-      .home-gl-board .gl-board-col-expanded {
-        width: 400px;
-        min-width: 400px;
+    .home-gl-board .home-gl-board-shell {
+      container-type: inline-size;
+      container-name: home-gl-shell;
+      min-width: 0;
+    }
+    /* Tüm kolonlar container genişliğine göre paylaşır — yatay taşma yok */
+    .home-gl-board .home-gl-lists {
+      display: flex;
+      width: 100%;
+      min-width: 0;
+      align-items: stretch;
+      gap: clamp(0.35rem, 0.9cqi, 0.85rem);
+      overflow-x: hidden;
+      padding-bottom: 0.25rem;
+    }
+    .home-gl-board .home-gl-col {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      border-radius: 0.75rem;
+      background: #fff;
+      box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+      transition: flex-basis 0.25s ease, width 0.25s ease, max-width 0.25s ease, padding 0.25s ease;
+    }
+    html.dark .home-gl-board .home-gl-col {
+      background: rgb(30 41 59);
+    }
+    /* Açık kolon: kalan alanı eşit paylaş, sığdır */
+    .home-gl-board .home-gl-col:not(.is-collapsed) {
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: none;
+      padding: clamp(0.4rem, 1.1cqi, 0.75rem);
+      overflow: hidden;
+      container-type: inline-size;
+      container-name: home-gl-col;
+    }
+    /* Daraltılmış kolon: shell genişliğine göre fluid; dikey yazı kolon yüksekliğine göre */
+    .home-gl-board .home-gl-col.is-collapsed {
+      flex: 0 0 2.5rem;
+      width: 2.5rem;
+      max-width: 2.5rem;
+      cursor: pointer;
+      overflow: hidden;
+      container-type: size;
+      container-name: home-gl-rail;
+      min-height: calc(3 * 5.75rem + 2 * 0.5rem + 3.25rem);
+    }
+    @container home-gl-shell (max-width: 720px) {
+      .home-gl-board .home-gl-col.is-collapsed {
+        flex-basis: 2rem;
+        width: 2rem;
+        max-width: 2rem;
       }
+    }
+    @container home-gl-shell (min-width: 1100px) {
+      .home-gl-board .home-gl-col.is-collapsed {
+        flex-basis: 2.85rem;
+        width: 2.85rem;
+        max-width: 2.85rem;
+      }
+    }
+    .home-gl-board .home-gl-rail {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      width: 100%;
+      flex-direction: column;
+      align-items: center;
+      padding: clamp(0.55rem, 4cqh, 1rem) 0 clamp(0.4rem, 2cqh, 0.6rem);
+      color: rgb(100 116 139);
+      user-select: none;
+    }
+    html.dark .home-gl-board .home-gl-rail {
+      color: rgb(148 163 184);
+    }
+    .home-gl-board .home-gl-rail-count {
+      flex-shrink: 0;
+      margin-bottom: clamp(0.45rem, 3cqh, 1rem);
+      border-radius: 999px;
+      background: rgb(241 245 249);
+      padding: 0.15rem clamp(0.35rem, 8cqi, 0.5rem);
+      font-size: clamp(0.6rem, 1.8cqh + 0.35rem, 0.75rem);
+      font-weight: 700;
+      line-height: 1.2;
+      color: rgb(71 85 105);
+      box-shadow: inset 0 0 0 1px rgb(226 232 240);
+    }
+    html.dark .home-gl-board .home-gl-rail-count {
+      background: rgb(51 65 85);
+      color: rgb(203 213 225);
+      box-shadow: inset 0 0 0 1px rgb(71 85 105);
+    }
+    .home-gl-board .home-gl-rail-label {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: clamp(0.55rem, 2.8cqh + 0.15rem, 0.8125rem);
+      font-weight: 700;
+      letter-spacing: clamp(0.04em, 0.55cqh, 0.16em);
+      line-height: 1.15;
+      text-transform: uppercase;
+    }
+    .home-gl-board .home-gl-col-head {
+      margin-bottom: clamp(0.4rem, 1.5cqi, 0.75rem);
+      gap: 0.25rem;
+      font-size: clamp(0.65rem, 0.5rem + 1.6cqi, 0.875rem);
+    }
+    .home-gl-board .home-gl-col-head-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .home-gl-board .home-gl-card {
+      padding: clamp(0.45rem, 1.4cqi, 0.75rem);
+      min-width: 0;
+    }
+    .home-gl-board .home-gl-card-title {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
+      font-size: clamp(0.7rem, 0.55rem + 1.6cqi, 0.875rem);
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .home-gl-board .home-gl-card-meta {
+      font-size: clamp(0.625rem, 0.5rem + 1.1cqi, 0.75rem);
     }
     /* 3 kart görünür; fazlası dikey scroll */
     .home-gl-board .home-gl-sortable {
@@ -36,6 +167,10 @@
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
       scrollbar-color: rgb(148 163 184 / 0.7) transparent;
+    }
+    .home-gl-board .home-gl-col.is-collapsed .home-gl-sortable {
+      min-height: calc(3 * 5.75rem + 2 * 0.5rem);
+      max-height: none;
     }
     .home-gl-board .home-gl-sortable::-webkit-scrollbar { width: 6px; }
     .home-gl-board .home-gl-sortable::-webkit-scrollbar-thumb {
@@ -55,6 +190,10 @@
     html.dark .home-gl-board .home-gl-sortable.is-dragging-over {
       border-color: #475569;
       background-color: rgba(30, 41, 59, 0.8);
+    }
+    /* Çok dar board: boşluk sıkışır */
+    @container home-gl-shell (max-width: 720px) {
+      .home-gl-board .home-gl-lists { gap: 0.35rem; }
     }
     [x-cloak] { display: none !important; }
   </style>
@@ -104,52 +243,47 @@
     </template>
   </div>
 
-  <div class="mt-4 min-h-[22rem] rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40 sm:p-4">
+  <div class="home-gl-board-shell mt-4 min-h-[22rem] rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/40 sm:p-4">
     <template x-if="activeProject && pd()">
-      <div>
+      <div class="min-w-0 w-full">
         <div x-show="pd().error" class="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300" x-text="pd().error"></div>
         <div x-show="pd().loading && !pd().loaded && !pd().error" class="py-16 text-center">
           <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-900 border-r-transparent dark:border-white dark:border-r-transparent"></div>
           <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">GitLab board yükleniyor…</p>
         </div>
-        <div x-show="pd().loaded && !pd().error" class="flex items-start gap-4 overflow-x-auto pb-2">
+        <div x-show="pd().loaded && !pd().error" class="home-gl-lists">
           <template x-for="(lst, index) in pd().lists" :key="lst.id">
             <div x-data="{ collapsed: issuesFor(lst).length === 0 }"
                  x-init="$watch('issuesFor(lst).length', val => { collapsed = (val === 0); })"
-                 class="flex shrink-0 flex-col rounded-xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 border-t-4 transition-all duration-300 relative overflow-hidden group"
-                 :class="[listColor(index, lst.isClosed), lst.isClosed ? 'opacity-80' : '', collapsed ? 'w-12 min-w-[48px] max-w-[48px] cursor-pointer' : 'gl-board-col-expanded p-3']"
+                 class="home-gl-col shrink-0 border-t-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700"
+                 :class="[listColor(index, lst.isClosed), lst.isClosed ? 'opacity-80' : '', collapsed ? 'is-collapsed' : '']"
                  @click="if (collapsed) collapsed = false">
 
-              <!-- Daraltılmış dikey başlık (boards ile aynı) -->
-              <div x-show="collapsed"
-                   class="pointer-events-none absolute inset-0 z-10 flex w-full select-none flex-col items-center pb-2 pt-4 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
-                <span class="mb-4 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600"
-                      x-text="issuesFor(lst).length"></span>
-                <div style="writing-mode: vertical-rl; transform: rotate(180deg);"
-                     class="mt-2 whitespace-nowrap text-sm font-bold uppercase tracking-widest"
-                     x-text="lst.label.name"></div>
+              <!-- Daraltılmış dikey başlık — fluid tipografi -->
+              <div x-show="collapsed" class="home-gl-rail">
+                <span class="home-gl-rail-count" x-text="issuesFor(lst).length"></span>
+                <div class="home-gl-rail-label" x-text="lst.label.name" :title="lst.label.name"></div>
               </div>
 
               <!-- Geniş başlık -->
               <h4 x-show="!collapsed"
-                  class="mb-3 flex items-center justify-between text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                <div class="flex min-w-0 items-center gap-1 overflow-hidden">
+                  class="home-gl-col-head mb-3 flex items-center justify-between font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                <div class="flex min-w-0 items-center gap-0.5 overflow-hidden">
                   <button type="button"
                           @click.stop="collapsed = true"
-                          class="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200 sm:h-9 sm:w-9"
                           title="Sütunu daralt">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
                     </svg>
                   </button>
-                  <span class="truncate pr-1" x-text="lst.label.name"></span>
+                  <span class="home-gl-col-head-title pr-1" x-text="lst.label.name" :title="lst.label.name"></span>
                 </div>
-                <span class="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600"
+                <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[0.65rem] font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600 sm:text-xs"
                       x-text="issuesFor(lst).length"></span>
               </h4>
 
               <div class="home-gl-sortable sortable-list flex w-full flex-1 flex-col gap-2 rounded-lg border-2 border-transparent transition-colors"
-                   :class="collapsed ? 'min-h-[18rem] pointer-events-auto' : ''"
                    :data-label="lst.label.name"
                    :data-virtual="lst.isVirtual"
                    :data-closed="lst.isClosed"
@@ -157,17 +291,18 @@
                    :data-project="activeProject"
                    x-init="initSortable($el)">
                 <template x-for="issue in issuesFor(lst)" :key="issue.id || issue.iid">
-                  <div class="cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500"
+                  <div class="home-gl-card cursor-grab rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-blue-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500"
                        :class="collapsed ? 'hidden' : 'block'"
                        :data-id="issue.iid"
                        :data-global-id="issue.id">
                     <a :href="issue.web_url" target="_blank" rel="noopener noreferrer"
-                       class="block break-words text-sm font-medium leading-relaxed text-slate-900 hover:text-blue-600 dark:text-slate-100 dark:hover:text-blue-400"
+                       class="home-gl-card-title font-medium text-slate-900 hover:text-blue-600 dark:text-slate-100 dark:hover:text-blue-400"
                        :class="issue.state === 'closed' ? 'line-through text-slate-500' : ''"
+                       :title="issue.title"
                        x-text="issue.title"></a>
-                    <div class="mt-2 flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
-                      <span x-text="'#' + issue.iid"></span>
-                      <span class="rounded bg-slate-100 px-1.5 py-0.5 uppercase dark:bg-slate-800"
+                    <div class="home-gl-card-meta mt-1.5 flex items-center justify-between gap-1 font-medium text-slate-500 dark:text-slate-400">
+                      <span class="tabular-nums" x-text="'#' + issue.iid"></span>
+                      <span class="max-w-[40%] truncate rounded bg-slate-100 px-1 py-0.5 uppercase dark:bg-slate-800"
                             x-text="platformLabel()"></span>
                     </div>
                   </div>
