@@ -491,7 +491,24 @@
       refreshActiveProject() {
         if (!this.activeProject) return;
         this.projectData[this.activeProject].loaded = false;
-        this.fetchProjectData(this.activeProject);
+        this.fetchProjectData(this.activeProject, true);
+        this.syncProjectStarsFromGitlab(this.activeProject);
+      },
+
+      async syncProjectStarsFromGitlab(path) {
+        if (!path) return;
+        try {
+          const res = await fetch(
+            '/api/boards/stars?refresh=1&manual=1&project_path=' + encodeURIComponent(path),
+            { credentials: 'same-origin', cache: 'no-store' }
+          );
+          if (!res.ok) return;
+          const data = await res.json();
+          this.starredByProject[path] = new Set((data.issue_iids || []).map(String));
+          this.starredByProject = { ...this.starredByProject };
+        } catch (e) {
+          console.warn('Board stars sync failed', e);
+        }
       },
 
       getListColor(index, isClosed) {

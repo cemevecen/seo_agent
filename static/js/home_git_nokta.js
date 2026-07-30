@@ -141,6 +141,12 @@
     });
   }
 
+  function renderAll(root) {
+    ['doviz', 'sinemalar'].forEach(function (pid) {
+      renderProduct(root, pid, root._gnItems || []);
+    });
+  }
+
   function renderProduct(root, productId, items) {
     var section = root.querySelector('[data-gn-product="' + productId + '"]');
     if (!section) return;
@@ -173,6 +179,111 @@
     renderProduct(root, productId, root._gnItems || []);
   }
 
+  function setSyncStatus(root, msg, tone) {
+    var el = root.querySelector('[data-gn-sync-status]');
+    if (!el) return;
+    if (!msg) {
+      el.classList.add('hidden');
+      el.textContent = '';
+      return;
+    }
+    el.classList.remove('hidden');
+    el.textContent = msg;
+    el.className =
+      'home-meta mt-1 ' +
+      (tone === 'error'
+        ? 'text-rose-600 dark:text-rose-400'
+        : tone === 'ok'
+          ? 'text-emerald-700 dark:text-emerald-400'
+          : 'text-slate-500 dark:text-slate-400');
+  }
+
+  function setRefreshBusy(root, busy) {
+    var btn = root.querySelector('[data-gn-refresh]');
+    var icon = root.querySelector('[data-gn-refresh-icon]');
+    var label = root.querySelector('[data-gn-refresh-label]');
+    if (btn) btn.disabled = !!busy;
+    if (icon) {
+      if (busy) icon.classList.add('animate-spin');
+      else icon.classList.remove('animate-spin');
+    }
+    if (label) label.textContent = busy ? 'Yenileniyor…' : 'Yenile';
+  }
+
+  function applyStarsPayload(root, data) {
+    if (!data) return;
+    root._gnItems = data.items || [];
+    root._gnOrders = data.orders || {};
+    renderAll(root);
+  }
+
+  async function fetchStars(url, timeoutMs) {
+    var res = await fetch(url, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  async function forceRefreshFromGitlab(root) {
+    if (root._gnRefreshing) return;
+    root._gnRefreshing = true;
+    setRefreshBusy(root, true);
+    setSyncStatus(root, 'GitLab ile senkronize ediliyor…', 'info');
+    var bodyEl = root.querySelector('[data-gn-body]');
+    if (bodyEl) {
+      bodyEl.classList.add('opacity-60');
+      bodyEl.setAttribute('aria-busy', 'true');
+    }
+    try {
+      // manual=1 → sunucu daha uzun timeout ile Closed dahil tüm yıldızları çeker
+      var data = await fetchStars('/api/boards/stars?refresh=1&manual=1', 60000);
+      applyStarsPayload(root, data);
+      var meta = data.refresh || {};
+      var updated = typeof meta.updated === 'number' ? meta.updated : null;
+      var errs = Array.isArray(meta.errors) ? meta.errors : [];
+      if (meta.ok === false && meta.error) {
+        setSyncStatus(root, 'Kısmi: ' + meta.error, 'error');
+      } else if (errs.length) {
+        setSyncStatus(
+          root,
+          'Güncellendi (' + (updated != null ? updated + ' değişiklik' : 'ok') + '), bazı issue’lar eksik.',
+          'error'
+        );
+      } else {
+        var now = new Date();
+        var hh = String(now.getHours()).padStart(2, '0');
+        var mm = String(now.getMinutes()).padStart(2, '0');
+        setSyncStatus(
+          root,
+          'GitLab ile güncellendi · ' +
+            hh +
+            ':' +
+            mm +
+            (updated != null ? ' · ' + updated + ' değişiklik' : ''),
+          'ok'
+        );
+      }
+      try {
+        document.body.dispatchEvent(
+          new CustomEvent('pc:git-nokta-stars-refreshed', { detail: { items: root._gnItems } })
+        );
+      } catch (_) { /* ignore */ }
+    } catch (err) {
+      console.warn('home git.nokta manual refresh failed', err);
+      setSyncStatus(root, 'Yenileme başarısız: ' + ((err && err.message) || 'bağlantı'), 'error');
+    } finally {
+      root._gnRefreshing = false;
+      setRefreshBusy(root, false);
+      if (bodyEl) {
+        bodyEl.classList.remove('opacity-60');
+        bodyEl.removeAttribute('aria-busy');
+      }
+    }
+  }
+
   async function mount(root) {
     if (!root || root.getAttribute('data-gn-wired') === '1') return;
     root.setAttribute('data-gn-wired', '1');
@@ -202,6 +313,12 @@
     }
 
     root.addEventListener('click', function (ev) {
+      var refreshBtn = ev.target && ev.target.closest ? ev.target.closest('[data-gn-refresh]') : null;
+      if (refreshBtn && root.contains(refreshBtn)) {
+        ev.preventDefault();
+        forceRefreshFromGitlab(root);
+        return;
+      }
       var btn = ev.target && ev.target.closest ? ev.target.closest('[data-gn-chip]') : null;
       if (!btn || !root.contains(btn)) return;
       var productId = btn.getAttribute('data-gn-product-id');
@@ -211,37 +328,15 @@
 
     try {
       // Önce DB snapshot (anında); GitLab sync ayrı ve timeout'lu
-      var res = await fetch('/api/boards/stars?refresh=0', {
-        credentials: 'same-origin',
-        cache: 'no-store',
-        signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined,
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      var data = await res.json();
-      root._gnItems = data.items || [];
-      root._gnOrders = data.orders || {};
-      ['doviz', 'sinemalar'].forEach(function (pid) {
-        renderProduct(root, pid, root._gnItems);
-      });
+      var data = await fetchStars('/api/boards/stars?refresh=0', 12000);
+      applyStarsPayload(root, data);
       showReady();
 
-      // Arka planda GitLab kolon sync — UI'yi bloklamaz
-      fetch('/api/boards/stars?refresh=1', {
-        credentials: 'same-origin',
-        cache: 'no-store',
-        signal: AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined,
-      })
-        .then(function (r2) {
-          if (!r2.ok) return null;
-          return r2.json();
-        })
+      // Arka planda soft sync — UI'yi bloklamaz
+      fetchStars('/api/boards/stars?refresh=1', 25000)
         .then(function (data2) {
           if (!data2 || !root.isConnected) return;
-          root._gnItems = data2.items || root._gnItems;
-          root._gnOrders = data2.orders || root._gnOrders;
-          ['doviz', 'sinemalar'].forEach(function (pid) {
-            renderProduct(root, pid, root._gnItems);
-          });
+          applyStarsPayload(root, data2);
         })
         .catch(function (softErr) {
           console.warn('home git.nokta soft refresh skipped', softErr);
@@ -278,5 +373,12 @@
     mountFrom(document);
   }
 
-  global.PcHomeGitNokta = { mount: mount, mountFrom: mountFrom };
+  global.PcHomeGitNokta = {
+    mount: mount,
+    mountFrom: mountFrom,
+    refresh: function (el) {
+      var root = el && el.id === 'home-git-nokta' ? el : (el && el.querySelector && el.querySelector('#home-git-nokta')) || document.getElementById('home-git-nokta');
+      if (root) forceRefreshFromGitlab(root);
+    },
+  };
 })(window);

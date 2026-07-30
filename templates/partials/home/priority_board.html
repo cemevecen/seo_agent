@@ -86,9 +86,21 @@
         <span class="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 home-label text-white dark:bg-slate-100 dark:text-slate-900">git.nokta</span>
         <h3 class="font-semibold text-slate-900 dark:text-slate-100">Döviz &amp; Sinemalar · Open / Doing / Testing / Closed</h3>
       </div>
+      <p data-gn-sync-status class="home-meta mt-1 hidden text-slate-500 dark:text-slate-400" aria-live="polite"></p>
     </div>
-    <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <button type="button"
+              data-gn-refresh
+              class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 home-meta font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+              title="GitLab ile yıldızlı kolonları yenile">
+        <svg data-gn-refresh-icon xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span data-gn-refresh-label>Yenile</span>
+      </button>
+      <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
+    </div>
   </div>
 
   <div data-gn-error class="mt-4 hidden rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-950/20">

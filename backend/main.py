@@ -17694,12 +17694,14 @@ def api_boards_list_stars(
     platform: str | None = None,
     project_path: str | None = None,
     refresh: int = 0,
+    manual: int = 0,
     db: Session = Depends(get_db),
 ):
     """Yıldızlı GitLab maddeleri — ana sayfa chip / boards UI.
 
     Varsayılan refresh=0: DB'den anında döner (asılı kalmaz).
     refresh=1: GitLab sync dener; başarısız/timeout olsa bile DB snapshot döner.
+    manual=1: kullanıcı Yenile — daha uzun timeout (Closed kolon sync için).
     """
     from backend.services.gitlab_board_stars import (
         HOME_CHIPS,
@@ -17710,6 +17712,7 @@ def api_boards_list_stars(
     )
 
     do_refresh = bool(int(refresh or 0))
+    is_manual = bool(int(manual or 0))
     refresh_meta: dict | None = None
     if do_refresh:
         try:
@@ -17718,7 +17721,7 @@ def api_boards_list_stars(
                 product=product,
                 platform=platform,
                 project_path=project_path,
-                per_project_timeout_sec=8.0,
+                per_project_timeout_sec=14.0 if is_manual else 8.0,
             )
         except Exception as exc:
             LOGGER.warning("boards stars refresh skipped: %s", exc)
