@@ -8774,10 +8774,13 @@ def _home_ga4_sessions_from_snap(db, site_id: int, prof_key: str, period_days: i
 
 
 def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int = 7) -> list[float]:
-    """GA4 günlük session serisi — kart spark (son N gün)."""
+    """GA4 günlük session serisi — KPI ile aynı dönem penceresine hizalı spark."""
     values: list[float] = []
     try:
-        period_daily = None
+        period_daily: dict | None = None
+        last_start = ""
+        last_end = ""
+        # KPI gibi önce 7g; sinyal yoksa 30g (boş 7g spark + dolu 30g KPI kaymasını önle)
         for pd in (7, 30):
             snap = get_latest_ga4_report_snapshot(
                 db, site_id=site_id, profile=prof_key, period_days=pd
@@ -8785,8 +8788,15 @@ def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int
             if not snap:
                 continue
             payload = snap.get("payload") or {}
-            period_daily = payload.get("daily_trend")
-            if isinstance(period_daily, dict) and (period_daily.get("sessions") or period_daily.get("dates")):
+            candidate = payload.get("daily_trend")
+            if not isinstance(candidate, dict):
+                continue
+            if not (candidate.get("sessions") or candidate.get("dates")):
+                continue
+            period_daily = candidate
+            last_start = str(snap.get("last_start") or payload.get("last_start") or "")[:10]
+            last_end = str(snap.get("last_end") or payload.get("last_end") or "")[:10]
+            if _ga4_trend_has_signal(candidate):
                 break
         _daily, spark_daily = _ga4_daily_trends_for_ui(
             db,
@@ -8795,8 +8805,17 @@ def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int
             period_daily=period_daily if isinstance(period_daily, dict) else {},
             period_days=days,
         )
-        raw = list((spark_daily or {}).get("sessions") or [])
-        values = [float(v or 0) for v in raw[-max(2, int(days)) :]]
+        dates = [str(d)[:10] for d in ((spark_daily or {}).get("dates") or [])]
+        sessions = [float(v or 0) for v in ((spark_daily or {}).get("sessions") or [])]
+        if last_start and last_end and dates and len(dates) == len(sessions):
+            paired = [
+                sessions[i]
+                for i, d in enumerate(dates)
+                if last_start <= d <= last_end
+            ]
+            if len(paired) >= 2:
+                return paired[-max(2, int(days)) :]
+        values = sessions[-max(2, int(days)) :]
     except Exception:  # noqa: BLE001
         LOGGER.debug("home ga4 spark failed site=%s profile=%s", site_id, prof_key, exc_info=True)
         values = []
@@ -8810,43 +8829,85 @@ def _home_sc_trend_series(
     *,
     days: int = 7,
 ) -> list[float]:
-    """Search Console günlük serisi (clicks / position) — son N gün."""
+    """Search Console günlük serisi — mümkünse current_7d penceresine hizalı."""
     if not summary_payload:
         return []
+    want_start = str(summary_payload.get("current_7d_start") or "")[:10]
+    want_end = str(summary_payload.get("current_7d_end") or "")[:10]
     by_dev = (
         summary_payload.get("trend_28d_summary_by_device")
         or summary_payload.get("trend_7d_summary_by_device")
         or {}
     )
-    trend = by_dev.get(device) or {}
+    # Device key case-insensitive
+    trend = by_dev.get(device) or by_dev.get(device.upper()) or by_dev.get(device.lower()) or {}
+    if not trend:
+        for k, v in by_dev.items():
+            if str(k).upper() == device.upper():
+                trend = v or {}
+                break
+
+    dates = [str(d)[:10] for d in (trend.get("dates") or [])]
     raw = list(trend.get(metric) or [])
-    out: list[float] = []
-    for v in raw[-max(2, int(days)) :]:
+    paired: list[tuple[str, float]] = []
+    for i, v in enumerate(raw):
+        d = dates[i] if i < len(dates) else ""
         try:
-            out.append(float(v or 0))
+            fv = float(v or 0)
         except (TypeError, ValueError):
-            out.append(0.0)
+            fv = 0.0
+        paired.append((d, fv))
+
+    if want_start and want_end and any(d for d, _ in paired):
+        windowed = [fv for d, fv in paired if d and want_start <= d <= want_end]
+        if len(windowed) >= 2:
+            return windowed
+
+    out = [fv for _, fv in paired[-max(2, int(days)) :]]
     if len(out) >= 2:
         return out
-    # trend_28d_rows fallback
+
+    # trend_28d_rows fallback — günlük clicks; position için ağırlıklı yoksa satır position
     rows = summary_payload.get("trend_28d_rows") or summary_payload.get("trend_7d_rows") or []
     if not rows:
         return out
-    by_day: dict[str, float] = {}
+    by_day: dict[str, dict[str, float]] = {}
     for row in rows:
         if str(row.get("device") or "").upper() != device.upper():
             continue
         d = str(row.get("date") or "")[:10]
         if not d:
             continue
+        bucket = by_day.setdefault(d, {"clicks": 0.0, "impressions": 0.0, "wpos": 0.0})
         try:
-            by_day[d] = float(row.get(metric) or 0)
+            clicks = float(row.get("clicks") or 0)
+            impr = float(row.get("impressions") or 0)
+            pos = float(row.get("position") or 0)
         except (TypeError, ValueError):
-            by_day[d] = 0.0
+            continue
+        bucket["clicks"] += clicks
+        bucket["impressions"] += impr
+        if impr > 0 and pos > 0:
+            bucket["wpos"] += pos * impr
+        elif pos > 0:
+            bucket["wpos"] += pos
+            bucket["impressions"] += 1.0  # fallback weight
     if not by_day:
         return out
-    keys = sorted(by_day.keys())[-max(2, int(days)) :]
-    return [by_day[k] for k in keys]
+    keys = sorted(by_day.keys())
+    if want_start and want_end:
+        keys = [k for k in keys if want_start <= k <= want_end] or keys[-max(2, int(days)) :]
+    else:
+        keys = keys[-max(2, int(days)) :]
+    series: list[float] = []
+    for k in keys:
+        b = by_day[k]
+        if metric == "position":
+            impr = float(b.get("impressions") or 0)
+            series.append((float(b.get("wpos") or 0) / impr) if impr > 0 else 0.0)
+        else:
+            series.append(float(b.get(metric) or b.get("clicks") or 0))
+    return series if len(series) >= 2 else out
 
 
 def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:

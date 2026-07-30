@@ -9,13 +9,19 @@
   .home-ga4-spark-cell {
     min-width: 0;
     border-radius: 0.75rem;
-    border: 1px solid rgb(226 232 240);
-    background: rgb(255 255 255);
+    border: 1px solid rgb(226 232 240 / 0.9);
+    background: rgb(248 250 252);
     padding: 0.625rem 0.7rem 0.55rem;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
   }
   html.dark .home-ga4-spark-cell {
-    border-color: rgb(51 65 85);
-    background: rgb(15 23 42 / 0.55);
+    border-color: rgb(71 85 105 / 0.8);
+    background: rgb(30 41 59 / 0.85);
+    box-shadow: none;
+  }
+  html.midnight .home-ga4-spark-cell {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
   }
   .home-ga4-spark-svg {
     display: block;
@@ -35,15 +41,19 @@
   .home-ga4-spark-line.is-flat { stroke: #94a3b8; }
   html.dark .home-ga4-spark-line.is-up { stroke: #34d399; }
   html.dark .home-ga4-spark-line.is-down { stroke: #fb7185; }
-  html.dark .home-ga4-spark-line.is-flat { stroke: #64748b; }
+  html.dark .home-ga4-spark-line.is-flat { stroke: #94a3b8; }
+  html.midnight .home-ga4-spark-line.is-flat { stroke: #71717a; }
   .home-ga4-spark-empty {
     margin-top: 0.35rem;
     height: 1.75rem;
     border-radius: 0.35rem;
-    background: rgb(241 245 249);
+    background: rgb(226 232 240 / 0.7);
   }
   html.dark .home-ga4-spark-empty {
-    background: rgb(30 41 59);
+    background: rgb(51 65 85 / 0.7);
+  }
+  html.midnight .home-ga4-spark-empty {
+    background: rgb(39 39 42);
   }
 </style>
 
@@ -60,8 +70,7 @@
   <p class="home-label mt-3 text-slate-500 dark:text-slate-400">son 7g vs önceki 7g</p>
   <div class="home-ga4-spark-grid">
     {% for prof in site.profiles %}
-      {% set _p = prof.delta_pct | default(0) | float %}
-      {% set _tone = 'up' if _p > 0 else ('down' if _p < 0 else 'flat') %}
+      {% set _tone = prof.tone | default('flat') %}
       <div class="home-ga4-spark-cell">
         <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
         {% if prof.spark and prof.spark.has_points and prof.spark.path_d %}
