@@ -66,7 +66,7 @@ def test_refresh_stars_moves_closed_from_doing(monkeypatch):
 
     monkeypatch.setattr(
         "backend.services.gitlab_board_stars.fetch_issues_by_iids",
-        lambda path, iids: {
+        lambda path, iids, timeout_sec=4.0: {
             315: {
                 "iid": 315,
                 "state": "closed",
