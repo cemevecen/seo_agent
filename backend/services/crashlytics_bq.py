@@ -2170,6 +2170,10 @@ def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str,
     ver_plat = (data.get("versions_by_platform") or {}).get(plat) or []
     out["versions"] = _merge_versions([(plat, ver_plat)]) if ver_plat else []
     out["versions_by_platform"] = {plat: ver_plat} if ver_plat else {}
+    ver7 = (data.get("versions_7d_by_platform") or {}).get(plat) or []
+    out["versions_7d_by_platform"] = {plat: ver7} if ver7 else {}
+    lv_stats = (data.get("latest_version_stats_by_platform") or {}).get(plat)
+    out["latest_version_stats_by_platform"] = {plat: lv_stats} if lv_stats else {}
 
     vt = [r for r in (data.get("version_trend") or []) if (r.get("platform") or plat) == plat]
     if not vt:
@@ -2469,6 +2473,53 @@ def build_full_payload(
             )
 
         filter_versions_by_platform = {plat: vers for plat, vers in filter_ver_all}
+        versions_7d_by_platform = {plat: rows for plat, rows in ver_all}
+
+        # Ana sayfa kartı: semver-max sürüm için 7g fatal/ANR + cihaz/issue (sürüm filtreli)
+        latest_version_stats_by_platform: dict[str, dict[str, Any]] = {}
+        ver_rows_by_plat = dict(ver_all)
+        for plat, tbl in platforms:
+            ranked = _semver_sort_versions(
+                [str(v).strip() for v in (filter_versions_by_platform.get(plat) or []) if str(v).strip()]
+            )
+            if not ranked:
+                continue
+            lv = ranked[0]
+            fatal_c = 0
+            anr_c = 0
+            for row in ver_rows_by_plat.get(plat) or []:
+                if str(row.get("app_version") or "").strip() == lv:
+                    fatal_c = int(row.get("fatal_count") or 0)
+                    anr_c = int(row.get("anr_count") or 0)
+                    break
+            try:
+                dev_rows, _dev_err = query_device_breakdown(plat, tbl, days, version=lv, limit=5)
+            except Exception:
+                dev_rows = []
+            scoped_devices: list[dict] = []
+            for r in dev_rows or []:
+                er = enrich_device_row(r, platform=plat)
+                scoped_devices.append(
+                    {
+                        "label": er["label"],
+                        "label_raw": er.get("label_raw"),
+                        "event_count": er["event_count"],
+                    }
+                )
+            try:
+                iss_rows, _iss_err = query_top_issues(plat, tbl, days, None, lv, limit=5)
+            except Exception:
+                iss_rows = []
+            scoped_issues = [
+                enrich_issue_row({**r, "platform": plat}, days=days) for r in (iss_rows or [])
+            ]
+            latest_version_stats_by_platform[plat] = {
+                "version": lv,
+                "fatal": fatal_c,
+                "anr": anr_c,
+                "devices": scoped_devices,
+                "issues": scoped_issues,
+            }
 
         version_trend_merged: list[dict] = []
         for _plat, rows in version_trend_all:
@@ -2496,6 +2547,8 @@ def build_full_payload(
             "anr_by_platform": anr_by_platform,
             "versions": _merge_versions(ver_all),
             "versions_by_platform": {plat: rows for plat, rows in chip_ver_all},
+            "versions_7d_by_platform": versions_7d_by_platform,
+            "latest_version_stats_by_platform": latest_version_stats_by_platform,
             "filter_versions_by_platform": filter_versions_by_platform,
             "trend": _merge_trend(trend_all),
             "trend_by_platform": {plat: rows for plat, rows in trend_all},

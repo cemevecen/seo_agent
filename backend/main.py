@@ -8247,30 +8247,59 @@ def _home_cf_fmt(pct: float | None) -> str:
     return f"{v:.2f}%"
 
 
-def _home_crash_latest_version(payload: dict, plat: str) -> str | None:
-    """Platform için semver-desc listedeki ilk sürüm (cache filter_versions)."""
+def _home_crash_latest_version(
+    payload: dict, plat: str, store_version: str | None = None
+) -> str | None:
+    """Son sürüm: mağaza ile Crashlytics semver-max'ın yükseği (stale mağaza cache'ine karşı)."""
     from backend.services import crashlytics_bq as cbq
 
+    store_v = (store_version or "").strip() or None
+    crash_v = None
     versions = (payload.get("filter_versions_by_platform") or {}).get(plat) or []
     if versions:
         ranked = cbq._semver_sort_versions([str(v).strip() for v in versions if str(v).strip()])
-        return ranked[0] if ranked else None
-    # Fallback: versions_by_platform satırlarından
-    rows = (payload.get("versions_by_platform") or {}).get(plat) or []
-    vers = [str(r.get("app_version") or "").strip() for r in rows if r.get("app_version")]
-    if not vers:
-        return None
-    ranked = cbq._semver_sort_versions(vers)
-    return ranked[0] if ranked else None
+        crash_v = ranked[0] if ranked else None
+    if not crash_v:
+        for key in ("versions_7d_by_platform", "versions_by_platform"):
+            rows = (payload.get(key) or {}).get(plat) or []
+            vers = [str(r.get("app_version") or "").strip() for r in rows if r.get("app_version")]
+            if vers:
+                ranked = cbq._semver_sort_versions(vers)
+                crash_v = ranked[0] if ranked else None
+                if crash_v:
+                    break
+    if store_v and crash_v:
+        return cbq._pick_higher_version(store_v, crash_v)
+    return store_v or crash_v
 
 
-def _home_crashlytics_card(product_id: str) -> dict:
-    """Ana sayfa Firebase/Crashlytics mini kart — cache-only, soğuksa arka planda ısıtır."""
+def _home_crash_version_counts(payload: dict, plat: str, version: str | None) -> tuple[int, int]:
+    """Seçilen sürümün 7g fatal/ANR sayıları. Bulunamazsa (0, 0) — tüm-sürüm özetine düşme."""
+    if not version:
+        return 0, 0
+    target = str(version).strip()
+    for key in ("versions_7d_by_platform", "versions_by_platform"):
+        for row in (payload.get(key) or {}).get(plat) or []:
+            if str(row.get("app_version") or "").strip() == target:
+                return int(row.get("fatal_count") or 0), int(row.get("anr_count") or 0)
+    stats = ((payload.get("latest_version_stats_by_platform") or {}).get(plat) or {})
+    if str(stats.get("version") or "").strip() == target:
+        return int(stats.get("fatal") or 0), int(stats.get("anr") or 0)
+    return 0, 0
+
+
+def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) -> dict:
+    """Ana sayfa Firebase/Crashlytics mini kart — cache-only, soğuksa arka planda ısıtır.
+
+    Metrikler (fatal/ANR/cihaz/issue) mümkün olduğunca mağaza/Crashlytics son sürümüne
+    scoped edilir; crash-free sessions hâlâ platform geneli (BQ sessions join sürüm filtresi yok).
+    """
     from backend.services import crashlytics_bq as cbq
     from backend.services.app_intel import APP_PRODUCTS
 
     pid = (product_id or "doviz").strip().lower()
     label = APP_PRODUCTS.get(pid, {}).get("label") or pid
+    store_by_key = store_by_key or {}
     out: dict = {
         "product_id": pid,
         "product_label": label,
@@ -8300,6 +8329,14 @@ def _home_crashlytics_card(product_id: str) -> dict:
     issues_by = payload.get("issues_by_platform") or {}
     devices_by = payload.get("device_breakdown_by_platform") or {}
     os_by = payload.get("os_breakdown_by_platform") or {}
+    latest_stats_by = payload.get("latest_version_stats_by_platform") or {}
+    has_scoped_cache = bool(latest_stats_by) or bool(payload.get("versions_7d_by_platform"))
+    if not has_scoped_cache:
+        # Eski cache — arka planda sürüm-scoped veri için ısıt
+        try:
+            cbq.prewarm_cache(pid)
+        except Exception:
+            pass
 
     platforms: list[dict] = []
     for plat, plat_label in (("ios", "iOS"), ("android", "Android")):
@@ -8308,29 +8345,44 @@ def _home_crashlytics_card(product_id: str) -> dict:
         cf_pct = cf.get("crash_free_sessions_pct")
         if cf_pct is None:
             cf_pct = cf.get("crash_free_pct")
-        issues = issues_by.get(plat) or []
-        top = issues[0] if issues else None
-        latest_ver = _home_crash_latest_version(payload, plat)
-        # Son sürüm satırından fatal/ANR (varsa); yoksa platform özeti
-        ver_fatal = summ.get("fatal") or 0
-        ver_anr = summ.get("anr") or 0
-        if latest_ver:
-            for row in (payload.get("versions_by_platform") or {}).get(plat) or []:
-                if str(row.get("app_version") or "").strip() == latest_ver:
-                    ver_fatal = row.get("fatal_count", ver_fatal)
-                    ver_anr = row.get("anr_count", ver_anr)
-                    break
+        store_ver = (store_by_key.get(plat) or {}).get("version")
+        store_ver = str(store_ver).strip() if store_ver else None
+        latest_ver = _home_crash_latest_version(payload, plat, store_version=store_ver)
+        ver_fatal, ver_anr = _home_crash_version_counts(payload, plat, latest_ver)
+
+        scoped = latest_stats_by.get(plat) or {}
+        scoped_ver = str(scoped.get("version") or "").strip() or None
+        use_scoped = bool(latest_ver and scoped_ver and latest_ver == scoped_ver)
+
         top_devices: list[dict] = []
-        for d in (devices_by.get(plat) or [])[:5]:
-            top_devices.append(
-                {
-                    "label": (d.get("label") or d.get("label_raw") or d.get("model") or "—")[:48],
-                    "events_fmt": _home_format_int(d.get("event_count") or 0),
-                    "pct": d.get("pct"),
-                }
-            )
+        if use_scoped and scoped.get("devices"):
+            for d in (scoped.get("devices") or [])[:5]:
+                top_devices.append(
+                    {
+                        "label": (d.get("label") or d.get("label_raw") or d.get("model") or "—")[:48],
+                        "events_fmt": _home_format_int(d.get("event_count") or 0),
+                        "pct": d.get("pct"),
+                    }
+                )
+        elif not has_scoped_cache or not latest_ver:
+            # Eski cache veya sürüm yok: all-version (geçici)
+            for d in (devices_by.get(plat) or [])[:5]:
+                top_devices.append(
+                    {
+                        "label": (d.get("label") or d.get("label_raw") or d.get("model") or "—")[:48],
+                        "events_fmt": _home_format_int(d.get("event_count") or 0),
+                        "pct": d.get("pct"),
+                    }
+                )
+
         top_issues: list[dict] = []
-        for iss in issues[:5]:
+        if use_scoped:
+            issue_src = scoped.get("issues") or []
+        elif latest_ver:
+            issue_src = []
+        else:
+            issue_src = issues_by.get(plat) or []
+        for iss in issue_src[:5]:
             title = (iss.get("title") or iss.get("issue_title") or "").strip()
             if not title:
                 continue
@@ -8340,29 +8392,38 @@ def _home_crashlytics_card(product_id: str) -> dict:
                     "events_fmt": _home_format_int(iss.get("event_count") or 0),
                 }
             )
+
         top_os: list[dict] = []
-        for o in (os_by.get(plat) or [])[:5]:
-            ver = (o.get("os_version") or o.get("label") or "—").strip()
-            top_os.append(
-                {
-                    "label": ("iOS " if plat == "ios" else "") + ver[:40],
-                    "events_fmt": _home_format_int(o.get("event_count") or 0),
-                }
-            )
+        # OS kırılımı sürüm filtresiz cache'de; son sürüm seçiliyken gösterme
+        if not latest_ver:
+            for o in (os_by.get(plat) or [])[:5]:
+                ver = (o.get("os_version") or o.get("label") or "—").strip()
+                top_os.append(
+                    {
+                        "label": ("iOS " if plat == "ios" else "") + ver[:40],
+                        "events_fmt": _home_format_int(o.get("event_count") or 0),
+                    }
+                )
+
+        top = (top_issues[0] if top_issues else None)
         platforms.append(
             {
                 "key": plat,
                 "label": plat_label,
                 "latest_version": latest_ver,
+                "version_scoped": bool(latest_ver),
                 "crash_free_fmt": _home_cf_fmt(cf_pct),
-                "fatal_fmt": _home_format_int(ver_fatal or 0),
-                "anr_fmt": _home_format_int(ver_anr or 0),
-                "top_issue_title": ((top.get("title") or top.get("issue_title") or "")[:72] if top else None),
-                "top_issue_events_fmt": _home_format_int(top.get("event_count") or 0) if top else None,
+                "crash_free_all_versions": True,
+                "fatal_fmt": _home_format_int(ver_fatal),
+                "anr_fmt": _home_format_int(ver_anr),
+                "top_issue_title": (top["label"] if top else None),
+                "top_issue_events_fmt": (top["events_fmt"] if top else None),
                 "top_devices": top_devices,
                 "top_issues": top_issues,
                 "top_os": top_os,
-                "has_data": bool(summ.get("fatal") or summ.get("anr") or issues or latest_ver),
+                "has_data": bool(
+                    ver_fatal or ver_anr or top_devices or top_issues or latest_ver or summ.get("fatal")
+                ),
             }
         )
 
@@ -9366,9 +9427,9 @@ def api_home_crashlytics(request: Request, product: str | None = None):
     pid = (product or "doviz").strip().lower()
     if pid != "doviz":
         pid = "doviz"
-    card = _home_crashlytics_card(pid)
     store_platforms = _home_app_release_platforms(pid)
     store_by_key = {p.get("key"): p for p in store_platforms if p.get("key")}
+    card = _home_crashlytics_card(pid, store_by_key=store_by_key)
     return templates.TemplateResponse(
         request,
         "partials/home/crashlytics.html",
