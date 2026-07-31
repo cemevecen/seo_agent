@@ -2450,7 +2450,7 @@ def _digest_top_n() -> int:
 def _digest_window_minutes() -> int:
     from backend.config import settings
 
-    return int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 90))
+    return int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 180))
 
 
 def _digest_interval_short_label(minutes: int | None = None) -> str:

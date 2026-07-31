@@ -142,11 +142,11 @@ def _realtime_digest_local_now():
 
 
 def _realtime_digest_in_quiet_hours() -> bool:
-    """06:30 öncesi ve 23:00 sonrası TR — konsolide SEO Realtime maili gönderilmez."""
+    """07:00 öncesi ve 22:01 sonrası TR — konsolide SEO Realtime maili gönderilmez."""
     now = _realtime_digest_local_now()
     minutes = now.hour * 60 + now.minute
-    start = 6 * 60 + 30   # 06:30
-    end = 23 * 60         # 23:00 (dahil değil)
+    start = 7 * 60        # 07:00
+    end = 22 * 60 + 1     # 22:01 (22:00 dahil)
     return minutes < start or minutes >= end
 
 
@@ -210,7 +210,7 @@ def realtime_email_batch_flush() -> bool:
 
     from backend.config import settings
 
-    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 90))
+    min_gap_min = int(getattr(settings, "ga4_realtime_email_batch_interval_minutes", 180))
 
     if _realtime_digest_in_quiet_hours():
         if items:

@@ -86,6 +86,16 @@ def test_realtime_batch_deferred_items_queued_not_dropped(monkeypatch):
     mailer._last_realtime_batch_sent_at = mailer.time.time()
     monkeypatch.setattr(mailer.settings, "ga4_realtime_email_batch_interval_minutes", 90)
 
+    def _due_memory_only(min_gap_min: int, db=None) -> bool:
+        if min_gap_min <= 0:
+            return True
+        last = mailer._last_realtime_batch_sent_at
+        if last is None:
+            return True
+        return (mailer.time.time() - last) >= (min_gap_min * 60)
+
+    monkeypatch.setattr(mailer, "_realtime_digest_interval_due", _due_memory_only)
+
     mailer.realtime_email_batch_begin()
     mailer.send_realtime_email("doviz.com — +120 kul [web]", "<p>alarm</p>")
     assert mailer.realtime_email_batch_flush() is False
@@ -111,7 +121,7 @@ def test_realtime_batch_not_sent_in_quiet_hours(monkeypatch):
     assert sent == []
 
 
-def test_realtime_digest_quiet_hours_0630_to_2300(monkeypatch):
+def test_realtime_digest_quiet_hours_0700_to_2200(monkeypatch):
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
@@ -121,10 +131,11 @@ def test_realtime_digest_quiet_hours_0630_to_2300(monkeypatch):
         return datetime(2026, 6, 20, h, m, tzinfo=tz)
 
     cases = [
-        (6, 29, True),
-        (6, 30, False),
+        (6, 59, True),
+        (7, 0, False),
         (12, 0, False),
-        (22, 59, False),
+        (22, 0, False),
+        (22, 1, True),
         (23, 0, True),
         (3, 15, True),
     ]
