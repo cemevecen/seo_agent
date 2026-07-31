@@ -17320,7 +17320,7 @@ def _run_inbox_scheduled_sync_job() -> None:
 
 
 def _run_inbox_summary_email_job() -> None:
-    """APScheduler: 2 saatte bir 4 sekmeli inbox özet maili (:15)."""
+    """APScheduler: 4 saatte bir inbox özet maili (06:30–22:30)."""
     try:
         from backend.services.inbox_summary import run_inbox_summary_email
 
