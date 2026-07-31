@@ -4595,15 +4595,15 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         job_count += 1
         LOGGER.info("Inbox Firebase sync aktif: her %d dk.", fb_iv)
 
-    # Inbox 4 sekmeli özet maili — 2 saatte bir, çeyrek geçe (:15).
+    # Inbox özet maili — 4 saatte bir, 06:30–22:30 (06:30, 10:30, 14:30, 18:30, 22:30).
     scheduler.add_job(
         _run_inbox_summary_email_job,
         trigger=CronTrigger(
-            minute=15,
-            hour="0,2,4,6,8,10,12,14,16,18,20,22",
+            minute=30,
+            hour="6,10,14,18,22",
             timezone=timezone,
         ),
-        id="inbox-summary-email-2h",
+        id="inbox-summary-email-4h",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
@@ -4618,6 +4618,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         "inbox-firebase-sync-3min",
         "inbox-summary-on-hour",
         "inbox-summary-on-half",
+        "inbox-summary-email-2h",
     ):
         try:
             scheduler.remove_job(_legacy_inbox_job)
