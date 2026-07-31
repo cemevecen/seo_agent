@@ -27,15 +27,8 @@
   }
   html.mz-range-single-day .mz-bd-pill[data-v="week"],
   html.mz-range-single-day .mz-bd-pill[data-v="month"],
-  html.mz-range-single-day .mz-bd-pill[data-v="period_3"],
-  html.mz-view-targets #mz-analytics-stack {
+  html.mz-range-single-day .mz-bd-pill[data-v="period_3"] {
     display: none !important;
-  }
-  html.mz-view-targets #mz-targets-panel {
-    display: block !important;
-  }
-  #mz-targets-panel {
-    display: none;
   }
   .mz-targets-table th[data-sort] {
     cursor: pointer;
@@ -43,10 +36,6 @@
   }
   .mz-targets-table th[data-sort]:hover {
     color: rgb(79 70 229);
-  }
-  .mz-view-tab.mz-view-tab--active {
-    background: rgb(15 23 42);
-    color: white;
   }
   #mz-targets-colorize.is-active {
     border-color: rgb(20 83 45);
@@ -57,89 +46,70 @@
     border-color: rgb(34 197 94);
     background: rgb(20 83 45);
   }
-  html.dark .mz-view-tab.mz-view-tab--active {
-    background: rgb(63 63 70);
-  }
-  html.mz-view-targets .mz-page {
-    max-width: none;
-  }
-  html.mz-view-targets #mz-stream-tabs,
-  html.mz-view-targets #mz-imports-wrap {
-    display: none !important;
-  }
-  html.mz-view-targets #mz-sidebar-analytics {
-    display: none !important;
-  }
-  @media (min-width: 1024px) {
-    html.mz-view-targets #mz-sidebar {
-      display: none !important;
-    }
-    html.mz-view-targets #mz-targets-inline-nav {
-      display: flex !important;
-    }
-  }
-  html.mz-view-targets #mz-targets-panel {
+  /* Gelir hedefleri — monetizasyon analitiği altında, aynı sütun genişliği */
+  #mz-targets-panel {
     width: 100%;
     max-width: 100%;
+    scroll-margin-top: 1rem;
   }
-  html.mz-view-targets #mz-targets-controls {
-    display: grid !important;
+  #mz-targets-controls {
+    display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 0.75rem;
     align-items: end;
   }
   @media (min-width: 640px) {
-    html.mz-view-targets #mz-targets-controls {
+    #mz-targets-controls {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
   @media (min-width: 1024px) {
-    html.mz-view-targets #mz-targets-controls {
+    #mz-targets-controls {
       grid-template-columns: 2fr 1fr 1fr auto;
     }
   }
-  html.mz-view-targets #mz-targets-table-wrap {
+  #mz-targets-table-wrap {
     width: 100%;
   }
-  html.mz-view-targets .mz-targets-table {
+  .mz-targets-table {
     width: 100%;
     table-layout: auto;
   }
-  html.mz-view-targets .mz-targets-table th.num,
-  html.mz-view-targets .mz-targets-table td.num {
+  .mz-targets-table th.num,
+  .mz-targets-table td.num {
     text-align: right;
     white-space: nowrap;
   }
-  html.mz-view-targets .mz-targets-table th.period,
-  html.mz-view-targets .mz-targets-table td.period {
+  .mz-targets-table th.period,
+  .mz-targets-table td.period {
     white-space: nowrap;
   }
-  html.mz-view-targets .mz-targets-table td.mz-targets-heat {
+  .mz-targets-table td.mz-targets-heat {
     border-radius: 0.35rem;
     transition: background-color 0.15s ease, color 0.15s ease;
   }
   @media (min-width: 1280px) {
-    html.mz-view-targets .mz-targets-table {
+    .mz-targets-table {
       font-size: 0.8125rem;
     }
-    html.mz-view-targets .mz-targets-table th,
-    html.mz-view-targets .mz-targets-table td {
+    .mz-targets-table th,
+    .mz-targets-table td {
       padding: 0.5rem 1rem;
     }
   }
-  html.mz-view-targets #mz-targets-charts {
+  #mz-targets-charts {
     grid-template-columns: minmax(0, 1fr);
   }
-  html.mz-view-targets #mz-targets-pie-grid {
+  #mz-targets-pie-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   @media (min-width: 640px) {
-    html.mz-view-targets #mz-targets-pie-grid {
+    #mz-targets-pie-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
   @media (min-width: 1024px) {
-    html.mz-view-targets #mz-targets-pie-grid {
+    #mz-targets-pie-grid {
       grid-template-columns: repeat(6, minmax(0, 1fr));
     }
   }
@@ -443,13 +413,11 @@
 
   <div id="mz-body-grid" class="mz-body-grid grid grid-cols-1 gap-4 xl:grid-cols-12">
     <aside id="mz-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black xl:col-span-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
-      <nav class="rounded-xl border border-teal-200/90 bg-teal-50/70 p-2.5 dark:border-teal-900/60 dark:bg-teal-950/30" aria-label="Sayfa görünümü">
-        <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-teal-800 dark:text-teal-300">Görünüm</p>
-        <div class="grid grid-cols-1 gap-1">
-          <button type="button" id="mz-view-analytics" class="mz-view-tab mz-view-tab--active w-full rounded-lg border border-transparent px-2.5 py-2 text-left text-xs font-bold text-slate-800 hover:bg-white/80 dark:text-zinc-100 dark:hover:bg-zinc-900/80">Monetizasyon analizi</button>
-          <button type="button" id="mz-view-targets" class="mz-view-tab w-full rounded-lg border border-transparent px-2.5 py-2 text-left text-xs font-bold text-slate-700 hover:bg-white/80 dark:text-zinc-300 dark:hover:bg-zinc-900/80">Gelir hedefleri (Sheets)</button>
-        </div>
-      </nav>
+      <a
+        href="#mz-targets-panel"
+        id="mz-jump-targets"
+        class="block rounded-xl border border-teal-200/90 bg-teal-50/70 px-3 py-2.5 text-xs font-bold text-teal-900 hover:bg-teal-100/80 dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200 dark:hover:bg-teal-950/50"
+      >Gelir hedefleri ↓</a>
       <div id="mz-sidebar-analytics" class="space-y-3">
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
       <input id="mz-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
@@ -592,108 +560,6 @@
       <div id="mz-loading" class="pointer-events-none absolute inset-0 z-10 hidden rounded-2xl bg-white/60 dark:bg-black/50" aria-hidden="true">
         <div class="flex h-32 items-center justify-center text-sm font-semibold text-slate-600 dark:text-zinc-300">Yükleniyor…</div>
       </div>
-
-      <section id="mz-targets-panel" class="hidden w-full min-w-0 space-y-4" aria-label="Gelir hedefleri">
-        <div class="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/50 p-3 sm:p-4 dark:border-teal-900/50 dark:bg-teal-950/20 lg:flex-row lg:items-start lg:justify-between">
-          <div class="min-w-0 flex-1">
-            <div id="mz-targets-inline-nav" class="hidden flex-wrap gap-1.5" aria-label="Sayfa görünümü">
-              <button type="button" data-mz-inline-view="analytics" class="mz-view-tab rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white/80 dark:text-zinc-300 dark:hover:bg-zinc-900/80">Monetizasyon analizi</button>
-              <button type="button" data-mz-inline-view="targets" class="mz-view-tab mz-view-tab--active rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-zinc-100">Gelir hedefleri</button>
-            </div>
-          </div>
-          <div class="flex shrink-0 flex-wrap items-center gap-2 self-start">
-            <button
-              type="button"
-              id="mz-targets-refresh"
-              class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200 dark:hover:bg-teal-950/40"
-            >Yenile</button>
-            <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit" target="_blank" rel="noopener" class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Kaynak tablo ↗</a>
-          </div>
-        </div>
-        <p id="mz-targets-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
-        <p id="mz-targets-loading" class="text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
-        <div id="mz-targets-controls" class="hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-          <div class="min-w-0">
-            <p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Proje</p>
-            <div class="flex flex-wrap gap-1.5">
-              <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white">Doviz.com</button>
-              <button type="button" data-mz-target-project="sinemalar" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Sinemalar.com</button>
-            </div>
-          </div>
-          <label class="min-w-0 text-xs">
-            <span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Yıl</span>
-            <select id="mz-targets-year" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
-              <option value="">Tümü</option>
-            </select>
-          </label>
-          <label class="min-w-0 text-xs">
-            <span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Sıralama</span>
-            <select id="mz-targets-sort" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
-              <option value="period_key_desc">Dönem (yeniden eskiye)</option>
-              <option value="period_key_asc">Dönem (eskiden yeniye)</option>
-              <option value="kazanc_desc">Kazanç (yüksek)</option>
-              <option value="kazanc_asc">Kazanç (düşük)</option>
-              <option value="hedef_desc">Hedef (yüksek)</option>
-              <option value="tamamlama_orani_desc">Tamamlama % (yüksek)</option>
-              <option value="kalan_desc">Kalan (yüksek)</option>
-            </select>
-          </label>
-          <div class="flex items-end justify-stretch sm:justify-end">
-            <button
-              type="button"
-              id="mz-targets-colorize"
-              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:w-auto"
-              aria-pressed="false"
-            >Renklendir</button>
-          </div>
-        </div>
-        <div id="mz-targets-table-wrap" class="hidden w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-          <table class="mz-targets-table w-full min-w-[40rem] text-left text-xs sm:min-w-0 sm:text-sm">
-            <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
-              <tr>
-                <th class="period px-3 py-2" data-sort="period_key">Dönem</th>
-                <th class="num px-3 py-2" data-sort="hedef">Hedef</th>
-                <th class="num px-3 py-2" data-sort="hedef_80">Hedef (%80)</th>
-                <th class="num px-3 py-2" data-sort="kazanc">Kazanç</th>
-                <th class="num px-3 py-2" data-sort="gunluk_kazanc">Günlük Kazanç</th>
-                <th class="num px-3 py-2" data-sort="kalan">Kalan</th>
-                <th class="num px-3 py-2" data-sort="tamamlama_orani">Hedef Tamamlama</th>
-              </tr>
-            </thead>
-            <tbody id="mz-targets-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
-          </table>
-        </div>
-        <div id="mz-targets-charts" class="hidden grid w-full min-w-0 grid-cols-1 gap-4">
-          <div class="mz-targets-chart-line-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Hedef · Kazanç trendi (çizgi)</h3>
-            <div id="mz-targets-chart-line" class="mz-chart-plot min-h-[280px] w-full"></div>
-          </div>
-          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık karşılaştırma (sütun)</h3>
-            <div id="mz-targets-chart-bar" class="mz-chart-plot min-h-[280px] w-full"></div>
-          </div>
-        </div>
-        <div id="mz-targets-pie-section" class="hidden mt-4 rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık dağılım (pasta)</h3>
-              <p id="mz-targets-pie-subtitle" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400"></p>
-            </div>
-            <label class="flex items-center gap-1.5 text-xs">
-              <span class="text-[10px] font-bold uppercase text-slate-500">Dönem</span>
-              <select id="mz-targets-pie-group" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"></select>
-            </label>
-          </div>
-          <div id="mz-targets-pie-grid" class="grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <div class="mz-targets-pie-slot min-w-0" data-slot="0"><div id="mz-targets-chart-pie-0" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="1"><div id="mz-targets-chart-pie-1" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="2"><div id="mz-targets-chart-pie-2" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="3"><div id="mz-targets-chart-pie-3" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="4"><div id="mz-targets-chart-pie-4" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-            <div class="mz-targets-pie-slot min-w-0" data-slot="5"><div id="mz-targets-chart-pie-5" class="mz-chart-plot min-h-[220px] w-full"></div></div>
-          </div>
-        </div>
-      </section>
 
       <div id="mz-analytics-stack" class="space-y-4">
       <p id="mz-boot-hint" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">KPI ve grafikler yükleniyor…</p>
@@ -1157,6 +1023,106 @@
 
       </section>
       </div>
+
+      <section id="mz-targets-panel" class="mt-8 w-full min-w-0 space-y-4 border-t-2 border-dashed border-teal-300 pt-6 dark:border-teal-800" aria-label="Gelir hedefleri">
+        <div class="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/50 p-3 sm:p-4 dark:border-teal-900/50 dark:bg-teal-950/20 lg:flex-row lg:items-center lg:justify-between">
+          <div class="min-w-0 flex-1">
+            <h2 class="text-sm font-bold text-teal-900 dark:text-teal-100">Gelir hedefleri</h2>
+            <p class="mt-0.5 text-[11px] font-medium text-teal-800/80 dark:text-teal-300/80">Google Sheets aylık hedef · kazanç tablosu</p>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center gap-2 self-start lg:self-center">
+            <button
+              type="button"
+              id="mz-targets-refresh"
+              class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200 dark:hover:bg-teal-950/40"
+            >Yenile</button>
+            <a id="mz-targets-source-link" href="https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit" target="_blank" rel="noopener" class="rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50 dark:border-teal-800 dark:bg-zinc-900 dark:text-teal-200">Kaynak tablo ↗</a>
+          </div>
+        </div>
+        <p id="mz-targets-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
+        <p id="mz-targets-loading" class="text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
+        <div id="mz-targets-controls" class="hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <div class="min-w-0">
+            <p class="mb-1 text-[10px] font-bold uppercase text-slate-500">Proje</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" data-mz-target-project="doviz" class="mz-targets-proj rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white">Doviz.com</button>
+              <button type="button" data-mz-target-project="sinemalar" class="mz-targets-proj rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200">Sinemalar.com</button>
+            </div>
+          </div>
+          <label class="min-w-0 text-xs">
+            <span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Yıl</span>
+            <select id="mz-targets-year" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
+              <option value="">Tümü</option>
+            </select>
+          </label>
+          <label class="min-w-0 text-xs">
+            <span class="mb-1 block text-[10px] font-bold uppercase text-slate-500">Sıralama</span>
+            <select id="mz-targets-sort" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200">
+              <option value="period_key_desc">Dönem (yeniden eskiye)</option>
+              <option value="period_key_asc">Dönem (eskiden yeniye)</option>
+              <option value="kazanc_desc">Kazanç (yüksek)</option>
+              <option value="kazanc_asc">Kazanç (düşük)</option>
+              <option value="hedef_desc">Hedef (yüksek)</option>
+              <option value="tamamlama_orani_desc">Tamamlama % (yüksek)</option>
+              <option value="kalan_desc">Kalan (yüksek)</option>
+            </select>
+          </label>
+          <div class="flex items-end justify-stretch sm:justify-end">
+            <button
+              type="button"
+              id="mz-targets-colorize"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:w-auto"
+              aria-pressed="false"
+            >Renklendir</button>
+          </div>
+        </div>
+        <div id="mz-targets-table-wrap" class="hidden w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <table class="mz-targets-table w-full min-w-[40rem] text-left text-xs sm:min-w-0 sm:text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
+              <tr>
+                <th class="period px-3 py-2" data-sort="period_key">Dönem</th>
+                <th class="num px-3 py-2" data-sort="hedef">Hedef</th>
+                <th class="num px-3 py-2" data-sort="hedef_80">Hedef (%80)</th>
+                <th class="num px-3 py-2" data-sort="kazanc">Kazanç</th>
+                <th class="num px-3 py-2" data-sort="gunluk_kazanc">Günlük Kazanç</th>
+                <th class="num px-3 py-2" data-sort="kalan">Kalan</th>
+                <th class="num px-3 py-2" data-sort="tamamlama_orani">Hedef Tamamlama</th>
+              </tr>
+            </thead>
+            <tbody id="mz-targets-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+          </table>
+        </div>
+        <div id="mz-targets-charts" class="hidden grid w-full min-w-0 grid-cols-1 gap-4">
+          <div class="mz-targets-chart-line-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Hedef · Kazanç trendi (çizgi)</h3>
+            <div id="mz-targets-chart-line" class="mz-chart-plot min-h-[280px] w-full"></div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 class="mb-2 text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık karşılaştırma (sütun)</h3>
+            <div id="mz-targets-chart-bar" class="mz-chart-plot min-h-[280px] w-full"></div>
+          </div>
+        </div>
+        <div id="mz-targets-pie-section" class="hidden mt-4 rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Aylık dağılım (pasta)</h3>
+              <p id="mz-targets-pie-subtitle" class="text-[11px] font-medium text-slate-500 dark:text-zinc-400"></p>
+            </div>
+            <label class="flex items-center gap-1.5 text-xs">
+              <span class="text-[10px] font-bold uppercase text-slate-500">Dönem</span>
+              <select id="mz-targets-pie-group" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"></select>
+            </label>
+          </div>
+          <div id="mz-targets-pie-grid" class="grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="mz-targets-pie-slot min-w-0" data-slot="0"><div id="mz-targets-chart-pie-0" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="1"><div id="mz-targets-chart-pie-1" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="2"><div id="mz-targets-chart-pie-2" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="3"><div id="mz-targets-chart-pie-3" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="4"><div id="mz-targets-chart-pie-4" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+            <div class="mz-targets-pie-slot min-w-0" data-slot="5"><div id="mz-targets-chart-pie-5" class="mz-chart-plot min-h-[220px] w-full"></div></div>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -1211,7 +1177,6 @@
     var m = document.getElementById('mz-main');
     function apply() {
       var wide = window.innerWidth >= 1280;
-      var targets = document.documentElement.classList.contains('mz-view-targets');
       var P = 'important';
       g.style.setProperty('display', wide ? 'flex' : 'block', P);
       g.style.setProperty('flex-direction', 'row', P);
@@ -1219,16 +1184,12 @@
       g.style.setProperty('align-items', 'flex-start', P);
       g.style.setProperty('width', '100%', P);
       if (s) {
-        if (targets && window.innerWidth >= 1024) {
-          s.style.setProperty('display', 'none', P);
-        } else {
-          s.style.removeProperty('display');
-          s.style.setProperty('flex', wide ? '0 0 300px' : 'none', P);
-          s.style.setProperty('width', wide ? '300px' : '100%', P);
-          s.style.setProperty('min-width', '0', P);
-          s.style.setProperty('box-sizing', 'border-box', P);
-          s.style.setProperty('margin-bottom', wide ? '0' : '1rem', P);
-        }
+        s.style.removeProperty('display');
+        s.style.setProperty('flex', wide ? '0 0 300px' : 'none', P);
+        s.style.setProperty('width', wide ? '300px' : '100%', P);
+        s.style.setProperty('min-width', '0', P);
+        s.style.setProperty('box-sizing', 'border-box', P);
+        s.style.setProperty('margin-bottom', wide ? '0' : '1rem', P);
       }
       if (m) {
         m.style.setProperty('flex', wide ? '1 1 0%' : 'none', P);
@@ -11975,38 +11936,26 @@
     }
   }
 
-  function mzSetPageView(view) {
-    var isTargets = view === "targets";
-    document.documentElement.classList.toggle("mz-view-targets", isTargets);
-    var btnA = document.getElementById("mz-view-analytics");
-    var btnT = document.getElementById("mz-view-targets");
-    if (btnA) btnA.classList.toggle("mz-view-tab--active", !isTargets);
-    if (btnT) btnT.classList.toggle("mz-view-tab--active", isTargets);
-    document.querySelectorAll("[data-mz-inline-view]").forEach(function (btn) {
-      var on = btn.getAttribute("data-mz-inline-view") === (isTargets ? "targets" : "analytics");
-      btn.classList.toggle("mz-view-tab--active", on);
-    });
-    if (typeof window.__mzAdLayoutApply === "function") window.__mzAdLayoutApply();
-    if (isTargets) {
-      mzTargetsLoad(false);
-    } else {
-      scheduleMzChartsResizeBurst();
-    }
+  function mzScrollToTargets() {
+    var panel = document.getElementById("mz-targets-panel");
+    if (!panel) return;
     try {
-      var u = new URL(window.location.href);
-      if (isTargets) u.searchParams.set("view", "targets");
-      else u.searchParams.delete("view");
-      window.history.replaceState({}, "", u.pathname + u.search + u.hash);
-    } catch (_) { /* ignore */ }
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (_) {
+      panel.scrollIntoView(true);
+    }
+    scheduleMzChartsResizeBurst();
   }
 
-  on("mz-view-analytics", "click", function () { mzSetPageView("analytics"); });
-  on("mz-view-targets", "click", function () { mzSetPageView("targets"); });
-
-  document.querySelectorAll("[data-mz-inline-view]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      mzSetPageView(btn.getAttribute("data-mz-inline-view") || "analytics");
-    });
+  on("mz-jump-targets", "click", function (ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    mzScrollToTargets();
+    try {
+      var u = new URL(window.location.href);
+      u.hash = "mz-targets-panel";
+      u.searchParams.delete("view");
+      window.history.replaceState({}, "", u.pathname + u.search + u.hash);
+    } catch (_) { /* ignore */ }
   });
 
   document.querySelectorAll(".mz-targets-proj").forEach(function (btn) {
@@ -12056,11 +12005,17 @@
     });
   });
 
-  try {
-    if (new URL(window.location.href).searchParams.get("view") === "targets") {
-      mzSetPageView("targets");
-    }
-  } catch (_) { /* ignore */ }
+  mzTargetsLoad(false).then(function () {
+    try {
+      var u = new URL(window.location.href);
+      if (u.searchParams.get("view") === "targets" || u.hash === "#mz-targets-panel") {
+        u.searchParams.delete("view");
+        u.hash = "mz-targets-panel";
+        window.history.replaceState({}, "", u.pathname + u.search + u.hash);
+        setTimeout(mzScrollToTargets, 80);
+      }
+    } catch (_) { /* ignore */ }
+  });
 
   window.addEventListener("resize", scheduleMzChartsResizeBurst);
 
