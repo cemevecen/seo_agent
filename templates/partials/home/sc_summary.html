@@ -132,7 +132,7 @@
   .home-sc-top50 {
     flex: 0 0 auto;
     align-self: center;
-    max-width: 5.5rem;
+    max-width: 6.25rem;
     border-radius: 0.5rem;
     padding: 0.3rem 0.4rem;
     border: 1px solid rgb(226 232 240);
@@ -190,17 +190,25 @@
     <div class="home-sc-spark-grid">
       {% for dev in site.devices %}
         {% set _ctone = dev.clicks_tone | default('flat') %}
-        <div class="home-sc-spark-cell is-clicks">
-          <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
-          {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
-            <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-              <path class="home-sc-spark-line is-{{ _ctone }}" d="{{ dev.clicks_spark.path_d }}"></path>
-            </svg>
-          {% else %}
-            <div class="home-sc-spark-empty" aria-hidden="true"></div>
+        <div class="home-sc-spark-cell is-clicks home-sc-pos-row">
+          <div class="home-sc-pos-main">
+            <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+            {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
+              <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-sc-spark-line is-{{ _ctone }}" d="{{ dev.clicks_spark.path_d }}"></path>
+              </svg>
+            {% else %}
+              <div class="home-sc-spark-empty" aria-hidden="true"></div>
+            {% endif %}
+            <p class="home-kpi mt-1 {% if _ctone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ctone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
+            <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
+          </div>
+          {% if dev.top50_has_data %}
+          <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki 7g)">
+            <p class="home-sc-top50-label">top 50</p>
+            <p class="home-sc-top50-vals">{{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}</p>
+          </div>
           {% endif %}
-          <p class="home-kpi mt-1 {% if _ctone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ctone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
-          <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
         </div>
       {% endfor %}
     </div>

@@ -13,6 +13,8 @@ _TOP50_EMPTY = {
     "top50_pos_prev_fmt": "—",
     "top50_pos_delta": 0.0,
     "top50_pos_tone": "flat",
+    "top50_clicks_last_fmt": "—",
+    "top50_clicks_prev_fmt": "—",
     "top50_has_data": False,
 }
 
@@ -123,3 +125,5 @@ def test_home_sc_top50_weighted_position(mock_rows):
     assert out["top50_pos_last_fmt"] == "4.66"
     assert out["top50_pos_prev_fmt"] == "5.66"
     assert out["top50_pos_tone"] == "up"
+    assert out["top50_clicks_last_fmt"] == "150"
+    assert out["top50_clicks_prev_fmt"] == "120"

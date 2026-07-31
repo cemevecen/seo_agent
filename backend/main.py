@@ -8973,12 +8973,18 @@ def api_home_ga4_sessions(request: Request, site: str | None = None):
 
 
 def _home_sc_top50_device_position(db, site_id: int, device: str) -> dict:
-    """Cihaz bazında en çok tıklanan 50 sorgunun gösterim-ağırlıklı ort. pozisyonu (7g vs önceki 7g)."""
+    """Cihaz bazında en çok tıklanan 50 sorgunun top-50 özeti (7g vs önceki 7g).
+
+    - Pozisyon: gösterim-ağırlıklı ortalama
+    - Clicks: aynı sorgu setinin toplam tıklaması
+    """
     empty = {
         "top50_pos_last_fmt": "—",
         "top50_pos_prev_fmt": "—",
         "top50_pos_delta": 0.0,
         "top50_pos_tone": "flat",
+        "top50_clicks_last_fmt": "—",
+        "top50_clicks_prev_fmt": "—",
         "top50_has_data": False,
     }
     try:
@@ -9040,10 +9046,15 @@ def _home_sc_top50_device_position(db, site_id: int, device: str) -> dict:
                 return None
             return w_sum / i_sum
 
-        c_pos = _weighted([item[2] for item in top])
-        p_pos = _weighted([item[3] for item in top])
+        cur_top = [item[2] for item in top]
+        prev_top = [item[3] for item in top]
+        c_pos = _weighted(cur_top)
+        p_pos = _weighted(prev_top)
         if c_pos is None or p_pos is None:
             return empty
+
+        c_clicks = sum(float(r.get("clicks") or 0.0) for r in cur_top)
+        p_clicks = sum(float(r.get("clicks") or 0.0) for r in prev_top)
 
         pos_diff = _sc_position_delta(c_pos, p_pos)
         if pos_diff > 0:
@@ -9057,6 +9068,8 @@ def _home_sc_top50_device_position(db, site_id: int, device: str) -> dict:
             "top50_pos_prev_fmt": _format_max_two_decimals(p_pos),
             "top50_pos_delta": pos_diff,
             "top50_pos_tone": tone,
+            "top50_clicks_last_fmt": _home_format_int(c_clicks),
+            "top50_clicks_prev_fmt": _home_format_int(p_clicks),
             "top50_has_data": True,
         }
     except Exception:  # noqa: BLE001
