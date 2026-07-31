@@ -118,8 +118,8 @@ def test_home_sc_top50_weighted_position(mock_rows):
 
     mock_rows.side_effect = _rows
     out = _home_sc_top50_device_position(MagicMock(), 1, "MOBILE")
-    # (4*1000 + 6*500) / 1500 = 4.666… → 4.67; prev (5*1000+7*500)/1500 = 5.666… → 5.67
+    # (4*1000 + 6*500) / 1500 = 4.666… → ROUND_DOWN 4.66; prev 5.666… → 5.66
     assert out["top50_has_data"] is True
-    assert out["top50_pos_last_fmt"] == "4.67"
-    assert out["top50_pos_prev_fmt"] == "5.67"
+    assert out["top50_pos_last_fmt"] == "4.66"
+    assert out["top50_pos_prev_fmt"] == "5.66"
     assert out["top50_pos_tone"] == "up"
