@@ -1,11 +1,24 @@
 """Ana sayfa Search Console özeti — site-geneli pozisyon (GSC uyumlu)."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from backend.main import _home_sc_device_aggregate, _home_sc_trend_series
+from backend.main import (
+    _home_sc_device_aggregate,
+    _home_sc_top50_device_position,
+    _home_sc_trend_series,
+)
+
+_TOP50_EMPTY = {
+    "top50_pos_last_fmt": "—",
+    "top50_pos_prev_fmt": "—",
+    "top50_pos_delta": 0.0,
+    "top50_pos_tone": "flat",
+    "top50_has_data": False,
+}
 
 
-def test_home_sc_uses_sitewide_7d_summary_position():
+@patch("backend.main._home_sc_top50_device_position", return_value=_TOP50_EMPTY)
+def test_home_sc_uses_sitewide_7d_summary_position(_mock_top50):
     """Top-query snapshot yerine CollectorRun date×device özeti kullanılır."""
     db = MagicMock()
     summary = {
@@ -23,6 +36,7 @@ def test_home_sc_uses_sitewide_7d_summary_position():
     assert desktop["pos_prev_fmt"] == "7.1"
     assert round(desktop["pos_delta"], 2) == 0.2
     assert desktop["clicks_last_fmt"] == "197K"
+    assert desktop["top50_has_data"] is False
 
     mobile = _home_sc_device_aggregate(db, 1, "MOBILE", summary_payload=summary)
     assert mobile["pos_last_fmt"] == "5.3"
@@ -59,7 +73,8 @@ def test_home_sc_trend_series_device_key_case_insensitive():
     assert series == [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]
 
 
-def test_home_sc_aggregate_includes_spark_paths():
+@patch("backend.main._home_sc_top50_device_position", return_value=_TOP50_EMPTY)
+def test_home_sc_aggregate_includes_spark_paths(_mock_top50):
     db = MagicMock()
     dates = [f"2026-07-{d:02d}" for d in range(22, 29)]
     summary = {
@@ -85,3 +100,26 @@ def test_home_sc_aggregate_includes_spark_paths():
     assert agg["pos_spark"]["has_points"] is True
     assert agg["clicks_tone"] == "up"
     assert agg["pos_tone"] == "up"  # 5.5 → 5.0 = iyileşme
+
+
+@patch("backend.services.warehouse.get_latest_search_console_rows")
+def test_home_sc_top50_weighted_position(mock_rows):
+    def _rows(db, *, site_id, data_scope="current_28d"):
+        if data_scope == "current_7d":
+            return [
+                {"query": "a", "device": "MOBILE", "clicks": 100, "impressions": 1000, "position": 4.0},
+                {"query": "b", "device": "MOBILE", "clicks": 50, "impressions": 500, "position": 6.0},
+                {"query": "c", "device": "DESKTOP", "clicks": 999, "impressions": 999, "position": 1.0},
+            ]
+        return [
+            {"query": "a", "device": "MOBILE", "clicks": 80, "impressions": 1000, "position": 5.0},
+            {"query": "b", "device": "MOBILE", "clicks": 40, "impressions": 500, "position": 7.0},
+        ]
+
+    mock_rows.side_effect = _rows
+    out = _home_sc_top50_device_position(MagicMock(), 1, "MOBILE")
+    # (4*1000 + 6*500) / 1500 = 4.666… → 4.67; prev (5*1000+7*500)/1500 = 5.666… → 5.67
+    assert out["top50_has_data"] is True
+    assert out["top50_pos_last_fmt"] == "4.67"
+    assert out["top50_pos_prev_fmt"] == "5.67"
+    assert out["top50_pos_tone"] == "up"

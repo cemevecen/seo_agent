@@ -120,6 +120,58 @@
   html.midnight .home-sc-spark-empty {
     background: rgb(39 39 42);
   }
+  .home-sc-pos-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+  .home-sc-pos-main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .home-sc-top50 {
+    flex: 0 0 auto;
+    align-self: center;
+    max-width: 5.5rem;
+    border-radius: 0.5rem;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(241 245 249);
+    text-align: right;
+    line-height: 1.2;
+  }
+  html.dark .home-sc-top50 {
+    border-color: rgb(71 85 105 / 0.85);
+    background: rgb(15 23 42 / 0.55);
+  }
+  html.midnight .home-sc-top50 {
+    border-color: rgb(63 63 70);
+    background: rgb(9 9 11);
+  }
+  .home-sc-top50-label {
+    margin: 0;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+  }
+  html.dark .home-sc-top50-label,
+  html.midnight .home-sc-top50-label {
+    color: rgb(148 163 184);
+  }
+  .home-sc-top50-vals {
+    margin: 0.15rem 0 0;
+    font-size: 0.62rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgb(71 85 105);
+    white-space: nowrap;
+  }
+  html.dark .home-sc-top50-vals,
+  html.midnight .home-sc-top50-vals {
+    color: rgb(203 213 225);
+  }
 </style>
 
 <div class="home-readable flex items-center justify-between gap-3">
@@ -162,17 +214,25 @@
     <div class="home-sc-spark-grid">
       {% for dev in site.devices %}
         {% set _ptone = dev.pos_tone | default('flat') %}
-        <div class="home-sc-spark-cell is-pos">
-          <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
-          {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
-            <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-              <path class="home-sc-spark-line is-{{ _ptone }}" d="{{ dev.pos_spark.path_d }}"></path>
-            </svg>
-          {% else %}
-            <div class="home-sc-spark-empty" aria-hidden="true"></div>
+        <div class="home-sc-spark-cell is-pos home-sc-pos-row">
+          <div class="home-sc-pos-main">
+            <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+            {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
+              <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-sc-spark-line is-{{ _ptone }}" d="{{ dev.pos_spark.path_d }}"></path>
+              </svg>
+            {% else %}
+              <div class="home-sc-spark-empty" aria-hidden="true"></div>
+            {% endif %}
+            <p class="home-kpi mt-1 {% if _ptone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ptone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.pos_delta_fmt }}</p>
+            <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
+          </div>
+          {% if dev.top50_has_data %}
+          <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">
+            <p class="home-sc-top50-label">top 50</p>
+            <p class="home-sc-top50-vals">{{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}</p>
+          </div>
           {% endif %}
-          <p class="home-kpi mt-1 {% if _ptone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ptone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.pos_delta_fmt }}</p>
-          <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
         </div>
       {% endfor %}
     </div>

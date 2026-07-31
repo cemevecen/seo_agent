@@ -8972,6 +8972,98 @@ def api_home_ga4_sessions(request: Request, site: str | None = None):
     )
 
 
+def _home_sc_top50_device_position(db, site_id: int, device: str) -> dict:
+    """Cihaz bazında en çok tıklanan 50 sorgunun gösterim-ağırlıklı ort. pozisyonu (7g vs önceki 7g)."""
+    empty = {
+        "top50_pos_last_fmt": "—",
+        "top50_pos_prev_fmt": "—",
+        "top50_pos_delta": 0.0,
+        "top50_pos_tone": "flat",
+        "top50_has_data": False,
+    }
+    try:
+        from backend.services.alert_engine import is_adult_position_query
+        from backend.services.warehouse import get_latest_search_console_rows
+
+        device_u = str(device or "").upper().strip()
+        current_rows = [
+            row
+            for row in get_latest_search_console_rows(db, site_id=site_id, data_scope="current_7d")
+            if str(row.get("device") or "").upper().strip() == device_u
+        ]
+        previous_rows = [
+            row
+            for row in get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_7d")
+            if str(row.get("device") or "").upper().strip() == device_u
+        ]
+        if not current_rows or not previous_rows:
+            return empty
+
+        prev_by_q: dict[str, dict] = {}
+        for row in previous_rows:
+            q = str(row.get("query") or "").strip()
+            if q:
+                prev_by_q[q.lower()] = row
+
+        candidates: list[tuple[float, str, dict, dict]] = []
+        for row in current_rows:
+            q = str(row.get("query") or "").strip()
+            if not q or is_adult_position_query(q):
+                continue
+            prev = prev_by_q.get(q.lower())
+            if not prev:
+                continue
+            clicks = float(row.get("clicks") or 0.0)
+            prev_clicks = float(prev.get("clicks") or 0.0)
+            weight = max(clicks, prev_clicks)
+            if weight <= 0:
+                continue
+            candidates.append((weight, q.lower(), row, prev))
+
+        if not candidates:
+            return empty
+
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        top = candidates[:50]
+
+        def _weighted(rows: list[dict]) -> float | None:
+            w_sum = 0.0
+            i_sum = 0.0
+            for r in rows:
+                impr = float(r.get("impressions") or 0.0)
+                pos = float(r.get("position") or 0.0)
+                if impr <= 0 or pos <= 0:
+                    continue
+                w_sum += pos * impr
+                i_sum += impr
+            if i_sum <= 0:
+                return None
+            return w_sum / i_sum
+
+        c_pos = _weighted([item[2] for item in top])
+        p_pos = _weighted([item[3] for item in top])
+        if c_pos is None or p_pos is None:
+            return empty
+
+        pos_diff = _sc_position_delta(c_pos, p_pos)
+        if pos_diff > 0:
+            tone = "up"
+        elif pos_diff < 0:
+            tone = "down"
+        else:
+            tone = "flat"
+        return {
+            "top50_pos_last_fmt": _format_max_two_decimals(c_pos),
+            "top50_pos_prev_fmt": _format_max_two_decimals(p_pos),
+            "top50_pos_delta": pos_diff,
+            "top50_pos_tone": tone,
+            "top50_has_data": True,
+        }
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Home SC top50 position failed site=%s device=%s", site_id, device)
+        return empty
+
+
 def _home_sc_device_aggregate(
     db,
     site_id: int,
@@ -9057,6 +9149,7 @@ def _home_sc_device_aggregate(
         height=28,
         pad=2,
     )
+    top50 = _home_sc_top50_device_position(db, site_id, device)
     return {
         "clicks_last_fmt": _home_format_int(c_clicks),
         "clicks_prev_fmt": _home_format_int(p_clicks),
@@ -9070,6 +9163,7 @@ def _home_sc_device_aggregate(
         "pos_delta": pos_diff,
         "pos_tone": pos_tone,
         "pos_spark": pos_spark,
+        **top50,
     }
 
 
