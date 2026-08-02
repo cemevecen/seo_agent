@@ -383,6 +383,20 @@
   .dn-period-delta-up { color: #059669; font-weight: 800; }
   .dn-period-delta-down { color: #dc2626; font-weight: 800; }
   .dn-period-delta-flat { color: #64748b; font-weight: 700; }
+  .dn-flow-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: stretch;
+  }
+  @media (min-width: 1024px) {
+    .dn-flow-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .dn-flow-grid > .dn-span-2 {
+      grid-column: 1 / -1;
+    }
+  }
 </style>
 
 <div class="dn-page">
@@ -454,8 +468,8 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-      <div class="dn-card lg:col-span-2">
+    <div class="dn-flow-grid">
+      <div class="dn-card dn-span-2">
         <div class="dn-card-head"><div><h3>Günlük içerik sayısı</h3></div></div>
         <div id="dn-chart-day" class="dn-chart" style="min-height:300px"></div>
       </div>
@@ -475,18 +489,15 @@
         <div class="dn-card-head"><div><h3>Özgün vs kaynaklı (kategori)</h3></div></div>
         <div id="dn-chart-own" class="dn-chart"></div>
       </div>
-    </div>
-
-    <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
       <div id="dn-card-week-summary" class="dn-card">
         <div class="dn-card-head"><div><h3>Haftalık özet</h3></div></div>
         <div id="dn-table-week"></div>
       </div>
-      <div class="dn-card">
+      <div id="dn-card-top-days" class="dn-card">
         <div class="dn-card-head"><div><h3>Günlük adetler</h3></div></div>
         <div id="dn-table-top-days"></div>
       </div>
-      <div class="dn-card dn-card--fill lg:col-span-2">
+      <div id="dn-card-own-cat" class="dn-card dn-card--fill dn-span-2">
         <div class="dn-card-head"><div><h3>Özgün içerik — kategori</h3></div></div>
         <div id="dn-own-bars" class="dn-own-wrap" aria-label="Özgün içerik kategori dağılımı"></div>
       </div>
@@ -1180,6 +1191,9 @@
       var el = $(id);
       if (el) el.classList.toggle("hidden", hide);
     });
+    // Kısa dönemlerde kalan kartlar 2 sütunda yan yana aksın; özgün kategori alta tam genişlik
+    var ownCat = $("dn-card-own-cat");
+    if (ownCat) ownCat.classList.add("dn-span-2");
     return hide;
   }
 
