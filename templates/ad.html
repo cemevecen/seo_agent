@@ -11915,8 +11915,19 @@
         var url = "/api/mz-analytics/revenue-targets";
         if (force) url += (url.indexOf("?") >= 0 ? "&" : "?") + "force=1";
         var r = await fetch(url, { credentials: "same-origin" });
-        if (!r.ok) throw new Error("Hedef tablosu yüklenemedi (" + r.status + ")");
+        if (!r.ok) {
+          var detail = "";
+          try {
+            var body = await r.json();
+            detail = (body && (body.detail || body.message)) || "";
+          } catch (_) { /* ignore */ }
+          throw new Error(detail || ("Hedef tablosu yüklenemedi (" + r.status + ")"));
+        }
         mzTargetsCache = await r.json();
+        if (mzTargetsCache && mzTargetsCache.source_url) {
+          var src = document.getElementById("mz-targets-source-link");
+          if (src) src.setAttribute("href", mzTargetsCache.source_url);
+        }
       }
       mzTargetsPopulateYears(mzTargetsCache.years);
       if (loading) loading.classList.add("hidden");

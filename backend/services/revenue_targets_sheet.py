@@ -14,11 +14,16 @@ from backend.services.market_sheets_sync import _norm_header, _parse_tr_number
 
 logger = logging.getLogger(__name__)
 
+# Herkese açık yedek (şu an okunabilen).
 REVENUE_TARGETS_SHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit#gid=0"
+)
+# Güncel tablo — «Bağlantısı olan herkes → Görüntüleyici» olunca buradan okunur.
+REVENUE_TARGETS_SHEET_URL_PENDING = (
     "https://docs.google.com/spreadsheets/d/11IWNTk3mjjX0N-4LO03wyeSPkLoW4jagc2Prcs9ifcY/edit?gid=0#gid=0"
 )
 
-_CACHE: tuple[float, list[dict[str, Any]]] | None = None
+_CACHE: dict[str, Any] | None = None
 _CACHE_TTL_SEC = 900.0
 
 _TR_MONTHS: dict[str, int] = {
@@ -160,14 +165,40 @@ def parse_revenue_targets_csv(csv_text: str) -> list[dict[str, Any]]:
     return out
 
 
+def _cache_rows() -> list[dict[str, Any]] | None:
+    if not _CACHE:
+        return None
+    if (time.monotonic() - float(_CACHE.get("ts") or 0)) >= _CACHE_TTL_SEC:
+        return None
+    rows = _CACHE.get("rows")
+    return rows if isinstance(rows, list) else None
+
+
 def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
     global _CACHE
-    if not force and _CACHE and (time.monotonic() - _CACHE[0]) < _CACHE_TTL_SEC:
-        return _CACHE[1]
+    if not force:
+        cached = _cache_rows()
+        if cached is not None:
+            return cached
 
-    csv_text = fetch_public_sheet_csv(REVENUE_TARGETS_SHEET_URL)
+    # Önce güncel sheet; kapalıysa (401) herkese açık yedek tabloya düş.
+    urls = [REVENUE_TARGETS_SHEET_URL_PENDING, REVENUE_TARGETS_SHEET_URL]
+    last_err: Exception | None = None
+    csv_text = ""
+    used_url = REVENUE_TARGETS_SHEET_URL
+    for url in urls:
+        try:
+            csv_text = fetch_public_sheet_csv(url)
+            used_url = url
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+            logger.warning("revenue targets sheet fetch failed url=%s: %s", url, exc)
+    else:
+        raise ValueError(str(last_err) if last_err else "Sheet okunamadı") from last_err
+
     rows = parse_revenue_targets_csv(csv_text)
-    _CACHE = (time.monotonic(), rows)
+    _CACHE = {"ts": time.monotonic(), "rows": rows, "source_url": used_url}
     return rows
 
 
@@ -178,6 +209,9 @@ def revenue_targets_payload(
     force: bool = False,
 ) -> dict[str, Any]:
     all_rows = fetch_revenue_targets_rows(force=force)
+    source_url = REVENUE_TARGETS_SHEET_URL
+    if _CACHE and _CACHE.get("source_url"):
+        source_url = str(_CACHE["source_url"])
     rows = all_rows
     pk = (project or "").strip().lower()
     if pk in ("doviz", "sinemalar"):
@@ -187,7 +221,7 @@ def revenue_targets_payload(
 
     years = sorted({int(r["year"]) for r in all_rows if r.get("year")})
     return {
-        "source_url": REVENUE_TARGETS_SHEET_URL,
+        "source_url": source_url,
         "rows": rows,
         "years": years,
         "projects": [

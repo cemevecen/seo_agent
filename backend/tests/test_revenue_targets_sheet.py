@@ -47,3 +47,25 @@ def test_revenue_targets_payload_filter(monkeypatch):
     assert len(y2023) == 4
     revenue_targets_payload(force=True)
     assert calls[-1] is True
+
+
+def test_fetch_falls_back_when_pending_sheet_private(monkeypatch):
+    from backend.services import revenue_targets_sheet as mod
+
+    calls: list[str] = []
+
+    def _fake_fetch(url: str, **_kwargs):
+        calls.append(url)
+        if "11IWNTk3" in url:
+            raise ValueError("Sayfa erişilemedi (HTTP 401)")
+        return SAMPLE_CSV
+
+    monkeypatch.setattr(mod, "fetch_public_sheet_csv", _fake_fetch)
+    monkeypatch.setattr(mod, "_CACHE", None)
+    rows = mod.fetch_revenue_targets_rows(force=True)
+    assert len(rows) == 4
+    assert any("11IWNTk3" in u for u in calls)
+    assert any("1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA" in u for u in calls)
+    assert mod._CACHE and "1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA" in str(
+        mod._CACHE.get("source_url")
+    )
