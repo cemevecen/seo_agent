@@ -416,9 +416,13 @@
     <div id="dn-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
 
     <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-      <div id="dn-card-cat" class="dn-card dn-card--fill">
+      <div id="dn-card-cat" class="dn-card dn-card--fill lg:col-span-2">
         <div class="dn-card-head"><div><h3>Kategori dağılımı</h3></div></div>
         <div id="dn-chart-cat" class="dn-hbar-list dn-hbar-list--fill" aria-label="Kategori bar listesi"></div>
+      </div>
+      <div id="dn-card-sources" class="dn-card dn-card--fill">
+        <div class="dn-card-head"><div><h3>Kaynaklar (en çok kullanılan)</h3></div></div>
+        <div id="dn-table-sources" class="dn-table-host--fill"></div>
       </div>
       <div id="dn-card-keywords" class="dn-card dn-card--fill">
         <div class="dn-card-head"><div><h3>Top başlık kelimeleri</h3></div></div>
@@ -427,14 +431,6 @@
     </div>
 
     <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-      <div class="dn-card dn-card--fill">
-        <div class="dn-card-head"><div><h3>Kaynaklar (en çok kullanılan)</h3></div></div>
-        <div id="dn-chart-source" class="dn-hbar-list" aria-label="Kaynak bar listesi"></div>
-      </div>
-      <div class="dn-card dn-card--fill">
-        <div class="dn-card-head"><div><h3>Kaynak konsantrasyonu</h3></div></div>
-        <div id="dn-table-source-conc" class="dn-table-host--fill"></div>
-      </div>
       <div class="dn-card lg:col-span-2">
         <div class="dn-card-head"><div><h3>Günlük içerik sayısı</h3></div></div>
         <div id="dn-chart-day" class="dn-chart" style="min-height:300px"></div>
@@ -466,13 +462,9 @@
         <div class="dn-card-head"><div><h3>Günlük adetler</h3></div></div>
         <div id="dn-table-top-days"></div>
       </div>
-      <div class="dn-card dn-card--fill">
+      <div class="dn-card dn-card--fill lg:col-span-2">
         <div class="dn-card-head"><div><h3>Özgün içerik — kategori</h3></div></div>
         <div id="dn-own-bars" class="dn-own-wrap" aria-label="Özgün içerik kategori dağılımı"></div>
-      </div>
-      <div class="dn-card dn-card--fill">
-        <div class="dn-card-head"><div><h3>Top kelime tablosu</h3></div></div>
-        <div id="dn-table-keywords" class="dn-table-host--fill"></div>
       </div>
     </div>
 
@@ -1053,25 +1045,53 @@
     }).join("");
   }
 
-  function renderSourceBars(list) {
-    renderHBarList("dn-chart-source", (list || []).slice(0, 16), {
-      nameKey: "source",
-      countKey: "count",
-      shareKey: "share_pct",
-      empty: "Kaynak yok"
+  function renderSourceTable(data) {
+    var list = data.by_source || [];
+    var maxShare = Math.max.apply(null, list.map(function (s) { return s.share_pct || 0 }).concat([1]));
+    mountInteractiveTable("dn-table-sources", {
+      rows: list,
+      limit: 15,
+      expandable: true,
+      defaultSort: "count",
+      defaultDir: "desc",
+      searchable: true,
+      searchPlaceholder: "Kaynak ara…",
+      searchKeys: ["source"],
+      empty: "Kaynak yok",
+      columns: [
+        {
+          key: "source", label: "Kaynak",
+          render: function (r, i) {
+            return '<span class="dn-rank">' + (i + 1) + "</span>" + esc(r.source);
+          }
+        },
+        { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } },
+        {
+          key: "share_pct", label: "Pay %", num: true,
+          render: function (r) {
+            var w = Math.max(4, Math.round((r.share_pct / maxShare) * 100));
+            return '<div class="dn-barcell"><div class="dn-bartrack"><div class="dn-barfill" style="width:' + w + '%"></div></div>' +
+              "<span>" + fmt(r.share_pct, 1) + "%</span></div>";
+          }
+        },
+        {
+          key: "spark_total", label: "Trend (7g)", className: "spark",
+          render: function (r) { return sparkSvg(r.spark_7d, r.spark_days || data.spark_days); }
+        }
+      ]
     });
   }
 
   function syncPairCardHeights() {
-    var cat = $("dn-card-cat");
+    var src = $("dn-card-sources");
     var kw = $("dn-card-keywords");
-    if (!cat || !kw || cat.classList.contains("hidden")) return;
-    cat.style.minHeight = "";
+    if (!src || !kw) return;
+    src.style.minHeight = "";
     kw.style.minHeight = "";
     if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
-    var h = Math.max(cat.offsetHeight, kw.offsetHeight);
+    var h = Math.max(src.offsetHeight, kw.offsetHeight);
     if (h > 0) {
-      cat.style.minHeight = h + "px";
+      src.style.minHeight = h + "px";
       kw.style.minHeight = h + "px";
     }
   }
@@ -1107,7 +1127,6 @@
       empty: "Kelime yok"
     });
 
-    renderSourceBars(data.by_source || []);
     requestAnimationFrame(syncPairCardHeights);
 
     var days = data.by_day || [];
@@ -1162,38 +1181,7 @@
   }
 
   function renderTables(data) {
-    var maxShare = Math.max.apply(null, (data.by_source || []).map(function (s) { return s.share_pct || 0 }).concat([1]));
-
-    mountInteractiveTable("dn-table-source-conc", {
-      rows: data.by_source || [],
-      limit: 10,
-      expandable: true,
-      defaultSort: "count",
-      defaultDir: "desc",
-      searchPlaceholder: "Kaynak ara…",
-      searchKeys: ["source"],
-      columns: [
-        {
-          key: "source", label: "Kaynak",
-          render: function (r, i) {
-            return '<span class="dn-rank">' + (i + 1) + "</span>" + esc(r.source);
-          }
-        },
-        { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } },
-        {
-          key: "share_pct", label: "Pay %", num: true,
-          render: function (r) {
-            var w = Math.max(4, Math.round((r.share_pct / maxShare) * 100));
-            return '<div class="dn-barcell"><div class="dn-bartrack"><div class="dn-barfill" style="width:' + w + '%"></div></div>' +
-              "<span>" + fmt(r.share_pct, 1) + "%</span></div>";
-          }
-        },
-        {
-          key: "spark_total", label: "Trend (7g)", className: "spark",
-          render: function (r) { return sparkSvg(r.spark_7d, r.spark_days || data.spark_days); }
-        }
-      ]
-    });
+    renderSourceTable(data);
 
     mountInteractiveTable("dn-table-week", {
       rows: (data.by_week || []).slice().reverse(),
@@ -1244,21 +1232,6 @@
     });
 
     renderOwnByCategory(data.own_by_category || []);
-
-    mountInteractiveTable("dn-table-keywords", {
-      rows: data.top_keywords || [],
-      defaultSort: "count",
-      defaultDir: "desc",
-      searchPlaceholder: "Kelime ara…",
-      columns: [
-        {
-          key: "word", label: "Kelime",
-          render: function (r, i) { return '<span class="dn-rank">' + (i + 1) + "</span>" + esc(r.word); }
-        },
-        { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } },
-        { key: "share_pct", label: "Pay %", num: true, render: function (r) { return fmt(r.share_pct, 2) + "%"; } }
-      ]
-    });
 
     var itemsMeta = $("dn-items-meta");
     if (itemsMeta) {
@@ -1339,6 +1312,7 @@
     renderKpis(data.summary || {}, data);
     renderCharts(data);
     renderTables(data);
+    requestAnimationFrame(syncPairCardHeights);
     var meta = $("dn-meta");
     if (meta) {
       var s = data.summary || {};
