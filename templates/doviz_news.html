@@ -826,6 +826,7 @@
     var el = $("dn-period-tabs");
     if (!el) return;
     var list = tabs && tabs.length ? tabs : [
+      { key: "all", label: "Tümü" },
       { key: "yesterday", label: "Dün" },
       { key: "last_7d", label: "Son 1 hafta" },
       { key: "prev_week", label: "Geçen hafta" },
@@ -839,7 +840,7 @@
     }).join("");
     el.querySelectorAll(".dn-tab").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        state.period = btn.getAttribute("data-period") || "last_7d";
+        state.period = btn.getAttribute("data-period") || "all";
         state.tables = {};
         load(false);
       });
@@ -856,6 +857,20 @@
     if (cmpEl) {
       if (meta.current_count == null) {
         cmpEl.innerHTML = "";
+        return;
+      }
+      if (meta.key === "all") {
+        var rvpDelta = meta.delta;
+        var rvpCls = "dn-period-delta-flat";
+        var rvpTxt = "0";
+        if (rvpDelta > 0) { rvpCls = "dn-period-delta-up"; rvpTxt = "+" + fmt(rvpDelta); }
+        else if (rvpDelta < 0) { rvpCls = "dn-period-delta-down"; rvpTxt = fmt(rvpDelta); }
+        var rvpPct = meta.delta_pct == null
+          ? ""
+          : " (" + (meta.delta_pct > 0 ? "+" : "") + fmt(meta.delta_pct, 1) + "%)";
+        cmpEl.innerHTML =
+          '<span><span class="dn-period-cmp-val">' + fmt(meta.current_count) + "</span> içerik</span>" +
+          '<span>Son 7 vs önceki: <span class="' + rvpCls + '">' + rvpTxt + rvpPct + "</span></span>";
         return;
       }
       var delta = meta.delta;

@@ -18,7 +18,7 @@ def get_doviz_news_report(
     category: str | None = Query(None, description="Kategori filtresi (boş = tümü)"),
     period: str | None = Query(
         "last_7d",
-        description="Dönem: yesterday | last_7d | prev_week | this_month | last_month",
+        description="Dönem: all | yesterday | last_7d | prev_week | this_month | last_month",
     ),
     force: bool = Query(False, description="Google Sheet önbelleğini atla ve yeniden çek"),
     items_limit: int = Query(80, ge=1, le=500),

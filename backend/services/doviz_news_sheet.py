@@ -31,6 +31,7 @@ _CACHE_TTL_SEC = 900.0
 _TZ_TR = ZoneInfo("Europe/Istanbul") if ZoneInfo else None
 
 PERIOD_TABS = (
+    {"key": "all", "label": "Tümü"},
     {"key": "yesterday", "label": "Dün"},
     {"key": "last_7d", "label": "Son 1 hafta"},
     {"key": "prev_week", "label": "Geçen hafta"},
@@ -339,6 +340,9 @@ def resolve_period(period: str | None, *, today: date | None = None) -> dict[str
     today = today or _today_tr()
     key = (period or "").strip().lower().replace("-", "_").replace(" ", "_")
     aliases = {
+        "tumu": "all",
+        "tümü": "all",
+        "hepsi": "all",
         "dun": "yesterday",
         "dün": "yesterday",
         "son_1_hafta": "last_7d",
@@ -353,6 +357,20 @@ def resolve_period(period: str | None, *, today: date | None = None) -> dict[str
     key = aliases.get(key, key)
     if key not in _PERIOD_KEYS:
         key = "last_7d"
+
+    if key == "all":
+        return {
+            "key": "all",
+            "label": "Tümü",
+            "start": None,
+            "end": None,
+            "cmp_start": None,
+            "cmp_end": None,
+            "cmp_label": "Önceki 7 gün",
+            "kpi_label": "Son 7 vs önceki",
+            "range_label": "Tüm veri",
+            "cmp_range_label": None,
+        }
 
     if key == "yesterday":
         start = end = today - timedelta(days=1)
@@ -659,9 +677,70 @@ def doviz_news_payload(
     period_info = resolve_period(period)
     cat_rows = _filter_rows(all_rows, category)
     rows = _filter_by_date_range(cat_rows, period_info["start"], period_info["end"])
-    cmp_rows = _filter_by_date_range(cat_rows, period_info["cmp_start"], period_info["cmp_end"])
     analytics = _build_analytics(rows)
-    analytics["summary"]["recent_vs_prev"] = _period_comparison(len(rows), len(cmp_rows), period_info)
+
+    if period_info["key"] == "all":
+        rvp = analytics["summary"].get("recent_vs_prev") or {}
+        cmp_rows_n = int(rvp.get("prev_7d") or 0)
+        current_for_cmp = int(rvp.get("recent_7d") or 0)
+        # Enrich KPI labels for all-time view (still last-7 vs prev-7 inside data)
+        rvp = {
+            **rvp,
+            "recent": current_for_cmp,
+            "prev": cmp_rows_n,
+            "label": period_info["label"],
+            "cmp_label": period_info["cmp_label"],
+            "kpi_label": period_info["kpi_label"],
+            "range_label": period_info["range_label"],
+        }
+        analytics["summary"]["recent_vs_prev"] = rvp
+        date_min = analytics["summary"].get("date_min")
+        date_max = analytics["summary"].get("date_max")
+        range_label = (
+            f"{date_min} → {date_max}" if date_min and date_max else "Tüm veri"
+        )
+        period_meta = {
+            "key": "all",
+            "label": "Tümü",
+            "start": date_min,
+            "end": date_max,
+            "cmp_start": None,
+            "cmp_end": None,
+            "cmp_label": period_info["cmp_label"],
+            "kpi_label": period_info["kpi_label"],
+            "range_label": range_label,
+            "cmp_range_label": None,
+            "current_count": len(rows),
+            "previous_count": cmp_rows_n,
+            "delta": current_for_cmp - cmp_rows_n,
+            "delta_pct": rvp.get("delta_pct"),
+            "cmp_note": "Son 7 vs önceki 7",
+        }
+    else:
+        cmp_rows = _filter_by_date_range(
+            cat_rows, period_info["cmp_start"], period_info["cmp_end"]
+        )
+        analytics["summary"]["recent_vs_prev"] = _period_comparison(
+            len(rows), len(cmp_rows), period_info
+        )
+        period_meta = {
+            "key": period_info["key"],
+            "label": period_info["label"],
+            "start": period_info["start"].isoformat() if period_info["start"] else None,
+            "end": period_info["end"].isoformat() if period_info["end"] else None,
+            "cmp_start": period_info["cmp_start"].isoformat() if period_info["cmp_start"] else None,
+            "cmp_end": period_info["cmp_end"].isoformat() if period_info["cmp_end"] else None,
+            "cmp_label": period_info["cmp_label"],
+            "kpi_label": period_info["kpi_label"],
+            "range_label": period_info["range_label"],
+            "cmp_range_label": period_info["cmp_range_label"],
+            "current_count": len(rows),
+            "previous_count": len(cmp_rows),
+            "delta": len(rows) - len(cmp_rows),
+            "delta_pct": (
+                round(100.0 * (len(rows) - len(cmp_rows)) / len(cmp_rows), 1) if cmp_rows else None
+            ),
+        }
 
     tab_source = _filter_by_date_range(all_rows, period_info["start"], period_info["end"])
     all_cats = Counter(str(r.get("category") or "Diğer") for r in tab_source)
@@ -692,24 +771,7 @@ def doviz_news_payload(
         "fetched_at": fetched_at,
         "category": (category or "all"),
         "period": period_info["key"],
-        "period_meta": {
-            "key": period_info["key"],
-            "label": period_info["label"],
-            "start": period_info["start"].isoformat(),
-            "end": period_info["end"].isoformat(),
-            "cmp_start": period_info["cmp_start"].isoformat(),
-            "cmp_end": period_info["cmp_end"].isoformat(),
-            "cmp_label": period_info["cmp_label"],
-            "kpi_label": period_info["kpi_label"],
-            "range_label": period_info["range_label"],
-            "cmp_range_label": period_info["cmp_range_label"],
-            "current_count": len(rows),
-            "previous_count": len(cmp_rows),
-            "delta": len(rows) - len(cmp_rows),
-            "delta_pct": (
-                round(100.0 * (len(rows) - len(cmp_rows)) / len(cmp_rows), 1) if cmp_rows else None
-            ),
-        },
+        "period_meta": period_meta,
         "period_tabs": list(PERIOD_TABS),
         "category_tabs": category_tabs,
         "items_total": len(rows),
