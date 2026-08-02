@@ -773,7 +773,7 @@
   </div>
 
   <p id="dn-error" class="mb-4 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
-  <p id="dn-loading" class="mb-4 text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
+  <p id="dn-loading" class="mb-4 hidden text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
 
   <div class="dn-card dn-period-card">
     <div class="dn-card-head">
@@ -953,6 +953,8 @@
     progressPct: 0,
     progressLabel: ""
   };
+
+  function $(id) { return document.getElementById(id); }
 
   function reportUrl(opts) {
     opts = opts || {};
@@ -2205,11 +2207,13 @@
     if (state.loading || state.trafficLoading) return;
     opts = opts || {};
     state.loading = true;
+    var loading = $("dn-loading");
     var err = $("dn-error");
     var body = $("dn-body");
     var btn = $("dn-refresh");
     var ok = false;
     startLoadProgress(opts.reason || (force ? "Güncelleniyor" : "Yükleniyor"));
+    if (loading) loading.classList.remove("hidden");
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     if (btn) btn.disabled = true;
     syncTrafficButton();
@@ -2225,12 +2229,14 @@
       }
       var data = await r.json();
       paintProgress(96, (opts.reason || "Yükleniyor") + " · render", { indeterminate: false });
+      if (loading) loading.classList.add("hidden");
       if (body) body.classList.remove("hidden");
       // Dönem/kategori değişiminde trafik sıfırlanır
       if (!opts.keepTraffic) resetTrafficUi();
       renderAll(data);
       ok = true;
     } catch (e) {
+      if (loading) loading.classList.add("hidden");
       if (err) {
         err.textContent = (e && e.message) || "Yükleme hatası";
         err.classList.remove("hidden");
