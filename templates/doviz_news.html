@@ -444,7 +444,7 @@
         <div class="dn-card-head"><div><h3>Günlük içerik sayısı</h3></div></div>
         <div id="dn-chart-day" class="dn-chart" style="min-height:300px"></div>
       </div>
-      <div class="dn-card">
+      <div id="dn-card-week-trend" class="dn-card">
         <div class="dn-card-head"><div><h3>Haftalık trend (artış / düşüş)</h3></div></div>
         <div id="dn-chart-week" class="dn-chart"></div>
       </div>
@@ -463,7 +463,7 @@
     </div>
 
     <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-      <div class="dn-card">
+      <div id="dn-card-week-summary" class="dn-card">
         <div class="dn-card-head"><div><h3>Haftalık özet</h3></div></div>
         <div id="dn-table-week"></div>
       </div>
@@ -1158,8 +1158,19 @@
     }
   }
 
+  function hideWeeklyChartsForPeriod(period) {
+    var hide = period === "yesterday" || period === "last_7d" || period === "prev_week";
+    ["dn-card-week-trend", "dn-card-week-summary"].forEach(function (id) {
+      var el = $(id);
+      if (el) el.classList.toggle("hidden", hide);
+    });
+    return hide;
+  }
+
   function renderCharts(data) {
     if (typeof Plotly === "undefined") return;
+    var period = data.period || state.period || "last_7d";
+    var hideWeekly = hideWeeklyChartsForPeriod(period);
     var showCat = !state.category || state.category === "all";
     var catCard = $("dn-card-cat");
     if (catCard) catCard.classList.toggle("hidden", !showCat);
@@ -1201,21 +1212,23 @@
       hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
     }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
 
-    var weeks = data.by_week || [];
-    Plotly.newPlot("dn-chart-week", [{
-      type: "bar",
-      x: weeks.map(function (w) { return w.range || w.week; }),
-      y: weeks.map(function (w) { return w.count; }),
-      customdata: weeks.map(function (w) { return w.week; }),
-      marker: {
-        color: weeks.map(function (w) {
-          if (w.trend === "up") return "#10b981";
-          if (w.trend === "down") return "#f43f5e";
-          return "#94a3b8";
-        })
-      },
-      hovertemplate: "%{customdata}<br>%{x}<br>%{y} içerik<extra></extra>"
-    }], plotLayout({ margin: { t: 8, r: 16, b: 72, l: 40 }, xaxis: { tickangle: -40 } }), plotCfg());
+    if (!hideWeekly) {
+      var weeks = data.by_week || [];
+      Plotly.newPlot("dn-chart-week", [{
+        type: "bar",
+        x: weeks.map(function (w) { return w.range || w.week; }),
+        y: weeks.map(function (w) { return w.count; }),
+        customdata: weeks.map(function (w) { return w.week; }),
+        marker: {
+          color: weeks.map(function (w) {
+            if (w.trend === "up") return "#10b981";
+            if (w.trend === "down") return "#f43f5e";
+            return "#94a3b8";
+          })
+        },
+        hovertemplate: "%{customdata}<br>%{x}<br>%{y} içerik<extra></extra>"
+      }], plotLayout({ margin: { t: 8, r: 16, b: 72, l: 40 }, xaxis: { tickangle: -40 } }), plotCfg());
+    }
 
     var hours = data.by_hour || [];
     Plotly.newPlot("dn-chart-hour", [{
@@ -1245,34 +1258,38 @@
   function renderTables(data) {
     renderSourceTable(data);
 
-    mountInteractiveTable("dn-table-week", {
-      rows: (data.by_week || []).slice().reverse(),
-      defaultSort: "week",
-      defaultDir: "desc",
-      searchPlaceholder: "Hafta / tarih ara…",
-      searchKeys: ["week", "range"],
-      columns: [
-        { key: "week", label: "Hafta" },
-        { key: "range", label: "Tarih aralığı" },
-        { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } },
-        {
-          key: "delta", label: "Δ", num: true,
-          render: function (r) {
-            var cls = r.trend === "up" ? "dn-trend-up" : (r.trend === "down" ? "dn-trend-down" : "");
-            var dlt = r.delta == null ? "—" : ((r.delta > 0 ? "+" : "") + fmt(r.delta));
-            return '<span class="' + cls + '">' + dlt + "</span>";
+    var period = data.period || state.period || "last_7d";
+    var hideWeekly = hideWeeklyChartsForPeriod(period);
+    if (!hideWeekly) {
+      mountInteractiveTable("dn-table-week", {
+        rows: (data.by_week || []).slice().reverse(),
+        defaultSort: "week",
+        defaultDir: "desc",
+        searchPlaceholder: "Hafta / tarih ara…",
+        searchKeys: ["week", "range"],
+        columns: [
+          { key: "week", label: "Hafta" },
+          { key: "range", label: "Tarih aralığı" },
+          { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } },
+          {
+            key: "delta", label: "Δ", num: true,
+            render: function (r) {
+              var cls = r.trend === "up" ? "dn-trend-up" : (r.trend === "down" ? "dn-trend-down" : "");
+              var dlt = r.delta == null ? "—" : ((r.delta > 0 ? "+" : "") + fmt(r.delta));
+              return '<span class="' + cls + '">' + dlt + "</span>";
+            }
+          },
+          {
+            key: "delta_pct", label: "Δ %", num: true,
+            render: function (r) {
+              var cls = r.trend === "up" ? "dn-trend-up" : (r.trend === "down" ? "dn-trend-down" : "");
+              var pct = r.delta_pct == null ? "—" : ((r.delta_pct > 0 ? "+" : "") + fmt(r.delta_pct, 1) + "%");
+              return '<span class="' + cls + '">' + pct + "</span>";
+            }
           }
-        },
-        {
-          key: "delta_pct", label: "Δ %", num: true,
-          render: function (r) {
-            var cls = r.trend === "up" ? "dn-trend-up" : (r.trend === "down" ? "dn-trend-down" : "");
-            var pct = r.delta_pct == null ? "—" : ((r.delta_pct > 0 ? "+" : "") + fmt(r.delta_pct, 1) + "%");
-            return '<span class="' + cls + '">' + pct + "</span>";
-          }
-        }
-      ]
-    });
+        ]
+      });
+    }
 
     mountInteractiveTable("dn-table-top-days", {
       rows: (data.by_day || []).map(function (r) {
