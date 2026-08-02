@@ -481,6 +481,20 @@
       .replace(/"/g, "&quot;");
   }
 
+  var TR_WEEKDAYS = ["pazar", "pazartesi", "salı", "çarşamba", "perşembe", "cuma", "cumartesi"];
+  function trWeekday(iso) {
+    var p = String(iso || "").slice(0, 10).split("-");
+    if (p.length !== 3) return "";
+    var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    if (isNaN(d.getTime())) return "";
+    return TR_WEEKDAYS[d.getDay()] || "";
+  }
+  function formatDayWithWeekday(iso) {
+    var day = String(iso || "").slice(0, 10);
+    var w = trWeekday(day);
+    return w ? day + " " + w : (iso || "—");
+  }
+
   function sparkSvg(values, days, opts) {
     opts = opts || {};
     var vals = (values || []).map(Number);
@@ -1050,13 +1064,20 @@
     });
 
     mountInteractiveTable("dn-table-top-days", {
-      rows: data.by_day || [],
+      rows: (data.by_day || []).map(function (r) {
+        return {
+          day: r.day,
+          count: r.count,
+          day_label: formatDayWithWeekday(r.day)
+        };
+      }),
       defaultSort: "count",
       defaultDir: "desc",
       searchable: true,
       searchPlaceholder: "Gün ara…",
+      searchKeys: ["day", "day_label"],
       columns: [
-        { key: "day", label: "Gün" },
+        { key: "day", label: "Gün", render: function (r) { return esc(r.day_label || formatDayWithWeekday(r.day)); } },
         { key: "count", label: "Adet", num: true, render: function (r) { return fmt(r.count); } }
       ]
     });
