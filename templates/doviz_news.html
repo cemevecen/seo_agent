@@ -449,6 +449,42 @@
 
   .dn-period-card { margin-bottom: 1rem; }
   .dn-period-card .dn-card-head { margin-bottom: 0.75rem; }
+  .dn-period-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+  }
+  .dn-traffic-btn {
+    border-radius: 0.65rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #334155;
+    cursor: pointer;
+  }
+  .dn-traffic-btn:hover { border-color: #6366f1; color: #4338ca; }
+  .dn-traffic-btn:disabled { opacity: 0.55; cursor: wait; }
+  .dn-traffic-btn.is-on {
+    border-color: #4f46e5;
+    background: #eef2ff;
+    color: #4338ca;
+  }
+  html.dark .dn-traffic-btn, html.midnight .dn-traffic-btn {
+    border-color: #33333a;
+    background: #16161b;
+    color: #a8a8b3;
+  }
+  html.dark .dn-traffic-btn:hover, html.midnight .dn-traffic-btn:hover {
+    border-color: #4a4d66;
+    color: #c4c6d4;
+  }
+  html.dark .dn-traffic-btn.is-on, html.midnight .dn-traffic-btn.is-on {
+    border-color: #4a4d66;
+    background: #2a2c3a;
+    color: #c4c6d4;
+  }
   .dn-period-cmp {
     display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.75rem;
     font-size: 12px; color: #64748b;
@@ -752,6 +788,11 @@
       <div id="dn-period-progress-fill" class="dn-progress-fill"></div>
     </div>
     <p id="dn-period-progress-label" class="dn-progress-label" aria-live="polite"></p>
+    <div class="dn-period-actions">
+      <button type="button" id="dn-traffic-btn" class="dn-traffic-btn">
+        İlgili içeriklerin trafiğini göster
+      </button>
+    </div>
   </div>
 
   <div id="dn-tabs" class="dn-tabs mb-4" role="tablist" aria-label="Kategoriler"></div>
@@ -904,6 +945,8 @@
     period: "last_7d",
     data: null,
     loading: false,
+    trafficLoading: false,
+    trafficShown: false,
     sourceShowAll: false,
     tables: {},
     progressTimer: null,
@@ -911,7 +954,49 @@
     progressLabel: ""
   };
 
-  function $(id) { return document.getElementById(id); }
+  function reportUrl(opts) {
+    opts = opts || {};
+    var url = "/api/doviz-news/report?items_limit=500&period=" + encodeURIComponent(state.period || "last_7d");
+    if (state.category && state.category !== "all") {
+      url += "&category=" + encodeURIComponent(state.category);
+    }
+    if (opts.force) url += "&force=1";
+    url += "&include_traffic=" + (opts.traffic ? "1" : "0");
+    return url;
+  }
+
+  function resetTrafficUi() {
+    state.trafficShown = false;
+    var block = $("dn-traffic-block");
+    if (block) block.classList.add("hidden");
+    var btn = $("dn-traffic-btn");
+    if (btn) {
+      btn.classList.remove("is-on");
+      btn.disabled = false;
+      btn.textContent = "İlgili içeriklerin trafiğini göster";
+    }
+    if (state.data) {
+      state.data.traffic = null;
+      if (state.data.items) {
+        state.data.items.forEach(function (it) {
+          it.views = it.sessions = it.gsc_clicks = it.gsc_impressions = it.gsc_ctr = it.gsc_position = null;
+        });
+      }
+    }
+  }
+
+  function syncTrafficButton() {
+    var btn = $("dn-traffic-btn");
+    if (!btn) return;
+    btn.disabled = !!(state.loading || state.trafficLoading);
+    if (state.trafficShown) {
+      btn.classList.add("is-on");
+      btn.textContent = "Trafik yüklendi";
+    } else {
+      btn.classList.remove("is-on");
+      btn.textContent = "İlgili içeriklerin trafiğini göster";
+    }
+  }
 
   function setFilterTabsDisabled(disabled) {
     ["dn-period-tabs", "dn-tabs"].forEach(function (id) {
@@ -964,12 +1049,14 @@
     var started = Date.now();
     state.progressTimer = setInterval(function () {
       var elapsed = Date.now() - started;
-      // Asymptotic climb toward ~92% while waiting (trafik GA4 süresi uzun olabilir)
       var target = 92 * (1 - Math.exp(-elapsed / 4200));
       var next = Math.max(state.progressPct, Math.min(92, 8 + target));
-      var stage = elapsed < 1800
-        ? "yayın verisi"
-        : (elapsed < 5000 ? "GA4 trafik" : "GSC + grafik");
+      var stage;
+      if (state.trafficLoading) {
+        stage = elapsed < 2000 ? "GA4" : (elapsed < 5500 ? "GSC" : "özet");
+      } else {
+        stage = elapsed < 1200 ? "sheet" : "grafik";
+      }
       paintProgress(next, label + " · " + stage, { indeterminate: false });
     }, 180);
   }
@@ -1357,11 +1444,12 @@
     }).join("");
     el.querySelectorAll(".dn-tab").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        if (state.loading) return;
+        if (state.loading || state.trafficLoading) return;
         var next = btn.getAttribute("data-period") || "all";
         if (next === state.period) return;
         state.period = next;
         state.tables = {};
+        resetTrafficUi();
         el.querySelectorAll(".dn-tab").forEach(function (b) {
           b.classList.toggle("is-active", b.getAttribute("data-period") === next);
         });
@@ -1428,11 +1516,12 @@
     }).join("");
     el.querySelectorAll(".dn-tab").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        if (state.loading) return;
+        if (state.loading || state.trafficLoading) return;
         var next = btn.getAttribute("data-cat") || "all";
         if (next === state.category) return;
         state.category = next;
         state.tables = {};
+        resetTrafficUi();
         load(false, { reason: "Kategori" });
       });
       btn.disabled = !!state.loading;
@@ -2086,10 +2175,17 @@
     renderPeriodTabs(data.period_tabs || [], data.period_meta || {});
     renderTabs(data.category_tabs || []);
     renderKpis(data.summary || {}, data);
-    renderTraffic(data);
+    // Trafik asla otomatik gelmez; yalnızca butonla yüklenir
+    if (!state.trafficShown) {
+      var block = $("dn-traffic-block");
+      if (block) block.classList.add("hidden");
+    } else if (data.traffic) {
+      renderTraffic(data);
+    }
     renderCharts(data);
     renderTables(data);
     requestAnimationFrame(syncPairCardHeights);
+    syncTrafficButton();
     var meta = $("dn-meta");
     if (meta) {
       var s = data.summary || {};
@@ -2106,25 +2202,19 @@
   }
 
   async function load(force, opts) {
-    if (state.loading) return;
+    if (state.loading || state.trafficLoading) return;
     opts = opts || {};
     state.loading = true;
-    var loading = $("dn-loading");
     var err = $("dn-error");
     var body = $("dn-body");
     var btn = $("dn-refresh");
     var ok = false;
     startLoadProgress(opts.reason || (force ? "Güncelleniyor" : "Yükleniyor"));
-    if (loading) loading.classList.add("hidden");
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     if (btn) btn.disabled = true;
+    syncTrafficButton();
     try {
-      var url = "/api/doviz-news/report?items_limit=500&period=" + encodeURIComponent(state.period || "last_7d");
-      if (state.category && state.category !== "all") {
-        url += "&category=" + encodeURIComponent(state.category);
-      }
-      if (force) url += "&force=1";
-      var r = await fetch(url, { credentials: "same-origin" });
+      var r = await fetch(reportUrl({ force: !!force, traffic: false }), { credentials: "same-origin" });
       if (!r.ok) {
         var detail = "";
         try {
@@ -2136,6 +2226,8 @@
       var data = await r.json();
       paintProgress(96, (opts.reason || "Yükleniyor") + " · render", { indeterminate: false });
       if (body) body.classList.remove("hidden");
+      // Dönem/kategori değişiminde trafik sıfırlanır
+      if (!opts.keepTraffic) resetTrafficUi();
       renderAll(data);
       ok = true;
     } catch (e) {
@@ -2147,17 +2239,93 @@
       state.loading = false;
       if (btn) btn.disabled = false;
       finishLoadProgress(ok);
+      syncTrafficButton();
+    }
+  }
+
+  async function loadTraffic() {
+    if (state.loading || state.trafficLoading) return;
+    if (state.trafficShown && state.data && state.data.traffic) {
+      var block = $("dn-traffic-block");
+      if (block) {
+        block.classList.remove("hidden");
+        block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      return;
+    }
+    state.trafficLoading = true;
+    var err = $("dn-error");
+    var ok = false;
+    startLoadProgress("Trafik");
+    syncTrafficButton();
+    if (err) { err.classList.add("hidden"); err.textContent = ""; }
+    try {
+      var r = await fetch(reportUrl({ traffic: true }), { credentials: "same-origin" });
+      if (!r.ok) {
+        var detail = "";
+        try {
+          var j = await r.json();
+          detail = (j && (j.detail || j.message)) || "";
+        } catch (_) {}
+        throw new Error(detail || ("Trafik yükleme hatası (" + r.status + ")"));
+      }
+      var data = await r.json();
+      paintProgress(96, "Trafik · render", { indeterminate: false });
+      if (!state.data) state.data = data;
+      else {
+        state.data.traffic = data.traffic;
+        if (data.items && state.data.items) {
+          var byId = {};
+          (data.items || []).forEach(function (it) {
+            if (it && it.id != null) byId[String(it.id)] = it;
+          });
+          state.data.items.forEach(function (it) {
+            var tr = byId[String(it.id)];
+            if (!tr) return;
+            it.views = tr.views;
+            it.sessions = tr.sessions;
+            it.gsc_clicks = tr.gsc_clicks;
+            it.gsc_impressions = tr.gsc_impressions;
+            it.gsc_ctr = tr.gsc_ctr;
+            it.gsc_position = tr.gsc_position;
+          });
+        }
+      }
+      state.trafficShown = true;
+      renderTraffic(state.data);
+      renderTables(state.data);
+      var block = $("dn-traffic-block");
+      if (block && !block.classList.contains("hidden")) {
+        block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      ok = true;
+    } catch (e) {
+      state.trafficShown = false;
+      if (err) {
+        err.textContent = (e && e.message) || "Trafik yükleme hatası";
+        err.classList.remove("hidden");
+      }
+    } finally {
+      state.trafficLoading = false;
+      finishLoadProgress(ok);
+      syncTrafficButton();
     }
   }
 
   var refreshBtn = $("dn-refresh");
-  if (refreshBtn) refreshBtn.addEventListener("click", function () { load(true, { reason: "Güncelleniyor" }); });
+  if (refreshBtn) refreshBtn.addEventListener("click", function () {
+    resetTrafficUi();
+    load(true, { reason: "Güncelleniyor" });
+  });
+  var trafficBtn = $("dn-traffic-btn");
+  if (trafficBtn) trafficBtn.addEventListener("click", function () { loadTraffic(); });
   window.__dnLoadStats = load;
   window.addEventListener("resize", function () {
     if (window.__dnResizeTimer) clearTimeout(window.__dnResizeTimer);
     window.__dnResizeTimer = setTimeout(syncPairCardHeights, 120);
   });
   renderPeriodTabs(null, null);
+  syncTrafficButton();
   try {
     var tab = new URLSearchParams(window.location.search).get("tab") || "stats";
     if (tab !== "trend") {

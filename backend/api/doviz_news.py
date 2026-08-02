@@ -24,7 +24,7 @@ def get_doviz_news_report(
     ),
     force: bool = Query(False, description="Google Sheet önbelleğini atla ve yeniden çek"),
     items_limit: int = Query(80, ge=1, le=500),
-    include_traffic: bool = Query(True, description="GA4 + GSC trafik zenginleştirmesi"),
+    include_traffic: bool = Query(False, description="GA4 + GSC trafik zenginleştirmesi (varsayılan kapalı)"),
     site_id: int = Query(1, ge=1, description="Site ID (GA4/GSC)"),
     db: Session = Depends(get_db),
 ):
