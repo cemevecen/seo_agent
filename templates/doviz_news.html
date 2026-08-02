@@ -435,7 +435,10 @@
     overflow: auto;
   }
   #dn-card-week-summary .dn-table-wrap {
-    max-height: none;
+    /* thead + 5 satır; fazlası scroll */
+    max-height: calc(2.25rem + 5 * 2.45rem);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
   }
 </style>
 
