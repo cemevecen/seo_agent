@@ -74,7 +74,8 @@ _FILLER_VERBS = frozenset(
     {
         "geldi", "aldi", "indi", "asti", "etti", "oldu", "yapti", "dedi",
         "dustu", "artti", "ulasti", "basladi", "acikladi", "aciklandi",
-        "duyurdu", "belirtti", "gosterdi", "azaldi", "yukseldi",
+        "duyurdu", "belirtti", "gosterdi", "azaldi", "yukseldi", "geliyor",
+        "gidiyor", "oluyor", "ediyor", "yapiyor", "bekliyor",
     }
 )
 
