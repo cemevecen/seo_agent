@@ -31,13 +31,13 @@ _CACHE_TTL_SEC = 900.0
 _TZ_TR = ZoneInfo("Europe/Istanbul") if ZoneInfo else None
 
 PERIOD_TABS = (
-    {"key": "all", "label": "Tümü"},
     {"key": "today", "label": "Bugün"},
     {"key": "yesterday", "label": "Dün"},
     {"key": "last_7d", "label": "Son 1 hafta"},
     {"key": "prev_week", "label": "Geçen hafta"},
     {"key": "this_month", "label": "Bu ay"},
     {"key": "last_month", "label": "Geçen ay"},
+    {"key": "all", "label": "Tümü"},
 )
 _PERIOD_KEYS = frozenset(p["key"] for p in PERIOD_TABS)
 
