@@ -19,7 +19,7 @@
   }
   .dn-kpi-main { min-width: 0; flex: 1 1 auto; }
   .dn-kpi-viz {
-    flex: 0 0 auto; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
+    flex: 0 0 auto; width: 64px; height: 52px; display: flex; align-items: center; justify-content: center;
   }
   .dn-kpi-viz svg { display: block; max-width: 100%; max-height: 100%; }
   .dn-kpi .dn-kpi-value {
@@ -28,10 +28,6 @@
   @media (min-width: 640px) { .dn-kpi .dn-kpi-value { font-size: 1.25rem; } }
   html.dark .dn-kpi .dn-kpi-value, html.midnight .dn-kpi .dn-kpi-value { color: #f4f4f5; }
   .dn-kpi .dn-kpi-sub { margin-top: 0.2rem; font-size: 11px; color: #64748b; line-height: 1.35; }
-  .dn-kpi-spark {
-    margin-top: 0.55rem; width: 100%; height: 28px;
-  }
-  .dn-kpi-spark svg { width: 100%; height: 28px; display: block; }
 
   .dn-card {
     border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff; padding: 0.85rem;
@@ -535,7 +531,7 @@
   function hourBarsSvg(hours, peakHour) {
     var vals = (hours || []).map(function (h) { return Number(h.count) || 0; });
     if (!vals.length) return "";
-    var w = 52, h = 52, pad = 2;
+    var w = 64, h = 52, pad = 2;
     var max = Math.max.apply(null, vals.concat([1]));
     var barW = (w - pad * 2) / vals.length;
     var rects = vals.map(function (v, i) {
@@ -543,10 +539,40 @@
       var x = pad + i * barW;
       var y = h - pad - bh;
       var on = peakHour != null && hours[i] && hours[i].hour === peakHour;
-      return '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + Math.max(barW - 0.4, 0.6).toFixed(2) +
+      return '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + Math.max(barW - 0.35, 0.5).toFixed(2) +
         '" height="' + Math.max(bh, 0.5).toFixed(2) + '" rx="0.4" fill="' + (on ? "#f59e0b" : "#cbd5e1") + '"/>';
     }).join("");
     return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="Saatlik dağılım">' + rects + "</svg>";
+  }
+
+  /** KPI sağ dikey mini bar — son N gün / seri. */
+  function miniBarsSvg(values, labels, opts) {
+    opts = opts || {};
+    var vals = (values || []).map(Number);
+    if (!vals.length) return "";
+    var w = opts.w || 64, h = opts.h || 52, pad = 2;
+    var base = opts.color || "#c7d2fe";
+    var accent = opts.accent || "#6366f1";
+    var max = Math.max.apply(null, vals.concat([1]));
+    var barW = (w - pad * 2) / vals.length;
+    var hi = opts.highlightIdx;
+    if (hi == null) {
+      hi = 0;
+      for (var i = 1; i < vals.length; i++) if (vals[i] >= vals[hi]) hi = i;
+    }
+    var rects = vals.map(function (v, i) {
+      var bh = (v / max) * (h - pad * 2);
+      var x = pad + i * barW;
+      var y = h - pad - bh;
+      var on = i === hi;
+      return '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + Math.max(barW - 0.3, 0.45).toFixed(2) +
+        '" height="' + Math.max(bh, 0.45).toFixed(2) + '" rx="0.35" fill="' + (on ? accent : base) + '">' +
+        '<title>' + esc((labels && labels[i] ? labels[i] + ": " : "") + v) + "</title></rect>";
+    }).join("");
+    var aria = vals.map(function (v, i) {
+      return (labels && labels[i] ? labels[i] + " " : "") + v;
+    }).join(", ");
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="' + esc(aria) + '">' + rects + "</svg>";
   }
 
   function cmpVal(a, b, key, dir) {
