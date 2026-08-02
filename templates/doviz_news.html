@@ -497,6 +497,208 @@
     overflow: auto;
     -webkit-overflow-scrolling: touch;
   }
+
+  /* Dark / midnight: mat, düşük doygunluk — gece göz yormayan palet */
+  html.dark .dn-page,
+  html.midnight .dn-page {
+    --dn-text: #a8a8b3;
+    --dn-text-strong: #bdbdc6;
+    --dn-muted: #73737f;
+    --dn-border: #2a2a30;
+    --dn-surface: #101014;
+    --dn-surface-2: #16161b;
+    --dn-accent: #6a6d8c;
+    --dn-accent-soft: #4a4d66;
+    --dn-green: #5a7d6a;
+    --dn-red: #8a6565;
+    --dn-blue: #5c738f;
+    --dn-amber: #8a7a55;
+    --dn-cyan: #5a7d82;
+    --dn-bar: #5c6288;
+  }
+  html.dark .dn-kpi,
+  html.midnight .dn-kpi,
+  html.dark .dn-card,
+  html.midnight .dn-card {
+    border-color: var(--dn-border);
+    background: var(--dn-surface);
+  }
+  html.dark .dn-kpi .dn-kpi-label,
+  html.midnight .dn-kpi .dn-kpi-label,
+  html.dark .dn-kpi .dn-kpi-sub,
+  html.midnight .dn-kpi .dn-kpi-sub,
+  html.dark .dn-card-sub,
+  html.midnight .dn-card-sub,
+  html.dark .dn-muted,
+  html.midnight .dn-muted,
+  html.dark .dn-imeta,
+  html.midnight .dn-imeta,
+  html.dark .dn-progress-label,
+  html.midnight .dn-progress-label,
+  html.dark .dn-period-cmp,
+  html.midnight .dn-period-cmp,
+  html.dark .dn-hbar-share,
+  html.midnight .dn-hbar-share,
+  html.dark .dn-own-legend,
+  html.midnight .dn-own-legend,
+  html.dark .dn-own-meta,
+  html.midnight .dn-own-meta {
+    color: var(--dn-muted);
+  }
+  html.dark .dn-kpi .dn-kpi-value,
+  html.midnight .dn-kpi .dn-kpi-value,
+  html.dark .dn-card h3,
+  html.midnight .dn-card h3,
+  html.dark .dn-period-cmp-val,
+  html.midnight .dn-period-cmp-val,
+  html.dark .dn-hbar-name,
+  html.midnight .dn-hbar-name,
+  html.dark .dn-hbar-count,
+  html.midnight .dn-hbar-count,
+  html.dark .dn-table td,
+  html.midnight .dn-table td,
+  html.dark .dn-own-meta strong,
+  html.midnight .dn-own-meta strong {
+    color: var(--dn-text-strong);
+  }
+  html.dark .dn-tab,
+  html.midnight .dn-tab,
+  html.dark .dn-page-tab,
+  html.midnight .dn-page-tab {
+    border-color: #33333a;
+    background: var(--dn-surface-2);
+    color: var(--dn-text);
+  }
+  html.dark .dn-tab.is-active,
+  html.midnight .dn-tab.is-active,
+  html.dark .dn-page-tab.is-active,
+  html.midnight .dn-page-tab.is-active {
+    border-color: var(--dn-accent-soft);
+    background: var(--dn-accent-soft);
+    color: #c4c6d4;
+  }
+  html.dark .dn-progress-fill,
+  html.midnight .dn-progress-fill {
+    background: linear-gradient(90deg, #4a4d66, #5a5e7a 55%, #6a6d8c);
+  }
+  html.dark .dn-isearch,
+  html.midnight .dn-isearch {
+    border-color: #33333a;
+    background: var(--dn-surface-2);
+    color: var(--dn-text);
+  }
+  html.dark .dn-isearch:focus,
+  html.midnight .dn-isearch:focus {
+    border-color: var(--dn-accent);
+    box-shadow: 0 0 0 2px rgba(90, 94, 122, 0.25);
+  }
+  html.dark .dn-ilink,
+  html.midnight .dn-ilink {
+    color: #8b8eaa;
+  }
+  html.dark .dn-table-wrap,
+  html.midnight .dn-table-wrap {
+    border-color: var(--dn-border);
+  }
+  html.dark .dn-table th,
+  html.midnight .dn-table th {
+    color: var(--dn-muted);
+    background: var(--dn-surface-2);
+    border-bottom-color: var(--dn-border);
+  }
+  html.dark .dn-table th:hover,
+  html.midnight .dn-table th:hover,
+  html.dark .dn-table th.is-sorted .dn-sort,
+  html.midnight .dn-table th.is-sorted .dn-sort {
+    color: #8b8eaa;
+  }
+  html.dark .dn-table td,
+  html.midnight .dn-table td {
+    border-bottom-color: #1e1e24;
+  }
+  html.dark .dn-rank,
+  html.midnight .dn-rank {
+    background: rgba(90, 94, 122, 0.28);
+    color: #9a9db8;
+  }
+  html.dark .dn-barfill,
+  html.midnight .dn-barfill {
+    background: var(--dn-bar);
+  }
+  html.dark .dn-hbar-fill,
+  html.midnight .dn-hbar-fill {
+    background: linear-gradient(90deg, #4a6470, #5c6288);
+  }
+  html.dark .dn-hbar-row:hover .dn-hbar-name,
+  html.midnight .dn-hbar-row:hover .dn-hbar-name {
+    color: #9a9db8;
+  }
+  html.dark .dn-badge-own,
+  html.midnight .dn-badge-own {
+    background: rgba(90, 125, 106, 0.22);
+    color: #8aa894;
+  }
+  html.dark .dn-badge-src,
+  html.midnight .dn-badge-src {
+    background: rgba(92, 115, 143, 0.22);
+    color: #8ea0b5;
+  }
+  html.dark .dn-kpi-delta-up,
+  html.midnight .dn-kpi-delta-up,
+  html.dark .dn-trend-up,
+  html.midnight .dn-trend-up,
+  html.dark .dn-period-delta-up,
+  html.midnight .dn-period-delta-up,
+  html.dark .dn-own-pct,
+  html.midnight .dn-own-pct {
+    color: var(--dn-green);
+  }
+  html.dark .dn-kpi-delta-down,
+  html.midnight .dn-kpi-delta-down,
+  html.dark .dn-trend-down,
+  html.midnight .dn-trend-down,
+  html.dark .dn-period-delta-down,
+  html.midnight .dn-period-delta-down {
+    color: var(--dn-red);
+  }
+  html.dark .dn-own-name,
+  html.midnight .dn-own-name {
+    color: #9a7a7a;
+  }
+  html.dark .dn-own-swatch--own,
+  html.midnight .dn-own-swatch--own,
+  html.dark .dn-own-seg--own,
+  html.midnight .dn-own-seg--own {
+    background: var(--dn-green);
+  }
+  html.dark .dn-own-swatch--src,
+  html.midnight .dn-own-swatch--src,
+  html.dark .dn-own-seg--src,
+  html.midnight .dn-own-seg--src {
+    background: var(--dn-blue);
+  }
+  html.dark #dn-refresh,
+  html.midnight #dn-refresh {
+    background: #4a4d66 !important;
+    border-color: #3d4058 !important;
+    color: #c4c6d4 !important;
+  }
+  html.dark #dn-refresh:hover,
+  html.midnight #dn-refresh:hover {
+    background: #555872 !important;
+  }
+  html.dark #dn-source-link,
+  html.midnight #dn-source-link {
+    border-color: #33333a !important;
+    background: #16161b !important;
+    color: #a8a8b3 !important;
+  }
+  html.dark .dn-page h1,
+  html.midnight .dn-page h1,
+  html.dark .dn-page h2,
+  html.midnight .dn-page h2 {
+    color: #bdbdc6 !important;
+  }
 </style>
 
 <div class="dn-page">
@@ -802,16 +1004,65 @@
     return document.documentElement.classList.contains("dark")
       || document.documentElement.classList.contains("midnight");
   }
+  /** Light / matte-dark chart palette (no bright whites or neon). */
+  function dnPalette() {
+    if (!isDark()) {
+      return {
+        text: "#334155",
+        grid: "#e2e8f0",
+        hole: "#ffffff",
+        empty: "#e2e8f0",
+        indigo: "#6366f1",
+        indigoSoft: "#c7d2fe",
+        cyan: "#0ea5e9",
+        cyanSoft: "#bae6fd",
+        green: "#10b981",
+        greenSoft: "#a7f3d0",
+        red: "#f43f5e",
+        redSoft: "#fecdd3",
+        blue: "#3b82f6",
+        amber: "#f59e0b",
+        amberOn: "#f59e0b",
+        barIdle: "#cbd5e1",
+        gray: "#94a3b8",
+        teal: "#14b8a6",
+        line: "#4f46e5",
+        lineFill: "rgba(79,70,229,0.12)"
+      };
+    }
+    return {
+      text: "#a8a8b3",
+      grid: "#24242a",
+      hole: "#101014",
+      empty: "#2a2a30",
+      indigo: "#6a6d8c",
+      indigoSoft: "#3d4058",
+      cyan: "#5a7d82",
+      cyanSoft: "#3a5256",
+      green: "#5a7d6a",
+      greenSoft: "#3a5246",
+      red: "#8a6565",
+      redSoft: "#5a4242",
+      blue: "#5c738f",
+      amber: "#8a7a55",
+      amberOn: "#9a8a62",
+      barIdle: "#3a3a42",
+      gray: "#6a6a74",
+      teal: "#5a7d78",
+      line: "#6a6d8c",
+      lineFill: "rgba(90,94,122,0.18)"
+    };
+  }
   function plotLayout(extra) {
-    var dark = isDark();
+    var p = dnPalette();
     var base = {
       paper_bgcolor: "transparent",
       plot_bgcolor: "transparent",
-      font: { color: dark ? "#d4d4d8" : "#334155", size: 11 },
+      font: { color: p.text, size: 11 },
       margin: { t: 16, r: 16, b: 48, l: 48 },
       legend: { orientation: "h", y: 1.12 },
-      xaxis: { gridcolor: dark ? "#27272a" : "#e2e8f0", zeroline: false },
-      yaxis: { gridcolor: dark ? "#27272a" : "#e2e8f0", zeroline: false },
+      xaxis: { gridcolor: p.grid, zeroline: false },
+      yaxis: { gridcolor: p.grid, zeroline: false },
     };
     if (!extra) return base;
     Object.keys(extra).forEach(function (k) {
@@ -845,8 +1096,9 @@
     opts = opts || {};
     var vals = (values || []).map(Number);
     if (!vals.length) return '<span class="dn-muted">—</span>';
+    var pal = dnPalette();
     var w = opts.w || 72, h = opts.h || 22, pad = 1;
-    var stroke = opts.stroke || "#14b8a6";
+    var stroke = opts.stroke || pal.teal;
     var fill = opts.fill || "";
     var max = Math.max.apply(null, vals.concat([1]));
     var min = opts.zeroBase ? 0 : Math.min.apply(null, vals);
@@ -876,10 +1128,11 @@
   function pieSvg(parts, size) {
     // parts: [{value, color, label}]
     size = size || 52;
+    var pal = dnPalette();
     var total = 0;
     (parts || []).forEach(function (p) { total += Math.max(0, Number(p.value) || 0); });
     if (!total) {
-      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 52 52"><circle cx="26" cy="26" r="20" fill="#e2e8f0"/></svg>';
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 52 52"><circle cx="26" cy="26" r="20" fill="' + pal.empty + '"/></svg>';
     }
     var cx = 26, cy = 26, r = 20, rInner = 11;
     var angle = -Math.PI / 2;
@@ -889,7 +1142,7 @@
       if (!v) return;
       var sweep = (v / total) * Math.PI * 2;
       if (sweep >= Math.PI * 2 - 0.0001) {
-        slices += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + (p.color || "#6366f1") + '"/>';
+        slices += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + (p.color || pal.indigo) + '"/>';
         return;
       }
       var x1 = cx + r * Math.cos(angle);
@@ -900,18 +1153,19 @@
       var large = sweep > Math.PI ? 1 : 0;
       slices += '<path d="M ' + cx + " " + cy + " L " + x1.toFixed(2) + " " + y1.toFixed(2) +
         " A " + r + " " + r + " 0 " + large + " 1 " + x2.toFixed(2) + " " + y2.toFixed(2) +
-        ' Z" fill="' + (p.color || "#6366f1") + '"/>';
+        ' Z" fill="' + (p.color || pal.indigo) + '"/>';
     });
     var label = (parts || []).map(function (p) { return (p.label || "") + " " + (p.value || 0); }).join(" · ");
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 52 52" role="img" aria-label="' + esc(label) + '">' +
       slices +
-      '<circle cx="' + cx + '" cy="' + cy + '" r="' + rInner + '" fill="' + (isDark() ? "#09090b" : "#ffffff") + '"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + rInner + '" fill="' + pal.hole + '"/>' +
       "</svg>";
   }
 
   function hourBarsSvg(hours, peakHour) {
     var vals = (hours || []).map(function (h) { return Number(h.count) || 0; });
     if (!vals.length) return "";
+    var pal = dnPalette();
     var w = 64, h = 52, pad = 2;
     var max = Math.max.apply(null, vals.concat([1]));
     var barW = (w - pad * 2) / vals.length;
@@ -921,7 +1175,7 @@
       var y = h - pad - bh;
       var on = peakHour != null && hours[i] && hours[i].hour === peakHour;
       return '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + Math.max(barW - 0.35, 0.5).toFixed(2) +
-        '" height="' + Math.max(bh, 0.5).toFixed(2) + '" rx="0.4" fill="' + (on ? "#f59e0b" : "#cbd5e1") + '"/>';
+        '" height="' + Math.max(bh, 0.5).toFixed(2) + '" rx="0.4" fill="' + (on ? pal.amberOn : pal.barIdle) + '"/>';
     }).join("");
     return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="Saatlik dağılım">' + rects + "</svg>";
   }
@@ -931,9 +1185,10 @@
     opts = opts || {};
     var vals = (values || []).map(Number);
     if (!vals.length) return "";
+    var pal = dnPalette();
     var w = opts.w || 64, h = opts.h || 52, pad = 2;
-    var base = opts.color || "#c7d2fe";
-    var accent = opts.accent || "#6366f1";
+    var base = opts.color || pal.indigoSoft;
+    var accent = opts.accent || pal.indigo;
     var max = Math.max.apply(null, vals.concat([1]));
     var barW = (w - pad * 2) / vals.length;
     var hi = opts.highlightIdx;
@@ -1195,17 +1450,18 @@
     var last28 = days.slice(-28);
     var dayVals = last28.map(function (d) { return d.count; });
     var dayLabels = last28.map(function (d) { return d.day; });
-    var totalBars = miniBarsSvg(dayVals, dayLabels, { color: "#c7d2fe", accent: "#6366f1" });
-    var avgBars = miniBarsSvg(dayVals, dayLabels, { color: "#bae6fd", accent: "#0ea5e9" });
-    var cmpAccent = (rvp.delta != null && rvp.delta < 0) ? "#f43f5e" : "#10b981";
-    var cmpBase = (rvp.delta != null && rvp.delta < 0) ? "#fecdd3" : "#a7f3d0";
+    var pal = dnPalette();
+    var totalBars = miniBarsSvg(dayVals, dayLabels, { color: pal.indigoSoft, accent: pal.indigo });
+    var avgBars = miniBarsSvg(dayVals, dayLabels, { color: pal.cyanSoft, accent: pal.cyan });
+    var cmpAccent = (rvp.delta != null && rvp.delta < 0) ? pal.red : pal.green;
+    var cmpBase = (rvp.delta != null && rvp.delta < 0) ? pal.redSoft : pal.greenSoft;
     var ownPie = pieSvg([
-      { value: s.own || 0, color: "#10b981", label: "Özgün" },
-      { value: s.sourced || 0, color: "#3b82f6", label: "Kaynaklı" }
+      { value: s.own || 0, color: pal.green, label: "Özgün" },
+      { value: s.sourced || 0, color: pal.blue, label: "Kaynaklı" }
     ]);
     var weekendPie = pieSvg([
-      { value: s.weekend_count || 0, color: "#f43f5e", label: "Cmt+Paz" },
-      { value: s.weekday_count || 0, color: "#6366f1", label: "Hafta içi" }
+      { value: s.weekend_count || 0, color: pal.red, label: "Cmt+Paz" },
+      { value: s.weekday_count || 0, color: pal.indigo, label: "Hafta içi" }
     ]);
     var hourViz = hourBarsSvg(data.by_hour || [], peak.hour);
     var recentN = rvp.recent != null ? rvp.recent : (rvp.recent_7d != null ? rvp.recent_7d : rvp.recent_14d);
@@ -1447,7 +1703,7 @@
       }),
       textposition: opts.textposition || "outside",
       cliponaxis: false,
-      marker: { color: opts.color || "#6366f1" },
+      marker: { color: opts.color || dnPalette().indigo },
       hovertemplate: "%{y}: %{x}<extra></extra>"
     }], plotLayout(layoutExtra), plotCfg());
   }
@@ -1609,18 +1865,20 @@
 
     if (!vis.hideDaySeries) {
       var days = data.by_day || [];
+      var pal = dnPalette();
       Plotly.newPlot("dn-chart-day", [{
         type: "scatter", mode: "lines",
         x: days.map(function (d) { return d.day; }),
         y: days.map(function (d) { return d.count; }),
-        line: { color: "#4f46e5", width: 2 },
-        fill: "tozeroy", fillcolor: "rgba(79,70,229,0.12)",
+        line: { color: pal.line, width: 2 },
+        fill: "tozeroy", fillcolor: pal.lineFill,
         hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
       }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
     }
 
     if (!vis.hideWeekly) {
       var weeks = data.by_week || [];
+      var palW = dnPalette();
       var weekTrace = [{
         type: "bar",
         x: weeks.map(function (w) { return w.range || w.week; }),
@@ -1628,9 +1886,9 @@
         customdata: weeks.map(function (w) { return w.week; }),
         marker: {
           color: weeks.map(function (w) {
-            if (w.trend === "up") return "#10b981";
-            if (w.trend === "down") return "#f43f5e";
-            return "#94a3b8";
+            if (w.trend === "up") return palW.green;
+            if (w.trend === "down") return palW.red;
+            return palW.gray;
           })
         },
         hovertemplate: "%{customdata}<br>%{x}<br>%{y} içerik<extra></extra>"
@@ -1645,29 +1903,32 @@
     }
 
     var hours = data.by_hour || [];
+    var palH = dnPalette();
     Plotly.newPlot("dn-chart-hour", [{
       type: "bar",
       x: hours.map(function (h) { return h.label; }),
       y: hours.map(function (h) { return h.count; }),
-      marker: { color: "#f59e0b" },
+      marker: { color: palH.amber },
       hovertemplate: "%{x}<br>%{y}<extra></extra>"
     }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
 
     if (!vis.hideDaySeries) {
       var wd = data.by_weekday || [];
+      var palWd = dnPalette();
       Plotly.newPlot("dn-chart-weekday", [{
         type: "bar",
         x: wd.map(function (w) { return w.label; }),
         y: wd.map(function (w) { return w.count; }),
-        marker: { color: wd.map(function (w) { return w.is_weekend ? "#f43f5e" : "#6366f1"; }) },
+        marker: { color: wd.map(function (w) { return w.is_weekend ? palWd.red : palWd.indigo; }) },
         hovertemplate: "%{x}<br>%{y}<extra></extra>"
       }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
     }
 
     var own = data.own_by_category || [];
+    var palO = dnPalette();
     Plotly.newPlot("dn-chart-own", [
-      { type: "bar", name: "Özgün", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: "#10b981" }, hovertemplate: "%{x}<br>Özgün: %{y}<extra></extra>" },
-      { type: "bar", name: "Kaynaklı", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: "#3b82f6" }, hovertemplate: "%{x}<br>Kaynaklı: %{y}<extra></extra>" }
+      { type: "bar", name: "Özgün", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: palO.green }, hovertemplate: "%{x}<br>Özgün: %{y}<extra></extra>" },
+      { type: "bar", name: "Kaynaklı", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: palO.blue }, hovertemplate: "%{x}<br>Kaynaklı: %{y}<extra></extra>" }
     ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 70, l: 40 }, xaxis: { tickangle: -20 } }), plotCfg());
   }
 
