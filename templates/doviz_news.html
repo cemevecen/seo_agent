@@ -1385,8 +1385,8 @@
         rows: (data.by_week || []).slice().reverse(),
         defaultSort: "week",
         defaultDir: "desc",
-        searchPlaceholder: "Hafta / tarih ara…",
-        searchKeys: ["week", "range"],
+        searchable: false,
+        showMeta: false,
         columns: [
           { key: "week", label: "Hafta" },
           { key: "range", label: "Tarih aralığı" },
