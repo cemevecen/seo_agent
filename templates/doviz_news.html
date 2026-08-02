@@ -1400,6 +1400,7 @@
     if (window.__dnResizeTimer) clearTimeout(window.__dnResizeTimer);
     window.__dnResizeTimer = setTimeout(syncPairCardHeights, 120);
   });
+  renderPeriodTabs(null, null);
   try {
     var tab = new URLSearchParams(window.location.search).get("tab") || "stats";
     if (tab !== "trend") {
