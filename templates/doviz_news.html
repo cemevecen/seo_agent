@@ -387,7 +387,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
-    align-items: stretch;
+    align-items: start;
   }
   @media (min-width: 1024px) {
     .dn-flow-grid {
@@ -396,6 +396,25 @@
     .dn-flow-grid > .dn-span-2 {
       grid-column: 1 / -1;
     }
+  }
+  .dn-chart--mini {
+    min-height: 150px;
+    width: 100%;
+    margin-bottom: 0.55rem;
+  }
+  #dn-card-week-summary,
+  #dn-card-top-days {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    width: 100%;
+  }
+  #dn-card-top-days .dn-table-wrap {
+    max-height: min(22rem, 50vh);
+    overflow: auto;
+  }
+  #dn-card-week-summary .dn-table-wrap {
+    max-height: none;
   }
 </style>
 
@@ -491,6 +510,7 @@
       </div>
       <div id="dn-card-week-summary" class="dn-card">
         <div class="dn-card-head"><div><h3>Haftalık özet</h3></div></div>
+        <div id="dn-chart-week-mini" class="dn-chart dn-chart--mini" aria-label="Haftalık özet grafik"></div>
         <div id="dn-table-week"></div>
       </div>
       <div id="dn-card-top-days" class="dn-card">
@@ -1244,7 +1264,7 @@
 
     if (!hideWeekly) {
       var weeks = data.by_week || [];
-      Plotly.newPlot("dn-chart-week", [{
+      var weekTrace = [{
         type: "bar",
         x: weeks.map(function (w) { return w.range || w.week; }),
         y: weeks.map(function (w) { return w.count; }),
@@ -1257,7 +1277,14 @@
           })
         },
         hovertemplate: "%{customdata}<br>%{x}<br>%{y} içerik<extra></extra>"
-      }], plotLayout({ margin: { t: 8, r: 16, b: 72, l: 40 }, xaxis: { tickangle: -40 } }), plotCfg());
+      }];
+      var weekLayout = plotLayout({ margin: { t: 8, r: 16, b: 72, l: 40 }, xaxis: { tickangle: -40 } });
+      Plotly.newPlot("dn-chart-week", weekTrace, weekLayout, plotCfg());
+      Plotly.newPlot("dn-chart-week-mini", weekTrace, plotLayout({
+        margin: { t: 4, r: 8, b: 48, l: 36 },
+        xaxis: { tickangle: -35, tickfont: { size: 9 } },
+        yaxis: { tickfont: { size: 9 } }
+      }), plotCfg());
     }
 
     var hours = data.by_hour || [];
