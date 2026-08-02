@@ -195,7 +195,7 @@
         <h3>Haftalık özet</h3>
         <div class="dn-table-wrap">
           <table class="dn-table">
-            <thead><tr><th>Hafta</th><th class="num">Adet</th><th class="num">Δ</th><th class="num">Δ %</th></tr></thead>
+            <thead><tr><th>Hafta</th><th>Tarih aralığı</th><th class="num">Adet</th><th class="num">Δ</th><th class="num">Δ %</th></tr></thead>
             <tbody id="dn-tbody-week"></tbody>
           </table>
         </div>
@@ -364,8 +364,9 @@
     var weeks = data.by_week || [];
     Plotly.newPlot("dn-chart-week", [{
       type: "bar",
-      x: weeks.map(function (w) { return w.week; }),
+      x: weeks.map(function (w) { return w.range || w.week; }),
       y: weeks.map(function (w) { return w.count; }),
+      customdata: weeks.map(function (w) { return w.week; }),
       marker: {
         color: weeks.map(function (w) {
           if (w.trend === "up") return "#10b981";
@@ -373,8 +374,8 @@
           return "#94a3b8";
         })
       },
-      hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
-    }], plotLayout({ margin: { t: 8, r: 16, b: 56, l: 40 }, xaxis: { tickangle: -35 } }), plotCfg());
+      hovertemplate: "%{customdata}<br>%{x}<br>%{y} içerik<extra></extra>"
+    }], plotLayout({ margin: { t: 8, r: 16, b: 72, l: 40 }, xaxis: { tickangle: -40 } }), plotCfg());
 
     var hours = data.by_hour || [];
     Plotly.newPlot("dn-chart-hour", [{
@@ -432,6 +433,7 @@
         var dlt = w.delta == null ? "—" : ((w.delta > 0 ? "+" : "") + fmt(w.delta));
         var pct = w.delta_pct == null ? "—" : ((w.delta_pct > 0 ? "+" : "") + fmt(w.delta_pct, 1) + "%");
         return "<tr><td>" + esc(w.week) + "</td>" +
+          "<td style=\"white-space:nowrap\">" + esc(w.range || "—") + "</td>" +
           '<td class="num">' + fmt(w.count) + "</td>" +
           '<td class="num ' + cls + '">' + dlt + "</td>" +
           '<td class="num ' + cls + '">' + pct + "</td></tr>";

@@ -25,6 +25,22 @@ _CACHE_TTL_SEC = 900.0
 
 _WD_TR = ("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar")
 _DATE_FMTS = ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%d.%m.%Y")
+_ISO_WEEK_RE = re.compile(r"^(\d{4})-W(\d{2})$")
+
+
+def _iso_week_range(week_key: str) -> tuple[str, str, str] | None:
+    """ISO hafta (Pzt–Paz) için TR tarih aralığı: start, end, label."""
+    m = _ISO_WEEK_RE.match(str(week_key or "").strip())
+    if not m:
+        return None
+    year, week = int(m.group(1)), int(m.group(2))
+    try:
+        start = datetime.fromisocalendar(year, week, 1).date()
+        end = datetime.fromisocalendar(year, week, 7).date()
+    except ValueError:
+        return None
+    label = f"{start.strftime('%d.%m.%Y')} – {end.strftime('%d.%m.%Y')}"
+    return start.isoformat(), end.isoformat(), label
 
 
 def _parse_dt(raw: str | None) -> datetime | None:
@@ -187,9 +203,14 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         cnt = week_counts[wk]
         delta = None if prev is None else cnt - prev
         delta_pct = None if prev in (None, 0) else round(100.0 * (cnt - prev) / prev, 1)
+        wr = _iso_week_range(wk)
         by_week.append(
             {
                 "week": wk,
+                "start": wr[0] if wr else None,
+                "end": wr[1] if wr else None,
+                "range": wr[2] if wr else None,
+                "label": f"{wk} · {wr[2]}" if wr else wk,
                 "count": cnt,
                 "delta": delta,
                 "delta_pct": delta_pct,
