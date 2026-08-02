@@ -1534,6 +1534,131 @@ def fetch_ga4_news_detail_pages_metrics(
     return rows
 
 
+def fetch_ga4_news_traffic_sources(
+    *,
+    property_id: str,
+    start: str,
+    end: str,
+    limit: int = 50,
+) -> dict[str, list[dict]]:
+    """Haber detay path filtresiyle oturum kanalı + source/medium kırılımı."""
+    if not str(property_id or "").strip() or not start or not end:
+        return {"channels": [], "source_medium": []}
+    news_filt = _landing_news_include_filter("pagePath")
+    client = _client()
+    lim = max(10, min(int(limit or 50), 100))
+    empty: dict[str, list[dict]] = {"channels": [], "source_medium": []}
+    try:
+        ch_rows = _run_dim_metrics_single_range(
+            client,
+            property_id,
+            "sessionDefaultChannelGroup",
+            start=start,
+            end=end,
+            limit=lim,
+            dimension_filter=news_filt,
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+        sm_rows = _run_dim_metrics_single_range(
+            client,
+            property_id,
+            "sessionSourceMedium",
+            start=start,
+            end=end,
+            limit=lim,
+            dimension_filter=news_filt,
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning(
+            "GA4 haber kaynak kırılımı başarısız property=%s",
+            property_id,
+            exc_info=True,
+        )
+        return empty
+    return {
+        "channels": [
+            {
+                "channel": str(r["dimension"]),
+                "sessions": float(r["sessions"]),
+                "views": float(r["views"]),
+            }
+            for r in ch_rows
+            if float(r.get("sessions") or 0) > 0 or float(r.get("views") or 0) > 0
+        ],
+        "source_medium": [
+            {
+                "source_medium": str(r["dimension"]),
+                "sessions": float(r["sessions"]),
+                "views": float(r["views"]),
+            }
+            for r in sm_rows
+            if float(r.get("sessions") or 0) > 0 or float(r.get("views") or 0) > 0
+        ],
+    }
+
+
+def fetch_ga4_news_path_daily_metrics(
+    *,
+    property_id: str,
+    start: str,
+    end: str,
+    limit: int = 5000,
+) -> list[dict]:
+    """Haber detay sayfaları için günlük path metrikleri (yayın→trafik fazları için)."""
+    if not str(property_id or "").strip() or not start or not end:
+        return []
+    news_filt = _landing_news_include_filter("pagePath")
+    client = _client()
+    lim = max(50, min(int(limit or 5000), 10000))
+    req_kwargs: dict = {
+        "property": f"properties/{property_id}",
+        "dimensions": [
+            Dimension(name="date"),
+            Dimension(name="pagePath"),
+        ],
+        "metrics": [Metric(name="screenPageViews"), Metric(name="sessions")],
+        "date_ranges": [DateRange(start_date=start, end_date=end)],
+        "limit": lim,
+        "order_bys": [
+            OrderBy(metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"), desc=True),
+        ],
+    }
+    if news_filt is not None:
+        req_kwargs["dimension_filter"] = news_filt
+    try:
+        response = client.run_report(
+            RunReportRequest(**req_kwargs),
+            timeout=_GA4_NEWS_RUN_REPORT_TIMEOUT_SEC,
+        )
+    except Exception:
+        LOGGER.warning(
+            "GA4 haber günlük path metrikleri başarısız property=%s",
+            property_id,
+            exc_info=True,
+        )
+        return []
+    out: list[dict] = []
+    for row in response.rows or []:
+        if len(row.dimension_values) < 2:
+            continue
+        iso = _ga4_api_date_to_iso(str(row.dimension_values[0].value or ""))
+        path = str(row.dimension_values[1].value or "").strip()
+        if not iso or not path or not _is_news_article_path(path):
+            continue
+        views = float(row.metric_values[0].value or 0.0) if row.metric_values else 0.0
+        sessions = float(row.metric_values[1].value or 0.0) if len(row.metric_values or []) > 1 else 0.0
+        out.append(
+            {
+                "date": iso,
+                "page": path,
+                "views": views,
+                "sessions": sessions,
+            }
+        )
+    return out
+
+
 def fetch_ga4_article_paths_metrics(
     *,
     property_id: str,

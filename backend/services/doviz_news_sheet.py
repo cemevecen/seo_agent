@@ -726,6 +726,9 @@ def doviz_news_payload(
     period: str | None = None,
     force: bool = False,
     items_limit: int = 80,
+    db: Any | None = None,
+    include_traffic: bool = True,
+    site_id: int = 1,
 ) -> dict[str, Any]:
     all_rows = fetch_doviz_news_rows(force=force)
     period_info = resolve_period(period)
@@ -812,18 +815,50 @@ def doviz_news_payload(
     if _CACHE:
         fetched_at = _CACHE.get("fetched_at")
 
-    items = [
-        {
-            "id": r.get("id"),
-            "title": r.get("title"),
-            "source": r.get("source") or None,
-            "is_own": r.get("is_own"),
-            "category": r.get("category"),
-            "date": r.get("date"),
-            "active": r.get("active"),
-        }
-        for r in rows[: max(1, min(int(items_limit or 80), 500))]
-    ]
+    traffic: dict[str, Any] | None = None
+    by_article: dict[str, Any] = {}
+    from backend.services.notification_content_traffic import normalize_article_id as _norm_aid
+
+    if include_traffic and db is not None:
+        try:
+            from backend.services.doviz_news_traffic import enrich_doviz_news_traffic
+
+            traffic = enrich_doviz_news_traffic(
+                db,
+                rows=rows,
+                period_meta=period_meta,
+                period_key=period_info["key"],
+                site_id=site_id,
+            )
+            by_article = (traffic or {}).get("by_article") or {}
+        except Exception as exc:
+            logger.exception("doviz news traffic enrich failed")
+            traffic = {
+                "ok": False,
+                "error": str(exc) or "Trafik zenginleştirme başarısız",
+            }
+
+    items = []
+    for r in rows[: max(1, min(int(items_limit or 80), 500))]:
+        aid = _norm_aid(str(r.get("id") or ""))
+        tr = by_article.get(aid) or {}
+        items.append(
+            {
+                "id": r.get("id"),
+                "title": r.get("title"),
+                "source": r.get("source") or None,
+                "is_own": r.get("is_own"),
+                "category": r.get("category"),
+                "date": r.get("date"),
+                "active": r.get("active"),
+                "views": tr.get("views"),
+                "sessions": tr.get("sessions"),
+                "gsc_clicks": tr.get("gsc_clicks"),
+                "gsc_impressions": tr.get("gsc_impressions"),
+                "gsc_ctr": tr.get("gsc_ctr"),
+                "gsc_position": tr.get("gsc_position"),
+            }
+        )
 
     latest_id = None
     for r in rows:
@@ -844,5 +879,6 @@ def doviz_news_payload(
         "latest_id": latest_id,
         "items_total": len(rows),
         "items": items,
+        "traffic": traffic,
         **analytics,
     }

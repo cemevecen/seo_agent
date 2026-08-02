@@ -496,6 +496,32 @@
   <div id="dn-body" class="hidden space-y-4">
     <div id="dn-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
 
+    <div id="dn-traffic-block" class="hidden space-y-3">
+      <div class="dn-card">
+        <div class="dn-card-head">
+          <div>
+            <h3>Trafik (GA4 + GSC)</h3>
+            <p id="dn-traffic-meta" class="dn-card-sub"></p>
+          </div>
+        </div>
+        <div id="dn-traffic-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
+      </div>
+      <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
+        <div id="dn-card-traffic-sources" class="dn-card">
+          <div class="dn-card-head"><div><h3>Trafik kaynakları</h3></div></div>
+          <div id="dn-chart-traffic-sources" class="dn-hbar-list" aria-label="Trafik kaynakları"></div>
+        </div>
+        <div id="dn-card-traffic-phases" class="dn-card">
+          <div class="dn-card-head"><div><h3>Yayın → trafik gecikmesi</h3></div></div>
+          <div id="dn-chart-traffic-phases" class="dn-hbar-list" aria-label="Yayın trafik fazları"></div>
+        </div>
+        <div id="dn-card-traffic-own" class="dn-card">
+          <div class="dn-card-head"><div><h3>Özgün vs kaynaklı trafik</h3></div></div>
+          <div id="dn-chart-traffic-own" class="dn-hbar-list" aria-label="Özgün vs kaynaklı trafik"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
       <div id="dn-card-cat" class="dn-card dn-card--fill lg:col-span-2">
         <div class="dn-card-head"><div><h3>Kategori dağılımı</h3></div></div>
@@ -1123,6 +1149,75 @@
     }).join("");
   }
 
+  function renderTraffic(data) {
+    var block = $("dn-traffic-block");
+    if (!block) return;
+    var t = data.traffic;
+    if (!t) {
+      block.classList.add("hidden");
+      return;
+    }
+    block.classList.remove("hidden");
+    var ga4 = t.ga4 || {};
+    var gsc = t.gsc || {};
+    var own = t.own_vs_sourced || {};
+    var win = t.window || {};
+    var meta = $("dn-traffic-meta");
+    if (meta) {
+      var bits = [];
+      if (win.start && win.end) bits.push(win.start + " → " + win.end);
+      if (win.note) bits.push(win.note);
+      if (t.notes && t.notes.length) {
+        t.notes.forEach(function (n) { if (n && bits.indexOf(n) < 0) bits.push(n); });
+      }
+      if (gsc.note && bits.indexOf(gsc.note) < 0) bits.push(gsc.note);
+      if (t.error) bits.push(t.error);
+      else if (t.ok === false) bits.push("Trafik kısmen yüklenemedi");
+      meta.textContent = bits.join(" · ") || "Dönem yayın ID’leri ile eşleşen trafik";
+    }
+
+    var kpiEl = $("dn-traffic-kpis");
+    if (kpiEl) {
+      var cards = [
+        { label: "GA4 görüntüleme", value: fmt(ga4.views), sub: (ga4.matched_articles || 0) + " eşleşen içerik" },
+        { label: "GA4 oturum", value: fmt(ga4.sessions), sub: "web+mweb" },
+        { label: "GSC tıklama", value: fmt(gsc.clicks), sub: (gsc.matched_pages || 0) + " sayfa" },
+        { label: "GSC gösterim", value: fmt(gsc.impressions), sub: "CTR " + fmt(gsc.ctr, 1) + "%" },
+        { label: "GSC pozisyon", value: fmt(gsc.position, 1), sub: gsc.scope || "—" },
+        {
+          label: "Özgün trafik payı",
+          value: (function () {
+            var tot = (own.own_views || 0) + (own.sourced_views || 0);
+            return tot ? fmt(100 * (own.own_views || 0) / tot, 1) + "%" : "—";
+          })(),
+          sub: fmt(own.own_views) + " / " + fmt(own.sourced_views) + " görünt."
+        }
+      ];
+      kpiEl.innerHTML = cards.map(function (c) {
+        return '<div class="dn-kpi"><div class="dn-kpi-top"><div class="dn-kpi-main">' +
+          '<p class="dn-kpi-label">' + esc(c.label) + "</p>" +
+          '<p class="dn-kpi-value">' + esc(c.value) + "</p>" +
+          '<p class="dn-kpi-sub">' + esc(c.sub) + "</p>" +
+          "</div></div></div>";
+      }).join("");
+    }
+
+    var buckets = ((t.source_breakdown || {}).buckets) || [];
+    renderHBarList("dn-chart-traffic-sources", buckets.map(function (b) {
+      return { label: b.label || b.key, count: b.sessions || b.views || 0, share_pct: null };
+    }), { nameKey: "label", countKey: "count", empty: "Kaynak kırılımı yok" });
+
+    var phases = t.day_phases || [];
+    renderHBarList("dn-chart-traffic-phases", phases.map(function (p) {
+      return { label: p.label || p.key, count: p.views || p.sessions || 0 };
+    }), { nameKey: "label", countKey: "count", empty: "Faz verisi yok" });
+
+    renderHBarList("dn-chart-traffic-own", [
+      { label: "Özgün", count: own.own_views || 0 },
+      { label: "Kaynaklı", count: own.sourced_views || 0 }
+    ], { nameKey: "label", countKey: "count", empty: "Trafik yok" });
+  }
+
   function plotHBar(elId, labels, values, opts) {
     opts = opts || {};
     var el = $(elId);
@@ -1454,6 +1549,26 @@
               ? '<span class="dn-badge dn-badge-own">Özgün</span>'
               : '<span class="dn-badge dn-badge-src">' + esc(r.source || "—") + "</span>";
           }
+        },
+        {
+          key: "views", label: "Görünt.", num: true,
+          render: function (r) { return r.views == null ? "—" : fmt(r.views); }
+        },
+        {
+          key: "sessions", label: "Oturum", num: true,
+          render: function (r) { return r.sessions == null ? "—" : fmt(r.sessions); }
+        },
+        {
+          key: "gsc_clicks", label: "GSC tık", num: true,
+          render: function (r) { return r.gsc_clicks == null ? "—" : fmt(r.gsc_clicks); }
+        },
+        {
+          key: "gsc_impressions", label: "GSC gösterim", num: true,
+          render: function (r) { return r.gsc_impressions == null ? "—" : fmt(r.gsc_impressions); }
+        },
+        {
+          key: "gsc_ctr", label: "CTR %", num: true,
+          render: function (r) { return r.gsc_ctr == null ? "—" : fmt(r.gsc_ctr, 1); }
         }
       ]
     });
@@ -1509,6 +1624,7 @@
     renderPeriodTabs(data.period_tabs || [], data.period_meta || {});
     renderTabs(data.category_tabs || []);
     renderKpis(data.summary || {}, data);
+    renderTraffic(data);
     renderCharts(data);
     renderTables(data);
     requestAnimationFrame(syncPairCardHeights);
