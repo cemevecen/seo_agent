@@ -421,11 +421,11 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
 
-    # Son 14 gün vs önceki 14 gün
+    # Son 7 gün vs önceki 7 gün (haftalık)
     if by_day:
         last_day = datetime.strptime(by_day[-1]["day"], "%Y-%m-%d").date()
-        recent_start = last_day - timedelta(days=13)
-        prev_start = recent_start - timedelta(days=14)
+        recent_start = last_day - timedelta(days=6)
+        prev_start = recent_start - timedelta(days=7)
         prev_end = recent_start - timedelta(days=1)
         recent_n = sum(
             x["count"]
@@ -438,13 +438,13 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
             if prev_start <= datetime.strptime(x["day"], "%Y-%m-%d").date() <= prev_end
         )
         recent_vs_prev = {
-            "recent_14d": recent_n,
-            "prev_14d": prev_n,
+            "recent_7d": recent_n,
+            "prev_7d": prev_n,
             "delta": recent_n - prev_n,
             "delta_pct": round(100.0 * (recent_n - prev_n) / prev_n, 1) if prev_n else None,
         }
     else:
-        recent_vs_prev = {"recent_14d": 0, "prev_14d": 0, "delta": 0, "delta_pct": None}
+        recent_vs_prev = {"recent_7d": 0, "prev_7d": 0, "delta": 0, "delta_pct": None}
 
     date_min = by_day[0]["day"] if by_day else date_min_tmp
     date_max = by_day[-1]["day"] if by_day else date_max_tmp

@@ -742,14 +742,14 @@
     var last28 = days.slice(-28);
     var dayVals = last28.map(function (d) { return d.count; });
     var dayLabels = last28.map(function (d) { return d.day; });
-    var last14 = days.slice(-14);
-    var last14Vals = last14.map(function (d) { return d.count; });
-    var last14Labels = last14.map(function (d) { return d.day; });
+    var last7 = days.slice(-7);
+    var last7Vals = last7.map(function (d) { return d.count; });
+    var last7Labels = last7.map(function (d) { return d.day; });
     var totalBars = miniBarsSvg(dayVals, dayLabels, { color: "#c7d2fe", accent: "#6366f1" });
     var avgBars = miniBarsSvg(dayVals, dayLabels, { color: "#bae6fd", accent: "#0ea5e9" });
     var cmpAccent = (rvp.delta != null && rvp.delta < 0) ? "#f43f5e" : "#10b981";
     var cmpBase = (rvp.delta != null && rvp.delta < 0) ? "#fecdd3" : "#a7f3d0";
-    var cmpBars = miniBarsSvg(last14Vals, last14Labels, { color: cmpBase, accent: cmpAccent });
+    var cmpBars = miniBarsSvg(last7Vals, last7Labels, { color: cmpBase, accent: cmpAccent });
     var ownPie = pieSvg([
       { value: s.own || 0, color: "#10b981", label: "Özgün" },
       { value: s.sourced || 0, color: "#3b82f6", label: "Kaynaklı" }
@@ -759,16 +759,18 @@
       { value: s.weekday_count || 0, color: "#6366f1", label: "Hafta içi" }
     ]);
     var hourViz = hourBarsSvg(data.by_hour || [], peak.hour);
+    var recent7 = rvp.recent_7d != null ? rvp.recent_7d : rvp.recent_14d;
+    var prev7 = rvp.prev_7d != null ? rvp.prev_7d : rvp.prev_14d;
 
     var cards = [
       {
-        label: "Toplam içerik",
+        label: "İçerik",
         value: fmt(s.total),
         sub: (s.date_min || "—") + " → " + (s.date_max || "—"),
         viz: totalBars
       },
       {
-        label: "Özgün (kaynak boş)",
+        label: "Özgün",
         value: fmt(s.own_pct, 1) + "%",
         sub: fmt(s.own) + " / " + fmt(s.total),
         viz: ownPie
@@ -786,15 +788,15 @@
         viz: weekendPie
       },
       {
-        label: "En yoğun saat",
+        label: "Yoğun saat",
         value: peak.label || "—",
         sub: fmt(peak.count) + " içerik",
         viz: hourViz
       },
       {
-        label: "Son 14g vs önceki",
+        label: "Son 7 vs önceki",
         value: (rvp.delta == null ? "—" : ((rvp.delta > 0 ? "+" : "") + fmt(rvp.delta))),
-        sub: fmt(rvp.recent_14d) + " vs " + fmt(rvp.prev_14d) +
+        sub: fmt(recent7) + " vs " + fmt(prev7) +
           (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)"),
         viz: cmpBars
       }
