@@ -173,6 +173,19 @@
   .dn-card--fill {
     display: flex; flex-direction: column; height: 100%; min-height: 0;
   }
+  .dn-card--fill .dn-table-host--fill {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .dn-card--fill .dn-table-host--fill .dn-itoolbar { flex: 0 0 auto; }
+  .dn-card--fill .dn-table-host--fill .dn-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+  }
   .dn-card--fill .dn-hbar-list--fill {
     flex: 1 1 auto;
     display: flex;
@@ -290,8 +303,8 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <div class="dn-card">
+    <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+      <div class="dn-card dn-card--fill">
         <div class="dn-card-head">
           <div>
             <h3>Kaynaklar (en çok kullanılan)</h3>
@@ -300,14 +313,14 @@
         </div>
         <div id="dn-chart-source" class="dn-hbar-list" aria-label="Kaynak bar listesi"></div>
       </div>
-      <div class="dn-card">
+      <div class="dn-card dn-card--fill">
         <div class="dn-card-head">
           <div>
             <h3>Kaynak konsantrasyonu</h3>
             <p class="dn-card-sub">Pay % ve son 7 gün trendi</p>
           </div>
         </div>
-        <div id="dn-table-source-conc"></div>
+        <div id="dn-table-source-conc" class="dn-table-host--fill"></div>
       </div>
       <div class="dn-card lg:col-span-2">
         <div class="dn-card-head"><div><h3>Günlük içerik sayısı</h3></div></div>
