@@ -223,6 +223,21 @@
     max-height: none;
     overflow: auto;
   }
+  /* Kaynaklar: uzun listede kart içinde dikey scroll */
+  #dn-card-sources.dn-card--fill {
+    overflow: hidden;
+  }
+  #dn-card-sources .dn-table-host--fill .dn-table-wrap {
+    max-height: min(26rem, 52vh);
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  @media (min-width: 1024px) {
+    #dn-card-sources .dn-table-host--fill .dn-table-wrap {
+      max-height: none; /* yükseklik keywords kartına hizalanınca flex overflow ile kayar */
+    }
+  }
   .dn-card--fill .dn-hbar-list--fill {
     flex: 1 1 auto;
     display: flex;
@@ -1112,8 +1127,6 @@
     var maxShare = Math.max.apply(null, list.map(function (s) { return s.share_pct || 0 }).concat([1]));
     mountInteractiveTable("dn-table-sources", {
       rows: list,
-      limit: 15,
-      expandable: true,
       defaultSort: "count",
       defaultDir: "desc",
       searchable: true,
@@ -1149,13 +1162,16 @@
     var kw = $("dn-card-keywords");
     if (!src || !kw) return;
     src.style.minHeight = "";
+    src.style.maxHeight = "";
+    src.style.height = "";
     kw.style.minHeight = "";
     if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
-    var h = Math.max(src.offsetHeight, kw.offsetHeight);
-    if (h > 0) {
-      src.style.minHeight = h + "px";
-      kw.style.minHeight = h + "px";
-    }
+    // Keywords yüksekliğini referans al; kaynaklar aynı boyutta kalsın, fazla satır içerde kaydırılsın
+    kw.style.minHeight = "";
+    var h = Math.max(kw.offsetHeight, 280);
+    src.style.minHeight = h + "px";
+    src.style.maxHeight = h + "px";
+    kw.style.minHeight = h + "px";
   }
 
   function hideWeeklyChartsForPeriod(period) {
