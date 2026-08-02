@@ -28,23 +28,53 @@ _WD_TR = ("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", 
 _DATE_FMTS = ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%d.%m.%Y")
 _ISO_WEEK_RE = re.compile(r"^(\d{4})-W(\d{2})$")
 _WORD_RE = re.compile(r"[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]{3,}", re.UNICODE)
+# Trump'tan / İstanbul'da → apostrof + ek düşer (tan/ndan gürültüsü).
+_APOSTROPHE_SUFFIX_RE = re.compile(r"[''`´′’][\wçğıöşüÇĞİÖŞÜ]+", re.UNICODE)
+
+_ALLOW_SHORT = frozenset(
+    {
+        "abd", "fed", "imf", "spk", "tcmb", "nato", "chp", "akp", "mhp", "iyi",
+        "btc", "eth", "usd", "eur", "gbp", "ons", "bist", "tufe", "ipo", "etf",
+    }
+)
+
 _STOPWORDS = frozenset(
     {
-        "ve", "ile", "icin", "için", "bir", "bu", "da", "de", "mi", "mı", "mu", "mü",
-        "ne", "olan", "olarak", "daha", "cok", "çok", "var", "yok", "gibi", "kadar",
-        "sonra", "once", "önce", "yeni", "gore", "göre", "den", "dan", "nin", "nın",
-        "nun", "nün", "the", "and", "of", "to", "in", "on", "for", "from", "with",
-        "that", "this", "was", "are", "not", "but", "its", "his", "her", "they",
-        "hava", "olan", "oldu", "edildi", "etti", "icin", "uzerine", "üzerine",
-        "hakkinda", "hakkında", "iliskin", "ilişkin", "karsi", "karşı", "icin",
-        "son", "ilk", "iki", "uc", "üç", "dort", "dört", "bes", "beş", "alti", "altı",
-        "yedi", "sekiz", "dokuz", "on", "bin", "milyon", "milyar", "tl", "usd",
-        "www", "http", "https", "com", "net", "org", "html",
-        "belli", "acikladi", "açıkladı", "basladi", "başladı", "geldi", "etti",
-        "dedi", "soyledi", "söyledi", "yapti", "yaptı", "olacak", "ediyor",
-        "icin", "guncel", "güncel", "haber", "haberleri", "devam", "eden",
-        "uzerinden", "üzerinden", "arasinda", "arasında", "icin", "neden",
-        "nasil", "nasıl", "hangi", "karsi", "yonelik", "yönelik",
+        "ve", "ile", "icin", "bir", "bu", "su", "o", "da", "de", "ki", "mi", "mu",
+        "ne", "hem", "ama", "fakat", "veya", "ya", "her", "cok", "daha", "en",
+        "gibi", "kadar", "gore", "uzere", "karsi", "yonelik", "arasinda",
+        "uzerine", "uzerinden", "hakkinda", "iliskin", "dolayi", "nedeniyle",
+        "sonra", "once", "beri", "ise", "ancak", "ayrica", "ozellikle",
+        "olan", "olarak", "oldu", "olacak", "oluyor", "edildi", "ediyor", "edecek",
+        "etti", "yapti", "yapiliyor", "yapilacak", "dedi", "soyledi", "belirtti",
+        "acikladi", "aciklandi", "duyurdu", "duyuruldu", "ulasti", "asti", "indi",
+        "aldi", "geldi", "basladi", "devam", "eden", "bekleniyor", "gosterdi",
+        "artti", "azaldi", "dustu", "yukseldi", "gerceklesti",
+        "tan", "ten", "dan", "den", "ndan", "nden", "nda", "nde", "nin", "nun",
+        "daki", "deki", "teki", "taki", "yla", "yle",
+        "kisi", "kisiye", "kisinin", "ilde", "ilden", "ilce", "gun", "gunu", "gununde",
+        "bugun", "dun", "yarin", "ayin", "ayi", "yil", "yilin", "yilda", "donemde",
+        "yuzde", "oraninda", "sonrasi", "oncesi", "sirada", "siradan",
+        "mesaji", "mesaj", "uyarisi", "uyari", "aciklama", "aciklamasi",
+        "baskani", "baskan", "bankasi", "banka", "sirketi", "sirket", "grubu",
+        "bakani", "bakan", "muduru", "yetkilisi", "sozcusu", "temsilcisi",
+        "haber", "haberleri", "gundem", "son", "ilk", "yeni", "buyuk", "onemli",
+        "genel", "resmi", "ozel", "ayri", "tek", "iki", "uc", "dort", "bes",
+        "alti", "yedi", "sekiz", "dokuz", "on", "bin", "milyon", "milyar",
+        "tl", "www", "http", "https", "com", "net", "org", "html",
+        "the", "and", "of", "to", "in", "for", "from", "with", "that", "this",
+        "var", "yok", "belli", "iste", "geri", "yeniden", "orta", "acik", "disi",
+        "nasil", "hangi", "neden", "guncel", "tarihi", "karari", "toplantisi",
+        "raporu", "verisi", "verileri", "iddiasi", "iddia", "yorumu", "tahmini",
+        "hedefi", "seviyesi", "hava", "nin", "nun",
+    }
+)
+
+_FILLER_VERBS = frozenset(
+    {
+        "geldi", "aldi", "indi", "asti", "etti", "oldu", "yapti", "dedi",
+        "dustu", "artti", "ulasti", "basladi", "acikladi", "aciklandi",
+        "duyurdu", "belirtti", "gosterdi", "azaldi", "yukseldi",
     }
 )
 
@@ -64,14 +94,33 @@ def _fold_tr(s: str) -> str:
     )
 
 
+def _tokenize_title(title: str) -> list[str]:
+    cleaned = _APOSTROPHE_SUFFIX_RE.sub("", title or "")
+    cleaned = cleaned.replace("-", " ")
+    return _WORD_RE.findall(cleaned)
+
+
+def _is_meaningful_keyword(key: str) -> bool:
+    if not key or key.isdigit():
+        return False
+    if key in _STOPWORDS or key in _FILLER_VERBS:
+        return False
+    if len(key) <= 2:
+        return False
+    if len(key) == 3 and key not in _ALLOW_SHORT:
+        return False
+    if re.fullmatch(r"n?(d[ae]|t[ae]n|d[ae]n|d[ae]ki)", key):
+        return False
+    return True
+
+
 def _top_title_keywords(rows: list[dict[str, Any]], *, limit: int = 15) -> list[dict[str, Any]]:
     counter: Counter[str] = Counter()
     display: dict[str, str] = {}
     for r in rows:
-        title = str(r.get("title") or "")
-        for raw in _WORD_RE.findall(title):
+        for raw in _tokenize_title(str(r.get("title") or "")):
             key = _fold_tr(raw)
-            if len(key) < 3 or key in _STOPWORDS or key.isdigit():
+            if not _is_meaningful_keyword(key):
                 continue
             counter[key] += 1
             if key not in display:
