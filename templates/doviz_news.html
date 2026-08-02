@@ -173,6 +173,28 @@
   }
   @media (min-width: 480px) { .dn-hbar-share { display: block; } }
   html.dark .dn-hbar-share, html.midnight .dn-hbar-share { color: #a1a1aa; }
+  .dn-pair-row { align-items: stretch; }
+  .dn-card--fill {
+    display: flex; flex-direction: column; height: 100%; min-height: 0;
+  }
+  .dn-card--fill .dn-hbar-list--fill {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    gap: 0.4rem;
+    min-height: 18rem;
+  }
+  @media (min-width: 640px) {
+    .dn-card--fill .dn-hbar-list--fill { min-height: 20rem; }
+  }
+  .dn-hbar-list--fill .dn-hbar-row {
+    flex: 1 1 0;
+    min-height: 1.75rem;
+  }
+  .dn-hbar-row:hover .dn-hbar-name { color: #4f46e5; }
+  html.dark .dn-hbar-row:hover .dn-hbar-name, html.midnight .dn-hbar-row:hover .dn-hbar-name { color: #a5b4fc; }
+  .dn-hbar-row:hover .dn-hbar-fill { filter: brightness(1.08); }
   .dn-muted { color: #64748b; font-size: 11px; }
   html.dark .dn-muted, html.midnight .dn-muted { color: #a1a1aa; }
 
@@ -256,20 +278,23 @@
   <div id="dn-body" class="hidden space-y-4">
     <div id="dn-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
 
-    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <div id="dn-card-cat" class="dn-card">
+    <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+      <div id="dn-card-cat" class="dn-card dn-card--fill">
         <div class="dn-card-head"><div><h3>Kategori dağılımı</h3></div></div>
-        <div id="dn-chart-cat" class="dn-chart dn-chart--fit"></div>
+        <div id="dn-chart-cat" class="dn-hbar-list dn-hbar-list--fill" aria-label="Kategori bar listesi"></div>
       </div>
-      <div class="dn-card">
+      <div id="dn-card-keywords" class="dn-card dn-card--fill">
         <div class="dn-card-head">
           <div>
             <h3>Top başlık kelimeleri</h3>
             <p class="dn-card-sub">Başlıklarda en sık geçen kelimeler</p>
           </div>
         </div>
-        <div id="dn-chart-keywords" class="dn-chart dn-chart--fit"></div>
+        <div id="dn-chart-keywords" class="dn-hbar-list dn-hbar-list--fill" aria-label="Kelime bar listesi"></div>
       </div>
+    </div>
+
+    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <div class="dn-card">
         <div class="dn-card-head">
           <div>
@@ -774,25 +799,57 @@
     }], plotLayout(layoutExtra), plotCfg());
   }
 
-  function renderSourceBars(list) {
-    var el = $("dn-chart-source");
+  function renderHBarList(elId, rows, opts) {
+    opts = opts || {};
+    var el = $(elId);
     if (!el) return;
-    var rows = (list || []).slice(0, 12);
-    if (!rows.length) {
-      el.innerHTML = '<p class="dn-muted">Kaynak yok</p>';
+    var nameKey = opts.nameKey || "label";
+    var countKey = opts.countKey || "count";
+    var shareKey = opts.shareKey || "share_pct";
+    var fillClass = opts.fillClass || "";
+    var list = (rows || []).slice(0, opts.limit || 50);
+    if (!list.length) {
+      el.innerHTML = '<p class="dn-muted">' + esc(opts.empty || "Veri yok") + "</p>";
       return;
     }
-    var max = Math.max.apply(null, rows.map(function (r) { return r.count || 0; }).concat([1]));
-    el.innerHTML = rows.map(function (r, i) {
-      var pct = Math.max(3, Math.round((r.count / max) * 100));
-      return '<div class="dn-hbar-row">' +
+    var max = Math.max.apply(null, list.map(function (r) { return Number(r[countKey]) || 0; }).concat([1]));
+    el.innerHTML = list.map(function (r, i) {
+      var name = r[nameKey] != null ? r[nameKey] : (r.label || r.word || r.source || "—");
+      var count = Number(r[countKey]) || 0;
+      var share = r[shareKey];
+      var pct = Math.max(3, Math.round((count / max) * 100));
+      var tip = name + ": " + fmt(count) + (share != null ? " (" + fmt(share, 1) + "%)" : "");
+      return '<div class="dn-hbar-row" title="' + esc(tip) + '" data-name="' + esc(name) + '" data-count="' + esc(String(count)) + '">' +
         '<span class="dn-rank">' + (i + 1) + "</span>" +
-        '<span class="dn-hbar-name" title="' + esc(r.source) + '">' + esc(r.source) + "</span>" +
-        '<span class="dn-hbar-count">' + fmt(r.count) + "</span>" +
-        '<span class="dn-hbar-share">' + fmt(r.share_pct, 1) + "%</span>" +
-        '<div class="dn-hbar-track"><div class="dn-hbar-fill" style="width:' + pct + '%"></div></div>' +
+        '<span class="dn-hbar-name">' + esc(name) + "</span>" +
+        '<span class="dn-hbar-count">' + fmt(count) + "</span>" +
+        (share != null ? '<span class="dn-hbar-share">' + fmt(share, 1) + "%</span>" : '<span class="dn-hbar-share"></span>') +
+        '<div class="dn-hbar-track"><div class="dn-hbar-fill' + (fillClass ? " " + fillClass : "") + '" style="width:' + pct + '%"></div></div>' +
       "</div>";
     }).join("");
+  }
+
+  function renderSourceBars(list) {
+    renderHBarList("dn-chart-source", (list || []).slice(0, 12), {
+      nameKey: "source",
+      countKey: "count",
+      shareKey: "share_pct",
+      empty: "Kaynak yok"
+    });
+  }
+
+  function syncPairCardHeights() {
+    var cat = $("dn-card-cat");
+    var kw = $("dn-card-keywords");
+    if (!cat || !kw || cat.classList.contains("hidden")) return;
+    cat.style.minHeight = "";
+    kw.style.minHeight = "";
+    if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
+    var h = Math.max(cat.offsetHeight, kw.offsetHeight);
+    if (h > 0) {
+      cat.style.minHeight = h + "px";
+      kw.style.minHeight = h + "px";
+    }
   }
 
   function renderCharts(data) {
@@ -801,24 +858,33 @@
     var catCard = $("dn-card-cat");
     if (catCard) catCard.classList.toggle("hidden", !showCat);
     if (showCat) {
-      var cats = data.by_category || [];
-      plotHBar(
-        "dn-chart-cat",
-        cats.map(function (c) { return c.label || shortCat(c.key); }),
-        cats.map(function (c) { return c.count; }),
-        { color: "#6366f1", labelW: 110, rowH: 36 }
-      );
+      var cats = (data.by_category || []).map(function (c) {
+        return {
+          label: c.label || shortCat(c.key),
+          count: c.count,
+          share_pct: c.share_pct
+        };
+      });
+      renderHBarList("dn-chart-cat", cats, {
+        nameKey: "label",
+        countKey: "count",
+        shareKey: "share_pct",
+        empty: "Kategori yok"
+      });
     }
 
-    var kws = (data.top_keywords || []).slice(0, 12);
-    plotHBar(
-      "dn-chart-keywords",
-      kws.map(function (k) { return k.word; }),
-      kws.map(function (k) { return k.count; }),
-      { color: "#1e293b", labelW: 90, rowH: 34, xaxisTitle: "Adet", margin: { t: 8, r: 40, b: 36, l: 90 } }
-    );
+    var kws = (data.top_keywords || []).slice(0, 12).map(function (k) {
+      return { label: k.word, count: k.count, share_pct: k.share_pct };
+    });
+    renderHBarList("dn-chart-keywords", kws, {
+      nameKey: "label",
+      countKey: "count",
+      shareKey: "share_pct",
+      empty: "Kelime yok"
+    });
 
     renderSourceBars(data.by_source || []);
+    requestAnimationFrame(syncPairCardHeights);
 
     var days = data.by_day || [];
     Plotly.newPlot("dn-chart-day", [{
@@ -866,8 +932,8 @@
 
     var own = data.own_by_category || [];
     Plotly.newPlot("dn-chart-own", [
-      { type: "bar", name: "Özgün", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: "#10b981" } },
-      { type: "bar", name: "Kaynaklı", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: "#3b82f6" } }
+      { type: "bar", name: "Özgün", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: "#10b981" }, hovertemplate: "%{x}<br>Özgün: %{y}<extra></extra>" },
+      { type: "bar", name: "Kaynaklı", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: "#3b82f6" }, hovertemplate: "%{x}<br>Kaynaklı: %{y}<extra></extra>" }
     ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 70, l: 40 }, xaxis: { tickangle: -20 } }), plotCfg());
   }
 
