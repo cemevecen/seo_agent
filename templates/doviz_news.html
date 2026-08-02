@@ -102,6 +102,26 @@
   .dn-progress-label.is-on { display: block; }
   .dn-period-card.is-loading { position: relative; }
 
+  .dn-kpi-flow {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+    align-items: stretch;
+  }
+  .dn-traffic-charts {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  @media (min-width: 640px) {
+    .dn-traffic-charts {
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    }
+  }
+  .dn-traffic-charts:empty,
+  .dn-kpi-flow:empty { display: none; }
+
   .dn-itoolbar {
     display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin-bottom: 0.55rem;
   }
@@ -545,9 +565,9 @@
             <p id="dn-traffic-meta" class="dn-card-sub"></p>
           </div>
         </div>
-        <div id="dn-traffic-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
+        <div id="dn-traffic-kpis" class="dn-kpi-flow"></div>
       </div>
-      <div class="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
+      <div id="dn-traffic-charts" class="dn-traffic-charts">
         <div id="dn-card-traffic-sources" class="dn-card">
           <div class="dn-card-head"><div><h3>Trafik kaynakları</h3></div></div>
           <div id="dn-chart-traffic-sources" class="dn-hbar-list" aria-label="Trafik kaynakları"></div>
@@ -1294,11 +1314,54 @@
       block.classList.add("hidden");
       return;
     }
-    block.classList.remove("hidden");
     var ga4 = t.ga4 || {};
     var gsc = t.gsc || {};
     var own = t.own_vs_sourced || {};
     var win = t.window || {};
+
+    function isZero(n) {
+      var v = Number(n);
+      return n == null || !isFinite(v) || v === 0;
+    }
+
+    var ownTot = (Number(own.own_views) || 0) + (Number(own.sourced_views) || 0);
+    var ownShare = ownTot ? (100 * (Number(own.own_views) || 0) / ownTot) : 0;
+
+    var cards = [
+      { label: "GA4 görüntüleme", raw: ga4.views, value: fmt(ga4.views), sub: (ga4.matched_articles || 0) + " eşleşen içerik" },
+      { label: "GA4 oturum", raw: ga4.sessions, value: fmt(ga4.sessions), sub: "web+mweb" },
+      { label: "GSC tıklama", raw: gsc.clicks, value: fmt(gsc.clicks), sub: (gsc.matched_pages || 0) + " sayfa" },
+      { label: "GSC gösterim", raw: gsc.impressions, value: fmt(gsc.impressions), sub: "CTR " + fmt(gsc.ctr, 1) + "%" },
+      { label: "GSC pozisyon", raw: gsc.position, value: fmt(gsc.position, 1), sub: gsc.scope || "—", hideIf: isZero(gsc.impressions) && isZero(gsc.clicks) },
+      {
+        label: "Özgün trafik payı",
+        raw: ownShare,
+        value: ownTot ? fmt(ownShare, 1) + "%" : "—",
+        sub: fmt(own.own_views) + " / " + fmt(own.sourced_views) + " görünt.",
+        hideIf: isZero(own.own_views)
+      }
+    ].filter(function (c) {
+      if (c.hideIf) return false;
+      return !isZero(c.raw);
+    });
+
+    var buckets = (((t.source_breakdown || {}).buckets) || []).filter(function (b) {
+      return !isZero(b.sessions) || !isZero(b.views);
+    });
+    var phases = (t.day_phases || []).filter(function (p) {
+      return !isZero(p.views) || !isZero(p.sessions);
+    });
+    var showOwnChart = !isZero(own.own_views) || !isZero(own.sourced_views);
+    var showSources = buckets.length > 0;
+    var showPhases = phases.length > 0;
+    var hasAny = cards.length > 0 || showSources || showPhases || showOwnChart;
+
+    if (!hasAny) {
+      block.classList.add("hidden");
+      return;
+    }
+    block.classList.remove("hidden");
+
     var meta = $("dn-traffic-meta");
     if (meta) {
       var bits = [];
@@ -1315,21 +1378,6 @@
 
     var kpiEl = $("dn-traffic-kpis");
     if (kpiEl) {
-      var cards = [
-        { label: "GA4 görüntüleme", value: fmt(ga4.views), sub: (ga4.matched_articles || 0) + " eşleşen içerik" },
-        { label: "GA4 oturum", value: fmt(ga4.sessions), sub: "web+mweb" },
-        { label: "GSC tıklama", value: fmt(gsc.clicks), sub: (gsc.matched_pages || 0) + " sayfa" },
-        { label: "GSC gösterim", value: fmt(gsc.impressions), sub: "CTR " + fmt(gsc.ctr, 1) + "%" },
-        { label: "GSC pozisyon", value: fmt(gsc.position, 1), sub: gsc.scope || "—" },
-        {
-          label: "Özgün trafik payı",
-          value: (function () {
-            var tot = (own.own_views || 0) + (own.sourced_views || 0);
-            return tot ? fmt(100 * (own.own_views || 0) / tot, 1) + "%" : "—";
-          })(),
-          sub: fmt(own.own_views) + " / " + fmt(own.sourced_views) + " görünt."
-        }
-      ];
       kpiEl.innerHTML = cards.map(function (c) {
         return '<div class="dn-kpi"><div class="dn-kpi-top"><div class="dn-kpi-main">' +
           '<p class="dn-kpi-label">' + esc(c.label) + "</p>" +
@@ -1337,22 +1385,36 @@
           '<p class="dn-kpi-sub">' + esc(c.sub) + "</p>" +
           "</div></div></div>";
       }).join("");
+      kpiEl.classList.toggle("hidden", !cards.length);
     }
 
-    var buckets = ((t.source_breakdown || {}).buckets) || [];
-    renderHBarList("dn-chart-traffic-sources", buckets.map(function (b) {
-      return { label: b.label || b.key, count: b.sessions || b.views || 0, share_pct: null };
-    }), { nameKey: "label", countKey: "count", empty: "Kaynak kırılımı yok" });
+    var srcCard = $("dn-card-traffic-sources");
+    var phaseCard = $("dn-card-traffic-phases");
+    var ownCard = $("dn-card-traffic-own");
+    var chartsWrap = $("dn-traffic-charts");
+    if (srcCard) srcCard.classList.toggle("hidden", !showSources);
+    if (phaseCard) phaseCard.classList.toggle("hidden", !showPhases);
+    if (ownCard) ownCard.classList.toggle("hidden", !showOwnChart);
+    if (chartsWrap) {
+      chartsWrap.classList.toggle("hidden", !(showSources || showPhases || showOwnChart));
+    }
 
-    var phases = t.day_phases || [];
-    renderHBarList("dn-chart-traffic-phases", phases.map(function (p) {
-      return { label: p.label || p.key, count: p.views || p.sessions || 0 };
-    }), { nameKey: "label", countKey: "count", empty: "Faz verisi yok" });
-
-    renderHBarList("dn-chart-traffic-own", [
-      { label: "Özgün", count: own.own_views || 0 },
-      { label: "Kaynaklı", count: own.sourced_views || 0 }
-    ], { nameKey: "label", countKey: "count", empty: "Trafik yok" });
+    if (showSources) {
+      renderHBarList("dn-chart-traffic-sources", buckets.map(function (b) {
+        return { label: b.label || b.key, count: b.sessions || b.views || 0, share_pct: null };
+      }), { nameKey: "label", countKey: "count", empty: "Kaynak kırılımı yok" });
+    }
+    if (showPhases) {
+      renderHBarList("dn-chart-traffic-phases", phases.map(function (p) {
+        return { label: p.label || p.key, count: p.views || p.sessions || 0 };
+      }), { nameKey: "label", countKey: "count", empty: "Faz verisi yok" });
+    }
+    if (showOwnChart) {
+      renderHBarList("dn-chart-traffic-own", [
+        { label: "Özgün", count: own.own_views || 0 },
+        { label: "Kaynaklı", count: own.sourced_views || 0 }
+      ].filter(function (r) { return !isZero(r.count); }), { nameKey: "label", countKey: "count", empty: "Trafik yok" });
+    }
   }
 
   function plotHBar(elId, labels, values, opts) {
