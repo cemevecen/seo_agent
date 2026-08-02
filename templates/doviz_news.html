@@ -229,6 +229,95 @@
     flex: 1 1 0;
     min-height: 1.75rem;
   }
+
+  .dn-card--fill .dn-own-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .dn-own-legend {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+    font-size: 11px; color: #64748b;
+  }
+  html.dark .dn-own-legend, html.midnight .dn-own-legend { color: #a1a1aa; }
+  .dn-own-legend-item {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+  }
+  .dn-own-swatch {
+    width: 0.65rem; height: 0.65rem; border-radius: 999px; flex: 0 0 auto;
+  }
+  .dn-own-swatch--own { background: #10b981; }
+  .dn-own-swatch--src { background: #3b82f6; }
+  .dn-own-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    gap: 0.35rem;
+  }
+  .dn-own-row {
+    flex: 1 1 0;
+    min-height: 2.75rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "bar"
+      "meta";
+    gap: 0.25rem 0.55rem;
+    align-content: center;
+    min-width: 0;
+  }
+  .dn-own-head {
+    grid-area: head;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+    min-width: 0;
+  }
+  .dn-own-name {
+    font-size: 0.75rem; font-weight: 700; color: #0f172a;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  }
+  html.dark .dn-own-name, html.midnight .dn-own-name { color: #e4e4e7; }
+  .dn-own-pct {
+    flex: 0 0 auto; font-size: 0.75rem; font-weight: 800;
+    font-variant-numeric: tabular-nums; color: #059669; white-space: nowrap;
+  }
+  html.dark .dn-own-pct, html.midnight .dn-own-pct { color: #6ee7b7; }
+  .dn-own-bar {
+    grid-area: bar;
+    display: flex; height: 0.7rem; border-radius: 999px; overflow: hidden;
+    background: #e2e8f0; min-width: 0; width: 100%;
+  }
+  html.dark .dn-own-bar, html.midnight .dn-own-bar { background: #27272a; }
+  .dn-own-seg { height: 100%; min-width: 0; }
+  .dn-own-seg--own { background: linear-gradient(90deg, #34d399, #10b981); }
+  .dn-own-seg--src { background: linear-gradient(90deg, #60a5fa, #3b82f6); }
+  .dn-own-meta {
+    grid-area: meta;
+    display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem;
+    font-size: 0.68rem; font-variant-numeric: tabular-nums; color: #64748b;
+  }
+  html.dark .dn-own-meta, html.midnight .dn-own-meta { color: #a1a1aa; }
+  .dn-own-meta strong { font-weight: 700; color: #334155; }
+  html.dark .dn-own-meta strong, html.midnight .dn-own-meta strong { color: #d4d4d8; }
+
+  @container dn-card (min-width: 420px) {
+    .dn-own-row {
+      grid-template-columns: minmax(5.5rem, 8.5rem) minmax(3rem, 1fr) auto;
+      grid-template-areas: "head bar meta";
+      align-items: center;
+      min-height: 2.35rem;
+      gap: 0.45rem 0.65rem;
+    }
+    .dn-own-head { flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+    .dn-own-bar { height: 0.85rem; }
+    .dn-own-meta { flex-direction: column; align-items: flex-end; gap: 0.1rem; white-space: nowrap; }
+  }
+  @container dn-card (min-width: 520px) {
+    .dn-own-row {
+      grid-template-columns: minmax(6.5rem, 10rem) minmax(4rem, 1fr) 7.5rem;
+    }
+  }
   .dn-hbar-row:hover .dn-hbar-name { color: #4f46e5; }
   html.dark .dn-hbar-row:hover .dn-hbar-name, html.midnight .dn-hbar-row:hover .dn-hbar-name { color: #a5b4fc; }
   .dn-hbar-row:hover .dn-hbar-fill { filter: brightness(1.08); }
@@ -368,7 +457,7 @@
       </div>
       <div class="dn-card dn-card--fill">
         <div class="dn-card-head"><div><h3>Özgün içerik — kategori</h3></div></div>
-        <div id="dn-table-own" class="dn-table-host--fill"></div>
+        <div id="dn-own-bars" class="dn-own-wrap" aria-label="Özgün içerik kategori dağılımı"></div>
       </div>
       <div class="dn-card dn-card--fill">
         <div class="dn-card-head"><div><h3>Top kelime tablosu</h3></div></div>
@@ -1082,18 +1171,7 @@
       ]
     });
 
-    mountInteractiveTable("dn-table-own", {
-      rows: data.own_by_category || [],
-      defaultSort: "own_pct",
-      defaultDir: "desc",
-      searchPlaceholder: "Kategori ara…",
-      columns: [
-        { key: "category", label: "Kategori", render: function (r) { return esc(r.label || shortCat(r.category)); } },
-        { key: "own", label: "Özgün", num: true, render: function (r) { return fmt(r.own); } },
-        { key: "sourced", label: "Kaynaklı", num: true, render: function (r) { return fmt(r.sourced); } },
-        { key: "own_pct", label: "Özgün %", num: true, render: function (r) { return fmt(r.own_pct, 1) + "%"; } }
-      ]
-    });
+    renderOwnByCategory(data.own_by_category || []);
 
     mountInteractiveTable("dn-table-keywords", {
       rows: data.top_keywords || [],
@@ -1135,6 +1213,50 @@
         }
       ]
     });
+  }
+
+  function renderOwnByCategory(list) {
+    var el = $("dn-own-bars");
+    if (!el) return;
+    var rows = (list || []).slice().sort(function (a, b) {
+      return (Number(b.own_pct) || 0) - (Number(a.own_pct) || 0);
+    });
+    if (!rows.length) {
+      el.innerHTML = '<p class="dn-muted">Veri yok</p>';
+      return;
+    }
+    var body = rows.map(function (r) {
+      var name = r.label || shortCat(r.category) || "—";
+      var own = Number(r.own) || 0;
+      var sourced = Number(r.sourced) || 0;
+      var total = own + sourced;
+      var ownPctBar = total ? (100 * own / total) : 0;
+      var srcPctBar = total ? (100 * sourced / total) : 0;
+      var ownPct = r.own_pct != null ? r.own_pct : ownPctBar;
+      var tip = name + " — özgün " + fmt(own) + " / kaynaklı " + fmt(sourced) +
+        " (" + fmt(ownPct, 1) + "% özgün)";
+      return '<div class="dn-own-row" title="' + esc(tip) + '">' +
+        '<div class="dn-own-head">' +
+          '<span class="dn-own-name">' + esc(name) + "</span>" +
+          '<span class="dn-own-pct">' + fmt(ownPct, 1) + "%</span>" +
+        "</div>" +
+        '<div class="dn-own-bar" role="img" aria-label="' + esc(tip) + '">' +
+          '<div class="dn-own-seg dn-own-seg--own" style="width:' + ownPctBar.toFixed(2) + '%"></div>' +
+          '<div class="dn-own-seg dn-own-seg--src" style="width:' + srcPctBar.toFixed(2) + '%"></div>' +
+        "</div>" +
+        '<div class="dn-own-meta">' +
+          "<span><strong>" + fmt(own) + "</strong> özgün</span>" +
+          "<span><strong>" + fmt(sourced) + "</strong> kaynaklı</span>" +
+        "</div>" +
+      "</div>";
+    }).join("");
+    el.innerHTML =
+      '<div class="dn-own-legend">' +
+        '<span class="dn-own-legend-item"><span class="dn-own-swatch dn-own-swatch--own"></span>Özgün</span>' +
+        '<span class="dn-own-legend-item"><span class="dn-own-swatch dn-own-swatch--src"></span>Kaynaklı</span>' +
+        '<span class="dn-imeta" style="margin-left:auto">' + fmt(rows.length) + "</span>" +
+      "</div>" +
+      '<div class="dn-own-list">' + body + "</div>";
   }
 
   function renderAll(data) {
