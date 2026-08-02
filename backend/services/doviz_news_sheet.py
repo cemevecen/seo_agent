@@ -75,7 +75,7 @@ def _top_title_keywords(rows: list[dict[str, Any]], *, limit: int = 15) -> list[
                 continue
             counter[key] += 1
             if key not in display:
-                display[key] = raw.lower()
+                display[key] = key
     total_hits = sum(counter.values()) or 1
     out = []
     for key, n in counter.most_common(limit):
