@@ -7,18 +7,31 @@
 
   .dn-kpi {
     border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff; padding: 0.85rem 1rem;
+    display: flex; flex-direction: column; min-width: 0;
   }
   html.dark .dn-kpi, html.midnight .dn-kpi { border-color: #3f3f46; background: #09090b; }
   .dn-kpi .dn-kpi-label {
     font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b;
   }
   html.dark .dn-kpi .dn-kpi-label, html.midnight .dn-kpi .dn-kpi-label { color: #a1a1aa; }
+  .dn-kpi-top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;
+  }
+  .dn-kpi-main { min-width: 0; flex: 1 1 auto; }
+  .dn-kpi-viz {
+    flex: 0 0 auto; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
+  }
+  .dn-kpi-viz svg { display: block; max-width: 100%; max-height: 100%; }
   .dn-kpi .dn-kpi-value {
     margin-top: 0.35rem; font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; color: #0f172a;
   }
   @media (min-width: 640px) { .dn-kpi .dn-kpi-value { font-size: 1.25rem; } }
   html.dark .dn-kpi .dn-kpi-value, html.midnight .dn-kpi .dn-kpi-value { color: #f4f4f5; }
   .dn-kpi .dn-kpi-sub { margin-top: 0.2rem; font-size: 11px; color: #64748b; line-height: 1.35; }
+  .dn-kpi-spark {
+    margin-top: 0.55rem; width: 100%; height: 28px;
+  }
+  .dn-kpi-spark svg { width: 100%; height: 28px; display: block; }
 
   .dn-card {
     border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff; padding: 0.85rem;
@@ -146,9 +159,6 @@
   <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div class="min-w-0">
       <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Doviz News</h1>
-      <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">
-        Doviz.com haber yayın raporu — kategori, kaynak, gün/saat ve özgün içerik ağırlığı
-      </p>
       <p id="dn-meta" class="mt-1 dn-muted"></p>
     </div>
     <div class="flex shrink-0 flex-wrap items-center gap-2">
@@ -303,24 +313,89 @@
       .replace(/"/g, "&quot;");
   }
 
-  function sparkSvg(values, days) {
+  function sparkSvg(values, days, opts) {
+    opts = opts || {};
     var vals = (values || []).map(Number);
     if (!vals.length) return '<span class="dn-muted">—</span>';
-    var w = 72, h = 22, pad = 1;
+    var w = opts.w || 72, h = opts.h || 22, pad = 1;
+    var stroke = opts.stroke || "#14b8a6";
+    var fill = opts.fill || "";
     var max = Math.max.apply(null, vals.concat([1]));
-    var min = Math.min.apply(null, vals);
+    var min = opts.zeroBase ? 0 : Math.min.apply(null, vals);
     var span = Math.max(max - min, 1);
-    var pts = vals.map(function (v, i) {
+    var ptsArr = vals.map(function (v, i) {
       var x = pad + (i * (w - pad * 2)) / Math.max(vals.length - 1, 1);
       var y = h - pad - ((v - min) / span) * (h - pad * 2);
-      return x.toFixed(1) + "," + y.toFixed(1);
-    }).join(" ");
+      return [x, y];
+    });
+    var pts = ptsArr.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var area = "";
+    if (fill && ptsArr.length) {
+      var first = ptsArr[0], last = ptsArr[ptsArr.length - 1];
+      area = '<polygon fill="' + fill + '" stroke="none" points="' +
+        first[0].toFixed(1) + "," + (h - pad) + " " + pts + " " +
+        last[0].toFixed(1) + "," + (h - pad) + '"/>';
+    }
     var title = vals.map(function (v, i) {
       return (days && days[i] ? days[i] + ": " : "") + v;
     }).join(" · ");
-    return '<svg class="dn-spark" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="' + esc(title) + '">' +
-      '<polyline fill="none" stroke="#14b8a6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" points="' + pts + '"/>' +
+    return '<svg class="dn-spark" viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="none" role="img" aria-label="' + esc(title) + '">' +
+      area +
+      '<polyline fill="none" stroke="' + stroke + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" points="' + pts + '"/>' +
       "</svg>";
+  }
+
+  function pieSvg(parts, size) {
+    // parts: [{value, color, label}]
+    size = size || 52;
+    var total = 0;
+    (parts || []).forEach(function (p) { total += Math.max(0, Number(p.value) || 0); });
+    if (!total) {
+      return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 52 52"><circle cx="26" cy="26" r="20" fill="#e2e8f0"/></svg>';
+    }
+    var cx = 26, cy = 26, r = 20, rInner = 11;
+    var angle = -Math.PI / 2;
+    var slices = "";
+    parts.forEach(function (p) {
+      var v = Math.max(0, Number(p.value) || 0);
+      if (!v) return;
+      var sweep = (v / total) * Math.PI * 2;
+      if (sweep >= Math.PI * 2 - 0.0001) {
+        slices += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + (p.color || "#6366f1") + '"/>';
+        return;
+      }
+      var x1 = cx + r * Math.cos(angle);
+      var y1 = cy + r * Math.sin(angle);
+      angle += sweep;
+      var x2 = cx + r * Math.cos(angle);
+      var y2 = cy + r * Math.sin(angle);
+      var large = sweep > Math.PI ? 1 : 0;
+      slices += '<path d="M ' + cx + " " + cy + " L " + x1.toFixed(2) + " " + y1.toFixed(2) +
+        " A " + r + " " + r + " 0 " + large + " 1 " + x2.toFixed(2) + " " + y2.toFixed(2) +
+        ' Z" fill="' + (p.color || "#6366f1") + '"/>';
+    });
+    var label = (parts || []).map(function (p) { return (p.label || "") + " " + (p.value || 0); }).join(" · ");
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 52 52" role="img" aria-label="' + esc(label) + '">' +
+      slices +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + rInner + '" fill="' + (isDark() ? "#09090b" : "#ffffff") + '"/>' +
+      "</svg>";
+  }
+
+  function hourBarsSvg(hours, peakHour) {
+    var vals = (hours || []).map(function (h) { return Number(h.count) || 0; });
+    if (!vals.length) return "";
+    var w = 52, h = 52, pad = 2;
+    var max = Math.max.apply(null, vals.concat([1]));
+    var barW = (w - pad * 2) / vals.length;
+    var rects = vals.map(function (v, i) {
+      var bh = (v / max) * (h - pad * 2);
+      var x = pad + i * barW;
+      var y = h - pad - bh;
+      var on = peakHour != null && hours[i] && hours[i].hour === peakHour;
+      return '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + Math.max(barW - 0.4, 0.6).toFixed(2) +
+        '" height="' + Math.max(bh, 0.5).toFixed(2) + '" rx="0.4" fill="' + (on ? "#f59e0b" : "#cbd5e1") + '"/>';
+    }).join("");
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '" role="img" aria-label="Saatlik dağılım">' + rects + "</svg>";
   }
 
   function cmpVal(a, b, key, dir) {
@@ -452,28 +527,84 @@
     });
   }
 
-  function renderKpis(s) {
+  function renderKpis(s, data) {
     var el = $("dn-kpis");
     if (!el || !s) return;
+    data = data || {};
     var rvp = s.recent_vs_prev || {};
     var peak = s.peak_hour || {};
+    var days = data.by_day || [];
+    var last28 = days.slice(-28);
+    var dayVals = last28.map(function (d) { return d.count; });
+    var dayLabels = last28.map(function (d) { return d.day; });
+    var last28Spark = sparkSvg(dayVals, dayLabels, {
+      w: 120, h: 28, stroke: "#6366f1", fill: "rgba(99,102,241,0.12)", zeroBase: true
+    });
+    var ownPie = pieSvg([
+      { value: s.own || 0, color: "#10b981", label: "Özgün" },
+      { value: s.sourced || 0, color: "#3b82f6", label: "Kaynaklı" }
+    ]);
+    var weekendPie = pieSvg([
+      { value: s.weekend_count || 0, color: "#f43f5e", label: "Cmt+Paz" },
+      { value: s.weekday_count || 0, color: "#6366f1", label: "Hafta içi" }
+    ]);
+    var hourViz = hourBarsSvg(data.by_hour || [], peak.hour);
+    var cmpStroke = (rvp.delta != null && rvp.delta < 0) ? "#f43f5e" : "#10b981";
+    var cmpSpark = sparkSvg(dayVals, dayLabels, {
+      w: 120, h: 28, stroke: cmpStroke, fill: (rvp.delta != null && rvp.delta < 0) ? "rgba(244,63,94,0.12)" : "rgba(16,185,129,0.12)", zeroBase: true
+    });
+
     var cards = [
-      { label: "Toplam içerik", value: fmt(s.total), sub: (s.date_min || "—") + " → " + (s.date_max || "—") },
-      { label: "Özgün (kaynak boş)", value: fmt(s.own_pct, 1) + "%", sub: fmt(s.own) + " / " + fmt(s.total) },
-      { label: "Ort. / gün", value: fmt(s.avg_per_day, 1), sub: "Medyan: " + fmt(s.median_per_day, 1) },
-      { label: "Cmt + Paz", value: fmt(s.weekend_count), sub: "Hafta içi: " + fmt(s.weekday_count) + " · %" + fmt(s.weekend_pct, 1) },
-      { label: "En yoğun saat", value: peak.label || "—", sub: fmt(peak.count) + " içerik" },
+      {
+        label: "Toplam içerik",
+        value: fmt(s.total),
+        sub: (s.date_min || "—") + " → " + (s.date_max || "—"),
+        spark: last28Spark
+      },
+      {
+        label: "Özgün (kaynak boş)",
+        value: fmt(s.own_pct, 1) + "%",
+        sub: fmt(s.own) + " / " + fmt(s.total),
+        viz: ownPie
+      },
+      {
+        label: "Ort. / gün",
+        value: fmt(s.avg_per_day, 1),
+        sub: "Medyan: " + fmt(s.median_per_day, 1),
+        spark: last28Spark
+      },
+      {
+        label: "Cmt + Paz",
+        value: fmt(s.weekend_count),
+        sub: "Hafta içi: " + fmt(s.weekday_count) + " · %" + fmt(s.weekend_pct, 1),
+        viz: weekendPie
+      },
+      {
+        label: "En yoğun saat",
+        value: peak.label || "—",
+        sub: fmt(peak.count) + " içerik",
+        viz: hourViz
+      },
       {
         label: "Son 14g vs önceki",
         value: (rvp.delta == null ? "—" : ((rvp.delta > 0 ? "+" : "") + fmt(rvp.delta))),
         sub: fmt(rvp.recent_14d) + " vs " + fmt(rvp.prev_14d) +
-          (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)")
+          (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)"),
+        spark: cmpSpark
       }
     ];
     el.innerHTML = cards.map(function (c) {
-      return '<div class="dn-kpi"><p class="dn-kpi-label">' + esc(c.label) + "</p>" +
-        '<p class="dn-kpi-value">' + esc(c.value) + "</p>" +
-        '<p class="dn-kpi-sub">' + esc(c.sub) + "</p></div>";
+      return '<div class="dn-kpi">' +
+        '<div class="dn-kpi-top">' +
+          '<div class="dn-kpi-main">' +
+            '<p class="dn-kpi-label">' + esc(c.label) + "</p>" +
+            '<p class="dn-kpi-value">' + esc(c.value) + "</p>" +
+            '<p class="dn-kpi-sub">' + esc(c.sub) + "</p>" +
+          "</div>" +
+          (c.viz ? '<div class="dn-kpi-viz">' + c.viz + "</div>" : "") +
+        "</div>" +
+        (c.spark ? '<div class="dn-kpi-spark">' + c.spark + "</div>" : "") +
+      "</div>";
     }).join("");
   }
 
@@ -701,7 +832,7 @@
   function renderAll(data) {
     state.data = data;
     renderTabs(data.category_tabs || []);
-    renderKpis(data.summary || {});
+    renderKpis(data.summary || {}, data);
     renderCharts(data);
     renderTables(data);
     var meta = $("dn-meta");
