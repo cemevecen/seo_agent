@@ -69,3 +69,4 @@ def test_fetch_falls_back_when_pending_sheet_private(monkeypatch):
     assert mod._CACHE and "1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA" in str(
         mod._CACHE.get("source_url")
     )
+    assert mod._CACHE.get("warning")

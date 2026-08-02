@@ -14,14 +14,16 @@ from backend.services.market_sheets_sync import _norm_header, _parse_tr_number
 
 logger = logging.getLogger(__name__)
 
-# Herkese açık yedek (şu an okunabilen).
+# Güncel tablo (herkese açık görüntüleyici).
 REVENUE_TARGETS_SHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit#gid=0"
-)
-# Güncel tablo — «Bağlantısı olan herkes → Görüntüleyici» olunca buradan okunur.
-REVENUE_TARGETS_SHEET_URL_PENDING = (
     "https://docs.google.com/spreadsheets/d/11IWNTk3mjjX0N-4LO03wyeSPkLoW4jagc2Prcs9ifcY/edit?gid=0#gid=0"
 )
+# Eski herkese açık yedek.
+REVENUE_TARGETS_SHEET_URL_FALLBACK = (
+    "https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit#gid=0"
+)
+# Geriye dönük isim (fetch sırası: primary → fallback).
+REVENUE_TARGETS_SHEET_URL_PENDING = REVENUE_TARGETS_SHEET_URL
 
 _CACHE: dict[str, Any] | None = None
 _CACHE_TTL_SEC = 900.0
@@ -181,12 +183,12 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
         if cached is not None:
             return cached
 
-    # Önce güncel sheet; kapalıysa (401) herkese açık yedek tabloya düş.
-    urls = [REVENUE_TARGETS_SHEET_URL_PENDING, REVENUE_TARGETS_SHEET_URL]
+    # Önce güncel sheet; kapalıysa eski yedek tabloya düş.
+    urls = [REVENUE_TARGETS_SHEET_URL, REVENUE_TARGETS_SHEET_URL_FALLBACK]
     last_err: Exception | None = None
     csv_text = ""
     used_url = REVENUE_TARGETS_SHEET_URL
-    pending_error: str | None = None
+    primary_error: str | None = None
     for url in urls:
         try:
             csv_text = fetch_public_sheet_csv(url)
@@ -195,14 +197,14 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
         except Exception as exc:  # noqa: BLE001
             last_err = exc
             logger.warning("revenue targets sheet fetch failed url=%s: %s", url, exc)
-            if url == REVENUE_TARGETS_SHEET_URL_PENDING:
-                pending_error = str(exc)
+            if url == REVENUE_TARGETS_SHEET_URL:
+                primary_error = str(exc)
     else:
         raise ValueError(str(last_err) if last_err else "Sheet okunamadı") from last_err
 
     rows = parse_revenue_targets_csv(csv_text)
     warning = None
-    if used_url != REVENUE_TARGETS_SHEET_URL_PENDING and pending_error:
+    if used_url != REVENUE_TARGETS_SHEET_URL and primary_error:
         warning = (
             "Güncel Google Sheet okunamadı (paylaşım kapalı). "
             "Yedek tablo gösteriliyor — Temmuz/Ağustos gibi yeni satırlar eksik olabilir. "
@@ -213,7 +215,7 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
         "rows": rows,
         "source_url": used_url,
         "warning": warning,
-        "pending_error": pending_error,
+        "pending_error": primary_error,
     }
     return rows
 
@@ -241,8 +243,8 @@ def revenue_targets_payload(
     years = sorted({int(r["year"]) for r in all_rows if r.get("year")})
     return {
         "source_url": source_url,
-        "source_pending_url": REVENUE_TARGETS_SHEET_URL_PENDING,
-        "using_fallback": source_url != REVENUE_TARGETS_SHEET_URL_PENDING,
+        "source_pending_url": REVENUE_TARGETS_SHEET_URL,
+        "using_fallback": source_url != REVENUE_TARGETS_SHEET_URL,
         "warning": warning,
         "rows": rows,
         "years": years,
