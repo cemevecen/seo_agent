@@ -241,15 +241,15 @@
   </div>
 
   <div class="dn-page-tabs" role="tablist" aria-label="Doviz News bölümleri">
-    <button type="button" class="dn-page-tab is-active" data-dn-page-tab="trend" role="tab" aria-selected="true">Trend haberler</button>
-    <button type="button" class="dn-page-tab" data-dn-page-tab="stats" role="tab" aria-selected="false">Yayın istatistikleri</button>
+    <button type="button" class="dn-page-tab" data-dn-page-tab="trend" role="tab" aria-selected="false">Trend haberler</button>
+    <button type="button" class="dn-page-tab is-active" data-dn-page-tab="stats" role="tab" aria-selected="true">Yayın istatistikleri</button>
   </div>
 
-  <div id="dn-panel-trend" role="tabpanel">
+  <div id="dn-panel-trend" class="hidden" role="tabpanel">
     {% include "partials/trend_haberler_panel.html" %}
   </div>
 
-  <div id="dn-panel-stats" class="hidden" role="tabpanel">
+  <div id="dn-panel-stats" role="tabpanel">
   <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div class="min-w-0">
       <h2 class="text-lg font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Yayın istatistikleri</h2>
@@ -374,14 +374,14 @@
 
 <script>
 (function () {
-  var pageTab = "trend";
+  var pageTab = "stats";
   try {
-    pageTab = new URLSearchParams(window.location.search).get("tab") || "trend";
+    pageTab = new URLSearchParams(window.location.search).get("tab") || "stats";
   } catch (_) {}
-  if (pageTab !== "stats") pageTab = "trend";
+  if (pageTab !== "trend") pageTab = "stats";
 
   function setPageTab(tab, pushUrl) {
-    pageTab = tab === "stats" ? "stats" : "trend";
+    pageTab = tab === "trend" ? "trend" : "stats";
     var trend = document.getElementById("dn-panel-trend");
     var stats = document.getElementById("dn-panel-stats");
     if (trend) trend.classList.toggle("hidden", pageTab !== "trend");
@@ -413,7 +413,7 @@
 
   document.querySelectorAll(".dn-page-tab").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      setPageTab(btn.getAttribute("data-dn-page-tab") || "trend", true);
+      setPageTab(btn.getAttribute("data-dn-page-tab") || "stats", true);
     });
   });
   setPageTab(pageTab, false);
@@ -1133,8 +1133,8 @@
     window.__dnResizeTimer = setTimeout(syncPairCardHeights, 120);
   });
   try {
-    var tab = new URLSearchParams(window.location.search).get("tab") || "trend";
-    if (tab === "stats") {
+    var tab = new URLSearchParams(window.location.search).get("tab") || "stats";
+    if (tab !== "trend") {
       window.__dnStatsLoaded = true;
       load(false);
     }
