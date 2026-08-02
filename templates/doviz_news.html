@@ -843,14 +843,22 @@
       moreBtn = '<button type="button" class="dn-ilink" data-act="less">Daralt ‹</button>';
     }
 
+    var showSearch = cfg.searchable !== false;
+    var showMeta = cfg.showMeta !== false;
+    var toolbar = "";
+    if (showSearch || showMeta || moreBtn) {
+      toolbar =
+        '<div class="dn-itoolbar">' +
+          (showSearch
+            ? '<input class="dn-isearch" type="search" placeholder="' + esc(cfg.searchPlaceholder || "Ara…") + '" value="' + esc(st.q) + '">'
+            : "") +
+          (showMeta ? '<span class="dn-imeta">' + fmt(shown.length) + (shown.length !== total ? " / " + fmt(total) : "") + "</span>" : "") +
+          moreBtn +
+        "</div>";
+    }
+
     host.innerHTML =
-      '<div class="dn-itoolbar">' +
-        (cfg.searchable !== false
-          ? '<input class="dn-isearch" type="search" placeholder="' + esc(cfg.searchPlaceholder || "Ara…") + '" value="' + esc(st.q) + '">'
-          : "") +
-        '<span class="dn-imeta">' + fmt(shown.length) + (shown.length !== total ? " / " + fmt(total) : "") + "</span>" +
-        moreBtn +
-      "</div>" +
+      toolbar +
       '<div class="dn-table-wrap">' +
         '<table class="dn-table' + (cfg.cardMobile ? " dn-table--cards" : "") + '">' +
           "<thead><tr>" + thead + "</tr></thead>" +
