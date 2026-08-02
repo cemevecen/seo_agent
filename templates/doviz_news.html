@@ -1128,6 +1128,10 @@
   var refreshBtn = $("dn-refresh");
   if (refreshBtn) refreshBtn.addEventListener("click", function () { load(true); });
   window.__dnLoadStats = load;
+  window.addEventListener("resize", function () {
+    if (window.__dnResizeTimer) clearTimeout(window.__dnResizeTimer);
+    window.__dnResizeTimer = setTimeout(syncPairCardHeights, 120);
+  });
   try {
     var tab = new URLSearchParams(window.location.search).get("tab") || "trend";
     if (tab === "stats") {
