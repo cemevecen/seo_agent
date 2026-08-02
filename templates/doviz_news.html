@@ -32,6 +32,8 @@
   .dn-card {
     border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff; padding: 0.85rem;
     min-width: 0;
+    container-type: inline-size;
+    container-name: dn-card;
   }
   html.dark .dn-card, html.midnight .dn-card { border-color: #3f3f46; background: #09090b; }
   .dn-card-head {
@@ -131,44 +133,70 @@
     flex-direction: column;
     gap: 0.55rem;
     width: 100%;
+    min-width: 0;
   }
   .dn-hbar-row {
     display: grid;
-    grid-template-columns: 1.35rem minmax(0, 1fr) 3.25rem;
-    gap: 0.45rem 0.55rem;
+    grid-template-columns: 1.35rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank name count"
+      "track track track";
+    gap: 0.3rem 0.5rem;
     align-items: center;
+    min-width: 0;
+    width: 100%;
   }
-  @media (min-width: 480px) {
-    .dn-hbar-row { grid-template-columns: 1.35rem minmax(0, 1fr) 3.5rem 4.25rem; }
-  }
+  .dn-hbar-row > .dn-rank { grid-area: rank; }
   .dn-hbar-name {
+    grid-area: name;
     font-size: 0.75rem; font-weight: 600; color: #0f172a;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
   }
   html.dark .dn-hbar-name, html.midnight .dn-hbar-name { color: #e4e4e7; }
   .dn-hbar-track {
-    grid-column: 2 / -1;
+    grid-area: track;
     height: 0.55rem; border-radius: 999px; background: #e2e8f0; overflow: hidden;
-  }
-  @media (min-width: 480px) {
-    .dn-hbar-track { grid-column: 2 / 3; }
+    min-width: 0; width: 100%;
   }
   html.dark .dn-hbar-track, html.midnight .dn-hbar-track { background: #27272a; }
   .dn-hbar-fill {
     height: 100%; border-radius: 999px; background: linear-gradient(90deg, #0ea5e9, #6366f1);
-    min-width: 2px;
+    min-width: 2px; max-width: 100%;
+    transition: width 0.25s ease;
   }
   .dn-hbar-count {
+    grid-area: count;
     font-size: 0.75rem; font-weight: 700; font-variant-numeric: tabular-nums;
-    text-align: right; color: #334155;
+    text-align: right; color: #334155; white-space: nowrap;
   }
   html.dark .dn-hbar-count, html.midnight .dn-hbar-count { color: #d4d4d8; }
   .dn-hbar-share {
+    grid-area: share;
     display: none; font-size: 0.7rem; font-variant-numeric: tabular-nums;
-    text-align: right; color: #64748b;
+    text-align: right; color: #64748b; white-space: nowrap;
   }
-  @media (min-width: 480px) { .dn-hbar-share { display: block; } }
   html.dark .dn-hbar-share, html.midnight .dn-hbar-share { color: #a1a1aa; }
+
+  /* Kart genişliğine göre tek satır: rank | isim | bar(flex) | adet | % */
+  @container dn-card (min-width: 340px) {
+    .dn-hbar-row {
+      grid-template-columns: 1.35rem minmax(3rem, 6.5rem) minmax(2rem, 1fr) auto;
+      grid-template-areas: "rank name track count";
+      gap: 0.4rem 0.55rem;
+    }
+  }
+  @container dn-card (min-width: 420px) {
+    .dn-hbar-row {
+      grid-template-columns: 1.35rem minmax(3.5rem, 7.5rem) minmax(2.5rem, 1fr) 3.25rem 3.75rem;
+      grid-template-areas: "rank name track count share";
+    }
+    .dn-hbar-share { display: block; }
+  }
+  @container dn-card (min-width: 520px) {
+    .dn-hbar-row {
+      grid-template-columns: 1.35rem minmax(4rem, 9rem) minmax(3rem, 1fr) 3.5rem 4.25rem;
+    }
+  }
   .dn-pair-row { align-items: stretch; }
   .dn-card--fill {
     display: flex; flex-direction: column; height: 100%; min-height: 0;
@@ -861,9 +889,9 @@
       return '<div class="dn-hbar-row" title="' + esc(tip) + '" data-name="' + esc(name) + '" data-count="' + esc(String(count)) + '">' +
         '<span class="dn-rank">' + (i + 1) + "</span>" +
         '<span class="dn-hbar-name">' + esc(name) + "</span>" +
+        '<div class="dn-hbar-track"><div class="dn-hbar-fill' + (fillClass ? " " + fillClass : "") + '" style="width:' + pct + '%"></div></div>' +
         '<span class="dn-hbar-count">' + fmt(count) + "</span>" +
         (share != null ? '<span class="dn-hbar-share">' + fmt(share, 1) + "%</span>" : '<span class="dn-hbar-share"></span>') +
-        '<div class="dn-hbar-track"><div class="dn-hbar-fill' + (fillClass ? " " + fillClass : "") + '" style="width:' + pct + '%"></div></div>' +
       "</div>";
     }).join("");
   }
