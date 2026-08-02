@@ -1480,12 +1480,14 @@
     if (meta) {
       var s = data.summary || {};
       var pm = data.period_meta || {};
+      var latestId = data.latest_id || (data.items && data.items[0] && data.items[0].id) || null;
       meta.textContent =
         "Çekim: " + (data.fetched_at || "—") +
         " · " + (pm.label ? pm.label + " · " : "") +
         fmt(s.total) + " içerik · " +
         fmt(s.category_count) + " kategori · " +
-        fmt(s.source_count) + " kaynak";
+        fmt(s.source_count) + " kaynak" +
+        (latestId ? " · son id: " + latestId : "");
     }
   }
 

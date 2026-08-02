@@ -815,6 +815,13 @@ def doviz_news_payload(
         for r in rows[: max(1, min(int(items_limit or 80), 500))]
     ]
 
+    latest_id = None
+    for r in rows:
+        rid = str(r.get("id") or "").strip()
+        if rid:
+            latest_id = rid
+            break
+
     return {
         "ok": True,
         "source_url": DOVIZ_NEWS_SHEET_URL,
@@ -824,6 +831,7 @@ def doviz_news_payload(
         "period_meta": period_meta,
         "period_tabs": list(PERIOD_TABS),
         "category_tabs": category_tabs,
+        "latest_id": latest_id,
         "items_total": len(rows),
         "items": items,
         **analytics,
