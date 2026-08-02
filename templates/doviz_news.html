@@ -1208,15 +1208,18 @@
   function syncPeriodCardVisibility(period) {
     var p = period || "last_7d";
     var hideWeekly = p === "yesterday" || p === "last_7d" || p === "prev_week";
-    var hideDaySeries = p === "yesterday"; // tek gün: günlük seri + haftanın günleri anlamsız
+    var hideDaySeries = p === "yesterday";
+    // Dün: haftalık özet / trend / günlük seri / haftanın günleri yok
     [
       ["dn-card-week-trend", hideWeekly],
-      ["dn-card-week-summary", hideWeekly],
+      ["dn-card-week-summary", hideWeekly || p === "yesterday"],
       ["dn-card-day", hideDaySeries],
       ["dn-card-weekday", hideDaySeries]
     ].forEach(function (pair) {
       var el = $(pair[0]);
-      if (el) el.classList.toggle("hidden", pair[1]);
+      if (!el) return;
+      el.classList.toggle("hidden", !!pair[1]);
+      el.style.display = pair[1] ? "none" : "";
     });
     var ownCat = $("dn-card-own-cat");
     if (ownCat) ownCat.classList.add("dn-span-2");
@@ -1225,6 +1228,7 @@
     var topDays = $("dn-card-top-days");
     if (topDays) {
       topDays.classList.remove("hidden");
+      topDays.style.display = "";
       topDays.classList.toggle("dn-span-2", hideDaySeries);
     }
     var ownVs = $("dn-card-own-vs");
