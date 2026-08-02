@@ -197,12 +197,40 @@
     }
     .dn-table--cards .dn-title-cell { font-weight: 650; }
   }
+  .dn-page-tabs {
+    display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 1.1rem;
+  }
+  .dn-page-tab {
+    border-radius: 0.75rem; border: 1px solid #cbd5e1; background: #fff;
+    padding: 0.5rem 0.95rem; font-size: 0.8125rem; font-weight: 700; color: #334155; cursor: pointer;
+  }
+  html.dark .dn-page-tab, html.midnight .dn-page-tab {
+    border-color: #52525b; background: #18181b; color: #e4e4e7;
+  }
+  .dn-page-tab.is-active {
+    border-color: #4f46e5; background: #4f46e5; color: #fff;
+  }
+  .dn-trend-wrap { min-width: 0; }
 </style>
 
 <div class="dn-page">
+  <div class="mb-4">
+    <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Doviz News</h1>
+  </div>
+
+  <div class="dn-page-tabs" role="tablist" aria-label="Doviz News bölümleri">
+    <button type="button" class="dn-page-tab is-active" data-dn-page-tab="trend" role="tab" aria-selected="true">Trend haberler</button>
+    <button type="button" class="dn-page-tab" data-dn-page-tab="stats" role="tab" aria-selected="false">Yayın istatistikleri</button>
+  </div>
+
+  <div id="dn-panel-trend" role="tabpanel">
+    {% include "partials/trend_haberler_panel.html" %}
+  </div>
+
+  <div id="dn-panel-stats" class="hidden" role="tabpanel">
   <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div class="min-w-0">
-      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Doviz News</h1>
+      <h2 class="text-lg font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Yayın istatistikleri</h2>
       <p id="dn-meta" class="mt-1 dn-muted"></p>
     </div>
     <div class="flex shrink-0 flex-wrap items-center gap-2">
@@ -316,7 +344,56 @@
       <div id="dn-table-items"></div>
     </div>
   </div>
+  </div>
 </div>
+
+<script>
+(function () {
+  var pageTab = "trend";
+  try {
+    pageTab = new URLSearchParams(window.location.search).get("tab") || "trend";
+  } catch (_) {}
+  if (pageTab !== "stats") pageTab = "trend";
+
+  function setPageTab(tab, pushUrl) {
+    pageTab = tab === "stats" ? "stats" : "trend";
+    var trend = document.getElementById("dn-panel-trend");
+    var stats = document.getElementById("dn-panel-stats");
+    if (trend) trend.classList.toggle("hidden", pageTab !== "trend");
+    if (stats) stats.classList.toggle("hidden", pageTab !== "stats");
+    document.querySelectorAll(".dn-page-tab").forEach(function (btn) {
+      var on = btn.getAttribute("data-dn-page-tab") === pageTab;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (pushUrl) {
+      try {
+        var u = new URL(window.location.href);
+        u.searchParams.set("tab", pageTab);
+        window.history.replaceState({}, "", u.pathname + "?" + u.searchParams.toString() + u.hash);
+      } catch (_) {}
+    }
+    if (pageTab === "trend" && typeof window.rtBootTrendHaberler === "function") {
+      window.rtBootTrendHaberler();
+    }
+    if (pageTab === "stats") {
+      if (!window.__dnStatsLoaded) {
+        window.__dnStatsLoaded = true;
+        if (typeof window.__dnLoadStats === "function") window.__dnLoadStats(false);
+      } else if (typeof Plotly !== "undefined") {
+        try { window.dispatchEvent(new Event("resize")); } catch (_) {}
+      }
+    }
+  }
+
+  document.querySelectorAll(".dn-page-tab").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setPageTab(btn.getAttribute("data-dn-page-tab") || "trend", true);
+    });
+  });
+  setPageTab(pageTab, false);
+})();
+</script>
 
 <script>
 (function () {
@@ -984,7 +1061,14 @@
 
   var refreshBtn = $("dn-refresh");
   if (refreshBtn) refreshBtn.addEventListener("click", function () { load(true); });
-  load(false);
+  window.__dnLoadStats = load;
+  try {
+    var tab = new URLSearchParams(window.location.search).get("tab") || "trend";
+    if (tab === "stats") {
+      window.__dnStatsLoaded = true;
+      load(false);
+    }
+  } catch (_) {}
 })();
 </script>
 {% endblock %}

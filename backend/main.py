@@ -12408,18 +12408,16 @@ def _ga4_sites_payload(db) -> list[dict]:
 
 
 @app.get("/intelligence", response_class=HTMLResponse)
-def get_intelligence_page(request: Request, db: Session = Depends(get_db)):
-    """Market İstihbaratı sayfası."""
-    sites = _internal_active_sites(db, active_only=False)
-    return templates.TemplateResponse(
-        "intelligence.html",
-        {
-            "request": request,
-            "sites": sites,
-            "site_name": "NEWS",
-            "domain": "intelligence"
-        }
-    )
+def get_intelligence_page(request: Request):
+    """Eski NEWS sekmesi — Doviz News / Trend haberler'e yönlendir."""
+    from fastapi.responses import RedirectResponse
+
+    q = request.url.query
+    target = "/doviz-news?tab=trend"
+    if q:
+        # preserve source/source_sort if present
+        target = "/doviz-news?tab=trend&" + q
+    return RedirectResponse(url=target, status_code=307)
 
 
 @app.get("/ga4")
