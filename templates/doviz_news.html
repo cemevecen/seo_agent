@@ -28,6 +28,15 @@
   @media (min-width: 640px) { .dn-kpi .dn-kpi-value { font-size: 1.25rem; } }
   html.dark .dn-kpi .dn-kpi-value, html.midnight .dn-kpi .dn-kpi-value { color: #f4f4f5; }
   .dn-kpi .dn-kpi-sub { margin-top: 0.2rem; font-size: 11px; color: #64748b; line-height: 1.35; }
+  .dn-kpi-delta {
+    margin-top: 0.25rem; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3;
+  }
+  .dn-kpi-delta-up { color: #059669; }
+  .dn-kpi-delta-down { color: #dc2626; }
+  .dn-kpi-delta-flat { color: #64748b; font-weight: 700; }
+  html.dark .dn-kpi-delta-flat, html.midnight .dn-kpi-delta-flat { color: #a1a1aa; }
+  .dn-kpi-delta-prev { font-weight: 600; color: #64748b; }
+  html.dark .dn-kpi-delta-prev, html.midnight .dn-kpi-delta-prev { color: #a1a1aa; }
 
   .dn-card {
     border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff; padding: 0.85rem;
@@ -916,6 +925,7 @@
     if (!el || !s) return;
     data = data || {};
     var rvp = s.recent_vs_prev || {};
+    var kc = s.kpi_compare || null;
     var peak = s.peak_hour || {};
     var days = data.by_day || [];
     var last28 = days.slice(-28);
@@ -944,35 +954,70 @@
       { color: cmpBase, accent: cmpAccent }
     );
 
+    function deltaHtml(pair, opts) {
+      opts = opts || {};
+      if (!pair || pair.delta == null) return "";
+      var d = pair.delta;
+      var cls = d > 0 ? "dn-kpi-delta-up" : (d < 0 ? "dn-kpi-delta-down" : "dn-kpi-delta-flat");
+      var sign = d > 0 ? "+" : "";
+      var dec = opts.decimals != null ? opts.decimals : (Math.abs(d) < 10 && d !== Math.round(d) ? 1 : 0);
+      var unit = opts.unit || "";
+      var pct = pair.delta_pct == null
+        ? ""
+        : " (" + (pair.delta_pct > 0 ? "+" : "") + fmt(pair.delta_pct, 1) + "%)";
+      var prevBit = pair.previous == null
+        ? ""
+        : '<span class="dn-kpi-delta-prev">önce ' + fmt(pair.previous, opts.prevDecimals != null ? opts.prevDecimals : dec) + unit + " · </span>";
+      return '<p class="dn-kpi-delta ' + cls + '">' + prevBit + sign + fmt(d, dec) + unit + pct + "</p>";
+    }
+
+    var peakDelta = "";
+    if (kc && kc.peak_count && kc.peak_count.delta != null) {
+      var pd = kc.peak_count;
+      var pcls = pd.delta > 0 ? "dn-kpi-delta-up" : (pd.delta < 0 ? "dn-kpi-delta-down" : "dn-kpi-delta-flat");
+      var psign = pd.delta > 0 ? "+" : "";
+      var ppct = pd.delta_pct == null ? "" : " (" + (pd.delta_pct > 0 ? "+" : "") + fmt(pd.delta_pct, 1) + "%)";
+      var prevHour = kc.peak_hour_prev && kc.peak_hour_prev !== (peak.label || "")
+        ? "önce " + kc.peak_hour_prev + " · "
+        : (pd.previous != null ? "önce " + fmt(pd.previous) + " · " : "");
+      peakDelta = '<p class="dn-kpi-delta ' + pcls + '"><span class="dn-kpi-delta-prev">' + esc(prevHour) + "</span>" +
+        psign + fmt(pd.delta) + ppct + "</p>";
+    }
+
     var cards = [
       {
         label: "İçerik",
         value: fmt(s.total),
         sub: (s.date_min || "—") + " → " + (s.date_max || "—"),
+        delta: kc ? deltaHtml(kc.total) : "",
         viz: totalBars
       },
       {
         label: "Özgün",
         value: fmt(s.own_pct, 1) + "%",
         sub: fmt(s.own) + " / " + fmt(s.total),
+        delta: kc ? deltaHtml(kc.own_pct, { decimals: 1, unit: " pp", prevDecimals: 1 }) : "",
         viz: ownPie
       },
       {
         label: "Ort. / gün",
         value: fmt(s.avg_per_day, 1),
         sub: "Medyan: " + fmt(s.median_per_day, 1),
+        delta: kc ? deltaHtml(kc.avg_per_day, { decimals: 1, prevDecimals: 1 }) : "",
         viz: avgBars
       },
       {
         label: "Cmt + Paz",
         value: fmt(s.weekend_count),
         sub: "Hafta içi: " + fmt(s.weekday_count) + " · %" + fmt(s.weekend_pct, 1),
+        delta: kc ? deltaHtml(kc.weekend_count) : "",
         viz: weekendPie
       },
       {
         label: "Yoğun saat",
         value: peak.label || "—",
         sub: fmt(peak.count) + " içerik",
+        delta: peakDelta,
         viz: hourViz
       },
       {
@@ -980,6 +1025,7 @@
         value: (rvp.delta == null ? "—" : ((rvp.delta > 0 ? "+" : "") + fmt(rvp.delta))),
         sub: fmt(recentN) + " vs " + fmt(prevN) +
           (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)"),
+        delta: rvp.cmp_label ? '<p class="dn-kpi-delta dn-kpi-delta-flat">' + esc(rvp.cmp_label) + "</p>" : "",
         viz: cmpBars
       }
     ];
@@ -990,6 +1036,7 @@
             '<p class="dn-kpi-label">' + esc(c.label) + "</p>" +
             '<p class="dn-kpi-value">' + esc(c.value) + "</p>" +
             '<p class="dn-kpi-sub">' + esc(c.sub) + "</p>" +
+            (c.delta || "") +
           "</div>" +
           (c.viz ? '<div class="dn-kpi-viz">' + c.viz + "</div>" : "") +
         "</div>" +

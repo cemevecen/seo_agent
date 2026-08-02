@@ -373,10 +373,11 @@ def resolve_period(period: str | None, *, today: date | None = None) -> dict[str
         }
 
     if key == "yesterday":
+        # Önceki haftanın aynı günü (örn. cuma → geçen cuma)
         start = end = today - timedelta(days=1)
-        cmp_start = cmp_end = today - timedelta(days=2)
-        kpi_label = "Dün vs önceki"
-        cmp_label = "Önceki gün"
+        cmp_start = cmp_end = start - timedelta(days=7)
+        kpi_label = "Dün vs geçen hf"
+        cmp_label = "Geçen hafta aynı gün"
     elif key == "last_7d":
         end = today
         start = today - timedelta(days=6)
@@ -456,6 +457,50 @@ def _period_comparison(current_n: int, prev_n: int, period_info: dict[str, Any])
         "kpi_label": period_info.get("kpi_label") or "Dönem vs önceki",
         "range_label": period_info.get("range_label"),
         "cmp_range_label": period_info.get("cmp_range_label"),
+    }
+
+
+def _delta_pair(cur: Any, prev: Any) -> dict[str, Any]:
+    if cur is None:
+        return {"current": None, "previous": None, "delta": None, "delta_pct": None}
+    try:
+        cur_f = float(cur)
+    except (TypeError, ValueError):
+        return {"current": None, "previous": None, "delta": None, "delta_pct": None}
+    try:
+        prev_f = float(prev) if prev is not None else None
+    except (TypeError, ValueError):
+        prev_f = None
+    if prev_f is None:
+        return {"current": cur_f, "previous": None, "delta": None, "delta_pct": None}
+    delta = cur_f - prev_f
+    return {
+        "current": cur_f,
+        "previous": prev_f,
+        "delta": round(delta, 2) if abs(delta) < 1000 else delta,
+        "delta_pct": round(100.0 * delta / prev_f, 1) if prev_f != 0 else None,
+    }
+
+
+def _kpi_compare(cur_summary: dict[str, Any], prev_summary: dict[str, Any] | None) -> dict[str, Any]:
+    """Seçili dönem KPI'ları vs önceki eşdeğer dönem."""
+    cur_s = cur_summary or {}
+    prev_s = prev_summary or {}
+    cur_peak = cur_s.get("peak_hour") or {}
+    prev_peak = prev_s.get("peak_hour") or {}
+    return {
+        "total": _delta_pair(cur_s.get("total"), prev_s.get("total")),
+        "own": _delta_pair(cur_s.get("own"), prev_s.get("own")),
+        "own_pct": _delta_pair(cur_s.get("own_pct"), prev_s.get("own_pct")),
+        "avg_per_day": _delta_pair(cur_s.get("avg_per_day"), prev_s.get("avg_per_day")),
+        "median_per_day": _delta_pair(cur_s.get("median_per_day"), prev_s.get("median_per_day")),
+        "weekend_count": _delta_pair(cur_s.get("weekend_count"), prev_s.get("weekend_count")),
+        "weekend_pct": _delta_pair(cur_s.get("weekend_pct"), prev_s.get("weekend_pct")),
+        "weekday_count": _delta_pair(cur_s.get("weekday_count"), prev_s.get("weekday_count")),
+        "peak_count": _delta_pair(cur_peak.get("count"), prev_peak.get("count")),
+        "peak_hour_cur": cur_peak.get("label"),
+        "peak_hour_prev": prev_peak.get("label"),
+        "cmp_label": None,
     }
 
 
@@ -694,6 +739,7 @@ def doviz_news_payload(
             "range_label": period_info["range_label"],
         }
         analytics["summary"]["recent_vs_prev"] = rvp
+        analytics["summary"]["kpi_compare"] = None
         date_min = analytics["summary"].get("date_min")
         date_max = analytics["summary"].get("date_max")
         range_label = (
@@ -720,9 +766,13 @@ def doviz_news_payload(
         cmp_rows = _filter_by_date_range(
             cat_rows, period_info["cmp_start"], period_info["cmp_end"]
         )
+        prev_analytics = _build_analytics(cmp_rows)
         analytics["summary"]["recent_vs_prev"] = _period_comparison(
             len(rows), len(cmp_rows), period_info
         )
+        kpi_cmp = _kpi_compare(analytics["summary"], prev_analytics.get("summary"))
+        kpi_cmp["cmp_label"] = period_info.get("cmp_label")
+        analytics["summary"]["kpi_compare"] = kpi_cmp
         period_meta = {
             "key": period_info["key"],
             "label": period_info["label"],
