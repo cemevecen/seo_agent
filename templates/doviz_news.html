@@ -129,6 +129,50 @@
   .dn-trend-down { color: #dc2626; font-weight: 700; }
   .dn-chart { min-height: 240px; width: 100%; }
   @media (min-width: 640px) { .dn-chart { min-height: 260px; } }
+  .dn-chart--fit { min-height: 0 !important; height: auto !important; }
+  .dn-hbar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    width: 100%;
+  }
+  .dn-hbar-row {
+    display: grid;
+    grid-template-columns: 1.35rem minmax(0, 1fr) 3.25rem;
+    gap: 0.45rem 0.55rem;
+    align-items: center;
+  }
+  @media (min-width: 480px) {
+    .dn-hbar-row { grid-template-columns: 1.35rem minmax(0, 1fr) 3.5rem 4.25rem; }
+  }
+  .dn-hbar-name {
+    font-size: 0.75rem; font-weight: 600; color: #0f172a;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  }
+  html.dark .dn-hbar-name, html.midnight .dn-hbar-name { color: #e4e4e7; }
+  .dn-hbar-track {
+    grid-column: 2 / -1;
+    height: 0.55rem; border-radius: 999px; background: #e2e8f0; overflow: hidden;
+  }
+  @media (min-width: 480px) {
+    .dn-hbar-track { grid-column: 2 / 3; }
+  }
+  html.dark .dn-hbar-track, html.midnight .dn-hbar-track { background: #27272a; }
+  .dn-hbar-fill {
+    height: 100%; border-radius: 999px; background: linear-gradient(90deg, #0ea5e9, #6366f1);
+    min-width: 2px;
+  }
+  .dn-hbar-count {
+    font-size: 0.75rem; font-weight: 700; font-variant-numeric: tabular-nums;
+    text-align: right; color: #334155;
+  }
+  html.dark .dn-hbar-count, html.midnight .dn-hbar-count { color: #d4d4d8; }
+  .dn-hbar-share {
+    display: none; font-size: 0.7rem; font-variant-numeric: tabular-nums;
+    text-align: right; color: #64748b;
+  }
+  @media (min-width: 480px) { .dn-hbar-share { display: block; } }
+  html.dark .dn-hbar-share, html.midnight .dn-hbar-share { color: #a1a1aa; }
   .dn-muted { color: #64748b; font-size: 11px; }
   html.dark .dn-muted, html.midnight .dn-muted { color: #a1a1aa; }
 
@@ -184,10 +228,10 @@
   <div id="dn-body" class="hidden space-y-4">
     <div id="dn-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <div id="dn-card-cat" class="dn-card">
         <div class="dn-card-head"><div><h3>Kategori dağılımı</h3></div></div>
-        <div id="dn-chart-cat" class="dn-chart"></div>
+        <div id="dn-chart-cat" class="dn-chart dn-chart--fit"></div>
       </div>
       <div class="dn-card">
         <div class="dn-card-head">
@@ -196,11 +240,16 @@
             <p class="dn-card-sub">Başlıklarda en sık geçen kelimeler</p>
           </div>
         </div>
-        <div id="dn-chart-keywords" class="dn-chart"></div>
+        <div id="dn-chart-keywords" class="dn-chart dn-chart--fit"></div>
       </div>
       <div class="dn-card">
-        <div class="dn-card-head"><div><h3>Kaynaklar (en çok kullanılan)</h3></div></div>
-        <div id="dn-chart-source" class="dn-chart"></div>
+        <div class="dn-card-head">
+          <div>
+            <h3>Kaynaklar (en çok kullanılan)</h3>
+            <p class="dn-card-sub">İlk 12 kaynak — bar doluluk oranı</p>
+          </div>
+        </div>
+        <div id="dn-chart-source" class="dn-hbar-list" aria-label="Kaynak bar listesi"></div>
       </div>
       <div class="dn-card">
         <div class="dn-card-head">
@@ -233,7 +282,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <div class="dn-card">
         <div class="dn-card-head"><div><h3>Haftalık özet</h3></div></div>
         <div id="dn-table-week"></div>
@@ -608,6 +657,60 @@
     }).join("");
   }
 
+  function plotHBar(elId, labels, values, opts) {
+    opts = opts || {};
+    var el = $(elId);
+    if (!el) return;
+    var n = Math.max(labels.length, 1);
+    var rowH = opts.rowH || 34;
+    var h = Math.max(opts.minH || 160, n * rowH + (opts.extraH || 48));
+    el.style.minHeight = h + "px";
+    el.style.height = h + "px";
+    var layoutExtra = Object.assign({
+      height: h,
+      bargap: 0.28,
+      margin: opts.margin || { t: 8, r: 24, b: 28, l: opts.labelW || 110 },
+      yaxis: { automargin: true }
+    }, opts.layout || {});
+    if (opts.xaxisTitle) {
+      layoutExtra.xaxis = Object.assign({}, layoutExtra.xaxis || {}, { title: opts.xaxisTitle });
+    }
+    Plotly.newPlot(elId, [{
+      type: "bar",
+      orientation: "h",
+      y: labels.slice().reverse(),
+      x: values.slice().reverse(),
+      text: (opts.texts || values).slice().reverse().map(function (t) {
+        return typeof t === "number" ? fmt(t) : String(t);
+      }),
+      textposition: opts.textposition || "outside",
+      cliponaxis: false,
+      marker: { color: opts.color || "#6366f1" },
+      hovertemplate: "%{y}: %{x}<extra></extra>"
+    }], plotLayout(layoutExtra), plotCfg());
+  }
+
+  function renderSourceBars(list) {
+    var el = $("dn-chart-source");
+    if (!el) return;
+    var rows = (list || []).slice(0, 12);
+    if (!rows.length) {
+      el.innerHTML = '<p class="dn-muted">Kaynak yok</p>';
+      return;
+    }
+    var max = Math.max.apply(null, rows.map(function (r) { return r.count || 0; }).concat([1]));
+    el.innerHTML = rows.map(function (r, i) {
+      var pct = Math.max(3, Math.round((r.count / max) * 100));
+      return '<div class="dn-hbar-row">' +
+        '<span class="dn-rank">' + (i + 1) + "</span>" +
+        '<span class="dn-hbar-name" title="' + esc(r.source) + '">' + esc(r.source) + "</span>" +
+        '<span class="dn-hbar-count">' + fmt(r.count) + "</span>" +
+        '<span class="dn-hbar-share">' + fmt(r.share_pct, 1) + "%</span>" +
+        '<div class="dn-hbar-track"><div class="dn-hbar-fill" style="width:' + pct + '%"></div></div>' +
+      "</div>";
+    }).join("");
+  }
+
   function renderCharts(data) {
     if (typeof Plotly === "undefined") return;
     var showCat = !state.category || state.category === "all";
@@ -615,38 +718,23 @@
     if (catCard) catCard.classList.toggle("hidden", !showCat);
     if (showCat) {
       var cats = data.by_category || [];
-      Plotly.newPlot("dn-chart-cat", [{
-        type: "bar", orientation: "h",
-        y: cats.map(function (c) { return c.label; }).reverse(),
-        x: cats.map(function (c) { return c.count; }).reverse(),
-        marker: { color: "#6366f1" },
-        hovertemplate: "%{y}: %{x}<extra></extra>"
-      }], plotLayout({ margin: { t: 8, r: 16, b: 32, l: 140 } }), plotCfg());
+      plotHBar(
+        "dn-chart-cat",
+        cats.map(function (c) { return c.label; }),
+        cats.map(function (c) { return c.count; }),
+        { color: "#6366f1", labelW: 130, rowH: 36 }
+      );
     }
 
     var kws = (data.top_keywords || []).slice(0, 12);
-    Plotly.newPlot("dn-chart-keywords", [{
-      type: "bar", orientation: "h",
-      y: kws.map(function (k) { return k.word; }).reverse(),
-      x: kws.map(function (k) { return k.count; }).reverse(),
-      text: kws.map(function (k) { return fmt(k.count); }).reverse(),
-      textposition: "outside",
-      cliponaxis: false,
-      marker: { color: "#1e293b" },
-      hovertemplate: "%{y}: %{x}<extra></extra>"
-    }], plotLayout({
-      margin: { t: 8, r: 48, b: 32, l: 100 },
-      xaxis: { title: "Adet" }
-    }), plotCfg());
+    plotHBar(
+      "dn-chart-keywords",
+      kws.map(function (k) { return k.word; }),
+      kws.map(function (k) { return k.count; }),
+      { color: "#1e293b", labelW: 90, rowH: 34, xaxisTitle: "Adet", margin: { t: 8, r: 40, b: 36, l: 90 } }
+    );
 
-    var src = (data.by_source || []).slice(0, 15);
-    Plotly.newPlot("dn-chart-source", [{
-      type: "bar", orientation: "h",
-      y: src.map(function (s) { return s.source; }).reverse(),
-      x: src.map(function (s) { return s.count; }).reverse(),
-      marker: { color: "#0ea5e9" },
-      hovertemplate: "%{y}: %{x}<extra></extra>"
-    }], plotLayout({ margin: { t: 8, r: 16, b: 32, l: 120 } }), plotCfg());
+    renderSourceBars(data.by_source || []);
 
     var days = data.by_day || [];
     Plotly.newPlot("dn-chart-day", [{
