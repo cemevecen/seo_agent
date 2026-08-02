@@ -15,7 +15,7 @@ from backend.services.market_sheets_sync import _norm_header, _parse_tr_number
 logger = logging.getLogger(__name__)
 
 REVENUE_TARGETS_SHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/1ulWizYIfbdeUERkEwqEi70abtSkXJt7oYtHnn07OyuA/edit#gid=0"
+    "https://docs.google.com/spreadsheets/d/11IWNTk3mjjX0N-4LO03wyeSPkLoW4jagc2Prcs9ifcY/edit?gid=0#gid=0"
 )
 
 _CACHE: tuple[float, list[dict[str, Any]]] | None = None
