@@ -449,20 +449,34 @@
 
   .dn-period-card { margin-bottom: 1rem; }
   .dn-period-card .dn-card-head { margin-bottom: 0.75rem; }
+  .dn-period-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 0.75rem;
+  }
+  .dn-period-toolbar .dn-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding-bottom: 0;
+  }
   .dn-period-actions {
     display: flex;
     justify-content: flex-end;
-    margin-top: 0.75rem;
+    flex: 0 0 auto;
+    margin-left: auto;
   }
   .dn-traffic-btn {
     border-radius: 0.65rem;
     border: 1px solid #cbd5e1;
     background: #fff;
-    padding: 0.45rem 0.85rem;
+    padding: 0.4rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 700;
     color: #334155;
     cursor: pointer;
+    white-space: nowrap;
   }
   .dn-traffic-btn:hover { border-color: #6366f1; color: #4338ca; }
   .dn-traffic-btn:disabled { opacity: 0.55; cursor: wait; }
