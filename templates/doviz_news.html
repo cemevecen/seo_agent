@@ -64,6 +64,43 @@
   }
   html.dark .dn-tab, html.midnight .dn-tab { border-color: #52525b; background: #18181b; color: #e4e4e7; }
   .dn-tab.is-active { border-color: #4f46e5; background: #4f46e5; color: #fff; font-weight: 700; }
+  .dn-tab:disabled { opacity: 0.55; cursor: wait; }
+
+  .dn-progress {
+    display: none;
+    margin: 0.65rem 0 0.15rem;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+  html.dark .dn-progress, html.midnight .dn-progress { background: #27272a; }
+  .dn-progress.is-on { display: block; }
+  .dn-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6 55%, #a78bfa);
+    transition: width 0.28s ease-out;
+    will-change: width;
+  }
+  .dn-progress.is-indeterminate .dn-progress-fill {
+    width: 36% !important;
+    animation: dn-progress-slide 1.05s ease-in-out infinite;
+  }
+  @keyframes dn-progress-slide {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+  }
+  .dn-progress-label {
+    display: none;
+    margin: 0.35rem 0 0;
+    font-size: 11px;
+    color: #64748b;
+  }
+  html.dark .dn-progress-label, html.midnight .dn-progress-label { color: #a1a1aa; }
+  .dn-progress-label.is-on { display: block; }
+  .dn-period-card.is-loading { position: relative; }
 
   .dn-itoolbar {
     display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin-bottom: 0.55rem;
@@ -489,6 +526,10 @@
       <div id="dn-period-cmp" class="dn-period-cmp" aria-live="polite"></div>
     </div>
     <div id="dn-period-tabs" class="dn-tabs" role="tablist" aria-label="Zaman dilimleri"></div>
+    <div id="dn-period-progress" class="dn-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
+      <div id="dn-period-progress-fill" class="dn-progress-fill"></div>
+    </div>
+    <p id="dn-period-progress-label" class="dn-progress-label" aria-live="polite"></p>
   </div>
 
   <div id="dn-tabs" class="dn-tabs mb-4" role="tablist" aria-label="Kategoriler"></div>
@@ -642,10 +683,95 @@
     data: null,
     loading: false,
     sourceShowAll: false,
-    tables: {}
+    tables: {},
+    progressTimer: null,
+    progressPct: 0,
+    progressLabel: ""
   };
 
   function $(id) { return document.getElementById(id); }
+
+  function setPeriodTabsDisabled(disabled) {
+    var el = $("dn-period-tabs");
+    if (!el) return;
+    el.querySelectorAll(".dn-tab").forEach(function (btn) {
+      btn.disabled = !!disabled;
+    });
+    var card = el.closest(".dn-period-card");
+    if (card) card.classList.toggle("is-loading", !!disabled);
+  }
+
+  function stopProgressTimer() {
+    if (state.progressTimer) {
+      clearInterval(state.progressTimer);
+      state.progressTimer = null;
+    }
+  }
+
+  function paintProgress(pct, label, opts) {
+    opts = opts || {};
+    var bar = $("dn-period-progress");
+    var fill = $("dn-period-progress-fill");
+    var lab = $("dn-period-progress-label");
+    if (!bar || !fill) return;
+    state.progressPct = Math.max(0, Math.min(100, pct == null ? 0 : pct));
+    bar.classList.add("is-on");
+    bar.classList.toggle("is-indeterminate", !!opts.indeterminate);
+    bar.setAttribute("aria-hidden", "false");
+    bar.setAttribute("aria-valuenow", String(Math.round(state.progressPct)));
+    if (!opts.indeterminate) fill.style.width = state.progressPct + "%";
+    if (lab) {
+      if (label) {
+        lab.textContent = label;
+        lab.classList.add("is-on");
+      } else {
+        lab.textContent = "";
+        lab.classList.remove("is-on");
+      }
+    }
+  }
+
+  function startLoadProgress(reason) {
+    stopProgressTimer();
+    var label = reason || "Yükleniyor…";
+    state.progressLabel = label;
+    paintProgress(8, label + " · yayın verisi", { indeterminate: false });
+    setPeriodTabsDisabled(true);
+    var started = Date.now();
+    state.progressTimer = setInterval(function () {
+      var elapsed = Date.now() - started;
+      // Asymptotic climb toward ~92% while waiting (trafik GA4 süresi uzun olabilir)
+      var target = 92 * (1 - Math.exp(-elapsed / 4200));
+      var next = Math.max(state.progressPct, Math.min(92, 8 + target));
+      var stage = elapsed < 1800
+        ? "yayın verisi"
+        : (elapsed < 5000 ? "GA4 trafik" : "GSC + grafik");
+      paintProgress(next, label + " · " + stage, { indeterminate: false });
+    }, 180);
+  }
+
+  function finishLoadProgress(ok) {
+    stopProgressTimer();
+    paintProgress(100, ok ? "Hazır" : "Tamamlanamadı", { indeterminate: false });
+    setTimeout(function () {
+      var bar = $("dn-period-progress");
+      var fill = $("dn-period-progress-fill");
+      var lab = $("dn-period-progress-label");
+      if (bar) {
+        bar.classList.remove("is-on", "is-indeterminate");
+        bar.setAttribute("aria-hidden", "true");
+        bar.setAttribute("aria-valuenow", "0");
+      }
+      if (fill) fill.style.width = "0%";
+      if (lab) {
+        lab.textContent = "";
+        lab.classList.remove("is-on");
+      }
+      state.progressPct = 0;
+      setPeriodTabsDisabled(false);
+    }, ok ? 320 : 700);
+  }
+
   function fmt(n, d) {
     if (n == null || isNaN(n)) return "—";
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: d == null ? 0 : d });
@@ -954,10 +1080,17 @@
     }).join("");
     el.querySelectorAll(".dn-tab").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        state.period = btn.getAttribute("data-period") || "all";
+        if (state.loading) return;
+        var next = btn.getAttribute("data-period") || "all";
+        if (next === state.period) return;
+        state.period = next;
         state.tables = {};
-        load(false);
+        el.querySelectorAll(".dn-tab").forEach(function (b) {
+          b.classList.toggle("is-active", b.getAttribute("data-period") === next);
+        });
+        load(false, { reason: btn.textContent.trim() || "Dönem" });
       });
+      btn.disabled = !!state.loading;
     });
 
     var rangeEl = $("dn-period-range");
@@ -1018,10 +1151,14 @@
     }).join("");
     el.querySelectorAll(".dn-tab").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        state.category = btn.getAttribute("data-cat") || "all";
+        if (state.loading) return;
+        var next = btn.getAttribute("data-cat") || "all";
+        if (next === state.category) return;
+        state.category = next;
         state.tables = {};
-        load(false);
+        load(false, { reason: "Kategori" });
       });
+      btn.disabled = !!state.loading;
     });
   }
 
@@ -1643,14 +1780,17 @@
     }
   }
 
-  async function load(force) {
+  async function load(force, opts) {
     if (state.loading) return;
+    opts = opts || {};
     state.loading = true;
     var loading = $("dn-loading");
     var err = $("dn-error");
     var body = $("dn-body");
     var btn = $("dn-refresh");
-    if (loading) loading.classList.remove("hidden");
+    var ok = false;
+    startLoadProgress(opts.reason || (force ? "Güncelleniyor" : "Yükleniyor"));
+    if (loading) loading.classList.add("hidden");
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     if (btn) btn.disabled = true;
     try {
@@ -1669,11 +1809,11 @@
         throw new Error(detail || ("Yükleme hatası (" + r.status + ")"));
       }
       var data = await r.json();
-      if (loading) loading.classList.add("hidden");
+      paintProgress(96, (opts.reason || "Yükleniyor") + " · render", { indeterminate: false });
       if (body) body.classList.remove("hidden");
       renderAll(data);
+      ok = true;
     } catch (e) {
-      if (loading) loading.classList.add("hidden");
       if (err) {
         err.textContent = (e && e.message) || "Yükleme hatası";
         err.classList.remove("hidden");
@@ -1681,11 +1821,12 @@
     } finally {
       state.loading = false;
       if (btn) btn.disabled = false;
+      finishLoadProgress(ok);
     }
   }
 
   var refreshBtn = $("dn-refresh");
-  if (refreshBtn) refreshBtn.addEventListener("click", function () { load(true); });
+  if (refreshBtn) refreshBtn.addEventListener("click", function () { load(true, { reason: "Güncelleniyor" }); });
   window.__dnLoadStats = load;
   window.addEventListener("resize", function () {
     if (window.__dnResizeTimer) clearTimeout(window.__dnResizeTimer);
