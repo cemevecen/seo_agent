@@ -488,7 +488,7 @@
     </div>
 
     <div class="dn-flow-grid">
-      <div class="dn-card dn-span-2">
+      <div id="dn-card-day" class="dn-card dn-span-2">
         <div class="dn-card-head"><div><h3>Günlük içerik sayısı</h3></div></div>
         <div id="dn-chart-day" class="dn-chart" style="min-height:300px"></div>
       </div>
@@ -496,15 +496,15 @@
         <div class="dn-card-head"><div><h3>Haftalık trend (artış / düşüş)</h3></div></div>
         <div id="dn-chart-week" class="dn-chart"></div>
       </div>
-      <div class="dn-card">
+      <div id="dn-card-hour" class="dn-card">
         <div class="dn-card-head"><div><h3>Saatlik yayın dağılımı</h3></div></div>
         <div id="dn-chart-hour" class="dn-chart"></div>
       </div>
-      <div class="dn-card">
+      <div id="dn-card-weekday" class="dn-card">
         <div class="dn-card-head"><div><h3>Haftanın günleri</h3></div></div>
         <div id="dn-chart-weekday" class="dn-chart"></div>
       </div>
-      <div class="dn-card">
+      <div id="dn-card-own-vs" class="dn-card">
         <div class="dn-card-head"><div><h3>Özgün vs kaynaklı (kategori)</h3></div></div>
         <div id="dn-chart-own" class="dn-chart"></div>
       </div>
@@ -1205,22 +1205,41 @@
     kw.style.minHeight = h + "px";
   }
 
-  function hideWeeklyChartsForPeriod(period) {
-    var hide = period === "yesterday" || period === "last_7d" || period === "prev_week";
-    ["dn-card-week-trend", "dn-card-week-summary"].forEach(function (id) {
-      var el = $(id);
-      if (el) el.classList.toggle("hidden", hide);
+  function syncPeriodCardVisibility(period) {
+    var p = period || "last_7d";
+    var hideWeekly = p === "yesterday" || p === "last_7d" || p === "prev_week";
+    var hideDaySeries = p === "yesterday"; // tek gün: günlük seri + haftanın günleri anlamsız
+    [
+      ["dn-card-week-trend", hideWeekly],
+      ["dn-card-week-summary", hideWeekly],
+      ["dn-card-day", hideDaySeries],
+      ["dn-card-weekday", hideDaySeries]
+    ].forEach(function (pair) {
+      var el = $(pair[0]);
+      if (el) el.classList.toggle("hidden", pair[1]);
     });
-    // Kısa dönemlerde kalan kartlar 2 sütunda yan yana aksın; özgün kategori alta tam genişlik
     var ownCat = $("dn-card-own-cat");
     if (ownCat) ownCat.classList.add("dn-span-2");
-    return hide;
+    var hour = $("dn-card-hour");
+    if (hour) hour.classList.toggle("dn-span-2", hideDaySeries);
+    var topDays = $("dn-card-top-days");
+    if (topDays) {
+      topDays.classList.remove("hidden");
+      topDays.classList.toggle("dn-span-2", hideDaySeries);
+    }
+    var ownVs = $("dn-card-own-vs");
+    if (ownVs) ownVs.classList.remove("dn-span-2");
+    return { hideWeekly: hideWeekly, hideDaySeries: hideDaySeries };
+  }
+
+  function hideWeeklyChartsForPeriod(period) {
+    return syncPeriodCardVisibility(period).hideWeekly;
   }
 
   function renderCharts(data) {
     if (typeof Plotly === "undefined") return;
     var period = data.period || state.period || "last_7d";
-    var hideWeekly = hideWeeklyChartsForPeriod(period);
+    var vis = syncPeriodCardVisibility(period);
     var showCat = !state.category || state.category === "all";
     var catCard = $("dn-card-cat");
     if (catCard) catCard.classList.toggle("hidden", !showCat);
@@ -1252,17 +1271,19 @@
 
     requestAnimationFrame(syncPairCardHeights);
 
-    var days = data.by_day || [];
-    Plotly.newPlot("dn-chart-day", [{
-      type: "scatter", mode: "lines",
-      x: days.map(function (d) { return d.day; }),
-      y: days.map(function (d) { return d.count; }),
-      line: { color: "#4f46e5", width: 2 },
-      fill: "tozeroy", fillcolor: "rgba(79,70,229,0.12)",
-      hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
-    }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+    if (!vis.hideDaySeries) {
+      var days = data.by_day || [];
+      Plotly.newPlot("dn-chart-day", [{
+        type: "scatter", mode: "lines",
+        x: days.map(function (d) { return d.day; }),
+        y: days.map(function (d) { return d.count; }),
+        line: { color: "#4f46e5", width: 2 },
+        fill: "tozeroy", fillcolor: "rgba(79,70,229,0.12)",
+        hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
+      }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+    }
 
-    if (!hideWeekly) {
+    if (!vis.hideWeekly) {
       var weeks = data.by_week || [];
       var weekTrace = [{
         type: "bar",
@@ -1296,14 +1317,16 @@
       hovertemplate: "%{x}<br>%{y}<extra></extra>"
     }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
 
-    var wd = data.by_weekday || [];
-    Plotly.newPlot("dn-chart-weekday", [{
-      type: "bar",
-      x: wd.map(function (w) { return w.label; }),
-      y: wd.map(function (w) { return w.count; }),
-      marker: { color: wd.map(function (w) { return w.is_weekend ? "#f43f5e" : "#6366f1"; }) },
-      hovertemplate: "%{x}<br>%{y}<extra></extra>"
-    }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+    if (!vis.hideDaySeries) {
+      var wd = data.by_weekday || [];
+      Plotly.newPlot("dn-chart-weekday", [{
+        type: "bar",
+        x: wd.map(function (w) { return w.label; }),
+        y: wd.map(function (w) { return w.count; }),
+        marker: { color: wd.map(function (w) { return w.is_weekend ? "#f43f5e" : "#6366f1"; }) },
+        hovertemplate: "%{x}<br>%{y}<extra></extra>"
+      }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+    }
 
     var own = data.own_by_category || [];
     Plotly.newPlot("dn-chart-own", [
@@ -1316,8 +1339,8 @@
     renderSourceTable(data);
 
     var period = data.period || state.period || "last_7d";
-    var hideWeekly = hideWeeklyChartsForPeriod(period);
-    if (!hideWeekly) {
+    var vis = syncPeriodCardVisibility(period);
+    if (!vis.hideWeekly) {
       mountInteractiveTable("dn-table-week", {
         rows: (data.by_week || []).slice().reverse(),
         defaultSort: "week",
