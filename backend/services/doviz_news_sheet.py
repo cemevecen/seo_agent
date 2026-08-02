@@ -9,8 +9,13 @@ import re
 import time
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None  # type: ignore
 
 from backend.services.backlink_csv import fetch_public_sheet_csv
 
@@ -23,6 +28,16 @@ DOVIZ_NEWS_SHEET_URL = (
 
 _CACHE: dict[str, Any] | None = None
 _CACHE_TTL_SEC = 900.0
+_TZ_TR = ZoneInfo("Europe/Istanbul") if ZoneInfo else None
+
+PERIOD_TABS = (
+    {"key": "yesterday", "label": "Dün"},
+    {"key": "last_7d", "label": "Son 1 hafta"},
+    {"key": "prev_week", "label": "Geçen hafta"},
+    {"key": "this_month", "label": "Bu ay"},
+    {"key": "last_month", "label": "Geçen ay"},
+)
+_PERIOD_KEYS = frozenset(p["key"] for p in PERIOD_TABS)
 
 _WD_TR = ("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar")
 _DATE_FMTS = ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%d.%m.%Y")
@@ -282,6 +297,150 @@ def _filter_rows(rows: list[dict[str, Any]], category: str | None) -> list[dict[
     return [r for r in rows if r.get("category") == cat]
 
 
+def _today_tr() -> date:
+    if _TZ_TR is not None:
+        return datetime.now(_TZ_TR).date()
+    return datetime.utcnow().date()
+
+
+def _parse_day(value: Any) -> date | None:
+    raw = str(value or "").strip()[:10]
+    if len(raw) < 10:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _iso_week_start(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+def _shift_month(d: date, months: int) -> date:
+    y = d.year
+    m = d.month + months
+    while m < 1:
+        m += 12
+        y -= 1
+    while m > 12:
+        m -= 12
+        y += 1
+    return date(y, m, 1)
+
+
+def _month_end(d: date) -> date:
+    nxt = _shift_month(d.replace(day=1), 1)
+    return nxt - timedelta(days=1)
+
+
+def resolve_period(period: str | None, *, today: date | None = None) -> dict[str, Any]:
+    """Seçilen dönem + karşılaştırma penceresi (önceki eşdeğer aralık)."""
+    today = today or _today_tr()
+    key = (period or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "dun": "yesterday",
+        "dün": "yesterday",
+        "son_1_hafta": "last_7d",
+        "son1hafta": "last_7d",
+        "last_week": "last_7d",
+        "gecen_hafta": "prev_week",
+        "geçen_hafta": "prev_week",
+        "bu_ay": "this_month",
+        "gecen_ay": "last_month",
+        "geçen_ay": "last_month",
+    }
+    key = aliases.get(key, key)
+    if key not in _PERIOD_KEYS:
+        key = "last_7d"
+
+    if key == "yesterday":
+        start = end = today - timedelta(days=1)
+        cmp_start = cmp_end = today - timedelta(days=2)
+        kpi_label = "Dün vs önceki"
+        cmp_label = "Önceki gün"
+    elif key == "last_7d":
+        end = today
+        start = today - timedelta(days=6)
+        cmp_end = start - timedelta(days=1)
+        cmp_start = cmp_end - timedelta(days=6)
+        kpi_label = "Hafta vs önceki"
+        cmp_label = "Önceki 7 gün"
+    elif key == "prev_week":
+        this_week = _iso_week_start(today)
+        end = this_week - timedelta(days=1)
+        start = end - timedelta(days=6)
+        cmp_end = start - timedelta(days=1)
+        cmp_start = cmp_end - timedelta(days=6)
+        kpi_label = "Geçen hf vs önceki"
+        cmp_label = "Önceki hafta"
+    elif key == "this_month":
+        start = today.replace(day=1)
+        end = today
+        span = (end - start).days
+        prev_month_start = _shift_month(start, -1)
+        cmp_start = prev_month_start
+        cmp_end = min(prev_month_start + timedelta(days=span), _month_end(prev_month_start))
+        kpi_label = "Ay vs önceki"
+        cmp_label = "Geçen ay (aynı gün)"
+    else:  # last_month
+        this_month_start = today.replace(day=1)
+        end = this_month_start - timedelta(days=1)
+        start = end.replace(day=1)
+        cmp_end = start - timedelta(days=1)
+        cmp_start = cmp_end.replace(day=1)
+        kpi_label = "Geçen ay vs önceki"
+        cmp_label = "Önceki ay"
+
+    label = next((p["label"] for p in PERIOD_TABS if p["key"] == key), key)
+    return {
+        "key": key,
+        "label": label,
+        "start": start,
+        "end": end,
+        "cmp_start": cmp_start,
+        "cmp_end": cmp_end,
+        "cmp_label": cmp_label,
+        "kpi_label": kpi_label,
+        "range_label": f"{start.isoformat()} → {end.isoformat()}",
+        "cmp_range_label": f"{cmp_start.isoformat()} → {cmp_end.isoformat()}",
+    }
+
+
+def _filter_by_date_range(
+    rows: list[dict[str, Any]],
+    start: date | None,
+    end: date | None,
+) -> list[dict[str, Any]]:
+    if start is None or end is None:
+        return rows
+    out = []
+    for r in rows:
+        d = _parse_day(r.get("date_day"))
+        if d is None:
+            continue
+        if start <= d <= end:
+            out.append(r)
+    return out
+
+
+def _period_comparison(current_n: int, prev_n: int, period_info: dict[str, Any]) -> dict[str, Any]:
+    delta = current_n - prev_n
+    return {
+        "recent": current_n,
+        "prev": prev_n,
+        "recent_7d": current_n,
+        "prev_7d": prev_n,
+        "delta": delta,
+        "delta_pct": round(100.0 * delta / prev_n, 1) if prev_n else None,
+        "label": period_info.get("label"),
+        "cmp_label": period_info.get("cmp_label"),
+        "kpi_label": period_info.get("kpi_label") or "Dönem vs önceki",
+        "range_label": period_info.get("range_label"),
+        "cmp_range_label": period_info.get("cmp_range_label"),
+    }
+
+
 def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(rows)
     active = sum(1 for r in rows if r.get("active"))
@@ -492,15 +651,21 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def doviz_news_payload(
     *,
     category: str | None = None,
+    period: str | None = None,
     force: bool = False,
     items_limit: int = 80,
 ) -> dict[str, Any]:
     all_rows = fetch_doviz_news_rows(force=force)
-    rows = _filter_rows(all_rows, category)
+    period_info = resolve_period(period)
+    cat_rows = _filter_rows(all_rows, category)
+    rows = _filter_by_date_range(cat_rows, period_info["start"], period_info["end"])
+    cmp_rows = _filter_by_date_range(cat_rows, period_info["cmp_start"], period_info["cmp_end"])
     analytics = _build_analytics(rows)
+    analytics["summary"]["recent_vs_prev"] = _period_comparison(len(rows), len(cmp_rows), period_info)
 
-    all_cats = Counter(str(r.get("category") or "Diğer") for r in all_rows)
-    category_tabs = [{"key": "all", "label": "Tümü", "count": len(all_rows)}] + [
+    tab_source = _filter_by_date_range(all_rows, period_info["start"], period_info["end"])
+    all_cats = Counter(str(r.get("category") or "Diğer") for r in tab_source)
+    category_tabs = [{"key": "all", "label": "Tümü", "count": len(tab_source)}] + [
         {"key": k, "label": _short_category_label(k), "count": n} for k, n in all_cats.most_common()
     ]
 
@@ -526,6 +691,26 @@ def doviz_news_payload(
         "source_url": DOVIZ_NEWS_SHEET_URL,
         "fetched_at": fetched_at,
         "category": (category or "all"),
+        "period": period_info["key"],
+        "period_meta": {
+            "key": period_info["key"],
+            "label": period_info["label"],
+            "start": period_info["start"].isoformat(),
+            "end": period_info["end"].isoformat(),
+            "cmp_start": period_info["cmp_start"].isoformat(),
+            "cmp_end": period_info["cmp_end"].isoformat(),
+            "cmp_label": period_info["cmp_label"],
+            "kpi_label": period_info["kpi_label"],
+            "range_label": period_info["range_label"],
+            "cmp_range_label": period_info["cmp_range_label"],
+            "current_count": len(rows),
+            "previous_count": len(cmp_rows),
+            "delta": len(rows) - len(cmp_rows),
+            "delta_pct": (
+                round(100.0 * (len(rows) - len(cmp_rows)) / len(cmp_rows), 1) if cmp_rows else None
+            ),
+        },
+        "period_tabs": list(PERIOD_TABS),
         "category_tabs": category_tabs,
         "items_total": len(rows),
         "items": items,

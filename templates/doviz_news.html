@@ -344,6 +344,21 @@
     border-color: #4f46e5; background: #4f46e5; color: #fff;
   }
   .dn-trend-wrap { min-width: 0; }
+
+  .dn-period-card { margin-bottom: 1rem; }
+  .dn-period-card .dn-card-head { margin-bottom: 0.75rem; }
+  .dn-period-cmp {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.75rem;
+    font-size: 12px; color: #64748b;
+  }
+  html.dark .dn-period-cmp, html.midnight .dn-period-cmp { color: #a1a1aa; }
+  .dn-period-cmp-val {
+    font-weight: 800; font-variant-numeric: tabular-nums; color: #0f172a;
+  }
+  html.dark .dn-period-cmp-val, html.midnight .dn-period-cmp-val { color: #f4f4f5; }
+  .dn-period-delta-up { color: #059669; font-weight: 800; }
+  .dn-period-delta-down { color: #dc2626; font-weight: 800; }
+  .dn-period-delta-flat { color: #64748b; font-weight: 700; }
 </style>
 
 <div class="dn-page">
@@ -383,6 +398,17 @@
 
   <p id="dn-error" class="mb-4 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
   <p id="dn-loading" class="mb-4 text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
+
+  <div class="dn-card dn-period-card">
+    <div class="dn-card-head">
+      <div>
+        <h3>Görüntüleme ve karşılaştırma</h3>
+        <p id="dn-period-range" class="dn-card-sub">Dönem seçin</p>
+      </div>
+      <div id="dn-period-cmp" class="dn-period-cmp" aria-live="polite"></div>
+    </div>
+    <div id="dn-period-tabs" class="dn-tabs" role="tablist" aria-label="Zaman dilimleri"></div>
+  </div>
 
   <div id="dn-tabs" class="dn-tabs mb-4" role="tablist" aria-label="Kategoriler"></div>
 
@@ -515,6 +541,7 @@
 (function () {
   var state = {
     category: "all",
+    period: "last_7d",
     data: null,
     loading: false,
     sourceShowAll: false,
@@ -803,6 +830,63 @@
     return s || String(name);
   }
 
+  function renderPeriodTabs(tabs, meta) {
+    var el = $("dn-period-tabs");
+    if (!el) return;
+    var list = tabs && tabs.length ? tabs : [
+      { key: "yesterday", label: "Dün" },
+      { key: "last_7d", label: "Son 1 hafta" },
+      { key: "prev_week", label: "Geçen hafta" },
+      { key: "this_month", label: "Bu ay" },
+      { key: "last_month", label: "Geçen ay" }
+    ];
+    el.innerHTML = list.map(function (t) {
+      var on = t.key === state.period;
+      return '<button type="button" class="dn-tab' + (on ? " is-active" : "") + '" data-period="' + esc(t.key) + '">' +
+        esc(t.label) + "</button>";
+    }).join("");
+    el.querySelectorAll(".dn-tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.period = btn.getAttribute("data-period") || "last_7d";
+        state.tables = {};
+        load(false);
+      });
+    });
+
+    var rangeEl = $("dn-period-range");
+    var cmpEl = $("dn-period-cmp");
+    meta = meta || {};
+    if (rangeEl) {
+      rangeEl.textContent = meta.range_label
+        ? (meta.label || "") + " · " + meta.range_label
+        : "Dönem seçin";
+    }
+    if (cmpEl) {
+      if (meta.current_count == null) {
+        cmpEl.innerHTML = "";
+        return;
+      }
+      var delta = meta.delta;
+      var deltaCls = "dn-period-delta-flat";
+      var deltaTxt = "0";
+      if (delta > 0) {
+        deltaCls = "dn-period-delta-up";
+        deltaTxt = "+" + fmt(delta);
+      } else if (delta < 0) {
+        deltaCls = "dn-period-delta-down";
+        deltaTxt = fmt(delta);
+      }
+      var pct = meta.delta_pct == null
+        ? ""
+        : " (" + (meta.delta_pct > 0 ? "+" : "") + fmt(meta.delta_pct, 1) + "%)";
+      cmpEl.innerHTML =
+        '<span><span class="dn-period-cmp-val">' + fmt(meta.current_count) + "</span> içerik</span>" +
+        '<span>vs ' + esc(meta.cmp_label || "önceki") +
+        ' <span class="dn-period-cmp-val">' + fmt(meta.previous_count) + "</span></span>" +
+        '<span class="' + deltaCls + '">' + deltaTxt + pct + "</span>";
+    }
+  }
+
   function renderTabs(tabs) {
     var el = $("dn-tabs");
     if (!el) return;
@@ -830,14 +914,10 @@
     var last28 = days.slice(-28);
     var dayVals = last28.map(function (d) { return d.count; });
     var dayLabels = last28.map(function (d) { return d.day; });
-    var last7 = days.slice(-7);
-    var last7Vals = last7.map(function (d) { return d.count; });
-    var last7Labels = last7.map(function (d) { return d.day; });
     var totalBars = miniBarsSvg(dayVals, dayLabels, { color: "#c7d2fe", accent: "#6366f1" });
     var avgBars = miniBarsSvg(dayVals, dayLabels, { color: "#bae6fd", accent: "#0ea5e9" });
     var cmpAccent = (rvp.delta != null && rvp.delta < 0) ? "#f43f5e" : "#10b981";
     var cmpBase = (rvp.delta != null && rvp.delta < 0) ? "#fecdd3" : "#a7f3d0";
-    var cmpBars = miniBarsSvg(last7Vals, last7Labels, { color: cmpBase, accent: cmpAccent });
     var ownPie = pieSvg([
       { value: s.own || 0, color: "#10b981", label: "Özgün" },
       { value: s.sourced || 0, color: "#3b82f6", label: "Kaynaklı" }
@@ -847,8 +927,15 @@
       { value: s.weekday_count || 0, color: "#6366f1", label: "Hafta içi" }
     ]);
     var hourViz = hourBarsSvg(data.by_hour || [], peak.hour);
-    var recent7 = rvp.recent_7d != null ? rvp.recent_7d : rvp.recent_14d;
-    var prev7 = rvp.prev_7d != null ? rvp.prev_7d : rvp.prev_14d;
+    var recentN = rvp.recent != null ? rvp.recent : (rvp.recent_7d != null ? rvp.recent_7d : rvp.recent_14d);
+    var prevN = rvp.prev != null ? rvp.prev : (rvp.prev_7d != null ? rvp.prev_7d : rvp.prev_14d);
+    var cmpLabel = rvp.kpi_label || "Dönem vs önceki";
+    var cmpSparkDays = days.length > 14 ? days.slice(-14) : days;
+    var cmpBars = miniBarsSvg(
+      cmpSparkDays.map(function (d) { return d.count; }),
+      cmpSparkDays.map(function (d) { return d.day; }),
+      { color: cmpBase, accent: cmpAccent }
+    );
 
     var cards = [
       {
@@ -882,9 +969,9 @@
         viz: hourViz
       },
       {
-        label: "Son 7 vs önceki",
+        label: cmpLabel,
         value: (rvp.delta == null ? "—" : ((rvp.delta > 0 ? "+" : "") + fmt(rvp.delta))),
-        sub: fmt(recent7) + " vs " + fmt(prev7) +
+        sub: fmt(recentN) + " vs " + fmt(prevN) +
           (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)"),
         viz: cmpBars
       }
@@ -1246,6 +1333,8 @@
 
   function renderAll(data) {
     state.data = data;
+    if (data.period) state.period = data.period;
+    renderPeriodTabs(data.period_tabs || [], data.period_meta || {});
     renderTabs(data.category_tabs || []);
     renderKpis(data.summary || {}, data);
     renderCharts(data);
@@ -1253,9 +1342,11 @@
     var meta = $("dn-meta");
     if (meta) {
       var s = data.summary || {};
+      var pm = data.period_meta || {};
       meta.textContent =
         "Çekim: " + (data.fetched_at || "—") +
-        " · " + fmt(s.total) + " içerik · " +
+        " · " + (pm.label ? pm.label + " · " : "") +
+        fmt(s.total) + " içerik · " +
         fmt(s.category_count) + " kategori · " +
         fmt(s.source_count) + " kaynak";
     }
@@ -1272,7 +1363,7 @@
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     if (btn) btn.disabled = true;
     try {
-      var url = "/api/doviz-news/report?items_limit=500";
+      var url = "/api/doviz-news/report?items_limit=500&period=" + encodeURIComponent(state.period || "last_7d");
       if (state.category && state.category !== "all") {
         url += "&category=" + encodeURIComponent(state.category);
       }
