@@ -242,7 +242,7 @@
     justify-content: flex-start;
     gap: 0.45rem;
     min-height: 0;
-    max-height: calc(10 * 2.35rem);
+    max-height: calc(13 * 2.14rem);
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -1287,7 +1287,8 @@
       });
     }
 
-    var kws = (data.top_keywords || []).slice(0, 40).map(function (k) {
+    var kwLimit = (data.period === "all" || state.period === "all") ? 30 : 15;
+    var kws = (data.top_keywords || []).slice(0, kwLimit).map(function (k) {
       return { label: k.word, count: k.count, share_pct: k.share_pct };
     });
     renderHBarList("dn-chart-keywords", kws, {
@@ -1295,7 +1296,7 @@
       countKey: "count",
       shareKey: "share_pct",
       empty: "Kelime yok",
-      limit: 40
+      limit: kwLimit
     });
 
     requestAnimationFrame(syncPairCardHeights);

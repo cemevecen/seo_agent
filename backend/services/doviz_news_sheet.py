@@ -513,7 +513,7 @@ def _kpi_compare(cur_summary: dict[str, Any], prev_summary: dict[str, Any] | Non
     }
 
 
-def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _build_analytics(rows: list[dict[str, Any]], *, keyword_limit: int = 15) -> dict[str, Any]:
     total = len(rows)
     active = sum(1 for r in rows if r.get("active"))
     own = sum(1 for r in rows if r.get("is_own"))
@@ -682,7 +682,7 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     top_days = sorted(by_day, key=lambda x: -x["count"])[:10]
     low_days = sorted([d for d in by_day if d["count"] > 0], key=lambda x: x["count"])[:10]
-    top_keywords = _top_title_keywords(rows, limit=40)
+    top_keywords = _top_title_keywords(rows, limit=keyword_limit)
 
     return {
         "summary": {
@@ -731,7 +731,8 @@ def doviz_news_payload(
     period_info = resolve_period(period)
     cat_rows = _filter_rows(all_rows, category)
     rows = _filter_by_date_range(cat_rows, period_info["start"], period_info["end"])
-    analytics = _build_analytics(rows)
+    keyword_limit = 30 if period_info["key"] == "all" else 15
+    analytics = _build_analytics(rows, keyword_limit=keyword_limit)
 
     if period_info["key"] == "all":
         rvp = analytics["summary"].get("recent_vs_prev") or {}
