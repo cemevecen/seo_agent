@@ -711,13 +711,15 @@
 
   function $(id) { return document.getElementById(id); }
 
-  function setPeriodTabsDisabled(disabled) {
-    var el = $("dn-period-tabs");
-    if (!el) return;
-    el.querySelectorAll(".dn-tab").forEach(function (btn) {
-      btn.disabled = !!disabled;
+  function setFilterTabsDisabled(disabled) {
+    ["dn-period-tabs", "dn-tabs"].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      el.querySelectorAll(".dn-tab").forEach(function (btn) {
+        btn.disabled = !!disabled;
+      });
     });
-    var card = el.closest(".dn-period-card");
+    var card = $("dn-period-tabs") && $("dn-period-tabs").closest(".dn-period-card");
     if (card) card.classList.toggle("is-loading", !!disabled);
   }
 
@@ -756,7 +758,7 @@
     var label = reason || "Yükleniyor…";
     state.progressLabel = label;
     paintProgress(8, label + " · yayın verisi", { indeterminate: false });
-    setPeriodTabsDisabled(true);
+    setFilterTabsDisabled(true);
     var started = Date.now();
     state.progressTimer = setInterval(function () {
       var elapsed = Date.now() - started;
