@@ -265,6 +265,16 @@ def fetch_doviz_news_rows(*, force: bool = False) -> list[dict[str, Any]]:
     return list(rows)
 
 
+def _short_category_label(name: str) -> str:
+    s = str(name or "").strip()
+    if not s:
+        return s
+    s2 = re.sub(r"\s+haberleri\s*$", "", s, flags=re.IGNORECASE)
+    s2 = re.sub(r"\s+haberler\s*$", "", s2, flags=re.IGNORECASE)
+    s2 = s2.strip(" -–—")
+    return s2 or s
+
+
 def _filter_rows(rows: list[dict[str, Any]], category: str | None) -> list[dict[str, Any]]:
     cat = (category or "").strip()
     if not cat or cat.lower() in ("all", "tümü", "tumu"):
@@ -280,7 +290,12 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     by_cat = Counter(str(r.get("category") or "Diğer") for r in rows)
     categories = [
-        {"key": k, "label": k, "count": n, "share_pct": round(100.0 * n / total, 2) if total else 0}
+        {
+            "key": k,
+            "label": _short_category_label(k),
+            "count": n,
+            "share_pct": round(100.0 * n / total, 2) if total else 0,
+        }
         for k, n in by_cat.most_common()
     ]
 
@@ -398,6 +413,7 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         own_by_category.append(
             {
                 "category": cat,
+                "label": _short_category_label(cat),
                 "own": vals["own"],
                 "sourced": vals["sourced"],
                 "total": vals["total"],
@@ -485,7 +501,7 @@ def doviz_news_payload(
 
     all_cats = Counter(str(r.get("category") or "Diğer") for r in all_rows)
     category_tabs = [{"key": "all", "label": "Tümü", "count": len(all_rows)}] + [
-        {"key": k, "label": k, "count": n} for k, n in all_cats.most_common()
+        {"key": k, "label": _short_category_label(k), "count": n} for k, n in all_cats.most_common()
     ]
 
     fetched_at = None

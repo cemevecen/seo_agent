@@ -559,6 +559,13 @@
     return col && col.num ? "desc" : "asc";
   }
 
+  function shortCat(name) {
+    var s = String(name == null ? "" : name).trim();
+    if (!s) return s;
+    s = s.replace(/\s+haberleri\s*$/i, "").replace(/\s+haberler\s*$/i, "").replace(/[\s\-–—]+$/g, "").trim();
+    return s || String(name);
+  }
+
   function renderTabs(tabs) {
     var el = $("dn-tabs");
     if (!el) return;
@@ -720,9 +727,9 @@
       var cats = data.by_category || [];
       plotHBar(
         "dn-chart-cat",
-        cats.map(function (c) { return c.label; }),
+        cats.map(function (c) { return c.label || shortCat(c.key); }),
         cats.map(function (c) { return c.count; }),
-        { color: "#6366f1", labelW: 130, rowH: 36 }
+        { color: "#6366f1", labelW: 110, rowH: 36 }
       );
     }
 
@@ -782,9 +789,9 @@
 
     var own = data.own_by_category || [];
     Plotly.newPlot("dn-chart-own", [
-      { type: "bar", name: "Özgün", x: own.map(function (o) { return o.category; }), y: own.map(function (o) { return o.own; }), marker: { color: "#10b981" } },
-      { type: "bar", name: "Kaynaklı", x: own.map(function (o) { return o.category; }), y: own.map(function (o) { return o.sourced; }), marker: { color: "#3b82f6" } }
-    ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 80, l: 40 }, xaxis: { tickangle: -25 } }), plotCfg());
+      { type: "bar", name: "Özgün", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.own; }), marker: { color: "#10b981" } },
+      { type: "bar", name: "Kaynaklı", x: own.map(function (o) { return o.label || shortCat(o.category); }), y: own.map(function (o) { return o.sourced; }), marker: { color: "#3b82f6" } }
+    ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 70, l: 40 }, xaxis: { tickangle: -20 } }), plotCfg());
   }
 
   function renderTables(data) {
@@ -868,7 +875,7 @@
       defaultDir: "desc",
       searchPlaceholder: "Kategori ara…",
       columns: [
-        { key: "category", label: "Kategori" },
+        { key: "category", label: "Kategori", render: function (r) { return esc(r.label || shortCat(r.category)); } },
         { key: "own", label: "Özgün", num: true, render: function (r) { return fmt(r.own); } },
         { key: "sourced", label: "Kaynaklı", num: true, render: function (r) { return fmt(r.sourced); } },
         { key: "own_pct", label: "Özgün %", num: true, render: function (r) { return fmt(r.own_pct, 1) + "%"; } }
@@ -904,7 +911,7 @@
       columns: [
         { key: "date", label: "Tarih", render: function (r) { return esc(r.date || "—"); } },
         { key: "title", label: "Başlık", className: "dn-title-cell", render: function (r) { return esc(r.title || "—"); } },
-        { key: "category", label: "Kategori", render: function (r) { return esc(r.category || "—"); } },
+        { key: "category", label: "Kategori", render: function (r) { return esc(shortCat(r.category || "—")); } },
         {
           key: "source", label: "Kaynak",
           render: function (r) {
