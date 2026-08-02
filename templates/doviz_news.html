@@ -223,20 +223,33 @@
     max-height: none;
     overflow: auto;
   }
-  /* Kaynaklar: uzun listede kart içinde dikey scroll */
-  #dn-card-sources.dn-card--fill {
+  /* Kaynaklar + kelimeler: ~10 satır görünür, fazlası kart içinde scroll */
+  #dn-card-sources.dn-card--fill,
+  #dn-card-keywords.dn-card--fill {
     overflow: hidden;
   }
   #dn-card-sources .dn-table-host--fill .dn-table-wrap {
-    max-height: min(26rem, 52vh);
+    /* thead (~2.25rem) + 10 satır (~2.45rem) */
+    max-height: calc(2.25rem + 10 * 2.45rem);
     overflow-x: auto;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
-  @media (min-width: 1024px) {
-    #dn-card-sources .dn-table-host--fill .dn-table-wrap {
-      max-height: none; /* yükseklik keywords kartına hizalanınca flex overflow ile kayar */
-    }
+  #dn-card-keywords #dn-chart-keywords {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    min-height: 0;
+    max-height: calc(10 * 2.35rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #dn-card-keywords #dn-chart-keywords .dn-hbar-row {
+    flex: 0 0 auto;
+    min-height: 1.75rem;
   }
   .dn-card--fill .dn-hbar-list--fill {
     flex: 1 1 auto;
@@ -252,6 +265,14 @@
   .dn-hbar-list--fill .dn-hbar-row {
     flex: 1 1 0;
     min-height: 1.75rem;
+  }
+  /* Kelime listesi fill stretch kullanmasın (üstteki scroll kuralları geçerli) */
+  #dn-card-keywords .dn-hbar-list--fill {
+    min-height: 0;
+    justify-content: flex-start;
+  }
+  #dn-card-keywords .dn-hbar-list--fill .dn-hbar-row {
+    flex: 0 0 auto;
   }
 
   .dn-card--fill .dn-own-wrap {
@@ -1197,13 +1218,15 @@
     src.style.maxHeight = "";
     src.style.height = "";
     kw.style.minHeight = "";
+    kw.style.maxHeight = "";
+    kw.style.height = "";
     if (window.matchMedia && !window.matchMedia("(min-width: 1024px)").matches) return;
-    // Keywords yüksekliğini referans al; kaynaklar aynı boyutta kalsın, fazla satır içerde kaydırılsın
-    kw.style.minHeight = "";
-    var h = Math.max(kw.offsetHeight, 280);
-    src.style.minHeight = h + "px";
+    // ~10 satır scroll alanları; kartları yan yana aynı yükseklikte tut
+    var h = Math.max(src.offsetHeight, kw.offsetHeight, 280);
+    src.style.height = h + "px";
     src.style.maxHeight = h + "px";
-    kw.style.minHeight = h + "px";
+    kw.style.height = h + "px";
+    kw.style.maxHeight = h + "px";
   }
 
   function syncPeriodCardVisibility(period) {
@@ -1264,14 +1287,15 @@
       });
     }
 
-    var kws = (data.top_keywords || []).slice(0, 12).map(function (k) {
+    var kws = (data.top_keywords || []).slice(0, 40).map(function (k) {
       return { label: k.word, count: k.count, share_pct: k.share_pct };
     });
     renderHBarList("dn-chart-keywords", kws, {
       nameKey: "label",
       countKey: "count",
       shareKey: "share_pct",
-      empty: "Kelime yok"
+      empty: "Kelime yok",
+      limit: 40
     });
 
     requestAnimationFrame(syncPairCardHeights);

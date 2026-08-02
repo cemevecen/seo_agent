@@ -682,7 +682,7 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     top_days = sorted(by_day, key=lambda x: -x["count"])[:10]
     low_days = sorted([d for d in by_day if d["count"] > 0], key=lambda x: x["count"])[:10]
-    top_keywords = _top_title_keywords(rows, limit=15)
+    top_keywords = _top_title_keywords(rows, limit=40)
 
     return {
         "summary": {
