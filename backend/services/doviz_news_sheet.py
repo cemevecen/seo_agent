@@ -32,6 +32,7 @@ _TZ_TR = ZoneInfo("Europe/Istanbul") if ZoneInfo else None
 
 PERIOD_TABS = (
     {"key": "all", "label": "Tümü"},
+    {"key": "today", "label": "Bugün"},
     {"key": "yesterday", "label": "Dün"},
     {"key": "last_7d", "label": "Son 1 hafta"},
     {"key": "prev_week", "label": "Geçen hafta"},
@@ -343,6 +344,8 @@ def resolve_period(period: str | None, *, today: date | None = None) -> dict[str
         "tumu": "all",
         "tümü": "all",
         "hepsi": "all",
+        "bugun": "today",
+        "bugün": "today",
         "dun": "yesterday",
         "dün": "yesterday",
         "son_1_hafta": "last_7d",
@@ -372,7 +375,13 @@ def resolve_period(period: str | None, *, today: date | None = None) -> dict[str
             "cmp_range_label": None,
         }
 
-    if key == "yesterday":
+    if key == "today":
+        # Bugün vs geçen haftanın aynı günü
+        start = end = today
+        cmp_start = cmp_end = today - timedelta(days=7)
+        kpi_label = "Bugün vs geçen hf"
+        cmp_label = "Geçen hafta aynı gün"
+    elif key == "yesterday":
         # Önceki haftanın aynı günü (örn. cuma → geçen cuma)
         start = end = today - timedelta(days=1)
         cmp_start = cmp_end = start - timedelta(days=7)

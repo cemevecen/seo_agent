@@ -882,6 +882,7 @@
     if (!el) return;
     var list = tabs && tabs.length ? tabs : [
       { key: "all", label: "Tümü" },
+      { key: "today", label: "Bugün" },
       { key: "yesterday", label: "Dün" },
       { key: "last_7d", label: "Son 1 hafta" },
       { key: "prev_week", label: "Geçen hafta" },
@@ -1207,12 +1208,12 @@
 
   function syncPeriodCardVisibility(period) {
     var p = period || "last_7d";
-    var hideWeekly = p === "yesterday" || p === "last_7d" || p === "prev_week";
-    var hideDaySeries = p === "yesterday";
-    // Dün: haftalık özet / trend / günlük seri / haftanın günleri yok
+    var hideWeekly = p === "today" || p === "yesterday" || p === "last_7d" || p === "prev_week";
+    var hideDaySeries = p === "today" || p === "yesterday";
+    // Tek gün / kısa dönem: haftalık özet / trend / günlük seri / haftanın günleri yok
     [
       ["dn-card-week-trend", hideWeekly],
-      ["dn-card-week-summary", hideWeekly || p === "yesterday"],
+      ["dn-card-week-summary", hideWeekly],
       ["dn-card-day", hideDaySeries],
       ["dn-card-weekday", hideDaySeries]
     ].forEach(function (pair) {
