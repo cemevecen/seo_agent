@@ -1,0 +1,542 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .dn-page { max-width: 1280px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+  .dn-kpi {
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 0.85rem 1rem;
+  }
+  html.dark .dn-kpi, html.midnight .dn-kpi {
+    border-color: #3f3f46;
+    background: #09090b;
+  }
+  .dn-kpi .dn-kpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  html.dark .dn-kpi .dn-kpi-label, html.midnight .dn-kpi .dn-kpi-label { color: #a1a1aa; }
+  .dn-kpi .dn-kpi-value {
+    margin-top: 0.35rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+  }
+  html.dark .dn-kpi .dn-kpi-value, html.midnight .dn-kpi .dn-kpi-value { color: #f4f4f5; }
+  .dn-kpi .dn-kpi-sub { margin-top: 0.2rem; font-size: 11px; color: #64748b; }
+  .dn-card {
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 0.9rem;
+  }
+  html.dark .dn-card, html.midnight .dn-card {
+    border-color: #3f3f46;
+    background: #09090b;
+  }
+  .dn-card h3 {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+  }
+  html.dark .dn-card h3, html.midnight .dn-card h3 { color: #f4f4f5; }
+  .dn-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .dn-tab {
+    border-radius: 0.65rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+  }
+  html.dark .dn-tab, html.midnight .dn-tab {
+    border-color: #52525b;
+    background: #18181b;
+    color: #e4e4e7;
+  }
+  .dn-tab.is-active {
+    border-color: #4f46e5;
+    background: #4f46e5;
+    color: #fff;
+    font-weight: 700;
+  }
+  .dn-table-wrap { overflow-x: auto; }
+  .dn-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; }
+  .dn-table th {
+    padding: 0.45rem 0.6rem;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  html.dark .dn-table th, html.midnight .dn-table th {
+    color: #a1a1aa;
+    border-bottom-color: #3f3f46;
+  }
+  .dn-table td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #0f172a;
+    vertical-align: top;
+  }
+  html.dark .dn-table td, html.midnight .dn-table td {
+    border-bottom-color: #27272a;
+    color: #e4e4e7;
+  }
+  .dn-table td.num, .dn-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dn-badge {
+    display: inline-block;
+    border-radius: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .dn-badge-own { background: #ecfdf5; color: #047857; }
+  .dn-badge-src { background: #eff6ff; color: #1d4ed8; }
+  html.dark .dn-badge-own, html.midnight .dn-badge-own { background: rgba(16,185,129,.18); color: #6ee7b7; }
+  html.dark .dn-badge-src, html.midnight .dn-badge-src { background: rgba(59,130,246,.18); color: #93c5fd; }
+  .dn-trend-up { color: #059669; font-weight: 700; }
+  .dn-trend-down { color: #dc2626; font-weight: 700; }
+  .dn-chart { min-height: 260px; width: 100%; }
+  .dn-muted { color: #64748b; font-size: 11px; }
+  html.dark .dn-muted, html.midnight .dn-muted { color: #a1a1aa; }
+</style>
+
+<div class="dn-page">
+  <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Doviz News</h1>
+      <p class="mt-1 text-xs text-slate-500 dark:text-zinc-400">
+        Doviz.com haber yayın raporu — kategori, kaynak, gün/saat ve özgün içerik ağırlığı
+      </p>
+      <p id="dn-meta" class="mt-1 dn-muted"></p>
+    </div>
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <a id="dn-source-link"
+         href="https://docs.google.com/spreadsheets/d/1alTittOPWf8nHpF6Mt_zQ0IPpHRdRxMXcFB6v_rqWk4/edit?gid=1290391379#gid=1290391379"
+         target="_blank" rel="noopener"
+         class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200">
+        Kaynak tablo ↗
+      </a>
+      <button id="dn-refresh" type="button"
+              class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
+        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+        Doviz News'i güncelle
+      </button>
+    </div>
+  </div>
+
+  <p id="dn-error" class="mb-4 hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
+  <p id="dn-loading" class="mb-4 text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
+
+  <div id="dn-tabs" class="dn-tabs mb-4" role="tablist" aria-label="Kategoriler"></div>
+
+  <div id="dn-body" class="hidden space-y-4">
+    <div id="dn-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="dn-card">
+        <h3>Kategori dağılımı</h3>
+        <div id="dn-chart-cat" class="dn-chart"></div>
+      </div>
+      <div class="dn-card">
+        <h3>Kaynaklar (en çok kullanılan)</h3>
+        <div id="dn-chart-source" class="dn-chart"></div>
+      </div>
+      <div class="dn-card lg:col-span-2">
+        <h3>Günlük içerik sayısı</h3>
+        <div id="dn-chart-day" class="dn-chart" style="min-height:300px"></div>
+      </div>
+      <div class="dn-card">
+        <h3>Haftalık trend (artış / düşüş)</h3>
+        <div id="dn-chart-week" class="dn-chart"></div>
+      </div>
+      <div class="dn-card">
+        <h3>Saatlik yayın dağılımı</h3>
+        <div id="dn-chart-hour" class="dn-chart"></div>
+      </div>
+      <div class="dn-card">
+        <h3>Haftanın günleri</h3>
+        <div id="dn-chart-weekday" class="dn-chart"></div>
+      </div>
+      <div class="dn-card">
+        <h3>Özgün vs kaynaklı (kategori)</h3>
+        <div id="dn-chart-own" class="dn-chart"></div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="dn-card">
+        <h3>Kaynak tablosu</h3>
+        <div class="dn-table-wrap">
+          <table class="dn-table">
+            <thead><tr><th>#</th><th>Kaynak</th><th class="num">Adet</th><th class="num">Pay %</th></tr></thead>
+            <tbody id="dn-tbody-source"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dn-card">
+        <h3>Haftalık özet</h3>
+        <div class="dn-table-wrap">
+          <table class="dn-table">
+            <thead><tr><th>Hafta</th><th class="num">Adet</th><th class="num">Δ</th><th class="num">Δ %</th></tr></thead>
+            <tbody id="dn-tbody-week"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dn-card">
+        <h3>En yoğun günler</h3>
+        <div class="dn-table-wrap">
+          <table class="dn-table">
+            <thead><tr><th>Gün</th><th class="num">Adet</th></tr></thead>
+            <tbody id="dn-tbody-top-days"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dn-card">
+        <h3>Özgün içerik (kaynak boş) — kategori</h3>
+        <div class="dn-table-wrap">
+          <table class="dn-table">
+            <thead><tr><th>Kategori</th><th class="num">Özgün</th><th class="num">Kaynaklı</th><th class="num">Özgün %</th></tr></thead>
+            <tbody id="dn-tbody-own"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="dn-card">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 class="!mb-0">Son içerikler</h3>
+        <p id="dn-items-meta" class="dn-muted"></p>
+      </div>
+      <div class="dn-table-wrap">
+        <table class="dn-table">
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>Başlık</th>
+              <th>Kategori</th>
+              <th>Kaynak</th>
+            </tr>
+          </thead>
+          <tbody id="dn-tbody-items"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var state = { category: "all", data: null, loading: false };
+
+  function $(id) { return document.getElementById(id); }
+  function fmt(n, d) {
+    if (n == null || isNaN(n)) return "—";
+    return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: d == null ? 0 : d });
+  }
+  function isDark() {
+    return document.documentElement.classList.contains("dark")
+      || document.documentElement.classList.contains("midnight");
+  }
+  function plotLayout(extra) {
+    var dark = isDark();
+    var base = {
+      paper_bgcolor: "transparent",
+      plot_bgcolor: "transparent",
+      font: { color: dark ? "#d4d4d8" : "#334155", size: 11 },
+      margin: { t: 16, r: 16, b: 48, l: 48 },
+      legend: { orientation: "h", y: 1.12 },
+      xaxis: { gridcolor: dark ? "#27272a" : "#e2e8f0", zeroline: false },
+      yaxis: { gridcolor: dark ? "#27272a" : "#e2e8f0", zeroline: false },
+    };
+    if (!extra) return base;
+    Object.keys(extra).forEach(function (k) {
+      if (k === "xaxis" || k === "yaxis") {
+        base[k] = Object.assign({}, base[k], extra[k]);
+      } else {
+        base[k] = extra[k];
+      }
+    });
+    return base;
+  }
+  function plotCfg() {
+    return { responsive: true, displayModeBar: false };
+  }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderTabs(tabs) {
+    var el = $("dn-tabs");
+    if (!el) return;
+    el.innerHTML = (tabs || []).map(function (t) {
+      var key = t.key;
+      var on = key === state.category;
+      return '<button type="button" class="dn-tab' + (on ? " is-active" : "") + '" data-cat="' + esc(key) + '">' +
+        esc(t.label) + ' <span class="opacity-70">(' + fmt(t.count) + ")</span></button>";
+    }).join("");
+    el.querySelectorAll(".dn-tab").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.category = btn.getAttribute("data-cat") || "all";
+        load(false);
+      });
+    });
+  }
+
+  function renderKpis(s) {
+    var el = $("dn-kpis");
+    if (!el || !s) return;
+    var rvp = s.recent_vs_prev || {};
+    var peak = s.peak_hour || {};
+    var cards = [
+      { label: "Toplam içerik", value: fmt(s.total), sub: (s.date_min || "—") + " → " + (s.date_max || "—") },
+      { label: "Özgün (kaynak boş)", value: fmt(s.own_pct, 1) + "%", sub: fmt(s.own) + " / " + fmt(s.total) },
+      { label: "Ort. / gün", value: fmt(s.avg_per_day, 1), sub: "Medyan: " + fmt(s.median_per_day, 1) },
+      { label: "Cmt + Paz", value: fmt(s.weekend_count), sub: "Hafta içi: " + fmt(s.weekday_count) + " · %" + fmt(s.weekend_pct, 1) },
+      { label: "En yoğun saat", value: peak.label || "—", sub: fmt(peak.count) + " içerik" },
+      {
+        label: "Son 14g vs önceki",
+        value: (rvp.delta == null ? "—" : ((rvp.delta > 0 ? "+" : "") + fmt(rvp.delta))),
+        sub: fmt(rvp.recent_14d) + " vs " + fmt(rvp.prev_14d) +
+          (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)")
+      }
+    ];
+    el.innerHTML = cards.map(function (c) {
+      return '<div class="dn-kpi"><p class="dn-kpi-label">' + esc(c.label) + "</p>" +
+        '<p class="dn-kpi-value">' + esc(c.value) + "</p>" +
+        '<p class="dn-kpi-sub">' + esc(c.sub) + "</p></div>";
+    }).join("");
+  }
+
+  function renderCharts(data) {
+    if (typeof Plotly === "undefined") return;
+    var cats = data.by_category || [];
+    Plotly.newPlot("dn-chart-cat", [{
+      type: "bar",
+      orientation: "h",
+      y: cats.map(function (c) { return c.label; }).reverse(),
+      x: cats.map(function (c) { return c.count; }).reverse(),
+      marker: { color: "#6366f1" },
+      hovertemplate: "%{y}: %{x}<extra></extra>"
+    }], plotLayout({ margin: { t: 8, r: 16, b: 32, l: 140 } }), plotCfg());
+
+    var src = (data.by_source || []).slice(0, 15);
+    Plotly.newPlot("dn-chart-source", [{
+      type: "bar",
+      orientation: "h",
+      y: src.map(function (s) { return s.source; }).reverse(),
+      x: src.map(function (s) { return s.count; }).reverse(),
+      marker: { color: "#0ea5e9" },
+      hovertemplate: "%{y}: %{x}<extra></extra>"
+    }], plotLayout({ margin: { t: 8, r: 16, b: 32, l: 120 } }), plotCfg());
+
+    var days = data.by_day || [];
+    Plotly.newPlot("dn-chart-day", [{
+      type: "scatter",
+      mode: "lines",
+      x: days.map(function (d) { return d.day; }),
+      y: days.map(function (d) { return d.count; }),
+      line: { color: "#4f46e5", width: 2 },
+      fill: "tozeroy",
+      fillcolor: "rgba(79,70,229,0.12)",
+      hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
+    }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+
+    var weeks = data.by_week || [];
+    Plotly.newPlot("dn-chart-week", [{
+      type: "bar",
+      x: weeks.map(function (w) { return w.week; }),
+      y: weeks.map(function (w) { return w.count; }),
+      marker: {
+        color: weeks.map(function (w) {
+          if (w.trend === "up") return "#10b981";
+          if (w.trend === "down") return "#f43f5e";
+          return "#94a3b8";
+        })
+      },
+      hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
+    }], plotLayout({ margin: { t: 8, r: 16, b: 56, l: 40 }, xaxis: { tickangle: -35 } }), plotCfg());
+
+    var hours = data.by_hour || [];
+    Plotly.newPlot("dn-chart-hour", [{
+      type: "bar",
+      x: hours.map(function (h) { return h.label; }),
+      y: hours.map(function (h) { return h.count; }),
+      marker: { color: "#f59e0b" },
+      hovertemplate: "%{x}<br>%{y}<extra></extra>"
+    }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+
+    var wd = data.by_weekday || [];
+    Plotly.newPlot("dn-chart-weekday", [{
+      type: "bar",
+      x: wd.map(function (w) { return w.label; }),
+      y: wd.map(function (w) { return w.count; }),
+      marker: {
+        color: wd.map(function (w) { return w.is_weekend ? "#f43f5e" : "#6366f1"; })
+      },
+      hovertemplate: "%{x}<br>%{y}<extra></extra>"
+    }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+
+    var own = data.own_by_category || [];
+    Plotly.newPlot("dn-chart-own", [
+      {
+        type: "bar",
+        name: "Özgün",
+        x: own.map(function (o) { return o.category; }),
+        y: own.map(function (o) { return o.own; }),
+        marker: { color: "#10b981" }
+      },
+      {
+        type: "bar",
+        name: "Kaynaklı",
+        x: own.map(function (o) { return o.category; }),
+        y: own.map(function (o) { return o.sourced; }),
+        marker: { color: "#3b82f6" }
+      }
+    ], plotLayout({ barmode: "stack", margin: { t: 28, r: 16, b: 80, l: 40 }, xaxis: { tickangle: -25 } }), plotCfg());
+  }
+
+  function renderTables(data) {
+    var srcBody = $("dn-tbody-source");
+    if (srcBody) {
+      srcBody.innerHTML = (data.by_source || []).map(function (s, i) {
+        return "<tr><td>" + (i + 1) + "</td><td>" + esc(s.source) + "</td>" +
+          '<td class="num">' + fmt(s.count) + "</td>" +
+          '<td class="num">' + fmt(s.share_pct, 2) + "</td></tr>";
+      }).join("") || '<tr><td colspan="4" class="dn-muted">Kaynak yok</td></tr>';
+    }
+
+    var weekBody = $("dn-tbody-week");
+    if (weekBody) {
+      weekBody.innerHTML = (data.by_week || []).slice().reverse().map(function (w) {
+        var cls = w.trend === "up" ? "dn-trend-up" : (w.trend === "down" ? "dn-trend-down" : "");
+        var dlt = w.delta == null ? "—" : ((w.delta > 0 ? "+" : "") + fmt(w.delta));
+        var pct = w.delta_pct == null ? "—" : ((w.delta_pct > 0 ? "+" : "") + fmt(w.delta_pct, 1) + "%");
+        return "<tr><td>" + esc(w.week) + "</td>" +
+          '<td class="num">' + fmt(w.count) + "</td>" +
+          '<td class="num ' + cls + '">' + dlt + "</td>" +
+          '<td class="num ' + cls + '">' + pct + "</td></tr>";
+      }).join("");
+    }
+
+    var topBody = $("dn-tbody-top-days");
+    if (topBody) {
+      topBody.innerHTML = (data.top_days || []).map(function (d) {
+        return "<tr><td>" + esc(d.day) + '</td><td class="num">' + fmt(d.count) + "</td></tr>";
+      }).join("");
+    }
+
+    var ownBody = $("dn-tbody-own");
+    if (ownBody) {
+      ownBody.innerHTML = (data.own_by_category || []).map(function (o) {
+        return "<tr><td>" + esc(o.category) + "</td>" +
+          '<td class="num">' + fmt(o.own) + "</td>" +
+          '<td class="num">' + fmt(o.sourced) + "</td>" +
+          '<td class="num">' + fmt(o.own_pct, 1) + "%</td></tr>";
+      }).join("");
+    }
+
+    var itemsBody = $("dn-tbody-items");
+    var itemsMeta = $("dn-items-meta");
+    if (itemsMeta) {
+      itemsMeta.textContent = "Gösterilen " + fmt((data.items || []).length) + " / " + fmt(data.items_total) + " (en yeni)";
+    }
+    if (itemsBody) {
+      itemsBody.innerHTML = (data.items || []).map(function (it) {
+        var src = it.is_own
+          ? '<span class="dn-badge dn-badge-own">Özgün</span>'
+          : '<span class="dn-badge dn-badge-src">' + esc(it.source || "—") + "</span>";
+        return "<tr><td style=\"white-space:nowrap\">" + esc(it.date || "—") + "</td>" +
+          "<td>" + esc(it.title || "—") + "</td>" +
+          "<td>" + esc(it.category || "—") + "</td>" +
+          "<td>" + src + "</td></tr>";
+      }).join("") || '<tr><td colspan="4" class="dn-muted">İçerik yok</td></tr>';
+    }
+  }
+
+  function renderAll(data) {
+    state.data = data;
+    renderTabs(data.category_tabs || []);
+    renderKpis(data.summary || {});
+    renderCharts(data);
+    renderTables(data);
+    var meta = $("dn-meta");
+    if (meta) {
+      var s = data.summary || {};
+      meta.textContent =
+        "Çekim: " + (data.fetched_at || "—") +
+        " · " + fmt(s.total) + " içerik · " +
+        fmt(s.category_count) + " kategori · " +
+        fmt(s.source_count) + " kaynak";
+    }
+  }
+
+  async function load(force) {
+    if (state.loading) return;
+    state.loading = true;
+    var loading = $("dn-loading");
+    var err = $("dn-error");
+    var body = $("dn-body");
+    var btn = $("dn-refresh");
+    if (loading) loading.classList.remove("hidden");
+    if (err) { err.classList.add("hidden"); err.textContent = ""; }
+    if (btn) btn.disabled = true;
+    try {
+      var url = "/api/doviz-news/report?items_limit=100";
+      if (state.category && state.category !== "all") {
+        url += "&category=" + encodeURIComponent(state.category);
+      }
+      if (force) url += "&force=1";
+      var r = await fetch(url, { credentials: "same-origin" });
+      if (!r.ok) {
+        var detail = "";
+        try {
+          var j = await r.json();
+          detail = (j && (j.detail || j.message)) || "";
+        } catch (_) {}
+        throw new Error(detail || ("Yükleme hatası (" + r.status + ")"));
+      }
+      var data = await r.json();
+      if (loading) loading.classList.add("hidden");
+      if (body) body.classList.remove("hidden");
+      renderAll(data);
+    } catch (e) {
+      if (loading) loading.classList.add("hidden");
+      if (err) {
+        err.textContent = (e && e.message) || "Yükleme hatası";
+        err.classList.remove("hidden");
+      }
+    } finally {
+      state.loading = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  var refreshBtn = $("dn-refresh");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", function () { load(true); });
+  }
+
+  load(false);
+})();
+</script>
+{% endblock %}

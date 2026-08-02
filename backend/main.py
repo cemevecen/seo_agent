@@ -52,6 +52,7 @@ from backend.api.backlinks import router as backlinks_router
 from backend.api.store_catalog import router as store_catalog_router
 from backend.api.notification_analytics import router as notification_analytics_router
 from backend.api.ad_analytics import router as ad_analytics_router
+from backend.api.doviz_news import router as doviz_news_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -1016,6 +1017,7 @@ app.include_router(inbox_router, prefix="/api")
 app.include_router(backlinks_router, prefix="/api")
 app.include_router(notification_analytics_router, prefix="/api")
 app.include_router(ad_analytics_router, prefix="/api")
+app.include_router(doviz_news_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 
 from backend.karma.router import router as karma_router
@@ -12733,6 +12735,17 @@ def api_seo_audit_changes(site_id: int, days: int = 7):
     from backend.services.meta_audit import get_changes
     with SessionLocal() as db:
         return {"changes": get_changes(db, site_id, days=days)}
+
+
+@app.get("/doviz-news")
+def doviz_news_page(request: Request):
+    """Doviz.com haber yayın istatistikleri — Google Sheets raporu."""
+    return templates.TemplateResponse(
+        request,
+        "doviz_news.html",
+        context={"request": request},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
 
 
 @app.get("/doviz-varliklar")
