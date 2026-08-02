@@ -945,7 +945,7 @@
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     if (btn) btn.disabled = true;
     try {
-      var url = "/api/doviz-news/report?items_limit=120";
+      var url = "/api/doviz-news/report?items_limit=500";
       if (state.category && state.category !== "all") {
         url += "&category=" + encodeURIComponent(state.category);
       }
