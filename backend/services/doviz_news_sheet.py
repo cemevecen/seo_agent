@@ -550,7 +550,7 @@ def _build_analytics(rows: list[dict[str, Any]], *, keyword_limit: int = 15) -> 
     spark_days = _last_n_days(date_max_tmp, 7)
 
     by_source = []
-    for s, n in src_counter.most_common(80):
+    for s, n in src_counter.most_common():
         spark = _source_spark_series(rows, s, spark_days)
         by_source.append(
             {
