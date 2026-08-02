@@ -239,7 +239,7 @@
         <div id="dn-table-week"></div>
       </div>
       <div class="dn-card">
-        <div class="dn-card-head"><div><h3>En yoğun günler</h3></div></div>
+        <div class="dn-card-head"><div><h3>Günlük adetler</h3></div></div>
         <div id="dn-table-top-days"></div>
       </div>
       <div class="dn-card">
@@ -763,7 +763,7 @@
     });
 
     mountInteractiveTable("dn-table-top-days", {
-      rows: data.top_days || [],
+      rows: data.by_day || [],
       defaultSort: "count",
       defaultDir: "desc",
       searchable: true,
