@@ -7,6 +7,7 @@ import io
 import logging
 import re
 import time
+import unicodedata
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from typing import Any
@@ -26,6 +27,96 @@ _CACHE_TTL_SEC = 900.0
 _WD_TR = ("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar")
 _DATE_FMTS = ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%d.%m.%Y")
 _ISO_WEEK_RE = re.compile(r"^(\d{4})-W(\d{2})$")
+_WORD_RE = re.compile(r"[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]{3,}", re.UNICODE)
+_STOPWORDS = frozenset(
+    {
+        "ve", "ile", "icin", "için", "bir", "bu", "da", "de", "mi", "mı", "mu", "mü",
+        "ne", "olan", "olarak", "daha", "cok", "çok", "var", "yok", "gibi", "kadar",
+        "sonra", "once", "önce", "yeni", "gore", "göre", "den", "dan", "nin", "nın",
+        "nun", "nün", "the", "and", "of", "to", "in", "on", "for", "from", "with",
+        "that", "this", "was", "are", "not", "but", "its", "his", "her", "they",
+        "hava", "olan", "oldu", "edildi", "etti", "icin", "uzerine", "üzerine",
+        "hakkinda", "hakkında", "iliskin", "ilişkin", "karsi", "karşı", "icin",
+        "son", "ilk", "iki", "uc", "üç", "dort", "dört", "bes", "beş", "alti", "altı",
+        "yedi", "sekiz", "dokuz", "on", "bin", "milyon", "milyar", "tl", "usd",
+        "www", "http", "https", "com", "net", "org", "html",
+        "belli", "acikladi", "açıkladı", "basladi", "başladı", "geldi", "etti",
+        "dedi", "soyledi", "söyledi", "yapti", "yaptı", "olacak", "ediyor",
+        "icin", "guncel", "güncel", "haber", "haberleri", "devam", "eden",
+        "uzerinden", "üzerinden", "arasinda", "arasında", "icin", "neden",
+        "nasil", "nasıl", "hangi", "karsi", "yonelik", "yönelik",
+    }
+)
+
+
+def _fold_tr(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = s.lower()
+    return (
+        s.replace("ı", "i")
+        .replace("İ", "i")
+        .replace("ğ", "g")
+        .replace("ü", "u")
+        .replace("ş", "s")
+        .replace("ö", "o")
+        .replace("ç", "c")
+    )
+
+
+def _top_title_keywords(rows: list[dict[str, Any]], *, limit: int = 15) -> list[dict[str, Any]]:
+    counter: Counter[str] = Counter()
+    display: dict[str, str] = {}
+    for r in rows:
+        title = str(r.get("title") or "")
+        for raw in _WORD_RE.findall(title):
+            key = _fold_tr(raw)
+            if len(key) < 3 or key in _STOPWORDS or key.isdigit():
+                continue
+            counter[key] += 1
+            if key not in display:
+                display[key] = raw.lower()
+    total_hits = sum(counter.values()) or 1
+    out = []
+    for key, n in counter.most_common(limit):
+        out.append(
+            {
+                "word": display.get(key, key),
+                "count": n,
+                "share_pct": round(100.0 * n / total_hits, 2),
+            }
+        )
+    return out
+
+
+def _last_n_days(date_max: str | None, n: int = 7) -> list[str]:
+    if not date_max:
+        return []
+    try:
+        end = datetime.strptime(date_max, "%Y-%m-%d").date()
+    except ValueError:
+        return []
+    return [(end - timedelta(days=n - 1 - i)).isoformat() for i in range(n)]
+
+
+def _source_spark_series(
+    rows: list[dict[str, Any]],
+    source: str,
+    day_keys: list[str],
+) -> list[int]:
+    if not day_keys:
+        return []
+    day_set = set(day_keys)
+    counts: Counter[str] = Counter()
+    for r in rows:
+        if r.get("is_own"):
+            continue
+        if str(r.get("source") or "").strip() != source:
+            continue
+        d = r.get("date_day")
+        if d in day_set:
+            counts[str(d)] += 1
+    return [int(counts.get(d, 0)) for d in day_keys]
 
 
 def _iso_week_range(week_key: str) -> tuple[str, str, str] | None:
@@ -149,10 +240,32 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         key = str(r.get("source") or "").strip() or "(bilinmeyen)"
         src_counter[key] += 1
-    by_source = [
-        {"source": s, "count": n, "share_pct": round(100.0 * n / total, 2) if total else 0}
-        for s, n in src_counter.most_common(40)
-    ]
+
+    date_min_tmp = None
+    date_max_tmp = None
+    day_counts_pre: Counter[str] = Counter()
+    for r in rows:
+        if r.get("date_day"):
+            day_counts_pre[str(r["date_day"])] += 1
+    if day_counts_pre:
+        sorted_days = sorted(day_counts_pre.keys())
+        date_min_tmp = sorted_days[0]
+        date_max_tmp = sorted_days[-1]
+    spark_days = _last_n_days(date_max_tmp, 7)
+
+    by_source = []
+    for s, n in src_counter.most_common(80):
+        spark = _source_spark_series(rows, s, spark_days)
+        by_source.append(
+            {
+                "source": s,
+                "count": n,
+                "share_pct": round(100.0 * n / total, 2) if total else 0,
+                "spark_7d": spark,
+                "spark_days": spark_days,
+                "spark_total": sum(spark),
+            }
+        )
 
     day_counts: Counter[str] = Counter()
     hour_counts: Counter[int] = Counter()
@@ -267,11 +380,12 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         recent_vs_prev = {"recent_14d": 0, "prev_14d": 0, "delta": 0, "delta_pct": None}
 
-    date_min = by_day[0]["day"] if by_day else None
-    date_max = by_day[-1]["day"] if by_day else None
+    date_min = by_day[0]["day"] if by_day else date_min_tmp
+    date_max = by_day[-1]["day"] if by_day else date_max_tmp
 
     top_days = sorted(by_day, key=lambda x: -x["count"])[:10]
     low_days = sorted([d for d in by_day if d["count"] > 0], key=lambda x: x["count"])[:10]
+    top_keywords = _top_title_keywords(rows, limit=15)
 
     return {
         "summary": {
@@ -304,6 +418,8 @@ def _build_analytics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "own_by_category": own_by_category,
         "top_days": top_days,
         "low_days": low_days,
+        "top_keywords": top_keywords,
+        "spark_days": spark_days,
     }
 
 
