@@ -151,7 +151,7 @@
     <div id="dn-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="dn-card">
+      <div id="dn-card-cat" class="dn-card">
         <h3>Kategori dağılımı</h3>
         <div id="dn-chart-cat" class="dn-chart"></div>
       </div>
@@ -329,15 +329,20 @@
 
   function renderCharts(data) {
     if (typeof Plotly === "undefined") return;
-    var cats = data.by_category || [];
-    Plotly.newPlot("dn-chart-cat", [{
-      type: "bar",
-      orientation: "h",
-      y: cats.map(function (c) { return c.label; }).reverse(),
-      x: cats.map(function (c) { return c.count; }).reverse(),
-      marker: { color: "#6366f1" },
-      hovertemplate: "%{y}: %{x}<extra></extra>"
-    }], plotLayout({ margin: { t: 8, r: 16, b: 32, l: 140 } }), plotCfg());
+    var showCat = !state.category || state.category === "all";
+    var catCard = $("dn-card-cat");
+    if (catCard) catCard.classList.toggle("hidden", !showCat);
+    if (showCat) {
+      var cats = data.by_category || [];
+      Plotly.newPlot("dn-chart-cat", [{
+        type: "bar",
+        orientation: "h",
+        y: cats.map(function (c) { return c.label; }).reverse(),
+        x: cats.map(function (c) { return c.count; }).reverse(),
+        marker: { color: "#6366f1" },
+        hovertemplate: "%{y}: %{x}<extra></extra>"
+      }], plotLayout({ margin: { t: 8, r: 16, b: 32, l: 140 } }), plotCfg());
+    }
 
     var src = (data.by_source || []).slice(0, 15);
     Plotly.newPlot("dn-chart-source", [{
