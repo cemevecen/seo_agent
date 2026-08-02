@@ -186,6 +186,7 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
     last_err: Exception | None = None
     csv_text = ""
     used_url = REVENUE_TARGETS_SHEET_URL
+    pending_error: str | None = None
     for url in urls:
         try:
             csv_text = fetch_public_sheet_csv(url)
@@ -194,11 +195,26 @@ def fetch_revenue_targets_rows(*, force: bool = False) -> list[dict[str, Any]]:
         except Exception as exc:  # noqa: BLE001
             last_err = exc
             logger.warning("revenue targets sheet fetch failed url=%s: %s", url, exc)
+            if url == REVENUE_TARGETS_SHEET_URL_PENDING:
+                pending_error = str(exc)
     else:
         raise ValueError(str(last_err) if last_err else "Sheet okunamadı") from last_err
 
     rows = parse_revenue_targets_csv(csv_text)
-    _CACHE = {"ts": time.monotonic(), "rows": rows, "source_url": used_url}
+    warning = None
+    if used_url != REVENUE_TARGETS_SHEET_URL_PENDING and pending_error:
+        warning = (
+            "Güncel Google Sheet okunamadı (paylaşım kapalı). "
+            "Yedek tablo gösteriliyor — Temmuz/Ağustos gibi yeni satırlar eksik olabilir. "
+            "Sheet’te: Paylaş → Bağlantısı olan herkes → Görüntüleyici."
+        )
+    _CACHE = {
+        "ts": time.monotonic(),
+        "rows": rows,
+        "source_url": used_url,
+        "warning": warning,
+        "pending_error": pending_error,
+    }
     return rows
 
 
@@ -210,8 +226,11 @@ def revenue_targets_payload(
 ) -> dict[str, Any]:
     all_rows = fetch_revenue_targets_rows(force=force)
     source_url = REVENUE_TARGETS_SHEET_URL
-    if _CACHE and _CACHE.get("source_url"):
-        source_url = str(_CACHE["source_url"])
+    warning = None
+    if _CACHE:
+        if _CACHE.get("source_url"):
+            source_url = str(_CACHE["source_url"])
+        warning = _CACHE.get("warning")
     rows = all_rows
     pk = (project or "").strip().lower()
     if pk in ("doviz", "sinemalar"):
@@ -222,6 +241,9 @@ def revenue_targets_payload(
     years = sorted({int(r["year"]) for r in all_rows if r.get("year")})
     return {
         "source_url": source_url,
+        "source_pending_url": REVENUE_TARGETS_SHEET_URL_PENDING,
+        "using_fallback": source_url != REVENUE_TARGETS_SHEET_URL_PENDING,
+        "warning": warning,
         "rows": rows,
         "years": years,
         "projects": [

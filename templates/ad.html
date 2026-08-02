@@ -1040,6 +1040,7 @@
           </div>
         </div>
         <p id="mz-targets-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200" role="alert"></p>
+        <p id="mz-targets-warning" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status"></p>
         <p id="mz-targets-loading" class="text-xs text-slate-500 dark:text-zinc-400">Veriler yükleniyor…</p>
         <div id="mz-targets-controls" class="hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
           <div class="min-w-0">
@@ -11906,9 +11907,11 @@
     var charts = document.getElementById("mz-targets-charts");
     var pieSection = document.getElementById("mz-targets-pie-section");
     var err = document.getElementById("mz-targets-error");
+    var warn = document.getElementById("mz-targets-warning");
     var refreshBtn = document.getElementById("mz-targets-refresh");
     if (loading) loading.classList.remove("hidden");
     if (err) err.classList.add("hidden");
+    if (warn) warn.classList.add("hidden");
     if (refreshBtn) refreshBtn.disabled = true;
     try {
       if (!mzTargetsCache || force) {
@@ -11924,13 +11927,24 @@
           throw new Error(detail || ("Hedef tablosu yüklenemedi (" + r.status + ")"));
         }
         mzTargetsCache = await r.json();
-        if (mzTargetsCache && mzTargetsCache.source_url) {
+        if (mzTargetsCache && mzTargetsCache.source_pending_url) {
           var src = document.getElementById("mz-targets-source-link");
-          if (src) src.setAttribute("href", mzTargetsCache.source_url);
+          if (src) src.setAttribute("href", mzTargetsCache.source_pending_url);
+        } else if (mzTargetsCache && mzTargetsCache.source_url) {
+          var src2 = document.getElementById("mz-targets-source-link");
+          if (src2) src2.setAttribute("href", mzTargetsCache.source_url);
         }
       }
       mzTargetsPopulateYears(mzTargetsCache.years);
       if (loading) loading.classList.add("hidden");
+      if (warn) {
+        if (mzTargetsCache && mzTargetsCache.warning) {
+          warn.textContent = mzTargetsCache.warning;
+          warn.classList.remove("hidden");
+        } else {
+          warn.classList.add("hidden");
+        }
+      }
       if (controls) controls.classList.remove("hidden");
       if (tableWrap) tableWrap.classList.remove("hidden");
       if (charts) charts.classList.remove("hidden");
