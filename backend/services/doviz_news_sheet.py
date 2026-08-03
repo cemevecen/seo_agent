@@ -336,9 +336,44 @@ def _month_end(d: date) -> date:
     return nxt - timedelta(days=1)
 
 
-def resolve_period(period: str | None, *, today: date | None = None) -> dict[str, Any]:
+def resolve_period(
+    period: str | None,
+    *,
+    today: date | None = None,
+    custom_start: str | date | None = None,
+    custom_end: str | date | None = None,
+) -> dict[str, Any]:
     """Seçilen dönem + karşılaştırma penceresi (önceki eşdeğer aralık)."""
     today = today or _today_tr()
+    cs = custom_start if isinstance(custom_start, date) else _parse_day(custom_start)
+    ce = custom_end if isinstance(custom_end, date) else _parse_day(custom_end)
+    if cs and ce:
+        if ce < cs:
+            cs, ce = ce, cs
+        span_days = (ce - cs).days + 1
+        cmp_end = cs - timedelta(days=1)
+        cmp_start = cmp_end - timedelta(days=span_days - 1)
+        if cs == ce:
+            range_label = cs.isoformat()
+            cmp_label = "Önceki gün"
+            kpi_label = "Gün vs önceki"
+        else:
+            range_label = f"{cs.isoformat()} → {ce.isoformat()}"
+            cmp_label = f"Önceki {span_days} gün"
+            kpi_label = "Aralık vs önceki"
+        return {
+            "key": "custom",
+            "label": "Tarih aralığı",
+            "start": cs,
+            "end": ce,
+            "cmp_start": cmp_start,
+            "cmp_end": cmp_end,
+            "cmp_label": cmp_label,
+            "kpi_label": kpi_label,
+            "range_label": range_label,
+            "cmp_range_label": f"{cmp_start.isoformat()} → {cmp_end.isoformat()}",
+        }
+
     key = (period or "").strip().lower().replace("-", "_").replace(" ", "_")
     aliases = {
         "tumu": "all",
@@ -356,9 +391,13 @@ def resolve_period(period: str | None, *, today: date | None = None) -> dict[str
         "bu_ay": "this_month",
         "gecen_ay": "last_month",
         "geçen_ay": "last_month",
+        "tarih": "custom",
+        "tarih_araligi": "custom",
+        "custom_range": "custom",
     }
     key = aliases.get(key, key)
-    if key not in _PERIOD_KEYS:
+    if key == "custom" or key not in _PERIOD_KEYS:
+        # Tarih verilmeden custom istenirse son 7 güne düş
         key = "last_7d"
 
     if key == "all":
@@ -729,9 +768,15 @@ def doviz_news_payload(
     db: Any | None = None,
     include_traffic: bool = True,
     site_id: int = 1,
+    custom_start: str | None = None,
+    custom_end: str | None = None,
 ) -> dict[str, Any]:
     all_rows = fetch_doviz_news_rows(force=force)
-    period_info = resolve_period(period)
+    period_info = resolve_period(
+        period,
+        custom_start=custom_start,
+        custom_end=custom_end,
+    )
     cat_rows = _filter_rows(all_rows, category)
     rows = _filter_by_date_range(cat_rows, period_info["start"], period_info["end"])
     keyword_limit = 30 if period_info["key"] == "all" else 15

@@ -499,6 +499,72 @@
     background: #2a2c3a;
     color: #c4c6d4;
   }
+  .dn-custom-range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.55rem 0.85rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+  }
+  .dn-custom-range.hidden { display: none; }
+  html.dark .dn-custom-range, html.midnight .dn-custom-range { border-top-color: #3f3f46; }
+  .dn-custom-range label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #64748b;
+  }
+  html.dark .dn-custom-range label, html.midnight .dn-custom-range label { color: #a1a1aa; }
+  .dn-custom-range input[type="date"] {
+    border-radius: 0.55rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+    color: #0f172a;
+    min-width: 9.5rem;
+  }
+  html.dark .dn-custom-range input[type="date"],
+  html.midnight .dn-custom-range input[type="date"] {
+    border-color: #52525b;
+    background: #18181b;
+    color: #e4e4e7;
+    color-scheme: dark;
+  }
+  .dn-custom-apply {
+    border-radius: 0.65rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #334155;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .dn-custom-apply:hover { border-color: #6366f1; color: #4338ca; }
+  .dn-custom-apply:disabled { opacity: 0.55; cursor: wait; }
+  html.dark .dn-custom-apply, html.midnight .dn-custom-apply {
+    border-color: #52525b;
+    background: #18181b;
+    color: #e4e4e7;
+  }
+  html.dark .dn-custom-apply:hover, html.midnight .dn-custom-apply:hover {
+    border-color: #71717a;
+    color: #f4f4f5;
+  }
+  .dn-custom-hint {
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: 0.68rem;
+    color: #94a3b8;
+  }
+  html.dark .dn-custom-hint, html.midnight .dn-custom-hint { color: #71717a; }
   .dn-period-cmp {
     display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.75rem;
     font-size: 12px; color: #64748b;
@@ -805,6 +871,16 @@
         </button>
       </div>
     </div>
+    <div id="dn-custom-range" class="dn-custom-range hidden" aria-label="Özel tarih aralığı">
+      <label>Başlangıç
+        <input type="date" id="dn-date-start" />
+      </label>
+      <label>Bitiş
+        <input type="date" id="dn-date-end" />
+      </label>
+      <button type="button" id="dn-date-apply" class="dn-custom-apply">Uygula</button>
+      <p class="dn-custom-hint">Tek gün veya aralık seçin; karşılaştırma eşit uzunluktaki önceki dönemle yapılır.</p>
+    </div>
     <div id="dn-period-progress" class="dn-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
       <div id="dn-period-progress-fill" class="dn-progress-fill"></div>
     </div>
@@ -962,6 +1038,8 @@
   var state = {
     category: "all",
     period: "last_7d",
+    customStart: null,
+    customEnd: null,
     data: null,
     loading: false,
     trafficLoading: false,
@@ -975,11 +1053,53 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function isoDay(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  function daysBetween(a, b) {
+    if (!a || !b) return null;
+    var s = new Date(a + "T00:00:00");
+    var e = new Date(b + "T00:00:00");
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+    return Math.round((e - s) / 86400000) + 1;
+  }
+
+  function showCustomRange(show) {
+    var box = $("dn-custom-range");
+    if (!box) return;
+    box.classList.toggle("hidden", !show);
+  }
+
+  function ensureCustomDefaults() {
+    var startEl = $("dn-date-start");
+    var endEl = $("dn-date-end");
+    if (!startEl || !endEl) return;
+    if (state.customStart && state.customEnd) {
+      startEl.value = state.customStart;
+      endEl.value = state.customEnd;
+      return;
+    }
+    var end = new Date();
+    var start = new Date();
+    start.setDate(end.getDate() - 6);
+    startEl.value = isoDay(start);
+    endEl.value = isoDay(end);
+  }
+
   function reportUrl(opts) {
     opts = opts || {};
     var url = "/api/doviz-news/report?items_limit=250&period=" + encodeURIComponent(state.period || "last_7d");
     if (state.category && state.category !== "all") {
       url += "&category=" + encodeURIComponent(state.category);
+    }
+    if (state.period === "custom" && state.customStart && state.customEnd) {
+      url += "&start=" + encodeURIComponent(state.customStart);
+      url += "&end=" + encodeURIComponent(state.customEnd);
     }
     if (opts.force) url += "&force=1";
     url += "&include_traffic=" + (opts.traffic ? "1" : "0");
@@ -1509,7 +1629,7 @@
   function renderPeriodTabs(tabs, meta) {
     var el = $("dn-period-tabs");
     if (!el) return;
-    var list = tabs && tabs.length ? tabs : [
+    var list = (tabs && tabs.length ? tabs.slice() : [
       { key: "today", label: "Bugün" },
       { key: "yesterday", label: "Dün" },
       { key: "last_7d", label: "Son 1 hafta" },
@@ -1517,7 +1637,8 @@
       { key: "this_month", label: "Bu ay" },
       { key: "last_month", label: "Geçen ay" },
       { key: "all", label: "Tümü" }
-    ];
+    ]).filter(function (t) { return t.key !== "custom"; });
+    list.push({ key: "custom", label: "Tarih aralığını seç" });
     el.innerHTML = list.map(function (t) {
       var on = t.key === state.period;
       return '<button type="button" class="dn-tab' + (on ? " is-active" : "") + '" data-period="' + esc(t.key) + '">' +
@@ -1527,10 +1648,21 @@
       btn.addEventListener("click", function () {
         if (state.loading || state.trafficLoading) return;
         var next = btn.getAttribute("data-period") || "all";
+        if (next === "custom") {
+          state.period = "custom";
+          state.tables = {};
+          el.querySelectorAll(".dn-tab").forEach(function (b) {
+            b.classList.toggle("is-active", b.getAttribute("data-period") === "custom");
+          });
+          ensureCustomDefaults();
+          showCustomRange(true);
+          return;
+        }
         if (next === state.period) return;
         state.period = next;
         state.tables = {};
         resetTrafficUi();
+        showCustomRange(false);
         el.querySelectorAll(".dn-tab").forEach(function (b) {
           b.classList.toggle("is-active", b.getAttribute("data-period") === next);
         });
@@ -1538,6 +1670,9 @@
       });
       btn.disabled = !!state.loading;
     });
+
+    showCustomRange(state.period === "custom");
+    if (state.period === "custom") ensureCustomDefaults();
 
     var rangeEl = $("dn-period-range");
     var cmpEl = $("dn-period-cmp");
@@ -1965,6 +2100,20 @@
     var p = period || "last_7d";
     var hideWeekly = p === "today" || p === "yesterday" || p === "last_7d" || p === "prev_week";
     var hideDaySeries = p === "today" || p === "yesterday";
+    if (p === "custom") {
+      var meta = (state.data && state.data.period_meta) || {};
+      var span = daysBetween(
+        (meta.start || state.customStart || "").toString().slice(0, 10),
+        (meta.end || state.customEnd || "").toString().slice(0, 10)
+      );
+      if (span != null) {
+        hideDaySeries = span <= 1;
+        hideWeekly = span <= 7;
+      } else {
+        hideDaySeries = true;
+        hideWeekly = true;
+      }
+    }
     // Tek gün / kısa dönem: haftalık özet / trend / günlük seri / haftanın günleri yok
     [
       ["dn-card-week-trend", hideWeekly],
@@ -2267,7 +2416,12 @@
   function renderAll(data) {
     state.data = data;
     if (data.period) state.period = data.period;
-    renderPeriodTabs(data.period_tabs || [], data.period_meta || {});
+    var pm = data.period_meta || {};
+    if (data.period === "custom") {
+      if (pm.start) state.customStart = String(pm.start).slice(0, 10);
+      if (pm.end) state.customEnd = String(pm.end).slice(0, 10);
+    }
+    renderPeriodTabs(data.period_tabs || [], pm);
     renderTabs(data.category_tabs || []);
     renderKpis(data.summary || {}, data);
     // Trafik asla otomatik gelmez; yalnızca butonla yüklenir
@@ -2416,6 +2570,36 @@
   var itemsTrafficBtn = $("dn-items-traffic-btn");
   if (itemsTrafficBtn) itemsTrafficBtn.addEventListener("click", function () {
     loadTraffic({ fromItems: true });
+  });
+  var dateApply = $("dn-date-apply");
+  if (dateApply) dateApply.addEventListener("click", function () {
+    if (state.loading || state.trafficLoading) return;
+    var startEl = $("dn-date-start");
+    var endEl = $("dn-date-end");
+    var start = startEl && startEl.value ? startEl.value : "";
+    var end = endEl && endEl.value ? endEl.value : "";
+    if (!start || !end) {
+      var err = $("dn-error");
+      if (err) {
+        err.textContent = "Başlangıç ve bitiş tarihi seçin";
+        err.classList.remove("hidden");
+      }
+      return;
+    }
+    if (end < start) {
+      var tmp = start;
+      start = end;
+      end = tmp;
+      if (startEl) startEl.value = start;
+      if (endEl) endEl.value = end;
+    }
+    state.period = "custom";
+    state.customStart = start;
+    state.customEnd = end;
+    state.tables = {};
+    resetTrafficUi();
+    showCustomRange(true);
+    load(false, { reason: "Tarih aralığı" });
   });
   window.__dnLoadStats = load;
   window.addEventListener("resize", function () {

@@ -20,7 +20,15 @@ def get_doviz_news_report(
     category: str | None = Query(None, description="Kategori filtresi (boş = tümü)"),
     period: str | None = Query(
         "last_7d",
-        description="Dönem: all | today | yesterday | last_7d | prev_week | this_month | last_month",
+        description="Dönem: all | today | yesterday | last_7d | prev_week | this_month | last_month | custom",
+    ),
+    start: str | None = Query(
+        None,
+        description="Özel aralık başlangıç (YYYY-MM-DD); end ile birlikte period=custom",
+    ),
+    end: str | None = Query(
+        None,
+        description="Özel aralık bitiş (YYYY-MM-DD); start ile birlikte period=custom",
     ),
     force: bool = Query(False, description="Google Sheet önbelleğini atla ve yeniden çek"),
     items_limit: int = Query(250, ge=1, le=500),
@@ -37,6 +45,8 @@ def get_doviz_news_report(
             db=db,
             include_traffic=include_traffic,
             site_id=site_id,
+            custom_start=start,
+            custom_end=end,
         )
     except Exception as exc:
         logger.exception("doviz news report failed")
