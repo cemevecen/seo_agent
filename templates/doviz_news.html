@@ -1809,14 +1809,40 @@
         psign + fmt(pd.delta) + ppct + "</p>";
     }
 
-    var cards = [
-      {
+    var cmpCard = {
+      label: cmpLabel,
+      value: (rvp.delta == null ? "—" : ((rvp.delta > 0 ? "+" : "") + fmt(rvp.delta))),
+      valueClass: rvp.delta > 0 ? "dn-kpi-delta-up" : (rvp.delta < 0 ? "dn-kpi-delta-down" : ""),
+      sub: fmt(recentN) + " vs " + fmt(prevN) +
+        (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)"),
+      delta: rvp.cmp_label ? '<p class="dn-kpi-delta dn-kpi-delta-flat">' + esc(rvp.cmp_label) + "</p>" : "",
+      viz: cmpBars
+    };
+
+    // İçerik toplamı ile "xxx vs xxx" aynı dönem sayılarıysa içerik kartını gösterme
+    var contentDupesCmp =
+      recentN != null &&
+      prevN != null &&
+      rvp.delta != null &&
+      Number(s.total) === Number(recentN) &&
+      (!kc || !kc.total || (
+        Number(kc.total.previous) === Number(prevN) &&
+        Number(kc.total.delta) === Number(rvp.delta)
+      ));
+
+    var cards = [];
+    if (contentDupesCmp) {
+      cards.push(cmpCard);
+    } else {
+      cards.push({
         label: "İçerik",
         value: fmt(s.total),
         sub: (s.date_min || "—") + " → " + (s.date_max || "—"),
         delta: kc ? deltaHtml(kc.total) : "",
         viz: totalBars
-      },
+      });
+    }
+    cards.push(
       {
         label: "Özgün",
         value: fmt(s.own_pct, 1) + "%",
@@ -1844,22 +1870,20 @@
         sub: fmt(peak.count) + " içerik",
         delta: peakDelta,
         viz: hourViz
-      },
-      {
-        label: cmpLabel,
-        value: (rvp.delta == null ? "—" : ((rvp.delta > 0 ? "+" : "") + fmt(rvp.delta))),
-        sub: fmt(recentN) + " vs " + fmt(prevN) +
-          (rvp.delta_pct == null ? "" : " (" + (rvp.delta_pct > 0 ? "+" : "") + fmt(rvp.delta_pct, 1) + "%)"),
-        delta: rvp.cmp_label ? '<p class="dn-kpi-delta dn-kpi-delta-flat">' + esc(rvp.cmp_label) + "</p>" : "",
-        viz: cmpBars
       }
-    ];
+    );
+    if (!contentDupesCmp) cards.push(cmpCard);
+
+    el.className = cards.length >= 6
+      ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
+      : "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5";
     el.innerHTML = cards.map(function (c) {
+      var valCls = c.valueClass ? (" " + c.valueClass) : "";
       return '<div class="dn-kpi">' +
         '<div class="dn-kpi-top">' +
           '<div class="dn-kpi-main">' +
             '<p class="dn-kpi-label">' + esc(c.label) + "</p>" +
-            '<p class="dn-kpi-value">' + esc(c.value) + "</p>" +
+            '<p class="dn-kpi-value' + valCls + '">' + esc(c.value) + "</p>" +
             '<p class="dn-kpi-sub">' + esc(c.sub) + "</p>" +
             (c.delta || "") +
           "</div>" +
