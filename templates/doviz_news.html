@@ -893,12 +893,15 @@
       </div>
     </div>
 
-    <div class="dn-card">
+    <div class="dn-card" id="dn-card-items">
       <div class="dn-card-head">
         <div>
           <h3>Son içerikler</h3>
           <p id="dn-items-meta" class="dn-card-sub"></p>
         </div>
+        <button type="button" id="dn-items-traffic-btn" class="dn-traffic-btn">
+          Trafikleri göster
+        </button>
       </div>
       <div id="dn-table-items"></div>
     </div>
@@ -987,12 +990,15 @@
     state.trafficShown = false;
     var block = $("dn-traffic-block");
     if (block) block.classList.add("hidden");
-    var btn = $("dn-traffic-btn");
-    if (btn) {
+    ["dn-traffic-btn", "dn-items-traffic-btn"].forEach(function (id) {
+      var btn = $(id);
+      if (!btn) return;
       btn.classList.remove("is-on");
       btn.disabled = false;
-      btn.textContent = "İlgili içeriklerin trafiğini göster";
-    }
+      btn.textContent = id === "dn-items-traffic-btn"
+        ? "Trafikleri göster"
+        : "İlgili içeriklerin trafiğini göster";
+    });
     if (state.data) {
       state.data.traffic = null;
       if (state.data.items) {
@@ -1004,16 +1010,73 @@
   }
 
   function syncTrafficButton() {
-    var btn = $("dn-traffic-btn");
-    if (!btn) return;
-    btn.disabled = !!(state.loading || state.trafficLoading);
-    if (state.trafficShown) {
-      btn.classList.add("is-on");
-      btn.textContent = "Trafik yüklendi";
-    } else {
-      btn.classList.remove("is-on");
-      btn.textContent = "İlgili içeriklerin trafiğini göster";
-    }
+    var busy = !!(state.loading || state.trafficLoading);
+    [
+      { id: "dn-traffic-btn", idle: "İlgili içeriklerin trafiğini göster", done: "Trafik yüklendi" },
+      { id: "dn-items-traffic-btn", idle: "Trafikleri göster", done: "Trafikler yüklendi" }
+    ].forEach(function (cfg) {
+      var btn = $(cfg.id);
+      if (!btn) return;
+      btn.disabled = busy;
+      if (state.trafficShown) {
+        btn.classList.add("is-on");
+        btn.textContent = cfg.done;
+      } else {
+        btn.classList.remove("is-on");
+        btn.textContent = cfg.idle;
+      }
+    });
+  }
+
+  function normItemId(raw) {
+    var s = String(raw == null ? "" : raw).replace(/[\s\u00a0.,·']/g, "");
+    var digits = s.replace(/\D/g, "");
+    return digits || s;
+  }
+
+  function itemHasTraffic(it) {
+    if (!it) return false;
+    return (Number(it.views) || 0) > 0
+      || (Number(it.sessions) || 0) > 0
+      || (Number(it.gsc_clicks) || 0) > 0
+      || (Number(it.gsc_impressions) || 0) > 0;
+  }
+
+  function applyTrafficToItems(data) {
+    if (!state.data) state.data = data || {};
+    if (data && data.traffic) state.data.traffic = data.traffic;
+    var byArt = ((data && data.traffic) || state.data.traffic || {}).by_article || {};
+    var fromItems = {};
+    ((data && data.items) || []).forEach(function (it) {
+      if (!it || it.id == null) return;
+      fromItems[normItemId(it.id)] = it;
+    });
+    if (!state.data.items) state.data.items = (data && data.items) || [];
+    state.data.items.forEach(function (it) {
+      var aid = normItemId(it.id);
+      var tr = byArt[aid] || fromItems[aid] || {};
+      if (tr.views != null) it.views = tr.views;
+      if (tr.sessions != null) it.sessions = tr.sessions;
+      if (tr.gsc_clicks != null) it.gsc_clicks = tr.gsc_clicks;
+      if (tr.gsc_impressions != null) it.gsc_impressions = tr.gsc_impressions;
+      if (tr.gsc_ctr != null) it.gsc_ctr = tr.gsc_ctr;
+      if (tr.gsc_position != null) it.gsc_position = tr.gsc_position;
+    });
+  }
+
+  function itemsForTable(data) {
+    var all = (data && data.items) || [];
+    if (!state.trafficShown) return all;
+    return all
+      .filter(itemHasTraffic)
+      .slice()
+      .sort(function (a, b) {
+        var dv = (Number(b.views) || 0) - (Number(a.views) || 0);
+        if (dv) return dv;
+        var ds = (Number(b.sessions) || 0) - (Number(a.sessions) || 0);
+        if (ds) return ds;
+        return String(b.date || "").localeCompare(String(a.date || ""));
+      });
   }
 
   function setFilterTabsDisabled(disabled) {
@@ -2096,13 +2159,47 @@
 
     renderOwnByCategory(data.own_by_category || []);
 
+    var tableRows = itemsForTable(data);
     var itemsMeta = $("dn-items-meta");
     if (itemsMeta) {
-      itemsMeta.textContent = "Gösterilen " + fmt((data.items || []).length) + " / " + fmt(data.items_total) + " (en yeni)";
+      if (state.trafficShown) {
+        itemsMeta.textContent =
+          "Trafikli " + fmt(tableRows.length) + " / " + fmt((data.items || []).length) +
+          " listelenen · dönem " + fmt(data.items_total) +
+          " (GA4/GSC eşleşenler, görünt. azalan)";
+      } else {
+        itemsMeta.textContent =
+          "Gösterilen " + fmt((data.items || []).length) + " / " + fmt(data.items_total) +
+          " (en yeni) · trafik için «Trafikleri göster»";
+      }
     }
+    var metricCols = state.trafficShown
+      ? [
+          {
+            key: "views", label: "Görünt.", num: true, defaultDir: "desc",
+            render: function (r) { return r.views == null ? "—" : fmt(r.views); }
+          },
+          {
+            key: "sessions", label: "Oturum", num: true,
+            render: function (r) { return r.sessions == null ? "—" : fmt(r.sessions); }
+          },
+          {
+            key: "gsc_clicks", label: "GSC tık", num: true,
+            render: function (r) { return r.gsc_clicks == null ? "—" : fmt(r.gsc_clicks); }
+          },
+          {
+            key: "gsc_impressions", label: "GSC gösterim", num: true,
+            render: function (r) { return r.gsc_impressions == null ? "—" : fmt(r.gsc_impressions); }
+          },
+          {
+            key: "gsc_ctr", label: "CTR %", num: true,
+            render: function (r) { return r.gsc_ctr == null ? "—" : fmt(r.gsc_ctr, 1); }
+          }
+        ]
+      : [];
     mountInteractiveTable("dn-table-items", {
-      rows: data.items || [],
-      defaultSort: "date",
+      rows: tableRows,
+      defaultSort: state.trafficShown ? "views" : "date",
       defaultDir: "desc",
       cardMobile: true,
       searchPlaceholder: "Başlık / kaynak / kategori ara…",
@@ -2118,28 +2215,8 @@
               ? '<span class="dn-badge dn-badge-own">Özgün</span>'
               : '<span class="dn-badge dn-badge-src">' + esc(r.source || "—") + "</span>";
           }
-        },
-        {
-          key: "views", label: "Görünt.", num: true,
-          render: function (r) { return r.views == null ? "—" : fmt(r.views); }
-        },
-        {
-          key: "sessions", label: "Oturum", num: true,
-          render: function (r) { return r.sessions == null ? "—" : fmt(r.sessions); }
-        },
-        {
-          key: "gsc_clicks", label: "GSC tık", num: true,
-          render: function (r) { return r.gsc_clicks == null ? "—" : fmt(r.gsc_clicks); }
-        },
-        {
-          key: "gsc_impressions", label: "GSC gösterim", num: true,
-          render: function (r) { return r.gsc_impressions == null ? "—" : fmt(r.gsc_impressions); }
-        },
-        {
-          key: "gsc_ctr", label: "CTR %", num: true,
-          render: function (r) { return r.gsc_ctr == null ? "—" : fmt(r.gsc_ctr, 1); }
         }
-      ]
+      ].concat(metricCols)
     });
   }
 
@@ -2265,13 +2342,20 @@
     }
   }
 
-  async function loadTraffic() {
+  async function loadTraffic(opts) {
+    opts = opts || {};
     if (state.loading || state.trafficLoading) return;
     if (state.trafficShown && state.data && state.data.traffic) {
-      var block = $("dn-traffic-block");
-      if (block) {
-        block.classList.remove("hidden");
-        block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      renderTables(state.data);
+      if (!opts.fromItems) {
+        var block = $("dn-traffic-block");
+        if (block) {
+          block.classList.remove("hidden");
+          block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      } else {
+        var itemsCard = $("dn-card-items");
+        if (itemsCard) itemsCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
       return;
     }
@@ -2293,32 +2377,20 @@
       }
       var data = await r.json();
       paintProgress(96, "Trafik · render", { indeterminate: false });
-      if (!state.data) state.data = data;
-      else {
-        state.data.traffic = data.traffic;
-        if (data.items && state.data.items) {
-          var byId = {};
-          (data.items || []).forEach(function (it) {
-            if (it && it.id != null) byId[String(it.id)] = it;
-          });
-          state.data.items.forEach(function (it) {
-            var tr = byId[String(it.id)];
-            if (!tr) return;
-            it.views = tr.views;
-            it.sessions = tr.sessions;
-            it.gsc_clicks = tr.gsc_clicks;
-            it.gsc_impressions = tr.gsc_impressions;
-            it.gsc_ctr = tr.gsc_ctr;
-            it.gsc_position = tr.gsc_position;
-          });
-        }
-      }
+      applyTrafficToItems(data);
       state.trafficShown = true;
       renderTraffic(state.data);
+      // items tablosu state sıfırlansın ki sort/views varsayılanı uygulansın
+      if (state.tables) delete state.tables["dn-table-items"];
       renderTables(state.data);
-      var block = $("dn-traffic-block");
-      if (block && !block.classList.contains("hidden")) {
-        block.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (opts.fromItems) {
+        var itemsCard2 = $("dn-card-items");
+        if (itemsCard2) itemsCard2.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } else {
+        var block2 = $("dn-traffic-block");
+        if (block2 && !block2.classList.contains("hidden")) {
+          block2.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
       }
       ok = true;
     } catch (e) {
@@ -2340,7 +2412,11 @@
     load(true, { reason: "Güncelleniyor" });
   });
   var trafficBtn = $("dn-traffic-btn");
-  if (trafficBtn) trafficBtn.addEventListener("click", function () { loadTraffic(); });
+  if (trafficBtn) trafficBtn.addEventListener("click", function () { loadTraffic({}); });
+  var itemsTrafficBtn = $("dn-items-traffic-btn");
+  if (itemsTrafficBtn) itemsTrafficBtn.addEventListener("click", function () {
+    loadTraffic({ fromItems: true });
+  });
   window.__dnLoadStats = load;
   window.addEventListener("resize", function () {
     if (window.__dnResizeTimer) clearTimeout(window.__dnResizeTimer);
