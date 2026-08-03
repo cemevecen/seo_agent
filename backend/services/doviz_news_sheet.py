@@ -725,7 +725,7 @@ def doviz_news_payload(
     category: str | None = None,
     period: str | None = None,
     force: bool = False,
-    items_limit: int = 80,
+    items_limit: int = 250,
     db: Any | None = None,
     include_traffic: bool = True,
     site_id: int = 1,
@@ -839,7 +839,10 @@ def doviz_news_payload(
             }
 
     items = []
-    for r in rows[: max(1, min(int(items_limit or 80), 500))]:
+    # Son içerikler: dönem KPI'sından bağımsız — kategoriye göre en yeni N kayıt
+    item_rows = cat_rows
+    item_limit = max(1, min(int(items_limit or 250), 500))
+    for r in item_rows[:item_limit]:
         aid = _norm_aid(str(r.get("id") or ""))
         tr = by_article.get(aid) or {}
         items.append(
@@ -861,7 +864,7 @@ def doviz_news_payload(
         )
 
     latest_id = None
-    for r in rows:
+    for r in item_rows:
         rid = str(r.get("id") or "").strip()
         if rid:
             latest_id = rid
@@ -877,7 +880,7 @@ def doviz_news_payload(
         "period_tabs": list(PERIOD_TABS),
         "category_tabs": category_tabs,
         "latest_id": latest_id,
-        "items_total": len(rows),
+        "items_total": len(item_rows),
         "items": items,
         "traffic": traffic,
         **analytics,

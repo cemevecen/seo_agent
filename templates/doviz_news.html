@@ -974,7 +974,7 @@
 
   function reportUrl(opts) {
     opts = opts || {};
-    var url = "/api/doviz-news/report?items_limit=500&period=" + encodeURIComponent(state.period || "last_7d");
+    var url = "/api/doviz-news/report?items_limit=250&period=" + encodeURIComponent(state.period || "last_7d");
     if (state.category && state.category !== "all") {
       url += "&category=" + encodeURIComponent(state.category);
     }
