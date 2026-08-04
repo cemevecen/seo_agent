@@ -1069,6 +1069,43 @@
     return Math.round((e - s) / 86400000) + 1;
   }
 
+  function fmtDayMonth(iso) {
+    var p = String(iso || "").slice(0, 10).split("-");
+    if (p.length !== 3) return "";
+    return p[2] + "/" + p[1];
+  }
+
+  /** Kısa dönemde (≤7g) her güne tarih; örn. Pazartesi<br>28/07 */
+  function weekdayChartLabels(wd, data) {
+    var dateByWd = {};
+    var pm = (data && data.period_meta) || {};
+    var span = daysBetween(pm.start, pm.end);
+    if (span != null && span <= 7 && pm.start && pm.end) {
+      var cur = new Date(String(pm.start).slice(0, 10) + "T12:00:00");
+      var end = new Date(String(pm.end).slice(0, 10) + "T12:00:00");
+      while (cur.getTime() <= end.getTime()) {
+        var idx = (cur.getDay() + 6) % 7; // Pazartesi=0
+        dateByWd[idx] = isoDay(cur);
+        cur.setDate(cur.getDate() + 1);
+      }
+    } else {
+      ((data && data.by_day) || []).forEach(function (d) {
+        var iso = String(d.day || "").slice(0, 10);
+        var parts = iso.split("-");
+        if (parts.length !== 3) return;
+        var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        if (isNaN(dt.getTime())) return;
+        var i = (dt.getDay() + 6) % 7;
+        if (!dateByWd[i] || iso > dateByWd[i]) dateByWd[i] = iso;
+      });
+    }
+    return (wd || []).map(function (w) {
+      var dm = fmtDayMonth(dateByWd[w.weekday]);
+      if (!dm) return w.label;
+      return w.label + "<br>" + dm;
+    });
+  }
+
   function showCustomRange(show) {
     var box = $("dn-custom-range");
     if (!box) return;
@@ -2258,13 +2295,17 @@
     if (!vis.hideDaySeries) {
       var wd = data.by_weekday || [];
       var palWd = dnPalette();
+      var wdLabels = weekdayChartLabels(wd, data);
       Plotly.newPlot("dn-chart-weekday", [{
         type: "bar",
-        x: wd.map(function (w) { return w.label; }),
+        x: wdLabels,
         y: wd.map(function (w) { return w.count; }),
         marker: { color: wd.map(function (w) { return w.is_weekend ? palWd.red : palWd.indigo; }) },
-        hovertemplate: "%{x}<br>%{y}<extra></extra>"
-      }], plotLayout({ margin: { t: 8, r: 16, b: 40, l: 40 } }), plotCfg());
+        hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
+      }], plotLayout({
+        margin: { t: 8, r: 16, b: 56, l: 40 },
+        xaxis: { tickfont: { size: 11 }, automargin: true }
+      }), plotCfg());
     }
 
     var own = data.own_by_category || [];
