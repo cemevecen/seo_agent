@@ -2296,11 +2296,21 @@
       var wd = data.by_weekday || [];
       var palWd = dnPalette();
       var wdLabels = weekdayChartLabels(wd, data);
+      // En düşük 2 günü kırmızı; diğerleri (hafta sonu dahil) mavi
+      var lowestTwoIdx = wd
+        .map(function (w, i) { return { i: i, count: Number(w.count) || 0 }; })
+        .sort(function (a, b) { return a.count - b.count || a.i - b.i; })
+        .slice(0, 2)
+        .reduce(function (acc, x) { acc[x.i] = true; return acc; }, {});
       Plotly.newPlot("dn-chart-weekday", [{
         type: "bar",
         x: wdLabels,
         y: wd.map(function (w) { return w.count; }),
-        marker: { color: wd.map(function (w) { return w.is_weekend ? palWd.red : palWd.indigo; }) },
+        marker: {
+          color: wd.map(function (_w, i) {
+            return lowestTwoIdx[i] ? palWd.red : palWd.indigo;
+          })
+        },
         hovertemplate: "%{x}<br>%{y} içerik<extra></extra>"
       }], plotLayout({
         margin: { t: 8, r: 16, b: 56, l: 40 },
