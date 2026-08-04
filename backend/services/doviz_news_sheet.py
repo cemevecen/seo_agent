@@ -474,6 +474,45 @@ def resolve_period(
     }
 
 
+def _day_has_rows(rows: list[dict[str, Any]], day: date) -> bool:
+    key = day.isoformat()
+    for r in rows:
+        if str(r.get("date_day") or "")[:10] == key:
+            return True
+    return False
+
+
+def _shift_last_7d_if_today_empty(
+    period_info: dict[str, Any],
+    rows: list[dict[str, Any]],
+    *,
+    today: date | None = None,
+) -> dict[str, Any]:
+    """Son 1 hafta: bugün henüz veri yoksa pencereyi önceki aynı günden düne kaydır.
+
+    Örn. Salı ve bugün boş → geçen Salı … Pazartesi (bu Salı dahil değil).
+    """
+    if period_info.get("key") != "last_7d":
+        return period_info
+    today = today or _today_tr()
+    if _day_has_rows(rows, today):
+        return period_info
+    end = today - timedelta(days=1)
+    start = end - timedelta(days=6)
+    cmp_end = start - timedelta(days=1)
+    cmp_start = cmp_end - timedelta(days=6)
+    return {
+        **period_info,
+        "start": start,
+        "end": end,
+        "cmp_start": cmp_start,
+        "cmp_end": cmp_end,
+        "range_label": f"{start.isoformat()} → {end.isoformat()}",
+        "cmp_range_label": f"{cmp_start.isoformat()} → {cmp_end.isoformat()}",
+        "trimmed_empty_today": True,
+    }
+
+
 def _filter_by_date_range(
     rows: list[dict[str, Any]],
     start: date | None,
@@ -778,6 +817,8 @@ def doviz_news_payload(
         custom_end=custom_end,
     )
     cat_rows = _filter_rows(all_rows, category)
+    # Son 1 hafta + bugün boş: önceki aynı günden düne (boş bugünü basma)
+    period_info = _shift_last_7d_if_today_empty(period_info, cat_rows)
     rows = _filter_by_date_range(cat_rows, period_info["start"], period_info["end"])
     keyword_limit = 30 if period_info["key"] == "all" else 15
     analytics = _build_analytics(rows, keyword_limit=keyword_limit)
