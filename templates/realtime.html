@@ -3692,8 +3692,11 @@
 
   function _rtMergeSiteTrends(trendList) {
     var bucketMs = 15 * 60 * 1000;
-    var map = {};
+    /* Her site için dilim → değer; eksik dilimde son bilinen değeri taşı (üst≠alt sapmasını kes) */
+    var perSite = [];
     (trendList || []).forEach(function (trend) {
+      var map = {};
+      var keys = [];
       (trend || []).forEach(function (pt) {
         var d = _parseSnapshotTs(pt.collected_at);
         if (!d) return;
@@ -3704,35 +3707,78 @@
             collected_at: new Date(bucketKey).toISOString(),
             active_users: 0,
             pageviews: 0,
-            active_users_prev_week: 0,
-            pageviews_prev_week: 0,
-            _hasPrevAu: false,
-            _hasPrevPv: false,
+            active_users_prev_week: null,
+            pageviews_prev_week: null,
           };
+          keys.push(bucketKey);
         }
         var row = map[key];
         row.active_users += Number(pt.active_users) || 0;
         row.pageviews += Number(pt.pageviews) || 0;
         if (pt.active_users_prev_week != null) {
-          row.active_users_prev_week += Number(pt.active_users_prev_week) || 0;
-          row._hasPrevAu = true;
+          row.active_users_prev_week =
+            (row.active_users_prev_week || 0) + (Number(pt.active_users_prev_week) || 0);
         }
         if (pt.pageviews_prev_week != null) {
-          row.pageviews_prev_week += Number(pt.pageviews_prev_week) || 0;
-          row._hasPrevPv = true;
+          row.pageviews_prev_week =
+            (row.pageviews_prev_week || 0) + (Number(pt.pageviews_prev_week) || 0);
         }
       });
+      keys.sort(function (a, b) { return a - b; });
+      perSite.push({ map: map, keys: keys });
     });
-    return Object.keys(map)
-      .sort(function (a, b) { return Number(a) - Number(b); })
-      .map(function (k) {
-        var p = map[k];
-        if (!p._hasPrevAu) p.active_users_prev_week = null;
-        if (!p._hasPrevPv) p.pageviews_prev_week = null;
-        delete p._hasPrevAu;
-        delete p._hasPrevPv;
-        return p;
+    if (!perSite.length) return [];
+
+    var allKeys = {};
+    perSite.forEach(function (s) {
+      s.keys.forEach(function (k) { allKeys[k] = true; });
+    });
+    var sortedKeys = Object.keys(allKeys)
+      .map(Number)
+      .sort(function (a, b) { return a - b; });
+
+    return sortedKeys.map(function (bucketKey) {
+      var key = String(bucketKey);
+      var out = {
+        collected_at: new Date(bucketKey).toISOString(),
+        active_users: 0,
+        pageviews: 0,
+        active_users_prev_week: 0,
+        pageviews_prev_week: 0,
+        _hasPrevAu: false,
+        _hasPrevPv: false,
+      };
+      perSite.forEach(function (s) {
+        var row = s.map[key];
+        if (!row) {
+          /* Bu dilimde site yoksa bir önceki dilimini taşı */
+          var prev = null;
+          for (var i = s.keys.length - 1; i >= 0; i--) {
+            if (s.keys[i] <= bucketKey) {
+              prev = s.map[String(s.keys[i])];
+              break;
+            }
+          }
+          row = prev;
+        }
+        if (!row) return;
+        out.active_users += Number(row.active_users) || 0;
+        out.pageviews += Number(row.pageviews) || 0;
+        if (row.active_users_prev_week != null) {
+          out.active_users_prev_week += Number(row.active_users_prev_week) || 0;
+          out._hasPrevAu = true;
+        }
+        if (row.pageviews_prev_week != null) {
+          out.pageviews_prev_week += Number(row.pageviews_prev_week) || 0;
+          out._hasPrevPv = true;
+        }
       });
+      if (!out._hasPrevAu) out.active_users_prev_week = null;
+      if (!out._hasPrevPv) out.pageviews_prev_week = null;
+      delete out._hasPrevAu;
+      delete out._hasPrevPv;
+      return out;
+    });
   }
 
   function _rtRenderGlobalMergedSpark(globalEl) {
@@ -3757,20 +3803,48 @@
     }
   }
 
+  /** Total paneli KPI: slot reel animasyonu üst≠alt sapmasına yol açabiliyor — düz yaz. */
+  function _rtSetSparkLastPlain(siteEl, val) {
+    if (!siteEl) return;
+    var root = _rtSiteSparkRoot(siteEl);
+    var lastEl = root && root.querySelector('[data-rt-site-spark-last]');
+    if (!lastEl) return;
+    var text = val != null && !isNaN(val) ? _fmtExact(val) : '—';
+    lastEl.classList.remove('rt-slot-text');
+    lastEl.removeAttribute('data-rt-slot-cur');
+    lastEl.textContent = text;
+    lastEl.setAttribute('data-rt-slot-cur', text);
+    var stack = lastEl.closest('[data-rt-site-spark-kpi-stack]');
+    if (stack) _rtFitSparkKpiStack(stack);
+  }
+
+  function _rtTrendLastAu(trend) {
+    if (!trend || !trend.length) return null;
+    for (var i = trend.length - 1; i >= 0; i--) {
+      var n = Number(trend[i] && trend[i].active_users);
+      if (!isNaN(n)) return n;
+    }
+    return null;
+  }
+
   function _rtSyncGlobalTotalLive() {
     var globalEl = _rtGetGlobalTotalEl();
     if (!globalEl) return;
     var sum = 0;
     var have = 0;
     var parts = [];
+    var trendsBySite = globalEl._rtSiteTrends || {};
     document.querySelectorAll('.rt-site-card[data-rt-site]').forEach(function (siteEl) {
       var sid = siteEl.getAttribute('data-rt-site');
       if (!sid) return;
       var au = siteEl._rtSiteSumAu;
+      /* Canlı KPI yoksa site spark’ının son dilimini kullan — birleşik son dilim değil */
+      if (au == null) au = _rtTrendLastAu(trendsBySite[String(sid)]);
       var wrap = globalEl.querySelector('[data-rt-global-site-spark="' + sid + '"]');
       if (wrap) {
+        wrap._rtSparkMetric = 'au';
         wrap._rtSiteSumAu = au != null ? au : null;
-        _rtSyncSiteSparkLiveTotal(wrap);
+        _rtSetSparkLastPlain(wrap, au);
       }
       if (au != null) {
         sum += au;
@@ -3780,8 +3854,9 @@
         parts.push(label + ' ' + _fmtExact(au));
       }
     });
+    globalEl._rtSparkMetric = 'au';
     globalEl._rtSiteSumAu = have ? sum : null;
-    _rtSyncSiteSparkLiveTotal(globalEl);
+    _rtSetSparkLastPlain(globalEl, have ? sum : null);
     var lastEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-last]');
     if (lastEl && have) {
       lastEl.setAttribute('title', parts.join(' + ') + ' = ' + _fmtExact(sum));
@@ -3806,12 +3881,8 @@
         return;
       }
       _renderSiteSparkMetric(wrap, trend, 'au');
-      var siteCard = document.querySelector('.rt-site-card[data-rt-site="' + sid + '"]');
-      if (siteCard && siteCard._rtSiteSumAu != null) {
-        wrap._rtSiteSumAu = siteCard._rtSiteSumAu;
-        _rtSyncSiteSparkLiveTotal(wrap);
-      }
     });
+    _rtSyncGlobalTotalLive();
   }
 
   function _setGlobalTotalLoading(globalEl, loading) {
@@ -3891,6 +3962,15 @@
 
   function _rtSyncSiteSparkLiveTotal(siteEl) {
     if (!siteEl) return;
+    /* Global Total paneli: tek kaynak _rtSyncGlobalTotalLive (üst = alt1+alt2) */
+    if (
+      siteEl.hasAttribute('data-rt-global-total') ||
+      siteEl.hasAttribute('data-rt-global-site-spark') ||
+      (siteEl.closest && siteEl.closest('[data-rt-global-total]'))
+    ) {
+      _rtSyncGlobalTotalLive();
+      return;
+    }
     var root = _rtSiteSparkRoot(siteEl);
     var lastEl = root.querySelector('[data-rt-site-spark-last]');
     if (!lastEl) return;
