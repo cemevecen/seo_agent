@@ -1223,14 +1223,26 @@
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #64748b;
-    margin-bottom: 0.45rem;
-    padding-bottom: 0.35rem;
-    border-bottom: 1px solid #e2e8f0;
+    margin: -0.65rem -0.7rem 0.55rem;
+    padding: 0.55rem 0.7rem;
+    border-bottom: none;
+    border-radius: 0.75rem 0.75rem 0 0;
   }
-  html.dark .rt-names-col-title {
-    color: #a1a1aa;
-    border-bottom-color: rgba(63, 63, 70, 0.7);
+  .rt-names-col[data-rt-names-brand="doviz"] .rt-names-col-title {
+    background: #0ea5e9;
+    color: #fff;
+  }
+  .rt-names-col[data-rt-names-brand="sinemalar"] .rt-names-col-title {
+    background: #f43f5e;
+    color: #fff;
+  }
+  html.dark .rt-names-col[data-rt-names-brand="doviz"] .rt-names-col-title {
+    background: #0284c7;
+    color: #f0f9ff;
+  }
+  html.dark .rt-names-col[data-rt-names-brand="sinemalar"] .rt-names-col-title {
+    background: #e11d48;
+    color: #fff1f2;
   }
   .rt-names-list {
     list-style: none;
@@ -2735,6 +2747,7 @@
                 <section
                   class="rt-names-col"
                   data-rt-names-col
+                  data-rt-names-brand="{{ slug }}"
                   data-rt-names-site-id="{{ site.id }}"
                   data-rt-names-profile="{{ profile }}"
                   data-rt-names-domain="{{ site.domain }}"
