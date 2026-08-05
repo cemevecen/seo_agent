@@ -430,7 +430,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_ENABLED", "doviz_asset_monitor_enabled"),
     )
     doviz_asset_monitor_interval_minutes: int = Field(
-        default=30,
+        default=180,
         ge=5,
         le=1440,
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_INTERVAL_MINUTES", "doviz_asset_monitor_interval_minutes"),
@@ -463,12 +463,30 @@ class Settings(BaseSettings):
         ),
     )
     doviz_asset_monitor_email_cooldown_hours: float = Field(
-        default=1.0,
+        default=3.0,
         ge=0.5,
         le=168.0,
         validation_alias=AliasChoices(
             "DOVIZ_ASSET_MONITOR_EMAIL_COOLDOWN_HOURS",
             "doviz_asset_monitor_email_cooldown_hours",
+        ),
+    )
+    doviz_asset_monitor_max_emails_per_issue: int = Field(
+        default=2,
+        ge=1,
+        le=10,
+        validation_alias=AliasChoices(
+            "DOVIZ_ASSET_MONITOR_MAX_EMAILS_PER_ISSUE",
+            "doviz_asset_monitor_max_emails_per_issue",
+        ),
+    )
+    doviz_asset_monitor_issue_mute_hours: float = Field(
+        default=24.0,
+        ge=1.0,
+        le=168.0,
+        validation_alias=AliasChoices(
+            "DOVIZ_ASSET_MONITOR_ISSUE_MUTE_HOURS",
+            "doviz_asset_monitor_issue_mute_hours",
         ),
     )
     doviz_asset_csv_manifest_enabled: bool = Field(

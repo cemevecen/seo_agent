@@ -156,7 +156,7 @@ def _build_issue_state(
     catalog_removed: list[str],
     prev_issue_state: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """Açık sorunlar: first_seen korunur, last_seen güncellenir."""
+    """Açık sorunlar: first_seen / email sayacı korunur, last_seen güncellenir."""
     out: dict[str, dict[str, Any]] = {}
     for p in prices_missing:
         key = _probe_key(p["slug"], p["host"])
@@ -173,6 +173,8 @@ def _build_issue_state(
             "last_seen_at": scan_iso,
             "first_seen_tr": format_ts_tr(first),
             "last_seen_tr": format_ts_tr(scan_iso),
+            "email_notify_count": int(prev.get("email_notify_count") or 0),
+            "last_email_at": prev.get("last_email_at"),
             "open": True,
         }
     for slug in catalog_removed:
@@ -189,9 +191,90 @@ def _build_issue_state(
             "last_seen_at": scan_iso,
             "first_seen_tr": format_ts_tr(first),
             "last_seen_tr": format_ts_tr(scan_iso),
+            "email_notify_count": int(prev.get("email_notify_count") or 0),
+            "last_email_at": prev.get("last_email_at"),
             "open": True,
         }
     return out
+
+
+def _issue_email_eligible(row: dict[str, Any]) -> bool:
+    """Aynı link: en fazla 2 mail, sonra 24s susturma; susturma bitince döngü yeniden başlar."""
+    max_n = int(settings.doviz_asset_monitor_max_emails_per_issue or 2)
+    mute_h = float(settings.doviz_asset_monitor_issue_mute_hours or 24)
+    count = int(row.get("email_notify_count") or 0)
+    last = row.get("last_email_at")
+    if count < max_n:
+        return True
+    if not last:
+        return True
+    return _hours_since(str(last)) >= mute_h
+
+
+def _mailable_open_issues(issue_state: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Açık sorunlardan mail adayı satırlar (host/url = link)."""
+    out: list[dict[str, Any]] = []
+    for row in issue_state.values():
+        if not row.get("open"):
+            continue
+        if not _issue_email_eligible(row):
+            continue
+        kind = row.get("kind") or "prices_empty"
+        slug = row.get("slug") or ""
+        host = row.get("host") or ""
+        if kind == "catalog_removed":
+            message = f"Katalogdan kalktı: {slug} (altin.doviz.com indeks)"
+            severity = "critical"
+        else:
+            message = f"Sayfa var, fiyat yok: {slug} @ {host}" if host else f"Sayfa var, fiyat yok: {slug}"
+            severity = "warning"
+        out.append(
+            {
+                "kind": kind,
+                "severity": severity,
+                "slug": slug,
+                "host": host,
+                "url": row.get("url") or "",
+                "message": message,
+                "first_seen_at": row.get("first_seen_at"),
+                "last_seen_at": row.get("last_seen_at"),
+                "first_seen_tr": row.get("first_seen_tr"),
+                "last_seen_tr": row.get("last_seen_tr"),
+                "email_notify_count": int(row.get("email_notify_count") or 0),
+                "issue_key": row.get("key"),
+            }
+        )
+    out.sort(key=lambda a: (str(a.get("kind") or ""), str(a.get("slug") or ""), str(a.get("host") or "")))
+    return out
+
+
+def _bump_issue_email_counts(
+    issue_state: dict[str, dict[str, Any]],
+    mailed: list[dict[str, Any]],
+    *,
+    scan_iso: str,
+) -> None:
+    max_n = int(settings.doviz_asset_monitor_max_emails_per_issue or 2)
+    mute_h = float(settings.doviz_asset_monitor_issue_mute_hours or 24)
+    for item in mailed:
+        key = item.get("issue_key")
+        if not key or key not in issue_state:
+            kind = item.get("kind")
+            if kind == "catalog_removed":
+                key = f"catalog:{item.get('slug', '')}"
+            else:
+                key = _probe_key(str(item.get("slug") or ""), str(item.get("host") or ""))
+        row = issue_state.get(key)
+        if not row:
+            continue
+        prev_count = int(row.get("email_notify_count") or 0)
+        last = row.get("last_email_at")
+        # Susturma sonrası ilk mail → yeni 2'li döngünün 1.si
+        if prev_count >= max_n and (not last or _hours_since(str(last)) >= mute_h):
+            row["email_notify_count"] = 1
+        else:
+            row["email_notify_count"] = prev_count + 1
+        row["last_email_at"] = scan_iso
 
 
 def _attach_issue_timestamps(items: list[dict[str, Any]], issue_state: dict[str, dict[str, Any]], scan_iso: str) -> None:
@@ -265,8 +348,8 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
 
     prev = (
         db.query(DovizAssetMonitorRun)
+        .filter(DovizAssetMonitorRun.run_kind == "catalog")
         .order_by(DovizAssetMonitorRun.collected_at.desc())
-        .offset(1)
         .first()
     )
     prev_payload = json.loads(prev.payload_json) if prev and prev.payload_json else {}
@@ -379,17 +462,39 @@ def run_doviz_asset_monitor(db: Session) -> dict[str, Any]:
     db.refresh(run)
 
     open_issues = sorted(issue_state.values(), key=lambda x: str(x.get("first_seen_at") or ""))
+    mail_items = _mailable_open_issues(issue_state)
+    # prices_lost gibi geçiş uyarılarını da (henüz issue_state'te yoksa) ekle
+    mailed_keys = {m.get("issue_key") for m in mail_items}
+    for a in alerts:
+        if a.get("kind") == "prices_lost":
+            key = _probe_key(str(a.get("slug") or ""), str(a.get("host") or ""))
+            if key in mailed_keys:
+                continue
+            item = dict(a)
+            item["issue_key"] = key
+            item["email_notify_count"] = 0
+            mail_items.append(item)
+            mailed_keys.add(key)
+
     if alerts:
         _record_monitor_alerts(alerts, payload, scan_iso=scan_iso, open_issues=open_issues)
-    if _should_send_asset_email(alerts, prev_payload):
+    if _should_send_asset_email(mail_items, prev_payload):
+        _bump_issue_email_counts(issue_state, mail_items, scan_iso=scan_iso)
+        payload["issue_state"] = issue_state
         payload["last_email_at"] = scan_iso
+        payload["emailed_alerts"] = mail_items
         run.payload_json = json.dumps(payload, ensure_ascii=False)
         db.commit()
-        _send_asset_monitor_email(alerts, payload, scan_iso=scan_iso)
+        _send_asset_monitor_email(mail_items, payload, scan_iso=scan_iso)
+    elif mail_items:
+        logger.info(
+            "Döviz varlık maili atlandı: aday uyarı var ama cooldown aktif (son mail %s, cooldown=%.1fh).",
+            prev_payload.get("last_email_at"),
+            float(settings.doviz_asset_monitor_email_cooldown_hours or 3),
+        )
     elif alerts:
         logger.info(
-            "Döviz varlık maili atlandı: yeni uyarı var ama saatlik cooldown aktif (son mail %s).",
-            prev_payload.get("last_email_at"),
+            "Döviz varlık maili atlandı: yeni kayıt var ama linkler susturulmuş veya mail adayı yok.",
         )
 
     return {
@@ -419,14 +524,14 @@ def _should_send_asset_email(
     alerts: list[dict[str, Any]],
     prev_payload: dict[str, Any],
 ) -> bool:
-    """Yalnızca bu turda yeni uyarı varsa; en fazla cooldown saatte bir mail."""
+    """Mail adayı varsa; global cooldown (varsayılan 3 saat) dolmuş olmalı."""
     if not alerts:
         return False
     if not settings.doviz_asset_monitor_email_enabled or not settings.outbound_email_enabled:
         return False
     last = prev_payload.get("last_email_at")
-    cooldown = float(settings.doviz_asset_monitor_email_cooldown_hours or 1)
-    if last and _hours_since(last) < cooldown:
+    cooldown = float(settings.doviz_asset_monitor_email_cooldown_hours or 3)
+    if last and _hours_since(str(last)) < cooldown:
         return False
     return True
 
@@ -494,7 +599,7 @@ def _send_asset_monitor_email(
         "<th>İlk tespit (TR)</th><th>Son kontrol (TR)</th><th>Not</th></tr>"
     )
     section = (
-        f"<h3>Bu taramada yeni uyarı ({len(alerts)})</h3>"
+        f"<h3>Bu taramada uyarı ({len(alerts)})</h3>"
         f'<table border="1" cellpadding="6" cellspacing="0" '
         f'style="border-collapse:collapse;font-size:13px">{th}{alert_rows}</table>'
     )
@@ -505,7 +610,7 @@ def _send_asset_monitor_email(
     {section}
     <p><a href="https://projectcontrol.up.railway.app/doviz-varliklar">Panel: Döviz varlıklar</a></p>
     """
-    subject = f"[Döviz varlık] {scan_tr} — {len(alerts)} yeni — {title_slugs[:60]}"
+    subject = f"[Döviz varlık] {scan_tr} — {len(alerts)} uyarı — {title_slugs[:60]}"
     try:
         send_email(subject, body)
     except Exception as exc:

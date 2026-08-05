@@ -70,9 +70,51 @@ def test_should_send_asset_email_respects_hourly_cooldown(monkeypatch):
 
     monkeypatch.setattr(mod.settings, "doviz_asset_monitor_email_enabled", True)
     monkeypatch.setattr(mod.settings, "outbound_email_enabled", True)
-    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_email_cooldown_hours", 1.0)
+    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_email_cooldown_hours", 3.0)
 
     recent = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     alerts = [{"slug": "x", "kind": "prices_empty"}]
     assert mod._should_send_asset_email(alerts, {"last_email_at": recent}) is False
     assert mod._should_send_asset_email(alerts, {"last_email_at": "2020-01-01T00:00:00Z"}) is True
+
+
+def test_issue_email_eligible_two_then_mute_24h(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from backend.services import doviz_asset_monitor as mod
+
+    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_max_emails_per_issue", 2)
+    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_issue_mute_hours", 24.0)
+
+    assert mod._issue_email_eligible({"email_notify_count": 0}) is True
+    assert mod._issue_email_eligible({"email_notify_count": 1}) is True
+    assert mod._issue_email_eligible({"email_notify_count": 2, "last_email_at": None}) is True
+
+    recent = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    assert mod._issue_email_eligible({"email_notify_count": 2, "last_email_at": recent}) is False
+
+    old = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat().replace("+00:00", "Z")
+    assert mod._issue_email_eligible({"email_notify_count": 2, "last_email_at": old}) is True
+
+
+def test_bump_issue_email_counts_restarts_cycle_after_mute(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from backend.services import doviz_asset_monitor as mod
+
+    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_max_emails_per_issue", 2)
+    monkeypatch.setattr(mod.settings, "doviz_asset_monitor_issue_mute_hours", 24.0)
+
+    old = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat().replace("+00:00", "Z")
+    state = {
+        "sekerbank|m.doviz.com": {
+            "key": "sekerbank|m.doviz.com",
+            "email_notify_count": 2,
+            "last_email_at": old,
+        }
+    }
+    mailed = [{"issue_key": "sekerbank|m.doviz.com"}]
+    scan = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    mod._bump_issue_email_counts(state, mailed, scan_iso=scan)
+    assert state["sekerbank|m.doviz.com"]["email_notify_count"] == 1
+    assert state["sekerbank|m.doviz.com"]["last_email_at"] == scan
