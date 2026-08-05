@@ -2768,9 +2768,9 @@
                 <section
                   class="rt-names-col"
                   data-rt-names-col
-                  data-rt-site-id="{{ site.id }}"
-                  data-rt-profile="{{ profile }}"
-                  data-rt-domain="{{ site.domain }}"
+                  data-rt-names-site-id="{{ site.id }}"
+                  data-rt-names-profile="{{ profile }}"
+                  data-rt-names-domain="{{ site.domain }}"
                 >
                   <h3 class="rt-names-col-title">{{ label_prefix }} · {{ plabel }}</h3>
                   <ol class="rt-names-list" data-rt-names-list>
@@ -3398,6 +3398,35 @@
     return h >= 0 && h < 7;
   }
 
+  function _rtProfileBoxes() {
+    return Array.prototype.slice.call(document.querySelectorAll('[data-rt-profile-box][data-rt-site-id]'));
+  }
+
+  function _rtProfileBox(siteId, profile) {
+    return document.querySelector(
+      '[data-rt-profile-box][data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]'
+    );
+  }
+
+  function _resumeStandardRealtime() {
+    _primeSiteCombinedTrends();
+    _rtProfileBoxes().forEach(function (box, idx) {
+      var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
+      var prof = box.getAttribute('data-rt-profile');
+      if (isNaN(sid) || !prof) return;
+      setTimeout(function () { rtFetchProfile(sid, prof); }, idx * 200);
+      setTimeout(function () {
+        rtFetchTopPages(sid, prof);
+        rtFetchTopEvents(sid, prof);
+      }, 1200 + idx * 250);
+    });
+    if (!_isNightMode()) _fetchGlobalAlarms();
+    if (rtGetViewMode() === 'total') {
+      var globalEl = _rtGetGlobalTotalEl();
+      if (globalEl) _rtFetchGlobalTotalTrend({ showLoading: !globalEl._rtCombinedTrend });
+    }
+  }
+
   function _refreshLiveCycle() {
     var night = _isNightMode();
     /* Linkler görünümü: KPI/spark/app yok — sadece isim panosunu yenile (kota) */
@@ -3405,7 +3434,7 @@
       rtFetchNamesBoard();
       return;
     }
-    Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box) {
+    _rtProfileBoxes().forEach(function (box) {
       var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
       var prof = box.getAttribute('data-rt-profile');
       if (isNaN(sid) || !prof) return;
@@ -4728,7 +4757,7 @@
   }
 
   function rtFetchProfile(siteId, profile) {
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     var tsEl = box.querySelector('[data-rt-ts]');
     var refreshIcon = box.querySelector('.rt-refresh-icon');
@@ -4778,7 +4807,7 @@
   }
 
   function rtFetchTrend(siteId, profile) {
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     fetch(
       '/api/ga4/realtime/' + siteId + '/trend?profile=' + encodeURIComponent(profile) + '&' + _rtTrendApiQuery(box),
@@ -5575,7 +5604,7 @@
 
   function _fetchTopNews(siteId, profile) {
     if (profile !== 'web' && profile !== 'mweb') return;
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     var listEl = box.querySelector('[data-rt-news-list]');
     var tsEl = box.querySelector('[data-rt-news-ts]');
@@ -5648,7 +5677,7 @@
 
   function _fetchAppEventDetail(siteId, profile) {
     if (profile !== 'ios' && profile !== 'android') return;
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     var sectionsEl = box.querySelector('[data-rt-app-detail-sections]');
     var tsEl = box.querySelector('[data-rt-app-detail-ts]');
@@ -5733,7 +5762,7 @@
 
   function _fetchTopData(siteId, profile, type) {
     if (profile === 'android') return;
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     var isViews = (type === 'views');
     var listEl = box.querySelector(isViews ? '[data-rt-views-list]' : '[data-rt-pages-list]');
@@ -5904,7 +5933,7 @@
 
   function _fetchWowDayPages(siteId, profile) {
     if (profile !== 'web' && profile !== 'mweb') return;
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     _wireWowFilterButtons(box, siteId, profile);
     var listEl = box.querySelector('[data-rt-wow-list]');
@@ -5958,7 +5987,7 @@
   }
 
   function rtFetchTopEvents(siteId, profile) {
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box || !box.querySelector('[data-rt-events-section]')) return;
     var listEl = box.querySelector('[data-rt-events-list]');
     var tsEl = box.querySelector('[data-rt-events-ts]');
@@ -6126,7 +6155,7 @@
     var ps = st.pageSize || RT_EVENTS_PAGE_SIZE;
     var lastPage = Math.ceil(st.events.length / ps) - 1;
     st.page = Math.max(0, Math.min(lastPage, (st.page || 0) + delta));
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (box) _renderEventsCard(box, siteId, profile);
   }
   window.rtEventsNav = rtEventsNav;
@@ -6144,7 +6173,7 @@
   window.rtFetchTopPages = rtFetchTopPages;
 
   function _fetchDrivers(siteId, profile) {
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     var listEl = box.querySelector('[data-rt-drivers-list]');
     var tsEl = box.querySelector('[data-rt-drivers-ts]');
@@ -6194,7 +6223,7 @@
     var allDrivers = inc.concat(dec);
     var maxAbs = Math.max.apply(null, allDrivers.map(function(x){ return Math.abs(x.delta||0); })) || 1;
 
-    var driverBox = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var driverBox = _rtProfileBox(siteId, profile);
     var driverDomain = driverBox ? (driverBox.getAttribute('data-rt-domain') || '') : '';
 
     function renderDriverRows(rows, heading, headingColor, barColorFor) {
@@ -6247,7 +6276,7 @@
   }
 
   function _fetchInsights(siteId, profile) {
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box) return;
     var el = box.querySelector('[data-rt-insights-list]');
     if (!el) return;
@@ -6408,7 +6437,7 @@
       setTimeout(function () { if (icon) icon.classList.remove('rt-spin'); }, 800);
       return;
     }
-    var boxes = document.querySelectorAll('[data-rt-site-id]');
+    var boxes = _rtProfileBoxes();
     var pending = boxes.length;
     boxes.forEach(function (box) {
       var sid = box.getAttribute('data-rt-site-id');
@@ -6447,7 +6476,7 @@
           if (pending <= 0 && icon) icon.classList.remove('rt-spin');
         });
     });
-    document.querySelectorAll('[data-rt-site-id]').forEach(function (box) {
+    _rtProfileBoxes().forEach(function (box) {
       var sidInt = parseInt(box.getAttribute('data-rt-site-id'), 10);
       var prof = box.getAttribute('data-rt-profile');
       rtFetchTopPages(sidInt, prof);
@@ -6477,6 +6506,7 @@
   }
 
   function rtApplyViewMode(mode) {
+    var prev = window._rtLastViewMode || null;
     var m =
       mode === 'compact' ? 'compact'
       : mode === 'total' ? 'total'
@@ -6514,7 +6544,10 @@
       _ensureNamesBoardTimer(true);
     } else {
       _ensureNamesBoardTimer(false);
+      /* Linkler'den çıkınca Tam/Özet/Total verisini yeniden doldur */
+      if (prev === 'names') _resumeStandardRealtime();
     }
+    window._rtLastViewMode = m;
   }
 
   function rtSetViewMode(mode) {
@@ -6552,9 +6585,9 @@
   }
 
   function _fetchNamesCol(colEl) {
-    var siteId = parseInt(colEl.getAttribute('data-rt-site-id'), 10);
-    var profile = colEl.getAttribute('data-rt-profile') || 'web';
-    var domain = colEl.getAttribute('data-rt-domain') || '';
+    var siteId = parseInt(colEl.getAttribute('data-rt-names-site-id'), 10);
+    var profile = colEl.getAttribute('data-rt-names-profile') || 'web';
+    var domain = colEl.getAttribute('data-rt-names-domain') || '';
     var listEl = colEl.querySelector('[data-rt-names-list]');
     var tsEl = colEl.querySelector('[data-rt-names-ts]');
     if (isNaN(siteId) || !listEl) return Promise.resolve();
@@ -7025,7 +7058,7 @@
   }
 
   function _startPolling() {
-    var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]'));
+    var boxes = _rtProfileBoxes();
     boxes.forEach(function (box, idx) {
       var sid = box.getAttribute('data-rt-site-id');
       var prof = box.getAttribute('data-rt-profile');
@@ -7072,7 +7105,7 @@
         rtFetchNamesBoard();
         return;
       }
-      Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box, vidx) {
+      _rtProfileBoxes().forEach(function (box, vidx) {
         var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
         var prof = box.getAttribute('data-rt-profile');
         if (isNaN(sid) || !prof) return;
@@ -7091,7 +7124,7 @@
     });
 
     document.addEventListener('seo-theme-change', function () {
-      Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box, vidx) {
+      _rtProfileBoxes().forEach(function (box, vidx) {
         var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
         var prof = box.getAttribute('data-rt-profile');
         if (isNaN(sid) || !prof) return;
@@ -7213,7 +7246,7 @@
 
   function _fetch404Spike(siteId, profile) {
     if (rtGetViewMode() === 'compact' || rtGetViewMode() === 'names') return;
-    var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
+    var box = _rtProfileBox(siteId, profile);
     if (!box || profile === 'android' || profile === 'ios') return;
     fetch('/api/ga4/realtime/' + siteId + '/404-spike?profile=' + encodeURIComponent(profile) + '&window=15', {
       credentials: 'same-origin', cache: 'no-store',
