@@ -72,8 +72,27 @@ def post_notification_analytics_append(body: AppendRowsBody, db: Session = Depen
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.post("/notification-analytics/sync-sheet")
+def post_notification_analytics_sync_sheet(
+    force: bool = Query(False, description="true ise TTL yok sayılır, sheet yeniden çekilir"),
+    db: Session = Depends(get_db),
+):
+    """Kaynak Google Sheet'ten veriyi çekip workspace'e yazar."""
+    try:
+        result = store.sync_from_google_sheet(db, force=force)
+        if result.get("ok") is False and not result.get("skipped"):
+            raise HTTPException(status_code=502, detail=result.get("message") or "Sheet senkronu başarısız.")
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/notification-analytics/upload")
 def post_notification_analytics_upload(body: UploadCsvBody, db: Session = Depends(get_db)):
+    """Geriye dönük uyumluluk — UI dosya yükleme kullanmaz; kaynak Google Sheet'tir."""
     try:
         return store.upload_csv_text(db, body.csv_text or "")
     except Exception as exc:  # noqa: BLE001
@@ -86,6 +105,7 @@ async def post_notification_analytics_upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
+    """Geriye dönük uyumluluk — UI dosya yükleme kullanmaz."""
     try:
         raw = await file.read()
         if not raw:

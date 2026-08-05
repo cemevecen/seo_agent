@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import io
 import json
 import logging
 import re
+import time
 import warnings
 from datetime import date, datetime
 from typing import Any
@@ -14,9 +16,18 @@ from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from backend.models import NotificationAnalyticsWorkspace
+from backend.services.backlink_csv import fetch_public_sheet_csv
 
 LOGGER = logging.getLogger(__name__)
 WORKSPACE_ID = 1
+
+# Kaynak Google Sheet (herkese açık görüntüleyici) — dosya yükleme yerine tek kaynak.
+NOTIFICATION_ANALYTICS_SHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/1NnizUEsaKpaabB0sCvksiHgx7Kfgt_upj1L2IXgUHeM/"
+    "edit?gid=0#gid=0"
+)
+_SHEET_SYNC_TTL_SEC = 300.0
+_last_sheet_sync_mono: float = 0.0
 
 
 def _iso_utc_z(dt: datetime | None) -> str | None:
@@ -177,10 +188,13 @@ def _row_has_cells(row: tuple[Any, ...] | list[Any]) -> bool:
 
 
 def _column_indices(headers: list[str]) -> dict[str, int] | None:
-    def pick(names: list[str]) -> int:
+    def pick(names: list[str], *, occurrence: int = 0) -> int:
+        found = 0
         for i, h in enumerate(headers):
             if h in names:
-                return i
+                if found == occurrence:
+                    return i
+                found += 1
         return -1
 
     idx = {
@@ -223,6 +237,9 @@ def _column_indices(headers: list[str]) -> dict[str, int] | None:
         "mc": pick(["mobilewebclick"]),
         "mtr": pick(["mobilewebctr"]),
     }
+    # Kaynak tabloda CTR sütunu bazen yanlışlıkla ikinci "android app impression" diye adlandırılıyor.
+    if idx["atr"] < 0:
+        idx["atr"] = pick(["androidappimpression"], occurrence=1)
     if idx["text"] < 0 or idx["date"] < 0:
         return None
     return idx
@@ -286,12 +303,29 @@ def parse_csv_text(text: str) -> list[dict]:
     raw = (text or "").strip()
     if not raw:
         return []
-    lines = [ln for ln in raw.splitlines() if ln.strip()]
-    if len(lines) < 2:
+    sample = raw[:4096]
+    delim = _detect_delimiter(sample.splitlines()[0] if sample.splitlines() else ",")
+    try:
+        reader = csv.reader(io.StringIO(raw), delimiter=delim)
+        matrix = [list(row) for row in reader if any(str(c or "").strip() for c in row)]
+    except csv.Error:
+        lines = [ln for ln in raw.splitlines() if ln.strip()]
+        if len(lines) < 2:
+            return []
+        matrix = [line.split(delim) for line in lines]
+    if len(matrix) < 2:
         return []
-    delim = _detect_delimiter(lines[0])
-    header_cells = lines[0].split(delim)
-    data_rows = [line.split(delim) for line in lines[1:]]
+    header_cells: list[str] | None = None
+    header_idx = -1
+    for i, row in enumerate(matrix[:_HEADER_SCAN_MAX_ROWS]):
+        headers_norm = [_normalize_header(c) for c in row]
+        if _column_indices(headers_norm) is not None:
+            header_cells = [str(c or "") for c in row]
+            header_idx = i
+            break
+    if header_cells is None:
+        return []
+    data_rows = [[str(c or "") for c in row] for row in matrix[header_idx + 1 :]]
     return _parse_tabular_rows(header_cells, data_rows)
 
 
@@ -477,6 +511,8 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "data_max_date": _max_d or "",
         "updated_at": _iso_utc_z(row.updated_at),
         "last_file_upload_at": _iso_utc_z(row.last_file_upload_at),
+        "last_sheet_sync_at": _iso_utc_z(row.last_file_upload_at),
+        "source_url": NOTIFICATION_ANALYTICS_SHEET_URL,
     }
     if include_rows:
         out["rows"] = rows
@@ -594,6 +630,84 @@ def upload_parsed_rows(db: Session, parsed: list[dict]) -> dict:
         "data_max_date": max_day or "",
         "message": f"{len(parsed)} satır işlendi: {added} yeni, {updated} güncellendi.",
     }
+
+
+def replace_workspace_from_rows(db: Session, parsed: list[dict]) -> dict:
+    """Sheet kaynaklı tam yenileme — DB içeriği tablo ile değiştirilir."""
+    if not parsed:
+        return {
+            **workspace_state(db, include_rows=False),
+            "added": 0,
+            "updated": 0,
+            "parsed": 0,
+            "replaced": True,
+            "message": (
+                "Sheet parse edilemedi. Başlık satırında metin (text) ve tarih (date) sütunları gerekli."
+            ),
+        }
+    # Aynı anahtar birden fazla gelirse son satır kalsın.
+    by_key: dict[str, dict] = {}
+    for item in parsed:
+        by_key[_row_key(item)] = item
+    merged = list(by_key.values())
+    min_day, max_day = _rows_date_bounds(merged)
+    row = _get_workspace(db)
+    fe = (row.filter_end or "").strip()[:10]
+    if fe and max_day and max_day > fe:
+        row.filter_end = max_day
+    row.rows_json = json.dumps(merged, ensure_ascii=False)
+    row.last_id = _highest_id(merged)
+    row.last_file_upload_at = datetime.utcnow()
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    return {
+        **workspace_state(db, include_rows=False),
+        "added": len(merged),
+        "updated": 0,
+        "parsed": len(parsed),
+        "replaced": True,
+        "data_min_date": min_day or "",
+        "data_max_date": max_day or "",
+        "message": f"Google Sheet senkronize edildi · {len(merged)} kayıt.",
+    }
+
+
+def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
+    """Kaynak Google Sheet'i çekip workspace'i günceller (TTL ile throttle)."""
+    global _last_sheet_sync_mono
+    now = time.monotonic()
+    if (
+        not force
+        and _last_sheet_sync_mono > 0
+        and (now - _last_sheet_sync_mono) < _SHEET_SYNC_TTL_SEC
+    ):
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": True,
+            "message": "Son senkronizasyon taze; sheet yeniden çekilmedi.",
+        }
+    try:
+        csv_text = fetch_public_sheet_csv(NOTIFICATION_ANALYTICS_SHEET_URL, timeout=60)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Notification sheet fetch failed: %s", exc)
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": False,
+            "ok": False,
+            "message": str(exc) or "Google Sheet okunamadı.",
+        }
+    parsed = parse_csv_text(csv_text)
+    result = replace_workspace_from_rows(db, parsed)
+    if result.get("parsed"):
+        _last_sheet_sync_mono = time.monotonic()
+        result["synced"] = True
+        result["skipped"] = False
+    else:
+        result["synced"] = False
+        result["skipped"] = False
+    return result
 
 
 def decode_csv_bytes(raw: bytes) -> str:

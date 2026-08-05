@@ -137,3 +137,20 @@ def test_rows_date_bounds():
         {"date": "2026-06-09T12:24:00"},
     ]
     assert _rows_date_bounds(rows) == ("2026-06-05", "2026-06-09")
+
+
+def test_parse_csv_quoted_commas_and_duplicate_android_ctr():
+    """Sheet metinlerinde virgül + ikinci 'android app impression' = CTR."""
+    csv = (
+        "id,text,android app impression,android app click,android app impression,"
+        "ios app click,desktop impression,desktop click,desktop ctr,"
+        "mobileweb impression,mobileweb click,mobileweb ctr,date\n"
+        '150389,"Dolar, FED Başkanı\'nın Açıklaması!",87035,423,2.038%,'
+        "336,100,10,10%,50,5,10%,05.08.2026 12:05\n"
+    )
+    rows = parse_csv_text(csv)
+    assert len(rows) == 1
+    assert "FED" in rows[0]["text"]
+    assert rows[0]["platforms"]["android"]["impression"] == 87035.0
+    assert rows[0]["platforms"]["android"]["click"] == 423.0
+    assert abs(rows[0]["platforms"]["android"]["ctr"] - 2.038) < 0.001

@@ -1924,6 +1924,24 @@ def on_startup() -> None:
 
         _threading.Thread(target=_startup_market_sheets_sync, daemon=True, name="market-sheets-startup").start()
 
+    def _startup_notification_sheet_sync() -> None:
+        import time as _time
+
+        _time.sleep(25)
+        try:
+            from backend.services.notification_analytics_store import sync_from_google_sheet
+
+            with SessionLocal() as db:
+                sync_from_google_sheet(db, force=True)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Notification sheet startup sync hatası: %s", exc)
+
+    _threading.Thread(
+        target=_startup_notification_sheet_sync,
+        daemon=True,
+        name="notification-sheet-startup",
+    ).start()
+
 
 @app.on_event("shutdown")
 def on_shutdown() -> None:
@@ -4815,6 +4833,27 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=3600,
+    )
+
+    def _run_notification_sheet_sync() -> None:
+        try:
+            from backend.services.notification_analytics_store import sync_from_google_sheet
+
+            with SessionLocal() as db:
+                sync_from_google_sheet(db, force=True)
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning("Notification sheet sync job: %s", exc)
+
+    from apscheduler.triggers.interval import IntervalTrigger as _NtSheetTrigger
+
+    scheduler.add_job(
+        _run_notification_sheet_sync,
+        trigger=_NtSheetTrigger(minutes=15),
+        id="notification-analytics-sheet-sync",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=600,
     )
 
     return scheduler

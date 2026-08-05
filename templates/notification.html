@@ -2,15 +2,28 @@
 {% block content %}
 <div class="mx-auto w-full max-w-7xl space-y-5 notification-page" data-header-title="Notification Analytics">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-    <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-300">Notification Analytics</h1>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-300">Notification Analytics</h1>
+        <p id="nt-sheet-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Kaynak: Google Sheet</p>
+      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <a id="nt-source-link"
+           href="https://docs.google.com/spreadsheets/d/1NnizUEsaKpaabB0sCvksiHgx7Kfgt_upj1L2IXgUHeM/edit?gid=0#gid=0"
+           target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+          Kaynak tablo ↗
+        </a>
+        <button id="nt-refresh-sheet" type="button"
+                class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
+          Tablodan güncelle
+        </button>
+      </div>
+    </div>
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70 nt-filter-panel">
-      <div class="grid grid-cols-1 gap-3 xl:grid-cols-12">
-        <div class="min-w-0 space-y-1.5 xl:col-span-3">
-          <label for="nt-csv-file" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">CSV veya Excel (.xlsx)</label>
-          <input id="nt-csv-file" type="file" accept=".csv,.txt,.tsv,.xlsx,.xlsm,.xltx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
-          <p id="nt-last-file-upload" class="text-[11px] font-medium leading-snug text-slate-500 dark:text-slate-400">Son dosya tarihi: —</p>
-        </div>
-        <div class="min-w-0 xl:col-span-3">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+        <div class="min-w-0 xl:col-span-5">
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div class="space-y-1.5">
@@ -25,7 +38,7 @@
             <button id="nt-apply-date" type="button" class="nt-btn-pastel-orange w-full rounded-lg px-3 py-2 text-sm font-bold">Filtreyi uygula</button>
           </div>
         </div>
-        <div class="min-w-0 xl:col-span-2">
+        <div class="min-w-0 xl:col-span-4">
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
             <div class="space-y-1.5">
               <label for="nt-range-preset" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
@@ -45,14 +58,7 @@
             <button id="nt-apply-preset" type="button" class="nt-btn-pastel-green w-full rounded-lg px-3 py-2 text-sm font-bold">Hazır aralığı uygula</button>
           </div>
         </div>
-        <div class="min-w-0 xl:col-span-4 flex flex-col gap-2">
-          <button id="nt-add-data" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 dark:bg-indigo-700/80 dark:text-slate-100 dark:hover:bg-indigo-700">CSV / Excel yükle ve ekle</button>
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <button id="nt-clear-file" type="button" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Dosya seçimini temizle</button>
-            <button id="nt-reset-all" type="button" class="w-full rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/50">Tüm birikimi sıfırla</button>
-          </div>
-        </div>
-        <p id="nt-status" class="min-w-0 text-xs text-slate-500 dark:text-slate-400 xl:col-span-12"></p>
+        <p id="nt-status" class="min-w-0 self-end text-xs text-slate-500 dark:text-slate-400 xl:col-span-3"></p>
       </div>
     </div>
   </div>
@@ -176,7 +182,6 @@
       background-color: #0f0f10 !important;
       border-color: #27272a !important;
     }
-    html.dark .notification-page .nt-filter-panel input[type="file"],
     html.dark .notification-page .nt-filter-panel input[type="date"],
     html.dark .notification-page .nt-filter-panel select,
     html.dark .notification-page .nt-mini-card input[type="date"],
@@ -220,17 +225,6 @@
     }
     html.dark .notification-page .nt-btn-pastel-green:hover {
       background-color: rgba(52, 211, 153, 0.42);
-    }
-    html.dark .notification-page #nt-clear-file,
-    html.dark .notification-page #nt-reset-all {
-      background-color: #27272a !important;
-    }
-    html.dark .notification-page #nt-reset-all {
-      border-color: #7f1d1d !important;
-      color: #fca5a5 !important;
-    }
-    html.dark .notification-page #nt-reset-all:hover {
-      background-color: rgba(69, 10, 10, 0.45) !important;
     }
     .nt-raw-text-cell {
       max-width: 60ch;
@@ -987,18 +981,27 @@
     return day + " " + mon + " " + year + " - " + hour + ":" + minute + ":" + second;
   }
 
-  function renderLastFileUploadLabel(iso) {
-    var el = document.getElementById("nt-last-file-upload");
+  function renderSheetMeta(meta) {
+    var el = document.getElementById("nt-sheet-meta");
     if (!el) return;
-    var when = ntFormatFileUploadAt(iso || ntLastFileUploadAt);
-    el.textContent = when === "—" ? "Son dosya tarihi: —" : "Son dosya tarihi: " + when;
+    var syncAt = (meta && (meta.last_sheet_sync_at || meta.last_file_upload_at)) || ntLastFileUploadAt || "";
+    var when = ntFormatFileUploadAt(syncAt);
+    var count = meta && meta.row_count != null ? Number(meta.row_count) : null;
+    var parts = ["Kaynak: Google Sheet"];
+    if (when && when !== "—") parts.push("son senkron: " + when);
+    if (count != null && !isNaN(count)) parts.push(count.toLocaleString("tr-TR") + " kayıt");
+    el.textContent = parts.join(" · ");
+    var link = document.getElementById("nt-source-link");
+    if (link && meta && meta.source_url) link.href = meta.source_url;
   }
 
   function applyLastFileUploadFromMeta(meta) {
     if (meta && meta.last_file_upload_at !== undefined) {
       ntLastFileUploadAt = meta.last_file_upload_at || "";
+    } else if (meta && meta.last_sheet_sync_at !== undefined) {
+      ntLastFileUploadAt = meta.last_sheet_sync_at || "";
     }
-    renderLastFileUploadLabel(ntLastFileUploadAt);
+    renderSheetMeta(meta || {});
   }
 
   function ntSessionCacheKey(updatedAt, range) {
@@ -1126,25 +1129,24 @@
     });
   }
 
-  async function runNtResetAll() {
-    var resetBtn = document.getElementById("nt-reset-all");
-    if (resetBtn) resetBtn.disabled = true;
-    try {
-      status("Birikmiş veri sıfırlanıyor…");
-      var data = await apiFetch("/api/notification-analytics/reset", { method: "POST" });
-      clearNtSessionCache();
-      clearNtLegacyLocalStorage();
-      rowsCache = [];
-      if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
-      applyServerState(data);
-      rawPage = 0;
-      status("Birikmiş veri silindi · 0 kayıt");
-      redrawAll();
-    } catch (err) {
-      status((err && err.detail) || (err && err.message) || "Sıfırlama başarısız.");
-    } finally {
-      if (resetBtn) resetBtn.disabled = false;
-    }
+  function syncSheetFromServer(force) {
+    var btn = document.getElementById("nt-refresh-sheet");
+    if (btn) btn.disabled = true;
+    status(force ? "Google Sheet yeniden çekiliyor…" : "Google Sheet senkronize ediliyor…");
+    return apiFetch("/api/notification-analytics/sync-sheet?force=" + (force ? "1" : "0"), {
+      method: "POST",
+    })
+      .then(function (data) {
+        if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
+        if (data && data.last_sheet_sync_at) ntLastFileUploadAt = data.last_sheet_sync_at;
+        else if (data && data.last_file_upload_at) ntLastFileUploadAt = data.last_file_upload_at;
+        applyLastFileUploadFromMeta(data || {});
+        if (data && data.synced) clearNtSessionCache();
+        return data;
+      })
+      .finally(function () {
+        if (btn) btn.disabled = false;
+      });
   }
 
   function rowsQueryParams(range) {
@@ -2261,71 +2263,32 @@
     var el = document.getElementById(id);
     if (el) el.addEventListener("change", function () { setPresetSelectors("custom"); });
   });
-  document.getElementById("nt-add-data").addEventListener("click", function () {
-    var fileInput = document.getElementById("nt-csv-file");
-    var file = fileInput && fileInput.files && fileInput.files[0];
-    if (!file) {
-      status("Önce bir CSV veya Excel (.xlsx) dosyası seçin.");
-      return;
-    }
-    var btn = document.getElementById("nt-add-data");
-    if (btn) btn.disabled = true;
-    status("Dosya yükleniyor… (" + file.name + ")");
-    var fd = new FormData();
-    fd.append("file", file, file.name || "upload.csv");
-    apiFetch("/api/notification-analytics/upload-file", {
-      method: "POST",
-      body: fd,
-    })
-      .then(function (data) {
-        var msg = data.message || "Yükleme tamamlandı.";
-        if (data.parsed === 0 && !data.added && !data.updated) {
-          msg = data.message || "Dosya okunamadı veya satır çıkarılamadı.";
-        }
-        status(msg + " Veriler yenileniyor…");
-        if (data.updated_at) ntDbUpdatedAt = data.updated_at;
-        if (data.last_file_upload_at) ntLastFileUploadAt = data.last_file_upload_at;
-        renderLastFileUploadLabel(ntLastFileUploadAt);
-        clearNtSessionCache();
-        if (fileInput) fileInput.value = "";
-        return loadServerState()
-          .then(function (full) {
-            status(msg + " Toplam kayıt: " + (full.row_count != null ? full.row_count : rowsCache.length));
+  var refreshSheetBtn = document.getElementById("nt-refresh-sheet");
+  if (refreshSheetBtn) {
+    refreshSheetBtn.addEventListener("click", function () {
+      syncSheetFromServer(true)
+        .then(function (syncData) {
+          var msg = (syncData && syncData.message) || "Senkron tamamlandı.";
+          status(msg + " Veriler yenileniyor…");
+          return loadServerState().then(function (full) {
+            status(
+              msg +
+                " Toplam kayıt: " +
+                (full.row_count != null ? full.row_count : rowsCache.length).toLocaleString("tr-TR")
+            );
             rawPage = 0;
             if (!full.start && !full.end) {
               applyPresetRange(full.preset || "1y", true);
             } else {
               redrawAll();
             }
-          })
-          .catch(function (loadErr) {
-            if (data.row_count != null) {
-              serverLastId = n(data.last_id);
-              status(msg + " (liste yenilenemedi: " + ((loadErr && loadErr.detail) || "sunucu") + ")");
-            } else {
-              throw loadErr;
-            }
           });
-      })
-      .catch(function (err) {
-        status((err && err.detail) || (err && err.message) || "Dosya sunucuya kaydedilemedi.");
-      })
-      .finally(function () {
-        if (btn) btn.disabled = false;
-      });
-  });
-  document.getElementById("nt-clear-file").addEventListener("click", function () { document.getElementById("nt-csv-file").value = ""; status("Dosya seçimi temizlendi."); });
-  document.getElementById("nt-reset-all").addEventListener("click", function () {
-    ntConfirmTwoStep({
-      title: "Tüm birikimi sıfırla",
-      step1: "Tüm birikmiş notification verisi silinsin mi?",
-      step2Warn: "Son onay: tüm kayıtlar kalıcı olarak silinir (tüm kullanıcılar için).",
-      confirmFinal: "Evet, sıfırla",
-    }).then(function (ok) {
-      if (!ok) return;
-      runNtResetAll();
+        })
+        .catch(function (err) {
+          status((err && err.detail) || (err && err.message) || "Sheet senkronu başarısız.");
+        });
     });
-  });
+  }
   document.getElementById("nt-apply-date").addEventListener("click", function () {
     var startVal = document.getElementById("nt-start-date").value || "";
     var endVal = document.getElementById("nt-end-date").value || "";
@@ -2393,8 +2356,15 @@
   renderMetricPills();
   renderListPlatformPills();
 
-  status("Kayıtlı veri hazırlanıyor (veritabanı)…");
-  loadServerState()
+  status("Google Sheet senkronize ediliyor…");
+  syncSheetFromServer(false)
+    .catch(function () {
+      /* sheet erişilemezse mevcut DB ile devam */
+      return null;
+    })
+    .then(function () {
+      return loadServerState();
+    })
     .then(function (data) {
       return migrateLocalStorageIfEmpty(data.row_count).then(function () { return data; });
     })
@@ -2411,8 +2381,8 @@
         status(
           rowsCache.length
             ? rowsCache.length.toLocaleString("tr-TR") +
-              " kayıt gösteriliyor (veritabanı; «CSV / Excel yükle ve ekle» ile güncellenir)."
-            : "Henüz kayıt yok — CSV yükleyin."
+              " kayıt gösteriliyor (Google Sheet kaynağı)."
+            : "Henüz kayıt yok — «Tablodan güncelle» ile senkronize edin."
         );
       }
     })
