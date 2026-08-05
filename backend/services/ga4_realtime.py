@@ -1688,16 +1688,43 @@ def fetch_realtime_top_pages_with_app_fallback(
 ) -> dict[str, Any]:
     """Mobil: en iyi ekran boyutu; metrik yoksa tek metrik yeniden dene. eventName burada kullanılmaz."""
     if profile not in ("android", "ios"):
-        base = fetch_realtime_top_pages(
-            property_id,
-            window_minutes=window_minutes,
-            limit=limit,
-            sort_by=sort_by,
-            compare_previous=compare_previous,
-            include_page_path=False,  # pagePath dim. bazı property'lerde API hatasına neden oluyor
-            client=client,
-        )
-        base["breakdown"] = "unifiedScreenName"
+        # Web/mweb: mümkünse pagePath (tıklanabilir gerçek URL); olmazsa unifiedScreenName.
+        base: dict[str, Any] | None = None
+        for dim in ("pagePath", "unifiedScreenName"):
+            try:
+                candidate = fetch_realtime_top_pages(
+                    property_id,
+                    window_minutes=window_minutes,
+                    limit=limit,
+                    sort_by=sort_by,
+                    compare_previous=compare_previous,
+                    dimension=dim,
+                    include_page_path=False,
+                    client=client,
+                )
+                if candidate.get("pages"):
+                    candidate["breakdown"] = dim
+                    base = candidate
+                    if dim == "pagePath":
+                        break
+            except Exception as exc:
+                logger.debug(
+                    "Realtime top-pages %s başarısız [profile=%s]: %s",
+                    dim,
+                    profile,
+                    exc,
+                )
+        if base is None:
+            base = fetch_realtime_top_pages(
+                property_id,
+                window_minutes=window_minutes,
+                limit=limit,
+                sort_by=sort_by,
+                compare_previous=compare_previous,
+                include_page_path=False,
+                client=client,
+            )
+            base["breakdown"] = "unifiedScreenName"
         return base
 
     # Mobil için comparison desteği şu an pick_best içinde yoksa bile 
