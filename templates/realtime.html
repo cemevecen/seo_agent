@@ -1219,6 +1219,10 @@
     background: rgb(24 24 27);
   }
   .rt-names-col-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.04em;
@@ -1227,6 +1231,19 @@
     padding: 0.55rem 0.7rem;
     border-bottom: none;
     border-radius: 0.75rem 0.75rem 0 0;
+  }
+  .rt-names-col-label {
+    min-width: 0;
+    line-height: 1.2;
+  }
+  .rt-names-col-au {
+    flex-shrink: 0;
+    font-size: 0.95rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    opacity: 0.95;
   }
   .rt-names-col[data-rt-names-brand="doviz"] .rt-names-col-title {
     background: #0ea5e9;
@@ -2752,7 +2769,10 @@
                   data-rt-names-profile="{{ profile }}"
                   data-rt-names-domain="{{ site.domain }}"
                 >
-                  <h3 class="rt-names-col-title">{{ label_prefix }} · {{ plabel }}</h3>
+                  <h3 class="rt-names-col-title">
+                    <span class="rt-names-col-label">{{ label_prefix }} · {{ plabel }}</span>
+                    <span class="rt-names-col-au" data-rt-names-au title="Anlık aktif kullanıcı">—</span>
+                  </h3>
                   <ol class="rt-names-list" data-rt-names-list>
                     <li class="rt-empty text-sm italic text-slate-400">yükleniyor…</li>
                   </ol>
@@ -6481,17 +6501,29 @@
     var domain = colEl.getAttribute('data-rt-names-domain') || '';
     var listEl = colEl.querySelector('[data-rt-names-list]');
     var tsEl = colEl.querySelector('[data-rt-names-ts]');
+    var auEl = colEl.querySelector('[data-rt-names-au]');
     if (isNaN(siteId) || !listEl) return Promise.resolve();
-    return fetch(
+
+    var pagesP = fetch(
       '/api/ga4/realtime/' + siteId + '/top-pages'
         + '?profile=' + encodeURIComponent(profile)
         + '&range=' + encodeURIComponent(RT_NAMES_RANGE)
         + '&limit=' + RT_NAMES_LIMIT
         + '&type=pages',
       { credentials: 'same-origin', cache: 'no-store' }
-    )
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
+    ).then(function (r) { return r.json(); });
+
+    var kpiP = fetch(
+      '/api/ga4/realtime/' + siteId
+        + '?window=' + WINDOW
+        + '&profile=' + encodeURIComponent(profile),
+      { credentials: 'same-origin', cache: 'no-store' }
+    ).then(function (r) { return r.json(); }).catch(function () { return null; });
+
+    return Promise.all([pagesP, kpiP])
+      .then(function (pair) {
+        var d = pair[0];
+        var kpi = pair[1];
         var rows = (d && Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
           return !_isRealtimeNoiseTitle(p && p.page);
         });
@@ -6499,6 +6531,20 @@
           listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">veri yok</li>';
         } else {
           _renderNamesCol(colEl, rows, domain, profile);
+        }
+        if (auEl) {
+          var au = null;
+          if (kpi && !kpi.error) {
+            if (kpi.total && kpi.total.activeUsers != null) au = Number(kpi.total.activeUsers);
+            else if (kpi.current && kpi.current.activeUsers != null) au = Number(kpi.current.activeUsers);
+          }
+          if (au != null && !isNaN(au)) {
+            auEl.textContent = _fmtExact(au);
+            auEl.setAttribute('title', 'Anlık aktif kullanıcı · ' + _fmtExact(au));
+          } else {
+            auEl.textContent = '—';
+            auEl.setAttribute('title', 'Anlık aktif kullanıcı');
+          }
         }
         if (tsEl) {
           var dt = d && d.fetched_at ? new Date(d.fetched_at) : new Date();
@@ -6508,6 +6554,7 @@
       })
       .catch(function () {
         listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">hata</li>';
+        if (auEl) auEl.textContent = '—';
       });
   }
 
