@@ -890,7 +890,7 @@
   <div id="dn-tabs" class="dn-tabs mb-4" role="tablist" aria-label="Kategoriler"></div>
 
   <div id="dn-body" class="hidden space-y-4">
-    <div id="dn-kpis" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"></div>
+    <div id="dn-kpis" class="dn-kpi-flow"></div>
 
     <div id="dn-traffic-block" class="hidden space-y-3">
       <div class="dn-card">
@@ -1801,10 +1801,6 @@
       { value: s.own || 0, color: pal.green, label: "Özgün" },
       { value: s.sourced || 0, color: pal.blue, label: "Kaynaklı" }
     ]);
-    var weekendPie = pieSvg([
-      { value: s.weekend_count || 0, color: pal.red, label: "Cmt+Paz" },
-      { value: s.weekday_count || 0, color: pal.indigo, label: "Hafta içi" }
-    ]);
     var hourViz = hourBarsSvg(data.by_hour || [], peak.hour);
     var recentN = rvp.recent != null ? rvp.recent : (rvp.recent_7d != null ? rvp.recent_7d : rvp.recent_14d);
     var prevN = rvp.prev != null ? rvp.prev : (rvp.prev_7d != null ? rvp.prev_7d : rvp.prev_14d);
@@ -1815,6 +1811,23 @@
       cmpSparkDays.map(function (d) { return d.day; }),
       { color: cmpBase, accent: cmpAccent }
     );
+
+    /** Seçili dönemde Cumartesi/Pazar günü var mı? (tek hafta içi günde kart anlamsız) */
+    function periodIncludesWeekend() {
+      var hasDay = false;
+      for (var i = 0; i < days.length; i++) {
+        var raw = days[i] && days[i].day;
+        if (!raw) continue;
+        hasDay = true;
+        var d = new Date(String(raw).slice(0, 10) + "T12:00:00");
+        if (isNaN(d.getTime())) continue;
+        var wd = d.getDay();
+        if (wd === 0 || wd === 6) return true;
+      }
+      if (hasDay) return false;
+      return (Number(s.weekend_count) || 0) > 0;
+    }
+    var showWeekend = periodIncludesWeekend();
 
     function deltaHtml(pair, opts) {
       opts = opts || {};
@@ -1893,27 +1906,31 @@
         sub: "Medyan: " + fmt(s.median_per_day, 1),
         delta: kc ? deltaHtml(kc.avg_per_day, { decimals: 1, prevDecimals: 1 }) : "",
         viz: avgBars
-      },
-      {
+      }
+    );
+    if (showWeekend) {
+      var weekendPie = pieSvg([
+        { value: s.weekend_count || 0, color: pal.red, label: "Cmt+Paz" },
+        { value: s.weekday_count || 0, color: pal.indigo, label: "Hafta içi" }
+      ]);
+      cards.push({
         label: "Cmt + Paz",
         value: fmt(s.weekend_count),
         sub: "Hafta içi: " + fmt(s.weekday_count) + " · %" + fmt(s.weekend_pct, 1),
         delta: kc ? deltaHtml(kc.weekend_count) : "",
         viz: weekendPie
-      },
-      {
-        label: "Yoğun saat",
-        value: peak.label || "—",
-        sub: fmt(peak.count) + " içerik",
-        delta: peakDelta,
-        viz: hourViz
-      }
-    );
+      });
+    }
+    cards.push({
+      label: "Yoğun saat",
+      value: peak.label || "—",
+      sub: fmt(peak.count) + " içerik",
+      delta: peakDelta,
+      viz: hourViz
+    });
     if (!contentDupesCmp) cards.push(cmpCard);
 
-    el.className = cards.length >= 6
-      ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
-      : "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5";
+    el.className = "dn-kpi-flow";
     el.innerHTML = cards.map(function (c) {
       var valCls = c.valueClass ? (" " + c.valueClass) : "";
       return '<div class="dn-kpi">' +
