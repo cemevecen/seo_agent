@@ -4670,7 +4670,11 @@
     return 'https://www.doviz.com' + encodeURI(p);
   }
 
-  /** Sinemalar mweb: https://m.sinemalar.com/mobileweb/... */
+  /**
+   * Sinemalar URL:
+   *  web  → https://www.sinemalar.com/film/{id}/… · /sanatci/… · /sinemasalonlari · /haber/… · /liste/…
+   *  mweb → https://m.sinemalar.com/mobileweb/movieInfo/… · person · theatres · news · listInfo
+   */
   function _rtSinemalarCanonicalUrl(pathOrValue, profile) {
     var raw = String(pathOrValue || '').trim();
     if (!raw) return '';
@@ -4691,36 +4695,105 @@
     p = p.replace(/\/{2,}/g, '/');
     var low = p.toLowerCase();
 
-    if (!isMweb) {
-      return 'https://www.sinemalar.com' + encodeURI(p);
+    function _idFromFilm() {
+      var a = low.match(/^\/film\/(\d+)(?:\/|$)/);
+      if (a) return a[1];
+      var b = low.match(/^\/film\/[^/]+\/(\d+)(?:\/|$)/);
+      return b ? b[1] : null;
+    }
+    function _idFromSanatci() {
+      var a = low.match(/^\/sanatci\/(\d+)(?:\/|$)/);
+      if (a) return a[1];
+      var b = low.match(/^\/sanatci\/[^/]+\/(\d+)(?:\/|$)/);
+      return b ? b[1] : null;
+    }
+    function _idFromHaber() {
+      var a = low.match(/^\/(?:haber|news)\/(\d+)(?:\/|$)/);
+      if (a) return a[1];
+      var b = low.match(/^\/(?:haber|news)\/[^/]+\/(\d+)(?:\/|$)/);
+      return b ? b[1] : null;
+    }
+    function _idFromListe() {
+      var a = low.match(/^\/(?:liste|list|listinfo)\/(\d+)(?:\/|$)/);
+      if (a) return a[1];
+      var b = low.match(/^\/(?:liste|list|listinfo)\/[^/]+\/(\d+)(?:\/|$)/);
+      return b ? b[1] : null;
+    }
+    function _idFromSalon() {
+      var a = low.match(/^\/(?:sinemasalonlari|sinemalar|salonlar|theatres)\/(\d+)(?:\/|$)/);
+      return a ? a[1] : null;
+    }
+    function _idMw(kind) {
+      var re = new RegExp('^/(?:mobileweb/)?' + kind + '/(\\d+)(?:/|$)', 'i');
+      var m = low.match(re);
+      return m ? m[1] : null;
     }
 
-    var idMovie = low.match(/^\/film\/(?:[^/]+\/)?(\d+)(?:\/|$)/);
-    var idPerson = low.match(/^\/sanatci\/(?:[^/]+\/)?(\d+)(?:\/|$)/);
-    var idNews = low.match(/^\/(?:haber|news)\/(?:[^/]+\/)?(\d+)(?:\/|$)/);
-    var idList = low.match(/^\/(?:liste|list|listinfo)\/(?:[^/]+\/)?(\d+)(?:\/|$)/);
-    var idTheatre = low.match(/^\/(?:sinemalar|salonlar|theatres)\/(\d+)(?:\/|$)/);
-    var idMwMovie = low.match(/^\/(?:mobileweb\/)?movieinfo\/(\d+)(?:\/|$)/);
-    var idMwPerson = low.match(/^\/(?:mobileweb\/)?person\/(\d+)(?:\/|$)/);
-    var idMwNews = low.match(/^\/(?:mobileweb\/)?news\/(\d+)(?:\/|$)/);
-    var idMwList = low.match(/^\/(?:mobileweb\/)?listinfo\/(\d+)(?:\/|$)/);
-    var idMwTheatre = low.match(/^\/(?:mobileweb\/)?theatres\/(\d+)(?:\/|$)/);
+    var movieId = _idFromFilm() || _idMw('movieinfo');
+    var personId = _idFromSanatci() || _idMw('person');
+    var newsId = _idFromHaber() || _idMw('news');
+    var listId = _idFromListe() || _idMw('listinfo');
+    var theatreId = _idFromSalon() || _idMw('theatres');
 
-    if (idMovie || idMwMovie) p = '/mobileweb/movieInfo/' + (idMovie || idMwMovie)[1];
-    else if (idPerson || idMwPerson) p = '/mobileweb/person/' + (idPerson || idMwPerson)[1];
-    else if (idNews || idMwNews) p = '/mobileweb/news/' + (idNews || idMwNews)[1];
-    else if (idList || idMwList) p = '/mobileweb/listInfo/' + (idList || idMwList)[1];
-    else if (idTheatre || idMwTheatre) p = '/mobileweb/theatres/' + (idTheatre || idMwTheatre)[1];
-    else if (low === '/mobileweb/filmler' || low === '/filmler' || low === '/vizyondakiler' || low.indexOf('/filmler/') === 0) p = '/mobileweb/filmler';
-    else if (low === '/mobileweb/soon' || low === '/soon' || low === '/yakinda' || low === '/yakında') p = '/mobileweb/soon';
-    else if (low === '/mobileweb/tv-dizileri' || low === '/tv-dizileri' || low === '/diziler') p = '/mobileweb/tv-dizileri';
-    else if (low === '/mobileweb/theatres' || low === '/theatres' || low === '/sinemalar' || low === '/salonlar') p = '/mobileweb/theatres';
+    if (isMweb) {
+      if (movieId) p = '/mobileweb/movieInfo/' + movieId;
+      else if (personId) p = '/mobileweb/person/' + personId;
+      else if (newsId) p = '/mobileweb/news/' + newsId;
+      else if (listId) p = '/mobileweb/listInfo/' + listId;
+      else if (theatreId) p = '/mobileweb/theatres/' + theatreId;
+      else if (
+        low === '/mobileweb/filmler' || low === '/filmler' || low === '/vizyondakiler' ||
+        low === '/filmler/vizyondaki' || low.indexOf('/filmler/vizyondaki') === 0
+      ) p = '/mobileweb/filmler';
+      else if (low === '/mobileweb/soon' || low === '/soon' || low === '/yakinda' || low === '/yakında' || low === '/filmler/yakinda') p = '/mobileweb/soon';
+      else if (low === '/mobileweb/tv-dizileri' || low === '/tv-dizileri' || low === '/diziler') p = '/mobileweb/tv-dizileri';
+      else if (
+        low === '/mobileweb/theatres' || low === '/theatres' || low === '/sinemalar' ||
+        low === '/salonlar' || low === '/sinemasalonlari' || low === '/sanatcilar'
+      ) {
+        if (low === '/sanatcilar') return '';
+        p = '/mobileweb/theatres';
+      }
+      else if (low.indexOf('/mobileweb/') === 0) {
+        /* already mobileweb */
+      } else {
+        return '';
+      }
+      return 'https://m.sinemalar.com' + encodeURI(p);
+    }
+
+    /* Desktop www — path zaten /film/{id}/slug ise koru */
+    if (movieId) p = /^\/film\//.test(low) ? p : '/film/' + movieId;
+    else if (personId) p = /^\/sanatci\//.test(low) ? p : '/sanatci/' + personId;
+    else if (newsId) p = /^\/(?:haber|news)\//.test(low) ? p.replace(/^\/news\//i, '/haber/') : '/haber/' + newsId;
+    else if (listId) p = /^\/(?:liste|list)\//.test(low) ? p.replace(/^\/list\//i, '/liste/') : '/liste/' + listId;
+    else if (theatreId) p = /^\/sinemasalonlari\//.test(low) ? p : '/sinemasalonlari/' + theatreId;
+    else if (
+      low === '/mobileweb/filmler' || low === '/filmler' || low === '/vizyondakiler' ||
+      low === '/filmler/vizyondaki' || low.indexOf('/filmler/vizyondaki') === 0
+    ) {
+      p = (low.indexOf('/filmler/vizyondaki') === 0 || low === '/vizyondakiler') ? '/filmler/vizyondaki' : '/filmler';
+    }
+    else if (low === '/mobileweb/soon' || low === '/soon' || low === '/yakinda' || low === '/yakında' || low === '/filmler/yakinda') p = '/filmler/yakinda';
+    else if (low === '/mobileweb/tv-dizileri' || low === '/tv-dizileri' || low === '/diziler') p = '/diziler';
+    else if (low === '/sanatcilar') p = '/sanatcilar';
+    else if (
+      low === '/mobileweb/theatres' || low === '/theatres' || low === '/sinemalar' ||
+      low === '/salonlar' || low === '/sinemasalonlari'
+    ) p = '/sinemasalonlari';
     else if (low.indexOf('/mobileweb/') === 0) {
-      /* zaten doğru mobileweb path (movieCast vb.) */
+      return '';
+    }
+    else if (
+      low.indexOf('/film/') === 0 || low.indexOf('/sanatci/') === 0 || low.indexOf('/haber/') === 0 ||
+      low.indexOf('/liste/') === 0 || low.indexOf('/sinemasalonlari') === 0 || low.indexOf('/filmler') === 0 ||
+      low.indexOf('/diziler') === 0 || low.indexOf('/sanatcilar') === 0
+    ) {
+      /* already desktop path — keep trailing slug if present */
     } else {
       return '';
     }
-    return 'https://m.sinemalar.com' + encodeURI(p);
+    return 'https://www.sinemalar.com' + encodeURI(p);
   }
 
   function _rtUrlFromDomainAndPath(domain, raw, profile) {
@@ -4788,15 +4861,14 @@
         if (/^(sinemalar|salonlar|theatres|sinema salonlar[ıi])$/i.test(lowTitle)) return _rtSinemalarCanonicalUrl('/mobileweb/theatres', 'mweb');
         return '';
       }
-      var suffix = '';
-      var base = clean;
-      var castMatch = clean.match(/^(.*?)\s+Oyuncular[ıi]\s+ve\s+Kadrosu$/i);
-      if (castMatch && castMatch[1]) {
-        base = castMatch[1].trim();
-        suffix = '/oyunculari';
-      }
-      var slug = _rtSlugifyTitle(base);
-      return slug ? _rtSinemalarCanonicalUrl('/' + slug + suffix, 'web') : '';
+      if (/^(filmler|tüm filmler|tum filmler)$/i.test(lowTitle)) return _rtSinemalarCanonicalUrl('/filmler', 'web');
+      if (/^(vizyondakiler|vizyondaki filmler)$/i.test(lowTitle)) return _rtSinemalarCanonicalUrl('/filmler/vizyondaki', 'web');
+      if (/^(yak[ıi]nda|yakinda vizyonda)$/i.test(lowTitle)) return _rtSinemalarCanonicalUrl('/filmler/yakinda', 'web');
+      if (/^(tv\s*dizileri|diziler|tüm diziler|tum diziler)$/i.test(lowTitle)) return _rtSinemalarCanonicalUrl('/diziler', 'web');
+      if (/^(sinema salonlar[ıi]|salonlar|sinemasalonlari)$/i.test(lowTitle)) return _rtSinemalarCanonicalUrl('/sinemasalonlari', 'web');
+      if (/^sanatc[ıi]lar$/i.test(lowTitle)) return _rtSinemalarCanonicalUrl('/sanatcilar', 'web');
+      /* Film/kişi/haber başlığından ID yok → uydurma slug 404 */
+      return '';
     }
     if (host.indexOf('doviz.com') !== -1) {
       var low = raw.toLowerCase();
