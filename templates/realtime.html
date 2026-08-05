@@ -993,6 +993,7 @@
   /* Üst bölüm: başlık ile grafikler arası boşluk */
   .realtime-root > #rt-global-total-panel,
   .realtime-root > #rt-compact-masonry-panel,
+  .realtime-root > #rt-names-board-panel,
   .realtime-root > #rt-alarms-global {
     margin-top: 0 !important;
   }
@@ -1200,6 +1201,140 @@
   }
   html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-meta {
     min-width: 8.5rem;
+  }
+  /* Linkler görünüm: spark / app yok — 4 kolon yalnızca sayfa adı */
+  #rt-names-board-panel {
+    display: none;
+  }
+  html.rt-view--names #rt-compact-masonry-panel,
+  html.rt-view--names #rt-global-total-panel,
+  html.rt-view--names #rt-alarms-global {
+    display: none !important;
+  }
+  html.rt-view--names #rt-names-board-panel {
+    display: block;
+  }
+  .rt-names-board-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .rt-names-board-head h2 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #1e293b;
+    letter-spacing: -0.01em;
+  }
+  html.dark .rt-names-board-head h2 {
+    color: #e4e4e7;
+  }
+  .rt-names-board-head p {
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+  html.dark .rt-names-board-head p {
+    color: #71717a;
+  }
+  .rt-names-board-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -0.25rem;
+    padding: 0 0.25rem 0.35rem;
+  }
+  .rt-names-board-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    min-width: 0;
+  }
+  @media (max-width: 1100px) {
+    .rt-names-board-grid {
+      grid-template-columns: repeat(4, minmax(14.5rem, 1fr));
+      min-width: 60rem;
+    }
+  }
+  .rt-names-col {
+    min-width: 0;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 0.65rem 0.7rem 0.55rem;
+  }
+  html.dark .rt-names-col {
+    border-color: rgba(63, 63, 70, 0.7);
+    background: rgb(24 24 27);
+  }
+  .rt-names-col-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.45rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  html.dark .rt-names-col-title {
+    color: #a1a1aa;
+    border-bottom-color: rgba(63, 63, 70, 0.7);
+  }
+  .rt-names-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: min(70vh, 42rem);
+    overflow-y: auto;
+  }
+  .rt-names-row {
+    display: grid;
+    grid-template-columns: 1.4rem minmax(0, 1fr);
+    gap: 0.35rem;
+    align-items: start;
+    padding: 0.28rem 0.1rem;
+    border-radius: 0.35rem;
+  }
+  .rt-names-row:nth-child(even) {
+    background: rgba(248, 250, 252, 0.9);
+  }
+  html.dark .rt-names-row:nth-child(even) {
+    background: rgba(39, 39, 42, 0.45);
+  }
+  .rt-names-rank {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-align: right;
+    padding-top: 0.12rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .rt-names-title {
+    font-size: 0.8rem;
+    line-height: 1.25;
+    font-weight: 600;
+    color: #0f172a;
+    word-break: break-word;
+  }
+  html.dark .rt-names-title {
+    color: #e4e4e7;
+  }
+  a.rt-names-title {
+    text-decoration: none;
+  }
+  a.rt-names-title:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .rt-names-col-ts {
+    margin-top: 0.45rem;
+    font-size: 0.65rem;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .rt-names-col-ts {
+    color: #71717a;
   }
   /* Split Panel (#3): sol KPI stack | sağ spark */
   .rt-split-panel {
@@ -2586,6 +2721,15 @@
             title="Döviz + Sinemalar birleşik toplam aktif spark"
             class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >Total</button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked="false"
+            data-rt-view-pill="names"
+            onclick="rtSetViewMode('names')"
+            title="Döviz + Sinemalar web/mweb — yalnızca sayfa adları (top 50, spark yok)"
+            class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+          >Linkler</button>
         </div>
       </div>
       <button
@@ -2600,6 +2744,48 @@
   </div>
 
   <div class="rt-layout-main" id="rt-layout-main">
+
+  <div
+    id="rt-names-board-panel"
+    class="rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700/90 dark:shadow-none sm:p-5"
+  >
+    <div class="rt-names-board-head">
+      <div>
+        <h2>Canlı linkler</h2>
+        <p>Son ~15 dk · yalnızca sayfa adı · Döviz &amp; Sinemalar web/mweb · top 50</p>
+      </div>
+      <p class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-names-board-ts>—</p>
+    </div>
+    <div class="rt-names-board-scroll">
+      <div class="rt-names-board-grid">
+        {% for slug, label_prefix in [('doviz', 'Döviz'), ('sinemalar', 'Sinemalar')] %}
+          {% for site in sites %}
+            {% set domain_l = (site.domain or '')|lower %}
+            {% set is_match = (slug == 'doviz' and 'doviz' in domain_l) or (slug == 'sinemalar' and 'sinemalar' in domain_l) %}
+            {% if is_match %}
+              {% for profile, plabel in [('web', 'Web'), ('mweb', 'Mweb')] %}
+                {% if profile in site.profiles %}
+                <section
+                  class="rt-names-col"
+                  data-rt-names-col
+                  data-rt-site-id="{{ site.id }}"
+                  data-rt-profile="{{ profile }}"
+                  data-rt-domain="{{ site.domain }}"
+                >
+                  <h3 class="rt-names-col-title">{{ label_prefix }} · {{ plabel }}</h3>
+                  <ol class="rt-names-list" data-rt-names-list>
+                    <li class="rt-empty text-sm italic text-slate-400">yükleniyor…</li>
+                  </ol>
+                  <p class="rt-names-col-ts" data-rt-names-ts></p>
+                </section>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
 
   <div
     id="rt-global-total-panel"
@@ -3095,8 +3281,12 @@
   var RT_TOP_PAGES_LIMIT = 10;
   /** GA4'ten gürültü filtresi sonrası yeterli satır için biraz fazla çek */
   var RT_TOP_PAGES_FETCH_LIMIT = 14;
+  /** Linkler görünümü: spark yok, yalnızca isim — top 50 */
+  var RT_NAMES_LIMIT = 50;
+  var RT_NAMES_RANGE = '15m';
   var _pageTimers = {};
   var _globalTotalTimer = null;
+  var _namesBoardTimer = null;
   var _alarmExpanded = false;
   var RT_VIEW_LS_KEY = 'rt_view_mode';
   var _liveCountdownSec = LIVE_POLL_SEC;
@@ -3210,6 +3400,11 @@
 
   function _refreshLiveCycle() {
     var night = _isNightMode();
+    /* Linkler görünümü: KPI/spark/app yok — sadece isim panosunu yenile (kota) */
+    if (!night && rtGetViewMode() === 'names') {
+      rtFetchNamesBoard();
+      return;
+    }
     Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box) {
       var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
       var prof = box.getAttribute('data-rt-profile');
@@ -4253,6 +4448,7 @@
   }
 
   function _primeSiteCombinedTrends() {
+    if (rtGetViewMode() === 'names') return;
     document.querySelectorAll('[data-rt-site]').forEach(function (el) {
       var sid = parseInt(el.getAttribute('data-rt-site'), 10);
       if (!isNaN(sid)) {
@@ -6207,6 +6403,11 @@
     _resetLiveCountdown();
     var icon = document.getElementById('rt-global-refresh-icon');
     if (icon) icon.classList.add('rt-spin');
+    if (rtGetViewMode() === 'names') {
+      rtFetchNamesBoard();
+      setTimeout(function () { if (icon) icon.classList.remove('rt-spin'); }, 800);
+      return;
+    }
     var boxes = document.querySelectorAll('[data-rt-site-id]');
     var pending = boxes.length;
     boxes.forEach(function (box) {
@@ -6268,6 +6469,7 @@
       var v = localStorage.getItem(RT_VIEW_LS_KEY);
       if (v === 'full') return 'full';
       if (v === 'total') return 'total';
+      if (v === 'names') return 'names';
       return 'compact';
     } catch (e) {
       return 'compact';
@@ -6275,12 +6477,17 @@
   }
 
   function rtApplyViewMode(mode) {
-    var m = mode === 'compact' ? 'compact' : mode === 'total' ? 'total' : 'full';
+    var m =
+      mode === 'compact' ? 'compact'
+      : mode === 'total' ? 'total'
+      : mode === 'names' ? 'names'
+      : 'full';
     try {
       localStorage.setItem(RT_VIEW_LS_KEY, m);
     } catch (e2) {}
     document.documentElement.classList.toggle('rt-view--compact', m === 'compact');
     document.documentElement.classList.toggle('rt-view--total', m === 'total');
+    document.documentElement.classList.toggle('rt-view--names', m === 'names');
     var pills = document.getElementById('rt-view-pills');
     if (pills) {
       pills.querySelectorAll('[data-rt-view-pill]').forEach(function (btn) {
@@ -6302,6 +6509,12 @@
         sec.classList.add('hidden');
       });
     }
+    if (m === 'names') {
+      rtFetchNamesBoard();
+      _ensureNamesBoardTimer(true);
+    } else {
+      _ensureNamesBoardTimer(false);
+    }
   }
 
   function rtSetViewMode(mode) {
@@ -6311,6 +6524,104 @@
 
   function rtInitViewMode() {
     rtApplyViewMode(rtGetViewMode());
+  }
+
+  function _renderNamesCol(colEl, pages, domain, profile) {
+    var listEl = colEl.querySelector('[data-rt-names-list]');
+    if (!listEl) return;
+    if (!pages || !pages.length) {
+      listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">veri yok</li>';
+      return;
+    }
+    var sorted = pages.slice().sort(function (a, b) {
+      return (Number(b.activeUsers) || 0) - (Number(a.activeUsers) || 0)
+        || (Number(b.screenPageViews) || 0) - (Number(a.screenPageViews) || 0);
+    }).slice(0, RT_NAMES_LIMIT);
+    listEl.innerHTML = sorted.map(function (p, i) {
+      var titleRaw = String((p && p.page) || '(bilinmiyor)').trim() || '(bilinmiyor)';
+      var href = _rtPageHref(domain, p, profile);
+      var tip = _attr(titleRaw + (href ? '\n' + href : ''));
+      var titleHtml = href
+        ? '<a class="rt-names-title" href="' + _attr(href) + '" target="_blank" rel="noopener noreferrer" title="' + tip + '">' + _esc(titleRaw) + '</a>'
+        : '<span class="rt-names-title" title="' + tip + '">' + _esc(titleRaw) + '</span>';
+      return '<li class="rt-names-row">'
+        + '<span class="rt-names-rank">' + (i + 1) + '</span>'
+        + titleHtml
+        + '</li>';
+    }).join('');
+  }
+
+  function _fetchNamesCol(colEl) {
+    var siteId = parseInt(colEl.getAttribute('data-rt-site-id'), 10);
+    var profile = colEl.getAttribute('data-rt-profile') || 'web';
+    var domain = colEl.getAttribute('data-rt-domain') || '';
+    var listEl = colEl.querySelector('[data-rt-names-list]');
+    var tsEl = colEl.querySelector('[data-rt-names-ts]');
+    if (isNaN(siteId) || !listEl) return Promise.resolve();
+    return fetch(
+      '/api/ga4/realtime/' + siteId + '/top-pages'
+        + '?profile=' + encodeURIComponent(profile)
+        + '&range=' + encodeURIComponent(RT_NAMES_RANGE)
+        + '&limit=' + RT_NAMES_LIMIT
+        + '&type=pages',
+      { credentials: 'same-origin', cache: 'no-store' }
+    )
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d && Array.isArray(d.pages) ? d.pages : []).filter(function (p) {
+          return !_isRealtimeNoiseTitle(p && p.page);
+        });
+        if (d && d.error && !rows.length) {
+          listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">veri yok</li>';
+        } else {
+          _renderNamesCol(colEl, rows, domain, profile);
+        }
+        if (tsEl) {
+          var dt = d && d.fetched_at ? new Date(d.fetched_at) : new Date();
+          tsEl.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        }
+        return d;
+      })
+      .catch(function () {
+        listEl.innerHTML = '<li class="rt-empty text-sm italic text-slate-400">hata</li>';
+      });
+  }
+
+  function rtFetchNamesBoard() {
+    var cols = document.querySelectorAll('[data-rt-names-col]');
+    if (!cols.length) return;
+    var boardTs = document.querySelector('[data-rt-names-board-ts]');
+    var pending = cols.length;
+    var latest = null;
+    cols.forEach(function (col, idx) {
+      setTimeout(function () {
+        _fetchNamesCol(col).then(function (d) {
+          if (d && d.fetched_at) {
+            var t = new Date(d.fetched_at);
+            if (!latest || t > latest) latest = t;
+          }
+        }).finally(function () {
+          pending--;
+          if (pending <= 0 && boardTs) {
+            var dt = latest || new Date();
+            boardTs.textContent = 'güncelleme: ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+          }
+        });
+      }, idx * 180);
+    });
+  }
+  window.rtFetchNamesBoard = rtFetchNamesBoard;
+
+  function _ensureNamesBoardTimer(on) {
+    if (_namesBoardTimer) {
+      clearInterval(_namesBoardTimer);
+      _namesBoardTimer = null;
+    }
+    if (!on) return;
+    _namesBoardTimer = setInterval(function () {
+      if (_isNightMode() || document.hidden || rtGetViewMode() !== 'names') return;
+      rtFetchNamesBoard();
+    }, PAGES_INTERVAL_MS);
   }
 
   function _fetchGlobalAlarms(limit) {
@@ -6721,8 +7032,12 @@
       var key = sid + ':' + prof;
       var sidInt = parseInt(sid, 10);
 
-      setTimeout(function () { rtFetchProfile(sidInt, prof); }, idx * 400);
       setTimeout(function () {
+        if (rtGetViewMode() === 'names') return;
+        rtFetchProfile(sidInt, prof);
+      }, idx * 400);
+      setTimeout(function () {
+        if (rtGetViewMode() === 'names') return;
         rtFetchTopPages(sidInt, prof);
         rtFetchTopEvents(sidInt, prof);
       }, 3000 + idx * 500);
@@ -6730,6 +7045,7 @@
       if (_pageTimers[key]) clearInterval(_pageTimers[key]);
       _pageTimers[key] = setInterval(function () {
         if (_isNightMode()) return; // Gece listeleri yenileme
+        if (rtGetViewMode() === 'names') return; // Linkler: ayrı timer (kota)
         rtFetchTopPages(sidInt, prof);
         rtFetchTopEvents(sidInt, prof);
       }, PAGES_INTERVAL_MS);
@@ -6741,13 +7057,21 @@
       _rtFetchGlobalTotalTrend({ showLoading: false });
     }, PAGES_INTERVAL_MS);
     setTimeout(function() {
-      if (!_isNightMode()) _fetchGlobalAlarms();
+      if (!_isNightMode() && rtGetViewMode() !== 'names') _fetchGlobalAlarms();
     }, 1000);
     _startLiveCountdown();
+    if (rtGetViewMode() === 'names') {
+      rtFetchNamesBoard();
+      _ensureNamesBoardTimer(true);
+    }
 
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState !== 'visible') return;
       _resetLiveCountdown();
+      if (rtGetViewMode() === 'names') {
+        rtFetchNamesBoard();
+        return;
+      }
       Array.prototype.slice.call(document.querySelectorAll('[data-rt-site-id]')).forEach(function (box, vidx) {
         var sid = parseInt(box.getAttribute('data-rt-site-id'), 10);
         var prof = box.getAttribute('data-rt-profile');
@@ -6888,7 +7212,7 @@
   }
 
   function _fetch404Spike(siteId, profile) {
-    if (rtGetViewMode() === 'compact') return;
+    if (rtGetViewMode() === 'compact' || rtGetViewMode() === 'names') return;
     var box = document.querySelector('[data-rt-site-id="' + siteId + '"][data-rt-profile="' + profile + '"]');
     if (!box || profile === 'android' || profile === 'ios') return;
     fetch('/api/ga4/realtime/' + siteId + '/404-spike?profile=' + encodeURIComponent(profile) + '&window=15', {

@@ -15417,7 +15417,7 @@ def api_ga4_realtime_top_pages(
         if not property_id:
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
 
-    cap = min(limit, 25)
+    cap = min(max(1, int(limit or 10)), 50)
 
     def _produce():
         if mode == "snapshots":
@@ -15520,7 +15520,7 @@ def api_ga4_realtime_top_pages(
                 "site_id": site_id,
                 "profile": profile,
                 "type": type,
-                "pages": pages[:min(limit, 25)],
+                "pages": pages[:cap],
                 "source": "db_snapshot",
                 "fetched_at": curr_time.isoformat() if curr_time else None,
             }
