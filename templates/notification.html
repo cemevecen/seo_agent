@@ -22,27 +22,27 @@
       </div>
     </div>
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70 nt-filter-panel">
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
-        <div class="min-w-0 xl:col-span-5">
+      <div class="nt-filter-panel-grid">
+        <div class="nt-filter-panel-item nt-filter-panel-dates">
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div class="space-y-1.5">
+            <div class="nt-filter-dates">
+              <div class="space-y-1.5 min-w-0">
                 <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Başlangıç tarihi</label>
-                <input id="nt-start-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+                <input id="nt-start-date" type="date" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
               </div>
-              <div class="space-y-1.5">
+              <div class="space-y-1.5 min-w-0">
                 <label class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bitiş tarihi</label>
-                <input id="nt-end-date" type="date" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
+                <input id="nt-end-date" type="date" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" />
               </div>
             </div>
-            <button id="nt-apply-date" type="button" class="nt-btn-pastel-orange w-full rounded-lg px-3 py-2 text-sm font-bold">Filtreyi uygula</button>
+            <button id="nt-apply-date" type="button" class="nt-btn-pastel-orange w-full whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold">Filtreyi uygula</button>
           </div>
         </div>
-        <div class="min-w-0 xl:col-span-4">
+        <div class="nt-filter-panel-item nt-filter-panel-preset">
           <div class="nt-mini-card space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm dark:border-slate-600 dark:bg-slate-900">
-            <div class="space-y-1.5">
+            <div class="space-y-1.5 min-w-0">
               <label for="nt-range-preset" class="block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Hazır zaman dilimi</label>
-              <select id="nt-range-preset" class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+              <select id="nt-range-preset" class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
                 <option value="custom">Özel aralık</option>
                 <option value="all">Tümü</option>
                 <option value="1w">Son 1 hafta</option>
@@ -55,10 +55,10 @@
                 <option value="4y">Son 4 yıl</option>
               </select>
             </div>
-            <button id="nt-apply-preset" type="button" class="nt-btn-pastel-green w-full rounded-lg px-3 py-2 text-sm font-bold">Hazır aralığı uygula</button>
+            <button id="nt-apply-preset" type="button" class="nt-btn-pastel-green w-full whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold">Hazır aralığı uygula</button>
           </div>
         </div>
-        <p id="nt-status" class="min-w-0 self-end text-xs text-slate-500 dark:text-slate-400 xl:col-span-3"></p>
+        <p id="nt-status" class="nt-filter-panel-status min-w-0 text-xs text-slate-500 dark:text-slate-400"></p>
       </div>
     </div>
   </div>
@@ -181,6 +181,51 @@
     html.dark .notification-page .nt-filter-panel {
       background-color: #0f0f10 !important;
       border-color: #27272a !important;
+    }
+    /* Tailwind col-span-* safelist eksik kalabiliyor; filtre paneli bağımsız responsive grid */
+    .notification-page .nt-filter-panel-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+    .notification-page .nt-filter-panel-item {
+      min-width: 0;
+      width: 100%;
+    }
+    .notification-page .nt-filter-dates {
+      display: grid;
+      gap: 0.5rem;
+      grid-template-columns: 1fr;
+    }
+    .notification-page .nt-filter-panel .nt-btn-pastel-orange,
+    .notification-page .nt-filter-panel .nt-btn-pastel-green {
+      white-space: nowrap;
+    }
+    @media (min-width: 520px) {
+      .notification-page .nt-filter-dates {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 768px) {
+      .notification-page .nt-filter-panel-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .notification-page .nt-filter-panel-status {
+        grid-column: 1 / -1;
+      }
+    }
+    @media (min-width: 1100px) {
+      .notification-page .nt-filter-panel-grid {
+        grid-template-columns: minmax(280px, 1.45fr) minmax(220px, 1fr) minmax(180px, 0.75fr);
+        align-items: end;
+      }
+      .notification-page .nt-filter-panel-status {
+        grid-column: auto;
+        align-self: end;
+        padding-bottom: 0.35rem;
+        text-align: right;
+      }
     }
     html.dark .notification-page .nt-filter-panel input[type="date"],
     html.dark .notification-page .nt-filter-panel select,
