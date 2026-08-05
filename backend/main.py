@@ -15696,6 +15696,8 @@ def api_ga4_realtime_top_news(
             return JSONResponse({"error": "no_property", "message": f"{profile} profili tanımlı değil"}, status_code=404)
         site_domain_str = (site.domain or "").strip()
 
+    cap = min(max(1, int(limit or 12)), 50)
+
     def _produce():
         if mode == "snapshots":
             with SessionLocal() as db:
@@ -15705,7 +15707,7 @@ def api_ga4_realtime_top_news(
                     profile=profile,
                     site_domain=site_domain_str,
                     window_minutes=list_minutes,
-                    limit=min(limit, 25),
+                    limit=cap,
                     sort_by=sort_by,
                 )
                 result["site_id"] = site_id
@@ -15721,7 +15723,7 @@ def api_ga4_realtime_top_news(
                 site_domain=site_domain_str,
                 profile=profile,
                 window_minutes=min(list_minutes, 30),
-                limit=min(limit, 25),
+                limit=cap,
                 sort_by=sort_by,
             )
             result["site_id"] = site_id
@@ -15802,13 +15804,13 @@ def api_ga4_realtime_top_news(
                 "site_id": site_id,
                 "profile": profile,
                 "type": type,
-                "pages": pages[:min(limit, 25)],
+                "pages": pages[:cap],
                 "source": "db_snapshot",
                 "fetched_at": curr_time.isoformat() if curr_time else None,
             }
 
     result = get_or_call(
-        f"rt:news:{site_id}:{profile}:{range_key}:{type}",
+        f"rt:news:v2:{site_id}:{profile}:{range_key}:{type}:{cap}",
         settings.ga4_realtime_list_cache_seconds,
         _produce,
         is_error=lambda r: bool(r.get("error")) or r.get("source") == "db_snapshot",
