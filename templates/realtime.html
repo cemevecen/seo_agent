@@ -991,7 +991,6 @@
     color: rgb(161 161 170);
   }
   /* Üst bölüm: başlık ile grafikler arası boşluk */
-  .realtime-root > #rt-global-total-panel,
   .realtime-root > #rt-compact-masonry-panel,
   .realtime-root > #rt-names-board-panel,
   .realtime-root > #rt-alarms-global {
@@ -1155,59 +1154,11 @@
   .rt-masonry-site-label {
     display: none;
   }
-  /* Total görünüm: yalnızca döviz+sinemalar birleşik site spark */
-  #rt-global-total-panel {
-    display: none;
-  }
-  html.rt-view--total [data-rt-site] {
-    display: none !important;
-  }
-  html.rt-view--total #rt-global-total-panel {
-    display: block;
-  }
-  html.rt-view--total #rt-alarms-global {
-    display: none !important;
-  }
-  html.rt-view--total .rt-site-spark-row {
-    min-height: 11.5rem;
-  }
-  html.rt-view--total .rt-site-spark-bars {
-    min-height: 5.25rem;
-  }
-  html.rt-view--total .rt-site-spark-last:not(.rt-slot-reel) {
-    font-size: 2rem;
-    line-height: 1.1;
-  }
-  html.rt-view--total .rt-global-site-sparks {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-top: 1.25rem;
-    padding-top: 1rem;
-    border-top: 1px dashed rgb(226 232 240);
-  }
-  html.dark.rt-view--total .rt-global-site-sparks {
-    border-top-color: rgba(63, 63, 70, 0.55);
-  }
-  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-row {
-    min-height: 7.25rem;
-  }
-  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-bars {
-    min-height: 4rem;
-  }
-  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-last:not(.rt-slot-reel) {
-    font-size: 1.5rem;
-    line-height: 1.1;
-  }
-  html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-meta {
-    min-width: 8.5rem;
-  }
   /* Linkler görünüm: spark / app yok — 4 kolon yalnızca sayfa adı */
   #rt-names-board-panel {
     display: none;
   }
   html.rt-view--names #rt-compact-masonry-panel,
-  html.rt-view--names #rt-global-total-panel,
   html.rt-view--names #rt-alarms-global {
     display: none !important;
   }
@@ -2026,13 +1977,11 @@
     opacity: 0.38;
   }
   [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
-  [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
-  #rt-global-total-panel .rt-site-sparks[data-rt-site-sparks="global"] .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv) {
+  [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv) {
     border-right-color: rgba(59, 130, 246, 0.22);
   }
   html.dark [data-rt-site-slug="doviz"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
-  html.dark [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv),
-  html.dark #rt-global-total-panel .rt-site-sparks[data-rt-site-sparks="global"] .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv) {
+  html.dark [data-rt-site-slug="sinemalar"] .rt-masonry-total-row .rt-site-spark-row--brand-blue:not(.rt-site-spark-row--pv) {
     border-right-color: rgba(96, 165, 250, 0.28);
   }
   .rt-site-spark-empty-msg {
@@ -2349,18 +2298,14 @@
 
     /* Site toplam spark: meta üstte, grafik altta */
     .rt-site-spark-row,
-    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-row,
-    html.rt-view--total .rt-site-spark-row,
-    html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-row {
+    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-row {
       grid-template-columns: 1fr !important;
       min-height: 0;
       gap: 0.45rem;
       padding: 0.55rem 0.65rem;
     }
     .rt-site-spark-meta,
-    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-meta,
-    html.rt-view--total .rt-site-spark-meta,
-    html.rt-view--total .rt-global-site-spark-wrap .rt-site-spark-meta {
+    html.rt-view--compact .rt-masonry-total-row .rt-site-spark-meta {
       border-right: none !important;
       border-bottom: 1px dashed rgb(226 232 240);
       padding-bottom: 0.45rem;
@@ -2368,8 +2313,7 @@
       min-width: 0;
     }
     html.dark .rt-site-spark-meta,
-    html.dark.rt-view--compact .rt-masonry-total-row .rt-site-spark-meta,
-    html.dark.rt-view--total .rt-site-spark-meta {
+    html.dark.rt-view--compact .rt-masonry-total-row .rt-site-spark-meta {
       border-bottom-color: rgba(63, 63, 70, 0.45);
     }
     .rt-site-spark-bars,
@@ -2743,15 +2687,6 @@
             type="button"
             role="radio"
             aria-checked="false"
-            data-rt-view-pill="total"
-            onclick="rtSetViewMode('total')"
-            title="Döviz + Sinemalar birleşik toplam aktif spark"
-            class="focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
-          >Total</button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked="false"
             data-rt-view-pill="names"
             onclick="rtSetViewMode('names')"
             title="Döviz + Sinemalar web/mweb — yalnızca sayfa adları (top 50, spark yok)"
@@ -2811,86 +2746,6 @@
           {% endfor %}
         {% endfor %}
       </div>
-    </div>
-  </div>
-
-  <div
-    id="rt-global-total-panel"
-    class="rt-surface-solid mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/90 dark:shadow-none"
-    data-rt-global-total
-  >
-    <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-extrabold text-slate-800 dark:text-slate-200">Toplam aktif</h2>
-        <p class="mt-0.5 text-sm font-normal text-slate-400">Döviz + Sinemalar · tüm platformlar</p>
-      </div>
-      <p class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-global-total-ts>—</p>
-    </div>
-    <div class="rt-site-sparks" data-rt-site-sparks="global">
-      <div class="rt-site-spark-row is-loading" data-rt-site-spark-row>
-        <div class="rt-site-spark-meta">
-          <div class="rt-site-spark-range flex flex-wrap gap-0.5" data-rt-site-yf-chrome>
-            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="15m" title="Son 15 dakika">15dk</button>
-            <button type="button" class="rt-yf-tab" data-rt-site-yf-range="1h" title="Son 1 saat">1s</button>
-            <button type="button" class="rt-yf-tab is-active" data-rt-site-yf-range="24h" title="Son 24 saat · 15 dk dilimler">24s</button>
-          </div>
-          <button type="button" class="rt-spark-table-open-btn mt-1" data-rt-spark-table-open title="Site toplam spark — tablo">Tablo</button>
-          <p class="rt-site-spark-label" data-rt-site-spark-label>Toplam aktif</p>
-          <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · Döviz + Sinemalar</p>
-          <div class="rt-site-spark-kpi-stack" data-rt-site-spark-kpi-stack>
-          <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Birleşik anlık toplam aktif">—</p>
-          <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
-          </div>
-        </div>
-        <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
-          <div class="rt-site-spark-y" data-rt-site-spark-y></div>
-          <div class="rt-site-spark-main">
-            <div class="rt-site-spark-load" data-rt-site-spark-load aria-hidden="true">
-              <lottie-player
-                class="rt-site-spark-lottie"
-                src="https://assets1.lottiefiles.com/packages/lf20_poqmycwy.json"
-                background="transparent"
-                speed="1"
-                loop
-                autoplay
-              ></lottie-player>
-            </div>
-            <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="Döviz + Sinemalar birleşik 24 saat trend"></div>
-            <div class="rt-site-spark-tip hidden" data-rt-site-spark-tip role="tooltip"></div>
-            <div class="rt-site-spark-x" data-rt-site-spark-x></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="rt-global-site-sparks" data-rt-global-site-sparks>
-      {% for site in sites %}
-      {% if site.domain and 'sinemalar' in site.domain %}
-        {% set g_site_slug = 'sinemalar' %}
-      {% elif site.domain and 'doviz' in site.domain %}
-        {% set g_site_slug = 'doviz' %}
-      {% else %}
-        {% set g_site_slug = 'other' %}
-      {% endif %}
-      <div class="rt-global-site-spark-wrap" data-rt-global-site-spark="{{ site.id }}" data-rt-site-slug="{{ g_site_slug }}">
-        <div class="rt-site-spark-row" data-rt-site-spark-row>
-          <div class="rt-site-spark-meta">
-            <p class="rt-site-spark-label">{{ site.display_name or site.domain }}</p>
-            <p class="rt-site-spark-sublabel" data-rt-site-spark-sublabel>24 saat · site toplam</p>
-            <div class="rt-site-spark-kpi-stack" data-rt-site-spark-kpi-stack>
-            <p class="rt-site-spark-last rt-slot-reel" data-rt-site-spark-last data-rt-slot-reel title="Site toplam aktif">—</p>
-            <p class="rt-site-spark-compare hidden" data-rt-site-spark-compare aria-live="polite"></p>
-            </div>
-          </div>
-          <div class="rt-site-spark-plot rt-spark-table-clickable" data-rt-site-spark-chart title="Tablo için tıklayın">
-            <div class="rt-site-spark-y" data-rt-site-spark-y></div>
-            <div class="rt-site-spark-main">
-              <div class="rt-site-spark-bars" data-rt-site-spark-bars role="img" aria-label="{{ site.display_name or site.domain }} 24 saat trend"></div>
-              <div class="rt-site-spark-x" data-rt-site-spark-x></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
     </div>
   </div>
 
@@ -3312,7 +3167,6 @@
   var RT_NAMES_LIMIT = 50;
   var RT_NAMES_RANGE = '15m';
   var _pageTimers = {};
-  var _globalTotalTimer = null;
   var _namesBoardTimer = null;
   var _alarmExpanded = false;
   var RT_VIEW_LS_KEY = 'rt_view_mode';
@@ -3448,10 +3302,6 @@
       }, 1200 + idx * 250);
     });
     if (!_isNightMode()) _fetchGlobalAlarms();
-    if (rtGetViewMode() === 'total') {
-      var globalEl = _rtGetGlobalTotalEl();
-      if (globalEl) _rtFetchGlobalTotalTrend({ showLoading: !globalEl._rtCombinedTrend });
-    }
   }
 
   function _refreshLiveCycle() {
@@ -3672,305 +3522,20 @@
     siteEl._rtSiteSumAu = haveAu ? sumAu : null;
     siteEl._rtSiteSumPv = havePv ? sumPv : null;
     _rtSyncSiteSparkLiveTotal(siteEl);
-    _rtSyncGlobalTotalLive();
   }
 
-  function _rtGetGlobalTotalEl() {
-    return document.getElementById('rt-global-total-panel');
-  }
 
   function _rtSiteSparkRoot(siteEl) {
     if (!siteEl) return siteEl;
-    if (siteEl.matches && siteEl.matches('[data-rt-site-sparks], [data-rt-global-site-spark]')) {
+    if (siteEl.matches && siteEl.matches('[data-rt-site-sparks]')) {
       return siteEl;
-    }
-    if (siteEl.hasAttribute('data-rt-global-total')) {
-      return siteEl.querySelector('[data-rt-site-sparks="global"]') || siteEl;
     }
     return siteEl.querySelector('[data-rt-site-sparks]') || siteEl;
   }
 
-  function _rtMergeSiteTrends(trendList) {
-    var bucketMs = 15 * 60 * 1000;
-    /* Her site için dilim → değer; eksik dilimde son bilinen değeri taşı (üst≠alt sapmasını kes) */
-    var perSite = [];
-    (trendList || []).forEach(function (trend) {
-      var map = {};
-      var keys = [];
-      (trend || []).forEach(function (pt) {
-        var d = _parseSnapshotTs(pt.collected_at);
-        if (!d) return;
-        var bucketKey = Math.floor(d.getTime() / bucketMs) * bucketMs;
-        var key = String(bucketKey);
-        if (!map[key]) {
-          map[key] = {
-            collected_at: new Date(bucketKey).toISOString(),
-            active_users: 0,
-            pageviews: 0,
-            active_users_prev_week: null,
-            pageviews_prev_week: null,
-          };
-          keys.push(bucketKey);
-        }
-        var row = map[key];
-        row.active_users += Number(pt.active_users) || 0;
-        row.pageviews += Number(pt.pageviews) || 0;
-        if (pt.active_users_prev_week != null) {
-          row.active_users_prev_week =
-            (row.active_users_prev_week || 0) + (Number(pt.active_users_prev_week) || 0);
-        }
-        if (pt.pageviews_prev_week != null) {
-          row.pageviews_prev_week =
-            (row.pageviews_prev_week || 0) + (Number(pt.pageviews_prev_week) || 0);
-        }
-      });
-      keys.sort(function (a, b) { return a - b; });
-      perSite.push({ map: map, keys: keys });
-    });
-    if (!perSite.length) return [];
-
-    var allKeys = {};
-    perSite.forEach(function (s) {
-      s.keys.forEach(function (k) { allKeys[k] = true; });
-    });
-    var sortedKeys = Object.keys(allKeys)
-      .map(Number)
-      .sort(function (a, b) { return a - b; });
-
-    return sortedKeys.map(function (bucketKey) {
-      var key = String(bucketKey);
-      var out = {
-        collected_at: new Date(bucketKey).toISOString(),
-        active_users: 0,
-        pageviews: 0,
-        active_users_prev_week: 0,
-        pageviews_prev_week: 0,
-        _hasPrevAu: false,
-        _hasPrevPv: false,
-      };
-      perSite.forEach(function (s) {
-        var row = s.map[key];
-        if (!row) {
-          /* Bu dilimde site yoksa bir önceki dilimini taşı */
-          var prev = null;
-          for (var i = s.keys.length - 1; i >= 0; i--) {
-            if (s.keys[i] <= bucketKey) {
-              prev = s.map[String(s.keys[i])];
-              break;
-            }
-          }
-          row = prev;
-        }
-        if (!row) return;
-        out.active_users += Number(row.active_users) || 0;
-        out.pageviews += Number(row.pageviews) || 0;
-        if (row.active_users_prev_week != null) {
-          out.active_users_prev_week += Number(row.active_users_prev_week) || 0;
-          out._hasPrevAu = true;
-        }
-        if (row.pageviews_prev_week != null) {
-          out.pageviews_prev_week += Number(row.pageviews_prev_week) || 0;
-          out._hasPrevPv = true;
-        }
-      });
-      if (!out._hasPrevAu) out.active_users_prev_week = null;
-      if (!out._hasPrevPv) out.pageviews_prev_week = null;
-      delete out._hasPrevAu;
-      delete out._hasPrevPv;
-      return out;
-    });
-  }
-
-  function _rtRenderGlobalMergedSpark(globalEl) {
-    if (!globalEl || !globalEl.hasAttribute('data-rt-global-total')) return;
-    var trendsBySite = globalEl._rtSiteTrends || {};
-    var trendList = [];
-    Object.keys(trendsBySite).forEach(function (sid) {
-      var t = trendsBySite[sid];
-      if (t && t.length) trendList.push(t);
-    });
-    var merged = _rtMergeSiteTrends(trendList);
-    globalEl._rtCombinedTrend = merged;
-    if (!globalEl._rtSparkMetric) globalEl._rtSparkMetric = 'au';
-    if (merged.length) {
-      _rtSetSiteSparkMetric(globalEl, globalEl._rtSparkMetric);
-    } else {
-      var barsEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-bars]');
-      if (barsEl) {
-        barsEl.innerHTML =
-          '<p class="rt-site-spark-empty-msg" role="status">Birleşik 24s snapshot henüz yok — Tümünü Kontrol Et.</p>';
-      }
-    }
-  }
-
-  /** Total paneli KPI: slot reel animasyonu üst≠alt sapmasına yol açabiliyor — düz yaz. */
-  function _rtSetSparkLastPlain(siteEl, val) {
-    if (!siteEl) return;
-    var root = _rtSiteSparkRoot(siteEl);
-    var lastEl = root && root.querySelector('[data-rt-site-spark-last]');
-    if (!lastEl) return;
-    var text = val != null && !isNaN(val) ? _fmtExact(val) : '—';
-    lastEl.classList.remove('rt-slot-text');
-    lastEl.removeAttribute('data-rt-slot-cur');
-    lastEl.textContent = text;
-    lastEl.setAttribute('data-rt-slot-cur', text);
-    var stack = lastEl.closest('[data-rt-site-spark-kpi-stack]');
-    if (stack) _rtFitSparkKpiStack(stack);
-  }
-
-  function _rtTrendLastAu(trend) {
-    if (!trend || !trend.length) return null;
-    for (var i = trend.length - 1; i >= 0; i--) {
-      var n = Number(trend[i] && trend[i].active_users);
-      if (!isNaN(n)) return n;
-    }
-    return null;
-  }
-
-  function _rtSyncGlobalTotalLive() {
-    var globalEl = _rtGetGlobalTotalEl();
-    if (!globalEl) return;
-    var sum = 0;
-    var have = 0;
-    var parts = [];
-    var trendsBySite = globalEl._rtSiteTrends || {};
-    document.querySelectorAll('.rt-site-card[data-rt-site]').forEach(function (siteEl) {
-      var sid = siteEl.getAttribute('data-rt-site');
-      if (!sid) return;
-      var au = siteEl._rtSiteSumAu;
-      /* Canlı KPI yoksa site spark’ının son dilimini kullan — birleşik son dilim değil */
-      if (au == null) au = _rtTrendLastAu(trendsBySite[String(sid)]);
-      var wrap = globalEl.querySelector('[data-rt-global-site-spark="' + sid + '"]');
-      if (wrap) {
-        wrap._rtSparkMetric = 'au';
-        wrap._rtSiteSumAu = au != null ? au : null;
-        _rtSetSparkLastPlain(wrap, au);
-      }
-      if (au != null) {
-        sum += au;
-        have += 1;
-        var titleEl = siteEl.querySelector('h2');
-        var label = titleEl ? titleEl.childNodes[0].textContent.trim() : ('Site ' + sid);
-        parts.push(label + ' ' + _fmtExact(au));
-      }
-    });
-    globalEl._rtSparkMetric = 'au';
-    globalEl._rtSiteSumAu = have ? sum : null;
-    _rtSetSparkLastPlain(globalEl, have ? sum : null);
-    var lastEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-last]');
-    if (lastEl && have) {
-      lastEl.setAttribute('title', parts.join(' + ') + ' = ' + _fmtExact(sum));
-    }
-  }
-
-  function _rtRenderGlobalSiteSparkRows(globalEl) {
-    if (!globalEl) return;
-    var rangeKey = globalEl._rtSparkRangeKey || '24h';
-    var trendsBySite = globalEl._rtSiteTrends || {};
-    globalEl.querySelectorAll('[data-rt-global-site-spark]').forEach(function (wrap) {
-      var sid = wrap.getAttribute('data-rt-global-site-spark');
-      var trend = trendsBySite[String(sid)];
-      wrap._rtSparkRangeKey = rangeKey;
-      wrap._rtSparkMetric = 'au';
-      var barsEl = wrap.querySelector('[data-rt-site-spark-bars]');
-      if (!trend || !trend.length) {
-        if (barsEl) {
-          barsEl.innerHTML =
-            '<p class="rt-site-spark-empty-msg" role="status">24s snapshot henüz yok.</p>';
-        }
-        return;
-      }
-      _renderSiteSparkMetric(wrap, trend, 'au');
-    });
-    _rtSyncGlobalTotalLive();
-  }
-
-  function _setGlobalTotalLoading(globalEl, loading) {
-    if (!globalEl) return;
-    globalEl.querySelectorAll('[data-rt-site-spark-row]').forEach(function (row) {
-      row.classList.toggle('is-loading', !!loading);
-    });
-    var lottie = globalEl.querySelector('.rt-site-spark-lottie');
-    if (lottie) {
-      try {
-        if (loading) lottie.play();
-        else lottie.pause();
-      } catch (e) { /* lottie-player */ }
-    }
-  }
-
-  function _rtFetchGlobalTotalTrend(opts) {
-    opts = opts || {};
-    var globalEl = _rtGetGlobalTotalEl();
-    if (!globalEl) return Promise.resolve();
-    var siteIds = [];
-    document.querySelectorAll('.rt-site-card[data-rt-site]').forEach(function (el) {
-      var sid = parseInt(el.getAttribute('data-rt-site'), 10);
-      if (!isNaN(sid)) siteIds.push(sid);
-    });
-    if (!siteIds.length) return Promise.resolve();
-    if (opts.showLoading) _setGlobalTotalLoading(globalEl, true);
-
-    return Promise.all(
-      siteIds.map(function (sid) {
-        return fetch(
-          '/api/ga4/realtime/' + encodeURIComponent(sid) + '/trend-combined?hours=24&bucket_pages=0',
-          { credentials: 'same-origin', cache: 'no-store' }
-        )
-          .then(function (r) {
-            if (!r.ok) throw new Error('http_' + r.status);
-            return r.json();
-          })
-          .then(function (d) {
-            if (!d || d.error) throw new Error(d && d.error ? d.error : 'error');
-            return { sid: sid, trend: d.trend || [] };
-          });
-      })
-    )
-      .then(function (results) {
-        var trendsBySite = {};
-        results.forEach(function (r) {
-          trendsBySite[String(r.sid)] = r.trend;
-        });
-        globalEl._rtSiteTrends = trendsBySite;
-        globalEl._rtSparkMetric = 'au';
-        if (!globalEl._rtSparkRangeKey) globalEl._rtSparkRangeKey = '24h';
-        _wireSiteYfTabs(globalEl);
-        _rtRenderGlobalSiteSparkRows(globalEl);
-        _rtRenderGlobalMergedSpark(globalEl);
-        _setGlobalTotalLoading(globalEl, false);
-        var tsEl = globalEl.querySelector('[data-rt-global-total-ts]');
-        if (tsEl) {
-          tsEl.textContent =
-            'güncelleme: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-        }
-        _rtSyncGlobalTotalLive();
-      })
-      .catch(function () {
-        _setGlobalTotalLoading(globalEl, false);
-        var barsEl = globalEl.querySelector('[data-rt-site-sparks="global"] [data-rt-site-spark-bars]');
-        if (barsEl) {
-          barsEl.innerHTML =
-            '<p class="rt-site-spark-empty-msg" role="status">Birleşik grafik yüklenemedi. Sayfayı yenileyin.</p>';
-        }
-        globalEl.querySelectorAll('[data-rt-global-site-spark] [data-rt-site-spark-bars]').forEach(function (el) {
-          el.innerHTML =
-            '<p class="rt-site-spark-empty-msg" role="status">Grafik yüklenemedi.</p>';
-        });
-      });
-  }
 
   function _rtSyncSiteSparkLiveTotal(siteEl) {
     if (!siteEl) return;
-    /* Global Total paneli: tek kaynak _rtSyncGlobalTotalLive (üst = alt1+alt2) */
-    if (
-      siteEl.hasAttribute('data-rt-global-total') ||
-      siteEl.hasAttribute('data-rt-global-site-spark') ||
-      (siteEl.closest && siteEl.closest('[data-rt-global-total]'))
-    ) {
-      _rtSyncGlobalTotalLive();
-      return;
-    }
     var root = _rtSiteSparkRoot(siteEl);
     var lastEl = root.querySelector('[data-rt-site-spark-last]');
     if (!lastEl) return;
@@ -4015,10 +3580,6 @@
         _syncSiteYfTabs(siteEl, key);
         if (siteEl._rtCombinedTrend && siteEl._rtCombinedTrend.length) {
           _rtSetSiteSparkMetric(siteEl, siteEl._rtSparkMetric || 'au');
-        }
-        if (siteEl.hasAttribute('data-rt-global-total')) {
-          _rtRenderGlobalSiteSparkRows(siteEl);
-          _rtRenderGlobalMergedSpark(siteEl);
         }
         rtRefreshSparkTableIfOpen();
       });
@@ -4072,13 +3633,9 @@
       rowEl.classList.toggle('rt-site-spark-row--brand-blue', _rtSiteSparkUsesBlue(siteEl, metric));
     }
     if (!barsEl) return;
-    _wireSiteYfTabs(siteEl.hasAttribute('data-rt-global-total') ? siteEl : root);
-    var rangeKey = _rtSiteSparkRangeKey(siteEl.hasAttribute('data-rt-global-total') ? siteEl : root);
-    if (siteEl.hasAttribute('data-rt-global-total')) {
-      siteEl._rtSparkRangeKey = rangeKey;
-    } else {
-      root._rtSparkRangeKey = rangeKey;
-    }
+    _wireSiteYfTabs(root);
+    var rangeKey = _rtSiteSparkRangeKey(root);
+    root._rtSparkRangeKey = rangeKey;
     if (root._rtSparkRenderRange !== rangeKey) {
       if (barsEl) barsEl.removeAttribute('data-slot-bars-ready');
       root._rtSparkRenderRange = rangeKey;
@@ -5236,10 +4793,6 @@
 
   function _rtSiteSparkUsesBlue(siteEl, metric) {
     if (metric !== 'au' || !siteEl) return false;
-    /* Total sekmesi: yalnızca birleşik Döviz+Sinemalar spark mavi; alt site satırları yeşil */
-    if (siteEl.hasAttribute('data-rt-global-site-spark')) return false;
-    if (siteEl.hasAttribute('data-rt-global-total')) return true;
-    if (siteEl.matches && siteEl.matches('[data-rt-site-sparks="global"]')) return true;
     var slug = siteEl.getAttribute('data-rt-site-slug');
     return slug === 'doviz' || slug === 'sinemalar';
   }
@@ -6739,7 +6292,6 @@
       rtFetchTopPages(sidInt, prof);
       rtFetchTopEvents(sidInt, prof);
     });
-    if (rtGetViewMode() === 'total') _rtFetchGlobalTotalTrend({ showLoading: false });
     _fetchGlobalAlarms();
     document.querySelectorAll('[data-rt-site]').forEach(function (el) {
       var sid = parseInt(el.getAttribute('data-rt-site'), 10);
@@ -6754,8 +6306,8 @@
     try {
       var v = localStorage.getItem(RT_VIEW_LS_KEY);
       if (v === 'full') return 'full';
-      if (v === 'total') return 'total';
       if (v === 'names') return 'names';
+      /* Total kaldırıldı → Özet */
       return 'compact';
     } catch (e) {
       return 'compact';
@@ -6766,14 +6318,14 @@
     var prev = window._rtLastViewMode || null;
     var m =
       mode === 'compact' ? 'compact'
-      : mode === 'total' ? 'total'
       : mode === 'names' ? 'names'
+      : mode === 'total' ? 'compact'
       : 'full';
     try {
       localStorage.setItem(RT_VIEW_LS_KEY, m);
     } catch (e2) {}
+    document.documentElement.classList.remove('rt-view--total');
     document.documentElement.classList.toggle('rt-view--compact', m === 'compact');
-    document.documentElement.classList.toggle('rt-view--total', m === 'total');
     document.documentElement.classList.toggle('rt-view--names', m === 'names');
     var pills = document.getElementById('rt-view-pills');
     if (pills) {
@@ -6782,14 +6334,6 @@
         btn.setAttribute('aria-checked', on ? 'true' : 'false');
         btn.classList.toggle('rt-pill-on', on);
       });
-    }
-    if (m === 'total') {
-      var globalEl = _rtGetGlobalTotalEl();
-      if (globalEl) {
-        _wireSiteYfTabs(globalEl);
-        _rtSyncGlobalTotalLive();
-        _rtFetchGlobalTotalTrend({ showLoading: !globalEl._rtCombinedTrend });
-      }
     }
     if (m === 'compact') {
       document.querySelectorAll('[data-rt-404-section]').forEach(function (sec) {
@@ -6801,7 +6345,7 @@
       _ensureNamesBoardTimer(true);
     } else {
       _ensureNamesBoardTimer(false);
-      /* Linkler'den çıkınca Tam/Özet/Total verisini yeniden doldur */
+      /* Linkler'den çıkınca Tam/Özet verisini yeniden doldur */
       if (prev === 'names') _resumeStandardRealtime();
     }
     window._rtLastViewMode = m;
@@ -7347,11 +6891,6 @@
       }, PAGES_INTERVAL_MS);
 
     });
-    if (_globalTotalTimer) clearInterval(_globalTotalTimer);
-    _globalTotalTimer = setInterval(function () {
-      if (_isNightMode() || rtGetViewMode() !== 'total') return;
-      _rtFetchGlobalTotalTrend({ showLoading: false });
-    }, PAGES_INTERVAL_MS);
     setTimeout(function() {
       if (!_isNightMode() && rtGetViewMode() !== 'names') _fetchGlobalAlarms();
     }, 1000);
@@ -7383,8 +6922,7 @@
         var sid = parseInt(el.getAttribute('data-rt-site'), 10);
         if (!isNaN(sid)) _pollSiteCombinedTrend(sid);
       });
-      if (rtGetViewMode() === 'total') _rtFetchGlobalTotalTrend({ showLoading: false });
-    });
+      });
 
     document.addEventListener('seo-theme-change', function () {
       _rtProfileBoxes().forEach(function (box, vidx) {
@@ -7533,11 +7071,6 @@
       _rtSetSiteSparkMetric(siteEl, tab.getAttribute('data-rt-site-metric-tab'));
     });
     _initRtAlarmSitePills();
-    var globalTotalEl = _rtGetGlobalTotalEl();
-    if (globalTotalEl) {
-      globalTotalEl._rtSparkRangeKey = '24h';
-      _wireSiteYfTabs(globalTotalEl);
-    }
     _primeSiteCombinedTrends();
     _startPolling();
     _restoreRealtimeScroll();
@@ -7641,18 +7174,6 @@
         sub: (RT_LIST_RANGE_LABELS[_rtTrendRangeForBox(box)] || '24 saat') + ' · spark dilimleri (tepe aktif / tepe görüntüleme)',
         trend: box._rtTrendFull || [],
         rangeKey: _rtTrendRangeForBox(box),
-      };
-    }
-    var globalEl = fromEl.closest('[data-rt-global-total]');
-    if (globalEl) {
-      return {
-        anchor: globalEl,
-        title: 'Döviz + Sinemalar · toplam',
-        sub:
-          (RT_LIST_RANGE_LABELS[_rtSiteSparkRangeKey(globalEl)] || '24 saat') +
-          ' · birleşik site toplamları',
-        trend: globalEl._rtCombinedTrend || [],
-        rangeKey: _rtSiteSparkRangeKey(globalEl),
       };
     }
     var siteEl = fromEl.closest('[data-rt-site]');
