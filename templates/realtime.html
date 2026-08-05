@@ -1285,13 +1285,13 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    max-height: min(70vh, 42rem);
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
   }
   .rt-names-row {
     display: grid;
-    grid-template-columns: 1.4rem minmax(0, 1fr);
-    gap: 0.35rem;
+    grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+    gap: 0.35rem 0.45rem;
     align-items: start;
     padding: 0.28rem 0.1rem;
     border-radius: 0.35rem;
@@ -1326,6 +1326,33 @@
   a.rt-names-title:hover {
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+  .rt-names-traffic {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.05rem;
+    padding-top: 0.05rem;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .rt-names-traffic strong {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+  html.dark .rt-names-traffic strong {
+    color: #f4f4f5;
+  }
+  .rt-names-traffic span {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #94a3b8;
+    line-height: 1.15;
+  }
+  html.dark .rt-names-traffic span {
+    color: #71717a;
   }
   .rt-names-col-ts {
     margin-top: 0.45rem;
@@ -2752,7 +2779,7 @@
     <div class="rt-names-board-head">
       <div>
         <h2>Canlı linkler</h2>
-        <p>Son ~15 dk · yalnızca sayfa adı · Döviz &amp; Sinemalar web/mweb · top 50</p>
+        <p>Son ~15 dk · sayfa adı + anlık trafik · Döviz &amp; Sinemalar web/mweb · top 50</p>
       </div>
       <p class="text-xs tabular-nums text-slate-400 dark:text-slate-500" data-rt-names-board-ts>—</p>
     </div>
@@ -6573,13 +6600,19 @@
     listEl.innerHTML = sorted.map(function (p, i) {
       var titleRaw = String((p && p.page) || '(bilinmiyor)').trim() || '(bilinmiyor)';
       var href = _rtPageHref(domain, p, profile);
-      var tip = _attr(titleRaw + (href ? '\n' + href : ''));
+      var users = Number(p.activeUsers) || 0;
+      var views = Number(p.screenPageViews) || 0;
+      var tip = _attr(titleRaw + '\n' + users + ' kul. · ' + views + ' gör.' + (href ? '\n' + href : ''));
       var titleHtml = href
         ? '<a class="rt-names-title" href="' + _attr(href) + '" target="_blank" rel="noopener noreferrer" title="' + tip + '">' + _esc(titleRaw) + '</a>'
         : '<span class="rt-names-title" title="' + tip + '">' + _esc(titleRaw) + '</span>';
       return '<li class="rt-names-row">'
         + '<span class="rt-names-rank">' + (i + 1) + '</span>'
         + titleHtml
+        + '<div class="rt-names-traffic" title="' + tip + '">'
+        + '<strong>' + _fmt(users) + '</strong>'
+        + '<span>' + _fmt(views) + ' gör.</span>'
+        + '</div>'
         + '</li>';
     }).join('');
   }
