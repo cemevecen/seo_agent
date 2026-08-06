@@ -143,7 +143,11 @@ def build_notification_week_compare(
     reference_day: date | None = None,
     top_n: int = 5,
 ) -> dict[str, Any]:
-    """Son 7 gün vs önceki 7 gün — platform click/impression + top başlıklar (Döviz workspace)."""
+    """Son 7 tam gün vs önceki 7 gün — platform click/impression + top başlıklar (Döviz).
+
+    reference_day pencerenin son günüdür (dahil). Ana sayfa dünü verir ki
+    bugünün eksik verisi kıyasa karışmasın.
+    """
     ref = reference_day or date.today()
     cur_start, cur_end, prev_start, prev_end = _week_windows(ref)
     all_rows = _load_rows(_get_workspace(db))

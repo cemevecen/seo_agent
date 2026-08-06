@@ -9948,12 +9948,8 @@ def home_summary_payload(db) -> dict:
     try:
         from backend.services.notification_analytics_alerts import build_notification_week_compare
 
-        try:
-            tz = ZoneInfo(settings.scheduled_refresh_timezone or "Europe/Istanbul")
-        except Exception:  # noqa: BLE001
-            tz = ZoneInfo("Europe/Istanbul")
         nt = build_notification_week_compare(
-            db, reference_day=datetime.now(tz).date(), top_n=10
+            db, reference_day=_home_notification_week_reference_day(), top_n=10
         )
         totals = nt.get("totals") or {}
         platforms = []
@@ -10261,14 +10257,19 @@ def _home_nt_impr_bars(
     }
 
 
-def _home_notification_week_context(db) -> dict:
-    from backend.services.notification_analytics_alerts import build_notification_week_compare
-
+def _home_notification_week_reference_day():
+    """Notification 7g kıyası: dünden geriye (bugünün eksik gününü dahil etme)."""
     try:
         tz = ZoneInfo(settings.scheduled_refresh_timezone or "Europe/Istanbul")
     except Exception:  # noqa: BLE001
         tz = ZoneInfo("Europe/Istanbul")
-    ref = datetime.now(tz).date()
+    return datetime.now(tz).date() - timedelta(days=1)
+
+
+def _home_notification_week_context(db) -> dict:
+    from backend.services.notification_analytics_alerts import build_notification_week_compare
+
+    ref = _home_notification_week_reference_day()
     raw = build_notification_week_compare(db, reference_day=ref, top_n=40)
     totals = raw.get("totals") or {}
     windows = raw.get("windows") or {}
