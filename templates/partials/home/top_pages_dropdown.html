@@ -1,0 +1,31 @@
+{# Kapalı dropdown — top 25 trafik sayfası (GA4 / SC) #}
+{% macro home_top_pages_dropdown(pages, metric_label='trafik') -%}
+<details class="home-top-pages">
+  <summary class="home-top-pages-summary">
+    <span class="home-top-pages-summary-label">Top 25 sayfa</span>
+    <span class="home-top-pages-chevron" aria-hidden="true"></span>
+  </summary>
+  {% if pages %}
+    <ol class="home-top-pages-list">
+      {% for row in pages %}
+        <li class="home-top-pages-row">
+          <span class="home-top-pages-rank">{{ loop.index }}</span>
+          <div class="home-top-pages-main">
+            {% if row.href %}
+              <a class="home-top-pages-link" href="{{ row.href }}" target="_blank" rel="noopener noreferrer" title="{{ row.label }}">{{ row.label }}</a>
+            {% else %}
+              <span class="home-top-pages-link is-plain" title="{{ row.label }}">{{ row.label }}</span>
+            {% endif %}
+            <div class="home-top-pages-stats">
+              <span class="home-top-pages-metric tabular-nums" title="{{ metric_label }}">{{ row.metric_fmt }} <span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span></span>
+              <span class="home-top-pages-pos tabular-nums" title="SC pozisyon">{{ row.pos_cur_fmt }} <span class="home-delta is-{{ row.pos_tone }}">{{ row.pos_diff_fmt }}</span></span>
+            </div>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="home-top-pages-empty">Sayfa verisi yok</p>
+  {% endif %}
+</details>
+{%- endmacro %}

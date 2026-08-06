@@ -19,8 +19,9 @@ _TOP50_EMPTY = {
 }
 
 
+@patch("backend.main._home_sc_top_pages", return_value=[])
 @patch("backend.main._home_sc_top50_device_position", return_value=_TOP50_EMPTY)
-def test_home_sc_uses_sitewide_7d_summary_position(_mock_top50):
+def test_home_sc_uses_sitewide_7d_summary_position(_mock_top50, _mock_pages):
     """Top-query snapshot yerine CollectorRun date×device özeti kullanılır."""
     db = MagicMock()
     summary = {
@@ -75,8 +76,9 @@ def test_home_sc_trend_series_device_key_case_insensitive():
     assert series == [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]
 
 
+@patch("backend.main._home_sc_top_pages", return_value=[])
 @patch("backend.main._home_sc_top50_device_position", return_value=_TOP50_EMPTY)
-def test_home_sc_aggregate_includes_spark_paths(_mock_top50):
+def test_home_sc_aggregate_includes_spark_paths(_mock_top50, _mock_pages):
     db = MagicMock()
     dates = [f"2026-07-{d:02d}" for d in range(22, 29)]
     summary = {
@@ -102,6 +104,8 @@ def test_home_sc_aggregate_includes_spark_paths(_mock_top50):
     assert agg["pos_spark"]["has_points"] is True
     assert agg["clicks_tone"] == "up-strong"
     assert agg["pos_tone"] == "up"  # 5.5 → 5.0 = +0.5 sıra
+    assert agg["top_pages"] == []
+    _mock_pages.assert_called_once()
 
 
 @patch("backend.services.warehouse.get_latest_search_console_rows")

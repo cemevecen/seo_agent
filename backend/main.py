@@ -9006,6 +9006,9 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
     except Exception:
         latest_metrics = {}
 
+    site_obj = _home_get_site(db, site_id)
+    site_domain = site_obj.domain if site_obj else None
+
     out = []
     for prof_key, prof_label in profiles:
         # 1. period_days=7 snapshot dene
@@ -9024,6 +9027,15 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
         delta_fmt, tone, delta_pct = _home_pct_delta(last_v, prev_v)
         spark_vals = _home_ga4_session_spark_values(db, site_id, prof_key, days=7)
         spark = _home_spark_paths(spark_vals, width=96, height=28, pad=2)
+        top_pages: list[dict] = []
+        if prof_key in ("web", "mweb"):
+            try:
+                top_pages = _home_ga4_top_pages(
+                    db, site_id, prof_key, site_domain=site_domain, limit=_HOME_TOP_PAGES_LIMIT
+                )
+            except Exception:  # noqa: BLE001
+                LOGGER.exception("Home GA4 top pages failed site=%s profile=%s", site_id, prof_key)
+                top_pages = []
         out.append({
             "key": prof_key,
             "label": prof_label,
@@ -9033,6 +9045,140 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
             "tone": tone,
             "delta_pct": delta_pct,
             "spark": spark,
+            "top_pages": top_pages,
+        })
+    return out
+
+
+_HOME_TOP_PAGES_LIMIT = 25
+
+
+def _home_page_href(label: str, domain: str | None) -> str:
+    raw = str(label or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw
+    host = str(domain or "").replace("https://", "").replace("http://", "").strip().strip("/")
+    if not host:
+        return raw
+    path = raw[1:] if raw.startswith("/") else raw
+    return f"https://{host}/{path}"
+
+
+def _home_ga4_top_pages(
+    db,
+    site_id: int,
+    profile: str,
+    *,
+    site_domain: str | None,
+    limit: int = _HOME_TOP_PAGES_LIMIT,
+) -> list[dict]:
+    """GA4 pages tablosu ile aynı kaynak: pages_no_news + SC pozisyon."""
+    if profile not in ("web", "mweb"):
+        return []
+    snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=7)
+    if not snap or not ((snap.get("payload") or {}).get("pages_no_news")):
+        snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
+    raw_rows = ((snap or {}).get("payload") or {}).get("pages_no_news") or []
+    if not raw_rows:
+        return []
+    rows = _enrich_ga4_page_rows(raw_rows, keep_news_articles=False)
+    try:
+        sc_diff, sc_cur = _sc_page_position_lookups_for_ga4(
+            db,
+            site_id=site_id,
+            days=7,
+            profile=profile,
+            site_domain=site_domain,
+        )
+        rows = _attach_sc_position_to_ga4_rows(rows, sc_diff, sc_cur, site_domain)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Home GA4 SC position attach failed site=%s profile=%s", site_id, profile)
+
+    rows = sorted(rows, key=lambda r: float((r or {}).get("last_total") or 0), reverse=True)[: max(1, int(limit))]
+    out: list[dict] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        href = _ga4_row_page_href(row, site_domain) or ""
+        label = _ga4_row_page_label(row, site_domain) or str(row.get("page") or "")
+        last_v = float(row.get("last_total") or 0)
+        prev_v = float(row.get("prev_total") or 0)
+        delta_pct = float(row.get("delta_pct") or 0)
+        delta_fmt, _ignored_tone, _ = _home_pct_delta(last_v, prev_v)
+        pos_cur = row.get("sc_position_current")
+        pos_diff = row.get("sc_position_diff")
+        pos_tone = "flat"
+        pos_diff_fmt = "—"
+        pos_cur_fmt = "—"
+        if pos_cur is not None:
+            try:
+                pos_cur_fmt = _format_max_two_decimals(float(pos_cur))
+            except (TypeError, ValueError):
+                pos_cur_fmt = "—"
+        if pos_diff is not None:
+            try:
+                pd = float(pos_diff)
+                pos_diff_fmt = _format_signed_max_two_decimals(pd)
+                pos_tone = _home_pos_tone(pd)
+            except (TypeError, ValueError):
+                pass
+        out.append({
+            "href": href,
+            "label": label,
+            "metric_fmt": _home_format_int(last_v),
+            "prev_fmt": _home_format_int(prev_v),
+            "delta_fmt": delta_fmt,
+            "delta_tone": _home_pct_tone(delta_pct),
+            "pos_cur_fmt": pos_cur_fmt,
+            "pos_diff_fmt": pos_diff_fmt,
+            "pos_tone": pos_tone,
+            "kind": "ga4",
+        })
+    return out
+
+
+def _home_sc_top_pages(
+    db,
+    site_id: int,
+    device: str,
+    *,
+    site_domain: str | None,
+    limit: int = _HOME_TOP_PAGES_LIMIT,
+) -> list[dict]:
+    """Search Console top pages (7g) — clicks + pozisyon farkı."""
+    batch = get_latest_search_console_rows_batch(
+        db, site_id=site_id, scopes=["current_7d_pages", "previous_7d_pages"]
+    )
+    cur = _filter_search_console_rows_by_device(batch.get("current_7d_pages") or [], device)
+    prev = _filter_search_console_rows_by_device(batch.get("previous_7d_pages") or [], device)
+    if not cur and not prev:
+        return []
+    entities = _build_search_console_top_entities(cur, prev, label_key="query", limit=max(1, int(limit)))
+    out: list[dict] = []
+    for ent in entities:
+        label = str(ent.get("label") or "").strip()
+        if not label:
+            continue
+        href = _home_page_href(label, site_domain)
+        disp = label.replace("https://", "").replace("http://", "")
+        c_cur = float(ent.get("clicks_current") or 0)
+        c_prev = float(ent.get("clicks_previous") or 0)
+        delta_fmt, delta_tone, _ = _home_pct_delta(c_cur, c_prev)
+        p_cur = float(ent.get("position_current") or 0)
+        p_diff = float(ent.get("position_diff") or 0)
+        out.append({
+            "href": href,
+            "label": disp,
+            "metric_fmt": _home_format_int(c_cur),
+            "prev_fmt": _home_format_int(c_prev),
+            "delta_fmt": delta_fmt,
+            "delta_tone": delta_tone,
+            "pos_cur_fmt": _format_max_two_decimals(p_cur) if p_cur else "—",
+            "pos_diff_fmt": _format_signed_max_two_decimals(p_diff),
+            "pos_tone": _home_pos_tone(p_diff),
+            "kind": "sc",
         })
     return out
 
@@ -9240,6 +9386,15 @@ def _home_sc_device_aggregate(
         pad=2,
     )
     top50 = _home_sc_top50_device_position(db, site_id, device)
+    site_obj = _home_get_site(db, site_id)
+    site_domain = site_obj.domain if site_obj else None
+    try:
+        top_pages = _home_sc_top_pages(
+            db, site_id, device, site_domain=site_domain, limit=_HOME_TOP_PAGES_LIMIT
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Home SC top pages failed site=%s device=%s", site_id, device)
+        top_pages = []
     return {
         "clicks_last_fmt": _home_format_int(c_clicks),
         "clicks_prev_fmt": _home_format_int(p_clicks),
@@ -9253,6 +9408,7 @@ def _home_sc_device_aggregate(
         "pos_delta": pos_diff,
         "pos_tone": pos_tone,
         "pos_spark": pos_spark,
+        "top_pages": top_pages,
         **top50,
     }
 
