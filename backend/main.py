@@ -1896,81 +1896,110 @@ async def ip_allowlist_middleware(request: Request, call_next):
 
 @app.on_event("startup")
 def on_startup() -> None:
-    """Uygulama başlarken gerekli kontrolleri yapar."""
-    # Her migration statement ayrı bağlantıda çalışır — önceki hata sonrakini etkilemez
+    """Uvicorn’u hemen dinlemeye al — Railway /health için şart.
+
+    Ağır DB DDL / create_all / scheduler eski replica’nın sheet sync kilitlerinde
+    dakikalar bekleyebilir; senkron startup healthcheck’i düşürür.
+    """
+    import threading as _threading
+
+    LOGGER.info("Startup: healthcheck-safe — DB/scheduler arka planda başlatılıyor")
+    _threading.Thread(
+        target=_run_deferred_startup,
+        daemon=True,
+        name="app-deferred-startup",
+    ).start()
+
+
+def _run_deferred_startup() -> None:
+    """create_all, hafif migration, scheduler ve prewarm — bloklamadan."""
+    global SCHEDULER
+    import threading as _threading
+
     try:
         from sqlalchemy import text
         from backend.database import engine
+
+        # Kısa kilit/statement timeout: eski deploy sync kilidinde sonsuz bekleme olmasın
+        def _exec_stmt(stmt: str) -> None:
+            with engine.connect() as _conn:
+                if not _IS_SQLITE:
+                    try:
+                        _conn.execute(text("SET lock_timeout = '8s'"))
+                        _conn.execute(text("SET statement_timeout = '45s'"))
+                    except Exception:
+                        pass
+                _conn.execute(text(stmt))
+                _conn.commit()
+
         for stmt in [
             "ALTER TABLE news_intelligence_items ADD COLUMN source_url VARCHAR(512)",
             "ALTER TABLE news_intelligence_items ADD COLUMN image_url VARCHAR(1024)",
             "CREATE INDEX IF NOT EXISTS ix_news_intel_published_at ON news_intelligence_items (published_at DESC)",
             "CREATE INDEX IF NOT EXISTS ix_news_intel_cat_pub ON news_intelligence_items (category, published_at DESC)",
-            # AdPolicyViolation: CSV import için eklenen kolonlar
             "ALTER TABLE ad_policy_violations ADD COLUMN page_title VARCHAR(500) NOT NULL DEFAULT ''",
             "ALTER TABLE ad_policy_violations ADD COLUMN page_title_fetched_at TIMESTAMP",
             "ALTER TABLE ad_policy_violations ADD COLUMN extra_json TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE ad_policy_violations ADD COLUMN first_seen_at TIMESTAMP",
-            # Eski satırlar için first_seen_at boşsa fetched_at'i geriye yaz (geriye dönük olarak hiçbiri "yeni" sayılmasın)
             "UPDATE ad_policy_violations SET first_seen_at = fetched_at WHERE first_seen_at IS NULL",
-            # Unique constraint — duplicate engelle (mevcut duplicate varsa hata verir, pas geçilir)
             "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
-            # RealtimeAlarmLog.email_sent_at — cooldown sadece mail atılan alarmları saysın
             "ALTER TABLE realtime_alarm_logs ADD COLUMN email_sent_at TIMESTAMP",
             "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
             "ALTER TABLE inbox_gmail_credentials ADD COLUMN scheduled_sync_last_success_at TIMESTAMP",
             "ALTER TABLE support_inbox_messages ADD COLUMN body_html TEXT DEFAULT ''",
         ]:
             try:
-                with engine.connect() as _conn:
-                    _conn.execute(text(stmt))
-                    _conn.commit()
+                _exec_stmt(stmt)
             except Exception:
                 pass
     except Exception as e:
-        LOGGER.warning("Startup migration hatası: %s", e)
+        LOGGER.warning("Deferred startup migration hatası: %s", e)
 
-    # Startup logic continued
-    # Uygulama açılışında tablolar create_all ile hazırlanır.
-    # Index/DDL büyük tablolarda dakikalar sürebilir → healthcheck (/health) bloklanmasın.
-    global SCHEDULER
-    LOGGER.info("Startup: init_db (create_all, indexes deferred)…")
-    init_db(with_indexes=False)
     try:
-        from backend.database import ensure_indexes_background
+        LOGGER.info("Deferred startup: init_db (create_all)…")
+        init_db(with_indexes=False)
+        try:
+            from backend.database import ensure_indexes_background
 
-        ensure_indexes_background()
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("ensure_indexes_background kayıt hatası: %s", exc)
-    _bootstrap_admin_password_from_env()
-    LOGGER.info("Startup: core DB ready")
-    if is_railway_runtime():
-        LOGGER.info(
-            "Panel auth: Railway ortamı — giriş zorunlu (ADMIN_AUTH_ENFORCED=%s yok sayılır).",
-            settings.admin_auth_enforced,
-        )
-    elif not settings.admin_auth_enforced:
-        LOGGER.warning(
-            "ADMIN_AUTH_ENFORCED=false — panel girişi KAPALI (yalnızca güvenli yerel geliştirme için)."
-        )
-    if SCHEDULER is None:
-        SCHEDULER = _build_daily_refresh_scheduler()
-        if SCHEDULER is not None:
-            SCHEDULER.start()
-            ga4_sched = (
-                f", GA4={int(settings.ga4_scheduled_refresh_hour):02d}:{int(settings.ga4_scheduled_refresh_minute):02d}"
-                if settings.ga4_scheduled_refresh_enabled
-                else ""
-            )
+            ensure_indexes_background()
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("ensure_indexes_background kayıt hatası: %s", exc)
+        _bootstrap_admin_password_from_env()
+        LOGGER.info("Deferred startup: core DB ready")
+    except Exception:
+        LOGGER.exception("Deferred startup init_db failed")
+
+    try:
+        if is_railway_runtime():
             LOGGER.info(
-                "Scheduled jobs started. Search Console=%02d:%02d%s, full refresh=%02d:%02d %s.",
-                int(settings.search_console_scheduled_refresh_hour),
-                int(settings.search_console_scheduled_refresh_minute),
-                ga4_sched,
-                int(settings.scheduled_refresh_hour),
-                int(settings.scheduled_refresh_minute),
-                settings.scheduled_refresh_timezone,
+                "Panel auth: Railway ortamı — giriş zorunlu (ADMIN_AUTH_ENFORCED=%s yok sayılır).",
+                settings.admin_auth_enforced,
             )
+        elif not settings.admin_auth_enforced:
+            LOGGER.warning(
+                "ADMIN_AUTH_ENFORCED=false — panel girişi KAPALI (yalnızca güvenli yerel geliştirme için)."
+            )
+        if SCHEDULER is None:
+            SCHEDULER = _build_daily_refresh_scheduler()
+            if SCHEDULER is not None:
+                SCHEDULER.start()
+                ga4_sched = (
+                    f", GA4={int(settings.ga4_scheduled_refresh_hour):02d}:{int(settings.ga4_scheduled_refresh_minute):02d}"
+                    if settings.ga4_scheduled_refresh_enabled
+                    else ""
+                )
+                LOGGER.info(
+                    "Scheduled jobs started. Search Console=%02d:%02d%s, full refresh=%02d:%02d %s.",
+                    int(settings.search_console_scheduled_refresh_hour),
+                    int(settings.search_console_scheduled_refresh_minute),
+                    ga4_sched,
+                    int(settings.scheduled_refresh_hour),
+                    int(settings.scheduled_refresh_minute),
+                    settings.scheduled_refresh_timezone,
+                )
+    except Exception:
+        LOGGER.exception("Deferred startup scheduler failed")
+
     try:
         from backend.services.app_intel import prewarm_app_intel_cache_background
 
@@ -1978,7 +2007,6 @@ def on_startup() -> None:
     except Exception:
         LOGGER.exception("app_intel prewarm registration failed")
 
-    # Crashlytics BQ cache'ini arka planda ısıt — /firebase açılışı anlık olsun
     def _prewarm_crashlytics():
         try:
             from backend.services import crashlytics_bq as cbq
@@ -1986,10 +2014,8 @@ def on_startup() -> None:
         except Exception as exc:
             LOGGER.warning("Crashlytics startup prewarm hatası: %s", exc)
 
-    import threading as _threading
     _threading.Thread(target=_prewarm_crashlytics, daemon=True, name="crashlytics-prewarm-startup").start()
 
-    # TMDB vizyon takvimi cache'ini arka planda ısıt (ilk sayfa açılışı hızlı olsun)
     def _prewarm_tmdb():
         try:
             from backend.services.tmdb import refresh_combined_cache
@@ -1997,7 +2023,6 @@ def on_startup() -> None:
         except Exception as exc:
             LOGGER.warning("TMDB startup prewarm hatası: %s", exc)
 
-    import threading as _threading
     _threading.Thread(target=_prewarm_tmdb, daemon=True, name="tmdb-prewarm").start()
 
     if settings.inbox_startup_sync_enabled:
@@ -2041,6 +2066,7 @@ def on_startup() -> None:
         daemon=True,
         name="notification-sheet-startup",
     ).start()
+    LOGGER.info("Deferred startup: background tasks registered")
 
 
 @app.on_event("shutdown")
