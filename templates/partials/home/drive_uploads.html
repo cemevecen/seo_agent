@@ -187,8 +187,6 @@
 
   {% if oauth_error %}
     <p class="home-drive-status is-err mt-3">OAuth: {{ oauth_error }}</p>
-  {% elif error %}
-    <p class="home-drive-status is-err mt-3">{{ error }}</p>
   {% elif not oauth_client_configured %}
     <p class="home-drive-status is-err mt-3">GOOGLE_CLIENT_ID / SECRET eksik.</p>
   {% elif not connected %}
@@ -198,6 +196,12 @@
       <code class="break-all text-[0.7rem] text-slate-600 dark:text-zinc-300">{{ redirect_uri }}</code>
     </p>
   {% else %}
+    {% if error %}
+      <p class="home-drive-status is-err mt-3">Liste: {{ error }}</p>
+    {% endif %}
+    {% if not folder_id %}
+      <p class="home-drive-status is-err mt-3">HOME_DRIVE_FOLDER_ID tanımlı değil.</p>
+    {% endif %}
     <label class="home-drive-drop mt-4" data-home-drive-drop>
       <input type="file" accept="image/*" multiple data-home-drive-input>
       <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Görsel sürükle veya seç</p>
