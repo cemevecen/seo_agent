@@ -228,7 +228,7 @@
                 <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
               </div>
               {% if dev.top50_has_data %}
-              <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki 7g)">
+              <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki {{ period_days | default(7) }}g)">
                 <p class="home-sc-top50-label">top 50</p>
                 <p class="home-sc-top50-vals">{{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}</p>
               </div>
@@ -259,7 +259,7 @@
           </div>
         </div>
         {{ home_top_pages_trigger(_pages_id) }}
-        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay', prev_label=prev_period_label | default('Önceki dönem')) }}
+        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay', cur_label=cur_period_label | default('Son dönem'), prev_label=prev_period_label | default('Önceki dönem')) }}
         {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=want ~ ' · top 25 sayfa') }}
       </div>
     {% endfor %}

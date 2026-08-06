@@ -2922,6 +2922,8 @@ def _search_console_report_payload(
     previous_30d_by_device = summary_payload.get("previous_30d_summary_by_device") or {}
     current_60d_by_device = summary_payload.get("current_60d_summary_by_device") or {}
     previous_60d_by_device = summary_payload.get("previous_60d_summary_by_device") or {}
+    current_90d_by_device = summary_payload.get("current_90d_summary_by_device") or {}
+    previous_90d_by_device = summary_payload.get("previous_90d_summary_by_device") or {}
     sw_day = summary_payload.get("same_weekday_day") if isinstance(summary_payload.get("same_weekday_day"), dict) else {}
     sw_by_device = sw_day.get("by_device") if isinstance(sw_day.get("by_device"), dict) else {}
 
@@ -3104,8 +3106,8 @@ def _search_console_report_payload(
             else:
                 fc = _filter_search_console_rows_by_device(current_rows_90, device_code)
                 fp = _filter_search_console_rows_by_device(previous_rows_90, device_code)
-                summary_current = _summarize_search_console_rows(fc)
-                summary_previous = _summarize_search_console_rows(fp)
+                summary_current = current_90d_by_device.get(device_code) or _summarize_search_console_rows(fc)
+                summary_previous = previous_90d_by_device.get(device_code) or _summarize_search_console_rows(fp)
                 device_top = _build_search_console_top_queries(fc, fp, limit=50)
                 pages_current = []
                 pages_previous = []
@@ -9713,6 +9715,7 @@ def api_home_ga4_sessions(
             "period_days": period_days,
             "period_label": _home_period_label(period_days),
             "site_key": site_key,
+            "cur_period_label": f"Son {period_days} gün",
             "prev_period_label": f"Önceki {period_days} gün",
         },
     )
@@ -9820,6 +9823,79 @@ def _home_sc_top50_device_position(db, site_id: int, device: str, *, period_days
         return empty
 
 
+def _home_sc_trend_window_totals(
+    summary_payload: dict | None,
+    device: str,
+    *,
+    start: str,
+    end: str,
+) -> tuple[float, float, float] | None:
+    """trend_12m günlük serisinden [start, end] toplam clicks/impr + ağırlıklı pozisyon."""
+    if not summary_payload or not start or not end:
+        return None
+    by_dev = summary_payload.get("trend_12m_summary_by_device") or {}
+    trend = by_dev.get(device) or by_dev.get(device.upper()) or by_dev.get(device.lower()) or {}
+    if not trend:
+        for k, v in by_dev.items():
+            if str(k).upper() == str(device).upper():
+                trend = v or {}
+                break
+    dates = [str(d)[:10] for d in (trend.get("dates") or [])]
+    if not dates:
+        # Ham satır yedek
+        rows = summary_payload.get("trend_12m_rows") or []
+        clicks = 0.0
+        impr = 0.0
+        wpos = 0.0
+        for row in rows:
+            if str(row.get("device") or "").upper() != str(device).upper():
+                continue
+            d = str(row.get("date") or "")[:10]
+            if not d or d < start or d > end:
+                continue
+            c = float(row.get("clicks") or 0.0)
+            im = float(row.get("impressions") or 0.0)
+            pos = float(row.get("position") or 0.0)
+            clicks += c
+            impr += im
+            if im > 0 and pos > 0:
+                wpos += pos * im
+        if clicks <= 0 and impr <= 0:
+            return None
+        return (clicks, impr, (wpos / impr) if impr > 0 else 0.0)
+
+    clicks_raw = list(trend.get("clicks") or [])
+    impr_raw = list(trend.get("impressions") or [])
+    pos_raw = list(trend.get("position") or [])
+    clicks = 0.0
+    impr = 0.0
+    wpos = 0.0
+    matched = 0
+    for i, d in enumerate(dates):
+        if not d or d < start or d > end:
+            continue
+        matched += 1
+        try:
+            c = float(clicks_raw[i] if i < len(clicks_raw) else 0) or 0.0
+        except (TypeError, ValueError):
+            c = 0.0
+        try:
+            im = float(impr_raw[i] if i < len(impr_raw) else 0) or 0.0
+        except (TypeError, ValueError):
+            im = 0.0
+        try:
+            pos = float(pos_raw[i] if i < len(pos_raw) else 0) or 0.0
+        except (TypeError, ValueError):
+            pos = 0.0
+        clicks += c
+        impr += im
+        if im > 0 and pos > 0:
+            wpos += pos * im
+    if matched < 2 and clicks <= 0 and impr <= 0:
+        return None
+    return (clicks, impr, (wpos / impr) if impr > 0 else 0.0)
+
+
 def _home_sc_device_aggregate(
     db,
     site_id: int,
@@ -9886,8 +9962,30 @@ def _home_sc_device_aggregate(
         c_pos = float(cur_sum.get("position") or 0.0)
         p_pos = float(prev_sum.get("position") or 0.0)
     else:
-        c_clicks, c_impr, c_pos = _from_snapshot(f"current_{period_days}d")
-        p_clicks, p_impr, p_pos = _from_snapshot(f"previous_{period_days}d")
+        # 90g gibi özet anahtarı yoksa: trend_12m penceresi → snapshot yedek
+        cur_start = str((summary or {}).get(f"current_{period_days}d_start") or "")[:10]
+        cur_end = str((summary or {}).get(f"current_{period_days}d_end") or "")[:10]
+        prev_start = str((summary or {}).get(f"previous_{period_days}d_start") or "")[:10]
+        prev_end = str((summary or {}).get(f"previous_{period_days}d_end") or "")[:10]
+        if not prev_start and cur_start:
+            try:
+                from datetime import date as _date, timedelta as _td
+                _cs = _date.fromisoformat(cur_start)
+                _pe = _cs - _td(days=1)
+                _ps = _pe - _td(days=period_days - 1)
+                prev_start, prev_end = _ps.isoformat(), _pe.isoformat()
+            except ValueError:
+                prev_start, prev_end = "", ""
+        cur_t = _home_sc_trend_window_totals(summary, device, start=cur_start, end=cur_end) if cur_start and cur_end else None
+        prev_t = _home_sc_trend_window_totals(summary, device, start=prev_start, end=prev_end) if prev_start and prev_end else None
+        if cur_t:
+            c_clicks, c_impr, c_pos = cur_t
+        else:
+            c_clicks, c_impr, c_pos = _from_snapshot(f"current_{period_days}d")
+        if prev_t:
+            p_clicks, p_impr, p_pos = prev_t
+        else:
+            p_clicks, p_impr, p_pos = _from_snapshot(f"previous_{period_days}d")
 
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
@@ -10004,6 +10102,7 @@ def api_home_sc_summary(
             "period_days": period_days,
             "period_label": _home_period_label(period_days),
             "site_key": site_key,
+            "cur_period_label": f"Son {period_days} gün",
             "prev_period_label": f"Önceki {period_days} gün",
         },
     )

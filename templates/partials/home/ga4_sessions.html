@@ -103,7 +103,7 @@
     </div>
     {% for prof in site.profiles %}
       {% set _kpi_id = 'ga4-kpi-' ~ site.site_id ~ '-' ~ prof.key %}
-      {{ home_detail_kpis_panel(_kpi_id, prof.detail_kpis | default([]), title=prof.label ~ ' · KPI detay', prev_label=prev_period_label | default('Önceki dönem')) }}
+      {{ home_detail_kpis_panel(_kpi_id, prof.detail_kpis | default([]), title=prof.label ~ ' · KPI detay', cur_label=cur_period_label | default('Son dönem'), prev_label=prev_period_label | default('Önceki dönem')) }}
       {% if prof.key in ('web', 'mweb') %}
         {% set _pages_id = 'ga4-pages-' ~ site.site_id ~ '-' ~ prof.key %}
         {{ home_top_pages_panel(_pages_id, prof.top_pages | default([]), metric_label='views', metric_header='Views', title=prof.label ~ ' · top 25 sayfa') }}

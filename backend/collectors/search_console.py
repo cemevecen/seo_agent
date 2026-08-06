@@ -1813,6 +1813,16 @@ def collect_search_console_metrics(
             "MOBILE": _summarize_rows([r for r in previous_60d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
             "DESKTOP": _summarize_rows([r for r in previous_60d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
         }
+        current_90d_summary = _summarize_rows(current_90d_rows)
+        previous_90d_summary = _summarize_rows(previous_90d_rows)
+        current_90d_summary_by_device = {
+            "MOBILE": _summarize_rows([r for r in current_90d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+            "DESKTOP": _summarize_rows([r for r in current_90d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+        }
+        previous_90d_summary_by_device = {
+            "MOBILE": _summarize_rows([r for r in previous_90d_rows if str(r.get("device") or "").upper() == "MOBILE"]),
+            "DESKTOP": _summarize_rows([r for r in previous_90d_rows if str(r.get("device") or "").upper() == "DESKTOP"]),
+        }
 
         same_weekday_day_summary: dict | None = None
         try:
@@ -2156,6 +2166,10 @@ def collect_search_console_metrics(
                 "previous_60d_summary": previous_60d_summary,
                 "current_60d_summary_by_device": current_60d_summary_by_device,
                 "previous_60d_summary_by_device": previous_60d_summary_by_device,
+                "current_90d_summary": current_90d_summary,
+                "previous_90d_summary": previous_90d_summary,
+                "current_90d_summary_by_device": current_90d_summary_by_device,
+                "previous_90d_summary_by_device": previous_90d_summary_by_device,
                 "current_1d_pages_rows": current_1d_pages_row_count,
                 "previous_1d_pages_rows": previous_1d_pages_row_count,
                 "current_7d_pages_rows": current_7d_pages_row_count,
@@ -2180,6 +2194,8 @@ def collect_search_console_metrics(
                 "current_60d_end": str(payload.get("current_60d_end") or ""),
                 "current_90d_start": str(payload.get("current_90d_start") or ""),
                 "current_90d_end": str(payload.get("current_90d_end") or ""),
+                "previous_90d_start": str(payload.get("previous_90d_start") or ""),
+                "previous_90d_end": str(payload.get("previous_90d_end") or ""),
                 "trend_28d_summary": trend_summary,
                 "trend_28d_summary_by_device": trend_summary_by_device,
                 # Ham günlük satırlar (impressions/ctr backfill için)
