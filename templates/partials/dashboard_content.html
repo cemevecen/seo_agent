@@ -74,6 +74,45 @@
     container-name: home-card;
     min-width: 0;
   }
+  .home-readable[data-home-container],
+  section.home-readable[data-home-container] {
+    position: relative;
+  }
+  .home-drive-container-badge {
+    position: absolute;
+    right: 0.55rem;
+    bottom: 0.55rem;
+    z-index: 6;
+    display: block;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 0.4rem;
+    overflow: hidden;
+    border: 1.5px solid rgb(255 255 255 / 0.95);
+    box-shadow: 0 1px 4px rgb(15 23 42 / 0.22);
+    background: #0f172a;
+    line-height: 0;
+    pointer-events: auto;
+  }
+  .home-drive-container-badge img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .home-drive-container-badge.is-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e2e8f0;
+    font-size: 0.62rem;
+    font-weight: 800;
+  }
+  html.dark .home-drive-container-badge,
+  html.midnight .home-drive-container-badge {
+    border-color: rgb(63 63 70);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+  }
   .home-readable {
     --home-title: clamp(1rem, 0.88rem + 0.55cqi, 1.1875rem);
     --home-body: clamp(0.9375rem, 0.82rem + 0.55cqi, 1.0625rem);
@@ -537,7 +576,7 @@
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="/static/js/home_gitlab_boards.js?v=3"></script>
   <script src="/static/js/home_top_pages.js?v=1"></script>
-  <section id="home-realtime-section" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
+  <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
       <span class="home-rt-live-dot" aria-hidden="true"></span>
@@ -594,6 +633,9 @@
             window.RtSlotFx.animateHome(section, prevSnap);
           }
           startCountdown();
+          if (typeof window.__pcHomeDriveRefreshBadges === 'function') {
+            window.__pcHomeDriveRefreshBadges();
+          }
         })
         .catch(function () {});
     }
@@ -634,11 +676,13 @@
       {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
+                 data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
           {{ _placeholder_mid | safe }}
         </section>
         <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
+                 data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
           {{ _placeholder_mid | safe }}
@@ -648,11 +692,13 @@
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
+                 data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
           {{ _placeholder_mid | safe }}
         </section>
         <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
+                 data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
           {{ _placeholder_mid | safe }}
@@ -662,11 +708,13 @@
       {# Row 4 — Position Drops #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/position-drops?site=doviz&v=5" hx-trigger="load" hx-swap="innerHTML"
+                 data-home-container="position-doviz"
                  hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
         <section hx-get="/api/home/position-drops?site=sinemalar&v=5" hx-trigger="load" hx-swap="innerHTML"
+                 data-home-container="position-sinemalar"
                  hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
@@ -676,6 +724,7 @@
 
     {# Full-width — divider yok (Crashlytics ile aynı birleşik kart hissi) #}
     <section hx-get="/api/home/notification-week?v=21" hx-trigger="load" hx-swap="innerHTML"
+             data-home-container="notification-week"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Notification · 7g vs önceki 7g</h3>
@@ -684,6 +733,7 @@
 
     {# Mobil mağaza / Firebase durum — full width #}
     <section hx-get="/api/home/crashlytics?product=doviz&v=5" hx-trigger="load" hx-swap="innerHTML" hx-timeout="120000"
+             data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Mobil mağaza / Firebase durum</h3>
       {{ _placeholder_mid | safe }}
@@ -691,13 +741,14 @@
 
     {# git.nokta — boards ile aynı GitLab/VPN kaynağı #}
     <section hx-get="/api/home/priority-board?v=8" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+             data-home-container="priority-board"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">git.nokta</h3>
       {{ _placeholder_tall | safe }}
     </section>
 
-    <section hx-get="/api/home/drive-uploads?v=6" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/drive-uploads?v=7" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Drive · upload</h3>
@@ -802,5 +853,53 @@
       visible_sections: visible,
     };
   };
+
+  var homeDriveBadgeMap = {};
+  function applyHomeDriveBadges(map) {
+    homeDriveBadgeMap = map || {};
+    document.querySelectorAll('[data-home-container]').forEach(function (sec) {
+      var key = sec.getAttribute('data-home-container') || '';
+      var info = homeDriveBadgeMap[key];
+      var badge = sec.querySelector('[data-home-drive-badge]');
+      if (!info) {
+        if (badge) badge.remove();
+        return;
+      }
+      if (!badge) {
+        badge = document.createElement('a');
+        badge.setAttribute('data-home-drive-badge', '');
+        badge.className = 'home-drive-container-badge';
+        badge.target = '_blank';
+        badge.rel = 'noopener noreferrer';
+        sec.appendChild(badge);
+      }
+      var href = info.web_view_link || info.thumb_url || '#';
+      badge.href = href;
+      badge.title = (info.container_label || key) + (info.name ? (' · ' + info.name) : '');
+      if (info.kind === 'video' || !info.thumb_url) {
+        badge.classList.add('is-video');
+        badge.innerHTML = '▶';
+      } else {
+        badge.classList.remove('is-video');
+        badge.innerHTML = '<img src="' + String(info.thumb_url).replace(/"/g, '') + '" alt="" loading="lazy">';
+      }
+    });
+  }
+
+  function refreshHomeDriveBadges() {
+    fetch('/api/home/drive/container-badges', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (j && j.badges) applyHomeDriveBadges(j.badges);
+        else applyHomeDriveBadges({});
+      })
+      .catch(function () {});
+  }
+  window.__pcHomeDriveRefreshBadges = refreshHomeDriveBadges;
+  refreshHomeDriveBadges();
+  document.body.addEventListener('htmx:afterSwap', function () {
+    // HTMX innerHTML swap badge DOM'u siler — cache'ten yeniden bas
+    applyHomeDriveBadges(homeDriveBadgeMap);
+  });
 })();
 </script>

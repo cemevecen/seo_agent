@@ -49,3 +49,19 @@ def test_file_dict_marks_video_kind():
     assert img["thumb_url"].endswith("/1/content")
     assert vid["kind"] == "video"
     assert vid["thumb_url"] == ""
+
+
+def test_resolve_home_drive_container():
+    from backend.services.home_drive import list_home_drive_containers, resolve_home_drive_container
+    import pytest
+
+    keys = {c["key"] for c in list_home_drive_containers()}
+    assert "ga4-doviz" in keys
+    assert "sc-sinemalar" in keys
+    key, label = resolve_home_drive_container("ga4-doviz")
+    assert key == "ga4-doviz"
+    assert "ga4" in label.lower()
+    with pytest.raises(ValueError):
+        resolve_home_drive_container("")
+    with pytest.raises(ValueError):
+        resolve_home_drive_container("not-a-real-container")

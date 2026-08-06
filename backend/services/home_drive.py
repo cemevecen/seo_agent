@@ -17,6 +17,36 @@ from backend.services import home_drive_auth
 
 LOGGER = logging.getLogger(__name__)
 
+# Ana sayfa container anahtarları — yükleme sırasında önerilir / badge bağlanır
+HOME_DRIVE_CONTAINERS: tuple[dict[str, str], ...] = (
+    {"key": "realtime", "label": "active users"},
+    {"key": "ga4-doviz", "label": "doviz · ga4"},
+    {"key": "ga4-sinemalar", "label": "sinemalar · ga4"},
+    {"key": "sc-doviz", "label": "doviz · search console"},
+    {"key": "sc-sinemalar", "label": "sinemalar · search console"},
+    {"key": "position-doviz", "label": "doviz · position drops"},
+    {"key": "position-sinemalar", "label": "sinemalar · position drops"},
+    {"key": "notification-week", "label": "Notification · 7g"},
+    {"key": "crashlytics", "label": "Mobil mağaza / Firebase"},
+    {"key": "priority-board", "label": "git.nokta"},
+)
+_HOME_DRIVE_CONTAINER_BY_KEY = {c["key"]: c["label"] for c in HOME_DRIVE_CONTAINERS}
+
+
+def list_home_drive_containers() -> list[dict[str, str]]:
+    return [dict(c) for c in HOME_DRIVE_CONTAINERS]
+
+
+def resolve_home_drive_container(raw_key: str | None) -> tuple[str, str]:
+    key = str(raw_key or "").strip()
+    if not key:
+        raise ValueError("Container seçimi gerekli.")
+    label = _HOME_DRIVE_CONTAINER_BY_KEY.get(key)
+    if not label:
+        raise ValueError("Geçersiz container seçimi.")
+    return key, label
+
+
 _IMAGE_MIMES = frozenset(
     {
         "image/jpeg",
@@ -146,6 +176,8 @@ def _file_dict(
     size: int,
     web_view_link: str,
     created_time: str = "",
+    container_key: str = "",
+    container_label: str = "",
 ) -> dict[str, Any]:
     kind = "video" if (mime or "").startswith("video/") else "image"
     return {
@@ -157,6 +189,8 @@ def _file_dict(
         "size": int(size or 0),
         "web_view_link": web_view_link or "",
         "thumb_url": f"/api/home/drive/files/{fid}/content" if fid and kind == "image" else "",
+        "container_key": container_key or "",
+        "container_label": container_label or "",
     }
 
 
@@ -168,6 +202,8 @@ def _register_upload(
     mime_type: str,
     size_bytes: int,
     web_view_link: str,
+    container_key: str = "",
+    container_label: str = "",
 ) -> None:
     from backend.models import HomeDriveUpload
 
@@ -182,6 +218,8 @@ def _register_upload(
     row.mime_type = (mime_type or "")[:120]
     row.size_bytes = int(size_bytes or 0)
     row.web_view_link = web_view_link or ""
+    row.container_key = (container_key or "")[:64]
+    row.container_label = (container_label or "")[:120]
     db.commit()
 
 
@@ -244,6 +282,8 @@ def list_panel_uploads(db: Session, *, limit: int = 60) -> list[dict[str, Any]]:
                     size=int(meta.get("size") or row.size_bytes or 0),
                     web_view_link=str(meta.get("webViewLink") or row.web_view_link or ""),
                     created_time=str(meta.get("createdTime") or ""),
+                    container_key=str(getattr(row, "container_key", "") or ""),
+                    container_label=str(getattr(row, "container_label", "") or ""),
                 )
             )
         except HttpError as exc:
@@ -260,6 +300,8 @@ def list_panel_uploads(db: Session, *, limit: int = 60) -> list[dict[str, Any]]:
                     size=row.size_bytes,
                     web_view_link=row.web_view_link,
                     created_time=row.uploaded_at.isoformat() if row.uploaded_at else "",
+                    container_key=str(getattr(row, "container_key", "") or ""),
+                    container_label=str(getattr(row, "container_label", "") or ""),
                 )
             )
         except Exception:  # noqa: BLE001
@@ -271,11 +313,33 @@ def list_panel_uploads(db: Session, *, limit: int = 60) -> list[dict[str, Any]]:
                     size=row.size_bytes,
                     web_view_link=row.web_view_link,
                     created_time=row.uploaded_at.isoformat() if row.uploaded_at else "",
+                    container_key=str(getattr(row, "container_key", "") or ""),
+                    container_label=str(getattr(row, "container_label", "") or ""),
                 )
             )
     if missing:
         _unregister_uploads(db, missing)
     return out
+
+
+def list_container_badges(db: Session) -> dict[str, dict[str, Any]]:
+    """Aktif panel yüklemelerinden container → badge (en yeni dosya). Silinenler listeden düşer."""
+    badges: dict[str, dict[str, Any]] = {}
+    for item in list_panel_uploads(db, limit=100):
+        key = str(item.get("container_key") or "").strip()
+        if not key or key in badges:
+            continue
+        badges[key] = {
+            "container_key": key,
+            "container_label": str(item.get("container_label") or "")
+            or _HOME_DRIVE_CONTAINER_BY_KEY.get(key, key),
+            "file_id": item.get("id") or "",
+            "kind": item.get("kind") or "image",
+            "name": item.get("name") or "",
+            "thumb_url": item.get("thumb_url") or "",
+            "web_view_link": item.get("web_view_link") or "",
+        }
+    return badges
 
 
 def upload_image(
@@ -284,8 +348,15 @@ def upload_image(
     filename: str,
     content: bytes,
     content_type: str | None = None,
+    container_key: str | None = None,
 ) -> dict[str, Any]:
-    return upload_media(db, filename=filename, content=content, content_type=content_type)
+    return upload_media(
+        db,
+        filename=filename,
+        content=content,
+        content_type=content_type,
+        container_key=container_key,
+    )
 
 
 def upload_media(
@@ -294,7 +365,9 @@ def upload_media(
     filename: str,
     content: bytes,
     content_type: str | None = None,
+    container_key: str | None = None,
 ) -> dict[str, Any]:
+    ckey, clabel = resolve_home_drive_container(container_key)
     folder_id = home_drive_auth.home_drive_folder_id()
     if not folder_id:
         raise RuntimeError("HOME_DRIVE_FOLDER_ID tanımlı değil.")
@@ -329,7 +402,10 @@ def upload_media(
                 body={
                     "name": safe_name,
                     "parents": [folder_id],
-                    "appProperties": {"source": _PANEL_APP_PROP},
+                    "appProperties": {
+                        "source": _PANEL_APP_PROP,
+                        "containerKey": ckey,
+                    },
                 },
                 media_body=media,
                 fields="id,name,mimeType,createdTime,size,webViewLink",
@@ -347,6 +423,8 @@ def upload_media(
         size=int(created.get("size") or len(content)),
         web_view_link=str(created.get("webViewLink") or ""),
         created_time=str(created.get("createdTime") or ""),
+        container_key=ckey,
+        container_label=clabel,
     )
     _register_upload(
         db,
@@ -355,6 +433,8 @@ def upload_media(
         mime_type=item["mime_type"],
         size_bytes=item["size"],
         web_view_link=item["web_view_link"],
+        container_key=ckey,
+        container_label=clabel,
     )
     return item
 

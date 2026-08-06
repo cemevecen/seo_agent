@@ -10797,6 +10797,7 @@ def api_home_drive_uploads(request: Request):
                 ),
                 "files": files,
                 "file_count": len(files),
+                "containers": home_drive.list_home_drive_containers(),
                 "error": err,
                 "oauth_error": (request.query_params.get("oauth_error") or "").strip(),
             },

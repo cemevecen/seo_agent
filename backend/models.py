@@ -668,6 +668,8 @@ class HomeDriveUpload(Base):
     mime_type: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     web_view_link: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    container_key: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
+    container_label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 

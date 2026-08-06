@@ -5,7 +5,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,25 @@ from backend.services import home_drive, home_drive_auth
 
 LOGGER = logging.getLogger(__name__)
 router = APIRouter(prefix="/home/drive", tags=["home-drive"])
+
+
+@router.get("/containers")
+@limiter.limit("120/minute")
+def home_drive_containers(request: Request) -> dict[str, Any]:
+    return {"ok": True, "containers": home_drive.list_home_drive_containers()}
+
+
+@router.get("/container-badges")
+@limiter.limit("60/minute")
+def home_drive_container_badges(request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
+    if not home_drive_auth.get_home_drive_credential_row(db):
+        return {"ok": True, "badges": {}}
+    try:
+        badges = home_drive.list_container_badges(db)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("home drive container badges failed")
+        return {"ok": False, "badges": {}, "error": str(exc)[:160]}
+    return {"ok": True, "badges": badges}
 
 
 @router.get("/status")
@@ -106,6 +125,7 @@ async def home_drive_upload(
     request: Request,
     db: Session = Depends(get_db),
     file: UploadFile = File(...),
+    container_key: str = Form(...),
 ):
     if not home_drive_auth.get_home_drive_credential_row(db):
         return JSONResponse({"ok": False, "error": "Drive bağlı değil."}, status_code=401)
@@ -116,6 +136,7 @@ async def home_drive_upload(
             filename=file.filename or "image",
             content=raw,
             content_type=file.content_type,
+            container_key=container_key,
         )
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("home drive upload failed")
