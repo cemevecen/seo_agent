@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v3">
+<style id="home-site-borders" data-home-css="v4">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -20,6 +20,51 @@
   html.dark section[hx-get*="site=sinemalar"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(190, 18, 60, 0.45) !important;    /* rose-700 @ 45% */
+  }
+
+  /* Dönem filtresi (7g/60g/90g) — waiting Lottie overlay */
+  section.home-readable.is-period-loading {
+    position: relative;
+    min-height: 11rem;
+  }
+  section.home-readable.is-period-loading > :not([data-home-period-wait]) {
+    opacity: 0.28;
+    pointer-events: none;
+    filter: saturate(0.7);
+  }
+  .home-period-wait {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border-radius: inherit;
+    background: rgba(248, 250, 252, 0.72);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  html.dark .home-period-wait,
+  html.midnight .home-period-wait {
+    background: rgba(15, 23, 42, 0.72);
+  }
+  .home-period-wait lottie-player {
+    width: 5.5rem;
+    height: 5.5rem;
+  }
+  .home-period-wait-label {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  html.dark .home-period-wait-label,
+  html.midnight .home-period-wait-label {
+    color: #94a3b8;
   }
 
   /* ── Home readable + fluid responsive (tüm container'lar) ── */
@@ -588,12 +633,12 @@
 
       {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=22" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7g</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=22" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7g</h3>
           {{ _placeholder_mid | safe }}
@@ -602,12 +647,12 @@
 
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=22" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7g</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=22" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7g</h3>
           {{ _placeholder_mid | safe }}
@@ -674,21 +719,44 @@
   setInterval(loadHomeMetrics, 60000);
   document.addEventListener('DOMContentLoaded', loadHomeMetrics);
 
+  var HOME_PERIOD_LOTTIE = 'https://assets9.lottiefiles.com/packages/lf20_p8bfn5to.json';
+
+  function showHomePeriodWait(section, daysLabel) {
+    if (!section) return;
+    section.classList.add('is-period-loading');
+    var wait = section.querySelector('[data-home-period-wait]');
+    if (!wait) {
+      wait = document.createElement('div');
+      wait.setAttribute('data-home-period-wait', '');
+      wait.className = 'home-period-wait';
+      wait.setAttribute('role', 'status');
+      wait.setAttribute('aria-live', 'polite');
+      section.appendChild(wait);
+    }
+    wait.innerHTML =
+      '<lottie-player src="' + HOME_PERIOD_LOTTIE + '" background="transparent" speed="1" loop autoplay></lottie-player>' +
+      '<p class="home-period-wait-label">' + (daysLabel || 'Dönem') + ' yükleniyor</p>';
+  }
+
   document.body.addEventListener('click', function (ev) {
     var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-period]');
     if (!btn) return;
     var root = btn.closest('[data-home-period-root]');
     if (!root) return;
+    var section = root.closest('section[hx-get]');
+    if (section && section.classList.contains('is-period-loading')) return;
     ev.preventDefault();
     var days = btn.getAttribute('data-home-period') || '7';
     var site = root.getAttribute('data-home-period-site') || 'doviz';
     var endpoint = root.getAttribute('data-home-period-endpoint') || 'ga4-sessions';
-    var section = root.closest('section[hx-get]');
     var url = '/api/home/' + endpoint +
       '?site=' + encodeURIComponent(site) +
       '&period_days=' + encodeURIComponent(days) +
-      '&v=22';
-    if (section) section.setAttribute('hx-get', url);
+      '&v=23';
+    if (section) {
+      section.setAttribute('hx-get', url);
+      showHomePeriodWait(section, days + 'g');
+    }
     if (window.htmx && section) {
       window.htmx.ajax('GET', url, { target: section, swap: 'innerHTML' });
     }
