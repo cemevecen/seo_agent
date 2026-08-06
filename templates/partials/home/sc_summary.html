@@ -1,88 +1,88 @@
-{# Mini spark + sayı — Clicks / Position ayrı bantlar #}
+{# Mini spark — cihaz bantları (Web / Mobil Web); clicks + position yan yana #}
 {% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
 {% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
 {{ home_top_pages_styles() }}
 {{ home_detail_kpis_styles() }}
 <style>
-  .home-sc-metric-band {
+  .home-sc-device-band {
     margin-top: 0.85rem;
   }
-  .home-sc-metric-band + .home-sc-metric-band {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
+  .home-sc-device-band + .home-sc-device-band {
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
     border-top: 1px solid rgb(226 232 240);
   }
-  html.dark .home-sc-metric-band + .home-sc-metric-band {
+  html.dark .home-sc-device-band + .home-sc-device-band {
     border-top-color: rgb(51 65 85);
   }
-  html.midnight .home-sc-metric-band + .home-sc-metric-band {
+  html.midnight .home-sc-device-band + .home-sc-device-band {
     border-top-color: rgb(39 39 42);
   }
-  .home-sc-metric-head {
+  .home-sc-device-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    margin-bottom: 0.5rem;
+    min-width: 0;
+  }
+  .home-sc-device-head-left {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    margin-bottom: 0.45rem;
+    min-width: 0;
   }
-  .home-sc-metric-dot {
+  .home-sc-device-dot {
     width: 0.45rem;
     height: 0.45rem;
     border-radius: 999px;
     flex-shrink: 0;
+    background: #94a3b8;
   }
-  .home-sc-metric-dot.is-clicks { background: #94a3b8; }
-  .home-sc-metric-dot.is-pos { background: #64748b; }
-  html.dark .home-sc-metric-dot.is-clicks { background: #94a3b8; }
-  html.dark .home-sc-metric-dot.is-pos { background: #cbd5e1; }
-  html.midnight .home-sc-metric-dot.is-clicks { background: #71717a; }
-  html.midnight .home-sc-metric-dot.is-pos { background: #a1a1aa; }
-  .home-sc-metric-title {
+  html.dark .home-sc-device-dot { background: #94a3b8; }
+  html.midnight .home-sc-device-dot { background: #71717a; }
+  .home-sc-device-title {
+    margin: 0;
     font-size: 0.65rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: rgb(100 116 139);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  html.dark .home-sc-metric-title { color: rgb(148 163 184); }
+  html.dark .home-sc-device-title { color: rgb(148 163 184); }
   .home-sc-spark-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
+    align-items: stretch;
+  }
+  @container home-card (max-width: 360px) {
+    .home-sc-spark-grid {
+      grid-template-columns: 1fr;
+    }
   }
   .home-sc-spark-cell {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
     border-radius: 0.75rem;
     padding: 0.625rem 0.7rem 0.55rem;
     border: 1px solid rgb(226 232 240 / 0.9);
+    background: rgb(248 250 252);
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
   }
-  html.dark .home-sc-spark-cell,
-  html.midnight .home-sc-spark-cell {
+  html.dark .home-sc-spark-cell {
+    border-color: rgb(71 85 105 / 0.8);
+    background: rgb(30 41 59 / 0.85);
     box-shadow: none;
   }
-  .home-sc-spark-cell.is-clicks {
-    background: rgb(248 250 252);
-    border-color: rgb(226 232 240 / 0.9);
-  }
-  html.dark .home-sc-spark-cell.is-clicks {
-    border-color: rgb(71 85 105 / 0.8);
-    background: rgb(30 41 59 / 0.85);
-  }
-  html.midnight .home-sc-spark-cell.is-clicks {
+  html.midnight .home-sc-spark-cell {
     border-color: rgb(63 63 70);
     background: rgb(24 24 27);
-  }
-  .home-sc-spark-cell.is-pos {
-    background: rgb(248 250 252);
-    border-color: rgb(226 232 240 / 0.9);
-  }
-  html.dark .home-sc-spark-cell.is-pos {
-    border-color: rgb(71 85 105 / 0.8);
-    background: rgb(30 41 59 / 0.85);
-  }
-  html.midnight .home-sc-spark-cell.is-pos {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27);
+    box-shadow: none;
   }
   .home-sc-spark-svg {
     display: block;
@@ -114,46 +114,53 @@
   html.midnight .home-sc-spark-empty {
     background: rgb(39 39 42);
   }
+  /* Pastel delta — koyu emerald / alarm kırmızı yok */
   .home-delta { color: #0f172a; }
   html.dark .home-delta,
   html.midnight .home-delta { color: #a1a1aa; }
-  .home-delta.is-down-strong { color: #7f1d1d; }
-  .home-delta.is-down { color: #e11d48; }
-  .home-delta.is-down-mild { color: #ea580c; }
-  .home-delta.is-up-mild { color: #22c55e; }
-  .home-delta.is-up { color: #16a34a; }
-  .home-delta.is-up-strong { color: #14532d; }
+  .home-delta.is-down-strong { color: #e8a0a8; }
+  .home-delta.is-down { color: #f0a3ab; }
+  .home-delta.is-down-mild { color: #f0b89a; }
+  .home-delta.is-up-mild { color: #8fd4b8; }
+  .home-delta.is-up { color: #7ecfb0; }
+  .home-delta.is-up-strong { color: #6bc4a0; }
   html.dark .home-delta.is-down-strong,
-  html.midnight .home-delta.is-down-strong { color: #9f2a2a; }
+  html.midnight .home-delta.is-down-strong { color: #f2b0b6; }
   html.dark .home-delta.is-down,
-  html.midnight .home-delta.is-down { color: #e11d48; }
+  html.midnight .home-delta.is-down { color: #f0a3ab; }
   html.dark .home-delta.is-down-mild,
-  html.midnight .home-delta.is-down-mild { color: #c2410c; }
+  html.midnight .home-delta.is-down-mild { color: #f0c4a8; }
   html.dark .home-delta.is-up-mild,
-  html.midnight .home-delta.is-up-mild { color: #6ee7b7; }
+  html.midnight .home-delta.is-up-mild { color: #a8e0c8; }
   html.dark .home-delta.is-up,
-  html.midnight .home-delta.is-up { color: #4a8f73; }
+  html.midnight .home-delta.is-up { color: #8fd4b8; }
   html.dark .home-delta.is-up-strong,
-  html.midnight .home-delta.is-up-strong { color: #166534; }
-  .home-sc-pos-row {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
+  html.midnight .home-delta.is-up-strong { color: #7ecfb0; }
+  .home-sc-metric-kicker {
+    margin: 0;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #94a3b8;
   }
-  .home-sc-pos-row-inner {
+  html.dark .home-sc-metric-kicker,
+  html.midnight .home-sc-metric-kicker { color: #71717a; }
+  .home-sc-cell-body {
     display: flex;
     align-items: stretch;
     gap: 0.4rem;
+    flex: 1 1 auto;
+    min-width: 0;
   }
-  .home-sc-pos-main {
+  .home-sc-cell-main {
     flex: 1 1 auto;
     min-width: 0;
   }
   .home-sc-top50 {
     flex: 0 0 auto;
     align-self: center;
-    max-width: 6.25rem;
+    max-width: 5.75rem;
     border-radius: 0.5rem;
     padding: 0.3rem 0.4rem;
     border: 1px solid rgb(226 232 240);
@@ -202,98 +209,74 @@
 </div>
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
-
-  <div class="home-sc-metric-band home-top-pages-root" data-metric="clicks" data-home-top-pages-root>
-    <div class="home-sc-metric-head">
-      <span class="home-sc-metric-dot is-clicks" aria-hidden="true"></span>
-      <p class="home-sc-metric-title">Clicks</p>
-    </div>
-    <div class="home-sc-spark-grid">
-      {% for dev in site.devices %}
-        {% set _ctone = dev.clicks_tone | default('flat') %}
-        {% set _pages_id = 'sc-clicks-pages-' ~ site.site_id ~ '-' ~ loop.index %}
-        {% set _kpi_id = 'sc-clicks-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
-        <div class="home-sc-spark-cell is-clicks home-sc-pos-row">
-          <div class="home-sc-pos-row-inner">
-            <div class="home-sc-pos-main">
-              <div class="home-kpi-head">
-                <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
-                {{ home_detail_kpis_trigger(_kpi_id, aria_label=dev.label ~ ' KPI detay') }}
-              </div>
-              {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
-                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                  <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
-                </svg>
-              {% else %}
-                <div class="home-sc-spark-empty" aria-hidden="true"></div>
-              {% endif %}
-              <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
-              <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
-            </div>
-            {% if dev.top50_has_data %}
-            <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki 7g)">
-              <p class="home-sc-top50-label">top 50</p>
-              <p class="home-sc-top50-vals">{{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}</p>
-            </div>
-            {% endif %}
+  {# Web üstte, Mobil Web altta #}
+  {% set device_order = ['Web', 'Mobil Web'] %}
+  {% for want in device_order %}
+    {% for dev in site.devices if (dev.label or '') == want %}
+      {% set _pages_id = 'sc-pages-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
+      {% set _kpi_id = 'sc-kpi-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
+      {% set _ctone = dev.clicks_tone | default('flat') %}
+      {% set _ptone = dev.pos_tone | default('flat') %}
+      <div class="home-sc-device-band home-top-pages-root" data-device="{{ want }}" data-home-top-pages-root>
+        <div class="home-sc-device-head">
+          <div class="home-sc-device-head-left">
+            <span class="home-sc-device-dot" aria-hidden="true"></span>
+            <p class="home-sc-device-title">{{ want }}</p>
           </div>
-          {{ home_top_pages_trigger(_pages_id) }}
+          {{ home_detail_kpis_trigger(_kpi_id, aria_label=want ~ ' KPI detay') }}
         </div>
-      {% endfor %}
-    </div>
-    {% for dev in site.devices %}
-      {% set _kpi_id = 'sc-clicks-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=dev.label ~ ' · KPI detay') }}
-      {% set _pages_id = 'sc-clicks-pages-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
-    {% endfor %}
-  </div>
-
-  <div class="home-sc-metric-band home-top-pages-root" data-metric="position" data-home-top-pages-root>
-    <div class="home-sc-metric-head">
-      <span class="home-sc-metric-dot is-pos" aria-hidden="true"></span>
-      <p class="home-sc-metric-title">position change</p>
-    </div>
-    <div class="home-sc-spark-grid">
-      {% for dev in site.devices %}
-        {% set _ptone = dev.pos_tone | default('flat') %}
-        {% set _pages_id = 'sc-pos-pages-' ~ site.site_id ~ '-' ~ loop.index %}
-        {% set _kpi_id = 'sc-pos-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
-        <div class="home-sc-spark-cell is-pos home-sc-pos-row">
-          <div class="home-sc-pos-row-inner">
-            <div class="home-sc-pos-main">
-              <div class="home-kpi-head">
-                <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
-                {{ home_detail_kpis_trigger(_kpi_id, aria_label=dev.label ~ ' KPI detay') }}
+        <div class="home-sc-spark-grid">
+          <div class="home-sc-spark-cell">
+            <div class="home-sc-cell-body">
+              <div class="home-sc-cell-main">
+                <p class="home-sc-metric-kicker">Clicks</p>
+                {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
+                  <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                    <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
+                  </svg>
+                {% else %}
+                  <div class="home-sc-spark-empty" aria-hidden="true"></div>
+                {% endif %}
+                <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
+                <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
               </div>
-              {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
-                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                  <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
-                </svg>
-              {% else %}
-                <div class="home-sc-spark-empty" aria-hidden="true"></div>
+              {% if dev.top50_has_data %}
+              <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki 7g)">
+                <p class="home-sc-top50-label">top 50</p>
+                <p class="home-sc-top50-vals">{{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}</p>
+              </div>
               {% endif %}
-              <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
-              <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
             </div>
-            {% if dev.top50_has_data %}
-            <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">
-              <p class="home-sc-top50-label">top 50</p>
-              <p class="home-sc-top50-vals">{{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}</p>
-            </div>
-            {% endif %}
           </div>
-          {{ home_top_pages_trigger(_pages_id) }}
+          <div class="home-sc-spark-cell">
+            <div class="home-sc-cell-body">
+              <div class="home-sc-cell-main">
+                <p class="home-sc-metric-kicker">Position</p>
+                {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
+                  <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                    <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
+                  </svg>
+                {% else %}
+                  <div class="home-sc-spark-empty" aria-hidden="true"></div>
+                {% endif %}
+                <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
+                <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
+              </div>
+              {% if dev.top50_has_data %}
+              <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">
+                <p class="home-sc-top50-label">top 50</p>
+                <p class="home-sc-top50-vals">{{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}</p>
+              </div>
+              {% endif %}
+            </div>
+          </div>
         </div>
-      {% endfor %}
-    </div>
-    {% for dev in site.devices %}
-      {% set _kpi_id = 'sc-pos-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=dev.label ~ ' · KPI detay') }}
-      {% set _pages_id = 'sc-pos-pages-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
+        {{ home_top_pages_trigger(_pages_id) }}
+        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay') }}
+        {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=want ~ ' · top 25 sayfa') }}
+      </div>
     {% endfor %}
-  </div>
+  {% endfor %}
 {% else %}
   <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
 {% endif %}
