@@ -146,12 +146,13 @@
     box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.35);
     background: rgba(76, 5, 25, 0.35);
   }
-  /* Grafik alanı kart genişliğini kullansın — Plotly resize ile dolar.
-     .main-svg’ye width:100%! zorlamak SVG’yi gerer ama eksenler dar kalır (sağ boşluk). */
+  /* Host %100; Plotly iç container’lara !important width BASMA —
+     aksi halde SVG kutusu genişler, çizim layout.width’te kalır (sağ boşluk). */
   .mz-page .mz-chart-card {
     padding-left: 0.5rem;
     padding-right: 0.5rem;
     min-width: 0;
+    width: 100%;
   }
   .mz-page .mz-chart-plot {
     display: block;
@@ -159,14 +160,6 @@
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
-  }
-  .mz-page .mz-chart-plot .js-plotly-plot,
-  .mz-page .mz-chart-plot .plot-container.plotly {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-  .mz-page .mz-chart-plot .svg-container {
-    max-width: 100% !important;
   }
   .mz-page .mz-kpi-spark {
     width: 100% !important;
@@ -1232,6 +1225,17 @@
         window.__mzChartsRelayout();
       }
     }, 0);
+    setTimeout(function () {
+      apply();
+      if (typeof window.__mzChartsRelayout === "function") {
+        window.__mzChartsRelayout();
+      }
+    }, 120);
+    setTimeout(function () {
+      if (typeof window.__mzChartsRelayout === "function") {
+        window.__mzChartsRelayout();
+      }
+    }, 500);
     window.addEventListener("resize", function () {
       apply();
       mzReflowChartRows();
@@ -7799,8 +7803,6 @@
 
   function mzPlotHostWidth(el) {
     if (!el) return 0;
-    /* Plotly gd.style.width'i px olarak kilitler; kendi genişliğini okumak
-       yarım-çizimi sonsuza kadar yeniden üretir. Önce %100'e aç, karttan ölç. */
     el.style.width = "100%";
     el.style.maxWidth = "100%";
     var host =
@@ -7818,6 +7820,14 @@
     if (w < 16) {
       w = Math.round(el.getBoundingClientRect().width || el.clientWidth || 0);
     }
+    /* Flex henüz oturmadıysa main sütunundan tahmin et */
+    if (w < 120) {
+      var main = document.getElementById("mz-main");
+      if (main) {
+        var mw = Math.round(main.clientWidth || 0);
+        if (mw > 160) w = mw - 16;
+      }
+    }
     return w >= 16 ? w : 0;
   }
 
@@ -7825,13 +7835,8 @@
     if (!el) return;
     el.style.width = "100%";
     el.style.maxWidth = "100%";
-    /* Inline px kilidini kaldır; Plots.resize doğru genişliği yazar.
-       svg/main-svg’ye !important 100% basma — eksenler dar kalıp sağ boşluk oluşur. */
-    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly").forEach(function (node) {
-      node.style.width = "100%";
-      node.style.maxWidth = "100%";
-    });
-    el.querySelectorAll(".svg-container, .main-svg").forEach(function (node) {
+    /* Inline !important / sabit px kalıntılarını temizle; width’i Plotly.relayout yazar */
+    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container, .main-svg").forEach(function (node) {
       node.style.removeProperty("width");
       node.style.removeProperty("max-width");
     });
@@ -7843,26 +7848,18 @@
     mzUnlockPlotlyHostWidth(el);
     var w = mzPlotHostWidth(el);
     if (w < 16) return Promise.resolve();
-    /* Explicit layout.width kilitleme YOK — autosize + resize kartın gerçek genişliğini kullanır. */
-    return Plotly.relayout(el, { autosize: true })
+    /* Kart genişliğini layout.width olarak kilitle — CSS stretch boşluğu bırakmasın */
+    return Plotly.relayout(el, { autosize: false, width: w })
       .then(function () {
         mzUnlockPlotlyHostWidth(el);
-        return Plotly.Plots.resize(el);
-      })
-      .then(function () {
-        mzUnlockPlotlyHostWidth(el);
-        var w2 = mzPlotHostWidth(el);
         var cur = (el._fullLayout && el._fullLayout.width) || 0;
-        if (w2 >= 16 && cur && Math.abs(w2 - cur) > 8) {
-          return Plotly.Plots.resize(el).then(function () {
-            mzUnlockPlotlyHostWidth(el);
-          });
+        if (Math.abs(cur - w) > 4) {
+          return Plotly.relayout(el, { autosize: false, width: w });
         }
       })
       .catch(function () {
         try {
-          mzUnlockPlotlyHostWidth(el);
-          Plotly.Plots.resize(el);
+          return Plotly.relayout(el, { autosize: false, width: w });
         } catch (_) { /* ignore */ }
       });
   }
@@ -7887,7 +7884,9 @@
       });
     }
     patch.automargin = false;
-    var rel = { autosize: true, "xaxis.autorange": false, "xaxis.range": patch.range };
+    var rel = { autosize: false, "xaxis.autorange": false, "xaxis.range": patch.range };
+    var hostW = mzPlotHostWidth(el);
+    if (hostW >= 160) rel.width = hostW;
     if (patch.type) rel["xaxis.type"] = patch.type;
     return Plotly.relayout(el, rel).then(function () {
       return mzEnsurePlotlyFillsContainer(el);
@@ -7920,20 +7919,21 @@
     var minH = opts.minHeight || 200;
     function draw() {
       var h = chartPlotHeight(el, minH);
+      var hostW = mzPlotHostWidth(el);
       el.style.minHeight = h + "px";
       el.style.height = h + "px";
       el.style.maxHeight = h + "px";
       var lay = Object.assign(
         {
-          autosize: true,
+          autosize: false,
           height: h,
           paper_bgcolor: "rgba(0,0,0,0)",
           plot_bgcolor: "rgba(0,0,0,0)",
         },
         layout || {}
       );
-      /* layout.width sabitleme: ilk ölçüm yarım kalırsa sağ boşluk kalıcılaşıyor */
-      if (lay.width != null) delete lay.width;
+      if (hostW >= 160) lay.width = hostW;
+      else delete lay.width;
       if (opts.tightX !== false) {
         applyTightXaxisToLayout(lay, traces, opts.timeKey);
       }
@@ -7956,9 +7956,8 @@
           scheduleMzChartsResizeBurst();
           var pid = typeof elOrId === "string" ? elOrId : el.id;
           if (pid) mzSyncChartCardFromPlot(pid);
-          /* İlk açılış: layout settle sonrası bir kez daha (özellikle çizgi trend) */
-          if (pid === "mz-chart-line") {
-            [80, 200, 480, 900].forEach(function (ms) {
+          if (pid === "mz-chart-line" || pid === "mz-chart-dual" || pid === "mz-chart-quality") {
+            [50, 150, 400, 800, 1600].forEach(function (ms) {
               setTimeout(function () {
                 mzEnsurePlotlyFillsContainer(el);
               }, ms);
