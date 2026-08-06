@@ -8500,6 +8500,53 @@ def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) ->
     return out
 
 
+def _home_pct_tone(pct: float) -> str:
+    """Haftalık % değişim rengi — Döviz/Sinemalar ölçeğine göre eşikler.
+
+    flat | down-mild | down | down-strong | up-mild | up | up-strong
+    """
+    try:
+        p = float(pct)
+    except (TypeError, ValueError):
+        return "flat"
+    # Tipik 7g salınım ~±1–5%; %0.5 altı gürültü, %5+ belirgin.
+    if p <= -5.0:
+        return "down-strong"
+    if p <= -2.0:
+        return "down"
+    if p <= -0.5:
+        return "down-mild"
+    if p >= 5.0:
+        return "up-strong"
+    if p >= 2.0:
+        return "up"
+    if p >= 0.5:
+        return "up-mild"
+    return "flat"
+
+
+def _home_pos_tone(pos_delta: float) -> str:
+    """SC pozisyon farkı (sıra birimi, pozitif = iyileşme) için aynı skala."""
+    try:
+        d = float(pos_delta)
+    except (TypeError, ValueError):
+        return "flat"
+    # Tipik 7g site-geneli kayma ~0.1–0.6 sıra.
+    if d <= -0.55:
+        return "down-strong"
+    if d <= -0.25:
+        return "down"
+    if d <= -0.08:
+        return "down-mild"
+    if d >= 0.55:
+        return "up-strong"
+    if d >= 0.25:
+        return "up"
+    if d >= 0.08:
+        return "up-mild"
+    return "flat"
+
+
 def _home_pct_delta(cur: float, prev: float) -> tuple[str, str, float]:
     try:
         c = float(cur); p = float(prev)
@@ -8507,10 +8554,10 @@ def _home_pct_delta(cur: float, prev: float) -> tuple[str, str, float]:
         return ("—", "flat", 0.0)
     if p <= 0:
         if c > 0:
-            return ("+∞", "up", 999.0)
+            return ("+∞", "up-strong", 999.0)
         return ("0%", "flat", 0.0)
     pct = (c - p) / p * 100.0
-    tone = "up" if pct > 0.5 else ("down" if pct < -0.5 else "flat")
+    tone = _home_pct_tone(pct)
     sign = "+" if pct > 0 else ""
     return (f"{sign}{pct:.1f}%", tone, round(pct, 2))
 
@@ -9098,17 +9145,11 @@ def _home_sc_top50_device_position(db, site_id: int, device: str) -> dict:
         p_clicks = sum(float(r.get("clicks") or 0.0) for r in prev_top)
 
         pos_diff = _sc_position_delta(c_pos, p_pos)
-        if pos_diff > 0:
-            tone = "up"
-        elif pos_diff < 0:
-            tone = "down"
-        else:
-            tone = "flat"
         return {
             "top50_pos_last_fmt": _format_max_two_decimals(c_pos),
             "top50_pos_prev_fmt": _format_max_two_decimals(p_pos),
             "top50_pos_delta": pos_diff,
-            "top50_pos_tone": tone,
+            "top50_pos_tone": _home_pos_tone(pos_diff),
             "top50_clicks_last_fmt": _home_format_int(c_clicks),
             "top50_clicks_prev_fmt": _home_format_int(p_clicks),
             "top50_has_data": True,
@@ -9185,12 +9226,7 @@ def _home_sc_device_aggregate(
 
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
-    if pos_diff > 0:
-        pos_tone = "up"
-    elif pos_diff < 0:
-        pos_tone = "down"
-    else:
-        pos_tone = "flat"
+    pos_tone = _home_pos_tone(pos_diff)
     clicks_spark = _home_spark_paths(
         _home_sc_trend_series(summary, device, "clicks", days=7),
         width=96,

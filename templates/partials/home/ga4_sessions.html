@@ -31,18 +31,16 @@
   }
   .home-ga4-spark-line {
     fill: none;
+    stroke: #0f172a;
     stroke-width: 1.75;
     stroke-linecap: round;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
   }
-  .home-ga4-spark-line.is-up { stroke: #059669; }
-  .home-ga4-spark-line.is-down { stroke: #e11d48; }
-  .home-ga4-spark-line.is-flat { stroke: #94a3b8; }
-  html.dark .home-ga4-spark-line.is-up { stroke: #34d399; }
-  html.dark .home-ga4-spark-line.is-down { stroke: #fb7185; }
-  html.dark .home-ga4-spark-line.is-flat { stroke: #94a3b8; }
-  html.midnight .home-ga4-spark-line.is-flat { stroke: #71717a; }
+  html.dark .home-ga4-spark-line,
+  html.midnight .home-ga4-spark-line {
+    stroke: #a1a1aa;
+  }
   .home-ga4-spark-empty {
     margin-top: 0.35rem;
     height: 1.75rem;
@@ -55,6 +53,32 @@
   html.midnight .home-ga4-spark-empty {
     background: rgb(39 39 42);
   }
+  /* Delta skala: koyu kırmızı → kırmızı → turuncu | yeşil → açık yeşil → koyu yeşil */
+  .home-delta {
+    color: #0f172a;
+  }
+  html.dark .home-delta,
+  html.midnight .home-delta {
+    color: #a1a1aa;
+  }
+  .home-delta.is-down-strong { color: #7f1d1d; }
+  .home-delta.is-down { color: #e11d48; }
+  .home-delta.is-down-mild { color: #ea580c; }
+  .home-delta.is-up-mild { color: #22c55e; }
+  .home-delta.is-up { color: #16a34a; }
+  .home-delta.is-up-strong { color: #14532d; }
+  html.dark .home-delta.is-down-strong,
+  html.midnight .home-delta.is-down-strong { color: #9f2a2a; }
+  html.dark .home-delta.is-down,
+  html.midnight .home-delta.is-down { color: #e11d48; }
+  html.dark .home-delta.is-down-mild,
+  html.midnight .home-delta.is-down-mild { color: #c2410c; }
+  html.dark .home-delta.is-up-mild,
+  html.midnight .home-delta.is-up-mild { color: #6ee7b7; }
+  html.dark .home-delta.is-up,
+  html.midnight .home-delta.is-up { color: #4a8f73; }
+  html.dark .home-delta.is-up-strong,
+  html.midnight .home-delta.is-up-strong { color: #166534; }
 </style>
 
 <div class="home-readable flex items-center justify-between gap-3">
@@ -74,12 +98,12 @@
         <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
         {% if prof.spark and prof.spark.has_points and prof.spark.path_d %}
           <svg class="home-ga4-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-            <path class="home-ga4-spark-line is-{{ _tone }}" d="{{ prof.spark.path_d }}"></path>
+            <path class="home-ga4-spark-line" d="{{ prof.spark.path_d }}"></path>
           </svg>
         {% else %}
           <div class="home-ga4-spark-empty" aria-hidden="true"></div>
         {% endif %}
-        <p class="home-kpi mt-1 {% if _tone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _tone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ prof.delta_fmt }}</p>
+        <p class="home-kpi home-delta mt-1 is-{{ _tone }}">{{ prof.delta_fmt }}</p>
         <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
       </div>
     {% endfor %}

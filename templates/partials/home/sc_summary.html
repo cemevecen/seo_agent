@@ -90,18 +90,16 @@
   }
   .home-sc-spark-line {
     fill: none;
+    stroke: #0f172a;
     stroke-width: 1.75;
     stroke-linecap: round;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
   }
-  .home-sc-spark-line.is-up { stroke: #059669; }
-  .home-sc-spark-line.is-down { stroke: #e11d48; }
-  .home-sc-spark-line.is-flat { stroke: #94a3b8; }
-  html.dark .home-sc-spark-line.is-up { stroke: #34d399; }
-  html.dark .home-sc-spark-line.is-down { stroke: #fb7185; }
-  html.dark .home-sc-spark-line.is-flat { stroke: #94a3b8; }
-  html.midnight .home-sc-spark-line.is-flat { stroke: #71717a; }
+  html.dark .home-sc-spark-line,
+  html.midnight .home-sc-spark-line {
+    stroke: #a1a1aa;
+  }
   .home-sc-spark-empty {
     margin-top: 0.35rem;
     height: 1.75rem;
@@ -120,6 +118,31 @@
   html.midnight .home-sc-spark-empty {
     background: rgb(39 39 42);
   }
+  .home-delta {
+    color: #0f172a;
+  }
+  html.dark .home-delta,
+  html.midnight .home-delta {
+    color: #a1a1aa;
+  }
+  .home-delta.is-down-strong { color: #7f1d1d; }
+  .home-delta.is-down { color: #e11d48; }
+  .home-delta.is-down-mild { color: #ea580c; }
+  .home-delta.is-up-mild { color: #22c55e; }
+  .home-delta.is-up { color: #16a34a; }
+  .home-delta.is-up-strong { color: #14532d; }
+  html.dark .home-delta.is-down-strong,
+  html.midnight .home-delta.is-down-strong { color: #9f2a2a; }
+  html.dark .home-delta.is-down,
+  html.midnight .home-delta.is-down { color: #e11d48; }
+  html.dark .home-delta.is-down-mild,
+  html.midnight .home-delta.is-down-mild { color: #c2410c; }
+  html.dark .home-delta.is-up-mild,
+  html.midnight .home-delta.is-up-mild { color: #6ee7b7; }
+  html.dark .home-delta.is-up,
+  html.midnight .home-delta.is-up { color: #4a8f73; }
+  html.dark .home-delta.is-up-strong,
+  html.midnight .home-delta.is-up-strong { color: #166534; }
   .home-sc-pos-row {
     display: flex;
     align-items: stretch;
@@ -195,12 +218,12 @@
             <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
             {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
               <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                <path class="home-sc-spark-line is-{{ _ctone }}" d="{{ dev.clicks_spark.path_d }}"></path>
+                <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
               </svg>
             {% else %}
               <div class="home-sc-spark-empty" aria-hidden="true"></div>
             {% endif %}
-            <p class="home-kpi mt-1 {% if _ctone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ctone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.clicks_delta_fmt }}</p>
+            <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
             <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
           </div>
           {% if dev.top50_has_data %}
@@ -227,12 +250,12 @@
             <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
             {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
               <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                <path class="home-sc-spark-line is-{{ _ptone }}" d="{{ dev.pos_spark.path_d }}"></path>
+                <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
               </svg>
             {% else %}
               <div class="home-sc-spark-empty" aria-hidden="true"></div>
             {% endif %}
-            <p class="home-kpi mt-1 {% if _ptone == 'up' %}text-emerald-600 dark:text-emerald-400{% elif _ptone == 'down' %}text-rose-600 dark:text-rose-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ dev.pos_delta_fmt }}</p>
+            <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
             <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
           </div>
           {% if dev.top50_has_data %}

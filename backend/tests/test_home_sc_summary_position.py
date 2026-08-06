@@ -100,8 +100,8 @@ def test_home_sc_aggregate_includes_spark_paths(_mock_top50):
     assert agg["clicks_spark"]["has_points"] is True
     assert agg["clicks_spark"]["path_d"]
     assert agg["pos_spark"]["has_points"] is True
-    assert agg["clicks_tone"] == "up"
-    assert agg["pos_tone"] == "up"  # 5.5 → 5.0 = iyileşme
+    assert agg["clicks_tone"] == "up-strong"
+    assert agg["pos_tone"] == "up"  # 5.5 → 5.0 = +0.5 sıra
 
 
 @patch("backend.services.warehouse.get_latest_search_console_rows")
@@ -124,6 +124,6 @@ def test_home_sc_top50_weighted_position(mock_rows):
     assert out["top50_has_data"] is True
     assert out["top50_pos_last_fmt"] == "4.66"
     assert out["top50_pos_prev_fmt"] == "5.66"
-    assert out["top50_pos_tone"] == "up"
+    assert out["top50_pos_tone"] == "up-strong"
     assert out["top50_clicks_last_fmt"] == "150"
     assert out["top50_clicks_prev_fmt"] == "120"
