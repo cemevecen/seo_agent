@@ -79,30 +79,31 @@
     letter-spacing: -0.02em;
     line-height: 1.15;
   }
-  /* Delta: pastel mint / mercan — koyu emerald & bordo (siyah gibi) yasak */
+  /* Delta: belirgin mint / mercan — pastel değil, siyah-emerald de değil */
   .home-readable .home-delta {
     color: #64748b;
+    opacity: 1;
   }
-  .home-readable .home-delta.is-up-mild { color: #5ecf9a !important; }
-  .home-readable .home-delta.is-up { color: #45c494 !important; }
-  .home-readable .home-delta.is-up-strong { color: #2eb887 !important; }
-  .home-readable .home-delta.is-down-mild { color: #f0a070 !important; }
-  .home-readable .home-delta.is-down { color: #ef7f8f !important; }
-  .home-readable .home-delta.is-down-strong { color: #e86b7c !important; }
+  .home-readable .home-delta.is-up-mild { color: #22c55e !important; }
+  .home-readable .home-delta.is-up { color: #16a34a !important; }
+  .home-readable .home-delta.is-up-strong { color: #15803d !important; }
+  .home-readable .home-delta.is-down-mild { color: #f97316 !important; }
+  .home-readable .home-delta.is-down { color: #e11d48 !important; }
+  .home-readable .home-delta.is-down-strong { color: #be123c !important; }
   html.dark .home-readable .home-delta,
-  html.midnight .home-readable .home-delta { color: #a1a1aa; }
+  html.midnight .home-readable .home-delta { color: #a1a1aa; opacity: 1; }
   html.dark .home-readable .home-delta.is-up-mild,
-  html.midnight .home-readable .home-delta.is-up-mild { color: #8fd4b8 !important; }
+  html.midnight .home-readable .home-delta.is-up-mild { color: #4ade80 !important; }
   html.dark .home-readable .home-delta.is-up,
-  html.midnight .home-readable .home-delta.is-up { color: #6ecf9a !important; }
+  html.midnight .home-readable .home-delta.is-up { color: #34d399 !important; }
   html.dark .home-readable .home-delta.is-up-strong,
-  html.midnight .home-readable .home-delta.is-up-strong { color: #5ecf9a !important; }
+  html.midnight .home-readable .home-delta.is-up-strong { color: #22c55e !important; }
   html.dark .home-readable .home-delta.is-down-mild,
-  html.midnight .home-readable .home-delta.is-down-mild { color: #f0c4a8 !important; }
+  html.midnight .home-readable .home-delta.is-down-mild { color: #fb923c !important; }
   html.dark .home-readable .home-delta.is-down,
-  html.midnight .home-readable .home-delta.is-down { color: #f0a3ab !important; }
+  html.midnight .home-readable .home-delta.is-down { color: #fb7185 !important; }
   html.dark .home-readable .home-delta.is-down-strong,
-  html.midnight .home-readable .home-delta.is-down-strong { color: #f08a98 !important; }
+  html.midnight .home-readable .home-delta.is-down-strong { color: #f43f5e !important; }
   .home-readable .home-split {
     display: grid;
     grid-template-columns: 1fr;
@@ -190,10 +191,10 @@
     }
   }
   .home-rt-metric {
-    /* Ortalama üstü mint / altı soft mercan — pastel, koyu emerald yok */
-    --home-rt-mean-above: #7ecfb0;
-    --home-rt-mean-below: #f0a3ab;
-    --home-rt-spark-area-fill: rgba(126, 207, 176, 0.16);
+    /* Ortalama üstü yeşil / altı mercan — spark barları net okunur */
+    --home-rt-mean-above: #22c55e;
+    --home-rt-mean-below: #f43f5e;
+    --home-rt-spark-area-fill: rgba(34, 197, 94, 0.28);
     position: relative;
     overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.14);
@@ -226,13 +227,16 @@
     background: var(--home-rt-mean-above);
     align-self: flex-end;
     min-height: 2px;
+    opacity: 1;
     transition: height 0.25s ease, background 0.25s ease, opacity 0.25s ease;
   }
   .home-rt-spark-bar.is-above {
     background: var(--home-rt-mean-above);
+    opacity: 1;
   }
   .home-rt-spark-bar.is-below {
     background: var(--home-rt-mean-below);
+    opacity: 1;
   }
   .home-rt-spark-bar.is-empty {
     background: rgba(148, 163, 184, 0.35);
@@ -386,8 +390,8 @@
     position: absolute;
     inset: 0;
     border-radius: 9999px;
-    background: #8fd4b8;
-    opacity: 0.55;
+    background: #22c55e;
+    opacity: 0.65;
     animation: home-rt-live-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
   }
   .home-rt-live-dot::after {
@@ -397,7 +401,7 @@
     height: 0.625rem;
     width: 0.625rem;
     border-radius: 9999px;
-    background: #7ecfb0;
+    background: #16a34a;
   }
   @keyframes home-rt-live-ping {
     75%, 100% { transform: scale(2.1); opacity: 0; }
@@ -405,14 +409,14 @@
     align-items: center;
     gap: 0.5rem;
     border-radius: 9999px;
-    border: 1px solid rgba(126, 207, 176, 0.42);
-    background: linear-gradient(180deg, rgba(236, 250, 243, 0.96), rgba(245, 252, 248, 0.94));
+    border: 1px solid rgba(34, 197, 94, 0.45);
+    background: linear-gradient(180deg, rgba(236, 253, 245, 0.98), rgba(240, 253, 244, 0.94));
     padding: 0.35rem 0.65rem 0.35rem 0.45rem;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
   }
   html.dark .home-rt-countdown {
-    background: linear-gradient(180deg, rgba(45, 90, 72, 0.38), rgba(24, 24, 27, 0.55));
-    border-color: rgba(143, 212, 184, 0.28);
+    background: linear-gradient(180deg, rgba(6, 95, 70, 0.42), rgba(24, 24, 27, 0.55));
+    border-color: rgba(52, 211, 153, 0.35);
   }
   .home-rt-countdown.is-urgent {
     border-color: rgba(245, 158, 11, 0.34);
@@ -439,7 +443,7 @@
     fill: none;
   }
   .home-rt-countdown-ring {
-    stroke: #7ecfb0;
+    stroke: #16a34a;
     stroke-width: 2.8;
     fill: none;
     stroke-linecap: round;
@@ -453,7 +457,7 @@
     font-variant-numeric: tabular-nums;
     font-size: 0.875rem;
     font-weight: 800;
-    color: #5bb892;
+    color: #15803d;
   }
   .home-rt-countdown.is-urgent .home-rt-countdown-num { color: rgb(180 83 9); }
   .home-rt-countdown.is-refresh .home-rt-countdown-num { color: rgb(3 105 161); }
