@@ -867,7 +867,7 @@ def _run_landing_pages_excl_news(
     last_end: str,
     prev_start: str,
     prev_end: str,
-    limit: int = 100,
+    limit: int = 150,
 ) -> list[dict]:
     # Analytics "Pages and screens" ile uyum: pagePath + screenPageViews
     filt = _landing_exclude_filter("pagePath")
@@ -916,10 +916,10 @@ def _run_landing_pages_excl_news(
                 "delta_pct": delta_pct,
             }
         )
-    # Haber detay sayfalarını çıkar (son segment sayısal ID olanlar)
+    # Haber detay sayfalarını çıkar (son segment sayısal ID olanlar; sinemalar film hariç)
     rows = [r for r in rows if not _is_news_detail_path(r["page"])]
     rows.sort(key=lambda item: item["last_total"], reverse=True)
-    return rows[:50]
+    return rows[:80]
 
 
 def _run_landing_pages_news_only(
@@ -1457,10 +1457,10 @@ def fetch_ga4_landing_pages(
     if news_only:
         rows = [r for r in rows if _is_news_article_path(r["page"])]
     elif exclude_news:
-        # Haber detay sayfalarını çıkar (son segment sayısal ID olanlar)
+        # Haber detay sayfalarını çıkar (sinemalar film/oyuncu ID path'leri hariç)
         rows = [r for r in rows if not _is_news_detail_path(r["page"])]
     rows.sort(key=lambda item: item["last_total"], reverse=True)
-    cap = 30 if news_only else 50
+    cap = 30 if news_only else min(80, max(50, safe_limit))
     return rows[:cap]
 
 

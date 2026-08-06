@@ -9318,16 +9318,55 @@ def _home_ga4_top_pages(
 ) -> list[dict]:
     """GA4 pages tablosu ile aynı kaynak: pages_no_news + SC pozisyon.
 
-    Eski snapshot'larda sinemalar film sayfaları (movieInfo/Cast) yanlışlıkla
-    pages_news'e düşmüş olabilir — onları da havuza ekleyip haber filtresinden geçir.
+    Eski snapshot'larda sinemalar film sayfaları (movieInfo/Cast) ID=haber
+    filtresiyle silinmiş olabilir. Snapshot'ta film yoksa GA4'ten canlı çeker.
     """
     if profile not in ("web", "mweb"):
         return []
+    from backend.services.realtime_news_paths import is_sinemalar_content_id_path
+
     snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=7)
     if not snap or not ((snap.get("payload") or {}).get("pages_no_news")):
         snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
     payload = (snap or {}).get("payload") or {}
     rows = _ga4_pages_no_news_for_ui(payload)
+    has_film = any(
+        isinstance(r, dict) and is_sinemalar_content_id_path(str(r.get("page") or ""))
+        for r in (rows or [])
+    )
+    # Snapshot film içermiyorsa (eski filtre) — canlı çek
+    if not has_film:
+        try:
+            from backend.collectors.ga4 import fetch_ga4_landing_pages
+
+            ga4_status = get_ga4_connection_status(db, site_id)
+            props = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
+            property_id = str(props.get(profile) or props.get("web") or "").strip()
+            if property_id:
+                live = fetch_ga4_landing_pages(
+                    property_id=property_id,
+                    days=7,
+                    limit=120,
+                    exclude_news=True,
+                )
+                live = _enrich_ga4_page_rows(live, keep_news_articles=False)
+                if live:
+                    rows = live
+                    LOGGER.info(
+                        "Home GA4 top pages live fetch site=%s profile=%s rows=%s films=%s",
+                        site_id,
+                        profile,
+                        len(live),
+                        sum(
+                            1
+                            for r in live
+                            if is_sinemalar_content_id_path(str(r.get("page") or ""))
+                        ),
+                    )
+        except Exception:  # noqa: BLE001
+            LOGGER.exception(
+                "Home GA4 top pages live fetch failed site=%s profile=%s", site_id, profile
+            )
     if not rows:
         return []
     try:
