@@ -208,20 +208,34 @@ def post_ad_sync_sheets(
         False,
         description="True: dalı temizleyip sheet’i baştan yaz. False: kirli/ilk seferde tam, sonra son 21 gün",
     ),
+    background: bool = Query(
+        True,
+        description="True: arka planda çalıştır (Railway 502 önler; Döviz Web ~50MB)",
+    ),
 ):
     from backend.services import ad_sheets_sync as sheets_sync
 
+    key = (stream_key or "").strip() or None
     try:
+        if background:
+            return sheets_sync.start_sync_job(force=force, stream_key=key, full=full)
         return sheets_sync.sync_from_google_sheets(
             db,
             force=force,
-            stream_key=(stream_key or "").strip() or None,
+            stream_key=key,
             full=full,
         )
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         LOGGER.exception("ad sync-sheets failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/mz-analytics/sync-sheets/job")
+def get_ad_sync_sheets_job():
+    from backend.services import ad_sheets_sync as sheets_sync
+
+    return sheets_sync.get_sync_job()
 
 
 @router.post("/mz-analytics/append")

@@ -442,6 +442,7 @@
       <p class="text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
         Ana kaynak: döviz web/mweb/ios/android + sinemalar web/mweb.
         Sheet’e gün/hafta ekledikçe <strong>Verileri güncelle</strong>.
+        Döviz Web büyük (~50MB); senkron arka planda birkaç dakika sürebilir.
         Manuel xlsx yükleme kapalı.
       </p>
       <label class="block text-[10px] font-semibold text-slate-500 dark:text-zinc-400" for="mz-sheets-stream-pick">Hangi sheet</label>
@@ -10826,6 +10827,10 @@
     return !!(el && el.checked);
   }
 
+  function mzSleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
   async function syncMzSheetsFromGoogle(opts) {
     opts = opts || {};
     var lockedKey =
@@ -10845,8 +10850,8 @@
     if (reloadEl) reloadEl.classList.add("hidden");
     mzUploadLastPct = 0;
     var scopeLabel = lockedKey ? "Tek dal: " + lockedKey : "Tüm sheet’ler (6)";
-    setUploadProgress(0, "Sheets senkron", scopeLabel + " · başlıyor…", { allowDecrease: true });
-    if (statusEl) statusEl.textContent = "Google Sheets: " + scopeLabel;
+    setUploadProgress(0, "Sheets senkron", scopeLabel + " · arka planda…", { allowDecrease: true });
+    if (statusEl) statusEl.textContent = "Google Sheets (arka plan): " + scopeLabel;
 
     function appendSyncLine(text, kind) {
       if (!summaryUl) return;
@@ -10854,7 +10859,9 @@
       li.textContent = text;
       if (kind === "err") li.className = "font-semibold text-rose-700 dark:text-rose-300";
       else if (kind === "ok") li.className = "text-emerald-800 dark:text-emerald-300";
+      else li.className = "text-slate-600 dark:text-zinc-300";
       summaryUl.appendChild(li);
+      summaryUl.scrollTop = summaryUl.scrollHeight;
     }
 
     function shortSyncMsg(msg, limit) {
@@ -10865,73 +10872,105 @@
       return t.length > lim ? t.slice(0, lim - 1) + "…" : t;
     }
 
-    try {
-      await loadMzSheetsStatus();
-      var streams = mzSheetStreamCatalog();
-      if (lockedKey) {
-        streams = streams.filter(function (s) { return s.stream_key === lockedKey; });
-        if (!streams.length) throw new Error("Bilinmeyen sheet: " + lockedKey);
-      }
-      var okCount = 0;
-      var failCount = 0;
-      var totalParsed = 0;
-      var total = streams.length;
-      var i;
-      for (i = 0; i < streams.length; i++) {
-        var src = streams[i];
-        var label = src.label || src.stream_key;
-        setUploadProgress(
-          Math.round((i / Math.max(total, 1)) * 90),
-          failCount ? "Sheets · " + failCount + " hata" : "Sheets senkron",
-          (i + 1) + "/" + total + " · " + label + " çekiliyor…",
-          { allowDecrease: true }
-        );
-        if (statusEl) statusEl.textContent = "Sheet: " + label + " (" + (i + 1) + "/" + total + ")…";
-        var url =
-          "/api/mz-analytics/sync-sheets?force=1&stream_key=" +
-          encodeURIComponent(src.stream_key);
-        if (selectedMzSheetFullReplace()) url += "&full=1";
-        var resp = await fetch(url, { method: "POST", credentials: "same-origin" });
-        var payload = await resp.json().catch(function () { return {}; });
-        if (!resp.ok) {
-          failCount += 1;
-          var errHttp = shortSyncMsg(mzApiErrorDetail(payload, "HTTP " + resp.status));
-          appendSyncLine("✗ " + label + ": " + errHttp, "err");
-          setUploadProgressTheme("err");
-          continue;
-        }
-        var item = payload.streams && payload.streams[0] ? payload.streams[0] : payload;
-        if (item && item.ok) {
-          okCount += 1;
-          totalParsed += Number(item.parsed || 0);
+    var loggedKeys = {};
+
+    function renderJobStreams(streams) {
+      if (!streams || !streams.length) return;
+      streams.forEach(function (item) {
+        var key = item.stream_key || item.label || "?";
+        if (loggedKeys[key]) return;
+        loggedKeys[key] = true;
+        var label = item.label || key;
+        if (item.ok) {
           var extra = item.replaced && item.cleared_rows
             ? " · eski " + Number(item.cleared_rows).toLocaleString("tr-TR") + " temizlendi"
             : "";
           appendSyncLine(
             "✓ " + label + ": " + Number(item.parsed || 0).toLocaleString("tr-TR") +
-              " satır · " + (item.mode || "full") + " · son " + (item.max_date || "—") + extra,
+              " satır · " + (item.mode || "full") + " · " + (item.elapsed_s || "?") + "s" +
+              " · son " + (item.max_date || "—") + extra,
             "ok"
           );
         } else {
-          failCount += 1;
-          appendSyncLine(
-            "✗ " + label + ": " + shortSyncMsg((item && (item.error || item.warning)) || payload.message || "başarısız"),
-            "err"
-          );
+          appendSyncLine("✗ " + label + ": " + shortSyncMsg(item.error || item.warning || "başarısız"), "err");
           setUploadProgressTheme("err");
         }
+      });
+    }
+
+    try {
+      await loadMzSheetsStatus();
+      var url = "/api/mz-analytics/sync-sheets?force=1&background=1";
+      if (lockedKey) url += "&stream_key=" + encodeURIComponent(lockedKey);
+      if (selectedMzSheetFullReplace()) url += "&full=1";
+      var resp = await fetch(url, { method: "POST", credentials: "same-origin" });
+      var startPayload = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        throw new Error(shortSyncMsg(mzApiErrorDetail(startPayload, "HTTP " + resp.status)));
+      }
+      if (startPayload.accepted === false && startPayload.reason === "already_running") {
+        appendSyncLine("ℹ Zaten çalışan senkrona bağlanıldı…", "info");
+      } else if (startPayload.accepted === false) {
+        throw new Error(shortSyncMsg(startPayload.message || "Senkron başlatılamadı"));
+      } else {
+        appendSyncLine("↗ Arka planda başladı (Döviz Web birkaç dk sürebilir)", "info");
+      }
+
+      var job = startPayload.job || {};
+      var polls = 0;
+      var maxPolls = 1200;
+      while (polls < maxPolls) {
+        var jr = await fetch("/api/mz-analytics/sync-sheets/job", { credentials: "same-origin" });
+        job = await jr.json().catch(function () { return {}; });
+        var total = Math.max(Number(job.total) || 1, 1);
+        var idx = Math.min(Number(job.index) || 0, total);
+        var pctBase = Math.round((idx / total) * 90);
+        if (job.phase === "fetch" || job.phase === "clear" || job.phase === "import") {
+          pctBase = Math.min(89, pctBase + 5);
+        }
+        var failCount = Number(job.fail_count) || 0;
+        setUploadProgress(
+          job.running ? Math.max(2, pctBase) : 100,
+          failCount ? "Sheets · " + failCount + " hata" : (job.running ? "Sheets senkron" : "Tamamlandı"),
+          job.detail || job.message || "…",
+          { allowDecrease: true }
+        );
+        if (statusEl) {
+          statusEl.textContent =
+            (job.stream_label || job.stream_key || "Sheets") +
+            " · " +
+            (job.detail || job.message || (job.running ? "çalışıyor…" : "bitti"));
+        }
+        renderJobStreams(job.streams || []);
+        if (!job.running) break;
+        polls += 1;
+        await mzSleep(2000);
+      }
+
+      if (job.running) {
+        throw new Error("Senkron hâlâ sürüyor; sayfayı yenileyip tekrar deneyin.");
+      }
+      renderJobStreams(job.streams || []);
+      var okCount = Number(job.ok_count) || 0;
+      var failFinal = Number(job.fail_count) || 0;
+      var totalParsed = Number(job.total_parsed) || 0;
+      if (job.phase === "error" || job.error) {
+        setUploadProgressTheme("err");
+        appendSyncLine("✗ " + shortSyncMsg(job.error || job.message), "err");
+      } else if (failFinal) {
+        setUploadProgressTheme("err");
       }
       setUploadProgress(
         100,
-        failCount ? "Kısmi tamamlandı" : "Tamamlandı",
-        okCount + "/" + total + " · " + totalParsed.toLocaleString("tr-TR") + " satır",
+        failFinal ? "Kısmi tamamlandı" : "Tamamlandı",
+        okCount + " sheet · " + totalParsed.toLocaleString("tr-TR") + " satır" +
+          (job.elapsed_s != null ? " · " + job.elapsed_s + "s" : ""),
         { allowDecrease: true }
       );
-      if (failCount) setUploadProgressTheme("err");
       if (statusEl) {
         statusEl.textContent =
-          okCount + "/" + total + " sheet · " + totalParsed.toLocaleString("tr-TR") + " satır" +
-          (failCount ? " · " + failCount + " hata" : "");
+          okCount + " sheet · " + totalParsed.toLocaleString("tr-TR") + " satır" +
+          (failFinal ? " · " + failFinal + " hata" : "");
       }
       await loadMzSheetsStatus();
       await loadFacets({ cacheBust: true });

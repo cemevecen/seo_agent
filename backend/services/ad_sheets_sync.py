@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -24,11 +25,49 @@ from backend.services.backlink_csv import fetch_public_sheet_csv
 LOGGER = logging.getLogger(__name__)
 
 _SHEET_SYNC_TTL_SEC = 180.0
-_FETCH_TIMEOUT_SEC = 180
+# Döviz Web ~50MB; proxy 502’yi önlemek için fetch uzun, sync arka planda.
+_FETCH_TIMEOUT_SEC = 300
 _INCREMENTAL_OVERLAP_DAYS = 21
 _last_sheet_sync_mono: float = 0.0
 _last_sheet_sync_at: datetime | None = None
 _last_sheet_sync_result: dict[str, Any] | None = None
+
+_job_lock = threading.Lock()
+_job: dict[str, Any] = {
+    "running": False,
+    "phase": "idle",
+    "detail": "",
+    "stream_key": None,
+    "stream_label": None,
+    "index": 0,
+    "total": 0,
+    "full": False,
+    "ok_count": 0,
+    "fail_count": 0,
+    "total_parsed": 0,
+    "streams": [],
+    "error": None,
+    "message": "",
+    "started_at": None,
+    "finished_at": None,
+    "elapsed_s": None,
+}
+
+
+def _iso_now() -> str:
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def get_sync_job() -> dict[str, Any]:
+    with _job_lock:
+        out = dict(_job)
+        out["streams"] = list(_job.get("streams") or [])
+    return out
+
+
+def _set_job(**kwargs: Any) -> None:
+    with _job_lock:
+        _job.update(kwargs)
 
 
 def _short_sync_error(exc: BaseException, *, limit: int = 220) -> str:
@@ -92,6 +131,7 @@ def sheets_sync_status(db: Session) -> dict[str, Any]:
         "ttl_seconds": _SHEET_SYNC_TTL_SEC,
         "streams": streams,
         "last_result": _last_sheet_sync_result,
+        "job": get_sync_job(),
     }
 
 
@@ -101,12 +141,17 @@ def sync_one_sheet(
     stream_key: str,
     commit: bool = True,
     full: bool = False,
+    on_phase: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
     src = next((s for s in AD_SHEET_SOURCES if s.stream_key == stream_key), None)
     if src is None:
         return {"ok": False, "stream_key": stream_key, "error": "Bilinmeyen stream_key"}
     if stream_key not in _STREAM_BY_KEY:
         return {"ok": False, "stream_key": stream_key, "error": "Stream tanımsız"}
+
+    def _phase(phase: str, detail: str = "") -> None:
+        if on_phase:
+            on_phase(phase, detail)
 
     t0 = time.monotonic()
     before = _stream_date_bounds(db, stream_key)
@@ -130,6 +175,7 @@ def sync_one_sheet(
             mode = "full_replace"
             min_import = None
 
+    _phase("fetch", f"{src.label}: Google’dan CSV çekiliyor…")
     try:
         csv_text = fetch_public_sheet_csv(src.sheet_url, timeout=_FETCH_TIMEOUT_SEC)
     except Exception as exc:  # noqa: BLE001
@@ -143,8 +189,15 @@ def sync_one_sheet(
             "elapsed_s": round(time.monotonic() - t0, 1),
         }
 
+    nbytes = len(csv_text.encode("utf-8"))
+    _phase(
+        "fetch_done",
+        f"{src.label}: {nbytes / (1024 * 1024):.1f} MB alındı · yazılıyor…",
+    )
+
     cleared: dict[str, Any] | None = None
     if replace_stream:
+        _phase("clear", f"{src.label}: eski satırlar temizleniyor…")
         cleared = clear_stream_rows(db, stream_key, commit=False)
         mode = "full_replace"
         min_import = None
@@ -155,7 +208,20 @@ def sync_one_sheet(
             polluted,
         )
 
+    _phase("import", f"{src.label}: satırlar DB’ye yazılıyor (büyük sheet birkaç dk sürebilir)…")
     raw = csv_text.encode("utf-8")
+
+    def _import_progress(ev: dict[str, Any]) -> None:
+        parsed_n = int(ev.get("parsed") or 0)
+        est = int(ev.get("row_estimate") or 0)
+        if est > 0 and parsed_n > 0:
+            _phase(
+                "import",
+                f"{src.label}: {parsed_n:,}/{est:,} satır işlendi…",
+            )
+        elif parsed_n > 0:
+            _phase("import", f"{src.label}: {parsed_n:,} satır işlendi…")
+
     try:
         result = import_upload_file(
             db,
@@ -164,6 +230,7 @@ def sync_one_sheet(
             commit=commit,
             stream_key=stream_key,
             min_date=min_import,
+            progress_cb=_import_progress,
         )
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Ad sheet import failed %s", stream_key)
@@ -197,7 +264,7 @@ def sync_one_sheet(
         "min_date": bounds.get("min_date"),
         "rows_in_db": bounds.get("rows"),
         "elapsed_s": round(time.monotonic() - t0, 1),
-        "bytes": len(raw),
+        "bytes": nbytes,
     }
 
 
@@ -207,6 +274,7 @@ def sync_from_google_sheets(
     force: bool = False,
     stream_key: str | None = None,
     full: bool = False,
+    on_progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Tüm (veya tek) reklam sheet'lerini çekip DB'ye yazar."""
     global _last_sheet_sync_mono, _last_sheet_sync_at, _last_sheet_sync_result
@@ -240,14 +308,72 @@ def sync_from_google_sheets(
     fail_count = 0
     total_parsed = 0
 
-    for src in sources:
-        item = sync_one_sheet(db, stream_key=src.stream_key, commit=True, full=full)
+    def _emit(extra: dict[str, Any] | None = None) -> None:
+        if not on_progress:
+            return
+        payload = {
+            "index": len(per_stream),
+            "total": len(sources),
+            "ok_count": ok_count,
+            "fail_count": fail_count,
+            "total_parsed": total_parsed,
+            "streams": list(per_stream),
+        }
+        if extra:
+            payload.update(extra)
+        on_progress(payload)
+
+    for i, src in enumerate(sources):
+        def _on_phase(phase: str, detail: str, *, _i: int = i, _src=src) -> None:
+            _emit(
+                {
+                    "phase": phase,
+                    "detail": detail,
+                    "stream_key": _src.stream_key,
+                    "stream_label": _src.label,
+                    "index": _i,
+                    "total": len(sources),
+                }
+            )
+
+        _emit(
+            {
+                "phase": "start_stream",
+                "detail": f"{src.label} başlıyor…",
+                "stream_key": src.stream_key,
+                "stream_label": src.label,
+                "index": i,
+                "total": len(sources),
+            }
+        )
+        item = sync_one_sheet(
+            db,
+            stream_key=src.stream_key,
+            commit=True,
+            full=full,
+            on_phase=_on_phase,
+        )
         per_stream.append(item)
         if item.get("ok"):
             ok_count += 1
             total_parsed += int(item.get("parsed") or 0)
         else:
             fail_count += 1
+        _emit(
+            {
+                "phase": "stream_done",
+                "detail": (
+                    f"{src.label}: tamam · {int(item.get('parsed') or 0):,} satır"
+                    if item.get("ok")
+                    else f"{src.label}: hata · {item.get('error') or 'başarısız'}"
+                ),
+                "stream_key": src.stream_key,
+                "stream_label": src.label,
+                "index": i + 1,
+                "total": len(sources),
+                "last_item": item,
+            }
+        )
 
     invalidate_facets_cache()
     _last_sheet_sync_mono = time.monotonic()
@@ -277,3 +403,120 @@ def sync_from_google_sheets(
         "at": _last_sheet_sync_at.isoformat() + "Z",
     }
     return result
+
+
+def start_sync_job(
+    *,
+    force: bool = True,
+    stream_key: str | None = None,
+    full: bool = False,
+) -> dict[str, Any]:
+    """HTTP timeout (502) önlemek için sync’i arka planda çalıştır."""
+    with _job_lock:
+        if _job.get("running"):
+            return {
+                "accepted": False,
+                "background": True,
+                "reason": "already_running",
+                "message": "Senkron zaten çalışıyor; bitmesini bekleyin.",
+                "job": dict(_job),
+            }
+
+        sources = AD_SHEET_SOURCES
+        if stream_key:
+            sources = tuple(s for s in AD_SHEET_SOURCES if s.stream_key == stream_key)
+            if not sources:
+                return {
+                    "accepted": False,
+                    "background": False,
+                    "ok": False,
+                    "message": f"Bilinmeyen dal: {stream_key}",
+                }
+
+        _job.update(
+            {
+                "running": True,
+                "phase": "queued",
+                "detail": "Arka planda başlıyor…",
+                "stream_key": stream_key,
+                "stream_label": sources[0].label if len(sources) == 1 else None,
+                "index": 0,
+                "total": len(sources),
+                "full": bool(full),
+                "ok_count": 0,
+                "fail_count": 0,
+                "total_parsed": 0,
+                "streams": [],
+                "error": None,
+                "message": f"{len(sources)} sheet kuyruğa alındı",
+                "started_at": _iso_now(),
+                "finished_at": None,
+                "elapsed_s": None,
+            }
+        )
+
+    def _worker() -> None:
+        from backend.database import SessionLocal
+
+        t0 = time.monotonic()
+
+        def on_progress(payload: dict[str, Any]) -> None:
+            update = {
+                "phase": payload.get("phase") or "running",
+                "detail": payload.get("detail") or "",
+                "stream_key": payload.get("stream_key"),
+                "stream_label": payload.get("stream_label"),
+                "index": int(payload.get("index") or 0),
+                "total": int(payload.get("total") or 0),
+                "ok_count": int(payload.get("ok_count") or 0),
+                "fail_count": int(payload.get("fail_count") or 0),
+                "total_parsed": int(payload.get("total_parsed") or 0),
+                "streams": list(payload.get("streams") or []),
+                "message": payload.get("detail") or _job.get("message") or "",
+                "elapsed_s": round(time.monotonic() - t0, 1),
+            }
+            _set_job(**update)
+
+        try:
+            with SessionLocal() as db:
+                result = sync_from_google_sheets(
+                    db,
+                    force=force,
+                    stream_key=stream_key,
+                    full=full,
+                    on_progress=on_progress,
+                )
+            _set_job(
+                running=False,
+                phase="done",
+                detail=result.get("message") or "Tamamlandı",
+                message=result.get("message") or "Tamamlandı",
+                ok_count=int(result.get("ok_count") or 0),
+                fail_count=int(result.get("fail_count") or 0),
+                total_parsed=int(result.get("total_parsed") or 0),
+                streams=list(result.get("streams") or []),
+                index=int(result.get("ok_count") or 0) + int(result.get("fail_count") or 0),
+                finished_at=_iso_now(),
+                elapsed_s=round(time.monotonic() - t0, 1),
+                error=None,
+            )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.exception("Ad sheets background sync failed")
+            _set_job(
+                running=False,
+                phase="error",
+                detail=_short_sync_error(exc),
+                message=_short_sync_error(exc),
+                error=_short_sync_error(exc),
+                finished_at=_iso_now(),
+                elapsed_s=round(time.monotonic() - t0, 1),
+            )
+
+    threading.Thread(target=_worker, daemon=True, name="ad-sheets-sync").start()
+    return {
+        "accepted": True,
+        "background": True,
+        "ok": True,
+        "message": "Senkron arka planda başladı (Döviz Web birkaç dakika sürebilir).",
+        "job": get_sync_job(),
+    }

@@ -612,25 +612,34 @@ def parse_csv_text(
     stream: AdStream | None = None,
     min_date: date | None = None,
 ) -> list[dict[str, Any]]:
+    return list(iter_csv_text(text, filename=filename, stream=stream, min_date=min_date))
+
+
+def iter_csv_text(
+    text: str,
+    *,
+    filename: str = "upload.csv",
+    stream: AdStream | None = None,
+    min_date: date | None = None,
+) -> Iterator[dict[str, Any]]:
     raw = (text or "").strip()
     if not raw:
-        return []
+        return
     lines = [ln for ln in raw.splitlines() if ln.strip()]
     if len(lines) < 2:
-        return []
+        return
     delim = ","
     if lines[0].count(";") > lines[0].count(","):
         delim = ";"
     reader = csv.reader(lines, delimiter=delim)
     header_row = next(reader, None)
     if not header_row:
-        return []
+        return
     col_map, extras_idx = _map_header_row(header_row)
     if "ad_unit" not in col_map or "income_type" not in col_map:
-        return []
+        return
     stream = stream or detect_stream(filename)
     channel = stream.channel if stream else _detect_channel(filename)
-    out: list[dict[str, Any]] = []
     for cols in reader:
         item = _row_from_values(
             tuple(cols), col_map, extras_idx, source_file=filename, stream=stream, channel=channel
@@ -639,8 +648,7 @@ def parse_csv_text(
             continue
         if min_date is not None and item.get("report_date") and item["report_date"] < min_date:
             continue
-        out.append(item)
-    return out
+        yield item
 
 
 def _upsert_catalog(
@@ -863,11 +871,13 @@ def import_rows(
     progress_cb: ProgressCallback | None = None,
     progress_every: int = 800,
     row_estimate: int | None = None,
+    batch_size: int | None = None,
 ) -> dict[str, int]:
     inserted = 0
     skipped = 0
     parsed = 0
     batch: list[dict[str, Any]] = []
+    flush_size = max(50, int(batch_size or _IMPORT_BATCH_SIZE))
 
     def _emit(phase: str, **extra: Any) -> None:
         if not progress_cb:
@@ -891,7 +901,7 @@ def import_rows(
             batch.append(r)
             if progress_every > 0 and parsed % progress_every == 0:
                 _emit("parsing")
-            if len(batch) >= _IMPORT_BATCH_SIZE:
+            if len(batch) >= flush_size:
                 ins, sk = _flush_batch(db, batch)
                 inserted += ins
                 skipped += sk
@@ -999,15 +1009,17 @@ def import_upload_file(
             if lines:
                 delim = ";" if lines[0].count(";") > lines[0].count(",") else ","
                 columns = [c.strip() for c in lines[0].split(delim)]
-            parsed_rows = parse_csv_text(
-                text, filename=filename, stream=stream, min_date=min_date
-            )
+            # Büyük Google Sheet CSV: listeye alma — iterator + daha büyük batch.
+            row_est = max(0, len(lines) - 1)
+            is_sheet = low.endswith("_google_sheet.csv")
             result = import_rows(
                 db,
-                parsed_rows,
+                iter_csv_text(text, filename=filename, stream=stream, min_date=min_date),
                 commit=False,
                 progress_cb=progress_cb,
-                row_estimate=len(parsed_rows) if parsed_rows else max(0, len(lines) - 1),
+                progress_every=2000 if is_sheet else 800,
+                row_estimate=row_est or None,
+                batch_size=1500 if is_sheet else None,
             )
         else:
             raise ValueError("Yalnızca .xlsx veya .csv desteklenir")
