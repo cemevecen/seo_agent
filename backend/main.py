@@ -2086,8 +2086,9 @@ def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
     if times:
         return format_local_datetime(max(times), fallback="Henüz otomatik yenileme kaydı yok")
 
-    # Başarılı otomatik run yoksa son denemeyi göster (kota skip / hata).
+    # Başarılı otomatik run yoksa son denemeyi göster (kota skip / hata) — başarı gibi görünmesin.
     attempt_times: list[datetime] = []
+    attempt_status = ""
     for provider in ("pagespeed", "crux_history"):
         run = _latest_scheduled_provider_run(
             db,
@@ -2099,8 +2100,13 @@ def _data_explorer_last_auto_refresh_label(db, site_id: int) -> str:
         finished = (getattr(run, "finished_at", None) or getattr(run, "requested_at", None)) if run else None
         if isinstance(finished, datetime):
             attempt_times.append(finished)
+            if not attempt_status:
+                attempt_status = _collector_status_label(getattr(run, "status", None))
     if attempt_times:
-        return format_local_datetime(max(attempt_times), fallback="Henüz otomatik yenileme kaydı yok")
+        stamp = format_local_datetime(max(attempt_times), fallback="Henüz otomatik yenileme kaydı yok")
+        if attempt_status and attempt_status not in {"Başarılı", "—"}:
+            return f"{stamp} ({attempt_status})"
+        return stamp
 
     # Collector kaydı yoksa ölçüm zamanına düş (eski legacy veri).
     fallback_times = [

@@ -53,6 +53,56 @@ def _candidate_identifiers(domain: str, form_factor: str | None = None) -> list[
     normalized_url = _normalize_url(domain).rstrip("/")
     parsed = urlparse(normalized_url)
     host = parsed.netloc.lower()
+    if host.startswith("wwwm."):
+        host = "www." + host[5:]
+    elif host.startswith("m."):
+        host = host[2:]
+        if not host.startswith("www."):
+            host = f"www.{host}" if host.count(".") == 1 else host
+
+    # Bilinen siteler: pagespeed.web.dev ile ayni URL/origin onceligi.
+    bare = host[4:] if host.startswith("www.") else host
+    if bare == "doviz.com":
+        preferred: list[dict[str, str]] = []
+        if form_factor == "PHONE":
+            preferred.extend(
+                [
+                    {"type": "url", "value": "https://wwwm.doviz.com/"},
+                    {"type": "url", "value": "https://m.doviz.com/"},
+                    {"type": "origin", "value": "https://wwwm.doviz.com"},
+                    {"type": "origin", "value": "https://m.doviz.com"},
+                ]
+            )
+        preferred.extend(
+            [
+                {"type": "origin", "value": "https://www.doviz.com"},
+                {"type": "url", "value": "https://www.doviz.com/"},
+                {"type": "origin", "value": "https://doviz.com"},
+                {"type": "url", "value": "https://doviz.com/"},
+            ]
+        )
+        return list({(c["type"], c["value"]): c for c in preferred}.values())
+
+    if bare == "sinemalar.com":
+        preferred = []
+        if form_factor == "PHONE":
+            preferred.extend(
+                [
+                    {"type": "url", "value": "https://m.sinemalar.com/mobileweb"},
+                    {"type": "url", "value": "https://m.sinemalar.com/"},
+                    {"type": "origin", "value": "https://m.sinemalar.com"},
+                ]
+            )
+        preferred.extend(
+            [
+                {"type": "origin", "value": "https://www.sinemalar.com"},
+                {"type": "url", "value": "https://www.sinemalar.com/"},
+                {"type": "origin", "value": "https://sinemalar.com"},
+                {"type": "url", "value": "https://sinemalar.com/"},
+            ]
+        )
+        return list({(c["type"], c["value"]): c for c in preferred}.values())
+
     candidates: list[dict[str, str]] = [{"type": "url", "value": normalized_url + "/"}]
     mobile_host = ""
     if form_factor == "PHONE":

@@ -70,15 +70,16 @@ def _normalize_url(domain: str) -> str:
 
 
 def resolve_pagespeed_target_url(site: Site, strategy: str) -> str:
-    # Site detail sayfasindaki skorlarin resmi PSI ekranina daha yakin hizalanmasi icin
-    # strateji bazli URL secimi yapar. Data Explorer tarafindaki akisa dokunmaz.
+    # Site detail / Data Explorer skorlarini pagespeed.web.dev ile hizalamak icin
+    # strateji bazli URL secimi yapar (doviz → www; sinemalar mobil → /mobileweb).
     domain = (site.domain or "").strip().lower()
 
-    if domain in {"doviz.com", "www.doviz.com", "m.doviz.com"}:
+    if domain in {"doviz.com", "www.doviz.com", "m.doviz.com", "wwwm.doviz.com"}:
         return "https://www.doviz.com"
 
     if domain in {"sinemalar.com", "www.sinemalar.com", "m.sinemalar.com"}:
-        return "https://m.sinemalar.com" if strategy == "mobile" else "https://www.sinemalar.com"
+        # Mobil stratejide www, PSI'nin gosterdigi m.sinemalar.com/mobileweb'e yonlenir.
+        return "https://www.sinemalar.com"
 
     return _normalize_url(site.domain)
 
@@ -86,15 +87,26 @@ def resolve_pagespeed_target_url(site: Site, strategy: str) -> str:
 def _candidate_pagespeed_target_urls(site: Site, strategy: str) -> list[str]:
     domain = (site.domain or "").strip().lower()
 
-    if domain in {"doviz.com", "www.doviz.com", "m.doviz.com"}:
+    if domain in {"doviz.com", "www.doviz.com", "m.doviz.com", "wwwm.doviz.com"}:
+        # pagespeed.web.dev www.doviz.com mobil analizinde final URL wwwm/m.doviz.com olur.
         if strategy == "mobile":
-            return ["https://m.doviz.com", "https://www.doviz.com", "https://doviz.com"]
-        return ["https://www.doviz.com", "https://m.doviz.com", "https://doviz.com"]
+            return [
+                "https://www.doviz.com",
+                "https://wwwm.doviz.com",
+                "https://m.doviz.com",
+                "https://doviz.com",
+            ]
+        return ["https://www.doviz.com", "https://doviz.com", "https://m.doviz.com"]
 
     if domain in {"sinemalar.com", "www.sinemalar.com", "m.sinemalar.com"}:
         if strategy == "mobile":
-            return ["https://m.sinemalar.com", "https://www.sinemalar.com", "https://sinemalar.com"]
-        return ["https://www.sinemalar.com", "https://m.sinemalar.com", "https://sinemalar.com"]
+            return [
+                "https://www.sinemalar.com",
+                "https://sinemalar.com",
+                "https://m.sinemalar.com",
+                "https://m.sinemalar.com/mobileweb",
+            ]
+        return ["https://www.sinemalar.com", "https://sinemalar.com", "https://m.sinemalar.com"]
 
     return [resolve_pagespeed_target_url(site, strategy)]
 
@@ -1248,10 +1260,31 @@ def _save_pagespeed_audit_snapshot(
 
 
 def _flatten_strategy_metrics(strategy: str, payload: dict[str, float]) -> dict[str, float]:
+    # Field/lab yardımcı anahtarları (lcp_field, lcp_lab, …) STRATEGY_METRIC_MAP'te yok;
+    # onları atlamak zorundayız — aksi halde KeyError tüm PSI kaydını düşürür.
+    mapping = STRATEGY_METRIC_MAP[strategy]
     return {
-        STRATEGY_METRIC_MAP[strategy][key]: value
+        mapping[key]: float(value)
         for key, value in payload.items()
+        if key in mapping and value is not None
     }
+
+
+def _pagespeed_payload_is_usable(payload: dict[str, float] | None, raw_payload: dict | None) -> bool:
+    """Bos/hatali PSI yanitlarini (score=0 + lab/field yok) aday URL olarak kabul etme."""
+    if not isinstance(payload, dict) or not isinstance(raw_payload, dict):
+        return False
+    if raw_payload.get("mock"):
+        return True
+    score = float(payload.get("performance_score") or 0.0)
+    has_lab_or_field = any(
+        float(payload.get(key) or 0.0) > 0
+        for key in ("lcp", "fcp", "ttfb", "inp", "lcp_lab", "fcp_lab", "lcp_field", "fcp_field")
+    )
+    has_cls = float(payload.get("cls") or 0.0) > 0 or float(payload.get("cls_field") or 0.0) > 0
+    if score > 0:
+        return True
+    return has_lab_or_field or has_cls
 
 
 def collect_pagespeed_metrics(
@@ -1319,14 +1352,39 @@ def collect_pagespeed_metrics(
             trigger_source=trigger_source,
         )
         try:
+            last_fetch_error: Exception | None = None
+            payload = None
+            analysis = None
+            raw_payload = None
             target_url = resolve_pagespeed_target_url(site, strategy)
-            payload, analysis, raw_payload = _fetch_pagespeed_with_retries(
-                target_url,
-                strategy,
-                request_timeout=request_timeout,
-                max_retries=max_retries,
-                retry_backoff_seconds=retry_backoff_seconds,
-            )
+            for candidate_url in _candidate_pagespeed_target_urls(site, strategy):
+                try:
+                    candidate_payload, candidate_analysis, candidate_raw = _fetch_pagespeed_with_retries(
+                        candidate_url,
+                        strategy,
+                        request_timeout=request_timeout,
+                        max_retries=max_retries,
+                        retry_backoff_seconds=retry_backoff_seconds,
+                    )
+                    if not _pagespeed_payload_is_usable(candidate_payload, candidate_raw):
+                        raise RuntimeError(f"Empty PageSpeed payload for {candidate_url} ({strategy})")
+                    payload, analysis, raw_payload = candidate_payload, candidate_analysis, candidate_raw
+                    target_url = candidate_url
+                    last_fetch_error = None
+                    break
+                except Exception as fetch_exc:  # noqa: BLE001
+                    last_fetch_error = fetch_exc
+                    LOGGER.warning(
+                        "PageSpeed %s fetch failed for %s via %s: %s",
+                        strategy,
+                        site.domain,
+                        candidate_url,
+                        fetch_exc,
+                    )
+            if payload is None:
+                raise RuntimeError(
+                    f"{strategy} PageSpeed verisi alinamadi: {last_fetch_error}"
+                ) from last_fetch_error
             strategy_payloads[strategy] = payload
             strategy_analyses[strategy] = analysis
             strategy_status[strategy] = {"state": "fresh", "message": "Canli veri guncellendi."}
@@ -1360,10 +1418,11 @@ def collect_pagespeed_metrics(
                     "source": "mock" if raw_payload.get("mock") else "live",
                     "saved_metric_keys": sorted(_flatten_strategy_metrics(strategy, payload).keys()),
                     "audit_rows": audit_row_count,
+                    "target_url": target_url,
                 },
                 row_count=audit_row_count,
             )
-        except RuntimeError as exc:
+        except Exception as exc:  # noqa: BLE001 — KeyError vb. de run'i "started"da birakmasin
             fallback = _load_latest_strategy_metrics(db, site.id, strategy)
             strategy_analyses[strategy] = get_latest_pagespeed_audit_snapshot(db, site.id, strategy)
             errors[strategy] = str(exc)
