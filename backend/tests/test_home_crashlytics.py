@@ -165,16 +165,46 @@ def test_home_crashlytics_card_uses_store_version(monkeypatch):
 
 
 
-def test_home_crashlytics_card_warming(monkeypatch):
+def test_home_crashlytics_card_sync_fetch_when_cold(monkeypatch):
     monkeypatch.setattr("backend.services.crashlytics_bq.peek_cached_payload", lambda *a, **k: None)
-    monkeypatch.setattr("backend.services.crashlytics_bq.is_cache_warm", lambda *a, **k: False)
-    called = {"prewarm": False}
+    sample = {
+        "ok": True,
+        "product": "doviz",
+        "days": 7,
+        "totals": {"fatal": 1, "anr": 0, "non_fatal": 0},
+        "crash_free_sessions_pct": 99.9,
+        "summary_by_platform": {
+            "ios": {"fatal": 1, "anr": 0},
+            "android": {"fatal": 0, "anr": 0},
+        },
+        "crash_free_by_platform": {
+            "ios": {"crash_free_sessions_pct": 99.9},
+            "android": {"crash_free_sessions_pct": 99.8},
+        },
+        "issues_by_platform": {"ios": [], "android": []},
+        "device_breakdown_by_platform": {"ios": [], "android": []},
+        "os_breakdown_by_platform": {"ios": [], "android": []},
+        "filter_versions_by_platform": {"ios": ["1.0"], "android": ["1.0"]},
+        "versions_7d_by_platform": {
+            "ios": [{"app_version": "1.0", "fatal_count": 1, "anr_count": 0}],
+            "android": [{"app_version": "1.0", "fatal_count": 0, "anr_count": 0}],
+        },
+        "latest_version_stats_by_platform": {},
+    }
+    called = {"build": False}
 
-    def _prewarm(pid):
-        called["prewarm"] = True
+    def _build(*a, **k):
+        called["build"] = True
+        return sample
 
-    monkeypatch.setattr("backend.services.crashlytics_bq.prewarm_cache", _prewarm)
+    monkeypatch.setattr("backend.services.crashlytics_bq.build_full_payload", _build)
+    monkeypatch.setattr(
+        "backend.services.crashlytics_bq.prewarm_cache",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("prewarm should not run on cold sync")),
+    )
 
     card = _home_crashlytics_card("doviz")
-    assert card["warming"] is True
-    assert called["prewarm"] is True
+    assert called["build"] is True
+    assert card.get("warming") is not True
+    assert card.get("ok") is True
+    assert "arka planda" not in str(card.get("message") or "").lower()

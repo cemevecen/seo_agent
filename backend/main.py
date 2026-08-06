@@ -8365,7 +8365,7 @@ def _home_crash_version_counts(payload: dict, plat: str, version: str | None) ->
 
 
 def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) -> dict:
-    """Ana sayfa Firebase/Crashlytics mini kart — cache-only, soğuksa arka planda ısıtır.
+    """Ana sayfa Firebase/Crashlytics mini kart — cache varsa anında, yoksa BQ'dan senkron çeker.
 
     Metrikler (fatal/ANR/cihaz/issue) mümkün olduğunca mağaza/Crashlytics son sürümüne
     scoped edilir; crash-free sessions hâlâ platform geneli (BQ sessions join sürüm filtresi yok).
@@ -8389,10 +8389,13 @@ def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) ->
 
     payload = cbq.peek_cached_payload(pid, days=7, platform_filter="all")
     if not payload:
-        cbq.prewarm_cache(pid)
-        out["warming"] = True
-        out["message"] = "Crashlytics verisi arka planda yükleniyor…"
-        return out
+        # Soğuk cache: arka plana atma — ana sayfada her zaman senkron çek
+        try:
+            payload = cbq.build_full_payload(pid, days=7, platform_filter="all")
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.exception("Home Crashlytics sync fetch failed product=%s", pid)
+            out["message"] = f"Crashlytics verisi alınamadı: {str(exc)[:120]}"
+            return out
 
     if not payload or payload.get("ok") is False:
         out["message"] = (payload or {}).get("message") or "BigQuery verisi yok"
@@ -8408,7 +8411,7 @@ def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) ->
     latest_stats_by = payload.get("latest_version_stats_by_platform") or {}
     has_scoped_cache = bool(latest_stats_by) or bool(payload.get("versions_7d_by_platform"))
     if not has_scoped_cache:
-        # Eski cache — arka planda sürüm-scoped veri için ısıt
+        # Eski cache — arka planda sürüm-scoped veri için ısıt (kart yine mevcut veriyle dolsun)
         try:
             cbq.prewarm_cache(pid)
         except Exception:
