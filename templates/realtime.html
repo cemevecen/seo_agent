@@ -4385,11 +4385,42 @@
     return '';
   }
 
-  function _rtSinemalarSearchUrl(title) {
+  /** GA4 ekran başlığından film/sanatçı adını ayıkla (arama için). */
+  function _rtSinemalarSearchQuery(title) {
     var q = String(title || '')
       .replace(/\s*-\s*Sinemalar\.com\s*$/i, '')
       .replace(/\s+/g, ' ')
       .trim();
+    /* "Muhtemel Aşk Oyuncuları ve Kadrosu" → "Muhtemel Aşk" */
+    var suffixRe = new RegExp(
+      '\\s+(' +
+        'oyuncular[ıi]?\\s+ve\\s+kadrosu|' +
+        'oyuncu\\s+kadrosu|' +
+        'oyuncular[ıi]?|' +
+        'kadrosu|' +
+        'fragman[ıi]?|' +
+        'konusu|' +
+        '[öo]zeti|' +
+        'incelemesi|' +
+        'yorumlar[ıi]?|' +
+        'afiş[ıi]?|' +
+        'galerisi|' +
+        '[iı]zle' +
+      ')\\s*$',
+      'i'
+    );
+    var prev = '';
+    var guard = 0;
+    while (q !== prev && q.length >= 2 && guard < 4) {
+      prev = q;
+      q = q.replace(suffixRe, '').replace(/\s+/g, ' ').trim();
+      guard += 1;
+    }
+    return q;
+  }
+
+  function _rtSinemalarSearchUrl(title) {
+    var q = _rtSinemalarSearchQuery(title);
     if (q.length < 2) return '';
     return 'https://www.sinemalar.com/ara?q=' + encodeURIComponent(q);
   }
