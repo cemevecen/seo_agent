@@ -192,41 +192,48 @@ def get_ad_analytics_table(
     )
 
 
+@router.get("/mz-analytics/sheets-status")
+def get_ad_sheets_status(db: Session = Depends(get_db)):
+    from backend.services import ad_sheets_sync as sheets_sync
+
+    return sheets_sync.sheets_sync_status(db)
+
+
+@router.post("/mz-analytics/sync-sheets")
+def post_ad_sync_sheets(
+    db: Session = Depends(get_db),
+    force: bool = Query(True, description="TTL’yi yok say"),
+    stream_key: str | None = Query(None, description="Tek dal; boş = hepsi"),
+    full: bool = Query(
+        False,
+        description="True: dalı temizleyip sheet’i baştan yaz. False: kirli/ilk seferde tam, sonra son 21 gün",
+    ),
+):
+    from backend.services import ad_sheets_sync as sheets_sync
+
+    try:
+        return sheets_sync.sync_from_google_sheets(
+            db,
+            force=force,
+            stream_key=(stream_key or "").strip() or None,
+            full=full,
+        )
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        LOGGER.exception("ad sync-sheets failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/mz-analytics/append")
 async def post_ad_analytics_append(
     file: UploadFile = File(...),
-    stream_key: str = Query(..., description="Örn. doviz:desktop, doviz:mweb, doviz:ios"),
+    stream_key: str = Query(..., description="Örn. doviz:desktop"),
     db: Session = Depends(get_db),
 ):
-    """Küçük günlük/haftalık dosyayı mevcut verinin üzerine birleştirir (upsert)."""
-    name = (file.filename or "append.csv").strip()
-    low = name.lower()
-    if not low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
-        raise HTTPException(status_code=400, detail="Yalnızca .xlsx veya .csv desteklenir")
-    sk = (stream_key or "").strip()
-    if store.resolve_stream("", sk) is None:
-        raise HTTPException(status_code=400, detail=f"Bilinmeyen dal: {stream_key}")
-    try:
-        raw = await file.read()
-        if not raw:
-            LOGGER.warning("Ad append upload empty body: %s stream=%s", name, sk)
-            raise HTTPException(status_code=400, detail=store.EMPTY_UPLOAD_ERROR)
-        result = store.import_append_to_stream(
-            db,
-            raw,
-            stream_key=sk,
-            original_filename=name,
-            commit=True,
-        )
-        if not result.get("parsed"):
-            detail = result.get("parse_error") or result.get("warning") or "Dosyadan satır okunamadı"
-            raise HTTPException(status_code=400, detail=detail)
-        return result
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    raise HTTPException(
+        status_code=410,
+        detail="Manuel dosya yükleme kapatıldı. Google Sheets → Verileri güncelle kullanın.",
+    )
 
 
 @router.post("/mz-analytics/upload")
@@ -234,25 +241,10 @@ async def post_ad_analytics_upload(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    name = (file.filename or "upload").strip()
-    low = name.lower()
-    try:
-        raw = await file.read()
-        if not raw:
-            LOGGER.warning("Ad upload empty body: %s", name)
-            raise HTTPException(status_code=400, detail=store.EMPTY_UPLOAD_ERROR)
-        if low.endswith((".xlsx", ".xlsm", ".csv", ".txt")):
-            result = store.import_upload_file(db, raw, filename=name)
-        else:
-            raise HTTPException(status_code=400, detail="Yalnızca .xlsx veya .csv desteklenir")
-        if not result.get("parsed"):
-            raise HTTPException(status_code=400, detail="Dosyadan satır okunamadı (başlık/format)")
-        return result
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    raise HTTPException(
+        status_code=410,
+        detail="Manuel dosya yükleme kapatıldı. Google Sheets → Verileri güncelle kullanın.",
+    )
 
 
 @router.post("/mz-analytics/upload-bulk")
@@ -260,52 +252,29 @@ async def post_ad_analytics_upload_bulk(
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
 ):
-    """12 xlsx tek seferde: dal başına 2025+2026 birleşir; aynı günler güncellenir (upsert)."""
+    """Yalnızca Empower; reklam xlsx/csv reddedilir."""
     payload = await _read_upload_payload(files)
     ad_files, empower_files = empower_store.partition_mz_upload_files(payload)
-    empower_result = None
-    if empower_files:
-        empower_result = empower_store.import_files_bulk(db, empower_files)
     if ad_files:
-        try:
-            result = store.import_upload_files_bulk(ad_files)
-        except HTTPException:
-            db.rollback()
-            raise
-        except Exception as exc:  # noqa: BLE001
-            db.rollback()
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-    else:
-        result = {
-            "files": [],
-            "file_count": 0,
-            "inserted": 0,
-            "parsed": 0,
-            "total": store.count_rows(db),
-            "unknown_files": [],
-            "summary": store.build_upload_batch_summary([]),
-        }
+        raise HTTPException(
+            status_code=410,
+            detail="Manuel reklam dosyası yükleme kapatıldı. Google Sheets → Verileri güncelle.",
+        )
+    if not empower_files:
+        raise HTTPException(status_code=400, detail="Dosya yok")
+    empower_result = empower_store.import_files_bulk(db, empower_files)
+    result = {
+        "files": [],
+        "file_count": 0,
+        "inserted": 0,
+        "parsed": 0,
+        "total": store.count_rows(db),
+        "unknown_files": [],
+        "summary": store.build_upload_batch_summary([]),
+    }
     result = _merge_bulk_upload_result(result, empower_result)
     if not _bulk_upload_succeeded(result, empower_result):
-        hints: list[str] = []
-        for item in result.get("files") or []:
-            name = item.get("filename") or "?"
-            if item.get("error"):
-                hints.append(f"{name}: {item['error']}")
-            elif item.get("parse_error"):
-                hints.append(f"{name}: {item['parse_error']}")
-            elif item.get("columns"):
-                hints.append(f"{name}: başlık={item['columns'][:6]}")
-        if empower_result:
-            for item in empower_result.get("results") or []:
-                if not item.get("ok"):
-                    hints.append(
-                        f"{item.get('source_file') or '?'}: {item.get('error') or 'Empower içe aktarılamadı'}"
-                    )
-        detail = "Hiçbir dosyadan satır okunamadı"
-        if hints:
-            detail += " — " + "; ".join(hints[:6])
-        raise HTTPException(status_code=400, detail=detail)
+        raise HTTPException(status_code=400, detail="Empower yükleme başarısız")
     return result
 
 
@@ -313,88 +282,43 @@ async def post_ad_analytics_upload_bulk(
 async def post_ad_analytics_upload_bulk_stream(
     files: list[UploadFile] = File(...),
 ):
-    """Çoklu dosya: yanıt gövdesi NDJSON — satır/satır gerçek ilerleme."""
+    """Empower için stream; reklam xlsx reddedilir."""
     payload = await _read_upload_payload(files)
     ad_files, empower_files = empower_store.partition_mz_upload_files(payload)
-    total_bytes = sum(len(raw) for raw, _ in payload)
+    if ad_files:
+        raise HTTPException(
+            status_code=410,
+            detail="Manuel reklam dosyası yükleme kapatıldı. Google Sheets → Verileri güncelle.",
+        )
+    if not empower_files:
+        raise HTTPException(status_code=400, detail="Dosya yok")
 
     def _ndjson_stream():
-        empower_result = None
         try:
-            if empower_files:
-                yield json.dumps(
-                    {
-                        "phase": "empower_start",
-                        "file_count": len(empower_files),
-                        "pct": 2,
-                    },
-                    ensure_ascii=False,
-                ) + "\n"
-                with SessionLocal() as db:
-                    empower_result = empower_store.import_files_bulk(db, empower_files)
-                yield json.dumps(
-                    {
-                        "phase": "empower_done",
-                        "empower": empower_result,
-                        "pct": 10,
-                    },
-                    ensure_ascii=False,
-                ) + "\n"
-            if not ad_files:
-                ok_emp = bool(empower_result and int(empower_result.get("ok_count") or 0) > 0)
-                if ok_emp:
-                    with SessionLocal() as db:
-                        total_rows = store.count_rows(db)
-                    yield json.dumps(
-                        {
-                            "phase": "batch_done",
-                            "pct": 100,
-                            "parsed": 0,
-                            "inserted": 0,
-                            "total": total_rows,
-                            "empower": empower_result,
-                            "summary": store.build_upload_batch_summary([]),
-                        },
-                        ensure_ascii=False,
-                    ) + "\n"
-                elif not empower_files:
-                    yield json.dumps(
-                        {"phase": "batch_error", "error": "Dosya seçilmedi", "pct": 0},
-                        ensure_ascii=False,
-                    ) + "\n"
-                else:
-                    yield json.dumps(
-                        {
-                            "phase": "batch_error",
-                            "error": "Empower dosyaları içe aktarılamadı",
-                            "empower": empower_result,
-                            "pct": 0,
-                        },
-                        ensure_ascii=False,
-                    ) + "\n"
-                return
+            yield json.dumps(
+                {"phase": "empower_start", "file_count": len(empower_files), "pct": 2},
+                ensure_ascii=False,
+            ) + "\n"
+            with SessionLocal() as db:
+                empower_result = empower_store.import_files_bulk(db, empower_files)
+                total = store.count_rows(db)
             yield json.dumps(
                 {
-                    "phase": "batch_ready",
-                    "file_count": len(ad_files),
-                    "total_bytes": total_bytes,
-                    "pct": 12,
+                    "phase": "done",
+                    "pct": 100,
+                    "empower": empower_result,
+                    "total": total,
+                    "summary": store.build_upload_batch_summary([]),
                 },
                 ensure_ascii=False,
             ) + "\n"
-            for event in store.iter_bulk_import_events(ad_files):
-                if event.get("phase") == "batch_done" and empower_result is not None:
-                    event = dict(event)
-                    event["empower"] = empower_result
-                yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as exc:  # noqa: BLE001
-            yield json.dumps({"phase": "batch_error", "error": str(exc), "pct": 0}, ensure_ascii=False) + "\n"
+            yield json.dumps(
+                {"phase": "batch_error", "error": str(exc), "pct": 0},
+                ensure_ascii=False,
+            ) + "\n"
 
-    return StreamingResponse(
-        _ndjson_stream(),
-        media_type="application/x-ndjson",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return StreamingResponse(_ndjson_stream(), media_type="application/x-ndjson")
 
 
 def _mz_ga4_overlay_profiles(branch: str) -> tuple[str, list[str]]:
@@ -719,9 +643,16 @@ def post_ad_analytics_delete_import(
     db: Session = Depends(get_db),
     body: dict = Body(...),
 ):
+    from backend.services.ad_sheets_config import is_sheet_catalog_filename
+
     source_file = str(body.get("source_file") or "").strip()
     if not source_file:
         raise HTTPException(status_code=400, detail="source_file gerekli")
+    if is_sheet_catalog_filename(source_file):
+        raise HTTPException(
+            status_code=400,
+            detail="Google Sheet katalogları silinmez. «Tüm veriyi sıfırla» veya full sync kullanın.",
+        )
     restore = body.get("restore", True)
     if isinstance(restore, str):
         restore = restore.strip().lower() not in ("0", "false", "no")
@@ -739,9 +670,17 @@ def post_ad_analytics_delete_imports_bulk(
     db: Session = Depends(get_db),
     body: dict = Body(...),
 ):
+    from backend.services.ad_sheets_config import is_sheet_catalog_filename
+
     raw_files = body.get("source_files") or body.get("files") or []
     if not isinstance(raw_files, list) or not raw_files:
         raise HTTPException(status_code=400, detail="source_files gerekli")
+    blocked = [str(x) for x in raw_files if is_sheet_catalog_filename(str(x))]
+    if blocked:
+        raise HTTPException(
+            status_code=400,
+            detail="Google Sheet katalogları silinmez: " + ", ".join(blocked[:3]),
+        )
     restore = body.get("restore", True)
     if isinstance(restore, str):
         restore = restore.strip().lower() not in ("0", "false", "no")

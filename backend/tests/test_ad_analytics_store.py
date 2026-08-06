@@ -556,3 +556,50 @@ def test_suggested_detail_favorites_stream_keys_and_top_n():
     assert out["streams"]["doviz:desktop"]["top_n"] == 15
     assert out["streams"]["doviz:android"]["top_n"] == 3
     assert isinstance(out["streams"]["doviz:desktop"]["units"], list)
+
+
+def test_n_strips_tl_suffix_from_sheet_cells():
+    assert store._n("1,44TL") == 1.44
+    assert abs(store._n("5.060,54TL") - 5060.54) < 0.01
+    assert store._n("0,00TL") == 0.0
+    assert store._n("%12,3") == 12.3
+
+
+def test_sheet_csv_parses_tr_revenue_and_stream_lock():
+    from backend.services.ad_sheets_config import (
+        AD_SHEET_SOURCES,
+        is_sheet_catalog_filename,
+        sheet_catalog_filename,
+    )
+
+    assert len(AD_SHEET_SOURCES) == 6
+    assert sheet_catalog_filename("doviz:android") == "doviz_android_google_sheet.csv"
+    assert is_sheet_catalog_filename("doviz_android_google_sheet.csv")
+    assert not is_sheet_catalog_filename("dovizandroid1.xlsx")
+
+    csv = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        "doviz_android_x,Ocak 2024,01.01.2024,Open Auction,10,5,1,0,0,0,0,0,0,\"1,44TL\"\n"
+    )
+    stream = store._STREAM_BY_KEY["doviz:android"]
+    rows = list(
+        store.parse_csv_text(
+            csv,
+            filename="doviz_android_google_sheet.csv",
+            stream=stream,
+        )
+    )
+    assert len(rows) == 1
+    assert rows[0]["net_revenue"] == 1.44
+    assert rows[0]["project"] == "doviz"
+    assert rows[0]["branch"] == "android"
+
+
+def test_dedupe_batch_keeps_last_fingerprint():
+    a = {"fingerprint": "fp1", "net_revenue": 1.0}
+    b = {"fingerprint": "fp1", "net_revenue": 9.0}
+    c = {"fingerprint": "fp2", "net_revenue": 2.0}
+    out = store._dedupe_batch_by_fingerprint([a, b, c])
+    by_fp = {r["fingerprint"]: r["net_revenue"] for r in out}
+    assert by_fp == {"fp1": 9.0, "fp2": 2.0}

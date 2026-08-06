@@ -393,15 +393,26 @@
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Monetizasyon Analitiği</h1>
-      <a href="/ad/app-banner" class="shrink-0 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">GA4 banner paneli (geniş)</a>
+      <div class="min-w-0">
+        <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Monetizasyon Analitiği</h1>
+        <p id="mz-sheets-sync-hint" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">Kaynak: Google Sheets · son sync: —</p>
+      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <button
+          type="button"
+          id="mz-refresh-sheets"
+          class="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
+          title="Google Sheets reklam gelirlerini çekip grafikleri günceller"
+        >Verileri güncelle</button>
+        <a href="/ad/app-banner" class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">GA4 banner paneli (geniş)</a>
+      </div>
     </div>
     <div id="mz-stream-tabs" class="mz-stream-tabs mt-3 flex gap-1.5 overflow-x-auto pb-1"></div>
     <details id="mz-imports-wrap" class="group mt-2 rounded-lg border border-slate-200 bg-slate-50/80 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-zinc-950/30">
       <summary class="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-slate-600 marker:content-none dark:text-slate-300 [&::-webkit-details-marker]:hidden">
         <span class="inline-flex items-center gap-2">
           <span class="text-slate-400 transition group-open:rotate-90" aria-hidden="true">▸</span>
-          <span>Yüklü dosyalar (<span id="mz-imports-count">0</span>)</span>
+          <span>Empower dosyaları (<span id="mz-imports-count">0</span>)</span>
         </span>
       </summary>
       <div id="mz-imports" class="flex max-h-40 flex-wrap gap-2 overflow-y-auto border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400"></div>
@@ -427,31 +438,34 @@
         class="block rounded-xl border border-teal-200/90 bg-teal-50/70 px-3 py-2.5 text-xs font-bold text-teal-900 hover:bg-teal-100/80 dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200 dark:hover:bg-teal-950/50"
       >Gelir hedefleri ↓</a>
       <div id="mz-sidebar-analytics" class="space-y-3">
-      <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Dosya</p>
-      <input id="mz-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" multiple class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700" />
-      <button id="mz-upload" type="button" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">Yükle ve birleştir</button>
-      <details class="mt-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
-        <summary class="cursor-pointer text-xs font-semibold text-slate-700 dark:text-zinc-200">Dosya adlandırma (1 · 2 · 3 …)</summary>
-        <p class="mt-2 text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
-          Her dal için sıra numarası kullan: <strong>1</strong> = 2025 tam yıl,
-          <strong>2</strong> = 01.01.2026 – ay sonu (dönem bitince genişletilmiş export; örn. Haziran dahil),
-          <strong>3+</strong> = içinde bulunulan ay (Temmuz dosyası ay başından veya yeni export’tan itibaren).
-          Örnek: <code class="text-[10px]">dovizweb1.xlsx</code>,
-          <code class="text-[10px]">dovizweb2.xlsx</code>, <code class="text-[10px]">dovizmweb3.xlsx</code>.
-          Aynı gün üst üste gelirse büyük numara kazanır. Eski 2/3’ü silip yeniden yüklersen duplike olmaz;
-          önce <strong>3</strong> sonra <strong>2</strong> silmek, arşivden geri dönüşü daha öngörülebilir kılar.
-        </p>
-      </details>
-      <details class="mt-2 rounded-lg border border-emerald-200/90 bg-emerald-50/50 p-2.5 dark:border-emerald-900/50 dark:bg-emerald-950/25 midnight:border-emerald-900/40">
-        <summary class="cursor-pointer text-xs font-semibold text-emerald-900 dark:text-emerald-200">Günlük ekle (üzerine birleşir)</summary>
-        <p class="mt-2 text-[10px] leading-snug text-emerald-900/80 dark:text-emerald-200/80">
-          Tam 1+2 dosyasını yeniden yüklemen gerekmez. Üstteki sekmedeki dala yalnızca <strong>yeni günlerin</strong> export’unu yükle;
-          aynı tarih + reklam birimi + gelir tipi varsa güncellenir, eski günler kalır.
-        </p>
-        <input id="mz-append-file" type="file" accept=".xlsx,.xlsm,.csv,text/csv" class="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs dark:border-emerald-900 dark:bg-black dark:text-zinc-200" />
-        <button id="mz-append-upload" type="button" class="mt-2 w-full rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">Seçili dala ekle</button>
-        <p id="mz-append-stream-hint" class="mt-1.5 text-[10px] text-emerald-800/90 dark:text-emerald-300/90">Dal: —</p>
-      </details>
+      <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Google Sheets</p>
+      <p class="text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
+        Ana kaynak: döviz web/mweb/ios/android + sinemalar web/mweb.
+        Sheet’e gün/hafta ekledikçe <strong>Verileri güncelle</strong>.
+        Manuel xlsx yükleme kapalı.
+      </p>
+      <label class="block text-[10px] font-semibold text-slate-500 dark:text-zinc-400" for="mz-sheets-stream-pick">Hangi sheet</label>
+      <select
+        id="mz-sheets-stream-pick"
+        class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
+      >
+        <option value="">Tümü (6 sheet)</option>
+        <option value="doviz:desktop">Döviz · Web</option>
+        <option value="doviz:mweb">Döviz · Mweb</option>
+        <option value="doviz:ios">Döviz · iOS</option>
+        <option value="doviz:android">Döviz · Android</option>
+        <option value="sinemalar:desktop">Sinemalar · Web</option>
+        <option value="sinemalar:mweb">Sinemalar · Mweb</option>
+      </select>
+      <label class="mt-1 flex items-start gap-2 text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
+        <input id="mz-sheets-full-replace" type="checkbox" class="mt-0.5" checked />
+        <span>İlk / temiz senkron: dalı sheet ile değiştir (önerilir). Sonraki günlük güncellemelerde kapatabilirsin.</span>
+      </label>
+      <button
+        type="button"
+        id="mz-refresh-sheets-side"
+        class="w-full rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
+      >Verileri güncelle</button>
       <details class="mt-2 rounded-lg border border-violet-200/90 bg-violet-50/50 p-2.5 dark:border-violet-900/50 dark:bg-violet-950/25">
         <summary class="cursor-pointer text-xs font-semibold text-violet-900 dark:text-violet-200">Empower uygulama verisi (Android / iOS)</summary>
         <p class="mt-2 text-[10px] leading-snug text-violet-900/80 dark:text-violet-200/80">
@@ -10083,28 +10097,19 @@
       filterChips("mz-filter-surface", f.surfaces || [], state.surface);
       filterChips("mz-filter-platform", f.platforms || [], state.platform);
       filterBox("mz-filter-source", f.source_files || [], state.source);
-      var imports = f.imports || [];
+      var imports = [];
       var empowerImports = f.empower_imports || [];
       var countEl = document.getElementById("mz-imports-count");
-      if (countEl) countEl.textContent = String(imports.length + empowerImports.length);
+      if (countEl) countEl.textContent = String(empowerImports.length);
       var imp = document.getElementById("mz-imports");
       var bulkBar = document.getElementById("mz-imports-bulk-bar");
       if (imp) {
-        if (!imports.length && !empowerImports.length) {
-          imp.innerHTML = "<span class=\"text-slate-400\">Henüz dosya yüklenmedi. Reklam MX üstteki dosya alanından; Empower violet bölümden veya <code class=\"text-[10px]\">*androidempower1.xlsx</code> adıyla üstten yüklenebilir.</span>";
+        if (!empowerImports.length) {
+          imp.innerHTML = "<span class=\"text-slate-400\">Reklam verisi Google Sheets’ten gelir. Empower dosyası için «Empower ekle» veya sidebar violet bölümünü kullan.</span>";
           if (bulkBar) bulkBar.classList.add("hidden");
         } else {
-          if (bulkBar) bulkBar.classList.toggle("hidden", imports.length + empowerImports.length < 2);
-          var htmlParts = imports.map(function (x) {
-            var inc = x.incremental ? " <span class=\"text-emerald-600 dark:text-emerald-400\">+günlük</span>" : "";
-            var fileAttr = mzHtmlAttr(x.source_file || "");
-            return "<span class=\"inline-flex items-center gap-1 rounded-full border border-slate-200 py-0.5 pl-1 pr-1 dark:border-zinc-600 midnight:border-zinc-700\">" +
-              "<input type=\"checkbox\" class=\"mz-import-select h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600\" data-source-file=\"" + fileAttr + "\" aria-label=\"Seç: " + fileAttr + "\" />" +
-              "<span class=\"pl-0.5\">" + x.channel + " · " + x.source_file + " · " + x.row_count + " satır" + inc + "</span>" +
-              "<button type=\"button\" class=\"mz-import-delete shrink-0 cursor-pointer rounded-full border border-transparent p-0.5 text-slate-500 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-700 dark:text-zinc-300 dark:hover:border-rose-800 dark:hover:bg-rose-950/50 dark:hover:text-rose-400\" " +
-              "title=\"Dosyayı sil\" aria-label=\"Dosyayı sil: " + fileAttr + "\" data-source-file=\"" + fileAttr + "\">×</button>" +
-              "</span>";
-          });
+          if (bulkBar) bulkBar.classList.toggle("hidden", empowerImports.length < 2);
+          var htmlParts = [];
           empowerImports.forEach(function (x) {
             var sf = mzHtmlAttr(x.source_file || "");
             htmlParts.push(
@@ -10131,12 +10136,8 @@
             );
           });
           imp.innerHTML = htmlParts.join("");
-          state._mzImportFiles = imports;
+          state._mzImportFiles = [];
           mzUpdateImportBulkUi();
-          if ((f.extra_columns || []).length) {
-            imp.innerHTML += "<span class=\"w-full text-[10px] text-slate-400\">Ek sütunlar: " +
-              f.extra_columns.join(", ") + "</span>";
-          }
         }
       }
       var lbl = [];
@@ -10773,6 +10774,184 @@
       xhr.send(fd);
     });
   }
+
+  function renderMzSheetsStatus(status) {
+    var hint = document.getElementById("mz-sheets-sync-hint");
+    if (!status || !hint) return;
+    var last = status.last_sync_at
+      ? String(status.last_sync_at).replace("T", " ").replace("Z", "").slice(0, 16)
+      : "henüz yok";
+    hint.textContent = "Kaynak: Google Sheets · son sync: " + last;
+  }
+
+  async function loadMzSheetsStatus() {
+    try {
+      var r = await fetch("/api/mz-analytics/sheets-status", { credentials: "same-origin" });
+      if (!r.ok) return null;
+      var data = await r.json();
+      renderMzSheetsStatus(data);
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function setMzSheetsButtonsDisabled(disabled) {
+    ["mz-refresh-sheets", "mz-refresh-sheets-side", "mz-sheets-stream-pick", "mz-sheets-full-replace"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = !!disabled;
+    });
+  }
+
+  function mzSheetStreamCatalog() {
+    return [
+      { stream_key: "doviz:desktop", label: "Döviz · Web" },
+      { stream_key: "doviz:mweb", label: "Döviz · Mweb" },
+      { stream_key: "doviz:ios", label: "Döviz · iOS" },
+      { stream_key: "doviz:android", label: "Döviz · Android" },
+      { stream_key: "sinemalar:desktop", label: "Sinemalar · Web" },
+      { stream_key: "sinemalar:mweb", label: "Sinemalar · Mweb" },
+    ];
+  }
+
+  function selectedMzSheetStreamKey() {
+    var pick = document.getElementById("mz-sheets-stream-pick");
+    if (!pick) return null;
+    var v = String(pick.value || "").trim();
+    return v || null;
+  }
+
+  function selectedMzSheetFullReplace() {
+    var el = document.getElementById("mz-sheets-full-replace");
+    return !!(el && el.checked);
+  }
+
+  async function syncMzSheetsFromGoogle(opts) {
+    opts = opts || {};
+    var lockedKey =
+      opts.streamKey != null && String(opts.streamKey).trim()
+        ? String(opts.streamKey).trim()
+        : selectedMzSheetStreamKey();
+    var statusEl = document.getElementById("mz-status");
+    var summaryUl = document.getElementById("mz-upload-progress-summary");
+    setMzSheetsButtonsDisabled(true);
+    setUploadProgressVisible(true);
+    setUploadProgressTheme("active");
+    if (summaryUl) {
+      summaryUl.classList.remove("hidden");
+      summaryUl.innerHTML = "";
+    }
+    var reloadEl = document.getElementById("mz-upload-progress-reload");
+    if (reloadEl) reloadEl.classList.add("hidden");
+    mzUploadLastPct = 0;
+    var scopeLabel = lockedKey ? "Tek dal: " + lockedKey : "Tüm sheet’ler (6)";
+    setUploadProgress(0, "Sheets senkron", scopeLabel + " · başlıyor…", { allowDecrease: true });
+    if (statusEl) statusEl.textContent = "Google Sheets: " + scopeLabel;
+
+    function appendSyncLine(text, kind) {
+      if (!summaryUl) return;
+      var li = document.createElement("li");
+      li.textContent = text;
+      if (kind === "err") li.className = "font-semibold text-rose-700 dark:text-rose-300";
+      else if (kind === "ok") li.className = "text-emerald-800 dark:text-emerald-300";
+      summaryUl.appendChild(li);
+    }
+
+    function shortSyncMsg(msg, limit) {
+      var t = String(msg || "").trim();
+      if (!t) return "başarısız";
+      if (t.indexOf("[SQL:") >= 0) t = t.split("[SQL:")[0].trim();
+      var lim = limit || 180;
+      return t.length > lim ? t.slice(0, lim - 1) + "…" : t;
+    }
+
+    try {
+      await loadMzSheetsStatus();
+      var streams = mzSheetStreamCatalog();
+      if (lockedKey) {
+        streams = streams.filter(function (s) { return s.stream_key === lockedKey; });
+        if (!streams.length) throw new Error("Bilinmeyen sheet: " + lockedKey);
+      }
+      var okCount = 0;
+      var failCount = 0;
+      var totalParsed = 0;
+      var total = streams.length;
+      var i;
+      for (i = 0; i < streams.length; i++) {
+        var src = streams[i];
+        var label = src.label || src.stream_key;
+        setUploadProgress(
+          Math.round((i / Math.max(total, 1)) * 90),
+          failCount ? "Sheets · " + failCount + " hata" : "Sheets senkron",
+          (i + 1) + "/" + total + " · " + label + " çekiliyor…",
+          { allowDecrease: true }
+        );
+        if (statusEl) statusEl.textContent = "Sheet: " + label + " (" + (i + 1) + "/" + total + ")…";
+        var url =
+          "/api/mz-analytics/sync-sheets?force=1&stream_key=" +
+          encodeURIComponent(src.stream_key);
+        if (selectedMzSheetFullReplace()) url += "&full=1";
+        var resp = await fetch(url, { method: "POST", credentials: "same-origin" });
+        var payload = await resp.json().catch(function () { return {}; });
+        if (!resp.ok) {
+          failCount += 1;
+          var errHttp = shortSyncMsg(mzApiErrorDetail(payload, "HTTP " + resp.status));
+          appendSyncLine("✗ " + label + ": " + errHttp, "err");
+          setUploadProgressTheme("err");
+          continue;
+        }
+        var item = payload.streams && payload.streams[0] ? payload.streams[0] : payload;
+        if (item && item.ok) {
+          okCount += 1;
+          totalParsed += Number(item.parsed || 0);
+          var extra = item.replaced && item.cleared_rows
+            ? " · eski " + Number(item.cleared_rows).toLocaleString("tr-TR") + " temizlendi"
+            : "";
+          appendSyncLine(
+            "✓ " + label + ": " + Number(item.parsed || 0).toLocaleString("tr-TR") +
+              " satır · " + (item.mode || "full") + " · son " + (item.max_date || "—") + extra,
+            "ok"
+          );
+        } else {
+          failCount += 1;
+          appendSyncLine(
+            "✗ " + label + ": " + shortSyncMsg((item && (item.error || item.warning)) || payload.message || "başarısız"),
+            "err"
+          );
+          setUploadProgressTheme("err");
+        }
+      }
+      setUploadProgress(
+        100,
+        failCount ? "Kısmi tamamlandı" : "Tamamlandı",
+        okCount + "/" + total + " · " + totalParsed.toLocaleString("tr-TR") + " satır",
+        { allowDecrease: true }
+      );
+      if (failCount) setUploadProgressTheme("err");
+      if (statusEl) {
+        statusEl.textContent =
+          okCount + "/" + total + " sheet · " + totalParsed.toLocaleString("tr-TR") + " satır" +
+          (failCount ? " · " + failCount + " hata" : "");
+      }
+      await loadMzSheetsStatus();
+      await loadFacets({ cacheBust: true });
+      await runQuery({ resetTableDrills: false });
+    } catch (err) {
+      setUploadProgressTheme("err");
+      setUploadProgress(0, "Hata", (err && err.message) || "Sheets senkron başarısız", { allowDecrease: true });
+      appendSyncLine("✗ " + ((err && err.message) || "başarısız"), "err");
+      if (statusEl) statusEl.textContent = (err && err.message) || "Sheets senkron başarısız";
+    } finally {
+      setMzSheetsButtonsDisabled(false);
+    }
+  }
+
+  on("mz-refresh-sheets", "click", function () {
+    syncMzSheetsFromGoogle({ streamKey: selectedMzSheetStreamKey() });
+  });
+  on("mz-refresh-sheets-side", "click", function () {
+    syncMzSheetsFromGoogle({ streamKey: selectedMzSheetStreamKey() });
+  });
 
   on("mz-upload", "click", async function () {
     var inp = document.getElementById("mz-file");
@@ -12083,6 +12262,7 @@
   loadFacets().then(function () {
     refreshMzEmpowerImports().catch(function () {});
     syncEmpowerOverlayBarVisibility();
+    loadMzSheetsStatus().catch(function () {});
     var keepDrills = applyMzUrlDrillState(mzUrlState);
     mzUrlBootPending = false;
     return runQuery({ resetTableDrills: !keepDrills });

@@ -153,6 +153,8 @@ def _n(value: Any) -> float:
     s = str(value).strip()
     if not s:
         return 0.0
+    # Google Sheet: "1,44TL", "5.060,54TL", "%12,3"
+    s = re.sub(r"(?i)\s*(tl|try|₺)\s*$", "", s)
     s = re.sub(r"[%\s]", "", s)
     has_dot = "." in s
     has_comma = "," in s
@@ -608,6 +610,7 @@ def parse_csv_text(
     *,
     filename: str = "upload.csv",
     stream: AdStream | None = None,
+    min_date: date | None = None,
 ) -> list[dict[str, Any]]:
     raw = (text or "").strip()
     if not raw:
@@ -632,8 +635,11 @@ def parse_csv_text(
         item = _row_from_values(
             tuple(cols), col_map, extras_idx, source_file=filename, stream=stream, channel=channel
         )
-        if item:
-            out.append(item)
+        if not item:
+            continue
+        if min_date is not None and item.get("report_date") and item["report_date"] < min_date:
+            continue
+        out.append(item)
     return out
 
 
@@ -803,8 +809,24 @@ def _restore_rows_from_archive(
     return restored
 
 
+def _dedupe_batch_by_fingerprint(batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Aynı batch’te tekrarlayan fingerprint → son satır (PG CardinalityViolation önler)."""
+    if not batch:
+        return []
+    by_fp: dict[str, dict[str, Any]] = {}
+    for row in batch:
+        fp = row.get("fingerprint")
+        if not fp:
+            continue
+        by_fp[str(fp)] = row
+    return list(by_fp.values())
+
+
 def _flush_batch(db: Session, batch: list[dict[str, Any]]) -> tuple[int, int]:
     """Upsert: aynı gün+ad_unit+gelir tipi güncellenir (duplike satır oluşmaz)."""
+    if not batch:
+        return 0, 0
+    batch = _dedupe_batch_by_fingerprint(batch)
     if not batch:
         return 0, 0
     _archive_superseded_rows(db, batch)
@@ -914,6 +936,7 @@ def import_upload_file(
     commit: bool = True,
     progress_cb: ProgressCallback | None = None,
     stream_key: str | None = None,
+    min_date: date | None = None,
 ) -> dict[str, Any]:
     low = filename.lower()
     stream = resolve_stream(filename, stream_key)
@@ -937,9 +960,22 @@ def import_upload_file(
             finally:
                 wb.close()
             row_est = _estimate_xlsx_data_rows(data)
+
+            def _xlsx_filtered() -> Iterator[dict[str, Any]]:
+                for item in iter_xlsx_rows(data, filename=filename, stream=stream):
+                    if (
+                        min_date is not None
+                        and item.get("report_date")
+                        and item["report_date"] < min_date
+                    ):
+                        continue
+                    yield item
+
             result = import_rows(
                 db,
-                iter_xlsx_rows(data, filename=filename, stream=stream),
+                _xlsx_filtered() if min_date is not None else iter_xlsx_rows(
+                    data, filename=filename, stream=stream
+                ),
                 commit=False,
                 progress_cb=progress_cb,
                 row_estimate=row_est or None,
@@ -963,12 +999,15 @@ def import_upload_file(
             if lines:
                 delim = ";" if lines[0].count(";") > lines[0].count(",") else ","
                 columns = [c.strip() for c in lines[0].split(delim)]
+            parsed_rows = parse_csv_text(
+                text, filename=filename, stream=stream, min_date=min_date
+            )
             result = import_rows(
                 db,
-                parse_csv_text(text, filename=filename, stream=stream),
+                parsed_rows,
                 commit=False,
                 progress_cb=progress_cb,
-                row_estimate=max(0, len(lines) - 1) if lines else None,
+                row_estimate=len(parsed_rows) if parsed_rows else max(0, len(lines) - 1),
             )
         else:
             raise ValueError("Yalnızca .xlsx veya .csv desteklenir")
@@ -1257,6 +1296,78 @@ def import_upload_files_bulk(files: list[tuple[bytes, str]]) -> dict[str, Any]:
 
 def count_rows(db: Session) -> int:
     return int(db.scalar(select(func.count()).select_from(AdReportRow)) or 0)
+
+
+def clear_stream_rows(db: Session, stream_key: str, *, commit: bool = True) -> dict[str, Any]:
+    """Bir dalın tüm AdReportRow + ilgili katalog kayıtlarını siler (sheet tek kaynak)."""
+    stream = _STREAM_BY_KEY.get((stream_key or "").strip())
+    if stream is None:
+        raise ValueError(f"Bilinmeyen dal: {stream_key}")
+    source_files = [
+        str(x)
+        for x in db.execute(
+            select(AdReportRow.source_file)
+            .where(
+                AdReportRow.project == stream.project,
+                AdReportRow.branch == stream.branch,
+            )
+            .distinct()
+        ).scalars().all()
+        if x
+    ]
+    deleted_rows = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AdReportRow)
+            .where(
+                AdReportRow.project == stream.project,
+                AdReportRow.branch == stream.branch,
+            )
+        )
+        or 0
+    )
+    db.execute(
+        delete(AdReportRow).where(
+            AdReportRow.project == stream.project,
+            AdReportRow.branch == stream.branch,
+        )
+    )
+    deleted_catalogs = 0
+    for name in source_files:
+        cat = db.execute(
+            select(AdReportCatalog).where(AdReportCatalog.source_file == name)
+        ).scalars().first()
+        if cat is not None:
+            db.delete(cat)
+            deleted_catalogs += 1
+    if commit:
+        db.commit()
+        invalidate_facets_cache()
+    return {
+        "stream_key": stream.key,
+        "deleted_rows": deleted_rows,
+        "deleted_catalogs": deleted_catalogs,
+        "source_files": source_files,
+    }
+
+
+def stream_non_sheet_source_count(db: Session, stream_key: str, sheet_catalog: str) -> int:
+    """Sheet dışı (eski xlsx vb.) satır sayısı."""
+    stream = _STREAM_BY_KEY.get((stream_key or "").strip())
+    if stream is None:
+        return 0
+    return int(
+        db.scalar(
+            select(func.count())
+            .select_from(AdReportRow)
+            .where(
+                AdReportRow.project == stream.project,
+                AdReportRow.branch == stream.branch,
+                AdReportRow.source_file != sheet_catalog,
+            )
+        )
+        or 0
+    )
 
 
 def reset_all(db: Session) -> dict[str, int]:
@@ -1649,6 +1760,7 @@ def facets(db: Session, *, skip_cache: bool = False) -> dict[str, Any]:
                 "incremental": "_increment_" in (c.source_file or "").lower(),
             }
             for c in catalogs
+            if not str(c.source_file or "").lower().endswith("_google_sheet.csv")
         ],
         "empower_imports": empower_imports,
         "min_date": gmin,
