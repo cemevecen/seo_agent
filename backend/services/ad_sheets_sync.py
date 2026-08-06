@@ -14,9 +14,11 @@ from sqlalchemy.orm import Session
 from backend.models import AdReportCatalog, AdReportRow
 from backend.services.ad_analytics_store import (
     _STREAM_BY_KEY,
+    business_keys_from_csv_text,
     clear_stream_rows,
     import_upload_file,
     invalidate_facets_cache,
+    purge_stream_business_keys,
     stream_non_sheet_source_count,
 )
 from backend.services.ad_sheets_config import AD_SHEET_SOURCES, sheet_catalog_filename
@@ -215,17 +217,54 @@ def sync_one_sheet(
             "elapsed_s": round(time.monotonic() - t0, 1),
         }
 
+    exclude_keys: set[tuple[str, date, str]] | None = None
+    excluded_sibling = 0
+    purged_sibling = 0
+    sibling_key = getattr(src, "exclude_sibling_stream_key", None)
+    if sibling_key:
+        sibling_src = next((s for s in AD_SHEET_SOURCES if s.stream_key == sibling_key), None)
+        if sibling_src is not None:
+            _phase("fetch_sibling", f"{src.label}: kardeş sheet ({sibling_src.label}) anahtarları…")
+            try:
+                sibling_csv = fetch_public_sheet_csv(
+                    sibling_src.sheet_url, timeout=_FETCH_TIMEOUT_SEC
+                )
+                exclude_keys = business_keys_from_csv_text(sibling_csv)
+                excluded_sibling = len(exclude_keys)
+                LOGGER.info(
+                    "Ad sheet sibling exclude %s ← %s: %s keys",
+                    stream_key,
+                    sibling_key,
+                    excluded_sibling,
+                )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("Ad sheet sibling fetch failed %s: %s", sibling_key, exc)
+                return {
+                    "ok": False,
+                    "stream_key": stream_key,
+                    "label": src.label,
+                    "error": (
+                        f"Kardeş sheet okunamadı ({sibling_src.label}): "
+                        f"{_short_sync_error(exc)}"
+                    ),
+                    "mode": mode,
+                    "resume_from": last_data_date.isoformat() if last_data_date else None,
+                    "elapsed_s": round(time.monotonic() - t0, 1),
+                }
+
     nbytes = len(csv_text.encode("utf-8"))
     if min_import is not None:
         _phase(
             "fetch_done",
             f"{src.label}: {nbytes / (1024 * 1024):.1f} MB · "
-            f"{min_import.isoformat()} ve sonrası yazılıyor…",
+            f"{min_import.isoformat()} ve sonrası yazılıyor…"
+            + (f" · {excluded_sibling:,} kardeş satır hariç" if excluded_sibling else ""),
         )
     else:
         _phase(
             "fetch_done",
-            f"{src.label}: {nbytes / (1024 * 1024):.1f} MB alındı · yazılıyor…",
+            f"{src.label}: {nbytes / (1024 * 1024):.1f} MB alındı · yazılıyor…"
+            + (f" · {excluded_sibling:,} kardeş satır hariç" if excluded_sibling else ""),
         )
 
     cleared: dict[str, Any] | None = None
@@ -283,11 +322,20 @@ def sync_one_sheet(
             db,
             raw,
             filename=catalog,
-            commit=commit,
+            commit=False,
             stream_key=stream_key,
             min_date=min_import,
             progress_cb=_import_progress,
+            exclude_keys=exclude_keys,
         )
+        if exclude_keys:
+            _phase("purge_sibling", f"{src.label}: kardeş sheet sızıntısı temizleniyor…")
+            purged_sibling = purge_stream_business_keys(
+                db, stream_key, exclude_keys, commit=False
+            )
+        if commit:
+            db.commit()
+            invalidate_facets_cache()
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Ad sheet import failed %s", stream_key)
         db.rollback()
@@ -317,6 +365,9 @@ def sync_one_sheet(
         "inserted": int(result.get("inserted") or 0),
         "updated": int(result.get("updated") or 0),
         "skipped": int(result.get("skipped") or 0),
+        "exclude_sibling_stream": sibling_key,
+        "exclude_sibling_keys": excluded_sibling,
+        "purged_sibling_rows": purged_sibling,
         "warning": result.get("warning") or result.get("parse_error") or "",
         "max_date": bounds.get("max_date"),
         "min_date": bounds.get("min_date"),

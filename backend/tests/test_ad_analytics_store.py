@@ -631,6 +631,79 @@ def test_sheet_incremental_keeps_rows_from_last_date_inclusive():
     assert sum(r["net_revenue"] for r in rows) == 50.0
 
 
+def test_web_sheet_excludes_sibling_mweb_business_keys():
+    """Web sheet Mweb satırlarını da içeriyorsa desktop import’ta düşülür."""
+    from backend.services.ad_analytics_store import (
+        business_keys_from_csv_text,
+        iter_csv_text,
+        row_business_key,
+    )
+    from backend.services.ad_sheets_config import AD_SHEET_SOURCES
+
+    desktop = next(s for s in AD_SHEET_SOURCES if s.stream_key == "sinemalar:desktop")
+    assert desktop.exclude_sibling_stream_key == "sinemalar:mweb"
+    doviz_desk = next(s for s in AD_SHEET_SOURCES if s.stream_key == "doviz:desktop")
+    assert doviz_desk.exclude_sibling_stream_key == "doviz:mweb"
+
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    mweb_csv = header + (
+        "m_sinemalar_x,Haziran 2026,10.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,100\n"
+        "amp_shared,Haziran 2026,10.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,50\n"
+    )
+    web_csv = header + (
+        "m_sinemalar_x,Haziran 2026,10.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,100\n"
+        "amp_shared,Haziran 2026,10.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,50\n"
+        "web_sinemalar_y,Haziran 2026,10.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,20\n"
+    )
+    exclude = business_keys_from_csv_text(mweb_csv)
+    assert len(exclude) == 2
+    stream = store._STREAM_BY_KEY["sinemalar:desktop"]
+    kept = list(
+        iter_csv_text(
+            web_csv,
+            filename="sinemalar_desktop_google_sheet.csv",
+            stream=stream,
+            exclude_keys=exclude,
+        )
+    )
+    assert len(kept) == 1
+    assert kept[0]["ad_unit"] == "web_sinemalar_y"
+    assert kept[0]["net_revenue"] == 20.0
+    assert row_business_key(kept[0]) not in exclude
+
+
+def test_area_label_prefers_branch_over_surface():
+    """Desktop dalındaki m_* surface’li satır WEB alanına yazılır."""
+    init_db()
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    csv = header + "m_sinemalar_x,Haziran 2026,10.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,100\n"
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_upload_file(
+            db,
+            csv.encode("utf-8"),
+            filename="sinemalar_desktop_google_sheet.csv",
+            commit=True,
+            stream_key="sinemalar:desktop",
+        )
+        # Import surface=mweb (m_ prefix) ama branch=desktop
+        row = db.query(AdReportRow).one()
+        assert row.branch == "desktop"
+        assert row.surface == "mweb"
+        summary = store.query_summary(
+            db, start="2026-06-01", end="2026-06-30", project="sinemalar"
+        )
+        by_area = {r["area"]: r["net_revenue"] for r in summary.get("by_area") or []}
+        assert by_area.get("web", 0) == 100.0
+        assert by_area.get("mweb", 0) == 0.0
+        store.reset_all(db)
+
 def test_iter_csv_scan_progress_every_n_rows():
     from backend.services.ad_analytics_store import iter_csv_text
     from backend.services.ad_sheets_sync import _fmt_row_count

@@ -615,6 +615,28 @@ def parse_csv_text(
     return list(iter_csv_text(text, filename=filename, stream=stream, min_date=min_date))
 
 
+def row_business_key(item: dict[str, Any]) -> tuple[str, date, str] | None:
+    """Dal bağımsız kimlik — kardeş sheet örtüşmesi için (ad_unit, date, income_type)."""
+    rd = item.get("report_date")
+    if not isinstance(rd, date):
+        return None
+    ad_unit = str(item.get("ad_unit") or "").strip()
+    income_type = str(item.get("income_type") or "").strip()
+    if not ad_unit or not income_type:
+        return None
+    return (ad_unit, rd, income_type)
+
+
+def business_keys_from_csv_text(text: str) -> set[tuple[str, date, str]]:
+    """CSV’deki tüm (ad_unit, date, income_type) anahtarları — kardeş hariç tutma seti."""
+    keys: set[tuple[str, date, str]] = set()
+    for item in iter_csv_text(text, filename="sibling.csv", stream=None):
+        key = row_business_key(item)
+        if key:
+            keys.add(key)
+    return keys
+
+
 def iter_csv_text(
     text: str,
     *,
@@ -623,6 +645,7 @@ def iter_csv_text(
     min_date: date | None = None,
     on_scan: Callable[[int, int], None] | None = None,
     scan_every: int = 5000,
+    exclude_keys: set[tuple[str, date, str]] | None = None,
 ) -> Iterator[dict[str, Any]]:
     raw = (text or "").strip()
     if not raw:
@@ -661,6 +684,10 @@ def iter_csv_text(
             continue
         if min_date is not None and item.get("report_date") and item["report_date"] < min_date:
             continue
+        if exclude_keys:
+            key = row_business_key(item)
+            if key is not None and key in exclude_keys:
+                continue
         yield item
 
 
@@ -960,6 +987,7 @@ def import_upload_file(
     progress_cb: ProgressCallback | None = None,
     stream_key: str | None = None,
     min_date: date | None = None,
+    exclude_keys: set[tuple[str, date, str]] | None = None,
 ) -> dict[str, Any]:
     low = filename.lower()
     stream = resolve_stream(filename, stream_key)
@@ -1049,14 +1077,21 @@ def import_upload_file(
                     min_date=min_date,
                     on_scan=_on_scan if is_sheet else None,
                     scan_every=5000,
+                    exclude_keys=exclude_keys,
                 ):
                     kept_box["n"] += 1
                     yield item
 
             result = import_rows(
                 db,
-                _sheet_rows() if is_sheet else iter_csv_text(
-                    text, filename=filename, stream=stream, min_date=min_date
+                _sheet_rows()
+                if is_sheet
+                else iter_csv_text(
+                    text,
+                    filename=filename,
+                    stream=stream,
+                    min_date=min_date,
+                    exclude_keys=exclude_keys,
                 ),
                 commit=False,
                 progress_cb=None if is_sheet else progress_cb,
@@ -1404,6 +1439,58 @@ def clear_stream_rows(db: Session, stream_key: str, *, commit: bool = True) -> d
         "deleted_catalogs": deleted_catalogs,
         "source_files": source_files,
     }
+
+
+def purge_stream_business_keys(
+    db: Session,
+    stream_key: str,
+    keys: set[tuple[str, date, str]],
+    *,
+    commit: bool = True,
+    batch_size: int = 800,
+) -> int:
+    """Dal içinden (ad_unit, date, income_type) eşleşen satırları sil — kardeş sheet sızıntısı."""
+    stream = _STREAM_BY_KEY.get((stream_key or "").strip())
+    if stream is None or not keys:
+        return 0
+    from sqlalchemy import tuple_
+
+    deleted = 0
+    batch: list[tuple[str, date, str]] = []
+    for key in keys:
+        batch.append(key)
+        if len(batch) >= batch_size:
+            res = db.execute(
+                delete(AdReportRow).where(
+                    AdReportRow.project == stream.project,
+                    AdReportRow.branch == stream.branch,
+                    tuple_(
+                        AdReportRow.ad_unit,
+                        AdReportRow.report_date,
+                        AdReportRow.income_type,
+                    ).in_(batch),
+                )
+            )
+            deleted += int(res.rowcount or 0)
+            batch = []
+    if batch:
+        res = db.execute(
+            delete(AdReportRow).where(
+                AdReportRow.project == stream.project,
+                AdReportRow.branch == stream.branch,
+                tuple_(
+                    AdReportRow.ad_unit,
+                    AdReportRow.report_date,
+                    AdReportRow.income_type,
+                ).in_(batch),
+            )
+        )
+        deleted += int(res.rowcount or 0)
+    if commit:
+        db.commit()
+        if deleted:
+            invalidate_facets_cache()
+    return deleted
 
 
 def stream_non_sheet_source_count(db: Session, stream_key: str, sheet_catalog: str) -> int:
@@ -1909,11 +1996,18 @@ def _week_key_expr(col):
 
 
 def _area_label_expr(col_branch, col_surface):
+    """Proje toplam kırılımı: web/mweb için branch (Desktop/Mobil Web dalı) esas.
+
+    Surface ad_unit tahminine bırakılırsa Web sheet’teki m_* satırları MWEB’e
+    yazılır ve dal sekmeleriyle kartlar uyuşmaz.
+    """
     from sqlalchemy import case
 
     return case(
         (col_branch == "android", "android"),
         (col_branch == "ios", "ios"),
+        (col_branch == "mweb", "mweb"),
+        (col_branch == "desktop", "web"),
         (
             func.lower(col_surface).in_(["mweb", "mobile_web", "m_web"]),
             "mweb",
