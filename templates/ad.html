@@ -439,30 +439,6 @@
       >Gelir hedefleri ↓</a>
       <div id="mz-sidebar-analytics" class="space-y-3">
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Google Sheets</p>
-      <p class="text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
-        Ana kaynak: döviz web/mweb/ios/android + sinemalar web/mweb.
-        Sistem her daldaki <strong>son veri tarihini</strong> hatırlar; sonraki
-        <strong>Verileri güncelle</strong> o günden (dahil) ileri satırları upsert eder.
-        Döviz Web büyük (~50MB); ilk tam senkron arka planda birkaç dk sürebilir.
-        Manuel xlsx yükleme kapalı.
-      </p>
-      <label class="block text-[10px] font-semibold text-slate-500 dark:text-zinc-400" for="mz-sheets-stream-pick">Hangi sheet</label>
-      <select
-        id="mz-sheets-stream-pick"
-        class="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-black dark:text-zinc-200"
-      >
-        <option value="">Tümü (6 sheet)</option>
-        <option value="doviz:desktop">Döviz · Web</option>
-        <option value="doviz:mweb">Döviz · Mweb</option>
-        <option value="doviz:ios">Döviz · iOS</option>
-        <option value="doviz:android">Döviz · Android</option>
-        <option value="sinemalar:desktop">Sinemalar · Web</option>
-        <option value="sinemalar:mweb">Sinemalar · Mweb</option>
-      </select>
-      <label class="mt-1 flex items-start gap-2 text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
-        <input id="mz-sheets-full-replace" type="checkbox" class="mt-0.5" />
-        <span>Tam değiştir: dalı sıfırlayıp sheet’i baştan yaz (yalnızca ilk kurulum veya bozuk veri). Günlük güncellemede kapalı tut.</span>
-      </label>
       <button
         type="button"
         id="mz-refresh-sheets-side"
