@@ -1,0 +1,407 @@
+{# Ana sayfa — Google Drive görsel yükleme #}
+<style>
+  .home-drive {
+    container-type: inline-size;
+    container-name: home-drive;
+  }
+  .home-drive-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 7.5rem;
+    padding: 1.1rem 1rem;
+    border-radius: 0.85rem;
+    border: 1.5px dashed rgb(203 213 225);
+    background: rgb(248 250 252 / 0.85);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .home-drive-drop:hover,
+  .home-drive-drop.is-drag {
+    border-color: rgb(59 130 246);
+    background: rgb(239 246 255 / 0.9);
+  }
+  html.dark .home-drive-drop,
+  html.midnight .home-drive-drop {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.55);
+  }
+  html.dark .home-drive-drop:hover,
+  html.dark .home-drive-drop.is-drag,
+  html.midnight .home-drive-drop:hover,
+  html.midnight .home-drive-drop.is-drag {
+    border-color: rgb(96 165 250);
+    background: rgb(23 37 84 / 0.35);
+  }
+  .home-drive-drop input[type="file"] {
+    display: none;
+  }
+  .home-drive-status {
+    margin-top: 0.65rem;
+    font-size: 0.72rem;
+    color: #64748b;
+  }
+  .home-drive-status.is-err { color: #e11d48; }
+  .home-drive-status.is-ok { color: #16a34a; }
+  .home-drive-gallery {
+    margin-top: 0.85rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    overflow: hidden;
+  }
+  html.dark .home-drive-gallery,
+  html.midnight .home-drive-gallery {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+  }
+  .home-drive-gallery-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.7rem 0.85rem;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+  .home-drive-gallery-toggle:hover { background: rgb(241 245 249 / 0.8); }
+  html.dark .home-drive-gallery-toggle:hover,
+  html.midnight .home-drive-gallery-toggle:hover {
+    background: rgb(39 39 42 / 0.7);
+  }
+  .home-drive-chevron {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+    opacity: 0.65;
+    flex-shrink: 0;
+  }
+  .home-drive-gallery.is-open .home-drive-chevron {
+    transform: rotate(-135deg);
+    margin-top: 0.15rem;
+  }
+  .home-drive-gallery-body {
+    display: none;
+    padding: 0 0.75rem 0.85rem;
+    border-top: 1px solid rgb(226 232 240);
+  }
+  .home-drive-gallery.is-open .home-drive-gallery-body { display: block; }
+  html.dark .home-drive-gallery-body,
+  html.midnight .home-drive-gallery-body {
+    border-top-color: rgb(63 63 70);
+  }
+  .home-drive-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    padding-top: 0.75rem;
+  }
+  .home-drive-card {
+    width: 7.5rem;
+    flex: 0 0 7.5rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgb(226 232 240);
+    background: #fff;
+    overflow: hidden;
+  }
+  html.dark .home-drive-card,
+  html.midnight .home-drive-card {
+    border-color: rgb(63 63 70);
+    background: rgb(9 9 11);
+  }
+  .home-drive-card-img {
+    display: block;
+    width: 7.5rem;
+    height: 7.5rem;
+    object-fit: cover;
+    background: rgb(241 245 249);
+  }
+  html.dark .home-drive-card-img { background: rgb(39 39 42); }
+  .home-drive-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+    padding: 0.35rem 0.4rem;
+  }
+  .home-drive-card-name {
+    min-width: 0;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #475569;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html.dark .home-drive-card-name { color: #a1a1aa; }
+  .home-drive-card-del {
+    flex-shrink: 0;
+    border: 0;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0.1rem 0.2rem;
+  }
+  .home-drive-card-del:hover { color: #e11d48; }
+</style>
+
+<div class="home-drive home-readable" data-home-drive-root>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Drive</span>
+        <h3 class="font-semibold text-slate-900 dark:text-slate-100">görsel yükleme</h3>
+      </div>
+      {% if connected and account_email %}
+        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">bağlı · {{ account_email }}</p>
+      {% endif %}
+    </div>
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
+      {% if folder_url %}
+        <a href="{{ folder_url }}" target="_blank" rel="noopener noreferrer"
+           class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">klasör →</a>
+      {% endif %}
+      {% if connected %}
+        <button type="button" data-home-drive-disconnect
+                class="home-meta rounded-full px-2.5 py-1 font-semibold text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50 dark:ring-zinc-700 dark:hover:bg-zinc-800">
+          bağlantıyı kes
+        </button>
+      {% elif oauth_client_configured %}
+        <a href="/api/home/drive/oauth/start?next=/"
+           class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 home-label text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900">
+          Google Drive bağla
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if oauth_error %}
+    <p class="home-drive-status is-err mt-3">OAuth: {{ oauth_error }}</p>
+  {% elif error %}
+    <p class="home-drive-status is-err mt-3">{{ error }}</p>
+  {% elif not oauth_client_configured %}
+    <p class="home-drive-status is-err mt-3">GOOGLE_CLIENT_ID / SECRET eksik.</p>
+  {% elif not connected %}
+    <p class="home-meta mt-3 text-slate-500 dark:text-slate-400">
+      Yüklemek için Google Drive’ı bağla.
+      Redirect URI (Cloud Console’a ekle):
+      <code class="break-all text-[0.7rem] text-slate-600 dark:text-zinc-300">{{ redirect_uri }}</code>
+    </p>
+  {% else %}
+    <label class="home-drive-drop mt-4" data-home-drive-drop>
+      <input type="file" accept="image/*" multiple data-home-drive-input>
+      <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Görsel sürükle veya seç</p>
+      <p class="home-meta text-slate-500 dark:text-slate-400">PNG, JPG, WEBP · max 12 MB · Drive klasörüne yüklenir</p>
+    </label>
+    <p class="home-drive-status" data-home-drive-status hidden></p>
+
+    <div class="home-drive-gallery" data-home-drive-gallery {% if file_count %}data-count="{{ file_count }}"{% endif %}>
+      <button type="button" class="home-drive-gallery-toggle" data-home-drive-gallery-toggle aria-expanded="false">
+        <span class="home-label text-slate-600 dark:text-zinc-300">
+          yüklenen görseller
+          <span class="ml-1 tabular-nums text-slate-400" data-home-drive-count>({{ file_count }})</span>
+        </span>
+        <span class="home-drive-chevron" aria-hidden="true"></span>
+      </button>
+      <div class="home-drive-gallery-body" data-home-drive-gallery-body hidden>
+        {% if files %}
+          <div class="home-drive-grid" data-home-drive-grid>
+            {% for f in files %}
+              <article class="home-drive-card" data-home-drive-card data-file-id="{{ f.id }}">
+                <a href="{{ f.web_view_link or f.thumb_url }}" target="_blank" rel="noopener noreferrer" title="{{ f.name }}">
+                  <img class="home-drive-card-img" src="{{ f.thumb_url }}" alt="{{ f.name }}" loading="lazy">
+                </a>
+                <div class="home-drive-card-meta">
+                  <span class="home-drive-card-name" title="{{ f.name }}">{{ f.name }}</span>
+                  <button type="button" class="home-drive-card-del" data-home-drive-delete="{{ f.id }}" title="Sil" aria-label="Sil">&times;</button>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="home-meta pt-3 text-slate-400" data-home-drive-empty>Henüz görsel yok</p>
+          <div class="home-drive-grid" data-home-drive-grid hidden></div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  var root = document.currentScript && document.currentScript.previousElementSibling;
+  if (!root || !root.getAttribute || root.getAttribute('data-home-drive-root') === null) {
+    root = document.querySelector('[data-home-drive-root]');
+  }
+  if (!root || root.__homeDriveBound) return;
+  root.__homeDriveBound = true;
+
+  var drop = root.querySelector('[data-home-drive-drop]');
+  var input = root.querySelector('[data-home-drive-input]');
+  var statusEl = root.querySelector('[data-home-drive-status]');
+  var gallery = root.querySelector('[data-home-drive-gallery]');
+  var toggle = root.querySelector('[data-home-drive-gallery-toggle]');
+  var body = root.querySelector('[data-home-drive-gallery-body]');
+  var grid = root.querySelector('[data-home-drive-grid]');
+  var countEl = root.querySelector('[data-home-drive-count]');
+  var emptyEl = root.querySelector('[data-home-drive-empty]');
+
+  function setStatus(msg, kind) {
+    if (!statusEl) return;
+    if (!msg) {
+      statusEl.hidden = true;
+      statusEl.textContent = '';
+      statusEl.classList.remove('is-err', 'is-ok');
+      return;
+    }
+    statusEl.hidden = false;
+    statusEl.textContent = msg;
+    statusEl.classList.toggle('is-err', kind === 'err');
+    statusEl.classList.toggle('is-ok', kind === 'ok');
+  }
+
+  function updateCount() {
+    if (!grid || !countEl) return;
+    var n = grid.querySelectorAll('[data-home-drive-card]').length;
+    countEl.textContent = '(' + n + ')';
+    if (emptyEl) emptyEl.hidden = n > 0;
+    if (grid) grid.hidden = n === 0;
+  }
+
+  function cardHtml(f) {
+    var name = (f.name || 'image').replace(/</g, '&lt;');
+    var id = String(f.id || '');
+    var thumb = f.thumb_url || '';
+    var link = f.web_view_link || thumb;
+    return (
+      '<article class="home-drive-card" data-home-drive-card data-file-id="' + id + '">' +
+        '<a href="' + link + '" target="_blank" rel="noopener noreferrer" title="' + name + '">' +
+          '<img class="home-drive-card-img" src="' + thumb + '" alt="' + name + '" loading="lazy">' +
+        '</a>' +
+        '<div class="home-drive-card-meta">' +
+          '<span class="home-drive-card-name" title="' + name + '">' + name + '</span>' +
+          '<button type="button" class="home-drive-card-del" data-home-drive-delete="' + id + '" title="Sil" aria-label="Sil">&times;</button>' +
+        '</div>' +
+      '</article>'
+    );
+  }
+
+  if (toggle && gallery && body) {
+    toggle.addEventListener('click', function () {
+      var open = gallery.classList.toggle('is-open');
+      body.hidden = !open;
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  async function uploadFiles(files) {
+    if (!files || !files.length) return;
+    setStatus('Yükleniyor… (' + files.length + ')', null);
+    var ok = 0;
+    for (var i = 0; i < files.length; i++) {
+      var fd = new FormData();
+      fd.append('file', files[i]);
+      try {
+        var res = await fetch('/api/home/drive/upload', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+        });
+        var j = await res.json().catch(function () { return {}; });
+        if (!res.ok || !j.ok) {
+          setStatus((j && j.error) || 'Yükleme başarısız', 'err');
+          continue;
+        }
+        ok += 1;
+        if (grid && j.file) {
+          if (emptyEl) emptyEl.hidden = true;
+          grid.hidden = false;
+          grid.insertAdjacentHTML('afterbegin', cardHtml(j.file));
+          updateCount();
+          if (gallery && !gallery.classList.contains('is-open')) {
+            gallery.classList.add('is-open');
+            if (body) body.hidden = false;
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+          }
+        }
+      } catch (e) {
+        setStatus('Yükleme hatası', 'err');
+      }
+    }
+    if (ok) setStatus(ok + ' görsel yüklendi', 'ok');
+    if (input) input.value = '';
+  }
+
+  if (drop && input) {
+    drop.addEventListener('click', function (ev) {
+      if (ev.target === input) return;
+      input.click();
+    });
+    input.addEventListener('change', function () {
+      uploadFiles(input.files);
+    });
+    ['dragenter', 'dragover'].forEach(function (evName) {
+      drop.addEventListener(evName, function (ev) {
+        ev.preventDefault();
+        drop.classList.add('is-drag');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (evName) {
+      drop.addEventListener(evName, function (ev) {
+        ev.preventDefault();
+        drop.classList.remove('is-drag');
+      });
+    });
+    drop.addEventListener('drop', function (ev) {
+      var dt = ev.dataTransfer;
+      if (dt && dt.files) uploadFiles(dt.files);
+    });
+  }
+
+  root.addEventListener('click', function (ev) {
+    var del = ev.target.closest('[data-home-drive-delete]');
+    if (del) {
+      var id = del.getAttribute('data-home-drive-delete');
+      if (!id) return;
+      if (!window.confirm('Bu görseli Drive’dan silmek istiyor musun?')) return;
+      fetch('/api/home/drive/files/' + encodeURIComponent(id), {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok || !x.j.ok) {
+            setStatus((x.j && x.j.error) || 'Silinemedi', 'err');
+            return;
+          }
+          var card = root.querySelector('[data-home-drive-card][data-file-id="' + id + '"]');
+          if (card) card.remove();
+          updateCount();
+          setStatus('Silindi', 'ok');
+        })
+        .catch(function () { setStatus('Silinemedi', 'err'); });
+      return;
+    }
+    var disc = ev.target.closest('[data-home-drive-disconnect]');
+    if (disc) {
+      if (!window.confirm('Drive bağlantısını kes?')) return;
+      fetch('/api/home/drive/oauth/disconnect', { method: 'POST', credentials: 'same-origin' })
+        .then(function () {
+          var sec = root.closest('section[hx-get]');
+          if (sec && window.htmx) window.htmx.ajax('GET', sec.getAttribute('hx-get'), { target: sec, swap: 'innerHTML' });
+          else location.reload();
+        });
+    }
+  });
+})();
+</script>

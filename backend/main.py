@@ -48,6 +48,7 @@ from backend.api.ga4 import router as ga4_router
 from backend.api.metrics import router as metrics_router
 from backend.api.sites import router as sites_router
 from backend.api.inbox import router as inbox_router
+from backend.api.home_drive import router as home_drive_router
 from backend.api.backlinks import router as backlinks_router
 from backend.api.store_catalog import router as store_catalog_router
 from backend.api.notification_analytics import router as notification_analytics_router
@@ -1016,6 +1017,7 @@ app.include_router(sites_router, prefix="/api")
 app.include_router(ga4_router, prefix="/api")
 app.include_router(store_catalog_router, prefix="/api")
 app.include_router(inbox_router, prefix="/api")
+app.include_router(home_drive_router, prefix="/api")
 app.include_router(backlinks_router, prefix="/api")
 app.include_router(notification_analytics_router, prefix="/api")
 app.include_router(ad_analytics_router, prefix="/api")
@@ -10501,6 +10503,44 @@ def api_home_crashlytics(request: Request, product: str | None = None):
             "app_url": "/app",
         },
     )
+
+
+@app.get("/api/home/drive-uploads", response_class=HTMLResponse)
+def api_home_drive_uploads(request: Request):
+    """Ana sayfa Google Drive görsel yükleme paneli."""
+    from backend.services import home_drive, home_drive_auth
+
+    with SessionLocal() as db:
+        row = home_drive_auth.get_home_drive_credential_row(db)
+        connected = row is not None
+        files: list[dict] = []
+        err = ""
+        if connected:
+            try:
+                files = home_drive.list_folder_images(db, limit=60)
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.exception("Home Drive list failed")
+                err = str(exc)[:180]
+        folder_id = home_drive_auth.home_drive_folder_id()
+        return templates.TemplateResponse(
+            request,
+            "partials/home/drive_uploads.html",
+            context={
+                "request": request,
+                "oauth_client_configured": home_drive_auth.home_drive_oauth_is_configured(),
+                "connected": connected,
+                "account_email": (row.account_email if row else "") or "",
+                "redirect_uri": home_drive_auth.get_home_drive_oauth_redirect_uri(request=request),
+                "folder_id": folder_id,
+                "folder_url": (
+                    f"https://drive.google.com/drive/folders/{folder_id}" if folder_id else ""
+                ),
+                "files": files,
+                "file_count": len(files),
+                "error": err,
+                "oauth_error": (request.query_params.get("oauth_error") or "").strip(),
+            },
+        )
 
 
 def _home_app_release_platforms(product_id: str = "doviz") -> list[dict]:

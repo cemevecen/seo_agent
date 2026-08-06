@@ -31,6 +31,15 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:8012/api/inbox/oauth/callback",
         validation_alias=AliasChoices("GMAIL_INBOX_OAUTH_REDIRECT_URI", "gmail_inbox_oauth_redirect_uri"),
     )
+    # Ana sayfa Drive yüklemeleri — Google Cloud OAuth'a bu redirect URI eklenmeli.
+    home_drive_oauth_redirect_uri: str = Field(
+        default="http://127.0.0.1:8012/api/home/drive/oauth/callback",
+        validation_alias=AliasChoices("HOME_DRIVE_OAUTH_REDIRECT_URI", "home_drive_oauth_redirect_uri"),
+    )
+    home_drive_folder_id: str = Field(
+        default="14_VrPCB5H0b2aD8K8mxfHYZvVkPVqZQW",
+        validation_alias=AliasChoices("HOME_DRIVE_FOLDER_ID", "home_drive_folder_id"),
+    )
     app_member_oauth_redirect_uri: str = Field(
         default="http://127.0.0.1:8012/auth/google/callback",
         validation_alias=AliasChoices("APP_MEMBER_OAUTH_REDIRECT_URI", "app_member_oauth_redirect_uri"),

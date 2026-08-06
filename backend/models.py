@@ -644,6 +644,19 @@ class InboxGmailCredential(Base):
     scheduled_sync_last_success_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class HomeDriveCredential(Base):
+    """Ana sayfa Google Drive yüklemeleri için global OAuth — tek satır."""
+
+    __tablename__ = "home_drive_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
+    encrypted_data: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
 class SupportInboxThread(Base):
     """info@ / feedback@ gibi adreslere gelen destek e-posta konuşmaları (Gmail thread)."""
 
