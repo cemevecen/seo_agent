@@ -688,15 +688,20 @@ _NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
 
 
 def _is_news_detail_path(path: str) -> bool:
-    """Son path segmenti sayısal ID olan haber/makale detay sayfalarını tespit eder."""
-    return bool(_NEWS_DETAIL_PATH_RE.search(path))
+    """Son path segmenti sayısal ID olan haber/makale detay sayfalarını tespit eder.
 
+    Sinemalar film sayfaları (movieInfo/Cast, /film/...) hariç.
+    """
+    from backend.services.realtime_news_paths import is_news_detail_path
+
+    return is_news_detail_path(path)
 
 def enrich_ga4_page_rows(rows: list | None, *, keep_news_articles: bool = False) -> list:
     """Snapshot satırlarında page_url eksikse page_host + page ile tamamla (/ga4 ve partial uyumu).
 
     Varsayılan: haber detayları (son segment sayısal ID) listeden çıkarılır (haber hariç tablo).
     keep_news_articles=True: haber satırları korunur (pages_news tablosu).
+    Sinemalar film/oyuncu sayfaları (movieInfo/Cast, /film/...) haber sayılmaz.
     """
     if not rows:
         return []
@@ -723,6 +728,57 @@ def enrich_ga4_page_rows(rows: list | None, *, keep_news_articles: bool = False)
         out.append(row)
     return out
 
+
+def merge_sinemalar_content_from_news_pages(
+    pages_no_news: list | None,
+    pages_news: list | None,
+) -> list:
+    """Eski snapshot: film sayfalarını pages_news'ten pages_no_news havuzuna geri al."""
+    from backend.services.realtime_news_paths import is_sinemalar_content_id_path
+
+    merged: list = []
+    seen: set[tuple[str, str]] = set()
+    for r in pages_no_news or []:
+        if not isinstance(r, dict):
+            continue
+        key = (str(r.get("page_host") or "").lower(), str(r.get("page") or "").lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(r)
+    for r in pages_news or []:
+        if not isinstance(r, dict):
+            continue
+        pg = str(r.get("page") or "")
+        if not is_sinemalar_content_id_path(pg):
+            continue
+        key = (str(r.get("page_host") or "").lower(), pg.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(r)
+    return merged
+
+
+def ga4_pages_no_news_for_ui(payload: dict | None) -> list:
+    """UI haber-hariç tablo: pages_no_news + yanlış sınıflanmış sinemalar film satırları."""
+    pl = payload if isinstance(payload, dict) else {}
+    merged = merge_sinemalar_content_from_news_pages(pl.get("pages_no_news"), pl.get("pages_news"))
+    return enrich_ga4_page_rows(merged, keep_news_articles=False)
+
+
+def ga4_pages_news_for_ui(payload: dict | None) -> list:
+    """UI haber tablosu — sinemalar film sayfalarını dışarıda tut."""
+    from backend.services.realtime_news_paths import is_sinemalar_content_id_path
+
+    pl = payload if isinstance(payload, dict) else {}
+    rows = enrich_ga4_page_rows(pl.get("pages_news"), keep_news_articles=True)
+    out: list = []
+    for r in rows:
+        if isinstance(r, dict) and is_sinemalar_content_id_path(str(r.get("page") or "")):
+            continue
+        out.append(r)
+    return out
 
 def ga4_row_page_label(row: dict | None, site_domain: str | None) -> str:
     """Liste metni: site ile aynı host'ta path; farklı host'ta host+path."""

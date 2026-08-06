@@ -17,15 +17,58 @@ _NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
 _DUP_START_WORD_RE = re.compile(r"^([a-zçğıöşü]{3,})\s+\1\b", re.I)
 _DUP_START_2WORD_RE = re.compile(r"^([a-zçğıöşü]{3,})\s+([a-zçğıöşü]{3,})\s+\1\s+\2\b", re.I)
 
+# Sinemalar: ID ile biten ama haber olmayan ürün/içerik path'leri
+_SINEMALAR_CONTENT_SEGMENTS = frozenset(
+    {
+        "movieinfo",
+        "moviecast",
+        "film",
+        "films",
+        "oyuncu",
+        "fragman",
+        "fragmanlar",
+        "playingmovies",
+        "comingsoon",
+        "seans",
+        "salon",
+        "sinema",
+        "dizi",
+        "diziler",
+    }
+)
+
+
+def is_sinemalar_content_id_path(path: str | None) -> bool:
+    """movieInfo/123, movieCast/456, /film/.../id — haber değil, film içerik sayfası."""
+    raw = (path or "").strip()
+    if not raw:
+        return False
+    low = raw.lower().replace("\\", "/")
+    if low.startswith(("http://", "https://")):
+        try:
+            low = (urlparse(low).path or "").lower()
+        except Exception:
+            return False
+    parts = [p.split("?", 1)[0].split("#", 1)[0] for p in low.split("/") if p]
+    if not parts:
+        return False
+    return any(seg in _SINEMALAR_CONTENT_SEGMENTS for seg in parts)
+
 
 def is_news_detail_path(path: str) -> bool:
-    """Son segment sayısal ID ise haber makalesi (GA4 landing / realtime ortak)."""
-    return bool(_NEWS_DETAIL_PATH_RE.search(path or ""))
+    """Son segment sayısal ID ise haber makalesi (GA4 landing / realtime ortak).
+
+    Sinemalar film/oyuncu sayfaları da ID ile biter; bunlar haber sayılmaz.
+    """
+    if not _NEWS_DETAIL_PATH_RE.search(path or ""):
+        return False
+    if is_sinemalar_content_id_path(path):
+        return False
+    return True
 
 
 def _is_news_detail_path(path: str) -> bool:
     return is_news_detail_path(path)
-
 
 def path_has_haberleri_segment(path: str) -> bool:
     """*-haberleri kategori / etiket / detay URL yapısı."""

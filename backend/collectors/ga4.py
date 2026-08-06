@@ -123,12 +123,15 @@ def _exclude_path_substrings() -> list[str]:
 # Son path segmenti sayısal ID olan haber/makale detay sayfalarını tespit et.
 # Örnek: /gundem-haberleri/baslik/837872  →  haber detayı (çıkar)
 #         /gundem-haberleri               →  kategori sayfası (koru)
+#         /movieInfo/264007               →  film sayfası (koru — haber değil)
 _NEWS_DETAIL_PATH_RE = re.compile(r"/\d+(?:[/?#].*)?$")
 
 
 def _is_news_detail_path(path: str) -> bool:
-    """Path'in son segmenti sayısal ID ise haber detay sayfasıdır."""
-    return bool(_NEWS_DETAIL_PATH_RE.search(path))
+    """Path'in son segmenti sayısal ID ise haber detay sayfasıdır (sinemalar film hariç)."""
+    from backend.services.realtime_news_paths import is_news_detail_path
+
+    return is_news_detail_path(path)
 
 
 def _path_contains_news_marker(path: str) -> bool:
@@ -143,8 +146,14 @@ def _path_contains_news_marker(path: str) -> bool:
 
 def _is_news_article_path(path: str) -> bool:
     """Haber detayı (sayısal ID), haber bölümü path'i veya *-haberleri yapısı."""
-    from backend.services.realtime_news_paths import is_news_detail_path, path_has_haberleri_segment
+    from backend.services.realtime_news_paths import (
+        is_news_detail_path,
+        is_sinemalar_content_id_path,
+        path_has_haberleri_segment,
+    )
 
+    if is_sinemalar_content_id_path(path):
+        return False
     if is_news_detail_path(path):
         return True
     if _path_contains_news_marker(path):

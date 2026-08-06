@@ -109,6 +109,8 @@ from backend.services.ga4_digest_email import ga4_digest_bucket_for_domain, send
 from backend.services.ga4_page_urls import (
     enrich_ga4_page_rows as _enrich_ga4_page_rows,
     ga4_fallback_page_url as _ga4_fallback_page_url,
+    ga4_pages_no_news_for_ui as _ga4_pages_no_news_for_ui,
+    ga4_pages_news_for_ui as _ga4_pages_news_for_ui,
     ga4_row_news_display_text as _ga4_row_news_display_text,
     ga4_row_page_href as _ga4_row_page_href,
     ga4_row_page_label as _ga4_row_page_label,
@@ -9314,16 +9316,20 @@ def _home_ga4_top_pages(
     site_domain: str | None,
     limit: int = _HOME_TOP_PAGES_LIMIT,
 ) -> list[dict]:
-    """GA4 pages tablosu ile aynı kaynak: pages_no_news + SC pozisyon."""
+    """GA4 pages tablosu ile aynı kaynak: pages_no_news + SC pozisyon.
+
+    Eski snapshot'larda sinemalar film sayfaları (movieInfo/Cast) yanlışlıkla
+    pages_news'e düşmüş olabilir — onları da havuza ekleyip haber filtresinden geçir.
+    """
     if profile not in ("web", "mweb"):
         return []
     snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=7)
     if not snap or not ((snap.get("payload") or {}).get("pages_no_news")):
         snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
-    raw_rows = ((snap or {}).get("payload") or {}).get("pages_no_news") or []
-    if not raw_rows:
+    payload = (snap or {}).get("payload") or {}
+    rows = _ga4_pages_no_news_for_ui(payload)
+    if not rows:
         return []
-    rows = _enrich_ga4_page_rows(raw_rows, keep_news_articles=False)
     try:
         sc_diff, sc_cur = _sc_page_position_lookups_for_ga4(
             db,
@@ -12229,8 +12235,8 @@ def _ga4_profile_payload_for_same_weekday_day(
             if (isinstance(sw_channels_last, dict) and sw_channels_last)
             else _ga4_top_channels_with_pct_change(latest, profile, 7, pl)
         ),
-        "pages_no_news": _enrich_ga4_page_rows(pl.get("pages_no_news")),
-        "pages_news": _enrich_ga4_page_rows(pl.get("pages_news"), keep_news_articles=True),
+        "pages_no_news": _ga4_pages_no_news_for_ui(pl),
+        "pages_news": _ga4_pages_news_for_ui(pl),
         "sources": pl.get("sources") or [],
         "daily_trend": daily_trend,
         "daily_trend_spark": daily_trend_spark,
@@ -12801,8 +12807,8 @@ def _ga4_profile_payload_for_period(
         "organic_share_pct": organic_share,
         "organic_share_pct_change": organic_share_pct_change,
         "top_channels": _ga4_top_channels_with_pct_change(latest, profile, pd, pl),
-        "pages_no_news": _enrich_ga4_page_rows(pl.get("pages_no_news")),
-        "pages_news": _enrich_ga4_page_rows(pl.get("pages_news"), keep_news_articles=True),
+        "pages_no_news": _ga4_pages_no_news_for_ui(pl),
+        "pages_news": _ga4_pages_news_for_ui(pl),
         "sources": pl.get("sources") or [],
         "daily_trend": daily_trend,
         "daily_trend_spark": daily_trend_spark,
