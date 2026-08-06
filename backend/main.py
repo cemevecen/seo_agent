@@ -9308,6 +9308,53 @@ def _home_mweb_display_label(label: str | None, href: str | None = None) -> str:
     """Geriye uyum — top page display ile aynı."""
     return _home_top_page_display_label(label, href)
 
+def _home_is_sinemalar_site(site_id: int, site_domain: str | None = None) -> bool:
+    if int(site_id or 0) == 2:
+        return True
+    dom = str(site_domain or "").lower()
+    return "sinemalar" in dom
+
+
+def _home_ga4_merge_page_rows(*row_lists: list) -> list[dict]:
+    """Path+host ile tekilleştir; daha yüksek last_total kazansın."""
+    merged: dict[tuple[str, str], dict] = {}
+    for rows in row_lists:
+        for r in rows or []:
+            if not isinstance(r, dict):
+                continue
+            pg = str(r.get("page") or "").strip()
+            if not pg:
+                continue
+            key = (str(r.get("page_host") or "").lower(), pg.lower())
+            prev = merged.get(key)
+            try:
+                cur_v = float(r.get("last_total") or r.get("views") or 0)
+            except (TypeError, ValueError):
+                cur_v = 0.0
+            if prev is None:
+                row = dict(r)
+                if "last_total" not in row and "views" in row:
+                    row["last_total"] = cur_v
+                    row.setdefault("prev_total", 0.0)
+                    row.setdefault("delta", cur_v)
+                    row.setdefault("delta_pct", 0.0)
+                merged[key] = row
+                continue
+            try:
+                prev_v = float(prev.get("last_total") or 0)
+            except (TypeError, ValueError):
+                prev_v = 0.0
+            if cur_v > prev_v:
+                row = dict(r)
+                if "last_total" not in row and "views" in row:
+                    row["last_total"] = cur_v
+                    row.setdefault("prev_total", float(prev.get("prev_total") or 0))
+                    row.setdefault("delta", cur_v - float(prev.get("prev_total") or 0))
+                    row.setdefault("delta_pct", 0.0)
+                merged[key] = row
+    return list(merged.values())
+
+
 def _home_ga4_top_pages(
     db,
     site_id: int,
@@ -9316,57 +9363,60 @@ def _home_ga4_top_pages(
     site_domain: str | None,
     limit: int = _HOME_TOP_PAGES_LIMIT,
 ) -> list[dict]:
-    """GA4 pages tablosu ile aynı kaynak: pages_no_news + SC pozisyon.
+    """GA4 top sayfalar — SC pozisyon ekli.
 
-    Eski snapshot'larda sinemalar film sayfaları (movieInfo/Cast) ID=haber
-    filtresiyle silinmiş olabilir. Snapshot'ta film yoksa GA4'ten canlı çeker.
+    Sinemalar: detay sayfadaki Sayfalar + Haberler içeriklerini trafik sırasıyla birleştir.
+    (Haberler sekmesinde film/salon slug'ları yüksek trafikli; Sayfalar'da kategori listeleri var.)
     """
     if profile not in ("web", "mweb"):
         return []
-    from backend.services.realtime_news_paths import is_sinemalar_content_id_path
 
     snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=7)
     if not snap or not ((snap.get("payload") or {}).get("pages_no_news")):
         snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
     payload = (snap or {}).get("payload") or {}
     rows = _ga4_pages_no_news_for_ui(payload)
-    has_film = any(
-        isinstance(r, dict) and is_sinemalar_content_id_path(str(r.get("page") or ""))
-        for r in (rows or [])
-    )
-    # Snapshot film içermiyorsa (eski filtre) — canlı çek
-    if not has_film:
-        try:
-            from backend.collectors.ga4 import fetch_ga4_landing_pages
+    sinema = _home_is_sinemalar_site(site_id, site_domain)
 
-            ga4_status = get_ga4_connection_status(db, site_id)
-            props = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
-            property_id = str(props.get(profile) or props.get("web") or "").strip()
-            if property_id:
-                live = fetch_ga4_landing_pages(
-                    property_id=property_id,
-                    days=7,
-                    limit=120,
-                    exclude_news=True,
-                )
-                live = _enrich_ga4_page_rows(live, keep_news_articles=False)
-                if live:
-                    rows = live
-                    LOGGER.info(
-                        "Home GA4 top pages live fetch site=%s profile=%s rows=%s films=%s",
-                        site_id,
-                        profile,
-                        len(live),
-                        sum(
-                            1
-                            for r in live
-                            if is_sinemalar_content_id_path(str(r.get("page") or ""))
-                        ),
-                    )
-        except Exception:  # noqa: BLE001
-            LOGGER.exception(
-                "Home GA4 top pages live fetch failed site=%s profile=%s", site_id, profile
+    try:
+        from backend.collectors.ga4 import fetch_ga4_landing_pages, fetch_ga4_news_landing_pages_total
+
+        ga4_status = get_ga4_connection_status(db, site_id)
+        props = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
+        property_id = str(props.get(profile) or props.get("web") or "").strip()
+        if property_id and sinema:
+            # Detay Sayfalar∪Haberler: filtresiz trafik top + haber listesi (slug/id)
+            all_live = fetch_ga4_landing_pages(
+                property_id=property_id,
+                days=7,
+                limit=200,
+                exclude_news=False,
             )
+            all_live = _enrich_ga4_page_rows(all_live, keep_news_articles=True)
+            news_live = fetch_ga4_news_landing_pages_total(
+                property_id=property_id, days=7, limit=100
+            )
+            news_live = _enrich_ga4_page_rows(news_live, keep_news_articles=True)
+            rows = _home_ga4_merge_page_rows(rows or [], all_live, news_live)
+            LOGGER.info(
+                "Home GA4 sinemalar merge site=%s profile=%s rows=%s",
+                site_id,
+                profile,
+                len(rows),
+            )
+        elif property_id and not rows:
+            live = fetch_ga4_landing_pages(
+                property_id=property_id,
+                days=7,
+                limit=120,
+                exclude_news=True,
+            )
+            rows = _enrich_ga4_page_rows(live, keep_news_articles=False)
+    except Exception:  # noqa: BLE001
+        LOGGER.exception(
+            "Home GA4 top pages fetch/merge failed site=%s profile=%s", site_id, profile
+        )
+
     if not rows:
         return []
     try:
