@@ -9365,8 +9365,8 @@ def _home_ga4_top_pages(
 ) -> list[dict]:
     """GA4 top sayfalar — SC pozisyon ekli.
 
-    Sinemalar: detay sayfadaki Sayfalar + Haberler içeriklerini trafik sırasıyla birleştir.
-    (Haberler sekmesinde film/salon slug'ları yüksek trafikli; Sayfalar'da kategori listeleri var.)
+    Detay sayfadaki Sayfalar + Haberler içeriklerini trafik sırasıyla birleştir
+    (doviz + sinemalar; yüksek trafikli haberler Top 25'e girsin).
     """
     if profile not in ("web", "mweb"):
         return []
@@ -9376,7 +9376,6 @@ def _home_ga4_top_pages(
         snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
     payload = (snap or {}).get("payload") or {}
     rows = _ga4_pages_no_news_for_ui(payload)
-    sinema = _home_is_sinemalar_site(site_id, site_domain)
 
     try:
         from backend.collectors.ga4 import fetch_ga4_landing_pages, fetch_ga4_news_landing_pages_total
@@ -9384,8 +9383,8 @@ def _home_ga4_top_pages(
         ga4_status = get_ga4_connection_status(db, site_id)
         props = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
         property_id = str(props.get(profile) or props.get("web") or "").strip()
-        if property_id and sinema:
-            # Detay Sayfalar∪Haberler: filtresiz trafik top + haber listesi (slug/id)
+        if property_id:
+            # Sayfalar∪Haberler: filtresiz trafik top + haber listesi
             all_live = fetch_ga4_landing_pages(
                 property_id=property_id,
                 days=7,
@@ -9399,19 +9398,11 @@ def _home_ga4_top_pages(
             news_live = _enrich_ga4_page_rows(news_live, keep_news_articles=True)
             rows = _home_ga4_merge_page_rows(rows or [], all_live, news_live)
             LOGGER.info(
-                "Home GA4 sinemalar merge site=%s profile=%s rows=%s",
+                "Home GA4 pages+news merge site=%s profile=%s rows=%s",
                 site_id,
                 profile,
                 len(rows),
             )
-        elif property_id and not rows:
-            live = fetch_ga4_landing_pages(
-                property_id=property_id,
-                days=7,
-                limit=120,
-                exclude_news=True,
-            )
-            rows = _enrich_ga4_page_rows(live, keep_news_articles=False)
     except Exception:  # noqa: BLE001
         LOGGER.exception(
             "Home GA4 top pages fetch/merge failed site=%s profile=%s", site_id, profile
