@@ -44,6 +44,10 @@ _job: dict[str, Any] = {
     "ok_count": 0,
     "fail_count": 0,
     "total_parsed": 0,
+    "rows_done": 0,
+    "rows_total": 0,
+    "rows_kept": 0,
+    "rows_label": "",
     "streams": [],
     "error": None,
     "message": "",
@@ -55,6 +59,14 @@ _job: dict[str, Any] = {
 
 def _iso_now() -> str:
     return datetime.utcnow().isoformat() + "Z"
+
+
+def _fmt_row_count(n: int | float | None) -> str:
+    """Compact: 111234 → 111k."""
+    v = max(0, int(n or 0))
+    if v >= 1000:
+        return f"{v // 1000}k"
+    return str(v)
 
 
 def get_sync_job() -> dict[str, Any]:
@@ -151,7 +163,7 @@ def sync_one_sheet(
     stream_key: str,
     commit: bool = True,
     full: bool = False,
-    on_phase: Callable[[str, str], None] | None = None,
+    on_phase: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
     src = next((s for s in AD_SHEET_SOURCES if s.stream_key == stream_key), None)
     if src is None:
@@ -159,9 +171,9 @@ def sync_one_sheet(
     if stream_key not in _STREAM_BY_KEY:
         return {"ok": False, "stream_key": stream_key, "error": "Stream tanımsız"}
 
-    def _phase(phase: str, detail: str = "") -> None:
+    def _phase(phase: str, detail: str = "", **extra: Any) -> None:
         if on_phase:
-            on_phase(phase, detail)
+            on_phase(phase, detail, **extra)
 
     t0 = time.monotonic()
     before = _stream_date_bounds(db, stream_key)
@@ -246,15 +258,25 @@ def sync_one_sheet(
     raw = csv_text.encode("utf-8")
 
     def _import_progress(ev: dict[str, Any]) -> None:
-        parsed_n = int(ev.get("parsed") or 0)
+        scanned = int(ev.get("scanned") or ev.get("parsed") or 0)
         est = int(ev.get("row_estimate") or 0)
-        if est > 0 and parsed_n > 0:
-            _phase(
-                "import",
-                f"{src.label}: {parsed_n:,}/{est:,} satır işlendi…",
-            )
-        elif parsed_n > 0:
-            _phase("import", f"{src.label}: {parsed_n:,} satır işlendi…")
+        kept = int(ev.get("kept") or ev.get("parsed") or 0)
+        if est <= 0 and scanned <= 0:
+            return
+        label = (
+            f"{_fmt_row_count(scanned)}/{_fmt_row_count(est)}"
+            if est > 0
+            else _fmt_row_count(scanned)
+        )
+        kept_bit = f" · yazılan {_fmt_row_count(kept)}" if kept else ""
+        _phase(
+            "import",
+            f"{src.label}: {label} taranıyor{kept_bit}",
+            rows_done=scanned,
+            rows_total=est,
+            rows_kept=kept,
+            rows_label=label,
+        )
 
     try:
         result = import_upload_file(
@@ -360,17 +382,17 @@ def sync_from_google_sheets(
         on_progress(payload)
 
     for i, src in enumerate(sources):
-        def _on_phase(phase: str, detail: str, *, _i: int = i, _src=src) -> None:
-            _emit(
-                {
-                    "phase": phase,
-                    "detail": detail,
-                    "stream_key": _src.stream_key,
-                    "stream_label": _src.label,
-                    "index": _i,
-                    "total": len(sources),
-                }
-            )
+        def _on_phase(phase: str, detail: str, *, _i: int = i, _src=src, **extra: Any) -> None:
+            payload = {
+                "phase": phase,
+                "detail": detail,
+                "stream_key": _src.stream_key,
+                "stream_label": _src.label,
+                "index": _i,
+                "total": len(sources),
+            }
+            payload.update(extra)
+            _emit(payload)
 
         _emit(
             {
@@ -380,6 +402,10 @@ def sync_from_google_sheets(
                 "stream_label": src.label,
                 "index": i,
                 "total": len(sources),
+                "rows_done": 0,
+                "rows_total": 0,
+                "rows_kept": 0,
+                "rows_label": "",
             }
         )
         item = sync_one_sheet(
@@ -482,6 +508,10 @@ def start_sync_job(
                 "ok_count": 0,
                 "fail_count": 0,
                 "total_parsed": 0,
+                "rows_done": 0,
+                "rows_total": 0,
+                "rows_kept": 0,
+                "rows_label": "",
                 "streams": [],
                 "error": None,
                 "message": f"{len(sources)} sheet kuyruğa alındı",
@@ -511,6 +541,14 @@ def start_sync_job(
                 "message": payload.get("detail") or _job.get("message") or "",
                 "elapsed_s": round(time.monotonic() - t0, 1),
             }
+            if "rows_done" in payload:
+                update["rows_done"] = int(payload.get("rows_done") or 0)
+            if "rows_total" in payload:
+                update["rows_total"] = int(payload.get("rows_total") or 0)
+            if "rows_kept" in payload:
+                update["rows_kept"] = int(payload.get("rows_kept") or 0)
+            if "rows_label" in payload:
+                update["rows_label"] = str(payload.get("rows_label") or "")
             _set_job(**update)
 
         try:

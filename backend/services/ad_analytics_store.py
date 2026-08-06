@@ -621,6 +621,8 @@ def iter_csv_text(
     filename: str = "upload.csv",
     stream: AdStream | None = None,
     min_date: date | None = None,
+    on_scan: Callable[[int, int], None] | None = None,
+    scan_every: int = 5000,
 ) -> Iterator[dict[str, Any]]:
     raw = (text or "").strip()
     if not raw:
@@ -640,7 +642,18 @@ def iter_csv_text(
         return
     stream = stream or detect_stream(filename)
     channel = stream.channel if stream else _detect_channel(filename)
+    total_est = max(0, len(lines) - 1)
+    scanned = 0
+    if on_scan and total_est > 0:
+        on_scan(0, total_est)
     for cols in reader:
+        scanned += 1
+        if (
+            on_scan
+            and scan_every > 0
+            and (scanned % scan_every == 0 or scanned >= total_est)
+        ):
+            on_scan(scanned, total_est)
         item = _row_from_values(
             tuple(cols), col_map, extras_idx, source_file=filename, stream=stream, channel=channel
         )
@@ -1012,12 +1025,42 @@ def import_upload_file(
             # Büyük Google Sheet CSV: listeye alma — iterator + daha büyük batch.
             row_est = max(0, len(lines) - 1)
             is_sheet = low.endswith("_google_sheet.csv")
+            kept_box = {"n": 0}
+
+            def _on_scan(scanned: int, total: int) -> None:
+                if not progress_cb:
+                    return
+                progress_cb(
+                    {
+                        "phase": "scanning",
+                        "scanned": scanned,
+                        "row_estimate": total,
+                        "kept": kept_box["n"],
+                        "parsed": kept_box["n"],
+                        "pct": min(99, int(100 * scanned / total)) if total > 0 else 0,
+                    }
+                )
+
+            def _sheet_rows() -> Iterator[dict[str, Any]]:
+                for item in iter_csv_text(
+                    text,
+                    filename=filename,
+                    stream=stream,
+                    min_date=min_date,
+                    on_scan=_on_scan if is_sheet else None,
+                    scan_every=5000,
+                ):
+                    kept_box["n"] += 1
+                    yield item
+
             result = import_rows(
                 db,
-                iter_csv_text(text, filename=filename, stream=stream, min_date=min_date),
+                _sheet_rows() if is_sheet else iter_csv_text(
+                    text, filename=filename, stream=stream, min_date=min_date
+                ),
                 commit=False,
-                progress_cb=progress_cb,
-                progress_every=2000 if is_sheet else 800,
+                progress_cb=None if is_sheet else progress_cb,
+                progress_every=5000 if is_sheet else 800,
                 row_estimate=row_est or None,
                 batch_size=1500 if is_sheet else None,
             )

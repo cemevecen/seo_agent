@@ -629,3 +629,32 @@ def test_sheet_incremental_keeps_rows_from_last_date_inclusive():
     dates = sorted({r["report_date"] for r in rows})
     assert dates == [date(2026, 8, 5), date(2026, 8, 6)]
     assert sum(r["net_revenue"] for r in rows) == 50.0
+
+
+def test_iter_csv_scan_progress_every_n_rows():
+    from backend.services.ad_analytics_store import iter_csv_text
+    from backend.services.ad_sheets_sync import _fmt_row_count
+
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    body = "".join(
+        f"u,A,01.01.2024,Open Auction,1,1,1,0,0,0,0,0,0,1\n" for _ in range(12)
+    )
+    scans: list[tuple[int, int]] = []
+    list(
+        iter_csv_text(
+            header + body,
+            filename="doviz_android_google_sheet.csv",
+            stream=store._STREAM_BY_KEY["doviz:android"],
+            on_scan=lambda d, t: scans.append((d, t)),
+            scan_every=5,
+        )
+    )
+    assert scans[0] == (0, 12)
+    assert (5, 12) in scans
+    assert (10, 12) in scans
+    assert scans[-1] == (12, 12)
+    assert _fmt_row_count(111234) == "111k"
+    assert _fmt_row_count(352897) == "352k"

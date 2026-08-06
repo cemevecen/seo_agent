@@ -10943,33 +10943,47 @@
 
       var job = startPayload.job || {};
       var polls = 0;
-      var maxPolls = 1200;
+      var maxPolls = 2400;
       while (polls < maxPolls) {
         var jr = await fetch("/api/mz-analytics/sync-sheets/job", { credentials: "same-origin" });
         job = await jr.json().catch(function () { return {}; });
         var total = Math.max(Number(job.total) || 1, 1);
         var idx = Math.min(Number(job.index) || 0, total);
-        var pctBase = Math.round((idx / total) * 90);
-        if (job.phase === "fetch" || job.phase === "clear" || job.phase === "import") {
-          pctBase = Math.min(89, pctBase + 5);
+        var rowsDone = Number(job.rows_done) || 0;
+        var rowsTotal = Number(job.rows_total) || 0;
+        var rowFrac = rowsTotal > 0 ? Math.min(1, rowsDone / rowsTotal) : 0;
+        var pctBase = Math.round(((idx + rowFrac) / total) * 98);
+        if (job.running && pctBase < 2) pctBase = 2;
+        if (job.phase === "fetch" || job.phase === "clear") {
+          pctBase = Math.max(pctBase, Math.round((idx / total) * 98) + 3);
         }
         var failCount = Number(job.fail_count) || 0;
+        var rowLabel = job.rows_label
+          ? String(job.rows_label)
+          : (rowsTotal > 0
+            ? Math.floor(rowsDone / 1000) + "k/" + Math.floor(rowsTotal / 1000) + "k"
+            : "");
+        var detailTxt = job.detail || job.message || "…";
+        if (rowLabel && detailTxt.indexOf(rowLabel) < 0 && (job.phase === "import" || job.phase === "scanning")) {
+          detailTxt = (job.stream_label || "Sheet") + ": " + rowLabel + " taranıyor";
+        }
         setUploadProgress(
-          job.running ? Math.max(2, pctBase) : 100,
+          job.running ? Math.min(98, pctBase) : 100,
           failCount ? "Sheets · " + failCount + " hata" : (job.running ? "Sheets senkron" : "Tamamlandı"),
-          job.detail || job.message || "…",
+          detailTxt,
           { allowDecrease: true }
         );
         if (statusEl) {
           statusEl.textContent =
             (job.stream_label || job.stream_key || "Sheets") +
+            (rowLabel ? " · " + rowLabel : "") +
             " · " +
             (job.detail || job.message || (job.running ? "çalışıyor…" : "bitti"));
         }
         renderJobStreams(job.streams || []);
         if (!job.running) break;
         polls += 1;
-        await mzSleep(2000);
+        await mzSleep(rowsTotal > 0 ? 800 : 1200);
       }
 
       if (job.running) {
