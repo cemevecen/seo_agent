@@ -146,26 +146,27 @@
     box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.35);
     background: rgba(76, 5, 25, 0.35);
   }
-  /* Grafik alanı kart genişliğini kullansın (Plotly yan boşlukları) */
+  /* Grafik alanı kart genişliğini kullansın — Plotly resize ile dolar.
+     .main-svg’ye width:100%! zorlamak SVG’yi gerer ama eksenler dar kalır (sağ boşluk). */
   .mz-page .mz-chart-card {
     padding-left: 0.5rem;
     padding-right: 0.5rem;
+    min-width: 0;
   }
   .mz-page .mz-chart-plot {
     display: block;
-    width: 100% !important;
-    max-width: 100% !important;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
   }
   .mz-page .mz-chart-plot .js-plotly-plot,
-  .mz-page .mz-chart-plot .plot-container.plotly,
-  .mz-page .mz-chart-plot .svg-container {
+  .mz-page .mz-chart-plot .plot-container.plotly {
     width: 100% !important;
     max-width: 100% !important;
   }
-  .mz-page .mz-chart-plot .main-svg {
-    width: 100% !important;
+  .mz-page .mz-chart-plot .svg-container {
+    max-width: 100% !important;
   }
   .mz-page .mz-kpi-spark {
     width: 100% !important;
@@ -7824,9 +7825,15 @@
     if (!el) return;
     el.style.width = "100%";
     el.style.maxWidth = "100%";
-    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly, .svg-container").forEach(function (node) {
-      node.style.setProperty("width", "100%", "important");
-      node.style.setProperty("max-width", "100%", "important");
+    /* Inline px kilidini kaldır; Plots.resize doğru genişliği yazar.
+       svg/main-svg’ye !important 100% basma — eksenler dar kalıp sağ boşluk oluşur. */
+    el.querySelectorAll(".js-plotly-plot, .plot-container.plotly").forEach(function (node) {
+      node.style.width = "100%";
+      node.style.maxWidth = "100%";
+    });
+    el.querySelectorAll(".svg-container, .main-svg").forEach(function (node) {
+      node.style.removeProperty("width");
+      node.style.removeProperty("max-width");
     });
   }
 
@@ -7836,8 +7843,8 @@
     mzUnlockPlotlyHostWidth(el);
     var w = mzPlotHostWidth(el);
     if (w < 16) return Promise.resolve();
-    /* Flex/grid ilk boyutta yarım çizimi düzelt: autosize + kart genişliği */
-    return Plotly.relayout(el, { autosize: true, width: w })
+    /* Explicit layout.width kilitleme YOK — autosize + resize kartın gerçek genişliğini kullanır. */
+    return Plotly.relayout(el, { autosize: true })
       .then(function () {
         mzUnlockPlotlyHostWidth(el);
         return Plotly.Plots.resize(el);
@@ -7845,21 +7852,17 @@
       .then(function () {
         mzUnlockPlotlyHostWidth(el);
         var w2 = mzPlotHostWidth(el);
-        if (w2 >= 16 && Math.abs(w2 - w) > 2) {
-          return Plotly.relayout(el, { autosize: true, width: w2 }).then(function () {
+        var cur = (el._fullLayout && el._fullLayout.width) || 0;
+        if (w2 >= 16 && cur && Math.abs(w2 - cur) > 8) {
+          return Plotly.Plots.resize(el).then(function () {
             mzUnlockPlotlyHostWidth(el);
-            return Plotly.Plots.resize(el).then(function () {
-              mzUnlockPlotlyHostWidth(el);
-            });
           });
         }
-        mzUnlockPlotlyHostWidth(el);
       })
       .catch(function () {
         try {
           mzUnlockPlotlyHostWidth(el);
           Plotly.Plots.resize(el);
-          mzUnlockPlotlyHostWidth(el);
         } catch (_) { /* ignore */ }
       });
   }
@@ -7917,7 +7920,6 @@
     var minH = opts.minHeight || 200;
     function draw() {
       var h = chartPlotHeight(el, minH);
-      var hostW = mzPlotHostWidth(el);
       el.style.minHeight = h + "px";
       el.style.height = h + "px";
       el.style.maxHeight = h + "px";
@@ -7930,7 +7932,8 @@
         },
         layout || {}
       );
-      if (hostW >= 16) lay.width = hostW;
+      /* layout.width sabitleme: ilk ölçüm yarım kalırsa sağ boşluk kalıcılaşıyor */
+      if (lay.width != null) delete lay.width;
       if (opts.tightX !== false) {
         applyTightXaxisToLayout(lay, traces, opts.timeKey);
       }
@@ -7953,6 +7956,14 @@
           scheduleMzChartsResizeBurst();
           var pid = typeof elOrId === "string" ? elOrId : el.id;
           if (pid) mzSyncChartCardFromPlot(pid);
+          /* İlk açılış: layout settle sonrası bir kez daha (özellikle çizgi trend) */
+          if (pid === "mz-chart-line") {
+            [80, 200, 480, 900].forEach(function (ms) {
+              setTimeout(function () {
+                mzEnsurePlotlyFillsContainer(el);
+              }, ms);
+            });
+          }
         });
     }
     return new Promise(function (resolve) {
