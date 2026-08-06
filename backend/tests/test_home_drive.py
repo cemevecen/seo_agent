@@ -38,3 +38,14 @@ def test_friendly_drive_error_maps_insufficient_permissions():
     exc = HttpError(resp, content)
     msg = _friendly_drive_error(exc)
     assert "yazma yetkin" in msg.lower() or "yetkin yok" in msg.lower()
+
+
+def test_file_dict_marks_video_kind():
+    from backend.services.home_drive import _file_dict
+
+    img = _file_dict(fid="1", name="a.png", mime="image/png", size=10, web_view_link="")
+    vid = _file_dict(fid="2", name="b.mp4", mime="video/mp4", size=20, web_view_link="https://x")
+    assert img["kind"] == "image"
+    assert img["thumb_url"].endswith("/1/content")
+    assert vid["kind"] == "video"
+    assert vid["thumb_url"] == ""

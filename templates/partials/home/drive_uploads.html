@@ -199,6 +199,24 @@
     object-fit: cover;
     background: rgb(241 245 249);
   }
+  .home-drive-card-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 7.5rem;
+    height: 7.5rem;
+    background: linear-gradient(160deg, #0f172a, #334155);
+    color: #e2e8f0;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .home-drive-card-video::before {
+    content: "▶";
+    margin-right: 0.3rem;
+    font-size: 0.75rem;
+  }
   html.dark .home-drive-card-img { background: rgb(39 39 42); }
   .home-drive-card-meta {
     display: flex;
@@ -278,16 +296,16 @@
       <p class="home-drive-status is-err mt-3">HOME_DRIVE_FOLDER_ID tanımlı değil.</p>
     {% endif %}
     <label class="home-drive-drop mt-4" data-home-drive-drop>
-      <input type="file" accept="image/*" multiple data-home-drive-input>
-      <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Görsel sürükle veya seç</p>
-      <p class="home-meta text-slate-500 dark:text-slate-400">PNG, JPG, WEBP · max 12 MB · Drive klasörüne yüklenir</p>
+      <input type="file" accept="image/*,video/*" multiple data-home-drive-input>
+      <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Görsel / video sürükle veya seç</p>
+      <p class="home-meta text-slate-500 dark:text-slate-400">PNG, JPG, WEBP · MP4, WEBM · görsel 12 MB / video 100 MB</p>
     </label>
     <p class="home-drive-status" data-home-drive-status hidden></p>
 
     <div class="home-drive-gallery" data-home-drive-gallery {% if file_count %}data-count="{{ file_count }}"{% endif %}>
       <button type="button" class="home-drive-gallery-toggle" data-home-drive-gallery-toggle aria-expanded="false">
         <span class="home-label text-slate-600 dark:text-zinc-300">
-          yüklenen görseller
+          yüklenenler
           <span class="ml-1 tabular-nums text-slate-400" data-home-drive-count>({{ file_count }})</span>
         </span>
         <span class="home-drive-chevron" aria-hidden="true"></span>
@@ -311,7 +329,11 @@
               <article class="home-drive-card" data-home-drive-card data-file-id="{{ f.id }}">
                 <input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="{{ f.id }}" aria-label="Seç">
                 <a href="{{ f.web_view_link or f.thumb_url }}" target="_blank" rel="noopener noreferrer" title="{{ f.name }}">
-                  <img class="home-drive-card-img" src="{{ f.thumb_url }}" alt="{{ f.name }}" loading="lazy">
+                  {% if f.kind == 'video' %}
+                    <div class="home-drive-card-video">video</div>
+                  {% else %}
+                    <img class="home-drive-card-img" src="{{ f.thumb_url }}" alt="{{ f.name }}" loading="lazy">
+                  {% endif %}
                 </a>
                 <div class="home-drive-card-meta">
                   <span class="home-drive-card-name" title="{{ f.name }}">{{ f.name }}</span>
@@ -321,7 +343,7 @@
             {% endfor %}
           </div>
         {% else %}
-          <p class="home-meta pt-3 text-slate-400" data-home-drive-empty>Henüz görsel yok</p>
+          <p class="home-meta pt-3 text-slate-400" data-home-drive-empty>Henüz panelden yükleme yok</p>
           <div class="home-drive-grid" data-home-drive-grid hidden></div>
         {% endif %}
       </div>
@@ -428,12 +450,14 @@
     var id = String(f.id || '').replace(/"/g, '');
     var thumb = f.thumb_url || '';
     var link = f.web_view_link || thumb;
+    var isVideo = (f.kind === 'video') || String(f.mime_type || '').indexOf('video/') === 0;
+    var media = isVideo
+      ? '<div class="home-drive-card-video">video</div>'
+      : '<img class="home-drive-card-img" src="' + thumb + '" alt="' + name + '" loading="lazy">';
     return (
       '<article class="home-drive-card" data-home-drive-card data-file-id="' + id + '">' +
         '<input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="' + id + '" aria-label="Seç">' +
-        '<a href="' + link + '" target="_blank" rel="noopener noreferrer" title="' + name + '">' +
-          '<img class="home-drive-card-img" src="' + thumb + '" alt="' + name + '" loading="lazy">' +
-        '</a>' +
+        '<a href="' + link + '" target="_blank" rel="noopener noreferrer" title="' + name + '">' + media + '</a>' +
         '<div class="home-drive-card-meta">' +
           '<span class="home-drive-card-name" title="' + name + '">' + name + '</span>' +
           '<button type="button" class="home-drive-card-del" data-home-drive-delete="' + id + '" title="Sil" aria-label="Sil">&times;</button>' +

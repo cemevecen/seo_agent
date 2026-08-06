@@ -657,6 +657,21 @@ class HomeDriveCredential(Base):
     )
 
 
+class HomeDriveUpload(Base):
+    """Panelden manuel yüklenen Drive dosyaları — galeri yalnızca bunları gösterir."""
+
+    __tablename__ = "home_drive_uploads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    drive_file_id: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    mime_type: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    web_view_link: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+
 class SupportInboxThread(Base):
     """info@ / feedback@ gibi adreslere gelen destek e-posta konuşmaları (Gmail thread)."""
 

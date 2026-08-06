@@ -10517,7 +10517,7 @@ def api_home_drive_uploads(request: Request):
         err = ""
         if connected:
             try:
-                files = home_drive.list_folder_images(db, limit=60)
+                files = home_drive.list_panel_uploads(db, limit=60)
             except Exception as exc:  # noqa: BLE001
                 LOGGER.exception("Home Drive list failed")
                 err = str(exc)[:180]

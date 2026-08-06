@@ -28,7 +28,18 @@ _IMAGE_MIMES = frozenset(
         "image/bmp",
     }
 )
-_MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB
+_VIDEO_MIMES = frozenset(
+    {
+        "video/mp4",
+        "video/webm",
+        "video/quicktime",
+        "video/x-msvideo",
+        "video/x-matroska",
+    }
+)
+_MAX_IMAGE_BYTES = 12 * 1024 * 1024  # 12 MB
+_MAX_VIDEO_BYTES = 100 * 1024 * 1024  # 100 MB
+_PANEL_APP_PROP = "seo_panel_home"
 
 
 def _drive_service(db: Session):
@@ -127,54 +138,157 @@ def _assert_folder_writable(service, folder_id: str) -> None:
         )
 
 
-def list_folder_images(db: Session, *, limit: int = 60) -> list[dict[str, Any]]:
-    folder_id = home_drive_auth.home_drive_folder_id()
-    if not folder_id:
-        raise RuntimeError("HOME_DRIVE_FOLDER_ID tanımlı değil.")
-    service, _ = _drive_service(db)
-    q = (
-        f"'{folder_id}' in parents and trashed=false "
-        "and (mimeType contains 'image/' or mimeType = 'application/octet-stream')"
+def _file_dict(
+    *,
+    fid: str,
+    name: str,
+    mime: str,
+    size: int,
+    web_view_link: str,
+    created_time: str = "",
+) -> dict[str, Any]:
+    kind = "video" if (mime or "").startswith("video/") else "image"
+    return {
+        "id": fid,
+        "name": name or ("video" if kind == "video" else "image"),
+        "mime_type": mime or ("video/mp4" if kind == "video" else "image/jpeg"),
+        "kind": kind,
+        "created_time": created_time,
+        "size": int(size or 0),
+        "web_view_link": web_view_link or "",
+        "thumb_url": f"/api/home/drive/files/{fid}/content" if fid and kind == "image" else "",
+    }
+
+
+def _register_upload(
+    db: Session,
+    *,
+    drive_file_id: str,
+    name: str,
+    mime_type: str,
+    size_bytes: int,
+    web_view_link: str,
+) -> None:
+    from backend.models import HomeDriveUpload
+
+    fid = (drive_file_id or "").strip()
+    if not fid:
+        return
+    row = db.query(HomeDriveUpload).filter(HomeDriveUpload.drive_file_id == fid).first()
+    if row is None:
+        row = HomeDriveUpload(drive_file_id=fid)
+        db.add(row)
+    row.name = (name or "")[:255]
+    row.mime_type = (mime_type or "")[:120]
+    row.size_bytes = int(size_bytes or 0)
+    row.web_view_link = web_view_link or ""
+    db.commit()
+
+
+def _unregister_uploads(db: Session, file_ids: list[str]) -> None:
+    from backend.models import HomeDriveUpload
+
+    ids = [str(x).strip() for x in (file_ids or []) if str(x).strip()]
+    if not ids:
+        return
+    db.query(HomeDriveUpload).filter(HomeDriveUpload.drive_file_id.in_(ids)).delete(
+        synchronize_session=False
     )
-    try:
-        resp = (
-            service.files()
-            .list(
-                q=q,
-                spaces="drive",
-                fields="files(id,name,mimeType,createdTime,modifiedTime,size,webViewLink,thumbnailLink)",
-                orderBy="createdTime desc",
-                pageSize=max(1, min(int(limit or 60), 100)),
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
-            )
-            .execute()
-        )
-    except HttpError as exc:
-        raise RuntimeError(_friendly_drive_error(exc)) from exc
+    db.commit()
+
+
+def list_folder_images(db: Session, *, limit: int = 60) -> list[dict[str, Any]]:
+    """Geriye uyum — panel galerisi yalnızca manuel yüklemeleri döner."""
+    return list_panel_uploads(db, limit=limit)
+
+
+def list_panel_uploads(db: Session, *, limit: int = 60) -> list[dict[str, Any]]:
+    """Yalnızca bu panelden yüklenen imaj/videolar (DB kaydı)."""
+    from backend.models import HomeDriveUpload
+
+    cap = max(1, min(int(limit or 60), 100))
+    rows = (
+        db.query(HomeDriveUpload)
+        .order_by(HomeDriveUpload.uploaded_at.desc(), HomeDriveUpload.id.desc())
+        .limit(cap)
+        .all()
+    )
     out: list[dict[str, Any]] = []
-    for f in resp.get("files") or []:
-        mime = str(f.get("mimeType") or "")
-        if mime and not mime.startswith("image/") and mime != "application/octet-stream":
-            continue
-        fid = str(f.get("id") or "").strip()
+    missing: list[str] = []
+    service = None
+    for row in rows:
+        fid = (row.drive_file_id or "").strip()
         if not fid:
             continue
-        out.append(
-            {
-                "id": fid,
-                "name": str(f.get("name") or "image"),
-                "mime_type": mime or "image/jpeg",
-                "created_time": str(f.get("createdTime") or ""),
-                "size": int(f.get("size") or 0),
-                "web_view_link": str(f.get("webViewLink") or ""),
-                "thumb_url": f"/api/home/drive/files/{fid}/content",
-            }
-        )
+        # Drive’da silinmişse kaydı temizle
+        try:
+            if service is None:
+                service, _ = _drive_service(db)
+            meta = (
+                service.files()
+                .get(
+                    fileId=fid,
+                    fields="id,trashed,name,mimeType,size,webViewLink,createdTime",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            if meta.get("trashed"):
+                missing.append(fid)
+                continue
+            out.append(
+                _file_dict(
+                    fid=fid,
+                    name=str(meta.get("name") or row.name or ""),
+                    mime=str(meta.get("mimeType") or row.mime_type or ""),
+                    size=int(meta.get("size") or row.size_bytes or 0),
+                    web_view_link=str(meta.get("webViewLink") or row.web_view_link or ""),
+                    created_time=str(meta.get("createdTime") or ""),
+                )
+            )
+        except HttpError as exc:
+            status, reason, _ = _http_error_reason(exc)
+            if status == 404 or reason == "notFound":
+                missing.append(fid)
+                continue
+            # Geçici Drive hatasında DB kaydıyla göster
+            out.append(
+                _file_dict(
+                    fid=fid,
+                    name=row.name,
+                    mime=row.mime_type,
+                    size=row.size_bytes,
+                    web_view_link=row.web_view_link,
+                    created_time=row.uploaded_at.isoformat() if row.uploaded_at else "",
+                )
+            )
+        except Exception:  # noqa: BLE001
+            out.append(
+                _file_dict(
+                    fid=fid,
+                    name=row.name,
+                    mime=row.mime_type,
+                    size=row.size_bytes,
+                    web_view_link=row.web_view_link,
+                    created_time=row.uploaded_at.isoformat() if row.uploaded_at else "",
+                )
+            )
+    if missing:
+        _unregister_uploads(db, missing)
     return out
 
 
 def upload_image(
+    db: Session,
+    *,
+    filename: str,
+    content: bytes,
+    content_type: str | None = None,
+) -> dict[str, Any]:
+    return upload_media(db, filename=filename, content=content, content_type=content_type)
+
+
+def upload_media(
     db: Session,
     *,
     filename: str,
@@ -186,15 +300,22 @@ def upload_image(
         raise RuntimeError("HOME_DRIVE_FOLDER_ID tanımlı değil.")
     if not content:
         raise ValueError("Boş dosya yüklenemez.")
-    if len(content) > _MAX_UPLOAD_BYTES:
-        raise ValueError("Dosya 12 MB sınırını aşıyor.")
     mime = (content_type or "").split(";")[0].strip().lower()
     if not mime or mime == "application/octet-stream":
         guessed, _ = mimetypes.guess_type(filename or "")
         mime = (guessed or "image/jpeg").lower()
-    if mime not in _IMAGE_MIMES and not mime.startswith("image/"):
-        raise ValueError("Yalnızca görsel dosyaları yüklenebilir.")
-    safe_name = (filename or "image").strip() or "image"
+    is_image = mime in _IMAGE_MIMES or mime.startswith("image/")
+    is_video = mime in _VIDEO_MIMES or mime.startswith("video/")
+    if not is_image and not is_video:
+        raise ValueError("Yalnızca görsel veya video yüklenebilir.")
+    max_bytes = _MAX_VIDEO_BYTES if is_video else _MAX_IMAGE_BYTES
+    if len(content) > max_bytes:
+        raise ValueError(
+            f"Dosya {('100 MB' if is_video else '12 MB')} sınırını aşıyor."
+        )
+    safe_name = (filename or ("video" if is_video else "image")).strip() or (
+        "video" if is_video else "image"
+    )
     if len(safe_name) > 180:
         safe_name = safe_name[:180]
 
@@ -205,7 +326,11 @@ def upload_image(
         created = (
             service.files()
             .create(
-                body={"name": safe_name, "parents": [folder_id]},
+                body={
+                    "name": safe_name,
+                    "parents": [folder_id],
+                    "appProperties": {"source": _PANEL_APP_PROP},
+                },
                 media_body=media,
                 fields="id,name,mimeType,createdTime,size,webViewLink",
                 supportsAllDrives=True,
@@ -215,22 +340,38 @@ def upload_image(
     except HttpError as exc:
         raise RuntimeError(_friendly_drive_error(exc)) from exc
     fid = str(created.get("id") or "").strip()
-    return {
-        "id": fid,
-        "name": str(created.get("name") or safe_name),
-        "mime_type": str(created.get("mimeType") or mime),
-        "created_time": str(created.get("createdTime") or ""),
-        "size": int(created.get("size") or len(content)),
-        "web_view_link": str(created.get("webViewLink") or ""),
-        "thumb_url": f"/api/home/drive/files/{fid}/content" if fid else "",
-    }
+    item = _file_dict(
+        fid=fid,
+        name=str(created.get("name") or safe_name),
+        mime=str(created.get("mimeType") or mime),
+        size=int(created.get("size") or len(content)),
+        web_view_link=str(created.get("webViewLink") or ""),
+        created_time=str(created.get("createdTime") or ""),
+    )
+    _register_upload(
+        db,
+        drive_file_id=fid,
+        name=item["name"],
+        mime_type=item["mime_type"],
+        size_bytes=item["size"],
+        web_view_link=item["web_view_link"],
+    )
+    return item
 
 
 def delete_file(db: Session, file_id: str) -> None:
-    """Hedef klasördeki dosyayı sil; kalıcı silme yetkisi yoksa çöpe at."""
+    """Hedef klasördeki panel yüklemesini sil; kalıcı silme yetkisi yoksa çöpe at."""
+    from backend.models import HomeDriveUpload
+
     fid = (file_id or "").strip()
     if not fid:
         raise ValueError("Dosya id eksik.")
+    # Galeriden yalnızca panel kayıtlarını silmeye izin ver
+    tracked = (
+        db.query(HomeDriveUpload).filter(HomeDriveUpload.drive_file_id == fid).first()
+    )
+    if tracked is None:
+        raise PermissionError("Bu dosya panel yüklemeleri arasında değil.")
     folder_id = home_drive_auth.home_drive_folder_id()
     service, _ = _drive_service(db)
     try:
@@ -240,14 +381,22 @@ def delete_file(db: Session, file_id: str) -> None:
             .execute()
         )
     except HttpError as exc:
+        status, reason, _ = _http_error_reason(exc)
+        if status == 404 or reason == "notFound":
+            _unregister_uploads(db, [fid])
+            return
         raise RuntimeError(_friendly_drive_error(exc)) from exc
     if meta.get("trashed"):
+        _unregister_uploads(db, [fid])
         return
     parents = list(meta.get("parents") or [])
     if folder_id and folder_id not in parents:
+        # Klasör dışı ama panel kaydı varsa kaydı temizle
+        _unregister_uploads(db, [fid])
         raise PermissionError("Dosya hedef Drive klasöründe değil.")
     try:
         service.files().delete(fileId=fid, supportsAllDrives=True).execute()
+        _unregister_uploads(db, [fid])
         return
     except Exception as exc:  # noqa: BLE001
         LOGGER.info("Drive permanent delete failed for %s (%s); trying trash", fid, exc)
@@ -257,6 +406,7 @@ def delete_file(db: Session, file_id: str) -> None:
             body={"trashed": True},
             supportsAllDrives=True,
         ).execute()
+        _unregister_uploads(db, [fid])
     except HttpError as exc:
         raise RuntimeError(_friendly_drive_error(exc)) from exc
 
@@ -286,9 +436,16 @@ def delete_files(db: Session, file_ids: list[str]) -> dict[str, Any]:
 
 
 def download_file_bytes(db: Session, file_id: str) -> tuple[bytes, str, str]:
+    from backend.models import HomeDriveUpload
+
     fid = (file_id or "").strip()
     if not fid:
         raise ValueError("Dosya id eksik.")
+    tracked = (
+        db.query(HomeDriveUpload).filter(HomeDriveUpload.drive_file_id == fid).first()
+    )
+    if tracked is None:
+        raise PermissionError("Bu dosya panel yüklemeleri arasında değil.")
     folder_id = home_drive_auth.home_drive_folder_id()
     service, _ = _drive_service(db)
     try:

@@ -111,7 +111,7 @@ async def home_drive_upload(
         return JSONResponse({"ok": False, "error": "Drive bağlı değil."}, status_code=401)
     raw = await file.read()
     try:
-        item = home_drive.upload_image(
+        item = home_drive.upload_media(
             db,
             filename=file.filename or "image",
             content=raw,
