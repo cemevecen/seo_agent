@@ -1,0 +1,174 @@
+{# Detay KPI paneli — tetikleyici kartta, panel grid altında tam genişlik (top-pages ile aynı JS) #}
+{% macro home_detail_kpis_styles() -%}
+<style>
+  .home-detail-kpis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+    gap: 0.55rem;
+  }
+  .home-detail-kpi-card {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.45rem;
+    border-radius: 0.85rem;
+    border: 1px solid rgb(226 232 240 / 0.95);
+    background: #fff;
+    padding: 0.65rem 0.7rem 0.55rem;
+  }
+  html.dark .home-detail-kpi-card,
+  html.midnight .home-detail-kpi-card {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+  }
+  .home-detail-kpi-label {
+    margin: 0;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  html.dark .home-detail-kpi-label,
+  html.midnight .home-detail-kpi-label { color: #71717a; }
+  .home-detail-kpi-delta {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .home-detail-kpi-cur {
+    margin: 0.1rem 0 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+  }
+  html.dark .home-detail-kpi-cur,
+  html.midnight .home-detail-kpi-cur { color: #e4e4e7; }
+  .home-detail-kpi-spark {
+    height: 2.1rem;
+    width: 100%;
+    margin-top: 0.15rem;
+  }
+  .home-detail-kpi-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    width: 100%;
+    height: 100%;
+  }
+  .home-detail-kpi-bars span {
+    flex: 1 1 0;
+    min-width: 2px;
+    border-radius: 1px 1px 0 0;
+    height: var(--h, 12%);
+    background: linear-gradient(180deg, rgb(100 116 139 / 0.9), rgb(71 85 105 / 0.78));
+  }
+  .home-detail-kpi-spark.is-up .home-detail-kpi-bars span {
+    background: linear-gradient(180deg, rgb(5 150 105 / 0.95), rgb(4 120 87 / 0.82));
+  }
+  .home-detail-kpi-spark.is-down .home-detail-kpi-bars span {
+    background: linear-gradient(180deg, rgb(225 29 72 / 0.94), rgb(190 18 60 / 0.8));
+  }
+  html.dark .home-detail-kpi-spark.is-up .home-detail-kpi-bars span,
+  html.midnight .home-detail-kpi-spark.is-up .home-detail-kpi-bars span {
+    background: linear-gradient(180deg, rgb(74 143 115 / 0.9), rgb(45 106 79 / 0.78));
+  }
+  html.dark .home-detail-kpi-spark.is-down .home-detail-kpi-bars span,
+  html.midnight .home-detail-kpi-spark.is-down .home-detail-kpi-bars span {
+    background: linear-gradient(180deg, rgb(244 63 94 / 0.85), rgb(190 18 60 / 0.72));
+  }
+  .home-detail-kpi-spark-empty {
+    height: 2.1rem;
+    margin-top: 0.15rem;
+    border-radius: 0.35rem;
+    background: rgb(226 232 240 / 0.65);
+  }
+  html.dark .home-detail-kpi-spark-empty,
+  html.midnight .home-detail-kpi-spark-empty {
+    background: rgb(39 39 42);
+  }
+  .home-detail-kpi-prev {
+    margin: 0;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgb(241 245 249);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+  }
+  html.dark .home-detail-kpi-prev,
+  html.midnight .home-detail-kpi-prev {
+    border-top-color: rgb(39 39 42);
+    color: #a1a1aa;
+  }
+  .home-detail-kpi-prev-label {
+    display: block;
+    margin-bottom: 0.1rem;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  html.dark .home-detail-kpi-prev-label { color: #71717a; }
+</style>
+{%- endmacro %}
+
+{% macro home_detail_kpis_trigger(panel_id, label='KPI detay') -%}
+<button type="button"
+        class="home-top-pages-trigger home-top-pages-trigger--above"
+        data-home-top-pages-open="{{ panel_id }}"
+        aria-expanded="false"
+        aria-controls="home-top-pages-{{ panel_id }}">
+  <span>{{ label }}</span>
+  <span class="home-top-pages-chevron" aria-hidden="true"></span>
+</button>
+{%- endmacro %}
+
+{% macro home_detail_kpis_panel(panel_id, kpis, title='KPI detay') -%}
+<div class="home-top-pages-panel"
+     id="home-top-pages-{{ panel_id }}"
+     data-home-top-pages-panel="{{ panel_id }}"
+     hidden>
+  <div class="home-top-pages-panel-head">
+    <p class="home-top-pages-panel-title">{{ title }}</p>
+    <button type="button" class="home-top-pages-panel-close" data-home-top-pages-close>&times; kapat</button>
+  </div>
+  {% if kpis %}
+    <div class="home-detail-kpis-grid">
+      {% for kpi in kpis %}
+        {% set _tone = kpi.tone | default('flat') %}
+        {% set _st = kpi.spark_tone | default('flat') %}
+        <article class="home-detail-kpi-card">
+          <p class="home-detail-kpi-label">{{ kpi.label }}</p>
+          <div>
+            <p class="home-detail-kpi-delta home-delta is-{{ _tone }}">{{ kpi.delta_fmt }}</p>
+            <p class="home-detail-kpi-cur">{{ kpi.cur_fmt }}</p>
+          </div>
+          {% if kpi.bar_heights %}
+            <div class="home-detail-kpi-spark is-{{ _st }}" role="img" aria-label="{{ kpi.label }} günlük trend">
+              <div class="home-detail-kpi-bars">
+                {% for h in kpi.bar_heights %}
+                  <span style="--h: {{ h }}%"></span>
+                {% endfor %}
+              </div>
+            </div>
+          {% else %}
+            <div class="home-detail-kpi-spark-empty" aria-hidden="true"></div>
+          {% endif %}
+          <div class="home-detail-kpi-prev">
+            <span class="home-detail-kpi-prev-label">Önceki 7 gün</span>
+            {{ kpi.prev_fmt }}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="home-top-pages-empty">KPI verisi yok</p>
+  {% endif %}
+</div>
+{%- endmacro %}

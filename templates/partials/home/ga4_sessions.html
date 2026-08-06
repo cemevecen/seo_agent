@@ -1,6 +1,8 @@
 {# Mini spark + sayı (#5) — platform hücreleri, auto-fit #}
 {% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
+{% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
 {{ home_top_pages_styles() }}
+{{ home_detail_kpis_styles() }}
 <style>
   .home-ga4-spark-grid {
     display: grid;
@@ -91,9 +93,11 @@
     <div class="home-ga4-spark-grid">
       {% for prof in site.profiles %}
         {% set _tone = prof.tone | default('flat') %}
-        {% set _panel_id = 'ga4-' ~ site.site_id ~ '-' ~ prof.key %}
+        {% set _pages_id = 'ga4-pages-' ~ site.site_id ~ '-' ~ prof.key %}
+        {% set _kpi_id = 'ga4-kpi-' ~ site.site_id ~ '-' ~ prof.key %}
         <div class="home-ga4-spark-cell">
           <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
+          {{ home_detail_kpis_trigger(_kpi_id) }}
           {% if prof.spark and prof.spark.has_points and prof.spark.path_d %}
             <svg class="home-ga4-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
               <path class="home-ga4-spark-line" d="{{ prof.spark.path_d }}"></path>
@@ -104,15 +108,17 @@
           <p class="home-kpi home-delta mt-1 is-{{ _tone }}">{{ prof.delta_fmt }}</p>
           <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
           {% if prof.key in ('web', 'mweb') %}
-            {{ home_top_pages_trigger(_panel_id) }}
+            {{ home_top_pages_trigger(_pages_id) }}
           {% endif %}
         </div>
       {% endfor %}
     </div>
     {% for prof in site.profiles %}
+      {% set _kpi_id = 'ga4-kpi-' ~ site.site_id ~ '-' ~ prof.key %}
+      {{ home_detail_kpis_panel(_kpi_id, prof.detail_kpis | default([]), title=prof.label ~ ' · KPI detay') }}
       {% if prof.key in ('web', 'mweb') %}
-        {% set _panel_id = 'ga4-' ~ site.site_id ~ '-' ~ prof.key %}
-        {{ home_top_pages_panel(_panel_id, prof.top_pages | default([]), metric_label='views', metric_header='Views', title=prof.label ~ ' · top 25 sayfa') }}
+        {% set _pages_id = 'ga4-pages-' ~ site.site_id ~ '-' ~ prof.key %}
+        {{ home_top_pages_panel(_pages_id, prof.top_pages | default([]), metric_label='views', metric_header='Views', title=prof.label ~ ' · top 25 sayfa') }}
       {% endif %}
     {% endfor %}
   </div>

@@ -1,6 +1,8 @@
 {# Mini spark + sayı — Clicks / Position ayrı bantlar #}
 {% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
+{% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
 {{ home_top_pages_styles() }}
+{{ home_detail_kpis_styles() }}
 <style>
   .home-sc-metric-band {
     margin-top: 0.85rem;
@@ -209,11 +211,13 @@
     <div class="home-sc-spark-grid">
       {% for dev in site.devices %}
         {% set _ctone = dev.clicks_tone | default('flat') %}
-        {% set _panel_id = 'sc-clicks-' ~ site.site_id ~ '-' ~ loop.index %}
+        {% set _pages_id = 'sc-clicks-pages-' ~ site.site_id ~ '-' ~ loop.index %}
+        {% set _kpi_id = 'sc-clicks-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
         <div class="home-sc-spark-cell is-clicks home-sc-pos-row">
           <div class="home-sc-pos-row-inner">
             <div class="home-sc-pos-main">
               <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+              {{ home_detail_kpis_trigger(_kpi_id) }}
               {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
                 <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
                   <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
@@ -231,13 +235,15 @@
             </div>
             {% endif %}
           </div>
-          {{ home_top_pages_trigger(_panel_id) }}
+          {{ home_top_pages_trigger(_pages_id) }}
         </div>
       {% endfor %}
     </div>
     {% for dev in site.devices %}
-      {% set _panel_id = 'sc-clicks-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
+      {% set _kpi_id = 'sc-clicks-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
+      {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=dev.label ~ ' · KPI detay') }}
+      {% set _pages_id = 'sc-clicks-pages-' ~ site.site_id ~ '-' ~ loop.index %}
+      {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
     {% endfor %}
   </div>
 
@@ -249,11 +255,13 @@
     <div class="home-sc-spark-grid">
       {% for dev in site.devices %}
         {% set _ptone = dev.pos_tone | default('flat') %}
-        {% set _panel_id = 'sc-pos-' ~ site.site_id ~ '-' ~ loop.index %}
+        {% set _pages_id = 'sc-pos-pages-' ~ site.site_id ~ '-' ~ loop.index %}
+        {% set _kpi_id = 'sc-pos-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
         <div class="home-sc-spark-cell is-pos home-sc-pos-row">
           <div class="home-sc-pos-row-inner">
             <div class="home-sc-pos-main">
               <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+              {{ home_detail_kpis_trigger(_kpi_id) }}
               {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
                 <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
                   <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
@@ -271,13 +279,15 @@
             </div>
             {% endif %}
           </div>
-          {{ home_top_pages_trigger(_panel_id) }}
+          {{ home_top_pages_trigger(_pages_id) }}
         </div>
       {% endfor %}
     </div>
     {% for dev in site.devices %}
-      {% set _panel_id = 'sc-pos-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
+      {% set _kpi_id = 'sc-pos-kpi-' ~ site.site_id ~ '-' ~ loop.index %}
+      {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=dev.label ~ ' · KPI detay') }}
+      {% set _pages_id = 'sc-pos-pages-' ~ site.site_id ~ '-' ~ loop.index %}
+      {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
     {% endfor %}
   </div>
 {% else %}

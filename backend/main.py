@@ -8938,6 +8938,21 @@ def _home_sc_trend_series(
 
     dates = [str(d)[:10] for d in (trend.get("dates") or [])]
     raw = list(trend.get(metric) or [])
+    if metric == "ctr" and not raw:
+        clicks_raw = list(trend.get("clicks") or [])
+        impr_raw = list(trend.get("impressions") or [])
+        n = max(len(clicks_raw), len(impr_raw))
+        raw = []
+        for i in range(n):
+            try:
+                c = float(clicks_raw[i] if i < len(clicks_raw) else 0) or 0.0
+            except (TypeError, ValueError):
+                c = 0.0
+            try:
+                im = float(impr_raw[i] if i < len(impr_raw) else 0) or 0.0
+            except (TypeError, ValueError):
+                im = 0.0
+            raw.append((c / im * 100.0) if im > 0 else 0.0)
     paired: list[tuple[str, float]] = []
     for i, v in enumerate(raw):
         d = dates[i] if i < len(dates) else ""
@@ -8994,9 +9009,35 @@ def _home_sc_trend_series(
         if metric == "position":
             impr = float(b.get("impressions") or 0)
             series.append((float(b.get("wpos") or 0) / impr) if impr > 0 else 0.0)
+        elif metric == "ctr":
+            clicks = float(b.get("clicks") or 0)
+            impr = float(b.get("impressions") or 0)
+            series.append((clicks / impr * 100.0) if impr > 0 else 0.0)
         else:
             series.append(float(b.get(metric) or b.get("clicks") or 0))
     return series if len(series) >= 2 else out
+
+
+def _home_bar_heights(series: list[float] | None) -> list[int]:
+    vals: list[float] = []
+    for v in series or []:
+        try:
+            vals.append(float(v or 0))
+        except (TypeError, ValueError):
+            vals.append(0.0)
+    if not vals:
+        return []
+    mx = max(vals) or 1.0
+    return [max(8, int(round((v / mx) * 100))) for v in vals]
+
+
+def _home_spark_tone_from_home(tone: str) -> str:
+    t = str(tone or "flat")
+    if t.startswith("up"):
+        return "up"
+    if t.startswith("down"):
+        return "down"
+    return "flat"
 
 
 def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
@@ -9036,6 +9077,12 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
             except Exception:  # noqa: BLE001
                 LOGGER.exception("Home GA4 top pages failed site=%s profile=%s", site_id, prof_key)
                 top_pages = []
+        detail_kpis: list[dict] = []
+        try:
+            detail_kpis = _home_ga4_detail_kpis(db, site_id, prof_key)
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("Home GA4 detail KPIs failed site=%s profile=%s", site_id, prof_key)
+            detail_kpis = []
         out.append({
             "key": prof_key,
             "label": prof_label,
@@ -9046,8 +9093,162 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
             "delta_pct": delta_pct,
             "spark": spark,
             "top_pages": top_pages,
+            "detail_kpis": detail_kpis,
         })
     return out
+
+
+def _home_fmt_avg_session_sec(sec: float) -> str:
+    try:
+        s = float(sec or 0)
+    except (TypeError, ValueError):
+        return "—"
+    if s <= 0:
+        return "—"
+    return f"{int(round(s))} s"
+
+
+def _home_ga4_detail_kpis(db, site_id: int, profile: str) -> list[dict]:
+    """Detay sayfası KPI kartları (7g) — home tam genişlik paneli için."""
+    snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=7)
+    if not snap:
+        snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
+    payload = (snap or {}).get("payload") or {}
+    summary = payload.get("summary") or {}
+    la = summary.get("last") or {}
+    pr = summary.get("prev") or {}
+    period_daily = payload.get("daily_trend") if isinstance(payload.get("daily_trend"), dict) else {}
+    _daily, spark_daily = _ga4_daily_trends_for_ui(
+        db,
+        site_id=site_id,
+        profile=profile,
+        period_daily=period_daily,
+        period_days=7,
+    )
+
+    def _f(slice_: dict, key: str) -> float:
+        try:
+            return float(slice_.get(key) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _series(key: str) -> list[float]:
+        arr = (spark_daily or {}).get(key) or []
+        out: list[float] = []
+        for v in arr:
+            try:
+                out.append(float(v or 0))
+            except (TypeError, ValueError):
+                out.append(0.0)
+        return out[-7:] if len(out) > 7 else out
+
+    specs = [
+        ("sessions", "SESSIONS", "int"),
+        ("activeUsers", "USERS", "int"),
+        ("engagedSessions", "ENGAGED SESSIONS", "int"),
+        ("newUsers", "NEW USERS", "int"),
+        ("averageSessionDuration", "AVG. SESSION", "sec"),
+        ("screenPageViews", "PAGE VIEWS", "int"),
+    ]
+    # Users: snapshot bazen totalUsers
+    if _f(la, "activeUsers") <= 0 and _f(la, "totalUsers") > 0:
+        specs[1] = ("totalUsers", "USERS", "int")
+
+    out: list[dict] = []
+    for key, label, kind in specs:
+        last_v = _f(la, key)
+        prev_v = _f(pr, key)
+        if kind == "sec":
+            delta_fmt, tone, delta_pct = _home_pct_delta(last_v, prev_v)
+            cur_fmt = _home_fmt_avg_session_sec(last_v)
+            prev_fmt = _home_fmt_avg_session_sec(prev_v)
+        else:
+            delta_fmt, tone, delta_pct = _home_pct_delta(last_v, prev_v)
+            cur_fmt = _home_format_int(last_v)
+            prev_fmt = _home_format_int(prev_v)
+        series = _series(key if key != "totalUsers" else "activeUsers")
+        if key == "totalUsers" and not any(series):
+            series = _series("activeUsers")
+        out.append({
+            "key": key,
+            "label": label,
+            "delta_fmt": delta_fmt,
+            "tone": tone,
+            "spark_tone": _home_spark_tone_from_home(tone),
+            "cur_fmt": cur_fmt,
+            "prev_fmt": prev_fmt,
+            "bar_heights": _home_bar_heights(series),
+        })
+    return out
+
+
+def _home_sc_detail_kpis(
+    summary_payload: dict | None,
+    device: str,
+    *,
+    c_clicks: float,
+    p_clicks: float,
+    c_impr: float,
+    p_impr: float,
+    c_pos: float,
+    p_pos: float,
+) -> list[dict]:
+    """SC detay KPI kartları (clicks / impressions / CTR / position)."""
+    c_ctr = (c_clicks / c_impr * 100.0) if c_impr > 0 else 0.0
+    p_ctr = (p_clicks / p_impr * 100.0) if p_impr > 0 else 0.0
+    clicks_delta, clicks_tone, _ = _home_pct_delta(c_clicks, p_clicks)
+    impr_delta, impr_tone, _ = _home_pct_delta(c_impr, p_impr)
+    ctr_delta, ctr_tone, _ = _home_pct_delta(c_ctr, p_ctr)
+    pos_diff = _sc_position_delta(c_pos, p_pos)
+    pos_tone = _home_pos_tone(pos_diff)
+
+    def _bars(metric: str) -> list[int]:
+        return _home_bar_heights(
+            _home_sc_trend_series(summary_payload, device, metric, days=7)
+        )
+
+    return [
+        {
+            "key": "clicks",
+            "label": "CLICKS",
+            "delta_fmt": clicks_delta,
+            "tone": clicks_tone,
+            "spark_tone": _home_spark_tone_from_home(clicks_tone),
+            "cur_fmt": _home_format_int(c_clicks),
+            "prev_fmt": _home_format_int(p_clicks),
+            "bar_heights": _bars("clicks"),
+        },
+        {
+            "key": "impressions",
+            "label": "IMPRESSIONS",
+            "delta_fmt": impr_delta,
+            "tone": impr_tone,
+            "spark_tone": _home_spark_tone_from_home(impr_tone),
+            "cur_fmt": _home_format_int(c_impr),
+            "prev_fmt": _home_format_int(p_impr),
+            "bar_heights": _bars("impressions"),
+        },
+        {
+            "key": "ctr",
+            "label": "CTR",
+            "delta_fmt": ctr_delta,
+            "tone": ctr_tone,
+            "spark_tone": _home_spark_tone_from_home(ctr_tone),
+            "cur_fmt": f"{c_ctr:.2f}%" if c_impr > 0 or c_ctr > 0 else "—",
+            "prev_fmt": f"{p_ctr:.2f}%" if p_impr > 0 or p_ctr > 0 else "—",
+            "bar_heights": _bars("ctr"),
+        },
+        {
+            "key": "position",
+            "label": "POSITION",
+            "delta_fmt": _format_signed_max_two_decimals(pos_diff),
+            "tone": pos_tone,
+            "spark_tone": _home_spark_tone_from_home(pos_tone),
+            "cur_fmt": _format_max_two_decimals(c_pos) if c_pos else "—",
+            "prev_fmt": _format_max_two_decimals(p_pos) if p_pos else "—",
+            "bar_heights": _bars("position"),
+        },
+    ]
 
 
 _HOME_TOP_PAGES_LIMIT = 25
@@ -9400,11 +9601,13 @@ def _home_sc_device_aggregate(
     if cur_sum or prev_sum:
         c_clicks = float(cur_sum.get("clicks") or 0.0)
         p_clicks = float(prev_sum.get("clicks") or 0.0)
+        c_impr = float(cur_sum.get("impressions") or 0.0)
+        p_impr = float(prev_sum.get("impressions") or 0.0)
         c_pos = float(cur_sum.get("position") or 0.0)
         p_pos = float(prev_sum.get("position") or 0.0)
     else:
-        c_clicks, _c_impr, c_pos = _from_snapshot("current_7d")
-        p_clicks, _p_impr, p_pos = _from_snapshot("previous_7d")
+        c_clicks, c_impr, c_pos = _from_snapshot("current_7d")
+        p_clicks, p_impr, p_pos = _from_snapshot("previous_7d")
 
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
@@ -9431,6 +9634,20 @@ def _home_sc_device_aggregate(
     except Exception:  # noqa: BLE001
         LOGGER.exception("Home SC top pages failed site=%s device=%s", site_id, device)
         top_pages = []
+    try:
+        detail_kpis = _home_sc_detail_kpis(
+            summary,
+            device,
+            c_clicks=c_clicks,
+            p_clicks=p_clicks,
+            c_impr=c_impr,
+            p_impr=p_impr,
+            c_pos=c_pos,
+            p_pos=p_pos,
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Home SC detail KPIs failed site=%s device=%s", site_id, device)
+        detail_kpis = []
     return {
         "clicks_last_fmt": _home_format_int(c_clicks),
         "clicks_prev_fmt": _home_format_int(p_clicks),
@@ -9445,6 +9662,7 @@ def _home_sc_device_aggregate(
         "pos_tone": pos_tone,
         "pos_spark": pos_spark,
         "top_pages": top_pages,
+        "detail_kpis": detail_kpis,
         **top50,
     }
 
