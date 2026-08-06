@@ -79,6 +79,30 @@
     letter-spacing: -0.02em;
     line-height: 1.15;
   }
+  /* Delta: pastel mint / mercan — koyu emerald & bordo (siyah gibi) yasak */
+  .home-readable .home-delta {
+    color: #64748b;
+  }
+  .home-readable .home-delta.is-up-mild { color: #5ecf9a !important; }
+  .home-readable .home-delta.is-up { color: #45c494 !important; }
+  .home-readable .home-delta.is-up-strong { color: #2eb887 !important; }
+  .home-readable .home-delta.is-down-mild { color: #f0a070 !important; }
+  .home-readable .home-delta.is-down { color: #ef7f8f !important; }
+  .home-readable .home-delta.is-down-strong { color: #e86b7c !important; }
+  html.dark .home-readable .home-delta,
+  html.midnight .home-readable .home-delta { color: #a1a1aa; }
+  html.dark .home-readable .home-delta.is-up-mild,
+  html.midnight .home-readable .home-delta.is-up-mild { color: #8fd4b8 !important; }
+  html.dark .home-readable .home-delta.is-up,
+  html.midnight .home-readable .home-delta.is-up { color: #6ecf9a !important; }
+  html.dark .home-readable .home-delta.is-up-strong,
+  html.midnight .home-readable .home-delta.is-up-strong { color: #5ecf9a !important; }
+  html.dark .home-readable .home-delta.is-down-mild,
+  html.midnight .home-readable .home-delta.is-down-mild { color: #f0c4a8 !important; }
+  html.dark .home-readable .home-delta.is-down,
+  html.midnight .home-readable .home-delta.is-down { color: #f0a3ab !important; }
+  html.dark .home-readable .home-delta.is-down-strong,
+  html.midnight .home-readable .home-delta.is-down-strong { color: #f08a98 !important; }
   .home-readable .home-split {
     display: grid;
     grid-template-columns: 1fr;
@@ -556,12 +580,12 @@
 
       {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&v=13" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&v=14" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=13" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=14" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
@@ -570,12 +594,12 @@
 
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/sc-summary?site=doviz&v=17" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&v=18" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/sc-summary?site=sinemalar&v=17" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&v=18" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}
