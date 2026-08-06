@@ -42,6 +42,7 @@
     margin-top: 0.2rem;
   }
   .home-drive-drop {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -54,6 +55,8 @@
     background: rgb(248 250 252 / 0.85);
     cursor: pointer;
     transition: border-color 0.15s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .home-drive-drop:hover,
   .home-drive-drop.is-drag {
@@ -73,7 +76,23 @@
     background: rgb(23 37 84 / 0.35);
   }
   .home-drive-drop input[type="file"] {
-    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  .home-drive-drop-copy {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+    text-align: center;
   }
   .home-drive-status {
     margin-top: 0.65rem;
@@ -138,15 +157,18 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+    min-height: 2.75rem;
     border: 1px solid transparent;
     border-radius: 0.55rem;
     background: rgb(248 250 252);
-    padding: 0.45rem 0.6rem;
+    padding: 0.65rem 0.75rem;
     cursor: pointer;
     text-align: left;
-    font-size: 0.74rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #334155;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .home-drive-picker-opt:hover { border-color: rgb(191 219 254); background: rgb(239 246 255); }
   .home-drive-picker-opt.is-selected {
@@ -174,10 +196,13 @@
   .home-drive-picker-btn {
     border: 0;
     border-radius: 9999px;
-    padding: 0.35rem 0.85rem;
-    font-size: 0.7rem;
+    padding: 0.55rem 1rem;
+    min-height: 2.5rem;
+    font-size: 0.78rem;
     font-weight: 700;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .home-drive-picker-btn.is-primary {
     background: #0f172a;
@@ -415,8 +440,8 @@
   .home-drive-card-del:hover { color: #e11d48; }
 </style>
 
-<div class="home-drive home-readable" data-home-drive-root
-     data-home-drive-containers='{{ (containers or []) | tojson }}'>
+<div class="home-drive home-readable" data-home-drive-root>
+  <script type="application/json" data-home-drive-containers-json>{{ (containers or []) | tojson }}</script>
   <button type="button"
           class="home-drive-shell-toggle"
           data-home-drive-shell-toggle
@@ -475,11 +500,14 @@
       {% if not folder_id %}
         <p class="home-drive-status is-err mt-3">HOME_DRIVE_FOLDER_ID tanımlı değil.</p>
       {% endif %}
-      <label class="home-drive-drop mt-3" data-home-drive-drop>
-        <input type="file" accept="image/*,video/*" multiple data-home-drive-input>
-        <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Görsel / video sürükle veya seç</p>
-        <p class="home-meta text-slate-500 dark:text-slate-400">PNG, JPG, WEBP · MP4, WEBM · görsel 12 MB / video 100 MB</p>
-      </label>
+      <div class="home-drive-drop mt-3" data-home-drive-drop>
+        <input type="file" accept="image/*,video/*,.heic,.heif,image/heic,image/heif"
+               multiple data-home-drive-input>
+        <div class="home-drive-drop-copy">
+          <p class="home-body font-semibold text-slate-700 dark:text-slate-200">Görsel / video sürükle veya seç</p>
+          <p class="home-meta text-slate-500 dark:text-slate-400">PNG, JPG, WEBP · MP4, WEBM · görsel 12 MB / video 100 MB</p>
+        </div>
+      </div>
 
       <div class="home-drive-picker" data-home-drive-picker hidden>
         <p class="home-drive-picker-title">Hangi container?</p>
@@ -582,11 +610,39 @@
   var deleting = false;
   var pendingFiles = null;
   var selectedContainerKey = '';
+  var uploading = false;
   var containers = [];
   try {
-    containers = JSON.parse(root.getAttribute('data-home-drive-containers') || '[]') || [];
+    var jsonEl = root.querySelector('[data-home-drive-containers-json]');
+    if (jsonEl && jsonEl.textContent) {
+      containers = JSON.parse(jsonEl.textContent) || [];
+    }
   } catch (e) {
     containers = [];
+  }
+
+  function ensureContainers(done) {
+    if (containers && containers.length) {
+      if (done) done();
+      return;
+    }
+    fetch('/api/home/drive/containers', { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (j && j.containers && j.containers.length) containers = j.containers;
+        if (done) done();
+      })
+      .catch(function () { if (done) done(); });
+  }
+
+  function snapshotFileList(fileList) {
+    var out = [];
+    if (!fileList || !fileList.length) return out;
+    for (var i = 0; i < fileList.length; i++) {
+      var f = fileList[i];
+      if (f) out.push(f);
+    }
+    return out;
   }
 
   function notifyBadges() {
@@ -755,35 +811,48 @@
     pickerList.innerHTML = html || '<p class="home-meta text-slate-400">Eşleşen container yok</p>';
   }
 
-  function closePicker() {
-    pendingFiles = null;
+  function closePicker(opts) {
+    opts = opts || {};
     selectedContainerKey = '';
+    if (!opts.keepPending) pendingFiles = null;
     if (picker) {
       picker.classList.remove('is-open');
       picker.hidden = true;
     }
     if (pickerConfirm) pickerConfirm.disabled = true;
     if (pickerSearch) pickerSearch.value = '';
-    if (input) input.value = '';
+    // iOS: input temizliği File blob’larını bozabilir — upload bitene kadar sakla
+    if (!opts.preserveInput && input && !uploading) input.value = '';
   }
 
   function openPicker(files) {
-    if (!files || !files.length) return;
-    pendingFiles = Array.prototype.slice.call(files);
+    var snapped = snapshotFileList(files);
+    if (!snapped.length) {
+      setStatus('Dosya seçilemedi. Tekrar dene.', 'err');
+      return;
+    }
+    pendingFiles = snapped;
     selectedContainerKey = '';
-    if (pickerHint) {
-      pickerHint.textContent =
-        pendingFiles.length + ' dosya · hangi ana sayfa container’ına bağlansın?';
+    function show() {
+      if (!containers.length) {
+        setStatus('Container listesi yüklenemedi. Sayfayı yenile.', 'err');
+      }
+      if (pickerHint) {
+        pickerHint.textContent =
+          pendingFiles.length + ' dosya · hangi ana sayfa container’ına bağlansın?';
+      }
+      renderPickerList('');
+      if (picker) {
+        picker.hidden = false;
+        picker.classList.add('is-open');
+        try {
+          picker.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {}
+      }
+      if (pickerConfirm) pickerConfirm.disabled = true;
+      setStatus(pendingFiles.length + ' dosya seçildi — container seç', null);
     }
-    renderPickerList('');
-    if (picker) {
-      picker.hidden = false;
-      picker.classList.add('is-open');
-    }
-    if (pickerConfirm) pickerConfirm.disabled = true;
-    if (pickerSearch) {
-      pickerSearch.focus();
-    }
+    ensureContainers(show);
   }
 
   if (shellToggle && shellBody) {
@@ -803,7 +872,8 @@
   }
 
   async function uploadFiles(files, containerKey) {
-    if (!files || !files.length || !containerKey) return;
+    if (!files || !files.length || !containerKey || uploading) return;
+    uploading = true;
     setStatus('Yükleniyor… (' + files.length + ')', null);
     var ok = 0;
     for (var i = 0; i < files.length; i++) {
@@ -833,20 +903,26 @@
         setStatus('Yükleme hatası', 'err');
       }
     }
+    uploading = false;
+    if (input) input.value = '';
     if (ok) {
       setStatus(ok + ' dosya yüklendi', 'ok');
       notifyBadges();
     }
-    if (input) input.value = '';
+  }
+
+  function selectContainer(key) {
+    selectedContainerKey = String(key || '');
+    renderPickerList(pickerSearch ? pickerSearch.value : '');
+    if (pickerConfirm) pickerConfirm.disabled = !selectedContainerKey;
   }
 
   if (pickerList) {
     pickerList.addEventListener('click', function (ev) {
       var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-container]');
       if (!btn) return;
-      selectedContainerKey = btn.getAttribute('data-home-drive-container') || '';
-      renderPickerList(pickerSearch ? pickerSearch.value : '');
-      if (pickerConfirm) pickerConfirm.disabled = !selectedContainerKey;
+      ev.preventDefault();
+      selectContainer(btn.getAttribute('data-home-drive-container') || '');
     });
   }
   if (pickerSearch) {
@@ -855,28 +931,31 @@
     });
   }
   if (pickerCancel) {
-    pickerCancel.addEventListener('click', function () {
+    pickerCancel.addEventListener('click', function (ev) {
+      ev.preventDefault();
       closePicker();
       setStatus('', null);
     });
   }
   if (pickerConfirm) {
-    pickerConfirm.addEventListener('click', function () {
-      if (!pendingFiles || !selectedContainerKey) return;
-      var files = pendingFiles;
+    pickerConfirm.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      if (!pendingFiles || !pendingFiles.length || !selectedContainerKey || uploading) return;
+      var files = pendingFiles.slice();
       var key = selectedContainerKey;
-      closePicker();
+      closePicker({ preserveInput: true, keepPending: false });
       uploadFiles(files, key);
     });
   }
 
   if (drop && input) {
-    drop.addEventListener('click', function (ev) {
-      if (ev.target === input) return;
-      input.click();
-    });
+    // Programatik input.click() YOK — iOS’ta gesture’ı bozar; opacity:0 input doğrudan tap alır
     input.addEventListener('change', function () {
-      if (input.files && input.files.length) openPicker(input.files);
+      if (input.files && input.files.length) {
+        openPicker(input.files);
+      } else {
+        setStatus('Dosya seçilmedi', 'err');
+      }
     });
     ['dragenter', 'dragover'].forEach(function (evName) {
       drop.addEventListener(evName, function (ev) {
