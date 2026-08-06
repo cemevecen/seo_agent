@@ -222,6 +222,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* Başı kes, path sonunu göster */
+    direction: rtl;
+    text-align: left;
+  }
+  .home-top-pages-link > .home-top-pages-link-text {
+    direction: ltr;
+    unicode-bidi: isolate;
   }
   html.dark .home-top-pages-link,
   html.midnight .home-top-pages-link { color: #a1a1aa; }
@@ -318,9 +325,9 @@
         <li class="home-top-pages-row">
           <span class="home-top-pages-rank">{{ loop.index }}</span>
           {% if row.href %}
-            <a class="home-top-pages-link" href="{{ row.href }}" target="_blank" rel="noopener noreferrer" title="{{ row.href }}">{{ row.label }}</a>
+            <a class="home-top-pages-link" href="{{ row.href }}" target="_blank" rel="noopener noreferrer" title="{{ row.href }}"><span class="home-top-pages-link-text">{{ row.label }}</span></a>
           {% else %}
-            <span class="home-top-pages-link is-plain" title="{{ row.label }}">{{ row.label }}</span>
+            <span class="home-top-pages-link is-plain" title="{{ row.label }}"><span class="home-top-pages-link-text">{{ row.label }}</span></span>
           {% endif %}
           <span class="home-top-pages-metric tabular-nums" title="{{ metric_label }} · önceki: {{ row.prev_fmt }}">
             {{ row.metric_fmt }} <span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span>

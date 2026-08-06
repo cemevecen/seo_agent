@@ -9267,30 +9267,44 @@ def _home_page_href(label: str, domain: str | None) -> str:
     return f"https://{host}/{path}"
 
 
-_HOME_MWEB_HOST_PREFIXES = (
+_HOME_TOP_PAGE_HOST_PREFIXES = (
     "m.doviz.com",
     "m.sinemalar.com",
+    "www.doviz.com",
+    "www.sinemalar.com",
+    "doviz.com",
+    "sinemalar.com",
 )
 
 
-def _home_mweb_display_label(label: str | None, href: str | None = None) -> str:
-    """m.doviz.com / m.sinemalar.com sonrası path — dar listede okunabilirlik."""
+def _home_top_page_display_label(label: str | None, href: str | None = None) -> str:
+    """Domain + /mobileweb öneklerini at — dar listede path sonu okunabilir olsun."""
     raw = str(label or href or "").strip()
     if not raw:
         return ""
-    text = raw.replace("https://", "").replace("http://", "")
+    text = raw.replace("https://", "").replace("http://", "").strip()
     low = text.lower()
-    for host in _HOME_MWEB_HOST_PREFIXES:
+    for host in _HOME_TOP_PAGE_HOST_PREFIXES:
         if low == host or low.startswith(host + "/") or low.startswith(host + "?"):
-            rest = text[len(host) :]
-            if not rest:
-                return "/"
-            return rest if rest.startswith("/") else "/" + rest
-    # host yoksa zaten path
-    if text.startswith("/"):
-        return text
-    return text
+            text = text[len(host) :]
+            low = text.lower()
+            break
+    if text and not text.startswith("/") and not text.startswith("?"):
+        text = "/" + text.lstrip("/")
+        low = text.lower()
+    for prefix in ("/mobileweb/", "/mobileweb"):
+        if low == prefix.rstrip("/") or low.startswith(prefix):
+            rest = text[len(prefix) :] if low.startswith(prefix) else ""
+            if low == "/mobileweb":
+                rest = ""
+            text = ("/" + rest.lstrip("/")) if rest else "/"
+            low = text.lower()
+            break
+    return text or "/"
 
+def _home_mweb_display_label(label: str | None, href: str | None = None) -> str:
+    """Geriye uyum — top page display ile aynı."""
+    return _home_top_page_display_label(label, href)
 
 def _home_ga4_top_pages(
     db,
@@ -9329,8 +9343,7 @@ def _home_ga4_top_pages(
             continue
         href = _ga4_row_page_href(row, site_domain) or ""
         label = _ga4_row_page_label(row, site_domain) or str(row.get("page") or "")
-        if profile == "mweb":
-            label = _home_mweb_display_label(label, href)
+        label = _home_top_page_display_label(label, href)
         last_v = float(row.get("last_total") or 0)
         prev_v = float(row.get("prev_total") or 0)
         delta_pct = float(row.get("delta_pct") or 0)
@@ -9395,9 +9408,7 @@ def _home_sc_top_pages(
         if not label:
             continue
         href = _home_page_href(label, site_domain)
-        disp = label.replace("https://", "").replace("http://", "")
-        if str(device or "").upper() == "MOBILE":
-            disp = _home_mweb_display_label(disp, href)
+        disp = _home_top_page_display_label(label, href)
         c_cur = float(ent.get("clicks_current") or 0)
         c_prev = float(ent.get("clicks_previous") or 0)
         delta_fmt, delta_tone, _ = _home_pct_delta(c_cur, c_prev)
