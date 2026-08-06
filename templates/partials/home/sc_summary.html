@@ -1,4 +1,6 @@
 {# Mini spark + sayı — Clicks / Position ayrı bantlar #}
+{% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
+{{ home_top_pages_styles() }}
 <style>
   .home-sc-metric-band {
     margin-top: 0.85rem;
@@ -56,7 +58,6 @@
   html.midnight .home-sc-spark-cell {
     box-shadow: none;
   }
-  /* Clicks = same light grey as GA4 KPI cells */
   .home-sc-spark-cell.is-clicks {
     background: rgb(248 250 252);
     border-color: rgb(226 232 240 / 0.9);
@@ -69,7 +70,6 @@
     border-color: rgb(63 63 70);
     background: rgb(24 24 27);
   }
-  /* Position = clicks’e yakın, iki ton daha açık (eski slate-200 → slate-50) */
   .home-sc-spark-cell.is-pos {
     background: rgb(248 250 252);
     border-color: rgb(226 232 240 / 0.9);
@@ -106,25 +106,15 @@
     border-radius: 0.35rem;
     background: rgb(226 232 240 / 0.7);
   }
-  .home-sc-spark-cell.is-pos .home-sc-spark-empty {
-    background: rgb(226 232 240 / 0.7);
-  }
   html.dark .home-sc-spark-empty {
-    background: rgb(51 65 85 / 0.7);
-  }
-  html.dark .home-sc-spark-cell.is-pos .home-sc-spark-empty {
     background: rgb(51 65 85 / 0.7);
   }
   html.midnight .home-sc-spark-empty {
     background: rgb(39 39 42);
   }
-  .home-delta {
-    color: #0f172a;
-  }
+  .home-delta { color: #0f172a; }
   html.dark .home-delta,
-  html.midnight .home-delta {
-    color: #a1a1aa;
-  }
+  html.midnight .home-delta { color: #a1a1aa; }
   .home-delta.is-down-strong { color: #7f1d1d; }
   .home-delta.is-down { color: #e11d48; }
   .home-delta.is-down-mild { color: #ea580c; }
@@ -201,123 +191,7 @@
   html.midnight .home-sc-top50-vals {
     color: rgb(203 213 225);
   }
-  .home-top-pages {
-    margin-top: 0.55rem;
-    border-top: 1px solid rgb(226 232 240 / 0.9);
-    padding-top: 0.35rem;
-    width: 100%;
-  }
-  html.dark .home-top-pages,
-  html.midnight .home-top-pages {
-    border-top-color: rgb(63 63 70 / 0.9);
-  }
-  .home-top-pages-summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.35rem;
-    cursor: pointer;
-    list-style: none;
-    user-select: none;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #64748b;
-  }
-  .home-top-pages-summary::-webkit-details-marker { display: none; }
-  html.dark .home-top-pages-summary,
-  html.midnight .home-top-pages-summary { color: #71717a; }
-  .home-top-pages-summary:hover { color: #0f172a; }
-  html.dark .home-top-pages-summary:hover,
-  html.midnight .home-top-pages-summary:hover { color: #a1a1aa; }
-  .home-top-pages-chevron {
-    width: 0.4rem;
-    height: 0.4rem;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: rotate(45deg);
-    transition: transform 0.15s ease;
-    flex-shrink: 0;
-    opacity: 0.7;
-  }
-  .home-top-pages[open] .home-top-pages-chevron {
-    transform: rotate(-135deg);
-    margin-top: 0.15rem;
-  }
-  .home-top-pages-list {
-    list-style: none;
-    margin: 0.4rem 0 0;
-    padding: 0;
-    max-height: 14rem;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-  }
-  .home-top-pages-row {
-    display: grid;
-    grid-template-columns: 1.1rem minmax(0, 1fr);
-    gap: 0.3rem;
-    padding: 0.28rem 0;
-    border-bottom: 1px solid rgb(241 245 249);
-  }
-  html.dark .home-top-pages-row,
-  html.midnight .home-top-pages-row {
-    border-bottom-color: rgb(39 39 42);
-  }
-  .home-top-pages-row:last-child { border-bottom: none; }
-  .home-top-pages-rank {
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: #94a3b8;
-    text-align: right;
-    padding-top: 0.1rem;
-    font-variant-numeric: tabular-nums;
-  }
-  html.dark .home-top-pages-rank { color: #52525b; }
-  .home-top-pages-main { min-width: 0; }
-  .home-top-pages-link {
-    display: block;
-    font-size: 0.68rem;
-    font-weight: 600;
-    line-height: 1.25;
-    color: #0f172a;
-    text-decoration: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  html.dark .home-top-pages-link,
-  html.midnight .home-top-pages-link { color: #a1a1aa; }
-  a.home-top-pages-link:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-  .home-top-pages-stats {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.2rem 0.5rem;
-    margin-top: 0.12rem;
-    font-size: 0.6rem;
-    font-weight: 600;
-    color: #64748b;
-  }
-  html.dark .home-top-pages-stats { color: #71717a; }
-  .home-top-pages-metric .home-delta,
-  .home-top-pages-pos .home-delta {
-    font-size: 0.58rem;
-    margin-left: 0.15rem;
-  }
-  .home-top-pages-empty {
-    margin: 0.35rem 0 0;
-    font-size: 0.65rem;
-    color: #94a3b8;
-  }
 </style>
-
-{% from "partials/home/top_pages_dropdown.html" import home_top_pages_dropdown %}
 
 <div class="home-readable flex items-center justify-between gap-3">
   <h3 class="font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
@@ -327,7 +201,7 @@
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
 
-  <div class="home-sc-metric-band" data-metric="clicks">
+  <div class="home-sc-metric-band home-top-pages-root" data-metric="clicks" data-home-top-pages-root>
     <div class="home-sc-metric-head">
       <span class="home-sc-metric-dot is-clicks" aria-hidden="true"></span>
       <p class="home-sc-metric-title">Clicks</p>
@@ -335,6 +209,7 @@
     <div class="home-sc-spark-grid">
       {% for dev in site.devices %}
         {% set _ctone = dev.clicks_tone | default('flat') %}
+        {% set _panel_id = 'sc-clicks-' ~ site.site_id ~ '-' ~ loop.index %}
         <div class="home-sc-spark-cell is-clicks home-sc-pos-row">
           <div class="home-sc-pos-row-inner">
             <div class="home-sc-pos-main">
@@ -356,13 +231,17 @@
             </div>
             {% endif %}
           </div>
-          {{ home_top_pages_dropdown(dev.top_pages | default([]), metric_label='clicks') }}
+          {{ home_top_pages_trigger(_panel_id) }}
         </div>
       {% endfor %}
     </div>
+    {% for dev in site.devices %}
+      {% set _panel_id = 'sc-clicks-' ~ site.site_id ~ '-' ~ loop.index %}
+      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', title=dev.label ~ ' · top 25 sayfa') }}
+    {% endfor %}
   </div>
 
-  <div class="home-sc-metric-band" data-metric="position">
+  <div class="home-sc-metric-band home-top-pages-root" data-metric="position" data-home-top-pages-root>
     <div class="home-sc-metric-head">
       <span class="home-sc-metric-dot is-pos" aria-hidden="true"></span>
       <p class="home-sc-metric-title">position change</p>
@@ -370,6 +249,7 @@
     <div class="home-sc-spark-grid">
       {% for dev in site.devices %}
         {% set _ptone = dev.pos_tone | default('flat') %}
+        {% set _panel_id = 'sc-pos-' ~ site.site_id ~ '-' ~ loop.index %}
         <div class="home-sc-spark-cell is-pos home-sc-pos-row">
           <div class="home-sc-pos-row-inner">
             <div class="home-sc-pos-main">
@@ -391,10 +271,14 @@
             </div>
             {% endif %}
           </div>
-          {{ home_top_pages_dropdown(dev.top_pages | default([]), metric_label='clicks') }}
+          {{ home_top_pages_trigger(_panel_id) }}
         </div>
       {% endfor %}
     </div>
+    {% for dev in site.devices %}
+      {% set _panel_id = 'sc-pos-' ~ site.site_id ~ '-' ~ loop.index %}
+      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', title=dev.label ~ ' · top 25 sayfa') }}
+    {% endfor %}
   </div>
 {% else %}
   <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>

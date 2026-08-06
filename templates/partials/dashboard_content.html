@@ -452,6 +452,7 @@
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="/static/js/home_gitlab_boards.js?v=3"></script>
+  <script src="/static/js/home_top_pages.js?v=1"></script>
   <section id="home-realtime-section" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
@@ -546,14 +547,14 @@
         <div class="h-full w-px bg-gradient-to-b from-transparent via-slate-300 to-transparent dark:via-slate-700"></div>
       </div>
 
-      {# Row 1 — GA4 #}
-      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&v=7" hx-trigger="load" hx-swap="innerHTML"
+      {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
+      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/ga4-sessions?site=doviz&v=8" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=7" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=8" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
@@ -561,13 +562,13 @@
       </div>
 
       {# Row 3 — Search Console #}
-      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/sc-summary?site=doviz&v=10" hx-trigger="load" hx-swap="innerHTML"
+      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <section hx-get="/api/home/sc-summary?site=doviz&v=11" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/sc-summary?site=sinemalar&v=10" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&v=11" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}
@@ -575,7 +576,7 @@
       </div>
 
       {# Row 4 — Position Drops #}
-      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <section hx-get="/api/home/position-drops?site=doviz&v=5" hx-trigger="load" hx-swap="innerHTML"
                  hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
