@@ -166,10 +166,10 @@
     }
   }
   .home-rt-metric {
-    /* Ortalama üstü yeşil / altı kırmızı — realtime mean-split ile aynı palet */
-    --home-rt-mean-above: #047857;
-    --home-rt-mean-below: #ef4444;
-    --home-rt-spark-area-fill: rgba(4, 120, 87, 0.12);
+    /* Ortalama üstü mint / altı soft mercan — pastel, koyu emerald yok */
+    --home-rt-mean-above: #7ecfb0;
+    --home-rt-mean-below: #f0a3ab;
+    --home-rt-spark-area-fill: rgba(126, 207, 176, 0.16);
     position: relative;
     overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.14);
@@ -199,16 +199,16 @@
     min-width: 2px;
     width: 0;
     border-radius: 2px 2px 0 0;
-    background: rgb(4 120 87);
+    background: var(--home-rt-mean-above);
     align-self: flex-end;
     min-height: 2px;
     transition: height 0.25s ease, background 0.25s ease, opacity 0.25s ease;
   }
   .home-rt-spark-bar.is-above {
-    background: rgb(4 120 87);
+    background: var(--home-rt-mean-above);
   }
   .home-rt-spark-bar.is-below {
-    background: rgb(239 68 68);
+    background: var(--home-rt-mean-below);
   }
   .home-rt-spark-bar.is-empty {
     background: rgba(148, 163, 184, 0.35);
@@ -226,17 +226,17 @@
     vector-effect: non-scaling-stroke;
   }
   .home-rt-spark-line.is-above {
-    stroke: #047857;
+    stroke: var(--home-rt-mean-above);
   }
   .home-rt-spark-line.is-below {
-    stroke: #ef4444;
+    stroke: var(--home-rt-mean-below);
   }
   .home-rt-spark-end {
-    fill: #047857;
+    fill: var(--home-rt-mean-above);
     pointer-events: none;
   }
   .home-rt-spark-end.is-below {
-    fill: #ef4444;
+    fill: var(--home-rt-mean-below);
   }
   .home-rt-spark-empty {
     align-items: center;
@@ -250,33 +250,15 @@
     opacity: 0.55;
   }
   html.dark .home-rt-metric {
-    --home-rt-mean-above: #4a8f73;
-    --home-rt-mean-below: #f87171;
-    --home-rt-spark-area-fill: rgba(74, 143, 115, 0.12);
+    --home-rt-mean-above: #8fd4b8;
+    --home-rt-mean-below: #f2b0b6;
+    --home-rt-spark-area-fill: rgba(143, 212, 184, 0.16);
     border-color: rgba(255,255,255,0.06);
     background: linear-gradient(180deg, rgba(39, 39, 42, 0.82), rgba(24, 24, 27, 0.52));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 34px rgba(0,0,0,0.18);
   }
-  html.dark .home-rt-spark-line.is-above {
-    stroke: #4a8f73;
-  }
-  html.dark .home-rt-spark-line.is-below {
-    stroke: #f87171;
-  }
-  html.dark .home-rt-spark-bar.is-above {
-    background: rgb(74 143 115);
-  }
-  html.dark .home-rt-spark-bar.is-below {
-    background: rgb(248 113 113);
-  }
   html.dark .home-rt-spark-bar.is-empty {
     background: rgba(161, 161, 170, 0.45);
-  }
-  html.dark .home-rt-spark-end {
-    fill: #4a8f73;
-  }
-  html.dark .home-rt-spark-end.is-below {
-    fill: #f87171;
   }
   .home-motion-crash-pulse {
     position: relative;
@@ -369,19 +351,44 @@
     background: linear-gradient(180deg, rgba(153,27,27,0.38), rgba(51, 65, 85, 0.45));
     border-color: rgba(248, 113, 113, 0.35);
   }
-  .home-rt-countdown {
+  .home-rt-live-dot {
+    position: relative;
     display: inline-flex;
+    height: 0.625rem;
+    width: 0.625rem;
+  }
+  .home-rt-live-dot::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: #8fd4b8;
+    opacity: 0.55;
+    animation: home-rt-live-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .home-rt-live-dot::after {
+    content: "";
+    position: relative;
+    display: inline-flex;
+    height: 0.625rem;
+    width: 0.625rem;
+    border-radius: 9999px;
+    background: #7ecfb0;
+  }
+  @keyframes home-rt-live-ping {
+    75%, 100% { transform: scale(2.1); opacity: 0; }
+  }
     align-items: center;
     gap: 0.5rem;
     border-radius: 9999px;
-    border: 1px solid rgba(16, 185, 129, 0.24);
-    background: linear-gradient(180deg, rgba(236,253,245,0.95), rgba(240,253,250,0.92));
+    border: 1px solid rgba(126, 207, 176, 0.42);
+    background: linear-gradient(180deg, rgba(236, 250, 243, 0.96), rgba(245, 252, 248, 0.94));
     padding: 0.35rem 0.65rem 0.35rem 0.45rem;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
   }
   html.dark .home-rt-countdown {
-    background: linear-gradient(180deg, rgba(6,78,59,0.42), rgba(15,23,42,0.52));
-    border-color: rgba(52, 211, 153, 0.24);
+    background: linear-gradient(180deg, rgba(45, 90, 72, 0.38), rgba(24, 24, 27, 0.55));
+    border-color: rgba(143, 212, 184, 0.28);
   }
   .home-rt-countdown.is-urgent {
     border-color: rgba(245, 158, 11, 0.34);
@@ -408,7 +415,7 @@
     fill: none;
   }
   .home-rt-countdown-ring {
-    stroke: rgb(16 185 129);
+    stroke: #7ecfb0;
     stroke-width: 2.8;
     fill: none;
     stroke-linecap: round;
@@ -422,11 +429,11 @@
     font-variant-numeric: tabular-nums;
     font-size: 0.875rem;
     font-weight: 800;
-    color: rgb(5 150 105);
+    color: #5bb892;
   }
   .home-rt-countdown.is-urgent .home-rt-countdown-num { color: rgb(180 83 9); }
   .home-rt-countdown.is-refresh .home-rt-countdown-num { color: rgb(3 105 161); }
-  html.dark .home-rt-countdown-num { color: rgb(167 243 208); }
+  html.dark .home-rt-countdown-num { color: #a8e0c8; }
   html.dark .home-rt-countdown.is-urgent .home-rt-countdown-num { color: rgb(253 230 138); }
   html.dark .home-rt-countdown.is-refresh .home-rt-countdown-num { color: rgb(186 230 253); }
 </style>
@@ -456,7 +463,7 @@
   <section id="home-realtime-section" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
-      <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span></span>
+      <span class="home-rt-live-dot" aria-hidden="true"></span>
       <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">active users</h3>
     </div>
     {{ _placeholder_short | safe }}
