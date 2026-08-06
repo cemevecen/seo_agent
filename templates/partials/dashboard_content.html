@@ -78,6 +78,12 @@
   section.home-readable[data-home-container] {
     position: relative;
   }
+  [data-home-container-slot] {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
   .home-drive-container-badge {
     position: absolute;
     right: 0.55rem;
@@ -783,6 +789,7 @@
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="/static/js/home_gitlab_boards.js?v=3"></script>
   <script src="/static/js/home_top_pages.js?v=1"></script>
+  <div data-home-container-slot="realtime">
   <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
@@ -791,6 +798,7 @@
     </div>
     {{ _placeholder_short | safe }}
   </section>
+  </div>
   <script>
   (function () {
     var section = document.getElementById('home-realtime-section');
@@ -882,54 +890,67 @@
 
       {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <div data-home-container-slot="ga4-doviz">
         <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
           {{ _placeholder_mid | safe }}
         </section>
+        </div>
+        <div data-home-container-slot="ga4-sinemalar">
         <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
           {{ _placeholder_mid | safe }}
         </section>
+        </div>
       </div>
 
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <div data-home-container-slot="sc-doviz">
         <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
           {{ _placeholder_mid | safe }}
         </section>
+        </div>
+        <div data-home-container-slot="sc-sinemalar">
         <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=26" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
           {{ _placeholder_mid | safe }}
         </section>
+        </div>
       </div>
 
       {# Row 4 — Position Drops #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <div data-home-container-slot="position-doviz">
         <section hx-get="/api/home/position-drops?site=doviz&v=5" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="position-doviz"
                  hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
+        </div>
+        <div data-home-container-slot="position-sinemalar">
         <section hx-get="/api/home/position-drops?site=sinemalar&v=5" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
+        </div>
       </div>
     </div>
 
     {# Full-width — divider yok (Crashlytics ile aynı birleşik kart hissi) #}
+    <div data-home-container-slot="notification-week">
     <section hx-get="/api/home/notification-week?v=21" hx-trigger="load" hx-swap="innerHTML"
              data-home-container="notification-week"
              hx-headers='{"Cache-Control": "no-cache"}'
@@ -937,16 +958,20 @@
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Notification · 7g vs önceki 7g</h3>
       {{ _placeholder_tall | safe }}
     </section>
+    </div>
 
     {# Mobil mağaza / Firebase durum — full width #}
+    <div data-home-container-slot="crashlytics">
     <section hx-get="/api/home/crashlytics?product=doviz&v=5" hx-trigger="load" hx-swap="innerHTML" hx-timeout="120000"
              data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Mobil mağaza / Firebase durum</h3>
       {{ _placeholder_mid | safe }}
     </section>
+    </div>
 
     {# git.nokta — boards ile aynı GitLab/VPN kaynağı #}
+    <div data-home-container-slot="priority-board">
     <section hx-get="/api/home/priority-board?v=8" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="priority-board"
              hx-headers='{"Cache-Control": "no-cache"}'
@@ -954,6 +979,7 @@
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">git.nokta</h3>
       {{ _placeholder_tall | safe }}
     </section>
+    </div>
 
     <section hx-get="/api/home/drive-uploads?v=8" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              hx-headers='{"Cache-Control": "no-cache"}'
@@ -1175,7 +1201,13 @@
         listHtml +
       '</div>';
 
-    sec.insertAdjacentElement('afterend', panel);
+    // Grid kardeşi olarak ekleme sol sütuna düşürür — slot içinde kartın altına bağla
+    var slot = sec.closest('[data-home-container-slot]');
+    if (slot) {
+      sec.insertAdjacentElement('afterend', panel);
+    } else {
+      sec.appendChild(panel);
+    }
     homeDriveOpenPreview[key] = true;
     var badge = sec.querySelector('[data-home-drive-badge]');
     if (badge) {
