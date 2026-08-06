@@ -60,12 +60,18 @@
     width: 100%;
     height: 100%;
   }
+  .home-detail-kpi-bars.is-dense {
+    gap: 1px;
+  }
   .home-detail-kpi-bars span {
     flex: 1 1 0;
-    min-width: 2px;
+    min-width: 1px;
     border-radius: 1px 1px 0 0;
     height: var(--h, 12%);
     background: linear-gradient(180deg, rgb(100 116 139 / 0.9), rgb(71 85 105 / 0.78));
+  }
+  .home-detail-kpi-bars.is-dense span {
+    min-width: 1px;
   }
   .home-detail-kpi-spark.is-up .home-detail-kpi-bars span {
     background: linear-gradient(180deg, rgb(5 150 105 / 0.95), rgb(4 120 87 / 0.82));
@@ -152,7 +158,7 @@
           </div>
           {% if kpi.bar_heights %}
             <div class="home-detail-kpi-spark is-{{ _st }}" role="img" aria-label="{{ kpi.label }} günlük trend">
-              <div class="home-detail-kpi-bars">
+              <div class="home-detail-kpi-bars{% if kpi.bar_dense %} is-dense{% endif %}">
                 {% for h in kpi.bar_heights %}
                   <span style="--h: {{ h }}%"></span>
                 {% endfor %}

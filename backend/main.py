@@ -9096,6 +9096,34 @@ def _home_bar_heights(series: list[float] | None) -> list[int]:
     return [max(8, int(round((v / mx) * 100))) for v in vals]
 
 
+def _home_downsample_series(series: list[float] | None, *, max_bars: int = 28) -> list[float]:
+    """KPI kartı dar; 60/90g serisini detay sayfasındaki gibi okunur çubuk sayısına indir."""
+    vals: list[float] = []
+    for v in series or []:
+        try:
+            vals.append(float(v or 0))
+        except (TypeError, ValueError):
+            vals.append(0.0)
+    n = len(vals)
+    cap = max(4, int(max_bars or 28))
+    if n <= cap:
+        return vals
+    # Eşit aralıklı örnekleme — son noktayı koru
+    out: list[float] = []
+    last_idx = -1
+    for i in range(cap):
+        idx = int(round(i * (n - 1) / (cap - 1))) if cap > 1 else 0
+        if idx == last_idx and idx + 1 < n:
+            idx += 1
+        last_idx = idx
+        out.append(vals[idx])
+    return out
+
+
+def _home_spark_bar_heights(series: list[float] | None, *, max_bars: int = 28) -> list[int]:
+    return _home_bar_heights(_home_downsample_series(series, max_bars=max_bars))
+
+
 def _home_spark_tone_from_home(tone: str) -> str:
     t = str(tone or "flat")
     if t.startswith("up"):
@@ -9184,7 +9212,7 @@ def _home_fmt_avg_session_sec(sec: float) -> str:
 
 
 def _home_ga4_detail_kpis(db, site_id: int, profile: str, *, period_days: int = 7) -> list[dict]:
-    """Detay sayfası KPI kartları — home tam genişlik paneli için."""
+    """Detay sayfası KPI kartları — home tam genişlik paneli için (aynı daily_trend)."""
     period_days = _home_clamp_period_days(period_days)
     snap = get_latest_ga4_report_snapshot(
         db, site_id=site_id, profile=profile, period_days=period_days
@@ -9196,13 +9224,17 @@ def _home_ga4_detail_kpis(db, site_id: int, profile: str, *, period_days: int = 
     la = summary.get("last") or {}
     pr = summary.get("prev") or {}
     period_daily = payload.get("daily_trend") if isinstance(payload.get("daily_trend"), dict) else {}
-    _daily, spark_daily = _ga4_daily_trends_for_ui(
+    daily, spark_daily = _ga4_daily_trends_for_ui(
         db,
         site_id=site_id,
         profile=profile,
         period_daily=period_daily,
         period_days=period_days,
     )
+    # Spark kaynağı: detay sayfasıyla aynı hizalama; boşsa ham dönem serisi
+    spark_src = spark_daily if isinstance(spark_daily, dict) else {}
+    daily_src = daily if isinstance(daily, dict) else {}
+    period_src = _ga4_align_daily_trend(period_daily) if period_daily else {}
 
     def _f(slice_: dict, key: str) -> float:
         try:
@@ -9211,14 +9243,17 @@ def _home_ga4_detail_kpis(db, site_id: int, profile: str, *, period_days: int = 
             return 0.0
 
     def _series(key: str) -> list[float]:
-        arr = (spark_daily or {}).get(key) or []
-        out: list[float] = []
-        for v in arr:
-            try:
-                out.append(float(v or 0))
-            except (TypeError, ValueError):
-                out.append(0.0)
-        return out[-period_days:] if len(out) > period_days else out
+        for src in (spark_src, daily_src, period_src):
+            arr = (src or {}).get(key) or []
+            out: list[float] = []
+            for v in arr:
+                try:
+                    out.append(float(v or 0))
+                except (TypeError, ValueError):
+                    out.append(0.0)
+            if any(x > 0 for x in out):
+                return out[-period_days:] if len(out) > period_days else out
+        return []
 
     specs = [
         ("sessions", "SESSIONS", "int"),
@@ -9231,6 +9266,9 @@ def _home_ga4_detail_kpis(db, site_id: int, profile: str, *, period_days: int = 
     # Users: snapshot bazen totalUsers
     if _f(la, "activeUsers") <= 0 and _f(la, "totalUsers") > 0:
         specs[1] = ("totalUsers", "USERS", "int")
+
+    # Kart genişliği için çubuk tavanı (detay sayfası dense eşiğine yakın)
+    max_bars = 28 if period_days <= 30 else (36 if period_days <= 60 else 45)
 
     out: list[dict] = []
     for key, label, kind in specs:
@@ -9247,6 +9285,9 @@ def _home_ga4_detail_kpis(db, site_id: int, profile: str, *, period_days: int = 
         series = _series(key if key != "totalUsers" else "activeUsers")
         if key == "totalUsers" and not any(series):
             series = _series("activeUsers")
+        if key == "activeUsers" and not any(series):
+            series = _series("totalUsers")
+        bars = _home_spark_bar_heights(series, max_bars=max_bars)
         out.append({
             "key": key,
             "label": label,
@@ -9255,7 +9296,8 @@ def _home_ga4_detail_kpis(db, site_id: int, profile: str, *, period_days: int = 
             "spark_tone": _home_spark_tone_from_home(tone),
             "cur_fmt": cur_fmt,
             "prev_fmt": prev_fmt,
-            "bar_heights": _home_bar_heights(series),
+            "bar_heights": bars,
+            "bar_dense": len(bars) > 31,
         })
     return out
 
@@ -9281,11 +9323,19 @@ def _home_sc_detail_kpis(
     ctr_delta, ctr_tone, _ = _home_pct_delta(c_ctr, p_ctr)
     pos_diff = _sc_position_delta(c_pos, p_pos)
     pos_tone = _home_pos_tone(pos_diff)
+    max_bars = 28 if period_days <= 30 else (36 if period_days <= 60 else 45)
 
-    def _bars(metric: str) -> list[int]:
-        return _home_bar_heights(
-            _home_sc_trend_series(summary_payload, device, metric, days=period_days)
+    def _bars(metric: str) -> tuple[list[int], bool]:
+        heights = _home_spark_bar_heights(
+            _home_sc_trend_series(summary_payload, device, metric, days=period_days),
+            max_bars=max_bars,
         )
+        return heights, len(heights) > 31
+
+    clicks_bars, clicks_dense = _bars("clicks")
+    impr_bars, impr_dense = _bars("impressions")
+    ctr_bars, ctr_dense = _bars("ctr")
+    pos_bars, pos_dense = _bars("position")
 
     return [
         {
@@ -9296,7 +9346,8 @@ def _home_sc_detail_kpis(
             "spark_tone": _home_spark_tone_from_home(clicks_tone),
             "cur_fmt": _home_format_int(c_clicks),
             "prev_fmt": _home_format_int(p_clicks),
-            "bar_heights": _bars("clicks"),
+            "bar_heights": clicks_bars,
+            "bar_dense": clicks_dense,
         },
         {
             "key": "impressions",
@@ -9306,7 +9357,8 @@ def _home_sc_detail_kpis(
             "spark_tone": _home_spark_tone_from_home(impr_tone),
             "cur_fmt": _home_format_int(c_impr),
             "prev_fmt": _home_format_int(p_impr),
-            "bar_heights": _bars("impressions"),
+            "bar_heights": impr_bars,
+            "bar_dense": impr_dense,
         },
         {
             "key": "ctr",
@@ -9316,7 +9368,8 @@ def _home_sc_detail_kpis(
             "spark_tone": _home_spark_tone_from_home(ctr_tone),
             "cur_fmt": f"{c_ctr:.2f}%" if c_impr > 0 or c_ctr > 0 else "—",
             "prev_fmt": f"{p_ctr:.2f}%" if p_impr > 0 or p_ctr > 0 else "—",
-            "bar_heights": _bars("ctr"),
+            "bar_heights": ctr_bars,
+            "bar_dense": ctr_dense,
         },
         {
             "key": "position",
@@ -9326,7 +9379,8 @@ def _home_sc_detail_kpis(
             "spark_tone": _home_spark_tone_from_home(pos_tone),
             "cur_fmt": _format_max_two_decimals(c_pos) if c_pos else "—",
             "prev_fmt": _format_max_two_decimals(p_pos) if p_pos else "—",
-            "bar_heights": _bars("position"),
+            "bar_heights": pos_bars,
+            "bar_dense": pos_dense,
         },
     ]
 
