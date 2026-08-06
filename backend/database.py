@@ -81,13 +81,32 @@ def get_db():
         db.close()
 
 
-def init_db() -> None:
-    """Alembic kullanmadan tüm tabloları create_all ile oluşturur."""
+def init_db(*, with_indexes: bool = True) -> None:
+    """Alembic kullanmadan tüm tabloları create_all ile oluşturur.
+
+    with_indexes=False: Railway healthcheck için hızlı açılış — index/DDL arka plana bırakılır.
+    Büyük ad_report_rows üzerinde CREATE INDEX senkron startup’ta 60s+ sürebilir.
+    """
     from backend import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
-    ensure_indexes()
+    if with_indexes:
+        ensure_indexes()
 
+
+def ensure_indexes_background() -> None:
+    """Startup’ı bloklamadan index/DDL çalıştır."""
+    import threading
+
+    def _runner() -> None:
+        try:
+            LOGGER.info("DB ensure_indexes (background) başladı")
+            ensure_indexes()
+            LOGGER.info("DB ensure_indexes (background) bitti")
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("DB ensure_indexes (background) hata: %s", exc)
+
+    threading.Thread(target=_runner, daemon=True, name="db-ensure-indexes").start()
 
 def ensure_indexes() -> None:
     """Sık kullanılan sorgular için eksik composite index'leri oluşturur.

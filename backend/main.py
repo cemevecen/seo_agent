@@ -1932,9 +1932,18 @@ def on_startup() -> None:
 
     # Startup logic continued
     # Uygulama açılışında tablolar create_all ile hazırlanır.
+    # Index/DDL büyük tablolarda dakikalar sürebilir → healthcheck (/health) bloklanmasın.
     global SCHEDULER
-    init_db()
+    LOGGER.info("Startup: init_db (create_all, indexes deferred)…")
+    init_db(with_indexes=False)
+    try:
+        from backend.database import ensure_indexes_background
+
+        ensure_indexes_background()
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("ensure_indexes_background kayıt hatası: %s", exc)
     _bootstrap_admin_password_from_env()
+    LOGGER.info("Startup: core DB ready")
     if is_railway_runtime():
         LOGGER.info(
             "Panel auth: Railway ortamı — giriş zorunlu (ADMIN_AUTH_ENFORCED=%s yok sayılır).",
