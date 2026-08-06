@@ -956,7 +956,8 @@ def import_rows(
             db.commit()
         _emit("parse_done")
     except Exception:
-        db.rollback()
+        if commit:
+            db.rollback()
         raise
     return {
         "inserted": inserted,
@@ -1107,7 +1108,8 @@ def import_upload_file(
             if int(result.get("parsed") or 0) > 0:
                 invalidate_facets_cache()
     except Exception:
-        db.rollback()
+        if commit:
+            db.rollback()
         raise
     result["filename"] = filename
     result["channel"] = channel

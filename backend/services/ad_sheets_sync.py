@@ -56,7 +56,13 @@ _job: dict[str, Any] = {
     "started_at": None,
     "finished_at": None,
     "elapsed_s": None,
+    "cancel_requested": False,
+    "cancelled": False,
 }
+
+
+class SyncCancelled(Exception):
+    """Kullanıcı senkronu iptal etti — oturum rollback edilecek."""
 
 
 def _iso_now() -> str:
@@ -81,6 +87,47 @@ def get_sync_job() -> dict[str, Any]:
 def _set_job(**kwargs: Any) -> None:
     with _job_lock:
         _job.update(kwargs)
+
+
+def is_sync_cancel_requested() -> bool:
+    with _job_lock:
+        return bool(_job.get("cancel_requested"))
+
+
+def request_cancel_sync_job() -> dict[str, Any]:
+    """Çalışan arka plan senkronunu iptal et; DB oturumu rollback ile eski haline döner."""
+    with _job_lock:
+        if not _job.get("running"):
+            return {
+                "ok": False,
+                "accepted": False,
+                "message": "Çalışan senkron yok.",
+                "job": dict(_job),
+            }
+        if _job.get("cancel_requested"):
+            return {
+                "ok": True,
+                "accepted": True,
+                "message": "İptal zaten istenmiş; geri alınıyor…",
+                "job": dict(_job),
+            }
+        _job["cancel_requested"] = True
+        _job["phase"] = "cancelling"
+        _job["detail"] = "İptal isteniyor · bu oturumdaki değişiklikler geri alınıyor…"
+        _job["message"] = _job["detail"]
+        out = dict(_job)
+        out["streams"] = list(_job.get("streams") or [])
+    return {
+        "ok": True,
+        "accepted": True,
+        "message": "Senkron iptal ediliyor; önceki güncelleme durumu korunacak.",
+        "job": out,
+    }
+
+
+def _raise_if_cancelled() -> None:
+    if is_sync_cancel_requested():
+        raise SyncCancelled("Kullanıcı iptal etti")
 
 
 def _short_sync_error(exc: BaseException, *, limit: int = 220) -> str:
@@ -166,6 +213,7 @@ def sync_one_sheet(
     commit: bool = True,
     full: bool = False,
     on_phase: Callable[..., None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     src = next((s for s in AD_SHEET_SOURCES if s.stream_key == stream_key), None)
     if src is None:
@@ -177,7 +225,12 @@ def sync_one_sheet(
         if on_phase:
             on_phase(phase, detail, **extra)
 
+    def _check_cancel() -> None:
+        if cancel_check and cancel_check():
+            raise SyncCancelled("Kullanıcı iptal etti")
+
     t0 = time.monotonic()
+    _check_cancel()
     before = _stream_date_bounds(db, stream_key)
     catalog = sheet_catalog_filename(stream_key)
     prior_sheet = db.execute(
@@ -217,6 +270,7 @@ def sync_one_sheet(
             "elapsed_s": round(time.monotonic() - t0, 1),
         }
 
+    _check_cancel()
     exclude_keys: set[tuple[str, date, str]] | None = None
     excluded_sibling = 0
     purged_sibling = 0
@@ -252,6 +306,7 @@ def sync_one_sheet(
                     "elapsed_s": round(time.monotonic() - t0, 1),
                 }
 
+    _check_cancel()
     nbytes = len(csv_text.encode("utf-8"))
     if min_import is not None:
         _phase(
@@ -286,6 +341,7 @@ def sync_one_sheet(
             min_import.isoformat() if min_import else "?",
         )
 
+    _check_cancel()
     _phase(
         "import",
         (
@@ -297,6 +353,7 @@ def sync_one_sheet(
     raw = csv_text.encode("utf-8")
 
     def _import_progress(ev: dict[str, Any]) -> None:
+        _check_cancel()
         scanned = int(ev.get("scanned") or ev.get("parsed") or 0)
         est = int(ev.get("row_estimate") or 0)
         kept = int(ev.get("kept") or ev.get("parsed") or 0)
@@ -328,6 +385,7 @@ def sync_one_sheet(
             progress_cb=_import_progress,
             exclude_keys=exclude_keys,
         )
+        _check_cancel()
         if exclude_keys:
             _phase("purge_sibling", f"{src.label}: kardeş sheet sızıntısı temizleniyor…")
             purged_sibling = purge_stream_business_keys(
@@ -336,9 +394,12 @@ def sync_one_sheet(
         if commit:
             db.commit()
             invalidate_facets_cache()
+    except SyncCancelled:
+        raise
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Ad sheet import failed %s", stream_key)
-        db.rollback()
+        if commit:
+            db.rollback()
         return {
             "ok": False,
             "stream_key": stream_key,
@@ -377,6 +438,7 @@ def sync_one_sheet(
     }
 
 
+
 def sync_from_google_sheets(
     db: Session,
     *,
@@ -384,8 +446,13 @@ def sync_from_google_sheets(
     stream_key: str | None = None,
     full: bool = False,
     on_progress: Callable[[dict[str, Any]], None] | None = None,
+    atomic: bool = False,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Tüm (veya tek) reklam sheet'lerini çekip DB'ye yazar."""
+    """Tüm (veya tek) reklam sheet'lerini çekip DB'ye yazar.
+
+    atomic=True: tek transaction — iptalde rollback ile oturum öncesi duruma döner.
+    """
     global _last_sheet_sync_mono, _last_sheet_sync_at, _last_sheet_sync_result
 
     now = time.monotonic()
@@ -432,7 +499,13 @@ def sync_from_google_sheets(
             payload.update(extra)
         on_progress(payload)
 
+    def _check() -> None:
+        if cancel_check and cancel_check():
+            raise SyncCancelled("Kullanıcı iptal etti")
+
     for i, src in enumerate(sources):
+        _check()
+
         def _on_phase(phase: str, detail: str, *, _i: int = i, _src=src, **extra: Any) -> None:
             payload = {
                 "phase": phase,
@@ -459,13 +532,33 @@ def sync_from_google_sheets(
                 "rows_label": "",
             }
         )
-        item = sync_one_sheet(
-            db,
-            stream_key=src.stream_key,
-            commit=True,
-            full=full,
-            on_phase=_on_phase,
-        )
+        nested = None
+        if atomic:
+            nested = db.begin_nested()
+        try:
+            item = sync_one_sheet(
+                db,
+                stream_key=src.stream_key,
+                commit=not atomic,
+                full=full,
+                on_phase=_on_phase,
+                cancel_check=cancel_check,
+            )
+            if nested is not None:
+                nested.commit()
+        except SyncCancelled:
+            if nested is not None:
+                nested.rollback()
+            raise
+        except Exception as exc:  # noqa: BLE001
+            if nested is not None:
+                nested.rollback()
+            item = {
+                "ok": False,
+                "stream_key": src.stream_key,
+                "label": src.label,
+                "error": _short_sync_error(exc),
+            }
         per_stream.append(item)
         if item.get("ok"):
             ok_count += 1
@@ -488,6 +581,9 @@ def sync_from_google_sheets(
             }
         )
 
+    _check()
+    if atomic:
+        db.commit()
     invalidate_facets_cache()
     _last_sheet_sync_mono = time.monotonic()
     _last_sheet_sync_at = datetime.utcnow()
@@ -500,6 +596,7 @@ def sync_from_google_sheets(
         "synced": True,
         "skipped": False,
         "full": full,
+        "atomic": atomic,
         "message": message,
         "ok_count": ok_count,
         "fail_count": fail_count,
@@ -569,6 +666,8 @@ def start_sync_job(
                 "started_at": _iso_now(),
                 "finished_at": None,
                 "elapsed_s": None,
+                "cancel_requested": False,
+                "cancelled": False,
             }
         )
 
@@ -592,6 +691,13 @@ def start_sync_job(
                 "message": payload.get("detail") or _job.get("message") or "",
                 "elapsed_s": round(time.monotonic() - t0, 1),
             }
+            # İptal istenmişse phase'i ezme — UI "cancelling" görsün.
+            if is_sync_cancel_requested() and update["phase"] not in ("cancelling", "cancelled"):
+                update["phase"] = "cancelling"
+                update["detail"] = (
+                    "İptal isteniyor · " + (update["detail"] or "geri alınıyor…")
+                )
+                update["message"] = update["detail"]
             if "rows_done" in payload:
                 update["rows_done"] = int(payload.get("rows_done") or 0)
             if "rows_total" in payload:
@@ -604,13 +710,30 @@ def start_sync_job(
 
         try:
             with SessionLocal() as db:
-                result = sync_from_google_sheets(
-                    db,
-                    force=force,
-                    stream_key=stream_key,
-                    full=full,
-                    on_progress=on_progress,
-                )
+                try:
+                    result = sync_from_google_sheets(
+                        db,
+                        force=force,
+                        stream_key=stream_key,
+                        full=full,
+                        on_progress=on_progress,
+                        atomic=True,
+                        cancel_check=is_sync_cancel_requested,
+                    )
+                except SyncCancelled:
+                    db.rollback()
+                    _set_job(
+                        running=False,
+                        phase="cancelled",
+                        detail="İptal edildi · önceki güncelleme durumu korundu",
+                        message="İptal edildi · önceki güncelleme durumu korundu",
+                        cancelled=True,
+                        cancel_requested=True,
+                        finished_at=_iso_now(),
+                        elapsed_s=round(time.monotonic() - t0, 1),
+                        error=None,
+                    )
+                    return
             _set_job(
                 running=False,
                 phase="done",
@@ -624,6 +747,8 @@ def start_sync_job(
                 finished_at=_iso_now(),
                 elapsed_s=round(time.monotonic() - t0, 1),
                 error=None,
+                cancelled=False,
+                cancel_requested=False,
             )
         except Exception as exc:  # noqa: BLE001
             LOGGER.exception("Ad sheets background sync failed")

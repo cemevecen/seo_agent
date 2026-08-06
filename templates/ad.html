@@ -398,6 +398,11 @@
           class="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
           title="Google Sheets reklam gelirlerini çekip grafikleri günceller"
         >Verileri güncelle</button>
+        <button
+          type="button"
+          id="mz-cancel-sheets-sync-top"
+          class="hidden rounded-lg border border-rose-400 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-60 dark:border-rose-800 dark:bg-zinc-950 dark:text-rose-300"
+        >İptal et</button>
         <a href="/ad/app-banner" class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">GA4 banner paneli (geniş)</a>
       </div>
     </div>
@@ -438,6 +443,11 @@
         id="mz-refresh-sheets-side"
         class="w-full rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
       >Verileri güncelle</button>
+      <button
+        type="button"
+        id="mz-cancel-sheets-sync"
+        class="mt-2 hidden w-full rounded-lg border border-rose-400 bg-white px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-60 dark:border-rose-800 dark:bg-zinc-950 dark:text-rose-300 dark:hover:bg-rose-950/40"
+      >İptal et</button>
       <details class="mt-2 rounded-lg border border-violet-200/90 bg-violet-50/50 p-2.5 dark:border-violet-900/50 dark:bg-violet-950/25">
         <summary class="cursor-pointer text-xs font-semibold text-violet-900 dark:text-violet-200">Empower uygulama verisi (Android / iOS)</summary>
         <p class="mt-2 text-[10px] leading-snug text-violet-900/80 dark:text-violet-200/80">
@@ -10812,6 +10822,58 @@
     });
   }
 
+  function setMzSheetsCancelVisible(on) {
+    ["mz-cancel-sheets-sync", "mz-cancel-sheets-sync-top"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle("hidden", !on);
+      if (!on) el.disabled = false;
+    });
+  }
+
+  function setMzSheetsCancelBusy(busy) {
+    ["mz-cancel-sheets-sync", "mz-cancel-sheets-sync-top"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.disabled = !!busy;
+      el.textContent = busy ? "İptal ediliyor…" : "İptal et";
+    });
+  }
+
+  async function requestMzSheetsSyncCancel() {
+    setMzSheetsCancelBusy(true);
+    try {
+      var resp = await fetch("/api/mz-analytics/sync-sheets/cancel", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      var payload = await resp.json().catch(function () { return {}; });
+      if (!resp.ok || payload.accepted === false) {
+        throw new Error(payload.message || "İptal isteği başarısız");
+      }
+      setUploadProgressTheme("active");
+      setUploadProgress(
+        mzUploadLastPct || 50,
+        "İptal ediliyor",
+        payload.message || "Önceki güncelleme durumuna dönülüyor…",
+        { allowDecrease: true }
+      );
+      var statusEl = document.getElementById("mz-status");
+      if (statusEl) statusEl.textContent = payload.message || "İptal ediliyor…";
+      var summaryUl = document.getElementById("mz-upload-progress-summary");
+      if (summaryUl) {
+        var li = document.createElement("li");
+        li.className = "text-slate-600 dark:text-zinc-300";
+        li.textContent = "⊘ İptal istendi · önceki güncelleme durumuna dönülüyor…";
+        summaryUl.appendChild(li);
+      }
+    } catch (err) {
+      setMzSheetsCancelBusy(false);
+      var statusEl2 = document.getElementById("mz-status");
+      if (statusEl2) statusEl2.textContent = (err && err.message) || "İptal başarısız";
+    }
+  }
+
   function mzSheetStreamCatalog() {
     return [
       { stream_key: "doviz:desktop", label: "Döviz · Web" },
@@ -10848,6 +10910,8 @@
     var statusEl = document.getElementById("mz-status");
     var summaryUl = document.getElementById("mz-upload-progress-summary");
     setMzSheetsButtonsDisabled(true);
+    setMzSheetsCancelVisible(true);
+    setMzSheetsCancelBusy(false);
     setUploadProgressVisible(true);
     setUploadProgressTheme("active");
     if (summaryUl) {
@@ -10955,10 +11019,17 @@
         }
         setUploadProgress(
           job.running ? Math.min(98, pctBase) : 100,
-          failCount ? "Sheets · " + failCount + " hata" : (job.running ? "Sheets senkron" : "Tamamlandı"),
+          failCount
+            ? "Sheets · " + failCount + " hata"
+            : (job.phase === "cancelling" || job.cancel_requested
+              ? "İptal ediliyor"
+              : (job.running ? "Sheets senkron" : "Tamamlandı")),
           detailTxt,
           { allowDecrease: true }
         );
+        if (job.phase === "cancelling" || job.cancel_requested) {
+          setMzSheetsCancelBusy(true);
+        }
         if (statusEl) {
           statusEl.textContent =
             (job.stream_label || job.stream_key || "Sheets") +
@@ -10979,23 +11050,35 @@
       var okCount = Number(job.ok_count) || 0;
       var failFinal = Number(job.fail_count) || 0;
       var totalParsed = Number(job.total_parsed) || 0;
-      if (job.phase === "error" || job.error) {
+      if (job.phase === "cancelled" || job.cancelled) {
+        setUploadProgressTheme("active");
+        appendSyncLine("⊘ İptal edildi · önceki güncelleme durumu korundu", "info");
+        setUploadProgress(
+          100,
+          "İptal edildi",
+          "Bu oturumdaki değişiklikler geri alındı",
+          { allowDecrease: true }
+        );
+        if (statusEl) statusEl.textContent = "İptal edildi · önceki güncelleme durumu korundu";
+      } else if (job.phase === "error" || job.error) {
         setUploadProgressTheme("err");
         appendSyncLine("✗ " + shortSyncMsg(job.error || job.message), "err");
       } else if (failFinal) {
         setUploadProgressTheme("err");
       }
-      setUploadProgress(
-        100,
-        failFinal ? "Kısmi tamamlandı" : "Tamamlandı",
-        okCount + " sheet · " + totalParsed.toLocaleString("tr-TR") + " satır" +
-          (job.elapsed_s != null ? " · " + job.elapsed_s + "s" : ""),
-        { allowDecrease: true }
-      );
-      if (statusEl) {
-        statusEl.textContent =
+      if (job.phase !== "cancelled" && !job.cancelled) {
+        setUploadProgress(
+          100,
+          failFinal ? "Kısmi tamamlandı" : "Tamamlandı",
           okCount + " sheet · " + totalParsed.toLocaleString("tr-TR") + " satır" +
-          (failFinal ? " · " + failFinal + " hata" : "");
+            (job.elapsed_s != null ? " · " + job.elapsed_s + "s" : ""),
+          { allowDecrease: true }
+        );
+        if (statusEl) {
+          statusEl.textContent =
+            okCount + " sheet · " + totalParsed.toLocaleString("tr-TR") + " satır" +
+            (failFinal ? " · " + failFinal + " hata" : "");
+        }
       }
       await loadMzSheetsStatus();
       await loadFacets({ cacheBust: true });
@@ -11006,6 +11089,8 @@
       appendSyncLine("✗ " + ((err && err.message) || "başarısız"), "err");
       if (statusEl) statusEl.textContent = (err && err.message) || "Sheets senkron başarısız";
     } finally {
+      setMzSheetsCancelVisible(false);
+      setMzSheetsCancelBusy(false);
       setMzSheetsButtonsDisabled(false);
     }
   }
@@ -11015,6 +11100,12 @@
   });
   on("mz-refresh-sheets-side", "click", function () {
     syncMzSheetsFromGoogle({ streamKey: selectedMzSheetStreamKey() });
+  });
+  on("mz-cancel-sheets-sync", "click", function () {
+    requestMzSheetsSyncCancel();
+  });
+  on("mz-cancel-sheets-sync-top", "click", function () {
+    requestMzSheetsSyncCancel();
   });
 
   on("mz-upload", "click", async function () {

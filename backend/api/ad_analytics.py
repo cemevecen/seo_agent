@@ -238,6 +238,14 @@ def get_ad_sync_sheets_job():
     return sheets_sync.get_sync_job()
 
 
+@router.post("/mz-analytics/sync-sheets/cancel")
+def post_ad_sync_sheets_cancel():
+    """Çalışan Sheets senkronunu iptal et; oturum değişiklikleri rollback olur."""
+    from backend.services import ad_sheets_sync as sheets_sync
+
+    return sheets_sync.request_cancel_sync_job()
+
+
 @router.post("/mz-analytics/append")
 async def post_ad_analytics_append(
     file: UploadFile = File(...),

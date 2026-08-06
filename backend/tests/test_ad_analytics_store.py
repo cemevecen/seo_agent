@@ -731,3 +731,90 @@ def test_iter_csv_scan_progress_every_n_rows():
     assert scans[-1] == (12, 12)
     assert _fmt_row_count(111234) == "111k"
     assert _fmt_row_count(352897) == "352k"
+
+
+def test_request_cancel_sync_job_flags_running_job():
+    from backend.services import ad_sheets_sync as sheets_sync
+
+    sheets_sync._set_job(
+        running=False,
+        cancel_requested=False,
+        cancelled=False,
+        phase="idle",
+    )
+    denied = sheets_sync.request_cancel_sync_job()
+    assert denied["accepted"] is False
+
+    sheets_sync._set_job(running=True, cancel_requested=False, phase="import", detail="…")
+    accepted = sheets_sync.request_cancel_sync_job()
+    assert accepted["accepted"] is True
+    assert sheets_sync.is_sync_cancel_requested() is True
+    assert accepted["job"]["phase"] == "cancelling"
+
+    sheets_sync._set_job(
+        running=False,
+        cancel_requested=False,
+        cancelled=False,
+        phase="idle",
+    )
+
+
+def test_atomic_sync_cancel_rolls_back_stream_changes(monkeypatch):
+    """İptalde bu oturumdaki yazımlar geri alınır; önceki satırlar kalır."""
+    from backend.services import ad_sheets_sync as sheets_sync
+
+    init_db()
+    header = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    prior = header + "keep_unit,Haziran 2026,01.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,42\n"
+    incoming = header + (
+        "keep_unit,Haziran 2026,01.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,999\n"
+        "new_unit,Haziran 2026,02.06.2026,Open Auction,1,1,1,0,0,0,0,0,0,99\n"
+    )
+
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_upload_file(
+            db,
+            prior.encode("utf-8"),
+            filename="sinemalar_mweb_google_sheet.csv",
+            commit=True,
+            stream_key="sinemalar:mweb",
+        )
+        assert db.query(AdReportRow).count() == 1
+
+        monkeypatch.setattr(
+            sheets_sync,
+            "fetch_public_sheet_csv",
+            lambda url, timeout=300: incoming,
+        )
+
+        cancel_after_clear = {"v": False}
+
+        def on_progress(payload):
+            if payload.get("phase") == "clear":
+                cancel_after_clear["v"] = True
+
+        raised = False
+        try:
+            sheets_sync.sync_from_google_sheets(
+                db,
+                force=True,
+                stream_key="sinemalar:mweb",
+                full=True,
+                atomic=True,
+                on_progress=on_progress,
+                cancel_check=lambda: cancel_after_clear["v"],
+            )
+        except sheets_sync.SyncCancelled:
+            raised = True
+            db.rollback()
+
+        assert raised
+        rows = db.query(AdReportRow).all()
+        assert len(rows) == 1
+        assert rows[0].ad_unit == "keep_unit"
+        assert float(rows[0].net_revenue) == 42.0
+        store.reset_all(db)
