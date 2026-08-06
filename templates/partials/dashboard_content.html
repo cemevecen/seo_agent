@@ -549,12 +549,12 @@
 
       {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&v=9" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&v=10" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=9" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&v=10" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">session changes 7 days</h3>
           {{ _placeholder_mid | safe }}
@@ -563,12 +563,12 @@
 
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/sc-summary?site=doviz&v=12" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&v=13" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/sc-summary?site=sinemalar&v=12" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&v=13" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
           {{ _placeholder_mid | safe }}

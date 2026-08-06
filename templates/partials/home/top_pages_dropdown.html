@@ -255,7 +255,7 @@
         <li class="home-top-pages-row">
           <span class="home-top-pages-rank">{{ loop.index }}</span>
           {% if row.href %}
-            <a class="home-top-pages-link" href="{{ row.href }}" target="_blank" rel="noopener noreferrer" title="{{ row.label }}">{{ row.label }}</a>
+            <a class="home-top-pages-link" href="{{ row.href }}" target="_blank" rel="noopener noreferrer" title="{{ row.href }}">{{ row.label }}</a>
           {% else %}
             <span class="home-top-pages-link is-plain" title="{{ row.label }}">{{ row.label }}</span>
           {% endif %}
