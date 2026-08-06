@@ -722,10 +722,37 @@ def post_ad_analytics_delete_import(
     source_file = str(body.get("source_file") or "").strip()
     if not source_file:
         raise HTTPException(status_code=400, detail="source_file gerekli")
+    restore = body.get("restore", True)
+    if isinstance(restore, str):
+        restore = restore.strip().lower() not in ("0", "false", "no")
     try:
-        return store.delete_source_file(db, source_file)
+        return store.delete_source_file(db, source_file, restore=bool(restore))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/mz-analytics/delete-imports-bulk")
+def post_ad_analytics_delete_imports_bulk(
+    db: Session = Depends(get_db),
+    body: dict = Body(...),
+):
+    raw_files = body.get("source_files") or body.get("files") or []
+    if not isinstance(raw_files, list) or not raw_files:
+        raise HTTPException(status_code=400, detail="source_files gerekli")
+    restore = body.get("restore", True)
+    if isinstance(restore, str):
+        restore = restore.strip().lower() not in ("0", "false", "no")
+    try:
+        return store.delete_source_files_bulk(
+            db,
+            [str(x) for x in raw_files],
+            restore=bool(restore),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=500, detail=str(exc)) from exc

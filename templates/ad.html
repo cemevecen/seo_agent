@@ -11324,9 +11324,9 @@
       : files.slice(0, 3).join(", ") + " … +" + (files.length - 3) + " dosya";
     mzConfirmTwoStep({
       title: "Seçili dosyaları sil",
-      step1: files.length + " dosya silinsin mi? Sırayla kaldırılır; grafikler sonunda yenilenir.",
+      step1: files.length + " dosya tek seferde silinsin mi? Grafikler sonunda yenilenir.",
       detail: preview,
-      step2Warn: "Son onay: seçili dosyalar veritabanından tamamen kaldırılır. Üst üste bindirilmiş günler önceki dosyadan geri gelir.",
+      step2Warn: "Son onay: seçili dosyalar veritabanından kaldırılır. Üst üste bindirilmiş günler önceki dosyadan geri gelir.",
       confirmFinal: "Evet, " + files.length + " dosyayı sil",
     }).then(function (ok) {
       if (!ok) return;
@@ -11340,42 +11340,78 @@
     mzUpdateImportBulkUi();
     var statusEl = document.getElementById("mz-status");
     var total = files.length;
-    var deletedOk = 0;
-    var totalRowsRemoved = 0;
-    mzShowDeleteOverlay(files[0], { bulk: true, progressText: "0 / " + total + " tamamlandı" });
+    mzShowDeleteOverlay(files[0], {
+      bulk: true,
+      progressText: total + " dosya · hızlı siliniyor…",
+    });
     try {
-      for (var i = 0; i < files.length; i++) {
-        var sourceFile = files[i];
-        state._mzDeletePendingFile = sourceFile;
-        mzShowDeleteOverlay(sourceFile, {
-          bulk: true,
-          progressText: (i + 1) + " / " + total + " — siliniyor…",
-          keepDoneList: true,
-        });
-        if (statusEl) statusEl.textContent = "Siliniyor (" + (i + 1) + "/" + total + "): " + sourceFile + "…";
-        mzNudgeDeleteOverlay();
-        if (mzIsEmpowerFilename(sourceFile)) {
-          await mzDeleteEmpowerImport(sourceFile);
-          mzAppendDeleteOverlayDoneItem(sourceFile, { deleted_rows: 0 });
-          deletedOk += 1;
-          continue;
-        }
-        var r = await fetch("/api/mz-analytics/delete-import", {
+      var adFiles = [];
+      var empowerFiles = [];
+      files.forEach(function (f) {
+        if (mzIsEmpowerFilename(f)) empowerFiles.push(f);
+        else adFiles.push(f);
+      });
+
+      var totalRowsRemoved = 0;
+      var deletedOk = 0;
+      var restoredTotal = 0;
+
+      if (empowerFiles.length) {
+        if (statusEl) statusEl.textContent = "Empower dosyaları siliniyor…";
+        var er = await fetch("/api/mz-analytics/app-empower/delete-imports-bulk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source_file: sourceFile }),
+          body: JSON.stringify({ source_files: empowerFiles }),
+          credentials: "same-origin",
+        });
+        var ep = await er.json().catch(function () { return {}; });
+        if (!er.ok) throw new Error(mzApiErrorDetail(ep, "Empower silme başarısız"));
+        var eDeleted = (ep.deleted || empowerFiles);
+        deletedOk += eDeleted.length;
+        eDeleted.forEach(function (sf) {
+          mzAppendDeleteOverlayDoneItem(sf, { deleted_rows: 0 });
+        });
+      }
+
+      if (adFiles.length) {
+        if (statusEl) statusEl.textContent = "Reklam dosyaları siliniyor (" + adFiles.length + ")…";
+        mzShowDeleteOverlay(adFiles[0], {
+          bulk: true,
+          progressText: adFiles.length + " dosya DB’den siliniyor…",
+          keepDoneList: true,
+        });
+        var r = await fetch("/api/mz-analytics/delete-imports-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source_files: adFiles, restore: true }),
           credentials: "same-origin",
         });
         var payload = await r.json().catch(function () { return {}; });
-        if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Silme başarısız: " + sourceFile));
-        if (state.source && state.source.delete) state.source.delete(sourceFile);
+        if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Toplu silme başarısız"));
         totalRowsRemoved += Number(payload.deleted_rows) || 0;
-        deletedOk += 1;
-        mzAppendDeleteOverlayDoneItem(sourceFile, payload);
+        restoredTotal += Number(payload.restored_rows) || 0;
+        deletedOk += Number(payload.deleted_files) || 0;
+        (payload.files || []).forEach(function (item) {
+          if (item && item.ok) {
+            if (state.source && state.source.delete) state.source.delete(item.source_file);
+            mzAppendDeleteOverlayDoneItem(item.source_file, item);
+          } else if (item) {
+            mzAppendDeleteOverlayDoneItem(
+              (item.source_file || "?") + " — " + (item.error || "hata"),
+              { deleted_rows: 0 }
+            );
+          }
+        });
       }
+
       if (statusEl) {
         statusEl.textContent =
-          deletedOk + " dosya silindi · " + totalRowsRemoved.toLocaleString("tr-TR") + " satır kaldırıldı — veriler yenileniyor…";
+          deletedOk +
+          " dosya silindi · " +
+          totalRowsRemoved.toLocaleString("tr-TR") +
+          " satır" +
+          (restoredTotal ? " · " + restoredTotal.toLocaleString("tr-TR") + " geri yüklendi" : "") +
+          " — yenileniyor…";
       }
       document.querySelectorAll("#mz-imports .mz-import-select, #mz-imports .mz-import-select-empower").forEach(function (cb) {
         cb.checked = false;
@@ -11384,7 +11420,7 @@
       await loadFacets({ cacheBust: true });
       await runQuery({ resetTableDrills: true });
       if (statusEl) {
-        statusEl.textContent = deletedOk + " dosya silindi; grafikler ve tablolar güncellendi.";
+        statusEl.textContent = deletedOk + " dosya silindi; grafikler güncellendi.";
       }
     } catch (err) {
       if (statusEl) statusEl.textContent = (err && err.message) || "Toplu silme yarıda kaldı";
@@ -11401,42 +11437,9 @@
 
   async function runMzImportDelete(sourceFile, btn) {
     if (state._mzDeleteBusy) return;
-    state._mzDeleteBusy = true;
-    state._mzDeletePendingFile = sourceFile;
-    mzUpdateImportBulkUi();
-    mzShowDeleteOverlay(sourceFile);
+    /* Tek dosya da hızlı toplu yolu kullanır */
     if (btn) btn.disabled = true;
-    var statusEl = document.getElementById("mz-status");
-    try {
-      var r = await fetch("/api/mz-analytics/delete-import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_file: sourceFile }),
-        credentials: "same-origin",
-      });
-      var payload = await r.json().catch(function () { return {}; });
-      if (!r.ok) throw new Error(mzApiErrorDetail(payload, "Silme başarısız (HTTP " + r.status + ")"));
-      if (state.source && state.source.delete) state.source.delete(sourceFile);
-      if (statusEl) {
-        var msg = "Silindi: " + sourceFile + " (" + (payload.deleted_rows || 0).toLocaleString("tr-TR") + " satır)";
-        if (payload.restored_rows) {
-          msg += " · " + payload.restored_rows.toLocaleString("tr-TR") + " satır önceki dosyadan geri yüklendi";
-        }
-        statusEl.textContent = msg;
-      }
-      showPageError("");
-      await loadFacets({ cacheBust: true });
-      await runQuery({ resetTableDrills: true });
-    } catch (err) {
-      if (btn) btn.disabled = false;
-      if (statusEl) statusEl.textContent = (err && err.message) || "Silme başarısız";
-      showPageError((err && err.message) || "Silme başarısız");
-    } finally {
-      state._mzDeleteBusy = false;
-      state._mzDeletePendingFile = "";
-      mzHideDeleteOverlay();
-      mzUpdateImportBulkUi();
-    }
+    await runMzImportDeleteBulk([sourceFile]);
   }
 
   initBreakdownToolbars();

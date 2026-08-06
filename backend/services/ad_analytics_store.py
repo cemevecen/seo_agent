@@ -738,39 +738,68 @@ def _archive_superseded_rows(db: Session, batch: list[dict[str, Any]]) -> None:
         _archive_row_snapshot(db, old)
 
 
+_RESTORE_FP_CHUNK = 1500
+
+
 def _restore_rows_from_archive(
     db: Session,
-    deleted_file: str,
     fingerprints: list[str],
     active_catalog_files: set[str],
+    *,
+    exclude_source_files: set[str] | None = None,
 ) -> int:
+    """Eksik fingerprint’leri arşivden geri getir (toplu sorgular)."""
+    if not fingerprints:
+        return 0
+    exclude = {str(x) for x in (exclude_source_files or set()) if x}
+    fps_all = list(dict.fromkeys(str(fp) for fp in fingerprints if fp))
     restored = 0
-    for fp in fingerprints:
-        exists = db.scalar(
-            select(func.count())
-            .select_from(AdReportRow)
-            .where(AdReportRow.fingerprint == fp)
-        )
-        if exists:
+    pending_rows: list[AdReportRow] = []
+
+    def _flush_pending() -> None:
+        nonlocal pending_rows
+        if not pending_rows:
+            return
+        db.add_all(pending_rows)
+        db.flush()
+        pending_rows = []
+
+    for i in range(0, len(fps_all), _RESTORE_FP_CHUNK):
+        chunk = fps_all[i : i + _RESTORE_FP_CHUNK]
+        existing = {
+            str(fp)
+            for fp in db.execute(
+                select(AdReportRow.fingerprint).where(AdReportRow.fingerprint.in_(chunk))
+            ).scalars().all()
+            if fp
+        }
+        need = [fp for fp in chunk if fp not in existing]
+        if not need:
             continue
-        archives = db.execute(
-            select(AdReportRowArchive).where(
-                AdReportRowArchive.fingerprint == fp,
-                AdReportRowArchive.source_file != deleted_file,
-            )
-        ).scalars().all()
-        if not archives:
-            continue
-        in_catalog = [a for a in archives if a.source_file in active_catalog_files]
-        pool = in_catalog if in_catalog else list(archives)
-        best = max(pool, key=lambda a: (_report_period_rank(a.source_file), a.source_file))
-        payload = json.loads(best.payload_json or "{}")
-        rd = payload.get("report_date")
-        if isinstance(rd, str):
-            payload["report_date"] = date.fromisoformat(rd)
-        payload.pop("id", None)
-        db.add(AdReportRow(**payload))
-        restored += 1
+        q = select(AdReportRowArchive).where(AdReportRowArchive.fingerprint.in_(need))
+        if exclude:
+            q = q.where(~AdReportRowArchive.source_file.in_(exclude))
+        archives = db.execute(q).scalars().all()
+        by_fp: dict[str, list[AdReportRowArchive]] = {}
+        for a in archives:
+            by_fp.setdefault(str(a.fingerprint), []).append(a)
+        for fp in need:
+            pool_all = by_fp.get(fp) or []
+            if not pool_all:
+                continue
+            in_catalog = [a for a in pool_all if a.source_file in active_catalog_files]
+            pool = in_catalog if in_catalog else pool_all
+            best = max(pool, key=lambda a: (_report_period_rank(a.source_file), a.source_file))
+            payload = json.loads(best.payload_json or "{}")
+            rd = payload.get("report_date")
+            if isinstance(rd, str):
+                payload["report_date"] = date.fromisoformat(rd)
+            payload.pop("id", None)
+            pending_rows.append(AdReportRow(**payload))
+            restored += 1
+            if len(pending_rows) >= 400:
+                _flush_pending()
+    _flush_pending()
     return restored
 
 
@@ -1240,29 +1269,20 @@ def reset_all(db: Session) -> dict[str, int]:
     return {"total": 0, "deleted_rows": deleted_rows}
 
 
-def delete_source_file(db: Session, source_file: str) -> dict[str, Any]:
+def delete_source_file(
+    db: Session,
+    source_file: str,
+    *,
+    commit: bool = True,
+    restore: bool = True,
+) -> dict[str, Any]:
     """Tek yüklenen dosyayı ve satırlarını DB'den kaldır; üstüne yazılmış günler önceki dosyadan geri gelir."""
     name = (source_file or "").strip()
     if not name:
         raise ValueError("source_file gerekli")
-    row_count = int(
-        db.scalar(
-            select(func.count())
-            .select_from(AdReportRow)
-            .where(AdReportRow.source_file == name)
-        )
-        or 0
-    )
     catalog = db.execute(
         select(AdReportCatalog).where(AdReportCatalog.source_file == name)
     ).scalars().first()
-    if row_count == 0 and catalog is None:
-        raise ValueError(f"Dosya bulunamadı: {name}")
-    active_catalog = {
-        str(x)
-        for x in db.execute(select(AdReportCatalog.source_file)).scalars().all()
-        if x
-    }
     affected_fps = [
         str(fp)
         for fp in db.execute(
@@ -1270,24 +1290,116 @@ def delete_source_file(db: Session, source_file: str) -> dict[str, Any]:
         ).scalars().all()
         if fp
     ]
-    db.execute(delete(AdReportRow).where(AdReportRow.source_file == name))
-    restored_rows = _restore_rows_from_archive(
-        db,
-        name,
-        affected_fps,
-        active_catalog - {name},
-    )
+    if not affected_fps and catalog is None:
+        raise ValueError(f"Dosya bulunamadı: {name}")
+    active_catalog = {
+        str(x)
+        for x in db.execute(select(AdReportCatalog.source_file)).scalars().all()
+        if x
+    }
+    del_res = db.execute(delete(AdReportRow).where(AdReportRow.source_file == name))
+    row_count = int(del_res.rowcount or 0)
+    if row_count <= 0:
+        row_count = len(affected_fps)
+    restored_rows = 0
+    if restore and affected_fps:
+        restored_rows = _restore_rows_from_archive(
+            db,
+            affected_fps,
+            active_catalog - {name},
+            exclude_source_files={name},
+        )
     if catalog is not None:
         db.delete(catalog)
     db.execute(delete(AdReportRowArchive).where(AdReportRowArchive.source_file == name))
-    db.commit()
-    invalidate_facets_cache()
+    if commit:
+        db.commit()
+        invalidate_facets_cache()
     total_rows = count_rows(db)
     return {
         "source_file": name,
         "deleted_rows": row_count,
         "restored_rows": restored_rows,
         "total_rows": total_rows,
+    }
+
+
+def delete_source_files_bulk(
+    db: Session,
+    source_files: list[str],
+    *,
+    restore: bool = True,
+) -> dict[str, Any]:
+    """Birden fazla dosyayı tek işlemde sil; arşiv geri yükleme sonda bir kez."""
+    names: list[str] = []
+    seen: set[str] = set()
+    for raw in source_files or []:
+        name = (raw or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    if not names:
+        raise ValueError("source_files gerekli")
+
+    names.sort(key=lambda n: (_report_period_rank(n), n.lower()), reverse=True)
+    name_set = set(names)
+
+    active_catalog = {
+        str(x)
+        for x in db.execute(select(AdReportCatalog.source_file)).scalars().all()
+        if x
+    }
+    all_fps: list[str] = []
+    per_file: list[dict[str, Any]] = []
+    total_deleted = 0
+
+    for name in names:
+        catalog = db.execute(
+            select(AdReportCatalog).where(AdReportCatalog.source_file == name)
+        ).scalars().first()
+        fps = [
+            str(fp)
+            for fp in db.execute(
+                select(AdReportRow.fingerprint).where(AdReportRow.source_file == name)
+            ).scalars().all()
+            if fp
+        ]
+        if not fps and catalog is None:
+            per_file.append({"source_file": name, "ok": False, "error": "Dosya bulunamadı"})
+            continue
+        del_res = db.execute(delete(AdReportRow).where(AdReportRow.source_file == name))
+        row_count = int(del_res.rowcount or 0) or len(fps)
+        if catalog is not None:
+            db.delete(catalog)
+            active_catalog.discard(name)
+        all_fps.extend(fps)
+        total_deleted += row_count
+        per_file.append({"source_file": name, "ok": True, "deleted_rows": row_count})
+
+    restored_rows = 0
+    if restore and all_fps:
+        restored_rows = _restore_rows_from_archive(
+            db,
+            all_fps,
+            active_catalog,
+            exclude_source_files=name_set,
+        )
+
+    if name_set:
+        db.execute(delete(AdReportRowArchive).where(AdReportRowArchive.source_file.in_(name_set)))
+
+    db.commit()
+    invalidate_facets_cache()
+    ok_count = sum(1 for x in per_file if x.get("ok"))
+    return {
+        "ok": ok_count == len(names),
+        "deleted_files": ok_count,
+        "failed_files": len(names) - ok_count,
+        "deleted_rows": total_deleted,
+        "restored_rows": restored_rows,
+        "total_rows": count_rows(db),
+        "files": per_file,
     }
 
 

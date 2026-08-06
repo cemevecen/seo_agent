@@ -451,6 +451,43 @@ def test_delete_overwritten_file_restores_previous_period():
         assert restored.net_revenue == 10.0
 
 
+def test_delete_source_files_bulk_restores_once():
+    init_db()
+    d = date(2026, 6, 10)
+    serial = _excel_serial(d)
+    hdr = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+    )
+    with SessionLocal() as db:
+        store.reset_all(db)
+        store.import_upload_file(
+            db,
+            (hdr + f"u,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,10\n").encode(),
+            filename="dovizweb1.csv",
+            commit=True,
+        )
+        store.import_upload_file(
+            db,
+            (hdr + f"u,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,99\n").encode(),
+            filename="dovizweb2.csv",
+            commit=True,
+        )
+        store.import_upload_file(
+            db,
+            (hdr + f"v,1,{serial},Open Auction,1,1,1,0,0,0,0,0,0,5\n").encode(),
+            filename="dovizmweb1.csv",
+            commit=True,
+        )
+        out = store.delete_source_files_bulk(db, ["dovizweb2.csv", "dovizmweb1.csv"])
+        assert out["deleted_files"] == 2
+        assert out["restored_rows"] == 1
+        rows = db.query(AdReportRow).all()
+        assert len(rows) == 1
+        assert rows[0].source_file == "dovizweb1.csv"
+        assert rows[0].net_revenue == 10.0
+
+
 def test_delete_and_reupload_same_file():
     init_db()
     d = date(2026, 6, 11)
