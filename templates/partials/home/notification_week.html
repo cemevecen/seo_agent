@@ -35,6 +35,46 @@
   </div>
 {%- endmacro %}
 
+{% macro nt_impr_bars(bars_data) -%}
+  {# Mutlak impression barları — iOS ölçülmüyor satırı açık #}
+  <div class="home-nt-impr-bars" data-nt-impr-bars {% if bars_data and bars_data.empty %}data-empty="1"{% endif %}>
+    {% if bars_data and bars_data.bars and not bars_data.empty %}
+      <ul class="home-nt-impr-list" role="list">
+        {% for row in bars_data.bars %}
+          <li class="home-nt-impr-row {% if not row.available %}is-na{% endif %}"
+              data-nt-impr-row
+              data-tip="{{ row.tip }}"
+              {% if row.available %}style="--bar-hex: {{ row.hex }}; --bar-w: {{ row.width_pct }}%"{% endif %}>
+            <div class="home-nt-impr-meta">
+              <span class="home-nt-impr-dot" {% if row.available %}style="background: {{ row.hex }}"{% endif %} aria-hidden="true"></span>
+              <span class="home-nt-impr-name">{{ row.label }}</span>
+              {% if row.available %}
+                <span class="home-nt-impr-share tabular-nums">{{ row.share_fmt }}</span>
+              {% else %}
+                <span class="home-nt-impr-na">ölçülmüyor</span>
+              {% endif %}
+            </div>
+            <div class="home-nt-impr-track" aria-hidden="true">
+              {% if row.available %}
+                <span class="home-nt-impr-fill"></span>
+              {% else %}
+                <span class="home-nt-impr-ghost"></span>
+              {% endif %}
+            </div>
+            <p class="home-nt-impr-val tabular-nums">{% if row.available %}{{ row.value_fmt }}{% else %}—{% endif %}</p>
+          </li>
+        {% endfor %}
+      </ul>
+      {% if bars_data.footnote %}
+        <p class="home-nt-impr-note">{{ bars_data.footnote }}</p>
+      {% endif %}
+    {% else %}
+      <p class="home-meta text-slate-400 dark:text-slate-500">—</p>
+    {% endif %}
+    <div class="home-nt-impr-tip" data-nt-impr-tip hidden role="tooltip"></div>
+  </div>
+{%- endmacro %}
+
 {% macro nt_pie_mini(pie) -%}
   <svg class="h-7 w-7 shrink-0 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
     <circle cx="18" cy="18" r="15.9155" fill="none" stroke="currentColor" stroke-width="5" class="text-slate-100 dark:text-slate-800"></circle>
@@ -259,6 +299,174 @@
     -webkit-mask: radial-gradient(circle, transparent 39%, #000 40.5%);
             mask: radial-gradient(circle, transparent 39%, #000 40.5%);
   }
+  .home-nt-week .home-nt-legend-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Impression bars — pasta yerine (iOS ölçülmüyor açık) */
+  .home-nt-week .home-nt-impr-bars {
+    position: relative;
+    flex: 1 1 12rem;
+    min-width: min(100%, 14rem);
+    max-width: 22rem;
+  }
+  .home-nt-week .home-nt-impr-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .home-nt-week .home-nt-impr-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 0.65rem;
+    row-gap: 0.22rem;
+    padding: 0.35rem 0.4rem;
+    margin: 0 -0.4rem;
+    border-radius: 0.55rem;
+    cursor: default;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .home-nt-week .home-nt-impr-row:hover,
+  .home-nt-week .home-nt-impr-row.is-active {
+    background: rgb(241 245 249 / 0.9);
+  }
+  html.dark .home-nt-week .home-nt-impr-row:hover,
+  html.dark .home-nt-week .home-nt-impr-row.is-active,
+  html.midnight .home-nt-week .home-nt-impr-row:hover,
+  html.midnight .home-nt-week .home-nt-impr-row.is-active {
+    background: rgb(39 39 42 / 0.75);
+  }
+  .home-nt-week .home-nt-impr-meta {
+    grid-column: 1 / 2;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .home-nt-week .home-nt-impr-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+    background: #94a3b8;
+  }
+  .home-nt-week .home-nt-impr-row.is-na .home-nt-impr-dot {
+    background: transparent;
+    border: 1.5px dashed #94a3b8;
+  }
+  .home-nt-week .home-nt-impr-name {
+    font-size: clamp(0.75rem, 0.68rem + 0.35cqi, 0.875rem);
+    font-weight: 650;
+    color: rgb(51 65 85);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html.dark .home-nt-week .home-nt-impr-name { color: #d4d4d8; }
+  .home-nt-week .home-nt-impr-share {
+    margin-left: auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgb(100 116 139);
+  }
+  html.dark .home-nt-week .home-nt-impr-share { color: #a1a1aa; }
+  .home-nt-week .home-nt-impr-na {
+    margin-left: auto;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .home-nt-week .home-nt-impr-track {
+    grid-column: 1 / 2;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: rgb(226 232 240 / 0.85);
+    overflow: hidden;
+  }
+  html.dark .home-nt-week .home-nt-impr-track {
+    background: rgb(63 63 70 / 0.7);
+  }
+  .home-nt-week .home-nt-impr-fill {
+    display: block;
+    height: 100%;
+    width: var(--bar-w, 0%);
+    border-radius: inherit;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--bar-hex) 78%, white), var(--bar-hex));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bar-hex) 25%, transparent);
+    transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1), filter 0.15s ease;
+  }
+  .home-nt-week .home-nt-impr-row:hover .home-nt-impr-fill,
+  .home-nt-week .home-nt-impr-row.is-active .home-nt-impr-fill {
+    filter: brightness(1.06) saturate(1.08);
+  }
+  .home-nt-week .home-nt-impr-ghost {
+    display: block;
+    height: 100%;
+    width: 100%;
+    border-radius: inherit;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 3px,
+      rgb(148 163 184 / 0.28) 3px,
+      rgb(148 163 184 / 0.28) 6px
+    );
+  }
+  .home-nt-week .home-nt-impr-val {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    align-self: center;
+    margin: 0;
+    font-size: clamp(0.8125rem, 0.72rem + 0.35cqi, 0.9375rem);
+    font-weight: 750;
+    color: rgb(15 23 42);
+    white-space: nowrap;
+  }
+  html.dark .home-nt-week .home-nt-impr-val { color: #f4f4f5; }
+  .home-nt-week .home-nt-impr-row.is-na .home-nt-impr-val,
+  .home-nt-week .home-nt-impr-row.is-na .home-nt-impr-name {
+    color: #94a3b8;
+  }
+  .home-nt-week .home-nt-impr-note {
+    margin: 0.55rem 0 0;
+    font-size: 0.65rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #94a3b8;
+  }
+  html.dark .home-nt-week .home-nt-impr-note { color: #71717a; }
+  .home-nt-week .home-nt-impr-tip {
+    position: absolute;
+    z-index: 6;
+    left: 0;
+    top: 0;
+    max-width: 14rem;
+    padding: 0.4rem 0.65rem;
+    border-radius: 0.55rem;
+    background: rgb(15 23 42 / 0.92);
+    color: rgb(248 250 252);
+    font-size: 0.72rem;
+    font-weight: 650;
+    line-height: 1.3;
+    pointer-events: none;
+    box-shadow: 0 8px 20px rgb(15 23 42 / 0.25);
+    transform: translate(-10%, calc(-100% - 0.4rem));
+  }
+  .home-nt-week .home-nt-impr-tip[hidden] { display: none !important; }
+  html.dark .home-nt-week .home-nt-impr-tip {
+    background: rgb(250 250 250 / 0.95);
+    color: rgb(24 24 27);
+  }
+
   .home-nt-week .home-nt-legend {
     flex: 1 1 7.5rem;
     min-width: 6.5rem;
@@ -508,7 +716,11 @@
           <p class="home-nt-metric-prev mt-1.5 tabular-nums">previous · {{ totals.impressions.prev_fmt }}</p>
         </div>
         <div class="home-nt-share-block" data-nt-share>
-                    {% if impr_pie and not impr_pie.empty %}
+          {% if impr_bars and not impr_bars.empty %}
+            <div class="home-nt-share-body">
+              {{ nt_impr_bars(impr_bars) }}
+            </div>
+          {% elif impr_pie and not impr_pie.empty %}
             <div class="home-nt-share-body">
               {{ nt_pie(impr_pie) }}
               <ul class="home-nt-legend">
@@ -878,6 +1090,36 @@
       }
 
       root.querySelectorAll('[data-nt-share]').forEach(wireShare);
+
+      (function wireImprBars() {
+        var wrap = root.querySelector('[data-nt-impr-bars]');
+        if (!wrap || wrap.getAttribute('data-wired') === '1') return;
+        wrap.setAttribute('data-wired', '1');
+        var tip = wrap.querySelector('[data-nt-impr-tip]');
+        var rows = wrap.querySelectorAll('[data-nt-impr-row]');
+        function clear() {
+          rows.forEach(function (r) { r.classList.remove('is-active'); });
+          if (tip) { tip.hidden = true; tip.textContent = ''; }
+        }
+        rows.forEach(function (row) {
+          row.addEventListener('mouseenter', function (ev) {
+            rows.forEach(function (r) { r.classList.toggle('is-active', r === row); });
+            if (!tip) return;
+            tip.hidden = false;
+            tip.textContent = row.getAttribute('data-tip') || '';
+            var rect = wrap.getBoundingClientRect();
+            tip.style.left = Math.min(Math.max(12, ev.clientX - rect.left), rect.width - 24) + 'px';
+            tip.style.top = (ev.clientY - rect.top) + 'px';
+          });
+          row.addEventListener('mousemove', function (ev) {
+            if (!tip || tip.hidden) return;
+            var rect = wrap.getBoundingClientRect();
+            tip.style.left = Math.min(Math.max(12, ev.clientX - rect.left), rect.width - 24) + 'px';
+            tip.style.top = (ev.clientY - rect.top) + 'px';
+          });
+          row.addEventListener('mouseleave', clear);
+        });
+      })();
     })();
     </script>
   {% endif %}

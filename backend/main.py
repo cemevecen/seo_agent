@@ -10111,6 +10111,66 @@ def _home_nt_pie_chart(
     }
 
 
+def _home_nt_impr_bars(
+    platforms: list[dict],
+    *,
+    measured_total: float,
+) -> dict:
+    """Impression paylaşımı — pasta yerine mutlak bar + iOS 'ölçülmüyor' satırı.
+
+    Pasta %100'ü tamamlanmış gibi gösterir; iOS veri yokken Android şişer.
+    Barlar ölçülen platformlar arasında göreli uzunluk kullanır.
+    """
+    measured_vals = [
+        float((p.get("impressions") or {}).get("cur") or 0)
+        for p in platforms
+        if (p.get("impressions") or {}).get("available")
+    ]
+    max_v = max(measured_vals) if measured_vals else 0.0
+    mt = float(measured_total or 0)
+    bars: list[dict] = []
+    for plat in platforms:
+        key = str(plat.get("key") or "")
+        style = plat.get("style") or _HOME_NT_PLATFORM_STYLE.get(key) or {}
+        impr = plat.get("impressions") or {}
+        available = bool(impr.get("available"))
+        if available:
+            cur = float(impr.get("cur") or 0)
+            width = (cur / max_v * 100.0) if max_v > 0 else 0.0
+            share = (cur / mt * 100.0) if mt > 0 else 0.0
+            bars.append(
+                {
+                    "key": key,
+                    "label": plat.get("label") or key,
+                    "hex": style.get("hex") or "#94a3b8",
+                    "available": True,
+                    "width_pct": round(max(0.0, min(100.0, width)), 2),
+                    "value_fmt": impr.get("cur_fmt") or _home_format_int(cur),
+                    "share_fmt": f"{share:.1f}%",
+                    "tip": f"{plat.get('label') or key} · {impr.get('cur_fmt') or _home_format_int(cur)} · ölçülenin %{share:.1f}'i",
+                }
+            )
+        else:
+            bars.append(
+                {
+                    "key": key,
+                    "label": plat.get("label") or key,
+                    "hex": style.get("hex") or "#94a3b8",
+                    "available": False,
+                    "width_pct": 0,
+                    "value_fmt": "—",
+                    "share_fmt": "—",
+                    "tip": f"{plat.get('label') or key} · impression ölçülmüyor",
+                }
+            )
+    return {
+        "bars": bars,
+        "empty": not measured_vals or mt <= 0,
+        "footnote": "Pay, impression verisi olan platformlar arasında · iOS dahil değil",
+        "measured_total_fmt": _home_format_int(mt) if mt > 0 else "—",
+    }
+
+
 def _home_notification_week_context(db) -> dict:
     from backend.services.notification_analytics_alerts import build_notification_week_compare
 
@@ -10177,6 +10237,7 @@ def _home_notification_week_context(db) -> dict:
         total_fmt=_home_format_int(impr_total) if impr_total > 0 else impr_block["cur_fmt"],
         center_label="Impression",
     )
+    impr_bars = _home_nt_impr_bars(platforms_out, measured_total=impr_total)
 
     top_raw = list(raw.get("top_titles") or [])
     top_prev_raw = list(raw.get("top_titles_previous") or [])
@@ -10244,6 +10305,7 @@ def _home_notification_week_context(db) -> dict:
         "platforms": platforms_out,
         "click_pie": click_pie,
         "impr_pie": impr_pie,
+        "impr_bars": impr_bars,
         "top_titles": top_titles,
         "top_titles_previous": top_titles_previous,
     }
