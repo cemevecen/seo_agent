@@ -633,12 +633,12 @@
 
       {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=24" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=24" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
           {{ _placeholder_mid | safe }}
@@ -647,12 +647,12 @@
 
       {# Row 3 — Search Console #}
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=24" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
           {{ _placeholder_mid | safe }}
         </section>
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=23" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=24" hx-trigger="load" hx-swap="innerHTML"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
           {{ _placeholder_mid | safe }}
@@ -721,6 +721,13 @@
 
   var HOME_PERIOD_LOTTIE = 'https://assets9.lottiefiles.com/packages/lf20_p8bfn5to.json';
 
+  function clearHomePeriodWait(section) {
+    if (!section) return;
+    section.classList.remove('is-period-loading');
+    var wait = section.querySelector('[data-home-period-wait]');
+    if (wait) wait.remove();
+  }
+
   function showHomePeriodWait(section, daysLabel) {
     if (!section) return;
     section.classList.add('is-period-loading');
@@ -752,7 +759,7 @@
     var url = '/api/home/' + endpoint +
       '?site=' + encodeURIComponent(site) +
       '&period_days=' + encodeURIComponent(days) +
-      '&v=23';
+      '&v=24';
     if (section) {
       section.setAttribute('hx-get', url);
       showHomePeriodWait(section, days + 'g');
@@ -762,13 +769,18 @@
     }
   });
 
-  document.body.addEventListener('htmx:responseError', function (ev) {
+  function onHomePeriodSwap(ev) {
     var t = ev && ev.detail && ev.detail.target;
-    if (t && t.classList) t.classList.remove('is-period-loading');
-    if (t && t.querySelector) {
-      var w = t.querySelector('[data-home-period-wait]');
-      if (w) w.remove();
-    }
+    if (!t || !t.classList || !t.classList.contains('is-period-loading')) return;
+    clearHomePeriodWait(t);
+  }
+  document.body.addEventListener('htmx:afterSwap', onHomePeriodSwap);
+  document.body.addEventListener('htmx:afterSettle', onHomePeriodSwap);
+  document.body.addEventListener('htmx:responseError', function (ev) {
+    clearHomePeriodWait(ev && ev.detail && ev.detail.target);
+  });
+  document.body.addEventListener('htmx:swapError', function (ev) {
+    clearHomePeriodWait(ev && ev.detail && ev.detail.target);
   });
 
   window.__pcPageContext = function () {
