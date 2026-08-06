@@ -102,13 +102,20 @@
   .home-nt-week .home-nt-summary {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1.25rem;
+    gap: 1rem;
     margin-top: 1.15rem;
+    align-items: stretch;
   }
-  @container home-nt (min-width: 520px) {
+  @container home-nt (min-width: 640px) {
     .home-nt-week .home-nt-summary {
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem 1.75rem;
+      grid-template-columns: minmax(16rem, 0.95fr) minmax(0, 1.35fr);
+      gap: 1rem 1.25rem;
+    }
+  }
+  @container home-nt (min-width: 920px) {
+    .home-nt-week .home-nt-summary {
+      grid-template-columns: minmax(18rem, 0.85fr) minmax(0, 1.45fr);
+      gap: 1.15rem 1.5rem;
     }
   }
 
@@ -117,6 +124,27 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+  }
+  .home-nt-week .home-nt-summary > .home-nt-panel {
+    min-width: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .home-nt-week .home-nt-summary .home-nt-plat-body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .home-nt-week .home-nt-summary .home-nt-plat table {
+    width: 100%;
+    min-width: 28rem;
+  }
+  @container home-nt (min-width: 640px) {
+    .home-nt-week .home-nt-summary .home-nt-plat th:first-child,
+    .home-nt-week .home-nt-summary .home-nt-plat td:first-child { width: 7rem; }
+    .home-nt-week .home-nt-summary .home-nt-plat th:last-child,
+    .home-nt-week .home-nt-summary .home-nt-plat td:last-child { width: 7.5rem; }
   }
   .home-nt-week .home-nt-metric-label {
     font-size: clamp(0.6875rem, 0.6rem + 0.35cqi, 0.8125rem);
@@ -704,43 +732,8 @@
   {% if empty %}
     <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Son iki haftada notification kaydı yok</p>
   {% else %}
-    {# Status Quo+ mockup: KPI + pasta tek yüzey, yan yana iki sütun #}
+    {# Click KPI+pie | Platform tablosu — responsive yan yana; top 40 altta #}
     <div class="home-nt-summary">
-      <div class="home-nt-metric">
-        <div>
-          <p class="home-nt-metric-label">impression</p>
-          <div class="home-nt-metric-row mt-1.5">
-            <p class="home-nt-metric-value tabular-nums">{{ totals.impressions.cur_fmt }}</p>
-            <span class="home-nt-kpi-delta inline-flex shrink-0 items-center rounded-full tabular-nums ring-1 {{ tone_badge(totals.impressions.delta_pct) }}">{{ totals.impressions.delta_fmt }}</span>
-          </div>
-          <p class="home-nt-metric-prev mt-1.5 tabular-nums">previous · {{ totals.impressions.prev_fmt }}</p>
-        </div>
-        <div class="home-nt-share-block" data-nt-share>
-          {% if impr_bars and not impr_bars.empty %}
-            <div class="home-nt-share-body">
-              {{ nt_impr_bars(impr_bars) }}
-            </div>
-          {% elif impr_pie and not impr_pie.empty %}
-            <div class="home-nt-share-body">
-              {{ nt_pie(impr_pie) }}
-              <ul class="home-nt-legend">
-                {% for row in impr_pie.legend %}
-                  <li data-nt-legend-idx="{{ loop.index0 }}" data-nt-legend-hex="{{ row.hex }}" data-nt-legend-start="{{ row.start }}" data-nt-legend-end="{{ row.end }}">
-                    <span class="inline-flex min-w-0 items-center gap-1.5">
-                      <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.hex }}" aria-hidden="true"></span>
-                      <span class="home-nt-legend-label text-slate-600 dark:text-slate-300">{{ row.label }}</span>
-                    </span>
-                    <span class="shrink-0 tabular-nums font-semibold text-slate-800 dark:text-slate-100">{{ row.share_fmt }}</span>
-                  </li>
-                {% endfor %}
-              </ul>
-            </div>
-          {% else %}
-            <p class="home-meta text-slate-400 dark:text-slate-500">—</p>
-          {% endif %}
-        </div>
-      </div>
-
       <div class="home-nt-metric">
         <div>
           <p class="home-nt-metric-label">click</p>
@@ -751,7 +744,7 @@
           <p class="home-nt-metric-prev mt-1.5 tabular-nums">previous · {{ totals.clicks.prev_fmt }}</p>
         </div>
         <div class="home-nt-share-block" data-nt-share>
-                    <div class="home-nt-share-body">
+          <div class="home-nt-share-body">
             {{ nt_pie(click_pie) }}
             <ul class="home-nt-legend">
               {% for row in click_pie.legend %}
@@ -767,92 +760,92 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="home-nt-panel mt-5 rounded-xl">
-      <div class="home-nt-panel-head flex items-center gap-2 rounded-t-xl">
-        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span>
-        <p class="home-label text-slate-500 dark:text-slate-400">platform</p>
-      </div>
-      <div class="p-2 sm:p-2.5">
-        <div class="home-nt-plat home-nt-plat-table home-nt-scroll">
-          <table>
-            <thead class="home-label">
-              <tr>
-                <th class="font-semibold">Platform</th>
-                <th class="font-semibold">Impression</th>
-                <th class="font-semibold">Click</th>
-                <th class="font-semibold">per</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for plat in platforms %}
-                <tr>
-                  <td>
-                    <span class="inline-flex items-center gap-2">
-                      <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
-                      <span class="font-semibold text-slate-800 dark:text-zinc-100">{{ plat.label }}</span>
-                    </span>
-                  </td>
-                  <td>
-                    {% if plat.impressions.available %}
-                      <p class="home-nt-plat-delta tabular-nums leading-tight {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
-                      <p class="home-meta mt-0.5 tabular-nums leading-tight text-slate-500 dark:text-zinc-400">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
-                    {% else %}
-                      <p class="font-medium text-slate-400 dark:text-zinc-500">—</p>
-                    {% endif %}
-                  </td>
-                  <td>
-                    <p class="home-nt-plat-delta tabular-nums leading-tight {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
-                    <p class="home-meta mt-0.5 tabular-nums leading-tight text-slate-500 dark:text-zinc-400">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
-                  </td>
-                  <td>
-                    <div class="home-nt-share">
-                      <div class="home-nt-share-bar">
-                        <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
-                      </div>
-                      <span class="home-meta shrink-0 tabular-nums font-semibold text-slate-700 dark:text-zinc-200">{{ plat.share_fmt }}</span>
-                    </div>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      <div class="home-nt-panel rounded-xl">
+        <div class="home-nt-panel-head flex items-center gap-2 rounded-t-xl">
+          <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span>
+          <p class="home-label text-slate-500 dark:text-slate-400">platform</p>
         </div>
+        <div class="home-nt-plat-body p-2 sm:p-2.5">
+          <div class="home-nt-plat home-nt-plat-table home-nt-scroll">
+            <table>
+              <thead class="home-label">
+                <tr>
+                  <th class="font-semibold">Platform</th>
+                  <th class="font-semibold">Impression</th>
+                  <th class="font-semibold">Click</th>
+                  <th class="font-semibold">per</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for plat in platforms %}
+                  <tr>
+                    <td>
+                      <span class="inline-flex items-center gap-2">
+                        <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
+                        <span class="font-semibold text-slate-800 dark:text-zinc-100">{{ plat.label }}</span>
+                      </span>
+                    </td>
+                    <td>
+                      {% if plat.impressions.available %}
+                        <p class="home-nt-plat-delta tabular-nums leading-tight {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
+                        <p class="home-meta mt-0.5 tabular-nums leading-tight text-slate-500 dark:text-zinc-400">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
+                      {% else %}
+                        <p class="font-medium text-slate-400 dark:text-zinc-500">—</p>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <p class="home-nt-plat-delta tabular-nums leading-tight {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
+                      <p class="home-meta mt-0.5 tabular-nums leading-tight text-slate-500 dark:text-zinc-400">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
+                    </td>
+                    <td>
+                      <div class="home-nt-share">
+                        <div class="home-nt-share-bar">
+                          <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
+                        </div>
+                        <span class="home-meta shrink-0 tabular-nums font-semibold text-slate-700 dark:text-zinc-200">{{ plat.share_fmt }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
 
-        <div class="home-nt-plat-cards">
-          {% for plat in platforms %}
-            <div class="home-nt-plat-card">
-              <div class="flex items-center justify-between gap-2">
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="h-2 w-2 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
-                  <span class="home-body text-slate-800 dark:text-slate-100">{{ plat.label }}</span>
-                </span>
-                <span class="home-meta tabular-nums font-semibold text-slate-600 dark:text-slate-300">{{ plat.share_fmt }}</span>
-              </div>
-              <div class="home-nt-plat-card-grid">
-                <div>
-                  <p class="home-label text-slate-400">Impression</p>
-                  {% if plat.impressions.available %}
-                    <p class="home-body tabular-nums {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
-                    <p class="home-meta tabular-nums text-slate-500">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
-                  {% else %}
-                    <p class="home-meta text-slate-400">—</p>
-                  {% endif %}
+          <div class="home-nt-plat-cards">
+            {% for plat in platforms %}
+              <div class="home-nt-plat-card">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="h-2 w-2 shrink-0 rounded-full {{ plat.style.dot }}" aria-hidden="true"></span>
+                    <span class="home-body text-slate-800 dark:text-slate-100">{{ plat.label }}</span>
+                  </span>
+                  <span class="home-meta tabular-nums font-semibold text-slate-600 dark:text-slate-300">{{ plat.share_fmt }}</span>
                 </div>
-                <div>
-                  <p class="home-label text-slate-400">Click</p>
-                  <p class="home-body tabular-nums {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
-                  <p class="home-meta tabular-nums text-slate-500">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
+                <div class="home-nt-plat-card-grid">
+                  <div>
+                    <p class="home-label text-slate-400">Impression</p>
+                    {% if plat.impressions.available %}
+                      <p class="home-body tabular-nums {{ tone_text(plat.impressions.delta_pct) }}">{{ plat.impressions.delta_fmt }}</p>
+                      <p class="home-meta tabular-nums text-slate-500">{{ plat.impressions.cur_fmt }} ← {{ plat.impressions.prev_fmt }}</p>
+                    {% else %}
+                      <p class="home-meta text-slate-400">—</p>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <p class="home-label text-slate-400">Click</p>
+                    <p class="home-body tabular-nums {{ tone_text(plat.clicks.delta_pct) }}">{{ plat.clicks.delta_fmt }}</p>
+                    <p class="home-meta tabular-nums text-slate-500">{{ plat.clicks.cur_fmt }} ← {{ plat.clicks.prev_fmt }}</p>
+                  </div>
+                </div>
+                <div class="home-nt-share mt-1.5">
+                  <div class="home-nt-share-bar" style="max-width: none;">
+                    <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
+                  </div>
                 </div>
               </div>
-              <div class="home-nt-share mt-1.5">
-                <div class="home-nt-share-bar" style="max-width: none;">
-                  <div class="h-full rounded-full {{ plat.style.bar }}" style="width: {{ plat.share_pct }}%"></div>
-                </div>
-              </div>
-            </div>
-          {% endfor %}
+            {% endfor %}
+          </div>
         </div>
       </div>
     </div>
