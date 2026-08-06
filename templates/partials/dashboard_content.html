@@ -88,7 +88,7 @@
     height: 1.7rem;
     padding: 0;
     border-radius: 0.4rem;
-    overflow: hidden;
+    overflow: visible;
     border: 1.5px solid rgb(255 255 255 / 0.95);
     box-shadow: 0 1px 4px rgb(15 23 42 / 0.22);
     background: #0f172a;
@@ -96,11 +96,12 @@
     pointer-events: auto;
     cursor: pointer;
   }
-  .home-drive-container-badge img {
+  .home-drive-container-badge > img {
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 0.28rem;
   }
   .home-drive-container-badge.is-video {
     display: flex;
@@ -202,6 +203,122 @@
     width: 100%;
     max-height: min(28rem, 55vh);
     background: #0f172a;
+  }
+  .home-drive-preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.65rem 0.75rem 0.8rem;
+    border-top: 1px solid rgb(226 232 240);
+  }
+  html.dark .home-drive-preview-list,
+  html.midnight .home-drive-preview-list {
+    border-top-color: rgb(63 63 70);
+  }
+  .home-drive-preview-list-label {
+    margin: 0 0 0.15rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .home-drive-preview-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.65rem;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.65rem;
+    background: #fff;
+    padding: 0.4rem 0.5rem;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .home-drive-preview-item:hover {
+    border-color: rgb(147 197 253);
+  }
+  .home-drive-preview-item.is-active {
+    border-color: rgb(59 130 246);
+    box-shadow: 0 0 0 1px rgb(59 130 246 / 0.35);
+  }
+  html.dark .home-drive-preview-item,
+  html.midnight .home-drive-preview-item {
+    border-color: rgb(63 63 70);
+    background: rgb(9 9 11);
+  }
+  html.dark .home-drive-preview-item.is-active,
+  html.midnight .home-drive-preview-item.is-active {
+    border-color: rgb(96 165 250);
+    box-shadow: 0 0 0 1px rgb(96 165 250 / 0.4);
+  }
+  .home-drive-preview-item-thumb {
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.4rem;
+    overflow: hidden;
+    background: #0f172a;
+    object-fit: cover;
+  }
+  .home-drive-preview-item-thumb.is-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e2e8f0;
+    font-size: 0.7rem;
+    font-weight: 800;
+  }
+  .home-drive-preview-item-meta {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .home-drive-preview-item-name {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 650;
+    color: #334155;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html.dark .home-drive-preview-item-name,
+  html.midnight .home-drive-preview-item-name { color: #d4d4d8; }
+  .home-drive-preview-item-kind {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .home-drive-preview-stage {
+    display: none;
+  }
+  .home-drive-preview-stage.is-visible {
+    display: block;
+  }
+  .home-drive-container-badge .home-drive-badge-count {
+    position: absolute;
+    top: -0.3rem;
+    right: -0.3rem;
+    min-width: 0.95rem;
+    height: 0.95rem;
+    padding: 0 0.2rem;
+    border-radius: 9999px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 0.55rem;
+    font-weight: 800;
+    line-height: 0.95rem;
+    text-align: center;
+    box-shadow: 0 0 0 1.5px #fff;
+  }
+  html.dark .home-drive-container-badge .home-drive-badge-count,
+  html.midnight .home-drive-container-badge .home-drive-badge-count {
+    box-shadow: 0 0 0 1.5px rgb(24 24 27);
   }
   .home-readable {
     --home-title: clamp(1rem, 0.88rem + 0.55cqi, 1.1875rem);
@@ -958,41 +1075,116 @@
     });
   }
 
+  function homeDriveFilesFor(info) {
+    if (!info) return [];
+    if (info.files && info.files.length) return info.files.slice();
+    return [{
+      file_id: info.file_id || '',
+      kind: info.kind || 'image',
+      name: info.name || '',
+      thumb_url: info.thumb_url || '',
+      web_view_link: info.web_view_link || '',
+    }];
+  }
+
+  function homeDriveMediaHtml(file, title) {
+    var safeTitle = String(title || file.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    if ((file.kind || '') === 'video') {
+      var src = file.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(file.file_id || '') + '/content');
+      return (
+        '<div class="home-drive-preview-media is-video">' +
+          '<video controls playsinline src="' + String(src).replace(/"/g, '') + '"></video>' +
+        '</div>'
+      );
+    }
+    var imgSrc = file.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(file.file_id || '') + '/content');
+    return (
+      '<div class="home-drive-preview-media" data-home-drive-zoom>' +
+        '<img src="' + String(imgSrc).replace(/"/g, '') + '" alt="' + safeTitle + '" loading="lazy">' +
+      '</div>'
+    );
+  }
+
+  function selectHomeDrivePreviewFile(panel, info, fileId) {
+    if (!panel || !info) return;
+    var files = homeDriveFilesFor(info);
+    var file = null;
+    for (var i = 0; i < files.length; i++) {
+      if (String(files[i].file_id) === String(fileId)) {
+        file = files[i];
+        break;
+      }
+    }
+    if (!file) file = files[0];
+    if (!file) return;
+    var title = (info.container_label || info.container_key || '') + (file.name ? (' · ' + file.name) : '');
+    var titleEl = panel.querySelector('[data-home-drive-preview-title]');
+    if (titleEl) titleEl.textContent = title;
+    var stage = panel.querySelector('[data-home-drive-preview-stage]');
+    if (stage) {
+      stage.innerHTML = homeDriveMediaHtml(file, title);
+      stage.classList.add('is-visible');
+    }
+    panel.querySelectorAll('[data-home-drive-pick-file]').forEach(function (btn) {
+      var on = String(btn.getAttribute('data-home-drive-pick-file')) === String(file.file_id);
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
   function openHomeDrivePreview(sec, key, info) {
     if (!sec || !info) return;
     closeHomeDrivePreview(key);
+    var files = homeDriveFilesFor(info);
+    if (!files.length) return;
     var panel = document.createElement('div');
     panel.className = 'home-drive-preview';
     panel.setAttribute('data-home-drive-preview', key);
-    var title = (info.container_label || key) + (info.name ? (' · ' + info.name) : '');
-    var safeTitle = String(title).replace(/</g, '&lt;').replace(/"/g, '&quot;');
-    var mediaHtml = '';
-    if (info.kind === 'video') {
-      var src = info.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(info.file_id || '') + '/content');
-      mediaHtml =
-        '<div class="home-drive-preview-media is-video">' +
-          '<video controls playsinline src="' + String(src).replace(/"/g, '') + '"></video>' +
-        '</div>';
-    } else {
-      var imgSrc = info.thumb_url || '';
-      mediaHtml =
-        '<div class="home-drive-preview-media" data-home-drive-zoom>' +
-          '<img src="' + String(imgSrc).replace(/"/g, '') + '" alt="' + safeTitle + '" loading="lazy">' +
-        '</div>';
-    }
+    panel.setAttribute('data-home-drive-preview-key', key);
+
+    var listHtml = '';
+    files.forEach(function (f, idx) {
+      var fid = String(f.file_id || '').replace(/"/g, '');
+      var name = String(f.name || ('dosya ' + (idx + 1))).replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      var isVideo = (f.kind || '') === 'video';
+      var thumb = isVideo
+        ? '<span class="home-drive-preview-item-thumb is-video">▶</span>'
+        : '<img class="home-drive-preview-item-thumb" src="' + String(f.thumb_url || '').replace(/"/g, '') + '" alt="" loading="lazy">';
+      listHtml +=
+        '<button type="button" class="home-drive-preview-item" data-home-drive-pick-file="' + fid +
+        '" aria-pressed="false">' +
+          thumb +
+          '<span class="home-drive-preview-item-meta">' +
+            '<span class="home-drive-preview-item-name">' + name + '</span>' +
+            '<span class="home-drive-preview-item-kind">' + (isVideo ? 'video' : 'görsel') + '</span>' +
+          '</span>' +
+        '</button>';
+    });
+
     panel.innerHTML =
       '<div class="home-drive-preview-head">' +
-        '<p class="home-drive-preview-title">' + safeTitle + '</p>' +
+        '<p class="home-drive-preview-title" data-home-drive-preview-title>' +
+          String(info.container_label || key).replace(/</g, '&lt;') +
+          ' · ' + files.length + ' dosya — birini seç</p>' +
         '<button type="button" class="home-drive-preview-close" data-home-drive-preview-close="' +
           String(key).replace(/"/g, '') + '">&times; kapat</button>' +
       '</div>' +
-      mediaHtml;
+      '<div class="home-drive-preview-stage" data-home-drive-preview-stage></div>' +
+      '<div class="home-drive-preview-list">' +
+        '<p class="home-drive-preview-list-label">Yüklenenler</p>' +
+        listHtml +
+      '</div>';
+
     sec.insertAdjacentElement('afterend', panel);
     homeDriveOpenPreview[key] = true;
     var badge = sec.querySelector('[data-home-drive-badge]');
     if (badge) {
       badge.classList.add('is-active');
       badge.setAttribute('aria-expanded', 'true');
+    }
+    // Tek dosyada direkt göster; birden fazlada önce liste, tıklanınca büyük görüntü
+    if (files.length === 1) {
+      selectHomeDrivePreviewFile(panel, info, files[0].file_id);
     }
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -1015,19 +1207,22 @@
         badge.className = 'home-drive-container-badge';
         sec.appendChild(badge);
       }
+      var count = (info.files && info.files.length) || info.file_count || 1;
       badge.setAttribute('data-container-key', key);
       badge.setAttribute('aria-expanded', homeDriveOpenPreview[key] ? 'true' : 'false');
-      badge.setAttribute('aria-label', 'Container görselini aç');
-      badge.title = (info.container_label || key) + (info.name ? (' · ' + info.name) : '') + ' — tıkla, altına aç';
+      badge.setAttribute('aria-label', 'Container görsellerini aç (' + count + ')');
+      badge.title = (info.container_label || key) + ' · ' + count + ' dosya — tıkla, altına aç';
       badge.classList.toggle('is-active', !!homeDriveOpenPreview[key]);
+      var countHtml = count > 1
+        ? '<span class="home-drive-badge-count">' + count + '</span>'
+        : '';
       if (info.kind === 'video' || !info.thumb_url) {
         badge.classList.add('is-video');
-        badge.innerHTML = '▶';
+        badge.innerHTML = '▶' + countHtml;
       } else {
         badge.classList.remove('is-video');
-        badge.innerHTML = '<img src="' + String(info.thumb_url).replace(/"/g, '') + '" alt="" loading="lazy">';
+        badge.innerHTML = '<img src="' + String(info.thumb_url).replace(/"/g, '') + '" alt="" loading="lazy">' + countHtml;
       }
-      // Açık önizleme hâlâ varsa medyayı güncelle / yoksa yeniden bağlama
       if (homeDriveOpenPreview[key] && !document.querySelector('[data-home-drive-preview="' + key.replace(/"/g, '') + '"]')) {
         openHomeDrivePreview(sec, key, info);
       }
@@ -1056,6 +1251,19 @@
       closeHomeDrivePreview(closeBtn.getAttribute('data-home-drive-preview-close') || '');
       return;
     }
+    var pick = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-pick-file]');
+    if (pick) {
+      ev.preventDefault();
+      var panel = pick.closest('[data-home-drive-preview]');
+      if (!panel) return;
+      var pkey = panel.getAttribute('data-home-drive-preview') || '';
+      var info = homeDriveBadgeMap[pkey];
+      if (!info) return;
+      selectHomeDrivePreviewFile(panel, info, pick.getAttribute('data-home-drive-pick-file') || '');
+      var stage = panel.querySelector('[data-home-drive-preview-stage]');
+      if (stage) stage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
     var badge = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-badge]');
     if (!badge) return;
     ev.preventDefault();
@@ -1066,9 +1274,9 @@
       closeHomeDrivePreview(key);
       return;
     }
-    var info = homeDriveBadgeMap[key];
-    if (!info) return;
-    openHomeDrivePreview(sec, key, info);
+    var info2 = homeDriveBadgeMap[key];
+    if (!info2) return;
+    openHomeDrivePreview(sec, key, info2);
   });
 
   document.body.addEventListener('mousemove', function (ev) {

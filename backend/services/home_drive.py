@@ -323,22 +323,41 @@ def list_panel_uploads(db: Session, *, limit: int = 60) -> list[dict[str, Any]]:
 
 
 def list_container_badges(db: Session) -> dict[str, dict[str, Any]]:
-    """Aktif panel yüklemelerinden container → badge (en yeni dosya). Silinenler listeden düşer."""
+    """Aktif panel yüklemelerinden container → badge + tüm dosyalar.
+
+    Badge köşesinde en yeni dosya; ``files`` dizisi aynı container’a bağlı
+    tüm (silinmemiş) yüklemeleri içerir. Silinenler listeden düşer.
+    """
     badges: dict[str, dict[str, Any]] = {}
     for item in list_panel_uploads(db, limit=100):
         key = str(item.get("container_key") or "").strip()
-        if not key or key in badges:
+        if not key:
             continue
-        badges[key] = {
-            "container_key": key,
-            "container_label": str(item.get("container_label") or "")
-            or _HOME_DRIVE_CONTAINER_BY_KEY.get(key, key),
+        file_entry = {
             "file_id": item.get("id") or "",
             "kind": item.get("kind") or "image",
             "name": item.get("name") or "",
             "thumb_url": item.get("thumb_url") or "",
             "web_view_link": item.get("web_view_link") or "",
         }
+        if key not in badges:
+            label = str(item.get("container_label") or "") or _HOME_DRIVE_CONTAINER_BY_KEY.get(
+                key, key
+            )
+            badges[key] = {
+                "container_key": key,
+                "container_label": label,
+                "file_id": file_entry["file_id"],
+                "kind": file_entry["kind"],
+                "name": file_entry["name"],
+                "thumb_url": file_entry["thumb_url"],
+                "web_view_link": file_entry["web_view_link"],
+                "files": [file_entry],
+                "file_count": 1,
+            }
+        else:
+            badges[key]["files"].append(file_entry)
+            badges[key]["file_count"] = len(badges[key]["files"])
     return badges
 
 

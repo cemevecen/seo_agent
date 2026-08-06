@@ -65,3 +65,47 @@ def test_resolve_home_drive_container():
         resolve_home_drive_container("")
     with pytest.raises(ValueError):
         resolve_home_drive_container("not-a-real-container")
+
+
+def test_list_container_badges_groups_files(monkeypatch):
+    from backend.services import home_drive
+
+    monkeypatch.setattr(
+        home_drive,
+        "list_panel_uploads",
+        lambda db, limit=100: [
+            {
+                "id": "a1",
+                "name": "one.png",
+                "kind": "image",
+                "thumb_url": "/t/a1",
+                "web_view_link": "",
+                "container_key": "ga4-doviz",
+                "container_label": "doviz · ga4",
+            },
+            {
+                "id": "a2",
+                "name": "two.png",
+                "kind": "image",
+                "thumb_url": "/t/a2",
+                "web_view_link": "",
+                "container_key": "ga4-doviz",
+                "container_label": "doviz · ga4",
+            },
+            {
+                "id": "b1",
+                "name": "clip.mp4",
+                "kind": "video",
+                "thumb_url": "",
+                "web_view_link": "https://x",
+                "container_key": "sc-doviz",
+                "container_label": "doviz · search console",
+            },
+        ],
+    )
+    badges = home_drive.list_container_badges(db=None)
+    assert badges["ga4-doviz"]["file_count"] == 2
+    assert len(badges["ga4-doviz"]["files"]) == 2
+    assert badges["ga4-doviz"]["file_id"] == "a1"
+    assert badges["sc-doviz"]["file_count"] == 1
+    assert badges["sc-doviz"]["kind"] == "video"
