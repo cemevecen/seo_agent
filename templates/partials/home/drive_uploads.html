@@ -105,6 +105,7 @@
     padding-top: 0.75rem;
   }
   .home-drive-card {
+    position: relative;
     width: 7.5rem;
     flex: 0 0 7.5rem;
     border-radius: 0.55rem;
@@ -112,11 +113,85 @@
     background: #fff;
     overflow: hidden;
   }
+  .home-drive-card.is-selected {
+    border-color: rgb(59 130 246);
+    box-shadow: 0 0 0 1px rgb(59 130 246 / 0.35);
+  }
   html.dark .home-drive-card,
   html.midnight .home-drive-card {
     border-color: rgb(63 63 70);
     background: rgb(9 9 11);
   }
+  html.dark .home-drive-card.is-selected,
+  html.midnight .home-drive-card.is-selected {
+    border-color: rgb(96 165 250);
+    box-shadow: 0 0 0 1px rgb(96 165 250 / 0.4);
+  }
+  .home-drive-card-check {
+    position: absolute;
+    top: 0.35rem;
+    left: 0.35rem;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin: 0;
+    border-radius: 0.25rem;
+    border: 1.5px solid rgb(255 255 255 / 0.95);
+    background: rgb(15 23 42 / 0.45);
+    accent-color: #2563eb;
+    cursor: pointer;
+  }
+  .home-drive-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.65rem;
+    padding: 0.65rem 0 0;
+  }
+  .home-drive-toolbar-btn {
+    border: 0;
+    border-radius: 9999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: rgb(241 245 249);
+    color: #475569;
+  }
+  .home-drive-toolbar-btn:hover { background: rgb(226 232 240); }
+  .home-drive-toolbar-btn.is-danger {
+    background: rgb(254 226 226);
+    color: #b91c1c;
+  }
+  .home-drive-toolbar-btn.is-danger:hover { background: rgb(254 202 202); }
+  .home-drive-toolbar-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  html.dark .home-drive-toolbar-btn,
+  html.midnight .home-drive-toolbar-btn {
+    background: rgb(39 39 42);
+    color: #a1a1aa;
+  }
+  html.dark .home-drive-toolbar-btn.is-danger,
+  html.midnight .home-drive-toolbar-btn.is-danger {
+    background: rgb(127 29 29 / 0.45);
+    color: #fecaca;
+  }
+  .home-drive-select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    user-select: none;
+  }
+  html.dark .home-drive-select-all { color: #a1a1aa; }
   .home-drive-card-img {
     display: block;
     width: 7.5rem;
@@ -218,10 +293,23 @@
         <span class="home-drive-chevron" aria-hidden="true"></span>
       </button>
       <div class="home-drive-gallery-body" data-home-drive-gallery-body hidden>
+        <div class="home-drive-toolbar" data-home-drive-toolbar {% if not files %}hidden{% endif %}>
+          <label class="home-drive-select-all">
+            <input type="checkbox" data-home-drive-select-all>
+            tümünü seç
+          </label>
+          <button type="button" class="home-drive-toolbar-btn is-danger" data-home-drive-delete-selected disabled>
+            seçilenleri sil
+          </button>
+          <button type="button" class="home-drive-toolbar-btn is-danger" data-home-drive-delete-all>
+            tümünü sil
+          </button>
+        </div>
         {% if files %}
           <div class="home-drive-grid" data-home-drive-grid>
             {% for f in files %}
               <article class="home-drive-card" data-home-drive-card data-file-id="{{ f.id }}">
+                <input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="{{ f.id }}" aria-label="Seç">
                 <a href="{{ f.web_view_link or f.thumb_url }}" target="_blank" rel="noopener noreferrer" title="{{ f.name }}">
                   <img class="home-drive-card-img" src="{{ f.thumb_url }}" alt="{{ f.name }}" loading="lazy">
                 </a>
@@ -259,6 +347,11 @@
   var grid = root.querySelector('[data-home-drive-grid]');
   var countEl = root.querySelector('[data-home-drive-count]');
   var emptyEl = root.querySelector('[data-home-drive-empty]');
+  var toolbar = root.querySelector('[data-home-drive-toolbar]');
+  var selectAll = root.querySelector('[data-home-drive-select-all]');
+  var deleteSelectedBtn = root.querySelector('[data-home-drive-delete-selected]');
+  var deleteAllBtn = root.querySelector('[data-home-drive-delete-all]');
+  var deleting = false;
 
   function setStatus(msg, kind) {
     if (!statusEl) return;
@@ -274,21 +367,70 @@
     statusEl.classList.toggle('is-ok', kind === 'ok');
   }
 
+  function cards() {
+    return grid ? Array.prototype.slice.call(grid.querySelectorAll('[data-home-drive-card]')) : [];
+  }
+
+  function selectedIds() {
+    if (!grid) return [];
+    return Array.prototype.slice
+      .call(grid.querySelectorAll('[data-home-drive-pick]:checked'))
+      .map(function (el) { return el.value; })
+      .filter(Boolean);
+  }
+
+  function findCard(id) {
+    if (!grid || !id) return null;
+    return grid.querySelector('[data-home-drive-card][data-file-id="' + String(id).replace(/"/g, '') + '"]');
+  }
+
+  function syncSelectionUi() {
+    var list = cards();
+    var n = list.length;
+    if (toolbar) toolbar.hidden = n === 0;
+    var picks = list.map(function (c) { return c.querySelector('[data-home-drive-pick]'); }).filter(Boolean);
+    var checked = picks.filter(function (p) { return p.checked; }).length;
+    picks.forEach(function (p) {
+      var card = p.closest('[data-home-drive-card]');
+      if (card) card.classList.toggle('is-selected', !!p.checked);
+    });
+    if (selectAll) {
+      selectAll.checked = n > 0 && checked === n;
+      selectAll.indeterminate = checked > 0 && checked < n;
+      selectAll.disabled = n === 0 || deleting;
+    }
+    if (deleteSelectedBtn) {
+      deleteSelectedBtn.disabled = checked === 0 || deleting;
+      deleteSelectedBtn.textContent = checked ? ('seçilenleri sil (' + checked + ')') : 'seçilenleri sil';
+    }
+    if (deleteAllBtn) deleteAllBtn.disabled = n === 0 || deleting;
+  }
+
   function updateCount() {
     if (!grid || !countEl) return;
-    var n = grid.querySelectorAll('[data-home-drive-card]').length;
+    var n = cards().length;
     countEl.textContent = '(' + n + ')';
     if (emptyEl) emptyEl.hidden = n > 0;
     if (grid) grid.hidden = n === 0;
+    syncSelectionUi();
+  }
+
+  function openGallery() {
+    if (gallery && !gallery.classList.contains('is-open')) {
+      gallery.classList.add('is-open');
+      if (body) body.hidden = false;
+      if (toggle) toggle.setAttribute('aria-expanded', 'true');
+    }
   }
 
   function cardHtml(f) {
-    var name = (f.name || 'image').replace(/</g, '&lt;');
-    var id = String(f.id || '');
+    var name = (f.name || 'image').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    var id = String(f.id || '').replace(/"/g, '');
     var thumb = f.thumb_url || '';
     var link = f.web_view_link || thumb;
     return (
       '<article class="home-drive-card" data-home-drive-card data-file-id="' + id + '">' +
+        '<input type="checkbox" class="home-drive-card-check" data-home-drive-pick value="' + id + '" aria-label="Seç">' +
         '<a href="' + link + '" target="_blank" rel="noopener noreferrer" title="' + name + '">' +
           '<img class="home-drive-card-img" src="' + thumb + '" alt="' + name + '" loading="lazy">' +
         '</a>' +
@@ -298,6 +440,49 @@
         '</div>' +
       '</article>'
     );
+  }
+
+  function removeCards(ids) {
+    (ids || []).forEach(function (id) {
+      var card = findCard(id);
+      if (card) card.remove();
+    });
+    updateCount();
+  }
+
+  async function deleteIds(ids, confirmMsg) {
+    if (!ids || !ids.length || deleting) return;
+    if (!window.confirm(confirmMsg)) return;
+    deleting = true;
+    syncSelectionUi();
+    setStatus('Siliniyor… (' + ids.length + ')', null);
+    try {
+      var res = await fetch('/api/home/drive/files/delete-batch', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ ids: ids }),
+      });
+      var j = await res.json().catch(function () { return {}; });
+      var deleted = (j && j.deleted) || [];
+      removeCards(deleted);
+      if (j && j.ok && !(j.failed_count)) {
+        setStatus(deleted.length + ' görsel silindi', 'ok');
+      } else if (deleted.length) {
+        setStatus(
+          deleted.length + ' silindi, ' + ((j && j.failed_count) || 0) + ' başarısız' +
+            (j && j.error ? (': ' + j.error) : ''),
+          'err'
+        );
+      } else {
+        setStatus((j && j.error) || 'Silinemedi', 'err');
+      }
+    } catch (e) {
+      setStatus('Silinemedi', 'err');
+    } finally {
+      deleting = false;
+      syncSelectionUi();
+    }
   }
 
   if (toggle && gallery && body) {
@@ -332,11 +517,7 @@
           grid.hidden = false;
           grid.insertAdjacentHTML('afterbegin', cardHtml(j.file));
           updateCount();
-          if (gallery && !gallery.classList.contains('is-open')) {
-            gallery.classList.add('is-open');
-            if (body) body.hidden = false;
-            if (toggle) toggle.setAttribute('aria-expanded', 'true');
-          }
+          openGallery();
         }
       } catch (e) {
         setStatus('Yükleme hatası', 'err');
@@ -372,28 +553,43 @@
     });
   }
 
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      var on = !!selectAll.checked;
+      cards().forEach(function (c) {
+        var p = c.querySelector('[data-home-drive-pick]');
+        if (p) p.checked = on;
+      });
+      syncSelectionUi();
+    });
+  }
+
+  if (deleteSelectedBtn) {
+    deleteSelectedBtn.addEventListener('click', function () {
+      var ids = selectedIds();
+      deleteIds(ids, ids.length + ' görseli Drive’dan silmek istiyor musun?');
+    });
+  }
+
+  if (deleteAllBtn) {
+    deleteAllBtn.addEventListener('click', function () {
+      var ids = cards().map(function (c) { return c.getAttribute('data-file-id'); }).filter(Boolean);
+      deleteIds(ids, 'Klasördeki tüm görselleri (' + ids.length + ') silmek istiyor musun?');
+    });
+  }
+
+  root.addEventListener('change', function (ev) {
+    if (ev.target && ev.target.matches && ev.target.matches('[data-home-drive-pick]')) {
+      syncSelectionUi();
+    }
+  });
+
   root.addEventListener('click', function (ev) {
     var del = ev.target.closest('[data-home-drive-delete]');
     if (del) {
       var id = del.getAttribute('data-home-drive-delete');
       if (!id) return;
-      if (!window.confirm('Bu görseli Drive’dan silmek istiyor musun?')) return;
-      fetch('/api/home/drive/files/' + encodeURIComponent(id), {
-        method: 'DELETE',
-        credentials: 'same-origin',
-      })
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-        .then(function (x) {
-          if (!x.ok || !x.j.ok) {
-            setStatus((x.j && x.j.error) || 'Silinemedi', 'err');
-            return;
-          }
-          var card = root.querySelector('[data-home-drive-card][data-file-id="' + id + '"]');
-          if (card) card.remove();
-          updateCount();
-          setStatus('Silindi', 'ok');
-        })
-        .catch(function () { setStatus('Silinemedi', 'err'); });
+      deleteIds([id], 'Bu görseli Drive’dan silmek istiyor musun?');
       return;
     }
     var disc = ev.target.closest('[data-home-drive-disconnect]');
@@ -407,5 +603,7 @@
         });
     }
   });
+
+  syncSelectionUi();
 })();
 </script>

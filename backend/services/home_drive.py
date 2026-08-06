@@ -129,6 +129,7 @@ def upload_image(
 
 
 def delete_file(db: Session, file_id: str) -> None:
+    """Hedef klasördeki dosyayı sil; kalıcı silme yetkisi yoksa çöpe at."""
     fid = (file_id or "").strip()
     if not fid:
         raise ValueError("Dosya id eksik.")
@@ -139,10 +140,45 @@ def delete_file(db: Session, file_id: str) -> None:
         .get(fileId=fid, fields="id,parents,trashed", supportsAllDrives=True)
         .execute()
     )
+    if meta.get("trashed"):
+        return
     parents = list(meta.get("parents") or [])
     if folder_id and folder_id not in parents:
         raise PermissionError("Dosya hedef Drive klasöründe değil.")
-    service.files().delete(fileId=fid, supportsAllDrives=True).execute()
+    try:
+        service.files().delete(fileId=fid, supportsAllDrives=True).execute()
+        return
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.info("Drive permanent delete failed for %s (%s); trying trash", fid, exc)
+    service.files().update(
+        fileId=fid,
+        body={"trashed": True},
+        supportsAllDrives=True,
+    ).execute()
+
+
+def delete_files(db: Session, file_ids: list[str]) -> dict[str, Any]:
+    """Birden fazla dosyayı sil. Dönüş: deleted / failed / errors."""
+    seen: set[str] = set()
+    deleted: list[str] = []
+    failed: list[dict[str, str]] = []
+    for raw in file_ids or []:
+        fid = (raw or "").strip()
+        if not fid or fid in seen:
+            continue
+        seen.add(fid)
+        try:
+            delete_file(db, fid)
+            deleted.append(fid)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Drive delete failed for %s: %s", fid, exc)
+            failed.append({"id": fid, "error": str(exc)[:160]})
+    return {
+        "deleted": deleted,
+        "failed": failed,
+        "deleted_count": len(deleted),
+        "failed_count": len(failed),
+    }
 
 
 def download_file_bytes(db: Session, file_id: str) -> tuple[bytes, str, str]:

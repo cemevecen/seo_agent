@@ -126,12 +126,50 @@ async def home_drive_upload(
 @router.delete("/files/{file_id}", response_model=None)
 @limiter.limit("60/minute")
 def home_drive_delete_file(file_id: str, request: Request, db: Session = Depends(get_db)):
+    if not home_drive_auth.get_home_drive_credential_row(db):
+        return JSONResponse({"ok": False, "error": "Drive bağlı değil."}, status_code=401)
     try:
         home_drive.delete_file(db, file_id)
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("home drive delete failed")
         return JSONResponse({"ok": False, "error": str(exc)[:200]}, status_code=400)
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "deleted": [file_id]})
+
+
+@router.post("/files/delete-batch", response_model=None)
+@limiter.limit("20/minute")
+async def home_drive_delete_batch(request: Request, db: Session = Depends(get_db)):
+    if not home_drive_auth.get_home_drive_credential_row(db):
+        return JSONResponse({"ok": False, "error": "Drive bağlı değil."}, status_code=401)
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        payload = {}
+    ids = payload.get("ids") if isinstance(payload, dict) else None
+    if not isinstance(ids, list) or not ids:
+        return JSONResponse({"ok": False, "error": "ids listesi gerekli."}, status_code=400)
+    if len(ids) > 100:
+        return JSONResponse({"ok": False, "error": "En fazla 100 dosya silinebilir."}, status_code=400)
+    result = home_drive.delete_files(db, [str(x) for x in ids])
+    ok = result["deleted_count"] > 0 and result["failed_count"] == 0
+    partial = result["deleted_count"] > 0 and result["failed_count"] > 0
+    return JSONResponse(
+        {
+            "ok": ok or partial,
+            "partial": partial,
+            **result,
+            "error": (
+                None
+                if ok
+                else (
+                    result["failed"][0]["error"]
+                    if result["failed"]
+                    else "Silinemedi"
+                )
+            ),
+        },
+        status_code=200 if (ok or partial) else 400,
+    )
 
 
 @router.get("/files/{file_id}/content", response_model=None)
