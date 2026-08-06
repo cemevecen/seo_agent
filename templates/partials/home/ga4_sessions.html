@@ -96,8 +96,10 @@
         {% set _pages_id = 'ga4-pages-' ~ site.site_id ~ '-' ~ prof.key %}
         {% set _kpi_id = 'ga4-kpi-' ~ site.site_id ~ '-' ~ prof.key %}
         <div class="home-ga4-spark-cell">
-          <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
-          {{ home_detail_kpis_trigger(_kpi_id) }}
+          <div class="home-kpi-head">
+            <p class="home-label text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
+            {{ home_detail_kpis_trigger(_kpi_id, aria_label=prof.label ~ ' KPI detay') }}
+          </div>
           {% if prof.spark and prof.spark.has_points and prof.spark.path_d %}
             <svg class="home-ga4-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
               <path class="home-ga4-spark-line" d="{{ prof.spark.path_d }}"></path>

@@ -118,13 +118,14 @@
 </style>
 {%- endmacro %}
 
-{% macro home_detail_kpis_trigger(panel_id, label='KPI detay') -%}
+{% macro home_detail_kpis_trigger(panel_id, aria_label='KPI detay') -%}
 <button type="button"
-        class="home-top-pages-trigger home-top-pages-trigger--above"
+        class="home-top-pages-trigger home-top-pages-trigger--icon"
         data-home-top-pages-open="{{ panel_id }}"
         aria-expanded="false"
-        aria-controls="home-top-pages-{{ panel_id }}">
-  <span>{{ label }}</span>
+        aria-controls="home-top-pages-{{ panel_id }}"
+        aria-label="{{ aria_label }}"
+        title="{{ aria_label }}">
   <span class="home-top-pages-chevron" aria-hidden="true"></span>
 </button>
 {%- endmacro %}

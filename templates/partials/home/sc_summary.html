@@ -216,8 +216,10 @@
         <div class="home-sc-spark-cell is-clicks home-sc-pos-row">
           <div class="home-sc-pos-row-inner">
             <div class="home-sc-pos-main">
-              <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
-              {{ home_detail_kpis_trigger(_kpi_id) }}
+              <div class="home-kpi-head">
+                <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+                {{ home_detail_kpis_trigger(_kpi_id, aria_label=dev.label ~ ' KPI detay') }}
+              </div>
               {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
                 <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
                   <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
@@ -260,8 +262,10 @@
         <div class="home-sc-spark-cell is-pos home-sc-pos-row">
           <div class="home-sc-pos-row-inner">
             <div class="home-sc-pos-main">
-              <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
-              {{ home_detail_kpis_trigger(_kpi_id) }}
+              <div class="home-kpi-head">
+                <p class="home-label text-slate-500 dark:text-slate-400">{{ dev.label }}</p>
+                {{ home_detail_kpis_trigger(_kpi_id, aria_label=dev.label ~ ' KPI detay') }}
+              </div>
               {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
                 <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
                   <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>

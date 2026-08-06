@@ -41,6 +41,63 @@
     padding-top: 0;
     border-top: 0;
   }
+  .home-kpi-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 0.5rem;
+    min-width: 0;
+    width: 100%;
+  }
+  .home-kpi-head .home-label {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home-top-pages-trigger--icon {
+    display: inline-flex;
+    width: auto;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0.2rem;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    cursor: pointer;
+    color: #94a3b8;
+    line-height: 0;
+  }
+  .home-top-pages-trigger--icon:hover,
+  .home-top-pages-trigger--icon.is-active {
+    color: #0f172a;
+    background: rgb(241 245 249 / 0.9);
+  }
+  html.dark .home-top-pages-trigger--icon,
+  html.midnight .home-top-pages-trigger--icon {
+    color: #71717a;
+  }
+  html.dark .home-top-pages-trigger--icon:hover,
+  html.dark .home-top-pages-trigger--icon.is-active,
+  html.midnight .home-top-pages-trigger--icon:hover,
+  html.midnight .home-top-pages-trigger--icon.is-active {
+    color: #a1a1aa;
+    background: rgb(39 39 42 / 0.85);
+  }
+  .home-top-pages-trigger--icon .home-top-pages-chevron {
+    width: 0.38rem;
+    height: 0.38rem;
+    margin: 0 0 0.05rem;
+    opacity: 0.85;
+  }
+  .home-top-pages-trigger--icon.is-active .home-top-pages-chevron {
+    transform: rotate(-135deg);
+    margin-top: 0.12rem;
+    margin-bottom: 0;
+  }
   .home-top-pages-chevron {
     width: 0.4rem;
     height: 0.4rem;
