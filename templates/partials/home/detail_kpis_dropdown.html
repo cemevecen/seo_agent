@@ -130,7 +130,7 @@
 </button>
 {%- endmacro %}
 
-{% macro home_detail_kpis_panel(panel_id, kpis, title='KPI detay') -%}
+{% macro home_detail_kpis_panel(panel_id, kpis, title='KPI detay', prev_label='Önceki dönem') -%}
 <div class="home-top-pages-panel"
      id="home-top-pages-{{ panel_id }}"
      data-home-top-pages-panel="{{ panel_id }}"
@@ -162,7 +162,7 @@
             <div class="home-detail-kpi-spark-empty" aria-hidden="true"></div>
           {% endif %}
           <div class="home-detail-kpi-prev">
-            <span class="home-detail-kpi-prev-label">Önceki 7 gün</span>
+            <span class="home-detail-kpi-prev-label">{{ prev_label }}</span>
             {{ kpi.prev_fmt }}
           </div>
         </article>

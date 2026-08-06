@@ -180,8 +180,17 @@
   }
 </style>
 
-<div class="home-readable flex items-center justify-between gap-3">
-  <h3 class="font-semibold text-slate-900 dark:text-slate-100">search console 7 days</h3>
+<div class="home-readable flex flex-wrap items-center justify-between gap-3" data-home-period-root data-home-period-endpoint="sc-summary" data-home-period-site="{{ site_key | default('doviz') }}">
+  <div class="flex min-w-0 flex-wrap items-center gap-2">
+    <h3 class="font-semibold text-slate-900 dark:text-slate-100">search console {{ period_label | default('7g') }}</h3>
+    <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Dönem">
+      {% for dv, dl in [(7,'7g'),(60,'60g'),(90,'90g')] %}
+        <button type="button" data-home-period="{{ dv }}"
+          class="rounded-md px-2 py-0.5 text-[11px] font-semibold transition
+            {% if (period_days | default(7)) == dv %}bg-slate-900 text-white dark:bg-slate-600 dark:text-slate-100{% else %}text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100{% endif %}">{{ dl }}</button>
+      {% endfor %}
+    </div>
+  </div>
   <a href="/search-console" hx-get="/search-console" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
      class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
 </div>
@@ -250,7 +259,7 @@
           </div>
         </div>
         {{ home_top_pages_trigger(_pages_id) }}
-        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay') }}
+        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay', prev_label=prev_period_label | default('Önceki dönem')) }}
         {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=want ~ ' · top 25 sayfa') }}
       </div>
     {% endfor %}

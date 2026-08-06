@@ -8901,6 +8901,21 @@ def _home_ga4_sessions_from_snap(db, site_id: int, prof_key: str, period_days: i
     return (last_v, prev_v)
 
 
+_HOME_PERIOD_DAYS = frozenset({7, 60, 90})
+
+
+def _home_clamp_period_days(raw: object | None) -> int:
+    try:
+        days = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 7
+    return days if days in _HOME_PERIOD_DAYS else 7
+
+
+def _home_period_label(days: int) -> str:
+    return f"{int(days)}g"
+
+
 def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int = 7) -> list[float]:
     """GA4 günlük session serisi — KPI ile aynı dönem penceresine hizalı spark."""
     values: list[float] = []
@@ -8908,8 +8923,11 @@ def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int
         period_daily: dict | None = None
         last_start = ""
         last_end = ""
-        # KPI gibi önce 7g; sinyal yoksa 30g (boş 7g spark + dolu 30g KPI kaymasını önle)
-        for pd in (7, 30):
+        prefer = [int(days)]
+        for fallback in (7, 30, 60, 90):
+            if fallback not in prefer:
+                prefer.append(fallback)
+        for pd in prefer:
             snap = get_latest_ga4_report_snapshot(
                 db, site_id=site_id, profile=prof_key, period_days=pd
             )
@@ -8924,7 +8942,7 @@ def _home_ga4_session_spark_values(db, site_id: int, prof_key: str, *, days: int
             period_daily = candidate
             last_start = str(snap.get("last_start") or payload.get("last_start") or "")[:10]
             last_end = str(snap.get("last_end") or payload.get("last_end") or "")[:10]
-            if _ga4_trend_has_signal(candidate):
+            if pd == int(days) or _ga4_trend_has_signal(candidate):
                 break
         _daily, spark_daily = _ga4_daily_trends_for_ui(
             db,
@@ -8957,16 +8975,24 @@ def _home_sc_trend_series(
     *,
     days: int = 7,
 ) -> list[float]:
-    """Search Console günlük serisi — mümkünse current_7d penceresine hizalı."""
+    """Search Console günlük serisi — mümkünse current_{N}d penceresine hizalı."""
     if not summary_payload:
         return []
-    want_start = str(summary_payload.get("current_7d_start") or "")[:10]
-    want_end = str(summary_payload.get("current_7d_end") or "")[:10]
-    by_dev = (
-        summary_payload.get("trend_28d_summary_by_device")
-        or summary_payload.get("trend_7d_summary_by_device")
-        or {}
-    )
+    days_i = max(2, int(days or 7))
+    want_start = str(summary_payload.get(f"current_{days_i}d_start") or "")[:10]
+    want_end = str(summary_payload.get(f"current_{days_i}d_end") or "")[:10]
+    if not want_start or not want_end:
+        want_start = str(summary_payload.get("current_7d_start") or "")[:10]
+        want_end = str(summary_payload.get("current_7d_end") or "")[:10]
+    by_dev = {}
+    if days_i > 28:
+        by_dev = summary_payload.get("trend_12m_summary_by_device") or {}
+    if not by_dev:
+        by_dev = (
+            summary_payload.get("trend_28d_summary_by_device")
+            or summary_payload.get("trend_7d_summary_by_device")
+            or {}
+        )
     # Device key case-insensitive
     trend = by_dev.get(device) or by_dev.get(device.upper()) or by_dev.get(device.lower()) or {}
     if not trend:
@@ -9004,9 +9030,9 @@ def _home_sc_trend_series(
     if want_start and want_end and any(d for d, _ in paired):
         windowed = [fv for d, fv in paired if d and want_start <= d <= want_end]
         if len(windowed) >= 2:
-            return windowed
+            return windowed[-days_i:] if len(windowed) > days_i else windowed
 
-    out = [fv for _, fv in paired[-max(2, int(days)) :]]
+    out = [fv for _, fv in paired[-days_i:]]
     if len(out) >= 2:
         return out
 
@@ -9079,7 +9105,14 @@ def _home_spark_tone_from_home(tone: str) -> str:
     return "flat"
 
 
-def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str, str]]) -> list[dict]:
+def _home_load_ga4_sessions_for_site(
+    db,
+    site_id: int,
+    profiles: list[tuple[str, str]],
+    *,
+    period_days: int = 7,
+) -> list[dict]:
+    period_days = _home_clamp_period_days(period_days)
     # Metrik tablosundan fallback için
     try:
         latest_metrics = get_latest_metrics(db, site_id=site_id)
@@ -9091,34 +9124,37 @@ def _home_load_ga4_sessions_for_site(db, site_id: int, profiles: list[tuple[str,
 
     out = []
     for prof_key, prof_label in profiles:
-        # 1. period_days=7 snapshot dene
-        last_v, prev_v = _home_ga4_sessions_from_snap(db, site_id, prof_key, 7)
-        # 2. Sıfırsa period_days=30 dene
-        if last_v <= 0 and prev_v <= 0:
+        last_v, prev_v = _home_ga4_sessions_from_snap(db, site_id, prof_key, period_days)
+        # 7g boşsa eski 30g yedeği (geriye uyum); 60/90 için karışık dönem gösterme
+        if last_v <= 0 and prev_v <= 0 and period_days == 7:
             last_v, prev_v = _home_ga4_sessions_from_snap(db, site_id, prof_key, 30)
-        # 3. Hâlâ sıfırsa metrik tablosu fallback (collector'ın yazdığı flat key)
         if last_v <= 0:
-            for pd in (7, 30):
+            for pd in ((period_days, 7, 30) if period_days == 7 else (period_days,)):
                 v = float(latest_metrics.get(f"ga4_{prof_key}_sessions_last{pd}d_total") or 0.0)
                 if v > 0:
                     last_v = v
                     prev_v = float(latest_metrics.get(f"ga4_{prof_key}_sessions_prev{pd}d_total") or 0.0)
                     break
         delta_fmt, tone, delta_pct = _home_pct_delta(last_v, prev_v)
-        spark_vals = _home_ga4_session_spark_values(db, site_id, prof_key, days=7)
+        spark_vals = _home_ga4_session_spark_values(db, site_id, prof_key, days=period_days)
         spark = _home_spark_paths(spark_vals, width=96, height=28, pad=2)
         top_pages: list[dict] = []
         if prof_key in ("web", "mweb"):
             try:
                 top_pages = _home_ga4_top_pages(
-                    db, site_id, prof_key, site_domain=site_domain, limit=_HOME_TOP_PAGES_LIMIT
+                    db,
+                    site_id,
+                    prof_key,
+                    site_domain=site_domain,
+                    limit=_HOME_TOP_PAGES_LIMIT,
+                    period_days=period_days,
                 )
             except Exception:  # noqa: BLE001
                 LOGGER.exception("Home GA4 top pages failed site=%s profile=%s", site_id, prof_key)
                 top_pages = []
         detail_kpis: list[dict] = []
         try:
-            detail_kpis = _home_ga4_detail_kpis(db, site_id, prof_key)
+            detail_kpis = _home_ga4_detail_kpis(db, site_id, prof_key, period_days=period_days)
         except Exception:  # noqa: BLE001
             LOGGER.exception("Home GA4 detail KPIs failed site=%s profile=%s", site_id, prof_key)
             detail_kpis = []
@@ -9147,10 +9183,13 @@ def _home_fmt_avg_session_sec(sec: float) -> str:
     return f"{int(round(s))} s"
 
 
-def _home_ga4_detail_kpis(db, site_id: int, profile: str) -> list[dict]:
-    """Detay sayfası KPI kartları (7g) — home tam genişlik paneli için."""
-    snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=7)
-    if not snap:
+def _home_ga4_detail_kpis(db, site_id: int, profile: str, *, period_days: int = 7) -> list[dict]:
+    """Detay sayfası KPI kartları — home tam genişlik paneli için."""
+    period_days = _home_clamp_period_days(period_days)
+    snap = get_latest_ga4_report_snapshot(
+        db, site_id=site_id, profile=profile, period_days=period_days
+    )
+    if not snap and period_days == 7:
         snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
     payload = (snap or {}).get("payload") or {}
     summary = payload.get("summary") or {}
@@ -9162,7 +9201,7 @@ def _home_ga4_detail_kpis(db, site_id: int, profile: str) -> list[dict]:
         site_id=site_id,
         profile=profile,
         period_daily=period_daily,
-        period_days=7,
+        period_days=period_days,
     )
 
     def _f(slice_: dict, key: str) -> float:
@@ -9179,7 +9218,7 @@ def _home_ga4_detail_kpis(db, site_id: int, profile: str) -> list[dict]:
                 out.append(float(v or 0))
             except (TypeError, ValueError):
                 out.append(0.0)
-        return out[-7:] if len(out) > 7 else out
+        return out[-period_days:] if len(out) > period_days else out
 
     specs = [
         ("sessions", "SESSIONS", "int"),
@@ -9231,8 +9270,10 @@ def _home_sc_detail_kpis(
     p_impr: float,
     c_pos: float,
     p_pos: float,
+    period_days: int = 7,
 ) -> list[dict]:
     """SC detay KPI kartları (clicks / impressions / CTR / position)."""
+    period_days = _home_clamp_period_days(period_days)
     c_ctr = (c_clicks / c_impr * 100.0) if c_impr > 0 else 0.0
     p_ctr = (p_clicks / p_impr * 100.0) if p_impr > 0 else 0.0
     clicks_delta, clicks_tone, _ = _home_pct_delta(c_clicks, p_clicks)
@@ -9243,7 +9284,7 @@ def _home_sc_detail_kpis(
 
     def _bars(metric: str) -> list[int]:
         return _home_bar_heights(
-            _home_sc_trend_series(summary_payload, device, metric, days=7)
+            _home_sc_trend_series(summary_payload, device, metric, days=period_days)
         )
 
     return [
@@ -9399,6 +9440,7 @@ def _home_ga4_top_pages(
     *,
     site_domain: str | None,
     limit: int = _HOME_TOP_PAGES_LIMIT,
+    period_days: int = 7,
 ) -> list[dict]:
     """GA4 top sayfalar — SC pozisyon ekli.
 
@@ -9407,9 +9449,12 @@ def _home_ga4_top_pages(
     """
     if profile not in ("web", "mweb"):
         return []
+    period_days = _home_clamp_period_days(period_days)
 
-    snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=7)
-    if not snap or not ((snap.get("payload") or {}).get("pages_no_news")):
+    snap = get_latest_ga4_report_snapshot(
+        db, site_id=site_id, profile=profile, period_days=period_days
+    )
+    if (not snap or not ((snap.get("payload") or {}).get("pages_no_news"))) and period_days == 7:
         snap = get_latest_ga4_report_snapshot(db, site_id=site_id, profile=profile, period_days=30)
     payload = (snap or {}).get("payload") or {}
     rows = _ga4_pages_no_news_for_ui(payload)
@@ -9424,20 +9469,21 @@ def _home_ga4_top_pages(
             # Sayfalar∪Haberler: filtresiz trafik top + haber listesi
             all_live = fetch_ga4_landing_pages(
                 property_id=property_id,
-                days=7,
+                days=period_days,
                 limit=200,
                 exclude_news=False,
             )
             all_live = _enrich_ga4_page_rows(all_live, keep_news_articles=True)
             news_live = fetch_ga4_news_landing_pages_total(
-                property_id=property_id, days=7, limit=100
+                property_id=property_id, days=period_days, limit=100
             )
             news_live = _enrich_ga4_page_rows(news_live, keep_news_articles=True)
             rows = _home_ga4_merge_page_rows(rows or [], all_live, news_live)
             LOGGER.info(
-                "Home GA4 pages+news merge site=%s profile=%s rows=%s",
+                "Home GA4 pages+news merge site=%s profile=%s days=%s rows=%s",
                 site_id,
                 profile,
+                period_days,
                 len(rows),
             )
     except Exception:  # noqa: BLE001
@@ -9451,7 +9497,7 @@ def _home_ga4_top_pages(
         sc_diff, sc_cur, sc_has_prev = _sc_page_position_lookups_for_ga4(
             db,
             site_id=site_id,
-            days=7,
+            days=period_days,
             profile=profile,
             site_domain=site_domain,
         )
@@ -9519,13 +9565,19 @@ def _home_sc_top_pages(
     *,
     site_domain: str | None,
     limit: int = _HOME_TOP_PAGES_LIMIT,
+    period_days: int = 7,
 ) -> list[dict]:
-    """Search Console top pages (7g) — clicks + pozisyon farkı."""
+    """Search Console top pages — clicks + pozisyon farkı."""
+    period_days = _home_clamp_period_days(period_days)
+    scopes_pair = _ga4_days_to_sc_page_scopes(period_days)
+    if not scopes_pair:
+        return []
+    cur_scope, prev_scope = scopes_pair
     batch = get_latest_search_console_rows_batch(
-        db, site_id=site_id, scopes=["current_7d_pages", "previous_7d_pages"]
+        db, site_id=site_id, scopes=[cur_scope, prev_scope]
     )
-    cur = _filter_search_console_rows_by_device(batch.get("current_7d_pages") or [], device)
-    prev = _filter_search_console_rows_by_device(batch.get("previous_7d_pages") or [], device)
+    cur = _filter_search_console_rows_by_device(batch.get(cur_scope) or [], device)
+    prev = _filter_search_console_rows_by_device(batch.get(prev_scope) or [], device)
     if not cur and not prev:
         return []
     entities = _build_search_console_top_entities(cur, prev, label_key="query", limit=max(1, int(limit)))
@@ -9569,7 +9621,12 @@ def _home_sc_top_pages(
 
 
 @app.get("/api/home/ga4-sessions", response_class=HTMLResponse)
-def api_home_ga4_sessions(request: Request, site: str | None = None):
+def api_home_ga4_sessions(
+    request: Request,
+    site: str | None = None,
+    period_days: int = 7,
+):
+    period_days = _home_clamp_period_days(period_days)
     sites_out = []
     _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
@@ -9583,20 +9640,39 @@ def api_home_ga4_sessions(request: Request, site: str | None = None):
                 "site_id": site_id,
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name,
-                "profiles": _home_load_ga4_sessions_for_site(db, site_id, profs),
+                "profiles": _home_load_ga4_sessions_for_site(
+                    db, site_id, profs, period_days=period_days
+                ),
             })
+    site_key = (site or "").strip().lower() or "doviz"
+    if site_key not in ("doviz", "sinemalar", "1", "2"):
+        site_key = "doviz"
+    if site_key == "1":
+        site_key = "doviz"
+    elif site_key == "2":
+        site_key = "sinemalar"
     return templates.TemplateResponse(
         request, "partials/home/ga4_sessions.html",
-        context={"request": request, "sites": sites_out},
+        context={
+            "request": request,
+            "sites": sites_out,
+            "period_days": period_days,
+            "period_label": _home_period_label(period_days),
+            "site_key": site_key,
+            "prev_period_label": f"Önceki {period_days} gün",
+        },
     )
 
 
-def _home_sc_top50_device_position(db, site_id: int, device: str) -> dict:
-    """Cihaz bazında en çok tıklanan 50 sorgunun top-50 özeti (7g vs önceki 7g).
+def _home_sc_top50_device_position(db, site_id: int, device: str, *, period_days: int = 7) -> dict:
+    """Cihaz bazında en çok tıklanan 50 sorgunun top-50 özeti (N gün vs önceki N gün).
 
     - Pozisyon: gösterim-ağırlıklı ortalama
     - Clicks: aynı sorgu setinin toplam tıklaması
     """
+    period_days = _home_clamp_period_days(period_days)
+    cur_scope = f"current_{period_days}d"
+    prev_scope = f"previous_{period_days}d"
     empty = {
         "top50_pos_last_fmt": "—",
         "top50_pos_prev_fmt": "—",
@@ -9613,12 +9689,12 @@ def _home_sc_top50_device_position(db, site_id: int, device: str) -> dict:
         device_u = str(device or "").upper().strip()
         current_rows = [
             row
-            for row in get_latest_search_console_rows(db, site_id=site_id, data_scope="current_7d")
+            for row in get_latest_search_console_rows(db, site_id=site_id, data_scope=cur_scope)
             if str(row.get("device") or "").upper().strip() == device_u
         ]
         previous_rows = [
             row
-            for row in get_latest_search_console_rows(db, site_id=site_id, data_scope="previous_7d")
+            for row in get_latest_search_console_rows(db, site_id=site_id, data_scope=prev_scope)
             if str(row.get("device") or "").upper().strip() == device_u
         ]
         if not current_rows or not previous_rows:
@@ -9696,8 +9772,9 @@ def _home_sc_device_aggregate(
     device: str,
     *,
     summary_payload: dict | None = None,
+    period_days: int = 7,
 ) -> dict:
-    """Tek site & device için current_7d ve previous_7d toplamları.
+    """Tek site & device için current_{N}d ve previous_{N}d toplamları.
 
     Pozisyon/click: CollectorRun summary'deki date×device site-geneli özet
     (GSC Performance ile aynı popülasyon). Query snapshot (top ~2500) yalnızca
@@ -9705,13 +9782,14 @@ def _home_sc_device_aggregate(
     """
     from sqlalchemy import func as sa_func
 
+    period_days = _home_clamp_period_days(period_days)
     summary = summary_payload
     if summary is None:
         summary = _latest_successful_provider_summary(
             db, site_id=site_id, provider="search_console"
         )
-    cur_sum = (summary.get("current_7d_summary_by_device") or {}).get(device) or {}
-    prev_sum = (summary.get("previous_7d_summary_by_device") or {}).get(device) or {}
+    cur_sum = (summary.get(f"current_{period_days}d_summary_by_device") or {}).get(device) or {}
+    prev_sum = (summary.get(f"previous_{period_days}d_summary_by_device") or {}).get(device) or {}
 
     def _from_snapshot(scope: str) -> tuple[float, float, float]:
         latest_ts = db.query(sa_func.max(SearchConsoleQuerySnapshot.collected_at)).filter(
@@ -9754,30 +9832,35 @@ def _home_sc_device_aggregate(
         c_pos = float(cur_sum.get("position") or 0.0)
         p_pos = float(prev_sum.get("position") or 0.0)
     else:
-        c_clicks, c_impr, c_pos = _from_snapshot("current_7d")
-        p_clicks, p_impr, p_pos = _from_snapshot("previous_7d")
+        c_clicks, c_impr, c_pos = _from_snapshot(f"current_{period_days}d")
+        p_clicks, p_impr, p_pos = _from_snapshot(f"previous_{period_days}d")
 
     clicks_delta, clicks_tone, clicks_delta_pct = _home_pct_delta(c_clicks, p_clicks)
     pos_diff = _sc_position_delta(c_pos, p_pos)
     pos_tone = _home_pos_tone(pos_diff)
     clicks_spark = _home_spark_paths(
-        _home_sc_trend_series(summary, device, "clicks", days=7),
+        _home_sc_trend_series(summary, device, "clicks", days=period_days),
         width=96,
         height=28,
         pad=2,
     )
     pos_spark = _home_spark_paths(
-        _home_sc_trend_series(summary, device, "position", days=7),
+        _home_sc_trend_series(summary, device, "position", days=period_days),
         width=96,
         height=28,
         pad=2,
     )
-    top50 = _home_sc_top50_device_position(db, site_id, device)
+    top50 = _home_sc_top50_device_position(db, site_id, device, period_days=period_days)
     site_obj = _home_get_site(db, site_id)
     site_domain = site_obj.domain if site_obj else None
     try:
         top_pages = _home_sc_top_pages(
-            db, site_id, device, site_domain=site_domain, limit=_HOME_TOP_PAGES_LIMIT
+            db,
+            site_id,
+            device,
+            site_domain=site_domain,
+            limit=_HOME_TOP_PAGES_LIMIT,
+            period_days=period_days,
         )
     except Exception:  # noqa: BLE001
         LOGGER.exception("Home SC top pages failed site=%s device=%s", site_id, device)
@@ -9792,6 +9875,7 @@ def _home_sc_device_aggregate(
             p_impr=p_impr,
             c_pos=c_pos,
             p_pos=p_pos,
+            period_days=period_days,
         )
     except Exception:  # noqa: BLE001
         LOGGER.exception("Home SC detail KPIs failed site=%s device=%s", site_id, device)
@@ -9816,7 +9900,12 @@ def _home_sc_device_aggregate(
 
 
 @app.get("/api/home/sc-summary", response_class=HTMLResponse)
-def api_home_sc_summary(request: Request, site: str | None = None):
+def api_home_sc_summary(
+    request: Request,
+    site: str | None = None,
+    period_days: int = 7,
+):
+    period_days = _home_clamp_period_days(period_days)
     sites_out = []
     _site_filter = _home_site_filter_ids(site)
     with SessionLocal() as db:
@@ -9832,7 +9921,11 @@ def api_home_sc_summary(request: Request, site: str | None = None):
             )
             for dev_code, dev_label in (("MOBILE", "Mobil Web"), ("DESKTOP", "Web")):
                 agg = _home_sc_device_aggregate(
-                    db, site_id, dev_code, summary_payload=sc_summary
+                    db,
+                    site_id,
+                    dev_code,
+                    summary_payload=sc_summary,
+                    period_days=period_days,
                 )
                 agg["label"] = dev_label
                 devices.append(agg)
@@ -9842,9 +9935,23 @@ def api_home_sc_summary(request: Request, site: str | None = None):
                 "display_name": site_obj.display_name,
                 "devices": devices,
             })
+    site_key = (site or "").strip().lower() or "doviz"
+    if site_key not in ("doviz", "sinemalar", "1", "2"):
+        site_key = "doviz"
+    if site_key == "1":
+        site_key = "doviz"
+    elif site_key == "2":
+        site_key = "sinemalar"
     return templates.TemplateResponse(
         request, "partials/home/sc_summary.html",
-        context={"request": request, "sites": sites_out},
+        context={
+            "request": request,
+            "sites": sites_out,
+            "period_days": period_days,
+            "period_label": _home_period_label(period_days),
+            "site_key": site_key,
+            "prev_period_label": f"Önceki {period_days} gün",
+        },
     )
 
 
