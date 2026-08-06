@@ -2593,37 +2593,66 @@ def _build_search_console_top_entities(
     current_map: dict[str, dict] = {}
     previous_map: dict[str, dict] = {}
     for row in current_rows:
-        key = str(row.get(label_key) or row.get("query") or "").strip()
+        key = str(row.get(label_key) or row.get("query") or row.get("page") or "").strip()
         if not key:
             continue
         bucket = current_map.setdefault(
             key,
-            {"clicks": 0.0, "impressions": 0.0, "position_weighted_sum": 0.0, "position_weight": 0.0},
+            {
+                "clicks": 0.0,
+                "impressions": 0.0,
+                "position_weighted_sum": 0.0,
+                "position_weight": 0.0,
+                "fallback_position_sum": 0.0,
+                "fallback_position_count": 0,
+            },
         )
         clicks = float(row.get("clicks") or 0.0)
         impressions = float(row.get("impressions") or 0.0)
         position = float(row.get("position") or 0.0)
         bucket["clicks"] += clicks
         bucket["impressions"] += impressions
-        if impressions > 0:
+        if impressions > 0 and position > 0:
             bucket["position_weighted_sum"] += position * impressions
             bucket["position_weight"] += impressions
+        elif position > 0:
+            bucket["fallback_position_sum"] += position
+            bucket["fallback_position_count"] += 1
     for row in previous_rows:
-        key = str(row.get(label_key) or row.get("query") or "").strip()
+        key = str(row.get(label_key) or row.get("query") or row.get("page") or "").strip()
         if not key:
             continue
         bucket = previous_map.setdefault(
             key,
-            {"clicks": 0.0, "impressions": 0.0, "position_weighted_sum": 0.0, "position_weight": 0.0},
+            {
+                "clicks": 0.0,
+                "impressions": 0.0,
+                "position_weighted_sum": 0.0,
+                "position_weight": 0.0,
+                "fallback_position_sum": 0.0,
+                "fallback_position_count": 0,
+            },
         )
         clicks = float(row.get("clicks") or 0.0)
         impressions = float(row.get("impressions") or 0.0)
         position = float(row.get("position") or 0.0)
         bucket["clicks"] += clicks
         bucket["impressions"] += impressions
-        if impressions > 0:
+        if impressions > 0 and position > 0:
             bucket["position_weighted_sum"] += position * impressions
             bucket["position_weight"] += impressions
+        elif position > 0:
+            bucket["fallback_position_sum"] += position
+            bucket["fallback_position_count"] += 1
+
+    def _bucket_position(bucket: dict) -> float:
+        weight = float(bucket.get("position_weight") or 0.0)
+        if weight > 0:
+            return float(bucket.get("position_weighted_sum") or 0.0) / weight
+        fb_n = float(bucket.get("fallback_position_count") or 0.0)
+        if fb_n > 0:
+            return float(bucket.get("fallback_position_sum") or 0.0) / fb_n
+        return 0.0
 
     rows: list[dict] = []
     for key in set(current_map.keys()) | set(previous_map.keys()):
@@ -2633,13 +2662,15 @@ def _build_search_console_top_entities(
         previous_clicks = float(previous.get("clicks") or 0.0)
         current_impressions = float(current.get("impressions") or 0.0)
         previous_impressions = float(previous.get("impressions") or 0.0)
-        current_weight = float(current.get("position_weight") or 0.0)
-        previous_weight = float(previous.get("position_weight") or 0.0)
-        current_position = (
-            float(current.get("position_weighted_sum") or 0.0) / current_weight if current_weight > 0 else 0.0
-        )
-        previous_position = (
-            float(previous.get("position_weighted_sum") or 0.0) / previous_weight if previous_weight > 0 else 0.0
+        current_position = _bucket_position(current)
+        previous_position = _bucket_position(previous)
+        # Önceki dönem yoksa fark uydurma; güncel pozisyon yine yazılsın
+        has_prev_pos = previous_position > 0
+        has_cur_pos = current_position > 0
+        position_diff = (
+            _sc_position_delta(current_position, previous_position)
+            if has_cur_pos and has_prev_pos
+            else 0.0
         )
         rows.append(
             {
@@ -2652,7 +2683,8 @@ def _build_search_console_top_entities(
                 "impressions_diff": current_impressions - previous_impressions,
                 "position_current": current_position,
                 "position_previous": previous_position,
-                "position_diff": _sc_position_delta(current_position, previous_position),
+                "position_diff": position_diff,
+                "position_has_previous": has_prev_pos,
             }
         )
     rows.sort(key=lambda item: float(item.get("clicks_current") or 0.0), reverse=True)
@@ -9411,14 +9443,16 @@ def _home_ga4_top_pages(
     if not rows:
         return []
     try:
-        sc_diff, sc_cur = _sc_page_position_lookups_for_ga4(
+        sc_diff, sc_cur, sc_has_prev = _sc_page_position_lookups_for_ga4(
             db,
             site_id=site_id,
             days=7,
             profile=profile,
             site_domain=site_domain,
         )
-        rows = _attach_sc_position_to_ga4_rows(rows, sc_diff, sc_cur, site_domain)
+        rows = _attach_sc_position_to_ga4_rows(
+            rows, sc_diff, sc_cur, site_domain, has_prev_lookup=sc_has_prev
+        )
     except Exception:  # noqa: BLE001
         LOGGER.exception("Home GA4 SC position attach failed site=%s profile=%s", site_id, profile)
 
@@ -9436,6 +9470,7 @@ def _home_ga4_top_pages(
         delta_fmt, _ignored_tone, _ = _home_pct_delta(last_v, prev_v)
         pos_cur = row.get("sc_position_current")
         pos_diff = row.get("sc_position_diff")
+        has_prev_pos = bool(row.get("sc_position_has_previous"))
         pos_tone = "flat"
         pos_diff_fmt = ""
         pos_cur_fmt = "—"
@@ -9448,7 +9483,8 @@ def _home_ga4_top_pages(
                     pos_missing = False
             except (TypeError, ValueError):
                 pass
-        if pos_diff is not None and not pos_missing:
+        # Önceki dönem yoksa sadece güncel pozisyon; sahte delta gösterme
+        if pos_diff is not None and not pos_missing and has_prev_pos:
             try:
                 pd = float(pos_diff)
                 pos_diff_fmt = _format_signed_max_two_decimals(pd)
@@ -9499,7 +9535,13 @@ def _home_sc_top_pages(
         c_prev = float(ent.get("clicks_previous") or 0)
         delta_fmt, delta_tone, _ = _home_pct_delta(c_cur, c_prev)
         p_cur = float(ent.get("position_current") or 0)
+        p_prev = float(ent.get("position_previous") or 0)
         p_diff = float(ent.get("position_diff") or 0)
+        has_prev_pos = bool(ent.get("position_has_previous")) if "position_has_previous" in ent else p_prev > 0
+        # Güncel yoksa önceki dönemin pozisyonunu göster (boş bırakma)
+        if p_cur <= 0 and p_prev > 0:
+            p_cur = p_prev
+            has_prev_pos = False
         pos_missing = p_cur <= 0
         out.append({
             "href": href,
@@ -9509,8 +9551,12 @@ def _home_sc_top_pages(
             "delta_fmt": delta_fmt,
             "delta_tone": delta_tone,
             "pos_cur_fmt": "—" if pos_missing else _format_max_two_decimals(p_cur),
-            "pos_diff_fmt": "" if pos_missing else _format_signed_max_two_decimals(p_diff),
-            "pos_tone": "flat" if pos_missing else _home_pos_tone(p_diff),
+            "pos_diff_fmt": (
+                ""
+                if pos_missing or not has_prev_pos
+                else _format_signed_max_two_decimals(p_diff)
+            ),
+            "pos_tone": "flat" if pos_missing or not has_prev_pos else _home_pos_tone(p_diff),
             "pos_missing": pos_missing,
             "kind": "sc",
         })
@@ -15127,31 +15173,65 @@ def _sc_page_position_lookups_for_ga4(
     days: int,
     profile: str,
     site_domain: str | None,
-) -> tuple[dict[str, float], dict[str, float]]:
-    """Search Console page kırılımı: URL → (position_diff, position_current)."""
+) -> tuple[dict[str, float], dict[str, float], dict[str, bool]]:
+    """Search Console page kırılımı: URL → (position_diff, position_current, has_previous)."""
     scopes_pair = _ga4_days_to_sc_page_scopes(days)
     if not scopes_pair:
-        return {}, {}
+        return {}, {}, {}
     cur_scope, prev_scope = scopes_pair
     batch = get_latest_search_console_rows_batch(db, site_id=site_id, scopes=[cur_scope, prev_scope])
     device = _ga4_profile_to_sc_device(profile)
     cur = _filter_search_console_rows_by_device(batch.get(cur_scope) or [], device)
     prev = _filter_search_console_rows_by_device(batch.get(prev_scope) or [], device)
     if not cur and not prev:
-        return {}, {}
-    entities = _build_search_console_top_entities(cur, prev, label_key="query", limit=2500)
+        return {}, {}, {}
+    entities = _build_search_console_top_entities(cur, prev, label_key="query", limit=5000)
     diff_lookup: dict[str, float] = {}
     current_lookup: dict[str, float] = {}
+    has_prev_lookup: dict[str, bool] = {}
     for ent in entities:
-        diff = float(ent.get("position_diff") or 0.0)
         pos_cur = float(ent.get("position_current") or 0.0)
+        pos_prev = float(ent.get("position_previous") or 0.0)
+        has_prev = bool(ent.get("position_has_previous")) if "position_has_previous" in ent else pos_prev > 0
+        # Güncel yoksa önceki pozisyonu current olarak kullan (UI boş kalmasın)
+        display_pos = pos_cur if pos_cur > 0 else (pos_prev if pos_prev > 0 else 0.0)
+        if display_pos <= 0:
+            continue
+        diff = float(ent.get("position_diff") or 0.0) if (pos_cur > 0 and has_prev) else 0.0
         label = str(ent.get("label") or "").strip()
         if not label:
             continue
         for key in _home_sc_ga4_match_keys(label, site_domain):
-            diff_lookup.setdefault(key, diff)
-            current_lookup.setdefault(key, pos_cur)
-    return diff_lookup, current_lookup
+            # Daha iyi (güncel) pozisyon öncelikli
+            prev_stored = current_lookup.get(key)
+            if prev_stored is None or (pos_cur > 0 and float(prev_stored or 0) <= 0):
+                current_lookup[key] = display_pos
+                diff_lookup[key] = diff
+                has_prev_lookup[key] = bool(pos_cur > 0 and has_prev)
+            elif key not in current_lookup:
+                current_lookup[key] = display_pos
+                diff_lookup[key] = diff
+                has_prev_lookup[key] = bool(pos_cur > 0 and has_prev)
+    return diff_lookup, current_lookup, has_prev_lookup
+
+
+def _home_sc_path_id_keys(path: str) -> tuple[str, ...]:
+    """SC↔GA4: /film/264007/... ↔ /movieInfo/264007 — sayısal içerik ID anahtarları."""
+    raw = (path or "").strip()
+    if not raw:
+        return ()
+    ids = re.findall(r"(?:^|/)(\d{4,})(?=/|$|\?|#)", raw)
+    # Tipik kısa/ rastgele sayıları ele: yıl (20xx) tek başına genelde içerik değil
+    out: list[str] = []
+    seen: set[str] = set()
+    for i in ids:
+        if len(i) == 4 and i.startswith("20"):
+            continue
+        key = f"id:{i}"
+        if key not in seen:
+            seen.add(key)
+            out.append(key)
+    return tuple(out)
 
 
 def _home_sc_ga4_match_keys(raw: str | None, site_domain: str | None) -> tuple[str, ...]:
@@ -15181,6 +15261,7 @@ def _home_sc_ga4_match_keys(raw: str | None, site_domain: str | None) -> tuple[s
     path = path.split("?")[0].rstrip("/") or "/"
     path_l = path.lower()
     keys.add(path_l)
+    keys.update(_home_sc_path_id_keys(path_l))
 
     # altin.doviz.com/gumus ↔ m.doviz.com/altin/gumus
     if host.endswith("doviz.com"):
@@ -15231,20 +15312,56 @@ def _lookup_sc_page_metric(
     return None
 
 
+def _lookup_sc_page_flag(
+    row: dict,
+    lookup: dict[str, bool],
+    site_domain: str | None,
+) -> bool:
+    if not lookup or not isinstance(row, dict):
+        return False
+    href = _ga4_row_page_href(row, site_domain)
+    for key in _home_sc_ga4_match_keys(href, site_domain):
+        if key in lookup:
+            return bool(lookup[key])
+    label = _ga4_row_page_label(row, site_domain)
+    for key in _home_sc_ga4_match_keys(label, site_domain):
+        if key in lookup:
+            return bool(lookup[key])
+    page = str(row.get("page") or "").strip()
+    host = str(row.get("page_host") or "").strip()
+    if host and page:
+        for key in _home_sc_ga4_match_keys(
+            f"{host}{page if page.startswith('/') else '/' + page}", site_domain
+        ):
+            if key in lookup:
+                return bool(lookup[key])
+    if page:
+        for key in _home_sc_ga4_match_keys(page, site_domain):
+            if key in lookup:
+                return bool(lookup[key])
+    return False
+
+
 def _attach_sc_position_to_ga4_rows(
     rows: list,
     diff_lookup: dict[str, float],
     current_lookup: dict[str, float],
     site_domain: str | None,
+    has_prev_lookup: dict[str, bool] | None = None,
 ) -> list:
     out: list = []
+    prev_flags = has_prev_lookup or {}
     for row in rows:
         if not isinstance(row, dict):
             out.append(row)
             continue
         item = dict(row)
-        item["sc_position_diff"] = _lookup_sc_page_metric(item, diff_lookup, site_domain)
         item["sc_position_current"] = _lookup_sc_page_metric(item, current_lookup, site_domain)
+        item["sc_position_has_previous"] = _lookup_sc_page_flag(item, prev_flags, site_domain)
+        if item["sc_position_has_previous"]:
+            item["sc_position_diff"] = _lookup_sc_page_metric(item, diff_lookup, site_domain)
+        else:
+            item["sc_position_diff"] = None
         out.append(item)
     return out
 
@@ -15393,14 +15510,20 @@ def ga4_pages_partial(request: Request, site_id: int):
                 else:
                     rows = fetch_ga4_landing_pages(property_id=property_id, days=days, limit=api_limit, exclude_news=True)
             rows = _enrich_ga4_page_rows(rows, keep_news_articles=False)
-            sc_diff_lookup, sc_current_lookup = _sc_page_position_lookups_for_ga4(
+            sc_diff_lookup, sc_current_lookup, sc_has_prev = _sc_page_position_lookups_for_ga4(
                 db,
                 site_id=site.id,
                 days=days,
                 profile=profile,
                 site_domain=site.domain,
             )
-            rows = _attach_sc_position_to_ga4_rows(rows, sc_diff_lookup, sc_current_lookup, site.domain)
+            rows = _attach_sc_position_to_ga4_rows(
+                rows,
+                sc_diff_lookup,
+                sc_current_lookup,
+                site.domain,
+                has_prev_lookup=sc_has_prev,
+            )
         except Exception as exc:  # noqa: BLE001
             return HTMLResponse(f"GA4 sayfa verisi çekilemedi: {exc}", status_code=500)
 
