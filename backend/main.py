@@ -1208,6 +1208,30 @@ def _crux_snapshot_is_stale(
 
 _CRUX_STALE_REFRESH_LOCK = threading.Lock()
 _CRUX_STALE_REFRESH_PENDING: set[int] = set()
+_DATA_EXPLORER_BACKFILL_LOCK = threading.Lock()
+_DATA_EXPLORER_BACKFILL_PENDING: set[int] = set()
+
+
+def _close_stuck_collector_runs(db, site_id: int, *, older_than_minutes: int = 45) -> int:
+    """Crash/KeyError sonrası 'started' kalan PageSpeed/CrUX run'larını failed yapar."""
+    cutoff = datetime.utcnow() - timedelta(minutes=max(5, int(older_than_minutes)))
+    stuck = (
+        db.query(CollectorRun)
+        .filter(
+            CollectorRun.site_id == site_id,
+            CollectorRun.provider.in_(("pagespeed", "crux_history")),
+            CollectorRun.status == "started",
+            CollectorRun.requested_at < cutoff,
+        )
+        .all()
+    )
+    for run in stuck:
+        run.status = "failed"
+        run.finished_at = datetime.utcnow()
+        run.error_message = (run.error_message or "").strip() or (
+            "Run started durumunda kaldı (muhtemel process kesintisi); otomatik kapatıldı."
+        )
+    return len(stuck)
 
 
 def _schedule_crux_refresh_if_stale(site_id: int, domain: str) -> bool:
@@ -1241,6 +1265,61 @@ def _schedule_crux_refresh_if_stale(site_id: int, domain: str) -> bool:
     return True
 
 
+def _schedule_data_explorer_backfill_if_needed(
+    site_id: int,
+    domain: str,
+    *,
+    need_pagespeed: bool,
+    need_crux: bool,
+) -> bool:
+    """PSI skoru yoksa ve/veya CrUX stale ise arka planda PSI+CrUX yeniler."""
+    if not need_pagespeed and not need_crux:
+        return False
+    with _DATA_EXPLORER_BACKFILL_LOCK:
+        if site_id in _DATA_EXPLORER_BACKFILL_PENDING:
+            return False
+        _DATA_EXPLORER_BACKFILL_PENDING.add(site_id)
+
+    def _run() -> None:
+        try:
+            with SessionLocal() as db:
+                site = db.query(Site).filter(Site.id == site_id).first()
+                if site is None:
+                    return
+                LOGGER.info(
+                    "Data Explorer backfill starting for %s (psi=%s crux=%s)",
+                    domain,
+                    need_pagespeed,
+                    need_crux,
+                )
+                if need_pagespeed:
+                    collect_pagespeed_metrics(
+                        db,
+                        site,
+                        bypass_quota=True,
+                        trigger_source="system",
+                        send_notifications=False,
+                    )
+                    db.commit()
+                if need_crux or need_pagespeed:
+                    # PSI sonrası field metriklerle CrUX kartları da taze olsun.
+                    collect_crux_history(db, site, trigger_source="system")
+                    db.commit()
+                LOGGER.info("Data Explorer backfill finished for %s", domain)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Data Explorer backfill failed for %s: %s", domain, exc)
+        finally:
+            with _DATA_EXPLORER_BACKFILL_LOCK:
+                _DATA_EXPLORER_BACKFILL_PENDING.discard(site_id)
+
+    threading.Thread(
+        target=_run,
+        daemon=True,
+        name=f"dex-backfill-{site_id}",
+    ).start()
+    return True
+
+
 def _psi_lighthouse_metrics_latest_collected_at(db, site_id: int) -> datetime | None:
     latest = {m.metric_type: m for m in get_latest_metrics(db, site_id)}
     times: list[datetime] = []
@@ -1249,6 +1328,14 @@ def _psi_lighthouse_metrics_latest_collected_at(db, site_id: int) -> datetime | 
         if m is not None and getattr(m, "collected_at", None):
             times.append(m.collected_at)
     return max(times) if times else None
+
+
+def _psi_performance_scores_missing(db, site_id: int) -> bool:
+    latest = {m.metric_type: m for m in get_latest_metrics(db, site_id)}
+    return not (
+        latest.get("pagespeed_mobile_score") is not None
+        and latest.get("pagespeed_desktop_score") is not None
+    )
 
 
 def _extract_client_ip(request: Request) -> str:
@@ -6721,6 +6808,13 @@ def _data_explorer_context(domain: str) -> dict:
         if site is None:
             raise ValueError("Site bulunamadı.")
 
+        closed = _close_stuck_collector_runs(db, site.id)
+        if closed:
+            try:
+                db.commit()
+            except Exception:  # noqa: BLE001
+                db.rollback()
+
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
         crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
@@ -6730,14 +6824,23 @@ def _data_explorer_context(domain: str) -> dict:
         mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
         desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
         psi_collected = _psi_lighthouse_metrics_latest_collected_at(db, site.id)
+        psi_scores_missing = _psi_performance_scores_missing(db, site.id)
         crux_collected = _crux_history_latest_collected_at(db, site.id)
         today_tsi = _crux_today_tsi()
         mobile_stale = _crux_snapshot_is_stale(mobile_crux, today=today_tsi)
         desktop_stale = _crux_snapshot_is_stale(desktop_crux, today=today_tsi)
         crux_stale = mobile_stale or desktop_stale
         crux_refresh_queued = False
-        if crux_stale:
-            crux_refresh_queued = _schedule_crux_refresh_if_stale(site.id, site.domain)
+        explorer_backfill_queued = False
+        if psi_scores_missing or crux_stale:
+            # Tek kuyruk: eksik PSI + stale CrUX birlikte (ayrı CrUX-only job'a gerek yok).
+            explorer_backfill_queued = _schedule_data_explorer_backfill_if_needed(
+                site.id,
+                site.domain,
+                need_pagespeed=psi_scores_missing,
+                need_crux=crux_stale or psi_scores_missing,
+            )
+            crux_refresh_queued = explorer_backfill_queued and crux_stale
         mobile_period = _crux_latest_period_date(mobile_crux)
         desktop_period = _crux_latest_period_date(desktop_crux)
         def _snap_collected_dt(snap: dict | None) -> datetime | None:
@@ -6797,10 +6900,16 @@ def _data_explorer_context(domain: str) -> dict:
             "data_explorer_last_auto_refresh": _data_explorer_last_auto_refresh_label(db, site.id),
             "data_explorer_auto_refresh_log": _build_data_explorer_auto_refresh_log(db, site.id),
             "data_explorer_scheduler_health": _data_explorer_scheduler_health(),
-            "psi_lighthouse_last_updated": format_local_datetime(
-                psi_collected,
-                fallback="Henüz PSI/Lighthouse ölçümü yok",
+            "psi_lighthouse_last_updated": (
+                "Ölçülüyor — 2–4 dk sonra sayfayı yenileyin…"
+                if psi_scores_missing and explorer_backfill_queued
+                else format_local_datetime(
+                    psi_collected,
+                    fallback="Henüz PSI/Lighthouse ölçümü yok",
+                )
             ),
+            "psi_scores_missing": psi_scores_missing,
+            "explorer_backfill_queued": explorer_backfill_queued,
             "crux_history_last_updated": format_local_datetime(
                 crux_collected,
                 fallback="Henüz CrUX geçmişi yok",

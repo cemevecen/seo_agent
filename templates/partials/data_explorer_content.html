@@ -349,15 +349,21 @@ text-slate-500 dark:text-slate-400
 </style>
 
 <div id="data-explorer-shell" class="dex-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-site-domain="{{ domain }}" data-site-profile="verified" data-site-title="{{ site_name|default('PageSpeed')|e }}">
+  {% if explorer_backfill_queued or psi_scores_missing %}
+  <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status">
+    <p class="font-semibold">PSI + CrUX ölçümü arka planda çalışıyor</p>
+    <p class="mt-1 text-[13px] leading-relaxed opacity-90">Google PageSpeed yaklaşık 2–4 dakika sürer. Bitince bu sayfayı yenileyin — skorlar ve CrUX kartları güncellenecek. İsterseniz üstteki «PSI + CrUX Yenile» ile de manuel tetikleyebilirsiniz.</p>
+  </div>
+  {% endif %}
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
       <p class="inline-flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400" lang="en"><span class="dex-motion-gauge" aria-hidden="true"></span><span>PageSpeed</span></p>
       <h3 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ domain }}</h3>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
         <span class="inline-flex items-center gap-1.5">
-          <span class="inline-block h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden="true"></span>
+          <span class="inline-block h-1.5 w-1.5 rounded-full {% if psi_scores_missing %}bg-amber-500{% else %}bg-sky-500{% endif %}" aria-hidden="true"></span>
           <span>PSI / Lighthouse:</span>
-          <span class="font-medium text-slate-700 dark:text-slate-300">{{ psi_lighthouse_last_updated|e }}</span>
+          <span class="font-medium {% if psi_scores_missing %}text-amber-800 dark:text-amber-200{% else %}text-slate-700 dark:text-slate-300{% endif %}">{{ psi_lighthouse_last_updated|e }}</span>
         </span>
         <span class="inline-flex items-center gap-1.5">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" aria-hidden="true"></span>
@@ -523,8 +529,8 @@ text-slate-500 dark:text-slate-400
           <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_mobile_last_updated|e }}{% if crux_mobile_period_last_label %} · Son dönem: {{ crux_mobile_period_last_label|e }}{% endif %}</p>
-          {% if crux_stale %}
-          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if crux_refresh_queued %}Veri geride — arka planda yenileniyor…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
+          {% if crux_stale or explorer_backfill_queued %}
+          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
@@ -591,8 +597,8 @@ text-slate-500 dark:text-slate-400
           <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_desktop_last_updated|e }}{% if crux_desktop_period_last_label %} · Son dönem: {{ crux_desktop_period_last_label|e }}{% endif %}</p>
-          {% if crux_stale %}
-          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if crux_refresh_queued %}Veri geride — arka planda yenileniyor…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
+          {% if crux_stale or explorer_backfill_queued %}
+          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
