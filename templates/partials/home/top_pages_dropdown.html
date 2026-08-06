@@ -68,7 +68,7 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.4rem;
   }
   .home-top-pages-panel-title {
     margin: 0;
@@ -89,6 +89,30 @@
   }
   .home-top-pages-panel-close:hover { color: #0f172a; }
   html.dark .home-top-pages-panel-close:hover { color: #a1a1aa; }
+  .home-top-pages-cols {
+    display: none;
+    grid-template-columns: 1.35rem minmax(0, 1fr) 7.5rem 6.5rem;
+    gap: 0.35rem 0.55rem;
+    padding: 0 0.15rem 0.3rem;
+    margin-bottom: 0.1rem;
+    border-bottom: 1px solid rgb(226 232 240);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  html.dark .home-top-pages-cols {
+    border-bottom-color: rgb(63 63 70);
+    color: #71717a;
+  }
+  .home-top-pages-cols > span:nth-child(3),
+  .home-top-pages-cols > span:nth-child(4) {
+    text-align: right;
+  }
+  @container home-card (min-width: 420px) {
+    .home-top-pages-cols { display: grid; }
+  }
   .home-top-pages-list {
     list-style: none;
     margin: 0;
@@ -153,6 +177,11 @@
   }
   html.dark .home-top-pages-metric,
   html.dark .home-top-pages-pos { color: #71717a; }
+  .home-top-pages-pos.is-empty {
+    color: #cbd5e1;
+    font-weight: 500;
+  }
+  html.dark .home-top-pages-pos.is-empty { color: #3f3f46; }
   .home-top-pages-metric .home-delta,
   .home-top-pages-pos .home-delta {
     font-size: 0.62rem;
@@ -163,23 +192,33 @@
     font-size: 0.7rem;
     color: #94a3b8;
   }
-  /* Mobil: metrik/pos alt satır */
+  .home-top-pages-stats-mobile {
+    display: none;
+  }
   @container home-card (max-width: 419px) {
     .home-top-pages-stats-mobile {
       grid-column: 2 / -1;
       display: flex;
       justify-content: space-between;
       gap: 0.5rem;
-      margin-top: -0.15rem;
+      margin-top: -0.1rem;
       padding-bottom: 0.1rem;
+      font-size: 0.58rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .home-top-pages-stats-mobile .home-top-pages-metric,
+    .home-top-pages-stats-mobile .home-top-pages-pos {
+      font-size: 0.65rem;
+      text-transform: none;
+      letter-spacing: 0;
     }
     .home-top-pages-row > .home-top-pages-metric,
     .home-top-pages-row > .home-top-pages-pos {
       display: none;
     }
-  }
-  @container home-card (min-width: 420px) {
-    .home-top-pages-stats-mobile { display: none; }
   }
 </style>
 {%- endmacro %}
@@ -195,7 +234,7 @@
 </button>
 {%- endmacro %}
 
-{% macro home_top_pages_panel(panel_id, pages, metric_label='trafik', title='Top 25 sayfa') -%}
+{% macro home_top_pages_panel(panel_id, pages, metric_label='trafik', metric_header='Trafik', title='Top 25 sayfa') -%}
 <div class="home-top-pages-panel"
      id="home-top-pages-{{ panel_id }}"
      data-home-top-pages-panel="{{ panel_id }}"
@@ -205,6 +244,12 @@
     <button type="button" class="home-top-pages-panel-close" data-home-top-pages-close>&times; kapat</button>
   </div>
   {% if pages %}
+    <div class="home-top-pages-cols" aria-hidden="true">
+      <span>#</span>
+      <span>Sayfa</span>
+      <span>{{ metric_header }}</span>
+      <span>SC pozisyon</span>
+    </div>
     <ol class="home-top-pages-list">
       {% for row in pages %}
         <li class="home-top-pages-row">
@@ -214,11 +259,29 @@
           {% else %}
             <span class="home-top-pages-link is-plain" title="{{ row.label }}">{{ row.label }}</span>
           {% endif %}
-          <span class="home-top-pages-metric tabular-nums" title="{{ metric_label }}">{{ row.metric_fmt }} <span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span></span>
-          <span class="home-top-pages-pos tabular-nums" title="SC pozisyon">{{ row.pos_cur_fmt }} <span class="home-delta is-{{ row.pos_tone }}">{{ row.pos_diff_fmt }}</span></span>
+          <span class="home-top-pages-metric tabular-nums" title="{{ metric_label }} · önceki: {{ row.prev_fmt }}">
+            {{ row.metric_fmt }} <span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span>
+          </span>
+          {% if row.pos_missing %}
+            <span class="home-top-pages-pos is-empty tabular-nums" title="Search Console page kırılımında bu URL yok / eşleşmedi">—</span>
+          {% else %}
+            <span class="home-top-pages-pos tabular-nums" title="SC ortalama pozisyon · fark (önceki − güncel)">
+              {{ row.pos_cur_fmt }}{% if row.pos_diff_fmt %} <span class="home-delta is-{{ row.pos_tone }}">{{ row.pos_diff_fmt }}</span>{% endif %}
+            </span>
+          {% endif %}
           <div class="home-top-pages-stats-mobile">
-            <span class="home-top-pages-metric tabular-nums">{{ row.metric_fmt }} <span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span></span>
-            <span class="home-top-pages-pos tabular-nums">{{ row.pos_cur_fmt }} <span class="home-delta is-{{ row.pos_tone }}">{{ row.pos_diff_fmt }}</span></span>
+            <span class="home-top-pages-metric tabular-nums">
+              <span style="opacity:0.7;margin-right:0.2rem">{{ metric_header }}</span>
+              {{ row.metric_fmt }} <span class="home-delta is-{{ row.delta_tone }}">{{ row.delta_fmt }}</span>
+            </span>
+            {% if row.pos_missing %}
+              <span class="home-top-pages-pos is-empty tabular-nums" title="SC pozisyon yok">SC —</span>
+            {% else %}
+              <span class="home-top-pages-pos tabular-nums">
+                <span style="opacity:0.7;margin-right:0.2rem">SC</span>
+                {{ row.pos_cur_fmt }}{% if row.pos_diff_fmt %} <span class="home-delta is-{{ row.pos_tone }}">{{ row.pos_diff_fmt }}</span>{% endif %}
+              </span>
+            {% endif %}
           </div>
         </li>
       {% endfor %}

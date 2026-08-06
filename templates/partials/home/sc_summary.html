@@ -237,7 +237,7 @@
     </div>
     {% for dev in site.devices %}
       {% set _panel_id = 'sc-clicks-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', title=dev.label ~ ' · top 25 sayfa') }}
+      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
     {% endfor %}
   </div>
 
@@ -277,7 +277,7 @@
     </div>
     {% for dev in site.devices %}
       {% set _panel_id = 'sc-pos-' ~ site.site_id ~ '-' ~ loop.index %}
-      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', title=dev.label ~ ' · top 25 sayfa') }}
+      {{ home_top_pages_panel(_panel_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=dev.label ~ ' · top 25 sayfa') }}
     {% endfor %}
   </div>
 {% else %}

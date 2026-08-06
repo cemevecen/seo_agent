@@ -112,7 +112,7 @@
     {% for prof in site.profiles %}
       {% if prof.key in ('web', 'mweb') %}
         {% set _panel_id = 'ga4-' ~ site.site_id ~ '-' ~ prof.key %}
-        {{ home_top_pages_panel(_panel_id, prof.top_pages | default([]), metric_label='views', title=prof.label ~ ' · top 25 sayfa') }}
+        {{ home_top_pages_panel(_panel_id, prof.top_pages | default([]), metric_label='views', metric_header='Views', title=prof.label ~ ' · top 25 sayfa') }}
       {% endif %}
     {% endfor %}
   </div>

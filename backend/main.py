@@ -9110,20 +9110,24 @@ def _home_ga4_top_pages(
         pos_cur = row.get("sc_position_current")
         pos_diff = row.get("sc_position_diff")
         pos_tone = "flat"
-        pos_diff_fmt = "—"
+        pos_diff_fmt = ""
         pos_cur_fmt = "—"
+        pos_missing = True
         if pos_cur is not None:
             try:
-                pos_cur_fmt = _format_max_two_decimals(float(pos_cur))
+                pos_cur_f = float(pos_cur)
+                if pos_cur_f > 0:
+                    pos_cur_fmt = _format_max_two_decimals(pos_cur_f)
+                    pos_missing = False
             except (TypeError, ValueError):
-                pos_cur_fmt = "—"
-        if pos_diff is not None:
+                pass
+        if pos_diff is not None and not pos_missing:
             try:
                 pd = float(pos_diff)
                 pos_diff_fmt = _format_signed_max_two_decimals(pd)
                 pos_tone = _home_pos_tone(pd)
             except (TypeError, ValueError):
-                pass
+                pos_diff_fmt = ""
         out.append({
             "href": href,
             "label": label,
@@ -9134,6 +9138,7 @@ def _home_ga4_top_pages(
             "pos_cur_fmt": pos_cur_fmt,
             "pos_diff_fmt": pos_diff_fmt,
             "pos_tone": pos_tone,
+            "pos_missing": pos_missing,
             "kind": "ga4",
         })
     return out
@@ -9168,6 +9173,7 @@ def _home_sc_top_pages(
         delta_fmt, delta_tone, _ = _home_pct_delta(c_cur, c_prev)
         p_cur = float(ent.get("position_current") or 0)
         p_diff = float(ent.get("position_diff") or 0)
+        pos_missing = p_cur <= 0
         out.append({
             "href": href,
             "label": disp,
@@ -9175,9 +9181,10 @@ def _home_sc_top_pages(
             "prev_fmt": _home_format_int(c_prev),
             "delta_fmt": delta_fmt,
             "delta_tone": delta_tone,
-            "pos_cur_fmt": _format_max_two_decimals(p_cur) if p_cur else "—",
-            "pos_diff_fmt": _format_signed_max_two_decimals(p_diff),
-            "pos_tone": _home_pos_tone(p_diff),
+            "pos_cur_fmt": "—" if pos_missing else _format_max_two_decimals(p_cur),
+            "pos_diff_fmt": "" if pos_missing else _format_signed_max_two_decimals(p_diff),
+            "pos_tone": "flat" if pos_missing else _home_pos_tone(p_diff),
+            "pos_missing": pos_missing,
             "kind": "sc",
         })
     return out
@@ -14735,10 +14742,57 @@ def _sc_page_position_lookups_for_ga4(
         label = str(ent.get("label") or "").strip()
         if not label:
             continue
-        for key in _ga4_url_match_keys(label, site_domain):
+        for key in _home_sc_ga4_match_keys(label, site_domain):
             diff_lookup.setdefault(key, diff)
             current_lookup.setdefault(key, pos_cur)
     return diff_lookup, current_lookup
+
+
+def _home_sc_ga4_match_keys(raw: str | None, site_domain: str | None) -> tuple[str, ...]:
+    """SC page ↔ GA4 URL eşlemesi — path alias'ları (öz. doviz altin/mweb)."""
+    keys: set[str] = set(_ga4_url_match_keys(raw, site_domain))
+    text = (raw or "").strip()
+    if not text:
+        return tuple(keys)
+
+    host = ""
+    path = text
+    if text.startswith(("http://", "https://")):
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(text)
+            host = (parsed.netloc or "").lower().split(":")[0]
+            path = parsed.path or "/"
+        except Exception:
+            path = text
+    elif "://" not in text and "." in text.split("/")[0]:
+        parts = text.split("/", 1)
+        host = parts[0].lower()
+        path = "/" + parts[1] if len(parts) > 1 else "/"
+    if not path.startswith("/"):
+        path = "/" + path
+    path = path.split("?")[0].rstrip("/") or "/"
+    path_l = path.lower()
+    keys.add(path_l)
+
+    # altin.doviz.com/gumus ↔ m.doviz.com/altin/gumus
+    if host.endswith("doviz.com"):
+        if host.startswith("altin.") or host == "altin.doviz.com":
+            if path_l != "/" and not path_l.startswith("/altin/"):
+                alt = "/altin" + (path_l if path_l.startswith("/") else "/" + path_l)
+                keys.add(alt)
+                keys.add(f"m.doviz.com{alt}")
+                keys.add(f"www.doviz.com{alt}")
+        if path_l.startswith("/altin/") and len(path_l) > 7:
+            stripped = path_l[6:]  # remove '/altin'
+            if not stripped.startswith("/"):
+                stripped = "/" + stripped
+            keys.add(stripped)
+            keys.add(f"altin.doviz.com{stripped}")
+            keys.add(f"m.doviz.com/altin{stripped}" if stripped.startswith("/") else f"m.doviz.com/altin/{stripped}")
+
+    return tuple(k for k in keys if k)
 
 
 def _lookup_sc_page_metric(
@@ -14749,17 +14803,23 @@ def _lookup_sc_page_metric(
     if not lookup or not isinstance(row, dict):
         return None
     href = _ga4_row_page_href(row, site_domain)
-    for key in _ga4_url_match_keys(href, site_domain):
+    for key in _home_sc_ga4_match_keys(href, site_domain):
         if key in lookup:
             return lookup[key]
     label = _ga4_row_page_label(row, site_domain)
-    for key in _ga4_url_match_keys(label, site_domain):
+    for key in _home_sc_ga4_match_keys(label, site_domain):
         if key in lookup:
             return lookup[key]
     page = str(row.get("page") or "").strip()
     host = str(row.get("page_host") or "").strip()
     if host and page:
-        for key in _ga4_url_match_keys(f"{host}{page if page.startswith('/') else '/' + page}", site_domain):
+        for key in _home_sc_ga4_match_keys(
+            f"{host}{page if page.startswith('/') else '/' + page}", site_domain
+        ):
+            if key in lookup:
+                return lookup[key]
+    if page:
+        for key in _home_sc_ga4_match_keys(page, site_domain):
             if key in lookup:
                 return lookup[key]
     return None
