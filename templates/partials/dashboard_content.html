@@ -86,6 +86,7 @@
     display: block;
     width: 1.7rem;
     height: 1.7rem;
+    padding: 0;
     border-radius: 0.4rem;
     overflow: hidden;
     border: 1.5px solid rgb(255 255 255 / 0.95);
@@ -93,6 +94,7 @@
     background: #0f172a;
     line-height: 0;
     pointer-events: auto;
+    cursor: pointer;
   }
   .home-drive-container-badge img {
     display: block;
@@ -108,10 +110,98 @@
     font-size: 0.62rem;
     font-weight: 800;
   }
+  .home-drive-container-badge.is-active {
+    box-shadow: 0 0 0 2px rgb(59 130 246 / 0.55), 0 1px 4px rgb(15 23 42 / 0.22);
+  }
   html.dark .home-drive-container-badge,
   html.midnight .home-drive-container-badge {
     border-color: rgb(63 63 70);
     box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+  }
+  .home-drive-preview {
+    margin-top: 0.65rem;
+    margin-bottom: 0.15rem;
+    border-radius: 0.9rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    overflow: hidden;
+  }
+  html.dark .home-drive-preview,
+  html.midnight .home-drive-preview {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+  }
+  .home-drive-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid rgb(226 232 240);
+  }
+  html.dark .home-drive-preview-head,
+  html.midnight .home-drive-preview-head {
+    border-bottom-color: rgb(63 63 70);
+  }
+  .home-drive-preview-title {
+    margin: 0;
+    min-width: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #334155;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  html.dark .home-drive-preview-title,
+  html.midnight .home-drive-preview-title { color: #d4d4d8; }
+  .home-drive-preview-close {
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 9999px;
+    background: rgb(241 245 249);
+    color: #475569;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.28rem 0.65rem;
+  }
+  .home-drive-preview-close:hover { background: rgb(226 232 240); color: #0f172a; }
+  html.dark .home-drive-preview-close,
+  html.midnight .home-drive-preview-close {
+    background: rgb(39 39 42);
+    color: #a1a1aa;
+  }
+  .home-drive-preview-media {
+    position: relative;
+    overflow: hidden;
+    max-height: min(28rem, 55vh);
+    background: rgb(15 23 42 / 0.04);
+    cursor: zoom-in;
+  }
+  html.dark .home-drive-preview-media,
+  html.midnight .home-drive-preview-media {
+    background: rgb(9 9 11);
+  }
+  .home-drive-preview-media img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: min(28rem, 55vh);
+    object-fit: contain;
+    margin: 0 auto;
+    transition: transform 0.28s ease;
+    transform-origin: var(--zoom-x, 50%) var(--zoom-y, 50%);
+    will-change: transform;
+  }
+  .home-drive-preview-media.is-zooming img {
+    transform: scale(2.15);
+  }
+  .home-drive-preview-media video {
+    display: block;
+    width: 100%;
+    max-height: min(28rem, 55vh);
+    background: #0f172a;
   }
   .home-readable {
     --home-title: clamp(1rem, 0.88rem + 0.55cqi, 1.1875rem);
@@ -855,6 +945,58 @@
   };
 
   var homeDriveBadgeMap = {};
+  var homeDriveOpenPreview = {};
+
+  function closeHomeDrivePreview(key) {
+    var sel = '[data-home-drive-preview="' + String(key).replace(/"/g, '') + '"]';
+    var panel = document.querySelector(sel);
+    if (panel) panel.remove();
+    delete homeDriveOpenPreview[key];
+    document.querySelectorAll('[data-home-drive-badge][data-container-key="' + String(key).replace(/"/g, '') + '"]').forEach(function (b) {
+      b.classList.remove('is-active');
+      b.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function openHomeDrivePreview(sec, key, info) {
+    if (!sec || !info) return;
+    closeHomeDrivePreview(key);
+    var panel = document.createElement('div');
+    panel.className = 'home-drive-preview';
+    panel.setAttribute('data-home-drive-preview', key);
+    var title = (info.container_label || key) + (info.name ? (' · ' + info.name) : '');
+    var safeTitle = String(title).replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    var mediaHtml = '';
+    if (info.kind === 'video') {
+      var src = info.thumb_url || ('/api/home/drive/files/' + encodeURIComponent(info.file_id || '') + '/content');
+      mediaHtml =
+        '<div class="home-drive-preview-media is-video">' +
+          '<video controls playsinline src="' + String(src).replace(/"/g, '') + '"></video>' +
+        '</div>';
+    } else {
+      var imgSrc = info.thumb_url || '';
+      mediaHtml =
+        '<div class="home-drive-preview-media" data-home-drive-zoom>' +
+          '<img src="' + String(imgSrc).replace(/"/g, '') + '" alt="' + safeTitle + '" loading="lazy">' +
+        '</div>';
+    }
+    panel.innerHTML =
+      '<div class="home-drive-preview-head">' +
+        '<p class="home-drive-preview-title">' + safeTitle + '</p>' +
+        '<button type="button" class="home-drive-preview-close" data-home-drive-preview-close="' +
+          String(key).replace(/"/g, '') + '">&times; kapat</button>' +
+      '</div>' +
+      mediaHtml;
+    sec.insertAdjacentElement('afterend', panel);
+    homeDriveOpenPreview[key] = true;
+    var badge = sec.querySelector('[data-home-drive-badge]');
+    if (badge) {
+      badge.classList.add('is-active');
+      badge.setAttribute('aria-expanded', 'true');
+    }
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   function applyHomeDriveBadges(map) {
     homeDriveBadgeMap = map || {};
     document.querySelectorAll('[data-home-container]').forEach(function (sec) {
@@ -863,25 +1005,31 @@
       var badge = sec.querySelector('[data-home-drive-badge]');
       if (!info) {
         if (badge) badge.remove();
+        closeHomeDrivePreview(key);
         return;
       }
       if (!badge) {
-        badge = document.createElement('a');
+        badge = document.createElement('button');
+        badge.type = 'button';
         badge.setAttribute('data-home-drive-badge', '');
         badge.className = 'home-drive-container-badge';
-        badge.target = '_blank';
-        badge.rel = 'noopener noreferrer';
         sec.appendChild(badge);
       }
-      var href = info.web_view_link || info.thumb_url || '#';
-      badge.href = href;
-      badge.title = (info.container_label || key) + (info.name ? (' · ' + info.name) : '');
+      badge.setAttribute('data-container-key', key);
+      badge.setAttribute('aria-expanded', homeDriveOpenPreview[key] ? 'true' : 'false');
+      badge.setAttribute('aria-label', 'Container görselini aç');
+      badge.title = (info.container_label || key) + (info.name ? (' · ' + info.name) : '') + ' — tıkla, altına aç';
+      badge.classList.toggle('is-active', !!homeDriveOpenPreview[key]);
       if (info.kind === 'video' || !info.thumb_url) {
         badge.classList.add('is-video');
         badge.innerHTML = '▶';
       } else {
         badge.classList.remove('is-video');
         badge.innerHTML = '<img src="' + String(info.thumb_url).replace(/"/g, '') + '" alt="" loading="lazy">';
+      }
+      // Açık önizleme hâlâ varsa medyayı güncelle / yoksa yeniden bağlama
+      if (homeDriveOpenPreview[key] && !document.querySelector('[data-home-drive-preview="' + key.replace(/"/g, '') + '"]')) {
+        openHomeDrivePreview(sec, key, info);
       }
     });
   }
@@ -898,8 +1046,52 @@
   window.__pcHomeDriveRefreshBadges = refreshHomeDriveBadges;
   refreshHomeDriveBadges();
   document.body.addEventListener('htmx:afterSwap', function () {
-    // HTMX innerHTML swap badge DOM'u siler — cache'ten yeniden bas
     applyHomeDriveBadges(homeDriveBadgeMap);
+  });
+
+  document.body.addEventListener('click', function (ev) {
+    var closeBtn = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-preview-close]');
+    if (closeBtn) {
+      ev.preventDefault();
+      closeHomeDrivePreview(closeBtn.getAttribute('data-home-drive-preview-close') || '');
+      return;
+    }
+    var badge = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-badge]');
+    if (!badge) return;
+    ev.preventDefault();
+    var sec = badge.closest('[data-home-container]');
+    var key = (sec && sec.getAttribute('data-home-container')) || badge.getAttribute('data-container-key') || '';
+    if (!key || !sec) return;
+    if (homeDriveOpenPreview[key]) {
+      closeHomeDrivePreview(key);
+      return;
+    }
+    var info = homeDriveBadgeMap[key];
+    if (!info) return;
+    openHomeDrivePreview(sec, key, info);
+  });
+
+  document.body.addEventListener('mousemove', function (ev) {
+    var media = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-zoom]');
+    if (!media) return;
+    var rect = media.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var x = ((ev.clientX - rect.left) / rect.width) * 100;
+    var y = ((ev.clientY - rect.top) / rect.height) * 100;
+    media.style.setProperty('--zoom-x', Math.max(0, Math.min(100, x)) + '%');
+    media.style.setProperty('--zoom-y', Math.max(0, Math.min(100, y)) + '%');
+  }, { passive: true });
+
+  document.body.addEventListener('mouseover', function (ev) {
+    var media = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-zoom]');
+    if (media) media.classList.add('is-zooming');
+  });
+  document.body.addEventListener('mouseout', function (ev) {
+    var media = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-zoom]');
+    if (!media) return;
+    var to = ev.relatedTarget;
+    if (to && media.contains(to)) return;
+    media.classList.remove('is-zooming');
   });
 })();
 </script>
