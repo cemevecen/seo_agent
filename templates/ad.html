@@ -441,8 +441,9 @@
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Google Sheets</p>
       <p class="text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
         Ana kaynak: döviz web/mweb/ios/android + sinemalar web/mweb.
-        Sheet’e gün/hafta ekledikçe <strong>Verileri güncelle</strong>.
-        Döviz Web büyük (~50MB); senkron arka planda birkaç dakika sürebilir.
+        Sistem her daldaki <strong>son veri tarihini</strong> hatırlar; sonraki
+        <strong>Verileri güncelle</strong> o günden (dahil) ileri satırları upsert eder.
+        Döviz Web büyük (~50MB); ilk tam senkron arka planda birkaç dk sürebilir.
         Manuel xlsx yükleme kapalı.
       </p>
       <label class="block text-[10px] font-semibold text-slate-500 dark:text-zinc-400" for="mz-sheets-stream-pick">Hangi sheet</label>
@@ -459,8 +460,8 @@
         <option value="sinemalar:mweb">Sinemalar · Mweb</option>
       </select>
       <label class="mt-1 flex items-start gap-2 text-[10px] leading-snug text-slate-600 dark:text-zinc-400">
-        <input id="mz-sheets-full-replace" type="checkbox" class="mt-0.5" checked />
-        <span>İlk / temiz senkron: dalı sheet ile değiştir (önerilir). Sonraki günlük güncellemelerde kapatabilirsin.</span>
+        <input id="mz-sheets-full-replace" type="checkbox" class="mt-0.5" />
+        <span>Tam değiştir: dalı sıfırlayıp sheet’i baştan yaz (yalnızca ilk kurulum veya bozuk veri). Günlük güncellemede kapalı tut.</span>
       </label>
       <button
         type="button"
@@ -10782,7 +10783,28 @@
     var last = status.last_sync_at
       ? String(status.last_sync_at).replace("T", " ").replace("Z", "").slice(0, 16)
       : "henüz yok";
-    hint.textContent = "Kaynak: Google Sheets · son sync: " + last;
+    function trDate(iso) {
+      if (!iso) return null;
+      var p = String(iso).slice(0, 10).split("-");
+      if (p.length !== 3) return String(iso).slice(0, 10);
+      return p[2] + "." + p[1] + "." + p[0];
+    }
+    var resumeTxt = "";
+    if (status.resume_from_min && status.resume_from_max) {
+      if (status.resume_from_min === status.resume_from_max) {
+        resumeTxt = " · sonraki güncelleme ≥ " + trDate(status.resume_from_min);
+      } else {
+        resumeTxt =
+          " · son veriler " +
+          trDate(status.resume_from_min) +
+          "–" +
+          trDate(status.resume_from_max) +
+          " (güncelleme bu günlerden itibaren)";
+      }
+    } else {
+      resumeTxt = " · henüz sheet verisi yok (ilk güncelleme tam yükler)";
+    }
+    hint.textContent = "Kaynak: Google Sheets · son sync: " + last + resumeTxt;
   }
 
   async function loadMzSheetsStatus() {
@@ -10882,12 +10904,15 @@
         loggedKeys[key] = true;
         var label = item.label || key;
         if (item.ok) {
+          var fromBit = item.import_from
+            ? " · ≥ " + item.import_from
+            : (item.mode === "full_replace" ? " · tam" : "");
           var extra = item.replaced && item.cleared_rows
             ? " · eski " + Number(item.cleared_rows).toLocaleString("tr-TR") + " temizlendi"
             : "";
           appendSyncLine(
             "✓ " + label + ": " + Number(item.parsed || 0).toLocaleString("tr-TR") +
-              " satır · " + (item.mode || "full") + " · " + (item.elapsed_s || "?") + "s" +
+              " satır" + fromBit + " · " + (item.elapsed_s || "?") + "s" +
               " · son " + (item.max_date || "—") + extra,
             "ok"
           );

@@ -603,3 +603,29 @@ def test_dedupe_batch_keeps_last_fingerprint():
     out = store._dedupe_batch_by_fingerprint([a, b, c])
     by_fp = {r["fingerprint"]: r["net_revenue"] for r in out}
     assert by_fp == {"fp1": 9.0, "fp2": 2.0}
+
+
+def test_sheet_incremental_keeps_rows_from_last_date_inclusive():
+    """Son veri 2026-08-05 ise bir sonraki sync ≥ 05.08 satırlarını alır."""
+    from backend.services.ad_analytics_store import iter_csv_text
+
+    csv = (
+        "Ad Unit,Month,Date,Income Type,Ad Request,Matched Request,Impression,Click,"
+        "Ad Request Ecpm,Ad Impression Ecpm,CTR,Coverage,Viewability,Net Revenue\n"
+        "u,Ağustos 2026,04.08.2026,Open Auction,1,1,1,0,0,0,0,0,0,10\n"
+        "u,Ağustos 2026,05.08.2026,Open Auction,1,1,1,0,0,0,0,0,0,20\n"
+        "u,Ağustos 2026,06.08.2026,Open Auction,1,1,1,0,0,0,0,0,0,30\n"
+    )
+    stream = store._STREAM_BY_KEY["doviz:android"]
+    resume = date(2026, 8, 5)
+    rows = list(
+        iter_csv_text(
+            csv,
+            filename="doviz_android_google_sheet.csv",
+            stream=stream,
+            min_date=resume,
+        )
+    )
+    dates = sorted({r["report_date"] for r in rows})
+    assert dates == [date(2026, 8, 5), date(2026, 8, 6)]
+    assert sum(r["net_revenue"] for r in rows) == 50.0

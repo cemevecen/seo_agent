@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any, Callable
 
 from sqlalchemy import func, select
@@ -27,7 +27,6 @@ LOGGER = logging.getLogger(__name__)
 _SHEET_SYNC_TTL_SEC = 180.0
 # Döviz Web ~50MB; proxy 502’yi önlemek için fetch uzun, sync arka planda.
 _FETCH_TIMEOUT_SEC = 300
-_INCREMENTAL_OVERLAP_DAYS = 21
 _last_sheet_sync_mono: float = 0.0
 _last_sheet_sync_at: datetime | None = None
 _last_sheet_sync_result: dict[str, Any] | None = None
@@ -115,20 +114,31 @@ def sheets_sync_status(db: Session) -> dict[str, Any]:
         bounds = _stream_date_bounds(db, src.stream_key)
         catalog = sheet_catalog_filename(src.stream_key)
         polluted = stream_non_sheet_source_count(db, src.stream_key, catalog)
+        resume_from = bounds.get("max_date")
         streams.append(
             {
                 "stream_key": src.stream_key,
                 "label": src.label,
                 "sheet_url": src.sheet_url,
                 "polluted_rows": polluted,
+                "resume_from": resume_from,
+                "next_mode": (
+                    "full_replace"
+                    if polluted > 0 or not resume_from
+                    else "incremental_from_last"
+                ),
                 **bounds,
             }
         )
+    # En eski / en yeni “son veri” — UI hint için
+    resumes = [s["resume_from"] for s in streams if s.get("resume_from")]
     return {
         "ok": True,
         "sources": len(AD_SHEET_SOURCES),
         "last_sync_at": _last_sheet_sync_at.isoformat() + "Z" if _last_sheet_sync_at else None,
         "ttl_seconds": _SHEET_SYNC_TTL_SEC,
+        "resume_from_min": min(resumes) if resumes else None,
+        "resume_from_max": max(resumes) if resumes else None,
         "streams": streams,
         "last_result": _last_sheet_sync_result,
         "job": get_sync_job(),
@@ -161,19 +171,22 @@ def sync_one_sheet(
     ).scalars().first()
     polluted = stream_non_sheet_source_count(db, stream_key, catalog)
 
+    # İlk sync / kirli dal / tam değiştir → full. Aksi halde DB’deki son veri gününden
+    # (o gün dahil) ileri satırları upsert et — sheet’e eklenen yeni günler gelir.
     min_import: date | None = None
-    replace_stream = bool(full) or polluted > 0 or prior_sheet is None
+    last_data_date: date | None = None
+    if before.get("max_date"):
+        try:
+            last_data_date = date.fromisoformat(str(before["max_date"])[:10])
+        except ValueError:
+            last_data_date = None
+
+    replace_stream = bool(full) or polluted > 0 or prior_sheet is None or last_data_date is None
     mode = "full_replace" if replace_stream else "incremental"
 
-    if not replace_stream and before.get("max_date"):
-        try:
-            max_d = date.fromisoformat(str(before["max_date"])[:10])
-            min_import = max_d - timedelta(days=_INCREMENTAL_OVERLAP_DAYS)
-            mode = "incremental"
-        except ValueError:
-            replace_stream = True
-            mode = "full_replace"
-            min_import = None
+    if not replace_stream and last_data_date is not None:
+        min_import = last_data_date  # dahil: 05.08 varsa yeniden yaz + 06.08+ ekle
+        mode = "incremental"
 
     _phase("fetch", f"{src.label}: Google’dan CSV çekiliyor…")
     try:
@@ -186,14 +199,22 @@ def sync_one_sheet(
             "label": src.label,
             "error": _short_sync_error(exc),
             "mode": mode,
+            "resume_from": last_data_date.isoformat() if last_data_date else None,
             "elapsed_s": round(time.monotonic() - t0, 1),
         }
 
     nbytes = len(csv_text.encode("utf-8"))
-    _phase(
-        "fetch_done",
-        f"{src.label}: {nbytes / (1024 * 1024):.1f} MB alındı · yazılıyor…",
-    )
+    if min_import is not None:
+        _phase(
+            "fetch_done",
+            f"{src.label}: {nbytes / (1024 * 1024):.1f} MB · "
+            f"{min_import.isoformat()} ve sonrası yazılıyor…",
+        )
+    else:
+        _phase(
+            "fetch_done",
+            f"{src.label}: {nbytes / (1024 * 1024):.1f} MB alındı · yazılıyor…",
+        )
 
     cleared: dict[str, Any] | None = None
     if replace_stream:
@@ -207,8 +228,21 @@ def sync_one_sheet(
             cleared.get("deleted_rows"),
             polluted,
         )
+    else:
+        LOGGER.info(
+            "Ad sheet incremental %s: from %s (inclusive)",
+            stream_key,
+            min_import.isoformat() if min_import else "?",
+        )
 
-    _phase("import", f"{src.label}: satırlar DB’ye yazılıyor (büyük sheet birkaç dk sürebilir)…")
+    _phase(
+        "import",
+        (
+            f"{src.label}: {min_import.isoformat()} ve sonrası upsert…"
+            if min_import
+            else f"{src.label}: satırlar DB’ye yazılıyor (büyük sheet birkaç dk sürebilir)…"
+        ),
+    )
     raw = csv_text.encode("utf-8")
 
     def _import_progress(ev: dict[str, Any]) -> None:
@@ -241,19 +275,21 @@ def sync_one_sheet(
             "label": src.label,
             "error": _short_sync_error(exc),
             "mode": mode,
+            "resume_from": last_data_date.isoformat() if last_data_date else None,
             "elapsed_s": round(time.monotonic() - t0, 1),
         }
 
     bounds = _stream_date_bounds(db, stream_key)
     parsed = int(result.get("parsed") or 0)
     return {
-        "ok": parsed > 0 or not result.get("parse_error"),
+        "ok": parsed > 0 or not result.get("parse_error") or mode == "incremental",
         "stream_key": stream_key,
         "label": src.label,
         "mode": mode,
         "replaced": bool(cleared),
         "cleared_rows": int((cleared or {}).get("deleted_rows") or 0),
         "polluted_rows_before": polluted,
+        "resume_from": last_data_date.isoformat() if last_data_date and not cleared else None,
         "import_from": min_import.isoformat() if min_import else None,
         "parsed": parsed,
         "inserted": int(result.get("inserted") or 0),
