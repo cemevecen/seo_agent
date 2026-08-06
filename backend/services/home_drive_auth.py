@@ -38,10 +38,15 @@ def home_drive_folder_id() -> str:
 
 
 def _request_public_origin(request: Request | None) -> str | None:
+    """Railway proxy arkasında https için X-Forwarded-* kullan (base_url çoğu zaman http)."""
     if request is None:
         return None
     try:
-        return str(request.base_url).rstrip("/")
+        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+        host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+        if not host:
+            return str(request.base_url).rstrip("/") or None
+        return f"{proto}://{host}"
     except Exception:  # noqa: BLE001
         return None
 
