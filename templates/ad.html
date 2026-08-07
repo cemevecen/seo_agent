@@ -450,7 +450,12 @@
   }
   .mz-virgul-mode #mz-sidebar {
     display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+    grid-template-columns:
+      minmax(11rem, 0.9fr)
+      minmax(16rem, 1.75fr)
+      minmax(11rem, 1fr)
+      minmax(11rem, 1fr)
+      minmax(11rem, 0.95fr);
     gap: 0.75rem;
     align-items: stretch;
     position: relative !important;
@@ -472,50 +477,61 @@
     display: contents;
   }
   .mz-virgul-mode #mz-sidebar .mz-tb-cell,
+  .mz-virgul-mode #mz-sidebar .mz-tb-nav,
   .mz-virgul-mode #mz-jump-targets,
-  .mz-virgul-mode #mz-sidebar > .mz-tb-source {
+  .mz-virgul-mode #mz-sidebar .mz-tb-source {
     min-width: 0;
     box-sizing: border-box;
+  }
+  /* Gelir hedefleri + Virgül paneller: tek kolon, alt alta */
+  .mz-virgul-mode #mz-sidebar > .mz-tb-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    height: 100%;
   }
   .mz-virgul-mode #mz-jump-targets {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    width: auto;
+    width: 100%;
     margin: 0;
     white-space: nowrap;
     text-align: center;
-    height: 100%;
+    flex: 0 0 auto;
   }
-  .mz-virgul-mode #mz-sidebar > .mz-tb-source {
+  .mz-virgul-mode #mz-sidebar .mz-tb-nav .mz-tb-source {
     margin: 0;
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     justify-content: center;
     gap: 0.35rem;
+    width: 100%;
   }
-  .mz-virgul-mode #mz-sidebar > .mz-tb-source .mz-tb-source-row {
+  .mz-virgul-mode #mz-sidebar .mz-tb-nav .mz-tb-source .mz-tb-source-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.4rem;
     margin-top: 0 !important;
   }
-  .mz-virgul-mode #mz-sidebar > .mz-tb-source select {
-    flex: 1 1 8rem;
+  .mz-virgul-mode #mz-sidebar .mz-tb-nav .mz-tb-source select {
+    flex: 1 1 6rem;
     min-width: 0;
     width: auto !important;
   }
   .mz-virgul-mode .mz-tb-cell--date {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.4rem;
     min-width: 0;
   }
   .mz-virgul-mode .mz-tb-cell--date .mz-tb-date-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.4rem;
+    gap: 0.5rem;
   }
   .mz-virgul-mode .mz-tb-cell--date #mz-start,
   .mz-virgul-mode .mz-tb-cell--date #mz-end,
@@ -583,7 +599,15 @@
     text-align: left;
     margin: 0;
   }
-  @media (max-width: 639px) {
+  @media (max-width: 1199px) {
+    .mz-virgul-mode #mz-sidebar {
+      grid-template-columns:
+        minmax(11rem, 1fr)
+        minmax(14rem, 1.5fr)
+        minmax(11rem, 1fr);
+    }
+  }
+  @media (max-width: 767px) {
     .mz-virgul-mode #mz-sidebar {
       grid-template-columns: 1fr;
     }
