@@ -498,8 +498,8 @@ def workspace_rows_chunk(
 
 def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
     from backend.services.doviz_notification_admin import (
-        admin_base_url,
         admin_credentials_configured,
+        admin_http_proxy,
         stats_url,
     )
 
@@ -519,11 +519,13 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "updated_at": _iso_utc_z(row.updated_at),
         "last_file_upload_at": _iso_utc_z(row.last_file_upload_at),
         "last_sheet_sync_at": _iso_utc_z(row.last_file_upload_at),
-        # Tek aktif kaynak: Doviz admin. Sheet yalnızca yedek (hesaba dahil değil).
+        # Admin VPN arkasında; Railway için sheet fallback / proxy.
         "source": "doviz_admin",
         "source_url": stats_url(),
         "sheet_backup_url": NOTIFICATION_ANALYTICS_SHEET_URL,
         "admin_credentials_configured": admin_ready,
+        "admin_requires_vpn": True,
+        "admin_proxy_configured": bool(admin_http_proxy()),
     }
     if include_rows:
         out["rows"] = rows
@@ -760,8 +762,85 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
 
 
 def sync_notification_analytics(db: Session, *, force: bool = False) -> dict:
-    """Tek aktif kaynak: Doviz admin. Google Sheet otomatik kullanılmaz (çift veri yok)."""
-    return sync_from_doviz_admin(db, force=force)
+    """Önce Doviz admin (VPN/proxy); erişilemezse Google Sheet yedeği.
+
+    Admin paneli VPN arkasında — Railway doğrudan açamaz. Lokal VPN veya
+    DOVIZ_ADMIN_HTTP_PROXY varken admin; aksi halde sheet.
+    """
+    from backend.config import settings
+    from backend.services.doviz_notification_admin import is_admin_vpn_unreachable_error
+
+    admin_result = sync_from_doviz_admin(db, force=force)
+    if admin_result.get("synced"):
+        return admin_result
+    if admin_result.get("skipped"):
+        skip_msg = str(admin_result.get("message") or "").lower()
+        # TTL / taze skip — sheet’e düşme
+        if "taze" in skip_msg or "yeniden çekilmedi" in skip_msg:
+            return admin_result
+        # Credential yok / disabled → aşağıdaki sheet fallback’e devam
+        if not settings.doviz_admin_sheet_fallback_enabled:
+            return admin_result
+        admin_msg = str(admin_result.get("message") or "")
+        LOGGER.warning(
+            "Doviz admin skipped — falling back to Google Sheet: %s",
+            admin_msg[:200],
+        )
+        sheet = sync_from_google_sheet(db, force=force)
+        sheet["fallback_from"] = "doviz_admin"
+        sheet["admin_error"] = admin_msg
+        if sheet.get("synced") or sheet.get("ok") is not False:
+            sheet["message"] = (
+                "Admin kullanılamadı; Google Sheet yedeği kullanıldı. "
+                + (sheet.get("message") or "")
+            ).strip()
+            sheet["source"] = "google_sheet_fallback"
+        return sheet
+    if admin_result.get("ok") is not False:
+        return admin_result
+
+    admin_msg = str(admin_result.get("message") or "")
+    if not settings.doviz_admin_sheet_fallback_enabled:
+        return admin_result
+
+    low = admin_msg.lower()
+    auth_fail = any(
+        x in low for x in ("şifre", "password", "hatalı e-mail", "hatali e-mail")
+    )
+    if auth_fail and not is_admin_vpn_unreachable_error(admin_msg):
+        return admin_result
+
+    if not (
+        is_admin_vpn_unreachable_error(admin_msg)
+        or "tanımlı değil" in low
+        or "enabled=false" in low
+        or not admin_msg
+        or "login" in low
+        or "vpn" in low
+        or "404" in low
+        or "403" in low
+    ):
+        return admin_result
+
+    LOGGER.warning(
+        "Doviz admin unreachable/VPN — falling back to Google Sheet: %s",
+        admin_msg[:200],
+    )
+    sheet = sync_from_google_sheet(db, force=force)
+    sheet["fallback_from"] = "doviz_admin"
+    sheet["admin_error"] = admin_msg
+    if sheet.get("synced") or sheet.get("ok") is not False:
+        sheet["message"] = (
+            "Admin VPN’den erişilemedi; Google Sheet yedeği kullanıldı. "
+            + (sheet.get("message") or "")
+        ).strip()
+        sheet["source"] = "google_sheet_fallback"
+    else:
+        sheet["message"] = (
+            f"Admin VPN erişilemez ({admin_msg[:120]}) ve sheet yedeği de başarısız: "
+            + (sheet.get("message") or "")
+        )
+    return sheet
 
 
 def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:

@@ -7,6 +7,7 @@ Developer API gerekmez: DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD ile giriş yap�
 from __future__ import annotations
 
 import logging
+import os
 import re
 from datetime import date, datetime
 from html import unescape
@@ -109,6 +110,53 @@ def stats_url() -> str:
     return urljoin(admin_base_url() + "/", STATS_PATH.lstrip("/"))
 
 
+def admin_http_proxy() -> str:
+    """VPN çıkışı için opsiyonel proxy (Railway doğrudan admin’e giremez)."""
+    for key in (
+        getattr(settings, "doviz_admin_http_proxy", None) or "",
+        os.environ.get("DOVIZ_ADMIN_HTTP_PROXY") or "",
+        os.environ.get("HTTPS_PROXY") or "",
+        os.environ.get("https_proxy") or "",
+        os.environ.get("HTTP_PROXY") or "",
+        os.environ.get("http_proxy") or "",
+    ):
+        val = (key or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def _apply_admin_proxy(sess: requests.Session) -> None:
+    proxy = admin_http_proxy()
+    if not proxy:
+        return
+    sess.proxies.update({"http": proxy, "https": proxy})
+    LOGGER.info("Doviz admin requests via proxy host=%s", urlparse(proxy).hostname or "?")
+
+
+def is_admin_vpn_unreachable_error(exc: BaseException | str) -> bool:
+    """Admin paneli VPN arkasında; Railway 404/timeout bu sınıfa girer."""
+    msg = str(exc or "").lower()
+    markers = (
+        "login sayfası",
+        "http 404",
+        "http 403",
+        "http 451",
+        "timed out",
+        "timeout",
+        "connection reset",
+        "connection aborted",
+        "connection refused",
+        "network is unreachable",
+        "name or service not known",
+        "nodename nor servname",
+        "temporary failure in name resolution",
+        "max retries exceeded",
+        "vpn",
+    )
+    return any(m in msg for m in markers)
+
+
 def admin_credentials_configured() -> bool:
     email = (settings.doviz_admin_email or "").strip()
     password = settings.doviz_admin_password or ""
@@ -196,6 +244,7 @@ def login_admin_session(
             "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
         }
     )
+    _apply_admin_proxy(sess)
 
     # Ana sayfa cookie/warmup (bazı edge’ler doğrudan /admin’i sert düşürüyor)
     try:
@@ -228,11 +277,15 @@ def login_admin_session(
 
     if warm is None:
         tried = ", ".join(attempts[:6])
+        proxy_hint = (
+            " DOVIZ_ADMIN_HTTP_PROXY ile VPN çıkışı tanımlayın"
+            if not admin_http_proxy()
+            else ""
+        )
         raise ValueError(
             f"Admin login sayfası açılamadı (son HTTP {last_status or '?'}). "
-            f"Denenen: {tried}. "
-            "Railway’de DOVIZ_ADMIN_BASE_URL yalnızca https://www.doviz.com olmalı "
-            "(login/stats tam URL’si veya bu uygulamanın adresi değil)."
+            f"Doviz admin VPN arkasında; Railway doğrudan erişemez.{proxy_hint} "
+            f"Denenen: {tried}."
         )
 
     # Hidden alanları (CSRF vb.) koru; email/password üzerine yaz

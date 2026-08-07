@@ -83,6 +83,14 @@ def test_admin_base_url_strips_login_and_rejects_railway():
         assert "admin/login/admin/login" not in " ".join(login_url_candidates())
 
 
+def test_is_admin_vpn_unreachable_error():
+    from backend.services.doviz_notification_admin import is_admin_vpn_unreachable_error
+
+    assert is_admin_vpn_unreachable_error("Admin login sayfası açılamadı (son HTTP 404). VPN")
+    assert is_admin_vpn_unreachable_error("Connection timed out")
+    assert not is_admin_vpn_unreachable_error("Hatalı e-mail veya şifre")
+
+
 def test_login_ignores_404_landing_when_stats_ok():
     """Başarılı giriş sonrası dashboard 404 olsa bile stats doğrulanınca OK."""
 

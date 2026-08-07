@@ -452,11 +452,24 @@ class Settings(BaseSettings):
         default="https://www.doviz.com",
         validation_alias=AliasChoices("DOVIZ_ADMIN_BASE_URL", "doviz_admin_base_url"),
     )
+    # Doviz admin VPN arkasında; Railway için opsiyonel HTTP(S) proxy.
+    doviz_admin_http_proxy: str = Field(
+        default="",
+        validation_alias=AliasChoices("DOVIZ_ADMIN_HTTP_PROXY", "doviz_admin_http_proxy"),
+    )
     doviz_admin_notification_sync_enabled: bool = Field(
         default=True,
         validation_alias=AliasChoices(
             "DOVIZ_ADMIN_NOTIFICATION_SYNC_ENABLED",
             "doviz_admin_notification_sync_enabled",
+        ),
+    )
+    # Admin VPN’den erişilemezse Google Sheet’e düş (Railway varsayılanı).
+    doviz_admin_sheet_fallback_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "DOVIZ_ADMIN_SHEET_FALLBACK_ENABLED",
+            "doviz_admin_sheet_fallback_enabled",
         ),
     )
     doviz_asset_monitor_interval_minutes: int = Field(
