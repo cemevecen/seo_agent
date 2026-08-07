@@ -1782,6 +1782,8 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/admin/login",
         "/admin/auth/login",
         "/auth/google/",
+        # VPN Mac bridge: token ile korunan ingest (panel cookie istemez)
+        "/api/notification-analytics/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
