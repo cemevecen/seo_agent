@@ -1,8 +1,8 @@
 """Reklam analitiği API — Excel/CSV yükleme ve filtreli özet.
 
-Sheets /ad yayından kaldırıldı: /api/mz-analytics → 410 (GA4 banner hariç).
+Sheets /ad yayından kaldırıldı: /api/mz-analytics → 410
+(GA4 banner + gelir hedefleri hariç).
 Virgül /ad-virgul → /api/virgul-analytics (bu router'a dokunulmaz).
-GA4 app-banner paneli /ad-virgul üzerinden canlı kalır.
 """
 
 import json
@@ -27,9 +27,9 @@ _SHEETS_AD_GONE = (
 
 
 def _sheets_ad_gate(request: Request) -> None:
-    """Sheets mz-analytics yükünü kes; GA4 banner uçları açık kalır."""
+    """Sheets mz-analytics yükünü kes; banner + gelir hedefleri açık kalır."""
     path = request.url.path or ""
-    if "/ga4-app-banner" in path:
+    if "/ga4-app-banner" in path or "/revenue-targets" in path:
         return
     raise HTTPException(status_code=410, detail=_SHEETS_AD_GONE)
 
