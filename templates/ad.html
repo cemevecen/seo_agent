@@ -3392,6 +3392,7 @@
   }
 
   var MZ_PRESET_LABELS = {
+    today: "Bugün",
     yesterday: "Dün",
     "7d": "Son 7 gün",
     "14d": "Son 2 hafta",
@@ -10744,6 +10745,14 @@
     var anchorIso = mzPresetAnchorIso();
     var d = new Date(anchorIso + "T12:00:00");
     var s = new Date(d);
+    if (v === "today") {
+      var dayToday = isoCalendarDate(new Date());
+      start.value = dayToday;
+      end.value = dayToday;
+      updateComparePeriodBanner(state.lastSummary);
+      updateRangeEmptyNotice(state.lastSummary);
+      return;
+    }
     if (v === "yesterday") {
       var y = new Date();
       y.setDate(y.getDate() - 1);
