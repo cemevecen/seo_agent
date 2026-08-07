@@ -2550,6 +2550,7 @@
   }
 
   var DN_BRIDGE_NEWS_URL = "http://127.0.0.1:18765/sync-news";
+  var DN_BRIDGE_NEWS_PROGRESS_URL = "http://127.0.0.1:18765/news-progress";
 
   function syncNewsViaVpnBridge() {
     return fetch(DN_BRIDGE_NEWS_URL, {
@@ -2568,6 +2569,60 @@
     });
   }
 
+  function paintBridgeNewsProgress(p) {
+    if (!p) return;
+    var page = Number(p.page) || 0;
+    var total = Number(p.total_pages) || 0;
+    var rows = Number(p.rows) || 0;
+    var phase = p.phase || "";
+    var label;
+    var pct;
+    if (phase === "ingest") {
+      pct = 94;
+      label = (total ? total + "/" + total + " sayfa" : "sayfalar tamam") +
+        " · Railway'e yazılıyor… · " + fmt(rows) + " kayıt";
+    } else if (phase === "done") {
+      pct = 96;
+      label = (p.message || "Tamam") + (rows ? " · " + fmt(rows) + " kayıt" : "");
+    } else if (total > 0) {
+      pct = Math.max(4, Math.min(90, Math.round((page / total) * 88)));
+      label = page + "/" + total + " sayfa · " + fmt(rows) + " kayıt";
+    } else {
+      pct = Math.max(4, Math.min(40, 4 + page));
+      label = (page ? page + " sayfa" : "Admin…") + " · " + fmt(rows) + " kayıt";
+    }
+    paintProgress(pct, label, { indeterminate: false });
+    var loading = $("dn-loading");
+    if (loading) {
+      loading.textContent = label;
+      loading.classList.remove("hidden");
+    }
+  }
+
+  function startBridgeNewsProgressPoll() {
+    stopProgressTimer();
+    paintProgress(3, "0/? sayfa · admin taranıyor…", { indeterminate: false });
+    var loading = $("dn-loading");
+    if (loading) {
+      loading.textContent = "Admin haberler taranıyor…";
+      loading.classList.remove("hidden");
+    }
+    state.progressTimer = setInterval(function () {
+      fetch(DN_BRIDGE_NEWS_PROGRESS_URL, {
+        method: "GET",
+        mode: "cors",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      })
+        .then(function (resp) { return resp.ok ? resp.json() : null; })
+        .then(function (p) {
+          if (!p) return;
+          paintBridgeNewsProgress(p);
+        })
+        .catch(function () { /* köprü yoksa sessiz */ });
+    }, 400);
+  }
+
   async function load(force, opts) {
     if (state.loading || state.trafficLoading) return;
     opts = opts || {};
@@ -2578,20 +2633,23 @@
     var btn = $("dn-refresh");
     var ok = false;
     var preferBridge = !!force;
-    startLoadProgress(
-      opts.reason || (preferBridge ? "VPN köprüsü · aktif haberler" : "Yükleniyor")
-    );
-    if (loading) loading.classList.remove("hidden");
+    if (preferBridge) {
+      setFilterTabsDisabled(true);
+      startBridgeNewsProgressPoll();
+    } else {
+      startLoadProgress(opts.reason || "Yükleniyor");
+    }
+    if (loading && !preferBridge) loading.classList.remove("hidden");
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     if (btn) btn.disabled = true;
     syncTrafficButton();
     try {
       if (preferBridge) {
         try {
-          paintProgress(20, "VPN köprüsü · pagination…", { indeterminate: true });
           await syncNewsViaVpnBridge();
-          paintProgress(70, "Köprü OK · rapor", { indeterminate: false });
+          paintProgress(95, "Köprü OK · rapor yükleniyor", { indeterminate: false });
         } catch (bridgeErr) {
+          stopProgressTimer();
           paintProgress(
             35,
             "Köprü yok · yedek senkron…",
@@ -2620,7 +2678,6 @@
       paintProgress(96, (opts.reason || "Yükleniyor") + " · render", { indeterminate: false });
       if (loading) loading.classList.add("hidden");
       if (body) body.classList.remove("hidden");
-      // Dönem/kategori değişiminde trafik sıfırlanır
       if (!opts.keepTraffic) resetTrafficUi();
       renderAll(data);
       ok = true;

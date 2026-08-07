@@ -137,6 +137,8 @@ def fetch_active_news_rows_from_admin(
     max_pages: int = DEFAULT_MAX_PAGES,
     timeout: int = 45,
     min_id: int = DOVIZ_NEWS_MIN_ID,
+    estimate_pages: int | None = None,
+    on_progress: Any | None = None,
 ) -> dict[str, Any]:
     """Aktif haber sayfalarını dolaşır; min_id altını almaz (id_desc erken keser)."""
     if not admin_credentials_configured() and sess is None:
@@ -153,6 +155,29 @@ def fetch_active_news_rows_from_admin(
     last_page = 0
     skipped_old = 0
     hit_floor = False
+    est = max(1, int(estimate_pages or 264))
+
+    def _emit(**kwargs: Any) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(
+                {
+                    "phase": "scrape",
+                    "page": last_page,
+                    "pages_ok": pages_ok,
+                    "total_pages": est,
+                    "rows": len(by_id),
+                    "skipped_old": skipped_old,
+                    "hit_floor": hit_floor,
+                    "elapsed_sec": round((datetime.utcnow() - t0).total_seconds(), 2),
+                    **kwargs,
+                }
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    _emit(page=0, status="login_ok")
 
     try:
         for page in range(1, max(1, int(max_pages)) + 1):
@@ -196,16 +221,11 @@ def fetch_active_news_rows_from_admin(
                     by_id[str(nid)] = row
                 else:
                     skipped_old += 1
-            if page % 50 == 0:
-                LOGGER.info(
-                    "Admin news scrape progress page=%s rows=%s skipped_old=%s",
-                    page,
-                    len(by_id),
-                    skipped_old,
-                )
             # id_desc: sayfadaki en küçük id eşikten düşükse daha eski sayfalar gelir — dur
             if page_ids and min(page_ids) < int(min_id):
                 hit_floor = True
+                est = last_page
+                _emit(status="floor")
                 LOGGER.info(
                     "Admin news scrape floor at page=%s min_id_on_page=%s threshold=%s kept=%s",
                     page,
@@ -214,6 +234,17 @@ def fetch_active_news_rows_from_admin(
                     len(by_id),
                 )
                 break
+            # Henüz floor yoksa tahmini toplam en az mevcut sayfa + tampon
+            if last_page >= est:
+                est = last_page + 20
+            _emit(status="page")
+            if page % 50 == 0:
+                LOGGER.info(
+                    "Admin news scrape progress page=%s rows=%s skipped_old=%s",
+                    page,
+                    len(by_id),
+                    skipped_old,
+                )
     finally:
         if own_session:
             try:
@@ -223,7 +254,7 @@ def fetch_active_news_rows_from_admin(
 
     rows = list(by_id.values())
     rows.sort(key=lambda r: r.get("date") or "", reverse=True)
-    return {
+    result = {
         "ok": True,
         "rows": rows,
         "parsed": len(rows),
@@ -232,8 +263,17 @@ def fetch_active_news_rows_from_admin(
         "min_id": int(min_id),
         "skipped_old": skipped_old,
         "hit_floor": hit_floor,
+        "total_pages": last_page if hit_floor else est,
         "elapsed_sec": round((datetime.utcnow() - t0).total_seconds(), 2),
         "source": "doviz_admin_news",
         "source_url": news_list_url(1),
         "proxy": bool(admin_http_proxy()),
     }
+    _emit(
+        phase="scrape_done",
+        page=last_page,
+        total_pages=result["total_pages"],
+        rows=len(rows),
+        status="done",
+    )
+    return result

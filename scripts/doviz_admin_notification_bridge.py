@@ -43,7 +43,26 @@ NEWS_AUTO_EVERY_N = int(os.environ.get("NEWS_BRIDGE_EVERY_N") or "2")  # her N. 
 _sync_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_news_progress: dict[str, Any] = {
+    "running": False,
+    "phase": "idle",
+    "page": 0,
+    "total_pages": int(os.environ.get("NEWS_PAGES_ESTIMATE") or "264"),
+    "rows": 0,
+    "message": "",
+}
 _auto_cycle = 0
+
+
+def _set_news_progress(**kwargs: Any) -> None:
+    _news_progress.update(kwargs)
+    _news_progress["ts"] = time.time()
+
+
+def _news_pages_estimate() -> int:
+    last = int(_last_news_result.get("last_page") or 0)
+    env = int(os.environ.get("NEWS_PAGES_ESTIMATE") or "264")
+    return max(last, env, 1)
 
 
 def _load_dotenv() -> None:
@@ -153,13 +172,45 @@ def run_news_bridge_once() -> dict[str, Any]:
     err = _require_creds()
     if err:
         _last_news_result = err
+        _set_news_progress(running=False, phase="error", message=err.get("message") or "")
         return err
 
     from backend.services.doviz_news_admin import fetch_active_news_rows_from_admin
 
+    estimate = _news_pages_estimate()
+    _set_news_progress(
+        running=True,
+        phase="scrape",
+        page=0,
+        total_pages=estimate,
+        rows=0,
+        message="Admin login…",
+    )
+
+    def _on_progress(info: dict[str, Any]) -> None:
+        page = int(info.get("page") or 0)
+        total = int(info.get("total_pages") or estimate)
+        rows = int(info.get("rows") or 0)
+        _set_news_progress(
+            running=True,
+            phase=str(info.get("phase") or "scrape"),
+            page=page,
+            total_pages=total,
+            rows=rows,
+            skipped_old=info.get("skipped_old"),
+            hit_floor=bool(info.get("hit_floor")),
+            message=f"{page}/{total} sayfa · {rows} kayıt",
+        )
+        if page and page % 25 == 0:
+            print(f"News progress {page}/{total} · {rows} kayıt", flush=True)
+
     print("Admin aktif haberler çekiliyor (pagination)…", flush=True)
-    fetched = fetch_active_news_rows_from_admin()
+    fetched = fetch_active_news_rows_from_admin(
+        estimate_pages=estimate,
+        on_progress=_on_progress,
+    )
     rows = fetched.get("rows") or []
+    total_pages = int(fetched.get("last_page") or fetched.get("pages") or estimate)
     print(
         f"News çekildi: {len(rows)} satır · {fetched.get('pages')} sayfa · "
         f"{fetched.get('elapsed_sec')}s",
@@ -168,11 +219,20 @@ def run_news_bridge_once() -> dict[str, Any]:
     if not rows:
         out = {"ok": False, "message": "News: satır yok — gönderilmedi", "parsed": 0}
         _last_news_result = out
+        _set_news_progress(running=False, phase="error", message=out["message"])
         return out
+
+    _set_news_progress(
+        running=True,
+        phase="ingest",
+        page=total_pages,
+        total_pages=total_pages,
+        rows=len(rows),
+        message=f"{total_pages}/{total_pages} sayfa · ingest…",
+    )
 
     url = _news_ingest_url()
     token = _ingest_token()
-    # ~50k satır — uzun timeout
     resp = requests.post(
         url,
         headers={
@@ -207,6 +267,7 @@ def run_news_bridge_once() -> dict[str, Any]:
         "parsed": len(rows),
         "pages": fetched.get("pages"),
         "last_page": fetched.get("last_page"),
+        "total_pages": total_pages,
         "elapsed_sec": fetched.get("elapsed_sec"),
         "message": msg or ("OK" if ok else "Ingest başarısız"),
         "source": "doviz_admin_news_bridge",
@@ -214,6 +275,14 @@ def run_news_bridge_once() -> dict[str, Any]:
         "row_count": body.get("row_count") if isinstance(body, dict) else len(rows),
     }
     _last_news_result = out
+    _set_news_progress(
+        running=False,
+        phase="done" if ok else "error",
+        page=total_pages,
+        total_pages=total_pages,
+        rows=len(rows),
+        message=out["message"],
+    )
     return out
 
 
@@ -288,8 +357,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "news_every_n": NEWS_AUTO_EVERY_N,
                     "last": _last_result,
                     "last_news": _last_news_result,
+                    "news_progress": dict(_news_progress),
                 },
             )
+            return
+        if path in ("/news-progress", "/progress-news"):
+            self._send(200, {"ok": True, **dict(_news_progress)})
             return
         self._send(404, {"ok": False, "message": "not found"})
 
