@@ -689,9 +689,13 @@
         id="mz-jump-targets"
         class="block rounded-xl border border-teal-200/90 bg-teal-50/70 px-3 py-2.5 text-xs font-bold text-teal-900 hover:bg-teal-100/80 dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200 dark:hover:bg-teal-950/50"
       >Gelir hedefleri ↓</a>
-      {% if ad_sheet_sources %}
+      <div class="mz-tb-cell mz-tb-cell--share">
+        <button id="mz-share-link" type="button" class="w-full touch-manipulation rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Paylaşım linki kopyala</button>
+        <p id="mz-share-status" class="hidden min-h-[1rem] text-[11px] font-medium text-indigo-700 dark:text-indigo-300" role="status" aria-live="polite"></p>
+      </div>
+      {% if ad_mode != 'virgul' and ad_sheet_sources %}
       <div class="mz-tb-source rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800">
-        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">{% if ad_mode == 'virgul' %}Virgül paneller{% else %}Reklam gelir Sheet’leri{% endif %}</p>
+        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Reklam gelir Sheet’leri</p>
         <div class="mz-tb-source-row mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-center">
           <label for="mz-sheet-source-select" class="sr-only">Kaynak tablo seç</label>
           <select
@@ -841,10 +845,6 @@
       <button id="mz-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
       </div>
 
-      <div class="mz-tb-cell mz-tb-cell--share">
-        <button id="mz-share-link" type="button" class="w-full touch-manipulation rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Paylaşım linki kopyala</button>
-        <p id="mz-share-status" class="hidden min-h-[1rem] text-[11px] font-medium text-indigo-700 dark:text-indigo-300" role="status" aria-live="polite"></p>
-      </div>
       </div>
     </aside>
 
