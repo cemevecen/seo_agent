@@ -10877,6 +10877,122 @@ def api_home_notification_week(request: Request):
     return resp
 
 
+def _home_format_money_tl(n: float) -> str:
+    """Günlük ortalama gelir — kısa TL gösterimi."""
+    try:
+        v = float(n)
+    except (TypeError, ValueError):
+        return "—"
+    sign = "-" if v < 0 else ""
+    v = abs(v)
+    if v >= 1_000_000:
+        return f"{sign}{v / 1_000_000:.2f}M ₺".replace(".", ",")
+    if v >= 10_000:
+        return f"{sign}{v / 1_000:.1f}K ₺".replace(".", ",")
+    if v >= 1_000:
+        return f"{sign}{v / 1_000:.2f}K ₺".replace(".", ",")
+    return f"{sign}{v:,.0f} ₺".replace(",", ".")
+
+
+def _home_virgul_revenue_compare_context(db) -> dict:
+    """6 Virgül akışı: günlük ort. gelir — son 1 hafta (bugün hariç) vs son ~3 ay."""
+    from sqlalchemy import func, select
+
+    from backend.models import AdReportRow
+    from backend.services.virgul_ad_config import VIRGUL_AD_SOURCES, VIRGUL_SOURCE_PREFIX
+
+    tz = ZoneInfo("Europe/Istanbul")
+    today = datetime.now(tz).date()
+    yesterday = today - timedelta(days=1)
+    week_start = yesterday - timedelta(days=6)  # 7 tam gün, bugün yok
+    month3_start = yesterday - timedelta(days=89)  # ~90 gün, bugün yok
+    week_days = max(1, (yesterday - week_start).days + 1)
+    month3_days = max(1, (yesterday - month3_start).days + 1)
+
+    rows = db.execute(
+        select(
+            AdReportRow.project,
+            AdReportRow.branch,
+            AdReportRow.report_date,
+            func.coalesce(func.sum(AdReportRow.net_revenue), 0),
+        )
+        .where(
+            AdReportRow.report_date >= month3_start,
+            AdReportRow.report_date <= yesterday,
+            AdReportRow.source_file.ilike(f"{VIRGUL_SOURCE_PREFIX}%"),
+        )
+        .group_by(AdReportRow.project, AdReportRow.branch, AdReportRow.report_date)
+    ).all()
+
+    daily: dict[tuple[str, str], dict[date, float]] = defaultdict(dict)
+    for project, branch, report_date, rev in rows:
+        key = (str(project or "").strip().lower(), str(branch or "").strip().lower())
+        try:
+            daily[key][report_date] = float(rev or 0)
+        except (TypeError, ValueError):
+            daily[key][report_date] = 0.0
+
+    cards: list[dict] = []
+    for src in VIRGUL_AD_SOURCES:
+        project, _, branch = src.stream_key.partition(":")
+        project = project.strip().lower()
+        branch = branch.strip().lower()
+        series = daily.get((project, branch), {})
+
+        week_total = sum(
+            series.get(week_start + timedelta(days=i), 0.0) for i in range(week_days)
+        )
+        month3_total = sum(
+            series.get(month3_start + timedelta(days=i), 0.0) for i in range(month3_days)
+        )
+        week_avg = week_total / float(week_days)
+        month3_avg = month3_total / float(month3_days)
+        delta_fmt, tone, pct = _home_pct_delta(week_avg, month3_avg)
+        brand = "doviz" if project == "doviz" else "sinemalar"
+        cards.append(
+            {
+                "key": src.stream_key,
+                "label": src.label,
+                "brand": brand,
+                "week_avg": round(week_avg, 2),
+                "month3_avg": round(month3_avg, 2),
+                "week_avg_fmt": _home_format_money_tl(week_avg),
+                "month3_avg_fmt": _home_format_money_tl(month3_avg),
+                "delta_fmt": delta_fmt,
+                "tone": tone,
+                "pct": pct,
+                "has_data": bool(series),
+            }
+        )
+
+    return {
+        "cards": cards,
+        "today": today.isoformat(),
+        "week_start": week_start.isoformat(),
+        "week_end": yesterday.isoformat(),
+        "month3_start": month3_start.isoformat(),
+        "month3_end": yesterday.isoformat(),
+        "week_days": week_days,
+        "month3_days": month3_days,
+        "ad_virgul_url": "/ad-virgul",
+    }
+
+
+@app.get("/api/home/virgul-revenue", response_class=HTMLResponse)
+def api_home_virgul_revenue(request: Request):
+    """Ana sayfa: Virgül 6 alan — 1 hafta vs 3 ay günlük ort. gelir KPI."""
+    with SessionLocal() as db:
+        ctx = _home_virgul_revenue_compare_context(db)
+    resp = templates.TemplateResponse(
+        request,
+        "partials/home/virgul_revenue.html",
+        context={"request": request, **ctx},
+    )
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
 def _home_parse_iso_date(s: str | None) -> datetime | None:
     if not s:
         return None

@@ -1,0 +1,137 @@
+{# Home — Virgül reklam: 6 alan · 1 hafta vs 3 ay günlük ort. gelir #}
+<style>
+  .home-vg-rev {
+    width: 100%;
+    min-width: 0;
+    container-type: inline-size;
+    container-name: home-vg-rev;
+  }
+  .home-vg-rev-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin-top: 0.95rem;
+  }
+  @container home-vg-rev (min-width: 560px) {
+    .home-vg-rev-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @container home-vg-rev (min-width: 900px) {
+    .home-vg-rev-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.75rem; }
+  }
+  .home-vg-rev-card {
+    min-width: 0;
+    border-radius: 0.9rem;
+    padding: 0.75rem 0.8rem 0.7rem;
+    border: 1px solid rgb(226 232 240 / 0.95);
+    background: rgb(248 250 252);
+  }
+  html.dark .home-vg-rev-card,
+  html.midnight .home-vg-rev-card {
+    border-color: rgb(71 85 105 / 0.85);
+    background: rgb(30 41 59 / 0.88);
+  }
+  .home-vg-rev-card.is-doviz {
+    box-shadow: inset 3px 0 0 0 rgba(59, 130, 246, 0.75);
+  }
+  .home-vg-rev-card.is-sinemalar {
+    box-shadow: inset 3px 0 0 0 rgba(159, 18, 57, 0.72);
+  }
+  html.dark .home-vg-rev-card.is-doviz {
+    box-shadow: inset 3px 0 0 0 rgba(96, 165, 250, 0.65);
+  }
+  html.dark .home-vg-rev-card.is-sinemalar {
+    box-shadow: inset 3px 0 0 0 rgba(190, 18, 60, 0.55);
+  }
+  .home-vg-rev-label {
+    margin: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #64748b;
+    line-height: 1.25;
+  }
+  html.dark .home-vg-rev-label,
+  html.midnight .home-vg-rev-label { color: #94a3b8; }
+  .home-vg-rev-delta {
+    margin: 0.45rem 0 0;
+    font-size: clamp(1.2rem, 1.05rem + 1.1cqi, 1.55rem);
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: #64748b;
+  }
+  .home-vg-rev-delta.is-up-mild { color: #22c55e !important; }
+  .home-vg-rev-delta.is-up { color: #16a34a !important; }
+  .home-vg-rev-delta.is-up-strong { color: #15803d !important; }
+  .home-vg-rev-delta.is-down-mild { color: #f97316 !important; }
+  .home-vg-rev-delta.is-down { color: #e11d48 !important; }
+  .home-vg-rev-delta.is-down-strong { color: #be123c !important; }
+  html.dark .home-vg-rev-delta.is-up-mild,
+  html.midnight .home-vg-rev-delta.is-up-mild { color: #4ade80 !important; }
+  html.dark .home-vg-rev-delta.is-up,
+  html.midnight .home-vg-rev-delta.is-up { color: #34d399 !important; }
+  html.dark .home-vg-rev-delta.is-up-strong,
+  html.midnight .home-vg-rev-delta.is-up-strong { color: #22c55e !important; }
+  html.dark .home-vg-rev-delta.is-down-mild,
+  html.midnight .home-vg-rev-delta.is-down-mild { color: #fb923c !important; }
+  html.dark .home-vg-rev-delta.is-down,
+  html.midnight .home-vg-rev-delta.is-down { color: #fb7185 !important; }
+  html.dark .home-vg-rev-delta.is-down-strong,
+  html.midnight .home-vg-rev-delta.is-down-strong { color: #f43f5e !important; }
+  .home-vg-rev-meta {
+    margin: 0.45rem 0 0;
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    color: #64748b;
+  }
+  html.dark .home-vg-rev-meta,
+  html.midnight .home-vg-rev-meta { color: #94a3b8; }
+  .home-vg-rev-meta strong {
+    font-weight: 650;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .home-vg-rev-meta strong,
+  html.midnight .home-vg-rev-meta strong { color: #e2e8f0; }
+</style>
+
+<div class="home-vg-rev home-readable">
+  <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+    <div class="min-w-0">
+      <h3 class="font-semibold text-slate-900 dark:text-slate-100">Reklam · günlük ort. gelir</h3>
+      <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">
+        Son 1 hafta (bugün hariç) vs son 3 ay — Virgül
+      </p>
+    </div>
+    <a href="{{ ad_virgul_url | default('/ad-virgul') }}"
+       hx-get="{{ ad_virgul_url | default('/ad-virgul') }}"
+       hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">ad-virgul →</a>
+  </div>
+
+  {% if cards %}
+  <div class="home-vg-rev-grid" role="list">
+    {% for c in cards %}
+    <article class="home-vg-rev-card is-{{ c.brand }}" role="listitem" data-stream="{{ c.key }}">
+      <p class="home-vg-rev-label">{{ c.label }}</p>
+      {% if c.has_data %}
+        <p class="home-vg-rev-delta {% if c.tone and c.tone != 'flat' %}is-{{ c.tone }}{% endif %}">{{ c.delta_fmt }}</p>
+        <div class="home-vg-rev-meta">
+          <span>1 hafta · <strong>{{ c.week_avg_fmt }}</strong>/gün</span>
+          <span>3 ay · <strong>{{ c.month3_avg_fmt }}</strong>/gün</span>
+        </div>
+      {% else %}
+        <p class="home-vg-rev-delta">—</p>
+        <div class="home-vg-rev-meta"><span>Veri yok</span></div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="home-meta mt-3 text-slate-400 dark:text-slate-500">Virgül gelir verisi bulunamadı.</p>
+  {% endif %}
+</div>
