@@ -497,9 +497,16 @@ def workspace_rows_chunk(
 
 
 def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
+    from backend.services.doviz_notification_admin import (
+        DOVIZ_ADMIN_BASE,
+        STATS_PATH,
+        admin_credentials_configured,
+    )
+
     row = _get_workspace(db)
     rows = _load_rows(row)
     _min_d, _max_d = _rows_date_bounds(rows)
+    admin_ready = admin_credentials_configured()
     out: dict[str, Any] = {
         "ok": True,
         "last_id": int(row.last_id or 0),
@@ -512,7 +519,11 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "updated_at": _iso_utc_z(row.updated_at),
         "last_file_upload_at": _iso_utc_z(row.last_file_upload_at),
         "last_sheet_sync_at": _iso_utc_z(row.last_file_upload_at),
-        "source_url": NOTIFICATION_ANALYTICS_SHEET_URL,
+        # Tek aktif kaynak: Doviz admin. Sheet yalnızca yedek (hesaba dahil değil).
+        "source": "doviz_admin",
+        "source_url": f"{DOVIZ_ADMIN_BASE}{STATS_PATH}",
+        "sheet_backup_url": NOTIFICATION_ANALYTICS_SHEET_URL,
+        "admin_credentials_configured": admin_ready,
     }
     if include_rows:
         out["rows"] = rows
@@ -749,32 +760,15 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
 
 
 def sync_notification_analytics(db: Session, *, force: bool = False) -> dict:
-    """Önce Doviz admin (credential varsa), olmazsa Google Sheet."""
-    from backend.config import settings
-    from backend.services.doviz_notification_admin import admin_credentials_configured
-
-    if settings.doviz_admin_notification_sync_enabled and admin_credentials_configured():
-        admin_result = sync_from_doviz_admin(db, force=force)
-        if admin_result.get("synced") or admin_result.get("skipped"):
-            return admin_result
-        # Admin hata verdiyse sheet’e düş
-        LOGGER.warning(
-            "Admin sync failed (%s); falling back to Google Sheet",
-            admin_result.get("message"),
-        )
-        sheet = sync_from_google_sheet(db, force=True)
-        sheet["admin_error"] = admin_result.get("message")
-        if sheet.get("synced"):
-            sheet["message"] = (
-                f"{sheet.get('message') or 'Sheet sync'} "
-                f"(admin başarısız: {admin_result.get('message')})"
-            )
-        return sheet
-    return sync_from_google_sheet(db, force=force)
+    """Tek aktif kaynak: Doviz admin. Google Sheet otomatik kullanılmaz (çift veri yok)."""
+    return sync_from_doviz_admin(db, force=force)
 
 
 def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
-    """Kaynak Google Sheet'i çekip workspace'i günceller (TTL ile throttle)."""
+    """Yedek: Google Sheet — yalnızca bilinçli /sync-sheet-backup çağrısı ile.
+
+    Normal sync, scheduler ve UI «Verileri güncelle» bu yolu kullanmaz.
+    """
     global _last_sheet_sync_mono
     now = time.monotonic()
     if (
@@ -786,18 +780,20 @@ def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
             **workspace_state(db, include_rows=False),
             "synced": False,
             "skipped": True,
-            "message": "Son senkronizasyon taze; sheet yeniden çekilmedi.",
+            "source": "google_sheet_backup",
+            "message": "Son yedek senkron taze; sheet yeniden çekilmedi.",
         }
     try:
         csv_text = fetch_public_sheet_csv(NOTIFICATION_ANALYTICS_SHEET_URL, timeout=60)
     except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("Notification sheet fetch failed: %s", exc)
+        LOGGER.warning("Notification sheet backup fetch failed: %s", exc)
         return {
             **workspace_state(db, include_rows=False),
             "synced": False,
             "skipped": False,
             "ok": False,
-            "message": str(exc) or "Google Sheet okunamadı.",
+            "source": "google_sheet_backup",
+            "message": str(exc) or "Google Sheet (yedek) okunamadı.",
         }
     parsed = parse_csv_text(csv_text)
     result = replace_workspace_from_rows(db, parsed)
@@ -805,9 +801,15 @@ def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
         _last_sheet_sync_mono = time.monotonic()
         result["synced"] = True
         result["skipped"] = False
+        result["message"] = (
+            f"Yedek Google Sheet yüklendi · {result.get('added') or result.get('parsed')} kayıt "
+            "(aktif kaynak değil — bilinçli yedek)."
+        )
     else:
         result["synced"] = False
         result["skipped"] = False
+    result["source"] = "google_sheet_backup"
+    result["source_url"] = NOTIFICATION_ANALYTICS_SHEET_URL
     return result
 
 

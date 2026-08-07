@@ -74,10 +74,10 @@ def post_notification_analytics_append(body: AppendRowsBody, db: Session = Depen
 
 @router.post("/notification-analytics/sync-sheet")
 def post_notification_analytics_sync_sheet(
-    force: bool = Query(False, description="true ise TTL yok sayılır, kaynak yeniden çekilir"),
+    force: bool = Query(False, description="true ise TTL yok sayılır, Doviz admin yeniden çekilir"),
     db: Session = Depends(get_db),
 ):
-    """Doviz admin (credential varsa) veya Google Sheet'ten veriyi çekip workspace'e yazar."""
+    """Aktif kaynak: Doviz.com admin notifications/stats (tek kaynak — sheet yok)."""
     try:
         result = store.sync_notification_analytics(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):
@@ -95,7 +95,7 @@ def post_notification_analytics_sync_admin(
     force: bool = Query(True, description="true ise TTL yok sayılır"),
     db: Session = Depends(get_db),
 ):
-    """Yalnızca Doviz.com admin notifications/stats (DOVIZ_ADMIN_* gerekir)."""
+    """Doviz.com admin notifications/stats — sync-sheet ile aynı aktif kaynak."""
     try:
         result = store.sync_from_doviz_admin(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):
@@ -108,14 +108,31 @@ def post_notification_analytics_sync_admin(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/notification-analytics/upload")
-def post_notification_analytics_upload(body: UploadCsvBody, db: Session = Depends(get_db)):
-    """Geriye dönük uyumluluk — UI dosya yükleme kullanmaz; kaynak Google Sheet'tir."""
+@router.post("/notification-analytics/sync-sheet-backup")
+def post_notification_analytics_sync_sheet_backup(
+    force: bool = Query(True, description="true ise TTL yok sayılır"),
+    db: Session = Depends(get_db),
+):
+    """Yedek Google Sheet — normal sync/scheduler/UI kullanmaz; çift başlı veri için bilinçli çağrı."""
     try:
-        return store.upload_csv_text(db, body.csv_text or "")
+        result = store.sync_from_google_sheet(db, force=force)
+        if result.get("ok") is False and not result.get("skipped"):
+            raise HTTPException(status_code=502, detail=result.get("message") or "Yedek sheet senkronu başarısız.")
+        return result
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001
         db.rollback()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/notification-analytics/upload")
+def post_notification_analytics_upload(body: UploadCsvBody, db: Session = Depends(get_db)):
+    """Kapalı — manuel dosya/sheet yükleme hesaplara dahil değil (çift kaynak engeli)."""
+    raise HTTPException(
+        status_code=410,
+        detail="Manuel CSV yükleme kapalı. Aktif kaynak: Doviz admin. Yedek için POST /api/notification-analytics/sync-sheet-backup.",
+    )
 
 
 @router.post("/notification-analytics/upload-file")
@@ -123,17 +140,11 @@ async def post_notification_analytics_upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Geriye dönük uyumluluk — UI dosya yükleme kullanmaz."""
-    try:
-        raw = await file.read()
-        if not raw:
-            raise HTTPException(status_code=400, detail="Boş dosya.")
-        return store.upload_file_bytes(db, raw, file.filename or "")
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    """Kapalı — manuel dosya yükleme hesaplara dahil değil."""
+    raise HTTPException(
+        status_code=410,
+        detail="Manuel dosya yükleme kapalı. Aktif kaynak: Doviz admin.",
+    )
 
 
 @router.post("/notification-analytics/reset")
