@@ -176,7 +176,7 @@
     user-select: none;
   }
   .mz-skel-bone {
-    background: #e8eef5;
+    background: #d7e0eb;
     border-radius: 8px;
     position: relative;
     overflow: hidden;
@@ -201,35 +201,52 @@
   }
   .mz-skel--line .mz-skel-path {
     fill: none;
-    stroke: #cbd5e1;
+    stroke: #94a3b8;
     stroke-width: 1.15;
     stroke-linecap: round;
     stroke-dasharray: 2.2 4.8;
-    opacity: 0.55;
+    opacity: 0.66;
     animation: mz-skel-dash 3s linear infinite, mz-skel-path-pulse 5s ease-in-out infinite;
   }
   html.dark .mz-skel--line .mz-skel-path,
   html.midnight .mz-skel--line .mz-skel-path {
     stroke: #52525b;
+    opacity: 0.55;
   }
   .mz-skel--line .mz-skel-fill {
-    opacity: 0.22;
+    opacity: 0.26;
     animation: mz-skel-path-pulse 5s ease-in-out infinite;
+  }
+  html.dark .mz-skel--line .mz-skel-fill,
+  html.midnight .mz-skel--line .mz-skel-fill {
+    opacity: 0.22;
   }
   @keyframes mz-skel-dash {
     to { stroke-dashoffset: -21; }
   }
   @keyframes mz-skel-path-pulse {
+    0%, 100% { opacity: 0.19; }
+    50% { opacity: 0.48; }
+  }
+  @keyframes mz-skel-path-pulse-dark {
     0%, 100% { opacity: 0.16; }
     50% { opacity: 0.4; }
+  }
+  html.dark .mz-skel--line .mz-skel-path,
+  html.midnight .mz-skel--line .mz-skel-path {
+    animation: mz-skel-dash 3s linear infinite, mz-skel-path-pulse-dark 5s ease-in-out infinite;
+  }
+  html.dark .mz-skel--line .mz-skel-fill,
+  html.midnight .mz-skel--line .mz-skel-fill {
+    animation: mz-skel-path-pulse-dark 5s ease-in-out infinite;
   }
 
   /* 6 — Frosted Breath Bars */
   .mz-skel--bar {
     border-radius: 12px;
     padding: 0.85rem 0.65rem;
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(219, 234, 254, 0.45));
-    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(219, 234, 254, 0.54));
+    border: 1px solid rgba(148, 163, 184, 0.34);
     backdrop-filter: blur(8px);
   }
   html.dark .mz-skel--bar,
@@ -241,7 +258,7 @@
     height: 8px;
     width: 36%;
     margin-bottom: 0.85rem;
-    background: rgba(148, 163, 184, 0.35);
+    background: rgba(148, 163, 184, 0.42);
   }
   html.dark .mz-skel--bar .mz-skel-title,
   html.midnight .mz-skel--bar .mz-skel-title {
@@ -259,12 +276,13 @@
     flex: 1 1 0;
     min-width: 4px;
     border-radius: 6px 6px 2px 2px;
-    background: rgba(37, 99, 235, 0.22);
+    background: rgba(37, 99, 235, 0.26);
     animation: mz-skel-breath 4s ease-in-out infinite;
   }
   html.dark .mz-skel--bar .mz-skel-bar,
   html.midnight .mz-skel--bar .mz-skel-bar {
     background: rgba(96, 165, 250, 0.28);
+    animation-name: mz-skel-breath-dark;
   }
   .mz-skel--bar .mz-skel-bar:nth-child(1) { height: 35%; animation-delay: 0s; }
   .mz-skel--bar .mz-skel-bar:nth-child(2) { height: 58%; animation-delay: 0.1s; }
@@ -277,6 +295,10 @@
   .mz-skel--bar .mz-skel-bar:nth-child(9) { height: 48%; animation-delay: 0.25s; }
   .mz-skel--bar .mz-skel-bar:nth-child(10) { height: 62%; animation-delay: 0.35s; }
   @keyframes mz-skel-breath {
+    0%, 100% { opacity: 0.48; }
+    50% { opacity: 1; }
+  }
+  @keyframes mz-skel-breath-dark {
     0%, 100% { opacity: 0.4; }
     50% { opacity: 1; }
   }
@@ -292,8 +314,8 @@
     aspect-ratio: 1;
     max-width: 5.5rem;
     border-radius: 50%;
-    border: 6px solid #e2e8f0;
-    border-top-color: #2563eb;
+    border: 6px solid #cbd5e1;
+    border-top-color: #1d4ed8;
     animation: mz-skel-spin 2.75s linear infinite;
   }
   html.dark .mz-skel--pie .mz-skel-ring,
@@ -787,7 +809,7 @@
   <svg viewBox="0 0 320 100" preserveAspectRatio="none">
     <defs>
       <linearGradient id="{{ gid }}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.22"/>
+        <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.26"/>
         <stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>
       </linearGradient>
     </defs>
@@ -2387,7 +2409,7 @@
       "<defs><linearGradient id=\"" +
       gid +
       "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">" +
-      '<stop offset="0%" stop-color="#93c5fd" stop-opacity="0.22"/>' +
+      '<stop offset="0%" stop-color="#93c5fd" stop-opacity="0.26"/>' +
       '<stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>' +
       "</linearGradient></defs>" +
       '<path class="mz-skel-fill" fill="url(#' +
