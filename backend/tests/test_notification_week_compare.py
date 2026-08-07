@@ -20,10 +20,11 @@ def _row(
     android_c: float = 0,
     ios_c: float = 0,
 ) -> dict:
+    date_val = day if "T" in day else (day + "T09:00:00")
     return {
         "id": nid,
         "text": text,
-        "date": day + "T09:00:00",
+        "date": date_val,
         "platforms": {
             "desktop": {"click": desktop_c, "impression": desktop_i, "ctr": 10},
             "mobileweb": {"click": mobileweb_c, "impression": 0, "ctr": 0},
@@ -143,7 +144,6 @@ def test_build_notification_week_compare(monkeypatch):
     assert result["empty"] is False
     assert result["windows"]["current"]["end"] == "2026-07-27"
     assert result["windows"]["previous"]["end"] == "2026-07-20"
-    assert result["windows"]["including_today"]["end"] == date.today().isoformat()
     assert result["totals"]["clicks_cur"] > result["totals"]["clicks_prev"]
     by_key = {p["key"]: p for p in result["platforms"]}
     assert by_key["desktop"]["has_impressions"] is True
@@ -160,38 +160,44 @@ def test_build_notification_week_compare(monkeypatch):
     assert str(prev_first["id"]).startswith("2000") or prev_first["text"].startswith("Prev")
 
 
-def test_including_today_window_covers_as_of_day(monkeypatch):
-    ref = date(2026, 8, 6)  # yesterday-style KPI end
+def test_latest_raw_sends_is_newest_first_not_by_clicks():
+    from backend.services.notification_analytics_alerts import _latest_raw_sends
+
+    rows = [
+        _row("2026-08-05T10:00:00", text="Eski yüksek", nid="1", desktop_c=9999, desktop_i=1),
+        _row("2026-08-07T09:00:00", text="Yeni düşük", nid="2", desktop_c=1, desktop_i=1),
+        _row("2026-08-07T12:00:00", text="En yeni", nid="3", desktop_c=5, desktop_i=1),
+        _row("2026-08-06T08:00:00", text="Orta", nid="4", desktop_c=100, desktop_i=1),
+    ]
+    latest = _latest_raw_sends(rows, limit=3)
+    assert [x["id"] for x in latest] == ["3", "2", "4"]
+    assert latest[0]["text"] == "En yeni"
+
+
+def test_including_today_is_raw_latest_not_week_top(monkeypatch):
+    ref = date(2026, 8, 6)
     today = date(2026, 8, 7)
     rows = [
         _row(
-            "2026-08-07",
-            text="Bugün",
+            "2026-08-07T15:00:00",
+            text="Az önce",
             nid="9001",
-            desktop_c=999,
-            desktop_i=1000,
-            ios_c=1,
+            desktop_c=3,
+            desktop_i=10,
         ),
         _row(
-            "2026-08-06",
-            text="Dün",
+            "2026-08-06T10:00:00",
+            text="Dün yüksek click",
             nid="9002",
-            desktop_c=10,
+            desktop_c=9999,
             desktop_i=100,
         ),
         _row(
-            "2026-07-31",
-            text="Hafta başı",
+            "2026-07-31T10:00:00",
+            text="Eski",
             nid="9003",
             desktop_c=50,
             desktop_i=500,
-        ),
-        _row(
-            "2026-07-30",
-            text="Dışarıda",
-            nid="9004",
-            desktop_c=5000,
-            desktop_i=5000,
         ),
     ]
 
@@ -226,14 +232,10 @@ def test_including_today_window_covers_as_of_day(monkeypatch):
     result = build_notification_week_compare(
         None, reference_day=ref, top_n=10, as_of_day=today
     )
-    assert result["windows"]["current"]["end"] == "2026-08-06"
-    assert result["windows"]["including_today"]["start"] == "2026-08-01"
-    assert result["windows"]["including_today"]["end"] == "2026-08-07"
-    incl = result["top_titles_including_today"]
-    assert incl[0]["id"] == "9001"
-    assert incl[0]["text"] == "Bugün"
-    ids = {x["id"] for x in incl}
-    assert "9004" not in ids  # 30.07 outside today-inclusive 7d
-    week = {x["id"] for x in result["top_titles"]}
-    assert "9001" not in week  # today excluded from last-week KPI list
-    assert "9002" in week
+    raw = result["top_titles_including_today"]
+    assert raw[0]["id"] == "9001"
+    assert raw[0]["text"] == "Az önce"
+    # last week top hâlâ click sıralı — dünkü yüksek click birinci
+    week = result["top_titles"]
+    assert week[0]["id"] == "9002"
+    assert raw[0]["id"] != week[0]["id"]

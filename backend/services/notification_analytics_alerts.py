@@ -129,6 +129,45 @@ def _top_sends_by_clicks(rows: list[dict], *, limit: int = 5) -> list[dict[str, 
     return items[: max(0, int(limit))]
 
 
+def _latest_raw_sends(rows: list[dict], *, limit: int = 40) -> list[dict[str, Any]]:
+    """/notification Ham içerik listesi — güncelden eskiye son N kayıt (sıralama yok)."""
+    ranked: list[tuple[str, dict]] = []
+    for row in rows:
+        text = str(row.get("text") or "").strip()
+        if not text:
+            continue
+        raw_dt = str(row.get("date") or "").strip()
+        day = _row_day_key(row.get("date")) or raw_dt[:10]
+        if not day:
+            continue
+        # ISO datetime string ile sırala (aynı gün içinde saat de ayırt eder)
+        sort_key = raw_dt if raw_dt else day
+        ranked.append((sort_key, row))
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    items: list[dict[str, Any]] = []
+    for sort_key, row in ranked[: max(0, int(limit))]:
+        desktop = _platform_click(row, "desktop")
+        mobileweb = _platform_click(row, "mobileweb")
+        android = _platform_click(row, "android")
+        ios = _platform_click(row, "ios")
+        total = desktop + mobileweb + android + ios
+        send_day = _row_day_key(row.get("date")) or str(row.get("date") or "")[:10]
+        items.append(
+            {
+                "id": str(row.get("id") or "").strip() or "—",
+                "text": str(row.get("text") or "").strip(),
+                "send_day": send_day or "—",
+                "send_at": sort_key,
+                "clicks": round(total, 2),
+                "desktop": round(desktop, 2),
+                "mobileweb": round(mobileweb, 2),
+                "android": round(android, 2),
+                "ios": round(ios, 2),
+            }
+        )
+    return items
+
+
 def _week_windows(reference_day: date) -> tuple[date, date, date, date]:
     cur_end = reference_day
     cur_start = reference_day - timedelta(days=WINDOW_DAYS - 1)
@@ -149,14 +188,12 @@ def build_notification_week_compare(
     reference_day pencerenin son günüdür (dahil). Ana sayfa dünü verir ki
     bugünün eksik verisi kıyasa karışmasın.
 
-    as_of_day (varsayılan: bugün) ile bugünü kapsayan son 7 gün Top N
-    (top_titles_including_today) ayrıca üretilir — KPI penceresini değiştirmez.
+    latest_raw (last 40): /notification Ham içerik listesi gibi güncelden
+    eskiye son N gönderim — click sıralaması yok.
     """
     ref = reference_day or date.today()
     today = as_of_day or date.today()
     cur_start, cur_end, prev_start, prev_end = _week_windows(ref)
-    incl_end = today
-    incl_start = today - timedelta(days=WINDOW_DAYS - 1)
     all_rows = _load_rows(_get_workspace(db))
     cur_rows = filter_rows_by_date(
         all_rows,
@@ -168,11 +205,7 @@ def build_notification_week_compare(
         start=prev_start.isoformat(),
         end=prev_end.isoformat(),
     )
-    incl_rows = filter_rows_by_date(
-        all_rows,
-        start=incl_start.isoformat(),
-        end=incl_end.isoformat(),
-    )
+    latest_raw = _latest_raw_sends(all_rows, limit=top_n)
     cur = _period_stats(cur_rows)
     prev = _period_stats(prev_rows)
     platforms: list[dict[str, Any]] = []
@@ -195,6 +228,8 @@ def build_notification_week_compare(
                 "has_impressions": has_impr,
             }
         )
+    raw_start = latest_raw[-1]["send_day"] if latest_raw else ""
+    raw_end = latest_raw[0]["send_day"] if latest_raw else today.isoformat()
     return {
         "reference_day": ref.isoformat(),
         "as_of_day": today.isoformat(),
@@ -202,8 +237,8 @@ def build_notification_week_compare(
             "current": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
             "previous": {"start": prev_start.isoformat(), "end": prev_end.isoformat()},
             "including_today": {
-                "start": incl_start.isoformat(),
-                "end": incl_end.isoformat(),
+                "start": str(raw_start or ""),
+                "end": str(raw_end or ""),
             },
         },
         "totals": {
@@ -217,7 +252,8 @@ def build_notification_week_compare(
         "platforms": platforms,
         "top_titles": _top_sends_by_clicks(cur_rows, limit=top_n),
         "top_titles_previous": _top_sends_by_clicks(prev_rows, limit=top_n),
-        "top_titles_including_today": _top_sends_by_clicks(incl_rows, limit=top_n),
+        # Eski anahtar adı korunur (şablon); içerik = ham listedeki son N
+        "top_titles_including_today": latest_raw,
         "empty": cur["rows"] == 0 and prev["rows"] == 0,
     }
 

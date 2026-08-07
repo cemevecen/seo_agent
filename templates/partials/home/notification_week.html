@@ -878,7 +878,7 @@
                   role="tab"
                   aria-selected="false"
                   data-nt-top-tab="including_today"
-                  title="Bugün dahil son 7 gün"
+                  title="Ham içerik listesi — güncelden eskiye son 40"
                   class="home-nt-top-tab rounded-full px-3.5 py-1.5 home-label normal-case tracking-wide transition
                          bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50
                          dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">
@@ -946,7 +946,7 @@
         {{ period_previous_label }}
       </p>
       <p data-nt-top-range="including_today" class="home-meta hidden border-t border-slate-100 px-2.5 py-1.5 tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
-        {{ period_including_today_label }} · bugün dahil
+        {% if period_including_today_label %}{{ period_including_today_label }} · {% endif %}ham liste · güncelden eskiye
       </p>
     </div>
     <script>
@@ -961,6 +961,11 @@
         current: {{ top_titles|length }},
         previous: {{ (top_titles_previous|default([]))|length }},
         including_today: {{ (top_titles_including_today|default([]))|length }}
+      };
+      var countSuffix = {
+        current: ' sends',
+        previous: ' sends',
+        including_today: ' kayıt'
       };
       var tabs = root.querySelectorAll('[data-nt-top-tab]');
       var panels = root.querySelectorAll('[data-nt-top-panel]');
@@ -981,7 +986,7 @@
         ranges.forEach(function (r) {
           r.classList.toggle('hidden', r.getAttribute('data-nt-top-range') !== which);
         });
-        if (countEl) countEl.textContent = (counts[which] || 0) + ' sends';
+        if (countEl) countEl.textContent = (counts[which] || 0) + (countSuffix[which] || ' sends');
       }
 
       tabs.forEach(function (btn) {
