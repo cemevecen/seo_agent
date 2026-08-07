@@ -451,11 +451,10 @@
   .mz-virgul-mode #mz-sidebar {
     display: grid !important;
     grid-template-columns:
-      minmax(11rem, 0.9fr)
-      minmax(16rem, 1.75fr)
+      minmax(11rem, 0.95fr)
+      minmax(16rem, 1.85fr)
       minmax(11rem, 1fr)
-      minmax(11rem, 1fr)
-      minmax(11rem, 0.95fr);
+      minmax(11rem, 1fr);
     gap: 0.75rem;
     align-items: stretch;
     position: relative !important;
@@ -478,12 +477,11 @@
   }
   .mz-virgul-mode #mz-sidebar .mz-tb-cell,
   .mz-virgul-mode #mz-sidebar .mz-tb-nav,
-  .mz-virgul-mode #mz-jump-targets,
-  .mz-virgul-mode #mz-sidebar .mz-tb-source {
+  .mz-virgul-mode #mz-jump-targets {
     min-width: 0;
     box-sizing: border-box;
   }
-  /* Gelir hedefleri + Virgül paneller: tek kolon, alt alta */
+  /* Gelir hedefleri + paylaşım: tek kolon, alt alta */
   .mz-virgul-mode #mz-sidebar > .mz-tb-nav {
     display: flex;
     flex-direction: column;
@@ -501,26 +499,25 @@
     text-align: center;
     flex: 0 0 auto;
   }
-  .mz-virgul-mode #mz-sidebar .mz-tb-nav .mz-tb-source {
-    margin: 0;
+  .mz-virgul-mode #mz-sidebar > .mz-tb-nav .mz-tb-cell--share {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     justify-content: center;
     gap: 0.35rem;
+    min-width: 0;
     width: 100%;
   }
-  .mz-virgul-mode #mz-sidebar .mz-tb-nav .mz-tb-source .mz-tb-source-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
+  .mz-virgul-mode #mz-sidebar > .mz-tb-nav #mz-share-link {
+    width: 100% !important;
     margin-top: 0 !important;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
   }
-  .mz-virgul-mode #mz-sidebar .mz-tb-nav .mz-tb-source select {
-    flex: 1 1 6rem;
-    min-width: 0;
-    width: auto !important;
+  .mz-virgul-mode #mz-sidebar > .mz-tb-nav #mz-share-status {
+    text-align: center;
+    margin: 0;
   }
   .mz-virgul-mode .mz-tb-cell--date {
     display: flex;
@@ -583,27 +580,11 @@
     margin: 0;
     white-space: nowrap;
   }
-  .mz-virgul-mode .mz-tb-cell--share {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.35rem;
-    min-width: 0;
-  }
-  .mz-virgul-mode #mz-share-link {
-    width: 100% !important;
-    margin-top: 0 !important;
-    white-space: nowrap;
-  }
-  .mz-virgul-mode #mz-share-status {
-    text-align: left;
-    margin: 0;
-  }
   @media (max-width: 1199px) {
     .mz-virgul-mode #mz-sidebar {
       grid-template-columns:
         minmax(11rem, 1fr)
-        minmax(14rem, 1.5fr)
+        minmax(14rem, 1.6fr)
         minmax(11rem, 1fr);
     }
   }
