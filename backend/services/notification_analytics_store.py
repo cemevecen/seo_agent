@@ -498,8 +498,8 @@ def workspace_rows_chunk(
 
 def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
     from backend.services.doviz_notification_admin import (
-        DOVIZ_ADMIN_BASE,
         STATS_PATH,
+        admin_base_url,
         admin_credentials_configured,
     )
 
@@ -521,7 +521,7 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "last_sheet_sync_at": _iso_utc_z(row.last_file_upload_at),
         # Tek aktif kaynak: Doviz admin. Sheet yalnızca yedek (hesaba dahil değil).
         "source": "doviz_admin",
-        "source_url": f"{DOVIZ_ADMIN_BASE}{STATS_PATH}",
+        "source_url": f"{admin_base_url()}{STATS_PATH}",
         "sheet_backup_url": NOTIFICATION_ANALYTICS_SHEET_URL,
         "admin_credentials_configured": admin_ready,
     }

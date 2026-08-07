@@ -448,6 +448,10 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("DOVIZ_ADMIN_PASSWORD", "doviz_admin_password"),
     )
+    doviz_admin_base_url: str = Field(
+        default="https://www.doviz.com",
+        validation_alias=AliasChoices("DOVIZ_ADMIN_BASE_URL", "doviz_admin_base_url"),
+    )
     doviz_admin_notification_sync_enabled: bool = Field(
         default=True,
         validation_alias=AliasChoices(
