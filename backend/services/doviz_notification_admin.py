@@ -11,7 +11,7 @@ import re
 from datetime import date, datetime
 from html import unescape
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -27,6 +27,13 @@ _BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 )
+# Kullanıcı bazen login/stats tam URL’sini BASE olarak yapıştırıyor; path’i at.
+_BASE_PATH_STRIP = (
+    "/admin/notifications/stats",
+    "/admin/login",
+    "/admin/",
+    "/admin",
+)
 
 _TAG_RE = re.compile(r"<[^>]+>", re.I)
 _TR_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.I | re.S)
@@ -35,9 +42,71 @@ _TD_RE = re.compile(r"<td[^>]*>(.*?)</td>", re.I | re.S)
 _WS_RE = re.compile(r"\s+")
 
 
+def _origin_from_url(raw: str) -> str | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if "://" not in text:
+        text = "https://" + text
+    parsed = urlparse(text)
+    if not parsed.netloc:
+        return None
+    return f"{parsed.scheme or 'https'}://{parsed.netloc}".rstrip("/")
+
+
 def admin_base_url() -> str:
-    base = (getattr(settings, "doviz_admin_base_url", None) or DOVIZ_ADMIN_BASE).strip()
-    return base.rstrip("/") or DOVIZ_ADMIN_BASE
+    """Doviz admin origin (scheme+host). Tam login/stats URL’si verilse bile origin’e iner.
+
+    Railway/localhost gibi bu uygulamanın host’u DOVIZ_ADMIN_BASE_URL olarak
+    yapıştırılırsa /admin/login/admin/login → HTTP 404 oluşur; bunları yok say.
+    """
+    raw = (getattr(settings, "doviz_admin_base_url", None) or DOVIZ_ADMIN_BASE).strip()
+    lowered = raw.lower()
+    for suffix in _BASE_PATH_STRIP:
+        if lowered.endswith(suffix):
+            raw = raw[: -len(suffix)]
+            lowered = raw.lower()
+            break
+
+    origin = _origin_from_url(raw) or DOVIZ_ADMIN_BASE
+    host = (urlparse(origin).netloc or "").lower()
+    if (
+        not host
+        or "doviz.com" not in host
+        or host.endswith("railway.app")
+        or host in ("localhost", "127.0.0.1")
+        or host.startswith("127.0.0.1:")
+        or host.startswith("localhost:")
+    ):
+        if raw and raw.rstrip("/") != DOVIZ_ADMIN_BASE:
+            LOGGER.warning(
+                "DOVIZ_ADMIN_BASE_URL geçersiz/host uyumsuz (%r) — %s kullanılıyor",
+                raw,
+                DOVIZ_ADMIN_BASE,
+            )
+        return DOVIZ_ADMIN_BASE
+    return origin
+
+
+def login_url_candidates() -> list[str]:
+    """Denenecek login URL’leri (çift /admin/login üretmeden)."""
+    primary = admin_base_url()
+    origins = [primary]
+    for extra in (DOVIZ_ADMIN_BASE, "https://admin.doviz.com", "https://doviz.com"):
+        o = _origin_from_url(extra)
+        if o and o not in origins:
+            origins.append(o)
+    out: list[str] = []
+    for origin in origins:
+        for path in (LOGIN_PATH, LOGIN_PATH + "/"):
+            u = urljoin(origin + "/", path.lstrip("/"))
+            if u not in out:
+                out.append(u)
+    return out
+
+
+def stats_url() -> str:
+    return urljoin(admin_base_url() + "/", STATS_PATH.lstrip("/"))
 
 
 def admin_credentials_configured() -> bool:
@@ -76,10 +145,8 @@ def _login_rejected(html: str) -> bool:
 
 def _session_seems_authenticated(sess: requests.Session) -> bool:
     """Stats’a bak: login’e düşmüyorsa oturum var say."""
-    base = admin_base_url()
-    stats_url = urljoin(base + "/", STATS_PATH.lstrip("/"))
     try:
-        probe = sess.get(stats_url, timeout=45, allow_redirects=True)
+        probe = sess.get(stats_url(), timeout=45, allow_redirects=True)
     except requests.RequestException as exc:
         LOGGER.warning("Admin stats probe failed: %s", exc)
         return False
@@ -94,6 +161,11 @@ def _session_seems_authenticated(sess: requests.Session) -> bool:
     if probe.status_code == 200 and not _looks_like_login_page(probe.text or "", final):
         return True
     return False
+
+
+def _has_login_form(html: str) -> bool:
+    low = (html or "").lower()
+    return 'name="password"' in low and ('name="email"' in low or 'id="email"' in low)
 
 
 def login_admin_session(
@@ -116,7 +188,6 @@ def login_admin_session(
         )
 
     base = admin_base_url()
-    login_url = urljoin(base + "/", LOGIN_PATH.lstrip("/"))
     sess = requests.Session()
     sess.headers.update(
         {
@@ -126,26 +197,43 @@ def login_admin_session(
         }
     )
 
-    # Cookie / form için GET (trailing slash varyantı da dene)
+    # Ana sayfa cookie/warmup (bazı edge’ler doğrudan /admin’i sert düşürüyor)
+    try:
+        sess.get(base + "/", timeout=min(timeout, 20), allow_redirects=True)
+    except requests.RequestException as exc:
+        LOGGER.info("Doviz homepage warm skipped: %s", exc)
+
     warm = None
-    last_get_err: Exception | None = None
-    for candidate in (login_url, login_url.rstrip("/") + "/", login_url.rstrip("/")):
+    login_url = urljoin(base + "/", LOGIN_PATH.lstrip("/"))
+    attempts: list[str] = []
+    last_status = 0
+    for candidate in login_url_candidates():
+        attempts.append(candidate)
         try:
-            warm = sess.get(candidate, timeout=timeout, allow_redirects=True)
-            if warm.status_code < 400 and not _looks_like_login_page(warm.text or "", str(warm.url)):
-                # login formu yoksa diğer adaya bak
-                if 'name="password"' not in (warm.text or "").lower():
-                    continue
-            if warm.status_code < 400:
-                login_url = str(warm.url) or candidate
-                break
+            resp = sess.get(candidate, timeout=timeout, allow_redirects=True)
         except requests.RequestException as exc:
-            last_get_err = exc
-            warm = None
+            LOGGER.warning("Admin login GET failed %s: %s", candidate, exc)
+            continue
+        last_status = int(resp.status_code or 0)
+        body = resp.text or ""
+        # Soft-404: status kötü olsa bile form varsa kullan
+        if _has_login_form(body):
+            warm = resp
+            login_url = str(resp.url) or candidate
+            break
+        if last_status < 400 and _looks_like_login_page(body, str(resp.url)):
+            warm = resp
+            login_url = str(resp.url) or candidate
+            break
+
     if warm is None:
-        raise ValueError(f"Admin login sayfası açılamadı: {last_get_err or 'bilinmeyen hata'}")
-    if warm.status_code >= 400:
-        raise ValueError(f"Admin login sayfası HTTP {warm.status_code}")
+        tried = ", ".join(attempts[:6])
+        raise ValueError(
+            f"Admin login sayfası açılamadı (son HTTP {last_status or '?'}). "
+            f"Denenen: {tried}. "
+            "Railway’de DOVIZ_ADMIN_BASE_URL yalnızca https://www.doviz.com olmalı "
+            "(login/stats tam URL’si veya bu uygulamanın adresi değil)."
+        )
 
     # Hidden alanları (CSRF vb.) koru; email/password üzerine yaz
     form_data: dict[str, str] = {"email": user, "password": pw}
@@ -185,8 +273,9 @@ def login_admin_session(
     if status == 200:
         if _login_rejected(body):
             raise ValueError("Hatalı e-mail veya şifre")
-        if _looks_like_login_page(body, str(resp.url)):
-            raise ValueError("Admin giriş başarısız — login sayfasında kaldı.")
+        if _looks_like_login_page(body, str(resp.url)) and not _session_seems_authenticated(sess):
+            # 200 + hâlâ login formu: reddedilmemişse bile oturum yok olabilir
+            pass
     elif status in (301, 302, 303, 307, 308):
         if loc:
             try:
@@ -200,8 +289,6 @@ def login_admin_session(
             except requests.RequestException as exc:
                 LOGGER.warning("Admin login redirect follow failed: %s", exc)
     elif status >= 400:
-        # Eski hata: başarılı giriş sonrası 404 landing → "Admin giriş HTTP 404"
-        # Artık hemen düşmüyoruz; stats ile doğrula.
         LOGGER.warning(
             "Admin login POST HTTP %s (cookies=%s loc=%s); verifying via stats",
             status,
@@ -228,7 +315,6 @@ def login_admin_session(
             )
             if _login_rejected(resp2.text or ""):
                 raise ValueError("Hatalı e-mail veya şifre")
-            # Follow sonrası 404 landing olsa bile stats’a bakacağız
             if resp2.status_code >= 400:
                 LOGGER.warning(
                     "Admin login follow POST HTTP %s at %s",
@@ -245,7 +331,7 @@ def login_admin_session(
                 f"POST={status}"
                 + (f", Location={loc}" if loc else "")
                 + ". Railway’de DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD "
-                "ve gerekirse DOVIZ_ADMIN_BASE_URL değerlerini kontrol edin."
+                "ve DOVIZ_ADMIN_BASE_URL=https://www.doviz.com değerlerini kontrol edin."
             )
     return sess
 
@@ -274,12 +360,12 @@ def fetch_stats_html(
 ) -> str:
     start = start or DEFAULT_STATS_START
     end = end or date.today()
-    stats_url = urljoin(admin_base_url() + "/", STATS_PATH.lstrip("/"))
+    stats = stats_url()
 
     best_html = ""
     best_rows = -1
     # Önce parametresiz (sayfa varsayılan aralığı)
-    bare = sess.get(stats_url, timeout=timeout, allow_redirects=True)
+    bare = sess.get(stats, timeout=timeout, allow_redirects=True)
     bare.raise_for_status()
     if "/admin/login" in str(bare.url).lower() or _looks_like_login_page(bare.text or "", str(bare.url)):
         raise ValueError("Stats için oturum geçersiz.")
@@ -289,7 +375,7 @@ def fetch_stats_html(
 
     for params in _stats_query_candidates(start, end):
         try:
-            resp = sess.get(stats_url, params=params, timeout=timeout, allow_redirects=True)
+            resp = sess.get(stats, params=params, timeout=timeout, allow_redirects=True)
             if resp.status_code >= 400 or "/admin/login" in str(resp.url).lower():
                 continue
             html = resp.text or ""
@@ -302,7 +388,7 @@ def fetch_stats_html(
     # POST Listele (bazı admin panelleri form POST kullanır)
     for data in _stats_query_candidates(start, end):
         try:
-            resp = sess.post(stats_url, data=data, timeout=timeout, allow_redirects=True)
+            resp = sess.post(stats, data=data, timeout=timeout, allow_redirects=True)
             if resp.status_code >= 400 or "/admin/login" in str(resp.url).lower():
                 continue
             html = resp.text or ""
@@ -406,5 +492,5 @@ def fetch_notification_rows_from_admin(
         "html_chars": len(html),
         "elapsed_sec": round((datetime.utcnow() - t0).total_seconds(), 2),
         "source": "doviz_admin",
-        "source_url": urljoin(admin_base_url() + "/", STATS_PATH.lstrip("/")),
+        "source_url": stats_url(),
     }

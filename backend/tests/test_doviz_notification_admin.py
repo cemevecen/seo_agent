@@ -59,6 +59,30 @@ def test_parse_stats_html_to_rows():
     assert rows[1]["id"] == "150389"
 
 
+def test_admin_base_url_strips_login_and_rejects_railway():
+    from backend.services.doviz_notification_admin import admin_base_url, login_url_candidates
+
+    class FullLoginUrl:
+        doviz_admin_base_url = "https://www.doviz.com/admin/login"
+
+    class StatsUrl:
+        doviz_admin_base_url = "https://www.doviz.com/admin/notifications/stats"
+
+    class RailwayLogin:
+        doviz_admin_base_url = "https://projectcontrol.up.railway.app/admin/login"
+
+    with patch("backend.services.doviz_notification_admin.settings", FullLoginUrl):
+        assert admin_base_url() == "https://www.doviz.com"
+        assert login_url_candidates()[0] == "https://www.doviz.com/admin/login"
+
+    with patch("backend.services.doviz_notification_admin.settings", StatsUrl):
+        assert admin_base_url() == "https://www.doviz.com"
+
+    with patch("backend.services.doviz_notification_admin.settings", RailwayLogin):
+        assert admin_base_url() == "https://www.doviz.com"
+        assert "admin/login/admin/login" not in " ".join(login_url_candidates())
+
+
 def test_login_ignores_404_landing_when_stats_ok():
     """Başarılı giriş sonrası dashboard 404 olsa bile stats doğrulanınca OK."""
 
@@ -72,10 +96,14 @@ def test_login_ignores_404_landing_when_stats_ok():
         r.headers = {}
         r.url = url
         allow = kw.get("allow_redirects", True)
-        if method == "GET" and "login" in url:
+        if method == "GET" and url.rstrip("/").endswith("doviz.com"):
+            r.status_code = 200
+            r.text = "home"
+            r.url = url
+        elif method == "GET" and "login" in url:
             r.status_code = 200
             r.text = (
-                '<form method="post">'
+                '<form method="post" class="login">'
                 '<input name="email" type="text">'
                 '<input name="password" type="password">'
                 "</form>"
