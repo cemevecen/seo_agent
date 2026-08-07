@@ -16490,31 +16490,13 @@ def notification_page(request: Request):
 
 @app.get("/ad")
 def ad_analytics_page(request: Request):
-    """Reklam raporları — Google Sheets sync, filtre ve grafikler."""
-    from backend.services.ad_sheets_config import AD_SHEET_SOURCES
-    from backend.services.revenue_targets_sheet import REVENUE_TARGETS_SHEET_URL
-
-    # Önce 6 reklam dalı; gelir hedefleri ayrı (paneldeki Kaynak tablo ile aynı).
-    ad_sheet_sources = [
-        {"key": s.stream_key, "label": s.label, "url": s.sheet_url}
-        for s in AD_SHEET_SOURCES
-    ] + [
-        {
-            "key": "revenue_targets",
-            "label": "Gelir hedefleri",
-            "url": REVENUE_TARGETS_SHEET_URL,
-        },
-    ]
-    return templates.TemplateResponse(
-        request,
-        "ad.html",
-        context={
-            "request": request,
-            "ad_sheet_sources": ad_sheet_sources,
-            "ad_mode": "sheets",
-            "virgul_sources": [],
-        },
-        headers=_SC_HTML_NO_CACHE_HEADERS,
+    """Sheets monetizasyon yayından kaldırıldı — yük yok; Virgül: /ad-virgul."""
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Google Sheets /ad sekmesi yayından kaldırıldı. "
+            "Monetizasyon için /ad-virgul kullanın."
+        ),
     )
 
 
@@ -16541,12 +16523,10 @@ def ad_virgul_analytics_page(request: Request):
 
 @app.get("/ad/app-banner")
 def ad_app_banner_ga4_page(request: Request):
-    """GA4 mobil banner / first user campaign — geniş panel (Exploration android banner)."""
-    return templates.TemplateResponse(
-        request,
-        "ad_app_banner.html",
-        context={"request": request},
-        headers=_SC_HTML_NO_CACHE_HEADERS,
+    """Eski Sheets /ad GA4 banner paneli — yayından kaldırıldı."""
+    raise HTTPException(
+        status_code=410,
+        detail="Bu panel Sheets /ad ile birlikte yayından kaldırıldı. /ad-virgul kullanın.",
     )
 
 

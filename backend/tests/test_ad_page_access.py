@@ -24,6 +24,10 @@ def test_ad_page_paths():
     assert not is_ad_page_path("/")
     assert not is_ad_page_path("/realtime")
     assert not is_ad_page_path("/api/home/realtime")
+    # Virgül ayr? ? Sheets /ad gate'ine girmemeli
+    assert not is_ad_page_path("/ad-virgul")
+    assert not is_ad_page_path("/api/virgul-analytics/summary")
+    assert not is_ad_page_path("/api/virgul-analytics/ingest")
 
 
 def test_ad_menu_visible_and_denied():

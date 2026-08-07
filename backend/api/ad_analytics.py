@@ -1,4 +1,8 @@
-"""Reklam analitiği API — Excel/CSV yükleme ve filtreli özet."""
+"""Reklam analitiği API — Excel/CSV yükleme ve filtreli özet.
+
+Sheets /ad yayından kaldırıldı: tüm /api/mz-analytics yanıtları 410.
+Virgül /ad-virgul → /api/virgul-analytics (bu router'a dokunulmaz).
+"""
 
 import json
 import logging
@@ -13,10 +17,24 @@ from backend.services import app_empower_store as empower_store
 from backend.services.revenue_targets_sheet import revenue_targets_payload
 from backend.api.app_empower import router as app_empower_router
 
-router = APIRouter(tags=["mz-analytics"])
-router.include_router(app_empower_router)
-
 LOGGER = logging.getLogger(__name__)
+
+_SHEETS_AD_GONE = (
+    "Google Sheets /ad sekmesi yayından kaldırıldı. "
+    "Virgül monetizasyon için /ad-virgul ve /api/virgul-analytics kullanın."
+)
+
+
+def _sheets_ad_retired() -> None:
+    """Sheets /ad ve mz-analytics yükünü kes — virgul-analytics etkilenmez."""
+    raise HTTPException(status_code=410, detail=_SHEETS_AD_GONE)
+
+
+router = APIRouter(
+    tags=["mz-analytics"],
+    dependencies=[Depends(_sheets_ad_retired)],
+)
+router.include_router(app_empower_router)
 
 _MAX_BULK_BYTES = 120 * 1024 * 1024  # 12 dosya × ~10 MB
 
