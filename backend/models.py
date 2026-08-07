@@ -1086,6 +1086,11 @@ class DovizNewsWorkspace(Base):
     source_url: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # Arka plan / Elle yenile sağlık meta
+    sync_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sync_message: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    sync_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    background_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class DovizAssetMonitorUrl(Base):

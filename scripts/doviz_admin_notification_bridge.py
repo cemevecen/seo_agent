@@ -12,8 +12,9 @@ Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
 
   POST /sync       → notification (~15 dk auto)
-  POST /sync-news  → aktif haberler (pagination, ~30 dk auto)
-  POST /sync-all   → ikisi
+  POST /sync-news?days=7  → son 1 hafta (Elle yenile + ~30 dk auto)
+  POST /sync-news?full=1  → tam geçmiş (seyrek)
+  POST /sync-all   → notification + news
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -271,8 +272,16 @@ def run_notification_bridge_once() -> dict[str, Any]:
     return out
 
 
-def run_news_bridge_once() -> dict[str, Any]:
-    """Admin aktif haberler (pagination) → Railway ingest."""
+def run_news_bridge_once(
+    *,
+    days: int | None = 7,
+    full: bool = False,
+) -> dict[str, Any]:
+    """Admin aktif haberler → Railway ingest.
+
+    Varsayılan: son `days` gün (Elle yenile + 30dk arka plan).
+    full=True: id≥719818 tam geçmiş (seyrek / boş DB).
+    """
     global _last_news_result
     _load_dotenv()
     err = _require_creds()
@@ -281,16 +290,30 @@ def run_news_bridge_once() -> dict[str, Any]:
         _set_news_progress(running=False, phase="error", message=err.get("message") or "")
         return err
 
+    from datetime import date, timedelta
+
     from backend.services.doviz_news_admin import fetch_active_news_rows_from_admin
 
-    estimate = _news_pages_estimate()
+    use_full = bool(full) or (days is not None and int(days) <= 0)
+    min_day = None
+    sync_mode = "full"
+    max_pages = 320
+    if not use_full:
+        d = max(1, int(days or 7))
+        min_day = (date.today() - timedelta(days=d - 1)).isoformat()
+        sync_mode = f"recent_{d}d"
+        max_pages = 60
+        estimate = 40
+    else:
+        estimate = _news_pages_estimate()
+
     _set_news_progress(
         running=True,
         phase="scrape",
         page=0,
         total_pages=estimate,
         rows=0,
-        message="Admin login…",
+        message=("Tam scrape…" if use_full else f"Son {days or 7} gün…"),
     )
 
     def _on_progress(info: dict[str, Any]) -> None:
@@ -310,22 +333,38 @@ def run_news_bridge_once() -> dict[str, Any]:
         if page and page % 25 == 0:
             print(f"News progress {page}/{total} · {rows} kayıt", flush=True)
 
-    print("Admin aktif haberler çekiliyor (pagination)…", flush=True)
-    fetched = fetch_active_news_rows_from_admin(
-        estimate_pages=estimate,
-        on_progress=_on_progress,
+    print(
+        f"Admin haberler çekiliyor ({'full' if use_full else f'days={days or 7} / {min_day}…'})…",
+        flush=True,
     )
+    try:
+        fetched = fetch_active_news_rows_from_admin(
+            estimate_pages=estimate,
+            max_pages=max_pages,
+            min_day=min_day,
+            on_progress=_on_progress,
+        )
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc) or "News scrape hatası"
+        print(f"News scrape failed: {msg}", flush=True)
+        _report_news_sync_failure(msg, sync_mode=sync_mode)
+        out = {"ok": False, "message": msg, "parsed": 0, "sync_mode": sync_mode}
+        _last_news_result = out
+        _set_news_progress(running=False, phase="error", message=msg)
+        return out
+
     rows = fetched.get("rows") or []
     total_pages = int(fetched.get("last_page") or fetched.get("pages") or estimate)
     print(
         f"News çekildi: {len(rows)} satır · {fetched.get('pages')} sayfa · "
-        f"{fetched.get('elapsed_sec')}s",
+        f"{fetched.get('elapsed_sec')}s · mode={sync_mode}",
         flush=True,
     )
     if not rows:
         out = {"ok": False, "message": "News: satır yok — gönderilmedi", "parsed": 0}
         _last_news_result = out
         _set_news_progress(running=False, phase="error", message=out["message"])
+        _report_news_sync_failure(out["message"], sync_mode=sync_mode)
         return out
 
     _set_news_progress(
@@ -351,6 +390,8 @@ def run_news_bridge_once() -> dict[str, Any]:
                 "rows": rows,
                 "source": "doviz_admin_news_bridge",
                 "source_url": fetched.get("source_url"),
+                "merge": not use_full,
+                "sync_mode": sync_mode,
             },
             ensure_ascii=False,
         ).encode("utf-8"),
@@ -366,6 +407,11 @@ def run_news_bridge_once() -> dict[str, Any]:
     ok = resp.status_code < 400 and (
         not isinstance(body, dict) or body.get("synced") is not False
     )
+    if not ok:
+        _report_news_sync_failure(
+            msg or f"Ingest HTTP {resp.status_code}",
+            sync_mode=sync_mode,
+        )
     out = {
         "ok": bool(ok),
         "kind": "news",
@@ -377,7 +423,12 @@ def run_news_bridge_once() -> dict[str, Any]:
         "elapsed_sec": fetched.get("elapsed_sec"),
         "message": msg or ("OK" if ok else "Ingest başarısız"),
         "source": "doviz_admin_news_bridge",
+        "sync_mode": sync_mode,
+        "min_day": min_day,
         "fetched_at": body.get("fetched_at") if isinstance(body, dict) else None,
+        "background_synced_at": body.get("background_synced_at")
+        if isinstance(body, dict)
+        else None,
         "row_count": body.get("row_count") if isinstance(body, dict) else len(rows),
     }
     _last_news_result = out
@@ -390,6 +441,36 @@ def run_news_bridge_once() -> dict[str, Any]:
         message=out["message"],
     )
     return out
+
+
+def _report_news_sync_failure(message: str, *, sync_mode: str) -> None:
+    """Railway’e satır göndermeden sync hatasını yaz."""
+    try:
+        url = _news_ingest_url()
+        token = _ingest_token()
+        if not url or not token:
+            return
+        requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            data=json.dumps(
+                {
+                    "rows": [],
+                    "source": "doviz_admin_news_bridge",
+                    "sync_ok": False,
+                    "sync_mode": sync_mode,
+                    "sync_message": (message or "")[:480],
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+            timeout=60,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"News failure report skipped: {exc}", flush=True)
 
 
 def run_bridge_once() -> dict[str, Any]:
@@ -476,7 +557,20 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self._send(404, {"ok": False, "message": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        qs = parse_qs(parsed.query or "")
+
+        def _qs_flag(name: str) -> bool:
+            raw = (qs.get(name) or [""])[0].strip().lower()
+            return raw in ("1", "true", "yes", "full")
+
+        def _qs_int(name: str, default: int) -> int:
+            raw = (qs.get(name) or [""])[0].strip()
+            if raw.isdigit():
+                return int(raw)
+            return default
+
         if path in ("/sync", "/run", "/"):
             lock, busy, runner = (
                 _nt_lock,
@@ -484,11 +578,14 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 run_notification_bridge_once,
             )
         elif path in ("/sync-news", "/news"):
-            lock, busy, runner = (
-                _nt_lock,
-                "Notification/news sync zaten çalışıyor, bekleyin.",
-                run_news_bridge_once,
-            )
+            lock = _nt_lock
+            busy = "Notification/news sync zaten çalışıyor, bekleyin."
+            full = _qs_flag("full")
+            days = _qs_int("days", 7)
+
+            def runner() -> dict[str, Any]:
+                return run_news_bridge_once(days=None if full else days, full=full)
+
         elif path in ("/sync-virgul", "/virgul"):
             lock, busy, runner = (
                 _virgul_lock,

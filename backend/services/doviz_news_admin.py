@@ -132,18 +132,38 @@ def news_id_in_scope(news_id: Any) -> bool:
         return False
 
 
+def _row_day(row: dict[str, Any]) -> str | None:
+    day = str(row.get("date_day") or "").strip()[:10]
+    if len(day) == 10:
+        return day
+    raw = str(row.get("date") or "").strip()
+    if len(raw) >= 10 and raw[4] == "-":
+        return raw[:10]
+    return None
+
+
 def fetch_active_news_rows_from_admin(
     *,
     sess: requests.Session | None = None,
     max_pages: int = DEFAULT_MAX_PAGES,
     timeout: int = 45,
     min_id: int = DOVIZ_NEWS_MIN_ID,
+    min_day: str | None = None,
     estimate_pages: int | None = None,
     on_progress: Any | None = None,
 ) -> dict[str, Any]:
-    """Aktif haber sayfalarını dolaşır; min_id altını almaz (id_desc erken keser)."""
+    """Aktif haber sayfalarını dolaşır.
+
+    Erken kesme:
+    - min_id: sayfadaki en küçük id eşiğin altındaysa (id_desc)
+    - min_day (YYYY-MM-DD): sayfadaki en yeni tarih eşiğin altındaysa
+    """
     if not admin_credentials_configured() and sess is None:
         raise ValueError("DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD gerekli")
+
+    day_floor = (min_day or "").strip()[:10] or None
+    if day_floor and (len(day_floor) < 10 or day_floor[4] != "-"):
+        raise ValueError(f"min_day YYYY-MM-DD olmalı: {min_day!r}")
 
     t0 = datetime.utcnow()
     own_session = sess is None
@@ -156,7 +176,9 @@ def fetch_active_news_rows_from_admin(
     last_page = 0
     skipped_old = 0
     hit_floor = False
-    est = max(1, int(estimate_pages or 264))
+    # Son 7 gün scrape’inde ~10–30 sayfa beklenir
+    default_est = 40 if day_floor else 264
+    est = max(1, int(estimate_pages or default_est))
 
     def _emit(**kwargs: Any) -> None:
         if not callable(on_progress):
@@ -171,6 +193,7 @@ def fetch_active_news_rows_from_admin(
                     "rows": len(by_id),
                     "skipped_old": skipped_old,
                     "hit_floor": hit_floor,
+                    "min_day": day_floor,
                     "elapsed_sec": round((datetime.utcnow() - t0).total_seconds(), 2),
                     **kwargs,
                 }
@@ -212,13 +235,20 @@ def fetch_active_news_rows_from_admin(
             pages_ok += 1
             last_page = page
             page_ids: list[int] = []
+            page_days: list[str] = []
             for row in rows:
                 try:
                     nid = int(str(row["id"]).strip())
                 except (TypeError, ValueError):
                     continue
                 page_ids.append(nid)
-                if nid >= int(min_id):
+                day = _row_day(row)
+                if day:
+                    page_days.append(day)
+                keep = nid >= int(min_id)
+                if keep and day_floor and day and day < day_floor:
+                    keep = False
+                if keep:
                     by_id[str(nid)] = row
                 else:
                     skipped_old += 1
@@ -226,18 +256,36 @@ def fetch_active_news_rows_from_admin(
             if page_ids and min(page_ids) < int(min_id):
                 hit_floor = True
                 est = last_page
-                _emit(status="floor")
+                _emit(status="floor_id")
                 LOGGER.info(
-                    "Admin news scrape floor at page=%s min_id_on_page=%s threshold=%s kept=%s",
+                    "Admin news scrape id-floor at page=%s min_id_on_page=%s threshold=%s kept=%s",
                     page,
                     min(page_ids),
                     min_id,
                     len(by_id),
                 )
                 break
-            # Henüz floor yoksa tahmini toplam en az mevcut sayfa + tampon
+            # tarih tabanı: sayfadaki en yeni gün bile floor altındaysa dur
+            if day_floor and page_days and max(page_days) < day_floor:
+                hit_floor = True
+                est = last_page
+                _emit(status="floor_day")
+                LOGGER.info(
+                    "Admin news scrape day-floor at page=%s max_day=%s threshold=%s kept=%s",
+                    page,
+                    max(page_days),
+                    day_floor,
+                    len(by_id),
+                )
+                break
+            # id_desc + min_day: sayfada floor altı günler belirdi → bir sonraki sayfa daha eski
+            if day_floor and page_days and min(page_days) < day_floor:
+                hit_floor = True
+                est = last_page
+                _emit(status="floor_day_mixed")
+                break
             if last_page >= est:
-                est = last_page + 20
+                est = last_page + (5 if day_floor else 20)
             _emit(status="page")
             if page % 50 == 0:
                 LOGGER.info(
@@ -262,6 +310,7 @@ def fetch_active_news_rows_from_admin(
         "pages": pages_ok,
         "last_page": last_page,
         "min_id": int(min_id),
+        "min_day": day_floor,
         "skipped_old": skipped_old,
         "hit_floor": hit_floor,
         "total_pages": last_page if hit_floor else est,

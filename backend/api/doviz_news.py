@@ -43,6 +43,10 @@ class IngestNewsBody(BaseModel):
     rows: list[dict] = Field(default_factory=list)
     source: str | None = "doviz_admin_news_bridge"
     source_url: str | None = None
+    merge: bool = True
+    sync_mode: str | None = "recent_7d"
+    sync_ok: bool | None = True
+    sync_message: str | None = None
 
 
 @router.get("/doviz-news/report")
@@ -92,10 +96,27 @@ def post_doviz_news_ingest(
     """VPN köprüsü: admin aktif haber satırlarını yazar."""
     _check_ingest_token(authorization, x_notification_ingest_token)
     try:
+        if body.sync_ok is False:
+            from backend.services.doviz_news_sheet import record_doviz_news_sync_failure
+
+            record_doviz_news_sync_failure(
+                message=body.sync_message or "Bridge sync başarısız",
+                sync_mode=(body.sync_mode or "recent_7d"),
+                source=(body.source or "doviz_admin_news_bridge") or "doviz_admin_news_bridge",
+            )
+            return {
+                "ok": False,
+                "synced": False,
+                "sync_ok": False,
+                "message": body.sync_message or "Bridge sync başarısız",
+            }
         result = ingest_doviz_news_rows(
             body.rows or [],
             source=(body.source or "doviz_admin_news_bridge").strip() or "doviz_admin_news_bridge",
             source_url=body.source_url,
+            merge=bool(body.merge),
+            sync_mode=(body.sync_mode or ("recent_7d" if body.merge else "full")).strip()
+            or "recent_7d",
         )
         if result.get("ok") is False and not result.get("synced"):
             raise HTTPException(status_code=422, detail=result.get("message") or "Ingest başarısız.")

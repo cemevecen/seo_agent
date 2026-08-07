@@ -1955,6 +1955,10 @@ def _run_deferred_startup() -> None:
             "ALTER TABLE support_inbox_messages ADD COLUMN body_html TEXT DEFAULT ''",
             "ALTER TABLE notification_analytics_workspace ADD COLUMN source VARCHAR(64) NOT NULL DEFAULT ''",
             "ALTER TABLE notification_analytics_workspace ADD COLUMN source_url VARCHAR(512) NOT NULL DEFAULT ''",
+            "ALTER TABLE doviz_news_workspace ADD COLUMN sync_ok BOOLEAN NOT NULL DEFAULT TRUE",
+            "ALTER TABLE doviz_news_workspace ADD COLUMN sync_message VARCHAR(512) NOT NULL DEFAULT ''",
+            "ALTER TABLE doviz_news_workspace ADD COLUMN sync_mode VARCHAR(32) NOT NULL DEFAULT ''",
+            "ALTER TABLE doviz_news_workspace ADD COLUMN background_synced_at TIMESTAMP",
         ]:
             try:
                 _exec_stmt(stmt)
@@ -13926,11 +13930,15 @@ def api_seo_audit_changes(site_id: int, days: int = 7):
 
 @app.get("/doviz-news")
 def doviz_news_page(request: Request):
-    """Doviz.com haber yayın istatistikleri — Google Sheets raporu."""
+    """Doviz.com haber yayın istatistikleri — admin bridge snapshot."""
     return templates.TemplateResponse(
         request,
         "doviz_news.html",
-        context={"request": request},
+        context={
+            "request": request,
+            "admin_authenticated": _is_admin_authenticated(request),
+            "is_membership_admin": _is_membership_admin(request),
+        },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
@@ -18847,18 +18855,44 @@ def _run_news_intelligence_job() -> None:
 
 
 def _run_doviz_news_sheet_refresh_job() -> None:
-    """APScheduler: 30 dk — admin scrape (proxy/direct) veya DB snapshot ısıt."""
+    """APScheduler: 30 dk — DB snapshot ısıt / proxy varsa admin; asıl scrape Mac bridge."""
     try:
         from backend.services.doviz_news_sheet import fetch_doviz_news_rows, _CACHE
 
         rows = fetch_doviz_news_rows(force=True)
         cache = _CACHE or {}
+        sync_ok = cache.get("sync_ok")
+        if sync_ok is None:
+            sync_ok = True
+        stale = False
+        bg = cache.get("background_synced_at") or cache.get("fetched_at")
+        if bg:
+            try:
+                from datetime import datetime, timezone
+
+                dt = datetime.fromisoformat(str(bg).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                age = (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
+                stale = age > (45 * 60)
+            except Exception:
+                pass
         LOGGER.info(
-            "Doviz News 30dk refresh: rows=%s source=%s admin_err=%s",
+            "Doviz News 30dk warm: rows=%s source=%s sync_ok=%s stale=%s bg=%s admin_err=%s",
             len(rows),
             cache.get("source"),
-            (cache.get("admin_error") or "")[:120],
+            sync_ok,
+            stale,
+            bg,
+            (cache.get("admin_error") or cache.get("sync_message") or "")[:120],
         )
+        if not sync_ok or stale:
+            LOGGER.warning(
+                "Doviz News arka plan sağlığı: sync_ok=%s stale=%s msg=%s",
+                sync_ok,
+                stale,
+                (cache.get("sync_message") or cache.get("admin_error") or "")[:200],
+            )
     except Exception:
         LOGGER.exception("Doviz News admin refresh job failed")
 

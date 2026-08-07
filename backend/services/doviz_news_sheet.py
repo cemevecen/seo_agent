@@ -283,12 +283,19 @@ def set_doviz_news_rows_cache(
     source: str = "doviz_admin_news",
     source_url: str | None = None,
     db: Any | None = None,
+    sync_ok: bool = True,
+    sync_message: str = "",
+    sync_mode: str = "",
+    mark_background: bool = True,
 ) -> None:
     """Admin bridge / ingest sonrası önbellek + DB snapshot."""
     global _CACHE
     rows = filter_news_rows_in_scope(rows)
     src_url = source_url or DOVIZ_NEWS_ADMIN_URL
-    fetched_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    now = datetime.utcnow()
+    fetched_at = now.isoformat(timespec="seconds") + "Z"
+    mode = (sync_mode or "").strip()[:32]
+    msg = (sync_message or "").strip()[:512]
     _CACHE = {
         "ts": time.monotonic(),
         "fetched_at": fetched_at,
@@ -296,6 +303,10 @@ def set_doviz_news_rows_cache(
         "source": source,
         "source_url": src_url,
         "min_id": DOVIZ_NEWS_MIN_ID,
+        "sync_ok": bool(sync_ok),
+        "sync_message": msg,
+        "sync_mode": mode,
+        "background_synced_at": fetched_at if mark_background else None,
     }
     try:
         from backend.database import SessionLocal
@@ -312,7 +323,13 @@ def set_doviz_news_rows_cache(
             row.source = (source or "")[:64]
             row.source_url = (src_url or "")[:512]
             row.row_count = len(rows)
-            row.updated_at = datetime.utcnow()
+            row.updated_at = now
+            if hasattr(row, "sync_ok"):
+                row.sync_ok = bool(sync_ok)
+                row.sync_message = msg
+                row.sync_mode = mode
+                if mark_background:
+                    row.background_synced_at = now
             if own:
                 session.commit()
             else:
@@ -322,6 +339,42 @@ def set_doviz_news_rows_cache(
                 session.close()
     except Exception as exc:  # noqa: BLE001
         logger.warning("Doviz news DB snapshot write failed: %s", exc)
+
+
+def record_doviz_news_sync_failure(
+    *,
+    message: str,
+    sync_mode: str = "recent_7d",
+    source: str = "doviz_admin_news_bridge",
+) -> None:
+    """Satırları silmeden arka plan sync hatasını kaydet."""
+    global _CACHE
+    now = datetime.utcnow()
+    msg = (message or "Sync başarısız")[:512]
+    mode = (sync_mode or "")[:32]
+    if _CACHE is not None:
+        _CACHE["sync_ok"] = False
+        _CACHE["sync_message"] = msg
+        _CACHE["sync_mode"] = mode
+        _CACHE["admin_error"] = msg
+    try:
+        from backend.database import SessionLocal
+        from backend.models import DovizNewsWorkspace
+
+        with SessionLocal() as session:
+            row = session.get(DovizNewsWorkspace, 1)
+            if row is None:
+                return
+            if hasattr(row, "sync_ok"):
+                row.sync_ok = False
+                row.sync_message = msg
+                row.sync_mode = mode
+                row.background_synced_at = now
+            if source:
+                row.source = (source or row.source or "")[:64]
+            session.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Doviz news sync failure record failed: %s", exc)
 
 
 def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
@@ -347,8 +400,11 @@ def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
                 return list(scoped)
             global _CACHE
             fetched = None
+            bg = None
             if row.updated_at:
                 fetched = row.updated_at.isoformat(timespec="seconds") + "Z"
+            if getattr(row, "background_synced_at", None):
+                bg = row.background_synced_at.isoformat(timespec="seconds") + "Z"
             _CACHE = {
                 "ts": time.monotonic(),
                 "fetched_at": fetched,
@@ -356,6 +412,10 @@ def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
                 "source": row.source or "db",
                 "source_url": row.source_url or DOVIZ_NEWS_ADMIN_URL,
                 "min_id": DOVIZ_NEWS_MIN_ID,
+                "sync_ok": bool(getattr(row, "sync_ok", True)),
+                "sync_message": str(getattr(row, "sync_message", "") or ""),
+                "sync_mode": str(getattr(row, "sync_mode", "") or ""),
+                "background_synced_at": bg or fetched,
             }
             return list(scoped)
     except Exception as exc:  # noqa: BLE001
@@ -505,8 +565,14 @@ def ingest_doviz_news_rows(
     *,
     source: str = "doviz_admin_news_bridge",
     source_url: str | None = None,
+    merge: bool = True,
+    sync_mode: str = "recent_7d",
 ) -> dict[str, Any]:
-    """VPN köprüsünden gelen aktif haber satırlarını DB + cache yazar."""
+    """VPN köprüsünden gelen aktif haber satırlarını DB + cache yazar.
+
+    merge=True: mevcut snapshot ile id üzerinden birleştirir (son 7 gün scrape
+    eski kayıtları silmez). merge=False: tam replace.
+    """
     raw_n = len(rows or [])
     cleaned = [
         r
@@ -560,29 +626,61 @@ def ingest_doviz_news_rows(
             }
         )
 
-    norm.sort(key=lambda r: r.get("date") or "", reverse=True)
+    mode = (sync_mode or ("merge" if merge else "full")).strip() or "recent_7d"
+    merged_n = 0
+    if merge:
+        existing = _load_doviz_news_rows_from_db() or []
+        by_id: dict[str, dict[str, Any]] = {}
+        for r in existing:
+            rid = str(r.get("id") or "").strip()
+            if rid:
+                by_id[rid] = r
+        before = len(by_id)
+        for r in norm:
+            rid = str(r.get("id") or "").strip()
+            if rid:
+                by_id[rid] = r
+        merged_n = max(0, len(by_id) - before)
+        final_rows = list(by_id.values())
+    else:
+        final_rows = list(norm)
+
+    final_rows.sort(key=lambda r: r.get("date") or "", reverse=True)
     set_doviz_news_rows_cache(
-        norm,
+        final_rows,
         source=source,
         source_url=source_url
         or "https://www.doviz.com/admin/news?page=1&type=N&status=1&is_advertorial=0&sort=id_desc",
+        sync_ok=True,
+        sync_message=(
+            f"{len(norm)} yeni/güncel · toplam {len(final_rows)}"
+            + (f" · +{merged_n} yeni id" if merge and merged_n else "")
+        ),
+        sync_mode=mode,
+        mark_background=True,
     )
     return {
         "ok": True,
         "synced": True,
         "parsed": len(norm),
-        "row_count": len(norm),
+        "row_count": len(final_rows),
+        "incoming": len(norm),
+        "merged": bool(merge),
+        "new_ids": merged_n if merge else len(norm),
         "skipped_old": skipped_old,
         "min_id": DOVIZ_NEWS_MIN_ID,
+        "sync_mode": mode,
         "message": (
-            f"Doviz news admin ingest · {len(norm)} kayıt "
-            f"(id>={DOVIZ_NEWS_MIN_ID}"
+            f"Doviz news admin ingest · {len(norm)} çekildi → {len(final_rows)} toplam"
+            f" ({mode}"
             + (f", {skipped_old} eski atıldı" if skipped_old else "")
             + ")."
         ),
         "source": source,
         "fetched_at": (_CACHE or {}).get("fetched_at"),
+        "background_synced_at": (_CACHE or {}).get("background_synced_at"),
         "source_url": (_CACHE or {}).get("source_url"),
+        "sync_ok": True,
     }
 
 
@@ -1263,11 +1361,47 @@ def doviz_news_payload(
             break
 
     cache = _CACHE or {}
+    bg_at = cache.get("background_synced_at") or fetched_at or cache.get("fetched_at")
+    sync_ok = cache.get("sync_ok")
+    if sync_ok is None:
+        sync_ok = True
+    sync_message = str(cache.get("sync_message") or cache.get("admin_error") or "")
+    sync_mode = str(cache.get("sync_mode") or "")
+    sync_age_sec = None
+    sync_stale = False
+    if bg_at:
+        try:
+            ts = str(bg_at).replace("Z", "+00:00")
+            dt = datetime.fromisoformat(ts)
+            if dt.tzinfo is None:
+                from datetime import timezone as _tz
+
+                dt = dt.replace(tzinfo=_tz.utc)
+            from datetime import timezone as _tz2
+
+            sync_age_sec = int((datetime.now(_tz2.utc) - dt.astimezone(_tz2.utc)).total_seconds())
+            # 30 dk hedef + 15 dk tolerans
+            sync_stale = sync_age_sec > (45 * 60)
+        except Exception:
+            sync_age_sec = None
+    sync_health = "ok"
+    if not sync_ok:
+        sync_health = "error"
+    elif sync_stale:
+        sync_health = "stale"
+
     return {
         "ok": True,
         "source": cache.get("source") or "doviz_admin_news",
         "source_url": cache.get("source_url") or DOVIZ_NEWS_ADMIN_URL,
         "fetched_at": fetched_at or cache.get("fetched_at"),
+        "background_synced_at": bg_at,
+        "sync_ok": bool(sync_ok),
+        "sync_message": sync_message,
+        "sync_mode": sync_mode,
+        "sync_age_sec": sync_age_sec,
+        "sync_stale": sync_stale,
+        "sync_health": sync_health,
         "admin_error": cache.get("admin_error"),
         "min_id": DOVIZ_NEWS_MIN_ID,
         "live": live_meta,

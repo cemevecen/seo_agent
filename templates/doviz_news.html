@@ -836,6 +836,7 @@
     <div class="min-w-0">
       <h2 class="text-lg font-extrabold tracking-tight text-slate-900 dark:text-zinc-100">Yayın istatistikleri</h2>
       <p id="dn-meta" class="mt-1 dn-muted"></p>
+      <p id="dn-bg-sync" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400" hidden></p>
     </div>
     <div class="flex shrink-0 flex-wrap items-center gap-2">
       <a id="dn-source-link"
@@ -845,9 +846,10 @@
         Admin haberler ↗
       </a>
       <button id="dn-refresh" type="button"
+              title="Son 1 haftalık admin haberlerini yeniler (tam scrape değil)"
               class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
         <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-        Elle yenile
+        Elle yenile (1 hafta)
       </button>
     </div>
   </div>
@@ -2554,17 +2556,44 @@
           ? "admin"
           : (src || "—");
       meta.textContent =
-        "son senkron: " + (data.fetched_at || "—") +
+        "son senkron: " + (data.fetched_at || data.background_synced_at || "—") +
         " · " + fmt(s.total) + " kayıt" +
         " · " + srcLabel +
         (data.min_id ? " · id≥" + data.min_id : "") +
         (pm.label ? " · " + pm.label : "") +
         (latestId ? " · son id: " + latestId : "");
     }
+    var bg = $("dn-bg-sync");
+    if (bg && DN_SHOW_BG_SYNC) {
+      var health = data.sync_health || (data.sync_ok === false ? "error" : (data.sync_stale ? "stale" : "ok"));
+      var bgAt = data.background_synced_at || data.fetched_at || "—";
+      var mode = data.sync_mode ? (" · " + data.sync_mode) : "";
+      var age = data.sync_age_sec != null
+        ? (" · " + Math.max(0, Math.round(data.sync_age_sec / 60)) + " dk önce")
+        : "";
+      var label;
+      var cls = "mt-1 text-[11px] ";
+      if (health === "error") {
+        label = "Arka plan: hata — " + (data.sync_message || data.admin_error || "bilinmiyor") + " · " + bgAt + mode;
+        cls += "font-semibold text-rose-600 dark:text-rose-400";
+      } else if (health === "stale") {
+        label = "Arka plan gecikmiş (>45 dk) · son: " + bgAt + age + mode + " · hedef: 30 dk";
+        cls += "font-semibold text-amber-600 dark:text-amber-400";
+      } else {
+        label = "Arka plan OK · son güncelleme: " + bgAt + age + mode + " · her 30 dk";
+        cls += "text-emerald-700 dark:text-emerald-400";
+      }
+      bg.className = cls;
+      bg.textContent = label;
+      bg.hidden = false;
+    } else if (bg) {
+      bg.hidden = true;
+    }
   }
 
-  var DN_BRIDGE_NEWS_URL = "http://127.0.0.1:18765/sync-news";
+  var DN_BRIDGE_NEWS_URL = "http://127.0.0.1:18765/sync-news?days=7";
   var DN_BRIDGE_NEWS_PROGRESS_URL = "http://127.0.0.1:18765/news-progress";
+  var DN_SHOW_BG_SYNC = true;
 
   function syncNewsViaVpnBridge() {
     function attempt() {
@@ -2806,7 +2835,7 @@
   var refreshBtn = $("dn-refresh");
   if (refreshBtn) refreshBtn.addEventListener("click", function () {
     resetTrafficUi();
-    load(true, { reason: "Elle yenile" });
+    load(true, { reason: "Elle yenile (1 hafta)" });
   });
   var trafficBtn = $("dn-traffic-btn");
   if (trafficBtn) trafficBtn.addEventListener("click", function () { loadTraffic({}); });
