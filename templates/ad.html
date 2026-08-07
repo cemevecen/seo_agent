@@ -437,8 +437,111 @@
   .mz-virgul-mode #mz-cancel-sheets-sync-top {
     display: none !important;
   }
+  /* Virgül: sidebar → grafik üstü yatay toolbar; main full width */
+  .mz-page.mz-virgul-mode {
+    max-width: min(100%, 1920px);
+  }
+  .mz-virgul-mode #mz-body-grid.mz-body-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+    width: 100% !important;
+  }
+  .mz-virgul-mode #mz-sidebar {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+    position: relative !important;
+    top: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    margin-bottom: 0 !important;
+  }
+  .mz-virgul-mode #mz-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .mz-virgul-mode #mz-jump-targets {
+    display: inline-flex;
+    width: auto;
+    align-items: center;
+    white-space: nowrap;
+    margin: 0;
+  }
+  .mz-virgul-mode #mz-sidebar > div.rounded-xl {
+    flex: 0 1 16rem;
+    min-width: 12rem;
+    margin: 0;
+  }
+  .mz-virgul-mode #mz-sidebar-analytics {
+    display: flex;
+    flex: 1 1 36rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.65rem 0.85rem;
+    min-width: 0;
+  }
+  .mz-virgul-mode #mz-sidebar-analytics > .pt-2,
+  .mz-virgul-mode #mz-sidebar-analytics > p.pt-2 {
+    width: 100%;
+    padding-top: 0 !important;
+    margin: 0;
+    flex: 0 0 100%;
+  }
+  .mz-virgul-mode #mz-status {
+    flex: 0 0 auto;
+    min-height: 0;
+    margin: 0;
+    align-self: center;
+  }
+  .mz-virgul-mode #mz-sidebar-analytics > .grid.grid-cols-2 {
+    width: auto;
+    flex: 0 0 auto;
+    min-width: 14rem;
+  }
+  .mz-virgul-mode #mz-preset {
+    width: auto;
+    min-width: 10rem;
+    flex: 0 0 auto;
+  }
+  .mz-virgul-mode #mz-sidebar-analytics > .rounded-lg.border {
+    flex: 0 1 16rem;
+    min-width: 12rem;
+    margin: 0;
+  }
+  .mz-virgul-mode #mz-filter-income {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    max-height: none;
+    overflow: visible;
+    flex: 1 1 14rem;
+    align-items: center;
+  }
+  .mz-virgul-mode #mz-share-link {
+    width: auto;
+    margin-top: 0 !important;
+    flex: 0 0 auto;
+  }
+  .mz-virgul-mode #mz-share-status {
+    flex: 0 0 100%;
+    text-align: left;
+  }
+  /* Tarih / Gelir tipi etiketlerini satır içi kompakt göster */
+  .mz-virgul-mode #mz-sidebar-analytics > p.text-xs.font-bold.uppercase {
+    flex: 0 0 auto;
+    width: auto;
+    padding-top: 0 !important;
+    align-self: center;
+  }
 </style>
-<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Ad · Virgül{% else %}Ad{% endif %}">
+<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode max-w-[1920px]{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Ad · Virgül{% else %}Ad{% endif %}">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="min-w-0">
@@ -504,7 +607,7 @@
   </div>
 
   <div id="mz-body-grid" class="mz-body-grid grid grid-cols-1 gap-4 xl:grid-cols-12">
-    <aside id="mz-sidebar" class="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black xl:col-span-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+    <aside id="mz-sidebar" class="mz-sidebar space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black xl:col-span-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto" aria-label="Filtreler">
       <a
         href="#mz-targets-panel"
         id="mz-jump-targets"
@@ -661,7 +764,7 @@
       </div>
     </aside>
 
-    <div id="mz-main" class="relative min-h-[24rem] space-y-4 xl:col-span-9">
+    <div id="mz-main" class="relative min-h-[24rem] w-full min-w-0 space-y-4 xl:col-span-9">
       <div id="mz-loading" class="pointer-events-none absolute inset-0 z-10 hidden rounded-2xl bg-white/60 dark:bg-black/50" aria-hidden="true">
         <div class="flex h-32 items-center justify-center text-sm font-semibold text-slate-600 dark:text-zinc-300">Yükleniyor…</div>
       </div>
@@ -1323,9 +1426,37 @@
     if (!g) return;
     var s = document.getElementById('mz-sidebar');
     var m = document.getElementById('mz-main');
+    var virgul = document.documentElement.classList.contains('mz-virgul-mode')
+      || !!(document.querySelector('.mz-page.mz-virgul-mode'));
     function apply() {
-      var wide = window.innerWidth >= 1280;
       var P = 'important';
+      if (virgul) {
+        g.style.setProperty('display', 'flex', P);
+        g.style.setProperty('flex-direction', 'column', P);
+        g.style.setProperty('align-items', 'stretch', P);
+        g.style.setProperty('gap', '1rem', P);
+        g.style.setProperty('width', '100%', P);
+        if (s) {
+          s.style.removeProperty('display');
+          s.style.setProperty('flex', '0 0 auto', P);
+          s.style.setProperty('width', '100%', P);
+          s.style.setProperty('max-width', '100%', P);
+          s.style.setProperty('min-width', '0', P);
+          s.style.setProperty('box-sizing', 'border-box', P);
+          s.style.setProperty('margin-bottom', '0', P);
+          s.style.removeProperty('max-height');
+        }
+        if (m) {
+          m.style.setProperty('flex', '1 1 auto', P);
+          m.style.setProperty('width', '100%', P);
+          m.style.setProperty('max-width', '100%', P);
+          m.style.setProperty('min-width', '0', P);
+          m.style.setProperty('min-height', '24rem', P);
+          m.style.setProperty('box-sizing', 'border-box', P);
+        }
+        return;
+      }
+      var wide = window.innerWidth >= 1280;
       g.style.setProperty('display', wide ? 'flex' : 'block', P);
       g.style.setProperty('flex-direction', 'row', P);
       g.style.setProperty('gap', '1rem', P);
