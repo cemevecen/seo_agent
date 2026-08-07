@@ -86,6 +86,36 @@ BRIDGE_ALERT_TO = (
 BRIDGE_ALERT_COOLDOWN_SEC = int(
     os.environ.get("BRIDGE_ALERT_COOLDOWN_SEC") or str(60 * 60)
 )
+# Railway 502 / "Application failed to respond" gibi geçici hatalarda
+# peş peşe N kez olmadan e-posta gitmesin; olunca da daha uzun cooldown.
+BRIDGE_ALERT_TRANSIENT_STREAK = int(
+    os.environ.get("BRIDGE_ALERT_TRANSIENT_STREAK") or "3"
+)
+BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC = int(
+    os.environ.get("BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC") or str(6 * 60 * 60)
+)
+VIRGUL_INGEST_TRIES = int(os.environ.get("VIRGUL_INGEST_TRIES") or "4")
+VIRGUL_INGEST_TIMEOUT_SEC = int(os.environ.get("VIRGUL_INGEST_TIMEOUT_SEC") or "180")
+
+_TRANSIENT_FAIL_MARKERS = (
+    "application failed to respond",
+    "gateway timeout",
+    "gateway time-out",
+    "bad gateway",
+    "service unavailable",
+    "temporarily unavailable",
+    "timed out",
+    "timeout",
+    "connection reset",
+    "connection aborted",
+    "connection refused",
+    "remote end closed",
+    "server disconnected",
+    "cloudflare",
+    "error code: 502",
+    "error code: 503",
+    "error code: 504",
+)
 
 # Notification/news aynı admin oturumunu paylaşır; Virgül ayrı — uzun Excel
 # sync'i Elle yenile'yi 409 ile kilitlemesin.
@@ -114,6 +144,33 @@ _auto_cycle = 0
 _last_news_auto_at = 0.0
 _last_virgul_auto_at = 0.0
 _last_fail_email_at: dict[str, float] = {}
+_fail_streak: dict[str, int] = {}
+
+
+def _failure_message(result: dict[str, Any] | None = None, exc: BaseException | None = None) -> str:
+    if exc is not None:
+        return str(exc) or exc.__class__.__name__
+    if isinstance(result, dict):
+        return str(result.get("message") or result.get("detail") or result)
+    return "bilinmeyen hata"
+
+
+def _is_transient_failure(
+    msg: str,
+    *,
+    http_status: int | None = None,
+    exc: BaseException | None = None,
+) -> bool:
+    if http_status in (408, 425, 429, 502, 503, 504):
+        return True
+    if isinstance(exc, (requests.Timeout, requests.ConnectionError)):
+        return True
+    m = (msg or "").lower()
+    return any(marker in m for marker in _TRANSIENT_FAIL_MARKERS)
+
+
+def _note_auto_success(kind: str) -> None:
+    _fail_streak[kind] = 0
 
 
 def _set_news_progress(**kwargs: Any) -> None:
@@ -177,20 +234,34 @@ def _notify_auto_failure(
     *,
     exc: BaseException | None = None,
 ) -> None:
-    """Başarısız auto sync → e-posta (kind başına cooldown)."""
+    """Başarısız auto sync → e-posta (kind başına cooldown / transient streak)."""
+    msg = (_failure_message(result, exc) or "bilinmeyen hata")[:800]
+    http_status = None
+    if isinstance(result, dict):
+        try:
+            http_status = int(result.get("http_status") or 0) or None
+        except (TypeError, ValueError):
+            http_status = None
+    transient = _is_transient_failure(msg, http_status=http_status, exc=exc)
+    streak = int(_fail_streak.get(kind) or 0) + 1
+    _fail_streak[kind] = streak
+    if transient and streak < max(1, BRIDGE_ALERT_TRANSIENT_STREAK):
+        print(
+            f"Bridge alert bastırıldı ({kind} geçici hata {streak}/"
+            f"{BRIDGE_ALERT_TRANSIENT_STREAK}): {msg[:160]}",
+            flush=True,
+        )
+        return
+
     now = time.time()
     last = float(_last_fail_email_at.get(kind) or 0)
     cooldown = max(300, BRIDGE_ALERT_COOLDOWN_SEC)
+    if transient:
+        cooldown = max(cooldown, BRIDGE_ALERT_TRANSIENT_COOLDOWN_SEC)
     if last and (now - last) < cooldown:
         left = int(cooldown - (now - last))
         print(f"Bridge alert cooldown ({kind}) · ~{left}s", flush=True)
         return
-    msg = ""
-    if exc is not None:
-        msg = str(exc) or exc.__class__.__name__
-    elif isinstance(result, dict):
-        msg = str(result.get("message") or result.get("detail") or result)
-    msg = (msg or "bilinmeyen hata")[:800]
     labels = {
         "notification": "Notification (/notification)",
         "news": "Doviz News (/doviz-news)",
@@ -207,7 +278,10 @@ def _notify_auto_failure(
         f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
         f"Tür: {label} ({kind})\n"
         f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
-        f"Hata: {msg}\n\n"
+        f"Hata: {msg}\n"
+        f"Ardışık hata: {streak}"
+        + (" · geçici/Railway" if transient else "")
+        + "\n\n"
         f"Kontrol: curl -s http://127.0.0.1:{BRIDGE_PORT}/health | python3 -m json.tool\n"
         f"Elle: POST http://127.0.0.1:{BRIDGE_PORT}/sync{suffix}\n"
     )
@@ -262,8 +336,65 @@ def _require_virgul_creds() -> dict[str, Any] | None:
     return None
 
 
+def _post_virgul_ingest_files(files: list[dict[str, Any]]) -> tuple[int, dict[str, Any]]:
+    """Tek/az dosyalı ingest; Railway 502 için retry."""
+    url = _virgul_ingest_url()
+    token = _ingest_token()
+    payload = json.dumps({"files": files, "replace": False, "source": "virgul_bridge"})
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    last_status = 0
+    last_body: dict[str, Any] = {}
+    tries = max(1, VIRGUL_INGEST_TRIES)
+    for attempt in range(1, tries + 1):
+        try:
+            resp = requests.post(
+                url,
+                headers=headers,
+                data=payload,
+                timeout=max(60, VIRGUL_INGEST_TIMEOUT_SEC),
+            )
+            last_status = int(resp.status_code)
+            try:
+                body = resp.json() if resp.content else {}
+            except Exception:
+                body = {"raw": (resp.text or "")[:500], "message": (resp.text or "")[:300]}
+            if not isinstance(body, dict):
+                body = {"message": str(body)}
+            last_body = body
+            ok = (
+                last_status < 400
+                and body.get("synced") is not False
+                and body.get("ok") is not False
+            )
+            if ok:
+                return last_status, body
+            msg = str(body.get("message") or body.get("detail") or resp.text or "")
+            if not _is_transient_failure(msg, http_status=last_status) or attempt >= tries:
+                return last_status, body
+            print(
+                f"Virgul ingest geçici hata HTTP {last_status} "
+                f"(deneme {attempt}/{tries}): {msg[:160]}",
+                flush=True,
+            )
+        except requests.RequestException as exc:
+            last_status = 0
+            last_body = {"message": str(exc), "ok": False, "synced": False}
+            if attempt >= tries or not _is_transient_failure(str(exc), exc=exc):
+                return last_status, last_body
+            print(
+                f"Virgul ingest ağ hatası (deneme {attempt}/{tries}): {exc}",
+                flush=True,
+            )
+        time.sleep(min(60, 2**attempt))
+    return last_status, last_body
+
+
 def run_virgul_bridge_once() -> dict[str, Any]:
-    """Virgül 6 sid Excel/CSV → Railway /ad-virgul ingest."""
+    """Virgül 6 sid Excel/CSV → Railway /ad-virgul ingest (dal dal, retry)."""
     global _last_virgul_result
     _load_dotenv()
     err = _require_virgul_creds()
@@ -302,35 +433,60 @@ def run_virgul_bridge_once() -> dict[str, Any]:
         _last_virgul_result = out
         return out
 
-    url = _virgul_ingest_url()
-    token = _ingest_token()
-    resp = requests.post(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        data=json.dumps({"files": files, "replace": False, "source": "virgul_bridge"}),
-        timeout=300,
-    )
-    print(f"Virgul ingest HTTP {resp.status_code}", flush=True)
-    try:
-        body = resp.json() if resp.content else {}
-    except Exception:
-        body = {"raw": (resp.text or "")[:500]}
-    msg = body.get("message") if isinstance(body, dict) else str(body)
-    print(msg or body, flush=True)
-    ok = resp.status_code < 400 and (
-        not isinstance(body, dict) or body.get("synced") is not False
-    )
+    # Tek dev JSON Railway edge timeout'una çarpmasın diye her dal ayrı ingest.
+    stream_results: list[dict[str, Any]] = []
+    ok_n = 0
+    total_parsed = 0
+    worst_status = 200
+    last_msg = ""
+    for f in files:
+        sk = f.get("stream_key") or "?"
+        print(f"Virgul ingest → {sk}…", flush=True)
+        status, body = _post_virgul_ingest_files([f])
+        if status and status > worst_status:
+            worst_status = status
+        msg = ""
+        if isinstance(body, dict):
+            msg = str(body.get("message") or body.get("detail") or "")
+            total_parsed += int(body.get("total_parsed") or 0)
+        last_msg = msg or last_msg
+        ok = status < 400 and (
+            not isinstance(body, dict)
+            or (body.get("synced") is not False and body.get("ok") is not False)
+        )
+        if ok:
+            ok_n += 1
+        else:
+            print(f"  fail {sk} HTTP {status}: {msg[:200]}", flush=True)
+        stream_results.append(
+            {
+                "stream_key": sk,
+                "ok": bool(ok),
+                "http_status": status,
+                "message": msg or ("OK" if ok else "Ingest başarısız"),
+            }
+        )
+        print(
+            f"Virgul ingest {sk} HTTP {status} · {msg or ('OK' if ok else 'fail')}",
+            flush=True,
+        )
+
+    ok = ok_n > 0
     out = {
         "ok": bool(ok),
         "kind": "virgul",
-        "http_status": resp.status_code,
+        "http_status": worst_status if ok else (worst_status or 502),
         "files": len(files),
-        "message": msg or ("OK" if ok else "Ingest başarısız"),
-        "body": body if isinstance(body, dict) else {},
+        "ok_count": ok_n,
+        "fail_count": len(files) - ok_n,
+        "total_parsed": total_parsed,
+        "message": (
+            f"Virgül ingest · {ok_n}/{len(files)} dal · {total_parsed} satır"
+            if ok
+            else (last_msg or "Ingest başarısız")
+        ),
+        "streams": stream_results,
+        "body": {"streams": stream_results, "ok_count": ok_n},
     }
     _last_virgul_result = out
     return out
@@ -815,7 +971,9 @@ def _auto_loop() -> None:
                 _auto_cycle += 1
                 try:
                     nt = run_notification_bridge_once()
-                    if not nt.get("ok"):
+                    if nt.get("ok"):
+                        _note_auto_success("notification")
+                    else:
                         _notify_auto_failure("notification", nt)
                 except Exception as exc:
                     traceback.print_exc()
@@ -825,7 +983,9 @@ def _auto_loop() -> None:
                     try:
                         news = run_news_bridge_once()
                         _last_news_auto_at = time.time()
-                        if not news.get("ok"):
+                        if news.get("ok"):
+                            _note_auto_success("news")
+                        else:
                             _notify_auto_failure("news", news)
                     except Exception as exc:
                         traceback.print_exc()
@@ -854,7 +1014,9 @@ def _auto_loop() -> None:
                     try:
                         vg = run_virgul_bridge_once()
                         _last_virgul_auto_at = time.time()
-                        if not vg.get("ok"):
+                        if vg.get("ok"):
+                            _note_auto_success("virgul")
+                        else:
                             _notify_auto_failure("virgul", vg)
                     except Exception as exc:
                         traceback.print_exc()
