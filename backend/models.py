@@ -1068,6 +1068,9 @@ class NotificationAnalyticsWorkspace(Base):
     filter_start: Mapped[str] = mapped_column(String(10), nullable=False, default="")
     filter_end: Mapped[str] = mapped_column(String(10), nullable=False, default="")
     preset: Mapped[str] = mapped_column(String(16), nullable=False, default="3m")
+    # doviz_admin_bridge | doviz_admin | google_sheet — sheet admin/bridge'i ezmesin
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    source_url: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     last_file_upload_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 

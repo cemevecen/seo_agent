@@ -167,7 +167,7 @@ def post_notification_analytics_sync_sheet_backup(
 ):
     """Yedek Google Sheet — bilinçli çağrı."""
     try:
-        result = store.sync_from_google_sheet(db, force=force)
+        result = store.sync_from_google_sheet(db, force=force, prefer_sheet=True)
         if result.get("ok") is False and not result.get("skipped"):
             raise HTTPException(status_code=502, detail=result.get("message") or "Yedek sheet senkronu başarısız.")
         return result

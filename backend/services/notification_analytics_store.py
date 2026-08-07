@@ -496,6 +496,11 @@ def workspace_rows_chunk(
     }
 
 
+def _is_admin_notification_source(source: str | None) -> bool:
+    s = (source or "").lower()
+    return ("admin" in s) or ("bridge" in s)
+
+
 def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
     from backend.config import settings
     from backend.services.doviz_notification_admin import (
@@ -508,6 +513,17 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
     rows = _load_rows(row)
     _min_d, _max_d = _rows_date_bounds(rows)
     admin_ready = admin_credentials_configured()
+    stored_source = str(getattr(row, "source", None) or "").strip()
+    stored_url = str(getattr(row, "source_url", None) or "").strip()
+    if _is_admin_notification_source(stored_source):
+        display_source = stored_source
+        display_url = stored_url or stats_url()
+    elif stored_source:
+        display_source = stored_source
+        display_url = stored_url or NOTIFICATION_ANALYTICS_SHEET_URL
+    else:
+        display_source = "doviz_admin" if admin_ready else "google_sheet"
+        display_url = stats_url() if admin_ready else NOTIFICATION_ANALYTICS_SHEET_URL
     out: dict[str, Any] = {
         "ok": True,
         "last_id": int(row.last_id or 0),
@@ -520,9 +536,8 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "updated_at": _iso_utc_z(row.updated_at),
         "last_file_upload_at": _iso_utc_z(row.last_file_upload_at),
         "last_sheet_sync_at": _iso_utc_z(row.last_file_upload_at),
-        # Hedef: Doviz admin otomatik. VPN engelinde sheet / bridge.
-        "source": "doviz_admin" if admin_ready else "google_sheet",
-        "source_url": stats_url() if admin_ready else NOTIFICATION_ANALYTICS_SHEET_URL,
+        "source": display_source,
+        "source_url": display_url,
         "admin_source_url": stats_url(),
         "sheet_backup_url": NOTIFICATION_ANALYTICS_SHEET_URL,
         "admin_credentials_configured": admin_ready,
@@ -649,8 +664,14 @@ def upload_parsed_rows(db: Session, parsed: list[dict]) -> dict:
     }
 
 
-def replace_workspace_from_rows(db: Session, parsed: list[dict]) -> dict:
-    """Sheet kaynaklı tam yenileme — DB içeriği tablo ile değiştirilir."""
+def replace_workspace_from_rows(
+    db: Session,
+    parsed: list[dict],
+    *,
+    source: str = "",
+    source_url: str = "",
+) -> dict:
+    """Tam yenileme — DB içeriği gelen satırlarla değiştirilir."""
     if not parsed:
         return {
             **workspace_state(db, include_rows=False),
@@ -670,10 +691,21 @@ def replace_workspace_from_rows(db: Session, parsed: list[dict]) -> dict:
     min_day, max_day = _rows_date_bounds(merged)
     row = _get_workspace(db)
     fe = (row.filter_end or "").strip()[:10]
-    if fe and max_day and max_day > fe:
+    if max_day and (not fe or max_day > fe):
         row.filter_end = max_day
+    fs = (row.filter_start or "").strip()[:10]
+    if min_day and (not fs or min_day < fs):
+        # özel aralık kullanıcı seçimiyse start'ı zorla geri çekme — yalnızca boşsa doldur
+        if not fs:
+            row.filter_start = min_day
     row.rows_json = json.dumps(merged, ensure_ascii=False)
     row.last_id = _highest_id(merged)
+    if source:
+        try:
+            row.source = (source or "")[:64]
+            row.source_url = (source_url or "")[:512]
+        except Exception:
+            pass
     row.last_file_upload_at = datetime.utcnow()
     row.updated_at = datetime.utcnow()
     db.commit()
@@ -743,7 +775,12 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
         }
 
     parsed = fetched.get("rows") or []
-    result = replace_workspace_from_rows(db, parsed)
+    result = replace_workspace_from_rows(
+        db,
+        parsed,
+        source="doviz_admin",
+        source_url=fetched.get("source_url") or "https://www.doviz.com/admin/notifications/stats",
+    )
     if result.get("parsed"):
         _last_sheet_sync_mono = time.monotonic()
         result["synced"] = True
@@ -822,8 +859,15 @@ def ingest_notification_rows(
 ) -> dict:
     """VPN köprüsü / harici worker’dan gelen satırları yazar (manuel UI yok)."""
     global _last_sheet_sync_mono
+    from backend.services.doviz_notification_admin import stats_url
+
     parsed = [r for r in (rows or []) if isinstance(r, dict)]
-    result = replace_workspace_from_rows(db, parsed)
+    result = replace_workspace_from_rows(
+        db,
+        parsed,
+        source=(source or "doviz_admin_bridge").strip() or "doviz_admin_bridge",
+        source_url=stats_url(),
+    )
     if result.get("parsed"):
         _last_sheet_sync_mono = time.monotonic()
         result["synced"] = True
@@ -837,15 +881,44 @@ def ingest_notification_rows(
         result["ok"] = False
         result["message"] = result.get("message") or "Ingest: satır yok."
     result["source"] = source or "doviz_admin_bridge"
-    from backend.services.doviz_notification_admin import stats_url
-
     result["source_url"] = stats_url()
     return result
 
 
-def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
-    """Google Sheet yedek / fallback yolu."""
+def sync_from_google_sheet(
+    db: Session,
+    *,
+    force: bool = False,
+    prefer_sheet: bool = False,
+) -> dict:
+    """Google Sheet yedek / fallback yolu.
+
+    prefer_sheet=False iken admin/bridge snapshot varsa sheet ile ezme
+    (sheet bugünü gecikmeli getirir → 43 yerine 40 gibi sapma).
+    """
     global _last_sheet_sync_mono
+    row = _get_workspace(db)
+    stored_source = str(getattr(row, "source", None) or "")
+    if not prefer_sheet and _is_admin_notification_source(stored_source):
+        existing = _load_rows(row)
+        if existing:
+            LOGGER.info(
+                "Notification sheet atlandı — admin/bridge snapshot korunuyor (%s, %s kayıt)",
+                stored_source,
+                len(existing),
+            )
+            return {
+                **workspace_state(db, include_rows=False),
+                "synced": False,
+                "skipped": True,
+                "sheet_skipped": True,
+                "source": stored_source,
+                "message": (
+                    "Admin/bridge verisi korunuyor; Google Sheet yedek olarak atlandı "
+                    "(eksik günler ezilmesin)."
+                ),
+            }
+
     now = time.monotonic()
     if (
         not force
@@ -872,7 +945,33 @@ def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
             "message": str(exc) or "Google Sheet okunamadı.",
         }
     parsed = parse_csv_text(csv_text)
-    result = replace_workspace_from_rows(db, parsed)
+    # Kaynak etiketi olmasa bile: sheet mevcut veriden daha eskiyse ezme
+    if not prefer_sheet:
+        existing = _load_rows(row)
+        if existing:
+            _emin, emax = _rows_date_bounds(existing)
+            _smin, smax = _rows_date_bounds(parsed)
+            if emax and smax and smax < emax:
+                LOGGER.info(
+                    "Notification sheet geride (sheet_max=%s db_max=%s) — overwrite yok",
+                    smax,
+                    emax,
+                )
+                return {
+                    **workspace_state(db, include_rows=False),
+                    "synced": False,
+                    "skipped": True,
+                    "sheet_skipped": True,
+                    "message": (
+                        f"Sheet yedek geride (son gün {smax} < {emax}); mevcut veri korundu."
+                    ),
+                }
+    result = replace_workspace_from_rows(
+        db,
+        parsed,
+        source="google_sheet",
+        source_url=NOTIFICATION_ANALYTICS_SHEET_URL,
+    )
     if result.get("parsed"):
         _last_sheet_sync_mono = time.monotonic()
         result["synced"] = True

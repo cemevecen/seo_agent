@@ -1950,6 +1950,8 @@ def _run_deferred_startup() -> None:
             "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
             "ALTER TABLE inbox_gmail_credentials ADD COLUMN scheduled_sync_last_success_at TIMESTAMP",
             "ALTER TABLE support_inbox_messages ADD COLUMN body_html TEXT DEFAULT ''",
+            "ALTER TABLE notification_analytics_workspace ADD COLUMN source VARCHAR(64) NOT NULL DEFAULT ''",
+            "ALTER TABLE notification_analytics_workspace ADD COLUMN source_url VARCHAR(512) NOT NULL DEFAULT ''",
         ]:
             try:
                 _exec_stmt(stmt)
