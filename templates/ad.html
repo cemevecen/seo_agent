@@ -622,7 +622,7 @@
       <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
       <div id="mz-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
 
-      <div id="mz-cross-filters" class="space-y-2">
+      <div id="mz-cross-filters" class="space-y-2" data-mz-sheets-only>
         <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Kanal (rapor)</p>
         <div id="mz-filter-channel" class="flex flex-wrap gap-1.5 text-xs"></div>
 
@@ -633,6 +633,7 @@
         <div id="mz-filter-platform" class="flex flex-wrap gap-1.5 text-xs"></div>
       </div>
 
+      <div data-mz-sheets-only class="space-y-2">
       <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Kaynak dosya</p>
       <div id="mz-filter-source" class="max-h-24 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
 
@@ -651,6 +652,7 @@
       <p class="pt-2 text-xs text-slate-500 dark:text-zinc-400">Kırılımlar her tablo, grafik ve liste kartının üstünde ayrıdır.</p>
 
       <button id="mz-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
+      </div>
       <button id="mz-share-link" type="button" class="mt-2 w-full touch-manipulation rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Paylaşım linki kopyala</button>
       <p id="mz-share-status" class="hidden min-h-[1rem] text-center text-[11px] font-medium text-indigo-700 dark:text-indigo-300" role="status" aria-live="polite"></p>
       </div>
