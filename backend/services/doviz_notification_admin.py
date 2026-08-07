@@ -416,14 +416,35 @@ def fetch_stats_html(
     start: date | None = None,
     end: date | None = None,
     timeout: int = 120,
+    on_progress: Any | None = None,
 ) -> str:
     start = start or DEFAULT_STATS_START
     end = end or date.today()
     stats = stats_url()
+    get_candidates = _stats_query_candidates(start, end)
+    post_candidates = list(get_candidates)
+    total_attempts = 1 + len(get_candidates) + len(post_candidates)
+    attempt = 0
+
+    def _emit(**kwargs: Any) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(kwargs)
+        except Exception:  # noqa: BLE001
+            pass
 
     best_html = ""
     best_rows = -1
-    # Önce parametresiz (sayfa varsayılan aralığı)
+
+    attempt += 1
+    _emit(
+        phase="fetch",
+        step=attempt,
+        total_steps=total_attempts,
+        rows=max(0, best_rows),
+        message=f"{attempt}/{total_attempts} HTML · varsayılan aralık",
+    )
     bare = sess.get(stats, timeout=timeout, allow_redirects=True)
     bare.raise_for_status()
     if "/admin/login" in str(bare.url).lower() or _looks_like_login_page(bare.text or "", str(bare.url)):
@@ -431,8 +452,23 @@ def fetch_stats_html(
     bare_html = bare.text or ""
     bare_n = len(_TR_RE.findall(bare_html))
     best_html, best_rows = bare_html, bare_n
+    _emit(
+        phase="fetch",
+        step=attempt,
+        total_steps=total_attempts,
+        rows=max(0, best_rows),
+        message=f"{attempt}/{total_attempts} HTML · {max(0, best_rows)} satır adayı",
+    )
 
-    for params in _stats_query_candidates(start, end):
+    for params in get_candidates:
+        attempt += 1
+        _emit(
+            phase="fetch",
+            step=attempt,
+            total_steps=total_attempts,
+            rows=max(0, best_rows),
+            message=f"{attempt}/{total_attempts} HTML GET · en iyi {max(0, best_rows)} satır",
+        )
         try:
             resp = sess.get(stats, params=params, timeout=timeout, allow_redirects=True)
             if resp.status_code >= 400 or "/admin/login" in str(resp.url).lower():
@@ -441,11 +477,25 @@ def fetch_stats_html(
             n = len(_TR_RE.findall(html))
             if n > best_rows:
                 best_html, best_rows = html, n
+                _emit(
+                    phase="fetch",
+                    step=attempt,
+                    total_steps=total_attempts,
+                    rows=best_rows,
+                    message=f"{attempt}/{total_attempts} HTML · yeni en iyi {best_rows} satır",
+                )
         except requests.RequestException:
             continue
 
-    # POST Listele (bazı admin panelleri form POST kullanır)
-    for data in _stats_query_candidates(start, end):
+    for data in post_candidates:
+        attempt += 1
+        _emit(
+            phase="fetch",
+            step=attempt,
+            total_steps=total_attempts,
+            rows=max(0, best_rows),
+            message=f"{attempt}/{total_attempts} HTML POST · en iyi {max(0, best_rows)} satır",
+        )
         try:
             resp = sess.post(stats, data=data, timeout=timeout, allow_redirects=True)
             if resp.status_code >= 400 or "/admin/login" in str(resp.url).lower():
@@ -454,23 +504,50 @@ def fetch_stats_html(
             n = len(_TR_RE.findall(html))
             if n > best_rows:
                 best_html, best_rows = html, n
+                _emit(
+                    phase="fetch",
+                    step=attempt,
+                    total_steps=total_attempts,
+                    rows=best_rows,
+                    message=f"{attempt}/{total_attempts} HTML · yeni en iyi {best_rows} satır",
+                )
         except requests.RequestException:
             continue
 
     if best_rows < 2:
         raise ValueError("Stats HTML içinde tablo satırı bulunamadı.")
+    _emit(
+        phase="fetch_done",
+        step=total_attempts,
+        total_steps=total_attempts,
+        rows=best_rows,
+        message=f"{total_attempts}/{total_attempts} HTML tamam · {best_rows} satır adayı",
+    )
     return best_html
 
 
-def parse_stats_html_to_csv(html: str) -> str:
+def parse_stats_html_to_csv(
+    html: str,
+    *,
+    on_progress: Any | None = None,
+) -> str:
     """Admin tablo HTML → CSV (mevcut notification parser ile uyumlu)."""
     rows_raw = _TR_RE.findall(html or "")
     if not rows_raw:
         return ""
 
+    def _emit(**kwargs: Any) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(kwargs)
+        except Exception:  # noqa: BLE001
+            pass
+
     matrix: list[list[str]] = []
     header: list[str] | None = None
-    for block in rows_raw:
+    total_blocks = len(rows_raw)
+    for idx, block in enumerate(rows_raw, start=1):
         ths = [_cell_text(x) for x in _TH_RE.findall(block)]
         tds = [_cell_text(x) for x in _TD_RE.findall(block)]
         if ths and len(ths) >= 3:
@@ -482,6 +559,14 @@ def parse_stats_html_to_csv(html: str) -> str:
             header = tds
             continue
         matrix.append(tds)
+        if idx == 1 or idx == total_blocks or idx % 500 == 0:
+            _emit(
+                phase="parse_html",
+                step=idx,
+                total_steps=total_blocks,
+                rows=len(matrix),
+                message=f"{idx}/{total_blocks} satır tarandı · {len(matrix)} veri",
+            )
 
     if not header:
         # İlk satır başlık gibi görünüyorsa kullan
@@ -520,12 +605,23 @@ def parse_stats_html_to_csv(html: str) -> str:
     w = csv.writer(buf)
     w.writerow(norm_header)
     width = len(norm_header)
-    for cols in matrix:
+    total_matrix = len(matrix)
+    written = 0
+    for i, cols in enumerate(matrix, start=1):
         if len(cols) < 2:
             continue
         # tarih yoksa atla
         row = (cols + [""] * width)[:width]
         w.writerow(row)
+        written += 1
+        if i == 1 or i == total_matrix or i % 1000 == 0:
+            _emit(
+                phase="parse_csv",
+                step=i,
+                total_steps=max(1, total_matrix),
+                rows=written,
+                message=f"{i}/{total_matrix} CSV · {written} kayıt",
+            )
     return buf.getvalue()
 
 
@@ -534,15 +630,34 @@ def fetch_notification_rows_from_admin(
     force_login: bool = True,
     start: date | None = None,
     end: date | None = None,
+    on_progress: Any | None = None,
 ) -> dict[str, Any]:
     """Admin’den satırları çeker; parse_csv_text ile aynı sözlük listesini üretir."""
     from backend.services.notification_analytics_store import parse_csv_text
 
+    def _emit(**kwargs: Any) -> None:
+        if not callable(on_progress):
+            return
+        try:
+            on_progress(kwargs)
+        except Exception:  # noqa: BLE001
+            pass
+
     t0 = datetime.utcnow()
+    _emit(phase="login", step=0, total_steps=1, rows=0, message="Admin login…")
     sess = login_admin_session()
-    html = fetch_stats_html(sess, start=start, end=end)
-    csv_text = parse_stats_html_to_csv(html)
+    _emit(phase="login", step=1, total_steps=1, rows=0, message="1/1 login OK")
+    html = fetch_stats_html(sess, start=start, end=end, on_progress=on_progress)
+    csv_text = parse_stats_html_to_csv(html, on_progress=on_progress)
+    _emit(phase="parse_rows", step=0, total_steps=1, rows=0, message="CSV → kayıtlar…")
     rows = parse_csv_text(csv_text)
+    _emit(
+        phase="parse_done",
+        step=1,
+        total_steps=1,
+        rows=len(rows),
+        message=f"{len(rows)}/{len(rows)} kayıt hazır",
+    )
     return {
         "ok": True,
         "parsed": len(rows),

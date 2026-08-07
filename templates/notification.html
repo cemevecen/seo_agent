@@ -74,6 +74,12 @@
           </div>
         </div>
         <p id="nt-status" class="nt-filter-panel-status min-w-0 text-xs text-slate-500 dark:text-slate-400"></p>
+        <div id="nt-bridge-progress-wrap" class="nt-filter-panel-status min-w-0 hidden" aria-live="polite">
+          <div id="nt-bridge-progress" class="nt-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div id="nt-bridge-progress-fill" class="nt-progress-fill"></div>
+          </div>
+          <p id="nt-bridge-progress-label" class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"></p>
+        </div>
       </div>
     </div>
   </div>
@@ -187,6 +193,27 @@
   </div>
 
   <style>
+    .notification-page .nt-progress {
+      display: block;
+      height: 8px;
+      width: 100%;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+    html.dark .notification-page .nt-progress {
+      background: #27272a;
+    }
+    .notification-page .nt-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: #4f46e5;
+      transition: width 0.25s ease;
+    }
+    html.dark .notification-page .nt-progress-fill {
+      background: #818cf8;
+    }
     /* Dark mode: bg-white / bg-slate-50 — Tailwind zinc sınıfları build'de yoktu; slate + base override */
     html.dark .notification-page .rounded-2xl.border.bg-white,
     html.dark .notification-page .rounded-xl.border.bg-white {
@@ -1197,6 +1224,86 @@
 
   var NT_BRIDGE_SYNC_URL = "http://127.0.0.1:18765/sync";
   var NT_BRIDGE_HEALTH_URL = "http://127.0.0.1:18765/health";
+  var NT_BRIDGE_PROGRESS_URL = "http://127.0.0.1:18765/nt-progress";
+  var ntBridgeProgressTimer = null;
+
+  function stopNtBridgeProgressPoll() {
+    if (ntBridgeProgressTimer) {
+      clearInterval(ntBridgeProgressTimer);
+      ntBridgeProgressTimer = null;
+    }
+  }
+
+  function paintNtBridgeProgress(p) {
+    var wrap = document.getElementById("nt-bridge-progress-wrap");
+    var bar = document.getElementById("nt-bridge-progress");
+    var fill = document.getElementById("nt-bridge-progress-fill");
+    var lab = document.getElementById("nt-bridge-progress-label");
+    if (!wrap || !fill) return;
+    wrap.classList.remove("hidden");
+    var step = Number(p && p.step) || 0;
+    var total = Number(p && p.total_steps) || 0;
+    var rows = Number(p && p.rows) || 0;
+    var phase = (p && p.phase) || "";
+    var msg = (p && p.message) || "";
+    var pct;
+    if (phase === "ingest") {
+      pct = 94;
+      msg = msg || (rows ? ("Railway · " + rows.toLocaleString("tr-TR") + " kayıt") : "Railway'e yazılıyor…");
+    } else if (phase === "done") {
+      pct = 100;
+    } else if (phase === "error") {
+      pct = Math.max(8, Math.min(90, total ? Math.round((step / total) * 100) : 20));
+    } else if (total > 0) {
+      pct = Math.max(4, Math.min(90, Math.round((step / total) * 88)));
+    } else {
+      pct = 6;
+    }
+    fill.style.width = pct + "%";
+    if (bar) {
+      bar.setAttribute("aria-valuenow", String(pct));
+      bar.setAttribute("aria-valuetext", msg || (step + "/" + total));
+    }
+    if (lab) {
+      var suffix = "";
+      if (rows > 0 && msg.indexOf(String(rows)) < 0) {
+        suffix = " · " + rows.toLocaleString("tr-TR") + " kayıt";
+      }
+      lab.textContent = msg || (total ? (step + "/" + total) : "Köprü…") + suffix;
+    }
+    if (msg) status(msg);
+  }
+
+  function hideNtBridgeProgress() {
+    stopNtBridgeProgressPoll();
+    var wrap = document.getElementById("nt-bridge-progress-wrap");
+    if (wrap) wrap.classList.add("hidden");
+  }
+
+  function startNtBridgeProgressPoll() {
+    stopNtBridgeProgressPoll();
+    paintNtBridgeProgress({
+      phase: "login",
+      step: 0,
+      total_steps: 13,
+      rows: 0,
+      message: "0/13 · VPN köprüsü başlıyor…",
+    });
+    ntBridgeProgressTimer = setInterval(function () {
+      fetch(NT_BRIDGE_PROGRESS_URL, {
+        method: "GET",
+        mode: "cors",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      })
+        .then(function (resp) { return resp.ok ? resp.json() : null; })
+        .then(function (p) {
+          if (!p) return;
+          paintNtBridgeProgress(p);
+        })
+        .catch(function () { /* köprü yoksa sessiz */ });
+    }, 350);
+  }
 
   function syncViaVpnBridge() {
     function attempt() {
@@ -1221,15 +1328,40 @@
         });
       });
     }
+    startNtBridgeProgressPoll();
     // Virgül veya başka sync kısa sürüyorsa Elle yenile'yi hemen Railway'e düşürme
     return attempt().catch(function (err) {
       if (!err || !err.busy) throw err;
-      status("Köprü meşgul, 8 sn sonra tekrar…");
+      paintNtBridgeProgress({
+        phase: "fetch",
+        step: 0,
+        total_steps: 13,
+        rows: 0,
+        message: "Köprü meşgul · 8 sn sonra tekrar…",
+      });
       return new Promise(function (resolve) { setTimeout(resolve, 8000); }).then(attempt);
     }).catch(function (err) {
       if (!err || !err.busy) throw err;
-      status("Köprü hâlâ meşgul, 12 sn sonra son deneme…");
+      paintNtBridgeProgress({
+        phase: "fetch",
+        step: 0,
+        total_steps: 13,
+        rows: 0,
+        message: "Köprü hâlâ meşgul · 12 sn sonra…",
+      });
       return new Promise(function (resolve) { setTimeout(resolve, 12000); }).then(attempt);
+    }).then(function (data) {
+      paintNtBridgeProgress({
+        phase: "done",
+        step: 1,
+        total_steps: 1,
+        rows: (data && (data.row_count || data.parsed)) || 0,
+        message: (data && data.message) || "Tamam",
+      });
+      return data;
+    }).finally(function () {
+      stopNtBridgeProgressPoll();
+      setTimeout(hideNtBridgeProgress, 1200);
     });
   }
 
@@ -1245,6 +1377,7 @@
 
     var chain = preferBridge
       ? syncViaVpnBridge().catch(function (bridgeErr) {
+          hideNtBridgeProgress();
           status(
             "Köprüye ulaşılamadı (" +
               ((bridgeErr && bridgeErr.message) || "kapalı") +

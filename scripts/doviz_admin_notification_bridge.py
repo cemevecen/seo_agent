@@ -67,6 +67,14 @@ _news_progress: dict[str, Any] = {
     "rows": 0,
     "message": "",
 }
+_nt_progress: dict[str, Any] = {
+    "running": False,
+    "phase": "idle",
+    "step": 0,
+    "total_steps": 0,
+    "rows": 0,
+    "message": "",
+}
 _auto_cycle = 0
 _last_news_auto_at = 0.0
 _last_virgul_auto_at = 0.0
@@ -75,6 +83,11 @@ _last_virgul_auto_at = 0.0
 def _set_news_progress(**kwargs: Any) -> None:
     _news_progress.update(kwargs)
     _news_progress["ts"] = time.time()
+
+
+def _set_nt_progress(**kwargs: Any) -> None:
+    _nt_progress.update(kwargs)
+    _nt_progress["ts"] = time.time()
 
 
 def _news_pages_estimate() -> int:
@@ -219,18 +232,61 @@ def run_notification_bridge_once() -> dict[str, Any]:
     err = _require_creds()
     if err:
         _last_result = err
+        _set_nt_progress(running=False, phase="error", message=err.get("message") or "")
         return err
 
     from backend.services.doviz_notification_admin import fetch_notification_rows_from_admin
 
+    _set_nt_progress(
+        running=True,
+        phase="login",
+        step=0,
+        total_steps=13,
+        rows=0,
+        message="Admin login…",
+    )
+
+    def _on_progress(info: dict[str, Any]) -> None:
+        step = int(info.get("step") or 0)
+        total = int(info.get("total_steps") or 0)
+        rows = int(info.get("rows") or 0)
+        phase = str(info.get("phase") or "fetch")
+        msg = str(info.get("message") or "")
+        _set_nt_progress(
+            running=True,
+            phase=phase,
+            step=step,
+            total_steps=total,
+            rows=rows,
+            message=msg or f"{step}/{total}",
+        )
+
     print("Admin stats çekiliyor…", flush=True)
-    fetched = fetch_notification_rows_from_admin()
+    try:
+        fetched = fetch_notification_rows_from_admin(on_progress=_on_progress)
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc) or "Notification scrape hatası"
+        _set_nt_progress(running=False, phase="error", message=msg)
+        out = {"ok": False, "message": msg, "parsed": 0}
+        _last_result = out
+        return out
+
     rows = fetched.get("rows") or []
     print(f"Notification çekildi: {len(rows)} satır · {fetched.get('elapsed_sec')}s", flush=True)
     if not rows:
         out = {"ok": False, "message": "Notification: satır yok — gönderilmedi", "parsed": 0}
         _last_result = out
+        _set_nt_progress(running=False, phase="error", message=out["message"], rows=0)
         return out
+
+    _set_nt_progress(
+        running=True,
+        phase="ingest",
+        step=1,
+        total_steps=1,
+        rows=len(rows),
+        message=f"Railway'e yazılıyor · {len(rows)}/{len(rows)} kayıt",
+    )
 
     url = _notification_ingest_url()
     token = _ingest_token()
@@ -269,6 +325,14 @@ def run_notification_bridge_once() -> dict[str, Any]:
         "row_count": body.get("row_count") if isinstance(body, dict) else None,
     }
     _last_result = out
+    _set_nt_progress(
+        running=False,
+        phase="done" if ok else "error",
+        step=1,
+        total_steps=1,
+        rows=len(rows),
+        message=out["message"],
+    )
     return out
 
 
@@ -548,11 +612,15 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_news": _last_news_result,
                     "last_virgul": _last_virgul_result,
                     "news_progress": dict(_news_progress),
+                    "nt_progress": dict(_nt_progress),
                 },
             )
             return
         if path in ("/news-progress", "/progress-news"):
             self._send(200, {"ok": True, **dict(_news_progress)})
+            return
+        if path in ("/nt-progress", "/notification-progress", "/progress-nt"):
+            self._send(200, {"ok": True, **dict(_nt_progress)})
             return
         self._send(404, {"ok": False, "message": "not found"})
 
