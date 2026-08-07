@@ -558,27 +558,46 @@
   .mz-virgul-mode .mz-tb-cell--income {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.4rem;
     min-width: 0;
+    height: 100%;
   }
   .mz-virgul-mode .mz-tb-cell--income > p {
     padding-top: 0 !important;
     margin: 0;
+    flex: 0 0 auto;
   }
   .mz-virgul-mode #mz-filter-income {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.25rem 0.65rem;
-    max-height: none;
-    overflow: visible;
-    align-content: start;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+    gap: 0.35rem 0.5rem;
+    max-height: none !important;
+    overflow: visible !important;
+    align-content: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
   }
   .mz-virgul-mode #mz-filter-income label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
+    display: flex !important;
+    align-items: flex-start;
+    gap: 0.4rem;
     margin: 0;
-    white-space: nowrap;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    white-space: normal;
+    line-height: 1.25;
+    box-sizing: border-box;
+  }
+  .mz-virgul-mode #mz-filter-income label input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-top: 0.1rem;
+  }
+  .mz-virgul-mode #mz-filter-income label span {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
   }
   @media (max-width: 1199px) {
     .mz-virgul-mode #mz-sidebar {
@@ -593,7 +612,7 @@
       grid-template-columns: 1fr;
     }
     .mz-virgul-mode #mz-filter-income {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
     }
   }
 </style>
@@ -791,7 +810,7 @@
 
       <div class="mz-tb-cell mz-tb-cell--income">
         <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
-        <div id="mz-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
+        <div id="mz-filter-income" class="mz-filter-income text-xs text-slate-700 dark:text-zinc-300"></div>
       </div>
 
       <div id="mz-cross-filters" class="space-y-2" data-mz-sheets-only>
