@@ -51,7 +51,10 @@ VIRGUL_AUTO_INTERVAL_SEC = int(
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
 
-_sync_lock = threading.Lock()
+# Notification/news aynı admin oturumunu paylaşır; Virgül ayrı — uzun Excel
+# sync'i Elle yenile'yi 409 ile kilitlemesin.
+_nt_lock = threading.Lock()
+_virgul_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -474,21 +477,31 @@ class _BridgeHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
-        if path in ("/sync", "/run"):
-            runner = run_notification_bridge_once
+        if path in ("/sync", "/run", "/"):
+            lock, busy, runner = (
+                _nt_lock,
+                "Notification/news sync zaten çalışıyor, bekleyin.",
+                run_notification_bridge_once,
+            )
         elif path in ("/sync-news", "/news"):
-            runner = run_news_bridge_once
+            lock, busy, runner = (
+                _nt_lock,
+                "Notification/news sync zaten çalışıyor, bekleyin.",
+                run_news_bridge_once,
+            )
         elif path in ("/sync-virgul", "/virgul"):
-            runner = run_virgul_bridge_once
+            lock, busy, runner = (
+                _virgul_lock,
+                "Virgül sync zaten çalışıyor, bekleyin.",
+                run_virgul_bridge_once,
+            )
         elif path in ("/sync-all", "/all"):
-            runner = run_all_once
-        elif path == "/":
-            runner = run_notification_bridge_once
+            lock, busy, runner = (_nt_lock, "Sync zaten çalışıyor, bekleyin.", run_all_once)
         else:
             self._send(404, {"ok": False, "message": "not found"})
             return
-        if not _sync_lock.acquire(blocking=False):
-            self._send(409, {"ok": False, "message": "Sync zaten çalışıyor, bekleyin."})
+        if not lock.acquire(blocking=False):
+            self._send(409, {"ok": False, "message": busy})
             return
         try:
             result = runner()
@@ -497,7 +510,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             traceback.print_exc()
             self._send(500, {"ok": False, "message": str(exc)})
         finally:
-            _sync_lock.release()
+            lock.release()
 
 
 def _should_run_news_auto() -> bool:
@@ -518,9 +531,10 @@ def _should_run_virgul_auto() -> bool:
 
 
 def _auto_loop() -> None:
+    """Notification/news ve Virgül ayrı kilit — Virgül Elle yenile'yi bloke etmez."""
     global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at
     while True:
-        if _sync_lock.acquire(blocking=False):
+        if _nt_lock.acquire(blocking=False):
             try:
                 _auto_cycle += 1
                 run_notification_bridge_once()
@@ -537,21 +551,31 @@ def _auto_loop() -> None:
                         f"sonraki ~{left}s / interval={NEWS_AUTO_INTERVAL_SEC}s)",
                         flush=True,
                     )
-                if _should_run_virgul_auto():
-                    run_virgul_bridge_once()
-                    _last_virgul_auto_at = time.time()
-                else:
-                    left_v = max(
-                        0,
-                        int(VIRGUL_AUTO_INTERVAL_SEC - (time.time() - _last_virgul_auto_at)),
-                    )
-                    print(f"Virgul auto atlandı (sonraki ~{left_v}s)", flush=True)
             except Exception:
                 traceback.print_exc()
             finally:
-                _sync_lock.release()
+                _nt_lock.release()
         else:
-            print("Auto-sync atlandı (manuel sync sürüyor)", flush=True)
+            print("Auto notification/news atlandı (manuel sync sürüyor)", flush=True)
+
+        if _should_run_virgul_auto():
+            if _virgul_lock.acquire(blocking=False):
+                try:
+                    run_virgul_bridge_once()
+                    _last_virgul_auto_at = time.time()
+                except Exception:
+                    traceback.print_exc()
+                finally:
+                    _virgul_lock.release()
+            else:
+                print("Auto Virgul atlandı (manuel virgul sync sürüyor)", flush=True)
+        else:
+            left_v = max(
+                0,
+                int(VIRGUL_AUTO_INTERVAL_SEC - (time.time() - _last_virgul_auto_at)),
+            )
+            print(f"Virgul auto atlandı (sonraki ~{left_v}s)", flush=True)
+
         time.sleep(max(60, AUTO_INTERVAL_SEC))
 
 
@@ -581,13 +605,15 @@ def main(argv: list[str] | None = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     if "--daemon" in args or "-d" in args:
         return run_daemon()
-    if not _sync_lock.acquire(blocking=False):
+    virgul_only = "--virgul-only" in args
+    lock = _virgul_lock if virgul_only else _nt_lock
+    if not lock.acquire(blocking=False):
         print("Sync zaten çalışıyor", file=sys.stderr)
         return 1
     try:
         if "--news-only" in args:
             result = run_news_bridge_once()
-        elif "--virgul-only" in args:
+        elif virgul_only:
             result = run_virgul_bridge_once()
         elif "--notifications-only" in args:
             result = run_notification_bridge_once()
@@ -599,7 +625,7 @@ def main(argv: list[str] | None = None) -> int:
         traceback.print_exc()
         return 1
     finally:
-        _sync_lock.release()
+        lock.release()
 
 
 if __name__ == "__main__":

@@ -10,7 +10,6 @@ import os
 import re
 from datetime import date, timedelta
 from typing import Any
-from urllib.parse import urljoin
 
 import requests
 
@@ -111,115 +110,101 @@ def _looks_like_csv(data: bytes) -> bool:
     return "ad unit" in head or "incometype" in head or "gelir" in head or "impression" in head
 
 
+def _fmt_tr_date(d: date) -> str:
+    """Virgül form tarihleri: dd.mm.yyyy"""
+    return d.strftime("%d.%m.%Y")
+
+
 def fetch_report_export(
     sess: requests.Session,
     src: VirgulAdSource,
     *,
     start: date | None = None,
     end: date | None = None,
+    report_type: str = "ty",
 ) -> dict[str, Any]:
-    """Excel/CSV baytlarını çekmeyi dener (birkaç bilinen endpoint).
+    """Yeşil Excel = form POST /npm/report (operation=excel).
 
-    Başarılı olursa {"ok": True, "filename", "data", "content_type"}.
+    Firefox Network: POST https://rapor.virgul.com/npm/report → xlsx attachment.
     """
     if start is None or end is None:
         start, end = _date_range_this_year()
     select_site(sess, src)
 
-    start_s = start.isoformat()
-    end_s = end.isoformat()
-    # Virgül UI: Date / Month / Ad Unit / Income Type breakdown — Excel yeşil buton
-    payloads: list[dict[str, Any]] = [
-        {
-            "startDate": start_s,
-            "endDate": end_s,
-            "dateStart": start_s,
-            "dateEnd": end_s,
-            "sid": src.sid,
-            "siteId": src.sid,
-            "breakdown": ["date", "month", "adUnit", "incomeType"],
-            "incomeTypes": ["Open Auction", "Programmatic Direct", "Mediation", "Project"],
-        },
-        {
-            "from": start_s,
-            "to": end_s,
-            "sid": src.sid,
-            "export": "excel",
-        },
+    start_tr = _fmt_tr_date(start)
+    end_tr = _fmt_tr_date(end)
+    # reportType=ty → This Year; boş + start/end → özel aralık
+    form: list[tuple[str, str]] = [
+        ("order", "-date"),
+        ("operation", "excel"),
+        ("limit", "1000000000"),
+        ("offset", "0"),
+        ("reportType", (report_type or "").strip()),
+        ("startDate", start_tr),
+        ("endDate", end_tr),
+        # Income Type: Open Auction, Programmatic Direct, Mediation, Project
+        ("categories[]", "1"),
+        ("categories[]", "2"),
+        ("categories[]", "10"),
+        ("categories[]", "11"),
+        # Breakdown: Date, Month, Ad Unit, Income Type
+        ("day", "true"),
+        ("month", "true"),
+        ("category", "true"),
+        ("embedAd", "true"),
     ]
-    endpoints = [
-        "/npm/api/report/excel",
-        "/npm/api/excel",
-        "/npm/api/report/export",
-        "/npm/api/report",
-        "/npm/excel",
-        "/api/report/excel",
-    ]
-    base = "https://rapor.virgul.com"
-    last_err = ""
-    for path in endpoints:
-        url = urljoin(base + "/", path.lstrip("/"))
-        for method in ("POST", "GET"):
-            for body in payloads if method == "POST" else [None]:
-                try:
-                    if method == "POST":
-                        resp = sess.post(
-                            url,
-                            json=body,
-                            headers={
-                                "Referer": VIRGUL_REPORT_URL,
-                                "Origin": "https://rapor.virgul.com",
-                                "X-Requested-With": "XMLHttpRequest",
-                            },
-                            timeout=180,
-                        )
-                    else:
-                        resp = sess.get(
-                            url,
-                            params={
-                                "sid": src.sid,
-                                "startDate": start_s,
-                                "endDate": end_s,
-                            },
-                            headers={"Referer": VIRGUL_REPORT_URL},
-                            timeout=180,
-                        )
-                except requests.RequestException as exc:
-                    last_err = str(exc)
-                    continue
-                data = resp.content or b""
-                ctype = (resp.headers.get("Content-Type") or "").lower()
-                if resp.status_code < 400 and (_looks_like_xlsx(data) or _looks_like_csv(data)):
-                    ext = "xlsx" if _looks_like_xlsx(data) else "csv"
-                    return {
-                        "ok": True,
-                        "filename": f"virgul_{src.sid}.{ext}",
-                        "data": data,
-                        "content_type": ctype,
-                        "endpoint": url,
-                        "method": method,
-                        "bytes": len(data),
-                        "start": start_s,
-                        "end": end_s,
-                    }
-                last_err = f"{method} {url} → HTTP {resp.status_code} ({ctype[:40]})"
-                # JSON hata gövdesi
-                if "json" in ctype:
-                    try:
-                        last_err += f" {resp.json()}"
-                    except Exception:
-                        last_err += f" {(resp.text or '')[:120]}"
+    url = VIRGUL_REPORT_URL
+    try:
+        resp = sess.post(
+            url,
+            data=form,
+            headers={
+                "Referer": VIRGUL_REPORT_URL,
+                "Origin": "https://rapor.virgul.com",
+            },
+            timeout=300,
+        )
+    except requests.RequestException as exc:
+        return {
+            "ok": False,
+            "message": f"Virgül Excel POST hatası: {exc}",
+            "sid": src.sid,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+        }
+
+    data = resp.content or b""
+    ctype = (resp.headers.get("Content-Type") or "").lower()
+    cd = resp.headers.get("Content-Disposition") or ""
+    if resp.status_code < 400 and _looks_like_xlsx(data):
+        fname = f"virgul_{src.sid}.xlsx"
+        m = re.search(r'filename=([^;\s]+)', cd, flags=re.I)
+        if m:
+            raw_name = m.group(1).strip().strip('"').strip("'")
+            if raw_name.lower().endswith(".xlsx"):
+                fname = f"virgul_{src.sid}_{raw_name}"
+        return {
+            "ok": True,
+            "filename": fname,
+            "data": data,
+            "content_type": ctype,
+            "endpoint": url,
+            "method": "POST",
+            "bytes": len(data),
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "report_type": report_type,
+        }
 
     return {
         "ok": False,
         "message": (
-            "Virgül Excel/API export bulunamadı. Ofiste DevTools→Network’te "
-            "yeşil Excel’e basınca çıkan isteği kaydedin. "
-            f"Son hata: {last_err[:240]}"
+            f"Virgül Excel beklenen xlsx gelmedi: HTTP {resp.status_code} "
+            f"({ctype[:60]}) {(resp.text or '')[:160]}"
         ),
         "sid": src.sid,
-        "start": start_s,
-        "end": end_s,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
     }
 
 

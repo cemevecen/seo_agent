@@ -1199,19 +1199,37 @@
   var NT_BRIDGE_HEALTH_URL = "http://127.0.0.1:18765/health";
 
   function syncViaVpnBridge() {
-    return fetch(NT_BRIDGE_SYNC_URL, {
-      method: "POST",
-      mode: "cors",
-      headers: { Accept: "application/json" },
-    }).then(function (resp) {
-      return resp.json().then(function (data) {
-        if (!resp.ok || (data && data.ok === false)) {
-          var err = new Error((data && data.message) || ("Bridge HTTP " + resp.status));
-          err.bridge = data || null;
-          throw err;
-        }
-        return data;
+    function attempt() {
+      return fetch(NT_BRIDGE_SYNC_URL, {
+        method: "POST",
+        mode: "cors",
+        headers: { Accept: "application/json" },
+      }).then(function (resp) {
+        return resp.json().then(function (data) {
+          if (resp.status === 409) {
+            var err = new Error((data && data.message) || "Bridge meşgul");
+            err.busy = true;
+            err.bridge = data || null;
+            throw err;
+          }
+          if (!resp.ok || (data && data.ok === false)) {
+            var fail = new Error((data && data.message) || ("Bridge HTTP " + resp.status));
+            fail.bridge = data || null;
+            throw fail;
+          }
+          return data;
+        });
       });
+    }
+    // Virgül veya başka sync kısa sürüyorsa Elle yenile'yi hemen Railway'e düşürme
+    return attempt().catch(function (err) {
+      if (!err || !err.busy) throw err;
+      status("Köprü meşgul, 8 sn sonra tekrar…");
+      return new Promise(function (resolve) { setTimeout(resolve, 8000); }).then(attempt);
+    }).catch(function (err) {
+      if (!err || !err.busy) throw err;
+      status("Köprü hâlâ meşgul, 12 sn sonra son deneme…");
+      return new Promise(function (resolve) { setTimeout(resolve, 12000); }).then(attempt);
     });
   }
 
