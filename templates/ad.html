@@ -346,7 +346,7 @@
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0;
-    height: 2.25rem;
+    height: 2.475rem;
   }
   .mz-page .mz-kpi-spark .js-plotly-plot,
   .mz-page .mz-kpi-spark .plot-container.plotly,
@@ -571,21 +571,21 @@
   }
   html.mz-range-single-day #mz-kpi-grid > .mz-kpi-card,
   .mz-page #mz-kpi-grid.mz-kpi-grid--compact > .mz-kpi-card {
-    min-height: 0 !important;
-    padding: 0.375rem 0.5rem !important;
+    min-height: 2.75rem !important;
+    padding: 0.4375rem 0.55rem !important;
     border-radius: 0.5rem !important;
   }
   html.mz-range-single-day #mz-kpi-grid .mz-kpi-card-label,
   .mz-page #mz-kpi-grid.mz-kpi-grid--compact .mz-kpi-card-label {
     font-size: 0.5625rem;
-    line-height: 1.2;
+    line-height: 1.25;
     letter-spacing: 0.04em;
   }
   html.mz-range-single-day #mz-kpi-grid .mz-kpi-card-value,
   .mz-page #mz-kpi-grid.mz-kpi-grid--compact .mz-kpi-card-value {
-    margin-top: 0.125rem;
+    margin-top: 0.2rem;
     font-size: 0.8125rem;
-    line-height: 1.15;
+    line-height: 1.2;
   }
   html.mz-range-single-day #mz-kpi-grid .mz-kpi-card-delta,
   .mz-page #mz-kpi-grid.mz-kpi-grid--compact .mz-kpi-card-delta {
@@ -603,6 +603,9 @@
     display: grid;
     gap: 0.5rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mz-page .mz-kpi-card {
+    min-height: 4.95rem;
   }
   @media (min-width: 640px) {
     .mz-page #mz-kpi-grid {
@@ -10307,8 +10310,8 @@
       var card = document.createElement("button");
       card.type = "button";
       card.className =
-        "mz-kpi-card min-h-[4.5rem] touch-manipulation rounded-xl border p-2.5 text-left transition sm:p-3 " +
-        (compact ? "!min-h-0 !rounded-lg !p-1.5 sm:!p-2 " : "") +
+        "mz-kpi-card min-h-[4.95rem] touch-manipulation rounded-xl border p-2.5 text-left transition sm:p-3 " +
+        (compact ? "!min-h-[2.75rem] !rounded-lg !p-2 sm:!px-2.5 sm:!py-2 " : "") +
         (state.activeKpiKey === def.key
           ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-400 dark:border-zinc-600 dark:bg-zinc-900 dark:ring-zinc-600 midnight:border-zinc-600 midnight:bg-zinc-950"
           : "border-slate-200 bg-white hover:border-indigo-300 dark:border-zinc-700 dark:bg-black dark:hover:border-zinc-600 midnight:border-zinc-800 midnight:bg-black");
@@ -10324,7 +10327,7 @@
       var sparkId = "mz-spark-" + def.key;
       var sparkHtml = compact
         ? ""
-        : "<div id=\"" + sparkId + "\" class=\"mz-kpi-spark mt-2 h-9 w-full\"></div>";
+        : "<div id=\"" + sparkId + "\" class=\"mz-kpi-spark mt-2 h-[2.475rem] w-full\"></div>";
       card.innerHTML =
         "<p lang=\"en\" data-seo-en-caps class=\"mz-kpi-card-label seo-en-caps text-[10px] font-semibold tracking-wide text-slate-500 dark:text-zinc-400\">" + enCaps(def.label) + "</p>" +
         "<p class=\"mz-kpi-card-value mt-1 text-base font-black text-slate-900 dark:text-zinc-300\">" +
