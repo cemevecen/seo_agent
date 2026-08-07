@@ -201,26 +201,27 @@
   }
   .mz-skel--line .mz-skel-path {
     fill: none;
-    stroke: #94a3b8;
-    stroke-width: 2.5;
+    stroke: #cbd5e1;
+    stroke-width: 1.15;
     stroke-linecap: round;
-    stroke-dasharray: 8 10;
+    stroke-dasharray: 2.2 4.8;
+    opacity: 0.55;
     animation: mz-skel-dash 3s linear infinite, mz-skel-path-pulse 5s ease-in-out infinite;
   }
   html.dark .mz-skel--line .mz-skel-path,
   html.midnight .mz-skel--line .mz-skel-path {
-    stroke: #71717a;
+    stroke: #52525b;
   }
   .mz-skel--line .mz-skel-fill {
-    opacity: 0.55;
+    opacity: 0.22;
     animation: mz-skel-path-pulse 5s ease-in-out infinite;
   }
   @keyframes mz-skel-dash {
-    to { stroke-dashoffset: -36; }
+    to { stroke-dashoffset: -21; }
   }
   @keyframes mz-skel-path-pulse {
-    0%, 100% { opacity: 0.35; }
-    50% { opacity: 0.85; }
+    0%, 100% { opacity: 0.16; }
+    50% { opacity: 0.4; }
   }
 
   /* 6 — Frosted Breath Bars */
@@ -2347,7 +2348,7 @@
       "<defs><linearGradient id=\"" +
       gid +
       "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">" +
-      '<stop offset="0%" stop-color="#93c5fd" stop-opacity="0.45"/>' +
+      '<stop offset="0%" stop-color="#93c5fd" stop-opacity="0.22"/>' +
       '<stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>' +
       "</linearGradient></defs>" +
       '<path class="mz-skel-fill" fill="url(#' +
