@@ -436,6 +436,29 @@
         id="mz-jump-targets"
         class="block rounded-xl border border-teal-200/90 bg-teal-50/70 px-3 py-2.5 text-xs font-bold text-teal-900 hover:bg-teal-100/80 dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200 dark:hover:bg-teal-950/50"
       >Gelir hedefleri ↓</a>
+      {% if ad_sheet_sources %}
+      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Google Sheet kaynakları</p>
+        <div class="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <label for="mz-sheet-source-select" class="sr-only">Kaynak tablo seç</label>
+          <select
+            id="mz-sheet-source-select"
+            class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-800 dark:border-zinc-600 dark:bg-black dark:text-zinc-200 midnight:border-zinc-700"
+          >
+            {% for src in ad_sheet_sources %}
+            <option value="{{ src.url }}" data-key="{{ src.key }}">{{ src.label }}</option>
+            {% endfor %}
+          </select>
+          <a
+            id="mz-sheet-source-open"
+            href="{{ ad_sheet_sources[0].url }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex shrink-0 items-center justify-center rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 dark:border-indigo-700"
+          >Aç ↗</a>
+        </div>
+      </div>
+      {% endif %}
       <div id="mz-sidebar-analytics" class="space-y-3">
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Google Sheets</p>
       <button
@@ -639,9 +662,31 @@
         <p class="text-[10px] font-medium leading-snug text-slate-600 dark:text-zinc-400">
           Piyasa kapanış — günlük çizgi, gelir/gösterim ve kalite grafiklerine ikinci eksen (tümünü kapatmak için seçimleri kaldırın)
         </p>
-        {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
-        {% include 'partials/market_overlay_select.html' %}
-        {% endwith %}
+        <div class="flex flex-wrap items-center gap-2">
+          {% if ad_sheet_sources %}
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+            <label for="mz-sheet-source-select-charts" class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Kaynak</label>
+            <select
+              id="mz-sheet-source-select-charts"
+              class="max-w-[11rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-800 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 midnight:border-zinc-700 midnight:bg-black"
+            >
+              {% for src in ad_sheet_sources %}
+              <option value="{{ src.url }}" data-key="{{ src.key }}">{{ src.label }}</option>
+              {% endfor %}
+            </select>
+            <a
+              id="mz-sheet-source-open-charts"
+              href="{{ ad_sheet_sources[0].url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rounded-lg border border-indigo-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-200 dark:hover:bg-indigo-950/40"
+            >Aç ↗</a>
+          </div>
+          {% endif %}
+          {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
+          {% include 'partials/market_overlay_select.html' %}
+          {% endwith %}
+        </div>
       </div>
 
       <div id="mz-empower-overlay-bar" class="mb-2 hidden flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50/80 px-3 py-2 dark:border-violet-900/60 dark:bg-violet-950/30" data-mz-hide-single-day>
@@ -12270,6 +12315,24 @@
     sel.value = cur;
   }
 
+  function mzSyncRevenueTargetsSheetUrl(url) {
+    if (!url) return;
+    ["mz-sheet-source-select", "mz-sheet-source-select-charts"].forEach(function (id) {
+      var sel = document.getElementById(id);
+      if (!sel) return;
+      var opt = sel.querySelector('option[data-key="revenue_targets"]');
+      if (!opt) return;
+      var wasSelected = sel.value === opt.value || (sel.selectedOptions[0] && sel.selectedOptions[0].getAttribute("data-key") === "revenue_targets");
+      opt.value = url;
+      if (wasSelected) {
+        sel.value = url;
+        var openId = id === "mz-sheet-source-select" ? "mz-sheet-source-open" : "mz-sheet-source-open-charts";
+        var open = document.getElementById(openId);
+        if (open) open.setAttribute("href", url);
+      }
+    });
+  }
+
   async function mzTargetsLoad(force) {
     var loading = document.getElementById("mz-targets-loading");
     var controls = document.getElementById("mz-targets-controls");
@@ -12300,9 +12363,11 @@
         if (mzTargetsCache && mzTargetsCache.source_pending_url) {
           var src = document.getElementById("mz-targets-source-link");
           if (src) src.setAttribute("href", mzTargetsCache.source_pending_url);
+          mzSyncRevenueTargetsSheetUrl(mzTargetsCache.source_pending_url);
         } else if (mzTargetsCache && mzTargetsCache.source_url) {
           var src2 = document.getElementById("mz-targets-source-link");
           if (src2) src2.setAttribute("href", mzTargetsCache.source_url);
+          mzSyncRevenueTargetsSheetUrl(mzTargetsCache.source_url);
         }
       }
       mzTargetsPopulateYears(mzTargetsCache.years);
@@ -12352,6 +12417,50 @@
       window.history.replaceState({}, "", u.pathname + u.search + u.hash);
     } catch (_) { /* ignore */ }
   });
+
+  (function wireMzSheetSourcePickers() {
+    var pairs = [
+      { selectId: "mz-sheet-source-select", openId: "mz-sheet-source-open" },
+      { selectId: "mz-sheet-source-select-charts", openId: "mz-sheet-source-open-charts" },
+    ];
+    function syncPair(selectEl, openEl) {
+      if (!selectEl || !openEl) return;
+      var url = selectEl.value || "";
+      openEl.setAttribute("href", url || "#");
+      openEl.setAttribute("aria-disabled", url ? "false" : "true");
+      if (!url) openEl.classList.add("pointer-events-none", "opacity-50");
+      else openEl.classList.remove("pointer-events-none", "opacity-50");
+    }
+    function syncAllFrom(sourceSelect) {
+      var url = sourceSelect && sourceSelect.value ? sourceSelect.value : "";
+      var key = "";
+      if (sourceSelect && sourceSelect.selectedOptions && sourceSelect.selectedOptions[0]) {
+        key = sourceSelect.selectedOptions[0].getAttribute("data-key") || "";
+      }
+      pairs.forEach(function (p) {
+        var sel = document.getElementById(p.selectId);
+        var open = document.getElementById(p.openId);
+        if (sel && sourceSelect && sel !== sourceSelect && url) {
+          if (key) {
+            var opt = sel.querySelector('option[data-key="' + key + '"]');
+            if (opt) sel.value = opt.value;
+            else sel.value = url;
+          } else {
+            sel.value = url;
+          }
+        }
+        syncPair(sel, open);
+      });
+    }
+    pairs.forEach(function (p) {
+      var sel = document.getElementById(p.selectId);
+      if (!sel) return;
+      sel.addEventListener("change", function () {
+        syncAllFrom(sel);
+      });
+    });
+    syncAllFrom(document.getElementById("mz-sheet-source-select") || document.getElementById("mz-sheet-source-select-charts"));
+  })();
 
   document.querySelectorAll(".mz-targets-proj").forEach(function (btn) {
     btn.addEventListener("click", function () {

@@ -39,9 +39,16 @@ def get_market_quotes_overlay(
 
 @router.get("/market-quotes/meta")
 def get_market_quotes_meta():
+    from backend.services.market_sheets_config import MARKET_SHEET_SERIES
+
     return {
         "series": [
-            {"key": s.key, "label": s.label, "unit": s.unit}
-            for s in SERIES_BY_KEY.values()
+            {
+                "key": s.key,
+                "label": s.label,
+                "unit": s.unit,
+                "sheet_url": s.sheet_url,
+            }
+            for s in MARKET_SHEET_SERIES
         ],
     }

@@ -27,26 +27,42 @@
     role="listbox"
     aria-multiselectable="true"
   >
-    {% for val, label in [
-      ('usd_try', 'USD/TRY kapanış'),
-      ('eur_try', 'EUR/TRY kapanış'),
-      ('gram_altin', 'Gram altın kapanış'),
-      ('gram_gumus', 'Gram gümüş kapanış'),
-      ('bist100', 'BIST 100 kapanış'),
-      ('brent', 'Brent kapanış'),
-      ('all_indexed', 'Tümü (% aralık başı=100)'),
+    {% for val, label, sheet_url in [
+      ('usd_try', 'USD/TRY kapanış', 'https://docs.google.com/spreadsheets/d/1PTxaphp51rhtt2wmbFROhTOXOaS633LFYs5UmcJ7KTc/edit#gid=0'),
+      ('eur_try', 'EUR/TRY kapanış', 'https://docs.google.com/spreadsheets/d/1xg4ziFry5OM5P7eSdLStxj2FSba6gULuHBH9UnxI8cE/edit#gid=0'),
+      ('gram_altin', 'Gram altın kapanış', 'https://docs.google.com/spreadsheets/d/16dpDktX7BYtpti2m6-rjV4jHZs6OXm1CMHBqeZj8D0A/edit#gid=0'),
+      ('gram_gumus', 'Gram gümüş kapanış', 'https://docs.google.com/spreadsheets/d/188SFsvBp9EWCf9KZtoSPFXiLlfs4_UhrRnRW-16m7hk/edit#gid=0'),
+      ('bist100', 'BIST 100 kapanış', 'https://docs.google.com/spreadsheets/d/1Y3kdq_9PNxgzV2WiHyffjM1BiKg7NOK8H3_rdXzK1PM/edit#gid=0'),
+      ('brent', 'Brent kapanış', 'https://docs.google.com/spreadsheets/d/15kFLzHOiRtq_5ZbA122g3R7969onrbZ_SzACWxiDmCU/edit#gid=0'),
+      ('all_indexed', 'Tümü (% aralık başı=100)', ''),
     ] %}
-    <label
-      class="flex cursor-pointer items-start gap-2.5 px-3 py-2 text-left text-[11px] font-medium leading-snug text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800 midnight:text-zinc-200 midnight:hover:bg-zinc-900 sm:px-2.5 sm:py-1.5"
-      data-market-overlay-option="{{ val }}"
+    <div
+      class="flex items-stretch gap-0.5 px-1 sm:px-0.5"
+      data-market-overlay-option-row="{{ val }}"
     >
-      <input
-        type="checkbox"
-        class="mt-0.5 shrink-0 rounded border-slate-300 text-[#9D174D] focus:ring-[#9D174D] dark:border-slate-600"
-        value="{{ val }}"
-      />
-      <span class="min-w-0 flex-1">{{ label }}</span>
-    </label>
+      <label
+        class="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 px-2 py-2 text-left text-[11px] font-medium leading-snug text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800 midnight:text-zinc-200 midnight:hover:bg-zinc-900 sm:px-2 sm:py-1.5"
+        data-market-overlay-option="{{ val }}"
+      >
+        <input
+          type="checkbox"
+          class="mt-0.5 shrink-0 rounded border-slate-300 text-[#9D174D] focus:ring-[#9D174D] dark:border-slate-600"
+          value="{{ val }}"
+        />
+        <span class="min-w-0 flex-1">{{ label }}</span>
+      </label>
+      {% if sheet_url %}
+      <a
+        href="{{ sheet_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex shrink-0 items-center px-2 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-100"
+        title="Kaynak Google Sheet"
+        aria-label="{{ label }} kaynak tablosu"
+        onclick="event.stopPropagation()"
+      >↗</a>
+      {% endif %}
+    </div>
     {% endfor %}
   </div>
 </div>

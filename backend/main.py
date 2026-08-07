@@ -16231,10 +16231,24 @@ def notification_page(request: Request):
 @app.get("/ad")
 def ad_analytics_page(request: Request):
     """Reklam raporları — Excel/CSV yükleme, filtre ve grafikler."""
+    from backend.services.market_sheets_config import MARKET_SHEET_SERIES
+    from backend.services.revenue_targets_sheet import REVENUE_TARGETS_SHEET_URL
+
+    ad_sheet_sources = [
+        {
+            "key": "revenue_targets",
+            "label": "Gelir hedefleri",
+            "url": REVENUE_TARGETS_SHEET_URL,
+        },
+        *[
+            {"key": s.key, "label": s.label, "url": s.sheet_url}
+            for s in MARKET_SHEET_SERIES
+        ],
+    ]
     return templates.TemplateResponse(
         request,
         "ad.html",
-        context={"request": request},
+        context={"request": request, "ad_sheet_sources": ad_sheet_sources},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
