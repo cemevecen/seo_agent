@@ -68,30 +68,31 @@
     border-radius: 0.35rem;
     background: transparent;
     cursor: pointer;
-    color: #94a3b8;
+    /* Belirgin mavi — açık sky / lacivert değil (#2563eb ≈ Tailwind blue-600) */
+    color: #2563eb;
     line-height: 0;
   }
   .home-top-pages-trigger--icon:hover,
   .home-top-pages-trigger--icon.is-active {
-    color: #0f172a;
-    background: rgb(241 245 249 / 0.9);
+    color: #1d4ed8;
+    background: rgb(239 246 255 / 0.95);
   }
   html.dark .home-top-pages-trigger--icon,
   html.midnight .home-top-pages-trigger--icon {
-    color: #71717a;
+    color: #3b82f6;
   }
   html.dark .home-top-pages-trigger--icon:hover,
   html.dark .home-top-pages-trigger--icon.is-active,
   html.midnight .home-top-pages-trigger--icon:hover,
   html.midnight .home-top-pages-trigger--icon.is-active {
-    color: #a1a1aa;
-    background: rgb(39 39 42 / 0.85);
+    color: #60a5fa;
+    background: rgb(30 58 138 / 0.35);
   }
   .home-top-pages-trigger--icon .home-top-pages-chevron {
     width: 0.38rem;
     height: 0.38rem;
     margin: 0 0 0.05rem;
-    opacity: 0.85;
+    opacity: 1;
   }
   .home-top-pages-trigger--icon.is-active .home-top-pages-chevron {
     transform: rotate(-135deg);
