@@ -437,7 +437,7 @@
   .mz-virgul-mode #mz-cancel-sheets-sync-top {
     display: none !important;
   }
-  /* Virgül: sidebar → grafik üstü yatay toolbar; main full width */
+  /* Virgül: sidebar → grafik üstü full-width responsive toolbar */
   .mz-page.mz-virgul-mode {
     max-width: min(100%, 1920px);
   }
@@ -449,10 +449,10 @@
     width: 100% !important;
   }
   .mz-virgul-mode #mz-sidebar {
-    display: flex !important;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.75rem 1rem;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+    gap: 0.75rem;
+    align-items: stretch;
     position: relative !important;
     top: auto !important;
     max-height: none !important;
@@ -460,6 +460,7 @@
     width: 100% !important;
     flex: 0 0 auto !important;
     margin-bottom: 0 !important;
+    padding: 0.85rem 1rem !important;
   }
   .mz-virgul-mode #mz-main {
     width: 100% !important;
@@ -467,78 +468,128 @@
     flex: 1 1 auto !important;
     min-width: 0 !important;
   }
-  .mz-virgul-mode #mz-jump-targets {
-    display: inline-flex;
-    width: auto;
-    align-items: center;
-    white-space: nowrap;
-    margin: 0;
-  }
-  .mz-virgul-mode #mz-sidebar > div.rounded-xl {
-    flex: 0 1 16rem;
-    min-width: 12rem;
-    margin: 0;
-  }
   .mz-virgul-mode #mz-sidebar-analytics {
+    display: contents;
+  }
+  .mz-virgul-mode #mz-sidebar .mz-tb-cell,
+  .mz-virgul-mode #mz-jump-targets,
+  .mz-virgul-mode #mz-sidebar > .mz-tb-source {
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .mz-virgul-mode #mz-jump-targets {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    margin: 0;
+    white-space: nowrap;
+    text-align: center;
+    height: 100%;
+  }
+  .mz-virgul-mode #mz-sidebar > .mz-tb-source {
+    margin: 0;
     display: flex;
-    flex: 1 1 36rem;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+  .mz-virgul-mode #mz-sidebar > .mz-tb-source .mz-tb-source-row {
+    display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.65rem 0.85rem;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0 !important;
+  }
+  .mz-virgul-mode #mz-sidebar > .mz-tb-source select {
+    flex: 1 1 8rem;
+    min-width: 0;
+    width: auto !important;
+  }
+  .mz-virgul-mode .mz-tb-cell--date {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
     min-width: 0;
   }
-  .mz-virgul-mode #mz-sidebar-analytics > .pt-2,
-  .mz-virgul-mode #mz-sidebar-analytics > p.pt-2 {
-    width: 100%;
-    padding-top: 0 !important;
-    margin: 0;
-    flex: 0 0 100%;
+  .mz-virgul-mode .mz-tb-cell--date .mz-tb-date-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
   }
-  .mz-virgul-mode #mz-status {
-    flex: 0 0 auto;
+  .mz-virgul-mode .mz-tb-cell--date #mz-start,
+  .mz-virgul-mode .mz-tb-cell--date #mz-end,
+  .mz-virgul-mode .mz-tb-cell--date #mz-preset {
+    width: 100% !important;
+    min-width: 0;
+  }
+  .mz-virgul-mode .mz-tb-cell--date #mz-status {
     min-height: 0;
     margin: 0;
-    align-self: center;
+    line-height: 1.2;
   }
-  .mz-virgul-mode #mz-sidebar-analytics > .grid.grid-cols-2 {
-    width: auto;
-    flex: 0 0 auto;
-    min-width: 14rem;
+  .mz-virgul-mode .mz-tb-cell--date > p.text-xs.font-bold {
+    padding-top: 0 !important;
+    margin: 0;
   }
-  .mz-virgul-mode #mz-preset {
-    width: auto;
-    min-width: 10rem;
-    flex: 0 0 auto;
+  .mz-virgul-mode .mz-tb-cell--compare {
+    margin: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
-  .mz-virgul-mode #mz-sidebar-analytics > .rounded-lg.border {
-    flex: 0 1 16rem;
-    min-width: 12rem;
+  .mz-virgul-mode .mz-tb-cell--compare #mz-compare-mode {
+    width: 100%;
+  }
+  .mz-virgul-mode .mz-tb-cell--income {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  .mz-virgul-mode .mz-tb-cell--income > p {
+    padding-top: 0 !important;
     margin: 0;
   }
   .mz-virgul-mode #mz-filter-income {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.75rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 0.65rem;
     max-height: none;
     overflow: visible;
-    flex: 1 1 14rem;
+    align-content: start;
+  }
+  .mz-virgul-mode #mz-filter-income label {
+    display: inline-flex;
     align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    white-space: nowrap;
+  }
+  .mz-virgul-mode .mz-tb-cell--share {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.35rem;
+    min-width: 0;
   }
   .mz-virgul-mode #mz-share-link {
-    width: auto;
+    width: 100% !important;
     margin-top: 0 !important;
-    flex: 0 0 auto;
+    white-space: nowrap;
   }
   .mz-virgul-mode #mz-share-status {
-    flex: 0 0 100%;
     text-align: left;
+    margin: 0;
   }
-  /* Tarih / Gelir tipi etiketlerini satır içi kompakt göster */
-  .mz-virgul-mode #mz-sidebar-analytics > p.text-xs.font-bold.uppercase {
-    flex: 0 0 auto;
-    width: auto;
-    padding-top: 0 !important;
-    align-self: center;
+  @media (max-width: 639px) {
+    .mz-virgul-mode #mz-sidebar {
+      grid-template-columns: 1fr;
+    }
+    .mz-virgul-mode #mz-filter-income {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode max-w-[1920px]{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Ad · Virgül{% else %}Ad{% endif %}">
@@ -614,9 +665,9 @@
         class="block rounded-xl border border-teal-200/90 bg-teal-50/70 px-3 py-2.5 text-xs font-bold text-teal-900 hover:bg-teal-100/80 dark:border-teal-900/60 dark:bg-teal-950/30 dark:text-teal-200 dark:hover:bg-teal-950/50"
       >Gelir hedefleri ↓</a>
       {% if ad_sheet_sources %}
-      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800">
+      <div class="mz-tb-source rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800">
         <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">{% if ad_mode == 'virgul' %}Virgül paneller{% else %}Reklam gelir Sheet’leri{% endif %}</p>
-        <div class="mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-center">
+        <div class="mz-tb-source-row mt-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-center">
           <label for="mz-sheet-source-select" class="sr-only">Kaynak tablo seç</label>
           <select
             id="mz-sheet-source-select"
@@ -683,33 +734,35 @@
       </div>
       <button id="mz-reset" type="button" class="w-full rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400">Tüm veriyi sıfırla</button>
       </div>
-      <p id="mz-status" class="min-h-[1.25rem] text-xs text-slate-500 dark:text-zinc-400" role="status" aria-live="polite"></p>
 
-      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Tarih</p>
-      <div class="grid grid-cols-2 gap-2">
-        <input id="mz-start" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
-        <input id="mz-end" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+      <div class="mz-tb-cell mz-tb-cell--date">
+        <p id="mz-status" class="min-h-[1.25rem] text-xs text-slate-500 dark:text-zinc-400" role="status" aria-live="polite"></p>
+        <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Tarih</p>
+        <div class="mz-tb-date-row grid grid-cols-2 gap-2">
+          <input id="mz-start" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+          <input id="mz-end" type="date" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950" />
+        </div>
+        <select id="mz-preset" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
+          <option value="custom">Özel aralık</option>
+          <option value="yesterday">Dün</option>
+          <option value="7d">Son 7 gün</option>
+          <option value="14d">Son 2 hafta</option>
+          <option value="30d">Son 30 gün</option>
+          <option value="60d">Son 60 gün</option>
+          <option value="90d">Son 90 gün</option>
+          <option value="180d">Son 180 gün</option>
+          <option value="this_month">Bu ay</option>
+          <option value="last_month">Geçen ay</option>
+          <option value="ytd" selected>Bu yıl</option>
+          <option value="1y">Son 1 yıl</option>
+          <option value="last_year">Geçen yıl</option>
+          <option value="last_year_h1">Geçen yıl ilk 6 ay</option>
+          <option value="last_year_h2">Geçen yıl son 6 ay</option>
+          <option value="all">Tüm veri</option>
+        </select>
       </div>
-      <select id="mz-preset" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200">
-        <option value="custom">Özel aralık</option>
-        <option value="yesterday">Dün</option>
-        <option value="7d">Son 7 gün</option>
-        <option value="14d">Son 2 hafta</option>
-        <option value="30d">Son 30 gün</option>
-        <option value="60d">Son 60 gün</option>
-        <option value="90d">Son 90 gün</option>
-        <option value="180d">Son 180 gün</option>
-        <option value="this_month">Bu ay</option>
-        <option value="last_month">Geçen ay</option>
-        <option value="ytd" selected>Bu yıl</option>
-        <option value="1y">Son 1 yıl</option>
-        <option value="last_year">Geçen yıl</option>
-        <option value="last_year_h1">Geçen yıl ilk 6 ay</option>
-        <option value="last_year_h2">Geçen yıl son 6 ay</option>
-        <option value="all">Tüm veri</option>
-      </select>
 
-      <div class="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
+      <div class="mz-tb-cell mz-tb-cell--compare rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-zinc-700 dark:bg-zinc-950/40 midnight:border-zinc-800">
         <label class="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700 dark:text-zinc-200">
           <input id="mz-compare-enabled" type="checkbox" class="rounded" />
           Tarih karşılaştırması
@@ -725,8 +778,10 @@
         </div>
       </div>
 
-      <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
-      <div id="mz-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
+      <div class="mz-tb-cell mz-tb-cell--income">
+        <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Gelir tipi</p>
+        <div id="mz-filter-income" class="max-h-32 space-y-1 overflow-y-auto text-xs text-slate-700 dark:text-zinc-300"></div>
+      </div>
 
       <div id="mz-cross-filters" class="space-y-2" data-mz-sheets-only>
         <p class="pt-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Kanal (rapor)</p>
@@ -759,8 +814,11 @@
 
       <button id="mz-run" type="button" class="mt-2 w-full touch-manipulation rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-bold text-white hover:bg-slate-700 dark:bg-zinc-700 dark:hover:bg-zinc-600">Çalıştır</button>
       </div>
-      <button id="mz-share-link" type="button" class="mt-2 w-full touch-manipulation rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Paylaşım linki kopyala</button>
-      <p id="mz-share-status" class="hidden min-h-[1rem] text-center text-[11px] font-medium text-indigo-700 dark:text-indigo-300" role="status" aria-live="polite"></p>
+
+      <div class="mz-tb-cell mz-tb-cell--share">
+        <button id="mz-share-link" type="button" class="w-full touch-manipulation rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60">Paylaşım linki kopyala</button>
+        <p id="mz-share-status" class="hidden min-h-[1rem] text-[11px] font-medium text-indigo-700 dark:text-indigo-300" role="status" aria-live="polite"></p>
+      </div>
       </div>
     </aside>
 
