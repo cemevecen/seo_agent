@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Doviz admin → Railway bridge (VPN makinesinde).
 
-Notification stats + aktif haber listesi.
+Notification stats + aktif haber listesi + Virgül reklam.
 
 Tek sefer (ikisi):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py
@@ -11,9 +11,10 @@ Tek sefer (ikisi):
 Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
 
-  POST /sync       → notification (~15 dk auto)
+  POST /sync       → notification (~30 dk auto)
   POST /sync-news?days=7  → son 1 hafta (Elle yenile + ~30 dk auto)
   POST /sync-news?full=1  → tam geçmiş (seyrek)
+  POST /sync-virgul → Virgül Excel (~30 dk auto)
   POST /sync-all   → notification + news
 """
 
@@ -21,10 +22,12 @@ from __future__ import annotations
 
 import json
 import os
+import smtplib
 import sys
 import threading
 import time
 import traceback
+from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -36,21 +39,53 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+
+def _load_dotenv() -> None:
+    """`.env` yükle: dosya içinde son değer kazanır; mevcut os.environ ezilmez."""
+    env_path = ROOT / ".env"
+    if not env_path.is_file():
+        return
+    parsed: dict[str, str] = {}
+    for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            continue
+        k, _, v = s.partition("=")
+        k, v = k.strip(), v.strip().strip("'").strip('"')
+        if k:
+            parsed[k] = v
+    for k, v in parsed.items():
+        if k not in os.environ:
+            os.environ[k] = v
+
+
+_load_dotenv()
+
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = int(os.environ.get("NOTIFICATION_BRIDGE_PORT") or "18765")
-# Bildirim stats — sık (varsayılan 15 dk)
-AUTO_INTERVAL_SEC = int(os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(15 * 60))
-# Aktif haberler (uzun pagination) — varsayılan 30 dk’da bir
-NEWS_AUTO_INTERVAL_SEC = int(
-    os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(30 * 60)
+# Üçü de varsayılan 30 dk (notification / news / virgul)
+_DEFAULT_INTERVAL = 30 * 60
+AUTO_INTERVAL_SEC = int(
+    os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
 )
-# Virgül reklam — varsayılan 6 saatte bir (Excel ağır)
+NEWS_AUTO_INTERVAL_SEC = int(
+    os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
+)
 VIRGUL_AUTO_INTERVAL_SEC = int(
-    os.environ.get("VIRGUL_BRIDGE_INTERVAL_SEC") or str(6 * 60 * 60)
+    os.environ.get("VIRGUL_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
 )
 # Eski ayar: her N. bildirim turunda haber (NEWS_BRIDGE_INTERVAL_SEC yoksa)
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
+BRIDGE_ALERT_TO = (
+    os.environ.get("BRIDGE_ALERT_EMAIL")
+    or os.environ.get("OPERATIONS_MAIL_TO")
+    or os.environ.get("MAIL_TO")
+    or "cemevecen@nokta.com"
+).strip()
+BRIDGE_ALERT_COOLDOWN_SEC = int(
+    os.environ.get("BRIDGE_ALERT_COOLDOWN_SEC") or str(60 * 60)
+)
 
 # Notification/news aynı admin oturumunu paylaşır; Virgül ayrı — uzun Excel
 # sync'i Elle yenile'yi 409 ile kilitlemesin.
@@ -78,6 +113,7 @@ _nt_progress: dict[str, Any] = {
 _auto_cycle = 0
 _last_news_auto_at = 0.0
 _last_virgul_auto_at = 0.0
+_last_fail_email_at: dict[str, float] = {}
 
 
 def _set_news_progress(**kwargs: Any) -> None:
@@ -90,24 +126,99 @@ def _set_nt_progress(**kwargs: Any) -> None:
     _nt_progress["ts"] = time.time()
 
 
+def _send_bridge_alert_email(*, kind: str, subject: str, body_text: str) -> bool:
+    """Auto-refresh hatasında cemevecen@nokta.com (veya BRIDGE_ALERT_EMAIL)."""
+    to_addr = (
+        os.environ.get("BRIDGE_ALERT_EMAIL")
+        or os.environ.get("OPERATIONS_MAIL_TO")
+        or os.environ.get("MAIL_TO")
+        or BRIDGE_ALERT_TO
+        or "cemevecen@nokta.com"
+    ).strip()
+    host = (os.environ.get("SMTP_HOST") or "").strip()
+    user = (os.environ.get("SMTP_USER") or "").strip()
+    password = (os.environ.get("SMTP_PASSWORD") or "").strip()
+    mail_from = (os.environ.get("MAIL_FROM") or user or to_addr).strip()
+    if not to_addr or not host or not user or not password:
+        print(
+            f"Bridge alert e-posta atlandı (SMTP/alıcı eksik) kind={kind}",
+            flush=True,
+        )
+        return False
+    try:
+        port = int(os.environ.get("SMTP_PORT") or "587")
+    except ValueError:
+        port = 587
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = mail_from
+    msg["To"] = to_addr
+    msg.set_content(body_text)
+    try:
+        with smtplib.SMTP(host, port, timeout=45) as smtp:
+            smtp.ehlo()
+            try:
+                smtp.starttls()
+                smtp.ehlo()
+            except smtplib.SMTPException:
+                pass
+            smtp.login(user, password)
+            smtp.send_message(msg)
+        print(f"Bridge alert e-posta gönderildi → {to_addr} ({kind})", flush=True)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"Bridge alert e-posta hatası ({kind}): {exc}", flush=True)
+        return False
+
+
+def _notify_auto_failure(
+    kind: str,
+    result: dict[str, Any] | None = None,
+    *,
+    exc: BaseException | None = None,
+) -> None:
+    """Başarısız auto sync → e-posta (kind başına cooldown)."""
+    now = time.time()
+    last = float(_last_fail_email_at.get(kind) or 0)
+    cooldown = max(300, BRIDGE_ALERT_COOLDOWN_SEC)
+    if last and (now - last) < cooldown:
+        left = int(cooldown - (now - last))
+        print(f"Bridge alert cooldown ({kind}) · ~{left}s", flush=True)
+        return
+    msg = ""
+    if exc is not None:
+        msg = str(exc) or exc.__class__.__name__
+    elif isinstance(result, dict):
+        msg = str(result.get("message") or result.get("detail") or result)
+    msg = (msg or "bilinmeyen hata")[:800]
+    labels = {
+        "notification": "Notification (/notification)",
+        "news": "Doviz News (/doviz-news)",
+        "virgul": "Virgül Ad (/ad-virgul)",
+    }
+    label = labels.get(kind, kind)
+    subject = f"[SEO Agent Bridge] {label} auto-refresh başarısız"
+    suffix = ""
+    if kind == "news":
+        suffix = "-news"
+    elif kind == "virgul":
+        suffix = "-virgul"
+    body = (
+        f"Kaynak: Mac VPN bridge (127.0.0.1:{BRIDGE_PORT})\n"
+        f"Tür: {label} ({kind})\n"
+        f"Zaman (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}Z\n"
+        f"Hata: {msg}\n\n"
+        f"Kontrol: curl -s http://127.0.0.1:{BRIDGE_PORT}/health | python3 -m json.tool\n"
+        f"Elle: POST http://127.0.0.1:{BRIDGE_PORT}/sync{suffix}\n"
+    )
+    if _send_bridge_alert_email(kind=kind, subject=subject, body_text=body):
+        _last_fail_email_at[kind] = now
+
+
 def _news_pages_estimate() -> int:
     last = int(_last_news_result.get("last_page") or 0)
     env = int(os.environ.get("NEWS_PAGES_ESTIMATE") or "264")
     return max(last, env, 1)
-
-
-def _load_dotenv() -> None:
-    env_path = ROOT / ".env"
-    if not env_path.is_file():
-        return
-    for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#") or "=" not in s:
-            continue
-        k, _, v = s.partition("=")
-        k, v = k.strip(), v.strip().strip("'").strip('"')
-        if k and k not in os.environ:
-            os.environ[k] = v
 
 
 def _ingest_token() -> str:
@@ -696,16 +807,30 @@ def _should_run_virgul_auto() -> bool:
 
 
 def _auto_loop() -> None:
-    """Notification/news ve Virgül ayrı kilit — Virgül Elle yenile'yi bloke etmez."""
+    """Notification/news ve Virgül ayrı kilit — hepsi ~30 dk; hata → e-posta."""
     global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at
     while True:
         if _nt_lock.acquire(blocking=False):
             try:
                 _auto_cycle += 1
-                run_notification_bridge_once()
+                try:
+                    nt = run_notification_bridge_once()
+                    if not nt.get("ok"):
+                        _notify_auto_failure("notification", nt)
+                except Exception as exc:
+                    traceback.print_exc()
+                    _notify_auto_failure("notification", exc=exc)
+
                 if _should_run_news_auto():
-                    run_news_bridge_once()
-                    _last_news_auto_at = time.time()
+                    try:
+                        news = run_news_bridge_once()
+                        _last_news_auto_at = time.time()
+                        if not news.get("ok"):
+                            _notify_auto_failure("news", news)
+                    except Exception as exc:
+                        traceback.print_exc()
+                        _last_news_auto_at = time.time()
+                        _notify_auto_failure("news", exc=exc)
                 else:
                     left = max(
                         0,
@@ -726,10 +851,15 @@ def _auto_loop() -> None:
         if _should_run_virgul_auto():
             if _virgul_lock.acquire(blocking=False):
                 try:
-                    run_virgul_bridge_once()
-                    _last_virgul_auto_at = time.time()
-                except Exception:
-                    traceback.print_exc()
+                    try:
+                        vg = run_virgul_bridge_once()
+                        _last_virgul_auto_at = time.time()
+                        if not vg.get("ok"):
+                            _notify_auto_failure("virgul", vg)
+                    except Exception as exc:
+                        traceback.print_exc()
+                        _last_virgul_auto_at = time.time()
+                        _notify_auto_failure("virgul", exc=exc)
                 finally:
                     _virgul_lock.release()
             else:

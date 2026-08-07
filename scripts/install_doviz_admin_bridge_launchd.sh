@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# macOS: VPN Mac köprüsü — sürekli daemon (bildirim 15 dk + haber 30 dk + Elle yenile)
+# macOS: VPN Mac köprüsü — sürekli daemon (bildirim/haber/virgül ~30 dk + Elle yenile)
 # Kullanım: ./scripts/install_doviz_admin_bridge_launchd.sh
 # Kaldırma: ./scripts/install_doviz_admin_bridge_launchd.sh --uninstall
 set -euo pipefail
@@ -51,7 +51,7 @@ mkdir -p "$AGENTS_DIR" "$LOG_DIR"
 launchctl bootout "gui/$(id -u)" "$PLIST_DST" 2>/dev/null || true
 rm -f "$PLIST_DST"
 
-# KeepAlive daemon: --daemon → 15 dk auto + http://127.0.0.1:18765/sync
+# KeepAlive daemon: --daemon → ~30 dk auto (nt/news/virgul) + http://127.0.0.1:18765/sync
 cat > "$PLIST_DST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -91,5 +91,5 @@ launchctl enable "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
 
 echo "Kuruldu: $PLIST_DST"
-echo "Daemon: bildirim ~15 dk · haber ~30 dk · Elle yenile → http://127.0.0.1:18765/sync (+ /sync-news)"
+echo "Daemon: bildirim/haber/virgül ~30 dk · hata mail → BRIDGE_ALERT_EMAIL · Elle → :18765/sync"
 echo "Log: $OUT_LOG"
