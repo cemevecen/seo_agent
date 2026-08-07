@@ -143,6 +143,7 @@ def test_build_notification_week_compare(monkeypatch):
     assert result["empty"] is False
     assert result["windows"]["current"]["end"] == "2026-07-27"
     assert result["windows"]["previous"]["end"] == "2026-07-20"
+    assert result["windows"]["including_today"]["end"] == date.today().isoformat()
     assert result["totals"]["clicks_cur"] > result["totals"]["clicks_prev"]
     by_key = {p["key"]: p for p in result["platforms"]}
     assert by_key["desktop"]["has_impressions"] is True
@@ -150,9 +151,89 @@ def test_build_notification_week_compare(monkeypatch):
     assert by_key["ios"]["impressions_cur"] is None
     assert len(result["top_titles"]) <= 3
     assert len(result["top_titles_previous"]) <= 3
+    assert "top_titles_including_today" in result
     first = result["top_titles"][0]
     assert first["clicks"] > 0
     assert "desktop" in first and "send_day" in first and "id" in first
     prev_first = result["top_titles_previous"][0]
     assert prev_first["clicks"] > 0
     assert str(prev_first["id"]).startswith("2000") or prev_first["text"].startswith("Prev")
+
+
+def test_including_today_window_covers_as_of_day(monkeypatch):
+    ref = date(2026, 8, 6)  # yesterday-style KPI end
+    today = date(2026, 8, 7)
+    rows = [
+        _row(
+            "2026-08-07",
+            text="Bugün",
+            nid="9001",
+            desktop_c=999,
+            desktop_i=1000,
+            ios_c=1,
+        ),
+        _row(
+            "2026-08-06",
+            text="Dün",
+            nid="9002",
+            desktop_c=10,
+            desktop_i=100,
+        ),
+        _row(
+            "2026-07-31",
+            text="Hafta başı",
+            nid="9003",
+            desktop_c=50,
+            desktop_i=500,
+        ),
+        _row(
+            "2026-07-30",
+            text="Dışarıda",
+            nid="9004",
+            desktop_c=5000,
+            desktop_i=5000,
+        ),
+    ]
+
+    class FakeWs:
+        rows_json = "[]"
+
+    monkeypatch.setattr(
+        "backend.services.notification_analytics_alerts._get_workspace",
+        lambda db: FakeWs(),
+    )
+    monkeypatch.setattr(
+        "backend.services.notification_analytics_alerts._load_rows",
+        lambda row: rows,
+    )
+
+    def fake_filter(rows, *, start=None, end=None):
+        out = []
+        for r in rows:
+            d = str(r.get("date") or "")[:10]
+            if start and d < start[:10]:
+                continue
+            if end and d > end[:10]:
+                continue
+            out.append(r)
+        return out
+
+    monkeypatch.setattr(
+        "backend.services.notification_analytics_alerts.filter_rows_by_date",
+        fake_filter,
+    )
+
+    result = build_notification_week_compare(
+        None, reference_day=ref, top_n=10, as_of_day=today
+    )
+    assert result["windows"]["current"]["end"] == "2026-08-06"
+    assert result["windows"]["including_today"]["start"] == "2026-08-01"
+    assert result["windows"]["including_today"]["end"] == "2026-08-07"
+    incl = result["top_titles_including_today"]
+    assert incl[0]["id"] == "9001"
+    assert incl[0]["text"] == "Bugün"
+    ids = {x["id"] for x in incl}
+    assert "9004" not in ids  # 30.07 outside today-inclusive 7d
+    week = {x["id"] for x in result["top_titles"]}
+    assert "9001" not in week  # today excluded from last-week KPI list
+    assert "9002" in week

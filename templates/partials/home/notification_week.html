@@ -722,6 +722,10 @@
           <span class="font-medium text-slate-700 dark:text-slate-200">{{ period_current_label }}</span>
           <span class="mx-1 text-slate-300 dark:text-slate-600">vs</span>
           {{ period_previous_label }}
+          {% if workspace_sync_label %}
+            <span class="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+            <span title="/notification workspace">sync {{ workspace_sync_label }}</span>
+          {% endif %}
         </p>
       {% endif %}
     </div>
@@ -870,6 +874,16 @@
                          dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">
             previous top 40
           </button>
+          <button type="button"
+                  role="tab"
+                  aria-selected="false"
+                  data-nt-top-tab="including_today"
+                  title="Bugün dahil son 7 gün"
+                  class="home-nt-top-tab rounded-full px-3.5 py-1.5 home-label normal-case tracking-wide transition
+                         bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50
+                         dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800">
+            last 40
+          </button>
         </div>
         <span data-nt-top-count
               class="home-nt-chip rounded-full bg-white px-2.5 py-1 home-meta font-semibold tabular-nums text-slate-500 ring-1 ring-slate-200">
@@ -922,11 +936,17 @@
       <div data-nt-top-panel="previous" class="hidden">
         {{ nt_top_table(top_titles_previous|default([]), "no clicks") }}
       </div>
+      <div data-nt-top-panel="including_today" class="hidden">
+        {{ nt_top_table(top_titles_including_today|default([]), "no clicks") }}
+      </div>
       <p data-nt-top-range="current" class="home-meta border-t border-slate-100 px-2.5 py-1.5 tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
         {{ period_current_label }}
       </p>
       <p data-nt-top-range="previous" class="home-meta hidden border-t border-slate-100 px-2.5 py-1.5 tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
         {{ period_previous_label }}
+      </p>
+      <p data-nt-top-range="including_today" class="home-meta hidden border-t border-slate-100 px-2.5 py-1.5 tabular-nums text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
+        {{ period_including_today_label }} · bugün dahil
       </p>
     </div>
     <script>
@@ -939,7 +959,8 @@
       root.setAttribute('data-nt-top-wired', '1');
       var counts = {
         current: {{ top_titles|length }},
-        previous: {{ (top_titles_previous|default([]))|length }}
+        previous: {{ (top_titles_previous|default([]))|length }},
+        including_today: {{ (top_titles_including_today|default([]))|length }}
       };
       var tabs = root.querySelectorAll('[data-nt-top-tab]');
       var panels = root.querySelectorAll('[data-nt-top-panel]');

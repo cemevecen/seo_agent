@@ -10728,13 +10728,22 @@ def _home_notification_week_reference_day():
 
 def _home_notification_week_context(db) -> dict:
     from backend.services.notification_analytics_alerts import build_notification_week_compare
+    from backend.services.notification_analytics_store import _get_workspace
 
     ref = _home_notification_week_reference_day()
-    raw = build_notification_week_compare(db, reference_day=ref, top_n=40)
+    try:
+        tz = ZoneInfo(settings.scheduled_refresh_timezone or "Europe/Istanbul")
+    except Exception:  # noqa: BLE001
+        tz = ZoneInfo("Europe/Istanbul")
+    today = datetime.now(tz).date()
+    raw = build_notification_week_compare(
+        db, reference_day=ref, top_n=40, as_of_day=today
+    )
     totals = raw.get("totals") or {}
     windows = raw.get("windows") or {}
     cur_w = windows.get("current") or {}
     prev_w = windows.get("previous") or {}
+    incl_w = windows.get("including_today") or {}
 
     platforms_raw = list(raw.get("platforms") or [])
     click_total = sum(float(p.get("clicks_cur") or 0) for p in platforms_raw)
@@ -10792,6 +10801,7 @@ def _home_notification_week_context(db) -> dict:
 
     top_raw = list(raw.get("top_titles") or [])
     top_prev_raw = list(raw.get("top_titles_previous") or [])
+    top_incl_raw = list(raw.get("top_titles_including_today") or [])
 
     def _format_top_titles(items: list) -> list[dict]:
         out: list[dict] = []
@@ -10840,6 +10850,18 @@ def _home_notification_week_context(db) -> dict:
 
     top_titles = _format_top_titles(top_raw)
     top_titles_previous = _format_top_titles(top_prev_raw)
+    top_titles_including_today = _format_top_titles(top_incl_raw)
+
+    sync_label = ""
+    try:
+        ws = _get_workspace(db)
+        updated_at = getattr(ws, "updated_at", None)
+        if updated_at is not None:
+            if getattr(updated_at, "tzinfo", None) is None:
+                updated_at = updated_at.replace(tzinfo=ZoneInfo("UTC"))
+            sync_label = updated_at.astimezone(tz).strftime("%d.%m %H:%M")
+    except Exception:  # noqa: BLE001
+        sync_label = ""
 
     return {
         "empty": bool(raw.get("empty")),
@@ -10848,6 +10870,9 @@ def _home_notification_week_context(db) -> dict:
         ),
         "period_previous_label": _home_fmt_day_range(
             str(prev_w.get("start") or ""), str(prev_w.get("end") or "")
+        ),
+        "period_including_today_label": _home_fmt_day_range(
+            str(incl_w.get("start") or ""), str(incl_w.get("end") or "")
         ),
         "totals": {
             "clicks": clicks_block,
@@ -10859,6 +10884,8 @@ def _home_notification_week_context(db) -> dict:
         "impr_bars": impr_bars,
         "top_titles": top_titles,
         "top_titles_previous": top_titles_previous,
+        "top_titles_including_today": top_titles_including_today,
+        "workspace_sync_label": sync_label,
     }
 
 

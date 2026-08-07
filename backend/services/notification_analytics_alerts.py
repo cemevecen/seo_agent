@@ -142,14 +142,21 @@ def build_notification_week_compare(
     *,
     reference_day: date | None = None,
     top_n: int = 5,
+    as_of_day: date | None = None,
 ) -> dict[str, Any]:
     """Son 7 tam gün vs önceki 7 gün — platform click/impression + top başlıklar (Döviz).
 
     reference_day pencerenin son günüdür (dahil). Ana sayfa dünü verir ki
     bugünün eksik verisi kıyasa karışmasın.
+
+    as_of_day (varsayılan: bugün) ile bugünü kapsayan son 7 gün Top N
+    (top_titles_including_today) ayrıca üretilir — KPI penceresini değiştirmez.
     """
     ref = reference_day or date.today()
+    today = as_of_day or date.today()
     cur_start, cur_end, prev_start, prev_end = _week_windows(ref)
+    incl_end = today
+    incl_start = today - timedelta(days=WINDOW_DAYS - 1)
     all_rows = _load_rows(_get_workspace(db))
     cur_rows = filter_rows_by_date(
         all_rows,
@@ -160,6 +167,11 @@ def build_notification_week_compare(
         all_rows,
         start=prev_start.isoformat(),
         end=prev_end.isoformat(),
+    )
+    incl_rows = filter_rows_by_date(
+        all_rows,
+        start=incl_start.isoformat(),
+        end=incl_end.isoformat(),
     )
     cur = _period_stats(cur_rows)
     prev = _period_stats(prev_rows)
@@ -185,9 +197,14 @@ def build_notification_week_compare(
         )
     return {
         "reference_day": ref.isoformat(),
+        "as_of_day": today.isoformat(),
         "windows": {
             "current": {"start": cur_start.isoformat(), "end": cur_end.isoformat()},
             "previous": {"start": prev_start.isoformat(), "end": prev_end.isoformat()},
+            "including_today": {
+                "start": incl_start.isoformat(),
+                "end": incl_end.isoformat(),
+            },
         },
         "totals": {
             "clicks_cur": cur["clicks"],
@@ -200,6 +217,7 @@ def build_notification_week_compare(
         "platforms": platforms,
         "top_titles": _top_sends_by_clicks(cur_rows, limit=top_n),
         "top_titles_previous": _top_sends_by_clicks(prev_rows, limit=top_n),
+        "top_titles_including_today": _top_sends_by_clicks(incl_rows, limit=top_n),
         "empty": cur["rows"] == 0 and prev["rows"] == 0,
     }
 
