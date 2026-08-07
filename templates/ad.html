@@ -6407,6 +6407,31 @@
     return u;
   }
 
+  /** Peer dalında alan etiketi (mweb↔web, ios/android dal adına). */
+  function peerMappedArea(area) {
+    var a = String(area || "").trim().toLowerCase();
+    if (!a) return area;
+    var peer = peerBranchKey();
+    if (!peer) return area;
+    if (peer === "desktop") return "web";
+    if (peer === "mweb") return "mweb";
+    if (peer === "ios") return "ios";
+    if (peer === "android") return "android";
+    return area;
+  }
+
+  function peerSliceForFilter(slice) {
+    if (!slice) return null;
+    var peerSlice = Object.assign({}, slice);
+    if (peerSlice.ad_unit) {
+      peerSlice.ad_unit = peerMappedAdUnit(peerSlice.ad_unit);
+    }
+    if (peerSlice.area) {
+      peerSlice.area = peerMappedArea(peerSlice.area);
+    }
+    return peerSlice;
+  }
+
   function qsForPeerDrill(slice) {
     var p = qsForPeerBranch();
     if (!p) return null;
@@ -6709,11 +6734,8 @@
       var data = await fetchJsonWithRetry(url, { signal: signal }, { tries: 3, delayMs: 400 });
       if (!data) continue;
       var breakdown = data.breakdown || [];
-      // Peer isteğinde ad_unit zaten map edildi; filtreyi orijinal iOS birimine göre uygulama.
-      var peerSlice = slice ? Object.assign({}, slice) : null;
-      if (peerSlice && peerSlice.ad_unit) {
-        peerSlice = Object.assign({}, peerSlice, { ad_unit: peerMappedAdUnit(peerSlice.ad_unit) });
-      }
+      // Peer isteğinde ad_unit/area peer dalına map edilir.
+      var peerSlice = peerSliceForFilter(slice);
       var filtered = drillRowsForChart(scope, data.rows || [], peerSlice, breakdown);
       last = { data: data, filtered: filtered, breakdown: breakdown, chartCfg: chartCfg };
       if (breakdown.indexOf(chartTimeKey) >= 0 && filtered.length) return last;
@@ -7568,6 +7590,8 @@
           );
         }
       } catch (_ga4OvErr) {
+        if (_ga4OvErr && _ga4OvErr.name === "AbortError") return;
+        if (drillStale()) return;
         ga4OverlayOn = false;
         hideGa4SplitChart(scope);
       }
@@ -7702,10 +7726,14 @@
             hidePeerSplitChart(peerChartKey);
           }
         } catch (_peerDrillErr) {
+          if (_peerDrillErr && _peerDrillErr.name === "AbortError") return;
+          if (drillStale()) return;
           if (peerSeparateDrill) {
             showPeerSplitEmpty(
               peerChartKey,
-              peerBranchLabel() + " ayrı grafik hatası."
+              peerBranchLabel() +
+                " ayrı grafik hatası" +
+                (_peerDrillErr && _peerDrillErr.message ? ": " + _peerDrillErr.message : ".")
             );
           } else {
             hidePeerSplitChart(peerChartKey);
@@ -7935,7 +7963,7 @@
     return layout;
   }
 
-  function drillStackXaxisSync(baseXaxis, chartTimeKey, plotX, dense) {
+  function drillStackXaxisSync(baseXaxis, chartTimeKey, plotX, dense, syncOpts) {
     var ax = Object.assign({}, baseXaxis || {});
     ax.automargin = true;
     ax.fixedrange = false;
@@ -7946,7 +7974,13 @@
     } else if (plotX && plotX.length) {
       if (ax.tickangle == null) ax.tickangle = dense ? -45 : 0;
     }
-    return Object.assign(ax, tightXaxisPatch(plotX || [], { timeKey: chartTimeKey || "date", traces: opts && opts.traces }));
+    return Object.assign(
+      ax,
+      tightXaxisPatch(plotX || [], {
+        timeKey: chartTimeKey || "date",
+        traces: syncOpts && syncOpts.traces,
+      })
+    );
   }
 
   function plotAxis(title) {
