@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """Doviz admin → Railway bridge (VPN makinesinde).
 
-Tek sefer:
-  .venv/bin/python scripts/doviz_admin_notification_bridge.py
+Notification stats + aktif haber listesi.
 
-Daemon (otomatik 15 dk + Elle yenile için localhost:18765):
+Tek sefer (ikisi):
+  .venv/bin/python scripts/doviz_admin_notification_bridge.py
+  .venv/bin/python scripts/doviz_admin_notification_bridge.py --news-only
+  .venv/bin/python scripts/doviz_admin_notification_bridge.py --notifications-only
+
+Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
+
+  POST /sync       → notification
+  POST /sync-news  → aktif haberler (pagination)
+  POST /sync-all   → ikisi
 """
 
 from __future__ import annotations
@@ -30,9 +38,12 @@ if str(ROOT) not in sys.path:
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = int(os.environ.get("NOTIFICATION_BRIDGE_PORT") or "18765")
 AUTO_INTERVAL_SEC = int(os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(15 * 60))
+NEWS_AUTO_EVERY_N = int(os.environ.get("NEWS_BRIDGE_EVERY_N") or "2")  # her N. turda news
 
 _sync_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_auto_cycle = 0
 
 
 def _load_dotenv() -> None:
@@ -49,35 +60,54 @@ def _load_dotenv() -> None:
             os.environ[k] = v
 
 
-def run_bridge_once() -> dict[str, Any]:
-    """Admin stats çek → Railway ingest. Dönüş: UI/daemon için JSON özet."""
-    global _last_result
-    _load_dotenv()
-    token = (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
-    url = (
+def _ingest_token() -> str:
+    return (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
+
+
+def _notification_ingest_url() -> str:
+    return (
         os.environ.get("NOTIFICATION_INGEST_URL")
         or "https://projectcontrol.up.railway.app/api/notification-analytics/ingest"
     ).strip()
-    if not token:
-        out = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
-        _last_result = out
-        return out
+
+
+def _news_ingest_url() -> str:
+    return (
+        os.environ.get("DOVIZ_NEWS_INGEST_URL")
+        or "https://projectcontrol.up.railway.app/api/doviz-news/ingest"
+    ).strip()
+
+
+def _require_creds() -> dict[str, Any] | None:
+    if not _ingest_token():
+        return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
     if not (os.environ.get("DOVIZ_ADMIN_EMAIL") and os.environ.get("DOVIZ_ADMIN_PASSWORD")):
-        out = {"ok": False, "message": "DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD gerekli"}
-        _last_result = out
-        return out
+        return {"ok": False, "message": "DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD gerekli"}
+    return None
+
+
+def run_notification_bridge_once() -> dict[str, Any]:
+    """Admin notification stats → Railway ingest."""
+    global _last_result
+    _load_dotenv()
+    err = _require_creds()
+    if err:
+        _last_result = err
+        return err
 
     from backend.services.doviz_notification_admin import fetch_notification_rows_from_admin
 
     print("Admin stats çekiliyor…", flush=True)
     fetched = fetch_notification_rows_from_admin()
     rows = fetched.get("rows") or []
-    print(f"Çekildi: {len(rows)} satır · {fetched.get('elapsed_sec')}s", flush=True)
+    print(f"Notification çekildi: {len(rows)} satır · {fetched.get('elapsed_sec')}s", flush=True)
     if not rows:
-        out = {"ok": False, "message": "Satır yok — gönderilmedi", "parsed": 0}
+        out = {"ok": False, "message": "Notification: satır yok — gönderilmedi", "parsed": 0}
         _last_result = out
         return out
 
+    url = _notification_ingest_url()
+    token = _ingest_token()
     resp = requests.post(
         url,
         headers={
@@ -91,7 +121,7 @@ def run_bridge_once() -> dict[str, Any]:
         ).encode("utf-8"),
         timeout=180,
     )
-    print(f"Ingest HTTP {resp.status_code}", flush=True)
+    print(f"Notification ingest HTTP {resp.status_code}", flush=True)
     try:
         body = resp.json() if resp.content else {}
     except Exception:
@@ -103,6 +133,7 @@ def run_bridge_once() -> dict[str, Any]:
     )
     out = {
         "ok": bool(ok),
+        "kind": "notification",
         "http_status": resp.status_code,
         "parsed": len(rows),
         "elapsed_sec": fetched.get("elapsed_sec"),
@@ -115,16 +146,106 @@ def run_bridge_once() -> dict[str, Any]:
     return out
 
 
+def run_news_bridge_once() -> dict[str, Any]:
+    """Admin aktif haberler (pagination) → Railway ingest."""
+    global _last_news_result
+    _load_dotenv()
+    err = _require_creds()
+    if err:
+        _last_news_result = err
+        return err
+
+    from backend.services.doviz_news_admin import fetch_active_news_rows_from_admin
+
+    print("Admin aktif haberler çekiliyor (pagination)…", flush=True)
+    fetched = fetch_active_news_rows_from_admin()
+    rows = fetched.get("rows") or []
+    print(
+        f"News çekildi: {len(rows)} satır · {fetched.get('pages')} sayfa · "
+        f"{fetched.get('elapsed_sec')}s",
+        flush=True,
+    )
+    if not rows:
+        out = {"ok": False, "message": "News: satır yok — gönderilmedi", "parsed": 0}
+        _last_news_result = out
+        return out
+
+    url = _news_ingest_url()
+    token = _ingest_token()
+    # ~50k satır — uzun timeout
+    resp = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        data=json.dumps(
+            {
+                "rows": rows,
+                "source": "doviz_admin_news_bridge",
+                "source_url": fetched.get("source_url"),
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+        timeout=600,
+    )
+    print(f"News ingest HTTP {resp.status_code}", flush=True)
+    try:
+        body = resp.json() if resp.content else {}
+    except Exception:
+        body = {"raw": (resp.text or "")[:500]}
+    msg = body.get("message") if isinstance(body, dict) else str(body)
+    print(msg or body, flush=True)
+    ok = resp.status_code < 400 and (
+        not isinstance(body, dict) or body.get("synced") is not False
+    )
+    out = {
+        "ok": bool(ok),
+        "kind": "news",
+        "http_status": resp.status_code,
+        "parsed": len(rows),
+        "pages": fetched.get("pages"),
+        "last_page": fetched.get("last_page"),
+        "elapsed_sec": fetched.get("elapsed_sec"),
+        "message": msg or ("OK" if ok else "Ingest başarısız"),
+        "source": "doviz_admin_news_bridge",
+        "fetched_at": body.get("fetched_at") if isinstance(body, dict) else None,
+        "row_count": body.get("row_count") if isinstance(body, dict) else len(rows),
+    }
+    _last_news_result = out
+    return out
+
+
+def run_bridge_once() -> dict[str, Any]:
+    """Geriye uyumluluk: notification sync."""
+    return run_notification_bridge_once()
+
+
+def run_all_once() -> dict[str, Any]:
+    nt = run_notification_bridge_once()
+    news = run_news_bridge_once()
+    ok = bool(nt.get("ok")) and bool(news.get("ok"))
+    return {
+        "ok": ok,
+        "kind": "all",
+        "notification": nt,
+        "news": news,
+        "message": f"notification={nt.get('message')} · news={news.get('message')}",
+    }
+
+
 def _cors_headers(handler: BaseHTTPRequestHandler) -> dict[str, str]:
     origin = handler.headers.get("Origin") or "*"
-    # Yerel UI + production panelinden Elle yenile
     allowed = {
         "http://127.0.0.1:8012",
         "http://localhost:8012",
         "https://projectcontrol.up.railway.app",
     }
     allow = origin if origin in allowed or origin == "null" else (
-        origin if origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:") else "https://projectcontrol.up.railway.app"
+        origin
+        if origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")
+        else "https://projectcontrol.up.railway.app"
     )
     return {
         "Access-Control-Allow-Origin": allow,
@@ -162,9 +283,11 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 200,
                 {
                     "ok": True,
-                    "service": "doviz-admin-notification-bridge",
+                    "service": "doviz-admin-bridge",
                     "auto_interval_sec": AUTO_INTERVAL_SEC,
+                    "news_every_n": NEWS_AUTO_EVERY_N,
                     "last": _last_result,
+                    "last_news": _last_news_result,
                 },
             )
             return
@@ -172,14 +295,22 @@ class _BridgeHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
-        if path not in ("/sync", "/run", "/"):
+        if path in ("/sync", "/run"):
+            runner = run_notification_bridge_once
+        elif path in ("/sync-news", "/news"):
+            runner = run_news_bridge_once
+        elif path in ("/sync-all", "/all"):
+            runner = run_all_once
+        elif path == "/":
+            runner = run_notification_bridge_once
+        else:
             self._send(404, {"ok": False, "message": "not found"})
             return
         if not _sync_lock.acquire(blocking=False):
             self._send(409, {"ok": False, "message": "Sync zaten çalışıyor, bekleyin."})
             return
         try:
-            result = run_bridge_once()
+            result = runner()
             self._send(200 if result.get("ok") else 502, result)
         except Exception as exc:  # noqa: BLE001
             traceback.print_exc()
@@ -189,11 +320,20 @@ class _BridgeHandler(BaseHTTPRequestHandler):
 
 
 def _auto_loop() -> None:
-    # İlk sync hemen; sonra interval
+    global _auto_cycle
     while True:
         if _sync_lock.acquire(blocking=False):
             try:
-                run_bridge_once()
+                _auto_cycle += 1
+                run_notification_bridge_once()
+                # Haber scrape uzun (~574 sayfa); her turda değil, her N. turda
+                if NEWS_AUTO_EVERY_N <= 1 or (_auto_cycle % NEWS_AUTO_EVERY_N) == 1:
+                    run_news_bridge_once()
+                else:
+                    print(
+                        f"News auto atlandı (cycle={_auto_cycle}, every={NEWS_AUTO_EVERY_N})",
+                        flush=True,
+                    )
             except Exception:
                 traceback.print_exc()
             finally:
@@ -209,7 +349,8 @@ def run_daemon() -> int:
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"(POST /sync = Elle yenile, auto={AUTO_INTERVAL_SEC}s)",
+        f"(POST /sync | /sync-news | /sync-all, auto={AUTO_INTERVAL_SEC}s, "
+        f"news_every={NEWS_AUTO_EVERY_N})",
         flush=True,
     )
     try:
@@ -227,7 +368,12 @@ def main(argv: list[str] | None = None) -> int:
         print("Sync zaten çalışıyor", file=sys.stderr)
         return 1
     try:
-        result = run_bridge_once()
+        if "--news-only" in args:
+            result = run_news_bridge_once()
+        elif "--notifications-only" in args:
+            result = run_notification_bridge_once()
+        else:
+            result = run_all_once()
         return 0 if result.get("ok") else 1
     except Exception as exc:  # noqa: BLE001
         print(str(exc), file=sys.stderr)

@@ -91,5 +91,5 @@ launchctl enable "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
 
 echo "Kuruldu: $PLIST_DST"
-echo "Daemon: otomatik 15 dk + Elle yenile → http://127.0.0.1:18765/sync"
+echo "Daemon: otomatik 15 dk + Elle yenile → http://127.0.0.1:18765/sync (+ /sync-news)"
 echo "Log: $OUT_LOG"

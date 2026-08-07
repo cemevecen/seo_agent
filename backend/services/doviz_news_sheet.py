@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import logging
 import re
 import time
@@ -264,22 +265,231 @@ def parse_doviz_news_csv(csv_text: str) -> list[dict[str, Any]]:
     return out
 
 
+def set_doviz_news_rows_cache(
+    rows: list[dict[str, Any]],
+    *,
+    source: str = "doviz_admin_news",
+    source_url: str | None = None,
+    db: Any | None = None,
+) -> None:
+    """Admin bridge / ingest sonrası önbellek + DB snapshot."""
+    global _CACHE
+    src_url = source_url or DOVIZ_NEWS_SHEET_URL
+    fetched_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    _CACHE = {
+        "ts": time.monotonic(),
+        "fetched_at": fetched_at,
+        "rows": list(rows),
+        "source": source,
+        "source_url": src_url,
+    }
+    try:
+        from backend.database import SessionLocal
+        from backend.models import DovizNewsWorkspace
+
+        own = db is None
+        session = db or SessionLocal()
+        try:
+            row = session.get(DovizNewsWorkspace, 1)
+            if row is None:
+                row = DovizNewsWorkspace(id=1, rows_json="[]")
+                session.add(row)
+            row.rows_json = json.dumps(rows, ensure_ascii=False)
+            row.source = (source or "")[:64]
+            row.source_url = (src_url or "")[:512]
+            row.row_count = len(rows)
+            row.updated_at = datetime.utcnow()
+            if own:
+                session.commit()
+            else:
+                session.flush()
+        finally:
+            if own:
+                session.close()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Doviz news DB snapshot write failed: %s", exc)
+
+
+def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
+    try:
+        from backend.database import SessionLocal
+        from backend.models import DovizNewsWorkspace
+
+        with SessionLocal() as session:
+            row = session.get(DovizNewsWorkspace, 1)
+            if row is None or not (row.rows_json or "").strip():
+                return None
+            data = json.loads(row.rows_json)
+            if not isinstance(data, list) or not data:
+                return None
+            global _CACHE
+            fetched = None
+            if row.updated_at:
+                fetched = row.updated_at.isoformat(timespec="seconds") + "Z"
+            _CACHE = {
+                "ts": time.monotonic(),
+                "fetched_at": fetched,
+                "rows": data,
+                "source": row.source or "db",
+                "source_url": row.source_url or DOVIZ_NEWS_SHEET_URL,
+            }
+            return list(data)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Doviz news DB load skipped: %s", exc)
+        return None
+
+
+def _db_snapshot_meta() -> tuple[datetime | None, int]:
+    try:
+        from backend.database import SessionLocal
+        from backend.models import DovizNewsWorkspace
+
+        with SessionLocal() as session:
+            row = session.get(DovizNewsWorkspace, 1)
+            if row is None:
+                return None, 0
+            return row.updated_at, int(row.row_count or 0)
+    except Exception:
+        return None, 0
+
+
 def fetch_doviz_news_rows(*, force: bool = False) -> list[dict[str, Any]]:
+    """Aktif haberler: DB/cache → admin → Google Sheet."""
     global _CACHE
     if not force and _CACHE is not None:
         age = time.monotonic() - float(_CACHE.get("ts") or 0)
         if age < _CACHE_TTL_SEC and isinstance(_CACHE.get("rows"), list):
+            # Başka worker ingest yazdıysa DB daha yeniyse yenile
+            db_updated, db_count = _db_snapshot_meta()
+            cache_fetched = str(_CACHE.get("fetched_at") or "")
+            if db_updated and db_count > 0:
+                db_iso = db_updated.isoformat(timespec="seconds") + "Z"
+                if db_iso > cache_fetched or (
+                    db_count != len(_CACHE.get("rows") or []) and age > 5
+                ):
+                    db_rows = _load_doviz_news_rows_from_db()
+                    if db_rows:
+                        return db_rows
             return list(_CACHE["rows"])
+
+    if not force:
+        db_rows = _load_doviz_news_rows_from_db()
+        if db_rows:
+            return db_rows
+
+    from backend.config import settings
+    from backend.services.doviz_notification_admin import (
+        admin_credentials_configured,
+        is_admin_vpn_unreachable_error,
+    )
+
+    admin_err = ""
+    try_admin = bool(
+        getattr(settings, "doviz_admin_notification_sync_enabled", True)
+        and admin_credentials_configured()
+    )
+    if try_admin:
+        try:
+            from backend.services.doviz_news_admin import fetch_active_news_rows_from_admin
+
+            fetched = fetch_active_news_rows_from_admin()
+            rows = fetched.get("rows") or []
+            if rows:
+                set_doviz_news_rows_cache(
+                    rows,
+                    source="doviz_admin_news",
+                    source_url=fetched.get("source_url"),
+                )
+                return list(rows)
+            admin_err = "Admin haber tablosu boş"
+        except Exception as exc:  # noqa: BLE001
+            admin_err = str(exc) or "admin news failed"
+            logger.warning("Doviz news admin fetch failed: %s", admin_err)
+            low = admin_err.lower()
+            if ("şifre" in low or "password" in low) and not is_admin_vpn_unreachable_error(admin_err):
+                raise
 
     csv_text = fetch_public_sheet_csv(DOVIZ_NEWS_SHEET_URL)
     rows = parse_doviz_news_csv(csv_text)
-    _CACHE = {
-        "ts": time.monotonic(),
-        "fetched_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-        "rows": rows,
-        "source_url": DOVIZ_NEWS_SHEET_URL,
-    }
+    set_doviz_news_rows_cache(
+        rows,
+        source="google_sheet_fallback" if admin_err else "google_sheet",
+        source_url=DOVIZ_NEWS_SHEET_URL,
+    )
+    if _CACHE is not None and admin_err:
+        _CACHE["admin_error"] = admin_err[:240]
     return list(rows)
+
+
+def ingest_doviz_news_rows(
+    rows: list[dict[str, Any]],
+    *,
+    source: str = "doviz_admin_news_bridge",
+    source_url: str | None = None,
+) -> dict[str, Any]:
+    """VPN köprüsünden gelen aktif haber satırlarını DB + cache yazar."""
+    cleaned = [r for r in (rows or []) if isinstance(r, dict) and (r.get("id") or r.get("title"))]
+    if not cleaned:
+        return {
+            "ok": False,
+            "synced": False,
+            "parsed": 0,
+            "message": "Ingest: satır yok.",
+            "source": source,
+        }
+
+    norm: list[dict[str, Any]] = []
+    for r in cleaned:
+        news_id = str(r.get("id") or "").strip()
+        title = str(r.get("title") or "").strip()
+        if not news_id and not title:
+            continue
+        source_raw = str(r.get("source") or "").strip()
+        if source_raw in ("Kendi içeriği", "-"):
+            source_raw = ""
+        category = str(r.get("category") or "Diğer").strip() or "Diğer"
+        active = bool(r.get("active", True))
+        dt = _parse_dt(str(r.get("date") or ""))
+        if dt is None and r.get("date_day"):
+            dt = _parse_dt(str(r.get("date_day")))
+        norm.append(
+            {
+                "id": news_id,
+                "active": active,
+                "title": title,
+                "source": _display_source(source_raw),
+                "source_key": _norm_source(source_raw),
+                "is_own": not bool(source_raw),
+                "category": category,
+                "date": dt.isoformat(sep=" ") if dt else (str(r.get("date") or "") or None),
+                "date_day": dt.strftime("%Y-%m-%d") if dt else (str(r.get("date_day") or "")[:10] or None),
+                "hour": dt.hour if dt else r.get("hour"),
+                "weekday": dt.weekday() if dt else r.get("weekday"),
+                "iso_week": (
+                    f"{dt.isocalendar()[0]}-W{dt.isocalendar()[1]:02d}"
+                    if dt
+                    else r.get("iso_week")
+                ),
+            }
+        )
+
+    norm.sort(key=lambda r: r.get("date") or "", reverse=True)
+    set_doviz_news_rows_cache(
+        norm,
+        source=source,
+        source_url=source_url
+        or "https://www.doviz.com/admin/news?page=1&type=N&status=1&is_advertorial=0&sort=id_desc",
+    )
+    return {
+        "ok": True,
+        "synced": True,
+        "parsed": len(norm),
+        "row_count": len(norm),
+        "message": f"Doviz news admin ingest · {len(norm)} kayıt.",
+        "source": source,
+        "fetched_at": (_CACHE or {}).get("fetched_at"),
+        "source_url": (_CACHE or {}).get("source_url"),
+    }
 
 
 def _short_category_label(name: str) -> str:
@@ -956,10 +1166,13 @@ def doviz_news_payload(
             latest_id = rid
             break
 
+    cache = _CACHE or {}
     return {
         "ok": True,
-        "source_url": DOVIZ_NEWS_SHEET_URL,
-        "fetched_at": fetched_at,
+        "source": cache.get("source") or "google_sheet",
+        "source_url": cache.get("source_url") or DOVIZ_NEWS_SHEET_URL,
+        "fetched_at": fetched_at or cache.get("fetched_at"),
+        "admin_error": cache.get("admin_error"),
         "category": (category or "all"),
         "period": period_info["key"],
         "period_meta": period_meta,

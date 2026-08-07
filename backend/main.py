@@ -1784,6 +1784,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/auth/google/",
         # VPN Mac bridge: token ile korunan ingest (panel cookie istemez)
         "/api/notification-analytics/ingest",
+        "/api/doviz-news/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -2067,6 +2068,23 @@ def _run_deferred_startup() -> None:
         target=_startup_notification_sheet_sync,
         daemon=True,
         name="notification-sheet-startup",
+    ).start()
+
+    def _startup_doviz_news_sync() -> None:
+        import time as _time
+
+        _time.sleep(40)
+        try:
+            from backend.services.doviz_news_sheet import fetch_doviz_news_rows
+
+            fetch_doviz_news_rows(force=True)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Doviz news startup sync hatası: %s", exc)
+
+    _threading.Thread(
+        target=_startup_doviz_news_sync,
+        daemon=True,
+        name="doviz-news-startup",
     ).start()
     LOGGER.info("Deferred startup: background tasks registered")
 
@@ -5029,6 +5047,31 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=600,
+    )
+
+    def _run_doviz_news_sync() -> None:
+        try:
+            from backend.services.doviz_news_sheet import fetch_doviz_news_rows, _CACHE
+
+            rows = fetch_doviz_news_rows(force=True)
+            cache = _CACHE or {}
+            logging.getLogger(__name__).info(
+                "Doviz news auto-sync: rows=%s source=%s admin_err=%s",
+                len(rows),
+                cache.get("source"),
+                (cache.get("admin_error") or "")[:120],
+            )
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning("Doviz news sync job: %s", exc)
+
+    scheduler.add_job(
+        _run_doviz_news_sync,
+        trigger=_NtSheetTrigger(minutes=30),
+        id="doviz-news-auto-sync",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=900,
     )
 
     return scheduler

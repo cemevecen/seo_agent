@@ -1,18 +1,48 @@
-"""Doviz News — Google Sheets haber yayın raporu API."""
+"""Doviz News — Google Sheets / admin haber yayın raporu API."""
 
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.database import get_db
-from backend.services.doviz_news_sheet import doviz_news_payload
+from backend.services.doviz_news_sheet import doviz_news_payload, fetch_doviz_news_rows, ingest_doviz_news_rows
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["doviz-news"])
+
+
+def _check_ingest_token(
+    authorization: str | None,
+    x_notification_ingest_token: str | None,
+) -> None:
+    """Notification ile aynı NOTIFICATION_INGEST_TOKEN."""
+    expected = (settings.notification_ingest_token or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="NOTIFICATION_INGEST_TOKEN tanımlı değil (Railway Variables).",
+        )
+    got = (x_notification_ingest_token or "").strip()
+    if not got and authorization:
+        raw = authorization.strip()
+        if raw.lower().startswith("bearer "):
+            got = raw[7:].strip()
+        else:
+            got = raw
+    if not got or got != expected:
+        raise HTTPException(status_code=401, detail="Geçersiz ingest token.")
+
+
+class IngestNewsBody(BaseModel):
+    rows: list[dict] = Field(default_factory=list)
+    source: str | None = "doviz_admin_news_bridge"
+    source_url: str | None = None
 
 
 @router.get("/doviz-news/report")
@@ -30,7 +60,7 @@ def get_doviz_news_report(
         None,
         description="Özel aralık bitiş (YYYY-MM-DD); start ile birlikte period=custom",
     ),
-    force: bool = Query(False, description="Google Sheet önbelleğini atla ve yeniden çek"),
+    force: bool = Query(False, description="Önbelleği atla ve yeniden çek (admin → sheet)"),
     items_limit: int = Query(250, ge=1, le=500),
     include_traffic: bool = Query(False, description="GA4 + GSC trafik zenginleştirmesi (varsayılan kapalı)"),
     site_id: int = Query(1, ge=1, description="Site ID (GA4/GSC)"),
@@ -51,3 +81,51 @@ def get_doviz_news_report(
     except Exception as exc:
         logger.exception("doviz news report failed")
         raise HTTPException(status_code=400, detail=str(exc) or "Doviz News tablosu yüklenemedi") from exc
+
+
+@router.post("/doviz-news/ingest")
+def post_doviz_news_ingest(
+    body: IngestNewsBody,
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+):
+    """VPN köprüsü: admin aktif haber satırlarını yazar."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    try:
+        result = ingest_doviz_news_rows(
+            body.rows or [],
+            source=(body.source or "doviz_admin_news_bridge").strip() or "doviz_admin_news_bridge",
+            source_url=body.source_url,
+        )
+        if result.get("ok") is False and not result.get("synced"):
+            raise HTTPException(status_code=422, detail=result.get("message") or "Ingest başarısız.")
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("doviz news ingest failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/doviz-news/sync")
+def post_doviz_news_sync(force: bool = Query(True)):
+    """Admin (mümkünse) veya Google Sheet yedek senkronu."""
+    try:
+        rows = fetch_doviz_news_rows(force=force)
+        from backend.services.doviz_news_sheet import _CACHE
+
+        cache = _CACHE or {}
+        return {
+            "ok": True,
+            "synced": True,
+            "parsed": len(rows),
+            "row_count": len(rows),
+            "source": cache.get("source"),
+            "source_url": cache.get("source_url"),
+            "fetched_at": cache.get("fetched_at"),
+            "message": f"Doviz news sync · {len(rows)} kayıt · {cache.get('source') or '—'}",
+            "admin_error": cache.get("admin_error"),
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("doviz news sync failed")
+        raise HTTPException(status_code=502, detail=str(exc) or "Doviz News senkronu başarısız") from exc

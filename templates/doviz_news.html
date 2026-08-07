@@ -839,15 +839,15 @@
     </div>
     <div class="flex shrink-0 flex-wrap items-center gap-2">
       <a id="dn-source-link"
-         href="https://docs.google.com/spreadsheets/d/1alTittOPWf8nHpF6Mt_zQ0IPpHRdRxMXcFB6v_rqWk4/edit?gid=1290391379#gid=1290391379"
+         href="https://www.doviz.com/admin/news?page=1&type=N&status=1&is_advertorial=0&sort=id_desc"
          target="_blank" rel="noopener"
          class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200">
-        Kaynak tablo ↗
+        Admin haberler ↗
       </a>
       <button id="dn-refresh" type="button"
               class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
         <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-        Doviz News'i güncelle
+        Elle yenile
       </button>
     </div>
   </div>
@@ -2532,14 +2532,39 @@
       var s = data.summary || {};
       var pm = data.period_meta || {};
       var latestId = data.latest_id || (data.items && data.items[0] && data.items[0].id) || null;
+      var src = data.source || "";
+      var srcLabel =
+        src.indexOf("admin") >= 0 || src.indexOf("bridge") >= 0
+          ? "admin"
+          : src.indexOf("sheet") >= 0
+            ? "sheet"
+            : (src || "—");
       meta.textContent =
-        "Çekim: " + (data.fetched_at || "—") +
-        " · " + (pm.label ? pm.label + " · " : "") +
-        fmt(s.total) + " içerik · " +
-        fmt(s.category_count) + " kategori · " +
-        fmt(s.source_count) + " kaynak" +
+        "son senkron: " + (data.fetched_at || "—") +
+        " · " + fmt(s.total) + " kayıt" +
+        " · " + srcLabel +
+        (pm.label ? " · " + pm.label : "") +
         (latestId ? " · son id: " + latestId : "");
     }
+  }
+
+  var DN_BRIDGE_NEWS_URL = "http://127.0.0.1:18765/sync-news";
+
+  function syncNewsViaVpnBridge() {
+    return fetch(DN_BRIDGE_NEWS_URL, {
+      method: "POST",
+      mode: "cors",
+      headers: { Accept: "application/json" },
+    }).then(function (resp) {
+      return resp.json().then(function (data) {
+        if (!resp.ok || (data && data.ok === false)) {
+          var err = new Error((data && data.message) || ("Bridge HTTP " + resp.status));
+          err.bridge = data || null;
+          throw err;
+        }
+        return data;
+      });
+    });
   }
 
   async function load(force, opts) {
@@ -2551,13 +2576,37 @@
     var body = $("dn-body");
     var btn = $("dn-refresh");
     var ok = false;
-    startLoadProgress(opts.reason || (force ? "Güncelleniyor" : "Yükleniyor"));
+    var preferBridge = !!force;
+    startLoadProgress(
+      opts.reason || (preferBridge ? "VPN köprüsü · aktif haberler" : "Yükleniyor")
+    );
     if (loading) loading.classList.remove("hidden");
     if (err) { err.classList.add("hidden"); err.textContent = ""; }
     if (btn) btn.disabled = true;
     syncTrafficButton();
     try {
-      var r = await fetch(reportUrl({ force: !!force, traffic: false }), { credentials: "same-origin" });
+      if (preferBridge) {
+        try {
+          paintProgress(20, "VPN köprüsü · pagination…", { indeterminate: true });
+          await syncNewsViaVpnBridge();
+          paintProgress(70, "Köprü OK · rapor", { indeterminate: false });
+        } catch (bridgeErr) {
+          paintProgress(
+            35,
+            "Köprü yok · yedek senkron…",
+            { indeterminate: true }
+          );
+          try {
+            await fetch("/api/doviz-news/sync?force=1", {
+              method: "POST",
+              credentials: "same-origin",
+            });
+          } catch (_) {}
+        }
+      }
+      var r = await fetch(reportUrl({ force: !preferBridge && !!force, traffic: false }), {
+        credentials: "same-origin",
+      });
       if (!r.ok) {
         var detail = "";
         try {
@@ -2655,7 +2704,7 @@
   var refreshBtn = $("dn-refresh");
   if (refreshBtn) refreshBtn.addEventListener("click", function () {
     resetTrafficUi();
-    load(true, { reason: "Güncelleniyor" });
+    load(true, { reason: "Elle yenile" });
   });
   var trafficBtn = $("dn-traffic-btn");
   if (trafficBtn) trafficBtn.addEventListener("click", function () { loadTraffic({}); });

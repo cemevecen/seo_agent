@@ -1072,6 +1072,19 @@ class NotificationAnalyticsWorkspace(Base):
     last_file_upload_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
 
+class DovizNewsWorkspace(Base):
+    """Doviz News aktif haber listesi — tek paylaşımlı snapshot (id=1)."""
+
+    __tablename__ = "doviz_news_workspace"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    rows_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    source_url: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class DovizAssetMonitorUrl(Base):
     """CSV manifest — saatlik taranan Döviz URL listesi."""
 
