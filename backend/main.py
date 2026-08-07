@@ -10921,8 +10921,70 @@ def _home_format_money_tl(n: float) -> str:
     return f"{sign}{v:,.0f} ₺".replace(",", ".")
 
 
+def _home_virgul_window_bounds(today: date) -> dict[str, date | int]:
+    """Bugün hariç: son 7 tam gün + son 90 tam gün pencereleri."""
+    yesterday = today - timedelta(days=1)
+    week_start = yesterday - timedelta(days=6)
+    month3_start = yesterday - timedelta(days=89)
+    week_days = max(1, (yesterday - week_start).days + 1)
+    month3_days = max(1, (yesterday - month3_start).days + 1)
+    return {
+        "today": today,
+        "yesterday": yesterday,
+        "week_start": week_start,
+        "month3_start": month3_start,
+        "week_days": week_days,
+        "month3_days": month3_days,
+    }
+
+
+def _home_virgul_stream_daily_avgs(
+    series: dict[date, float],
+    *,
+    week_start: date,
+    week_days: int,
+    month3_start: date,
+    month3_days: int,
+) -> dict[str, float | int]:
+    """Takvim günü ortalaması: eksik gün = 0 TL (günlük ort. gelir).
+
+    week_avg / month3_avg = dönem toplamı / takvim günü sayısı.
+    pct = (week_avg - month3_avg) / month3_avg * 100
+    """
+    week_total = 0.0
+    week_present = 0
+    for i in range(max(1, int(week_days))):
+        d = week_start + timedelta(days=i)
+        v = float(series.get(d, 0.0) or 0.0)
+        week_total += v
+        if d in series:
+            week_present += 1
+
+    month3_total = 0.0
+    month3_present = 0
+    for i in range(max(1, int(month3_days))):
+        d = month3_start + timedelta(days=i)
+        v = float(series.get(d, 0.0) or 0.0)
+        month3_total += v
+        if d in series:
+            month3_present += 1
+
+    wd = float(max(1, int(week_days)))
+    md = float(max(1, int(month3_days)))
+    week_avg = week_total / wd
+    month3_avg = month3_total / md
+    return {
+        "week_total": week_total,
+        "month3_total": month3_total,
+        "week_avg": week_avg,
+        "month3_avg": month3_avg,
+        "week_days_present": week_present,
+        "month3_days_present": month3_present,
+    }
+
+
 def _home_virgul_revenue_compare_context(db) -> dict:
-    """6 Virgül akışı: günlük ort. gelir — son 1 hafta (bugün hariç) vs son ~3 ay."""
+    """6 Virgül akışı: günlük ort. gelir — son hafta (bugün hariç) vs son ~3 ay."""
     from sqlalchemy import func, select
 
     from backend.models import AdReportRow
@@ -10930,11 +10992,12 @@ def _home_virgul_revenue_compare_context(db) -> dict:
 
     tz = ZoneInfo("Europe/Istanbul")
     today = datetime.now(tz).date()
-    yesterday = today - timedelta(days=1)
-    week_start = yesterday - timedelta(days=6)  # 7 tam gün, bugün yok
-    month3_start = yesterday - timedelta(days=89)  # ~90 gün, bugün yok
-    week_days = max(1, (yesterday - week_start).days + 1)
-    month3_days = max(1, (yesterday - month3_start).days + 1)
+    bounds = _home_virgul_window_bounds(today)
+    yesterday = bounds["yesterday"]
+    week_start = bounds["week_start"]
+    month3_start = bounds["month3_start"]
+    week_days = int(bounds["week_days"])
+    month3_days = int(bounds["month3_days"])
 
     rows = db.execute(
         select(
@@ -10965,15 +11028,15 @@ def _home_virgul_revenue_compare_context(db) -> dict:
         project = project.strip().lower()
         branch = branch.strip().lower()
         series = daily.get((project, branch), {})
-
-        week_total = sum(
-            series.get(week_start + timedelta(days=i), 0.0) for i in range(week_days)
+        avgs = _home_virgul_stream_daily_avgs(
+            series,
+            week_start=week_start,
+            week_days=week_days,
+            month3_start=month3_start,
+            month3_days=month3_days,
         )
-        month3_total = sum(
-            series.get(month3_start + timedelta(days=i), 0.0) for i in range(month3_days)
-        )
-        week_avg = week_total / float(week_days)
-        month3_avg = month3_total / float(month3_days)
+        week_avg = float(avgs["week_avg"])
+        month3_avg = float(avgs["month3_avg"])
         delta_fmt, tone, pct = _home_pct_delta(week_avg, month3_avg)
         brand = "doviz" if project == "doviz" else "sinemalar"
         cards.append(
@@ -10988,6 +11051,8 @@ def _home_virgul_revenue_compare_context(db) -> dict:
                 "delta_fmt": delta_fmt,
                 "tone": tone,
                 "pct": pct,
+                "week_days_present": int(avgs["week_days_present"]),
+                "month3_days_present": int(avgs["month3_days_present"]),
                 "has_data": bool(series),
             }
         )
@@ -11007,7 +11072,7 @@ def _home_virgul_revenue_compare_context(db) -> dict:
 
 @app.get("/api/home/virgul-revenue", response_class=HTMLResponse)
 def api_home_virgul_revenue(request: Request):
-    """Ana sayfa: Virgül 6 alan — 1 hafta vs 3 ay günlük ort. gelir KPI."""
+    """Ana sayfa: Virgül 6 alan — son hafta vs 3 ay günlük ort. gelir KPI."""
     with SessionLocal() as db:
         ctx = _home_virgul_revenue_compare_context(db)
     resp = templates.TemplateResponse(
