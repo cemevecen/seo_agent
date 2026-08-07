@@ -1987,7 +1987,9 @@
       setMzPreset(u.preset);
     }
     syncMzPresetCustomLabel();
-    if (u.search) document.getElementById("mz-search").value = u.search;
+    if (u.search && window.MZ_AD_MODE !== "virgul") {
+      document.getElementById("mz-search").value = u.search;
+    }
     if (u.compare) document.getElementById("mz-compare-enabled").checked = true;
     if (u.compare_mode) document.getElementById("mz-compare-mode").value = u.compare_mode;
     if (u.compare_start) document.getElementById("mz-compare-start").value = u.compare_start;
@@ -2446,8 +2448,11 @@
       appendFacetParam(p, "surfaces", state.surface, state._mzSurfaceFacetList || []);
     }
     appendFacetParam(p, "sources", state.source, state._mzSourceFacetList || []);
-    var q = document.getElementById("mz-search").value.trim();
-    if (q) p.set("search", q);
+    // Virgül’de mx-search UI gizli; URL’den kalan search tüm tabloları boşaltabiliyor.
+    if (window.MZ_AD_MODE !== "virgul") {
+      var q = document.getElementById("mz-search").value.trim();
+      if (q) p.set("search", q);
+    }
     if (!(opts && opts.global)) {
       if (state.drillSlice && state.drillSlice.ad_unit) {
         p.set("ad_unit", state.drillSlice.ad_unit);
@@ -4014,11 +4019,27 @@
     updateAllBdActiveHints();
   }
 
+  /**
+   * Tablo/trend API sorgusu — özet ve detay drill birbirinden bağımsız.
+   * qs() URL paylaşımı için drill ekler; veri çekiminde global taban + yalnızca
+   * verilen slice kullanılır (aksi halde birim×gelir tipi kesişimi 0 satır üretir).
+   */
   function qsForDrillSlice(slice) {
-    var p = qs();
+    var p = qs({ global: true });
     if (!slice) return p;
-    if (slice.ad_unit) p.set("ad_units", slice.ad_unit);
-    if (slice.income_type) p.set("income_types", slice.income_type);
+    if (slice.ad_unit) {
+      p.set("ad_units", slice.ad_unit);
+      p.delete("ad_unit");
+    }
+    if (slice.income_type) {
+      p.set("income_types", slice.income_type);
+      p.delete("drill_income_type");
+    }
+    if (slice.area) {
+      p.set("area", slice.area);
+      if (slice.area === "mweb") p.set("surfaces", "mweb");
+      else if (slice.area === "web") p.set("surfaces", "web");
+    }
     return p;
   }
 
@@ -4762,7 +4783,7 @@
     }
     clearTimeout(detailUnitAcFetchTimer);
     detailUnitAcFetchTimer = setTimeout(function () {
-      var p = qs();
+      var p = qs({ global: true });
       p.set("search", q);
       p.set("breakdown", "ad_unit");
       p.set("limit", "15");
@@ -4851,7 +4872,7 @@
 
   async function refreshDetailAdUnitCatalog() {
     try {
-      var base = qs().toString();
+      var base = qs({ global: true }).toString();
       var r = await fetch(
         "/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent("ad_unit") + "&limit=2000"
       );
@@ -5495,7 +5516,7 @@
     }
     try {
       var tb = breakdownStrFrom({ bdTime: timeKey, bdArea: cfg.bdArea, bdDims: new Set([seriesKey]) });
-      var base = qs().toString();
+      var base = qs({ global: true }).toString();
       var r = await fetch("/api/mz-analytics/table?" + base + "&breakdown=" + encodeURIComponent(tb) + "&limit=800");
       if (!r.ok) throw new Error("stacked");
       var data = await r.json();
