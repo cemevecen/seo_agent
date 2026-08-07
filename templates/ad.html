@@ -1852,11 +1852,36 @@
     return !presetVal || presetVal === "custom";
   }
 
+  function formatMzDateTr(iso) {
+    var s = String(iso || "").slice(0, 10);
+    var p = s.split("-");
+    if (p.length !== 3 || !p[0] || !p[1] || !p[2]) return s;
+    return p[2] + "." + p[1] + "." + p[0];
+  }
+
+  /** custom seçiliyken select'te «Özel aralık» yerine güncel tarih aralığını göster. */
+  function syncMzPresetCustomLabel() {
+    var sel = document.getElementById("mz-preset");
+    if (!sel) return;
+    var opt = sel.querySelector('option[value="custom"]');
+    if (!opt) return;
+    var start = (document.getElementById("mz-start") && document.getElementById("mz-start").value) || "";
+    var end = (document.getElementById("mz-end") && document.getElementById("mz-end").value) || "";
+    start = String(start).slice(0, 10);
+    end = String(end).slice(0, 10);
+    if (start && end) {
+      opt.textContent = formatMzDateTr(start) + " – " + formatMzDateTr(end);
+    } else {
+      opt.textContent = "Özel aralık";
+    }
+  }
+
   function setMzPreset(value) {
     var presetEl = document.getElementById("mz-preset");
     if (!presetEl) return;
     if (value === "6m") value = "180d";
     presetEl.value = value || "custom";
+    syncMzPresetCustomLabel();
   }
 
   /** Günlük veri sonrası bitiş tarihi eski max’taydıysa yeni max’a uzat. */
@@ -10266,9 +10291,11 @@
     if (startV && endV && startV > endV) startEl.value = endV;
     updateComparePeriodBanner(state.lastSummary);
     updateRangeEmptyNotice(state.lastSummary);
+    syncMzPresetCustomLabel();
   }
 
   function applyPreset() {
+    try {
     var v = document.getElementById("mz-preset").value;
     var end = document.getElementById("mz-end");
     var start = document.getElementById("mz-start");
@@ -10346,6 +10373,9 @@
     end.value = isoCalendarDate(d);
     updateComparePeriodBanner(state.lastSummary);
     updateRangeEmptyNotice(state.lastSummary);
+    } finally {
+      syncMzPresetCustomLabel();
+    }
   }
 
   function renderStreamTabs() {
@@ -10552,6 +10582,7 @@
     rangeLbl.textContent = parts.join(" · ");
     updateComparePeriodBanner(state.lastSummary);
     applyMzRangeSensitiveUi();
+    syncMzPresetCustomLabel();
   }
 
   async function runQuery(opts) {
@@ -10650,16 +10681,19 @@
   });
   on("mz-preset", "change", function () {
     applyPreset();
+    syncMzPresetCustomLabel();
     debouncedRun();
     debouncedSyncUrl();
   });
   on("mz-start", "change", function () {
     setMzPreset("custom");
+    syncMzPresetCustomLabel();
     debouncedRun();
     debouncedSyncUrl();
   });
   on("mz-end", "change", function () {
     setMzPreset("custom");
+    syncMzPresetCustomLabel();
     debouncedRun();
     debouncedSyncUrl();
   });
