@@ -200,7 +200,7 @@ def run_virgul_bridge_once() -> dict[str, Any]:
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
-        data=json.dumps({"files": files, "replace": True, "source": "virgul_bridge"}),
+        data=json.dumps({"files": files, "replace": False, "source": "virgul_bridge"}),
         timeout=300,
     )
     print(f"Virgul ingest HTTP {resp.status_code}", flush=True)
