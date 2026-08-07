@@ -161,6 +161,164 @@
     min-width: 0;
     box-sizing: border-box;
   }
+
+  /* —— Chart skeleton loaders (Morph Line / Frosted Bars / Ring) —— */
+  .mz-skel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-height: inherit;
+    padding: 0.65rem 0.5rem;
+    box-sizing: border-box;
+    pointer-events: none;
+    user-select: none;
+  }
+  .mz-skel-bone {
+    background: #e8eef5;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  html.dark .mz-skel-bone,
+  html.midnight .mz-skel-bone {
+    background: #27272a;
+  }
+
+  /* 9 — Morph Line Trace */
+  .mz-skel--line .mz-skel-title {
+    height: 9px;
+    width: 42%;
+    margin-bottom: 0.75rem;
+  }
+  .mz-skel--line svg {
+    display: block;
+    width: 100%;
+    height: calc(100% - 1.35rem);
+    min-height: 72px;
+    flex: 1 1 auto;
+  }
+  .mz-skel--line .mz-skel-path {
+    fill: none;
+    stroke: #94a3b8;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 8 10;
+    animation: mz-skel-dash 1.2s linear infinite, mz-skel-path-pulse 2s ease-in-out infinite;
+  }
+  html.dark .mz-skel--line .mz-skel-path,
+  html.midnight .mz-skel--line .mz-skel-path {
+    stroke: #71717a;
+  }
+  .mz-skel--line .mz-skel-fill {
+    opacity: 0.55;
+    animation: mz-skel-path-pulse 2s ease-in-out infinite;
+  }
+  @keyframes mz-skel-dash {
+    to { stroke-dashoffset: -36; }
+  }
+  @keyframes mz-skel-path-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.85; }
+  }
+
+  /* 6 — Frosted Breath Bars */
+  .mz-skel--bar {
+    border-radius: 12px;
+    padding: 0.85rem 0.65rem;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(219, 234, 254, 0.45));
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    backdrop-filter: blur(8px);
+  }
+  html.dark .mz-skel--bar,
+  html.midnight .mz-skel--bar {
+    background: linear-gradient(145deg, rgba(24, 24, 27, 0.95), rgba(30, 58, 138, 0.28));
+    border-color: rgba(63, 63, 70, 0.8);
+  }
+  .mz-skel--bar .mz-skel-title {
+    height: 8px;
+    width: 36%;
+    margin-bottom: 0.85rem;
+    background: rgba(148, 163, 184, 0.35);
+  }
+  html.dark .mz-skel--bar .mz-skel-title,
+  html.midnight .mz-skel--bar .mz-skel-title {
+    background: rgba(113, 113, 122, 0.45);
+  }
+  .mz-skel--bar .mz-skel-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-height: 72px;
+    height: calc(100% - 1.4rem);
+  }
+  .mz-skel--bar .mz-skel-bar {
+    flex: 1 1 0;
+    min-width: 4px;
+    border-radius: 6px 6px 2px 2px;
+    background: rgba(37, 99, 235, 0.22);
+    animation: mz-skel-breath 1.6s ease-in-out infinite;
+  }
+  html.dark .mz-skel--bar .mz-skel-bar,
+  html.midnight .mz-skel--bar .mz-skel-bar {
+    background: rgba(96, 165, 250, 0.28);
+  }
+  .mz-skel--bar .mz-skel-bar:nth-child(1) { height: 35%; animation-delay: 0s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(2) { height: 58%; animation-delay: 0.1s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(3) { height: 42%; animation-delay: 0.2s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(4) { height: 78%; animation-delay: 0.3s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(5) { height: 50%; animation-delay: 0.4s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(6) { height: 65%; animation-delay: 0.5s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(7) { height: 40%; animation-delay: 0.6s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(8) { height: 70%; animation-delay: 0.15s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(9) { height: 48%; animation-delay: 0.25s; }
+  .mz-skel--bar .mz-skel-bar:nth-child(10) { height: 62%; animation-delay: 0.35s; }
+  @keyframes mz-skel-breath {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  /* 10 — Editorial Ring (pie) */
+  .mz-skel--pie {
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+  }
+  .mz-skel--pie .mz-skel-ring {
+    width: min(42%, 5.5rem);
+    aspect-ratio: 1;
+    max-width: 5.5rem;
+    border-radius: 50%;
+    border: 6px solid #e2e8f0;
+    border-top-color: #2563eb;
+    animation: mz-skel-spin 1.1s linear infinite;
+  }
+  html.dark .mz-skel--pie .mz-skel-ring,
+  html.midnight .mz-skel--pie .mz-skel-ring {
+    border-color: #3f3f46;
+    border-top-color: #3b82f6;
+  }
+  .mz-skel--pie .mz-skel-cap {
+    height: 8px;
+    width: 48%;
+    max-width: 7rem;
+  }
+  @keyframes mz-skel-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Compact sparkline host */
+  .mz-skel--line.mz-skel--compact {
+    padding: 0.15rem 0;
+    min-height: 0;
+  }
+  .mz-skel--line.mz-skel--compact .mz-skel-title { display: none; }
+  .mz-skel--line.mz-skel--compact svg {
+    min-height: 1.5rem;
+    height: 100%;
+  }
   .mz-page .mz-kpi-spark {
     width: 100% !important;
     max-width: 100% !important;
@@ -2098,7 +2256,134 @@
   function setLoading(on) {
     state.loading = on;
     var el = document.getElementById("mz-loading");
-    if (el) el.classList.toggle("hidden", !on);
+    /* Full-panel wash gizlenir; grafik skeleton’ları görünür kalsın. */
+    if (el) el.classList.add("hidden");
+    if (on) mzShowDashboardChartSkeletons();
+  }
+
+  var MZ_CHART_SKELETON_KIND = {
+    "mz-chart-line": "line",
+    "mz-chart-line-peer": "line",
+    "mz-chart-dual": "line",
+    "mz-chart-dual-peer": "line",
+    "mz-chart-quality": "line",
+    "mz-chart-quality-peer": "line",
+    "mz-chart-stacked-income": "line",
+    "mz-chart-stacked-peer": "line",
+    "mz-chart-heatmap": "line",
+    "mz-drill-chart": "line",
+    "mz-summary-drill-chart": "line",
+    "mz-drill-ga4-chart": "line",
+    "mz-summary-drill-ga4-chart": "line",
+    "mz-drill-peer-chart": "line",
+    "mz-summary-drill-peer-chart": "line",
+    "mz-targets-chart-line": "line",
+    "mz-chart-bar-income": "bar",
+    "mz-chart-bar-month": "bar",
+    "mz-chart-delta-units": "bar",
+    "mz-top-units-chart": "bar",
+    "mz-targets-chart-bar": "bar",
+    "mz-chart-pie-income": "pie",
+    "mz-chart-pie-surface": "pie",
+    "mz-targets-chart-pie-0": "pie",
+    "mz-targets-chart-pie-1": "pie",
+    "mz-targets-chart-pie-2": "pie",
+    "mz-targets-chart-pie-3": "pie",
+    "mz-targets-chart-pie-4": "pie",
+    "mz-targets-chart-pie-5": "pie",
+  };
+
+  var MZ_DASHBOARD_SKELETON_PLOTS = [
+    "mz-chart-line",
+    "mz-chart-dual",
+    "mz-chart-quality",
+    "mz-chart-stacked-income",
+    "mz-chart-heatmap",
+    "mz-chart-pie-income",
+    "mz-chart-pie-surface",
+    "mz-chart-bar-income",
+    "mz-chart-bar-month",
+    "mz-top-units-chart",
+  ];
+
+  function mzInferSkeletonKind(plotId, explicit) {
+    if (explicit === "line" || explicit === "bar" || explicit === "pie") return explicit;
+    if (plotId && MZ_CHART_SKELETON_KIND[plotId]) return MZ_CHART_SKELETON_KIND[plotId];
+    if (plotId && /pie/i.test(plotId)) return "pie";
+    if (plotId && /(bar|delta|top-units)/i.test(plotId)) return "bar";
+    return "line";
+  }
+
+  function mzSkeletonHtml(kind, opts) {
+    opts = opts || {};
+    var compact = !!opts.compact;
+    if (kind === "bar") {
+      return (
+        '<div class="mz-skel mz-skel--bar" aria-hidden="true">' +
+        '<div class="mz-skel-title"></div>' +
+        '<div class="mz-skel-bars">' +
+        '<span class="mz-skel-bar"></span><span class="mz-skel-bar"></span><span class="mz-skel-bar"></span>' +
+        '<span class="mz-skel-bar"></span><span class="mz-skel-bar"></span><span class="mz-skel-bar"></span>' +
+        '<span class="mz-skel-bar"></span><span class="mz-skel-bar"></span><span class="mz-skel-bar"></span>' +
+        '<span class="mz-skel-bar"></span>' +
+        "</div></div>"
+      );
+    }
+    if (kind === "pie") {
+      return (
+        '<div class="mz-skel mz-skel--pie" aria-hidden="true">' +
+        '<div class="mz-skel-ring"></div>' +
+        '<div class="mz-skel-bone mz-skel-cap"></div>' +
+        "</div>"
+      );
+    }
+    var gid = "mz-skel-g-" + Math.random().toString(36).slice(2, 9);
+    return (
+      '<div class="mz-skel mz-skel--line' +
+      (compact ? " mz-skel--compact" : "") +
+      '" aria-hidden="true">' +
+      (compact ? "" : '<div class="mz-skel-bone mz-skel-title"></div>') +
+      '<svg viewBox="0 0 320 100" preserveAspectRatio="none">' +
+      "<defs><linearGradient id=\"" +
+      gid +
+      "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">" +
+      '<stop offset="0%" stop-color="#93c5fd" stop-opacity="0.45"/>' +
+      '<stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>' +
+      "</linearGradient></defs>" +
+      '<path class="mz-skel-fill" fill="url(#' +
+      gid +
+      ')" d="M8,72 C40,68 55,40 90,48 C125,56 140,22 175,30 C210,38 230,60 260,44 C285,32 300,50 312,42 L312,100 L8,100 Z"/>' +
+      '<path class="mz-skel-path" d="M8,72 C40,68 55,40 90,48 C125,56 140,22 175,30 C210,38 230,60 260,44 C285,32 300,50 312,42"/>' +
+      "</svg></div>"
+    );
+  }
+
+  function mzShowChartSkeleton(elOrId, kind, opts) {
+    opts = opts || {};
+    var el = typeof elOrId === "string" ? document.getElementById(elOrId) : elOrId;
+    if (!el) return;
+    var plotId = el.id || (typeof elOrId === "string" ? elOrId : "");
+    if (plotId && mzPlotSuppressedOnSingleDay(plotId)) return;
+    var card = plotId ? mzChartCardFromPlot(plotId) : null;
+    if (card && card.classList.contains("hidden") && !opts.force) return;
+    var k = mzInferSkeletonKind(plotId, kind);
+    try {
+      if (window.Plotly) Plotly.purge(el);
+    } catch (_) { /* ignore */ }
+    el.innerHTML = mzSkeletonHtml(k, opts);
+    if (plotId && !opts.skipCardSync) mzSyncChartCardFromPlot(plotId);
+  }
+
+  function mzShowDashboardChartSkeletons() {
+    MZ_DASHBOARD_SKELETON_PLOTS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (mzPlotSuppressedOnSingleDay(id)) return;
+      var card = mzChartCardFromPlot(id);
+      if (card && card.hasAttribute("data-mz-hide-single-day") && isMzSingleDayRange()) return;
+      if (card && card.classList.contains("hidden")) return;
+      mzShowChartSkeleton(el, null, { skipCardSync: true });
+    });
   }
 
   function updateScopeUi() {
@@ -2827,6 +3112,7 @@
   function mzChartPlotIsEmpty(plotEl) {
     if (!plotEl) return true;
     if (plotEl.querySelector(".js-plotly-plot")) return false;
+    if (plotEl.querySelector(".mz-skel")) return false;
     var html = (plotEl.innerHTML || "").trim();
     if (!html) return true;
     if (plotEl.querySelector("p.py-8, p.text-center")) return true;
@@ -3251,7 +3537,7 @@
       return;
     }
     deltaWrap.classList.remove("hidden");
-    deltaEl.innerHTML = "";
+    mzShowChartSkeleton(deltaEl, "bar", { force: true, skipCardSync: true });
     plotChart("mz-chart-delta-units", [{
       x: chartRows.map(function (r) { return unitDeltaPct(r); }),
       y: chartRows.map(function (r) { return r.ad_unit; }),
@@ -7362,6 +7648,7 @@
     }
 
     if (statusEl) statusEl.textContent = "Veri yükleniyor…";
+    mzShowChartSkeleton(chartEl, chartType === "bar" ? "bar" : "line", { force: true });
     try {
       if (scope === "detail" && slice && slice.ad_unit && !slice.area) {
         await cacheDetailUnitAreas(slice.ad_unit);
@@ -9068,6 +9355,7 @@
       rangeEl.textContent = r7.start + " — " + r7.end + " · " + presetLbl;
     }
     if (statusEl) statusEl.textContent = "Yükleniyor…";
+    mzShowChartSkeleton(chartEl, "bar", { force: true });
     try {
       var p = qs({ global: true });
       p.set("start", r7.start);
@@ -12875,6 +13163,9 @@
       if (tableWrap) tableWrap.classList.remove("hidden");
       if (charts) charts.classList.remove("hidden");
       if (pieSection) pieSection.classList.remove("hidden");
+      mzShowChartSkeleton("mz-targets-chart-line", "line", { force: true });
+      mzShowChartSkeleton("mz-targets-chart-bar", "bar", { force: true });
+      for (var ti = 0; ti < 6; ti++) mzShowChartSkeleton("mz-targets-chart-pie-" + ti, "pie", { force: true });
       mzTargetsSetProject(mzTargetsUi.project);
     } catch (e) {
       if (loading) loading.classList.add("hidden");
