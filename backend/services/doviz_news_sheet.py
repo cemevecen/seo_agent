@@ -383,9 +383,12 @@ def fetch_doviz_news_rows(*, force: bool = False) -> list[dict[str, Any]]:
         is_admin_vpn_unreachable_error,
     )
 
+    # Tam admin pagination (~500+ sayfa) yalnızca VPN köprüsünde.
+    # Railway/Docker'da doğrudan scrape istekleri kilitlemesin; bridge → ingest kullan.
     admin_err = ""
     try_admin = bool(
-        getattr(settings, "doviz_admin_notification_sync_enabled", True)
+        getattr(settings, "doviz_admin_news_direct_scrape", False)
+        and getattr(settings, "doviz_admin_notification_sync_enabled", True)
         and admin_credentials_configured()
     )
     if try_admin:

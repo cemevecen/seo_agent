@@ -464,6 +464,15 @@ class Settings(BaseSettings):
             "doviz_admin_notification_sync_enabled",
         ),
     )
+    # /doviz-news: sunucuda tam admin pagination YAPMA (varsayılan kapalı).
+    # Aktif haberler VPN köprüsü → POST /api/doviz-news/ingest ile gelir.
+    doviz_admin_news_direct_scrape: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "DOVIZ_ADMIN_NEWS_DIRECT_SCRAPE",
+            "doviz_admin_news_direct_scrape",
+        ),
+    )
     # Admin VPN’den erişilemezse Google Sheet’e düş (Railway varsayılanı).
     doviz_admin_sheet_fallback_enabled: bool = Field(
         default=True,
