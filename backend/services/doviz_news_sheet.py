@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
     ZoneInfo = None  # type: ignore
 
 from backend.services.backlink_csv import fetch_public_sheet_csv
+from backend.services.doviz_news_admin import DOVIZ_NEWS_MIN_ID, news_id_in_scope
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,15 @@ DOVIZ_NEWS_SHEET_URL = (
 _CACHE: dict[str, Any] | None = None
 _CACHE_TTL_SEC = 900.0
 _TZ_TR = ZoneInfo("Europe/Istanbul") if ZoneInfo else None
+
+
+def filter_news_rows_in_scope(rows: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """id < 719818 (2024 öncesi) satırları atar."""
+    out: list[dict[str, Any]] = []
+    for r in rows or []:
+        if isinstance(r, dict) and news_id_in_scope(r.get("id")):
+            out.append(r)
+    return out
 
 PERIOD_TABS = (
     {"key": "today", "label": "Bugün"},
@@ -262,7 +272,7 @@ def parse_doviz_news_csv(csv_text: str) -> list[dict[str, Any]]:
             }
         )
     out.sort(key=lambda r: r.get("date") or "", reverse=True)
-    return out
+    return filter_news_rows_in_scope(out)
 
 
 def set_doviz_news_rows_cache(
@@ -274,6 +284,7 @@ def set_doviz_news_rows_cache(
 ) -> None:
     """Admin bridge / ingest sonrası önbellek + DB snapshot."""
     global _CACHE
+    rows = filter_news_rows_in_scope(rows)
     src_url = source_url or DOVIZ_NEWS_SHEET_URL
     fetched_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     _CACHE = {
@@ -282,6 +293,7 @@ def set_doviz_news_rows_cache(
         "rows": list(rows),
         "source": source,
         "source_url": src_url,
+        "min_id": DOVIZ_NEWS_MIN_ID,
     }
     try:
         from backend.database import SessionLocal
@@ -322,6 +334,15 @@ def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
             data = json.loads(row.rows_json)
             if not isinstance(data, list) or not data:
                 return None
+            scoped = filter_news_rows_in_scope(data)
+            # Eski snapshot'ta 2024 öncesi varsa bir kez budayıp kaydet
+            if len(scoped) < len(data):
+                set_doviz_news_rows_cache(
+                    scoped,
+                    source=row.source or "db",
+                    source_url=row.source_url or DOVIZ_NEWS_SHEET_URL,
+                )
+                return list(scoped)
             global _CACHE
             fetched = None
             if row.updated_at:
@@ -329,11 +350,12 @@ def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
             _CACHE = {
                 "ts": time.monotonic(),
                 "fetched_at": fetched,
-                "rows": data,
+                "rows": scoped,
                 "source": row.source or "db",
                 "source_url": row.source_url or DOVIZ_NEWS_SHEET_URL,
+                "min_id": DOVIZ_NEWS_MIN_ID,
             }
-            return list(data)
+            return list(scoped)
     except Exception as exc:  # noqa: BLE001
         logger.debug("Doviz news DB load skipped: %s", exc)
         return None
@@ -370,7 +392,14 @@ def fetch_doviz_news_rows(*, force: bool = False) -> list[dict[str, Any]]:
                     db_rows = _load_doviz_news_rows_from_db()
                     if db_rows:
                         return db_rows
-            return list(_CACHE["rows"])
+            scoped = filter_news_rows_in_scope(list(_CACHE["rows"]))
+            if len(scoped) != len(_CACHE["rows"]):
+                set_doviz_news_rows_cache(
+                    scoped,
+                    source=str(_CACHE.get("source") or "cache"),
+                    source_url=_CACHE.get("source_url"),
+                )
+            return scoped
 
     if not force:
         db_rows = _load_doviz_news_rows_from_db()
@@ -431,13 +460,21 @@ def ingest_doviz_news_rows(
     source_url: str | None = None,
 ) -> dict[str, Any]:
     """VPN köprüsünden gelen aktif haber satırlarını DB + cache yazar."""
-    cleaned = [r for r in (rows or []) if isinstance(r, dict) and (r.get("id") or r.get("title"))]
+    raw_n = len(rows or [])
+    cleaned = [
+        r
+        for r in (rows or [])
+        if isinstance(r, dict) and (r.get("id") or r.get("title")) and news_id_in_scope(r.get("id"))
+    ]
+    skipped_old = raw_n - len(cleaned)
     if not cleaned:
         return {
             "ok": False,
             "synced": False,
             "parsed": 0,
-            "message": "Ingest: satır yok.",
+            "skipped_old": skipped_old,
+            "min_id": DOVIZ_NEWS_MIN_ID,
+            "message": f"Ingest: satır yok (min_id>={DOVIZ_NEWS_MIN_ID}).",
             "source": source,
         }
 
@@ -488,7 +525,14 @@ def ingest_doviz_news_rows(
         "synced": True,
         "parsed": len(norm),
         "row_count": len(norm),
-        "message": f"Doviz news admin ingest · {len(norm)} kayıt.",
+        "skipped_old": skipped_old,
+        "min_id": DOVIZ_NEWS_MIN_ID,
+        "message": (
+            f"Doviz news admin ingest · {len(norm)} kayıt "
+            f"(id>={DOVIZ_NEWS_MIN_ID}"
+            + (f", {skipped_old} eski atıldı" if skipped_old else "")
+            + ")."
+        ),
         "source": source,
         "fetched_at": (_CACHE or {}).get("fetched_at"),
         "source_url": (_CACHE or {}).get("source_url"),
@@ -1176,6 +1220,7 @@ def doviz_news_payload(
         "source_url": cache.get("source_url") or DOVIZ_NEWS_SHEET_URL,
         "fetched_at": fetched_at or cache.get("fetched_at"),
         "admin_error": cache.get("admin_error"),
+        "min_id": DOVIZ_NEWS_MIN_ID,
         "category": (category or "all"),
         "period": period_info["key"],
         "period_meta": period_meta,

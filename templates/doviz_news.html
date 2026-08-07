@@ -2543,6 +2543,7 @@
         "son senkron: " + (data.fetched_at || "—") +
         " · " + fmt(s.total) + " kayıt" +
         " · " + srcLabel +
+        (data.min_id ? " · id≥" + data.min_id : "") +
         (pm.label ? " · " + pm.label : "") +
         (latestId ? " · son id: " + latestId : "");
     }

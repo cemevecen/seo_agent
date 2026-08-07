@@ -23,6 +23,9 @@ from backend.services.doviz_notification_admin import (
 
 LOGGER = logging.getLogger(__name__)
 
+# 2024 ilk içerik — hesaplar ve scrape yalnızca bu id ve sonrası
+DOVIZ_NEWS_MIN_ID = 719818
+
 NEWS_PATH = "/admin/news"
 NEWS_QUERY = {
     "type": "N",
@@ -30,7 +33,7 @@ NEWS_QUERY = {
     "is_advertorial": "0",
     "sort": "id_desc",
 }
-DEFAULT_MAX_PAGES = 700  # ~574 sayfa × 100 satır gözlemi
+DEFAULT_MAX_PAGES = 320  # ~264 sayfa yeterli; tampon
 PAGE_SIZE_HINT = 100
 
 _TAG_RE = re.compile(r"<[^>]+>", re.I)
@@ -120,13 +123,22 @@ def parse_news_admin_html(html: str) -> list[dict[str, Any]]:
     return out
 
 
+def news_id_in_scope(news_id: Any) -> bool:
+    """True if id >= 2024 ilk içerik (719818)."""
+    try:
+        return int(str(news_id).strip()) >= DOVIZ_NEWS_MIN_ID
+    except (TypeError, ValueError):
+        return False
+
+
 def fetch_active_news_rows_from_admin(
     *,
     sess: requests.Session | None = None,
     max_pages: int = DEFAULT_MAX_PAGES,
     timeout: int = 45,
+    min_id: int = DOVIZ_NEWS_MIN_ID,
 ) -> dict[str, Any]:
-    """Tüm aktif haber sayfalarını dolaşır (pagination)."""
+    """Aktif haber sayfalarını dolaşır; min_id altını almaz (id_desc erken keser)."""
     if not admin_credentials_configured() and sess is None:
         raise ValueError("DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD gerekli")
 
@@ -139,6 +151,8 @@ def fetch_active_news_rows_from_admin(
     pages_ok = 0
     empty_streak = 0
     last_page = 0
+    skipped_old = 0
+    hit_floor = False
 
     try:
         for page in range(1, max(1, int(max_pages)) + 1):
@@ -171,18 +185,35 @@ def fetch_active_news_rows_from_admin(
             empty_streak = 0
             pages_ok += 1
             last_page = page
+            page_ids: list[int] = []
             for row in rows:
-                by_id[str(row["id"])] = row
+                try:
+                    nid = int(str(row["id"]).strip())
+                except (TypeError, ValueError):
+                    continue
+                page_ids.append(nid)
+                if nid >= int(min_id):
+                    by_id[str(nid)] = row
+                else:
+                    skipped_old += 1
             if page % 50 == 0:
                 LOGGER.info(
-                    "Admin news scrape progress page=%s rows=%s",
+                    "Admin news scrape progress page=%s rows=%s skipped_old=%s",
                     page,
                     len(by_id),
+                    skipped_old,
                 )
-            # Son sayfa genelde < page size
-            if len(rows) < PAGE_SIZE_HINT // 2 and page > 1:
-                # küçük sayfa — bir sonraki boşsa bitecek; devam et
-                pass
+            # id_desc: sayfadaki en küçük id eşikten düşükse daha eski sayfalar gelir — dur
+            if page_ids and min(page_ids) < int(min_id):
+                hit_floor = True
+                LOGGER.info(
+                    "Admin news scrape floor at page=%s min_id_on_page=%s threshold=%s kept=%s",
+                    page,
+                    min(page_ids),
+                    min_id,
+                    len(by_id),
+                )
+                break
     finally:
         if own_session:
             try:
@@ -198,6 +229,9 @@ def fetch_active_news_rows_from_admin(
         "parsed": len(rows),
         "pages": pages_ok,
         "last_page": last_page,
+        "min_id": int(min_id),
+        "skipped_old": skipped_old,
+        "hit_floor": hit_floor,
         "elapsed_sec": round((datetime.utcnow() - t0).total_seconds(), 2),
         "source": "doviz_admin_news",
         "source_url": news_list_url(1),
