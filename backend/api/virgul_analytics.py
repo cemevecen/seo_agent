@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.database import get_db
 from backend.services import ad_analytics_store as store
+from backend.services.revenue_targets_sheet import revenue_targets_payload
 from backend.services.virgul_ad_config import virgul_sources_payload
 from backend.services.virgul_ad_sync import ingest_virgul_bridge_payload, sync_virgul_from_panel
 
@@ -223,6 +224,22 @@ def virgul_sheets_status_noop():
         "message": "Virgül modu — Google Sheets yok",
         "sources": virgul_sources_payload(),
     }
+
+
+@router.get("/virgul-analytics/revenue-targets")
+def get_virgul_revenue_targets(
+    project: str | None = Query(None, description="doviz | sinemalar"),
+    year: int | None = Query(None, ge=2000, le=2100),
+    force: bool = Query(False, description="Hedef tablo önbelleğini atla"),
+):
+    """Aylık gelir hedef / kazanç tablosu (ad-virgul gelir hedefleri paneli)."""
+    try:
+        return revenue_targets_payload(project=project, year=year, force=force)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("virgul revenue-targets fetch failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/virgul-analytics/upload")
