@@ -20,32 +20,25 @@
            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
           Sheet yedek ↗
         </a>
-        <button id="nt-refresh-sheet" type="button" title="Zorunlu değil"
-                class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 disabled:opacity-60">
+        <button id="nt-refresh-sheet" type="button" title="VPN Mac köprüsü ile admin’den şimdi çek"
+                class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
           Elle yenile
         </button>
       </div>
     </div>
-    <p class="mt-2 text-[11px] leading-snug text-emerald-800 dark:text-emerald-300/90">
-      Panelden bilgi girmeniz gerekmez. Sistem
-      <a class="font-semibold underline" href="https://www.doviz.com/admin/notifications/stats" target="_blank" rel="noopener">admin/notifications/stats</a>
-      hedefini ~15 dk’da bir otomatik dener.
-      Railway bu URL’ye VPN dışından giremediği için bir kez
-      <code class="rounded bg-emerald-50 px-1 dark:bg-emerald-950/40">DOVIZ_ADMIN_HTTP_PROXY</code>
-      veya VPN köprüsü (<code class="rounded bg-emerald-50 px-1 dark:bg-emerald-950/40">scripts/doviz_admin_notification_bridge.py</code>) kurulmalı; ondan sonra sürekli kendi günceller. Erişilemezse Google Sheet yedeği kullanılır.
+    <p class="mt-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+      Kaynak: <a class="font-semibold text-indigo-600 hover:underline dark:text-indigo-300" href="https://www.doviz.com/admin/notifications/stats" target="_blank" rel="noopener">Doviz admin stats</a>.
+      VPN’li Mac köprüsü ~15 dk’da bir otomatik çeker; <strong class="font-semibold">Elle yenile</strong> aynı kaynaktan hemen günceller.
+      Bu bilgisayarda köprü açık olmalı (<code class="rounded bg-slate-100 px-1 dark:bg-slate-800">127.0.0.1:18765</code>).
     </p>
     <details class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-      <summary class="cursor-pointer select-none font-medium text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100">Kurulum (bir kez)</summary>
+      <summary class="cursor-pointer select-none font-medium text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100">Yedek / teknik</summary>
       <p class="mt-1.5 leading-snug">
-        Railway:
-        <code>DOVIZ_ADMIN_EMAIL</code>,
-        <code>DOVIZ_ADMIN_PASSWORD</code>,
-        isteğe bağlı <code>DOVIZ_ADMIN_HTTP_PROXY</code> veya
-        <code>NOTIFICATION_INGEST_TOKEN</code> + VPN makinesinde bridge cron.
+        Köprü yoksa Railway Google Sheet yedeğine düşer.
         <a id="nt-sheet-link"
            href="https://docs.google.com/spreadsheets/d/1NnizUEsaKpaabB0sCvksiHgx7Kfgt_upj1L2IXgUHeM/edit?gid=0#gid=0"
            target="_blank" rel="noopener"
-           class="font-semibold text-indigo-600 hover:underline dark:text-indigo-300">Sheet yedek ↗</a>
+           class="font-semibold text-indigo-600 hover:underline dark:text-indigo-300">Sheet ↗</a>
       </p>
     </details>
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70 nt-filter-panel">
@@ -1217,19 +1210,58 @@
     });
   }
 
+  var NT_BRIDGE_SYNC_URL = "http://127.0.0.1:18765/sync";
+  var NT_BRIDGE_HEALTH_URL = "http://127.0.0.1:18765/health";
+
+  function syncViaVpnBridge() {
+    return fetch(NT_BRIDGE_SYNC_URL, {
+      method: "POST",
+      mode: "cors",
+      headers: { Accept: "application/json" },
+    }).then(function (resp) {
+      return resp.json().then(function (data) {
+        if (!resp.ok || (data && data.ok === false)) {
+          var err = new Error((data && data.message) || ("Bridge HTTP " + resp.status));
+          err.bridge = data || null;
+          throw err;
+        }
+        return data;
+      });
+    });
+  }
+
   function syncSheetFromServer(force) {
     var btn = document.getElementById("nt-refresh-sheet");
     if (btn) btn.disabled = true;
-    status(force ? "Kaynak yeniden çekiliyor…" : "Veriler senkronize ediliyor…");
-    return apiFetch("/api/notification-analytics/sync-sheet?force=" + (force ? "1" : "0"), {
-      method: "POST",
-    })
+    var preferBridge = !!force;
+    status(
+      preferBridge
+        ? "VPN köprüsü ile admin stats çekiliyor…"
+        : "Veriler senkronize ediliyor…"
+    );
+
+    var chain = preferBridge
+      ? syncViaVpnBridge().catch(function (bridgeErr) {
+          status(
+            "Köprüye ulaşılamadı (" +
+              ((bridgeErr && bridgeErr.message) || "kapalı") +
+              "). Railway yedeği deneniyor…"
+          );
+          return apiFetch("/api/notification-analytics/sync-sheet?force=1", {
+            method: "POST",
+          });
+        })
+      : apiFetch("/api/notification-analytics/sync-sheet?force=0", {
+          method: "POST",
+        });
+
+    return chain
       .then(function (data) {
         if (data && data.updated_at) ntDbUpdatedAt = data.updated_at;
         if (data && data.last_sheet_sync_at) ntLastFileUploadAt = data.last_sheet_sync_at;
         else if (data && data.last_file_upload_at) ntLastFileUploadAt = data.last_file_upload_at;
         applyLastFileUploadFromMeta(data || {});
-        if (data && data.synced) clearNtSessionCache();
+        if (data && (data.synced || data.ok)) clearNtSessionCache();
         return data;
       })
       .finally(function () {
