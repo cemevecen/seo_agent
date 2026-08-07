@@ -112,10 +112,11 @@ def post_doviz_news_sync(
     force: bool = Query(True),
     prefer_sheet: bool = Query(
         False,
-        description="true: Google Sheet yedeğiyle yaz (admin snapshot'ı ezebilir)",
+        description="Yok sayılır — Google Sheet kullanılmaz; tek kaynak admin.",
+        deprecated=True,
     ),
 ):
-    """Admin (mümkünse) veya Google Sheet yedek senkronu."""
+    """Admin / VPN köprüsü snapshot senkronu (Google Sheet yok)."""
     try:
         rows = fetch_doviz_news_rows(force=force, prefer_sheet=prefer_sheet)
         from backend.services.doviz_news_sheet import _CACHE

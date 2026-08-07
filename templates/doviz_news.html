@@ -1075,35 +1075,49 @@
     return p[2] + "/" + p[1];
   }
 
-  /** Kısa dönemde (≤7g) her güne tarih; örn. Pazartesi<br>28/07 */
-  function weekdayChartLabels(wd, data) {
-    var dateByWd = {};
+  /** Haftanın günleri grafiği: ≤7g → takvim sırası (…→Cuma bugün); uzun dönem → Pzt–Paz. */
+  function weekdayChartSeries(wd, data) {
+    var WD = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
     var pm = (data && data.period_meta) || {};
     var span = daysBetween(pm.start, pm.end);
+    var labels = [];
+    var counts = [];
+
     if (span != null && span <= 7 && pm.start && pm.end) {
+      var countByDay = {};
+      ((data && data.by_day) || []).forEach(function (d) {
+        countByDay[String(d.day || "").slice(0, 10)] = Number(d.count) || 0;
+      });
       var cur = new Date(String(pm.start).slice(0, 10) + "T12:00:00");
       var end = new Date(String(pm.end).slice(0, 10) + "T12:00:00");
       while (cur.getTime() <= end.getTime()) {
+        var iso = isoDay(cur);
         var idx = (cur.getDay() + 6) % 7; // Pazartesi=0
-        dateByWd[idx] = isoDay(cur);
+        var name = (wd && wd[idx] && wd[idx].label) || WD[idx];
+        var dm = fmtDayMonth(iso);
+        labels.push(dm ? name + "<br>" + dm : name);
+        counts.push(countByDay[iso] || 0);
         cur.setDate(cur.getDate() + 1);
       }
-    } else {
-      ((data && data.by_day) || []).forEach(function (d) {
-        var iso = String(d.day || "").slice(0, 10);
-        var parts = iso.split("-");
-        if (parts.length !== 3) return;
-        var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-        if (isNaN(dt.getTime())) return;
-        var i = (dt.getDay() + 6) % 7;
-        if (!dateByWd[i] || iso > dateByWd[i]) dateByWd[i] = iso;
-      });
+      return { labels: labels, counts: counts, chronological: true };
     }
-    return (wd || []).map(function (w) {
-      var dm = fmtDayMonth(dateByWd[w.weekday]);
-      if (!dm) return w.label;
-      return w.label + "<br>" + dm;
+
+    var dateByWd = {};
+    ((data && data.by_day) || []).forEach(function (d) {
+      var iso = String(d.day || "").slice(0, 10);
+      var parts = iso.split("-");
+      if (parts.length !== 3) return;
+      var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      if (isNaN(dt.getTime())) return;
+      var i = (dt.getDay() + 6) % 7;
+      if (!dateByWd[i] || iso > dateByWd[i]) dateByWd[i] = iso;
     });
+    (wd || []).forEach(function (w) {
+      var dm = fmtDayMonth(dateByWd[w.weekday]);
+      labels.push(dm ? w.label + "<br>" + dm : w.label);
+      counts.push(Number(w.count) || 0);
+    });
+    return { labels: labels, counts: counts, chronological: false };
   }
 
   function showCustomRange(show) {
@@ -2312,19 +2326,21 @@
     if (!vis.hideDaySeries) {
       var wd = data.by_weekday || [];
       var palWd = dnPalette();
-      var wdLabels = weekdayChartLabels(wd, data);
+      var wdSeries = weekdayChartSeries(wd, data);
+      var wdLabels = wdSeries.labels;
+      var wdCounts = wdSeries.counts;
       // En düşük 2 günü kırmızı; diğerleri (hafta sonu dahil) mavi
-      var lowestTwoIdx = wd
-        .map(function (w, i) { return { i: i, count: Number(w.count) || 0 }; })
+      var lowestTwoIdx = wdCounts
+        .map(function (c, i) { return { i: i, count: Number(c) || 0 }; })
         .sort(function (a, b) { return a.count - b.count || a.i - b.i; })
         .slice(0, 2)
         .reduce(function (acc, x) { acc[x.i] = true; return acc; }, {});
       Plotly.newPlot("dn-chart-weekday", [{
         type: "bar",
         x: wdLabels,
-        y: wd.map(function (w) { return w.count; }),
+        y: wdCounts,
         marker: {
-          color: wd.map(function (_w, i) {
+          color: wdCounts.map(function (_c, i) {
             return lowestTwoIdx[i] ? palWd.red : palWd.indigo;
           })
         },
@@ -2536,19 +2552,11 @@
       var srcLabel =
         src.indexOf("admin") >= 0 || src.indexOf("bridge") >= 0
           ? "admin"
-          : src.indexOf("sheet") >= 0
-            ? "sheet"
-            : (src || "—");
-      var live = data.live || {};
-      var liveBit = "";
-      if (live.live_added != null && Number(live.live_added) > 0) {
-        liveBit = " · canlı +" + Number(live.live_added).toLocaleString("tr-TR");
-      }
+          : (src || "—");
       meta.textContent =
         "son senkron: " + (data.fetched_at || "—") +
         " · " + fmt(s.total) + " kayıt" +
         " · " + srcLabel +
-        liveBit +
         (data.min_id ? " · id≥" + data.min_id : "") +
         (pm.label ? " · " + pm.label : "") +
         (latestId ? " · son id: " + latestId : "");
@@ -2658,15 +2666,28 @@
           stopProgressTimer();
           paintProgress(
             35,
-            "Köprü yok · yedek senkron…",
+            "Köprü yok · son admin snapshot…",
             { indeterminate: true }
           );
           try {
-            await fetch("/api/doviz-news/sync?force=1", {
+            var syncResp = await fetch("/api/doviz-news/sync?force=1", {
               method: "POST",
               credentials: "same-origin",
             });
-          } catch (_) {}
+            if (!syncResp.ok) {
+              var syncDetail = "";
+              try {
+                var sj = await syncResp.json();
+                syncDetail = (sj && (sj.detail || sj.message)) || "";
+              } catch (_) {}
+              throw new Error(
+                syncDetail
+                  || "VPN köprüsü gerekli (admin tek kaynak). Mac’te bridge --daemon çalıştırın."
+              );
+            }
+          } catch (syncErr) {
+            throw syncErr;
+          }
         }
       }
       var r = await fetch(reportUrl({ force: !preferBridge && !!force, traffic: false }), {

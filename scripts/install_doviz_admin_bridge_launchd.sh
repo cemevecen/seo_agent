@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# macOS: VPN Mac köprüsü — sürekli daemon (15 dk otomatik + Elle yenile localhost:18765)
+# macOS: VPN Mac köprüsü — sürekli daemon (bildirim 15 dk + haber 30 dk + Elle yenile)
 # Kullanım: ./scripts/install_doviz_admin_bridge_launchd.sh
 # Kaldırma: ./scripts/install_doviz_admin_bridge_launchd.sh --uninstall
 set -euo pipefail
@@ -91,5 +91,5 @@ launchctl enable "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
 
 echo "Kuruldu: $PLIST_DST"
-echo "Daemon: otomatik 15 dk + Elle yenile → http://127.0.0.1:18765/sync (+ /sync-news)"
+echo "Daemon: bildirim ~15 dk · haber ~30 dk · Elle yenile → http://127.0.0.1:18765/sync (+ /sync-news)"
 echo "Log: $OUT_LOG"

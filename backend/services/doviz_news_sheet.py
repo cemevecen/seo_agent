@@ -1,4 +1,4 @@
-"""Google Sheets — Doviz.com haber yayın istatistikleri."""
+"""Doviz.com haber yayın istatistikleri — tek kaynak admin haber listesi."""
 
 from __future__ import annotations
 
@@ -18,15 +18,17 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None  # type: ignore
 
-from backend.services.backlink_csv import fetch_public_sheet_csv
 from backend.services.doviz_news_admin import DOVIZ_NEWS_MIN_ID, news_id_in_scope
 
 logger = logging.getLogger(__name__)
 
-DOVIZ_NEWS_SHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/1alTittOPWf8nHpF6Mt_zQ0IPpHRdRxMXcFB6v_rqWk4/"
-    "edit?gid=1290391379#gid=1290391379"
+# Eski Google Sheet yedeği kullanılmaz — tek kaynak admin haber listesi.
+DOVIZ_NEWS_ADMIN_URL = (
+    "https://www.doviz.com/admin/news"
+    "?page=1&type=N&status=1&is_advertorial=0&source=all&sort=id_desc"
 )
+# Geriye uyum (eski test/import); fetch asla sheet çekmez.
+DOVIZ_NEWS_SHEET_URL = DOVIZ_NEWS_ADMIN_URL
 
 _CACHE: dict[str, Any] | None = None
 _CACHE_TTL_SEC = 300.0  # 5 dk — canlı tamamlamayla birlikte daha taze
@@ -285,7 +287,7 @@ def set_doviz_news_rows_cache(
     """Admin bridge / ingest sonrası önbellek + DB snapshot."""
     global _CACHE
     rows = filter_news_rows_in_scope(rows)
-    src_url = source_url or DOVIZ_NEWS_SHEET_URL
+    src_url = source_url or DOVIZ_NEWS_ADMIN_URL
     fetched_at = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     _CACHE = {
         "ts": time.monotonic(),
@@ -340,7 +342,7 @@ def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
                 set_doviz_news_rows_cache(
                     scoped,
                     source=row.source or "db",
-                    source_url=row.source_url or DOVIZ_NEWS_SHEET_URL,
+                    source_url=row.source_url or DOVIZ_NEWS_ADMIN_URL,
                 )
                 return list(scoped)
             global _CACHE
@@ -352,7 +354,7 @@ def _load_doviz_news_rows_from_db() -> list[dict[str, Any]] | None:
                 "fetched_at": fetched,
                 "rows": scoped,
                 "source": row.source or "db",
-                "source_url": row.source_url or DOVIZ_NEWS_SHEET_URL,
+                "source_url": row.source_url or DOVIZ_NEWS_ADMIN_URL,
                 "min_id": DOVIZ_NEWS_MIN_ID,
             }
             return list(scoped)
@@ -394,94 +396,21 @@ def _db_snapshot_source() -> str:
         return ""
 
 
-def _enrich_rows_with_live_gap(
-    rows: list[dict[str, Any]],
-    *,
-    persist: bool = False,
-    source: str | None = None,
-    source_url: str | None = None,
-) -> list[dict[str, Any]]:
-    """haber.doviz.com ile sheet/admin’de eksik kalan son ID’leri tamamla."""
-    global _CACHE
-    base = list(rows or [])
-    known_ids = {str(r.get("id") or "").strip() for r in base if r.get("id")}
-    min_id = 0
-    for nid in known_ids:
-        try:
-            min_id = max(min_id, int(nid))
-        except ValueError:
-            continue
-
-    live_rows: list[dict[str, Any]] = []
-    live_error = ""
-    try:
-        from backend.services.doviz_news_live import fetch_live_gap_rows, merge_sheet_with_live
-
-        live_rows = fetch_live_gap_rows(
-            known_ids=known_ids,
-            min_id=min_id,
-            discover_limit=160,
-            fetch_limit=100,
-        )
-        merged = merge_sheet_with_live(base, live_rows)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("doviz news live gap fill failed")
-        live_error = str(exc) or "live fetch failed"
-        merged = base
-
-    live_added = max(0, len(merged) - len(base))
-    src = source or str((_CACHE or {}).get("source") or "google_sheet")
-    src_url = source_url or ((_CACHE or {}).get("source_url") if _CACHE else None) or DOVIZ_NEWS_SHEET_URL
-
-    if persist and live_added:
-        set_doviz_news_rows_cache(merged, source=src, source_url=src_url)
-    elif _CACHE is not None:
-        _CACHE["rows"] = list(merged)
-        _CACHE["live_added"] = live_added
-        _CACHE["live_fetched"] = len(live_rows)
-        _CACHE["sheet_max_id"] = min_id or None
-        _CACHE["live_error"] = live_error
-        _CACHE["sheet_rows"] = len(base)
-    else:
-        _CACHE = {
-            "ts": time.monotonic(),
-            "fetched_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            "rows": list(merged),
-            "source": src,
-            "source_url": src_url,
-            "min_id": DOVIZ_NEWS_MIN_ID,
-            "live_added": live_added,
-            "live_fetched": len(live_rows),
-            "sheet_max_id": min_id or None,
-            "live_error": live_error,
-            "sheet_rows": len(base),
-        }
-
-    if _CACHE is not None:
-        _CACHE["live_added"] = live_added
-        _CACHE["live_fetched"] = len(live_rows)
-        _CACHE["sheet_max_id"] = min_id or None
-        _CACHE["live_error"] = live_error
-        _CACHE["sheet_rows"] = len(base)
-
-    return list(merged)
-
-
 def fetch_doviz_news_rows(
     *,
     force: bool = False,
     prefer_sheet: bool = False,
 ) -> list[dict[str, Any]]:
-    """Aktif haberler: DB/cache → admin → Google Sheet (+ canlı gap fill).
+    """Aktif haberler: yalnızca admin (köprü/DB) — Google Sheet asla kullanılmaz.
 
-    prefer_sheet=True: bilinçli yedek (köprü yok). Aksi halde admin/bridge
-    snapshot'ı sheet ile ezme.
+    prefer_sheet yok sayılır (geriye uyum için imzada kalır).
     """
     global _CACHE
+    _ = prefer_sheet  # sheet yedeği kaldırıldı
+
     if not force and _CACHE is not None:
         age = time.monotonic() - float(_CACHE.get("ts") or 0)
         if age < _CACHE_TTL_SEC and isinstance(_CACHE.get("rows"), list):
-            # Başka worker ingest yazdıysa DB daha yeniyse yenile
             db_updated, db_count = _db_snapshot_meta()
             cache_fetched = str(_CACHE.get("fetched_at") or "")
             if db_updated and db_count > 0:
@@ -497,34 +426,31 @@ def fetch_doviz_news_rows(
                 set_doviz_news_rows_cache(
                     scoped,
                     source=str(_CACHE.get("source") or "cache"),
-                    source_url=_CACHE.get("source_url"),
+                    source_url=_CACHE.get("source_url") or DOVIZ_NEWS_ADMIN_URL,
                 )
             return scoped
 
     if not force:
         db_rows = _load_doviz_news_rows_from_db()
         if db_rows:
-            # Cache hit path değil; DB’den geldi — canlı gap ile son içerikleri tamamla
-            return _enrich_rows_with_live_gap(
-                db_rows,
-                persist=False,
-                source=str((_CACHE or {}).get("source") or "db"),
-                source_url=(_CACHE or {}).get("source_url"),
-            )
+            return db_rows
 
     from backend.config import settings
     from backend.services.doviz_notification_admin import (
         admin_credentials_configured,
+        admin_http_proxy,
         is_admin_vpn_unreachable_error,
     )
 
-    # Tam admin pagination (~500+ sayfa) yalnızca VPN köprüsünde.
-    # Railway/Docker'da doğrudan scrape istekleri kilitlemesin; bridge → ingest kullan.
     admin_err = ""
+    # Doğrudan scrape: bayrak veya VPN çıkış proxy’si (online otomatik tarama)
     try_admin = bool(
-        getattr(settings, "doviz_admin_news_direct_scrape", False)
-        and getattr(settings, "doviz_admin_notification_sync_enabled", True)
+        getattr(settings, "doviz_admin_notification_sync_enabled", True)
         and admin_credentials_configured()
+        and (
+            getattr(settings, "doviz_admin_news_direct_scrape", False)
+            or bool(admin_http_proxy())
+        )
     )
     if try_admin:
         try:
@@ -536,14 +462,9 @@ def fetch_doviz_news_rows(
                 set_doviz_news_rows_cache(
                     rows,
                     source="doviz_admin_news",
-                    source_url=fetched.get("source_url"),
+                    source_url=fetched.get("source_url") or DOVIZ_NEWS_ADMIN_URL,
                 )
-                return _enrich_rows_with_live_gap(
-                    rows,
-                    persist=True,
-                    source="doviz_admin_news",
-                    source_url=fetched.get("source_url"),
-                )
+                return list(rows)
             admin_err = "Admin haber tablosu boş"
         except Exception as exc:  # noqa: BLE001
             admin_err = str(exc) or "admin news failed"
@@ -552,41 +473,31 @@ def fetch_doviz_news_rows(
             if ("şifre" in low or "password" in low) and not is_admin_vpn_unreachable_error(admin_err):
                 raise
 
-    # Sheet yedeği — admin/bridge snapshot varsa ezme (eksik sheet 48→45 gibi sapma yaratır)
-    if not prefer_sheet:
-        existing_src = _db_snapshot_source() or str((_CACHE or {}).get("source") or "")
-        if _is_admin_news_source(existing_src):
-            kept = _load_doviz_news_rows_from_db()
-            if kept:
-                logger.info(
-                    "Doviz news: admin snapshot korunuyor (%s, %s kayıt); sheet atlandı",
-                    existing_src,
-                    len(kept),
-                )
-                if _CACHE is not None:
-                    _CACHE["sheet_skipped"] = True
-                return _enrich_rows_with_live_gap(
-                    kept,
-                    persist=bool(force),
-                    source=existing_src,
-                    source_url=(_CACHE or {}).get("source_url"),
-                )
+    # Google Sheet yasağı: yalnızca mevcut admin/bridge snapshot
+    kept = _load_doviz_news_rows_from_db()
+    if kept:
+        src = _db_snapshot_source() or str((_CACHE or {}).get("source") or "db")
+        logger.info(
+            "Doviz news: admin snapshot kullanılıyor (%s, %s kayıt); sheet yok",
+            src,
+            len(kept),
+        )
+        if _CACHE is not None:
+            _CACHE["sheet_skipped"] = True
+            if admin_err:
+                _CACHE["admin_error"] = admin_err[:240]
+        return kept
 
-    csv_text = fetch_public_sheet_csv(DOVIZ_NEWS_SHEET_URL)
-    rows = parse_doviz_news_csv(csv_text)
-    set_doviz_news_rows_cache(
-        rows,
-        source="google_sheet_fallback" if admin_err else "google_sheet",
-        source_url=DOVIZ_NEWS_SHEET_URL,
+    msg = (
+        "Doviz News verisi yok. Tek kaynak admin: "
+        + DOVIZ_NEWS_ADMIN_URL
+        + " — VPN köprüsü ile «Elle yenile» veya "
+        "scripts/doviz_admin_notification_bridge.py --daemon çalıştırın."
     )
-    if _CACHE is not None and admin_err:
-        _CACHE["admin_error"] = admin_err[:240]
-    return _enrich_rows_with_live_gap(
-        rows,
-        persist=True,
-        source="google_sheet_fallback" if admin_err else "google_sheet",
-        source_url=DOVIZ_NEWS_SHEET_URL,
-    )
+    if admin_err:
+        msg += f" (admin: {admin_err[:160]})"
+    raise ValueError(msg)
+
 
 
 def ingest_doviz_news_rows(
@@ -1294,13 +1205,7 @@ def doviz_news_payload(
     live_meta: dict[str, Any] = {}
     if _CACHE:
         fetched_at = _CACHE.get("fetched_at")
-        live_meta = {
-            "sheet_rows": _CACHE.get("sheet_rows"),
-            "live_added": _CACHE.get("live_added"),
-            "live_fetched": _CACHE.get("live_fetched"),
-            "sheet_max_id": _CACHE.get("sheet_max_id"),
-            "live_error": _CACHE.get("live_error") or "",
-        }
+        # Eski canlı/sheet gap meta artık doldurulmaz; alan geriye uyum için boş.
 
     traffic: dict[str, Any] | None = None
     by_article: dict[str, Any] = {}
@@ -1360,8 +1265,8 @@ def doviz_news_payload(
     cache = _CACHE or {}
     return {
         "ok": True,
-        "source": cache.get("source") or "google_sheet",
-        "source_url": cache.get("source_url") or DOVIZ_NEWS_SHEET_URL,
+        "source": cache.get("source") or "doviz_admin_news",
+        "source_url": cache.get("source_url") or DOVIZ_NEWS_ADMIN_URL,
         "fetched_at": fetched_at or cache.get("fetched_at"),
         "admin_error": cache.get("admin_error"),
         "min_id": DOVIZ_NEWS_MIN_ID,

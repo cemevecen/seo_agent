@@ -464,8 +464,9 @@ class Settings(BaseSettings):
             "doviz_admin_notification_sync_enabled",
         ),
     )
-    # /doviz-news: sunucuda tam admin pagination YAPMA (varsayılan kapalı).
-    # Aktif haberler VPN köprüsü → POST /api/doviz-news/ingest ile gelir.
+    # /doviz-news: Railway’de tam admin pagination varsayılan kapalı (VPN).
+    # Proxy (DOVIZ_ADMIN_HTTP_PROXY) veya DOVIZ_ADMIN_NEWS_DIRECT_SCRAPE=true ile açılır.
+    # Aksi halde VPN köprüsü → POST /api/doviz-news/ingest.
     doviz_admin_news_direct_scrape: bool = Field(
         default=False,
         validation_alias=AliasChoices(
@@ -473,9 +474,9 @@ class Settings(BaseSettings):
             "doviz_admin_news_direct_scrape",
         ),
     )
-    # Admin VPN’den erişilemezse Google Sheet’e düş (Railway varsayılanı).
+    # Admin VPN’den erişilemezse Google Sheet’e düş — Doviz News için kapalı (admin tek kaynak).
     doviz_admin_sheet_fallback_enabled: bool = Field(
-        default=True,
+        default=False,
         validation_alias=AliasChoices(
             "DOVIZ_ADMIN_SHEET_FALLBACK_ENABLED",
             "doviz_admin_sheet_fallback_enabled",

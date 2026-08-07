@@ -53,6 +53,7 @@ from backend.api.backlinks import router as backlinks_router
 from backend.api.store_catalog import router as store_catalog_router
 from backend.api.notification_analytics import router as notification_analytics_router
 from backend.api.ad_analytics import router as ad_analytics_router
+from backend.api.virgul_analytics import router as virgul_analytics_router
 from backend.api.doviz_news import router as doviz_news_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.member_auth import router as member_auth_router
@@ -1021,6 +1022,7 @@ app.include_router(home_drive_router, prefix="/api")
 app.include_router(backlinks_router, prefix="/api")
 app.include_router(notification_analytics_router, prefix="/api")
 app.include_router(ad_analytics_router, prefix="/api")
+app.include_router(virgul_analytics_router, prefix="/api")
 app.include_router(doviz_news_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 
@@ -1785,6 +1787,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         # VPN Mac bridge: token ile korunan ingest (panel cookie istemez)
         "/api/notification-analytics/ingest",
         "/api/doviz-news/ingest",
+        "/api/virgul-analytics/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -4870,7 +4873,7 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Doviz News yayın istatistikleri — sheet + canlı tamamlamayı 30 dk’da bir ısıt
+    # Doviz News — 30 dk’da bir admin/DB ısıt (scrape: proxy veya bridge ingest)
     scheduler.add_job(
         _run_doviz_news_sheet_refresh_job,
         trigger=CronTrigger(minute="*/30", timezone=timezone),
@@ -5061,32 +5064,6 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=600,
-    )
-
-    def _run_doviz_news_sync() -> None:
-        try:
-            from backend.services.doviz_news_sheet import fetch_doviz_news_rows, _CACHE
-
-            rows = fetch_doviz_news_rows(force=True)
-            cache = _CACHE or {}
-            logging.getLogger(__name__).info(
-                "Doviz news auto-sync: rows=%s source=%s sheet_skipped=%s admin_err=%s",
-                len(rows),
-                cache.get("source"),
-                cache.get("sheet_skipped"),
-                (cache.get("admin_error") or "")[:120],
-            )
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).warning("Doviz news sync job: %s", exc)
-
-    scheduler.add_job(
-        _run_doviz_news_sync,
-        trigger=_NtSheetTrigger(minutes=30),
-        id="doviz-news-auto-sync",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=900,
     )
 
     return scheduler
@@ -16315,7 +16292,33 @@ def ad_analytics_page(request: Request):
     return templates.TemplateResponse(
         request,
         "ad.html",
-        context={"request": request, "ad_sheet_sources": ad_sheet_sources},
+        context={
+            "request": request,
+            "ad_sheet_sources": ad_sheet_sources,
+            "ad_mode": "sheets",
+            "virgul_sources": [],
+        },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/ad-virgul")
+def ad_virgul_analytics_page(request: Request):
+    """Reklam raporları — yalnızca Virgül panel (6 sid); sheet/manuel yok."""
+    from backend.services.virgul_ad_config import virgul_sources_payload
+
+    sources = virgul_sources_payload()
+    return templates.TemplateResponse(
+        request,
+        "ad.html",
+        context={
+            "request": request,
+            "ad_sheet_sources": [
+                {"key": s["key"], "label": s["label"], "url": s["url"]} for s in sources
+            ],
+            "ad_mode": "virgul",
+            "virgul_sources": sources,
+        },
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )
 
@@ -18844,14 +18847,20 @@ def _run_news_intelligence_job() -> None:
 
 
 def _run_doviz_news_sheet_refresh_job() -> None:
-    """APScheduler: Doviz News sheet + haber.doviz.com canlı tamamlamayı yenile."""
+    """APScheduler: 30 dk — admin scrape (proxy/direct) veya DB snapshot ısıt."""
     try:
-        from backend.services.doviz_news_sheet import fetch_doviz_news_rows
+        from backend.services.doviz_news_sheet import fetch_doviz_news_rows, _CACHE
 
         rows = fetch_doviz_news_rows(force=True)
-        LOGGER.info("Doviz News sheet refresh: %s rows", len(rows))
+        cache = _CACHE or {}
+        LOGGER.info(
+            "Doviz News 30dk refresh: rows=%s source=%s admin_err=%s",
+            len(rows),
+            cache.get("source"),
+            (cache.get("admin_error") or "")[:120],
+        )
     except Exception:
-        LOGGER.exception("Doviz News sheet refresh job failed")
+        LOGGER.exception("Doviz News admin refresh job failed")
 
 
 def _run_scheduled_db_cleanup_job() -> None:

@@ -383,13 +383,22 @@
       grid-template-columns: repeat(5, minmax(0, 1fr));
     }
   }
+  /* Virgül modu: sheet sync + manuel yükleme gizle */
+  .mz-virgul-mode #mz-upload-panel,
+  .mz-virgul-mode #mz-empower-upload,
+  .mz-virgul-mode [data-mz-sheets-only],
+  .mz-virgul-mode #mz-cancel-sheets-sync,
+  .mz-virgul-mode #mz-cancel-sheets-sync-top,
+  .mz-virgul-mode #mz-targets-panel {
+    display: none !important;
+  }
 </style>
-<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page" data-header-title="Ad">
+<div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Ad · Virgül{% else %}Ad{% endif %}">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="min-w-0">
-        <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">Monetizasyon Analitiği</h1>
-        <p id="mz-sheets-sync-hint" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">Kaynak: Google Sheets · son sync: —</p>
+        <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">{% if ad_mode == 'virgul' %}Monetizasyon · Virgül{% else %}Monetizasyon Analitiği{% endif %}</h1>
+        <p id="mz-sheets-sync-hint" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">{% if ad_mode == 'virgul' %}Kaynak: Virgül panel (6 sid) · Google Sheet / manuel yok · son sync: —{% else %}Kaynak: Google Sheets · son sync: —{% endif %}</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         {% if ad_sheet_sources %}
@@ -409,15 +418,15 @@
             target="_blank"
             rel="noopener noreferrer"
             class="rounded-lg border border-indigo-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-200 dark:hover:bg-indigo-950/40"
-          >Kaynak ↗</a>
+          >{% if ad_mode == 'virgul' %}Virgül panel ↗{% else %}Kaynak ↗{% endif %}</a>
         </div>
         {% endif %}
         <button
           type="button"
           id="mz-refresh-sheets"
           class="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
-          title="Google Sheets reklam gelirlerini çekip grafikleri günceller"
-        >Verileri güncelle</button>
+          title="{% if ad_mode == 'virgul' %}Ofis Mac Virgül bridge ile 6 sid’i yeniler{% else %}Google Sheets reklam gelirlerini çekip grafikleri günceller{% endif %}"
+        >{% if ad_mode == 'virgul' %}Virgül’den güncelle{% else %}Verileri güncelle{% endif %}</button>
         <button
           type="button"
           id="mz-cancel-sheets-sync-top"
@@ -1238,6 +1247,26 @@
 <script src="/static/js/mz_mean_split_traces.js?v=3"></script>
 <script src="/static/js/app_release_markers.js?v=4"></script>
 <script>
+  window.MZ_AD_MODE = {{ (ad_mode or 'sheets')|tojson }};
+  window.MZ_VIRGUL_SOURCES = {{ (virgul_sources or [])|tojson }};
+  (function () {
+    if (window.MZ_AD_MODE !== "virgul") return;
+    document.documentElement.classList.add("mz-virgul-mode");
+    var orig = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      var url = typeof input === "string" ? input : (input && input.url) || "";
+      if (url && url.indexOf("/api/mz-analytics") >= 0) {
+        url = url.split("/api/mz-analytics").join("/api/virgul-analytics");
+        if (typeof input === "string") input = url;
+        else if (input && typeof Request !== "undefined" && input instanceof Request) {
+          input = new Request(url, input);
+        } else {
+          input = url;
+        }
+      }
+      return orig(input, init);
+    };
+  })();
 (function () {
   /* CSS'den bağımsız layout zorlaması — element inline style, tüm CSS kurallarından üstün */
   (function adLayout() {
@@ -11144,10 +11173,56 @@
     }
   }
 
+  async function syncMzVirgulViaBridge() {
+    var hint = document.getElementById("mz-sheets-sync-hint");
+    setMzSheetsButtonsDisabled(true);
+    if (hint) hint.textContent = "Virgül: ofis Mac köprüsü çağrılıyor…";
+    try {
+      var br = await fetch("http://127.0.0.1:18765/sync-virgul", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      var body = null;
+      try { body = await br.json(); } catch (_) {}
+      if (!br.ok || (body && body.ok === false)) {
+        throw new Error((body && (body.message || body.detail)) || ("Köprü HTTP " + br.status));
+      }
+      if (hint) {
+        hint.textContent =
+          "Kaynak: Virgül · " +
+          ((body && body.message) || "OK") +
+          " · " +
+          new Date().toLocaleString("tr-TR");
+      }
+      await loadFacets({ cacheBust: true });
+    } catch (err) {
+      if (hint) {
+        hint.textContent =
+          "Virgül köprü hatası: " +
+          ((err && err.message) || err) +
+          " — Mac’te bridge --daemon + VIRGUL_EMAIL/PASSWORD gerekir";
+      }
+      try {
+        await fetch("/api/virgul-analytics/sync?force=1", { method: "POST", credentials: "same-origin" });
+        await loadFacets({ cacheBust: true });
+      } catch (_) {}
+    } finally {
+      setMzSheetsButtonsDisabled(false);
+    }
+  }
+
   on("mz-refresh-sheets", "click", function () {
+    if (window.MZ_AD_MODE === "virgul") {
+      syncMzVirgulViaBridge();
+      return;
+    }
     syncMzSheetsFromGoogle({ streamKey: selectedMzSheetStreamKey() });
   });
   on("mz-refresh-sheets-side", "click", function () {
+    if (window.MZ_AD_MODE === "virgul") {
+      syncMzVirgulViaBridge();
+      return;
+    }
     syncMzSheetsFromGoogle({ streamKey: selectedMzSheetStreamKey() });
   });
   on("mz-cancel-sheets-sync", "click", function () {

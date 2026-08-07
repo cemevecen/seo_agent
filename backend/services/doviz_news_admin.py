@@ -31,6 +31,7 @@ NEWS_QUERY = {
     "type": "N",
     "status": "1",
     "is_advertorial": "0",
+    "source": "all",
     "sort": "id_desc",
 }
 DEFAULT_MAX_PAGES = 320  # ~264 sayfa yeterli; tampon

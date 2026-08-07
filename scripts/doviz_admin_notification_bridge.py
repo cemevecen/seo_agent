@@ -11,8 +11,8 @@ Tek sefer (ikisi):
 Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
 
-  POST /sync       → notification
-  POST /sync-news  → aktif haberler (pagination)
+  POST /sync       → notification (~15 dk auto)
+  POST /sync-news  → aktif haberler (pagination, ~30 dk auto)
   POST /sync-all   → ikisi
 """
 
@@ -37,12 +37,24 @@ if str(ROOT) not in sys.path:
 
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = int(os.environ.get("NOTIFICATION_BRIDGE_PORT") or "18765")
+# Bildirim stats — sık (varsayılan 15 dk)
 AUTO_INTERVAL_SEC = int(os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(15 * 60))
-NEWS_AUTO_EVERY_N = int(os.environ.get("NEWS_BRIDGE_EVERY_N") or "2")  # her N. turda news
+# Aktif haberler (uzun pagination) — varsayılan 30 dk’da bir
+NEWS_AUTO_INTERVAL_SEC = int(
+    os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(30 * 60)
+)
+# Virgül reklam — varsayılan 6 saatte bir (Excel ağır)
+VIRGUL_AUTO_INTERVAL_SEC = int(
+    os.environ.get("VIRGUL_BRIDGE_INTERVAL_SEC") or str(6 * 60 * 60)
+)
+# Eski ayar: her N. bildirim turunda haber (NEWS_BRIDGE_INTERVAL_SEC yoksa)
+_NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
+NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
 
 _sync_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -52,6 +64,8 @@ _news_progress: dict[str, Any] = {
     "message": "",
 }
 _auto_cycle = 0
+_last_news_auto_at = 0.0
+_last_virgul_auto_at = 0.0
 
 
 def _set_news_progress(**kwargs: Any) -> None:
@@ -97,12 +111,101 @@ def _news_ingest_url() -> str:
     ).strip()
 
 
+def _virgul_ingest_url() -> str:
+    return (
+        os.environ.get("VIRGUL_AD_INGEST_URL")
+        or "https://projectcontrol.up.railway.app/api/virgul-analytics/ingest"
+    ).strip()
+
+
 def _require_creds() -> dict[str, Any] | None:
     if not _ingest_token():
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
     if not (os.environ.get("DOVIZ_ADMIN_EMAIL") and os.environ.get("DOVIZ_ADMIN_PASSWORD")):
         return {"ok": False, "message": "DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD gerekli"}
     return None
+
+
+def _require_virgul_creds() -> dict[str, Any] | None:
+    if not _ingest_token():
+        return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+    if not (os.environ.get("VIRGUL_EMAIL") and os.environ.get("VIRGUL_PASSWORD")):
+        return {"ok": False, "message": "VIRGUL_EMAIL / VIRGUL_PASSWORD gerekli"}
+    return None
+
+
+def run_virgul_bridge_once() -> dict[str, Any]:
+    """Virgül 6 sid Excel/CSV → Railway /ad-virgul ingest."""
+    global _last_virgul_result
+    _load_dotenv()
+    err = _require_virgul_creds()
+    if err:
+        _last_virgul_result = err
+        return err
+
+    import base64
+
+    from backend.services.virgul_ad_client import fetch_all_sites_exports
+
+    print("Virgül reklam export çekiliyor (6 sid)…", flush=True)
+    fetched = fetch_all_sites_exports()
+    files: list[dict[str, Any]] = []
+    for item in fetched.get("items") or []:
+        if not item.get("ok") or not item.get("data"):
+            print(
+                f"  skip {item.get('label') or item.get('sid')}: {item.get('message')}",
+                flush=True,
+            )
+            continue
+        files.append(
+            {
+                "stream_key": item.get("stream_key"),
+                "filename": item.get("filename"),
+                "data_b64": base64.b64encode(item["data"]).decode("ascii"),
+            }
+        )
+    if not files:
+        out = {
+            "ok": False,
+            "message": fetched.get("message")
+            or "Virgül: hiç export alınamadı (API/Excel endpoint Network ile netleştirilmeli)",
+            "streams": fetched.get("items") or [],
+        }
+        _last_virgul_result = out
+        return out
+
+    url = _virgul_ingest_url()
+    token = _ingest_token()
+    resp = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        data=json.dumps({"files": files, "replace": True, "source": "virgul_bridge"}),
+        timeout=300,
+    )
+    print(f"Virgul ingest HTTP {resp.status_code}", flush=True)
+    try:
+        body = resp.json() if resp.content else {}
+    except Exception:
+        body = {"raw": (resp.text or "")[:500]}
+    msg = body.get("message") if isinstance(body, dict) else str(body)
+    print(msg or body, flush=True)
+    ok = resp.status_code < 400 and (
+        not isinstance(body, dict) or body.get("synced") is not False
+    )
+    out = {
+        "ok": bool(ok),
+        "kind": "virgul",
+        "http_status": resp.status_code,
+        "files": len(files),
+        "message": msg or ("OK" if ok else "Ingest başarısız"),
+        "body": body if isinstance(body, dict) else {},
+    }
+    _last_virgul_result = out
+    return out
 
 
 def run_notification_bridge_once() -> dict[str, Any]:
@@ -354,9 +457,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "service": "doviz-admin-bridge",
                     "auto_interval_sec": AUTO_INTERVAL_SEC,
-                    "news_every_n": NEWS_AUTO_EVERY_N,
+                    "news_interval_sec": NEWS_AUTO_INTERVAL_SEC,
+                    "virgul_interval_sec": VIRGUL_AUTO_INTERVAL_SEC,
+                    "news_every_n": NEWS_AUTO_EVERY_N or None,
                     "last": _last_result,
                     "last_news": _last_news_result,
+                    "last_virgul": _last_virgul_result,
                     "news_progress": dict(_news_progress),
                 },
             )
@@ -372,6 +478,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             runner = run_notification_bridge_once
         elif path in ("/sync-news", "/news"):
             runner = run_news_bridge_once
+        elif path in ("/sync-virgul", "/virgul"):
+            runner = run_virgul_bridge_once
         elif path in ("/sync-all", "/all"):
             runner = run_all_once
         elif path == "/":
@@ -392,21 +500,52 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             _sync_lock.release()
 
 
+def _should_run_news_auto() -> bool:
+    """30 dk (veya NEWS_BRIDGE_INTERVAL_SEC) / isteğe bağlı EVERY_N."""
+    global _last_news_auto_at, _auto_cycle
+    if NEWS_AUTO_EVERY_N > 0:
+        return NEWS_AUTO_EVERY_N <= 1 or (_auto_cycle % NEWS_AUTO_EVERY_N) == 1
+    if _last_news_auto_at <= 0:
+        return True
+    return (time.time() - _last_news_auto_at) >= max(60, NEWS_AUTO_INTERVAL_SEC)
+
+
+def _should_run_virgul_auto() -> bool:
+    global _last_virgul_auto_at
+    if _last_virgul_auto_at <= 0:
+        return True
+    return (time.time() - _last_virgul_auto_at) >= max(300, VIRGUL_AUTO_INTERVAL_SEC)
+
+
 def _auto_loop() -> None:
-    global _auto_cycle
+    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at
     while True:
         if _sync_lock.acquire(blocking=False):
             try:
                 _auto_cycle += 1
                 run_notification_bridge_once()
-                # Haber scrape uzun (~574 sayfa); her turda değil, her N. turda
-                if NEWS_AUTO_EVERY_N <= 1 or (_auto_cycle % NEWS_AUTO_EVERY_N) == 1:
+                if _should_run_news_auto():
                     run_news_bridge_once()
+                    _last_news_auto_at = time.time()
                 else:
+                    left = max(
+                        0,
+                        int(NEWS_AUTO_INTERVAL_SEC - (time.time() - _last_news_auto_at)),
+                    )
                     print(
-                        f"News auto atlandı (cycle={_auto_cycle}, every={NEWS_AUTO_EVERY_N})",
+                        f"News auto atlandı (cycle={_auto_cycle}, "
+                        f"sonraki ~{left}s / interval={NEWS_AUTO_INTERVAL_SEC}s)",
                         flush=True,
                     )
+                if _should_run_virgul_auto():
+                    run_virgul_bridge_once()
+                    _last_virgul_auto_at = time.time()
+                else:
+                    left_v = max(
+                        0,
+                        int(VIRGUL_AUTO_INTERVAL_SEC - (time.time() - _last_virgul_auto_at)),
+                    )
+                    print(f"Virgul auto atlandı (sonraki ~{left_v}s)", flush=True)
             except Exception:
                 traceback.print_exc()
             finally:
@@ -420,10 +559,15 @@ def run_daemon() -> int:
     _load_dotenv()
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
+    news_mode = (
+        f"every_n={NEWS_AUTO_EVERY_N}"
+        if NEWS_AUTO_EVERY_N > 0
+        else f"news_interval={NEWS_AUTO_INTERVAL_SEC}s"
+    )
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"(POST /sync | /sync-news | /sync-all, auto={AUTO_INTERVAL_SEC}s, "
-        f"news_every={NEWS_AUTO_EVERY_N})",
+        f"(POST /sync | /sync-news | /sync-virgul | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
+        f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s)",
         flush=True,
     )
     try:
@@ -443,6 +587,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if "--news-only" in args:
             result = run_news_bridge_once()
+        elif "--virgul-only" in args:
+            result = run_virgul_bridge_once()
         elif "--notifications-only" in args:
             result = run_notification_bridge_once()
         else:

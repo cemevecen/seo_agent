@@ -411,9 +411,14 @@ def _row_fingerprint(
     income_type: str,
     project: str,
     branch: str,
+    namespace: str = "",
 ) -> str:
-    """Dal içinde tekilleştirme — kaynak dosya dahil değil (güncelleme duplike etmez)."""
-    raw = f"{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}"
+    """Dal içinde tekilleştirme — kaynak dosya dahil değil (güncelleme duplike etmez).
+
+    namespace='virgul' → Google Sheet satırlarıyla fingerprint çakışmaz.
+    """
+    ns = f"{namespace}|" if namespace else ""
+    raw = f"{ns}{project}|{branch}|{report_date.isoformat()}|{ad_unit}|{income_type}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -438,12 +443,19 @@ def _dict_from_mapped(
     if not ad_unit or not income_type or not rd:
         return None
     month_key = mapped.get("month_key") or _month_from_serial(mapped.get("month")) or rd.strftime("%Y-%m")
+    try:
+        from backend.services.virgul_ad_config import is_virgul_source_file
+
+        fp_ns = "virgul" if is_virgul_source_file(source_file) else ""
+    except Exception:  # noqa: BLE001
+        fp_ns = ""
     fp = _row_fingerprint(
         report_date=rd,
         ad_unit=ad_unit,
         income_type=income_type,
         project=project,
         branch=branch,
+        namespace=fp_ns,
     )
     extras = dict(extra_metrics or {})
     for key in list(extras.keys()):
@@ -1391,10 +1403,16 @@ def count_rows(db: Session) -> int:
 
 
 def clear_stream_rows(db: Session, stream_key: str, *, commit: bool = True) -> dict[str, Any]:
-    """Bir dalın tüm AdReportRow + ilgili katalog kayıtlarını siler (sheet tek kaynak)."""
+    """Bir dalın sheet/manuel AdReportRow + kataloglarını siler (virgul_* korunur)."""
     stream = _STREAM_BY_KEY.get((stream_key or "").strip())
     if stream is None:
         raise ValueError(f"Bilinmeyen dal: {stream_key}")
+    try:
+        from backend.services.virgul_ad_config import is_virgul_source_file
+    except Exception:  # noqa: BLE001
+        def is_virgul_source_file(name: str | None) -> bool:  # type: ignore
+            return str(name or "").lower().startswith("virgul_")
+
     source_files = [
         str(x)
         for x in db.execute(
@@ -1405,25 +1423,19 @@ def clear_stream_rows(db: Session, stream_key: str, *, commit: bool = True) -> d
             )
             .distinct()
         ).scalars().all()
-        if x
+        if x and not is_virgul_source_file(x)
     ]
-    deleted_rows = int(
-        db.scalar(
-            select(func.count())
-            .select_from(AdReportRow)
-            .where(
-                AdReportRow.project == stream.project,
-                AdReportRow.branch == stream.branch,
+    deleted_rows = 0
+    if source_files:
+        deleted_rows = int(
+            db.scalar(
+                select(func.count())
+                .select_from(AdReportRow)
+                .where(AdReportRow.source_file.in_(source_files))
             )
+            or 0
         )
-        or 0
-    )
-    db.execute(
-        delete(AdReportRow).where(
-            AdReportRow.project == stream.project,
-            AdReportRow.branch == stream.branch,
-        )
-    )
+        db.execute(delete(AdReportRow).where(AdReportRow.source_file.in_(source_files)))
     deleted_catalogs = 0
     for name in source_files:
         cat = db.execute(
@@ -1757,48 +1769,53 @@ def _global_date_bounds_and_count(db: Session) -> tuple[str | None, str | None, 
     return bounds["min_date"], bounds["max_date"], count_rows(db)
 
 
-def facets(db: Session, *, skip_cache: bool = False) -> dict[str, Any]:
+def facets(db: Session, *, skip_cache: bool = False, warehouse: str | None = "sheets") -> dict[str, Any]:
     global _facets_cache_payload, _facets_cache_at
     now = time.monotonic()
+    wh_key = (warehouse or "sheets").strip().lower()
     if (
         not skip_cache
+        and wh_key == "sheets"
         and _facets_cache_payload is not None
         and (now - _facets_cache_at) < _FACETS_CACHE_TTL_SEC
     ):
         return _facets_cache_payload
 
+    def _wh(q):
+        return _apply_warehouse_filter(q, warehouse)
+
     income = [
         r[0]
         for r in db.execute(
-            select(AdReportRow.income_type).distinct().order_by(AdReportRow.income_type)
+            _wh(select(AdReportRow.income_type)).distinct().order_by(AdReportRow.income_type)
         ).all()
         if r[0]
     ]
     platforms = [
         r[0]
         for r in db.execute(
-            select(AdReportRow.platform).distinct().order_by(AdReportRow.platform)
+            _wh(select(AdReportRow.platform)).distinct().order_by(AdReportRow.platform)
         ).all()
         if r[0]
     ]
     sources = [
         r[0]
         for r in db.execute(
-            select(AdReportRow.source_file).distinct().order_by(AdReportRow.source_file.desc())
+            _wh(select(AdReportRow.source_file)).distinct().order_by(AdReportRow.source_file.desc())
         ).all()
         if r[0]
     ]
     channels = [
         r[0]
         for r in db.execute(
-            select(AdReportRow.channel).distinct().order_by(AdReportRow.channel)
+            _wh(select(AdReportRow.channel)).distinct().order_by(AdReportRow.channel)
         ).all()
         if r[0]
     ]
     surfaces = [
         r[0]
         for r in db.execute(
-            select(AdReportRow.surface).distinct().order_by(AdReportRow.surface)
+            _wh(select(AdReportRow.surface)).distinct().order_by(AdReportRow.surface)
         ).all()
         if r[0]
     ]
@@ -1819,12 +1836,14 @@ def facets(db: Session, *, skip_cache: bool = False) -> dict[str, Any]:
                 seen_cols.add(slug)
                 extra_columns.append(str(c))
     stream_stats = db.execute(
-        select(
-            AdReportRow.project,
-            AdReportRow.branch,
-            func.min(AdReportRow.report_date),
-            func.max(AdReportRow.report_date),
-            func.count(),
+        _wh(
+            select(
+                AdReportRow.project,
+                AdReportRow.branch,
+                func.min(AdReportRow.report_date),
+                func.max(AdReportRow.report_date),
+                func.count(),
+            )
         )
         .where(AdReportRow.project != "", AdReportRow.branch != "")
         .group_by(AdReportRow.project, AdReportRow.branch)
@@ -2034,6 +2053,21 @@ def _ad_format_label_expr(col_ad_unit):
     )
 
 
+def _apply_warehouse_filter(q, warehouse: str | None):
+    """warehouse: virgul | sheets (varsayılan) | all."""
+    wh = (warehouse or "sheets").strip().lower()
+    if wh in ("all", "*"):
+        return q
+    try:
+        from backend.services.virgul_ad_config import VIRGUL_SOURCE_PREFIX
+    except Exception:  # noqa: BLE001
+        VIRGUL_SOURCE_PREFIX = "virgul_"
+    if wh == "virgul":
+        return q.where(AdReportRow.source_file.ilike(f"{VIRGUL_SOURCE_PREFIX}%"))
+    # sheets / default: Virgül satırlarını /ad’den gizle
+    return q.where(~AdReportRow.source_file.ilike(f"{VIRGUL_SOURCE_PREFIX}%"))
+
+
 def _apply_filters(
     q,
     *,
@@ -2048,7 +2082,9 @@ def _apply_filters(
     search: str | None,
     project: str | None = None,
     branch: str | None = None,
+    warehouse: str | None = "sheets",
 ):
+    q = _apply_warehouse_filter(q, warehouse)
     if project:
         q = q.where(AdReportRow.project == project)
     if branch:
@@ -2584,6 +2620,7 @@ def query_summary(
     compare_mode: str | None = None,
     compare_start: str | None = None,
     compare_end: str | None = None,
+    warehouse: str | None = "sheets",
 ) -> dict[str, Any]:
     it = _parse_filter_list(income_types)
     au = _parse_filter_list(ad_units)
@@ -2606,6 +2643,7 @@ def query_summary(
         search=search,
         project=project,
         branch=branch,
+        warehouse=warehouse,
     )
     sub = base.subquery()
 
@@ -2985,6 +3023,7 @@ def query_table(
     compare_mode: str | None = None,
     compare_start: str | None = None,
     compare_end: str | None = None,
+    warehouse: str | None = "sheets",
 ) -> dict[str, Any]:
     it = _parse_filter_list(income_types)
     au = _parse_filter_list(ad_units)
@@ -3011,6 +3050,7 @@ def query_table(
         search=search,
         project=project,
         branch=branch,
+        warehouse=warehouse,
     )
     sub = sub.subquery()
 
