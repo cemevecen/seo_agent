@@ -5006,7 +5006,14 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             from backend.services.notification_analytics_store import sync_notification_analytics
 
             with SessionLocal() as db:
-                sync_notification_analytics(db, force=True)
+                result = sync_notification_analytics(db, force=True)
+            logging.getLogger(__name__).info(
+                "Notification auto-sync: synced=%s skipped=%s source=%s msg=%s",
+                result.get("synced"),
+                result.get("skipped"),
+                result.get("source"),
+                (result.get("message") or "")[:160],
+            )
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning("Notification sheet sync job: %s", exc)
 
