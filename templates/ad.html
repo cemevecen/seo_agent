@@ -774,7 +774,45 @@
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
     }
   }
+  .mz-page .mz-chart-plot[data-mz-chart-h="220"] { min-height: 220px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="240"] { min-height: 240px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="280"] { min-height: 280px; }
+  .mz-page .mz-chart-plot[data-mz-chart-h="300"] { min-height: 300px; }
+  .mz-page .mz-chart-plot--tile:has(> .mz-skel) { min-height: 200px; }
 </style>
+
+{% macro mz_skel_line(gid) -%}
+<div class="mz-skel mz-skel--line" aria-hidden="true">
+  <div class="mz-skel-bone mz-skel-title"></div>
+  <svg viewBox="0 0 320 100" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="{{ gid }}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.22"/>
+        <stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path class="mz-skel-fill" fill="url(#{{ gid }})" d="M8,72 C40,68 55,40 90,48 C125,56 140,22 175,30 C210,38 230,60 260,44 C285,32 300,50 312,42 L312,100 L8,100 Z"/>
+    <path class="mz-skel-path" d="M8,72 C40,68 55,40 90,48 C125,56 140,22 175,30 C210,38 230,60 260,44 C285,32 300,50 312,42"/>
+  </svg>
+</div>
+{%- endmacro %}
+{% macro mz_skel_bar() -%}
+<div class="mz-skel mz-skel--bar" aria-hidden="true">
+  <div class="mz-skel-title"></div>
+  <div class="mz-skel-bars">
+    <span class="mz-skel-bar"></span><span class="mz-skel-bar"></span><span class="mz-skel-bar"></span>
+    <span class="mz-skel-bar"></span><span class="mz-skel-bar"></span><span class="mz-skel-bar"></span>
+    <span class="mz-skel-bar"></span><span class="mz-skel-bar"></span><span class="mz-skel-bar"></span>
+    <span class="mz-skel-bar"></span>
+  </div>
+</div>
+{%- endmacro %}
+{% macro mz_skel_pie() -%}
+<div class="mz-skel mz-skel--pie" aria-hidden="true">
+  <div class="mz-skel-ring"></div>
+  <div class="mz-skel-bone mz-skel-cap"></div>
+</div>
+{%- endmacro %}
 <div class="mx-auto w-full max-w-[1600px] space-y-4 mz-page{% if ad_mode == 'virgul' %} mz-virgul-mode max-w-[1920px]{% endif %}" data-header-title="{% if ad_mode == 'virgul' %}Ad · Virgül{% else %}Ad{% endif %}">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -1108,7 +1146,7 @@
             <div id="mz-bd-toolbar-line" class="mz-bd-toolbar" data-bd-scope="chartLine" data-bd-mode="time"></div>
           </div>
         </div>
-        <div id="mz-chart-line" class="mz-chart-plot" data-mz-chart-h="300"></div>
+        <div id="mz-chart-line" class="mz-chart-plot" data-mz-chart-h="300">{{ mz_skel_line('mz-skel-g-line') }}</div>
         <div id="mz-chart-line-peer-wrap" class="mt-3 hidden">
           <p id="mz-chart-line-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
           <div id="mz-chart-line-peer" class="mz-chart-plot" data-mz-chart-h="220"></div>
@@ -1121,7 +1159,7 @@
             <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Günlük — gelir ve gösterim (çift eksen)</h2>
             <div id="mz-peer-toggle-dual" class="hidden shrink-0"></div>
           </div>
-          <div id="mz-chart-dual" class="mz-chart-plot" data-mz-chart-h="280"></div>
+          <div id="mz-chart-dual" class="mz-chart-plot" data-mz-chart-h="280">{{ mz_skel_line('mz-skel-g-dual') }}</div>
           <div id="mz-chart-dual-peer-wrap" class="mt-3 hidden">
             <p id="mz-chart-dual-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
             <div id="mz-chart-dual-peer" class="mz-chart-plot" data-mz-chart-h="220"></div>
@@ -1132,7 +1170,7 @@
             <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Kalite metrikleri (günlük)</h2>
             <div id="mz-peer-toggle-quality" class="hidden shrink-0"></div>
           </div>
-          <div id="mz-chart-quality" class="mz-chart-plot" data-mz-chart-h="280"></div>
+          <div id="mz-chart-quality" class="mz-chart-plot" data-mz-chart-h="280">{{ mz_skel_line('mz-skel-g-quality') }}</div>
           <div id="mz-chart-quality-peer-wrap" class="mt-3 hidden">
             <p id="mz-chart-quality-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
             <div id="mz-chart-quality-peer" class="mz-chart-plot" data-mz-chart-h="220"></div>
@@ -1148,7 +1186,7 @@
             <div id="mz-bd-toolbar-stacked" class="mz-bd-toolbar" data-bd-scope="chartStacked" data-bd-mode="stacked"></div>
           </div>
         </div>
-        <div id="mz-chart-stacked-income" class="mz-chart-plot" data-mz-chart-h="300"></div>
+        <div id="mz-chart-stacked-income" class="mz-chart-plot" data-mz-chart-h="300">{{ mz_skel_line('mz-skel-g-stacked') }}</div>
         <div id="mz-chart-stacked-peer-wrap" class="mt-3 hidden">
           <p id="mz-chart-stacked-peer-caption" class="mb-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400"></p>
           <div id="mz-chart-stacked-peer" class="mz-chart-plot" data-mz-chart-h="240"></div>
@@ -1159,15 +1197,15 @@
       <div id="mz-charts-row-3" class="mz-charts-row-3">
         <div id="mz-chart-heatmap-wrap" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Takvim ısı haritası (gelir)</h2>
-          <div id="mz-chart-heatmap" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0"></div>
+          <div id="mz-chart-heatmap" class="mz-chart-plot mz-chart-plot--tile w-full min-h-0">{{ mz_skel_line('mz-skel-g-heatmap') }}</div>
         </div>
         <div class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipi payı (pasta)</h2>
-          <div id="mz-chart-pie-income" class="mz-chart-plot mz-chart-plot--tile mz-chart-plot--pie-flat w-full min-h-0"></div>
+          <div id="mz-chart-pie-income" class="mz-chart-plot mz-chart-plot--tile mz-chart-plot--pie-flat w-full min-h-0">{{ mz_skel_pie() }}</div>
         </div>
         <div id="mz-chart-pie-surface-wrap" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
           <h2 class="mb-2 shrink-0 text-sm font-bold text-slate-700 dark:text-zinc-100">Yüzey (mweb / web / app) — pasta</h2>
-          <div id="mz-chart-pie-surface" class="mz-chart-plot mz-chart-plot--tile mz-chart-plot--pie-flat w-full min-h-0"></div>
+          <div id="mz-chart-pie-surface" class="mz-chart-plot mz-chart-plot--tile mz-chart-plot--pie-flat w-full min-h-0">{{ mz_skel_pie() }}</div>
         </div>
       </div>
 
@@ -1196,7 +1234,7 @@
             <h2 class="text-sm font-bold text-slate-700 dark:text-zinc-100">Gelir tipine göre (sütun)</h2>
             <div id="mz-bd-toolbar-income-bar" class="mz-bd-toolbar" data-bd-scope="chartIncome" data-bd-mode="dim"></div>
           </div>
-          <div id="mz-chart-bar-income" class="mz-chart-plot" data-mz-chart-h="280"></div>
+          <div id="mz-chart-bar-income" class="mz-chart-plot" data-mz-chart-h="280">{{ mz_skel_bar() }}</div>
         </div>
         <div id="mz-chart-bar-month-card" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
           <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -1206,7 +1244,7 @@
               <div id="mz-bd-toolbar-month" class="mz-bd-toolbar" data-bd-scope="chartMonth" data-bd-mode="time"></div>
             </div>
           </div>
-          <div id="mz-chart-bar-month" class="mz-chart-plot" data-mz-chart-h="280"></div>
+          <div id="mz-chart-bar-month" class="mz-chart-plot" data-mz-chart-h="280">{{ mz_skel_bar() }}</div>
         </div>
       </div>
 
@@ -1232,7 +1270,7 @@
             </button>
           </div>
         </div>
-        <div id="mz-top-units-chart" class="mz-chart-plot w-full" data-mz-chart-h="300"></div>
+        <div id="mz-top-units-chart" class="mz-chart-plot w-full" data-mz-chart-h="300">{{ mz_skel_bar() }}</div>
         <p id="mz-top-units-status" class="mt-1 text-[10px] text-slate-600 dark:text-zinc-400"></p>
         <div id="mz-top-units-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
       </div>
@@ -1987,6 +2025,7 @@
 
   function debouncedRun(ms) {
     if (runTimer) clearTimeout(runTimer);
+    try { mzShowDashboardChartSkeletons(); } catch (_) { /* ignore */ }
     runTimer = setTimeout(function () { runQuery({ resetTableDrills: false }); }, ms == null ? 400 : ms);
   }
 
@@ -13315,6 +13354,7 @@
 
   window.addEventListener("resize", scheduleMzChartsResizeBurst);
 
+  try { mzShowDashboardChartSkeletons(); } catch (_) { /* ignore */ }
   loadFacets().then(function () {
     refreshMzEmpowerImports().catch(function () {});
     syncEmpowerOverlayBarVisibility();
