@@ -11015,11 +11015,6 @@
           mzUpdateImportBulkUi();
         }
       }
-      var lbl = [];
-      if (f.min_date && f.max_date) lbl.push(f.min_date + " — " + f.max_date);
-      if (state.activeStream) {
-        lbl.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
-      }
       renderMzRangeLabelChip({
         fallbackBounds:
           f.min_date && f.max_date ? { start: f.min_date, end: f.max_date } : null,
