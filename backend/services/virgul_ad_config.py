@@ -23,18 +23,19 @@ class VirgulAdSource:
         return f"virgul_{self.sid}.xlsx"
 
 
-# Kullanıcının verdiği 6 link sırası.
-# sid …ac2 ekranda m.sinemalar.com → sinemalar:mweb (doğrulandı).
+# Kullanıcının verdiği 6 link.
+# sid …ac2 → m.sinemalar.com = sinemalar:mweb (doğrulandı).
+# Döviz web/mweb sid’leri ilk atamada ters düşmüştü — düzeltildi.
 VIRGUL_AD_SOURCES: tuple[VirgulAdSource, ...] = (
     VirgulAdSource(
         sid="5062c6cb87354585c0e19abe",
-        stream_key="doviz:mweb",
-        label="Döviz · Mweb",
+        stream_key="doviz:desktop",
+        label="Döviz · Web",
     ),
     VirgulAdSource(
         sid="5062c6cc87354585c0e19ac1",
-        stream_key="doviz:desktop",
-        label="Döviz · Web",
+        stream_key="doviz:mweb",
+        label="Döviz · Mweb",
     ),
     VirgulAdSource(
         sid="576910bba503b020048b4568",
