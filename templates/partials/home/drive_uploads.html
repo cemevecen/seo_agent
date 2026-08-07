@@ -158,7 +158,7 @@
     justify-content: space-between;
     gap: 0.5rem;
     min-height: 2.75rem;
-    border: 1px solid transparent;
+    border: 1.5px solid transparent;
     border-radius: 0.55rem;
     background: rgb(248 250 252);
     padding: 0.65rem 0.75rem;
@@ -169,23 +169,62 @@
     color: #334155;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    user-select: none;
+  }
+  .home-drive-picker-opt input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
   }
   .home-drive-picker-opt:hover { border-color: rgb(191 219 254); background: rgb(239 246 255); }
+  /* Hover ≠ seçim: seçili durum belirgin mavi + tik */
   .home-drive-picker-opt.is-selected {
-    border-color: rgb(59 130 246);
-    background: rgb(239 246 255);
-    color: #1d4ed8;
+    border-color: rgb(37 99 235);
+    background: rgb(219 234 254);
+    color: #1e3a8a;
+    box-shadow: inset 3px 0 0 rgb(37 99 235);
+  }
+  .home-drive-picker-opt-check {
+    flex-shrink: 0;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 9999px;
+    border: 1.5px solid rgb(203 213 225);
+    background: #fff;
+  }
+  .home-drive-picker-opt.is-selected .home-drive-picker-opt-check {
+    border-color: rgb(37 99 235);
+    background: rgb(37 99 235);
+    box-shadow: inset 0 0 0 2px #fff;
   }
   html.dark .home-drive-picker-opt,
   html.midnight .home-drive-picker-opt {
     background: rgb(39 39 42);
     color: #d4d4d8;
   }
+  html.dark .home-drive-picker-opt:hover,
+  html.midnight .home-drive-picker-opt:hover {
+    border-color: rgb(96 165 250 / 0.45);
+    background: rgb(39 39 42);
+  }
   html.dark .home-drive-picker-opt.is-selected,
   html.midnight .home-drive-picker-opt.is-selected {
     border-color: rgb(96 165 250);
-    background: rgb(23 37 84 / 0.45);
-    color: #93c5fd;
+    background: rgb(30 58 138 / 0.55);
+    color: #bfdbfe;
+    box-shadow: inset 3px 0 0 rgb(96 165 250);
+  }
+  html.dark .home-drive-picker-opt-check,
+  html.midnight .home-drive-picker-opt-check {
+    border-color: rgb(82 82 91);
+    background: rgb(24 24 27);
+  }
+  html.dark .home-drive-picker-opt.is-selected .home-drive-picker-opt-check,
+  html.midnight .home-drive-picker-opt.is-selected .home-drive-picker-opt-check {
+    border-color: rgb(96 165 250);
+    background: rgb(96 165 250);
   }
   .home-drive-picker-actions {
     display: flex;
@@ -515,7 +554,7 @@
         <input type="search" class="home-drive-picker-search" placeholder="Container ara…" data-home-drive-picker-search autocomplete="off">
         <div class="home-drive-picker-list" data-home-drive-picker-list role="listbox"></div>
         <div class="home-drive-picker-actions">
-          <button type="button" class="home-drive-picker-btn is-primary" data-home-drive-picker-confirm disabled>Yükle</button>
+          <button type="button" class="home-drive-picker-btn is-primary" data-home-drive-picker-confirm disabled title="Önce bir container seç">Yükle</button>
           <button type="button" class="home-drive-picker-btn is-ghost" data-home-drive-picker-cancel>Vazgeç</button>
         </div>
       </div>
@@ -579,12 +618,22 @@
 
 <script>
 (function () {
-  var root = document.currentScript && document.currentScript.previousElementSibling;
-  if (!root || !root.getAttribute || root.getAttribute('data-home-drive-root') === null) {
-    root = document.querySelector('[data-home-drive-root]');
+  function findHomeDriveRoot(scriptEl) {
+    var prev = scriptEl && scriptEl.previousElementSibling;
+    if (prev && prev.getAttribute && prev.getAttribute('data-home-drive-root') !== null) {
+      return prev;
+    }
+    var scope = (scriptEl && scriptEl.closest && scriptEl.closest('section')) || document;
+    var nodes = scope.querySelectorAll('[data-home-drive-root]');
+    for (var i = 0; i < nodes.length; i++) {
+      if (!nodes[i].__homeDriveBound) return nodes[i];
+    }
+    return scope.querySelector('[data-home-drive-root]');
   }
-  if (!root || root.__homeDriveBound) return;
-  root.__homeDriveBound = true;
+
+  function bindHomeDrivePanel(root) {
+    if (!root || root.__homeDriveBound) return false;
+    root.__homeDriveBound = true;
 
   var shellToggle = root.querySelector('[data-home-drive-shell-toggle]');
   var shellBody = root.querySelector('[data-home-drive-shell-body]');
@@ -663,6 +712,15 @@
     statusEl.textContent = msg;
     statusEl.classList.toggle('is-err', kind === 'err');
     statusEl.classList.toggle('is-ok', kind === 'ok');
+  }
+
+  function syncPickerConfirm() {
+    if (!pickerConfirm) return;
+    var ready = !!(selectedContainerKey && pendingFiles && pendingFiles.length && !uploading);
+    pickerConfirm.disabled = !ready;
+    pickerConfirm.title = ready
+      ? (pendingFiles.length + ' dosyayı yükle')
+      : (pendingFiles && pendingFiles.length ? 'Önce bir container seç' : 'Önce dosya seç');
   }
 
   function cards() {
@@ -800,13 +858,18 @@
     containers.forEach(function (c) {
       var key = String(c.key || '');
       var label = String(c.label || key);
+      if (!key) return;
       if (q && label.toLowerCase().indexOf(q) < 0 && key.toLowerCase().indexOf(q) < 0) return;
-      var sel = key === selectedContainerKey ? ' is-selected' : '';
+      var sel = key === selectedContainerKey;
       html +=
-        '<button type="button" class="home-drive-picker-opt' + sel + '" data-home-drive-container="' +
-        key.replace(/"/g, '') + '" role="option" aria-selected="' + (sel ? 'true' : 'false') + '">' +
-        '<span>' + label.replace(/</g, '&lt;') + '</span>' +
-        '</button>';
+        '<label class="home-drive-picker-opt' + (sel ? ' is-selected' : '') + '" data-home-drive-container-opt="' +
+        key.replace(/"/g, '') + '">' +
+        '<input type="radio" name="home-drive-container-' + String(root.id || 'panel') + '" value="' +
+        key.replace(/"/g, '') + '" data-home-drive-container="' + key.replace(/"/g, '') + '"' +
+        (sel ? ' checked' : '') + '>' +
+        '<span class="home-drive-picker-opt-label">' + label.replace(/</g, '&lt;') + '</span>' +
+        '<span class="home-drive-picker-opt-check" aria-hidden="true"></span>' +
+        '</label>';
     });
     pickerList.innerHTML = html || '<p class="home-meta text-slate-400">Eşleşen container yok</p>';
   }
@@ -819,7 +882,7 @@
       picker.classList.remove('is-open');
       picker.hidden = true;
     }
-    if (pickerConfirm) pickerConfirm.disabled = true;
+    syncPickerConfirm();
     if (pickerSearch) pickerSearch.value = '';
     // iOS: input temizliği File blob’larını bozabilir — upload bitene kadar sakla
     if (!opts.preserveInput && input && !uploading) input.value = '';
@@ -839,7 +902,7 @@
       }
       if (pickerHint) {
         pickerHint.textContent =
-          pendingFiles.length + ' dosya · hangi ana sayfa container’ına bağlansın?';
+          pendingFiles.length + ' dosya · hangi ana sayfa container’ına bağlansın? (seçim mavi + tik ile görünür)';
       }
       renderPickerList('');
       if (picker) {
@@ -849,8 +912,8 @@
           picker.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (e) {}
       }
-      if (pickerConfirm) pickerConfirm.disabled = true;
-      setStatus(pendingFiles.length + ' dosya seçildi — container seç', null);
+      syncPickerConfirm();
+      setStatus(pendingFiles.length + ' dosya seçildi — listeden container’a dokun, sonra Yükle', null);
     }
     ensureContainers(show);
   }
@@ -874,8 +937,12 @@
   async function uploadFiles(files, containerKey) {
     if (!files || !files.length || !containerKey || uploading) return;
     uploading = true;
-    setStatus('Yükleniyor… (' + files.length + ')', null);
+    syncPickerConfirm();
+    var total = files.length;
     var ok = 0;
+    var fail = 0;
+    var lastErr = '';
+    setStatus('Yükleniyor… 0/' + total, null);
     for (var i = 0; i < files.length; i++) {
       var fd = new FormData();
       fd.append('file', files[i]);
@@ -888,7 +955,9 @@
         });
         var j = await res.json().catch(function () { return {}; });
         if (!res.ok || !j.ok) {
-          setStatus((j && j.error) || 'Yükleme başarısız', 'err');
+          fail += 1;
+          lastErr = (j && j.error) || ('HTTP ' + res.status);
+          setStatus('Yükleniyor… ' + (ok + fail) + '/' + total + ' · hata: ' + lastErr, 'err');
           continue;
         }
         ok += 1;
@@ -899,30 +968,73 @@
           updateCount();
           openGallery();
         }
+        setStatus('Yükleniyor… ' + (ok + fail) + '/' + total, null);
       } catch (e) {
-        setStatus('Yükleme hatası', 'err');
+        fail += 1;
+        lastErr = 'ağ hatası';
+        setStatus('Yükleniyor… ' + (ok + fail) + '/' + total + ' · ağ hatası', 'err');
       }
     }
     uploading = false;
     if (input) input.value = '';
-    if (ok) {
+    if (ok && !fail) {
       setStatus(ok + ' dosya yüklendi', 'ok');
       notifyBadges();
+    } else if (ok && fail) {
+      setStatus(ok + ' yüklendi, ' + fail + ' başarısız' + (lastErr ? (': ' + lastErr) : ''), 'err');
+      notifyBadges();
+    } else {
+      setStatus(lastErr || 'Yükleme başarısız', 'err');
     }
+    syncPickerConfirm();
   }
 
   function selectContainer(key) {
-    selectedContainerKey = String(key || '');
+    selectedContainerKey = String(key || '').trim();
     renderPickerList(pickerSearch ? pickerSearch.value : '');
-    if (pickerConfirm) pickerConfirm.disabled = !selectedContainerKey;
+    syncPickerConfirm();
+    if (selectedContainerKey) {
+      setStatus(
+        pendingFiles && pendingFiles.length
+          ? pendingFiles.length + ' dosya → ' + selectedContainerKey + ' · Yükle’ye bas'
+          : 'Container seçildi',
+        null
+      );
+    }
+  }
+
+  function startUploadFromPicker() {
+    if (!pendingFiles || !pendingFiles.length || !selectedContainerKey || uploading) {
+      if (!selectedContainerKey) setStatus('Önce listeden bir container seç (mavi + tik).', 'err');
+      else if (!pendingFiles || !pendingFiles.length) setStatus('Dosya seçilmedi.', 'err');
+      return;
+    }
+    var files = pendingFiles.slice();
+    var key = selectedContainerKey;
+    closePicker({ preserveInput: true, keepPending: false });
+    uploadFiles(files, key);
   }
 
   if (pickerList) {
+    pickerList.addEventListener('change', function (ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute || t.getAttribute('data-home-drive-container') === null) return;
+      selectContainer(t.value || t.getAttribute('data-home-drive-container') || '');
+    });
+    // click/pointer: radio change bazı tarayıcılarda gecikebilir; label tıklamasını zorla
     pickerList.addEventListener('click', function (ev) {
-      var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-container]');
-      if (!btn) return;
-      ev.preventDefault();
-      selectContainer(btn.getAttribute('data-home-drive-container') || '');
+      var lab = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-container-opt]');
+      if (!lab) return;
+      var key = lab.getAttribute('data-home-drive-container-opt') || '';
+      var radio = lab.querySelector('[data-home-drive-container]');
+      if (radio) radio.checked = true;
+      selectContainer(key);
+    });
+    pickerList.addEventListener('dblclick', function (ev) {
+      var lab = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-container-opt]');
+      if (!lab) return;
+      selectContainer(lab.getAttribute('data-home-drive-container-opt') || '');
+      startUploadFromPicker();
     });
   }
   if (pickerSearch) {
@@ -940,11 +1052,7 @@
   if (pickerConfirm) {
     pickerConfirm.addEventListener('click', function (ev) {
       ev.preventDefault();
-      if (!pendingFiles || !pendingFiles.length || !selectedContainerKey || uploading) return;
-      var files = pendingFiles.slice();
-      var key = selectedContainerKey;
-      closePicker({ preserveInput: true, keepPending: false });
-      uploadFiles(files, key);
+      startUploadFromPicker();
     });
   }
 
@@ -1027,5 +1135,28 @@
   });
 
   syncSelectionUi();
+  syncPickerConfirm();
+  return true;
+  }
+
+  var scriptEl = document.currentScript;
+  var root = findHomeDriveRoot(scriptEl);
+  bindHomeDrivePanel(root);
+
+  window.__pcHomeDriveBindAll = function (scope) {
+    var nodes = (scope || document).querySelectorAll('[data-home-drive-root]');
+    for (var i = 0; i < nodes.length; i++) bindHomeDrivePanel(nodes[i]);
+  };
+
+  if (!window.__pcHomeDriveHtmxBound) {
+    window.__pcHomeDriveHtmxBound = true;
+    document.body.addEventListener('htmx:afterSwap', function (ev) {
+      var t = ev && ev.target;
+      if (!t || !t.querySelectorAll) return;
+      if (t.querySelector('[data-home-drive-root]') || (t.getAttribute && t.getAttribute('data-home-drive-root') !== null)) {
+        window.__pcHomeDriveBindAll(t);
+      }
+    });
+  }
 })();
 </script>
