@@ -519,13 +519,15 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "updated_at": _iso_utc_z(row.updated_at),
         "last_file_upload_at": _iso_utc_z(row.last_file_upload_at),
         "last_sheet_sync_at": _iso_utc_z(row.last_file_upload_at),
-        # Admin VPN arkasında; Railway için sheet fallback / proxy.
-        "source": "doviz_admin",
-        "source_url": stats_url(),
+        # Otomatik kaynak: Google Sheet (VPN gerekmez). Admin yalnızca proxy ile.
+        "source": "google_sheet",
+        "source_url": NOTIFICATION_ANALYTICS_SHEET_URL,
+        "admin_source_url": stats_url(),
         "sheet_backup_url": NOTIFICATION_ANALYTICS_SHEET_URL,
         "admin_credentials_configured": admin_ready,
         "admin_requires_vpn": True,
         "admin_proxy_configured": bool(admin_http_proxy()),
+        "auto_sync_minutes": 15,
     }
     if include_rows:
         out["rows"] = rows
@@ -762,92 +764,66 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
 
 
 def sync_notification_analytics(db: Session, *, force: bool = False) -> dict:
-    """Önce Doviz admin (VPN/proxy); erişilemezse Google Sheet yedeği.
+    """Otomatik güncelleme: Google Sheet (VPN gerekmez).
 
-    Admin paneli VPN arkasında — Railway doğrudan açamaz. Lokal VPN veya
-    DOVIZ_ADMIN_HTTP_PROXY varken admin; aksi halde sheet.
+    Doviz admin paneli VPN arkasında — Railway doğrudan açamaz.
+    Admin yalnızca DOVIZ_ADMIN_HTTP_PROXY (VPN çıkışı) tanımlıysa denenir;
+    aksi halde doğrudan sheet çekilir (startup + her 15 dk scheduler).
     """
     from backend.config import settings
-    from backend.services.doviz_notification_admin import is_admin_vpn_unreachable_error
+    from backend.services.doviz_notification_admin import (
+        admin_credentials_configured,
+        admin_http_proxy,
+        is_admin_vpn_unreachable_error,
+    )
 
-    admin_result = sync_from_doviz_admin(db, force=force)
-    if admin_result.get("synced"):
-        return admin_result
-    if admin_result.get("skipped"):
-        skip_msg = str(admin_result.get("message") or "").lower()
-        # TTL / taze skip — sheet’e düşme
-        if "taze" in skip_msg or "yeniden çekilmedi" in skip_msg:
+    proxy = admin_http_proxy()
+    try_admin = bool(
+        settings.doviz_admin_notification_sync_enabled
+        and admin_credentials_configured()
+        and proxy
+    )
+
+    if try_admin:
+        admin_result = sync_from_doviz_admin(db, force=force)
+        if admin_result.get("synced"):
             return admin_result
-        # Credential yok / disabled → aşağıdaki sheet fallback’e devam
-        if not settings.doviz_admin_sheet_fallback_enabled:
-            return admin_result
-        admin_msg = str(admin_result.get("message") or "")
-        LOGGER.warning(
-            "Doviz admin skipped — falling back to Google Sheet: %s",
-            admin_msg[:200],
+        if admin_result.get("skipped"):
+            skip_msg = str(admin_result.get("message") or "").lower()
+            if "taze" in skip_msg or "yeniden çekilmedi" in skip_msg:
+                return admin_result
+        else:
+            admin_msg = str(admin_result.get("message") or "")
+            low = admin_msg.lower()
+            auth_fail = any(
+                x in low for x in ("şifre", "password", "hatalı e-mail", "hatali e-mail")
+            )
+            if auth_fail and not is_admin_vpn_unreachable_error(admin_msg):
+                return admin_result
+            LOGGER.warning(
+                "Doviz admin (proxy) failed — Google Sheet: %s",
+                admin_msg[:200],
+            )
+
+    # Asıl otomatik yol: herkese açık Google Sheet
+    sheet = sync_from_google_sheet(db, force=force)
+    if try_admin and not sheet.get("synced") and sheet.get("ok") is False:
+        sheet["message"] = (
+            "Admin proxy ile de başarısız; sheet yedeği de okunamadı. "
+            + (sheet.get("message") or "")
         )
-        sheet = sync_from_google_sheet(db, force=force)
-        sheet["fallback_from"] = "doviz_admin"
-        sheet["admin_error"] = admin_msg
-        if sheet.get("synced") or sheet.get("ok") is not False:
+    elif sheet.get("synced"):
+        sheet["source"] = "google_sheet"
+        if try_admin:
             sheet["message"] = (
-                "Admin kullanılamadı; Google Sheet yedeği kullanıldı. "
+                "Google Sheet senkronize edildi (admin proxy sonrası yedek). "
                 + (sheet.get("message") or "")
             ).strip()
-            sheet["source"] = "google_sheet_fallback"
-        return sheet
-    if admin_result.get("ok") is not False:
-        return admin_result
-
-    admin_msg = str(admin_result.get("message") or "")
-    if not settings.doviz_admin_sheet_fallback_enabled:
-        return admin_result
-
-    low = admin_msg.lower()
-    auth_fail = any(
-        x in low for x in ("şifre", "password", "hatalı e-mail", "hatali e-mail")
-    )
-    if auth_fail and not is_admin_vpn_unreachable_error(admin_msg):
-        return admin_result
-
-    if not (
-        is_admin_vpn_unreachable_error(admin_msg)
-        or "tanımlı değil" in low
-        or "enabled=false" in low
-        or not admin_msg
-        or "login" in low
-        or "vpn" in low
-        or "404" in low
-        or "403" in low
-    ):
-        return admin_result
-
-    LOGGER.warning(
-        "Doviz admin unreachable/VPN — falling back to Google Sheet: %s",
-        admin_msg[:200],
-    )
-    sheet = sync_from_google_sheet(db, force=force)
-    sheet["fallback_from"] = "doviz_admin"
-    sheet["admin_error"] = admin_msg
-    if sheet.get("synced") or sheet.get("ok") is not False:
-        sheet["message"] = (
-            "Admin VPN’den erişilemedi; Google Sheet yedeği kullanıldı. "
-            + (sheet.get("message") or "")
-        ).strip()
-        sheet["source"] = "google_sheet_fallback"
-    else:
-        sheet["message"] = (
-            f"Admin VPN erişilemez ({admin_msg[:120]}) ve sheet yedeği de başarısız: "
-            + (sheet.get("message") or "")
-        )
     return sheet
 
 
 def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
-    """Yedek: Google Sheet — yalnızca bilinçli /sync-sheet-backup çağrısı ile.
-
-    Normal sync, scheduler ve UI «Verileri güncelle» bu yolu kullanmaz.
-    """
+    """Google Sheet — otomatik sync / scheduler / «Şimdi güncelle» birincil yolu."""
     global _last_sheet_sync_mono
     now = time.monotonic()
     if (
@@ -859,20 +835,20 @@ def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
             **workspace_state(db, include_rows=False),
             "synced": False,
             "skipped": True,
-            "source": "google_sheet_backup",
-            "message": "Son yedek senkron taze; sheet yeniden çekilmedi.",
+            "source": "google_sheet",
+            "message": "Son senkron taze; sheet yeniden çekilmedi.",
         }
     try:
         csv_text = fetch_public_sheet_csv(NOTIFICATION_ANALYTICS_SHEET_URL, timeout=60)
     except Exception as exc:  # noqa: BLE001
-        LOGGER.warning("Notification sheet backup fetch failed: %s", exc)
+        LOGGER.warning("Notification sheet fetch failed: %s", exc)
         return {
             **workspace_state(db, include_rows=False),
             "synced": False,
             "skipped": False,
             "ok": False,
-            "source": "google_sheet_backup",
-            "message": str(exc) or "Google Sheet (yedek) okunamadı.",
+            "source": "google_sheet",
+            "message": str(exc) or "Google Sheet okunamadı.",
         }
     parsed = parse_csv_text(csv_text)
     result = replace_workspace_from_rows(db, parsed)
@@ -881,13 +857,12 @@ def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
         result["synced"] = True
         result["skipped"] = False
         result["message"] = (
-            f"Yedek Google Sheet yüklendi · {result.get('added') or result.get('parsed')} kayıt "
-            "(aktif kaynak değil — bilinçli yedek)."
+            f"Google Sheet senkronize edildi · {result.get('added') or result.get('parsed')} kayıt."
         )
     else:
         result["synced"] = False
         result["skipped"] = False
-    result["source"] = "google_sheet_backup"
+    result["source"] = "google_sheet"
     result["source_url"] = NOTIFICATION_ANALYTICS_SHEET_URL
     return result
 

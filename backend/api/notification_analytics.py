@@ -77,7 +77,7 @@ def post_notification_analytics_sync_sheet(
     force: bool = Query(False, description="true ise TTL yok sayılır, Doviz admin yeniden çekilir"),
     db: Session = Depends(get_db),
 ):
-    """Aktif kaynak: Doviz.com admin notifications/stats (tek kaynak — sheet yok)."""
+    """Aktif kaynak: Google Sheet (otomatik). Admin yalnızca VPN proxy varsa."""
     try:
         result = store.sync_notification_analytics(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):

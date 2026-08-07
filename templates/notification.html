@@ -5,10 +5,16 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
         <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-300">Notification Analytics</h1>
-        <p id="nt-sheet-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Kaynak: Doviz admin (VPN)</p>
+        <p id="nt-sheet-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Kaynak: Google Sheet · otomatik 15 dk</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <a id="nt-source-link"
+           href="https://docs.google.com/spreadsheets/d/1NnizUEsaKpaabB0sCvksiHgx7Kfgt_upj1L2IXgUHeM/edit?gid=0#gid=0"
+           target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+          Google Sheet ↗
+        </a>
+        <a id="nt-admin-link"
            href="https://www.doviz.com/admin/notifications/stats"
            target="_blank" rel="noopener"
            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
@@ -17,24 +23,24 @@
         <button id="nt-refresh-sheet" type="button"
                 class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-          Verileri güncelle
+          Şimdi güncelle
         </button>
       </div>
     </div>
-    <p class="mt-2 text-[11px] leading-snug text-amber-700/90 dark:text-amber-300/90">
-      Doviz admin paneline yalnızca VPN ile erişiliyor. Railway sunucusu VPN dışında olduğu için
-      admin açılamazsa otomatik Google Sheet yedeğine düşülür. Kalıcı admin sync için
-      <code class="rounded bg-amber-50 px-1 dark:bg-amber-950/40">DOVIZ_ADMIN_HTTP_PROXY</code>
-      (VPN çıkışı) tanımlanabilir.
+    <p class="mt-2 text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+      Veriler <strong class="font-semibold">otomatik</strong> her ~15 dakikada Google Sheet’ten çekilir; buton zorunlu değil.
+      Doviz admin paneli VPN arkasında olduğu için Railway oradan çekemez (isteğe bağlı
+      <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">DOVIZ_ADMIN_HTTP_PROXY</code>).
     </p>
     <details class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-      <summary class="cursor-pointer select-none font-medium text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100">Yedek kaynak</summary>
+      <summary class="cursor-pointer select-none font-medium text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100">Kaynaklar</summary>
       <p class="mt-1.5 leading-snug">
-        Google Sheet — admin VPN’den erişilemediğinde veya proxy yokken kullanılır.
+        Aktif otomatik kaynak: Google Sheet.
         <a id="nt-sheet-link"
            href="https://docs.google.com/spreadsheets/d/1NnizUEsaKpaabB0sCvksiHgx7Kfgt_upj1L2IXgUHeM/edit?gid=0#gid=0"
            target="_blank" rel="noopener"
            class="font-semibold text-indigo-600 hover:underline dark:text-indigo-300">Sheet ↗</a>
+        · Admin (VPN): yalnızca proxy tanımlıysa.
       </p>
     </details>
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/70 nt-filter-panel">
@@ -1048,25 +1054,20 @@
     var syncAt = (meta && (meta.last_sheet_sync_at || meta.last_file_upload_at)) || ntLastFileUploadAt || "";
     var when = ntFormatFileUploadAt(syncAt);
     var count = meta && meta.row_count != null ? Number(meta.row_count) : null;
-    var adminOk = !(meta && meta.admin_credentials_configured === false);
-    var proxyOk = !!(meta && meta.admin_proxy_configured);
-    var src = (meta && meta.source) || "";
-    var label;
-    if (src === "google_sheet_fallback" || src === "google_sheet") {
-      label = "Kaynak: Google Sheet (admin VPN dışı)";
-    } else if (!adminOk) {
-      label = "Kaynak: Doviz admin (credential eksik, VPN)";
-    } else if (proxyOk) {
-      label = "Kaynak: Doviz admin (VPN proxy)";
-    } else {
-      label = "Kaynak: Doviz admin (VPN)";
-    }
+    var mins = (meta && meta.auto_sync_minutes) || 15;
+    var src = (meta && meta.source) || "google_sheet";
+    var label =
+      src === "doviz_admin"
+        ? "Kaynak: Doviz admin (VPN proxy)"
+        : "Kaynak: Google Sheet · otomatik " + mins + " dk";
     var parts = [label];
     if (when && when !== "—") parts.push("son senkron: " + when);
     if (count != null && !isNaN(count)) parts.push(count.toLocaleString("tr-TR") + " kayıt");
     el.textContent = parts.join(" · ");
     var link = document.getElementById("nt-source-link");
     if (link && meta && meta.source_url) link.href = meta.source_url;
+    var adminLink = document.getElementById("nt-admin-link");
+    if (adminLink && meta && meta.admin_source_url) adminLink.href = meta.admin_source_url;
     var sheetLink = document.getElementById("nt-sheet-link");
     if (sheetLink && meta && meta.sheet_backup_url) sheetLink.href = meta.sheet_backup_url;
   }
