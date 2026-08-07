@@ -197,6 +197,11 @@
     flex-direction: column;
     min-width: 0;
   }
+  /* display:flex yukarıda Tailwind .hidden'ı eziyordu — bilinçli gizleme */
+  .mz-page .mz-project-total-card.is-mz-hidden,
+  .mz-page .mz-project-total-card[hidden] {
+    display: none !important;
+  }
   .mz-page .mz-project-break {
     display: grid;
     gap: 0.35rem;
@@ -675,7 +680,7 @@
           <p id="mz-total-doviz-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
           <div id="mz-total-doviz-break" class="mz-project-break mz-project-break--wide" aria-label="Döviz kırılım"></div>
         </div>
-        <div data-mz-project="sinemalar" class="mz-project-total-card hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4" aria-hidden="true">
+        <div data-mz-project="sinemalar" class="mz-project-total-card is-mz-hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4" hidden aria-hidden="true">
           <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sinemalar toplam gelir</p>
           <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
           <p id="mz-total-sinemalar-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
@@ -2225,9 +2230,15 @@
   }
 
   function mzActiveProjectKey() {
-    var p = (state.activeStream && state.activeStream.project) || "";
-    p = String(p).trim().toLowerCase();
+    var st = state.activeStream || {};
+    var p = String(st.project || "").trim().toLowerCase();
     if (p === "sinemalar") return "sinemalar";
+    if (p === "doviz") return "doviz";
+    // key fallback: "sinemalar:desktop" / "doviz:mweb"
+    var key = String(st.key || "").trim().toLowerCase();
+    if (key.indexOf("sinemalar") === 0 || key.indexOf("sinemalar:") === 0) {
+      return "sinemalar";
+    }
     return "doviz";
   }
 
@@ -2237,7 +2248,13 @@
     if (!wrap) return;
     wrap.querySelectorAll("[data-mz-project]").forEach(function (card) {
       var show = card.getAttribute("data-mz-project") === project;
-      card.classList.toggle("hidden", !show);
+      card.classList.toggle("is-mz-hidden", !show);
+      card.classList.remove("hidden"); // eski Tailwind hidden — flex ile çakışıyordu
+      if (show) {
+        card.removeAttribute("hidden");
+      } else {
+        card.setAttribute("hidden", "");
+      }
       card.setAttribute("aria-hidden", show ? "false" : "true");
     });
     wrap.classList.add("is-single");
