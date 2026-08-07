@@ -1,13 +1,14 @@
 """Reklam analitiği API — Excel/CSV yükleme ve filtreli özet.
 
-Sheets /ad yayından kaldırıldı: tüm /api/mz-analytics yanıtları 410.
+Sheets /ad yayından kaldırıldı: /api/mz-analytics → 410 (GA4 banner hariç).
 Virgül /ad-virgul → /api/virgul-analytics (bu router'a dokunulmaz).
+GA4 app-banner paneli /ad-virgul üzerinden canlı kalır.
 """
 
 import json
 import logging
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -25,14 +26,17 @@ _SHEETS_AD_GONE = (
 )
 
 
-def _sheets_ad_retired() -> None:
-    """Sheets /ad ve mz-analytics yükünü kes — virgul-analytics etkilenmez."""
+def _sheets_ad_gate(request: Request) -> None:
+    """Sheets mz-analytics yükünü kes; GA4 banner uçları açık kalır."""
+    path = request.url.path or ""
+    if "/ga4-app-banner" in path:
+        return
     raise HTTPException(status_code=410, detail=_SHEETS_AD_GONE)
 
 
 router = APIRouter(
     tags=["mz-analytics"],
-    dependencies=[Depends(_sheets_ad_retired)],
+    dependencies=[Depends(_sheets_ad_gate)],
 )
 router.include_router(app_empower_router)
 

@@ -236,6 +236,7 @@ def test_unknown_login_alert_subject_format():
 def test_admin_path_label_and_nav():
     assert aal.admin_path_label("/realtime") == "Realtime"
     assert aal.admin_path_label("/ad/app-banner") == "Ad · GA4 banner"
+    assert aal.admin_path_label("/ad-virgul/app-banner") == "Ad · GA4 banner"
     assert aal.should_track_admin_path("/api/home/realtime") is False
     assert aal.should_track_admin_path("/ga4") is True
     fp = "testfp"

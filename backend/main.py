@@ -16521,13 +16521,25 @@ def ad_virgul_analytics_page(request: Request):
     )
 
 
+def _ad_app_banner_page_response(request: Request):
+    """GA4 ilk açılış / kampanya paneli (Virgül monetizasyon yan paneli)."""
+    return templates.TemplateResponse(
+        request,
+        "ad_app_banner.html",
+        context={"request": request},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/ad-virgul/app-banner")
+def ad_virgul_app_banner_ga4_page(request: Request):
+    return _ad_app_banner_page_response(request)
+
+
 @app.get("/ad/app-banner")
 def ad_app_banner_ga4_page(request: Request):
-    """Eski Sheets /ad GA4 banner paneli — yayından kaldırıldı."""
-    raise HTTPException(
-        status_code=410,
-        detail="Bu panel Sheets /ad ile birlikte yayından kaldırıldı. /ad-virgul kullanın.",
-    )
+    """Eski URL — Virgül altındaki banner paneline yönlendir."""
+    return RedirectResponse(url="/ad-virgul/app-banner", status_code=303)
 
 
 @app.get("/api/ga4/realtime/{site_id}")

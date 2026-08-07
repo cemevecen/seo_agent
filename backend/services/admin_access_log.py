@@ -125,6 +125,7 @@ def parse_ua_details(user_agent: str) -> dict[str, str]:
 
 
 _ADMIN_PATH_LABELS: list[tuple[str, str]] = [
+    ("/ad-virgul/app-banner", "Ad · GA4 banner"),
     ("/ad/app-banner", "Ad · GA4 banner"),
     ("/data-explorer", "Speed / Data Explorer"),
     ("/search-console", "Search Console"),

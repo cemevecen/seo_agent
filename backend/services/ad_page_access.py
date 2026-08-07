@@ -21,9 +21,11 @@ def resolve_ad_menu_visible(*, member_email: str | None) -> bool:
 
 
 def is_ad_page_path(path: str) -> bool:
-    """HTML /ad sayfaları ve monetizasyon API'leri."""
+    """HTML /ad sayfaları, GA4 banner paneli ve monetizasyon API'leri."""
     p = (path or "").split("?", 1)[0]
     if p == "/ad" or p.startswith("/ad/"):
+        return True
+    if p == "/ad-virgul/app-banner" or p.startswith("/ad-virgul/app-banner/"):
         return True
     if p.startswith("/api/mz-analytics"):
         return True
