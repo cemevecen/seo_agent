@@ -125,6 +125,7 @@
   html.mz-range-single-day .mz-bd-pill[data-v="period_9"],
   html.mz-range-single-day #mz-market-overlay-section,
   html.mz-range-single-day #mz-empower-overlay-bar,
+  html.mz-range-single-day #mz-overlay-controls,
   html.mz-range-single-day #mz-drill-wrap,
   html.mz-range-single-day #mz-summary-drill-wrap {
     display: none !important;
@@ -844,6 +845,12 @@
       <div class="min-w-0">
         <h1 class="text-lg font-extrabold text-slate-900 sm:text-xl dark:text-zinc-100">{% if ad_mode == 'virgul' %}Monetizasyon · Virgül{% else %}Monetizasyon Analitiği{% endif %}</h1>
         <p id="mz-sheets-sync-hint" class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">{% if ad_mode == 'virgul' %}Kaynak: Virgül panel (6 sid) · son sync: —{% else %}Kaynak: Google Sheets · son sync: —{% endif %}</p>
+        <div
+          id="mz-range-label"
+          class="mt-1.5 hidden max-w-full truncate rounded-md border border-slate-200/90 bg-slate-50 px-2 py-0.5 text-[10px] font-medium leading-snug text-slate-600 dark:border-zinc-700 dark:bg-zinc-950/70 dark:text-zinc-400 midnight:border-zinc-800 midnight:bg-black/50"
+          role="status"
+          aria-live="polite"
+        ></div>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         {% if ad_sheet_sources %}
@@ -1104,7 +1111,19 @@
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
       <div id="mz-peer-toggle-kpi" class="hidden flex flex-wrap justify-end"></div>
-      <p id="mz-range-label" class="text-xs text-slate-500 dark:text-zinc-400"></p>
+
+      <div id="mz-overlay-controls" class="flex flex-wrap items-center gap-2" data-mz-hide-single-day>
+        <div id="mz-market-overlay-section" class="shrink-0">
+          {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
+          {% include 'partials/market_overlay_select.html' %}
+          {% endwith %}
+        </div>
+        <div id="mz-empower-overlay-bar" class="hidden shrink-0">
+          {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
+          {% include 'partials/app_empower_overlay_select.html' %}
+          {% endwith %}
+        </div>
+      </div>
 
       <div id="mz-compare-panels-wrap" class="hidden grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <section id="mz-compare-matrix-wrap" class="min-w-0 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
@@ -1144,24 +1163,6 @@
             </table>
           </div>
         </section>
-      </div>
-
-      <div id="mz-market-overlay-section" class="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950/50 midnight:border-zinc-800 midnight:bg-black/40" data-mz-hide-single-day>
-        <p class="text-[10px] font-medium leading-snug text-slate-600 dark:text-zinc-400">
-          Piyasa kapanış — günlük çizgi, gelir/gösterim ve kalite grafiklerine ikinci eksen (tümünü kapatmak için seçimleri kaldırın). Her serinin yanında ↗ ile kaynak tabloya gidin.
-        </p>
-        {% with market_overlay_control_id='mz-market-overlay-root', market_overlay_storage_key='mz', market_overlay_on_change='mzOnMarketOverlayChange' %}
-        {% include 'partials/market_overlay_select.html' %}
-        {% endwith %}
-      </div>
-
-      <div id="mz-empower-overlay-bar" class="mb-2 hidden flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50/80 px-3 py-2 dark:border-violet-900/60 dark:bg-violet-950/30" data-mz-hide-single-day>
-        <p class="text-[10px] font-medium leading-snug text-violet-800 dark:text-violet-200">
-          Empower — Android/iOS dalında günlük çizgilere ikinci eksen (veri /ad üzerinden)
-        </p>
-        {% with app_empower_overlay_control_id='mz-empower-overlay-root', app_empower_overlay_storage_key='mz-empower', app_empower_overlay_on_change='mzOnEmpowerOverlayChange' %}
-        {% include 'partials/app_empower_overlay_select.html' %}
-        {% endwith %}
       </div>
 
       <div id="mz-chart-line-card" class="mz-chart-card rounded-2xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black" data-mz-hide-single-day>
@@ -10992,7 +10993,12 @@
         lbl.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
       }
       var rangeLbl = document.getElementById("mz-range-label");
-      if (rangeLbl) rangeLbl.textContent = lbl.join(" · ");
+      if (rangeLbl) {
+        var rangeTxt = lbl.join(" · ");
+        rangeLbl.textContent = rangeTxt;
+        rangeLbl.classList.toggle("hidden", !rangeTxt);
+        rangeLbl.title = rangeTxt;
+      }
       mountAllPeerBranchToggles();
       var auditEl = document.getElementById("mz-import-audit");
       var audit = f.import_audit || [];
@@ -11023,7 +11029,10 @@
     if (state.activeStream) {
       parts.push("Dal: " + state.activeStream.label + " (" + (state.activeStream.row_count || 0) + " satır)");
     }
-    rangeLbl.textContent = parts.join(" · ");
+    var txt = parts.join(" · ");
+    rangeLbl.textContent = txt;
+    rangeLbl.classList.toggle("hidden", !txt);
+    rangeLbl.title = txt;
     updateComparePeriodBanner(state.lastSummary);
     applyMzRangeSensitiveUi();
     syncMzPresetCustomLabel();
