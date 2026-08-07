@@ -375,8 +375,35 @@ def _db_snapshot_meta() -> tuple[datetime | None, int]:
         return None, 0
 
 
-def fetch_doviz_news_rows(*, force: bool = False) -> list[dict[str, Any]]:
-    """Aktif haberler: DB/cache → admin → Google Sheet."""
+def _is_admin_news_source(source: str | None) -> bool:
+    s = (source or "").lower()
+    return ("admin" in s) or ("bridge" in s)
+
+
+def _db_snapshot_source() -> str:
+    try:
+        from backend.database import SessionLocal
+        from backend.models import DovizNewsWorkspace
+
+        with SessionLocal() as session:
+            row = session.get(DovizNewsWorkspace, 1)
+            if row is None:
+                return ""
+            return str(row.source or "")
+    except Exception:
+        return ""
+
+
+def fetch_doviz_news_rows(
+    *,
+    force: bool = False,
+    prefer_sheet: bool = False,
+) -> list[dict[str, Any]]:
+    """Aktif haberler: DB/cache → admin → Google Sheet.
+
+    prefer_sheet=True: bilinçli yedek (köprü yok). Aksi halde admin/bridge
+    snapshot'ı sheet ile ezme.
+    """
     global _CACHE
     if not force and _CACHE is not None:
         age = time.monotonic() - float(_CACHE.get("ts") or 0)
@@ -440,6 +467,21 @@ def fetch_doviz_news_rows(*, force: bool = False) -> list[dict[str, Any]]:
             low = admin_err.lower()
             if ("şifre" in low or "password" in low) and not is_admin_vpn_unreachable_error(admin_err):
                 raise
+
+    # Sheet yedeği — admin/bridge snapshot varsa ezme (eksik sheet 48→45 gibi sapma yaratır)
+    if not prefer_sheet:
+        existing_src = _db_snapshot_source() or str((_CACHE or {}).get("source") or "")
+        if _is_admin_news_source(existing_src):
+            kept = _load_doviz_news_rows_from_db()
+            if kept:
+                logger.info(
+                    "Doviz news: admin snapshot korunuyor (%s, %s kayıt); sheet atlandı",
+                    existing_src,
+                    len(kept),
+                )
+                if _CACHE is not None:
+                    _CACHE["sheet_skipped"] = True
+                return kept
 
     csv_text = fetch_public_sheet_csv(DOVIZ_NEWS_SHEET_URL)
     rows = parse_doviz_news_csv(csv_text)

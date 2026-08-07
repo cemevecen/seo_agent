@@ -5056,9 +5056,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
             rows = fetch_doviz_news_rows(force=True)
             cache = _CACHE or {}
             logging.getLogger(__name__).info(
-                "Doviz news auto-sync: rows=%s source=%s admin_err=%s",
+                "Doviz news auto-sync: rows=%s source=%s sheet_skipped=%s admin_err=%s",
                 len(rows),
                 cache.get("source"),
+                cache.get("sheet_skipped"),
                 (cache.get("admin_error") or "")[:120],
             )
         except Exception as exc:  # noqa: BLE001

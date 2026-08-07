@@ -108,10 +108,16 @@ def post_doviz_news_ingest(
 
 
 @router.post("/doviz-news/sync")
-def post_doviz_news_sync(force: bool = Query(True)):
+def post_doviz_news_sync(
+    force: bool = Query(True),
+    prefer_sheet: bool = Query(
+        False,
+        description="true: Google Sheet yedeğiyle yaz (admin snapshot'ı ezebilir)",
+    ),
+):
     """Admin (mümkünse) veya Google Sheet yedek senkronu."""
     try:
-        rows = fetch_doviz_news_rows(force=force)
+        rows = fetch_doviz_news_rows(force=force, prefer_sheet=prefer_sheet)
         from backend.services.doviz_news_sheet import _CACHE
 
         cache = _CACHE or {}
@@ -123,6 +129,7 @@ def post_doviz_news_sync(force: bool = Query(True)):
             "source": cache.get("source"),
             "source_url": cache.get("source_url"),
             "fetched_at": cache.get("fetched_at"),
+            "sheet_skipped": bool(cache.get("sheet_skipped")),
             "message": f"Doviz news sync · {len(rows)} kayıt · {cache.get('source') or '—'}",
             "admin_error": cache.get("admin_error"),
         }
