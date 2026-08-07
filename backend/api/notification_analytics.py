@@ -2,14 +2,36 @@
 
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.database import get_db
 from backend.services import notification_analytics_store as store
 from backend.services.notification_analytics_alerts import evaluate_notification_analytics_alerts
 
 router = APIRouter(tags=["notification-analytics"])
+
+
+def _check_ingest_token(
+    authorization: str | None,
+    x_notification_ingest_token: str | None,
+) -> None:
+    expected = (settings.notification_ingest_token or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="NOTIFICATION_INGEST_TOKEN tanımlı değil (Railway Variables).",
+        )
+    got = (x_notification_ingest_token or "").strip()
+    if not got and authorization:
+        raw = authorization.strip()
+        if raw.lower().startswith("bearer "):
+            got = raw[7:].strip()
+        else:
+            got = raw
+    if not got or got != expected:
+        raise HTTPException(status_code=401, detail="Geçersiz ingest token.")
 
 
 class WorkspaceUpdateBody(BaseModel):
@@ -26,6 +48,11 @@ class AppendRowsBody(BaseModel):
 
 class UploadCsvBody(BaseModel):
     csv_text: str = ""
+
+
+class IngestRowsBody(BaseModel):
+    rows: list[dict] = Field(default_factory=list)
+    source: str = "doviz_admin_bridge"
 
 
 @router.get("/notification-analytics/state")
@@ -77,7 +104,7 @@ def post_notification_analytics_sync_sheet(
     force: bool = Query(False, description="true ise TTL yok sayılır, Doviz admin yeniden çekilir"),
     db: Session = Depends(get_db),
 ):
-    """Aktif kaynak: Google Sheet (otomatik). Admin yalnızca VPN proxy varsa."""
+    """Aktif kaynak: Doviz admin (otomatik); erişilemezse Google Sheet."""
     try:
         result = store.sync_notification_analytics(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):
@@ -95,11 +122,36 @@ def post_notification_analytics_sync_admin(
     force: bool = Query(True, description="true ise TTL yok sayılır"),
     db: Session = Depends(get_db),
 ):
-    """Doviz.com admin notifications/stats — sync-sheet ile aynı aktif kaynak."""
+    """Doviz.com admin notifications/stats."""
     try:
         result = store.sync_from_doviz_admin(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):
             raise HTTPException(status_code=502, detail=result.get("message") or "Admin senkronu başarısız.")
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/notification-analytics/ingest")
+def post_notification_analytics_ingest(
+    body: IngestRowsBody,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+):
+    """VPN köprüsü: admin stats satırlarını yazar (UI/manuel yok)."""
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    try:
+        result = store.ingest_notification_rows(
+            db,
+            body.rows or [],
+            source=(body.source or "doviz_admin_bridge").strip() or "doviz_admin_bridge",
+        )
+        if result.get("ok") is False and not result.get("synced"):
+            raise HTTPException(status_code=422, detail=result.get("message") or "Ingest başarısız.")
         return result
     except HTTPException:
         raise
@@ -113,7 +165,7 @@ def post_notification_analytics_sync_sheet_backup(
     force: bool = Query(True, description="true ise TTL yok sayılır"),
     db: Session = Depends(get_db),
 ):
-    """Yedek Google Sheet — normal sync/scheduler/UI kullanmaz; çift başlı veri için bilinçli çağrı."""
+    """Yedek Google Sheet — bilinçli çağrı."""
     try:
         result = store.sync_from_google_sheet(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):

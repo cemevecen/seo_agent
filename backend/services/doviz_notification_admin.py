@@ -246,9 +246,12 @@ def login_admin_session(
     )
     _apply_admin_proxy(sess)
 
+    # Proxy yoksa kısa timeout — Railway’de 404’te hızla sheet’e düşülsün
+    get_timeout = timeout if admin_http_proxy() else min(timeout, 12)
+
     # Ana sayfa cookie/warmup (bazı edge’ler doğrudan /admin’i sert düşürüyor)
     try:
-        sess.get(base + "/", timeout=min(timeout, 20), allow_redirects=True)
+        sess.get(base + "/", timeout=min(get_timeout, 10), allow_redirects=True)
     except requests.RequestException as exc:
         LOGGER.info("Doviz homepage warm skipped: %s", exc)
 
@@ -259,7 +262,7 @@ def login_admin_session(
     for candidate in login_url_candidates():
         attempts.append(candidate)
         try:
-            resp = sess.get(candidate, timeout=timeout, allow_redirects=True)
+            resp = sess.get(candidate, timeout=get_timeout, allow_redirects=True)
         except requests.RequestException as exc:
             LOGGER.warning("Admin login GET failed %s: %s", candidate, exc)
             continue
@@ -274,17 +277,20 @@ def login_admin_session(
             warm = resp
             login_url = str(resp.url) or candidate
             break
+        # Proxy yokken ilk host 404 ise diğer mirror’larda vakit kaybetme
+        if last_status == 404 and not admin_http_proxy() and len(attempts) >= 2:
+            break
 
     if warm is None:
         tried = ", ".join(attempts[:6])
         proxy_hint = (
-            " DOVIZ_ADMIN_HTTP_PROXY ile VPN çıkışı tanımlayın"
+            " Bir kez DOVIZ_ADMIN_HTTP_PROXY (VPN çıkışı) veya VPN bridge script kurun."
             if not admin_http_proxy()
             else ""
         )
         raise ValueError(
             f"Admin login sayfası açılamadı (son HTTP {last_status or '?'}). "
-            f"Doviz admin VPN arkasında; Railway doğrudan erişemez.{proxy_hint} "
+            f"Doviz admin VPN/IP kısıtlı; Railway doğrudan erişemez.{proxy_hint} "
             f"Denenen: {tried}."
         )
 

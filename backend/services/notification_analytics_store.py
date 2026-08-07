@@ -497,6 +497,7 @@ def workspace_rows_chunk(
 
 
 def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
+    from backend.config import settings
     from backend.services.doviz_notification_admin import (
         admin_credentials_configured,
         admin_http_proxy,
@@ -519,15 +520,16 @@ def workspace_state(db: Session, *, include_rows: bool = True) -> dict:
         "updated_at": _iso_utc_z(row.updated_at),
         "last_file_upload_at": _iso_utc_z(row.last_file_upload_at),
         "last_sheet_sync_at": _iso_utc_z(row.last_file_upload_at),
-        # Otomatik kaynak: Google Sheet (VPN gerekmez). Admin yalnızca proxy ile.
-        "source": "google_sheet",
-        "source_url": NOTIFICATION_ANALYTICS_SHEET_URL,
+        # Hedef: Doviz admin otomatik. VPN engelinde sheet / bridge.
+        "source": "doviz_admin" if admin_ready else "google_sheet",
+        "source_url": stats_url() if admin_ready else NOTIFICATION_ANALYTICS_SHEET_URL,
         "admin_source_url": stats_url(),
         "sheet_backup_url": NOTIFICATION_ANALYTICS_SHEET_URL,
         "admin_credentials_configured": admin_ready,
         "admin_requires_vpn": True,
         "admin_proxy_configured": bool(admin_http_proxy()),
         "auto_sync_minutes": 15,
+        "ingest_configured": bool((settings.notification_ingest_token or "").strip()),
     }
     if include_rows:
         out["rows"] = rows
@@ -764,24 +766,20 @@ def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
 
 
 def sync_notification_analytics(db: Session, *, force: bool = False) -> dict:
-    """Otomatik güncelleme: Google Sheet (VPN gerekmez).
+    """Otomatik: Doviz admin/notifications/stats (credential varsa), değilse Google Sheet.
 
-    Doviz admin paneli VPN arkasında — Railway doğrudan açamaz.
-    Admin yalnızca DOVIZ_ADMIN_HTTP_PROXY (VPN çıkışı) tanımlıysa denenir;
-    aksi halde doğrudan sheet çekilir (startup + her 15 dk scheduler).
+    UI’ya bilgi girilmez — yalnızca Railway/env credentials.
+    Admin VPN/IP engelli hostlardan açılamazsa sheet yedeğine düşülür.
+    VPN makinesinden bridge (ingest) da aynı tabloyu doldurabilir.
     """
     from backend.config import settings
     from backend.services.doviz_notification_admin import (
         admin_credentials_configured,
-        admin_http_proxy,
         is_admin_vpn_unreachable_error,
     )
 
-    proxy = admin_http_proxy()
     try_admin = bool(
-        settings.doviz_admin_notification_sync_enabled
-        and admin_credentials_configured()
-        and proxy
+        settings.doviz_admin_notification_sync_enabled and admin_credentials_configured()
     )
 
     if try_admin:
@@ -792,38 +790,61 @@ def sync_notification_analytics(db: Session, *, force: bool = False) -> dict:
             skip_msg = str(admin_result.get("message") or "").lower()
             if "taze" in skip_msg or "yeniden çekilmedi" in skip_msg:
                 return admin_result
-        else:
-            admin_msg = str(admin_result.get("message") or "")
-            low = admin_msg.lower()
-            auth_fail = any(
-                x in low for x in ("şifre", "password", "hatalı e-mail", "hatali e-mail")
-            )
-            if auth_fail and not is_admin_vpn_unreachable_error(admin_msg):
-                return admin_result
-            LOGGER.warning(
-                "Doviz admin (proxy) failed — Google Sheet: %s",
-                admin_msg[:200],
-            )
-
-    # Asıl otomatik yol: herkese açık Google Sheet
-    sheet = sync_from_google_sheet(db, force=force)
-    if try_admin and not sheet.get("synced") and sheet.get("ok") is False:
-        sheet["message"] = (
-            "Admin proxy ile de başarısız; sheet yedeği de okunamadı. "
-            + (sheet.get("message") or "")
+        admin_msg = str(admin_result.get("message") or "")
+        low = admin_msg.lower()
+        auth_fail = any(
+            x in low for x in ("şifre", "password", "hatalı e-mail", "hatali e-mail")
         )
-    elif sheet.get("synced"):
-        sheet["source"] = "google_sheet"
-        if try_admin:
-            sheet["message"] = (
-                "Google Sheet senkronize edildi (admin proxy sonrası yedek). "
-                + (sheet.get("message") or "")
-            ).strip()
+        if auth_fail and not is_admin_vpn_unreachable_error(admin_msg):
+            return admin_result
+        if not settings.doviz_admin_sheet_fallback_enabled:
+            return admin_result
+        LOGGER.warning(
+            "Doviz admin auto-sync unreachable — Google Sheet fallback: %s",
+            admin_msg[:200],
+        )
+
+    sheet = sync_from_google_sheet(db, force=force)
+    if try_admin and sheet.get("synced"):
+        sheet["message"] = (
+            "Admin şu an erişilemedi; Google Sheet ile güncellendi. "
+            + (sheet.get("message") or "")
+        ).strip()
+        sheet["fallback_from"] = "doviz_admin"
     return sheet
 
 
+def ingest_notification_rows(
+    db: Session,
+    rows: list[dict],
+    *,
+    source: str = "doviz_admin_bridge",
+) -> dict:
+    """VPN köprüsü / harici worker’dan gelen satırları yazar (manuel UI yok)."""
+    global _last_sheet_sync_mono
+    parsed = [r for r in (rows or []) if isinstance(r, dict)]
+    result = replace_workspace_from_rows(db, parsed)
+    if result.get("parsed"):
+        _last_sheet_sync_mono = time.monotonic()
+        result["synced"] = True
+        result["skipped"] = False
+        result["message"] = (
+            f"Admin bridge ingest · {result.get('added') or result.get('parsed')} kayıt."
+        )
+    else:
+        result["synced"] = False
+        result["skipped"] = False
+        result["ok"] = False
+        result["message"] = result.get("message") or "Ingest: satır yok."
+    result["source"] = source or "doviz_admin_bridge"
+    from backend.services.doviz_notification_admin import stats_url
+
+    result["source_url"] = stats_url()
+    return result
+
+
 def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:
-    """Google Sheet — otomatik sync / scheduler / «Şimdi güncelle» birincil yolu."""
+    """Google Sheet yedek / fallback yolu."""
     global _last_sheet_sync_mono
     now = time.monotonic()
     if (

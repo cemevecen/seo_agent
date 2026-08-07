@@ -472,6 +472,14 @@ class Settings(BaseSettings):
             "doviz_admin_sheet_fallback_enabled",
         ),
     )
+    # VPN köprüsü: ofis/VPN makinesi admin’i çekip Railway’e POST eder.
+    notification_ingest_token: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "NOTIFICATION_INGEST_TOKEN",
+            "notification_ingest_token",
+        ),
+    )
     doviz_asset_monitor_interval_minutes: int = Field(
         default=180,
         ge=5,
