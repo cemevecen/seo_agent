@@ -5,10 +5,16 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
         <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-300">Notification Analytics</h1>
-        <p id="nt-sheet-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Kaynak: Google Sheet</p>
+        <p id="nt-sheet-meta" class="mt-1 text-xs text-slate-500 dark:text-slate-400">Kaynak: Doviz admin / Google Sheet</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <a id="nt-source-link"
+           href="https://www.doviz.com/admin/notifications/stats"
+           target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+          Doviz admin ↗
+        </a>
+        <a id="nt-sheet-link"
            href="https://docs.google.com/spreadsheets/d/1NnizUEsaKpaabB0sCvksiHgx7Kfgt_upj1L2IXgUHeM/edit?gid=0#gid=0"
            target="_blank" rel="noopener"
            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
@@ -17,7 +23,7 @@
         <button id="nt-refresh-sheet" type="button"
                 class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/></svg>
-          Tablodan güncelle
+          Verileri güncelle
         </button>
       </div>
     </div>
@@ -1032,12 +1038,18 @@
     var syncAt = (meta && (meta.last_sheet_sync_at || meta.last_file_upload_at)) || ntLastFileUploadAt || "";
     var when = ntFormatFileUploadAt(syncAt);
     var count = meta && meta.row_count != null ? Number(meta.row_count) : null;
-    var parts = ["Kaynak: Google Sheet"];
+    var src = (meta && meta.source) || "";
+    var parts = [];
+    if (src === "doviz_admin") parts.push("Kaynak: Doviz admin");
+    else if (src) parts.push("Kaynak: Google Sheet");
+    else parts.push("Kaynak: Doviz admin / Google Sheet");
     if (when && when !== "—") parts.push("son senkron: " + when);
     if (count != null && !isNaN(count)) parts.push(count.toLocaleString("tr-TR") + " kayıt");
     el.textContent = parts.join(" · ");
     var link = document.getElementById("nt-source-link");
-    if (link && meta && meta.source_url) link.href = meta.source_url;
+    if (link && meta && meta.source_url && String(meta.source_url).indexOf("doviz.com/admin") >= 0) {
+      link.href = meta.source_url;
+    }
   }
 
   function applyLastFileUploadFromMeta(meta) {
@@ -1177,7 +1189,7 @@
   function syncSheetFromServer(force) {
     var btn = document.getElementById("nt-refresh-sheet");
     if (btn) btn.disabled = true;
-    status(force ? "Google Sheet yeniden çekiliyor…" : "Google Sheet senkronize ediliyor…");
+    status(force ? "Kaynak yeniden çekiliyor…" : "Veriler senkronize ediliyor…");
     return apiFetch("/api/notification-analytics/sync-sheet?force=" + (force ? "1" : "0"), {
       method: "POST",
     })
@@ -2401,10 +2413,10 @@
   renderMetricPills();
   renderListPlatformPills();
 
-  status("Google Sheet senkronize ediliyor…");
+  status("Veriler senkronize ediliyor…");
   syncSheetFromServer(false)
     .catch(function () {
-      /* sheet erişilemezse mevcut DB ile devam */
+      /* kaynak erişilemezse mevcut DB ile devam */
       return null;
     })
     .then(function () {
@@ -2426,8 +2438,8 @@
         status(
           rowsCache.length
             ? rowsCache.length.toLocaleString("tr-TR") +
-              " kayıt gösteriliyor (Google Sheet kaynağı)."
-            : "Henüz kayıt yok — «Tablodan güncelle» ile senkronize edin."
+              " kayıt gösteriliyor."
+            : "Henüz kayıt yok — «Verileri güncelle» ile senkronize edin."
         );
       }
     })

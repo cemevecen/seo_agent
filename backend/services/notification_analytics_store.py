@@ -668,8 +668,109 @@ def replace_workspace_from_rows(db: Session, parsed: list[dict]) -> dict:
         "replaced": True,
         "data_min_date": min_day or "",
         "data_max_date": max_day or "",
-        "message": f"Google Sheet senkronize edildi · {len(merged)} kayıt.",
+        "message": f"Kaynak senkronize edildi · {len(merged)} kayıt.",
     }
+
+
+def sync_from_doviz_admin(db: Session, *, force: bool = False) -> dict:
+    """Doviz.com admin notifications/stats → workspace (TTL ile throttle)."""
+    global _last_sheet_sync_mono
+    from backend.config import settings
+    from backend.services.doviz_notification_admin import (
+        admin_credentials_configured,
+        fetch_notification_rows_from_admin,
+    )
+
+    if not settings.doviz_admin_notification_sync_enabled:
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": True,
+            "ok": False,
+            "message": "DOVIZ_ADMIN_NOTIFICATION_SYNC_ENABLED=false",
+        }
+    if not admin_credentials_configured():
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": True,
+            "ok": False,
+            "message": "DOVIZ_ADMIN_EMAIL / DOVIZ_ADMIN_PASSWORD tanımlı değil.",
+        }
+
+    now = time.monotonic()
+    if (
+        not force
+        and _last_sheet_sync_mono > 0
+        and (now - _last_sheet_sync_mono) < _SHEET_SYNC_TTL_SEC
+    ):
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": True,
+            "message": "Son senkronizasyon taze; admin yeniden çekilmedi.",
+            "source": "doviz_admin",
+        }
+
+    try:
+        fetched = fetch_notification_rows_from_admin()
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Notification admin fetch failed: %s", exc)
+        return {
+            **workspace_state(db, include_rows=False),
+            "synced": False,
+            "skipped": False,
+            "ok": False,
+            "source": "doviz_admin",
+            "message": str(exc) or "Doviz admin okunamadı.",
+        }
+
+    parsed = fetched.get("rows") or []
+    result = replace_workspace_from_rows(db, parsed)
+    if result.get("parsed"):
+        _last_sheet_sync_mono = time.monotonic()
+        result["synced"] = True
+        result["skipped"] = False
+        result["message"] = (
+            f"Doviz admin senkronize edildi · {result.get('added') or result.get('parsed')} kayıt."
+        )
+    else:
+        result["synced"] = False
+        result["skipped"] = False
+        result["message"] = result.get("message") or "Admin tablosundan satır çıkarılamadı."
+    result["source"] = "doviz_admin"
+    result["source_url"] = fetched.get("source_url") or "https://www.doviz.com/admin/notifications/stats"
+    result["fetch_meta"] = {
+        "elapsed_sec": fetched.get("elapsed_sec"),
+        "html_chars": fetched.get("html_chars"),
+        "csv_chars": fetched.get("csv_chars"),
+    }
+    return result
+
+
+def sync_notification_analytics(db: Session, *, force: bool = False) -> dict:
+    """Önce Doviz admin (credential varsa), olmazsa Google Sheet."""
+    from backend.config import settings
+    from backend.services.doviz_notification_admin import admin_credentials_configured
+
+    if settings.doviz_admin_notification_sync_enabled and admin_credentials_configured():
+        admin_result = sync_from_doviz_admin(db, force=force)
+        if admin_result.get("synced") or admin_result.get("skipped"):
+            return admin_result
+        # Admin hata verdiyse sheet’e düş
+        LOGGER.warning(
+            "Admin sync failed (%s); falling back to Google Sheet",
+            admin_result.get("message"),
+        )
+        sheet = sync_from_google_sheet(db, force=True)
+        sheet["admin_error"] = admin_result.get("message")
+        if sheet.get("synced"):
+            sheet["message"] = (
+                f"{sheet.get('message') or 'Sheet sync'} "
+                f"(admin başarısız: {admin_result.get('message')})"
+            )
+        return sheet
+    return sync_from_google_sheet(db, force=force)
 
 
 def sync_from_google_sheet(db: Session, *, force: bool = False) -> dict:

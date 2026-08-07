@@ -438,6 +438,23 @@ class Settings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_ENABLED", "doviz_asset_monitor_enabled"),
     )
+    # Doviz.com admin — bildirim istatistikleri sync (/notification).
+    # Developer API gerekmez; kendi admin e-posta/şifreniz (Railway Variables).
+    doviz_admin_email: str = Field(
+        default="",
+        validation_alias=AliasChoices("DOVIZ_ADMIN_EMAIL", "doviz_admin_email"),
+    )
+    doviz_admin_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("DOVIZ_ADMIN_PASSWORD", "doviz_admin_password"),
+    )
+    doviz_admin_notification_sync_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "DOVIZ_ADMIN_NOTIFICATION_SYNC_ENABLED",
+            "doviz_admin_notification_sync_enabled",
+        ),
+    )
     doviz_asset_monitor_interval_minutes: int = Field(
         default=180,
         ge=5,

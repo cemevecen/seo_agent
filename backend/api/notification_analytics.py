@@ -74,14 +74,32 @@ def post_notification_analytics_append(body: AppendRowsBody, db: Session = Depen
 
 @router.post("/notification-analytics/sync-sheet")
 def post_notification_analytics_sync_sheet(
-    force: bool = Query(False, description="true ise TTL yok sayılır, sheet yeniden çekilir"),
+    force: bool = Query(False, description="true ise TTL yok sayılır, kaynak yeniden çekilir"),
     db: Session = Depends(get_db),
 ):
-    """Kaynak Google Sheet'ten veriyi çekip workspace'e yazar."""
+    """Doviz admin (credential varsa) veya Google Sheet'ten veriyi çekip workspace'e yazar."""
     try:
-        result = store.sync_from_google_sheet(db, force=force)
+        result = store.sync_notification_analytics(db, force=force)
         if result.get("ok") is False and not result.get("skipped"):
-            raise HTTPException(status_code=502, detail=result.get("message") or "Sheet senkronu başarısız.")
+            raise HTTPException(status_code=502, detail=result.get("message") or "Senkron başarısız.")
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/notification-analytics/sync-admin")
+def post_notification_analytics_sync_admin(
+    force: bool = Query(True, description="true ise TTL yok sayılır"),
+    db: Session = Depends(get_db),
+):
+    """Yalnızca Doviz.com admin notifications/stats (DOVIZ_ADMIN_* gerekir)."""
+    try:
+        result = store.sync_from_doviz_admin(db, force=force)
+        if result.get("ok") is False and not result.get("skipped"):
+            raise HTTPException(status_code=502, detail=result.get("message") or "Admin senkronu başarısız.")
         return result
     except HTTPException:
         raise

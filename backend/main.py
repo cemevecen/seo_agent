@@ -2054,10 +2054,10 @@ def _run_deferred_startup() -> None:
 
         _time.sleep(25)
         try:
-            from backend.services.notification_analytics_store import sync_from_google_sheet
+            from backend.services.notification_analytics_store import sync_notification_analytics
 
             with SessionLocal() as db:
-                sync_from_google_sheet(db, force=True)
+                sync_notification_analytics(db, force=True)
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Notification sheet startup sync hatası: %s", exc)
 
@@ -5003,10 +5003,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
 
     def _run_notification_sheet_sync() -> None:
         try:
-            from backend.services.notification_analytics_store import sync_from_google_sheet
+            from backend.services.notification_analytics_store import sync_notification_analytics
 
             with SessionLocal() as db:
-                sync_from_google_sheet(db, force=True)
+                sync_notification_analytics(db, force=True)
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning("Notification sheet sync job: %s", exc)
 
