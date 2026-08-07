@@ -16230,20 +16230,20 @@ def notification_page(request: Request):
 
 @app.get("/ad")
 def ad_analytics_page(request: Request):
-    """Reklam raporları — Excel/CSV yükleme, filtre ve grafikler."""
-    from backend.services.market_sheets_config import MARKET_SHEET_SERIES
+    """Reklam raporları — Google Sheets sync, filtre ve grafikler."""
+    from backend.services.ad_sheets_config import AD_SHEET_SOURCES
     from backend.services.revenue_targets_sheet import REVENUE_TARGETS_SHEET_URL
 
+    # Önce 6 reklam dalı; gelir hedefleri ayrı (paneldeki Kaynak tablo ile aynı).
     ad_sheet_sources = [
+        {"key": s.stream_key, "label": s.label, "url": s.sheet_url}
+        for s in AD_SHEET_SOURCES
+    ] + [
         {
             "key": "revenue_targets",
             "label": "Gelir hedefleri",
             "url": REVENUE_TARGETS_SHEET_URL,
         },
-        *[
-            {"key": s.key, "label": s.label, "url": s.sheet_url}
-            for s in MARKET_SHEET_SERIES
-        ],
     ]
     return templates.TemplateResponse(
         request,
