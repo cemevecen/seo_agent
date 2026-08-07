@@ -4870,6 +4870,18 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
+    # Doviz News yayın istatistikleri — sheet + canlı tamamlamayı 30 dk’da bir ısıt
+    scheduler.add_job(
+        _run_doviz_news_sheet_refresh_job,
+        trigger=CronTrigger(minute="*/30", timezone=timezone),
+        id="doviz-news-sheet-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=600,
+    )
+    job_count += 1
+
     if job_count == 0:
         LOGGER.info("All scheduled refresh jobs are disabled via settings.")
         return None
@@ -18829,6 +18841,17 @@ def _run_news_intelligence_job() -> None:
         run_news_intelligence_job()
     except Exception:
         LOGGER.exception("News intelligence job failed")
+
+
+def _run_doviz_news_sheet_refresh_job() -> None:
+    """APScheduler: Doviz News sheet + haber.doviz.com canlı tamamlamayı yenile."""
+    try:
+        from backend.services.doviz_news_sheet import fetch_doviz_news_rows
+
+        rows = fetch_doviz_news_rows(force=True)
+        LOGGER.info("Doviz News sheet refresh: %s rows", len(rows))
+    except Exception:
+        LOGGER.exception("Doviz News sheet refresh job failed")
 
 
 def _run_scheduled_db_cleanup_job() -> None:

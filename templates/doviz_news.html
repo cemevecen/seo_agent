@@ -2539,10 +2539,16 @@
           : src.indexOf("sheet") >= 0
             ? "sheet"
             : (src || "—");
+      var live = data.live || {};
+      var liveBit = "";
+      if (live.live_added != null && Number(live.live_added) > 0) {
+        liveBit = " · canlı +" + Number(live.live_added).toLocaleString("tr-TR");
+      }
       meta.textContent =
         "son senkron: " + (data.fetched_at || "—") +
         " · " + fmt(s.total) + " kayıt" +
         " · " + srcLabel +
+        liveBit +
         (data.min_id ? " · id≥" + data.min_id : "") +
         (pm.label ? " · " + pm.label : "") +
         (latestId ? " · son id: " + latestId : "");

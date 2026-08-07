@@ -29,7 +29,7 @@ DOVIZ_NEWS_SHEET_URL = (
 )
 
 _CACHE: dict[str, Any] | None = None
-_CACHE_TTL_SEC = 900.0
+_CACHE_TTL_SEC = 300.0  # 5 dk — canlı tamamlamayla birlikte daha taze
 _TZ_TR = ZoneInfo("Europe/Istanbul") if ZoneInfo else None
 
 
@@ -394,12 +394,85 @@ def _db_snapshot_source() -> str:
         return ""
 
 
+def _enrich_rows_with_live_gap(
+    rows: list[dict[str, Any]],
+    *,
+    persist: bool = False,
+    source: str | None = None,
+    source_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """haber.doviz.com ile sheet/admin’de eksik kalan son ID’leri tamamla."""
+    global _CACHE
+    base = list(rows or [])
+    known_ids = {str(r.get("id") or "").strip() for r in base if r.get("id")}
+    min_id = 0
+    for nid in known_ids:
+        try:
+            min_id = max(min_id, int(nid))
+        except ValueError:
+            continue
+
+    live_rows: list[dict[str, Any]] = []
+    live_error = ""
+    try:
+        from backend.services.doviz_news_live import fetch_live_gap_rows, merge_sheet_with_live
+
+        live_rows = fetch_live_gap_rows(
+            known_ids=known_ids,
+            min_id=min_id,
+            discover_limit=160,
+            fetch_limit=100,
+        )
+        merged = merge_sheet_with_live(base, live_rows)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("doviz news live gap fill failed")
+        live_error = str(exc) or "live fetch failed"
+        merged = base
+
+    live_added = max(0, len(merged) - len(base))
+    src = source or str((_CACHE or {}).get("source") or "google_sheet")
+    src_url = source_url or ((_CACHE or {}).get("source_url") if _CACHE else None) or DOVIZ_NEWS_SHEET_URL
+
+    if persist and live_added:
+        set_doviz_news_rows_cache(merged, source=src, source_url=src_url)
+    elif _CACHE is not None:
+        _CACHE["rows"] = list(merged)
+        _CACHE["live_added"] = live_added
+        _CACHE["live_fetched"] = len(live_rows)
+        _CACHE["sheet_max_id"] = min_id or None
+        _CACHE["live_error"] = live_error
+        _CACHE["sheet_rows"] = len(base)
+    else:
+        _CACHE = {
+            "ts": time.monotonic(),
+            "fetched_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "rows": list(merged),
+            "source": src,
+            "source_url": src_url,
+            "min_id": DOVIZ_NEWS_MIN_ID,
+            "live_added": live_added,
+            "live_fetched": len(live_rows),
+            "sheet_max_id": min_id or None,
+            "live_error": live_error,
+            "sheet_rows": len(base),
+        }
+
+    if _CACHE is not None:
+        _CACHE["live_added"] = live_added
+        _CACHE["live_fetched"] = len(live_rows)
+        _CACHE["sheet_max_id"] = min_id or None
+        _CACHE["live_error"] = live_error
+        _CACHE["sheet_rows"] = len(base)
+
+    return list(merged)
+
+
 def fetch_doviz_news_rows(
     *,
     force: bool = False,
     prefer_sheet: bool = False,
 ) -> list[dict[str, Any]]:
-    """Aktif haberler: DB/cache → admin → Google Sheet.
+    """Aktif haberler: DB/cache → admin → Google Sheet (+ canlı gap fill).
 
     prefer_sheet=True: bilinçli yedek (köprü yok). Aksi halde admin/bridge
     snapshot'ı sheet ile ezme.
@@ -431,7 +504,13 @@ def fetch_doviz_news_rows(
     if not force:
         db_rows = _load_doviz_news_rows_from_db()
         if db_rows:
-            return db_rows
+            # Cache hit path değil; DB’den geldi — canlı gap ile son içerikleri tamamla
+            return _enrich_rows_with_live_gap(
+                db_rows,
+                persist=False,
+                source=str((_CACHE or {}).get("source") or "db"),
+                source_url=(_CACHE or {}).get("source_url"),
+            )
 
     from backend.config import settings
     from backend.services.doviz_notification_admin import (
@@ -459,7 +538,12 @@ def fetch_doviz_news_rows(
                     source="doviz_admin_news",
                     source_url=fetched.get("source_url"),
                 )
-                return list(rows)
+                return _enrich_rows_with_live_gap(
+                    rows,
+                    persist=True,
+                    source="doviz_admin_news",
+                    source_url=fetched.get("source_url"),
+                )
             admin_err = "Admin haber tablosu boş"
         except Exception as exc:  # noqa: BLE001
             admin_err = str(exc) or "admin news failed"
@@ -481,7 +565,12 @@ def fetch_doviz_news_rows(
                 )
                 if _CACHE is not None:
                     _CACHE["sheet_skipped"] = True
-                return kept
+                return _enrich_rows_with_live_gap(
+                    kept,
+                    persist=bool(force),
+                    source=existing_src,
+                    source_url=(_CACHE or {}).get("source_url"),
+                )
 
     csv_text = fetch_public_sheet_csv(DOVIZ_NEWS_SHEET_URL)
     rows = parse_doviz_news_csv(csv_text)
@@ -492,7 +581,12 @@ def fetch_doviz_news_rows(
     )
     if _CACHE is not None and admin_err:
         _CACHE["admin_error"] = admin_err[:240]
-    return list(rows)
+    return _enrich_rows_with_live_gap(
+        rows,
+        persist=True,
+        source="google_sheet_fallback" if admin_err else "google_sheet",
+        source_url=DOVIZ_NEWS_SHEET_URL,
+    )
 
 
 def ingest_doviz_news_rows(
@@ -1197,8 +1291,16 @@ def doviz_news_payload(
     ]
 
     fetched_at = None
+    live_meta: dict[str, Any] = {}
     if _CACHE:
         fetched_at = _CACHE.get("fetched_at")
+        live_meta = {
+            "sheet_rows": _CACHE.get("sheet_rows"),
+            "live_added": _CACHE.get("live_added"),
+            "live_fetched": _CACHE.get("live_fetched"),
+            "sheet_max_id": _CACHE.get("sheet_max_id"),
+            "live_error": _CACHE.get("live_error") or "",
+        }
 
     traffic: dict[str, Any] | None = None
     by_article: dict[str, Any] = {}
@@ -1263,6 +1365,7 @@ def doviz_news_payload(
         "fetched_at": fetched_at or cache.get("fetched_at"),
         "admin_error": cache.get("admin_error"),
         "min_id": DOVIZ_NEWS_MIN_ID,
+        "live": live_meta,
         "category": (category or "all"),
         "period": period_info["key"],
         "period_meta": period_meta,
