@@ -1878,7 +1878,7 @@
     return p[2] + "." + p[1] + "." + p[0];
   }
 
-  /** custom seçiliyken select'te «Özel aralık» yerine güncel tarih aralığını göster. */
+  /** Yalnızca custom seçiliyken kapalı select'te tarih aralığı; hazır aralıkta option label (Bu yıl vb.) görünür. */
   function syncMzPresetCustomLabel() {
     var sel = document.getElementById("mz-preset");
     if (!sel) return;
@@ -1978,8 +1978,15 @@
     state._mzApplyingUrl = true;
     if (u.start) document.getElementById("mz-start").value = u.start;
     if (u.end) document.getElementById("mz-end").value = u.end;
-    if (u.start || u.end) setMzPreset("custom");
-    else if (u.preset) setMzPreset(u.preset);
+    // Hazır aralık URL'de varsa onu koru; start/end yüzünden custom'a düşürme.
+    if (u.preset && !isMzCustomPreset(u.preset)) {
+      setMzPreset(u.preset);
+    } else if (u.start || u.end || u.preset === "custom") {
+      setMzPreset("custom");
+    } else if (u.preset) {
+      setMzPreset(u.preset);
+    }
+    syncMzPresetCustomLabel();
     if (u.search) document.getElementById("mz-search").value = u.search;
     if (u.compare) document.getElementById("mz-compare-enabled").checked = true;
     if (u.compare_mode) document.getElementById("mz-compare-mode").value = u.compare_mode;
