@@ -174,7 +174,23 @@
     max-width: 100% !important;
   }
   .mz-page #mz-project-totals {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
     align-items: stretch;
+    width: 100%;
+  }
+  .mz-page #mz-project-totals.is-dual {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 640px) {
+    .mz-page #mz-project-totals.is-dual {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .mz-page #mz-project-totals.is-single .mz-project-total-card {
+    width: 100%;
+    max-width: 100%;
   }
   .mz-page .mz-project-total-card {
     display: flex;
@@ -199,6 +215,30 @@
     .mz-page .mz-project-break--wide {
       grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
     }
+  }
+  /* Tek kart: kırılım kutuları tüm genişliği kullanır */
+  .mz-page #mz-project-totals.is-single .mz-project-break,
+  .mz-page #mz-project-totals.is-single .mz-project-break--wide {
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 0.5rem;
+  }
+  @media (min-width: 640px) {
+    .mz-page #mz-project-totals.is-single .mz-project-break,
+    .mz-page #mz-project-totals.is-single .mz-project-break--wide {
+      grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .mz-page #mz-project-totals.is-single .mz-project-break,
+    .mz-page #mz-project-totals.is-single .mz-project-break--wide {
+      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    }
+  }
+  .mz-page #mz-project-totals.is-single .mz-project-break-item {
+    padding: 0.5rem 0.65rem;
+  }
+  .mz-page #mz-project-totals.is-single .mz-project-break-value {
+    font-size: clamp(0.75rem, 0.65rem + 0.35vw, 0.95rem);
   }
   .mz-page .mz-project-break-item {
     min-width: 0;
@@ -627,18 +667,18 @@
         <p id="mz-compare-period-lines" class="mt-1.5 text-sm leading-snug text-slate-800 dark:text-zinc-100"></p>
         <p id="mz-compare-period-mode" class="mt-1 text-[10px] text-indigo-700 dark:text-indigo-400"></p>
       </div>
-      <div id="mz-project-totals" class="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Proje toplam gelirleri">
-        <div class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
+      <div id="mz-project-totals" class="is-single" aria-label="Proje toplam gelirleri">
+        <div data-mz-project="doviz" class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4">
           <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Döviz toplam gelir</p>
-          <p id="mz-total-doviz" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100">—</p>
+          <p id="mz-total-doviz" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
           <p id="mz-total-doviz-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
           <div id="mz-total-doviz-break" class="mz-project-break mz-project-break--wide" aria-label="Döviz kırılım"></div>
         </div>
-        <div class="mz-project-total-card rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
+        <div data-mz-project="sinemalar" class="mz-project-total-card hidden rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-black midnight:border-zinc-800 midnight:bg-black sm:p-4" aria-hidden="true">
           <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sinemalar toplam gelir</p>
-          <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100">—</p>
+          <p id="mz-total-sinemalar" class="mt-1.5 text-lg font-black tabular-nums text-slate-900 dark:text-zinc-100 sm:text-xl">—</p>
           <p id="mz-total-sinemalar-delta" class="mt-0.5 hidden text-[10px] text-slate-500 dark:text-zinc-400"></p>
-          <div id="mz-total-sinemalar-break" class="mz-project-break" aria-label="Sinemalar kırılım"></div>
+          <div id="mz-total-sinemalar-break" class="mz-project-break mz-project-break--wide" aria-label="Sinemalar kırılım"></div>
         </div>
       </div>
       <div id="mz-kpi-grid" class="mz-kpi-grid">
@@ -2183,6 +2223,30 @@
     return p;
   }
 
+  function mzActiveProjectKey() {
+    var p = (state.activeStream && state.activeStream.project) || "";
+    p = String(p).trim().toLowerCase();
+    if (p === "sinemalar") return "sinemalar";
+    return "doviz";
+  }
+
+  function syncProjectTotalsVisibility() {
+    var project = mzActiveProjectKey();
+    var wrap = document.getElementById("mz-project-totals");
+    if (!wrap) return;
+    wrap.querySelectorAll("[data-mz-project]").forEach(function (card) {
+      var show = card.getAttribute("data-mz-project") === project;
+      card.classList.toggle("hidden", !show);
+      card.setAttribute("aria-hidden", show ? "false" : "true");
+    });
+    wrap.classList.add("is-single");
+    wrap.classList.remove("is-dual");
+    wrap.setAttribute(
+      "aria-label",
+      project === "sinemalar" ? "Sinemalar toplam gelir" : "Döviz toplam gelir"
+    );
+  }
+
   var MZ_PROJECT_AREA_ORDER = {
     doviz: ["web", "mweb", "android", "ios"],
     sinemalar: ["web", "mweb"],
@@ -2274,32 +2338,45 @@
   }
 
   async function refreshProjectTotals() {
+    syncProjectTotalsVisibility();
+    var project = mzActiveProjectKey();
     var dovizEl = document.getElementById("mz-total-doviz");
     var sinEl = document.getElementById("mz-total-sinemalar");
     var dovizBreak = document.getElementById("mz-total-doviz-break");
     var sinBreak = document.getElementById("mz-total-sinemalar-break");
-    if (dovizEl) dovizEl.textContent = "…";
-    if (sinEl) sinEl.textContent = "…";
-    if (dovizBreak) dovizBreak.innerHTML = "";
-    if (sinBreak) sinBreak.innerHTML = "";
+    var valueEl = project === "sinemalar" ? sinEl : dovizEl;
+    var breakEl = project === "sinemalar" ? sinBreak : dovizBreak;
+    if (valueEl) valueEl.textContent = "…";
+    if (breakEl) breakEl.innerHTML = "";
     try {
-      var [dovizR, sinR] = await Promise.all([
-        fetch("/api/mz-analytics/summary?" + qsForProjectTotal("doviz").toString()),
-        fetch("/api/mz-analytics/summary?" + qsForProjectTotal("sinemalar").toString()),
-      ]);
-      var dovizSum = dovizR.ok ? await dovizR.json() : null;
-      var sinSum = sinR.ok ? await sinR.json() : null;
-      renderProjectTotalCard(dovizSum, "mz-total-doviz", "mz-total-doviz-delta", "mz-total-doviz-break", "doviz");
-      renderProjectTotalCard(sinSum, "mz-total-sinemalar", "mz-total-sinemalar-delta", "mz-total-sinemalar-break", "sinemalar");
+      var resp = await fetch(
+        "/api/mz-analytics/summary?" + qsForProjectTotal(project).toString()
+      );
+      var sum = resp.ok ? await resp.json() : null;
+      if (project === "sinemalar") {
+        renderProjectTotalCard(
+          sum,
+          "mz-total-sinemalar",
+          "mz-total-sinemalar-delta",
+          "mz-total-sinemalar-break",
+          "sinemalar"
+        );
+      } else {
+        renderProjectTotalCard(
+          sum,
+          "mz-total-doviz",
+          "mz-total-doviz-delta",
+          "mz-total-doviz-break",
+          "doviz"
+        );
+      }
     } catch (_) {
-      if (dovizEl) dovizEl.textContent = "—";
-      if (sinEl) sinEl.textContent = "—";
-      if (dovizBreak) dovizBreak.innerHTML = "";
-      if (sinBreak) sinBreak.innerHTML = "";
-      var dDelta = document.getElementById("mz-total-doviz-delta");
-      var sDelta = document.getElementById("mz-total-sinemalar-delta");
-      if (dDelta) dDelta.classList.add("hidden");
-      if (sDelta) sDelta.classList.add("hidden");
+      if (valueEl) valueEl.textContent = "—";
+      if (breakEl) breakEl.innerHTML = "";
+      var deltaId =
+        project === "sinemalar" ? "mz-total-sinemalar-delta" : "mz-total-doviz-delta";
+      var deltaEl = document.getElementById(deltaId);
+      if (deltaEl) deltaEl.classList.add("hidden");
     }
   }
 
@@ -10074,6 +10151,7 @@
         resetPeerOverlayToggles();
         ensureActiveKpi(activeKpiDefs(null));
         renderStreamTabs();
+        syncProjectTotalsVisibility();
         updateScopeUi();
         preserveDateRangeForStream(st);
         loadDetailFavorites();
@@ -10110,6 +10188,7 @@
         state.activeStream = pickDefaultMzStream(state.streams);
       }
       renderStreamTabs();
+      syncProjectTotalsVisibility();
       updateScopeUi();
       if (typeof window.mzSelectSheetSourceByKey === "function" && state.activeStream && state.activeStream.key) {
         window.mzSelectSheetSourceByKey(state.activeStream.key);
