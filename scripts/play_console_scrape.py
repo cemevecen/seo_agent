@@ -123,8 +123,13 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
             except Exception:
                 pass
             if "play.google.com/console" in url and "accounts.google.com" not in url:
-                # App dashboard veya console ana — session OK
-                time.sleep(2)
+                # Cookie’lerin diske yazılması için biraz bekle
+                time.sleep(5)
+                try:
+                    page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=60_000)
+                    time.sleep(2)
+                except Exception:
+                    pass
                 print(f"Login OK · {url}", flush=True)
                 return {"ok": True, "url": url, "title": title, "profile": str(PROFILE_DIR)}
             time.sleep(2)
@@ -278,12 +283,52 @@ def _extract_reviews_dom(page) -> list[dict[str, Any]]:
     )
 
 
+def _page_needs_login(page) -> tuple[bool, str, str]:
+    url = ""
+    title = ""
+    body_sample = ""
+    try:
+        url = page.url or ""
+    except Exception:
+        pass
+    try:
+        title = page.title() or ""
+    except Exception:
+        pass
+    try:
+        body_sample = page.inner_text("body")[:800]
+    except Exception:
+        pass
+    return _need_login(url, title, body_sample), url, title
+
+
+def _wait_until_console(page, *, timeout_sec: int = 600) -> bool:
+    """Login ekranındaysa kullanıcı girene kadar bekle; console URL gelince True."""
+    deadline = time.time() + max(60, timeout_sec)
+    printed = False
+    while time.time() < deadline:
+        need, url, _title = _page_needs_login(page)
+        if not need and "play.google.com/console" in (url or ""):
+            time.sleep(2)
+            return True
+        if not printed:
+            print(
+                "Play oturumu yok — açılan Chromium’da cemevecen@nokta.com ile giriş yap. "
+                f"Dashboard gelince devam ({timeout_sec}s).",
+                flush=True,
+            )
+            printed = True
+        time.sleep(2)
+    return False
+
+
 def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
     if headed is None:
         # Google Play, headless Chromium’da cookie’yi sık sık reddeder.
         env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
         headed = env_hl not in ("1", "true", "yes")
-    pw, context = _launch_context(headed=headed)
+    # Login gerekirse mutlaka headed
+    pw, context = _launch_context(headed=True if headed else False)
     network: list[dict[str, Any]] = []
     try:
         page = context.pages[0] if context.pages else context.new_page()
@@ -294,26 +339,48 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             page.wait_for_load_state("networkidle", timeout=45_000)
         except Exception:
             pass
-        time.sleep(3)
+        time.sleep(2)
 
-        url = page.url or ""
-        title = ""
-        try:
-            title = page.title() or ""
-        except Exception:
-            pass
-        body_sample = ""
-        try:
-            body_sample = page.inner_text("body")[:800]
-        except Exception:
-            pass
+        need, url, title = _page_needs_login(page)
+        if need:
+            if not headed:
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "message": "Play oturumu yok — headed sync veya --login gerekli",
+                    "url": url,
+                    "metrics": [],
+                    "reviews": [],
+                    "rating_summary": {},
+                    "raw_network": [],
+                }
+            # Tarayıcıyı kapatma — kullanıcı giriş yapsın
+            if not _wait_until_console(page, timeout_sec=600):
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "message": "Login zaman aşımı — tekrar dene",
+                    "url": page.url if page else url,
+                    "metrics": [],
+                    "reviews": [],
+                    "rating_summary": {},
+                    "raw_network": [],
+                }
+            # Dashboard’a tekrar bas
+            page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
+            try:
+                page.wait_for_load_state("networkidle", timeout=45_000)
+            except Exception:
+                pass
+            time.sleep(3)
 
-        if _need_login(url, title, body_sample):
+        need2, url2, _ = _page_needs_login(page)
+        if need2:
             return {
                 "ok": False,
                 "needs_login": True,
-                "message": "Play Console oturumu yok — scripts/play_console_scrape.py --login çalıştır",
-                "url": url,
+                "message": "Giriş sonrası hâlâ accounts.google.com — 2FA/hesap seçimini tamamla",
+                "url": url2,
                 "metrics": [],
                 "reviews": [],
                 "rating_summary": {},
@@ -328,6 +395,12 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         except Exception:
             pass
         time.sleep(2)
+        # Reviews de login isterse bekle
+        need_r, _, _ = _page_needs_login(page)
+        if need_r and headed:
+            _wait_until_console(page, timeout_sec=300)
+            page.goto(REVIEWS_URL, wait_until="domcontentloaded", timeout=120_000)
+            time.sleep(2)
         rating_summary = _extract_rating_summary_dom(page) or {}
         reviews = _extract_reviews_dom(page) or []
 
