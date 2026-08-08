@@ -764,7 +764,7 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         else:
             body = body[:800]
         body = _strip_review_noise(body)
-        if len(body) < 12 or _is_calendar_review_junk(body):
+        if body and _is_calendar_review_junk(body):
             continue
         # Gerçek yorum sinyali: yıldız veya cihaz veya yeterince uzun doğal metin
         stars = r.get("stars")
@@ -774,24 +774,31 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
                 stars = f"{sm.group(1)} yıldız"
             elif raw_full.count("star") >= 5 or ("★" * 3 in raw_full):
                 stars = "5 yıldız"
+        # Kısa ama puanlı yorumlar da kalsın ("Süper", "Güzel"…)
+        min_body = 2 if stars else 8
+        if len(body) < min_body and not stars:
+            continue
         has_signal = bool(stars) or bool(device) or (
-            len(body) >= 24 and not re.fullmatch(r"[\d\s%.,A-ZÇĞİÖŞÜa-zçğıöşü]+", body[:40] or "")
+            len(body) >= 12 and not re.fullmatch(r"[\d\s%.,A-ZÇĞİÖŞÜa-zçğıöşü]+", body[:40] or "")
         )
         if not has_signal:
             continue
-        key = (author.lower() + "|" + body[:60].lower())
+        key = (author.lower() + "|" + (body[:60] or str(stars) or "").lower() + "|" + (date or "")[:16])
         if key in seen:
             continue
         seen.add(key)
-        date_iso = review_date_iso(date)
+        date_iso = str(r.get("date_iso") or "").strip() or review_date_iso(date) or ""
         cleaned.append(
             {
                 "author": author[:80],
                 "date": date[:64] if date else "",
-                "date_iso": date_iso or "",
+                "date_iso": date_iso,
                 "device": device,
-                "body": body,
+                "body": body or (f"({stars})" if stars else ""),
                 "stars": stars,
+                "review_id": str(r.get("review_id") or "")[:80],
+                "app_version": str(r.get("app_version") or "")[:40],
+                "source": str(r.get("source") or "")[:40],
             }
         )
     return cleaned

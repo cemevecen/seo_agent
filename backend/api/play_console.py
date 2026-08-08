@@ -62,6 +62,29 @@ def get_play_console_snapshot(db: Session = Depends(get_db)):
     return play_console_payload(db)
 
 
+@router.post("/play-console/sync-store-reviews")
+def post_sync_store_reviews(
+    db: Session = Depends(get_db),
+    days: int = 365,
+    package_name: str = "com.Doviz",
+):
+    """Play Store genel API’den son N gün yorumlarını çekip workspace’e yazar.
+
+    Play Console DOM scroll’una bağlı değildir; admin oturumu yeterlidir.
+    """
+    from backend.services.play_store_reviews import sync_store_reviews_to_workspace
+
+    try:
+        return sync_store_reviews_to_workspace(
+            db,
+            package_name=(package_name or "com.Doviz").strip() or "com.Doviz",
+            days=max(28, min(400, int(days or 365))),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("sync-store-reviews failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/play-console/ingest")
 def post_play_console_ingest(
     body: PlayConsoleIngestBody,

@@ -1983,41 +1983,43 @@ def _apply_reviews_date_filter(page, *, days: int = 365) -> bool:
     else:
         labels = ["Son 28 gün", "Last 28 days", "28"]
 
-    # Dönem / tarih combobox
+    # Tarih aralığı seçici (ör. "1 Eki 2008 – 8 Ağu 2026")
     try:
-        for name in (
-            "Dönem",
-            "Period",
-            "Tarih",
-            "Date",
-            "Zaman aralığı",
-            "Time period",
-        ):
-            loc = page.get_by_label(name, exact=False)
-            if loc.count() > 0:
-                loc.first.click(timeout=2_500)
-                time.sleep(0.5)
-                break
+        opened = page.evaluate(
+            """() => {
+              const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+              const nodes = Array.from(document.querySelectorAll(
+                'button, [role="combobox"], [aria-haspopup], div[aria-label]'
+              ));
+              for (const el of nodes) {
+                const aria = clean(el.getAttribute('aria-label') || '');
+                const t = clean(el.innerText || '');
+                if (/tarih aralığı|date range|date filter/i.test(aria)
+                    || (/\\d{4}.+\\d{4}/.test(t) && /arrow_drop_down|–|-/.test(t) && t.length < 80)) {
+                  el.click();
+                  return true;
+                }
+              }
+              return false;
+            }"""
+        )
+        if opened:
+            time.sleep(0.6)
         else:
-            clicked = page.evaluate(
-                """() => {
-                  const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
-                  const nodes = Array.from(document.querySelectorAll(
-                    'button, [role="combobox"], [aria-haspopup="listbox"]'
-                  ));
-                  for (const el of nodes) {
-                    const t = clean(el.innerText || el.getAttribute('aria-label') || '');
-                    if (/son\\s*\\d|last\\s*\\d|dönem|period|28 gün|7 gün|90|yıl|year|month/i.test(t)
-                        && t.length < 60) {
-                      el.click();
-                      return true;
-                    }
-                  }
-                  return false;
-                }"""
-            )
-            if clicked:
-                time.sleep(0.5)
+            for name in (
+                "Dönem",
+                "Period",
+                "Tarih",
+                "Date",
+                "Zaman aralığı",
+                "Time period",
+                "Tarih aralığı",
+            ):
+                loc = page.get_by_label(name, exact=False)
+                if loc.count() > 0:
+                    loc.first.click(timeout=2_500)
+                    time.sleep(0.5)
+                    break
     except Exception:
         pass
 
@@ -2063,7 +2065,7 @@ def _apply_reviews_date_filter(page, *, days: int = 365) -> bool:
 
 
 def _click_reviews_load_more(page) -> bool:
-    """Sadece 'daha fazla yorum' tarzı butonlar — Next/pagination tıklama (sayfa kapanmasın)."""
+    """Sadece 'daha fazla yorum' tarzı butonlar — 'Daha fazla bilgi' vb. yanıltmasın."""
     labels = (
         "Daha fazla göster",
         "Daha fazla yükle",
@@ -2073,7 +2075,7 @@ def _click_reviews_load_more(page) -> bool:
     )
     for label in labels:
         try:
-            loc = page.get_by_role("button", name=re.compile(rf"^{re.escape(label)}", re.I))
+            loc = page.get_by_role("button", name=re.compile(rf"^{re.escape(label)}$", re.I))
             if loc.count() > 0 and loc.first.is_visible():
                 loc.first.click(timeout=2_500)
                 return True
@@ -2086,6 +2088,8 @@ def _click_reviews_load_more(page) -> bool:
               const nodes = Array.from(document.querySelectorAll('button, [role="button"]'));
               for (const el of nodes) {
                 const t = clean(el.innerText || el.getAttribute('aria-label') || '');
+                // 'Daha fazla bilgi' / help linklerini ele
+                if (/bilgi|help|info|öğren|learn/i.test(t)) continue;
                 if (/^(daha fazla( göster| yükle| yorum)?|show more|load more)$/i.test(t)) {
                   el.click();
                   return true;
@@ -4060,13 +4064,51 @@ def scrape_reviews_only(*, headed: bool | None = None) -> dict[str, Any]:
                 "reviews": [],
             }
         print("  · reviews-only (last year) …", flush=True)
-        reviews = _scrape_reviews_list(page, days=_reviews_days())
+        days = _reviews_days()
+        # 1) Play Store genel API — Console DOM’da görünmeyen/yüklenmeyen tüm yıl yorumları
+        store_reviews: list[dict[str, Any]] = []
+        try:
+            from backend.services.play_store_reviews import fetch_play_store_reviews
+
+            store_reviews = fetch_play_store_reviews(PACKAGE, days=days)
+            print(f"    → play store public: {len(store_reviews)}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    → play store public skip: {exc}", flush=True)
+        # 2) Console DOM (yanıt/cihaz meta için tamamlayıcı)
+        console_reviews = _scrape_reviews_list(page, days=days)
+        print(f"    → play console dom: {len(console_reviews)}", flush=True)
         rating_summary = _extract_rating_summary_dom(page) or {}
+        merged: dict[str, dict[str, Any]] = {}
+        for r in list(store_reviews) + list(console_reviews or []):
+            if not isinstance(r, dict):
+                continue
+            key = (
+                str(r.get("review_id") or "").strip()
+                or (
+                    str(r.get("author") or "").strip().lower()
+                    + "|"
+                    + str(r.get("body") or "")[:80].strip().lower()
+                    + "|"
+                    + str(r.get("date_iso") or r.get("date") or "")[:16]
+                )
+            )
+            if not key or key in merged:
+                # Daha uzun body varsa güncelle
+                if key in merged and len(str(r.get("body") or "")) > len(
+                    str(merged[key].get("body") or "")
+                ):
+                    merged[key] = r
+                continue
+            merged[key] = r
+        reviews = list(merged.values())
         ok = bool(reviews)
         return {
             "ok": ok,
             "needs_login": False,
-            "message": f"Reviews scrape · {len(reviews)} review · days={_reviews_days()}",
+            "message": (
+                f"Reviews · store={len(store_reviews)} console={len(console_reviews or [])} "
+                f"merged={len(reviews)} · days={days}"
+            ),
             "package_name": PACKAGE,
             "app_id": APP_ID,
             "metrics": [],
@@ -4074,7 +4116,7 @@ def scrape_reviews_only(*, headed: bool | None = None) -> dict[str, Any]:
             "reviews": reviews,
             "rating_summary": rating_summary,
             "merge_reviews": True,
-            "source": "play_console_bridge",
+            "source": "play_store_public+console",
             "source_url": REVIEWS_URL,
             "sync_ok": ok,
             "sync_mode": "reviews_only",

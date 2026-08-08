@@ -385,7 +385,7 @@
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Yorumlar</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · son 1 yıl · kullanıcı puanları ve yorumlar</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Store · son 1 yıl · tüm metinli yorumlar</p>
       </div>
       <div class="flex items-center gap-3">
         <span id="pc-review-count" class="text-xs tabular-nums text-slate-500"></span>
@@ -1544,6 +1544,12 @@
 
   function renderReviews(rows) {
     rows = (Array.isArray(rows) ? rows : []).filter(function (r) { return r && !isCalendarReviewJunk(r); });
+    rows.sort(function (a, b) {
+      var da = String((a && a.date_iso) || "");
+      var db = String((b && b.date_iso) || "");
+      if (da && db && da !== db) return da < db ? 1 : -1;
+      return String((b && b.date) || "").localeCompare(String((a && a.date) || ""));
+    });
     var countLabel = rows.length ? (rows.length + " yorum") : "—";
     if (reviewCountEl) reviewCountEl.textContent = rows.length ? countLabel : "";
     if (btnReviewCount) btnReviewCount.textContent = countLabel;
@@ -1554,20 +1560,26 @@
     }
     reviewsEmpty.classList.add("hidden");
     reviewsEl.innerHTML = rows.map(function (r) {
-      var date = (r.date || "").trim();
+      var date = (r.date || r.date_iso || "").trim();
       var stars = (r.stars || "").trim();
+      var ver = (r.app_version || "").trim();
       var starsHtml = stars
         ? '<span class="inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">' + esc(stars) + "</span>"
         : "";
       var dateHtml = date
         ? '<time class="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">' + esc(date) + "</time>"
         : "";
+      var metaBits = [];
+      if (r.device) metaBits.push(r.device);
+      if (ver) metaBits.push("v" + ver);
       return (
         '<article class="relative rounded-xl border border-slate-200 bg-white p-3.5 dark:border-zinc-700 dark:bg-zinc-950/40">' +
           '<div class="flex items-start justify-between gap-3">' +
             '<div class="min-w-0">' +
               '<p class="truncate text-sm font-bold text-slate-900 dark:text-zinc-50">' + esc(r.author || "Anonim") + "</p>" +
-              (r.device ? '<p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-zinc-400">' + esc(r.device) + "</p>" : "") +
+              (metaBits.length
+                ? '<p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-zinc-400">' + esc(metaBits.join(" · ")) + "</p>"
+                : "") +
             "</div>" +
             '<div class="flex shrink-0 flex-col items-end gap-1">' +
               dateHtml +
@@ -1650,6 +1662,20 @@
         }
       } catch (_) {}
     }
+    // Play Store’dan son 1 yıl yorumlarını sunucuda çek (Console DOM’a bağlı değil)
+    try {
+      setPcLine(statusEl, "Yorumlar senkron…");
+      var sr = await fetch("/api/play-console/sync-store-reviews?days=365", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" }
+      });
+      var sj = null;
+      try { sj = await sr.json(); } catch (_) {}
+      if (sr.ok && sj && sj.ok) {
+        setPcLine(statusEl, sj.message || ("Yorumlar: " + (sj.review_count || 0)));
+      }
+    } catch (_) {}
     try {
       await loadSnapshot();
       if (bridgeOk) setPcLine(statusEl, "");
@@ -1659,7 +1685,26 @@
   }
 
   if (btn) btn.addEventListener("click", refreshPage);
-  loadSnapshot();
+  // İlk açılışta snapshot + (yorum azsa) store senkronu
+  (async function bootAndroid() {
+    await loadSnapshot();
+    try {
+      var snap = null;
+      var r0 = await fetch("/api/play-console/snapshot", { credentials: "same-origin", cache: "no-store" });
+      snap = await r0.json();
+      var n = Array.isArray(snap && snap.reviews) ? snap.reviews.length : 0;
+      if (n < 40) {
+        setPcLine(statusEl, "Son 1 yıl yorumları çekiliyor…");
+        var sr = await fetch("/api/play-console/sync-store-reviews?days=365", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" }
+        });
+        if (sr.ok) await loadSnapshot();
+        setPcLine(statusEl, "");
+      }
+    } catch (_) {}
+  })();
 })();
 </script>
 {% endblock %}
