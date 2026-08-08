@@ -41,6 +41,93 @@
   @keyframes pa-orbit-spin {
     to { transform: rotate(360deg); }
   }
+  .pa-filters {
+    container-type: inline-size;
+    container-name: pa-filters;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: clamp(0.25rem, 0.7cqi, 0.75rem);
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pa-filters > label.pa-f {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 0;
+    font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
+    font-weight: 600;
+    color: inherit;
+    white-space: nowrap;
+  }
+  .pa-filters > label.pa-f--metric { flex: 1.45 1 0; }
+  .pa-filters > label.pa-f--date { flex: 0.95 1 0; min-width: 6.5rem; }
+  .pa-filters > label.pa-f--sm { flex: 0.85 1 0; }
+  .pa-filters > label.pa-f--compare {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    padding-bottom: 0.35rem;
+    white-space: nowrap;
+  }
+  .pa-filters > label.pa-f--compare .pa-f-compare-text {
+    font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
+  }
+  .pa-filters input[type="date"],
+  .pa-filters select {
+    margin-top: 0.2rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: clamp(0.2rem, 0.45cqi, 0.35rem) clamp(0.3rem, 0.55cqi, 0.5rem);
+    font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    line-height: 1.25;
+    text-overflow: ellipsis;
+  }
+  .pa-filters input[type="date"] {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .dark .pa-filters input[type="date"],
+  .dark .pa-filters select {
+    border-color: #52525b;
+    background: #09090b;
+    color: #f4f4f5;
+  }
+  .pa-filters .pa-f-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: clamp(0.25rem, 0.5cqi, 0.5rem);
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .pa-filters .pa-f-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    border-radius: 0.5rem;
+    padding: clamp(0.28rem, 0.55cqi, 0.45rem) clamp(0.45rem, 0.9cqi, 0.75rem);
+    font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  @container pa-filters (max-width: 920px) {
+    .pa-filters > label.pa-f--compare .pa-f-compare-full { display: none; }
+    .pa-filters > label.pa-f--compare .pa-f-compare-short { display: inline; }
+  }
+  @container pa-filters (min-width: 921px) {
+    .pa-filters > label.pa-f--compare .pa-f-compare-short { display: none; }
+  }
   @keyframes pa-orbit-pulse {
     0%, 100% { transform: scale(0.85); opacity: 0.75; }
     50% { transform: scale(1); opacity: 1; }
@@ -104,15 +191,15 @@
       <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrikler</h2>
     </div>
 
-    <div class="mt-4 flex flex-wrap items-end gap-3">
-      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Başlangıç
-        <input id="pa-start" type="date" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100" />
+    <div class="pa-filters mt-4 text-slate-600 dark:text-zinc-300">
+      <label class="pa-f pa-f--date">Başlangıç
+        <input id="pa-start" type="date" />
       </label>
-      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Bitiş
-        <input id="pa-end" type="date" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100" />
+      <label class="pa-f pa-f--date">Bitiş
+        <input id="pa-end" type="date" />
       </label>
-      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Preset
-        <select id="pa-preset" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+      <label class="pa-f pa-f--sm">Preset
+        <select id="pa-preset">
           <option value="7">Son 1 hafta</option>
           <option value="14" selected>Son 2 hafta</option>
           <option value="30">Son 1 ay</option>
@@ -122,8 +209,8 @@
           <option value="365">Son 1 sene</option>
         </select>
       </label>
-      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
-        <select id="pa-metric" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+      <label class="pa-f pa-f--metric">Metrik
+        <select id="pa-metric">
           <option value="anrs" selected>ANR (sayı / boyut≈etkilenen)</option>
           <option value="crashes">Çökme (sayı / boyut≈etkilenen)</option>
           <option value="device_acquisition">Cihaz edinme</option>
@@ -136,16 +223,16 @@
           <option value="revenue">Gelir (Play · günlük)</option>
         </select>
       </label>
-      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
-        <select id="pa-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+      <label class="pa-f pa-f--sm">Zaman kırılımı
+        <select id="pa-breakdown">
           <option value="date" selected>Gün</option>
           <option value="week">Hafta</option>
           <option value="month">Ay</option>
           <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
         </select>
       </label>
-      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Boyut
-        <select id="pa-dim" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+      <label class="pa-f pa-f--sm">Boyut
+        <select id="pa-dim">
           <option value="overview">Genel (tarih)</option>
           <option value="app_version">Uygulama sürümü</option>
           <option value="device">Cihaz</option>
@@ -153,23 +240,28 @@
           <option value="os_version">Android OS</option>
         </select>
       </label>
-      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Segment
-        <select id="pa-segment" class="mt-1 block max-w-[10rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+      <label class="pa-f pa-f--sm">Segment
+        <select id="pa-segment">
           <option value="all">Tümü</option>
         </select>
       </label>
-      <label class="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-zinc-300 pb-1.5">
+      <label class="pa-f pa-f--compare">
         <input id="pa-compare" type="checkbox" class="rounded border-slate-300" />
-        Önceki dönem kıyas
+        <span class="pa-f-compare-text">
+          <span class="pa-f-compare-full">Önceki dönem kıyas</span>
+          <span class="pa-f-compare-short">Kıyas</span>
+        </span>
       </label>
-      <button id="pa-run" type="button"
-              class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
-        <span id="pa-run-label">Uygula</span>
-      </button>
-      <button id="pa-add-chart" type="button"
-              class="hidden inline-flex items-center justify-center rounded-lg border border-blue-600 bg-white px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 dark:border-blue-500 dark:bg-zinc-900 dark:text-blue-300 dark:hover:bg-blue-950/40">
-        + grafik
-      </button>
+      <div class="pa-f-actions">
+        <button id="pa-run" type="button"
+                class="pa-f-btn border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
+          <span id="pa-run-label">Uygula</span>
+        </button>
+        <button id="pa-add-chart" type="button"
+                class="pa-f-btn hidden border border-blue-600 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-500 dark:bg-zinc-900 dark:text-blue-300 dark:hover:bg-blue-950/40">
+          + grafik
+        </button>
+      </div>
     </div>
 
     <div id="pa-overlay-panel" class="mt-3 hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
