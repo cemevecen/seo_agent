@@ -216,7 +216,7 @@ def _load_install_facts(
 
     want_dims = set(dims) if dims else set(_DIM_SUFFIXES)
     want_dims.add("overview")
-    cache_key = f"v2|{package_name}|{','.join(sorted(want_dims))}|m{months}"
+    cache_key = f"v3|{package_name}|{','.join(sorted(want_dims))}|m{months}"
     now = time.time()
     cached = _CACHE.get(cache_key)
     if cached and (now - cached["ts"]) < _CACHE_TTL:
@@ -237,34 +237,89 @@ def _load_install_facts(
         }
 
     months_ok = _recent_yyyymm(months)
+    # GCS listesi alfabetik: …_201105_… önce gelir; max_results=300 eski
+    # dosyalarda kalır, 2026 hiç görülmez → ay ay prefix çek.
+    pkg_variants: list[str] = []
+    for p in (package_name, package_name.lower()):
+        if p and p not in pkg_variants:
+            pkg_variants.append(p)
     prefix = f"stats/installs/installs_{package_name}_"
     sample_names: list[str] = []
     raw_count = 0
+    blobs: list[Any] = []
+    seen_names: set[str] = set()
+
+    def _add_blob(b: Any) -> None:
+        n = b.name or ""
+        if not n or n in seen_names:
+            return
+        seen_names.add(n)
+        blobs.append(b)
+
     try:
         bucket = client.bucket(bucket_name)
-        blobs = list(bucket.list_blobs(prefix=prefix, max_results=300))
-        raw_count = len(blobs)
-        sample_names = [(b.name or "") for b in blobs[:15]]
+        for yyyymm in sorted(months_ok, reverse=True):
+            for pkg in pkg_variants:
+                month_prefix = f"stats/installs/installs_{pkg}_{yyyymm}_"
+                try:
+                    for b in bucket.list_blobs(prefix=month_prefix, max_results=40):
+                        _add_blob(b)
+                except Exception as exc_m:  # noqa: BLE001
+                    LOGGER.debug("list month %s: %s", month_prefix, exc_m)
 
-        # Prefix boşsa: paket adı / path keşfi
+        raw_count = len(blobs)
+        sample_names = sorted({(b.name or "") for b in blobs})[:20]
+
         if not blobs:
             alt_samples: list[str] = []
-            try:
-                for b in bucket.list_blobs(prefix="stats/installs/", max_results=80):
-                    n = b.name or ""
-                    alt_samples.append(n)
-                    # installs_<pkg>_YYYYMM_dim.csv — pkg case-insensitive eşleş
-                    low = n.lower()
-                    pkg_low = package_name.lower()
-                    if f"installs_{pkg_low}_" in low or (
-                        "installs_" in low and "doviz" in low
-                    ):
-                        blobs.append(b)
-                if not sample_names:
-                    sample_names = alt_samples[:20]
-                raw_count = max(raw_count, len(alt_samples))
-            except Exception as exc2:  # noqa: BLE001
-                LOGGER.warning("Play analytics installs/ list: %s", exc2)
+            newest_yyyymm: str | None = None
+            for pkg in pkg_variants:
+                broad = f"stats/installs/installs_{pkg}_"
+                try:
+                    found_months: set[str] = set()
+                    for i, b in enumerate(bucket.list_blobs(prefix=broad)):
+                        n = b.name or ""
+                        if i < 30:
+                            alt_samples.append(n)
+                        m = re.search(r"_(\d{6})_[a-z0-9_]+\.csv$", n, re.I)
+                        if m:
+                            found_months.add(m.group(1))
+                        if len(found_months) >= 48 and i > 800:
+                            break
+                        if i >= 8000:
+                            break
+                    if found_months:
+                        newest_yyyymm = max(found_months)
+                        for ym in sorted(found_months, reverse=True)[:10]:
+                            for b in bucket.list_blobs(
+                                prefix=f"stats/installs/installs_{pkg}_{ym}_",
+                                max_results=40,
+                            ):
+                                _add_blob(b)
+                except Exception as exc2:  # noqa: BLE001
+                    LOGGER.warning("Play analytics broad list %s: %s", broad, exc2)
+
+            if newest_yyyymm:
+                sample_names = [f"(newest_month={newest_yyyymm})"] + sorted(
+                    {(b.name or "") for b in blobs}
+                )[:15]
+            elif not sample_names:
+                sample_names = alt_samples[:20]
+            raw_count = max(raw_count, len(blobs), len(alt_samples))
+
+            if not blobs:
+                try:
+                    for b in bucket.list_blobs(prefix="stats/installs/", max_results=120):
+                        n = b.name or ""
+                        alt_samples.append(n)
+                        low = n.lower()
+                        if "installs_" in low and "doviz" in low:
+                            _add_blob(b)
+                    if not sample_names:
+                        sample_names = alt_samples[:20]
+                    raw_count = max(raw_count, len(alt_samples))
+                except Exception as exc3:  # noqa: BLE001
+                    LOGGER.warning("Play analytics installs/ list: %s", exc3)
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("Play analytics list_blobs: %s", exc)
         msg = str(exc)
@@ -308,7 +363,7 @@ def _load_install_facts(
             continue
         selected.append((0 if dim == "overview" else 1, name, dim, yyyymm, blob))
 
-    # Ay filtresi her şeyi elediysse: en yeni yyyymm dosyalarından al
+    # Ay filtresi her şeyi elediysse: en yeni yyyymm dosyalarından al (2011 yok)
     if not selected and blobs:
         ranked: list[tuple[str, int, str, str, Any]] = []
         for blob in blobs:
@@ -318,6 +373,11 @@ def _load_install_facts(
                 continue
             yyyymm, dim = m.group(1), m.group(2).lower()
             if dim not in want_dims:
+                continue
+            try:
+                if int(yyyymm[:4]) < date.today().year - 4:
+                    continue
+            except ValueError:
                 continue
             ranked.append((yyyymm, 0 if dim == "overview" else 1, name, dim, blob))
         ranked.sort(key=lambda x: (x[0], -x[1]), reverse=True)
@@ -444,11 +504,18 @@ def _load_install_facts(
                 f"Örnek: {', '.join(sample_names[:5]) or '—'}"
             )
         else:
+            oldest = ""
+            if selected:
+                oldest = selected[0][1]
+            elif sample_names:
+                oldest = sample_names[0]
             msg = (
                 f"{files_read} CSV indirildi ama geçerli tarih satırı yok "
                 f"(parse_err={parse_errors}). "
                 f"Başlıklar: {', '.join(header_samples) or '—'}. "
-                f"Örnek dosya: {selected[0][1] if selected else '—'}"
+                f"Örnek dosya: {oldest or '—'}. "
+                "Not: bucket’ta yalnızca eski aylar (2011…) varsa Play Console’da "
+                "Download reports / bulut depolama export’unun güncel olduğundan emin ol."
             )
     else:
         msg = f"{len(facts)} satır · {files_read} CSV"
