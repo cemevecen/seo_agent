@@ -1,4 +1,4 @@
-{# Home — Notification 7g vs önceki hafta · compact + full responsive #}
+{# Home — Notification 7g vs önceki hafta · kapalı dropdown #}
 {% macro tone_text(pct) -%}
 {%- set p = pct | default(0) | float -%}
 {%- if p > 0.5 -%}text-emerald-600 dark:text-emerald-400
@@ -99,11 +99,49 @@
   }
   .home-nt-week * { box-sizing: border-box; }
 
+  .home-nt-shell-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+  .home-nt-shell-toggle:focus-visible {
+    outline: 2px solid rgb(59 130 246 / 0.55);
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
+  .home-nt-shell-body {
+    display: none;
+    margin-top: 0.85rem;
+  }
+  .home-nt-week.is-open .home-nt-shell-body { display: block; }
+  .home-nt-shell-chevron {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 1.75px solid currentColor;
+    border-bottom: 1.75px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+    opacity: 0.7;
+    flex-shrink: 0;
+    color: #94a3b8;
+  }
+  .home-nt-week.is-open .home-nt-shell-chevron {
+    transform: rotate(-135deg);
+    margin-top: 0.2rem;
+  }
+
   .home-nt-week .home-nt-summary {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;
-    margin-top: 1.15rem;
+    margin-top: 0.85rem;
     align-items: stretch;
   }
   @container home-nt (min-width: 640px) {
@@ -709,8 +747,12 @@
   }
 </style>
 
-<div class="home-nt-week home-readable" data-nt-rev="{{ nt_rev | default('dev') }}">
-  <div class="flex w-full flex-wrap items-center justify-between gap-3">
+<div class="home-nt-week home-readable" data-home-nt-root data-nt-rev="{{ nt_rev | default('dev') }}">
+  <button type="button"
+          class="home-nt-shell-toggle"
+          data-home-nt-shell-toggle
+          aria-expanded="false"
+          aria-controls="home-nt-shell-body">
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-2">
         <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
@@ -727,8 +769,15 @@
             <span title="/notification workspace">sync {{ workspace_sync_label }}</span>
           {% endif %}
         </p>
+      {% else %}
+        <p class="home-meta mt-1 text-slate-500 dark:text-slate-400">kapalı · açmak için tıkla</p>
       {% endif %}
     </div>
+    <span class="home-nt-shell-chevron" aria-hidden="true"></span>
+  </button>
+
+  <div id="home-nt-shell-body" class="home-nt-shell-body" data-home-nt-shell-body hidden>
+  <div class="flex flex-wrap items-center justify-end gap-2">
     <a href="/notification" hx-get="/notification" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
        class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
   </div>
@@ -1142,4 +1191,24 @@
     })();
     </script>
   {% endif %}
+  </div>
+
+  <script>
+  (function () {
+    var root = document.currentScript && document.currentScript.closest
+      ? document.currentScript.closest('[data-home-nt-root]')
+      : null;
+    if (!root) root = document.querySelector('[data-home-nt-root]');
+    if (!root || root.getAttribute('data-nt-shell-wired') === '1') return;
+    root.setAttribute('data-nt-shell-wired', '1');
+    var shellToggle = root.querySelector('[data-home-nt-shell-toggle]');
+    var shellBody = root.querySelector('[data-home-nt-shell-body]');
+    if (!shellToggle || !shellBody) return;
+    shellToggle.addEventListener('click', function () {
+      var open = root.classList.toggle('is-open');
+      shellBody.hidden = !open;
+      shellToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+  </script>
 </div>
