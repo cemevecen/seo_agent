@@ -308,6 +308,14 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "pages": pages_out,
         "sections": d.get("sections") if isinstance(d.get("sections"), list) else [],
         "series": series,
+        "explorer_facts": [
+            x
+            for x in (d.get("explorer_facts") or [])
+            if isinstance(x, dict) and x.get("metric") is not None
+        ][:5000],
+        "stats_views": [
+            x for x in (d.get("stats_views") or []) if isinstance(x, dict)
+        ][:40],
         "tpg_count": len(tpg),
         "monetize_count": len(monetize),
         "grow_count": len(grow),
@@ -316,6 +324,12 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "statistics_count": len(statistics),
         "breakdown_count": len(breakdowns),
         "series_count": len(series),
+        "explorer_fact_count": len(
+            [x for x in (d.get("explorer_facts") or []) if isinstance(x, dict)]
+        ),
+        "stats_view_count": len(
+            [x for x in (d.get("stats_views") or []) if isinstance(x, dict)]
+        ),
     }
 
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -76,31 +77,159 @@ MONITOR_URL = (
 RELEASE_URL = (
     os.environ.get("PLAY_CONSOLE_RELEASE_URL") or f"{BASE_APP}/test-and-release"
 ).strip()
-# Crash + ANR + DAU/MAU peerset — tarih paramı yoksa Console son ~28 günü kullanır
-_DEFAULT_STATS_QS = (
-    "metrics=CRASHES-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
-    "%2CANRS-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
-    "&dimension=OS_VERSION&dimensionValues=OVERALL"
-    "&tab=APP_STATISTICS"
-    "&ctpMetric=DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY"
-    "&ctpDimension=COUNTRY&ctpDimensionValue=OVERALL"
-)
+
+
+def _console_date_range(days: int = 28) -> str:
+    """Play Console QS format: 2026_7_11-2026_8_7 (ay/gün zero-pad yok)."""
+    from datetime import date, timedelta
+
+    end = date.today() - timedelta(days=1)
+    start = end - timedelta(days=max(1, days) - 1)
+
+    def _fmt(d: date) -> str:
+        return f"{d.year}_{d.month}_{d.day}"
+
+    return f"{_fmt(start)}-{_fmt(end)}"
+
+
+def _stats_url(
+    *,
+    metrics: str,
+    dimension: str,
+    dimension_values: str,
+    days: int = 28,
+) -> str:
+    dr = _console_date_range(days)
+    qs = (
+        f"metrics={metrics}"
+        f"&dimension={dimension}"
+        f"&dimensionValues={dimension_values}"
+        f"&dateRange={dr}"
+        f"&tab=APP_STATISTICS"
+        f"&ctpMetric=DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY"
+        f"&ctpDateRange={dr}"
+        f"&ctpDimension=COUNTRY&ctpDimensionValue=OVERALL"
+        f"&ctpPeersetKey=3%3A6a1f18dbb44333cd"
+    )
+    return f"{BASE_APP}/statistics?{qs}"
+
+
+# Kullanıcının verdiği Play Console istatistik görünümleri (kırılımlı)
+STATISTICS_VIEWS: list[dict[str, Any]] = [
+    {
+        "id": "device_acquisition",
+        "label": "Cihaz edinme",
+        "metric_key": "device_acquisition",
+        "metrics": "DEVICE_ACQUISITION-NEW-EVENTS-CUMULATIVE-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CNL",
+        "needles": ("Cihaz edinme", "Device acquisition", "Edinme", "İstatistik"),
+    },
+    {
+        "id": "user_lost",
+        "label": "Kullanıcı kaybı",
+        "metric_key": "user_lost",
+        "metrics": "USER_LOST-ALL-EVENTS-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CCY%2CAT%2CDE",
+        "needles": ("Kullanıcı kaybı", "User lost", "Kayıp", "İstatistik"),
+    },
+    {
+        "id": "active_devices",
+        "label": "Etkin cihazlar",
+        "metric_key": "active_devices",
+        "metrics": "ACTIVE_DEVICES-ALL-UNIQUE-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CNL",
+        "needles": ("Etkin cihaz", "Active device", "İstatistik"),
+    },
+    {
+        "id": "dau",
+        "label": "Günlük etkin kullanıcı",
+        "metric_key": "dau",
+        "metrics": "ENGAGEMENT_DAILY_ACTIVE_USERS-ACQUISITION_UNSPECIFIED-UNIQUE-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CNL",
+        "needles": ("Günlük etkin", "Daily active", "DAU", "İstatistik"),
+    },
+    {
+        "id": "ar2_acquisitions",
+        "label": "Mağaza edinme (AR2)",
+        "metric_key": "ar2_acquisitions",
+        "metrics": "AR2_ACQUISITIONS-ALL-UNIQUE-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CIQ%2CAT",
+        "needles": ("Edinme", "Acquisition", "Mağaza", "İstatistik"),
+    },
+    {
+        "id": "rating",
+        "label": "Google Play puanı",
+        "metric_key": "rating",
+        "metrics": "GOOGLE_PLAY_RATING-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CEG%2CGE%2CGR%2CIR",
+        "needles": ("Puan", "Rating", "Google Play", "İstatistik"),
+    },
+    {
+        "id": "active_users",
+        "label": "Etkin kullanıcılar",
+        "metric_key": "active_users",
+        "metrics": "ACTIVE_USERS-ALL-UNIQUE-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL",
+        "needles": ("Etkin kullanıcı", "Active user", "İstatistik"),
+    },
+    {
+        "id": "crashes_anrs",
+        "label": "Çökme + ANR",
+        "metric_key": "crashes",
+        "metrics": (
+            "CRASHES-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+            "%2CANRS-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+        ),
+        "dimension": "OS_VERSION",
+        "dimension_values": "OVERALL",
+        "needles": ("Kilitlenme", "Crash", "ANR", "İstatistik"),
+    },
+    {
+        "id": "revenue",
+        "label": "Gelir",
+        "metric_key": "revenue",
+        "metrics": (
+            "REVENUE-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+            "%2CREVENUE_GST_USD_28D-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+        ),
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL",
+        "needles": ("Gelir", "Revenue", "İstatistik"),
+    },
+    {
+        "id": "ar2_visitors",
+        "label": "Mağaza ziyaretçileri",
+        "metric_key": "ar2_visitors",
+        "metrics": "AR2_VISITORS-ALL-UNIQUE-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CCY",
+        "needles": ("Ziyaret", "Visitor", "Mağaza girişi", "İstatistik"),
+    },
+]
+
+# Geriye uyum — eski tek URL’ler katalogdan türetilir
 STATISTICS_URL = (
     os.environ.get("PLAY_CONSOLE_STATISTICS_URL")
-    or f"{BASE_APP}/statistics?{_DEFAULT_STATS_QS}"
+    or _stats_url(
+        metrics=STATISTICS_VIEWS[7]["metrics"],
+        dimension="OS_VERSION",
+        dimension_values="OVERALL",
+    )
 ).strip()
-# Mağaza ziyaretçileri · ülke kırılımı (TR/DE/FR/CY)
-_DEFAULT_STATS_VISITORS_QS = (
-    "metrics=AR2_VISITORS-ALL-UNIQUE-PER_INTERVAL-DAY"
-    "&dimension=COUNTRY"
-    "&dimensionValues=OVERALL%2CTR%2CDE%2CFR%2CCY"
-    "&tab=APP_STATISTICS"
-    "&ctpMetric=DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY"
-    "&ctpDimension=COUNTRY&ctpDimensionValue=OVERALL"
-)
 STATISTICS_VISITORS_URL = (
     os.environ.get("PLAY_CONSOLE_STATISTICS_VISITORS_URL")
-    or f"{BASE_APP}/statistics?{_DEFAULT_STATS_VISITORS_QS}"
+    or _stats_url(
+        metrics=STATISTICS_VIEWS[9]["metrics"],
+        dimension="COUNTRY",
+        dimension_values="OVERALL%2CTR%2CDE%2CFR%2CCY",
+    )
 ).strip()
 INGEST_URL = (
     os.environ.get("PLAY_CONSOLE_INGEST_URL")
@@ -527,45 +656,251 @@ def _series_from_network(network: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
 
+    def _as_points(vals: list[Any]) -> list[Any]:
+        pts: list[Any] = []
+        for v in vals[:90]:
+            if isinstance(v, (int, float)):
+                pts.append(v)
+            elif isinstance(v, dict):
+                num = (
+                    v.get("value")
+                    or v.get("count")
+                    or v.get("y")
+                    or v.get("metricValue")
+                    or v.get("v")
+                )
+                ds = (
+                    v.get("date")
+                    or v.get("startTime")
+                    or v.get("day")
+                    or v.get("x")
+                    or v.get("time")
+                )
+                if num is not None:
+                    try:
+                        pts.append(
+                            {
+                                "date": str(ds)[:32] if ds else None,
+                                "value": float(num),
+                            }
+                        )
+                    except (TypeError, ValueError):
+                        pts.append(v)
+                else:
+                    pts.append(v)
+            else:
+                pts.append(v)
+        return pts
+
     def walk(obj: Any, path: str = "") -> None:
-        if len(out) >= 80:
+        if len(out) >= 120:
             return
         if isinstance(obj, dict):
-            # tipik: {name/metric, values/points/data}
             keys = {str(k).lower() for k in obj.keys()}
-            name = obj.get("name") or obj.get("metric") or obj.get("title") or obj.get("displayName")
+            name = (
+                obj.get("name")
+                or obj.get("metric")
+                or obj.get("metricId")
+                or obj.get("title")
+                or obj.get("displayName")
+                or obj.get("id")
+            )
             vals = (
                 obj.get("values")
                 or obj.get("points")
                 or obj.get("data")
                 or obj.get("timeSeries")
                 or obj.get("series")
+                or obj.get("dataPoints")
+                or obj.get("samples")
             )
             if name and isinstance(vals, list) and vals and len(vals) >= 3:
-                key = f"{name}|{len(vals)}"
+                key = f"{name}|{len(vals)}|{path[-40:]}"
                 if key not in seen:
                     seen.add(key)
-                    sample = vals[:40]
                     out.append(
                         {
-                            "name": str(name)[:120],
-                            "points": sample,
+                            "name": str(name)[:160],
+                            "points": _as_points(vals),
                             "point_count": len(vals),
-                            "path": path[:120],
+                            "path": path[:160],
                         }
                     )
+            # Play: rows[{dimensions, metrics}]
+            if "rows" in keys and isinstance(obj.get("rows"), list):
+                rows = obj.get("rows") or []
+                if len(rows) >= 3:
+                    key = f"rows|{len(rows)}|{path[-40:]}"
+                    if key not in seen:
+                        seen.add(key)
+                        out.append(
+                            {
+                                "name": str(obj.get("metric") or obj.get("name") or "rows")[:160],
+                                "points": rows[:90],
+                                "point_count": len(rows),
+                                "path": path[:160],
+                            }
+                        )
             for k, v in obj.items():
-                walk(v, (path + "." + str(k))[:160])
+                walk(v, (path + "." + str(k))[:180])
         elif isinstance(obj, list):
-            for i, v in enumerate(obj[:50]):
+            for i, v in enumerate(obj[:80]):
                 walk(v, f"{path}[{i}]")
 
     for item in network or []:
         body = item.get("body") if isinstance(item, dict) else None
         if body is None:
             continue
-        walk(body, str(item.get("url") or "")[:80])
+        walk(body, str(item.get("url") or "")[:100])
     return out
+
+
+def _parse_numeric_tr(val: Any) -> float | None:
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip()
+    if not s:
+        return None
+    # %4,60 · 56,5 B · 2,6 Mn · $1.234
+    s = s.replace("\u00a0", " ").replace("%", "").replace("$", "").strip()
+    mult = 1.0
+    low = s.lower()
+    if re.search(r"\bmn\b|\bmilyon\b|\bm\b", low):
+        mult = 1_000_000.0
+    elif re.search(r"\bb\b|\bbin\b|\bk\b", low):
+        mult = 1_000.0
+    s = re.sub(r"[^0-9,.\-]", "", s)
+    if not s or s in {"-", ".", ","}:
+        return None
+    # TR: 1.234,56 → 1234.56 ; EN: 1,234.56
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "," in s:
+        parts = s.split(",")
+        if len(parts[-1]) <= 2:
+            s = s.replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    try:
+        return float(s) * mult
+    except ValueError:
+        return None
+
+
+def _dim_key(dimension: str) -> str:
+    d = (dimension or "").upper()
+    if d == "COUNTRY":
+        return "country"
+    if d == "OS_VERSION":
+        return "os_version"
+    if d == "APP_VERSION":
+        return "app_version"
+    return d.lower() or "overview"
+
+
+def _explorer_facts_from_view(
+    view: dict[str, Any],
+    scraped: dict[str, Any],
+    series: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Kart + kırılım + network serisini keşif fact’lerine çevir."""
+    facts: list[dict[str, Any]] = []
+    metric_key = str(view.get("metric_key") or view.get("id") or "metric")
+    dim = _dim_key(str(view.get("dimension") or "COUNTRY"))
+    view_id = str(view.get("id") or metric_key)
+
+    for b in scraped.get("breakdowns") or []:
+        if not isinstance(b, dict):
+            continue
+        num = _parse_numeric_tr(b.get("value"))
+        if num is None:
+            continue
+        seg = str(b.get("segment") or "OVERALL").strip() or "OVERALL"
+        facts.append(
+            {
+                "metric": metric_key,
+                "view_id": view_id,
+                "dim": dim,
+                "segment": seg,
+                "date": None,
+                "value": num,
+                "label": str(b.get("title") or "")[:120],
+                "delta": str(b.get("delta") or ""),
+                "source": "breakdown",
+            }
+        )
+
+    # Kartlar → overview segment
+    for c in scraped.get("cards") or scraped.get("tpg") or []:
+        if not isinstance(c, dict):
+            continue
+        num = _parse_numeric_tr(c.get("value"))
+        if num is None:
+            continue
+        facts.append(
+            {
+                "metric": metric_key,
+                "view_id": view_id,
+                "dim": "overview",
+                "segment": "OVERALL",
+                "date": None,
+                "value": num,
+                "label": str(c.get("title") or "")[:120],
+                "delta": str(c.get("delta") or ""),
+                "period": str(c.get("period") or ""),
+                "source": "card",
+            }
+        )
+
+    for s in series or []:
+        if not isinstance(s, dict):
+            continue
+        pts = s.get("points") or []
+        name = str(s.get("name") or "")[:160]
+        for i, p in enumerate(pts):
+            if isinstance(p, dict) and p.get("value") is not None:
+                ds = p.get("date")
+                # ISO-ish normalize
+                ds_s = None
+                if ds:
+                    m = re.search(r"(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})", str(ds))
+                    if m:
+                        ds_s = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+                try:
+                    val = float(p["value"])
+                except (TypeError, ValueError, KeyError):
+                    continue
+                facts.append(
+                    {
+                        "metric": metric_key,
+                        "view_id": view_id,
+                        "dim": dim if ds_s else "overview",
+                        "segment": "OVERALL",
+                        "date": ds_s or f"i{i:03d}",
+                        "value": val,
+                        "label": name,
+                        "source": "series",
+                    }
+                )
+            elif isinstance(p, (int, float)):
+                facts.append(
+                    {
+                        "metric": metric_key,
+                        "view_id": view_id,
+                        "dim": "overview",
+                        "segment": "OVERALL",
+                        "date": f"i{i:03d}",
+                        "value": float(p),
+                        "label": name,
+                        "source": "series",
+                    }
+                )
+    return facts
 
 
 def _metrics_from_structured(structured: dict[str, Any]) -> list[dict[str, Any]]:
@@ -962,48 +1297,63 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             ),
             headed=bool(headed),
         )
-        statistics = _safe_scrape_page(
-            page,
-            url=STATISTICS_URL,
-            known=tuple(dict.fromkeys(list(_KNOWN_STATISTICS) + list(_KNOWN_DASHBOARD))),
-            page_key="statistics",
-            wait_needles=(
-                "Kilitlenme",
-                "ANR",
-                "Crash",
-                "DAU",
-                "MAU",
-                "İstatistik",
-                "Statistics",
-            ),
-            headed=bool(headed),
-        )
-        statistics_visitors = _safe_scrape_page(
-            page,
-            url=STATISTICS_VISITORS_URL,
-            known=tuple(
-                dict.fromkeys(
-                    list(_KNOWN_STATISTICS)
-                    + [
-                        "Mağaza girişi ziyaretçileri",
-                        "Ziyaretçiler",
-                        "Store listing visitors",
-                    ]
-                    + list(_KNOWN_DASHBOARD)
-                )
-            ),
-            page_key="statistics_visitors",
-            wait_needles=(
-                "Ziyaret",
-                "Visitor",
-                "Mağaza girişi",
-                "İstatistik",
-                "Statistics",
-                "Türkiye",
-                "Turkey",
-            ),
-            headed=bool(headed),
-        )
+        # Tüm istatistik görünümleri (kullanıcı URL kataloğu)
+        stats_cards: list[dict[str, Any]] = []
+        stats_br: list[dict[str, Any]] = []
+        stats_pages: dict[str, Any] = {}
+        explorer_facts: list[dict[str, Any]] = []
+        view_summaries: list[dict[str, Any]] = []
+        known_stats = tuple(dict.fromkeys(list(_KNOWN_STATISTICS) + list(_KNOWN_DASHBOARD)))
+
+        for view in STATISTICS_VIEWS:
+            view_id = str(view["id"])
+            url = _stats_url(
+                metrics=str(view["metrics"]),
+                dimension=str(view["dimension"]),
+                dimension_values=str(view["dimension_values"]),
+            )
+            net_before = len(network)
+            scraped = _safe_scrape_page(
+                page,
+                url=url,
+                known=known_stats,
+                page_key=f"stats_{view_id}",
+                wait_needles=tuple(view.get("needles") or ("İstatistik", "Statistics")),
+                headed=bool(headed),
+            )
+            net_slice = network[net_before:]
+            view_series = _series_from_network(net_slice)
+            cards_i, br_i = _append_page_metrics(
+                metrics, scraped, kind="statistics", page_key=f"stats_{view_id}"
+            )
+            stats_cards.extend(cards_i)
+            stats_br.extend(br_i)
+            facts_i = _explorer_facts_from_view(view, scraped, view_series)
+            explorer_facts.extend(facts_i)
+            page_payload = _page_payload(url, scraped)
+            page_payload["series"] = view_series[:12]
+            page_payload["view"] = {
+                "id": view_id,
+                "label": view.get("label"),
+                "metric_key": view.get("metric_key"),
+                "dimension": view.get("dimension"),
+            }
+            page_payload["fact_count"] = len(facts_i)
+            stats_pages[f"stats_{view_id}"] = page_payload
+            view_summaries.append(
+                {
+                    "id": view_id,
+                    "label": view.get("label"),
+                    "metric_key": view.get("metric_key"),
+                    "dimension": view.get("dimension"),
+                    "url": url,
+                    "cards": len(cards_i),
+                    "breakdowns": len(br_i),
+                    "series": len(view_series),
+                    "facts": len(facts_i),
+                    "error": scraped.get("error"),
+                }
+            )
 
         mon_cards, mon_br = _append_page_metrics(metrics, monetize, kind="monetize", page_key="monetize")
         grow_cards, grow_br = _append_page_metrics(metrics, grow, kind="grow", page_key="grow")
@@ -1013,15 +1363,6 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         release_cards, release_br = _append_page_metrics(
             metrics, release, kind="release", page_key="release"
         )
-        stats_cards, stats_br = _append_page_metrics(
-            metrics, statistics, kind="statistics", page_key="statistics"
-        )
-        vis_cards, vis_br = _append_page_metrics(
-            metrics, statistics_visitors, kind="statistics", page_key="statistics_visitors"
-        )
-        # İki statistics görünümünü birleştir
-        stats_cards = list(stats_cards) + list(vis_cards)
-        stats_br = list(stats_br) + list(vis_br)
 
         dash_cards = structured.get("tpg") or structured.get("cards") or []
         dash_br = list(structured.get("breakdowns") or [])
@@ -1033,10 +1374,9 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             + list(release_br)
             + list(stats_br)
         )
-        # series: tüm sayfalar sonrası network
         series = _series_from_network(network)
         panels = {
-            "version": 2,
+            "version": 3,
             "tpg": dash_cards,
             "breakdowns": all_br,
             "monetize": mon_cards,
@@ -1055,11 +1395,12 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "grow": _page_payload(GROW_URL, grow),
                 "monitor": _page_payload(MONITOR_URL, monitor),
                 "release": _page_payload(RELEASE_URL, release),
-                "statistics": _page_payload(STATISTICS_URL, statistics),
-                "statistics_visitors": _page_payload(STATISTICS_VISITORS_URL, statistics_visitors),
+                **stats_pages,
             },
             "sections": structured.get("sections") or [],
             "series": series,
+            "explorer_facts": explorer_facts[:5000],
+            "stats_views": view_summaries,
             "tpg_count": len(dash_cards),
             "breakdown_count": len(all_br),
             "monetize_count": len(mon_cards),
@@ -1068,6 +1409,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "release_count": len(release_cards),
             "statistics_count": len(stats_cards),
             "series_count": len(series),
+            "explorer_fact_count": len(explorer_facts),
+            "stats_view_count": len(view_summaries),
             "debug": debug,
         }
 
@@ -1108,6 +1451,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             f"{panels.get('tpg_count', 0)} dash · {panels.get('monetize_count', 0)} mon · "
             f"{panels.get('grow_count', 0)} grow · {panels.get('monitor_count', 0)} monitor · "
             f"{panels.get('release_count', 0)} release · {panels.get('statistics_count', 0)} stats · "
+            f"{panels.get('stats_view_count', 0)} stats_views · "
+            f"{panels.get('explorer_fact_count', 0)} explorer_facts · "
             f"{panels.get('breakdown_count', 0)} kırılım · {len(reviews)} review{dbg}"
         )
         return {
@@ -1126,7 +1471,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "source_url": DASHBOARD_URL,
             "sync_ok": ok,
             "sync_message": None,
-            "sync_mode": "dashboard_monetize_grow_monitor_release_stats_reviews",
+            "sync_mode": "dashboard_monetize_grow_monitor_release_stats_catalog_reviews",
         }
     except Exception as exc:  # noqa: BLE001
         return {

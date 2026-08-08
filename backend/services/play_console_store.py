@@ -122,6 +122,8 @@ def ingest_play_console_payload(
         "release_count": len((panels or {}).get("release") or []),
         "statistics_count": len((panels or {}).get("statistics") or []),
         "review_count": len(reviews or []),
+        "explorer_fact_count": len((panels or {}).get("explorer_facts") or []),
+        "stats_view_count": len((panels or {}).get("stats_views") or []),
         "updated_at": row.updated_at.isoformat() + "Z",
         "package_name": row.package_name,
     }
