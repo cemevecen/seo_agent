@@ -73,6 +73,7 @@ def ingest_play_console_payload(
     sync_message: str | None = None,
     sync_mode: str = "dashboard_reviews",
     merge_vitals: bool = False,
+    merge_reviews: bool = False,
 ) -> dict[str, Any]:
     row = _get_or_create(db)
 
@@ -147,6 +148,19 @@ def ingest_play_console_payload(
         panels = merged_panels
         reviews = existing_reviews if isinstance(existing_reviews, list) else []
         rating_summary = existing_rating if isinstance(existing_rating, dict) else {}
+
+    # reviews-only: mevcut panels/metrics korunur, sadece yorum (+opsiyonel rating) güncellenir
+    elif merge_reviews or str(sync_mode or "").startswith("reviews"):
+        existing_metrics, existing_panels = _unpack_metrics_blob(row.metrics_json or "[]")
+        metrics = existing_metrics
+        panels = existing_panels if isinstance(existing_panels, dict) else {}
+        if not isinstance(reviews, list) or not reviews:
+            raise ValueError("merge_reviews: reviews listesi gerekli")
+        if not isinstance(rating_summary, dict) or not rating_summary:
+            try:
+                rating_summary = json.loads(row.rating_summary_json or "{}")
+            except Exception:
+                rating_summary = {}
 
     cleaned = normalize_play_snapshot(
         metrics=metrics,

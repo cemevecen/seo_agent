@@ -193,12 +193,99 @@ def _norm_kind_list(raw_list: Any, kind: str) -> list[dict[str, Any]]:
     )
 
 
+def _strip_issue_nav_noise(text: str) -> str:
+    t = str(text or "").strip()
+    t = re.sub(r"\s*ayrıntısını\s*göster\s*$", "", t, flags=re.I)
+    t = re.sub(r"\s*show\s*details?\s*$", "", t, flags=re.I)
+    t = re.sub(r"\s*view\s*details?\s*$", "", t, flags=re.I)
+    return t.strip()
+
+
+def _normalize_vitals_issue(iss: dict[str, Any]) -> dict[str, Any] | None:
+    title = _strip_issue_nav_noise(str(iss.get("title") or ""))
+    iid = str(iss.get("issue_id") or "").strip()
+    if not title and not iid:
+        return None
+    tags = []
+    for t in iss.get("tags") or []:
+        s = str(t or "").strip()
+        if s:
+            tags.append(s[:80])
+    return {
+        "issue_id": iid[:80],
+        "detail_url": str(iss.get("detail_url") or "")[:512],
+        "title": (title or f"Issue {iid[:12]}")[:240],
+        "subtitle": _strip_issue_nav_noise(str(iss.get("subtitle") or ""))[:240],
+        "tags": tags[:6],
+        "issue_type": str(iss.get("issue_type") or "")[:64],
+        "affected_versions": str(iss.get("affected_versions") or "")[:80],
+        "version_track": str(iss.get("version_track") or "")[:64],
+        "users": str(iss.get("users") or "")[:64],
+        "events": str(iss.get("events") or "")[:64],
+        "events_share": str(iss.get("events_share") or "")[:32],
+        "last_occurrence": str(iss.get("last_occurrence") or "")[:64],
+        "extra": str(iss.get("extra") or "")[:120],
+    }
+
+
+def _normalize_vitals_issue_detail(det: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(det, dict):
+        return None
+    iid = str(det.get("issue_id") or "").strip()
+    if not iid and not det.get("title") and not det.get("url"):
+        return None
+    cards = []
+    for c in det.get("summary_cards") or []:
+        if not isinstance(c, dict):
+            continue
+        t = str(c.get("title") or "").strip()
+        v = str(c.get("value") or "").strip()
+        if t and v:
+            cards.append({"title": t[:160], "value": v[:80]})
+    insights = [
+        str(x)[:160]
+        for x in (det.get("insights") or [])
+        if str(x or "").strip()
+    ][:10]
+    sections = []
+    for s in det.get("sections") or []:
+        if not isinstance(s, dict):
+            continue
+        st = str(s.get("title") or "").strip()
+        if not st:
+            continue
+        sections.append(
+            {
+                "title": st[:120],
+                "lines": [str(x)[:120] for x in (s.get("lines") or []) if str(x).strip()][
+                    :8
+                ],
+            }
+        )
+    return {
+        "issue_id": iid[:80],
+        "url": str(det.get("url") or "")[:512],
+        "title": _strip_issue_nav_noise(
+            str(det.get("title") or det.get("list_title") or "")
+        )[:240],
+        "subtitle": _strip_issue_nav_noise(
+            str(det.get("subtitle") or det.get("list_subtitle") or "")
+        )[:240],
+        "summary_cards": cards[:12],
+        "insights": insights,
+        "stack_trace": str(det.get("stack_trace") or "")[:6000],
+        "sections": sections[:10],
+        "error": str(det.get("error") or "")[:200] or None,
+    }
+
+
 def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Vitals crashes (4 sorun kategorisi) + metrics overview tablosu."""
     d = dict(raw) if isinstance(raw, dict) else {}
     crashes_in = d.get("crashes") if isinstance(d.get("crashes"), dict) else {}
     crashes_out: dict[str, Any] = {}
     category_count = 0
+    issue_detail_total = 0
     for et in ("CRASH", "ANR"):
         block = crashes_in.get(et) if isinstance(crashes_in.get(et), dict) else {}
         cats_out: list[dict[str, Any]] = []
@@ -213,17 +300,9 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
             for iss in cat.get("issues") or []:
                 if not isinstance(iss, dict):
                     continue
-                title = str(iss.get("title") or "").strip()
-                if not title:
-                    continue
-                issues.append(
-                    {
-                        "title": title[:240],
-                        "users": str(iss.get("users") or "")[:64],
-                        "events": str(iss.get("events") or "")[:64],
-                        "extra": str(iss.get("extra") or "")[:120],
-                    }
-                )
+                norm = _normalize_vitals_issue(iss)
+                if norm:
+                    issues.append(norm)
             cards = []
             for c in cat.get("cards") or []:
                 if not isinstance(c, dict):
@@ -247,18 +326,30 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
                     "selected_label": str(cat.get("selected_label") or "")[:80],
                     "issue_count": str(cat.get("issue_count") or "")[:32] or None,
                     "cards": cards[:8],
-                    "issues": issues[:20],
+                    "issues": issues[:50],
                     "issue_row_count": len(issues),
                 }
             )
         category_count += len(cats_out)
+        details_out: dict[str, Any] = {}
+        for k, det in (block.get("issue_details") or {}).items():
+            norm_d = _normalize_vitals_issue_detail(det if isinstance(det, dict) else {})
+            if not norm_d:
+                continue
+            key = str(k or norm_d.get("issue_id") or "").strip()
+            if key:
+                details_out[key] = norm_d
+        issue_detail_total += len(details_out)
         crashes_out[et] = {
             "error_type": et,
             "url": str(block.get("url") or "")[:512],
             "days": int(block.get("days") or 28),
+            "version_code": str(block.get("version_code") or "")[:32] or None,
             "is_user_perceived": bool(block.get("is_user_perceived", True)),
             "categories": cats_out,
             "category_count": len(cats_out),
+            "issue_details": details_out,
+            "issue_detail_count": len(details_out),
         }
 
     ov_in = d.get("metrics_overview") if isinstance(d.get("metrics_overview"), dict) else {}
@@ -301,9 +392,17 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
     rows_out.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
 
     anr_drill = ov_in.get("anr_drilldown") if isinstance(ov_in.get("anr_drilldown"), dict) else {}
+    vmap = {}
+    if isinstance(d.get("version_name_map"), dict):
+        vmap = {
+            str(k).strip(): str(v).strip()
+            for k, v in d["version_name_map"].items()
+            if str(k).strip() and str(v).strip()
+        }
     return {
         "version": int(d.get("version") or 1),
         "days": int(d.get("days") or 28),
+        "version_code": str(d.get("version_code") or "")[:32] or None,
         "is_user_perceived": bool(d.get("is_user_perceived", True)),
         "scraped_at": str(d.get("scraped_at") or "")[:40] or None,
         "error": str(d.get("error") or "")[:240] or None,
@@ -319,8 +418,10 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
             if anr_drill
             else {},
         },
+        "version_name_map": vmap,
         "category_count": category_count,
         "overview_row_count": len(rows_out),
+        "issue_detail_count": issue_detail_total,
     }
 
 

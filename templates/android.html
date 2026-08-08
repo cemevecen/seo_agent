@@ -81,6 +81,20 @@
         </button>
       </div>
     </div>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button id="pc-btn-scrape" type="button"
+              class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-zinc-700 dark:bg-zinc-950/40 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20">
+        <span class="block text-xs font-bold text-slate-800 dark:text-zinc-100">Scrape özet kartları</span>
+        <span class="mt-0.5 block text-[10px] text-slate-500 dark:text-zinc-400">Play Console anlık snapshot</span>
+      </button>
+      <button id="pc-btn-reviews" type="button"
+              class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-zinc-700 dark:bg-zinc-950/40 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20">
+        <span class="block text-xs font-bold text-slate-800 dark:text-zinc-100">Yorumlar</span>
+        <span class="mt-0.5 block text-[10px] text-slate-500 dark:text-zinc-400">
+          Kullanıcı puanları · <span id="pc-btn-review-count">—</span>
+        </span>
+      </button>
+    </div>
     <p id="pc-status" class="mt-3 hidden text-xs text-slate-500 dark:text-zinc-400"></p>
   </div>
 
@@ -145,7 +159,7 @@
         </select>
       </label>
       <label class="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-zinc-300 pb-1.5">
-        <input id="pa-compare" type="checkbox" checked class="rounded border-slate-300" />
+        <input id="pa-compare" type="checkbox" class="rounded border-slate-300" />
         Önceki dönem kıyas
       </label>
       <button id="pa-run" type="button"
@@ -222,7 +236,7 @@
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Android Vitals</h2>
         <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
-          Sorun kategorileri (Genel / Üretimde / Olası düzeltme / Analiz) + kullanıcı algılanan oranlar
+          Crash/ANR filtreleri, sorun kategorileri ve detay sayfaları (Play Console vitals)
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
@@ -247,24 +261,30 @@
       <div class="flex flex-wrap items-center gap-2">
         <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sorun kategorileri</h3>
         <div id="pc-vitals-etype" class="flex gap-1">
-          <button type="button" data-etype="CRASH" class="pc-vitals-etype rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">Crash</button>
-          <button type="button" data-etype="ANR" class="pc-vitals-etype rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">ANR</button>
+          <button type="button" data-etype="CRASH" class="pc-vitals-etype rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">Crash</button>
+          <button type="button" data-etype="ANR" class="pc-vitals-etype rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">ANR</button>
         </div>
       </div>
       <div id="pc-vitals-cats" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
       <p id="pc-vitals-cats-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz kategori yok — vitals sync sonrası dolacak</p>
-      <div id="pc-vitals-issues" class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
+      <div id="pc-vitals-issues" class="mt-4 max-h-[28rem] overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
+      <div id="pc-vitals-detail" class="mt-3 hidden rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40"></div>
     </div>
   </section>
 
   <div id="pc-rating" class="grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
 
-  <details class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-    <summary class="cursor-pointer text-sm font-bold text-slate-800 dark:text-zinc-100">Scrape özet kartları (Play Console anlık snapshot)</summary>
-    <p class="mt-1 text-[11px] text-slate-500">Mac bridge scrape — KPI kartları; ana keşif yukarıdaki tarih/kırılım paneli.</p>
-    <div class="mt-4 space-y-5" id="pc-scrape-wrap">
+  <section id="pc-panel-scrape" class="hidden scroll-mt-4 space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Scrape özet kartları</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console anlık snapshot · KPI / TPG / monetize / grow / monitor</p>
+      </div>
+      <button type="button" data-pc-close="scrape" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200">Kapat</button>
+    </div>
+    <div class="space-y-5" id="pc-scrape-wrap">
 
-  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+  <section class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Dashboard KPI</h2>
     <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Üst bloklar · yayın / vitals / büyüme / gelir</p>
     <div id="pc-kpi" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
@@ -349,7 +369,7 @@
     <p id="pc-statistics-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz statistics kartı yok — sync sonrası dolacak</p>
   </section>
 
-  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+  <section class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Kırılımlar</h2>
     <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yükleme tabanı / cihaz / sürüm segmentleri</p>
     <div id="pc-breakdowns" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
@@ -357,17 +377,20 @@
   </section>
 
     </div>
-  </details>
+  </section>
 
-  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+  <section id="pc-panel-reviews" class="hidden scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Yorumlar</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · Kullanıcı puanları ve yorumlar</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · son 1 yıl · kullanıcı puanları ve yorumlar</p>
       </div>
-      <span id="pc-review-count" class="text-xs tabular-nums text-slate-500"></span>
+      <div class="flex items-center gap-3">
+        <span id="pc-review-count" class="text-xs tabular-nums text-slate-500"></span>
+        <button type="button" data-pc-close="reviews" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200">Kapat</button>
+      </div>
     </div>
-    <div id="pc-reviews" class="mt-4 space-y-3"></div>
+    <div id="pc-reviews" class="mt-4 max-h-[36rem] space-y-3 overflow-auto"></div>
     <p id="pc-reviews-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz yorum yok</p>
   </section>
 </div>
@@ -403,11 +426,80 @@
   var vitalsCatsEl = document.getElementById("pc-vitals-cats");
   var vitalsCatsEmpty = document.getElementById("pc-vitals-cats-empty");
   var vitalsIssuesEl = document.getElementById("pc-vitals-issues");
+  var vitalsDetailEl = document.getElementById("pc-vitals-detail");
   var vitalsEtypeWrap = document.getElementById("pc-vitals-etype");
   var vitalsCrashesLink = document.getElementById("pc-vitals-crashes-link");
   var vitalsOverviewLink = document.getElementById("pc-vitals-overview-link");
   var btn = document.getElementById("pc-refresh");
-  var vitalsState = { etype: "CRASH", data: null, selectedCat: "general" };
+  var btnScrape = document.getElementById("pc-btn-scrape");
+  var btnReviews = document.getElementById("pc-btn-reviews");
+  var panelScrape = document.getElementById("pc-panel-scrape");
+  var panelReviews = document.getElementById("pc-panel-reviews");
+  var btnReviewCount = document.getElementById("pc-btn-review-count");
+  var vitalsState = { etype: "ANR", data: null, selectedCat: "general", selectedIssue: null };
+
+  function cleanIssueTitle(t) {
+    return String(t == null ? "" : t)
+      .replace(/\s*ayrıntısını\s*göster\s*$/i, "")
+      .replace(/\s*show\s*details?\s*$/i, "")
+      .replace(/\s*view\s*details?\s*$/i, "")
+      .trim();
+  }
+
+  function findVitalsIssue(iid) {
+    var vitals = vitalsState.data || {};
+    var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
+    var cats = Array.isArray(block.categories) ? block.categories : [];
+    var sel = cats.find(function (c) { return c.id === vitalsState.selectedCat; }) || cats[0];
+    var issues = sel && Array.isArray(sel.issues) ? sel.issues : [];
+    if (!iid) return null;
+    for (var i = 0; i < issues.length; i++) {
+      if (String(issues[i].issue_id || "") === String(iid)) return issues[i];
+      if (("idx-" + i) === String(iid)) return issues[i];
+    }
+    return null;
+  }
+
+  function setPanelButtonActive(btnEl, on) {
+    if (!btnEl) return;
+    btnEl.className = on
+      ? "rounded-xl border border-emerald-500 bg-emerald-50 px-3 py-2.5 text-left transition dark:border-emerald-500/70 dark:bg-emerald-950/30"
+      : "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-zinc-700 dark:bg-zinc-950/40 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20";
+  }
+
+  function openPcPanel(which) {
+    var panel = which === "reviews" ? panelReviews : panelScrape;
+    var other = which === "reviews" ? panelScrape : panelReviews;
+    var activeBtn = which === "reviews" ? btnReviews : btnScrape;
+    var otherBtn = which === "reviews" ? btnScrape : btnReviews;
+    if (!panel) return;
+    if (other) other.classList.add("hidden");
+    panel.classList.remove("hidden");
+    setPanelButtonActive(activeBtn, true);
+    setPanelButtonActive(otherBtn, false);
+    requestAnimationFrame(function () {
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function closePcPanel(which) {
+    var panel = which === "reviews" ? panelReviews : panelScrape;
+    var activeBtn = which === "reviews" ? btnReviews : btnScrape;
+    if (panel) panel.classList.add("hidden");
+    setPanelButtonActive(activeBtn, false);
+  }
+
+  if (btnScrape) {
+    btnScrape.addEventListener("click", function () { openPcPanel("scrape"); });
+  }
+  if (btnReviews) {
+    btnReviews.addEventListener("click", function () { openPcPanel("reviews"); });
+  }
+  document.querySelectorAll("[data-pc-close]").forEach(function (el) {
+    el.addEventListener("click", function () {
+      closePcPanel(el.getAttribute("data-pc-close") || "scrape");
+    });
+  });
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -951,15 +1043,42 @@
       paBreakdown.value = "date";
     }
   }
-  ["pa-metric", "pa-breakdown", "pa-dim", "pa-segment", "pa-compare"].forEach(function (id) {
+  function resetPaFiltersForMetricChange() {
+    // Metrik değişince kırılım / boyut / segment / kıyas varsayılana dönsün
+    if (paBreakdown) paBreakdown.value = "date";
+    if (paDim) paDim.value = "overview";
+    if (paSegment) {
+      paSegment.innerHTML = '<option value="all">Tümü</option>';
+      paSegment.value = "all";
+    }
+    if (paCompare) paCompare.checked = false;
+    if (paPreset) {
+      paPreset.value = "14";
+      applyPreset();
+    }
+    setCompareColsVisible(false);
+    setCompareKpisVisible(false);
+    setCompareNote("");
+    if (paCompareRange) paCompareRange.textContent = "";
+  }
+  if (paMetric) {
+    paMetric.addEventListener("change", function () {
+      resetPaFiltersForMetricChange();
+      runPlayAnalytics();
+    });
+  }
+  ["pa-breakdown", "pa-dim", "pa-segment", "pa-compare"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener("change", function () {
       if (id === "pa-dim" || id === "pa-segment") syncDimBreakdown();
-      if (id === "pa-dim" || id === "pa-breakdown" || id === "pa-metric" || id === "pa-segment") {
+      if (id === "pa-dim" || id === "pa-breakdown" || id === "pa-segment") {
+        runPlayAnalytics();
+      } else if (id === "pa-compare") {
         runPlayAnalytics();
       }
     });
   });
+  if (paCompare) paCompare.checked = false;
   applyPreset();
   // İlk sorgu kısa gecikmeyle — sayfa render bitsin
   setTimeout(runPlayAnalytics, 200);
@@ -1184,29 +1303,146 @@
     var issues = Array.isArray(sel.issues) ? sel.issues : [];
     if (!issues.length) {
       vitalsIssuesEl.innerHTML = '<p class="p-3 text-center text-sm text-slate-400">Bu kategoride sorun satırı yok</p>';
+      if (vitalsDetailEl) {
+        vitalsDetailEl.classList.add("hidden");
+        vitalsDetailEl.innerHTML = "";
+      }
       return;
     }
     vitalsIssuesEl.innerHTML =
       '<table class="min-w-full text-left text-xs">' +
         '<thead class="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
-          "<tr><th class=\"px-3 py-2 font-bold\">Sorun</th>" +
-          "<th class=\"px-3 py-2 font-bold tabular-nums\">Kullanıcı</th>" +
-          "<th class=\"px-3 py-2 font-bold tabular-nums\">Olay</th></tr></thead>" +
+          "<tr>" +
+            '<th class="px-3 py-2 font-bold">Sorun</th>' +
+            '<th class="px-3 py-2 font-bold">Tür</th>' +
+            '<th class="px-3 py-2 font-bold">Etkilenen sürümler</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Kullanıcı</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Etkinlikler</th>' +
+            '<th class="px-3 py-2 font-bold">Son</th>' +
+          "</tr></thead>" +
         '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
-        issues.map(function (iss) {
+        issues.map(function (iss, idx) {
+          var iid = iss.issue_id || ("idx-" + idx);
+          var on = vitalsState.selectedIssue && vitalsState.selectedIssue === iid;
+          var title = cleanIssueTitle(iss.title) || "—";
+          var tags = (Array.isArray(iss.tags) ? iss.tags : []).map(function (t) {
+            return '<span class="mr-1 inline-block rounded bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-800 dark:bg-sky-950/40 dark:text-sky-200">' +
+              esc(t) + "</span>";
+          }).join("");
+          var ver = esc(iss.affected_versions || "—");
+          if (iss.version_track) {
+            ver += '<div class="text-[10px] text-slate-400">' + esc(iss.version_track) + "</div>";
+          }
+          var ev = esc(iss.events || "—");
+          if (iss.events_share) {
+            ev += '<div class="text-[10px] text-slate-400">' + esc(iss.events_share) + "</div>";
+          }
+          var detailHref = iss.detail_url || "";
+          var titleHtml = detailHref
+            ? '<a href="' + esc(detailHref) + '" target="_blank" rel="noopener" class="pc-vitals-detail-link font-medium text-emerald-700 hover:underline dark:text-emerald-400" data-issue="' + esc(iid) + '">' + esc(title) + "</a>"
+            : '<button type="button" class="pc-vitals-detail-link text-left font-medium text-emerald-700 hover:underline dark:text-emerald-400" data-issue="' + esc(iid) + '">' + esc(title) + "</button>";
           return (
-            "<tr>" +
-              '<td class="px-3 py-2 font-medium text-slate-800 dark:text-zinc-100">' + esc(iss.title || "—") + "</td>" +
-              '<td class="px-3 py-2 tabular-nums text-slate-600">' + esc(iss.users || "—") + "</td>" +
-              '<td class="px-3 py-2 tabular-nums text-slate-600">' + esc(iss.events || "—") + "</td>" +
+            '<tr class="pc-vitals-issue cursor-pointer ' + (on ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-zinc-900/50") + '" data-issue="' + esc(iid) + '">' +
+              '<td class="px-3 py-2">' +
+                '<div>' + titleHtml + "</div>" +
+                (iss.subtitle ? '<div class="mt-0.5 text-[11px] text-slate-500">' + esc(cleanIssueTitle(iss.subtitle)) + "</div>" : "") +
+                (tags ? '<div class="mt-1">' + tags + "</div>" : "") +
+              "</td>" +
+              '<td class="px-3 py-2 text-slate-600 dark:text-zinc-300">' + esc(iss.issue_type || vitalsState.etype) + "</td>" +
+              '<td class="px-3 py-2 text-slate-600 dark:text-zinc-300">' + ver + "</td>" +
+              '<td class="px-3 py-2 tabular-nums font-semibold text-slate-800 dark:text-zinc-100">' + esc(iss.users || "—") + "</td>" +
+              '<td class="px-3 py-2 tabular-nums text-slate-600">' + ev + "</td>" +
+              '<td class="px-3 py-2 text-slate-500">' + esc(iss.last_occurrence || "—") + "</td>" +
             "</tr>"
           );
         }).join("") +
         "</tbody></table>";
+    renderVitalsDetail();
+  }
+
+  function renderVitalsDetail() {
+    if (!vitalsDetailEl) return;
+    var vitals = vitalsState.data || {};
+    var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
+    var details = block.issue_details || {};
+    var iid = vitalsState.selectedIssue;
+    var listIss = findVitalsIssue(iid);
+    if (!iid) {
+      var cats = Array.isArray(block.categories) ? block.categories : [];
+      var sel = cats.find(function (c) { return c.id === vitalsState.selectedCat; }) || cats[0];
+      var issues = sel && Array.isArray(sel.issues) ? sel.issues : [];
+      for (var i = 0; i < issues.length; i++) {
+        var cand = issues[i].issue_id || ("idx-" + i);
+        if (details[issues[i].issue_id] || issues[i].detail_url || issues[i].title) {
+          iid = cand;
+          listIss = issues[i];
+          break;
+        }
+      }
+      if (iid) vitalsState.selectedIssue = iid;
+    }
+    if (!iid && !listIss) {
+      vitalsDetailEl.classList.add("hidden");
+      vitalsDetailEl.innerHTML = "";
+      return;
+    }
+    var d = (listIss && listIss.issue_id && details[listIss.issue_id]) || details[iid] || {};
+    var title = cleanIssueTitle(d.title || (listIss && listIss.title) || "—");
+    var subtitle = cleanIssueTitle(d.subtitle || (listIss && listIss.subtitle) || "");
+    var cards = Array.isArray(d.summary_cards) ? d.summary_cards : [];
+    var insights = Array.isArray(d.insights) ? d.insights : [];
+    var link = d.url || (listIss && listIss.detail_url) || "";
+    if (!cards.length && listIss) {
+      [
+        ["Kullanıcı", listIss.users],
+        ["Etkinlik", listIss.events],
+        ["Pay", listIss.events_share],
+        ["Sürüm", listIss.affected_versions],
+        ["Son", listIss.last_occurrence]
+      ].forEach(function (pair) {
+        if (pair[1]) cards.push({ title: pair[0], value: pair[1] });
+      });
+    }
+    vitalsDetailEl.classList.remove("hidden");
+    vitalsDetailEl.innerHTML =
+      '<div class="flex flex-wrap items-start justify-between gap-2">' +
+        "<div>" +
+          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sorun detayı</p>' +
+          '<p class="mt-0.5 text-sm font-bold text-slate-900 dark:text-zinc-50">' + esc(title) + "</p>" +
+          (subtitle ? '<p class="text-[11px] text-slate-500">' + esc(subtitle) + "</p>" : "") +
+        "</div>" +
+        (link
+          ? '<a href="' + esc(link) + '" target="_blank" rel="noopener" class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play Console ↗</a>'
+          : "") +
+      "</div>" +
+      (insights.length
+        ? '<div class="mt-2 flex flex-wrap gap-1">' + insights.map(function (t) {
+            return '<span class="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">' + esc(t) + "</span>";
+          }).join("") + "</div>"
+        : "") +
+      (cards.length
+        ? '<div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">' + cards.slice(0, 8).map(function (c) {
+            return '<div class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900">' +
+              '<p class="text-[9px] font-semibold uppercase text-slate-400">' + esc(c.title || "") + "</p>" +
+              '<p class="text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(c.value || "") + "</p></div>";
+          }).join("") + "</div>"
+        : "") +
+      (d.stack_trace
+        ? '<pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-zinc-900 p-3 text-[10px] leading-relaxed text-zinc-100">' +
+            esc(d.stack_trace) + "</pre>"
+        : (d.error
+            ? '<p class="mt-2 text-[11px] text-rose-600">' + esc(d.error) + "</p>"
+            : (link
+                ? '<p class="mt-2 text-[11px] text-slate-500">Satıra tıklayınca özet açılır · tam stack için Play Console linkini kullanın</p>'
+                : '<p class="mt-2 text-[11px] text-slate-400">Bu sorun için henüz detay çekilmedi — vitals sync gerekir</p>')));
+    try {
+      vitalsDetailEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch (_) {}
   }
 
   function renderVitals(vitals) {
     vitalsState.data = vitals || null;
+    vitalsState.selectedIssue = null;
     renderVitalsOverview(vitals);
     renderVitalsCategories();
   }
@@ -1215,8 +1451,9 @@
     vitalsEtypeWrap.addEventListener("click", function (ev) {
       var b = ev.target.closest(".pc-vitals-etype");
       if (!b) return;
-      vitalsState.etype = b.getAttribute("data-etype") || "CRASH";
+      vitalsState.etype = b.getAttribute("data-etype") || "ANR";
       vitalsState.selectedCat = "general";
+      vitalsState.selectedIssue = null;
       renderVitalsCategories();
     });
   }
@@ -1225,13 +1462,42 @@
       var b = ev.target.closest(".pc-vitals-cat");
       if (!b) return;
       vitalsState.selectedCat = b.getAttribute("data-cat") || "general";
+      vitalsState.selectedIssue = null;
+      renderVitalsCategories();
+    });
+  }
+  if (vitalsIssuesEl) {
+    vitalsIssuesEl.addEventListener("click", function (ev) {
+      var link = ev.target.closest(".pc-vitals-detail-link");
+      var row = ev.target.closest(".pc-vitals-issue");
+      if (!row && !link) return;
+      var iid = (link && link.getAttribute("data-issue")) || (row && row.getAttribute("data-issue")) || null;
+      // Dış link: yeni sekmede açılsın, yine de alt panel seçilsin
+      if (link && link.tagName === "A") {
+        vitalsState.selectedIssue = iid;
+        renderVitalsDetail();
+        // highlight için tabloyu yenilemeden satır seçimi
+        Array.prototype.forEach.call(vitalsIssuesEl.querySelectorAll(".pc-vitals-issue"), function (tr) {
+          var on = tr.getAttribute("data-issue") === iid;
+          tr.className = "pc-vitals-issue cursor-pointer " + (on
+            ? "bg-emerald-50/70 dark:bg-emerald-950/20"
+            : "hover:bg-slate-50 dark:hover:bg-zinc-900/50");
+        });
+        return;
+      }
+      if (link && link.tagName === "BUTTON") {
+        ev.preventDefault();
+      }
+      vitalsState.selectedIssue = iid;
       renderVitalsCategories();
     });
   }
 
   function renderReviews(rows) {
     rows = Array.isArray(rows) ? rows : [];
-    reviewCountEl.textContent = rows.length ? (rows.length + " yorum") : "";
+    var countLabel = rows.length ? (rows.length + " yorum") : "—";
+    if (reviewCountEl) reviewCountEl.textContent = rows.length ? countLabel : "";
+    if (btnReviewCount) btnReviewCount.textContent = countLabel;
     if (!rows.length) {
       reviewsEl.innerHTML = "";
       reviewsEmpty.classList.remove("hidden");
