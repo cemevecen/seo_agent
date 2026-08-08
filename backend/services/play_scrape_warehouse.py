@@ -125,9 +125,30 @@ def _aggregate(
     series = [{"key": k, "value": round(v, 4)} for k, v in buckets.items()]
     if breakdown in ("date", "week", "month"):
         series.sort(key=lambda r: r["key"])
+        # Günlük seride kesme yok (2025→bugün); segment/hafta/ay için üst sınır
+        if breakdown != "date":
+            series = series[:180]
     else:
         series.sort(key=lambda r: (-r["value"], r["key"]))
-    return series[:120]
+        series = series[:120]
+    return series
+
+
+def _densify_date_series(
+    series: list[dict[str, Any]],
+    *,
+    start: date,
+    end: date,
+) -> list[dict[str, Any]]:
+    """Eksik günleri 0 ile doldur — önceki dönem indeks hizası için."""
+    by_key = {str(r["key"]): float(r.get("value") or 0) for r in series}
+    out: list[dict[str, Any]] = []
+    cur = start
+    while cur <= end:
+        k = cur.isoformat()
+        out.append({"key": k, "value": round(by_key.get(k, 0.0), 4)})
+        cur += timedelta(days=1)
+    return out
 
 
 def query_scrape_analytics(
@@ -240,6 +261,8 @@ def query_scrape_analytics(
     # segment breakdown + date grain: top segments by sum
     if breakdown == "segment" and not series and dated:
         series = _aggregate(dated, breakdown="segment")
+    if breakdown == "date" and dated:
+        series = _densify_date_series(series, start=start_d, end=end_d)
     total = sum(r["value"] for r in series)
 
     compare_payload = None
@@ -256,6 +279,8 @@ def query_scrape_analytics(
             and ps.isoformat() <= str(f["date"])[:10] <= pe.isoformat()
         ]
         prev_series = _aggregate(prev, breakdown=breakdown)
+        if breakdown == "date":
+            prev_series = _densify_date_series(prev_series, start=ps, end=pe)
         prev_total = sum(r["value"] for r in prev_series)
         delta_pct = None
         if prev_total:

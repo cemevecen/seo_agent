@@ -620,9 +620,28 @@ def _aggregate(
     rows = [{"key": k, "value": round(v, 4)} for k, v in buckets.items()]
     if breakdown in ("date", "week", "month"):
         rows.sort(key=lambda r: r["key"])
+        if breakdown != "date":
+            rows = rows[:limit]
     else:
         rows.sort(key=lambda r: (-r["value"], r["key"]))
-    return rows[:limit]
+        rows = rows[:limit]
+    return rows
+
+
+def _densify_date_series(
+    series: list[dict[str, Any]],
+    *,
+    start: date,
+    end: date,
+) -> list[dict[str, Any]]:
+    by_key = {str(r["key"]): float(r.get("value") or 0) for r in series}
+    out: list[dict[str, Any]] = []
+    cur = start
+    while cur <= end:
+        k = cur.isoformat()
+        out.append({"key": k, "value": round(by_key.get(k, 0.0), 4)})
+        cur += timedelta(days=1)
+    return out
 
 
 def _prev_range(start: str, end: str) -> tuple[str, str]:
@@ -706,6 +725,8 @@ def query_play_analytics(
             pass
 
     series = _aggregate(cur_facts, breakdown=breakdown, metric=metric)
+    if breakdown == "date":
+        series = _densify_date_series(series, start=start_d, end=end_d)
     total = sum(r["value"] for r in series) if metric != "active" else (series[-1]["value"] if series else 0)
 
     compare_payload = None
@@ -719,6 +740,12 @@ def query_play_analytics(
             segment=segment,
         )
         prev_series = _aggregate(prev_facts, breakdown=breakdown, metric=metric)
+        if breakdown == "date":
+            prev_series = _densify_date_series(
+                prev_series,
+                start=date.fromisoformat(ps),
+                end=date.fromisoformat(pe),
+            )
         prev_total = sum(r["value"] for r in prev_series) if metric != "active" else (prev_series[-1]["value"] if prev_series else 0)
         delta_pct = None
         if prev_total:

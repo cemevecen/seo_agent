@@ -118,8 +118,22 @@
       </div>
     </div>
 
-    <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700">
-      <svg id="pa-chart" viewBox="0 0 640 160" class="h-40 w-full bg-white dark:bg-zinc-950" preserveAspectRatio="none"></svg>
+    <div id="pa-chart-card" class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
+        <div class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
+          <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"></span>Seçili dönem</span>
+          <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
+        </div>
+        <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
+      </div>
+      <div id="pa-chart-wrap" class="relative px-1 pb-1 pt-2">
+        <svg id="pa-chart" viewBox="0 0 720 260" class="h-56 w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Keşif grafiği"></svg>
+        <div id="pa-tooltip" class="pointer-events-none absolute z-20 hidden min-w-[9.5rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="transform:translate(-50%,-110%)">
+          <p id="pa-tip-title" class="text-[11px] font-bold text-slate-800 dark:text-zinc-100"></p>
+          <p id="pa-tip-cur" class="mt-1 text-[11px] tabular-nums text-emerald-700 dark:text-emerald-400"></p>
+          <p id="pa-tip-prev" class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
+        </div>
+      </div>
     </div>
 
     <div class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
@@ -128,7 +142,7 @@
           <tr>
             <th class="px-3 py-2 font-bold">Kırılım</th>
             <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
-            <th class="px-3 py-2 font-bold tabular-nums">Önceki</th>
+            <th id="pa-th-prev" class="px-3 py-2 font-bold tabular-nums">Önceki</th>
             <th class="px-3 py-2 font-bold tabular-nums">Δ %</th>
           </tr>
         </thead>
@@ -303,7 +317,15 @@
   var paPrev = document.getElementById("pa-prev");
   var paDelta = document.getElementById("pa-delta");
   var paChart = document.getElementById("pa-chart");
+  var paChartWrap = document.getElementById("pa-chart-wrap");
+  var paTooltip = document.getElementById("pa-tooltip");
+  var paTipTitle = document.getElementById("pa-tip-title");
+  var paTipCur = document.getElementById("pa-tip-cur");
+  var paTipPrev = document.getElementById("pa-tip-prev");
+  var paCompareRange = document.getElementById("pa-compare-range");
+  var paThPrev = document.getElementById("pa-th-prev");
   var paTable = document.getElementById("pa-table");
+  var paChartState = null;
 
   function isoDate(d) {
     var y = d.getFullYear();
@@ -328,45 +350,259 @@
     if (n == null || isNaN(n)) return "—";
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
   }
-  function drawChart(series, prevSeries) {
-    if (!paChart) return;
-    var w = 640, h = 160, pad = 12;
-    var vals = (series || []).map(function (r) { return Number(r.value) || 0; });
-    var pvals = (prevSeries || []).map(function (r) { return Number(r.value) || 0; });
-    var all = vals.concat(pvals);
-    var max = Math.max.apply(null, all.concat([1]));
-    var min = Math.min.apply(null, all.concat([0]));
-    var span = Math.max(max - min, 1e-9);
-    function path(arr, color) {
-      if (!arr.length) return "";
-      var pts = arr.map(function (v, i) {
-        var x = pad + (arr.length <= 1 ? 0 : (i / (arr.length - 1)) * (w - pad * 2));
-        var y = pad + (1 - (v - min) / span) * (h - pad * 2);
-        return x.toFixed(1) + "," + y.toFixed(1);
-      });
-      return '<polyline fill="none" stroke="' + color + '" stroke-width="2" points="' + pts.join(" ") + '" />';
-    }
-    paChart.innerHTML =
-      '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
-      path(vals, "#059669") +
-      path(pvals, "#94a3b8");
+  function isTimeBreakdown(breakdown) {
+    return breakdown === "date" || breakdown === "week" || breakdown === "month";
   }
-  function renderPaTable(series, prevSeries) {
+  /** Önceki dönem tarihleri örtüşmez → zaman kırılımında indeks hizası; segmentte anahtar. */
+  function alignPrevRows(series, prevSeries, breakdown) {
+    var prev = prevSeries || [];
     var prevMap = {};
-    (prevSeries || []).forEach(function (r) { prevMap[r.key] = r.value; });
-    if (!series || !series.length) {
+    prev.forEach(function (r) { prevMap[String(r.key)] = r; });
+    return (series || []).map(function (r, i) {
+      var match = null;
+      if (isTimeBreakdown(breakdown)) {
+        match = prev[i] || null;
+      } else {
+        match = prevMap[String(r.key)] || null;
+      }
+      return {
+        key: r.key,
+        value: Number(r.value) || 0,
+        prevValue: match ? Number(match.value) || 0 : null,
+        prevKey: match ? match.key : null
+      };
+    });
+  }
+  function niceMax(v) {
+    if (!(v > 0)) return 1;
+    var exp = Math.pow(10, Math.floor(Math.log10(v)));
+    var n = v / exp;
+    var nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+    return nice * exp;
+  }
+  function chartXY(i, v, n, min, span, left, top, plotW, plotH) {
+    var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+    var y = top + (1 - (v - min) / span) * plotH;
+    return { x: x, y: y };
+  }
+  function buildAreaPath(pts) {
+    if (!pts.length) return "";
+    var d = "M" + pts[0].x.toFixed(1) + "," + pts[0].y.toFixed(1);
+    for (var i = 1; i < pts.length; i++) d += " L" + pts[i].x.toFixed(1) + "," + pts[i].y.toFixed(1);
+    var last = pts[pts.length - 1];
+    var first = pts[0];
+    var baseY = paChartState ? paChartState.baseY : last.y;
+    d += " L" + last.x.toFixed(1) + "," + baseY.toFixed(1);
+    d += " L" + first.x.toFixed(1) + "," + baseY.toFixed(1) + " Z";
+    return d;
+  }
+  function buildLinePath(pts) {
+    if (!pts.length) return "";
+    var d = "M" + pts[0].x.toFixed(1) + "," + pts[0].y.toFixed(1);
+    for (var i = 1; i < pts.length; i++) d += " L" + pts[i].x.toFixed(1) + "," + pts[i].y.toFixed(1);
+    return d;
+  }
+  function hidePaTooltip() {
+    if (paTooltip) paTooltip.classList.add("hidden");
+    if (!paChart || !paChartState) return;
+    var guide = paChart.querySelector("#pa-guide");
+    var dot = paChart.querySelector("#pa-hover-dot");
+    var dotP = paChart.querySelector("#pa-hover-dot-prev");
+    if (guide) guide.setAttribute("opacity", "0");
+    if (dot) dot.setAttribute("opacity", "0");
+    if (dotP) dotP.setAttribute("opacity", "0");
+  }
+  function showPaTooltip(idx, clientX, clientY) {
+    if (!paChartState || !paTooltip || !paChartWrap) return;
+    var row = paChartState.rows[idx];
+    if (!row) return;
+    var pt = paChartState.curPts[idx];
+    var ppt = paChartState.prevPts[idx];
+    if (paTipTitle) paTipTitle.textContent = String(row.key);
+    if (paTipCur) paTipCur.textContent = "Seçili: " + fmtNum(row.value);
+    if (paTipPrev) {
+      if (row.prevValue == null) {
+        paTipPrev.textContent = "";
+      } else {
+        var label = row.prevKey && row.prevKey !== row.key
+          ? ("Önceki (" + row.prevKey + "): ")
+          : "Önceki: ";
+        paTipPrev.textContent = label + fmtNum(row.prevValue);
+      }
+    }
+    var guide = paChart.querySelector("#pa-guide");
+    var dot = paChart.querySelector("#pa-hover-dot");
+    var dotP = paChart.querySelector("#pa-hover-dot-prev");
+    if (guide && pt) {
+      guide.setAttribute("x1", pt.x.toFixed(1));
+      guide.setAttribute("x2", pt.x.toFixed(1));
+      guide.setAttribute("opacity", "1");
+    }
+    if (dot && pt) {
+      dot.setAttribute("cx", pt.x.toFixed(1));
+      dot.setAttribute("cy", pt.y.toFixed(1));
+      dot.setAttribute("opacity", "1");
+    }
+    if (dotP) {
+      if (ppt && row.prevValue != null) {
+        dotP.setAttribute("cx", ppt.x.toFixed(1));
+        dotP.setAttribute("cy", ppt.y.toFixed(1));
+        dotP.setAttribute("opacity", "1");
+      } else {
+        dotP.setAttribute("opacity", "0");
+      }
+    }
+    var wrapRect = paChartWrap.getBoundingClientRect();
+    var left = clientX - wrapRect.left;
+    var top = clientY - wrapRect.top;
+    left = Math.max(56, Math.min(wrapRect.width - 56, left));
+    top = Math.max(28, top);
+    paTooltip.style.left = left + "px";
+    paTooltip.style.top = top + "px";
+    paTooltip.classList.remove("hidden");
+  }
+  function drawChart(series, prevSeries, breakdown) {
+    if (!paChart) return;
+    var rows = alignPrevRows(series, prevSeries, breakdown);
+    var w = 720, h = 260;
+    var left = 48, right = 16, top = 16, bottom = 36;
+    var plotW = w - left - right;
+    var plotH = h - top - bottom;
+    if (!rows.length) {
+      paChartState = null;
+      paChart.innerHTML =
+        '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
+      hidePaTooltip();
+      return;
+    }
+    var vals = rows.map(function (r) { return r.value; });
+    var pvals = rows.map(function (r) { return r.prevValue == null ? null : r.prevValue; });
+    var all = vals.slice();
+    pvals.forEach(function (v) { if (v != null) all.push(v); });
+    var rawMax = Math.max.apply(null, all.concat([0]));
+    var max = niceMax(rawMax);
+    var min = 0;
+    var span = Math.max(max - min, 1e-9);
+    var n = rows.length;
+    var curPts = rows.map(function (r, i) {
+      return chartXY(i, r.value, n, min, span, left, top, plotW, plotH);
+    });
+    var prevPts = rows.map(function (r, i) {
+      if (r.prevValue == null) return null;
+      return chartXY(i, r.prevValue, n, min, span, left, top, plotW, plotH);
+    });
+    paChartState = { rows: rows, curPts: curPts, prevPts: prevPts, baseY: top + plotH, left: left, plotW: plotW };
+
+    var grid = "";
+    var ticks = 4;
+    for (var t = 0; t <= ticks; t++) {
+      var tv = max * (1 - t / ticks);
+      var ty = top + (t / ticks) * plotH;
+      grid +=
+        '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
+        '" stroke="#e2e8f0" stroke-width="1" />' +
+        '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
+        '" text-anchor="end" fill="#94a3b8" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        esc(fmtNum(tv)) + "</text>";
+    }
+    var xLabels = "";
+    var labelStep = Math.max(1, Math.ceil(n / 6));
+    for (var li = 0; li < n; li++) {
+      if (li % labelStep !== 0 && li !== n - 1) continue;
+      var lx = curPts[li].x;
+      var lab = String(rows[li].key);
+      if (lab.length > 10 && lab.indexOf("-") === 4) lab = lab.slice(5);
+      xLabels +=
+        '<text x="' + lx.toFixed(1) + '" y="' + (h - 12) +
+        '" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        esc(lab) + "</text>";
+    }
+
+    var prevLinePts = prevPts.filter(Boolean);
+    var areaD = buildAreaPath(curPts);
+    var lineD = buildLinePath(curPts);
+    var prevD = buildLinePath(prevLinePts);
+    var dots = curPts.map(function (p, i) {
+      return (
+        '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+        '" r="3.5" fill="#059669" stroke="#fff" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
+      );
+    }).join("");
+
+    paChart.innerHTML =
+      '<defs>' +
+        '<linearGradient id="pa-fill" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="#059669" stop-opacity="0.28"/>' +
+          '<stop offset="100%" stop-color="#059669" stop-opacity="0.02"/>' +
+        "</linearGradient>" +
+      "</defs>" +
+      '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
+      grid +
+      (areaD ? '<path d="' + areaD + '" fill="url(#pa-fill)" />' : "") +
+      (prevD ? '<path d="' + prevD + '" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      (lineD ? '<path d="' + lineD + '" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      dots +
+      '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
+      '" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
+      '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="#059669" stroke="#fff" stroke-width="2" opacity="0" />' +
+      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="#94a3b8" stroke="#fff" stroke-width="2" opacity="0" />' +
+      xLabels +
+      '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
+      '" fill="transparent" style="cursor:crosshair" />';
+
+    var hit = paChart.querySelector("#pa-hit");
+    function idxFromEvent(ev) {
+      var rect = paChart.getBoundingClientRect();
+      var sx = (ev.clientX - rect.left) / Math.max(rect.width, 1) * w;
+      var rel = (sx - left) / Math.max(plotW, 1);
+      var idx = Math.round(rel * (n - 1));
+      return Math.max(0, Math.min(n - 1, idx));
+    }
+    if (hit) {
+      hit.onmousemove = function (ev) {
+        showPaTooltip(idxFromEvent(ev), ev.clientX, ev.clientY);
+      };
+      hit.onmouseleave = hidePaTooltip;
+      hit.ontouchstart = function (ev) {
+        if (!ev.touches || !ev.touches[0]) return;
+        var t = ev.touches[0];
+        showPaTooltip(idxFromEvent(t), t.clientX, t.clientY);
+      };
+    }
+  }
+  function renderPaTable(series, prevSeries, breakdown, compareMeta) {
+    var rows = alignPrevRows(series, prevSeries, breakdown);
+    if (paThPrev) {
+      if (compareMeta && compareMeta.start && compareMeta.end) {
+        paThPrev.textContent = "Önceki (" + compareMeta.start.slice(5) + "→" + compareMeta.end.slice(5) + ")";
+      } else {
+        paThPrev.textContent = "Önceki";
+      }
+    }
+    if (!rows.length) {
       paTable.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       return;
     }
-    paTable.innerHTML = series.map(function (r) {
-      var pv = prevMap[r.key];
-      var dlt = (pv && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
+    paTable.innerHTML = rows.map(function (r) {
+      var pv = r.prevValue;
+      var dlt = (pv != null && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
       var dltCls = dlt == null ? "text-slate-400" : (dlt >= 0 ? "text-emerald-700" : "text-rose-600");
+      var prevCell = "—";
+      if (pv != null) {
+        prevCell = fmtNum(pv);
+        if (r.prevKey && r.prevKey !== r.key) {
+          prevCell =
+            '<span class="block tabular-nums">' + esc(fmtNum(pv)) + "</span>" +
+            '<span class="block text-[10px] font-normal text-slate-400">' + esc(r.prevKey) + "</span>";
+        } else {
+          prevCell = esc(fmtNum(pv));
+        }
+      }
       return (
-        "<tr>" +
+        "<tr class=\"hover:bg-slate-50/80 dark:hover:bg-zinc-800/40\">" +
           '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
-          '<td class="px-3 py-1.5 tabular-nums">' + esc(fmtNum(r.value)) + "</td>" +
-          '<td class="px-3 py-1.5 tabular-nums text-slate-500">' + esc(pv == null ? "—" : fmtNum(pv)) + "</td>" +
+          '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' + esc(fmtNum(r.value)) + "</td>" +
+          '<td class="px-3 py-1.5 tabular-nums text-slate-500">' + prevCell + "</td>" +
           '<td class="px-3 py-1.5 tabular-nums ' + dltCls + '">' +
             (dlt == null ? "—" : ((dlt >= 0 ? "+" : "") + dlt.toFixed(1) + "%")) +
           "</td>" +
@@ -424,8 +660,15 @@
         paDelta.textContent = "—";
         paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
       }
-      drawChart(data.series || [], (cmp && cmp.series) || []);
-      renderPaTable(data.series || [], (cmp && cmp.series) || []);
+      drawChart(data.series || [], (cmp && cmp.series) || [], paBreakdown.value);
+      renderPaTable(data.series || [], (cmp && cmp.series) || [], paBreakdown.value, cmp || null);
+      if (paCompareRange) {
+        if (cmp && cmp.start && cmp.end) {
+          paCompareRange.textContent = "Kıyas: " + cmp.start + " → " + cmp.end;
+        } else {
+          paCompareRange.textContent = "";
+        }
+      }
       if (data.auto_shifted && data.start && data.end && paStart && paEnd) {
         paStart.value = data.start;
         paEnd.value = data.end;
@@ -452,6 +695,8 @@
       if (paDelta) paDelta.textContent = "—";
       if (paTable) paTable.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       if (paChart) paChart.innerHTML = "";
+      if (paCompareRange) paCompareRange.textContent = "";
+      hidePaTooltip();
     } finally {
       if (timer) clearTimeout(timer);
       paBusy = false;
