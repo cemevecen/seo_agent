@@ -9,7 +9,7 @@
           <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">Play Console</h1>
           <span id="pc-package" class="font-mono text-xs text-slate-500 dark:text-zinc-400">com.Doviz</span>
         </div>
-        <p id="pc-meta" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge scrape · yükleniyor…</p>
+        <p id="pc-meta" class="mt-1 hidden text-xs text-slate-500 dark:text-zinc-400"></p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <a id="pc-console-link"
@@ -24,7 +24,7 @@
         </button>
       </div>
     </div>
-    <p id="pc-status" class="mt-3 text-xs text-slate-500 dark:text-zinc-400"></p>
+    <p id="pc-status" class="mt-3 hidden text-xs text-slate-500 dark:text-zinc-400"></p>
   </div>
 
   <!-- Interaktif Play analytics (scrape statistics + GCS yedek) -->
@@ -785,10 +785,11 @@
       if (paTotal) paTotal.textContent = "—";
       if (paPrev) paPrev.textContent = "—";
       if (paDelta) paDelta.textContent = "—";
-      if (paTable) paTable.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      if (paTable) paTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       if (paChart) paChart.innerHTML = "";
       if (paCompareRange) paCompareRange.textContent = "";
       setCompareNote("");
+      setCompareColsVisible(false);
       hidePaTooltip();
     } finally {
       if (timer) clearTimeout(timer);
@@ -976,8 +977,20 @@
     }).join("");
   }
 
+  function setPcLine(el, text) {
+    if (!el) return;
+    if (text) {
+      el.textContent = text;
+      el.classList.remove("hidden");
+    } else {
+      el.textContent = "";
+      el.classList.add("hidden");
+    }
+  }
+
   async function loadSnapshot() {
-    statusEl.textContent = "Snapshot yükleniyor…";
+    setPcLine(statusEl, "");
+    setPcLine(metaEl, "");
     try {
       var r = await fetch("/api/play-console/snapshot", { credentials: "same-origin", cache: "no-store" });
       var data = await r.json();
@@ -987,18 +1000,7 @@
       if (statsLink && data.panels && data.panels.pages && data.panels.pages.statistics && data.panels.pages.statistics.url) {
         statsLink.href = data.panels.pages.statistics.url;
       }
-      metaEl.textContent =
-        (data.empty ? "Veri yok — bridge login + sync gerekli" :
-          ((data.tpg_count || parts.tpg.length || parts.kpi.length) + " dash · " +
-           (parts.monetize.length) + " mon · " +
-           (parts.grow.length) + " grow · " +
-           (parts.monitor.length) + " monitor · " +
-           (parts.release.length) + " release · " +
-           (parts.statistics.length) + " stats · " +
-           (data.breakdown_count || parts.breakdowns.length) + " kırılım · " +
-           data.review_count + " review")) +
-        " · son sync: " + fmtSync(data.updated_at || data.background_synced_at) +
-        (data.sync_message ? " · " + data.sync_message : "");
+      setPcLine(metaEl, data.empty ? "Veri yok — bridge login + sync gerekli" : "");
       renderRating(data.rating_summary);
       renderGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m); });
       renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });
@@ -1011,17 +1013,18 @@
         return metricCard(m, { subtitle: m.segment || m.page || "" });
       });
       renderReviews(data.reviews);
-      statusEl.textContent = data.sync_ok === false
-        ? ("Son sync uyarısı: " + (data.sync_message || "başarısız"))
-        : "Hazır";
+      setPcLine(
+        statusEl,
+        data.sync_ok === false ? ("Son sync uyarısı: " + (data.sync_message || "başarısız")) : ""
+      );
     } catch (err) {
-      statusEl.textContent = (err && err.message) || String(err);
+      setPcLine(statusEl, (err && err.message) || String(err));
     }
   }
 
   async function refreshPage() {
     if (btn) btn.disabled = true;
-    statusEl.textContent = "Yenileniyor…";
+    setPcLine(statusEl, "Yenileniyor…");
     var host = (location.hostname || "").toLowerCase();
     var isLocal = host === "localhost" || host === "127.0.0.1";
     var bridgeOk = false;
@@ -1040,15 +1043,12 @@
         try { body = await br.json(); } catch (_) {}
         if (br.ok && !(body && body.ok === false)) {
           bridgeOk = true;
-          statusEl.textContent = (body && body.message) || "Mac sync OK — yükleniyor…";
         }
       } catch (_) {}
     }
     try {
       await loadSnapshot();
-      if (bridgeOk && statusEl) {
-        statusEl.textContent = (statusEl.textContent || "Hazır") + " · Mac scrape tetiklendi";
-      }
+      if (bridgeOk) setPcLine(statusEl, "");
     } finally {
       if (btn) btn.disabled = false;
     }
