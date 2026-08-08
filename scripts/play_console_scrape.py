@@ -206,7 +206,28 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension_values": "OVERALL",
         "dim_hint": "overview",
         "needles": ("ANR", "Veri tablosu", "İstatistik"),
-    },    {
+    },
+    {
+        "id": "anrs_os",
+        "label": "ANR · Android OS",
+        "metric_key": "anrs",
+        "metrics": _ANR_METRICS,
+        "dimension": "OS_VERSION",
+        "dimension_values": "OVERALL%2C28%2C29%2C30%2C31%2C32%2C33%2C34%2C35%2C36",
+        "dim_hint": "os_version",
+        "needles": ("ANR", "OS", "Veri tablosu", "İstatistik"),
+    },
+    {
+        "id": "anrs_version",
+        "label": "ANR · sürüm",
+        "metric_key": "anrs",
+        "metrics": _ANR_METRICS,
+        "dimension": "APP_VERSION",
+        "dimension_values": "OVERALL",
+        "dim_hint": "app_version",
+        "needles": ("ANR", "Sürüm", "Veri tablosu", "İstatistik"),
+    },
+    {
         "id": "crashes_date",
         "label": "Çökme · tarih",
         "metric_key": "crashes",
@@ -215,6 +236,26 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension_values": "OVERALL",
         "dim_hint": "overview",
         "needles": ("Kilitlenme", "Crash", "Veri tablosu", "İstatistik"),
+    },
+    {
+        "id": "crashes_os",
+        "label": "Çökme · Android OS",
+        "metric_key": "crashes",
+        "metrics": _CRASH_METRICS,
+        "dimension": "OS_VERSION",
+        "dimension_values": "OVERALL%2C28%2C29%2C30%2C31%2C32%2C33%2C34%2C35%2C36",
+        "dim_hint": "os_version",
+        "needles": ("Kilitlenme", "Crash", "OS", "Veri tablosu", "İstatistik"),
+    },
+    {
+        "id": "crashes_version",
+        "label": "Çökme · sürüm",
+        "metric_key": "crashes",
+        "metrics": _CRASH_METRICS,
+        "dimension": "APP_VERSION",
+        "dimension_values": "OVERALL",
+        "dim_hint": "app_version",
+        "needles": ("Kilitlenme", "Crash", "Sürüm", "Veri tablosu", "İstatistik"),
     },
     {
         "id": "revenue",
@@ -887,6 +928,8 @@ def _dim_key(dimension: str) -> str:
         return "os_version"
     if d == "APP_VERSION":
         return "app_version"
+    if d in ("DEVICE", "DEVICE_MODEL", "DEVICE_TYPE"):
+        return "device"
     return d.lower() or "overview"
 
 

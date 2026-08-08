@@ -137,16 +137,22 @@ def _enrich_reporting(
             extra = gp_client.fetch_anr_by_dimension(
                 package_name, dimension=api_dim, start=start_d, end=end_d
             )
+            last_err = getattr(gp_client.fetch_anr_by_dimension, "last_error", None)
         else:
             extra = gp_client.fetch_crash_by_dimension(
                 package_name, dimension=api_dim, start=start_d, end=end_d
             )
+            last_err = getattr(gp_client.fetch_crash_by_dimension, "last_error", None)
     except Exception as exc:  # noqa: BLE001
         return facts, f"Reporting API hata: {exc}"
     if not extra:
+        hint = last_err or "yanıt boş"
         return facts, (
-            f"Reporting API boş ({api_dim}) — service account’ta "
-            "androidpublisher / playdeveloperreporting yetkisi kontrol et."
+            f"Reporting API boş ({api_dim}: {hint}). "
+            "Play Console → Kullanıcılar ve izinler → service account’a "
+            "«Uygulama bilgilerini görüntüleme» + Reporting erişimi ver; "
+            "API’de playdeveloperreporting etkin olsun. "
+            "Mac scrape ile OS/sürüm ANR sayfaları da eklenebilir."
         )
     # Aynı dim+metric eski satırları temizle (overview OVERALL kalsın)
     kept = [
@@ -155,10 +161,11 @@ def _enrich_reporting(
         if not (
             str(f.get("metric")) == metric_key
             and str(f.get("dim")) == dim
-            and str(f.get("source") or "") == "reporting_api"
+            and str(f.get("source") or "").startswith("reporting_api")
         )
     ]
-    return kept + extra, f"Reporting API +{len(extra)} satır ({api_dim}→{dim})"
+    src = str((extra[0] or {}).get("source") or "reporting_api")
+    return kept + extra, f"Reporting API +{len(extra)} satır ({api_dim}→{dim}, {src})"
 
 
 def _aggregate(

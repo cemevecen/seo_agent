@@ -216,6 +216,134 @@ def _reporting_ui_dim(api_dim: str) -> str:
     }.get(api_dim, api_dim)
 
 
+def _parse_gp_decimal(raw: Any) -> float | None:
+    """google.type.Decimal çoğu zaman {"value": "1.23"} dict gelir."""
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        raw = raw.get("value")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _dim_segment(row: dict[str, Any], dim: str) -> str:
+    for d in row.get("dimensions") or []:
+        if not isinstance(d, dict) or d.get("dimension") != dim:
+            continue
+        return str(
+            d.get("stringValue")
+            or d.get("int64Value")
+            or d.get("value")
+            or "UNKNOWN"
+        )
+    return "UNKNOWN"
+
+
+def _row_date(row: dict[str, Any]) -> str | None:
+    st = row.get("startTime") or {}
+    try:
+        return f"{int(st['year']):04d}-{int(st['month']):02d}-{int(st['day']):02d}"
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def fetch_error_counts_by_dimension(
+    package_name: str,
+    *,
+    report_type: str,
+    dimension: str = "versionCode",
+    start: date | None = None,
+    end: date | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Mutlak ANR/çökme sayıları — errorCountMetricSet (reportType zorunlu).
+
+    report_type: APPLICATION_NOT_RESPONDING | CRASH
+    dimension: versionCode | deviceModel | apiLevel  (countryCode bu sette yok)
+    """
+    svc = _reporting_service()
+    if svc is None:
+        return [], "Reporting service yok (GP_SERVICE_ACCOUNT_JSON?)"
+    dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel") else "versionCode"
+    ui_dim = _reporting_ui_dim(dim)
+    metric_key = "anrs" if report_type == "APPLICATION_NOT_RESPONDING" else "crashes"
+    # Vitals 2–3 gün gecikmeli
+    end_d = min(end or (date.today() - timedelta(days=3)), date.today() - timedelta(days=2))
+    start_d = start or date(2025, 1, 1)
+    if start_d > end_d:
+        start_d = end_d - timedelta(days=27)
+    name = f"apps/{package_name}/errorCountMetricSet"
+    body: dict[str, Any] = {
+        "timelineSpec": {
+            "aggregationPeriod": "DAILY",
+            "startTime": _date_to_gp(start_d),
+            "endTime": _date_to_gp(end_d + timedelta(days=1)),
+        },
+        "dimensions": ["reportType", dim],
+        "metrics": ["errorReportCount", "distinctUsers"],
+        "filter": f'reportType = "{report_type}"',
+        "pageSize": 100000,
+    }
+    out: list[dict[str, Any]] = []
+    page_token = None
+    try:
+        while True:
+            if page_token:
+                body["pageToken"] = page_token
+            # discovery: vitals().errors().counts() — sürümler değişebilir
+            try:
+                resp = svc.vitals().errors().counts().query(name=name, body=body).execute()
+            except AttributeError:
+                # bazı client sürümlerinde düz isim
+                resp = svc.vitals().errorcounts().query(name=name, body=body).execute()
+            for row in resp.get("rows") or []:
+                if not isinstance(row, dict):
+                    continue
+                ds = _row_date(row)
+                if not ds:
+                    continue
+                seg = _dim_segment(row, dim)
+                if not seg or seg in ("UNKNOWN", report_type):
+                    # bazen yalnızca reportType boyutu dolu gelir
+                    continue
+                metrics = {
+                    (m.get("metric") or ""): m
+                    for m in (row.get("metrics") or [])
+                    if isinstance(m, dict)
+                }
+                count = _parse_gp_decimal(
+                    (metrics.get("errorReportCount") or {}).get("decimalValue")
+                    or (metrics.get("errorReportCount") or {}).get("value")
+                )
+                users = _parse_gp_decimal(
+                    (metrics.get("distinctUsers") or {}).get("decimalValue")
+                    or (metrics.get("distinctUsers") or {}).get("value")
+                )
+                if count is None and users is None:
+                    continue
+                out.append(
+                    {
+                        "metric": metric_key,
+                        "view_id": f"{metric_key}_errors_{dim}",
+                        "dim": ui_dim,
+                        "segment": seg,
+                        "date": ds,
+                        "value": float(count if count is not None else users or 0.0),
+                        "distinct_users": users,
+                        "label": f"{metric_key}:{dim}:{seg}",
+                        "source": "reporting_api_errors",
+                    }
+                )
+            page_token = resp.get("nextPageToken")
+            if not page_token or len(out) >= 200000:
+                break
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("GP errorCount (%s/%s/%s): %s", package_name, report_type, dim, exc)
+        return [], f"errorCountMetricSet hata: {exc}"
+    return out, None
+
+
 def fetch_anr_by_dimension(
     package_name: str,
     *,
@@ -223,17 +351,30 @@ def fetch_anr_by_dimension(
     start: date | None = None,
     end: date | None = None,
 ) -> list[dict[str, Any]]:
-    """ANR oranını versionCode / deviceModel / apiLevel / countryCode kırılımıyla çek.
+    """ANR kırılımı: önce mutlak errorCount, yoksa anrRate × kullanıcı."""
+    dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
+    err_count = None
+    # country yalnızca rate set’te
+    if dim != "countryCode":
+        rows, err_count = fetch_error_counts_by_dimension(
+            package_name,
+            report_type="APPLICATION_NOT_RESPONDING",
+            dimension=dim,
+            start=start,
+            end=end,
+        )
+        if rows:
+            fetch_anr_by_dimension.last_error = None  # type: ignore[attr-defined]
+            return rows
+        if err_count:
+            logger.info("ANR errorCount fallback rate: %s", err_count)
 
-    Not: Reporting API mutlak ANR *sayısı* değil kullanıcı-ağırlıklı *oran* döner.
-    Console scrape günlük sayıları (tarih) sağlar; kırılımlar için oran × distinctUsers.
-    """
     svc = _reporting_service()
     if svc is None:
+        fetch_anr_by_dimension.last_error = err_count or "Reporting service yok"  # type: ignore[attr-defined]
         return []
-    dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
     ui_dim = _reporting_ui_dim(dim)
-    end_d = end or (date.today() - timedelta(days=3))
+    end_d = min(end or (date.today() - timedelta(days=3)), date.today() - timedelta(days=2))
     start_d = start or date(2025, 1, 1)
     if start_d > end_d:
         start_d = end_d - timedelta(days=27)
@@ -250,6 +391,7 @@ def fetch_anr_by_dimension(
     }
     out: list[dict[str, Any]] = []
     page_token = None
+    rate_err = None
     try:
         while True:
             if page_token:
@@ -258,50 +400,30 @@ def fetch_anr_by_dimension(
             for row in resp.get("rows") or []:
                 if not isinstance(row, dict):
                     continue
-                st = row.get("startTime") or {}
-                try:
-                    ds = f"{int(st['year']):04d}-{int(st['month']):02d}-{int(st['day']):02d}"
-                except (KeyError, TypeError, ValueError):
+                ds = _row_date(row)
+                if not ds:
                     continue
-                seg = "UNKNOWN"
-                for d in row.get("dimensions") or []:
-                    if not isinstance(d, dict):
-                        continue
-                    if d.get("dimension") == dim:
-                        seg = str(
-                            d.get("stringValue")
-                            or d.get("int64Value")
-                            or d.get("value")
-                            or "UNKNOWN"
-                        )
-                        break
+                seg = _dim_segment(row, dim)
                 metrics = {
                     (m.get("metric") or ""): m
                     for m in (row.get("metrics") or [])
                     if isinstance(m, dict)
                 }
                 rate = None
-                users = None
                 for key in ("anrRate", "anrRate7dUserWeighted"):
-                    m = metrics.get(key) or {}
-                    dv = m.get("decimalValue") or m.get("value")
-                    if dv is not None:
-                        try:
-                            rate = float(dv)
-                            break
-                        except (TypeError, ValueError):
-                            pass
-                mu = metrics.get("distinctUsers") or {}
-                du = mu.get("decimalValue") or mu.get("value")
-                if du is not None:
-                    try:
-                        users = float(du)
-                    except (TypeError, ValueError):
-                        users = None
-                # Yaklaşık ANR etkilenen kullanıcı ≈ oran * distinctUsers
-                approx = None
-                if rate is not None and users is not None:
-                    approx = round(rate * users, 4)
+                    rate = _parse_gp_decimal(
+                        (metrics.get(key) or {}).get("decimalValue")
+                        or (metrics.get(key) or {}).get("value")
+                    )
+                    if rate is not None:
+                        break
+                users = _parse_gp_decimal(
+                    (metrics.get("distinctUsers") or {}).get("decimalValue")
+                    or (metrics.get("distinctUsers") or {}).get("value")
+                )
+                approx = round(rate * users, 4) if rate is not None and users is not None else rate
+                if approx is None:
+                    continue
                 out.append(
                     {
                         "metric": "anrs",
@@ -309,7 +431,7 @@ def fetch_anr_by_dimension(
                         "dim": ui_dim,
                         "segment": seg,
                         "date": ds,
-                        "value": approx if approx is not None else (rate if rate is not None else 0.0),
+                        "value": float(approx),
                         "anr_rate": rate,
                         "distinct_users": users,
                         "label": f"anr:{dim}:{seg}",
@@ -317,12 +439,16 @@ def fetch_anr_by_dimension(
                     }
                 )
             page_token = resp.get("nextPageToken")
-            if not page_token:
-                break
-            if len(out) >= 200000:
+            if not page_token or len(out) >= 200000:
                 break
     except Exception as exc:  # noqa: BLE001
         logger.warning("GP ANR dimension query (%s/%s): %s", package_name, dim, exc)
+        rate_err = str(exc)
+        out = []
+    if out:
+        fetch_anr_by_dimension.last_error = None  # type: ignore[attr-defined]
+    else:
+        fetch_anr_by_dimension.last_error = rate_err or err_count or "yanıt boş"  # type: ignore[attr-defined]
     return out
 
 
@@ -333,13 +459,29 @@ def fetch_crash_by_dimension(
     start: date | None = None,
     end: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Crash rate kırılımı — ANR ile aynı boyut modeli."""
+    """Crash kırılımı: önce errorCount, yoksa crashRate."""
+    dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
+    err_count = None
+    if dim != "countryCode":
+        rows, err_count = fetch_error_counts_by_dimension(
+            package_name,
+            report_type="CRASH",
+            dimension=dim,
+            start=start,
+            end=end,
+        )
+        if rows:
+            fetch_crash_by_dimension.last_error = None  # type: ignore[attr-defined]
+            return rows
+        if err_count:
+            logger.info("Crash errorCount fallback rate: %s", err_count)
+
     svc = _reporting_service()
     if svc is None:
+        fetch_crash_by_dimension.last_error = err_count or "Reporting service yok"  # type: ignore[attr-defined]
         return []
-    dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
     ui_dim = _reporting_ui_dim(dim)
-    end_d = end or (date.today() - timedelta(days=3))
+    end_d = min(end or (date.today() - timedelta(days=3)), date.today() - timedelta(days=2))
     start_d = start or date(2025, 1, 1)
     if start_d > end_d:
         start_d = end_d - timedelta(days=27)
@@ -356,6 +498,7 @@ def fetch_crash_by_dimension(
     }
     out: list[dict[str, Any]] = []
     page_token = None
+    rate_err = None
     try:
         while True:
             if page_token:
@@ -364,21 +507,10 @@ def fetch_crash_by_dimension(
             for row in resp.get("rows") or []:
                 if not isinstance(row, dict):
                     continue
-                st = row.get("startTime") or {}
-                try:
-                    ds = f"{int(st['year']):04d}-{int(st['month']):02d}-{int(st['day']):02d}"
-                except (KeyError, TypeError, ValueError):
+                ds = _row_date(row)
+                if not ds:
                     continue
-                seg = "UNKNOWN"
-                for d in row.get("dimensions") or []:
-                    if isinstance(d, dict) and d.get("dimension") == dim:
-                        seg = str(
-                            d.get("stringValue")
-                            or d.get("int64Value")
-                            or d.get("value")
-                            or "UNKNOWN"
-                        )
-                        break
+                seg = _dim_segment(row, dim)
                 metrics = {
                     (m.get("metric") or ""): m
                     for m in (row.get("metrics") or [])
@@ -386,23 +518,19 @@ def fetch_crash_by_dimension(
                 }
                 rate = None
                 for key in ("crashRate", "crashRate7dUserWeighted"):
-                    m = metrics.get(key) or {}
-                    dv = m.get("decimalValue") or m.get("value")
-                    if dv is not None:
-                        try:
-                            rate = float(dv)
-                            break
-                        except (TypeError, ValueError):
-                            pass
-                users = None
-                mu = metrics.get("distinctUsers") or {}
-                du = mu.get("decimalValue") or mu.get("value")
-                if du is not None:
-                    try:
-                        users = float(du)
-                    except (TypeError, ValueError):
-                        users = None
+                    rate = _parse_gp_decimal(
+                        (metrics.get(key) or {}).get("decimalValue")
+                        or (metrics.get(key) or {}).get("value")
+                    )
+                    if rate is not None:
+                        break
+                users = _parse_gp_decimal(
+                    (metrics.get("distinctUsers") or {}).get("decimalValue")
+                    or (metrics.get("distinctUsers") or {}).get("value")
+                )
                 approx = round(rate * users, 4) if rate is not None and users is not None else rate
+                if approx is None:
+                    continue
                 out.append(
                     {
                         "metric": "crashes",
@@ -410,18 +538,22 @@ def fetch_crash_by_dimension(
                         "dim": ui_dim,
                         "segment": seg,
                         "date": ds,
-                        "value": approx or 0.0,
+                        "value": float(approx),
                         "label": f"crash:{dim}:{seg}",
                         "source": "reporting_api",
                     }
                 )
             page_token = resp.get("nextPageToken")
-            if not page_token:
-                break
-            if len(out) >= 200000:
+            if not page_token or len(out) >= 200000:
                 break
     except Exception as exc:  # noqa: BLE001
         logger.warning("GP crash dimension query (%s/%s): %s", package_name, dim, exc)
+        rate_err = str(exc)
+        out = []
+    if out:
+        fetch_crash_by_dimension.last_error = None  # type: ignore[attr-defined]
+    else:
+        fetch_crash_by_dimension.last_error = rate_err or err_count or "yanıt boş"  # type: ignore[attr-defined]
     return out
 
 
