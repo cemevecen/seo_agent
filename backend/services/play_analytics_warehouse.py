@@ -66,15 +66,43 @@ def _parse_date(s: str) -> str | None:
 
 
 def _decode_csv(raw: bytes) -> str:
-    try:
+    if not raw:
+        return ""
+    # Play GCS raporları UTF-16 (BOM’lu). Yanlış decode kolon adlarını bozar.
+    if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
         return raw.decode("utf-16")
+    if len(raw) >= 4 and raw[1] == 0 and raw[3] == 0:
+        try:
+            return raw.decode("utf-16-le")
+        except UnicodeDecodeError:
+            pass
+    try:
+        return raw.decode("utf-8-sig")
     except UnicodeDecodeError:
-        return raw.decode("utf-8", errors="replace")
+        try:
+            return raw.decode("utf-16")
+        except UnicodeDecodeError:
+            return raw.decode("utf-8", errors="replace")
+
+
+def _norm_header(k: str | None) -> str:
+    return (k or "").replace("\ufeff", "").strip()
+
+
+def _row_get(row: dict[str, str], *names: str) -> str:
+    """BOM / boşluk farkını yok sayarak hücre oku."""
+    if not row:
+        return ""
+    wanted = {n.lower() for n in names}
+    for k, v in row.items():
+        if _norm_header(k).lower() in wanted:
+            return "" if v is None else str(v)
+    return ""
 
 
 def _pick_col(row: dict[str, str], candidates: tuple[str, ...]) -> str:
-    keys = {k.strip(): k for k in row.keys() if k}
-    lower = {k.strip().lower(): k for k in row.keys() if k}
+    keys = {_norm_header(k): k for k in row.keys() if k}
+    lower = {_norm_header(k).lower(): k for k in row.keys() if k}
     for c in candidates:
         if c in keys:
             return keys[c]
@@ -91,6 +119,13 @@ def _int_cell(row: dict[str, str], candidates: tuple[str, ...]) -> int:
         return int(float(str(row.get(col) or "0").replace(",", "").strip() or "0"))
     except (TypeError, ValueError):
         return 0
+
+
+def _fact_date_bounds(facts: list[dict[str, Any]]) -> tuple[str | None, str | None]:
+    dates = sorted({str(f.get("date")) for f in facts if f.get("date")})
+    if not dates:
+        return None, None
+    return dates[0], dates[-1]
 
 
 def _recent_yyyymm(months: int = 4) -> set[str]:
@@ -261,8 +296,9 @@ def _load_install_facts(
         for row in reader:
             if not isinstance(row, dict):
                 continue
-            ds = _parse_date(str(row.get("Date") or row.get("date") or ""))
+            ds = _parse_date(_row_get(row, "Date", "date", "Day", "day"))
             if not ds:
+                parse_errors += 1
                 continue
             segment = "OVERALL"
             if dim != "overview":
@@ -302,7 +338,7 @@ def _load_install_facts(
                 for row in reader:
                     if not isinstance(row, dict):
                         continue
-                    ds = _parse_date(str(row.get("Date") or ""))
+                    ds = _parse_date(_row_get(row, "Date", "date", "Day", "day"))
                     if not ds:
                         continue
                     crashes = _int_cell(row, ("Crashes", "Daily Crashes", "crash"))
@@ -366,12 +402,15 @@ def _load_install_facts(
             "months": sorted(months_ok),
             "want_dims": sorted(want_dims),
             "samples": sample_names[:12],
+            "parse_errors": parse_errors,
             "skipped": {
                 "month": skipped_month,
                 "dim": skipped_dim,
                 "name": skipped_name,
             },
         },
+        "date_min": _fact_date_bounds(facts)[0],
+        "date_max": _fact_date_bounds(facts)[1],
         "loaded_at": datetime.utcnow().isoformat() + "Z",
     }
     # Boş sonucu uzun cache’leme — keşif sonrası tekrar denenebilsin
@@ -474,6 +513,8 @@ def query_play_analytics(
     end_d = date.fromisoformat(end) if end else date.today()
     start_d = date.fromisoformat(start) if start else (end_d - timedelta(days=27))
     start_s, end_s = start_d.isoformat(), end_d.isoformat()
+    requested_start, requested_end = start_s, end_s
+    auto_shifted = False
 
     metric = metric if metric in ("installs", "uninstalls", "active", "net", "crashes", "anrs") else "installs"
     breakdown = breakdown if breakdown in ("date", "week", "month", "segment") else "date"
@@ -487,12 +528,46 @@ def query_play_analytics(
         months=14 if (date.fromisoformat(end_s) - date.fromisoformat(start_s)).days > 100 else 8,
     )
     facts = warehouse.get("facts") or []
-    cur_facts = _filter_facts(facts, start=start_s, end=end_s, dim=dim, segment=segment)
-    # crashes/anrs only on overview rows that have those keys — if metric crashes use overview
+    date_min, date_max = warehouse.get("date_min"), warehouse.get("date_max")
+    if not date_min or not date_max:
+        date_min, date_max = _fact_date_bounds(facts)
+
+    # Crash CSV satırları installs=0 ile overview'a karışmasın
+    metric_facts = facts
+    if metric in ("installs", "uninstalls", "active", "net"):
+        metric_facts = [f for f in facts if "crashes" not in f and "anrs" not in f]
+        dmin2, dmax2 = _fact_date_bounds(metric_facts)
+        if dmin2 and dmax2:
+            date_min, date_max = dmin2, dmax2
+    elif metric in ("crashes", "anrs"):
+        metric_facts = [f for f in facts if metric in f]
+        dmin2, dmax2 = _fact_date_bounds(metric_facts)
+        if dmin2 and dmax2:
+            date_min, date_max = dmin2, dmax2
+
+    # Play raporları 3–7 gün gecikmeli: seçili aralıkta satır yoksa son mevcut güne kaydır
+    span_days = (end_d - start_d).days + 1
+    cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim=dim, segment=segment)
     if metric in ("crashes", "anrs"):
         dim = "overview"
-        cur_facts = _filter_facts(facts, start=start_s, end=end_s, dim="overview", segment=None)
-        cur_facts = [f for f in cur_facts if metric in f]
+        cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim="overview", segment=None)
+
+    if not cur_facts and date_max:
+        try:
+            dmax = date.fromisoformat(str(date_max))
+            end_d = dmax
+            start_d = end_d - timedelta(days=max(span_days, 1) - 1)
+            if date_min:
+                dmin = date.fromisoformat(str(date_min))
+                if start_d < dmin:
+                    start_d = dmin
+            start_s, end_s = start_d.isoformat(), end_d.isoformat()
+            auto_shifted = (start_s != requested_start) or (end_s != requested_end)
+            cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim=dim, segment=segment)
+            if metric in ("crashes", "anrs"):
+                cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim="overview", segment=None)
+        except ValueError:
+            pass
 
     series = _aggregate(cur_facts, breakdown=breakdown, metric=metric)
     total = sum(r["value"] for r in series) if metric != "active" else (series[-1]["value"] if series else 0)
@@ -500,9 +575,13 @@ def query_play_analytics(
     compare_payload = None
     if compare == "previous_period":
         ps, pe = _prev_range(start_s, end_s)
-        prev_facts = _filter_facts(facts, start=ps, end=pe, dim=dim if metric not in ("crashes", "anrs") else "overview", segment=segment)
-        if metric in ("crashes", "anrs"):
-            prev_facts = [f for f in prev_facts if metric in f]
+        prev_facts = _filter_facts(
+            metric_facts,
+            start=ps,
+            end=pe,
+            dim=dim if metric not in ("crashes", "anrs") else "overview",
+            segment=segment,
+        )
         prev_series = _aggregate(prev_facts, breakdown=breakdown, metric=metric)
         prev_total = sum(r["value"] for r in prev_series) if metric != "active" else (prev_series[-1]["value"] if prev_series else 0)
         delta_pct = None
@@ -521,19 +600,42 @@ def query_play_analytics(
     seg_set = sorted(
         {
             str(f.get("segment"))
-            for f in facts
+            for f in metric_facts
             if f.get("dim") == dim and start_s <= str(f.get("date")) <= end_s
         }
     )[:80]
+
+    msg = warehouse.get("message") or ""
+    if auto_shifted:
+        msg = (
+            f"Play CSV gecikmeli — aralık {requested_start}…{requested_end} boştu; "
+            f"mevcut veriye kaydırıldı ({start_s}…{end_s}). "
+            f"Bucket: {date_min or '—'} → {date_max or '—'}. · {msg}"
+        )
+    elif not cur_facts and metric_facts:
+        msg = (
+            f"Seçili aralıkta satır yok ({requested_start}…{requested_end}). "
+            f"Bucket tarihleri: {date_min or '—'} → {date_max or '—'}. · {msg}"
+        )
+    elif not metric_facts and facts:
+        msg = (
+            f"Metrik `{metric}` için satır yok (CSV kolon/parse). "
+            f"Ham warehouse: {len(facts)} satır. · {msg}"
+        )
 
     return {
         "ok": bool(warehouse.get("ok")) or bool(series),
         "configured": warehouse.get("configured"),
         "bucket": warehouse.get("bucket"),
-        "message": warehouse.get("message"),
+        "message": msg,
         "package_name": pkg,
         "start": start_s,
         "end": end_s,
+        "requested_start": requested_start,
+        "requested_end": requested_end,
+        "auto_shifted": auto_shifted,
+        "date_min": date_min,
+        "date_max": date_max,
         "metric": metric,
         "breakdown": breakdown,
         "dim": dim,

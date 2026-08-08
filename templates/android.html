@@ -414,9 +414,16 @@
       }
       drawChart(data.series || [], (cmp && cmp.series) || []);
       renderPaTable(data.series || [], (cmp && cmp.series) || []);
-      paStatus.textContent = data.ok
-        ? ((data.row_count || 0) + " satır · " + (data.message || ""))
-        : ("Uyarı: " + (data.message || "veri yok"));
+      if (data.auto_shifted && data.start && data.end && paStart && paEnd) {
+        paStart.value = data.start;
+        paEnd.value = data.end;
+      }
+      var meta = (data.row_count || 0) + " satır";
+      if (data.date_min && data.date_max) {
+        meta += " · bucket " + data.date_min + "→" + data.date_max;
+      }
+      if (data.message) meta += " · " + data.message;
+      paStatus.textContent = data.ok ? meta : ("Uyarı: " + (data.message || "veri yok"));
       if (!data.ok && data.debug && data.debug.samples && data.debug.samples.length) {
         paStatus.textContent += " · örnek: " + data.debug.samples.slice(0, 3).join(" | ");
       }
