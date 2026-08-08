@@ -60,7 +60,6 @@
           <option value="device_acquisition">Cihaz edinme</option>
           <option value="user_lost">Kullanıcı kaybı</option>
           <option value="active_devices">Etkin cihazlar</option>
-          <option value="dau">Günlük etkin kullanıcı (DAU)</option>
           <option value="active_users">Etkin kullanıcılar</option>
           <option value="ar2_acquisitions">Mağaza edinme (AR2)</option>
           <option value="ar2_visitors">Mağaza ziyaretçileri</option>
@@ -102,11 +101,11 @@
 
     <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
+        <p id="pa-total-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
         <p id="pa-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
       </div>
       <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Önceki dönem</p>
+        <p id="pa-prev-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Önceki dönem</p>
         <p id="pa-prev" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
       </div>
       <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
@@ -313,6 +312,8 @@
   var paTotal = document.getElementById("pa-total");
   var paPrev = document.getElementById("pa-prev");
   var paDelta = document.getElementById("pa-delta");
+  var paTotalLabel = document.getElementById("pa-total-label");
+  var paPrevLabel = document.getElementById("pa-prev-label");
   var paChart = document.getElementById("pa-chart");
   var paChartWrap = document.getElementById("pa-chart-wrap");
   var paTooltip = document.getElementById("pa-tooltip");
@@ -647,6 +648,13 @@
       if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
       fillSegments((data.facets && data.facets.segments) || []);
       paTotal.textContent = fmtNum(data.total);
+      var mode = data.total_mode || ((data.compare && data.compare.total_mode) || "sum");
+      if (paTotalLabel) {
+        paTotalLabel.textContent = mode === "last" ? "Son gün" : (mode === "avg" ? "Ortalama" : "Toplam / seçili");
+      }
+      if (paPrevLabel) {
+        paPrevLabel.textContent = mode === "last" ? "Önceki son gün" : (mode === "avg" ? "Önceki ort." : "Önceki dönem");
+      }
       var cmp = data.compare;
       paPrev.textContent = cmp ? fmtNum(cmp.total) : "—";
       if (cmp && cmp.delta_pct != null) {

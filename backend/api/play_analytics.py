@@ -34,9 +34,19 @@ _SCRAPE_FIRST = {
     "active",
 }
 
-# GCS installs CSV’de olmayan / yanıltıcı fallback üreten metrikler
-_NO_GCS_FALLBACK = {"dau", "rating", "revenue", "ar2_visitors", "ar2_acquisitions"}
-# ANR/çökme: önce scrape+Reporting, boşsa GCS crashes_* CSV (installs değil)
+# GCS installs CSV’de olmayan metrikler — installs “kolon yok” mesajına düşmesin
+_NO_GCS_FALLBACK = {
+    "dau",
+    "rating",
+    "revenue",
+    "ar2_visitors",
+    "ar2_acquisitions",
+    "active_users",
+    "active_devices",
+    "device_acquisition",
+    "user_lost",
+}
+# ANR/çökme: scrape+Reporting önce; boşsa GCS crashes_* CSV denenebilir
 _ANR_CRASH = {"anrs", "crashes"}
 
 
@@ -89,11 +99,20 @@ def get_play_analytics_query(
                 segment=segment,
                 compare=compare,
             )
-            if scrape_res.get("ok") and (scrape_res.get("series") or scrape_res.get("row_count")):
+            if scrape_res.get("ok") and scrape_res.get("series"):
+                return scrape_res
+            # Scrape metrikleri için installs CSV’ye düşme
+            if (
+                scrape_res is not None
+                and prefer != "gcs"
+                and metric in _NO_GCS_FALLBACK
+            ):
                 return scrape_res
         except Exception as exc:  # noqa: BLE001
             logger.exception("scrape analytics query failed")
             scrape_res = {"ok": False, "message": str(exc), "series": [], "total": 0}
+            if prefer != "gcs" and metric in _NO_GCS_FALLBACK:
+                return scrape_res
 
     if try_gcs:
         try:

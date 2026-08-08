@@ -29,6 +29,12 @@ _METRIC_ALIASES = {
     "uninstalls": "user_lost",
 }
 
+# Günlük stok (toplamak yanlış): dönem kartında son gün / ortalama
+_STOCK_LAST = frozenset({"active_devices", "active_users", "dau", "active"})
+_STOCK_AVG = frozenset({"rating"})
+# Play “CUMULATIVE” seriler — grafik/toplam için güne çevrilir
+_CUMULATIVE = frozenset({"device_acquisition"})
+
 
 def scrape_metric_keys() -> list[str]:
     return list(_SCRAPE_METRICS)
@@ -58,6 +64,47 @@ def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 def _resolve_metric(metric: str) -> str:
     m = (metric or "").strip()
     return _METRIC_ALIASES.get(m, m)
+
+
+def _series_total(series: list[dict[str, Any]], metric_key: str, breakdown: str) -> tuple[float, str]:
+    """Dönem özeti: olay metrikleri toplam; stok son gün; puan ortalama."""
+    if not series:
+        return 0.0, "sum"
+    vals = [float(r.get("value") or 0) for r in series]
+    if metric_key in _STOCK_AVG:
+        return round(sum(vals) / len(vals), 4), "avg"
+    if metric_key in _STOCK_LAST and breakdown in ("date", "week", "month"):
+        return float(vals[-1]), "last"
+    return round(sum(vals), 4), "sum"
+
+
+def _decumulate_series(
+    series: list[dict[str, Any]],
+    *,
+    seed_value: float | None = None,
+) -> list[dict[str, Any]]:
+    """Kümülatif günlük seriyi artışlara çevir (glitch/reset → 0)."""
+    if not series:
+        return []
+    ordered = sorted(series, key=lambda r: str(r.get("key") or ""))
+    out: list[dict[str, Any]] = []
+    prev: float | None = seed_value
+    for r in ordered:
+        try:
+            v = float(r.get("value") or 0)
+        except (TypeError, ValueError):
+            v = 0.0
+        if prev is None:
+            daily = 0.0
+            prev = v
+        elif v + 1.0 >= prev:
+            daily = max(0.0, v - prev)
+            prev = v
+        else:
+            # Ani düşüş (eksik protobuf / glitch) — negatif üretme
+            daily = 0.0
+        out.append({**r, "value": round(daily, 4)})
+    return out
 
 
 def _normalize_revenue_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -329,8 +376,9 @@ def query_scrape_analytics(
         dim_facts = [f for f in cur if str(f.get("dim") or "overview") in ("overview", "")]
         if not dim_facts:
             dim_facts = [f for f in cur if str(f.get("segment") or "") in ("OVERALL", "", "all")]
+        # Ülke satırlarını genel toplama ekleme — 4–5× şişirme yapardı
         if not dim_facts:
-            dim_facts = cur
+            dim_facts = []
     else:
         dim_facts = [f for f in cur if str(f.get("dim") or "") == dim]
         if not dim_facts and dim in _DIM_TO_REPORTING:
@@ -401,7 +449,22 @@ def query_scrape_analytics(
 
     if breakdown == "date" and dated:
         series = _densify_date_series(series, start=start_d, end=effective_end, clip_to_data=True)
-    total = sum(r["value"] for r in series)
+    if metric_key in _CUMULATIVE and breakdown == "date" and series:
+        seed = None
+        try:
+            first_d = date.fromisoformat(str(series[0]["key"])[:10])
+            seed_day = (first_d - timedelta(days=1)).isoformat()
+            for f in dim_facts:
+                if (
+                    str(f.get("date") or "")[:10] == seed_day
+                    and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
+                ):
+                    seed = float(f.get("value") or 0)
+                    break
+        except (TypeError, ValueError, KeyError, IndexError):
+            seed = None
+        series = _decumulate_series(series, seed_value=seed)
+    total, total_mode = _series_total(series, metric_key, breakdown)
 
     compare_payload = None
     if compare == "previous_period" and dated:
@@ -422,7 +485,29 @@ def query_scrape_analytics(
         prev_series = _aggregate(prev, breakdown=breakdown)
         if breakdown == "date":
             prev_series = _densify_date_series(prev_series, start=ps, end=pe, clip_to_data=True)
-        prev_total = sum(r["value"] for r in prev_series)
+        if metric_key in _CUMULATIVE and breakdown == "date" and prev_series:
+            seed = None
+            try:
+                first_d = date.fromisoformat(str(prev_series[0]["key"])[:10])
+                seed_day = (first_d - timedelta(days=1)).isoformat()
+                for f in dim_facts:
+                    if str(f.get("date") or "")[:10] == seed_day:
+                        seed = float(f.get("value") or 0)
+                        break
+                # also search all metric facts before range
+                if seed is None:
+                    for f in cur:
+                        if (
+                            str(f.get("metric")) == metric_key
+                            and str(f.get("date") or "")[:10] == seed_day
+                            and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
+                        ):
+                            seed = float(f.get("value") or 0)
+                            break
+            except (TypeError, ValueError, KeyError, IndexError):
+                seed = None
+            prev_series = _decumulate_series(prev_series, seed_value=seed)
+        prev_total, _ = _series_total(prev_series, metric_key, breakdown)
         delta_pct = None
         if prev_total:
             delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
@@ -433,6 +518,7 @@ def query_scrape_analytics(
             "total": prev_total,
             "delta_pct": delta_pct,
             "series": prev_series,
+            "total_mode": total_mode,
         }
 
     segs = sorted(
@@ -460,6 +546,8 @@ def query_scrape_analytics(
         msg += f" · {lag_note}"
     if metric_key == "revenue":
         msg += " · birim: Play günlük gelir (mikro→para; eski çift seri tekilleştirildi)"
+    if metric_key in _CUMULATIVE and breakdown == "date":
+        msg += " · kümülatif→günlük artış"
     if not series and dim in _DIM_TO_REPORTING and metric_key in ("anrs", "crashes"):
         msg = (
             f"ANR/çökme `{dim}` kırılımı boş. "
@@ -482,6 +570,7 @@ def query_scrape_analytics(
         "dim": dim,
         "segment": segment or "all",
         "total": total,
+        "total_mode": total_mode,
         "series": series,
         "compare": compare_payload,
         "facets": {
