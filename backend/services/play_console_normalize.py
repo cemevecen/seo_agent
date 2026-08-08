@@ -312,7 +312,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
             x
             for x in (d.get("explorer_facts") or [])
             if isinstance(x, dict) and x.get("metric") is not None
-        ][:5000],
+        ][:50000],
         "stats_views": [
             x for x in (d.get("stats_views") or []) if isinstance(x, dict)
         ][:40],

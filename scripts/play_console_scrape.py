@@ -79,12 +79,27 @@ RELEASE_URL = (
 ).strip()
 
 
-def _console_date_range(days: int = 28) -> str:
-    """Play Console QS format: 2026_7_11-2026_8_7 (ay/gün zero-pad yok)."""
+def _stats_history_start() -> "date":
+    from datetime import date
+
+    raw = (os.environ.get("PLAY_CONSOLE_STATS_START") or "2025-01-01").strip()
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return date(2025, 1, 1)
+
+
+def _console_date_range(days: int | None = None) -> str:
+    """Play Console QS: 2025_1_1-2026_8_7 — varsayılan 2025-01-01 → dün."""
     from datetime import date, timedelta
 
     end = date.today() - timedelta(days=1)
-    start = end - timedelta(days=max(1, days) - 1)
+    if days is None:
+        start = _stats_history_start()
+    else:
+        start = end - timedelta(days=max(1, days) - 1)
+    if start > end:
+        start = end
 
     def _fmt(d: date) -> str:
         return f"{d.year}_{d.month}_{d.day}"
@@ -97,7 +112,7 @@ def _stats_url(
     metrics: str,
     dimension: str,
     dimension_values: str,
-    days: int = 28,
+    days: int | None = None,
 ) -> str:
     dr = _console_date_range(days)
     qs = (
@@ -114,7 +129,10 @@ def _stats_url(
     return f"{BASE_APP}/statistics?{qs}"
 
 
-# Kullanıcının verdiği Play Console istatistik görünümleri (kırılımlı)
+_ANR_METRICS = "ANRS-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+_CRASH_METRICS = "CRASHES-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+
+# Kullanıcının verdiği + ANR sürüm/cihaz kırılımları (tarih: 2025-01-01+)
 STATISTICS_VIEWS: list[dict[str, Any]] = [
     {
         "id": "device_acquisition",
@@ -123,7 +141,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "DEVICE_ACQUISITION-NEW-EVENTS-CUMULATIVE-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CNL",
-        "needles": ("Cihaz edinme", "Device acquisition", "Edinme", "İstatistik"),
+        "needles": ("Cihaz edinme", "Device acquisition", "Edinme", "İstatistik", "Veri tablosu"),
     },
     {
         "id": "user_lost",
@@ -132,7 +150,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "USER_LOST-ALL-EVENTS-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CCY%2CAT%2CDE",
-        "needles": ("Kullanıcı kaybı", "User lost", "Kayıp", "İstatistik"),
+        "needles": ("Kullanıcı kaybı", "User lost", "Kayıp", "İstatistik", "Veri tablosu"),
     },
     {
         "id": "active_devices",
@@ -141,7 +159,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "ACTIVE_DEVICES-ALL-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CNL",
-        "needles": ("Etkin cihaz", "Active device", "İstatistik"),
+        "needles": ("Etkin cihaz", "Active device", "İstatistik", "Veri tablosu"),
     },
     {
         "id": "dau",
@@ -150,7 +168,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "ENGAGEMENT_DAILY_ACTIVE_USERS-ACQUISITION_UNSPECIFIED-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CNL",
-        "needles": ("Günlük etkin", "Daily active", "DAU", "İstatistik"),
+        "needles": ("Günlük etkin", "Daily active", "DAU", "İstatistik", "Veri tablosu"),
     },
     {
         "id": "ar2_acquisitions",
@@ -159,7 +177,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "AR2_ACQUISITIONS-ALL-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CIQ%2CAT",
-        "needles": ("Edinme", "Acquisition", "Mağaza", "İstatistik"),
+        "needles": ("Edinme", "Acquisition", "Mağaza", "İstatistik", "Veri tablosu"),
     },
     {
         "id": "rating",
@@ -168,7 +186,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "GOOGLE_PLAY_RATING-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CEG%2CGE%2CGR%2CIR",
-        "needles": ("Puan", "Rating", "Google Play", "İstatistik"),
+        "needles": ("Puan", "Rating", "Google Play", "İstatistik", "Veri tablosu"),
     },
     {
         "id": "active_users",
@@ -177,19 +195,49 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "ACTIVE_USERS-ALL-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL",
-        "needles": ("Etkin kullanıcı", "Active user", "İstatistik"),
+        "needles": ("Etkin kullanıcı", "Active user", "İstatistik", "Veri tablosu"),
     },
     {
-        "id": "crashes_anrs",
-        "label": "Çökme + ANR",
-        "metric_key": "crashes",
-        "metrics": (
-            "CRASHES-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
-            "%2CANRS-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
-        ),
-        "dimension": "OS_VERSION",
+        "id": "anrs_date",
+        "label": "ANR · tarih",
+        "metric_key": "anrs",
+        "metrics": _ANR_METRICS,
+        "dimension": "APP_VERSION",
         "dimension_values": "OVERALL",
-        "needles": ("Kilitlenme", "Crash", "ANR", "İstatistik"),
+        "dim_hint": "overview",
+        "needles": ("ANR", "Veri tablosu", "İstatistik"),
+    },
+    {
+        "id": "anrs_app_version",
+        "label": "ANR · uygulama sürümü",
+        "metric_key": "anrs",
+        "metrics": _ANR_METRICS,
+        "dimension": "APP_VERSION",
+        "dimension_values": "OVERALL",
+        "dim_hint": "app_version",
+        "needles": ("ANR", "sürüm", "Veri tablosu", "İstatistik"),
+        "enrich": "reporting_version",
+    },
+    {
+        "id": "anrs_device",
+        "label": "ANR · cihaz",
+        "metric_key": "anrs",
+        "metrics": _ANR_METRICS,
+        "dimension": "DEVICE",
+        "dimension_values": "OVERALL",
+        "dim_hint": "device",
+        "needles": ("ANR", "cihaz", "Veri tablosu", "İstatistik"),
+        "enrich": "reporting_device",
+    },
+    {
+        "id": "crashes_date",
+        "label": "Çökme · tarih",
+        "metric_key": "crashes",
+        "metrics": _CRASH_METRICS,
+        "dimension": "APP_VERSION",
+        "dimension_values": "OVERALL",
+        "dim_hint": "overview",
+        "needles": ("Kilitlenme", "Crash", "Veri tablosu", "İstatistik"),
     },
     {
         "id": "revenue",
@@ -201,7 +249,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         ),
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL",
-        "needles": ("Gelir", "Revenue", "İstatistik"),
+        "needles": ("Gelir", "Revenue", "İstatistik", "Veri tablosu"),
     },
     {
         "id": "ar2_visitors",
@@ -210,7 +258,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metrics": "AR2_VISITORS-ALL-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL%2CTR%2CDE%2CFR%2CCY",
-        "needles": ("Ziyaret", "Visitor", "Mağaza girişi", "İstatistik"),
+        "needles": ("Ziyaret", "Visitor", "Mağaza girişi", "İstatistik", "Veri tablosu"),
     },
 ]
 
@@ -218,15 +266,15 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
 STATISTICS_URL = (
     os.environ.get("PLAY_CONSOLE_STATISTICS_URL")
     or _stats_url(
-        metrics=STATISTICS_VIEWS[7]["metrics"],
-        dimension="OS_VERSION",
+        metrics=_ANR_METRICS,
+        dimension="APP_VERSION",
         dimension_values="OVERALL",
     )
 ).strip()
 STATISTICS_VISITORS_URL = (
     os.environ.get("PLAY_CONSOLE_STATISTICS_VISITORS_URL")
     or _stats_url(
-        metrics=STATISTICS_VIEWS[9]["metrics"],
+        metrics="AR2_VISITORS-ALL-UNIQUE-PER_INTERVAL-DAY",
         dimension="COUNTRY",
         dimension_values="OVERALL%2CTR%2CDE%2CFR%2CCY",
     )
@@ -434,6 +482,7 @@ def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
                     "androidpublisher",
                     "playdeveloperreporting",
                     "googleapis.com",
+                    "clients6.google.com",
                     "batchexecute",
                     "/_$rpc/",
                     "playconsole",
@@ -979,26 +1028,200 @@ def _parse_stats_data_table(
     return facts
 
 
+
+def _parse_stats_protobuf(
+    body: Any,
+    *,
+    metric_key: str,
+    view_id: str,
+    dim_hint: str = "overview",
+) -> list[dict[str, Any]]:
+    """playconsolestatsfrontend JSON+protobuf zaman serisi → explorer facts.
+
+    Satır şekli:
+      {"1":[{"2":[{"2":{"2":"63"},"4":100}]}], "2":{"1":2026,"2":8,"3":7}}
+    """
+    if not isinstance(body, dict):
+        return []
+    rows = body.get("1")
+    if not isinstance(rows, list) or len(rows) < 3:
+        return []
+    facts: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        dobj = row.get("2") if isinstance(row.get("2"), dict) else None
+        if not dobj:
+            continue
+        try:
+            y, m, d = int(dobj.get("1")), int(dobj.get("2")), int(dobj.get("3"))
+            ds = f"{y:04d}-{m:02d}-{d:02d}"
+        except (TypeError, ValueError):
+            continue
+        series_list = row.get("1")
+        if not isinstance(series_list, list):
+            continue
+        for series in series_list:
+            if not isinstance(series, dict):
+                continue
+            points = series.get("2")
+            if not isinstance(points, list):
+                continue
+            for pi, pt in enumerate(points):
+                if not isinstance(pt, dict):
+                    continue
+                val_obj = pt.get("2") if isinstance(pt.get("2"), dict) else {}
+                raw = val_obj.get("2") if isinstance(val_obj, dict) else None
+                if raw is None:
+                    continue
+                try:
+                    val = float(str(raw).replace(",", ""))
+                except (TypeError, ValueError):
+                    continue
+                # segment id (varsa)
+                seg_obj = pt.get("1") if isinstance(pt.get("1"), dict) else {}
+                seg = "OVERALL"
+                if isinstance(seg_obj, dict):
+                    # {"1": 1} overall; diğerleri string olabilir
+                    if "2" in seg_obj:
+                        seg = str(seg_obj.get("2") or "OVERALL")[:80]
+                    elif seg_obj.get("1") not in (None, 1, "1"):
+                        seg = str(seg_obj.get("1"))[:80]
+                dim = dim_hint if seg != "OVERALL" else "overview"
+                if dim_hint in ("app_version", "device", "country", "os_version") and seg != "OVERALL":
+                    dim = dim_hint
+                facts.append(
+                    {
+                        "metric": metric_key,
+                        "view_id": view_id,
+                        "dim": dim if seg != "OVERALL" else "overview",
+                        "segment": seg,
+                        "date": ds,
+                        "value": val,
+                        "label": f"{view_id}:{seg}",
+                        "source": "protobuf",
+                    }
+                )
+    return facts
+
+
+def _best_stats_protobuf(network_slice: list[dict[str, Any]]) -> Any | None:
+    best = None
+    best_n = 0
+    for item in network_slice or []:
+        body = item.get("body") if isinstance(item, dict) else None
+        if not isinstance(body, dict):
+            continue
+        rows = body.get("1")
+        if isinstance(rows, list) and len(rows) > best_n:
+            best_n = len(rows)
+            best = body
+    return best if best_n >= 3 else None
+
+
+def _collect_paginated_table_text(page, *, max_pages: int = 80) -> str:
+    """Veri tablosu sayfalarını dolaş (Satırları göster 100 + next)."""
+    chunks: list[str] = []
+    try:
+        page.evaluate(
+            """async () => {
+              const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+              // open rows-per-page
+              const labels = [...document.querySelectorAll('div,span,button,mat-select')];
+              const hit = labels.find((el) => /Satırları göster|Rows per page/i.test((el.innerText || '').trim()) && (el.innerText || '').length < 48);
+              if (hit) { hit.click(); await sleep(350); }
+              const opt = [...document.querySelectorAll('mat-option,button,li,span')]
+                .find((el) => /^(100|50)$/.test((el.innerText || '').trim()));
+              if (opt) { opt.click(); await sleep(900); }
+            }"""
+        )
+    except Exception:
+        pass
+    for _ in range(max_pages):
+        try:
+            text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
+        except Exception:
+            text = ""
+        if text:
+            chunks.append(text)
+        # pager: "1 - 100 / 584"
+        try:
+            info = page.evaluate(
+                """() => {
+                  const t = document.body ? document.body.innerText : '';
+                  const m = t.match(/(\\d+)\\s*-\\s*(\\d+)\\s*\\/\\s*(\\d+)/);
+                  if (!m) return {done: true};
+                  const end = parseInt(m[2], 10), total = parseInt(m[3], 10);
+                  return {done: end >= total, end, total};
+                }"""
+            )
+        except Exception:
+            info = {"done": True}
+        if not isinstance(info, dict) or info.get("done"):
+            break
+        try:
+            clicked = page.evaluate(
+                """() => {
+                  const btn = [...document.querySelectorAll('button, [role=button]')]
+                    .find((el) => {
+                      const t = (el.getAttribute('aria-label') || el.innerText || '').toLowerCase();
+                      return t.includes('next') || t.includes('sonraki') || t.includes('chevron_right');
+                    });
+                  // material icon button near pager
+                  const icons = [...document.querySelectorAll('button')].filter((el) => /chevron_right/i.test(el.innerText || ''));
+                  const target = icons.length ? icons[icons.length - 1] : btn;
+                  if (!target || target.disabled) return false;
+                  target.click();
+                  return true;
+                }"""
+            )
+        except Exception:
+            clicked = False
+        if not clicked:
+            break
+        _settle(page, seconds=1.2)
+    # unique-ish merge: join all (parser dedupes by date+segment)
+    return "\n".join(chunks)
+
+
 def _explorer_facts_from_view(
     view: dict[str, Any],
     scraped: dict[str, Any],
     series: list[dict[str, Any]],
     page_text: str | None = None,
+    protobuf_body: Any | None = None,
 ) -> list[dict[str, Any]]:
-    """Kart + kırılım + veri tablosu + network serisini keşif fact’lerine çevir."""
+    """Kart + kırılım + protobuf + veri tablosu → keşif fact’leri."""
     facts: list[dict[str, Any]] = []
     metric_key = str(view.get("metric_key") or view.get("id") or "metric")
     dim = _dim_key(str(view.get("dimension") or "COUNTRY"))
     view_id = str(view.get("id") or metric_key)
 
-    # Birincil kaynak: Veri tablosu (günlük × ülke)
+    dim_hint = str(view.get("dim_hint") or dim)
+    # 1) Protobuf (tam tarih aralığı, örn. 584 gün)
+    if protobuf_body is not None:
+        facts.extend(
+            _parse_stats_protobuf(
+                protobuf_body,
+                metric_key=metric_key,
+                view_id=view_id,
+                dim_hint=dim_hint,
+            )
+        )
+    # 2) DOM veri tablosu (sayfalanmış metin)
     table_facts = _parse_stats_data_table(
         page_text or "",
         metric_key=metric_key,
         view_id=view_id,
         segments=_segments_from_dimension_values(str(view.get("dimension_values") or "")),
     )
-    facts.extend(table_facts)
+    # protobuf varsa DOM ile çakışan (date,segment) atla
+    have = {(f.get("date"), f.get("segment")) for f in facts if f.get("date")}
+    for tf in table_facts:
+        key = (tf.get("date"), tf.get("segment"))
+        if key in have and tf.get("date"):
+            continue
+        facts.append(tf)
 
     for b in scraped.get("breakdowns") or []:
         if not isinstance(b, dict):
@@ -1588,13 +1811,24 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             )
             stats_cards.extend(cards_i)
             stats_br.extend(br_i)
+            proto = _best_stats_protobuf(net_slice)
             page_text = ""
             try:
-                page_text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
+                # Protobuf yoksa / yetersizse tüm tablo sayfalarını gez
+                if proto is None or len((proto.get("1") or [])) < 30:
+                    page_text = _collect_paginated_table_text(page, max_pages=70)
+                else:
+                    page_text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
             except Exception:
-                page_text = ""
+                try:
+                    page_text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
+                except Exception:
+                    page_text = ""
             scraped["_page_text_len"] = len(page_text)
-            facts_i = _explorer_facts_from_view(view, scraped, view_series, page_text=page_text)
+            scraped["_protobuf_rows"] = len((proto or {}).get("1") or []) if isinstance(proto, dict) else 0
+            facts_i = _explorer_facts_from_view(
+                view, scraped, view_series, page_text=page_text, protobuf_body=proto
+            )
             explorer_facts.extend(facts_i)
             page_payload = _page_payload(url, scraped)
             page_payload["series"] = view_series[:12]
@@ -1665,7 +1899,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             },
             "sections": structured.get("sections") or [],
             "series": series,
-            "explorer_facts": explorer_facts[:5000],
+            "explorer_facts": explorer_facts[:50000],
             "stats_views": view_summaries,
             "tpg_count": len(dash_cards),
             "breakdown_count": len(all_br),

@@ -28,9 +28,10 @@ _SCRAPE_FIRST = {
     "rating",
     "active_users",
     "crashes",
+    "anrs",
     "revenue",
     "ar2_visitors",
-    "active",  # alias → active_devices
+    "active",
 }
 
 

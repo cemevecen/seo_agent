@@ -46,15 +46,18 @@
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Preset
         <select id="pa-preset" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+          <option value="from2025" selected>2025-01-01 → bugün</option>
           <option value="7">Son 7 gün</option>
-          <option value="28" selected>Son 28 gün</option>
+          <option value="28">Son 28 gün</option>
           <option value="90">Son 90 gün</option>
           <option value="365">Son 365 gün</option>
         </select>
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
         <select id="pa-metric" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
-          <option value="device_acquisition" selected>Cihaz edinme</option>
+          <option value="anrs" selected>ANR sayıları</option>
+          <option value="crashes">Çökme sayıları</option>
+          <option value="device_acquisition">Cihaz edinme</option>
           <option value="user_lost">Kullanıcı kaybı</option>
           <option value="active_devices">Etkin cihazlar</option>
           <option value="dau">Günlük etkin kullanıcı</option>
@@ -62,13 +65,10 @@
           <option value="ar2_acquisitions">Mağaza edinme (AR2)</option>
           <option value="ar2_visitors">Mağaza ziyaretçileri</option>
           <option value="rating">Google Play puanı</option>
-          <option value="crashes">Çökme + ANR</option>
           <option value="revenue">Gelir</option>
           <option value="installs">Yüklemeler (GCS)</option>
           <option value="uninstalls">Kaldırmalar (GCS)</option>
-          <option value="net">Net (GCS)</option>
           <option value="active">Aktif cihazlar (GCS)</option>
-          <option value="anrs">ANR (GCS)</option>
         </select>
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
@@ -76,18 +76,16 @@
           <option value="date" selected>Gün</option>
           <option value="week">Hafta</option>
           <option value="month">Ay</option>
-          <option value="segment">Boyut (ülke/OS/…)</option>
+          <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
         </select>
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Boyut
         <select id="pa-dim" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
-          <option value="overview">Genel</option>
-          <option value="country">Ülke</option>
-          <option value="os_version">Android OS</option>
+          <option value="overview">Genel (tarih)</option>
           <option value="app_version">Uygulama sürümü</option>
           <option value="device">Cihaz</option>
-          <option value="language">Dil</option>
-          <option value="carrier">Operatör</option>
+          <option value="country">Ülke</option>
+          <option value="os_version">Android OS</option>
         </select>
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Segment
@@ -314,10 +312,15 @@
     return y + "-" + m + "-" + day;
   }
   function applyPreset() {
-    var days = parseInt(paPreset.value, 10) || 28;
     var end = new Date();
     var start = new Date();
-    start.setDate(end.getDate() - (days - 1));
+    var preset = paPreset.value || "from2025";
+    if (preset === "from2025") {
+      start = new Date("2025-01-01T00:00:00");
+    } else {
+      var days = parseInt(preset, 10) || 28;
+      start.setDate(end.getDate() - (days - 1));
+    }
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
   }
