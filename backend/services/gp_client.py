@@ -11,6 +11,7 @@ Gerekli ortam değişkenleri:
 
 Google Play Console'da service account'a şu roller verilmeli:
   - "View app information" (minimum)
+  - "View app information and download bulk reports" (GCS installs/crashes CSV)
   - "View financial data" (gelir için)
   - "Release to production" veya en azından production track okuma (staged rollout yüzdesi için)
 
@@ -32,6 +33,8 @@ logger = logging.getLogger(__name__)
 _GP_SCOPES = [
     "https://www.googleapis.com/auth/androidpublisher",
     "https://www.googleapis.com/auth/playdeveloperreporting",
+    # Play rapor bucket (pubsite_prod_rev_*) CSV okuma — yoksa list_blobs 403 Insufficient Permission
+    "https://www.googleapis.com/auth/devstorage.read_only",
 ]
 
 

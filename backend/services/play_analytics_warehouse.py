@@ -129,12 +129,20 @@ def _load_install_facts(package_name: str) -> dict[str, Any]:
         blobs = list(bucket.list_blobs(prefix=prefix))
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("Play analytics list_blobs: %s", exc)
+        msg = str(exc)
+        if "403" in msg or "Insufficient Permission" in msg or "Permission" in msg:
+            msg = (
+                "GCS 403 — service account’a Play Console’da "
+                "“View app information and download bulk reports” ver + "
+                "kodda devstorage.read_only scope (deploy sonrası). "
+                f"Detay: {exc}"
+            )
         return {
             "ok": False,
             "configured": True,
             "bucket": True,
             "facts": [],
-            "message": f"Bucket listelenemedi: {exc}",
+            "message": msg,
         }
 
     facts: list[dict[str, Any]] = []
