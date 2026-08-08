@@ -55,6 +55,8 @@ _METRIC_TITLE_HINTS = (
     "google play puanı",
     "öykbog",
     "üretim sürümü",
+    "yeni cihaz",
+    "yüklemeler",
 )
 
 _JUNK_AUTHOR = re.compile(
@@ -150,7 +152,7 @@ def normalize_metrics(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
             delta = ""
         if not value or not re.search(r"\d", value):
             continue
-        key = title.lower()
+        key = f"{title.lower()}|{str(m.get('kind') or '')}|{str(m.get('segment') or '')}|{value}"
         if key in seen:
             continue
         seen.add(key)
@@ -159,10 +161,74 @@ def normalize_metrics(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
                 "title": title,
                 "value": value,
                 "delta": delta,
+                "kind": str(m.get("kind") or "").strip() or None,
+                "segment": str(m.get("segment") or "").strip() or None,
+                "metric": str(m.get("metric") or "").strip() or None,
+                "period": str(m.get("period") or "").strip() or None,
                 "lines": lines[:6] if lines else [title, value] + ([delta] if delta else []),
             }
         )
+    # None alanları temizle
+    for row in cleaned:
+        for k in ("kind", "segment", "metric", "period"):
+            if not row.get(k):
+                row.pop(k, None)
     return cleaned
+
+
+def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
+    d = dict(raw) if isinstance(raw, dict) else {}
+    tpg = normalize_metrics(
+        [
+            {**x, "kind": "tpg"}
+            for x in (d.get("tpg") or [])
+            if isinstance(x, dict)
+        ]
+    )
+    breakdowns = []
+    for x in d.get("breakdowns") or []:
+        if not isinstance(x, dict):
+            continue
+        title = str(x.get("title") or "").strip()
+        value = str(x.get("value") or "").strip()
+        if not title or not re.search(r"\d", value or ""):
+            continue
+        breakdowns.append(
+            {
+                "title": title,
+                "value": value,
+                "delta": str(x.get("delta") or "").strip(),
+                "segment": str(x.get("segment") or "").strip(),
+                "metric": str(x.get("metric") or "").strip() or title.split("(")[0].strip(),
+                "kind": "breakdown",
+            }
+        )
+    series = []
+    for s in d.get("series") or []:
+        if not isinstance(s, dict):
+            continue
+        name = str(s.get("name") or "").strip()
+        if not name:
+            continue
+        series.append(
+            {
+                "name": name[:120],
+                "point_count": int(s.get("point_count") or 0),
+                "points": (s.get("points") or [])[:40],
+            }
+        )
+        if len(series) >= 40:
+            break
+    return {
+        "version": 2,
+        "tpg": tpg,
+        "breakdowns": breakdowns,
+        "sections": d.get("sections") if isinstance(d.get("sections"), list) else [],
+        "series": series,
+        "tpg_count": len(tpg),
+        "breakdown_count": len(breakdowns),
+        "series_count": len(series),
+    }
 
 
 def _strip_review_noise(text: str) -> str:
@@ -305,9 +371,21 @@ def normalize_play_snapshot(
     metrics: list[dict[str, Any]] | None = None,
     reviews: list[dict[str, Any]] | None = None,
     rating_summary: dict[str, Any] | None = None,
+    panels: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    metrics_n = normalize_metrics(metrics)
+    panels_n = normalize_panels(panels)
+    # panels boşsa metrics'ten türet
+    if not panels_n.get("tpg") and not panels_n.get("breakdowns") and metrics_n:
+        panels_n = normalize_panels(
+            {
+                "tpg": [m for m in metrics_n if m.get("kind") != "breakdown"],
+                "breakdowns": [m for m in metrics_n if m.get("kind") == "breakdown"],
+            }
+        )
     return {
-        "metrics": normalize_metrics(metrics),
+        "metrics": metrics_n,
+        "panels": panels_n,
         "reviews": normalize_reviews(reviews),
         "rating_summary": normalize_rating_summary(rating_summary),
     }

@@ -192,36 +192,217 @@ def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
     page.on("response", on_response)
 
 
-def _extract_metrics_dom(page) -> list[dict[str, Any]]:
-    """Dashboard kartlarından title/value/delta çıkar (esnek DOM)."""
+def _scroll_full_page(page) -> None:
+    """TPG + kırılım kartları lazy load — sayfayı aşağı kaydır."""
+    try:
+        page.evaluate(
+            """async () => {
+              const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+              const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+              for (let y = 0; y < h; y += 700) {
+                window.scrollTo(0, y);
+                await sleep(350);
+              }
+              window.scrollTo(0, h);
+              await sleep(800);
+              window.scrollTo(0, 0);
+              await sleep(400);
+            }"""
+        )
+    except Exception:
+        pass
+
+
+def _extract_dashboard_structured(page) -> dict[str, Any]:
+    """Üst KPI blokları + TPG trend kartları + kırılım satırları."""
     return page.evaluate(
         """() => {
-      const out = [];
-      const seen = new Set();
-      const nodes = Array.from(document.querySelectorAll('div, article, section, li'));
-      for (const el of nodes) {
-        if (!el || el.children.length > 12) continue;
-        const text = (el.innerText || '').trim();
-        if (!text || text.length < 8 || text.length > 280) continue;
-        const lines = text.split('\\n').map(s => s.trim()).filter(Boolean);
-        if (lines.length < 2 || lines.length > 8) continue;
-        const title = lines[0];
-        // Tipik kart: başlık + ana değer + değişim
-        if (title.length < 4 || title.length > 80) continue;
-        const value = lines[1] || '';
-        const delta = lines.find((l, i) => i > 1 && (/^[+\\-−%]/.test(l) || l.includes('%') || l.includes('yüzde'))) || '';
-        const key = title + '|' + value;
-        if (seen.has(key)) continue;
-        // Çöp filtre
-        if (/^(menu|ayar|yardım|search|ara)$/i.test(title)) continue;
-        if (!/\\d/.test(value) && !/\\d/.test(delta)) continue;
-        seen.add(key);
-        out.push({ title, value, delta, lines });
-        if (out.length >= 40) break;
+      const ICON = /^(arrow_|calendar_|schedule|data_usage|devices|star|thumb_|expand_|feature_|visibility_|more_vert|dashboard|vital_|bar_chart|overview|shield|rocket_|finance_|sell|flag|link|youtube_|event_|brightness_)/i;
+      const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+      const isJunk = (s) => {
+        const t = clean(s);
+        if (!t || t.length < 2) return true;
+        if (ICON.test(t)) return true;
+        if (/^(menu|ayar|yardım|ara|TPG'leri ekle)$/i.test(t)) return true;
+        return false;
+      };
+      const hasDigit = (s) => /\\d/.test(s || '');
+
+      const KNOWN = [
+        'Toplam yükleme sayısı', 'Kullanıcı kaybı', 'Etkin cihazlar', 'Kitle büyüme oranı',
+        'Günlük etkin kullanıcı sayısı', 'Mağaza girişi ziyaretçileri', 'Mağaza girişi edinme sayısı',
+        'Mağaza girişi dönüşüm oranı', 'Kilitlenme oranı', 'ANR oranı', 'Google Play puanı',
+        'Ortalama puan', 'Uygulamayı yükleyen kullanıcı sayısı', 'Cihaz edinme sayısı',
+        'Cihaz ilk açılışları', 'AEKS', 'Gelir', 'ÖYKBOG', 'Alıcı Sayısı', 'Yükleme tabanı',
+        'Yeni cihaz edinme', 'Yüklemeler'
+      ];
+
+      function nearestCardRoot(el) {
+        let n = el;
+        for (let i = 0; i < 8 && n; i++) {
+          const t = clean(n.innerText || '');
+          if (t.length > 20 && t.length < 500 && (n.children || []).length <= 30) return n;
+          n = n.parentElement;
+        }
+        return el;
       }
-      return out;
+
+      const tpg = [];
+      const seenTpg = new Set();
+      const allTextNodes = Array.from(document.querySelectorAll('div, span, h2, h3, p'));
+      for (const el of allTextNodes) {
+        const title = clean(el.innerText || '');
+        // Kırılımlar (parantezli) ayrı toplanır
+        if (/^(Yükleme tabanı|Yeni cihaz edinme)\\s*\\(/i.test(title)) continue;
+        if (!KNOWN.some((k) => title === k)) continue;
+        const root = nearestCardRoot(el);
+        const lines = clean(root.innerText || '').split('\\n').map(clean).filter((l) => l && !isJunk(l));
+        if (lines.length < 2) continue;
+        // value: title'dan sonraki ilk sayısal
+        let value = '';
+        let delta = '';
+        let period = '';
+        for (const l of lines) {
+          if (l === title || l.startsWith(title)) continue;
+          if (/son \\d+ gün|önceki|geçen yıl|kıyasla|kümülatif/i.test(l)) { period = period || l; continue; }
+          if (!value && hasDigit(l)) { value = l; continue; }
+          if (!delta && (/^[+\\-−%]/.test(l) || /yüzde puan/i.test(l) || /^[+]/.test(l))) { delta = l; continue; }
+        }
+        if (!value) continue;
+        const key = title + '|' + value + '|' + delta;
+        if (seenTpg.has(key)) continue;
+        seenTpg.add(key);
+        tpg.push({ title, value, delta, period, kind: 'tpg' });
+      }
+
+      // Kırılımlar: "Yükleme tabanı" + parantez içi segment
+      const breakdowns = [];
+      const seenBr = new Set();
+      for (const el of allTextNodes) {
+        const t = clean(el.innerText || '');
+        const m = t.match(/^Yükleme tabanı\\s*\\((.+)\\)$/i)
+          || t.match(/^Yeni cihaz edinme\\s*\\((.+)\\)$/i);
+        if (!m) continue;
+        const root = nearestCardRoot(el);
+        const lines = clean(root.innerText || '').split('\\n').map(clean).filter((l) => l && !isJunk(l));
+        let value = '';
+        let delta = '';
+        for (const l of lines) {
+          if (l === t) continue;
+          if (!value && hasDigit(l)) { value = l; continue; }
+          if (!delta && (/^[+\\-−%]/.test(l) || /%/.test(l))) { delta = l; continue; }
+        }
+        if (!value) continue;
+        const key = t + '|' + value;
+        if (seenBr.has(key)) continue;
+        seenBr.add(key);
+        breakdowns.push({
+          metric: t.split('(')[0].trim(),
+          segment: m[1].trim(),
+          title: t,
+          value,
+          delta,
+          kind: 'breakdown'
+        });
+      }
+
+      // Üst dashboard KPI (bölüm başlıklarına göre kabaca grup)
+      const sectionHints = [
+        { key: 'publish', re: /Test etme ve yayınlama|En yeni üretim/i },
+        { key: 'monitor', re: /İzleyin ve geliştirin/i },
+        { key: 'grow', re: /Kullanıcı sayısını artırın/i },
+        { key: 'monetize', re: /Google Play ile para kazanın|para kazanın/i },
+        { key: 'tpg', re: /TPG trendlerini izleyin/i },
+      ];
+      const sections = sectionHints.map((s) => ({ key: s.key, found: !!document.body.innerText.match(s.re) }));
+
+      return { tpg, breakdowns, sections, tpg_count: tpg.length, breakdown_count: breakdowns.length };
     }"""
     )
+
+
+def _series_from_network(network: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Yakalanan JSON yanıtlardan zaman serisi / metrik adaylarını çıkar."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def walk(obj: Any, path: str = "") -> None:
+        if len(out) >= 80:
+            return
+        if isinstance(obj, dict):
+            # tipik: {name/metric, values/points/data}
+            keys = {str(k).lower() for k in obj.keys()}
+            name = obj.get("name") or obj.get("metric") or obj.get("title") or obj.get("displayName")
+            vals = (
+                obj.get("values")
+                or obj.get("points")
+                or obj.get("data")
+                or obj.get("timeSeries")
+                or obj.get("series")
+            )
+            if name and isinstance(vals, list) and vals and len(vals) >= 3:
+                key = f"{name}|{len(vals)}"
+                if key not in seen:
+                    seen.add(key)
+                    sample = vals[:40]
+                    out.append(
+                        {
+                            "name": str(name)[:120],
+                            "points": sample,
+                            "point_count": len(vals),
+                            "path": path[:120],
+                        }
+                    )
+            for k, v in obj.items():
+                walk(v, (path + "." + str(k))[:160])
+        elif isinstance(obj, list):
+            for i, v in enumerate(obj[:50]):
+                walk(v, f"{path}[{i}]")
+
+    for item in network or []:
+        body = item.get("body") if isinstance(item, dict) else None
+        if body is None:
+            continue
+        walk(body, str(item.get("url") or "")[:80])
+    return out
+
+
+def _metrics_from_structured(structured: dict[str, Any]) -> list[dict[str, Any]]:
+    """Structured tpg + breakdown → düz metrics listesi (geriye uyum)."""
+    rows: list[dict[str, Any]] = []
+    for t in structured.get("tpg") or []:
+        if not isinstance(t, dict):
+            continue
+        rows.append(
+            {
+                "title": t.get("title"),
+                "value": t.get("value"),
+                "delta": t.get("delta") or "",
+                "period": t.get("period") or "",
+                "kind": "tpg",
+                "lines": [t.get("title"), t.get("value"), t.get("delta"), t.get("period")],
+            }
+        )
+    for b in structured.get("breakdowns") or []:
+        if not isinstance(b, dict):
+            continue
+        rows.append(
+            {
+                "title": b.get("title"),
+                "value": b.get("value"),
+                "delta": b.get("delta") or "",
+                "segment": b.get("segment") or "",
+                "metric": b.get("metric") or "",
+                "kind": "breakdown",
+                "lines": [b.get("title"), b.get("value"), b.get("delta")],
+            }
+        )
+    return rows
+
+
+def _extract_metrics_dom(page) -> list[dict[str, Any]]:
+    """Geriye uyum: structured tpg + breakdown düz liste."""
+    return _metrics_from_structured(_extract_dashboard_structured(page) or {})
 
 
 def _extract_rating_summary_dom(page) -> dict[str, Any]:
@@ -388,7 +569,23 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "raw_network": [],
             }
 
-        metrics = _extract_metrics_dom(page) or []
+        # TPG + kırılım kartları lazy — tam kaydır
+        _scroll_full_page(page)
+        _settle(page, seconds=3.0)
+        structured = _extract_dashboard_structured(page) or {}
+        series = _series_from_network(network)
+        metrics = _metrics_from_structured(structured)
+        panels = {
+            "version": 2,
+            "tpg": structured.get("tpg") or [],
+            "breakdowns": structured.get("breakdowns") or [],
+            "sections": structured.get("sections") or [],
+            "series": series,
+            "tpg_count": int(structured.get("tpg_count") or 0),
+            "breakdown_count": int(structured.get("breakdown_count") or 0),
+            "series_count": len(series),
+        }
+
         # Reviews sayfası
         page.goto(REVIEWS_URL, wait_until="domcontentloaded", timeout=120_000)
         _settle(page, seconds=5.0)
@@ -401,19 +598,23 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         rating_summary = _extract_rating_summary_dom(page) or {}
         reviews = _extract_reviews_dom(page) or []
 
-        ok = bool(metrics or reviews or rating_summary.get("default_rating"))
+        ok = bool(metrics or reviews or rating_summary.get("default_rating") or panels.get("tpg"))
+        msg = (
+            f"Play scrape · {len(metrics)} metric · "
+            f"{panels.get('tpg_count', 0)} TPG · {panels.get('breakdown_count', 0)} kırılım · "
+            f"{len(reviews)} review"
+            if ok
+            else "Sayfa açıldı ama kart/yorum parse edilemedi (DOM değişmiş olabilir)"
+        )
         return {
             "ok": ok,
             "needs_login": False,
-            "message": (
-                f"Play scrape · {len(metrics)} metric · {len(reviews)} review"
-                if ok
-                else "Sayfa açıldı ama kart/yorum parse edilemedi (DOM değişmiş olabilir)"
-            ),
+            "message": msg,
             "url": DASHBOARD_URL,
             "package_name": PACKAGE,
             "app_id": APP_ID,
             "metrics": metrics,
+            "panels": panels,
             "reviews": reviews,
             "rating_summary": rating_summary,
             "raw_network": network[-40:],
@@ -451,6 +652,7 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
     payload = {
         "metrics": result.get("metrics") or [],
+        "panels": result.get("panels") or {},
         "reviews": result.get("reviews") or [],
         "rating_summary": result.get("rating_summary") or {},
         "raw_network": result.get("raw_network") or [],

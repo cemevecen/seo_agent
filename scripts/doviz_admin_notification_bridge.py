@@ -564,7 +564,19 @@ def run_play_bridge_once() -> dict[str, Any]:
         "review_count": len(result.get("reviews") or []),
         "message": result.get("message") or ing.get("message") or "Play sync",
         "needs_login": False,
-        "ingest": {k: ing.get(k) for k in ("ok", "updated_at", "metric_count", "review_count", "message")},
+        "ingest": {
+            k: ing.get(k)
+            for k in (
+                "ok",
+                "updated_at",
+                "metric_count",
+                "tpg_count",
+                "breakdown_count",
+                "review_count",
+                "message",
+            )
+            if k in ing or k == "ok"
+        },
     }
     _last_play_result = out
     print(f"Play sync · {out['message']}", flush=True)

@@ -30,10 +30,24 @@
   <div id="pc-rating" class="grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">TPG / dashboard metrikleri</h2>
-    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console app-dashboard kartları (scrape)</p>
-    <div id="pc-metrics" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
-    <p id="pc-metrics-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz metric yok</p>
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Dashboard KPI</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Üst bloklar · yayın / vitals / büyüme / gelir</p>
+    <div id="pc-kpi" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-kpi-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz KPI yok</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">TPG trendleri</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Son 28 gün · app-dashboard TPG kartları</p>
+    <div id="pc-tpg" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-tpg-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz TPG yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Kırılımlar</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yükleme tabanı / cihaz / sürüm segmentleri</p>
+    <div id="pc-breakdowns" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+    <p id="pc-breakdowns-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz kırılım yok</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -54,13 +68,31 @@
   var statusEl = document.getElementById("pc-status");
   var metaEl = document.getElementById("pc-meta");
   var pkgEl = document.getElementById("pc-package");
-  var metricsEl = document.getElementById("pc-metrics");
-  var metricsEmpty = document.getElementById("pc-metrics-empty");
+  var kpiEl = document.getElementById("pc-kpi");
+  var kpiEmpty = document.getElementById("pc-kpi-empty");
+  var tpgEl = document.getElementById("pc-tpg");
+  var tpgEmpty = document.getElementById("pc-tpg-empty");
+  var brEl = document.getElementById("pc-breakdowns");
+  var brEmpty = document.getElementById("pc-breakdowns-empty");
   var reviewsEl = document.getElementById("pc-reviews");
   var reviewsEmpty = document.getElementById("pc-reviews-empty");
   var ratingEl = document.getElementById("pc-rating");
   var reviewCountEl = document.getElementById("pc-review-count");
   var btn = document.getElementById("pc-refresh");
+
+  var KPI_TITLES = {
+    "Kilitlenme oranı": 1,
+    "ANR oranı": 1,
+    "Ortalama puan": 1,
+    "Yüklemeler": 1,
+    "Yükleme tabanı": 1,
+    "Cihaz edinme sayısı": 1,
+    "Cihaz ilk açılışları": 1,
+    "AEKS": 1,
+    "Gelir": 1,
+    "ÖYKBOG": 1,
+    "Alıcı Sayısı": 1
+  };
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -80,6 +112,43 @@
     });
   }
 
+  function deltaClass(d) {
+    var t = String(d || "");
+    if (/^[+\u2212+]/.test(t) || t.indexOf("+") === 0) {
+      if (t.indexOf("-") === 0 || t.indexOf("\u2212") === 0) return "text-rose-600";
+      return "text-emerald-700";
+    }
+    if (t.indexOf("-") === 0 || t.indexOf("\u2212") === 0) return "text-rose-600";
+    return "text-slate-500";
+  }
+
+  function metricCard(m, opts) {
+    opts = opts || {};
+    var sub = opts.subtitle || m.segment || m.period || "";
+    var delta = m.delta
+      ? '<p class="mt-1 text-xs tabular-nums ' + deltaClass(m.delta) + '">' + esc(m.delta) + "</p>"
+      : "";
+    return (
+      '<article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+        '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(m.title || "—") + "</p>" +
+        (sub ? '<p class="mt-0.5 text-[10px] text-slate-400">' + esc(sub) + "</p>" : "") +
+        '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(m.value || "—") + "</p>" +
+        delta +
+      "</article>"
+    );
+  }
+
+  function renderGrid(el, emptyEl, rows, mapFn) {
+    rows = Array.isArray(rows) ? rows : [];
+    if (!rows.length) {
+      el.innerHTML = "";
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+    emptyEl.classList.add("hidden");
+    el.innerHTML = rows.map(mapFn).join("");
+  }
+
   function renderRating(sum) {
     sum = sum || {};
     var cards = [
@@ -97,24 +166,31 @@
     }).join("");
   }
 
-  function renderMetrics(rows) {
-    rows = Array.isArray(rows) ? rows : [];
-    if (!rows.length) {
-      metricsEl.innerHTML = "";
-      metricsEmpty.classList.remove("hidden");
-      return;
+  function splitPanels(data) {
+    var panels = data.panels || {};
+    var tpg = Array.isArray(panels.tpg) ? panels.tpg.slice() : [];
+    var breakdowns = Array.isArray(panels.breakdowns) ? panels.breakdowns.slice() : [];
+    var metrics = Array.isArray(data.metrics) ? data.metrics : [];
+
+    if (!tpg.length && !breakdowns.length && metrics.length) {
+      metrics.forEach(function (m) {
+        if (m.kind === "breakdown") breakdowns.push(m);
+        else tpg.push(m);
+      });
     }
-    metricsEmpty.classList.add("hidden");
-    metricsEl.innerHTML = rows.map(function (m) {
-      var delta = m.delta ? '<p class="mt-1 text-xs tabular-nums text-slate-500">' + esc(m.delta) + "</p>" : "";
-      return (
-        '<article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
-          '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(m.title || "—") + "</p>" +
-          '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(m.value || "—") + "</p>" +
-          delta +
-        "</article>"
-      );
-    }).join("");
+
+    var kpi = [];
+    var tpgOnly = [];
+    tpg.forEach(function (m) {
+      var title = String(m.title || "");
+      if (KPI_TITLES[title] && title.indexOf("(") < 0) kpi.push(m);
+      else tpgOnly.push(m);
+    });
+    // KPI boşsa tüm tpg'yi KPI+TPG birlikte gösterme: üstte hepsi
+    if (!kpi.length) {
+      return { kpi: tpg, tpg: [], breakdowns: breakdowns };
+    }
+    return { kpi: kpi, tpg: tpgOnly, breakdowns: breakdowns };
   }
 
   function renderReviews(rows) {
@@ -150,12 +226,20 @@
       var data = await r.json();
       if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
       if (pkgEl) pkgEl.textContent = data.package_name || "com.Doviz";
+      var parts = splitPanels(data);
       metaEl.textContent =
-        (data.empty ? "Veri yok — bridge login + sync gerekli" : (data.metric_count + " metric · " + data.review_count + " review")) +
+        (data.empty ? "Veri yok — bridge login + sync gerekli" :
+          ((data.tpg_count || parts.tpg.length || parts.kpi.length) + " TPG/KPI · " +
+           (data.breakdown_count || parts.breakdowns.length) + " kırılım · " +
+           data.review_count + " review")) +
         " · son sync: " + fmtSync(data.updated_at || data.background_synced_at) +
         (data.sync_message ? " · " + data.sync_message : "");
       renderRating(data.rating_summary);
-      renderMetrics(data.metrics);
+      renderGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m); });
+      renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });
+      renderGrid(brEl, brEmpty, parts.breakdowns, function (m) {
+        return metricCard(m, { subtitle: m.segment || "" });
+      });
       renderReviews(data.reviews);
       statusEl.textContent = data.sync_ok === false
         ? ("Son sync uyarısı: " + (data.sync_message || "başarısız"))

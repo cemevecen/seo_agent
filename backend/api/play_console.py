@@ -41,6 +41,7 @@ def _check_ingest_token(
 
 class PlayConsoleIngestBody(BaseModel):
     metrics: list[dict[str, Any]] = Field(default_factory=list)
+    panels: dict[str, Any] = Field(default_factory=dict)
     reviews: list[dict[str, Any]] = Field(default_factory=list)
     rating_summary: dict[str, Any] = Field(default_factory=dict)
     raw_network: list[dict[str, Any]] = Field(default_factory=list)
@@ -70,6 +71,7 @@ def post_play_console_ingest(
         return ingest_play_console_payload(
             db,
             metrics=body.metrics,
+            panels=body.panels,
             reviews=body.reviews,
             rating_summary=body.rating_summary,
             raw_network=body.raw_network,

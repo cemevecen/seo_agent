@@ -26,10 +26,42 @@ def _get_or_create(db: Session) -> PlayConsoleWorkspace:
     return row
 
 
+def _pack_metrics_blob(
+    metrics: list[dict[str, Any]] | None,
+    panels: dict[str, Any] | None,
+) -> str:
+    """metrics_json: v2 envelope {version, items, panels} — migration yok."""
+    return json.dumps(
+        {
+            "version": 2,
+            "items": metrics if isinstance(metrics, list) else [],
+            "panels": panels if isinstance(panels, dict) else {},
+        },
+        ensure_ascii=False,
+    )
+
+
+def _unpack_metrics_blob(raw: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    try:
+        data = json.loads(raw or "") if raw else []
+    except Exception:
+        return [], {}
+    if isinstance(data, list):
+        return data, {}
+    if isinstance(data, dict) and int(data.get("version") or 0) >= 2:
+        items = data.get("items") if isinstance(data.get("items"), list) else []
+        panels = data.get("panels") if isinstance(data.get("panels"), dict) else {}
+        return items, panels
+    if isinstance(data, dict) and isinstance(data.get("metrics"), list):
+        return data["metrics"], data.get("panels") if isinstance(data.get("panels"), dict) else {}
+    return [], {}
+
+
 def ingest_play_console_payload(
     db: Session,
     *,
     metrics: list[dict[str, Any]] | None = None,
+    panels: dict[str, Any] | None = None,
     reviews: list[dict[str, Any]] | None = None,
     rating_summary: dict[str, Any] | None = None,
     raw_network: list[dict[str, Any]] | None = None,
@@ -43,15 +75,17 @@ def ingest_play_console_payload(
 ) -> dict[str, Any]:
     cleaned = normalize_play_snapshot(
         metrics=metrics,
+        panels=panels,
         reviews=reviews,
         rating_summary=rating_summary,
     )
     metrics = cleaned["metrics"]
+    panels = cleaned["panels"]
     reviews = cleaned["reviews"]
     rating_summary = cleaned["rating_summary"]
     row = _get_or_create(db)
-    if metrics is not None:
-        row.metrics_json = json.dumps(metrics, ensure_ascii=False)
+    if metrics is not None or panels is not None:
+        row.metrics_json = _pack_metrics_blob(metrics, panels)
     if reviews is not None:
         row.reviews_json = json.dumps(reviews, ensure_ascii=False)
     if rating_summary is not None:
@@ -80,6 +114,8 @@ def ingest_play_console_payload(
         "ok": True,
         "synced": True,
         "metric_count": len(metrics or []),
+        "tpg_count": len((panels or {}).get("tpg") or []),
+        "breakdown_count": len((panels or {}).get("breakdowns") or []),
         "review_count": len(reviews or []),
         "updated_at": row.updated_at.isoformat() + "Z",
         "package_name": row.package_name,
@@ -93,6 +129,7 @@ def play_console_payload(db: Session) -> dict[str, Any]:
             "ok": True,
             "empty": True,
             "metrics": [],
+            "panels": {"version": 2, "tpg": [], "breakdowns": [], "series": []},
             "reviews": [],
             "rating_summary": {},
             "message": "Henüz Play Console scrape yok — Mac bridge login + sync gerekli.",
@@ -104,21 +141,24 @@ def play_console_payload(db: Session) -> dict[str, Any]:
         except Exception:
             return default
 
-    metrics = _loads(row.metrics_json, [])
+    metrics, panels = _unpack_metrics_blob(row.metrics_json or "[]")
     reviews = _loads(row.reviews_json, [])
     rating_summary = _loads(row.rating_summary_json, {})
     cleaned = normalize_play_snapshot(
         metrics=metrics if isinstance(metrics, list) else [],
+        panels=panels if isinstance(panels, dict) else {},
         reviews=reviews if isinstance(reviews, list) else [],
         rating_summary=rating_summary if isinstance(rating_summary, dict) else {},
     )
     metrics = cleaned["metrics"]
+    panels = cleaned["panels"]
     reviews = cleaned["reviews"]
     rating_summary = cleaned["rating_summary"]
     return {
         "ok": bool(row.sync_ok),
         "empty": not metrics and not reviews,
         "metrics": metrics,
+        "panels": panels,
         "reviews": reviews,
         "rating_summary": rating_summary,
         "package_name": row.package_name or "com.Doviz",
@@ -133,5 +173,7 @@ def play_console_payload(db: Session) -> dict[str, Any]:
             row.background_synced_at.isoformat() + "Z" if row.background_synced_at else None
         ),
         "metric_count": len(metrics),
+        "tpg_count": len(panels.get("tpg") or []),
+        "breakdown_count": len(panels.get("breakdowns") or []),
         "review_count": len(reviews),
     }
