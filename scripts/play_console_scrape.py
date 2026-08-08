@@ -80,6 +80,43 @@ MONITOR_URL = (
 RELEASE_URL = (
     os.environ.get("PLAY_CONSOLE_RELEASE_URL") or f"{BASE_APP}/test-and-release"
 ).strip()
+VITALS_CRASHES_BASE = f"{BASE_APP}/vitals/crashes"
+VITALS_METRICS_OVERVIEW_URL = (
+    os.environ.get("PLAY_CONSOLE_VITALS_METRICS_URL")
+    or f"{BASE_APP}/vitals/metrics/overview"
+).strip()
+
+# Play Console "Sorun kategorisi" kırılımları (TR + EN etiketleri)
+VITALS_ISSUE_CATEGORIES: list[dict[str, Any]] = [
+    {
+        "id": "general",
+        "label": "Genel",
+        "labels": ("Genel", "Overall", "General"),
+        "description": "Belirtilen filtrelerin uygulandığı tüm sorunların görünümü",
+    },
+    {
+        "id": "production",
+        "label": "Üretimde",
+        "labels": ("Üretimde", "In production", "In Production"),
+        "description": "Üretim sürümündeki kullanıcı tarafından algılanan en önemli sorunlar",
+    },
+    {
+        "id": "potential_fixes",
+        "label": "Olası düzeltmeler içeren",
+        "labels": (
+            "Olası düzeltmeler içeren",
+            "Including potential fixes",
+            "Potential fixes",
+        ),
+        "description": "Olası düzeltmeler içeren, kullanıcı tarafından algılanan sorunlar",
+    },
+    {
+        "id": "analysis",
+        "label": "Analiz içeren",
+        "labels": ("Analiz içeren", "Including analysis", "Analysis"),
+        "description": "Analiz içeren, kullanıcı tarafından algılanan sorunlar",
+    },
+]
 
 
 def _stats_history_start() -> "date":
@@ -1847,6 +1884,397 @@ def _safe_scrape_page(
         return {"page": page_key, "cards": [], "breakdowns": [], "error": str(exc)[:200]}
 
 
+def _vitals_crashes_url(error_type: str, *, days: int = 28) -> str:
+    et = (error_type or "CRASH").strip().upper()
+    return (
+        f"{VITALS_CRASHES_BASE}?errorType={et}"
+        f"&isUserPerceived=true&days={int(days)}"
+    )
+
+
+def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
+    """Aktif sorun kategorisi + üst özet + sorun satırları."""
+    return page.evaluate(
+        """() => {
+      const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b\\ufeff]/g, ' ').replace(/\\s+/g, ' ').trim();
+      const body = (document.body && document.body.innerText) || '';
+      const lines = body.split(/\\n+/).map(clean).filter(Boolean);
+
+      let issueCount = null;
+      for (const l of lines) {
+        let m = l.match(/^(\\d[\\d.,]*)\\s*(sorun|issue|issues)\\b/i)
+          || l.match(/\\b(\\d[\\d.,]*)\\s*(sorun|issue|issues)\\b/i);
+        if (m) { issueCount = m[1]; break; }
+      }
+
+      // Üst KPI benzeri değerler (oran / olay / kullanıcı)
+      const cards = [];
+      const cardHints = /kilitlenme|anr|oran|olay|kullanıcı|affected|events|crash|rate/i;
+      for (let i = 0; i < lines.length; i++) {
+        const t = lines[i];
+        if (!cardHints.test(t) || t.length > 80) continue;
+        const v = lines[i + 1] || '';
+        if (!/\\d/.test(v) || v.length > 40) continue;
+        if (/^(Tem|Oca|Şub|Mar|Nis|May|Haz|Ağu|Eyl|Eki|Kas|Ara|Jan|Feb)/i.test(v)) continue;
+        cards.push({ title: t, value: v, delta: lines[i + 2] && /^[+\\-−%]/.test(lines[i + 2]) ? lines[i + 2] : '' });
+        if (cards.length >= 8) break;
+      }
+
+      // Tablo satırları: stack / exception benzeri başlık + sayılar
+      const issues = [];
+      const skip = /sorun kategorisi|issue category|filtre|filter|grafik|chart|kilitlenmeler|crashes and anrs|android vitals/i;
+      for (let i = 0; i < lines.length; i++) {
+        const title = lines[i];
+        if (!title || title.length < 8 || title.length > 160 || skip.test(title)) continue;
+        // exception / class / native ipucu
+        const looksIssue = /Exception|Error|ANR|Timeout|java\\.|kotlin\\.|libc|signal|NullPointer|IllegalState|OutOfMemory|DeadObject|RemoteException|crash/i.test(title)
+          || (/\\./.test(title) && /[A-Z]/.test(title) && !cardHints.test(title));
+        if (!looksIssue) continue;
+        const nums = [];
+        for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+          const l = lines[j];
+          if (/^\\d[\\d.,]*%?$/.test(l) || /^\\d[\\d.,]*\\s*(kullanıcı|user|olay|event)/i.test(l)) {
+            nums.push(l);
+          }
+        }
+        if (!nums.length) continue;
+        issues.push({
+          title,
+          users: nums[0] || '',
+          events: nums[1] || '',
+          extra: nums.slice(2).join(' · '),
+        });
+        if (issues.length >= 25) break;
+      }
+
+      // Seçili kategori (combobox / listbox butonu)
+      let selected = '';
+      const combos = Array.from(document.querySelectorAll(
+        '[role="combobox"], [aria-haspopup="listbox"], button[aria-expanded]'
+      ));
+      for (const el of combos) {
+        const t = clean(el.innerText || el.textContent || '');
+        if (/genel|üretimde|olası|analiz|overall|production|potential|analysis/i.test(t) && t.length < 80) {
+          selected = t.split('\\n')[0];
+          break;
+        }
+      }
+
+      return {
+        selected_category: selected,
+        issue_count: issueCount,
+        cards,
+        issues,
+        body_len: body.length,
+      };
+    }"""
+    )
+
+
+def _open_issue_category_menu(page) -> bool:
+    """'Sorun kategorisi' combobox'ını aç."""
+    try:
+        opened = page.evaluate(
+            """() => {
+          const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+          const nodes = Array.from(document.querySelectorAll(
+            'button, [role="combobox"], [aria-haspopup="listbox"], [role="button"]'
+          ));
+          for (const el of nodes) {
+            const t = clean(el.innerText || el.textContent || '');
+            const aria = clean(el.getAttribute('aria-label') || '');
+            if (/sorun kategorisi|issue category/i.test(t) || /sorun kategorisi|issue category/i.test(aria)) {
+              el.click();
+              return true;
+            }
+            // Kısa etiket: seçili kategori butonu
+            if (/^(Genel|Üretimde|Olası düzeltmeler|Analiz içeren|Overall|In production|Including)/i.test(t)
+                && t.length < 60) {
+              el.click();
+              return true;
+            }
+          }
+          // Yakınlık: "Sorun kategorisi" etiketinin yanındaki kontrol
+          const all = Array.from(document.querySelectorAll('*'));
+          for (const el of all) {
+            if ((el.children || []).length > 6) continue;
+            const t = clean(el.textContent || '');
+            if (t === 'Sorun kategorisi' || t === 'Issue category') {
+              const parent = el.closest('div') || el.parentElement;
+              const btn = parent && parent.querySelector(
+                'button, [role="combobox"], [aria-haspopup="listbox"]'
+              );
+              if (btn) { btn.click(); return true; }
+            }
+          }
+          return false;
+        }"""
+        )
+        return bool(opened)
+    except Exception:
+        return False
+
+
+def _click_issue_category_option(page, labels: tuple[str, ...]) -> bool:
+    """Açık menüden kategori seç."""
+    try:
+        clicked = page.evaluate(
+            """(labels) => {
+          const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+          const opts = Array.from(document.querySelectorAll(
+            '[role="option"], [role="menuitem"], li, button, div[tabindex]'
+          ));
+          for (const label of labels) {
+            const want = clean(label).toLowerCase();
+            for (const el of opts) {
+              const t = clean(el.innerText || el.textContent || '');
+              if (!t) continue;
+              const head = t.split('\\n')[0].toLowerCase();
+              if (head === want || head.startsWith(want) || t.toLowerCase().startsWith(want)) {
+                // Açıklama satırlı menü öğesi — başlık eşleşmeli
+                if (t.length > 200 && head !== want && !head.startsWith(want)) continue;
+                el.click();
+                return true;
+              }
+            }
+          }
+          return false;
+        }""",
+            list(labels),
+        )
+        return bool(clicked)
+    except Exception:
+        return False
+
+
+def _scrape_vitals_crashes_error_type(
+    page, *, error_type: str, days: int = 28, headed: bool = True
+) -> dict[str, Any]:
+    url = _vitals_crashes_url(error_type, days=days)
+    page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+    _settle(page, seconds=5.0)
+    need, _, _ = _page_needs_login(page)
+    if need and headed:
+        _wait_until_console(page, timeout_sec=300)
+        page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        _settle(page, seconds=5.0)
+    _wait_page_text(
+        page,
+        (
+            "Sorun kategorisi",
+            "Issue category",
+            "Kilitlenme",
+            "ANR",
+            "Crash",
+            "Genel",
+            "Overall",
+        ),
+        timeout_sec=40.0,
+    )
+    _scroll_full_page(page)
+
+    categories_out: list[dict[str, Any]] = []
+    for cat in VITALS_ISSUE_CATEGORIES:
+        cat_id = str(cat["id"])
+        labels = tuple(cat["labels"])
+        selected_ok = False
+        # Genel çoğu zaman varsayılan — yine de menüden seçmeyi dene
+        if _open_issue_category_menu(page):
+            time.sleep(0.6)
+            selected_ok = _click_issue_category_option(page, labels)
+            if selected_ok:
+                _settle(page, seconds=3.5)
+                _wait_page_text(page, labels[:2], timeout_sec=12.0)
+            else:
+                # Menüyü Escape ile kapat
+                try:
+                    page.keyboard.press("Escape")
+                except Exception:
+                    pass
+                time.sleep(0.3)
+
+        snap = _extract_vitals_issue_snapshot(page) or {}
+        issues = snap.get("issues") if isinstance(snap.get("issues"), list) else []
+        cards = snap.get("cards") if isinstance(snap.get("cards"), list) else []
+        categories_out.append(
+            {
+                "id": cat_id,
+                "label": cat["label"],
+                "description": cat.get("description") or "",
+                "selected_ok": selected_ok or cat_id == "general",
+                "selected_label": snap.get("selected_category") or "",
+                "issue_count": snap.get("issue_count"),
+                "cards": cards[:8],
+                "issues": issues[:20],
+                "issue_row_count": len(issues),
+            }
+        )
+        print(
+            f"    · {error_type}/{cat_id}: issues={len(issues)} "
+            f"count={snap.get('issue_count')} selected={selected_ok}",
+            flush=True,
+        )
+
+    return {
+        "error_type": error_type.upper(),
+        "url": url,
+        "days": days,
+        "is_user_perceived": True,
+        "categories": categories_out,
+        "category_count": len(categories_out),
+    }
+
+
+def _extract_vitals_metrics_overview(page) -> dict[str, Any]:
+    """Vitals metrics overview: crash / ANR / LMK oran tablosu."""
+    return page.evaluate(
+        """() => {
+      const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b\\ufeff]/g, ' ').replace(/\\s+/g, ' ').trim();
+      const body = (document.body && document.body.innerText) || '';
+      const lines = body.split(/\\n+/).map(clean).filter(Boolean);
+
+      const metricRe = /kullanıcı tarafından algılanan\\s+(kilitlenme|anr|lmk)\\s+oranı|user[- ]perceived\\s+(crash|anr|lmk)\\s+rate/i;
+      const rows = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!metricRe.test(line)) continue;
+        const vals = [];
+        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+          const l = lines[j];
+          if (metricRe.test(l)) break;
+          // %0,03 veya +%0,01 veya -%0,08
+          if (/^[%+\\-−]?\\s*%?\\s*\\d/.test(l) || /^\\d/.test(l) && /%/.test(l) || /^[+\\-−]%?\\d/.test(l)) {
+            vals.push(l);
+          } else if (/^\\d[,.]\\d+%?$/.test(l) || /^%\\d/.test(l)) {
+            vals.push(l);
+          }
+          if (vals.length >= 3) break;
+        }
+        let key = 'other';
+        if (/kilitlenme|crash/i.test(line)) key = 'crash';
+        else if (/\\banr\\b/i.test(line)) key = 'anr';
+        else if (/\\blmk\\b/i.test(line)) key = 'lmk';
+        rows.push({
+          key,
+          metric: line,
+          value_28d: vals[0] || '',
+          vs_previous_28d: vals[1] || '',
+          vs_peers_median: vals[2] || '',
+        });
+      }
+
+      // Tablo hücrelerinden yedek parse
+      if (!rows.length) {
+        const trs = Array.from(document.querySelectorAll('tr'));
+        for (const tr of trs) {
+          const cells = Array.from(tr.querySelectorAll('th,td')).map((c) => clean(c.innerText));
+          if (cells.length < 2) continue;
+          const title = cells[0];
+          if (!metricRe.test(title)) continue;
+          let key = 'other';
+          if (/kilitlenme|crash/i.test(title)) key = 'crash';
+          else if (/\\banr\\b/i.test(title)) key = 'anr';
+          else if (/\\blmk\\b/i.test(title)) key = 'lmk';
+          rows.push({
+            key,
+            metric: title,
+            value_28d: cells[1] || '',
+            vs_previous_28d: cells[2] || '',
+            vs_peers_median: cells[3] || '',
+          });
+        }
+      }
+
+      return { rows, body_len: body.length };
+    }"""
+    )
+
+
+def _scrape_vitals_metrics_overview(page, *, headed: bool = True) -> dict[str, Any]:
+    url = VITALS_METRICS_OVERVIEW_URL
+    page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+    _settle(page, seconds=5.0)
+    need, _, _ = _page_needs_login(page)
+    if need and headed:
+        _wait_until_console(page, timeout_sec=300)
+        page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        _settle(page, seconds=5.0)
+    _wait_page_text(
+        page,
+        (
+            "Kullanıcı tarafından algılanan",
+            "User-perceived",
+            "ANR",
+            "kilitlenme",
+            "LMK",
+            "Vital",
+        ),
+        timeout_sec=40.0,
+    )
+    _scroll_full_page(page)
+    extracted = _extract_vitals_metrics_overview(page) or {}
+    rows = extracted.get("rows") if isinstance(extracted.get("rows"), list) else []
+
+    # ANR satırına tıkla → kırılımlı crashes ANR görünümü (URL/context)
+    anr_drill: dict[str, Any] = {}
+    try:
+        clicked = page.evaluate(
+            """() => {
+          const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+          const nodes = Array.from(document.querySelectorAll('a, button, tr, [role="row"], [role="link"]'));
+          for (const el of nodes) {
+            const t = clean(el.innerText || el.textContent || '');
+            if (/kullanıcı tarafından algılanan anr|user[- ]perceived anr/i.test(t) && t.length < 200) {
+              el.click();
+              return true;
+            }
+          }
+          return false;
+        }"""
+        )
+        if clicked:
+            _settle(page, seconds=4.0)
+            anr_drill = {
+                "url": page.url,
+                "snapshot": _extract_vitals_issue_snapshot(page),
+            }
+            # Overview'a geri dön
+            page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+            _settle(page, seconds=3.0)
+    except Exception as exc:  # noqa: BLE001
+        anr_drill = {"error": str(exc)[:160]}
+
+    print(f"    · metrics overview rows={len(rows)}", flush=True)
+    return {
+        "url": url,
+        "rows": rows,
+        "row_count": len(rows),
+        "anr_drilldown": anr_drill,
+    }
+
+
+def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[str, Any]:
+    """Crashes 4 kategori (CRASH+ANR) + metrics overview tablosu."""
+    print("  · vitals crashes (CRASH) …", flush=True)
+    crash = _scrape_vitals_crashes_error_type(
+        page, error_type="CRASH", days=days, headed=headed
+    )
+    print("  · vitals crashes (ANR) …", flush=True)
+    anr = _scrape_vitals_crashes_error_type(
+        page, error_type="ANR", days=days, headed=headed
+    )
+    print("  · vitals metrics overview …", flush=True)
+    overview = _scrape_vitals_metrics_overview(page, headed=headed)
+    return {
+        "version": 1,
+        "days": days,
+        "is_user_perceived": True,
+        "crashes": {"CRASH": crash, "ANR": anr},
+        "metrics_overview": overview,
+        "scraped_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
 def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
     if headed is None:
         # Google Play, headless Chromium’da cookie’yi sık sık reddeder.
@@ -1970,6 +2398,15 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             ),
             headed=bool(headed),
         )
+
+        # Android Vitals: crashes 4 kategori + metrics overview (crash/ANR/LMK)
+        vitals_bundle: dict[str, Any] = {}
+        try:
+            vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=28)
+        except Exception as exc:  # noqa: BLE001
+            vitals_bundle = {"version": 1, "error": str(exc)[:240]}
+            print(f"  · vitals scrape hata: {exc}", flush=True)
+
         # Tüm istatistik görünümleri (kullanıcı URL kataloğu)
         stats_cards: list[dict[str, Any]] = []
         stats_br: list[dict[str, Any]] = []
@@ -2081,6 +2518,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "monitor": monitor_cards,
             "release": release_cards,
             "statistics": stats_cards,
+            "vitals": vitals_bundle,
             "pages": {
                 "dashboard": {
                     "url": DASHBOARD_URL,
@@ -2092,6 +2530,13 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "grow": _page_payload(GROW_URL, grow),
                 "monitor": _page_payload(MONITOR_URL, monitor),
                 "release": _page_payload(RELEASE_URL, release),
+                "vitals_crashes": {
+                    "url": _vitals_crashes_url("CRASH", days=28),
+                    "anr_url": _vitals_crashes_url("ANR", days=28),
+                },
+                "vitals_metrics_overview": {
+                    "url": VITALS_METRICS_OVERVIEW_URL,
+                },
                 **stats_pages,
             },
             "sections": structured.get("sections") or [],
@@ -2108,6 +2553,13 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "series_count": len(series),
             "explorer_fact_count": len(explorer_facts),
             "stats_view_count": len(view_summaries),
+            "vitals_category_count": sum(
+                len((vitals_bundle.get("crashes") or {}).get(k, {}).get("categories") or [])
+                for k in ("CRASH", "ANR")
+            ),
+            "vitals_overview_row_count": len(
+                (vitals_bundle.get("metrics_overview") or {}).get("rows") or []
+            ),
             "debug": debug,
         }
 
@@ -2241,6 +2693,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             or panels.get("monitor")
             or panels.get("release")
             or panels.get("statistics")
+            or (vitals_bundle.get("metrics_overview") or {}).get("rows")
+            or (vitals_bundle.get("crashes") or {}).get("CRASH")
         )
         dbg = ""
         if not (
@@ -2259,7 +2713,10 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             f"{panels.get('release_count', 0)} release · {panels.get('statistics_count', 0)} stats · "
             f"{panels.get('stats_view_count', 0)} stats_views · "
             f"{len(explorer_facts)} explorer_facts · {len(rating_facts)} rating_days · "
-            f"{panels.get('breakdown_count', 0)} kırılım · {len(reviews)} review{dbg}"
+            f"{panels.get('breakdown_count', 0)} kırılım · "
+            f"vitals_cat={panels.get('vitals_category_count', 0)} "
+            f"vitals_ov={panels.get('vitals_overview_row_count', 0)} · "
+            f"{len(reviews)} review{dbg}"
         )
         return {
             "ok": ok,
@@ -2277,7 +2734,10 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "source_url": DASHBOARD_URL,
             "sync_ok": ok,
             "sync_message": None,
-            "sync_mode": "dashboard_monetize_grow_monitor_release_stats_catalog_ratings_reviews",
+            "sync_mode": (
+                "dashboard_monetize_grow_monitor_release_vitals_"
+                "stats_catalog_ratings_reviews"
+            ),
         }
     except Exception as exc:  # noqa: BLE001
         return {
@@ -2299,17 +2759,137 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             pass
 
 
+def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
+    """Sadece Android Vitals (crashes 4 kategori + metrics overview) — hızlı sync."""
+    if headed is None:
+        env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
+        headed = env_hl not in ("1", "true", "yes")
+    pw, context = _launch_context(headed=True if headed else False)
+    try:
+        page = context.new_page()
+        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
+        _settle(page, seconds=3.0)
+        need, _, _ = _page_needs_login(page)
+        if need and headed:
+            _wait_until_console(page, timeout_sec=300)
+            page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
+            _settle(page, seconds=3.0)
+        elif need:
+            return {
+                "ok": False,
+                "needs_login": True,
+                "message": "Play Console login gerekli (--login veya headed sync)",
+                "panels": {},
+            }
+        vitals_bundle = _scrape_vitals_bundle(page, headed=bool(headed), days=28)
+        ov_n = len((vitals_bundle.get("metrics_overview") or {}).get("rows") or [])
+        cat_n = sum(
+            len((vitals_bundle.get("crashes") or {}).get(k, {}).get("categories") or [])
+            for k in ("CRASH", "ANR")
+        )
+        panels = {
+            "version": 3,
+            "vitals": vitals_bundle,
+            "pages": {
+                "vitals_crashes": {
+                    "url": _vitals_crashes_url("CRASH", days=28),
+                    "anr_url": _vitals_crashes_url("ANR", days=28),
+                },
+                "vitals_metrics_overview": {"url": VITALS_METRICS_OVERVIEW_URL},
+            },
+            "vitals_category_count": cat_n,
+            "vitals_overview_row_count": ov_n,
+        }
+        ok = bool(ov_n or cat_n)
+        return {
+            "ok": ok,
+            "needs_login": False,
+            "message": f"Vitals scrape · categories={cat_n} overview_rows={ov_n}",
+            "package_name": PACKAGE,
+            "app_id": APP_ID,
+            "metrics": [],
+            "panels": panels,
+            "reviews": None,  # ingest'te mevcut reviews korunur
+            "rating_summary": None,
+            "merge_vitals": True,
+            "source": "play_console_bridge",
+            "source_url": VITALS_METRICS_OVERVIEW_URL,
+            "sync_ok": ok,
+            "sync_mode": "vitals_only",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "needs_login": False,
+            "message": f"Vitals scrape hata: {exc}",
+            "panels": {},
+        }
+    finally:
+        try:
+            context.close()
+        except Exception:
+            pass
+        try:
+            pw.stop()
+        except Exception:
+            pass
+
+
+def _fetch_remote_snapshot() -> dict[str, Any]:
+    import requests
+
+    token = _ingest_token()
+    url = INGEST_URL.replace("/ingest", "/snapshot")
+    headers = {"Accept": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        resp = requests.get(url, headers=headers, timeout=60)
+        if resp.status_code >= 400:
+            return {}
+        data = resp.json() if resp.content else {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
 def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
     import requests
 
     token = _ingest_token()
     if not token:
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+
+    panels = result.get("panels") or {}
+    metrics = result.get("metrics")
+    reviews = result.get("reviews")
+    rating_summary = result.get("rating_summary")
+
+    # vitals-only: mevcut snapshot ile birleştir (diğer panelleri silme)
+    if result.get("merge_vitals") and isinstance(panels, dict) and panels.get("vitals"):
+        snap = _fetch_remote_snapshot()
+        base_panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
+        merged = dict(base_panels)
+        merged["vitals"] = panels["vitals"]
+        pages = dict(merged.get("pages") or {}) if isinstance(merged.get("pages"), dict) else {}
+        for pk, pv in (panels.get("pages") or {}).items():
+            pages[pk] = pv
+        merged["pages"] = pages
+        merged["vitals_category_count"] = panels.get("vitals_category_count")
+        merged["vitals_overview_row_count"] = panels.get("vitals_overview_row_count")
+        panels = merged
+        if metrics is None:
+            metrics = snap.get("metrics") or []
+        if reviews is None:
+            reviews = snap.get("reviews")
+        if rating_summary is None:
+            rating_summary = snap.get("rating_summary")
+
     payload = {
-        "metrics": result.get("metrics") or [],
-        "panels": result.get("panels") or {},
-        "reviews": result.get("reviews") or [],
-        "rating_summary": result.get("rating_summary") or {},
+        "metrics": metrics if metrics is not None else [],
+        "panels": panels if isinstance(panels, dict) else {},
+        "reviews": reviews if reviews is not None else [],
+        "rating_summary": rating_summary if rating_summary is not None else {},
         "raw_network": result.get("raw_network") or [],
         "source": result.get("source") or "play_console_bridge",
         "source_url": result.get("source_url") or DASHBOARD_URL,
@@ -2351,9 +2931,18 @@ def main(argv: list[str] | None = None) -> int:
         headed = False
         os.environ["PLAY_CONSOLE_HEADLESS"] = "1"
     do_ingest = "--ingest" in args or "--sync" in args
+    vitals_only = "--vitals-only" in args
     # --sync implies scrape (+ ingest if token)
-    print(f"Play scrape · headed={headed}", flush=True)
-    result = scrape_play_console(headed=headed)
+    print(
+        f"Play scrape · headed={headed}"
+        + (" · vitals-only" if vitals_only else ""),
+        flush=True,
+    )
+    result = (
+        scrape_vitals_only(headed=headed)
+        if vitals_only
+        else scrape_play_console(headed=headed)
+    )
     print(json.dumps({k: v for k, v in result.items() if k != "raw_network"}, ensure_ascii=False, indent=2))
     if result.get("needs_login"):
         return 2

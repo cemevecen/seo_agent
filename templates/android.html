@@ -146,6 +146,46 @@
     </div>
   </section>
 
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Android Vitals</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
+          Sorun kategorileri (Genel / Üretimde / Olası düzeltme / Analiz) + kullanıcı algılanan oranlar
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <a id="pc-vitals-crashes-link"
+           href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/vitals/crashes?errorType=CRASH&isUserPerceived=true&days=28"
+           target="_blank" rel="noopener"
+           class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Crashes ↗</a>
+        <a id="pc-vitals-overview-link"
+           href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/vitals/metrics/overview"
+           target="_blank" rel="noopener"
+           class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Overview ↗</a>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Oranlar · son 28 gün</h3>
+      <div id="pc-vitals-overview" class="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
+      <p id="pc-vitals-overview-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz oran tablosu yok — vitals sync sonrası dolacak</p>
+    </div>
+
+    <div class="mt-5">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Sorun kategorileri</h3>
+        <div id="pc-vitals-etype" class="flex gap-1">
+          <button type="button" data-etype="CRASH" class="pc-vitals-etype rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">Crash</button>
+          <button type="button" data-etype="ANR" class="pc-vitals-etype rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">ANR</button>
+        </div>
+      </div>
+      <div id="pc-vitals-cats" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+      <p id="pc-vitals-cats-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz kategori yok — vitals sync sonrası dolacak</p>
+      <div id="pc-vitals-issues" class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
+    </div>
+  </section>
+
   <div id="pc-rating" class="grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
 
   <details class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -287,7 +327,16 @@
   var reviewsEmpty = document.getElementById("pc-reviews-empty");
   var ratingEl = document.getElementById("pc-rating");
   var reviewCountEl = document.getElementById("pc-review-count");
+  var vitalsOverviewEl = document.getElementById("pc-vitals-overview");
+  var vitalsOverviewEmpty = document.getElementById("pc-vitals-overview-empty");
+  var vitalsCatsEl = document.getElementById("pc-vitals-cats");
+  var vitalsCatsEmpty = document.getElementById("pc-vitals-cats-empty");
+  var vitalsIssuesEl = document.getElementById("pc-vitals-issues");
+  var vitalsEtypeWrap = document.getElementById("pc-vitals-etype");
+  var vitalsCrashesLink = document.getElementById("pc-vitals-crashes-link");
+  var vitalsOverviewLink = document.getElementById("pc-vitals-overview-link");
   var btn = document.getElementById("pc-refresh");
+  var vitalsState = { etype: "CRASH", data: null, selectedCat: "general" };
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -951,6 +1000,148 @@
     return Object.assign({ kpi: kpi, tpg: tpgOnly }, base);
   }
 
+  function vitalsDeltaClass(d, key) {
+    var t = String(d || "");
+    var up = t.indexOf("+") === 0 || t.indexOf("\u2212") < 0 && t.indexOf("+") >= 0;
+    var down = t.indexOf("-") === 0 || t.indexOf("\u2212") === 0;
+    // Oran artışı kötü (kırmızı), düşüş iyi (yeşil) — peer'da düşük iyi
+    if (key === "peer") {
+      if (down) return "text-emerald-700";
+      if (up || t.indexOf("+") >= 0) return "text-rose-600";
+      return "text-slate-500";
+    }
+    if (down) return "text-emerald-700";
+    if (t.indexOf("+") >= 0) return "text-rose-600";
+    return "text-slate-500";
+  }
+
+  function renderVitalsOverview(vitals) {
+    vitals = vitals || {};
+    var ov = vitals.metrics_overview || {};
+    var rows = Array.isArray(ov.rows) ? ov.rows : [];
+    if (vitalsOverviewLink && ov.url) vitalsOverviewLink.href = ov.url;
+    if (!rows.length) {
+      vitalsOverviewEl.innerHTML = "";
+      vitalsOverviewEmpty.classList.remove("hidden");
+      return;
+    }
+    vitalsOverviewEmpty.classList.add("hidden");
+    vitalsOverviewEl.innerHTML =
+      '<table class="min-w-full text-left text-xs">' +
+        '<thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
+          "<tr>" +
+            '<th class="px-3 py-2 font-bold">Metrik</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Son 28 gün</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Önceki 28 güne kıyas</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Benzerler ortancası</th>' +
+          "</tr>" +
+        "</thead>" +
+        '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
+        rows.map(function (r) {
+          return (
+            "<tr>" +
+              '<td class="px-3 py-2.5 font-medium text-slate-800 dark:text-zinc-100">' + esc(r.metric || "—") + "</td>" +
+              '<td class="px-3 py-2.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-50">' + esc(r.value_28d || "—") + "</td>" +
+              '<td class="px-3 py-2.5 tabular-nums ' + vitalsDeltaClass(r.vs_previous_28d, "prev") + '">' + esc(r.vs_previous_28d || "—") + "</td>" +
+              '<td class="px-3 py-2.5 tabular-nums ' + vitalsDeltaClass(r.vs_peers_median, "peer") + '">' + esc(r.vs_peers_median || "—") + "</td>" +
+            "</tr>"
+          );
+        }).join("") +
+        "</tbody></table>";
+  }
+
+  function renderVitalsCategories() {
+    var vitals = vitalsState.data || {};
+    var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
+    var cats = Array.isArray(block.categories) ? block.categories : [];
+    if (vitalsCrashesLink && block.url) vitalsCrashesLink.href = block.url;
+
+    if (vitalsEtypeWrap) {
+      Array.prototype.forEach.call(vitalsEtypeWrap.querySelectorAll(".pc-vitals-etype"), function (b) {
+        var on = b.getAttribute("data-etype") === vitalsState.etype;
+        b.className = on
+          ? "pc-vitals-etype rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white"
+          : "pc-vitals-etype rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-300";
+      });
+    }
+
+    if (!cats.length) {
+      vitalsCatsEl.innerHTML = "";
+      vitalsCatsEmpty.classList.remove("hidden");
+      vitalsIssuesEl.innerHTML = "";
+      return;
+    }
+    vitalsCatsEmpty.classList.add("hidden");
+    if (!cats.some(function (c) { return c.id === vitalsState.selectedCat; })) {
+      vitalsState.selectedCat = cats[0].id;
+    }
+    vitalsCatsEl.innerHTML = cats.map(function (c) {
+      var on = c.id === vitalsState.selectedCat;
+      var count = c.issue_count != null && c.issue_count !== "" ? String(c.issue_count) : (c.issue_row_count != null ? String(c.issue_row_count) : "—");
+      return (
+        '<button type="button" data-cat="' + esc(c.id) + '" class="pc-vitals-cat rounded-xl border p-3 text-left transition ' +
+          (on
+            ? "border-emerald-500 bg-emerald-50/80 dark:border-emerald-500/60 dark:bg-emerald-950/30"
+            : "border-slate-200 bg-slate-50/80 hover:border-slate-300 dark:border-zinc-700 dark:bg-zinc-950/40") + '">' +
+          '<p class="text-[11px] font-bold text-slate-800 dark:text-zinc-100">' + esc(c.label || c.id) + "</p>" +
+          '<p class="mt-1 text-lg font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(count) +
+            '<span class="ml-1 text-[10px] font-semibold text-slate-400">sorun</span></p>' +
+          (c.description
+            ? '<p class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">' + esc(c.description) + "</p>"
+            : "") +
+        "</button>"
+      );
+    }).join("");
+
+    var sel = cats.find(function (c) { return c.id === vitalsState.selectedCat; }) || cats[0];
+    var issues = Array.isArray(sel.issues) ? sel.issues : [];
+    if (!issues.length) {
+      vitalsIssuesEl.innerHTML = '<p class="p-3 text-center text-sm text-slate-400">Bu kategoride sorun satırı yok</p>';
+      return;
+    }
+    vitalsIssuesEl.innerHTML =
+      '<table class="min-w-full text-left text-xs">' +
+        '<thead class="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
+          "<tr><th class=\"px-3 py-2 font-bold\">Sorun</th>" +
+          "<th class=\"px-3 py-2 font-bold tabular-nums\">Kullanıcı</th>" +
+          "<th class=\"px-3 py-2 font-bold tabular-nums\">Olay</th></tr></thead>" +
+        '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
+        issues.map(function (iss) {
+          return (
+            "<tr>" +
+              '<td class="px-3 py-2 font-medium text-slate-800 dark:text-zinc-100">' + esc(iss.title || "—") + "</td>" +
+              '<td class="px-3 py-2 tabular-nums text-slate-600">' + esc(iss.users || "—") + "</td>" +
+              '<td class="px-3 py-2 tabular-nums text-slate-600">' + esc(iss.events || "—") + "</td>" +
+            "</tr>"
+          );
+        }).join("") +
+        "</tbody></table>";
+  }
+
+  function renderVitals(vitals) {
+    vitalsState.data = vitals || null;
+    renderVitalsOverview(vitals);
+    renderVitalsCategories();
+  }
+
+  if (vitalsEtypeWrap) {
+    vitalsEtypeWrap.addEventListener("click", function (ev) {
+      var b = ev.target.closest(".pc-vitals-etype");
+      if (!b) return;
+      vitalsState.etype = b.getAttribute("data-etype") || "CRASH";
+      vitalsState.selectedCat = "general";
+      renderVitalsCategories();
+    });
+  }
+  if (vitalsCatsEl) {
+    vitalsCatsEl.addEventListener("click", function (ev) {
+      var b = ev.target.closest(".pc-vitals-cat");
+      if (!b) return;
+      vitalsState.selectedCat = b.getAttribute("data-cat") || "general";
+      renderVitalsCategories();
+    });
+  }
+
   function renderReviews(rows) {
     rows = Array.isArray(rows) ? rows : [];
     reviewCountEl.textContent = rows.length ? (rows.length + " yorum") : "";
@@ -1001,6 +1192,7 @@
         statsLink.href = data.panels.pages.statistics.url;
       }
       setPcLine(metaEl, data.empty ? "Veri yok — bridge login + sync gerekli" : "");
+      renderVitals((data.panels && data.panels.vitals) || {});
       renderRating(data.rating_summary);
       renderGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m); });
       renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });

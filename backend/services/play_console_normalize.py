@@ -193,6 +193,126 @@ def _norm_kind_list(raw_list: Any, kind: str) -> list[dict[str, Any]]:
     )
 
 
+def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Vitals crashes (4 sorun kategorisi) + metrics overview tablosu."""
+    d = dict(raw) if isinstance(raw, dict) else {}
+    crashes_in = d.get("crashes") if isinstance(d.get("crashes"), dict) else {}
+    crashes_out: dict[str, Any] = {}
+    category_count = 0
+    for et in ("CRASH", "ANR"):
+        block = crashes_in.get(et) if isinstance(crashes_in.get(et), dict) else {}
+        cats_out: list[dict[str, Any]] = []
+        for cat in block.get("categories") or []:
+            if not isinstance(cat, dict):
+                continue
+            cid = str(cat.get("id") or "").strip()
+            label = str(cat.get("label") or "").strip()
+            if not cid and not label:
+                continue
+            issues = []
+            for iss in cat.get("issues") or []:
+                if not isinstance(iss, dict):
+                    continue
+                title = str(iss.get("title") or "").strip()
+                if not title:
+                    continue
+                issues.append(
+                    {
+                        "title": title[:240],
+                        "users": str(iss.get("users") or "")[:64],
+                        "events": str(iss.get("events") or "")[:64],
+                        "extra": str(iss.get("extra") or "")[:120],
+                    }
+                )
+            cards = []
+            for c in cat.get("cards") or []:
+                if not isinstance(c, dict):
+                    continue
+                t = str(c.get("title") or "").strip()
+                v = str(c.get("value") or "").strip()
+                if t and v:
+                    cards.append(
+                        {
+                            "title": t[:160],
+                            "value": v[:64],
+                            "delta": str(c.get("delta") or "")[:64],
+                        }
+                    )
+            cats_out.append(
+                {
+                    "id": cid or label.lower().replace(" ", "_")[:40],
+                    "label": label or cid,
+                    "description": str(cat.get("description") or "")[:240],
+                    "selected_ok": bool(cat.get("selected_ok")),
+                    "selected_label": str(cat.get("selected_label") or "")[:80],
+                    "issue_count": str(cat.get("issue_count") or "")[:32] or None,
+                    "cards": cards[:8],
+                    "issues": issues[:20],
+                    "issue_row_count": len(issues),
+                }
+            )
+        category_count += len(cats_out)
+        crashes_out[et] = {
+            "error_type": et,
+            "url": str(block.get("url") or "")[:512],
+            "days": int(block.get("days") or 28),
+            "is_user_perceived": bool(block.get("is_user_perceived", True)),
+            "categories": cats_out,
+            "category_count": len(cats_out),
+        }
+
+    ov_in = d.get("metrics_overview") if isinstance(d.get("metrics_overview"), dict) else {}
+    rows_out: list[dict[str, Any]] = []
+    for row in ov_in.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        metric = str(row.get("metric") or "").strip()
+        if not metric:
+            continue
+        key = str(row.get("key") or "").strip().lower()
+        if key not in ("crash", "anr", "lmk", "other"):
+            if re.search(r"kilitlenme|crash", metric, re.I):
+                key = "crash"
+            elif re.search(r"\banr\b", metric, re.I):
+                key = "anr"
+            elif re.search(r"\blmk\b", metric, re.I):
+                key = "lmk"
+            else:
+                key = "other"
+        rows_out.append(
+            {
+                "key": key,
+                "metric": metric[:200],
+                "value_28d": str(row.get("value_28d") or "")[:48],
+                "vs_previous_28d": str(row.get("vs_previous_28d") or "")[:48],
+                "vs_peers_median": str(row.get("vs_peers_median") or "")[:48],
+            }
+        )
+
+    anr_drill = ov_in.get("anr_drilldown") if isinstance(ov_in.get("anr_drilldown"), dict) else {}
+    return {
+        "version": int(d.get("version") or 1),
+        "days": int(d.get("days") or 28),
+        "is_user_perceived": bool(d.get("is_user_perceived", True)),
+        "scraped_at": str(d.get("scraped_at") or "")[:40] or None,
+        "error": str(d.get("error") or "")[:240] or None,
+        "crashes": crashes_out,
+        "metrics_overview": {
+            "url": str(ov_in.get("url") or "")[:512],
+            "rows": rows_out,
+            "row_count": len(rows_out),
+            "anr_drilldown": {
+                "url": str(anr_drill.get("url") or "")[:512],
+                "error": str(anr_drill.get("error") or "")[:160] or None,
+            }
+            if anr_drill
+            else {},
+        },
+        "category_count": category_count,
+        "overview_row_count": len(rows_out),
+    }
+
+
 def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
     d = dict(raw) if isinstance(raw, dict) else {}
     pages_in = d.get("pages") if isinstance(d.get("pages"), dict) else {}
@@ -296,6 +416,9 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
                 if isinstance(x, dict) and re.search(r"\d", str(x.get("value") or ""))
             ],
         }
+    vitals_in = d.get("vitals") if isinstance(d.get("vitals"), dict) else {}
+    vitals = _normalize_vitals(vitals_in)
+
     return {
         "version": 2,
         "tpg": tpg,
@@ -305,6 +428,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "release": release,
         "statistics": statistics,
         "breakdowns": breakdowns,
+        "vitals": vitals,
         "pages": pages_out,
         "sections": d.get("sections") if isinstance(d.get("sections"), list) else [],
         "series": series,
@@ -330,6 +454,8 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "stats_view_count": len(
             [x for x in (d.get("stats_views") or []) if isinstance(x, dict)]
         ),
+        "vitals_category_count": int(vitals.get("category_count") or 0),
+        "vitals_overview_row_count": int(vitals.get("overview_row_count") or 0),
     }
 
 
