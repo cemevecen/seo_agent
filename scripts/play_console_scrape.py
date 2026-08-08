@@ -103,7 +103,7 @@ DEVICES_BREAKDOWNS: tuple[str, ...] = (
     "ABI",
     "DEVICE_TYPE",
     "FORM_FACTOR",
-).strip()
+)
 RELEASE_URL = (
     os.environ.get("PLAY_CONSOLE_RELEASE_URL") or f"{BASE_APP}/test-and-release"
 ).strip()
@@ -3822,6 +3822,45 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
 
     if version_name_map:
         print(f"    · version_name_map={len(version_name_map)} versions={versions}", flush=True)
+    # En yeni sürümden çekilen detayları aynı issue_id ile diğer sürümlere kopyala
+    shared_details: dict[str, dict[str, Any]] = {}
+    for et in ("CRASH", "ANR"):
+        block = (by_version.get(str(primary_vc) if primary_vc else "all") or {}).get(
+            "crashes", {}
+        )
+        if not isinstance(block, dict):
+            continue
+        et_block = block.get(et) if isinstance(block.get(et), dict) else {}
+        for iid, det in (et_block.get("issue_details") or {}).items():
+            if iid and isinstance(det, dict):
+                shared_details[f"{et}:{iid}"] = det
+    for key, payload in by_version.items():
+        if primary_vc and key == str(primary_vc):
+            continue
+        crashes = payload.get("crashes") if isinstance(payload, dict) else None
+        if not isinstance(crashes, dict):
+            continue
+        for et in ("CRASH", "ANR"):
+            et_block = crashes.get(et) if isinstance(crashes.get(et), dict) else None
+            if not isinstance(et_block, dict):
+                continue
+            details = et_block.get("issue_details")
+            if not isinstance(details, dict):
+                details = {}
+                et_block["issue_details"] = details
+            issue_ids = {
+                str(iss.get("issue_id") or "").strip()
+                for cat in (et_block.get("categories") or [])
+                if isinstance(cat, dict)
+                for iss in (cat.get("issues") or [])
+                if isinstance(iss, dict) and iss.get("issue_id")
+            }
+            for iid in issue_ids:
+                sk = f"{et}:{iid}"
+                if iid not in details and sk in shared_details:
+                    details[iid] = dict(shared_details[sk])
+            et_block["issue_detail_count"] = len(details)
+
     detail_n = int(primary_crash.get("issue_detail_count") or 0) + int(
         primary_anr.get("issue_detail_count") or 0
     )

@@ -512,37 +512,40 @@
     return kept.join("\n");
   }
 
+  function vitalsCrashesHasRows(crashes) {
+    crashes = crashes || {};
+    return ["CRASH", "ANR"].some(function (et) {
+      var cats = ((crashes[et] || {}).categories) || [];
+      return cats.some(function (c) {
+        if (!c) return false;
+        if (Array.isArray(c.issues) && c.issues.length) return true;
+        var n = parseInt(String(c.issue_count != null ? c.issue_count : c.issue_row_count || ""), 10);
+        return !isNaN(n) && n > 0;
+      });
+    });
+  }
+
   function resolveVitalsVersions(vitals) {
     vitals = vitals || {};
     var vmap = vitals.version_name_map || {};
     var byv = vitals.by_version || {};
-    var versions = (Array.isArray(vitals.versions) ? vitals.versions : []).filter(function (v) {
-      return v && String(v.code || "").trim();
-    }).map(function (v) {
-      var code = String(v.code).trim();
-      return { code: code, name: String(v.name || vmap[code] || "").trim() };
+    // Chip yalnızca by_version’da gerçekten scrape edilmiş sürümler için
+    // (290’dan 289/288 uydurmak → boş ANR listesi üretiyordu)
+    var codes = Object.keys(byv).filter(function (k) {
+      return k !== "all" && /^\d+$/.test(k) && byv[k] && byv[k].crashes && vitalsCrashesHasRows(byv[k].crashes);
+    }).sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); }).slice(0, 3);
+    if (!codes.length) {
+      // Eski payload: tek sürüm
+      var only = String(vitals.version_code || "").trim();
+      return only ? [{ code: only, name: String(vmap[only] || "").trim() }] : [];
+    }
+    var nameByCode = {};
+    (Array.isArray(vitals.versions) ? vitals.versions : []).forEach(function (v) {
+      if (v && v.code) nameByCode[String(v.code)] = String(v.name || "").trim();
     });
-    if (!versions.length) {
-      var codes = Object.keys(byv).filter(function (k) {
-        return k !== "all" && /^\d+$/.test(k);
-      }).sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); }).slice(0, 3);
-      versions = codes.map(function (c) {
-        return { code: c, name: String(vmap[c] || "").trim() };
-      });
-    }
-    if (!versions.length && vitals.version_code) {
-      var n = parseInt(String(vitals.version_code), 10);
-      if (!isNaN(n)) {
-        versions = [0, 1, 2].map(function (i) {
-          var c = String(n - i);
-          return { code: c, name: String(vmap[c] || "").trim() };
-        });
-      } else {
-        var only = String(vitals.version_code).trim();
-        versions = [{ code: only, name: String(vmap[only] || "").trim() }];
-      }
-    }
-    return versions.slice(0, 3);
+    return codes.map(function (c) {
+      return { code: c, name: String(nameByCode[c] || vmap[c] || "").trim() };
+    });
   }
 
   function vitalsVersionChipLabel(v) {
@@ -581,16 +584,21 @@
     var vc = String(vitalsState.selectedVersion || "").trim();
     var byv = vitals.by_version || {};
     var crashes = vitals.crashes || {};
+    // Her sürüm kendi Play Console listesi (versionCode=…) — istemci süzmesi değil
     if (vc && byv[vc] && byv[vc].crashes) {
       return byv[vc].crashes;
     }
     if (!vc) return crashes;
-    // Eski payload: tek crashes bloğu — satırları sürüm koduna göre süz
-    var out = {};
-    ["CRASH", "ANR"].forEach(function (et) {
-      out[et] = filterVitalsBlockByVersion(crashes[et] || {}, vc);
-    });
-    return out;
+    // Seçili sürüm top-level ile aynıysa (eski tek-sürüm payload) olduğu gibi göster
+    var topVc = String(
+      ((crashes.ANR || {}).version_code) ||
+      ((crashes.CRASH || {}).version_code) ||
+      vitals.version_code ||
+      ""
+    ).trim();
+    if (topVc && topVc === vc) return crashes;
+    // Aksi halde boş — yanlış süzülmüş “0 sorun” gösterme
+    return { CRASH: { categories: [] }, ANR: { categories: [] } };
   }
 
   function getActiveVitalsBlock() {

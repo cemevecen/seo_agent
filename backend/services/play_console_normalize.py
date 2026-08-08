@@ -468,6 +468,26 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         by_version_out[code] = {"crashes": norm_cr}
         issue_detail_total = max(issue_detail_total, det_n)
 
+    def _by_version_has_rows(code: str) -> bool:
+        payload = by_version_out.get(code) or {}
+        crashes = payload.get("crashes") if isinstance(payload, dict) else {}
+        if not isinstance(crashes, dict):
+            return False
+        for et in ("CRASH", "ANR"):
+            block = crashes.get(et) if isinstance(crashes.get(et), dict) else {}
+            for cat in block.get("categories") or []:
+                if not isinstance(cat, dict):
+                    continue
+                if cat.get("issues"):
+                    return True
+                raw_n = cat.get("issue_count") or cat.get("issue_row_count")
+                try:
+                    if int(str(raw_n).strip().split()[0]) > 0:
+                        return True
+                except (TypeError, ValueError):
+                    pass
+        return False
+
     versions_out: list[dict[str, str]] = []
     for v in d.get("versions") or []:
         if not isinstance(v, dict):
@@ -475,12 +495,19 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         code = str(v.get("code") or "").strip()[:32]
         if not code:
             continue
+        # Sadece scrape edilmiş / dolu sürümleri tut (hayalet chip üretme)
+        if by_version_out and not _by_version_has_rows(code):
+            continue
         versions_out.append({"code": code, "name": str(v.get("name") or "").strip()[:40]})
     if not versions_out and by_version_out:
         versions_out = [
             {"code": k, "name": ""}
             for k in sorted(
-                [x for x in by_version_out if x != "all" and str(x).isdigit()],
+                [
+                    x
+                    for x in by_version_out
+                    if x != "all" and str(x).isdigit() and _by_version_has_rows(x)
+                ],
                 key=lambda x: int(x),
                 reverse=True,
             )[:3]
