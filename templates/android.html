@@ -42,11 +42,13 @@
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Preset
         <select id="pa-preset" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
-          <option value="from2025" selected>2025-01-01 → bugün</option>
-          <option value="7">Son 7 gün</option>
-          <option value="28">Son 28 gün</option>
-          <option value="90">Son 90 gün</option>
-          <option value="365">Son 365 gün</option>
+          <option value="7">Son 1 hafta</option>
+          <option value="14" selected>Son 2 hafta</option>
+          <option value="30">Son 1 ay</option>
+          <option value="90">Son 3 ay</option>
+          <option value="180">Son 6 ay</option>
+          <option value="270">Son 9 ay</option>
+          <option value="365">Son 1 sene</option>
         </select>
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
@@ -376,13 +378,8 @@
   function applyPreset() {
     var end = new Date();
     var start = new Date();
-    var preset = paPreset.value || "from2025";
-    if (preset === "from2025") {
-      start = new Date("2025-01-01T00:00:00");
-    } else {
-      var days = parseInt(preset, 10) || 28;
-      start.setDate(end.getDate() - (days - 1));
-    }
+    var days = parseInt((paPreset && paPreset.value) || "14", 10) || 14;
+    start.setDate(end.getDate() - (days - 1));
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
   }
