@@ -1,0 +1,15 @@
+---
+description: Always commit and deploy Android/seo_agent changes without waiting for deploy command
+alwaysApply: true
+---
+
+# Auto-deploy
+
+After finishing a user-requested code change in this repo:
+
+1. **Do not wait** for the user to say "deploy", "commit", or "push".
+2. Commit the relevant changes (never `.env` / secrets) with a concise message.
+3. Push to `origin` (`main` unless already on another branch) so Railway can deploy.
+4. Briefly confirm deploy status when practical (Railway/GitHub commit status).
+
+This overrides the default "only commit when asked" habit for this project.
