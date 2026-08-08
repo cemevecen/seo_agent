@@ -2,11 +2,52 @@
 {% set store_ios = store.ios if store else none %}
 {% set store_android = store.android if store else none %}
 <style>
+  .home-crash-shell {
+    width: 100%;
+    min-width: 0;
+  }
+  .home-crash-shell-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+  }
+  .home-crash-shell-toggle:focus-visible {
+    outline: 2px solid rgb(59 130 246 / 0.55);
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
+  .home-crash-shell-body {
+    display: none;
+    margin-top: 0.85rem;
+  }
+  .home-crash-shell.is-open .home-crash-shell-body { display: block; }
+  .home-crash-shell-chevron {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 1.75px solid currentColor;
+    border-bottom: 1.75px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+    opacity: 0.7;
+    flex-shrink: 0;
+    color: #94a3b8;
+  }
+  .home-crash-shell.is-open .home-crash-shell-chevron {
+    transform: rotate(-135deg);
+    margin-top: 0.2rem;
+  }
   .home-crash-pair {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.75rem;
-    margin-top: 1rem;
+    margin-top: 0.85rem;
   }
   @container home-card (min-width: 380px) {
     .home-crash-pair {
@@ -61,23 +102,6 @@
     border-top-color: rgb(63 63 70 / 0.85);
   }
 </style>
-
-<div class="home-readable flex flex-wrap items-center justify-between gap-3">
-  <div class="flex min-w-0 flex-wrap items-center gap-2">
-    <span class="home-motion-crash-pulse" aria-hidden="true"></span>
-    <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
-    <h3 class="font-semibold text-slate-900 dark:text-slate-100">store & firebase</h3>
-    {% if card and card.days %}
-      <span class="home-meta font-medium tabular-nums text-slate-500 dark:text-slate-400">· {{ card.days }}g</span>
-    {% endif %}
-  </div>
-  <div class="flex shrink-0 items-center gap-3">
-    <a href="{{ app_url | default('/app') }}" hx-get="{{ app_url | default('/app') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">store →</a>
-    <a href="{{ firebase_url }}" hx-get="{{ firebase_url }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Firebase →</a>
-  </div>
-</div>
 
 {% macro store_zone(plat) -%}
   <div class="home-crash-zone-store">
@@ -149,6 +173,33 @@
     {{ rank_zone("", []) }}
   {% endif %}
 {%- endmacro %}
+
+<div class="home-crash-shell home-readable" data-home-crash-root>
+  <button type="button"
+          class="home-crash-shell-toggle"
+          data-home-crash-shell-toggle
+          aria-expanded="false"
+          aria-controls="home-crash-shell-body">
+    <div class="min-w-0 flex-1">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <span class="home-motion-crash-pulse" aria-hidden="true"></span>
+        <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
+        <h3 class="font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
+        {% if card and card.days %}
+          <span class="home-meta font-medium tabular-nums text-slate-500 dark:text-slate-400">· {{ card.days }}g</span>
+        {% endif %}
+      </div>
+    </div>
+    <span class="home-crash-shell-chevron" aria-hidden="true"></span>
+  </button>
+
+  <div id="home-crash-shell-body" class="home-crash-shell-body" data-home-crash-shell-body hidden>
+    <div class="flex flex-wrap items-center justify-end gap-3">
+      <a href="{{ app_url | default('/app') }}" hx-get="{{ app_url | default('/app') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">store →</a>
+      <a href="{{ firebase_url }}" hx-get="{{ firebase_url }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Firebase →</a>
+    </div>
 
 {% if card.warming %}
   <div class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-5 text-center dark:border-slate-700 dark:bg-slate-800/40">
@@ -270,3 +321,24 @@
     </div>
   </div>
 {% endif %}
+  </div>
+
+  <script>
+  (function () {
+    var root = document.currentScript && document.currentScript.closest
+      ? document.currentScript.closest('[data-home-crash-root]')
+      : null;
+    if (!root) root = document.querySelector('[data-home-crash-root]');
+    if (!root || root.getAttribute('data-crash-shell-wired') === '1') return;
+    root.setAttribute('data-crash-shell-wired', '1');
+    var shellToggle = root.querySelector('[data-home-crash-shell-toggle]');
+    var shellBody = root.querySelector('[data-home-crash-shell-body]');
+    if (!shellToggle || !shellBody) return;
+    shellToggle.addEventListener('click', function () {
+      var open = root.classList.toggle('is-open');
+      shellBody.hidden = !open;
+      shellToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+  </script>
+</div>
