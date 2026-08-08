@@ -57,6 +57,10 @@ _METRIC_TITLE_HINTS = (
     "üretim sürümü",
     "yeni cihaz",
     "yüklemeler",
+    "abonelik",
+    "toplam gelir",
+    "alıcı oranı",
+    "tek seferlik",
 )
 
 _JUNK_AUTHOR = re.compile(
@@ -180,11 +184,28 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
     d = dict(raw) if isinstance(raw, dict) else {}
     tpg = normalize_metrics(
         [
-            {**x, "kind": "tpg"}
+            {**x, "kind": x.get("kind") or "tpg"}
             for x in (d.get("tpg") or [])
             if isinstance(x, dict)
         ]
     )
+    monetize = normalize_metrics(
+        [
+            {**x, "kind": "monetize"}
+            for x in (d.get("monetize") or [])
+            if isinstance(x, dict)
+        ]
+    )
+    # pages.monetize.cards fallback
+    pages_in = d.get("pages") if isinstance(d.get("pages"), dict) else {}
+    if not monetize and isinstance(pages_in.get("monetize"), dict):
+        monetize = normalize_metrics(
+            [
+                {**x, "kind": "monetize"}
+                for x in (pages_in["monetize"].get("cards") or [])
+                if isinstance(x, dict)
+            ]
+        )
     breakdowns = []
     for x in d.get("breakdowns") or []:
         if not isinstance(x, dict):
@@ -201,8 +222,12 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
                 "segment": str(x.get("segment") or "").strip(),
                 "metric": str(x.get("metric") or "").strip() or title.split("(")[0].strip(),
                 "kind": "breakdown",
+                "page": str(x.get("page") or "").strip() or None,
             }
         )
+    for row in breakdowns:
+        if not row.get("page"):
+            row.pop("page", None)
     series = []
     for s in d.get("series") or []:
         if not isinstance(s, dict):
@@ -219,13 +244,35 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         )
         if len(series) >= 40:
             break
+    pages_out: dict[str, Any] = {}
+    for pk, pv in pages_in.items():
+        if not isinstance(pv, dict):
+            continue
+        pages_out[str(pk)] = {
+            "url": str(pv.get("url") or "")[:512],
+            "cards": normalize_metrics(pv.get("cards") if isinstance(pv.get("cards"), list) else []),
+            "breakdowns": [
+                {
+                    "title": str(x.get("title") or ""),
+                    "value": str(x.get("value") or ""),
+                    "delta": str(x.get("delta") or ""),
+                    "segment": str(x.get("segment") or ""),
+                    "kind": "breakdown",
+                }
+                for x in (pv.get("breakdowns") or [])
+                if isinstance(x, dict) and re.search(r"\d", str(x.get("value") or ""))
+            ],
+        }
     return {
         "version": 2,
         "tpg": tpg,
+        "monetize": monetize,
         "breakdowns": breakdowns,
+        "pages": pages_out,
         "sections": d.get("sections") if isinstance(d.get("sections"), list) else [],
         "series": series,
         "tpg_count": len(tpg),
+        "monetize_count": len(monetize),
         "breakdown_count": len(breakdowns),
         "series_count": len(series),
     }

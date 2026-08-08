@@ -116,6 +116,7 @@ def ingest_play_console_payload(
         "metric_count": len(metrics or []),
         "tpg_count": len((panels or {}).get("tpg") or []),
         "breakdown_count": len((panels or {}).get("breakdowns") or []),
+        "monetize_count": len((panels or {}).get("monetize") or []),
         "review_count": len(reviews or []),
         "updated_at": row.updated_at.isoformat() + "Z",
         "package_name": row.package_name,
@@ -175,5 +176,6 @@ def play_console_payload(db: Session) -> dict[str, Any]:
         "metric_count": len(metrics),
         "tpg_count": len(panels.get("tpg") or []),
         "breakdown_count": len(panels.get("breakdowns") or []),
+        "monetize_count": len(panels.get("monetize") or []),
         "review_count": len(reviews),
     }

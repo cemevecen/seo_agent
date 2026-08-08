@@ -57,18 +57,64 @@ PROFILE_DIR = Path(
     os.environ.get("PLAY_CONSOLE_PROFILE_DIR")
     or str(Path.home() / ".seo-agent" / "play-console-profile")
 ).expanduser()
+BASE_APP = f"https://play.google.com/console/u/0/developers/{DEV_ID}/app/{APP_ID}"
 DASHBOARD_URL = (
-    os.environ.get("PLAY_CONSOLE_DASHBOARD_URL")
-    or f"https://play.google.com/console/u/0/developers/{DEV_ID}/app/{APP_ID}/app-dashboard"
+    os.environ.get("PLAY_CONSOLE_DASHBOARD_URL") or f"{BASE_APP}/app-dashboard"
 ).strip()
 REVIEWS_URL = (
-    os.environ.get("PLAY_CONSOLE_REVIEWS_URL")
-    or f"https://play.google.com/console/u/0/developers/{DEV_ID}/app/{APP_ID}/user-feedback/reviews"
+    os.environ.get("PLAY_CONSOLE_REVIEWS_URL") or f"{BASE_APP}/user-feedback/reviews"
+).strip()
+MONETIZE_URL = (
+    os.environ.get("PLAY_CONSOLE_MONETIZE_URL") or f"{BASE_APP}/monetize"
+).strip()
+STATISTICS_URL = (
+    os.environ.get("PLAY_CONSOLE_STATISTICS_URL") or f"{BASE_APP}/statistics"
 ).strip()
 INGEST_URL = (
     os.environ.get("PLAY_CONSOLE_INGEST_URL")
     or "https://projectcontrol.up.railway.app/api/play-console/ingest"
 ).strip()
+
+# Sayfa başına bilinen metrik başlıkları (TR Play Console)
+_KNOWN_DASHBOARD = (
+    "Toplam yükleme sayısı",
+    "Kullanıcı kaybı",
+    "Etkin cihazlar",
+    "Kitle büyüme oranı",
+    "Günlük etkin kullanıcı sayısı",
+    "Mağaza girişi ziyaretçileri",
+    "Mağaza girişi edinme sayısı",
+    "Mağaza girişi dönüşüm oranı",
+    "Kilitlenme oranı",
+    "ANR oranı",
+    "Google Play puanı",
+    "Ortalama puan",
+    "Uygulamayı yükleyen kullanıcı sayısı",
+    "Cihaz edinme sayısı",
+    "Cihaz ilk açılışları",
+    "AEKS",
+    "Gelir",
+    "ÖYKBOG",
+    "Alıcı Sayısı",
+    "Yükleme tabanı",
+    "Yeni cihaz edinme",
+    "Yüklemeler",
+)
+_KNOWN_MONETIZE = (
+    "Toplam gelir",
+    "Gelir",
+    "Aylık alıcılar",
+    "Alıcı Sayısı",
+    "Alıcı sayısı",
+    "Aylık ÖYKBOG",
+    "ÖYKBOG",
+    "Aylık alıcı oranı",
+    "Alıcı oranı",
+    "Abonelikler",
+    "Tek seferlik ürünler",
+    "Yeni alıcılar",
+    "Kümülatif alıcılar",
+)
 
 
 def _ingest_token() -> str:
@@ -213,112 +259,168 @@ def _scroll_full_page(page) -> None:
         pass
 
 
-def _extract_dashboard_structured(page) -> dict[str, Any]:
-    """Üst KPI blokları + TPG trend kartları + kırılım satırları."""
+def _extract_stats_page(page, *, known: tuple[str, ...] | list[str], page_key: str = "page") -> dict[str, Any]:
+    """Herhangi bir Play Console istatistik sayfasından kart / kırılım çıkar."""
+    known_list = list(known)
     return page.evaluate(
-        """() => {
+        """(args) => {
+      const KNOWN = (args.known || []).slice().sort((a, b) => b.length - a.length);
+      const pageKey = args.page_key || 'page';
       const ICON = /^(arrow_|calendar_|schedule|data_usage|devices|star|thumb_|expand_|feature_|visibility_|more_vert|dashboard|vital_|bar_chart|overview|shield|rocket_|finance_|sell|flag|link|youtube_|event_|brightness_)/i;
-      const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+      const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b\\ufeff]/g, ' ').replace(/\\s+/g, ' ').trim();
       const isJunk = (s) => {
         const t = clean(s);
         if (!t || t.length < 2) return true;
         if (ICON.test(t)) return true;
-        if (/^(menu|ayar|yardım|ara|TPG'leri ekle)$/i.test(t)) return true;
+        if (/^(menu|ayar|yardım|ara|TPG'leri ekle|artışın iyi|grafik alan)/i.test(t)) return true;
         return false;
       };
-      const hasDigit = (s) => /\\d/.test(s || '');
+      const isDateAxis = (s) => /^\\d{1,2}\\s*(Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara)\\b/i.test(s);
+      const isDelta = (s) => {
+        const t = clean(s);
+        return /^[+\\-−%]/.test(t) || /yüzde puan/i.test(t) || /^[+]\\d/.test(t);
+      };
+      const isValue = (s) => {
+        const t = clean(s);
+        if (!t || !/\\d/.test(t) || isJunk(t) || isDateAxis(t)) return false;
+        if (/^[+\\-−]/.test(t)) return false;
+        if (t.length > 48) return false;
+        return /[\\d₺$€%]/.test(t) || /\\b[BbMmKk]\\b/.test(t) || /yıldız/i.test(t);
+      };
+      const hintRe = /yükleme|kilitlenme|anr|puan|cihaz|aeks|gelir|alıcı|etkin|kitle|mağaza|öykbog|edinme|kaybı|abonelik|satın|revenue|buyer|arppu|arpu/i;
 
-      const KNOWN = [
-        'Toplam yükleme sayısı', 'Kullanıcı kaybı', 'Etkin cihazlar', 'Kitle büyüme oranı',
-        'Günlük etkin kullanıcı sayısı', 'Mağaza girişi ziyaretçileri', 'Mağaza girişi edinme sayısı',
-        'Mağaza girişi dönüşüm oranı', 'Kilitlenme oranı', 'ANR oranı', 'Google Play puanı',
-        'Ortalama puan', 'Uygulamayı yükleyen kullanıcı sayısı', 'Cihaz edinme sayısı',
-        'Cihaz ilk açılışları', 'AEKS', 'Gelir', 'ÖYKBOG', 'Alıcı Sayısı', 'Yükleme tabanı',
-        'Yeni cihaz edinme', 'Yüklemeler'
-      ];
-
-      function nearestCardRoot(el) {
-        let n = el;
-        for (let i = 0; i < 8 && n; i++) {
-          const t = clean(n.innerText || '');
-          if (t.length > 20 && t.length < 500 && (n.children || []).length <= 30) return n;
-          n = n.parentElement;
-        }
-        return el;
-      }
-
-      const tpg = [];
-      const seenTpg = new Set();
-      const allTextNodes = Array.from(document.querySelectorAll('div, span, h2, h3, p'));
-      for (const el of allTextNodes) {
-        const title = clean(el.innerText || '');
-        // Kırılımlar (parantezli) ayrı toplanır
-        if (/^(Yükleme tabanı|Yeni cihaz edinme)\\s*\\(/i.test(title)) continue;
-        if (!KNOWN.some((k) => title === k)) continue;
-        const root = nearestCardRoot(el);
-        const lines = clean(root.innerText || '').split('\\n').map(clean).filter((l) => l && !isJunk(l));
-        if (lines.length < 2) continue;
-        // value: title'dan sonraki ilk sayısal
-        let value = '';
-        let delta = '';
-        let period = '';
-        for (const l of lines) {
-          if (l === title || l.startsWith(title)) continue;
-          if (/son \\d+ gün|önceki|geçen yıl|kıyasla|kümülatif/i.test(l)) { period = period || l; continue; }
-          if (!value && hasDigit(l)) { value = l; continue; }
-          if (!delta && (/^[+\\-−%]/.test(l) || /yüzde puan/i.test(l) || /^[+]/.test(l))) { delta = l; continue; }
-        }
-        if (!value) continue;
-        const key = title + '|' + value + '|' + delta;
-        if (seenTpg.has(key)) continue;
-        seenTpg.add(key);
-        tpg.push({ title, value, delta, period, kind: 'tpg' });
-      }
-
-      // Kırılımlar: "Yükleme tabanı" + parantez içi segment
+      const cards = [];
       const breakdowns = [];
+      const seen = new Set();
       const seenBr = new Set();
-      for (const el of allTextNodes) {
-        const t = clean(el.innerText || '');
-        const m = t.match(/^Yükleme tabanı\\s*\\((.+)\\)$/i)
-          || t.match(/^Yeni cihaz edinme\\s*\\((.+)\\)$/i);
-        if (!m) continue;
-        const root = nearestCardRoot(el);
-        const lines = clean(root.innerText || '').split('\\n').map(clean).filter((l) => l && !isJunk(l));
-        let value = '';
-        let delta = '';
-        for (const l of lines) {
-          if (l === t) continue;
-          if (!value && hasDigit(l)) { value = l; continue; }
-          if (!delta && (/^[+\\-−%]/.test(l) || /%/.test(l))) { delta = l; continue; }
-        }
-        if (!value) continue;
-        const key = t + '|' + value;
-        if (seenBr.has(key)) continue;
+
+      function pushCard(title, value, delta, period) {
+        title = clean(title); value = clean(value); delta = clean(delta || ''); period = clean(period || '');
+        if (!title || !value || !isValue(value)) return;
+        const key = title + '|' + value;
+        if (seen.has(key)) return;
+        seen.add(key);
+        cards.push({ title, value, delta, period, kind: 'metric', page: pageKey });
+      }
+      function pushBr(title, value, delta, segment) {
+        title = clean(title); value = clean(value); delta = clean(delta || ''); segment = clean(segment || '');
+        if (!title || !value || !/\\d/.test(value)) return;
+        const key = title + '|' + value;
+        if (seenBr.has(key)) return;
         seenBr.add(key);
         breakdowns.push({
-          metric: t.split('(')[0].trim(),
-          segment: m[1].trim(),
-          title: t,
-          value,
-          delta,
-          kind: 'breakdown'
+          metric: title.split('(')[0].trim(),
+          segment: segment || (title.match(/\\((.+)\\)/) || [])[1] || '',
+          title, value, delta, kind: 'breakdown', page: pageKey
         });
       }
 
-      // Üst dashboard KPI (bölüm başlıklarına göre kabaca grup)
-      const sectionHints = [
-        { key: 'publish', re: /Test etme ve yayınlama|En yeni üretim/i },
-        { key: 'monitor', re: /İzleyin ve geliştirin/i },
-        { key: 'grow', re: /Kullanıcı sayısını artırın/i },
-        { key: 'monetize', re: /Google Play ile para kazanın|para kazanın/i },
-        { key: 'tpg', re: /TPG trendlerini izleyin/i },
-      ];
-      const sections = sectionHints.map((s) => ({ key: s.key, found: !!document.body.innerText.match(s.re) }));
+      const rawBody = (document.body && document.body.innerText) || '';
+      const lines = rawBody.split(/\\n+/).map(clean).filter((l) => l && !isJunk(l));
+      const bodyHas = {};
+      for (const k of KNOWN) bodyHas[k] = rawBody.indexOf(k) >= 0;
 
-      return { tpg, breakdowns, sections, tpg_count: tpg.length, breakdown_count: breakdowns.length };
-    }"""
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let bm = line.match(/^(Yükleme tabanı)\\s*\\((.+)\\)$/i)
+          || line.match(/^(Yeni cihaz edinme)\\s*\\((.+)\\)$/i)
+          || line.match(/^(Gelir|Alıcı|ÖYKBOG|Abonelik)\\s*\\((.+)\\)$/i);
+        if (bm) {
+          let value = '', delta = '';
+          for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+            const l = lines[j];
+            if (KNOWN.some((k) => l === k) && l !== line) break;
+            if (!value && isValue(l)) { value = l; continue; }
+            if (value && !delta && isDelta(l)) { delta = l; break; }
+          }
+          if (value) pushBr(line, value, delta, bm[2] || bm[1]);
+          continue;
+        }
+
+        let matched = null;
+        for (const k of KNOWN) {
+          if (line === k || line.toLowerCase() === k.toLowerCase()) { matched = k; break; }
+        }
+        if (!matched) {
+          for (const k of KNOWN) {
+            if (line.startsWith(k + ' ') && isValue(line.slice(k.length).trim())) {
+              pushCard(k, line.slice(k.length).trim(), '', '');
+              matched = k;
+              break;
+            }
+          }
+        }
+        if (!matched) continue;
+        if (/\\(/.test(line) && /yükleme tabanı|yeni cihaz|gelir|alıcı/i.test(line)) continue;
+
+        let value = '', delta = '', period = '';
+        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+          const l = lines[j];
+          if (KNOWN.some((k) => l === k || l.startsWith(k + ' ('))) break;
+          if (/son \\d+ gün|önceki|geçen yıl|kıyasla|kümülatif|ortalama|last \\d+ days/i.test(l) && !isValue(l)) {
+            period = period || l;
+            continue;
+          }
+          if (!value && isValue(l)) { value = l; continue; }
+          if (value && !delta && isDelta(l)) { delta = l; break; }
+          if (value && l.length > 28 && !isDelta(l) && !isValue(l)) break;
+        }
+        if (value) pushCard(matched, value, delta, period);
+      }
+
+      const nodes = Array.from(document.querySelectorAll('div, article, section, li'));
+      for (const el of nodes) {
+        if (!el || el.children.length > 14) continue;
+        const text = clean(el.innerText || '');
+        if (!text || text.length < 8 || text.length > 320) continue;
+        const cardLines = text.split(/\\n+/).map(clean).filter((l) => l && !isJunk(l));
+        if (cardLines.length < 2 || cardLines.length > 10) continue;
+        const title = cardLines[0];
+        if (title.length < 3 || title.length > 90) continue;
+        const br = title.match(/^(.+?)\\s*\\((.+)\\)$/);
+        let value = cardLines.find((l, idx) => idx > 0 && isValue(l)) || '';
+        let delta = cardLines.find((l) => l !== value && isDelta(l)) || '';
+        if (!value) continue;
+        if (br && /yükleme tabanı|yeni cihaz|gelir|alıcı|ülke|ürün/i.test(br[1])) {
+          pushBr(title, value, delta, br[2]);
+          continue;
+        }
+        const knownHit = KNOWN.find((k) => title === k || title.startsWith(k));
+        if (knownHit || hintRe.test(title)) {
+          pushCard(knownHit || title, value, delta, '');
+        }
+      }
+
+      return {
+        page: pageKey,
+        cards,
+        tpg: cards,
+        breakdowns,
+        card_count: cards.length,
+        tpg_count: cards.length,
+        breakdown_count: breakdowns.length,
+        debug: {
+          body_len: rawBody.length,
+          line_count: lines.length,
+          known_found_count: Object.values(bodyHas).filter(Boolean).length,
+          known_found: bodyHas,
+          url: location.href,
+        },
+      };
+    }""",
+        {"known": known_list, "page_key": page_key},
     )
+
+
+def _extract_dashboard_structured(page) -> dict[str, Any]:
+    """Dashboard: KPI + TPG + kırılım."""
+    return _extract_stats_page(page, known=_KNOWN_DASHBOARD, page_key="dashboard")
+
+
+def _extract_monetize_structured(page) -> dict[str, Any]:
+    """Monetize overview kartları."""
+    known = tuple(dict.fromkeys(list(_KNOWN_MONETIZE) + list(_KNOWN_DASHBOARD)))
+    return _extract_stats_page(page, known=known, page_key="monetize")
 
 
 def _series_from_network(network: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -512,6 +614,57 @@ def _settle(page, *, seconds: float = 4.0) -> None:
     time.sleep(max(1.0, seconds))
 
 
+def _wait_page_text(page, needles: tuple[str, ...], *, timeout_sec: float = 45.0) -> bool:
+    """Sayfa metni hydrate olana kadar bekle."""
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        try:
+            text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
+        except Exception:
+            text = ""
+        if any(n in text for n in needles):
+            return True
+        time.sleep(1.2)
+    return False
+
+
+def _wait_dashboard_metrics(page, *, timeout_sec: float = 45.0) -> bool:
+    return _wait_page_text(
+        page,
+        (
+            "Kilitlenme oranı",
+            "TPG trendlerini izleyin",
+            "Etkin cihazlar",
+            "Cihaz edinme",
+            "Toplam yükleme",
+        ),
+        timeout_sec=timeout_sec,
+    )
+
+
+def _scrape_one_stats_page(
+    page,
+    *,
+    url: str,
+    known: tuple[str, ...],
+    page_key: str,
+    wait_needles: tuple[str, ...],
+    headed: bool,
+) -> dict[str, Any]:
+    page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+    _settle(page, seconds=4.0)
+    need, _, _ = _page_needs_login(page)
+    if need and headed:
+        _wait_until_console(page, timeout_sec=300)
+        page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        _settle(page, seconds=4.0)
+    _wait_page_text(page, wait_needles, timeout_sec=40.0)
+    _scroll_full_page(page)
+    _settle(page, seconds=2.5)
+    _wait_page_text(page, wait_needles, timeout_sec=15.0)
+    return _extract_stats_page(page, known=known, page_key=page_key) or {}
+
+
 def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
     if headed is None:
         # Google Play, headless Chromium’da cookie’yi sık sık reddeder.
@@ -569,27 +722,97 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "raw_network": [],
             }
 
-        # TPG + kırılım kartları lazy — tam kaydır
+        # Dashboard
+        _wait_dashboard_metrics(page, timeout_sec=45.0)
         _scroll_full_page(page)
         _settle(page, seconds=3.0)
+        _wait_dashboard_metrics(page, timeout_sec=20.0)
         structured = _extract_dashboard_structured(page) or {}
         series = _series_from_network(network)
         metrics = _metrics_from_structured(structured)
+        debug = structured.get("debug") if isinstance(structured.get("debug"), dict) else {}
+
+        # Monetize (Play Console /monetize)
+        monetize = {}
+        try:
+            monetize = _scrape_one_stats_page(
+                page,
+                url=MONETIZE_URL,
+                known=tuple(dict.fromkeys(list(_KNOWN_MONETIZE) + ["Gelir", "ÖYKBOG", "Alıcı Sayısı"])),
+                page_key="monetize",
+                wait_needles=("Gelir", "ÖYKBOG", "Alıcı", "Toplam gelir", "Monetize", "Para kazan"),
+                headed=bool(headed),
+            )
+        except Exception as mon_exc:  # noqa: BLE001
+            monetize = {"page": "monetize", "cards": [], "breakdowns": [], "error": str(mon_exc)[:200]}
+
+        mon_cards = monetize.get("cards") or monetize.get("tpg") or []
+        mon_br = monetize.get("breakdowns") or []
+        # Monetize kartlarını metrics’e de ekle (kind=monetize)
+        for c in mon_cards:
+            if not isinstance(c, dict):
+                continue
+            metrics.append(
+                {
+                    "title": c.get("title"),
+                    "value": c.get("value"),
+                    "delta": c.get("delta") or "",
+                    "period": c.get("period") or "",
+                    "kind": "monetize",
+                    "page": "monetize",
+                    "lines": [c.get("title"), c.get("value"), c.get("delta")],
+                }
+            )
+        for b in mon_br:
+            if not isinstance(b, dict):
+                continue
+            metrics.append(
+                {
+                    "title": b.get("title"),
+                    "value": b.get("value"),
+                    "delta": b.get("delta") or "",
+                    "segment": b.get("segment") or "",
+                    "kind": "breakdown",
+                    "page": "monetize",
+                    "lines": [b.get("title"), b.get("value"), b.get("delta")],
+                }
+            )
+
+        dash_cards = structured.get("tpg") or structured.get("cards") or []
+        dash_br = list(structured.get("breakdowns") or [])
+        all_br = dash_br + list(mon_br)
         panels = {
             "version": 2,
-            "tpg": structured.get("tpg") or [],
-            "breakdowns": structured.get("breakdowns") or [],
+            "tpg": dash_cards,
+            "breakdowns": all_br,
+            "monetize": mon_cards,
+            "pages": {
+                "dashboard": {
+                    "url": DASHBOARD_URL,
+                    "cards": dash_cards,
+                    "breakdowns": dash_br,
+                    "debug": debug,
+                },
+                "monetize": {
+                    "url": MONETIZE_URL,
+                    "cards": mon_cards,
+                    "breakdowns": mon_br,
+                    "debug": monetize.get("debug") if isinstance(monetize.get("debug"), dict) else {},
+                    "error": monetize.get("error"),
+                },
+            },
             "sections": structured.get("sections") or [],
             "series": series,
-            "tpg_count": int(structured.get("tpg_count") or 0),
-            "breakdown_count": int(structured.get("breakdown_count") or 0),
+            "tpg_count": len(dash_cards),
+            "breakdown_count": len(all_br),
+            "monetize_count": len(mon_cards),
             "series_count": len(series),
+            "debug": debug,
         }
 
         # Reviews sayfası
         page.goto(REVIEWS_URL, wait_until="domcontentloaded", timeout=120_000)
         _settle(page, seconds=5.0)
-        # Reviews de login isterse bekle
         need_r, _, _ = _page_needs_login(page)
         if need_r and headed:
             _wait_until_console(page, timeout_sec=300)
@@ -598,13 +821,20 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         rating_summary = _extract_rating_summary_dom(page) or {}
         reviews = _extract_reviews_dom(page) or []
 
-        ok = bool(metrics or reviews or rating_summary.get("default_rating") or panels.get("tpg"))
+        ok = bool(
+            metrics
+            or reviews
+            or rating_summary.get("default_rating")
+            or panels.get("tpg")
+            or panels.get("monetize")
+        )
+        dbg = ""
+        if not (panels.get("tpg") or panels.get("monetize")) and debug:
+            dbg = f" · dash_known={debug.get('known_found_count')} body={debug.get('body_len')}"
         msg = (
             f"Play scrape · {len(metrics)} metric · "
-            f"{panels.get('tpg_count', 0)} TPG · {panels.get('breakdown_count', 0)} kırılım · "
-            f"{len(reviews)} review"
-            if ok
-            else "Sayfa açıldı ama kart/yorum parse edilemedi (DOM değişmiş olabilir)"
+            f"{panels.get('tpg_count', 0)} TPG · {panels.get('monetize_count', 0)} monetize · "
+            f"{panels.get('breakdown_count', 0)} kırılım · {len(reviews)} review{dbg}"
         )
         return {
             "ok": ok,
@@ -622,7 +852,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "source_url": DASHBOARD_URL,
             "sync_ok": ok,
             "sync_message": None,
-            "sync_mode": "dashboard_reviews",
+            "sync_mode": "dashboard_monetize_reviews",
         }
     except Exception as exc:  # noqa: BLE001
         return {

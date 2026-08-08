@@ -44,6 +44,20 @@
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Monetize</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /monetize (gelir, alıcı, ÖYKBOG)</p>
+      </div>
+      <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/monetize"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+    </div>
+    <div id="pc-monetize" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-monetize-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz monetize kartı yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Kırılımlar</h2>
     <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yükleme tabanı / cihaz / sürüm segmentleri</p>
     <div id="pc-breakdowns" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
@@ -72,6 +86,8 @@
   var kpiEmpty = document.getElementById("pc-kpi-empty");
   var tpgEl = document.getElementById("pc-tpg");
   var tpgEmpty = document.getElementById("pc-tpg-empty");
+  var monEl = document.getElementById("pc-monetize");
+  var monEmpty = document.getElementById("pc-monetize-empty");
   var brEl = document.getElementById("pc-breakdowns");
   var brEmpty = document.getElementById("pc-breakdowns-empty");
   var reviewsEl = document.getElementById("pc-reviews");
@@ -169,12 +185,18 @@
   function splitPanels(data) {
     var panels = data.panels || {};
     var tpg = Array.isArray(panels.tpg) ? panels.tpg.slice() : [];
+    var monetize = Array.isArray(panels.monetize) ? panels.monetize.slice() : [];
     var breakdowns = Array.isArray(panels.breakdowns) ? panels.breakdowns.slice() : [];
     var metrics = Array.isArray(data.metrics) ? data.metrics : [];
+    var pages = panels.pages || {};
 
+    if (!monetize.length && pages.monetize && Array.isArray(pages.monetize.cards)) {
+      monetize = pages.monetize.cards.slice();
+    }
     if (!tpg.length && !breakdowns.length && metrics.length) {
       metrics.forEach(function (m) {
         if (m.kind === "breakdown") breakdowns.push(m);
+        else if (m.kind === "monetize") monetize.push(m);
         else tpg.push(m);
       });
     }
@@ -186,11 +208,10 @@
       if (KPI_TITLES[title] && title.indexOf("(") < 0) kpi.push(m);
       else tpgOnly.push(m);
     });
-    // KPI boşsa tüm tpg'yi KPI+TPG birlikte gösterme: üstte hepsi
     if (!kpi.length) {
-      return { kpi: tpg, tpg: [], breakdowns: breakdowns };
+      return { kpi: tpg, tpg: [], monetize: monetize, breakdowns: breakdowns };
     }
-    return { kpi: kpi, tpg: tpgOnly, breakdowns: breakdowns };
+    return { kpi: kpi, tpg: tpgOnly, monetize: monetize, breakdowns: breakdowns };
   }
 
   function renderReviews(rows) {
@@ -230,6 +251,9 @@
       metaEl.textContent =
         (data.empty ? "Veri yok — bridge login + sync gerekli" :
           ((data.tpg_count || parts.tpg.length || parts.kpi.length) + " TPG/KPI · " +
+           (data.panels && data.panels.monetize_count != null
+             ? data.panels.monetize_count
+             : parts.monetize.length) + " monetize · " +
            (data.breakdown_count || parts.breakdowns.length) + " kırılım · " +
            data.review_count + " review")) +
         " · son sync: " + fmtSync(data.updated_at || data.background_synced_at) +
@@ -237,6 +261,7 @@
       renderRating(data.rating_summary);
       renderGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m); });
       renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });
+      renderGrid(monEl, monEmpty, parts.monetize, function (m) { return metricCard(m); });
       renderGrid(brEl, brEmpty, parts.breakdowns, function (m) {
         return metricCard(m, { subtitle: m.segment || "" });
       });
