@@ -218,12 +218,10 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
     },
     {
         "id": "revenue",
-        "label": "Gelir",
+        "label": "Gelir (günlük)",
         "metric_key": "revenue",
-        "metrics": (
-            "REVENUE-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
-            "%2CREVENUE_GST_USD_28D-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
-        ),
+        # Tek metrik: günlük gelir. REVENUE_GST_USD_28D eklenirse aynı güne 2 seri yazılır ve toplam şişer.
+        "metrics": "REVENUE-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
         "dimension_values": "OVERALL",
         "needles": ("Gelir", "Revenue", "İstatistik", "Veri tablosu"),

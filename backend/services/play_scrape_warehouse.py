@@ -20,15 +20,13 @@ _SCRAPE_METRICS = (
     "anrs",
     "revenue",
     "ar2_visitors",
-    "installs",
-    "uninstalls",
-    "active",
-    "net",
 )
 
+# Eski UI / API uyumu — GCS etiketleri scrape karşılıklarına map
 _METRIC_ALIASES = {
     "active": "active_devices",
     "installs": "device_acquisition",
+    "uninstalls": "user_lost",
 }
 
 
@@ -60,6 +58,39 @@ def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 def _resolve_metric(metric: str) -> str:
     m = (metric or "").strip()
     return _METRIC_ALIASES.get(m, m)
+
+
+def _normalize_revenue_facts(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Play gelir protobuf: (1) mikro birim (~1e6), (2) eski çift-metrik scrape aynı güne 2 satır.
+
+    Günlük REVENUE’yu tercih et: aynı tarih+segment için tek değer (mikroysa /1e6).
+    """
+    by: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for f in facts:
+        if str(f.get("metric") or "") != "revenue":
+            continue
+        try:
+            v = float(f.get("value") or 0)
+        except (TypeError, ValueError):
+            continue
+        # Micros heuristic (Play financials sıkça 1e6 birim)
+        if abs(v) >= 10_000:
+            v = v / 1_000_000.0
+        key = (
+            str(f.get("date") or "")[:10],
+            str(f.get("dim") or "overview"),
+            str(f.get("segment") or "OVERALL"),
+        )
+        prev = by.get(key)
+        row = {**f, "value": round(v, 4), "unit": "currency"}
+        if prev is None:
+            by[key] = row
+            continue
+        # Eski çift-metrik scrape: iki serinin ortalaması (yeniden scrape tek seri getirir)
+        avg = (float(prev.get("value") or 0) + v) / 2.0
+        by[key] = {**row, "value": round(avg, 4)}
+    others = [f for f in facts if str(f.get("metric") or "") != "revenue"]
+    return others + list(by.values())
 
 
 _DIM_TO_REPORTING = {
@@ -231,6 +262,8 @@ def query_scrape_analytics(
         breakdown = "segment"
 
     facts, meta = _load_facts()
+    if metric_key == "revenue":
+        facts = _normalize_revenue_facts(facts)
     pkg = str(meta.get("package_name") or "com.Doviz")
     enrich_msg = None
     facts, enrich_msg = _enrich_reporting(
@@ -418,6 +451,8 @@ def query_scrape_analytics(
         msg += f" · bucket {dates[0]}→{dates[-1]}"
     if lag_note:
         msg += f" · {lag_note}"
+    if metric_key == "revenue":
+        msg += " · birim: Play günlük gelir (mikro→para; eski çift seri tekilleştirildi)"
     if not series and dim in _DIM_TO_REPORTING and metric_key in ("anrs", "crashes"):
         msg = (
             f"ANR/çökme `{dim}` kırılımı boş. "
