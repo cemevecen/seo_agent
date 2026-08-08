@@ -20,6 +20,21 @@ module.exports = {
         /^(bg|border)-(sky|cyan|indigo|violet|emerald|fuchsia|amber|teal|rose|slate)-(50|100|200|700|800|900|950)\/(30|40|50|60|70|80)$/,
       variants: ["dark"],
     },
+    // Android Play / zinc dark surfaces (JS string sınıfları + opacity)
+    {
+      pattern:
+        /^(text|bg|border)-(zinc)-(50|100|200|300|400|500|600|700|800|900|950)(\/\d+)?$/,
+      variants: ["dark", "hover", "dark:hover"],
+    },
+    {
+      pattern:
+        /^(bg|border)-(zinc)-(700|800|900|950)\/(20|30|40|50|60|70|80|90)$/,
+      variants: ["dark", "dark:hover"],
+    },
+    "dark:from-zinc-950",
+    "dark:to-zinc-900",
+    "dark:from-slate-900",
+    "dark:to-slate-900",
   ],
   theme: {
     extend: {},

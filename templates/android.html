@@ -96,11 +96,92 @@
     max-width: 100%;
     box-sizing: border-box;
   }
-  .dark .pa-filters input[type="date"],
-  .dark .pa-filters select {
-    border-color: #52525b;
-    background: #09090b;
-    color: #f4f4f5;
+  html.dark .pa-filters input[type="date"],
+  html.dark .pa-filters select {
+    border-color: #3f3f46;
+    background: #18181b;
+    color: #c4c4cc;
+  }
+  /* Dark mode: patlayan beyaz yüzeyler + mat metin/çerçeve */
+  html.dark .android-play-page {
+    color: #b8b8bf;
+  }
+  html.dark .android-play-page #pa-chart-card {
+    background: #141416 !important;
+    background-image: none !important;
+    border-color: #2e2e33 !important;
+  }
+  html.dark .android-play-page [class*="bg-white"],
+  html.dark .android-play-page [class*="bg-slate-50"],
+  html.dark .android-play-page [class*="from-slate-50"],
+  html.dark .android-play-page [class*="to-white"] {
+    background-color: #18181b !important;
+    background-image: none !important;
+  }
+  html.dark .android-play-page [class*="dark:bg-zinc-950"],
+  html.dark .android-play-page [class*="dark:bg-zinc-900"],
+  html.dark .android-play-page [class*="dark:bg-slate-900"],
+  html.dark .android-play-page [class*="dark:bg-slate-950"] {
+    background-color: #18181b !important;
+    background-image: none !important;
+  }
+  html.dark .android-play-page [class*="dark:bg-zinc-950/40"],
+  html.dark .android-play-page [class*="dark:bg-zinc-900/50"],
+  html.dark .android-play-page [class*="bg-slate-50/80"],
+  html.dark .android-play-page [class*="bg-slate-50/60"] {
+    background-color: #141416 !important;
+    background-image: none !important;
+  }
+  html.dark .android-play-page [class*="border-slate-200"],
+  html.dark .android-play-page [class*="border-slate-300"],
+  html.dark .android-play-page [class*="dark:border-zinc-700"],
+  html.dark .android-play-page [class*="dark:border-slate-700"],
+  html.dark .android-play-page [class*="dark:border-zinc-600"] {
+    border-color: #2e2e33 !important;
+  }
+  html.dark .android-play-page [class*="divide-slate-100"] > :not([hidden]) ~ :not([hidden]),
+  html.dark .android-play-page [class*="dark:divide-zinc-800"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #27272a !important;
+  }
+  html.dark .android-play-page [class*="text-white"],
+  html.dark .android-play-page [class*="dark:text-zinc-50"],
+  html.dark .android-play-page [class*="dark:text-zinc-100"],
+  html.dark .android-play-page [class*="dark:text-slate-100"],
+  html.dark .android-play-page [class*="text-slate-900"] {
+    color: #c4c4cc !important;
+  }
+  html.dark .android-play-page [class*="dark:text-zinc-200"],
+  html.dark .android-play-page [class*="dark:text-zinc-300"],
+  html.dark .android-play-page [class*="dark:text-slate-200"] {
+    color: #a8a8b0 !important;
+  }
+  html.dark .android-play-page [class*="text-slate-800"],
+  html.dark .android-play-page [class*="text-slate-700"] {
+    color: #a8a8b0 !important;
+  }
+  html.dark .android-play-page #pa-run,
+  html.dark .android-play-page #pa-ov-run,
+  html.dark .android-play-page .pc-vitals-etype.bg-emerald-600,
+  html.dark .android-play-page button.bg-emerald-600,
+  html.dark .android-play-page button.bg-blue-600 {
+    color: #e4e4e7 !important;
+  }
+  html.dark .android-play-page #pc-vitals-detail pre {
+    background-color: #0f0f11 !important;
+    color: #b0b0b8 !important;
+  }
+  html.dark .android-play-page tr.hover\:bg-slate-50:hover,
+  html.dark .android-play-page tr[class*="hover:bg-slate-50"]:hover,
+  html.dark .android-play-page tr[class*="hover:bg-slate-50/80"]:hover {
+    background-color: #1f1f23 !important;
+  }
+  html.dark .android-play-page tr[class*="bg-emerald-50"],
+  html.dark .android-play-page tr[class*="dark:bg-emerald-950"] {
+    background-color: rgba(6, 78, 59, 0.22) !important;
+  }
+  html.dark .android-play-page #pa-th-overlay,
+  html.dark .android-play-page td[class*="text-amber-"] {
+    color: #c4a574 !important;
   }
   .pa-filters .pa-f-actions {
     display: flex;
@@ -335,7 +416,7 @@
         </div>
       </div>
 
-      <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
+      <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950 dark:from-slate-900 dark:to-slate-900">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
           <div id="pa-legend-line" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
             <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span><span id="pa-legend-primary-label">Seçili dönem</span></span>
@@ -872,6 +953,31 @@
   var paCompareNote = document.getElementById("pa-compare-note");
   var STAR_DIST_COLORS = { 5: "#c5d7f2", 4: "#8eb4e6", 3: "#5a8fd4", 2: "#3b6fbf", 1: "#1a3a6e" };
   // Saks mavisi — Metrikler çizgi/alan grafikleri
+  function paIsDark() {
+    return !!(document.documentElement && document.documentElement.classList.contains("dark"));
+  }
+  function paChartPalette() {
+    if (paIsDark()) {
+      return {
+        line: "#6b8aad",
+        overlay: "#b87333",
+        grid: "#2e2e33",
+        axis: "#71717a",
+        prev: "#71717a",
+        guide: "#52525b",
+        dotStroke: "#18181b"
+      };
+    }
+    return {
+      line: "#2563EB",
+      overlay: "#F59E0B",
+      grid: "#e2e8f0",
+      axis: "#94a3b8",
+      prev: "#94a3b8",
+      guide: "#64748b",
+      dotStroke: "#ffffff"
+    };
+  }
   var PA_LINE_COLOR = "#2563EB";
   var PA_OVERLAY_COLOR = "#F59E0B";
   var paAddChartBtn = document.getElementById("pa-add-chart");
@@ -1376,6 +1482,7 @@
       plotW: plotW
     };
 
+    var pal = paChartPalette();
     var grid = "";
     var ticks = 4;
     for (var t = 0; t <= ticks; t++) {
@@ -1383,9 +1490,9 @@
       var ty = top + (t / ticks) * plotH;
       grid +=
         '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
-        '" stroke="#e2e8f0" stroke-width="1" />' +
+        '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
-        '" text-anchor="end" fill="#94a3b8" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        '" text-anchor="end" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
         esc(fmtNum(tv, true)) + "</text>";
     }
     var xLabels = "";
@@ -1397,7 +1504,7 @@
       if (lab.length > 10 && lab.indexOf("-") === 4) lab = lab.slice(5);
       xLabels +=
         '<text x="' + lx.toFixed(1) + '" y="' + (h - 12) +
-        '" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        '" text-anchor="middle" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
         esc(lab) + "</text>";
     }
     var bars = "";
@@ -1422,7 +1529,7 @@
       grid +
       bars +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
-      '" stroke="#94a3b8" stroke-width="1" opacity="0" />' +
+      '" stroke="' + pal.guide + '" stroke-width="1" opacity="0" />' +
       '<circle id="pa-hover-dot" cx="0" cy="0" r="0" opacity="0" />' +
       '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="0" opacity="0" />' +
       xLabels +
@@ -1451,6 +1558,9 @@
 
   function drawChart(series, prevSeries, breakdown, compareMeta) {
     if (!paChart) return;
+    var pal = paChartPalette();
+    PA_LINE_COLOR = pal.line;
+    PA_OVERLAY_COLOR = pal.overlay;
     var rows = alignPrevRows(series, prevSeries, breakdown, compareMeta);
     var w = 720, h = 260;
     var left = 48, right = 16, top = 16, bottom = 36;
@@ -1461,7 +1571,7 @@
       setAddChartVisible(false);
       setPaChartLegendMode("line");
       paChart.innerHTML =
-        '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
+        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
       hidePaTooltip();
       return;
     }
@@ -1525,9 +1635,9 @@
       var ty = top + (t / ticks) * plotH;
       grid +=
         '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
-        '" stroke="#e2e8f0" stroke-width="1" />' +
+        '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
-        '" text-anchor="end" fill="#94a3b8" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        '" text-anchor="end" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
         esc(fmtNum(tv)) + "</text>";
     }
     var xLabels = "";
@@ -1539,7 +1649,7 @@
       if (lab.length > 10 && lab.indexOf("-") === 4) lab = lab.slice(5);
       xLabels +=
         '<text x="' + lx.toFixed(1) + '" y="' + (h - 12) +
-        '" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        '" text-anchor="middle" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
         esc(lab) + "</text>";
     }
 
@@ -1552,14 +1662,14 @@
     var dots = curPts.map(function (p, i) {
       return (
         '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-        '" r="3.5" fill="' + PA_LINE_COLOR + '" stroke="#fff" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
+        '" r="3.5" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
       );
     }).join("");
     var ovDots = ovPts.map(function (p, i) {
       if (!p) return "";
       return (
         '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-        '" r="3" fill="' + PA_OVERLAY_COLOR + '" stroke="#fff" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
+        '" r="3" fill="' + PA_OVERLAY_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
       );
     }).join("");
 
@@ -1573,15 +1683,15 @@
       '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
       grid +
       (areaD ? '<path d="' + areaD + '" fill="url(#pa-fill)" />' : "") +
-      (prevD ? '<path d="' + prevD + '" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      (prevD ? '<path d="' + prevD + '" fill="none" stroke="' + pal.prev + '" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + PA_LINE_COLOR + '" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       (ovD ? '<path d="' + ovD + '" fill="none" stroke="' + PA_OVERLAY_COLOR + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       dots +
       ovDots +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
-      '" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
-      '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="' + PA_LINE_COLOR + '" stroke="#fff" stroke-width="2" opacity="0" />' +
-      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="' + PA_OVERLAY_COLOR + '" stroke="#fff" stroke-width="2" opacity="0" />' +
+      '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
+      '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
+      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="' + PA_OVERLAY_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
       xLabels +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
@@ -1708,7 +1818,7 @@
             (dlt == null ? "—" : ((dlt >= 0 ? "+" : "") + dlt.toFixed(1) + "%")) +
           "</td>";
       }
-      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800/40">' + cells + "</tr>";
+      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
     }).join("");
   }
   function fillSegments(list) {
@@ -2452,7 +2562,7 @@
               )
             : "";
           return (
-            '<tr class="pc-vitals-issue cursor-pointer ' + (on ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-zinc-900/50") + '" data-issue="' + esc(iid) + '">' +
+            '<tr class="pc-vitals-issue cursor-pointer ' + (on ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-zinc-800") + '" data-issue="' + esc(iid) + '">' +
               '<td class="px-3 py-2">' +
                 '<div class="flex items-start gap-1.5">' +
                   linkIcon +
@@ -2546,11 +2656,11 @@
         var stack = cleanStackTrace(d.stack_trace || "");
         if (stack) {
           return (
-            '<div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900/50">' +
-              '<div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-1.5 dark:border-zinc-700">' +
+            '<div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950">' +
+              '<div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-1.5 dark:border-zinc-800">' +
                 '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Yığın izi / örnek</p>' +
               "</div>" +
-              '<pre class="max-h-52 overflow-auto whitespace-pre-wrap px-3 py-2.5 font-mono text-[11px] leading-relaxed text-slate-700 dark:text-zinc-200">' +
+              '<pre class="max-h-52 overflow-auto whitespace-pre-wrap bg-transparent px-3 py-2.5 font-mono text-[11px] leading-relaxed text-slate-700 dark:text-zinc-300">' +
                 esc(stack) +
               "</pre>" +
             "</div>"
@@ -2628,7 +2738,7 @@
           var on = tr.getAttribute("data-issue") === iid;
           tr.className = "pc-vitals-issue cursor-pointer " + (on
             ? "bg-emerald-50/70 dark:bg-emerald-950/20"
-            : "hover:bg-slate-50 dark:hover:bg-zinc-900/50");
+            : "hover:bg-slate-50 dark:hover:bg-zinc-800");
         });
         return;
       }
@@ -2795,6 +2905,16 @@
   }
 
   if (btn) btn.addEventListener("click", refreshPage);
+  window.addEventListener("seo-theme-change", function () {
+    if (paLastChart) {
+      drawChart(
+        paLastChart.series,
+        paLastChart.prevSeries,
+        paLastChart.breakdown,
+        paLastChart.compareMeta
+      );
+    }
+  });
   // İlk açılışta snapshot + (yorum azsa) store senkronu
   (async function bootAndroid() {
     await loadSnapshot();
