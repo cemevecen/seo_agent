@@ -153,10 +153,34 @@ def _load_install_facts(
         }
 
     months_ok = _recent_yyyymm(months)
+    prefix = f"stats/installs/installs_{package_name}_"
+    sample_names: list[str] = []
+    raw_count = 0
     try:
         bucket = client.bucket(bucket_name)
-        prefix = f"stats/installs/installs_{package_name}_"
-        blobs = list(bucket.list_blobs(prefix=prefix, max_results=200))
+        blobs = list(bucket.list_blobs(prefix=prefix, max_results=300))
+        raw_count = len(blobs)
+        sample_names = [(b.name or "") for b in blobs[:15]]
+
+        # Prefix boşsa: paket adı / path keşfi
+        if not blobs:
+            alt_samples: list[str] = []
+            try:
+                for b in bucket.list_blobs(prefix="stats/installs/", max_results=80):
+                    n = b.name or ""
+                    alt_samples.append(n)
+                    # installs_<pkg>_YYYYMM_dim.csv — pkg case-insensitive eşleş
+                    low = n.lower()
+                    pkg_low = package_name.lower()
+                    if f"installs_{pkg_low}_" in low or (
+                        "installs_" in low and "doviz" in low
+                    ):
+                        blobs.append(b)
+                if not sample_names:
+                    sample_names = alt_samples[:20]
+                raw_count = max(raw_count, len(alt_samples))
+            except Exception as exc2:  # noqa: BLE001
+                LOGGER.warning("Play analytics installs/ list: %s", exc2)
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("Play analytics list_blobs: %s", exc)
         msg = str(exc)
@@ -172,31 +196,53 @@ def _load_install_facts(
             "bucket": True,
             "facts": [],
             "message": msg,
+            "debug": {"prefix": prefix, "bucket": bucket_name},
         }
         _CACHE[cache_key + "|err"] = {"ts": now, "data": data}
         return data
 
-    # Önce overview, sonra istenen dim — ay filtresi
+    # Önce overview, sonra istenen dim — ay filtresi (önce gevşek: ay yoksa yine al)
     selected = []
+    skipped_month = 0
+    skipped_dim = 0
+    skipped_name = 0
     for blob in blobs:
         name = blob.name or ""
         if not name.endswith(".csv"):
             continue
-        m = re.search(r"_(\d{6})_([a-z0-9_]+)\.csv$", name)
+        # .../installs_com.Doviz_202608_overview.csv
+        m = re.search(r"installs_[^/]+_(\d{6})_([a-z0-9_]+)\.csv$", name, re.I)
         if not m:
+            skipped_name += 1
             continue
-        yyyymm, dim = m.group(1), m.group(2)
-        if yyyymm not in months_ok:
-            continue
+        yyyymm, dim = m.group(1), m.group(2).lower()
         if dim not in want_dims:
+            skipped_dim += 1
+            continue
+        if yyyymm not in months_ok:
+            skipped_month += 1
             continue
         selected.append((0 if dim == "overview" else 1, name, dim, blob))
+
+    # Ay filtresi her şeyi elediysse: son bulunan dosyalardan al (max 12)
+    if not selected and blobs:
+        for blob in blobs:
+            name = blob.name or ""
+            m = re.search(r"installs_[^/]+_(\d{6})_([a-z0-9_]+)\.csv$", name, re.I)
+            if not m:
+                continue
+            dim = m.group(2).lower()
+            if dim not in want_dims:
+                continue
+            selected.append((0 if dim == "overview" else 1, name, dim, blob))
+        selected = selected[:12]
+
     selected.sort(key=lambda x: (x[0], x[1]))
-    # En fazla 24 dosya (4 ay × ~6 dim üst sınır)
     selected = selected[:24]
 
     facts: list[dict[str, Any]] = []
     files_read = 0
+    parse_errors = 0
     for _, name, dim, blob in selected:
         try:
             raw = blob.download_as_bytes(timeout=30)
@@ -277,6 +323,33 @@ def _load_install_facts(
         except Exception as exc:  # noqa: BLE001
             LOGGER.debug("crashes CSV skip: %s", exc)
 
+    if not facts:
+        if raw_count == 0 and not sample_names:
+            msg = (
+                f"Bucket’ta installs CSV yok · prefix=`{prefix}`. "
+                "Play Console → İndirme raporları / Download reports → İstatistikler "
+                "en az bir kez açılsın (GCS’e yazılsın). "
+                "GP_PACKAGE_NAME paket adıyla dosya adı birebir olmalı."
+            )
+        elif raw_count == 0 and sample_names:
+            msg = (
+                f"Paket prefix’inde dosya yok (`{prefix}`). "
+                f"Bucket installs örnekleri: {', '.join(sample_names[:5])}"
+            )
+        elif not selected:
+            msg = (
+                f"{raw_count} blob görüldü, filtreye uymadı "
+                f"(ay={skipped_month}, dim={skipped_dim}, ad={skipped_name}). "
+                f"Örnek: {', '.join(sample_names[:5]) or '—'}"
+            )
+        else:
+            msg = (
+                f"{files_read} CSV indirildi ama satır yok (tarih/kolon parse). "
+                f"Örnek dosya: {selected[0][1] if selected else '—'}"
+            )
+    else:
+        msg = f"{len(facts)} satır · {files_read} CSV"
+
     data = {
         "ok": bool(facts),
         "configured": True,
@@ -284,14 +357,30 @@ def _load_install_facts(
         "package_name": package_name,
         "facts": facts,
         "files_read": files_read,
-        "message": (
-            f"{len(facts)} satır · {files_read} CSV"
-            if facts
-            else "Bucket’ta installs CSV bulunamadı (prefix/izin/ay aralığı)."
-        ),
+        "message": msg,
+        "debug": {
+            "prefix": prefix,
+            "bucket": bucket_name,
+            "raw_blob_count": raw_count,
+            "selected_count": len(selected),
+            "months": sorted(months_ok),
+            "want_dims": sorted(want_dims),
+            "samples": sample_names[:12],
+            "skipped": {
+                "month": skipped_month,
+                "dim": skipped_dim,
+                "name": skipped_name,
+            },
+        },
         "loaded_at": datetime.utcnow().isoformat() + "Z",
     }
-    _CACHE[cache_key] = {"ts": now, "data": data}
+    # Boş sonucu uzun cache’leme — keşif sonrası tekrar denenebilsin
+    ttl_key = cache_key if facts else cache_key + "|empty"
+    _CACHE[ttl_key if facts else cache_key] = {"ts": now - (_CACHE_TTL - 180) if not facts else now, "data": data}
+    if facts:
+        _CACHE[cache_key] = {"ts": now, "data": data}
+    else:
+        _CACHE[cache_key] = {"ts": now - (_CACHE_TTL - 120), "data": data}  # ~2 dk sonra yenile
     return data
 
 
@@ -395,7 +484,7 @@ def query_play_analytics(
     warehouse = _load_install_facts(
         pkg,
         dims={dim, "overview"},
-        months=5 if (date.fromisoformat(end_s) - date.fromisoformat(start_s)).days > 100 else 4,
+        months=14 if (date.fromisoformat(end_s) - date.fromisoformat(start_s)).days > 100 else 8,
     )
     facts = warehouse.get("facts") or []
     cur_facts = _filter_facts(facts, start=start_s, end=end_s, dim=dim, segment=segment)
@@ -461,6 +550,7 @@ def query_play_analytics(
         "files_read": warehouse.get("files_read"),
         "loaded_at": warehouse.get("loaded_at"),
         "row_count": len(cur_facts),
+        "debug": warehouse.get("debug"),
     }
 
 

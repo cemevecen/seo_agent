@@ -417,6 +417,9 @@
       paStatus.textContent = data.ok
         ? ((data.row_count || 0) + " satır · " + (data.message || ""))
         : ("Uyarı: " + (data.message || "veri yok"));
+      if (!data.ok && data.debug && data.debug.samples && data.debug.samples.length) {
+        paStatus.textContent += " · örnek: " + data.debug.samples.slice(0, 3).join(" | ");
+      }
     } catch (err) {
       var msg = (err && err.name === "AbortError")
         ? "Zaman aşımı (45s) — GCS yavaş veya yetki yok; tekrar dene."
