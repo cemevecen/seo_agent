@@ -1031,7 +1031,7 @@
           <option value="custom">Özel aralık</option>
           <option value="today">Bugün</option>
           <option value="yesterday">Dün</option>
-          <option value="7d">Son 7 gün</option>
+          <option value="7d"{% if ad_mode == 'virgul' %} selected{% endif %}>Son 7 gün</option>
           <option value="14d">Son 2 hafta</option>
           <option value="30d">Son 30 gün</option>
           <option value="60d">Son 60 gün</option>
@@ -1039,7 +1039,7 @@
           <option value="180d">Son 180 gün</option>
           <option value="this_month">Bu ay</option>
           <option value="last_month">Geçen ay</option>
-          <option value="ytd" selected>Bu yıl</option>
+          <option value="ytd"{% if ad_mode != 'virgul' %} selected{% endif %}>Bu yıl</option>
           <option value="1y">Son 1 yıl</option>
           <option value="last_year">Geçen yıl</option>
           <option value="last_year_h1">Geçen yıl ilk 6 ay</option>
@@ -2121,6 +2121,10 @@
 
   function isMzCustomPreset(presetVal) {
     return !presetVal || presetVal === "custom";
+  }
+
+  function mzDefaultPreset() {
+    return window.MZ_AD_MODE === "virgul" ? "7d" : "ytd";
   }
 
   function formatMzDateTr(iso) {
@@ -10924,12 +10928,12 @@
       if (mzUrlBootPending) {
         applyMzUrlStateToForm(mzUrlState);
         if (!mzUrlState.start && !mzUrlState.end && !mzUrlState.preset) {
-          document.getElementById("mz-preset").value = "ytd";
+          document.getElementById("mz-preset").value = mzDefaultPreset();
           applyPreset();
         }
         state._mzDateRangeInitialized = true;
       } else if (!state._mzDateRangeInitialized) {
-        document.getElementById("mz-preset").value = "ytd";
+        document.getElementById("mz-preset").value = mzDefaultPreset();
         applyPreset();
         state._mzDateRangeInitialized = true;
       } else if (state.activeStream) {
