@@ -1,5 +1,62 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  .pa-orbit {
+    position: relative;
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+  .pa-orbit__ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2.5px solid transparent;
+    border-top-color: #059669;
+    border-right-color: rgba(5, 150, 105, 0.35);
+    animation: pa-orbit-spin 0.9s linear infinite;
+  }
+  .pa-orbit__ring--mid {
+    inset: 0.45rem;
+    border-top-color: #34d399;
+    border-right-color: rgba(52, 211, 153, 0.3);
+    animation-duration: 1.25s;
+    animation-direction: reverse;
+  }
+  .pa-orbit__ring--inner {
+    inset: 0.9rem;
+    border-width: 2px;
+    border-top-color: #6ee7b7;
+    border-left-color: rgba(110, 231, 183, 0.4);
+    border-right-color: transparent;
+    animation-duration: 0.7s;
+  }
+  .pa-orbit__core {
+    position: absolute;
+    inset: 1.25rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #a7f3d0, #059669 70%);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+    animation: pa-orbit-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pa-orbit-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes pa-orbit-pulse {
+    0%, 100% { transform: scale(0.85); opacity: 0.75; }
+    50% { transform: scale(1); opacity: 1; }
+  }
+  html.dark .pa-orbit__ring { border-top-color: #34d399; border-right-color: rgba(52, 211, 153, 0.35); }
+  html.dark .pa-orbit__ring--mid { border-top-color: #6ee7b7; }
+  html.dark .pa-orbit__ring--inner { border-top-color: #a7f3d0; }
+  #pa-results.is-loading > :not(#pa-loading) {
+    opacity: 0.35;
+    pointer-events: none;
+    filter: saturate(0.7);
+  }
+  #pa-run.is-loading {
+    min-width: 5.5rem;
+  }
+</style>
 <div class="w-full max-w-none space-y-5 android-play-page" data-header-title="Android · Play Console">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -92,57 +149,71 @@
         Önceki dönem kıyas
       </label>
       <button id="pa-run" type="button"
-              class="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500">
-        Uygula
+              class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
+        <span id="pa-run-label">Uygula</span>
       </button>
     </div>
 
-    <div id="pa-kpi-grid" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <div id="pa-kpi-total" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-        <p id="pa-total-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
-        <p id="pa-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
-      </div>
-      <div id="pa-kpi-prev" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-        <p id="pa-prev-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Önceki dönem</p>
-        <p id="pa-prev" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
-      </div>
-      <div id="pa-kpi-delta" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
-        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Değişim</p>
-        <p id="pa-delta" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
-      </div>
-    </div>
-
-    <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
-        <div class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
-          <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"></span>Seçili dönem</span>
-          <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
-        </div>
-        <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
-      </div>
-      <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
-        <svg id="pa-chart" viewBox="0 0 720 260" class="h-56 w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Keşif grafiği"></svg>
-        <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-44 min-h-[3.25rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
-          <p id="pa-tip-title" class="truncate text-[11px] font-bold tabular-nums text-slate-800 dark:text-zinc-100"></p>
-          <p id="pa-tip-cur" class="mt-1 truncate text-[11px] tabular-nums text-emerald-700 dark:text-emerald-400"></p>
-          <p id="pa-tip-prev" class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
+    <div id="pa-results" class="relative mt-4">
+      <div id="pa-loading" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/55 backdrop-blur-[2px] dark:bg-zinc-950/50" aria-live="polite" aria-busy="false">
+        <div class="flex flex-col items-center gap-3">
+          <div class="pa-orbit" aria-hidden="true">
+            <span class="pa-orbit__ring"></span>
+            <span class="pa-orbit__ring pa-orbit__ring--mid"></span>
+            <span class="pa-orbit__ring pa-orbit__ring--inner"></span>
+            <span class="pa-orbit__core"></span>
+          </div>
+          <p class="text-[11px] font-semibold tracking-wide text-emerald-800 dark:text-emerald-300">Veriler yükleniyor…</p>
         </div>
       </div>
-      <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
-    </div>
 
-    <div class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
-      <table class="min-w-full text-left text-xs">
-        <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
-          <tr>
-            <th class="px-3 py-2 font-bold">Kırılım</th>
-            <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
-            <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
-            <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
-          </tr>
-        </thead>
-        <tbody id="pa-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
-      </table>
+      <div id="pa-kpi-grid" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div id="pa-kpi-total" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+          <p id="pa-total-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
+          <p id="pa-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
+        </div>
+        <div id="pa-kpi-prev" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+          <p id="pa-prev-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Önceki dönem</p>
+          <p id="pa-prev" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
+        </div>
+        <div id="pa-kpi-delta" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Değişim</p>
+          <p id="pa-delta" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
+        </div>
+      </div>
+
+      <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
+          <div class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
+            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"></span>Seçili dönem</span>
+            <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
+          </div>
+          <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
+        </div>
+        <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
+          <svg id="pa-chart" viewBox="0 0 720 260" class="h-56 w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Keşif grafiği"></svg>
+          <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-44 min-h-[3.25rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
+            <p id="pa-tip-title" class="truncate text-[11px] font-bold tabular-nums text-slate-800 dark:text-zinc-100"></p>
+            <p id="pa-tip-cur" class="mt-1 truncate text-[11px] tabular-nums text-emerald-700 dark:text-emerald-400"></p>
+            <p id="pa-tip-prev" class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
+          </div>
+        </div>
+        <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
+      </div>
+
+      <div class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
+        <table class="min-w-full text-left text-xs">
+          <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
+            <tr>
+              <th class="px-3 py-2 font-bold">Kırılım</th>
+              <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
+              <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
+              <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
+            </tr>
+          </thead>
+          <tbody id="pa-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 
@@ -754,10 +825,26 @@
   }
   var paAbort = null;
   var paBusy = false;
+  var paResults = document.getElementById("pa-results");
+  var paLoading = document.getElementById("pa-loading");
+  var paRunLabel = document.getElementById("pa-run-label");
+  function setPaLoading(on) {
+    if (paResults) paResults.classList.toggle("is-loading", !!on);
+    if (paLoading) {
+      paLoading.classList.toggle("hidden", !on);
+      paLoading.classList.toggle("flex", !!on);
+      paLoading.setAttribute("aria-busy", on ? "true" : "false");
+    }
+    if (paRun) {
+      paRun.disabled = !!on;
+      paRun.classList.toggle("is-loading", !!on);
+    }
+    if (paRunLabel) paRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
+  }
   async function runPlayAnalytics() {
     if (paBusy) return;
     paBusy = true;
-    if (paRun) paRun.disabled = true;
+    setPaLoading(true);
     if (paAbort) {
       try { paAbort.abort(); } catch (_) {}
     }
@@ -843,7 +930,7 @@
     } finally {
       if (timer) clearTimeout(timer);
       paBusy = false;
-      if (paRun) paRun.disabled = false;
+      setPaLoading(false);
     }
   }
   if (paPreset) paPreset.addEventListener("change", function () { applyPreset(); });
