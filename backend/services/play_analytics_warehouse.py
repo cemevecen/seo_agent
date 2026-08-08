@@ -93,8 +93,30 @@ def _int_cell(row: dict[str, str], candidates: tuple[str, ...]) -> int:
         return 0
 
 
-def _load_install_facts(package_name: str) -> dict[str, Any]:
-    """Tüm installs_* CSV'lerini oku → facts listesi."""
+def _recent_yyyymm(months: int = 4) -> set[str]:
+    today = date.today()
+    out: set[str] = set()
+    y, m = today.year, today.month
+    for _ in range(max(1, months)):
+        out.add(f"{y}{m:02d}")
+        m -= 1
+        if m <= 0:
+            m = 12
+            y -= 1
+    return out
+
+
+def _load_install_facts(
+    package_name: str,
+    *,
+    dims: set[str] | None = None,
+    months: int = 4,
+) -> dict[str, Any]:
+    """Tüm installs_* CSV'lerini oku → facts listesi.
+
+    dims: yalnızca bu boyutlar (+ overview her zaman). None = hepsi.
+    months: son N ay dosyası (hız için).
+    """
     bucket_name = gp_client._env("GP_REPORTS_BUCKET")  # noqa: SLF001
     if not bucket_name or not gp_client.is_configured():
         return {
@@ -108,10 +130,17 @@ def _load_install_facts(package_name: str) -> dict[str, Any]:
             ),
         }
 
+    want_dims = set(dims) if dims else set(_DIM_SUFFIXES)
+    want_dims.add("overview")
+    cache_key = f"{package_name}|{','.join(sorted(want_dims))}|m{months}"
     now = time.time()
-    cached = _CACHE.get(package_name)
+    cached = _CACHE.get(cache_key)
     if cached and (now - cached["ts"]) < _CACHE_TTL:
         return cached["data"]
+    # Hata cache (403 vs) kısa TTL — UI kilitlenmesin
+    err_cached = _CACHE.get(cache_key + "|err")
+    if err_cached and (now - err_cached["ts"]) < 120:
+        return err_cached["data"]
 
     client = gp_client._get_storage_client()  # noqa: SLF001
     if client is None:
@@ -123,43 +152,60 @@ def _load_install_facts(package_name: str) -> dict[str, Any]:
             "message": "GCS client oluşturulamadı (google-cloud-storage / credentials).",
         }
 
+    months_ok = _recent_yyyymm(months)
     try:
         bucket = client.bucket(bucket_name)
         prefix = f"stats/installs/installs_{package_name}_"
-        blobs = list(bucket.list_blobs(prefix=prefix))
+        blobs = list(bucket.list_blobs(prefix=prefix, max_results=200))
     except Exception as exc:  # noqa: BLE001
         LOGGER.warning("Play analytics list_blobs: %s", exc)
         msg = str(exc)
         if "403" in msg or "Insufficient Permission" in msg or "Permission" in msg:
             msg = (
-                "GCS 403 — service account’a Play Console’da "
-                "“View app information and download bulk reports” ver + "
-                "kodda devstorage.read_only scope (deploy sonrası). "
-                f"Detay: {exc}"
+                "GCS 403 — Play Console → Users: service account’a "
+                "“View app information and download bulk reports” ver. "
+                f"({exc})"
             )
-        return {
+        data = {
             "ok": False,
             "configured": True,
             "bucket": True,
             "facts": [],
             "message": msg,
         }
+        _CACHE[cache_key + "|err"] = {"ts": now, "data": data}
+        return data
 
-    facts: list[dict[str, Any]] = []
-    files_read = 0
+    # Önce overview, sonra istenen dim — ay filtresi
+    selected = []
     for blob in blobs:
         name = blob.name or ""
         if not name.endswith(".csv"):
             continue
-        # installs_com.Doviz_202608_country.csv
         m = re.search(r"_(\d{6})_([a-z0-9_]+)\.csv$", name)
         if not m:
             continue
-        dim = m.group(2)
-        if dim not in _DIM_SUFFIXES:
+        yyyymm, dim = m.group(1), m.group(2)
+        if yyyymm not in months_ok:
             continue
+        if dim not in want_dims:
+            continue
+        selected.append((0 if dim == "overview" else 1, name, dim, blob))
+    selected.sort(key=lambda x: (x[0], x[1]))
+    # En fazla 24 dosya (4 ay × ~6 dim üst sınır)
+    selected = selected[:24]
+
+    facts: list[dict[str, Any]] = []
+    files_read = 0
+    for _, name, dim, blob in selected:
         try:
-            raw = blob.download_as_bytes()
+            raw = blob.download_as_bytes(timeout=30)
+        except TypeError:
+            try:
+                raw = blob.download_as_bytes()
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("CSV download %s: %s", name, exc)
+                continue
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("CSV download %s: %s", name, exc)
             continue
@@ -191,40 +237,45 @@ def _load_install_facts(package_name: str) -> dict[str, Any]:
                 }
             )
 
-    # Crashes overview (opsiyonel)
-    try:
-        cprefix = f"stats/crashes/crashes_{package_name}_"
-        for blob in bucket.list_blobs(prefix=cprefix):
-            name = blob.name or ""
-            if not name.endswith("_overview.csv"):
-                continue
-            raw = blob.download_as_bytes()
-            text = _decode_csv(raw)
-            reader = csv.DictReader(io.StringIO(text))
-            files_read += 1
-            for row in reader:
-                if not isinstance(row, dict):
+    # Crashes overview (opsiyonel, hızlı)
+    if "overview" in want_dims:
+        try:
+            cprefix = f"stats/crashes/crashes_{package_name}_"
+            for blob in bucket.list_blobs(prefix=cprefix, max_results=20):
+                name = blob.name or ""
+                m = re.search(r"_(\d{6})_overview\.csv$", name)
+                if not m or m.group(1) not in months_ok:
                     continue
-                ds = _parse_date(str(row.get("Date") or ""))
-                if not ds:
+                try:
+                    raw = blob.download_as_bytes()
+                except Exception:
                     continue
-                crashes = _int_cell(row, ("Crashes", "Daily Crashes", "crash"))
-                anrs = _int_cell(row, ("ANRs", "Daily ANRs", "anr"))
-                facts.append(
-                    {
-                        "date": ds,
-                        "dim": "overview",
-                        "segment": "OVERALL",
-                        "installs": 0,
-                        "uninstalls": 0,
-                        "active": 0,
-                        "net": 0,
-                        "crashes": crashes,
-                        "anrs": anrs,
-                    }
-                )
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.debug("crashes CSV skip: %s", exc)
+                text = _decode_csv(raw)
+                reader = csv.DictReader(io.StringIO(text))
+                files_read += 1
+                for row in reader:
+                    if not isinstance(row, dict):
+                        continue
+                    ds = _parse_date(str(row.get("Date") or ""))
+                    if not ds:
+                        continue
+                    crashes = _int_cell(row, ("Crashes", "Daily Crashes", "crash"))
+                    anrs = _int_cell(row, ("ANRs", "Daily ANRs", "anr"))
+                    facts.append(
+                        {
+                            "date": ds,
+                            "dim": "overview",
+                            "segment": "OVERALL",
+                            "installs": 0,
+                            "uninstalls": 0,
+                            "active": 0,
+                            "net": 0,
+                            "crashes": crashes,
+                            "anrs": anrs,
+                        }
+                    )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.debug("crashes CSV skip: %s", exc)
 
     data = {
         "ok": bool(facts),
@@ -236,11 +287,11 @@ def _load_install_facts(package_name: str) -> dict[str, Any]:
         "message": (
             f"{len(facts)} satır · {files_read} CSV"
             if facts
-            else "Bucket’ta installs CSV bulunamadı (prefix/izin kontrol et)."
+            else "Bucket’ta installs CSV bulunamadı (prefix/izin/ay aralığı)."
         ),
         "loaded_at": datetime.utcnow().isoformat() + "Z",
     }
-    _CACHE[package_name] = {"ts": now, "data": data}
+    _CACHE[cache_key] = {"ts": now, "data": data}
     return data
 
 
@@ -341,7 +392,11 @@ def query_play_analytics(
     if breakdown == "segment" and dim == "overview":
         dim = "country"
 
-    warehouse = _load_install_facts(pkg)
+    warehouse = _load_install_facts(
+        pkg,
+        dims={dim, "overview"},
+        months=5 if (date.fromisoformat(end_s) - date.fromisoformat(start_s)).days > 100 else 4,
+    )
     facts = warehouse.get("facts") or []
     cur_facts = _filter_facts(facts, start=start_s, end=end_s, dim=dim, segment=segment)
     # crashes/anrs only on overview rows that have those keys — if metric crashes use overview
@@ -411,7 +466,7 @@ def query_play_analytics(
 
 def play_analytics_status() -> dict[str, Any]:
     pkg = _pkg()
-    wh = _load_install_facts(pkg)
+    wh = _load_install_facts(pkg, dims={"overview"}, months=2)
     dates = sorted({f["date"] for f in (wh.get("facts") or [])})
     return {
         "ok": wh.get("ok"),
