@@ -4,8 +4,7 @@
 İlk giriş (headed — bir kez):
   .venv/bin/python scripts/play_console_scrape.py --login
 
-Sync (headless, kayıtlı session):
-  .venv/bin/python scripts/play_console_scrape.py --sync
+Sync (varsayılan headed; Google headless’ta session düşürür):
   .venv/bin/python scripts/play_console_scrape.py --sync --ingest
 
 Env:
