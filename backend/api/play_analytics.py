@@ -34,6 +34,11 @@ _SCRAPE_FIRST = {
     "active",
 }
 
+# GCS installs CSV’de olmayan / yanıltıcı fallback üreten metrikler
+_NO_GCS_FALLBACK = {"dau", "rating", "revenue", "ar2_visitors", "ar2_acquisitions"}
+# ANR/çökme: önce scrape+Reporting, boşsa GCS crashes_* CSV (installs değil)
+_ANR_CRASH = {"anrs", "crashes"}
+
 
 @router.get("/play-analytics/status")
 def get_play_analytics_status() -> dict[str, Any]:
@@ -68,7 +73,9 @@ def get_play_analytics_query(
     try_scrape = prefer in ("scrape", "auto") and (
         prefer == "scrape" or metric in _SCRAPE_FIRST or prefer == "auto"
     )
-    try_gcs = prefer in ("gcs", "auto")
+    try_gcs = prefer in ("gcs", "auto") and not (
+        prefer == "auto" and metric in _NO_GCS_FALLBACK
+    )
 
     scrape_res: dict[str, Any] | None = None
     if try_scrape:
@@ -102,10 +109,13 @@ def get_play_analytics_query(
             gcs["source"] = "gcs"
             if scrape_res and not scrape_res.get("ok"):
                 gcs["scrape_message"] = scrape_res.get("message")
-            if gcs.get("ok") or gcs.get("series"):
+            if gcs.get("ok") and (gcs.get("series") or gcs.get("total")):
                 return gcs
-            # GCS boş — scrape uyarısını döndür
-            if scrape_res:
+            # ANR/çökme: installs CSV “kolon yok” mesajını gösterme — scrape uyarısı kalsın
+            if metric in _ANR_CRASH and scrape_res is not None:
+                scrape_res["gcs_message"] = gcs.get("message")
+                return scrape_res
+            if scrape_res and not scrape_res.get("ok"):
                 scrape_res["gcs_message"] = gcs.get("message")
                 return scrape_res
             return gcs

@@ -62,6 +62,14 @@ def _resolve_metric(metric: str) -> str:
     return _METRIC_ALIASES.get(m, m)
 
 
+_DIM_TO_REPORTING = {
+    "app_version": "versionCode",
+    "device": "deviceModel",
+    "os_version": "apiLevel",
+    "country": "countryCode",
+}
+
+
 def _enrich_reporting(
     facts: list[dict[str, Any]],
     *,
@@ -71,16 +79,28 @@ def _enrich_reporting(
     end_d: date,
     package_name: str,
 ) -> tuple[list[dict[str, Any]], str | None]:
-    """ANR/crash için sürüm & cihaz kırılımını Reporting API’den ekle."""
-    need = dim in ("app_version", "device")
-    if not need or metric_key not in ("anrs", "crashes"):
+    """ANR/crash sürüm / cihaz / OS / ülke kırılımını Reporting API’den ekle.
+
+    Scrape yalnızca tarih×OVERALL ANR/çökme sayıları tutar; boyut kırılımı API’den gelir
+    (oran × distinctUsers ≈ etkilenen kullanıcı).
+    """
+    api_dim = _DIM_TO_REPORTING.get(dim)
+    if not api_dim or metric_key not in ("anrs", "crashes"):
         return facts, None
-    existing = [f for f in facts if str(f.get("dim")) == dim and str(f.get("metric")) == metric_key]
-    if len(existing) >= 10:
+    existing = [
+        f
+        for f in facts
+        if str(f.get("dim")) == dim
+        and str(f.get("metric")) == metric_key
+        and str(f.get("segment") or "") not in ("", "OVERALL", "all", "ALL")
+    ]
+    if len(existing) >= 8:
         return facts, None
     if not gp_client.is_configured():
-        return facts, "Reporting API için GP_SERVICE_ACCOUNT_JSON yok"
-    api_dim = "versionCode" if dim == "app_version" else "deviceModel"
+        return facts, (
+            "Sürüm/cihaz/OS ANR için Railway’de GP_SERVICE_ACCOUNT_JSON gerekir "
+            "(Play Reporting API). Scrape yalnızca tarih bazlı ANR sayıları tutar."
+        )
     try:
         if metric_key == "anrs":
             extra = gp_client.fetch_anr_by_dimension(
@@ -93,8 +113,21 @@ def _enrich_reporting(
     except Exception as exc:  # noqa: BLE001
         return facts, f"Reporting API hata: {exc}"
     if not extra:
-        return facts, "Reporting API boş döndü (yetki/kapsam?)"
-    return facts + extra, f"Reporting API +{len(extra)} satır ({api_dim})"
+        return facts, (
+            f"Reporting API boş ({api_dim}) — service account’ta "
+            "androidpublisher / playdeveloperreporting yetkisi kontrol et."
+        )
+    # Aynı dim+metric eski satırları temizle (overview OVERALL kalsın)
+    kept = [
+        f
+        for f in facts
+        if not (
+            str(f.get("metric")) == metric_key
+            and str(f.get("dim")) == dim
+            and str(f.get("source") or "") == "reporting_api"
+        )
+    ]
+    return kept + extra, f"Reporting API +{len(extra)} satır ({api_dim}→{dim})"
 
 
 def _aggregate(
@@ -193,6 +226,9 @@ def query_scrape_analytics(
     metric_key = _resolve_metric(metric)
     breakdown = breakdown if breakdown in ("date", "week", "month", "segment") else "date"
     dim = dim if dim else "overview"
+    # Sürüm/cihaz/OS/ülke seçiliyse günlük toplam yanıltıcı (segmentleri üst üste biner) → boyut kırılımı
+    if dim in _DIM_TO_REPORTING and breakdown in ("date", "week", "month"):
+        breakdown = "segment"
 
     facts, meta = _load_facts()
     pkg = str(meta.get("package_name") or "com.Doviz")
@@ -257,8 +293,7 @@ def query_scrape_analytics(
             dim_facts = cur
     else:
         dim_facts = [f for f in cur if str(f.get("dim") or "") == dim]
-        if not dim_facts and dim in ("app_version", "device"):
-            # enrich sonrası hâlâ yoksa
+        if not dim_facts and dim in _DIM_TO_REPORTING:
             dim_facts = []
 
     if segment and segment not in ("", "all", "ALL", "OVERALL"):
@@ -280,11 +315,25 @@ def query_scrape_analytics(
             undated.append(f)
     use = dated if dated else undated
 
+    # Reporting boyut satırlarında OVERALL’i gösterme
+    if dim in _DIM_TO_REPORTING:
+        use = [
+            f
+            for f in use
+            if str(f.get("segment") or "") not in ("", "OVERALL", "all", "ALL")
+        ]
+
     series = _aggregate(use, breakdown=breakdown)
     # segment breakdown + date grain: top segments by sum
     if breakdown == "segment" and not series and dated:
-        series = _aggregate(dated, breakdown="segment")
-
+        series = _aggregate(
+            [
+                f
+                for f in dated
+                if str(f.get("segment") or "") not in ("", "OVERALL", "all", "ALL")
+            ],
+            breakdown="segment",
+        )
     metric_dates = sorted(
         {
             str(f.get("date"))[:10]
@@ -369,6 +418,13 @@ def query_scrape_analytics(
         msg += f" · bucket {dates[0]}→{dates[-1]}"
     if lag_note:
         msg += f" · {lag_note}"
+    if not series and dim in _DIM_TO_REPORTING and metric_key in ("anrs", "crashes"):
+        msg = (
+            f"ANR/çökme `{dim}` kırılımı boş. "
+            "Scrape yalnızca tarih bazlı sayıları tutar; sürüm/cihaz/OS/ülke "
+            "Play Reporting API’den gelir. "
+            + (enrich_msg or "Reporting yanıtı yok — GP_SERVICE_ACCOUNT_JSON / playdeveloperreporting yetkisini kontrol et.")
+        )
 
     return {
         "ok": bool(series),

@@ -443,16 +443,25 @@ def _load_install_facts(
                 }
             )
 
-    # Crashes overview (opsiyonel, hızlı)
-    if "overview" in want_dims:
-        try:
-            cprefix = f"stats/crashes/crashes_{package_name}_"
-            for blob in bucket.list_blobs(prefix=cprefix, max_results=20):
+    # Crashes / ANR CSV (overview + boyut: app_version, device, os_version, country)
+    crash_dims = want_dims | {"overview"}
+    try:
+        for pkg in pkg_variants:
+            cprefix = f"stats/crashes/crashes_{pkg}_"
+            for blob in bucket.list_blobs(prefix=cprefix, max_results=80):
                 name = blob.name or ""
-                m = re.search(r"_(\d{6})_overview\.csv$", name)
+                m = re.search(
+                    r"_(\d{6})_(overview|app_version(?:_code)?|device|os_version|country)\.csv$",
+                    name,
+                    re.I,
+                )
                 if not m or m.group(1) not in months_ok:
                     continue
                 file_ym = m.group(1)
+                raw_dim = m.group(2).lower()
+                dim = "app_version" if "app_version" in raw_dim else raw_dim
+                if dim not in crash_dims:
+                    continue
                 try:
                     raw = blob.download_as_bytes()
                 except Exception:
@@ -468,11 +477,26 @@ def _load_install_facts(
                         continue
                     crashes = _int_cell(row, ("Crashes", "Daily Crashes", "crash"))
                     anrs = _int_cell(row, ("ANRs", "Daily ANRs", "anr"))
+                    segment = "OVERALL"
+                    if dim != "overview":
+                        cols = _DIM_COL_CANDIDATES.get(dim) or ()
+                        for col in cols:
+                            if _row_get(row, col):
+                                segment = _clean_text(str(_row_get(row, col))) or "UNKNOWN"
+                                break
+                        if segment == "OVERALL":
+                            # fallback: non-date/non-metric column
+                            for k, v in row.items():
+                                kl = (k or "").lower()
+                                if not v or "date" in kl or "crash" in kl or "anr" in kl or "package" in kl:
+                                    continue
+                                segment = _clean_text(str(v)) or "UNKNOWN"
+                                break
                     facts.append(
                         {
                             "date": ds,
-                            "dim": "overview",
-                            "segment": "OVERALL",
+                            "dim": dim,
+                            "segment": segment,
                             "installs": 0,
                             "uninstalls": 0,
                             "active": 0,
@@ -481,8 +505,8 @@ def _load_install_facts(
                             "anrs": anrs,
                         }
                     )
-        except Exception as exc:  # noqa: BLE001
-            LOGGER.debug("crashes CSV skip: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("crashes CSV skip: %s", exc)
 
     if not facts:
         if raw_count == 0 and not sample_names:
@@ -688,6 +712,8 @@ def query_play_analytics(
     dim = dim if dim in _DIM_SUFFIXES else "overview"
     if breakdown == "segment" and dim == "overview":
         dim = "country"
+    if metric in ("crashes", "anrs") and dim != "overview" and breakdown in ("date", "week", "month"):
+        breakdown = "segment"
 
     warehouse = _load_install_facts(
         pkg,
@@ -715,9 +741,6 @@ def query_play_analytics(
     # Play raporları 3–7 gün gecikmeli: seçili aralıkta satır yoksa son mevcut güne kaydır
     span_days = (end_d - start_d).days + 1
     cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim=dim, segment=segment)
-    if metric in ("crashes", "anrs"):
-        dim = "overview"
-        cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim="overview", segment=None)
 
     if not cur_facts and date_max:
         try:
@@ -731,8 +754,6 @@ def query_play_analytics(
             start_s, end_s = start_d.isoformat(), end_d.isoformat()
             auto_shifted = (start_s != requested_start) or (end_s != requested_end)
             cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim=dim, segment=segment)
-            if metric in ("crashes", "anrs"):
-                cur_facts = _filter_facts(metric_facts, start=start_s, end=end_s, dim="overview", segment=None)
         except ValueError:
             pass
 
@@ -765,7 +786,7 @@ def query_play_analytics(
             metric_facts,
             start=ps.isoformat(),
             end=pe.isoformat(),
-            dim=dim if metric not in ("crashes", "anrs") else "overview",
+            dim=dim,
             segment=segment,
         )
         prev_series = _aggregate(prev_facts, breakdown=breakdown, metric=metric)

@@ -207,6 +207,15 @@ def fetch_anr_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | Non
         return None
 
 
+def _reporting_ui_dim(api_dim: str) -> str:
+    return {
+        "versionCode": "app_version",
+        "deviceModel": "device",
+        "apiLevel": "os_version",
+        "countryCode": "country",
+    }.get(api_dim, api_dim)
+
+
 def fetch_anr_by_dimension(
     package_name: str,
     *,
@@ -214,15 +223,16 @@ def fetch_anr_by_dimension(
     start: date | None = None,
     end: date | None = None,
 ) -> list[dict[str, Any]]:
-    """ANR oranını versionCode / deviceModel kırılımıyla çek (2025-01-01+).
+    """ANR oranını versionCode / deviceModel / apiLevel / countryCode kırılımıyla çek.
 
     Not: Reporting API mutlak ANR *sayısı* değil kullanıcı-ağırlıklı *oran* döner.
-    Console scrape günlük sayıları (tarih) sağlar; sürüm/cihaz için oran + distinctUsers.
+    Console scrape günlük sayıları (tarih) sağlar; kırılımlar için oran × distinctUsers.
     """
     svc = _reporting_service()
     if svc is None:
         return []
     dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
+    ui_dim = _reporting_ui_dim(dim)
     end_d = end or (date.today() - timedelta(days=3))
     start_d = start or date(2025, 1, 1)
     if start_d > end_d:
@@ -296,7 +306,7 @@ def fetch_anr_by_dimension(
                     {
                         "metric": "anrs",
                         "view_id": f"anrs_reporting_{dim}",
-                        "dim": "app_version" if dim == "versionCode" else ("device" if dim == "deviceModel" else dim),
+                        "dim": ui_dim,
                         "segment": seg,
                         "date": ds,
                         "value": approx if approx is not None else (rate if rate is not None else 0.0),
@@ -328,8 +338,11 @@ def fetch_crash_by_dimension(
     if svc is None:
         return []
     dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
+    ui_dim = _reporting_ui_dim(dim)
     end_d = end or (date.today() - timedelta(days=3))
     start_d = start or date(2025, 1, 1)
+    if start_d > end_d:
+        start_d = end_d - timedelta(days=27)
     name = f"apps/{package_name}/crashRateMetricSet"
     body: dict[str, Any] = {
         "timelineSpec": {
@@ -342,57 +355,71 @@ def fetch_crash_by_dimension(
         "pageSize": 100000,
     }
     out: list[dict[str, Any]] = []
+    page_token = None
     try:
-        resp = svc.vitals().crashrate().query(name=name, body=body).execute()
-        for row in resp.get("rows") or []:
-            if not isinstance(row, dict):
-                continue
-            st = row.get("startTime") or {}
-            try:
-                ds = f"{int(st['year']):04d}-{int(st['month']):02d}-{int(st['day']):02d}"
-            except (KeyError, TypeError, ValueError):
-                continue
-            seg = "UNKNOWN"
-            for d in row.get("dimensions") or []:
-                if isinstance(d, dict) and d.get("dimension") == dim:
-                    seg = str(d.get("stringValue") or d.get("int64Value") or "UNKNOWN")
-                    break
-            metrics = {
-                (m.get("metric") or ""): m
-                for m in (row.get("metrics") or [])
-                if isinstance(m, dict)
-            }
-            rate = None
-            for key in ("crashRate", "crashRate7dUserWeighted"):
-                m = metrics.get(key) or {}
-                dv = m.get("decimalValue") or m.get("value")
-                if dv is not None:
-                    try:
-                        rate = float(dv)
-                        break
-                    except (TypeError, ValueError):
-                        pass
-            users = None
-            mu = metrics.get("distinctUsers") or {}
-            du = mu.get("decimalValue") or mu.get("value")
-            if du is not None:
+        while True:
+            if page_token:
+                body["pageToken"] = page_token
+            resp = svc.vitals().crashrate().query(name=name, body=body).execute()
+            for row in resp.get("rows") or []:
+                if not isinstance(row, dict):
+                    continue
+                st = row.get("startTime") or {}
                 try:
-                    users = float(du)
-                except (TypeError, ValueError):
-                    users = None
-            approx = round(rate * users, 4) if rate is not None and users is not None else rate
-            out.append(
-                {
-                    "metric": "crashes",
-                    "view_id": f"crashes_reporting_{dim}",
-                    "dim": "app_version" if dim == "versionCode" else ("device" if dim == "deviceModel" else dim),
-                    "segment": seg,
-                    "date": ds,
-                    "value": approx or 0.0,
-                    "label": f"crash:{dim}:{seg}",
-                    "source": "reporting_api",
+                    ds = f"{int(st['year']):04d}-{int(st['month']):02d}-{int(st['day']):02d}"
+                except (KeyError, TypeError, ValueError):
+                    continue
+                seg = "UNKNOWN"
+                for d in row.get("dimensions") or []:
+                    if isinstance(d, dict) and d.get("dimension") == dim:
+                        seg = str(
+                            d.get("stringValue")
+                            or d.get("int64Value")
+                            or d.get("value")
+                            or "UNKNOWN"
+                        )
+                        break
+                metrics = {
+                    (m.get("metric") or ""): m
+                    for m in (row.get("metrics") or [])
+                    if isinstance(m, dict)
                 }
-            )
+                rate = None
+                for key in ("crashRate", "crashRate7dUserWeighted"):
+                    m = metrics.get(key) or {}
+                    dv = m.get("decimalValue") or m.get("value")
+                    if dv is not None:
+                        try:
+                            rate = float(dv)
+                            break
+                        except (TypeError, ValueError):
+                            pass
+                users = None
+                mu = metrics.get("distinctUsers") or {}
+                du = mu.get("decimalValue") or mu.get("value")
+                if du is not None:
+                    try:
+                        users = float(du)
+                    except (TypeError, ValueError):
+                        users = None
+                approx = round(rate * users, 4) if rate is not None and users is not None else rate
+                out.append(
+                    {
+                        "metric": "crashes",
+                        "view_id": f"crashes_reporting_{dim}",
+                        "dim": ui_dim,
+                        "segment": seg,
+                        "date": ds,
+                        "value": approx or 0.0,
+                        "label": f"crash:{dim}:{seg}",
+                        "source": "reporting_api",
+                    }
+                )
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
+            if len(out) >= 200000:
+                break
     except Exception as exc:  # noqa: BLE001
         logger.warning("GP crash dimension query (%s/%s): %s", package_name, dim, exc)
     return out

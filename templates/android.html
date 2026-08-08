@@ -32,7 +32,7 @@
     <div class="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Keşif · zaman &amp; kırılım</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console statistics scrape (ülke/OS) · GCS yükleme yedek · bazı metrikler 1–3 gün gecikmeli</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console statistics scrape · ANR/çökme boyutları Reporting API (sürüm/cihaz/OS/ülke) · bazı metrikler 1–3 gün gecikmeli</p>
       </div>
       <p id="pa-status" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
     </div>
@@ -705,10 +705,21 @@
   }
   if (paPreset) paPreset.addEventListener("change", function () { applyPreset(); });
   if (paRun) paRun.addEventListener("click", runPlayAnalytics);
+  function syncDimBreakdown() {
+    if (!paDim || !paBreakdown) return;
+    var dim = paDim.value || "overview";
+    if (dim !== "overview" && paBreakdown.value === "date") {
+      paBreakdown.value = "segment";
+    }
+    if (dim === "overview" && paBreakdown.value === "segment") {
+      paBreakdown.value = "date";
+    }
+  }
   ["pa-metric", "pa-breakdown", "pa-dim", "pa-segment", "pa-compare"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener("change", function () {
-      if (id === "pa-dim" || id === "pa-breakdown") runPlayAnalytics();
+      if (id === "pa-dim") syncDimBreakdown();
+      if (id === "pa-dim" || id === "pa-breakdown" || id === "pa-metric") runPlayAnalytics();
     });
   });
   applyPreset();
