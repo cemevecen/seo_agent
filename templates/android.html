@@ -95,16 +95,16 @@
       </button>
     </div>
 
-    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+    <div id="pa-kpi-grid" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div id="pa-kpi-total" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
         <p id="pa-total-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
         <p id="pa-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+      <div id="pa-kpi-prev" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
         <p id="pa-prev-label" class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Önceki dönem</p>
         <p id="pa-prev" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
       </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+      <div id="pa-kpi-delta" class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
         <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Değişim</p>
         <p id="pa-delta" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
       </div>
@@ -114,7 +114,7 @@
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
         <div class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
           <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"></span>Seçili dönem</span>
-          <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
+          <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
         </div>
         <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
       </div>
@@ -305,12 +305,15 @@
   var paSegment = document.getElementById("pa-segment");
   var paCompare = document.getElementById("pa-compare");
   var paRun = document.getElementById("pa-run");
-  var paStatus = document.getElementById("pa-status");
   var paTotal = document.getElementById("pa-total");
   var paPrev = document.getElementById("pa-prev");
   var paDelta = document.getElementById("pa-delta");
   var paTotalLabel = document.getElementById("pa-total-label");
   var paPrevLabel = document.getElementById("pa-prev-label");
+  var paKpiGrid = document.getElementById("pa-kpi-grid");
+  var paKpiPrev = document.getElementById("pa-kpi-prev");
+  var paKpiDelta = document.getElementById("pa-kpi-delta");
+  var paLegendPrev = document.getElementById("pa-legend-prev");
   var paChart = document.getElementById("pa-chart");
   var paChartWrap = document.getElementById("pa-chart-wrap");
   var paTooltip = document.getElementById("pa-tooltip");
@@ -342,6 +345,25 @@
     if (paThDelta) {
       if (show) paThDelta.classList.remove("hidden");
       else paThDelta.classList.add("hidden");
+    }
+  }
+  function setCompareKpisVisible(show) {
+    if (paKpiPrev) {
+      if (show) paKpiPrev.classList.remove("hidden");
+      else paKpiPrev.classList.add("hidden");
+    }
+    if (paKpiDelta) {
+      if (show) paKpiDelta.classList.remove("hidden");
+      else paKpiDelta.classList.add("hidden");
+    }
+    if (paLegendPrev) {
+      if (show) paLegendPrev.classList.remove("hidden");
+      else paLegendPrev.classList.add("hidden");
+    }
+    if (paKpiGrid) {
+      paKpiGrid.className = show
+        ? "mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
+        : "mt-4 grid grid-cols-1 gap-3";
     }
   }
 
@@ -690,7 +712,6 @@
     if (paBusy) return;
     paBusy = true;
     if (paRun) paRun.disabled = true;
-    if (paStatus) paStatus.textContent = "Sorgulanıyor…";
     if (paAbort) {
       try { paAbort.abort(); } catch (_) {}
     }
@@ -724,35 +745,36 @@
       }
       var cmp = data.compare;
       var cmpMeta = cmp || null;
-      if (cmp && cmp.available === false) {
-        paPrev.textContent = "—";
-        paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
-        paPrev.title = "";
-        setCompareNote(cmp.missing_reason || PREV_MISSING_LONG);
-      } else if (cmp && cmp.total != null) {
+      var hasPrev = !!(cmp && cmp.available !== false && cmp.total != null);
+      setCompareKpisVisible(hasPrev);
+      if (hasPrev) {
         paPrev.textContent = fmtNum(cmp.total, metricIsCountLike());
         paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
         paPrev.title = "";
         setCompareNote("");
       } else {
-        paPrev.textContent = "—";
-        paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
-        paPrev.title = "";
-        setCompareNote("");
+        if (paPrev) paPrev.textContent = "—";
+        setCompareNote(
+          cmp && cmp.available === false
+            ? (cmp.missing_reason || PREV_MISSING_LONG)
+            : ""
+        );
       }
-      if (cmp && cmp.available !== false && cmp.delta_pct != null) {
+      if (hasPrev && cmp.delta_pct != null) {
         var d = cmp.delta_pct;
         paDelta.textContent = (d >= 0 ? "+" : "") + d + "%";
         paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums " + (d >= 0 ? "text-emerald-700" : "text-rose-600");
-      } else {
+      } else if (paDelta) {
         paDelta.textContent = "—";
         paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
       }
-      drawChart(data.series || [], (cmp && cmp.available !== false && cmp.series) ? cmp.series : [], paBreakdown.value, cmpMeta);
-      renderPaTable(data.series || [], (cmp && cmp.available !== false && cmp.series) ? cmp.series : [], paBreakdown.value, cmpMeta);
+      drawChart(data.series || [], hasPrev && cmp.series ? cmp.series : [], paBreakdown.value, cmpMeta);
+      renderPaTable(data.series || [], hasPrev && cmp.series ? cmp.series : [], paBreakdown.value, cmpMeta);
       if (paCompareRange) {
-        if (cmp && cmp.start && cmp.end) {
+        if (hasPrev && cmp.start && cmp.end) {
           paCompareRange.textContent = "Kıyas: " + cmp.start + " → " + cmp.end;
+        } else if (cmp && cmp.available === false && cmp.start && cmp.end) {
+          paCompareRange.textContent = "";
         } else {
           paCompareRange.textContent = "";
         }
