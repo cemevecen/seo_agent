@@ -83,7 +83,7 @@ RELEASE_URL = (
 VITALS_CRASHES_BASE = f"{BASE_APP}/vitals/crashes"
 VITALS_METRICS_OVERVIEW_URL = (
     os.environ.get("PLAY_CONSOLE_VITALS_METRICS_URL")
-    or f"{BASE_APP}/vitals/metrics/overview"
+    or f"{BASE_APP}/vitals/metrics/overview?peersetKey=3%3A50984700721a5227"
 ).strip()
 
 # Play Console "Sorun kategorisi" kırılımları (TR + EN etiketleri)
@@ -2159,6 +2159,9 @@ def _scrape_vitals_crashes_error_type(
         snap = _extract_vitals_issue_snapshot(page) or {}
         issues = snap.get("issues") if isinstance(snap.get("issues"), list) else []
         cards = snap.get("cards") if isinstance(snap.get("cards"), list) else []
+        count_raw = snap.get("issue_count")
+        if count_raw is None and issues:
+            count_raw = str(len(issues))
         categories_out.append(
             {
                 "id": cat_id,
@@ -2166,7 +2169,7 @@ def _scrape_vitals_crashes_error_type(
                 "description": cat.get("description") or "",
                 "selected_ok": selected_ok or cat_id == "general",
                 "selected_label": snap.get("selected_category") or "",
-                "issue_count": snap.get("issue_count"),
+                "issue_count": count_raw,
                 "cards": cards[:8],
                 "issues": issues[:20],
                 "issue_row_count": len(issues),
