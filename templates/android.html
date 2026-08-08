@@ -251,9 +251,6 @@
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Android Vitals</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
-          Crash/ANR filtreleri, sorun kategorileri ve detay sayfaları (Play Console vitals)
-        </p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <a id="pc-vitals-crashes-link"
@@ -295,7 +292,6 @@
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Özet</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console anlık snapshot · KPI / TPG / monetize / grow / monitor / devices</p>
       </div>
       <button type="button" data-pc-close="scrape" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
     </div>
@@ -1674,9 +1670,30 @@
     return { icon: icon, url: url };
   }
 
+  function displayMetricTitle(m) {
+    var title = String((m && m.title) || "").replace(/\s+/g, " ").trim();
+    var seg = String((m && m.segment) || "").replace(/\s+/g, " ").trim();
+    var only = "Yalnızca kullanıcı tarafından algılanan";
+    // "Kullanıcı tarafından algılanan: Yalnızca …" → sadece ikinci kısım
+    var mColon = title.match(/^Kullanıcı tarafından algılanan\s*[:·\-]\s*(.+)$/i);
+    if (mColon) return mColon[1].trim() || title;
+    if (/^Kullanıcı tarafından algılanan$/i.test(title) && /yalnızca kullanıcı tarafından algılanan/i.test(seg)) {
+      return only;
+    }
+    if (/yalnızca kullanıcı tarafından algılanan/i.test(title)) return only;
+    return title || "—";
+  }
+
   function metricCard(m, opts) {
     opts = opts || {};
-    var sub = opts.subtitle || m.segment || m.period || "";
+    var title = displayMetricTitle(m);
+    var sub = opts.subtitle != null ? opts.subtitle : (m.segment || m.period || "");
+    sub = String(sub || "").replace(/\s+/g, " ").trim();
+    // Başlık zaten segmenti taşıyorsa alt satırı tekrarlama
+    if (sub && title && sub.toLowerCase() === title.toLowerCase()) sub = "";
+    if (/^yalnızca kullanıcı tarafından algılanan$/i.test(title) && /kullanıcı tarafından algılanan/i.test(sub)) {
+      sub = "";
+    }
     var meta = resolveMetricMeta(m);
     var delta = m.delta
       ? '<p class="mt-1 text-xs tabular-nums ' + deltaClass(m.delta) + '">' + esc(m.delta) + "</p>"
@@ -1698,7 +1715,7 @@
           '<div class="flex min-w-0 items-start gap-2">' +
             metricIconSvg(meta.icon) +
             '<div class="min-w-0">' +
-              '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(m.title || "—") + "</p>" +
+              '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(title) + "</p>" +
               (sub ? '<p class="mt-0.5 text-[10px] text-slate-400">' + esc(sub) + "</p>" : "") +
             "</div>" +
           "</div>" +
