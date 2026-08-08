@@ -215,15 +215,12 @@ def post_virgul_ingest(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-# /ad UI’nin çağırdığı ama Virgül’de anlamsız uçlar — no-op / 403
 @router.get("/virgul-analytics/sheets-status")
-def virgul_sheets_status_noop():
-    return {
-        "ok": True,
-        "warehouse": _WAREHOUSE,
-        "message": "Virgül modu — Google Sheets yok",
-        "sources": virgul_sources_payload(),
-    }
+def virgul_sheets_status(db: Session = Depends(get_db)):
+    """UI ‘son sync’ hint — Google Sheets değil; katalog/ingest zamanı."""
+    from backend.services.virgul_ad_sync import virgul_sync_status
+
+    return virgul_sync_status(db)
 
 
 @router.get("/virgul-analytics/revenue-targets")

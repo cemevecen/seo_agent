@@ -11676,12 +11676,35 @@
     });
   }
 
+  function fmtMzSyncAt(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleString("tr-TR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+    return String(iso).replace("T", " ").replace("Z", "").slice(0, 16);
+  }
+
   function renderMzSheetsStatus(status) {
     var hint = document.getElementById("mz-sheets-sync-hint");
     if (!status || !hint) return;
-    var last = status.last_sync_at
-      ? String(status.last_sync_at).replace("T", " ").replace("Z", "").slice(0, 16)
-      : "henüz yok";
+    var last = status.last_sync_at ? fmtMzSyncAt(status.last_sync_at) : "—";
+    if (window.MZ_AD_MODE === "virgul") {
+      var n =
+        status.source_count ||
+        (Array.isArray(status.sources) && status.sources.length) ||
+        (window.MZ_VIRGUL_SOURCES && window.MZ_VIRGUL_SOURCES.length) ||
+        6;
+      hint.textContent = "Kaynak: Virgül panel (" + n + " sid) · son sync: " + last;
+      return;
+    }
+    if (!status.last_sync_at) last = "henüz yok";
     function trDate(iso) {
       if (!iso) return null;
       var p = String(iso).slice(0, 10).split("-");
@@ -11707,7 +11730,6 @@
   }
 
   async function loadMzSheetsStatus() {
-    if (window.MZ_AD_MODE === "virgul") return null;
     try {
       var r = await fetch("/api/mz-analytics/sheets-status", { credentials: "same-origin" });
       if (!r.ok) return null;
@@ -12013,14 +12035,8 @@
       if (!br.ok || (body && body.ok === false)) {
         throw new Error((body && (body.message || body.detail)) || ("Köprü HTTP " + br.status));
       }
-      if (hint) {
-        hint.textContent =
-          "Kaynak: Virgül · " +
-          ((body && body.message) || "OK") +
-          " · " +
-          new Date().toLocaleString("tr-TR");
-      }
       await loadFacets({ cacheBust: true });
+      await loadMzSheetsStatus();
     } catch (err) {
       if (hint) {
         hint.textContent =
@@ -12031,6 +12047,7 @@
       try {
         await fetch("/api/virgul-analytics/sync?force=1", { method: "POST", credentials: "same-origin" });
         await loadFacets({ cacheBust: true });
+        await loadMzSheetsStatus();
       } catch (_) {}
     } finally {
       setMzSheetsButtonsDisabled(false);

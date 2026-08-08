@@ -16,8 +16,10 @@ from backend.services.ad_analytics_store import (
     invalidate_facets_cache,
 )
 from backend.services.virgul_ad_config import (
+    VIRGUL_SOURCE_PREFIX,
     is_virgul_source_file,
     source_by_stream,
+    virgul_sources_payload,
 )
 from backend.services.virgul_ad_client import fetch_all_sites_exports
 
@@ -262,4 +264,28 @@ def ingest_virgul_bridge_payload(
         "warehouse": "virgul",
         "message": f"Virgül ingest · {ok_n}/{len(per)} · {total_parsed} satır",
         "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+
+def virgul_sync_status(db: Session) -> dict[str, Any]:
+    """UI hint: son başarılı Virgül ingest zamanı (katalog imported_at)."""
+    last = db.execute(
+        select(func.max(AdReportCatalog.imported_at)).where(
+            AdReportCatalog.source_file.ilike(f"{VIRGUL_SOURCE_PREFIX}%")
+        )
+    ).scalar_one_or_none()
+    if last is None:
+        last = db.execute(
+            select(func.max(AdReportRow.created_at)).where(
+                AdReportRow.source_file.ilike(f"{VIRGUL_SOURCE_PREFIX}%")
+            )
+        ).scalar_one_or_none()
+    sources = virgul_sources_payload()
+    return {
+        "ok": True,
+        "warehouse": "virgul",
+        "sources": sources,
+        "source_count": len(sources),
+        "last_sync_at": last.isoformat() + "Z" if last else None,
+        "message": "Virgül panel",
     }
