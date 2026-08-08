@@ -532,7 +532,10 @@ def run_play_bridge_once() -> dict[str, Any]:
         return err
 
     print("Play Console scrape başlıyor…", flush=True)
-    result = scrape_play_console(headed=False)
+    # Google headless’ta oturumu düşürüyor; bridge da headed (DISPLAY/Mac GUI).
+    env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    result = scrape_play_console(headed=headed)
     if result.get("needs_login"):
         out = {
             "ok": False,

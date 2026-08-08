@@ -279,7 +279,11 @@ def _extract_reviews_dom(page) -> list[dict[str, Any]]:
     )
 
 
-def scrape_play_console(*, headed: bool = False) -> dict[str, Any]:
+def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
+    if headed is None:
+        # Google Play, headless Chromium’da cookie’yi sık sık reddeder.
+        env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
+        headed = env_hl not in ("1", "true", "yes")
     pw, context = _launch_context(headed=headed)
     network: list[dict[str, Any]] = []
     try:
@@ -416,9 +420,13 @@ def main(argv: list[str] | None = None) -> int:
         r = run_login_interactive()
         print(json.dumps(r, ensure_ascii=False, indent=2))
         return 0 if r.get("ok") else 1
-    headed = "--headed" in args
+    headed = "--headed" in args or "--headless" not in args
+    if "--headless" in args:
+        headed = False
+        os.environ["PLAY_CONSOLE_HEADLESS"] = "1"
     do_ingest = "--ingest" in args or "--sync" in args
     # --sync implies scrape (+ ingest if token)
+    print(f"Play scrape · headed={headed}", flush=True)
     result = scrape_play_console(headed=headed)
     print(json.dumps({k: v for k, v in result.items() if k != "raw_network"}, ensure_ascii=False, indent=2))
     if result.get("needs_login"):
