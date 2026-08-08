@@ -1493,8 +1493,16 @@
     });
   }
 
+  function isCalendarReviewJunk(r) {
+    var blob = [r && r.author, r && r.body, r && r.raw, r && r.date].join(" ");
+    if (/başlangıç\s*tarihi|bitiş\s*tarihi|arrow_drop_down|chevron_|PSÇPCCP/i.test(blob)) return true;
+    if (/\b(?:OCA|ŞUB|MAR|N[İI]S|MAY|HAZ|TEM|A[ĞG]U|EYL|EK[İI]|KAS|ARA)\s+20\d{2}\b/.test(blob)) return true;
+    var months = blob.match(/\b(?:Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara|OCA|ŞUB|MAR|NİS|MAY|HAZ|TEM|AĞU|EYL|EKİ|KAS|ARA)\b/g);
+    return !!(months && months.length >= 4);
+  }
+
   function renderReviews(rows) {
-    rows = Array.isArray(rows) ? rows : [];
+    rows = (Array.isArray(rows) ? rows : []).filter(function (r) { return r && !isCalendarReviewJunk(r); });
     var countLabel = rows.length ? (rows.length + " yorum") : "—";
     if (reviewCountEl) reviewCountEl.textContent = rows.length ? countLabel : "";
     if (btnReviewCount) btnReviewCount.textContent = countLabel;
@@ -1505,17 +1513,27 @@
     }
     reviewsEmpty.classList.add("hidden");
     reviewsEl.innerHTML = rows.map(function (r) {
-      var meta = [];
-      if (r.date) meta.push(esc(r.date));
-      if (r.device) meta.push(esc(r.device));
+      var date = (r.date || "").trim();
+      var stars = (r.stars || "").trim();
+      var starsHtml = stars
+        ? '<span class="inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">' + esc(stars) + "</span>"
+        : "";
+      var dateHtml = date
+        ? '<time class="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">' + esc(date) + "</time>"
+        : "";
       return (
-        '<article class="rounded-xl border border-slate-200 p-3 dark:border-zinc-700">' +
-          '<div class="flex flex-wrap items-center justify-between gap-2">' +
-            '<p class="text-sm font-bold text-slate-800 dark:text-zinc-100">' + esc(r.author || "Anonim") + "</p>" +
-            (r.stars ? '<span class="text-xs text-amber-600">' + esc(r.stars) + "</span>" : "") +
+        '<article class="relative rounded-xl border border-slate-200 bg-white p-3.5 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+          '<div class="flex items-start justify-between gap-3">' +
+            '<div class="min-w-0">' +
+              '<p class="truncate text-sm font-bold text-slate-900 dark:text-zinc-50">' + esc(r.author || "Anonim") + "</p>" +
+              (r.device ? '<p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-zinc-400">' + esc(r.device) + "</p>" : "") +
+            "</div>" +
+            '<div class="flex shrink-0 flex-col items-end gap-1">' +
+              dateHtml +
+              starsHtml +
+            "</div>" +
           "</div>" +
-          (meta.length ? '<p class="mt-0.5 text-[11px] text-slate-500">' + meta.join(" · ") + "</p>" : "") +
-          '<p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-zinc-300">' + esc(r.body || r.raw || "") + "</p>" +
+          '<p class="mt-2.5 text-sm leading-relaxed text-slate-700 dark:text-zinc-300">' + esc(r.body || "") + "</p>" +
         "</article>"
       );
     }).join("");

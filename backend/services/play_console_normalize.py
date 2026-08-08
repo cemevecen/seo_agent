@@ -72,8 +72,18 @@ _METRIC_TITLE_HINTS = (
 
 _JUNK_AUTHOR = re.compile(
     r"^(cihaz:|star|thumb_|dashboard|vital_|expand_|feature_|brightness_|arrow_|calendar_|youtube_|event_|"
-    r"erişim ve cihazlar|tüm zamanlar|kontol paneli|kontrol paneli)",
+    r"başlangıç|bitiş|erişim ve cihazlar|tüm zamanlar|kontol paneli|kontrol paneli)",
     re.I,
+)
+
+_CALENDAR_UI = re.compile(
+    r"başlangıç\s*tarihi|bitiş\s*tarihi|arrow_drop_down|chevron_left|chevron_right|"
+    r"\bPSÇPCCP\b|\bMTWTFSS\b|start\s*date|end\s*date|date\s*picker|date\s*range",
+    re.I,
+)
+# Takvim ay başlığı genelde BÜYÜK HARF: "AĞU 2025" — "7 Ağu 2026" yorum tarihi
+_CALENDAR_MONTH_HEADER = re.compile(
+    r"\b(?:OCA|ŞUB|MAR|N[İI]S|MAY|HAZ|TEM|A[ĞG]U|EYL|EK[İI]|KAS|ARA)\s+20\d{2}\b"
 )
 
 
@@ -618,6 +628,28 @@ def _parse_author_date(author_raw: str) -> tuple[str, str]:
     return s, ""
 
 
+def _is_calendar_review_junk(*parts: Any) -> bool:
+    blob = " ".join(str(p or "") for p in parts)
+    if not blob.strip():
+        return True
+    if _CALENDAR_UI.search(blob):
+        return True
+    if _CALENDAR_MONTH_HEADER.search(blob):
+        return True
+    # Ay kısaltması yoğunluğu (takvim grid)
+    month_hits = len(
+        re.findall(
+            r"\b(?:Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara|"
+            r"OCA|ŞUB|MAR|NİS|MAY|HAZ|TEM|AĞU|EYL|EKİ|KAS|ARA)\b",
+            blob,
+            re.I,
+        )
+    )
+    if month_hits >= 4:
+        return True
+    return False
+
+
 def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     rows = raw if isinstance(raw, list) else []
     cleaned: list[dict[str, Any]] = []
@@ -626,25 +658,32 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         if not isinstance(r, dict):
             continue
         author_raw = str(r.get("author") or "").strip()
+        raw_full = str(r.get("raw") or r.get("body") or "")
+        if _is_calendar_review_junk(author_raw, raw_full, r.get("body"), r.get("date")):
+            continue
         if not author_raw or _JUNK_AUTHOR.search(author_raw) or _is_iconish(author_raw):
             continue
         if author_raw.lower().startswith("cihaz:"):
             continue
         author, date = _parse_author_date(author_raw)
+        if not date:
+            date = str(r.get("date") or "").strip()
         if _is_iconish(author) or len(author) < 2:
             continue
-        body = _strip_review_noise(str(r.get("body") or r.get("raw") or ""))
+        if _is_calendar_review_junk(author, date):
+            continue
+        body = _strip_review_noise(str(r.get("body") or raw_full))
         # cihaz satırlarını ayır
         device = ""
-        dm = re.search(r"Cihaz:\s*([^\n]+)", str(r.get("raw") or r.get("body") or ""), re.I)
+        dm = re.search(r"Cihaz:\s*([^\n]+)", raw_full, re.I)
         if dm:
             device = dm.group(1).strip()[:120]
         # asıl yorum metni: "Yanıtla" öncesi / meta sonrası
-        raw_full = str(r.get("raw") or "")
-        # yıldız satırından sonraki paragraf
         parts = [p.strip() for p in raw_full.split("\n") if p.strip() and not _is_iconish(p.strip())]
         candidate_lines = []
         for p in parts:
+            if _is_calendar_review_junk(p):
+                continue
             if re.match(r"^Cihaz:", p, re.I):
                 continue
             if re.match(r"^(Cihazın dili|Uygulama sürüm|Android sürümü):", p, re.I):
@@ -665,15 +704,21 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         else:
             body = body[:800]
         body = _strip_review_noise(body)
-        if len(body) < 12:
+        if len(body) < 12 or _is_calendar_review_junk(body):
             continue
+        # Gerçek yorum sinyali: yıldız veya cihaz veya yeterince uzun doğal metin
         stars = r.get("stars")
         if not stars:
-            sm = re.search(r"([1-5])\s*yıldız", str(r.get("raw") or ""), re.I)
+            sm = re.search(r"([1-5])\s*yıldız", raw_full, re.I)
             if sm:
                 stars = f"{sm.group(1)} yıldız"
-            elif (str(r.get("raw") or "").count("star") >= 5) or ("★" * 3 in str(r.get("raw") or "")):
+            elif raw_full.count("star") >= 5 or ("★" * 3 in raw_full):
                 stars = "5 yıldız"
+        has_signal = bool(stars) or bool(device) or (
+            len(body) >= 24 and not re.fullmatch(r"[\d\s%.,A-ZÇĞİÖŞÜa-zçğıöşü]+", body[:40] or "")
+        )
+        if not has_signal:
+            continue
         key = (author.lower() + "|" + body[:60].lower())
         if key in seen:
             continue
@@ -681,7 +726,7 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         cleaned.append(
             {
                 "author": author[:80],
-                "date": date,
+                "date": date[:64] if date else "",
                 "device": device,
                 "body": body,
                 "stars": stars,

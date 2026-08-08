@@ -1646,23 +1646,52 @@ def _reviews_max() -> int:
 def _extract_reviews_dom(page) -> list[dict[str, Any]]:
     return page.evaluate(
         """() => {
+      const isCalJunk = (s) => {
+        const t = String(s || '');
+        if (/başlangıç\\s*tarihi|bitiş\\s*tarihi|arrow_drop_down|chevron_left|chevron_right|\\bPSÇPCCP\\b|\\bMTWTFSS\\b/i.test(t)) return true;
+        if (/start\\s*date|end\\s*date|date\\s*picker/i.test(t)) return true;
+        // BÜYÜK HARF ay başlığı (takvim); "7 Ağu 2026" kalır
+        if (/\\b(?:OCA|ŞUB|MAR|N[İI]S|MAY|HAZ|TEM|A[ĞG]U|EYL|EK[İI]|KAS|ARA)\\s+20\\d{2}\\b/.test(t)) return true;
+        const months = t.match(/\\b(?:Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara|OCA|ŞUB|MAR|NİS|MAY|HAZ|TEM|AĞU|EYL|EKİ|KAS|ARA)\\b/g);
+        if (months && months.length >= 4) return true;
+        return false;
+      };
       const out = [];
-      const blocks = Array.from(document.querySelectorAll(
-        'article, li, [role="listitem"], [data-review-id], div'
+      // Önce gerçek yorum kartları; geniş div tarama takvim popup'ını yutuyor
+      let blocks = Array.from(document.querySelectorAll(
+        'article, [data-review-id], [data-review], li[class*="review"], div[class*="review"]'
       ));
+      if (blocks.length < 3) {
+        blocks = Array.from(document.querySelectorAll('article, li, [role="listitem"]'));
+      }
       for (const el of blocks) {
         const t = (el.innerText || '').trim();
         if (!t || t.length < 40 || t.length > 4000) continue;
-        if (!/yıldız|star|★|⭐|puan/i.test(t) && !/\\n.*\\n/.test(t)) continue;
+        if (isCalJunk(t)) continue;
+        if (!/yıldız|star|★|⭐/i.test(t)) continue;
         const lines = t.split('\\n').map(s => s.trim()).filter(Boolean);
         if (lines.length < 3) continue;
-        const hasDevice = /Android|iPhone|Samsung|Xiaomi|POCO|Galaxy|version|Cihaz:/i.test(t);
+        if (isCalJunk(lines[0])) continue;
+        const hasDevice = /Android|iPhone|Samsung|Xiaomi|POCO|Galaxy|Cihaz:/i.test(t);
         const dateRe = /(\\d{1,2}\\s*(?:Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-zçğıöşü]*\\s*\\d{4}(?:[\\s,]*\\d{1,2}:\\d{2})?)/i;
         const dateRe2 = /(\\d{1,2}[\\.\\/]\\d{1,2}[\\.\\/]\\d{2,4})/;
         const hasDate = dateRe.test(t) || dateRe2.test(t);
         if (!(hasDevice || hasDate)) continue;
-        const author = lines[0].slice(0, 120);
-        const body = lines.slice(1).join(' ').slice(0, 1500);
+        // Yazar: ilk satır takvim/ay olmamalı
+        let author = lines[0].slice(0, 120);
+        if (/^(Başlangıç|Bitiş|Cihaz:|\\d{1,2}\\s)/i.test(author) || isCalJunk(author)) continue;
+        const bodyLines = lines.slice(1).filter((l) =>
+          !isCalJunk(l)
+          && !/^(Cihaz:|Yanıtla|thumb_|feature_search|Cihazın dili|Uygulama sürüm|Android sürümü|\\d+\\s*\\/\\s*350)/i.test(l)
+          && !/^[0-9\\s]+$/.test(l)
+        );
+        // En uzun doğal cümle = yorum; meta satırlarını ele
+        let body = '';
+        const prose = bodyLines.filter((l) => l.length > 24 && /[a-zçğıöşü]/i.test(l));
+        if (prose.length) body = prose.sort((a,b) => b.length - a.length)[0];
+        else body = bodyLines.join(' ').slice(0, 1500);
+        body = String(body || '').slice(0, 1500);
+        if (body.length < 12 || isCalJunk(body)) continue;
         const starM = t.match(/([1-5])\\s*(yıldız|star)/i) || t.match(/★{1,5}/);
         let date = '';
         const dm = t.match(dateRe) || t.match(dateRe2);
@@ -1844,21 +1873,38 @@ def _apply_reviews_date_filter(page, *, days: int = 365) -> bool:
             if opt.count() > 0:
                 opt.first.click(timeout=2_500)
                 _settle(page, seconds=2.5)
+                # Takvim / combobox popup'ını kapat — DOM'a sızmasın
+                for _ in range(3):
+                    try:
+                        page.keyboard.press("Escape")
+                    except Exception:
+                        pass
+                    time.sleep(0.25)
+                _settle(page, seconds=1.0)
                 return True
         except Exception:
             pass
         try:
-            loc = page.get_by_text(label, exact=False)
+            loc = page.get_by_text(label, exact=True)
             if loc.count() > 0:
                 loc.first.click(timeout=2_500)
                 _settle(page, seconds=2.5)
+                for _ in range(3):
+                    try:
+                        page.keyboard.press("Escape")
+                    except Exception:
+                        pass
+                    time.sleep(0.25)
+                _settle(page, seconds=1.0)
                 return True
         except Exception:
             pass
-    try:
-        page.keyboard.press("Escape")
-    except Exception:
-        pass
+    for _ in range(3):
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+        time.sleep(0.2)
     return False
 
 
@@ -1916,6 +1962,14 @@ def _scrape_reviews_list(
         f"    → reviews filter days={days} applied={applied}",
         flush=True,
     )
+    # Her durumda açık tarih seçici / combobox'ı kapat
+    for _ in range(4):
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+        time.sleep(0.2)
+    _settle(page, seconds=1.0)
 
     merged: dict[str, dict[str, Any]] = {}
     stagnant = 0
@@ -1996,6 +2050,26 @@ def _scrape_reviews_list(
             _settle(page, seconds=1.2)
 
     rows = _filter_reviews_by_days(list(merged.values()), days=days)
+    # Takvim popup kalıntılarını son kez temizle (BÜYÜK HARF ay başlığı; "7 Ağu 2026" kalır)
+    cal_ui = re.compile(
+        r"başlangıç\s*tarihi|bitiş\s*tarihi|arrow_drop_down|chevron_|PSÇPCCP",
+        re.I,
+    )
+    cal_hdr = re.compile(
+        r"\b(?:OCA|ŞUB|MAR|N[İI]S|MAY|HAZ|TEM|A[ĞG]U|EYL|EK[İI]|KAS|ARA)\s+20\d{2}\b"
+    )
+    rows = [
+        r
+        for r in rows
+        if isinstance(r, dict)
+        and not cal_ui.search(
+            " ".join(str(r.get(k) or "") for k in ("author", "body", "raw", "date"))
+        )
+        and not cal_hdr.search(
+            " ".join(str(r.get(k) or "") for k in ("author", "body", "raw", "date"))
+        )
+        and re.search(r"yıldız|star|★|⭐", str(r.get("raw") or r.get("stars") or ""), re.I)
+    ]
     print(f"    → reviews kept={len(rows)} (raw={len(merged)}, days={days})", flush=True)
     return rows[:max_reviews]
 
