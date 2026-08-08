@@ -67,8 +67,21 @@ REVIEWS_URL = (
 MONETIZE_URL = (
     os.environ.get("PLAY_CONSOLE_MONETIZE_URL") or f"{BASE_APP}/monetize"
 ).strip()
+GROW_URL = (
+    os.environ.get("PLAY_CONSOLE_GROW_URL") or f"{BASE_APP}/grow-overview"
+).strip()
+# Crash + ANR + DAU/MAU peerset — tarih paramı yoksa Console son ~28 günü kullanır
+_DEFAULT_STATS_QS = (
+    "metrics=CRASHES-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+    "%2CANRS-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
+    "&dimension=OS_VERSION&dimensionValues=OVERALL"
+    "&tab=APP_STATISTICS"
+    "&ctpMetric=DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY"
+    "&ctpDimension=COUNTRY&ctpDimensionValue=OVERALL"
+)
 STATISTICS_URL = (
-    os.environ.get("PLAY_CONSOLE_STATISTICS_URL") or f"{BASE_APP}/statistics"
+    os.environ.get("PLAY_CONSOLE_STATISTICS_URL")
+    or f"{BASE_APP}/statistics?{_DEFAULT_STATS_QS}"
 ).strip()
 INGEST_URL = (
     os.environ.get("PLAY_CONSOLE_INGEST_URL")
@@ -114,6 +127,40 @@ _KNOWN_MONETIZE = (
     "Tek seferlik ürünler",
     "Yeni alıcılar",
     "Kümülatif alıcılar",
+)
+_KNOWN_GROW = (
+    "Cihaz edinme sayısı",
+    "Cihaz ilk açılışları",
+    "AEKS",
+    "Mağaza girişi ziyaretçileri",
+    "Mağaza girişi edinme sayısı",
+    "Mağaza girişi dönüşüm oranı",
+    "Kitle büyüme oranı",
+    "Günlük etkin kullanıcı sayısı",
+    "Etkin cihazlar",
+    "Uygulamayı yükleyen kullanıcı sayısı",
+    "Yüklemeler",
+    "Toplam yükleme sayısı",
+    "Kullanıcı kaybı",
+    "Yeni cihaz edinme",
+)
+_KNOWN_STATISTICS = (
+    "Kilitlenme sayısı",
+    "Kilitlenme oranı",
+    "ANR sayısı",
+    "ANR oranı",
+    "Çökme",
+    "Crashes",
+    "ANRs",
+    "DAU",
+    "MAU",
+    "DAU/MAU",
+    "Günlük etkin kullanıcı sayısı",
+    "Aylık etkin kullanıcı sayısı",
+    "Etkin cihazlar",
+    "Yükleme tabanı",
+    "Kullanıcı kaybı",
+    "Cihaz edinme sayısı",
 )
 
 
@@ -287,7 +334,7 @@ def _extract_stats_page(page, *, known: tuple[str, ...] | list[str], page_key: s
         if (t.length > 48) return false;
         return /[\\d₺$€%]/.test(t) || /\\b[BbMmKk]\\b/.test(t) || /yıldız/i.test(t);
       };
-      const hintRe = /yükleme|kilitlenme|anr|puan|cihaz|aeks|gelir|alıcı|etkin|kitle|mağaza|öykbog|edinme|kaybı|abonelik|satın|revenue|buyer|arppu|arpu/i;
+      const hintRe = /yükleme|kilitlenme|anr|puan|cihaz|aeks|gelir|alıcı|etkin|kitle|mağaza|öykbog|edinme|kaybı|abonelik|satın|revenue|buyer|arppu|arpu|crash|çökme|dau|mau/i;
 
       const cards = [];
       const breakdowns = [];
@@ -665,6 +712,82 @@ def _scrape_one_stats_page(
     return _extract_stats_page(page, known=known, page_key=page_key) or {}
 
 
+def _page_payload(url: str, scraped: dict[str, Any]) -> dict[str, Any]:
+    cards = scraped.get("cards") or scraped.get("tpg") or []
+    br = scraped.get("breakdowns") or []
+    return {
+        "url": url,
+        "cards": cards if isinstance(cards, list) else [],
+        "breakdowns": br if isinstance(br, list) else [],
+        "debug": scraped.get("debug") if isinstance(scraped.get("debug"), dict) else {},
+        "error": scraped.get("error"),
+    }
+
+
+def _append_page_metrics(
+    metrics: list[dict[str, Any]],
+    scraped: dict[str, Any],
+    *,
+    kind: str,
+    page_key: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    cards = scraped.get("cards") or scraped.get("tpg") or []
+    br = scraped.get("breakdowns") or []
+    out_cards: list[dict[str, Any]] = []
+    out_br: list[dict[str, Any]] = []
+    for c in cards:
+        if not isinstance(c, dict):
+            continue
+        row = {
+            "title": c.get("title"),
+            "value": c.get("value"),
+            "delta": c.get("delta") or "",
+            "period": c.get("period") or "",
+            "kind": kind,
+            "page": page_key,
+            "lines": [c.get("title"), c.get("value"), c.get("delta")],
+        }
+        metrics.append(row)
+        out_cards.append(row)
+    for b in br:
+        if not isinstance(b, dict):
+            continue
+        row = {
+            "title": b.get("title"),
+            "value": b.get("value"),
+            "delta": b.get("delta") or "",
+            "segment": b.get("segment") or "",
+            "kind": "breakdown",
+            "page": page_key,
+            "lines": [b.get("title"), b.get("value"), b.get("delta")],
+        }
+        metrics.append(row)
+        out_br.append(row)
+    return out_cards, out_br
+
+
+def _safe_scrape_page(
+    page,
+    *,
+    url: str,
+    known: tuple[str, ...],
+    page_key: str,
+    wait_needles: tuple[str, ...],
+    headed: bool,
+) -> dict[str, Any]:
+    try:
+        return _scrape_one_stats_page(
+            page,
+            url=url,
+            known=known,
+            page_key=page_key,
+            wait_needles=wait_needles,
+            headed=headed,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"page": page_key, "cards": [], "breakdowns": [], "error": str(exc)[:200]}
+
+
 def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
     if headed is None:
         # Google Play, headless Chromium’da cookie’yi sık sık reddeder.
@@ -728,64 +851,68 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         _settle(page, seconds=3.0)
         _wait_dashboard_metrics(page, timeout_sec=20.0)
         structured = _extract_dashboard_structured(page) or {}
-        series = _series_from_network(network)
         metrics = _metrics_from_structured(structured)
         debug = structured.get("debug") if isinstance(structured.get("debug"), dict) else {}
 
-        # Monetize (Play Console /monetize)
-        monetize = {}
-        try:
-            monetize = _scrape_one_stats_page(
-                page,
-                url=MONETIZE_URL,
-                known=tuple(dict.fromkeys(list(_KNOWN_MONETIZE) + ["Gelir", "ÖYKBOG", "Alıcı Sayısı"])),
-                page_key="monetize",
-                wait_needles=("Gelir", "ÖYKBOG", "Alıcı", "Toplam gelir", "Monetize", "Para kazan"),
-                headed=bool(headed),
-            )
-        except Exception as mon_exc:  # noqa: BLE001
-            monetize = {"page": "monetize", "cards": [], "breakdowns": [], "error": str(mon_exc)[:200]}
+        # Monetize + Grow + Statistics
+        monetize = _safe_scrape_page(
+            page,
+            url=MONETIZE_URL,
+            known=tuple(dict.fromkeys(list(_KNOWN_MONETIZE) + ["Gelir", "ÖYKBOG", "Alıcı Sayısı"])),
+            page_key="monetize",
+            wait_needles=("Gelir", "ÖYKBOG", "Alıcı", "Toplam gelir", "Monetize", "Para kazan"),
+            headed=bool(headed),
+        )
+        grow = _safe_scrape_page(
+            page,
+            url=GROW_URL,
+            known=tuple(dict.fromkeys(list(_KNOWN_GROW) + list(_KNOWN_DASHBOARD))),
+            page_key="grow",
+            wait_needles=(
+                "Cihaz edinme",
+                "Mağaza girişi",
+                "AEKS",
+                "Grow",
+                "Büyüme",
+                "Kullanıcı sayısını",
+            ),
+            headed=bool(headed),
+        )
+        statistics = _safe_scrape_page(
+            page,
+            url=STATISTICS_URL,
+            known=tuple(dict.fromkeys(list(_KNOWN_STATISTICS) + list(_KNOWN_DASHBOARD))),
+            page_key="statistics",
+            wait_needles=(
+                "Kilitlenme",
+                "ANR",
+                "Crash",
+                "DAU",
+                "MAU",
+                "İstatistik",
+                "Statistics",
+            ),
+            headed=bool(headed),
+        )
 
-        mon_cards = monetize.get("cards") or monetize.get("tpg") or []
-        mon_br = monetize.get("breakdowns") or []
-        # Monetize kartlarını metrics’e de ekle (kind=monetize)
-        for c in mon_cards:
-            if not isinstance(c, dict):
-                continue
-            metrics.append(
-                {
-                    "title": c.get("title"),
-                    "value": c.get("value"),
-                    "delta": c.get("delta") or "",
-                    "period": c.get("period") or "",
-                    "kind": "monetize",
-                    "page": "monetize",
-                    "lines": [c.get("title"), c.get("value"), c.get("delta")],
-                }
-            )
-        for b in mon_br:
-            if not isinstance(b, dict):
-                continue
-            metrics.append(
-                {
-                    "title": b.get("title"),
-                    "value": b.get("value"),
-                    "delta": b.get("delta") or "",
-                    "segment": b.get("segment") or "",
-                    "kind": "breakdown",
-                    "page": "monetize",
-                    "lines": [b.get("title"), b.get("value"), b.get("delta")],
-                }
-            )
+        mon_cards, mon_br = _append_page_metrics(metrics, monetize, kind="monetize", page_key="monetize")
+        grow_cards, grow_br = _append_page_metrics(metrics, grow, kind="grow", page_key="grow")
+        stats_cards, stats_br = _append_page_metrics(
+            metrics, statistics, kind="statistics", page_key="statistics"
+        )
 
         dash_cards = structured.get("tpg") or structured.get("cards") or []
         dash_br = list(structured.get("breakdowns") or [])
-        all_br = dash_br + list(mon_br)
+        all_br = dash_br + list(mon_br) + list(grow_br) + list(stats_br)
+        # series: dashboard network + sonraki sayfalar
+        series = _series_from_network(network)
         panels = {
             "version": 2,
             "tpg": dash_cards,
             "breakdowns": all_br,
             "monetize": mon_cards,
+            "grow": grow_cards,
+            "statistics": stats_cards,
             "pages": {
                 "dashboard": {
                     "url": DASHBOARD_URL,
@@ -793,19 +920,17 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                     "breakdowns": dash_br,
                     "debug": debug,
                 },
-                "monetize": {
-                    "url": MONETIZE_URL,
-                    "cards": mon_cards,
-                    "breakdowns": mon_br,
-                    "debug": monetize.get("debug") if isinstance(monetize.get("debug"), dict) else {},
-                    "error": monetize.get("error"),
-                },
+                "monetize": _page_payload(MONETIZE_URL, monetize),
+                "grow": _page_payload(GROW_URL, grow),
+                "statistics": _page_payload(STATISTICS_URL, statistics),
             },
             "sections": structured.get("sections") or [],
             "series": series,
             "tpg_count": len(dash_cards),
             "breakdown_count": len(all_br),
             "monetize_count": len(mon_cards),
+            "grow_count": len(grow_cards),
+            "statistics_count": len(stats_cards),
             "series_count": len(series),
             "debug": debug,
         }
@@ -827,13 +952,16 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             or rating_summary.get("default_rating")
             or panels.get("tpg")
             or panels.get("monetize")
+            or panels.get("grow")
+            or panels.get("statistics")
         )
         dbg = ""
-        if not (panels.get("tpg") or panels.get("monetize")) and debug:
+        if not (panels.get("tpg") or panels.get("monetize") or panels.get("grow") or panels.get("statistics")) and debug:
             dbg = f" · dash_known={debug.get('known_found_count')} body={debug.get('body_len')}"
         msg = (
             f"Play scrape · {len(metrics)} metric · "
-            f"{panels.get('tpg_count', 0)} TPG · {panels.get('monetize_count', 0)} monetize · "
+            f"{panels.get('tpg_count', 0)} dash · {panels.get('monetize_count', 0)} mon · "
+            f"{panels.get('grow_count', 0)} grow · {panels.get('statistics_count', 0)} stats · "
             f"{panels.get('breakdown_count', 0)} kırılım · {len(reviews)} review{dbg}"
         )
         return {
@@ -852,7 +980,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "source_url": DASHBOARD_URL,
             "sync_ok": ok,
             "sync_message": None,
-            "sync_mode": "dashboard_monetize_reviews",
+            "sync_mode": "dashboard_monetize_grow_stats_reviews",
         }
     except Exception as exc:  # noqa: BLE001
         return {

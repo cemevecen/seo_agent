@@ -58,6 +58,35 @@
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Grow</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /grow-overview (edinme, mağaza, AEKS)</p>
+      </div>
+      <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/grow-overview"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+    </div>
+    <div id="pc-grow" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-grow-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz grow kartı yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Statistics</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Crash / ANR / DAU·MAU · /statistics</p>
+      </div>
+      <a id="pc-stats-link"
+         href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/statistics"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+    </div>
+    <div id="pc-statistics" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-statistics-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz statistics kartı yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Kırılımlar</h2>
     <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Yükleme tabanı / cihaz / sürüm segmentleri</p>
     <div id="pc-breakdowns" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
@@ -88,6 +117,11 @@
   var tpgEmpty = document.getElementById("pc-tpg-empty");
   var monEl = document.getElementById("pc-monetize");
   var monEmpty = document.getElementById("pc-monetize-empty");
+  var growEl = document.getElementById("pc-grow");
+  var growEmpty = document.getElementById("pc-grow-empty");
+  var statsEl = document.getElementById("pc-statistics");
+  var statsEmpty = document.getElementById("pc-statistics-empty");
+  var statsLink = document.getElementById("pc-stats-link");
   var brEl = document.getElementById("pc-breakdowns");
   var brEmpty = document.getElementById("pc-breakdowns-empty");
   var reviewsEl = document.getElementById("pc-reviews");
@@ -182,21 +216,29 @@
     }).join("");
   }
 
+  function pageCards(panels, key, kind) {
+    var rows = Array.isArray(panels[key]) ? panels[key].slice() : [];
+    if (!rows.length && panels.pages && panels.pages[key] && Array.isArray(panels.pages[key].cards)) {
+      rows = panels.pages[key].cards.slice();
+    }
+    return rows;
+  }
+
   function splitPanels(data) {
     var panels = data.panels || {};
     var tpg = Array.isArray(panels.tpg) ? panels.tpg.slice() : [];
-    var monetize = Array.isArray(panels.monetize) ? panels.monetize.slice() : [];
+    var monetize = pageCards(panels, "monetize", "monetize");
+    var grow = pageCards(panels, "grow", "grow");
+    var statistics = pageCards(panels, "statistics", "statistics");
     var breakdowns = Array.isArray(panels.breakdowns) ? panels.breakdowns.slice() : [];
     var metrics = Array.isArray(data.metrics) ? data.metrics : [];
-    var pages = panels.pages || {};
 
-    if (!monetize.length && pages.monetize && Array.isArray(pages.monetize.cards)) {
-      monetize = pages.monetize.cards.slice();
-    }
-    if (!tpg.length && !breakdowns.length && metrics.length) {
+    if (!tpg.length && !breakdowns.length && !monetize.length && !grow.length && !statistics.length && metrics.length) {
       metrics.forEach(function (m) {
         if (m.kind === "breakdown") breakdowns.push(m);
         else if (m.kind === "monetize") monetize.push(m);
+        else if (m.kind === "grow") grow.push(m);
+        else if (m.kind === "statistics") statistics.push(m);
         else tpg.push(m);
       });
     }
@@ -209,9 +251,9 @@
       else tpgOnly.push(m);
     });
     if (!kpi.length) {
-      return { kpi: tpg, tpg: [], monetize: monetize, breakdowns: breakdowns };
+      return { kpi: tpg, tpg: [], monetize: monetize, grow: grow, statistics: statistics, breakdowns: breakdowns };
     }
-    return { kpi: kpi, tpg: tpgOnly, monetize: monetize, breakdowns: breakdowns };
+    return { kpi: kpi, tpg: tpgOnly, monetize: monetize, grow: grow, statistics: statistics, breakdowns: breakdowns };
   }
 
   function renderReviews(rows) {
@@ -248,12 +290,15 @@
       if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
       if (pkgEl) pkgEl.textContent = data.package_name || "com.Doviz";
       var parts = splitPanels(data);
+      if (statsLink && data.panels && data.panels.pages && data.panels.pages.statistics && data.panels.pages.statistics.url) {
+        statsLink.href = data.panels.pages.statistics.url;
+      }
       metaEl.textContent =
         (data.empty ? "Veri yok — bridge login + sync gerekli" :
-          ((data.tpg_count || parts.tpg.length || parts.kpi.length) + " TPG/KPI · " +
-           (data.panels && data.panels.monetize_count != null
-             ? data.panels.monetize_count
-             : parts.monetize.length) + " monetize · " +
+          ((data.tpg_count || parts.tpg.length || parts.kpi.length) + " dash · " +
+           (parts.monetize.length) + " mon · " +
+           (parts.grow.length) + " grow · " +
+           (parts.statistics.length) + " stats · " +
            (data.breakdown_count || parts.breakdowns.length) + " kırılım · " +
            data.review_count + " review")) +
         " · son sync: " + fmtSync(data.updated_at || data.background_synced_at) +
@@ -262,8 +307,10 @@
       renderGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m); });
       renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });
       renderGrid(monEl, monEmpty, parts.monetize, function (m) { return metricCard(m); });
+      renderGrid(growEl, growEmpty, parts.grow, function (m) { return metricCard(m); });
+      renderGrid(statsEl, statsEmpty, parts.statistics, function (m) { return metricCard(m); });
       renderGrid(brEl, brEmpty, parts.breakdowns, function (m) {
-        return metricCard(m, { subtitle: m.segment || "" });
+        return metricCard(m, { subtitle: m.segment || m.page || "" });
       });
       renderReviews(data.reviews);
       statusEl.textContent = data.sync_ok === false

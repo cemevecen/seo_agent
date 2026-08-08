@@ -117,6 +117,8 @@ def ingest_play_console_payload(
         "tpg_count": len((panels or {}).get("tpg") or []),
         "breakdown_count": len((panels or {}).get("breakdowns") or []),
         "monetize_count": len((panels or {}).get("monetize") or []),
+        "grow_count": len((panels or {}).get("grow") or []),
+        "statistics_count": len((panels or {}).get("statistics") or []),
         "review_count": len(reviews or []),
         "updated_at": row.updated_at.isoformat() + "Z",
         "package_name": row.package_name,
@@ -177,5 +179,7 @@ def play_console_payload(db: Session) -> dict[str, Any]:
         "tpg_count": len(panels.get("tpg") or []),
         "breakdown_count": len(panels.get("breakdowns") or []),
         "monetize_count": len(panels.get("monetize") or []),
+        "grow_count": len(panels.get("grow") or []),
+        "statistics_count": len(panels.get("statistics") or []),
         "review_count": len(reviews),
     }
