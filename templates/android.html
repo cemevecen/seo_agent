@@ -124,12 +124,13 @@
       </div>
       <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
         <svg id="pa-chart" viewBox="0 0 720 260" class="h-56 w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Keşif grafiği"></svg>
-        <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-48 min-h-[4.75rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
+        <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-44 min-h-[3.25rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
           <p id="pa-tip-title" class="truncate text-[11px] font-bold tabular-nums text-slate-800 dark:text-zinc-100"></p>
           <p id="pa-tip-cur" class="mt-1 truncate text-[11px] tabular-nums text-emerald-700 dark:text-emerald-400"></p>
-          <p id="pa-tip-prev" class="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-zinc-400"></p>
+          <p id="pa-tip-prev" class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
         </div>
       </div>
+      <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
     </div>
 
     <div class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
@@ -321,9 +322,21 @@
   var paTipCur = document.getElementById("pa-tip-cur");
   var paTipPrev = document.getElementById("pa-tip-prev");
   var paCompareRange = document.getElementById("pa-compare-range");
+  var paCompareNote = document.getElementById("pa-compare-note");
   var paThPrev = document.getElementById("pa-th-prev");
   var paTable = document.getElementById("pa-table");
   var paChartState = null;
+
+  function setCompareNote(text) {
+    if (!paCompareNote) return;
+    if (text) {
+      paCompareNote.textContent = text;
+      paCompareNote.classList.remove("hidden");
+    } else {
+      paCompareNote.textContent = "";
+      paCompareNote.classList.add("hidden");
+    }
+  }
 
   function isoDate(d) {
     var y = d.getFullYear();
@@ -440,18 +453,15 @@
     if (paTipTitle) paTipTitle.textContent = String(row.key);
     if (paTipCur) paTipCur.textContent = "Seçili: " + fmtNum(row.value, metricIsCountLike());
     if (paTipPrev) {
-      if (row.prevMissing) {
-        paTipPrev.textContent = PREV_MISSING_LONG;
-        paTipPrev.className = "mt-0.5 text-[11px] leading-snug text-amber-700 dark:text-amber-400";
-      } else if (row.prevValue == null) {
+      if (row.prevMissing || row.prevValue == null) {
         paTipPrev.textContent = "";
-        paTipPrev.className = "mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
+        paTipPrev.className = "mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
       } else {
         var label = row.prevKey && row.prevKey !== row.key
           ? ("Önceki (" + row.prevKey + "): ")
           : "Önceki: ";
         paTipPrev.textContent = label + fmtNum(row.prevValue, metricIsCountLike());
-        paTipPrev.className = "mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
+        paTipPrev.className = "mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
       }
     }
     var guide = paChart.querySelector("#pa-guide");
@@ -624,12 +634,7 @@
       var dlt = (pv != null && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
       var dltCls = dlt == null ? "text-slate-400" : (dlt >= 0 ? "text-emerald-700" : "text-rose-600");
       var prevCell;
-      if (r.prevMissing) {
-        prevCell =
-          '<span class="block max-w-[14rem] text-[10px] font-medium leading-snug text-amber-700 dark:text-amber-400">' +
-          esc(PREV_MISSING_LONG) +
-          "</span>";
-      } else if (pv != null) {
+      if (pv != null && !r.prevMissing) {
         if (r.prevKey && r.prevKey !== r.key) {
           prevCell =
             '<span class="block tabular-nums">' + esc(fmtNum(pv, metricIsCountLike())) + "</span>" +
@@ -702,17 +707,20 @@
       var cmp = data.compare;
       var cmpMeta = cmp || null;
       if (cmp && cmp.available === false) {
-        paPrev.textContent = PREV_MISSING_SHORT;
-        paPrev.className = "mt-1 text-sm font-bold leading-snug text-amber-700 dark:text-amber-400";
-        paPrev.title = (cmp.missing_reason || PREV_MISSING_LONG);
+        paPrev.textContent = "—";
+        paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
+        paPrev.title = "";
+        setCompareNote(cmp.missing_reason || PREV_MISSING_LONG);
       } else if (cmp && cmp.total != null) {
         paPrev.textContent = fmtNum(cmp.total, metricIsCountLike());
         paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
         paPrev.title = "";
+        setCompareNote("");
       } else {
         paPrev.textContent = "—";
         paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
         paPrev.title = "";
+        setCompareNote("");
       }
       if (cmp && cmp.available !== false && cmp.delta_pct != null) {
         var d = cmp.delta_pct;
@@ -726,11 +734,7 @@
       renderPaTable(data.series || [], (cmp && cmp.available !== false && cmp.series) ? cmp.series : [], paBreakdown.value, cmpMeta);
       if (paCompareRange) {
         if (cmp && cmp.start && cmp.end) {
-          var rangeTxt = "Kıyas: " + cmp.start + " → " + cmp.end;
-          if (cmp.available === false) {
-            rangeTxt += " · " + (cmp.missing_reason || PREV_MISSING_LONG);
-          }
-          paCompareRange.textContent = rangeTxt;
+          paCompareRange.textContent = "Kıyas: " + cmp.start + " → " + cmp.end;
         } else {
           paCompareRange.textContent = "";
         }
@@ -762,6 +766,7 @@
       if (paTable) paTable.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       if (paChart) paChart.innerHTML = "";
       if (paCompareRange) paCompareRange.textContent = "";
+      setCompareNote("");
       hidePaTooltip();
     } finally {
       if (timer) clearTimeout(timer);
