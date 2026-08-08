@@ -1790,6 +1790,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/notification-analytics/ingest",
         "/api/doviz-news/ingest",
         "/api/virgul-analytics/ingest",
+        "/api/play-console/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
