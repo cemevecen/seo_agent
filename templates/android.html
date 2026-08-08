@@ -643,24 +643,27 @@
   async function refreshPage() {
     if (btn) btn.disabled = true;
     statusEl.textContent = "Yenileniyor…";
+    var host = (location.hostname || "").toLowerCase();
+    var isLocal = host === "localhost" || host === "127.0.0.1";
     var bridgeOk = false;
-    try {
-      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-      var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 1500) : null;
-      var br = await fetch("http://127.0.0.1:18765/sync-play", {
-        method: "POST",
-        headers: { Accept: "application/json" },
-        signal: ctrl ? ctrl.signal : undefined
-      });
-      if (t) clearTimeout(t);
-      var body = null;
-      try { body = await br.json(); } catch (_) {}
-      if (br.ok && !(body && body.ok === false)) {
-        bridgeOk = true;
-        statusEl.textContent = (body && body.message) || "Mac sync OK — yükleniyor…";
-      }
-    } catch (_) {
-      /* canlı sitede bridge yok — sessiz geç */
+    // Canlı sitede (Railway) asla 127.0.0.1’e gitme — tarayıcı Private Network Access uyarısı verir.
+    if (isLocal) {
+      try {
+        var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+        var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 1500) : null;
+        var br = await fetch("http://127.0.0.1:18765/sync-play", {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          signal: ctrl ? ctrl.signal : undefined
+        });
+        if (t) clearTimeout(t);
+        var body = null;
+        try { body = await br.json(); } catch (_) {}
+        if (br.ok && !(body && body.ok === false)) {
+          bridgeOk = true;
+          statusEl.textContent = (body && body.message) || "Mac sync OK — yükleniyor…";
+        }
+      } catch (_) {}
     }
     try {
       await loadSnapshot();
