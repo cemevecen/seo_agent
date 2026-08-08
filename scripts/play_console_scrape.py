@@ -470,14 +470,29 @@ def _launch_context(*, headed: bool):
     from playwright.sync_api import sync_playwright
 
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    # Stale Singleton* locks from crashed Chromium block relaunch.
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        try:
+            (PROFILE_DIR / name).unlink(missing_ok=True)
+        except Exception:
+            pass
     pw = sync_playwright().start()
-    context = pw.chromium.launch_persistent_context(
-        user_data_dir=str(PROFILE_DIR),
-        headless=not headed,
-        viewport={"width": 1440, "height": 1100},
-        locale="tr-TR",
-        args=["--disable-blink-features=AutomationControlled"],
-    )
+    channel = (os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL") or "chrome").strip()
+    launch_kwargs: dict[str, Any] = {
+        "user_data_dir": str(PROFILE_DIR),
+        "headless": not headed,
+        "viewport": {"width": 1440, "height": 1100},
+        "locale": "tr-TR",
+        "args": ["--disable-blink-features=AutomationControlled"],
+    }
+    # Bundled Chromium can crash on newer macOS; system Chrome is more stable.
+    if channel and channel.lower() not in ("0", "none", "chromium"):
+        launch_kwargs["channel"] = channel
+    try:
+        context = pw.chromium.launch_persistent_context(**launch_kwargs)
+    except Exception:
+        launch_kwargs.pop("channel", None)
+        context = pw.chromium.launch_persistent_context(**launch_kwargs)
     return pw, context
 
 
@@ -1974,75 +1989,123 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
 def _open_issue_category_menu(page) -> bool:
     """'Sorun kategorisi' combobox'ını aç."""
     try:
-        opened = page.evaluate(
-            """() => {
-          const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
-          const nodes = Array.from(document.querySelectorAll(
-            'button, [role="combobox"], [aria-haspopup="listbox"], [role="button"]'
-          ));
-          for (const el of nodes) {
-            const t = clean(el.innerText || el.textContent || '');
-            const aria = clean(el.getAttribute('aria-label') || '');
-            if (/sorun kategorisi|issue category/i.test(t) || /sorun kategorisi|issue category/i.test(aria)) {
-              el.click();
-              return true;
-            }
-            // Kısa etiket: seçili kategori butonu
-            if (/^(Genel|Üretimde|Olası düzeltmeler|Analiz içeren|Overall|In production|Including)/i.test(t)
-                && t.length < 60) {
-              el.click();
-              return true;
-            }
-          }
-          // Yakınlık: "Sorun kategorisi" etiketinin yanındaki kontrol
-          const all = Array.from(document.querySelectorAll('*'));
-          for (const el of all) {
-            if ((el.children || []).length > 6) continue;
-            const t = clean(el.textContent || '');
-            if (t === 'Sorun kategorisi' || t === 'Issue category') {
-              const parent = el.closest('div') || el.parentElement;
-              const btn = parent && parent.querySelector(
-                'button, [role="combobox"], [aria-haspopup="listbox"]'
-              );
-              if (btn) { btn.click(); return true; }
-            }
-          }
-          return false;
-        }"""
+        for name in ("Sorun kategorisi", "Issue category"):
+            loc = page.get_by_label(name, exact=False)
+            if loc.count() > 0:
+                loc.first.click(timeout=3_000)
+                return True
+        for name in ("Sorun kategorisi", "Issue category"):
+            loc = page.get_by_text(name, exact=True)
+            if loc.count() > 0:
+                # Etiketin yakınındaki combobox / button
+                handle = loc.first.element_handle()
+                if handle:
+                    clicked = page.evaluate(
+                        """(el) => {
+                          const root = el.closest('div') || el.parentElement;
+                          const btn = root && root.querySelector(
+                            'button, [role="combobox"], [aria-haspopup="listbox"]'
+                          );
+                          if (btn) { btn.click(); return true; }
+                          el.click();
+                          return true;
+                        }""",
+                        handle,
+                    )
+                    if clicked:
+                        return True
+        combos = page.locator('[role="combobox"], button[aria-haspopup="listbox"]')
+        n = min(combos.count(), 8)
+        for i in range(n):
+            t = (combos.nth(i).inner_text(timeout=1_000) or "").strip()
+            if re.search(
+                r"Genel|Üretimde|Olası|Analiz|Overall|production|potential|analysis",
+                t,
+                re.I,
+            ):
+                combos.nth(i).click(timeout=3_000)
+                return True
+    except Exception:
+        pass
+    try:
+        return bool(
+            page.evaluate(
+                """() => {
+              const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+              const nodes = Array.from(document.querySelectorAll(
+                'button, [role="combobox"], [aria-haspopup="listbox"], [role="button"]'
+              ));
+              for (const el of nodes) {
+                const t = clean(el.innerText || el.textContent || '');
+                const aria = clean(el.getAttribute('aria-label') || '');
+                if (/sorun kategorisi|issue category/i.test(t + ' ' + aria)) {
+                  el.click(); return true;
+                }
+                if (/^(Genel|Üretimde|Olası düzeltmeler|Analiz içeren|Overall|In production|Including)/i.test(t)
+                    && t.length < 80) {
+                  el.click(); return true;
+                }
+              }
+              return false;
+            }"""
+            )
         )
-        return bool(opened)
     except Exception:
         return False
 
 
 def _click_issue_category_option(page, labels: tuple[str, ...]) -> bool:
     """Açık menüden kategori seç."""
+    for label in labels:
+        try:
+            opt = page.get_by_role("option", name=re.compile(rf"^{re.escape(label)}\\b", re.I))
+            if opt.count() > 0:
+                opt.first.click(timeout=3_000)
+                return True
+        except Exception:
+            pass
+        try:
+            # Menü öğesi: başlık + açıklama — exact başlık satırı
+            loc = page.locator('[role="option"], [role="menuitem"]').filter(
+                has_text=re.compile(rf"^{re.escape(label)}\\b", re.I)
+            )
+            if loc.count() > 0:
+                loc.first.click(timeout=3_000)
+                return True
+        except Exception:
+            pass
+        try:
+            tloc = page.get_by_text(label, exact=True)
+            if tloc.count() > 0:
+                tloc.first.click(timeout=3_000)
+                return True
+        except Exception:
+            pass
     try:
-        clicked = page.evaluate(
-            """(labels) => {
-          const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
-          const opts = Array.from(document.querySelectorAll(
-            '[role="option"], [role="menuitem"], li, button, div[tabindex]'
-          ));
-          for (const label of labels) {
-            const want = clean(label).toLowerCase();
-            for (const el of opts) {
-              const t = clean(el.innerText || el.textContent || '');
-              if (!t) continue;
-              const head = t.split('\\n')[0].toLowerCase();
-              if (head === want || head.startsWith(want) || t.toLowerCase().startsWith(want)) {
-                // Açıklama satırlı menü öğesi — başlık eşleşmeli
-                if (t.length > 200 && head !== want && !head.startsWith(want)) continue;
-                el.click();
-                return true;
+        return bool(
+            page.evaluate(
+                """(labels) => {
+              const clean = (s) => String(s || '').replace(/\\s+/g, ' ').trim();
+              const opts = Array.from(document.querySelectorAll(
+                '[role="option"], [role="menuitem"], li[role="presentation"], div[role="option"]'
+              ));
+              for (const label of labels) {
+                const want = clean(label).toLowerCase();
+                for (const el of opts) {
+                  const t = clean(el.innerText || el.textContent || '');
+                  if (!t) continue;
+                  const head = t.split('\\n')[0].toLowerCase();
+                  if (head === want || head.startsWith(want)) {
+                    el.click();
+                    return true;
+                  }
+                }
               }
-            }
-          }
-          return false;
-        }""",
-            list(labels),
+              return false;
+            }""",
+                list(labels),
+            )
         )
-        return bool(clicked)
     except Exception:
         return False
 
@@ -2243,6 +2306,23 @@ def _scrape_vitals_metrics_overview(page, *, headed: bool = True) -> dict[str, A
             _settle(page, seconds=3.0)
     except Exception as exc:  # noqa: BLE001
         anr_drill = {"error": str(exc)[:160]}
+
+    # Aynı metrik birden fazla geçebilir — peer karşılaştırması dolu olanı tercih et
+    by_key: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        key = str(r.get("key") or "other")
+        prev = by_key.get(key)
+        if prev is None:
+            by_key[key] = r
+            continue
+        prev_peer = str(prev.get("vs_peers_median") or "").strip()
+        new_peer = str(r.get("vs_peers_median") or "").strip()
+        if (not prev_peer and new_peer) or (len(new_peer) > len(prev_peer)):
+            by_key[key] = r
+    rows = [by_key[k] for k in ("crash", "anr", "lmk") if k in by_key]
+    rows.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
 
     print(f"    · metrics overview rows={len(rows)}", flush=True)
     return {
@@ -2835,24 +2915,6 @@ def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
             pass
 
 
-def _fetch_remote_snapshot() -> dict[str, Any]:
-    import requests
-
-    token = _ingest_token()
-    url = INGEST_URL.replace("/ingest", "/snapshot")
-    headers = {"Accept": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    try:
-        resp = requests.get(url, headers=headers, timeout=60)
-        if resp.status_code >= 400:
-            return {}
-        data = resp.json() if resp.content else {}
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
-
-
 def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
     import requests
 
@@ -2864,41 +2926,43 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
     metrics = result.get("metrics")
     reviews = result.get("reviews")
     rating_summary = result.get("rating_summary")
+    merge_vitals = bool(result.get("merge_vitals"))
 
-    # vitals-only: mevcut snapshot ile birleştir (diğer panelleri silme)
-    if result.get("merge_vitals") and isinstance(panels, dict) and panels.get("vitals"):
-        snap = _fetch_remote_snapshot()
-        base_panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
-        merged = dict(base_panels)
-        merged["vitals"] = panels["vitals"]
-        pages = dict(merged.get("pages") or {}) if isinstance(merged.get("pages"), dict) else {}
-        for pk, pv in (panels.get("pages") or {}).items():
-            pages[pk] = pv
-        merged["pages"] = pages
-        merged["vitals_category_count"] = panels.get("vitals_category_count")
-        merged["vitals_overview_row_count"] = panels.get("vitals_overview_row_count")
-        panels = merged
-        if metrics is None:
-            metrics = snap.get("metrics") or []
-        if reviews is None:
-            reviews = snap.get("reviews")
-        if rating_summary is None:
-            rating_summary = snap.get("rating_summary")
-
-    payload = {
-        "metrics": metrics if metrics is not None else [],
-        "panels": panels if isinstance(panels, dict) else {},
-        "reviews": reviews if reviews is not None else [],
-        "rating_summary": rating_summary if rating_summary is not None else {},
-        "raw_network": result.get("raw_network") or [],
-        "source": result.get("source") or "play_console_bridge",
-        "source_url": result.get("source_url") or DASHBOARD_URL,
-        "package_name": result.get("package_name") or PACKAGE,
-        "app_id": result.get("app_id") or APP_ID,
-        "sync_ok": bool(result.get("ok")),
-        "sync_message": result.get("message"),
-        "sync_mode": result.get("sync_mode") or "dashboard_reviews",
-    }
+    # vitals-only: birleştirme sunucuda yapılır (snapshot admin auth ister)
+    if merge_vitals:
+        if not isinstance(panels, dict) or not panels.get("vitals"):
+            return {"ok": False, "message": "merge_vitals için panels.vitals gerekli"}
+        payload = {
+            "metrics": [],
+            "panels": panels,
+            "reviews": [],
+            "rating_summary": {},
+            "raw_network": result.get("raw_network") or [],
+            "source": result.get("source") or "play_console_bridge",
+            "source_url": result.get("source_url") or DASHBOARD_URL,
+            "package_name": result.get("package_name") or PACKAGE,
+            "app_id": result.get("app_id") or APP_ID,
+            "sync_ok": bool(result.get("ok")),
+            "sync_message": result.get("message"),
+            "sync_mode": result.get("sync_mode") or "vitals_only",
+            "merge_vitals": True,
+        }
+    else:
+        payload = {
+            "metrics": metrics if metrics is not None else [],
+            "panels": panels if isinstance(panels, dict) else {},
+            "reviews": reviews if reviews is not None else [],
+            "rating_summary": rating_summary if rating_summary is not None else {},
+            "raw_network": result.get("raw_network") or [],
+            "source": result.get("source") or "play_console_bridge",
+            "source_url": result.get("source_url") or DASHBOARD_URL,
+            "package_name": result.get("package_name") or PACKAGE,
+            "app_id": result.get("app_id") or APP_ID,
+            "sync_ok": bool(result.get("ok")),
+            "sync_message": result.get("message"),
+            "sync_mode": result.get("sync_mode") or "dashboard_reviews",
+            "merge_vitals": False,
+        }
     resp = requests.post(
         INGEST_URL,
         headers={

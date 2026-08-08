@@ -262,7 +262,7 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
         }
 
     ov_in = d.get("metrics_overview") if isinstance(d.get("metrics_overview"), dict) else {}
-    rows_out: list[dict[str, Any]] = []
+    rows_raw: list[dict[str, Any]] = []
     for row in ov_in.get("rows") or []:
         if not isinstance(row, dict):
             continue
@@ -279,7 +279,7 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
                 key = "lmk"
             else:
                 key = "other"
-        rows_out.append(
+        rows_raw.append(
             {
                 "key": key,
                 "metric": metric[:200],
@@ -288,6 +288,17 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
                 "vs_peers_median": str(row.get("vs_peers_median") or "")[:48],
             }
         )
+    by_key: dict[str, dict[str, Any]] = {}
+    for row in rows_raw:
+        key = row["key"]
+        prev = by_key.get(key)
+        if prev is None or (
+            not str(prev.get("vs_peers_median") or "").strip()
+            and str(row.get("vs_peers_median") or "").strip()
+        ):
+            by_key[key] = row
+    rows_out = [by_key[k] for k in ("crash", "anr", "lmk") if k in by_key]
+    rows_out.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
 
     anr_drill = ov_in.get("anr_drilldown") if isinstance(ov_in.get("anr_drilldown"), dict) else {}
     return {

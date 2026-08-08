@@ -72,7 +72,48 @@ def ingest_play_console_payload(
     sync_ok: bool = True,
     sync_message: str | None = None,
     sync_mode: str = "dashboard_reviews",
+    merge_vitals: bool = False,
 ) -> dict[str, Any]:
+    row = _get_or_create(db)
+
+    # vitals-only: sunucu tarafında birleştir — mevcut explorer/kartları silme
+    if merge_vitals or str(sync_mode or "").startswith("vitals"):
+        existing_metrics, existing_panels = _unpack_metrics_blob(row.metrics_json or "[]")
+        incoming = panels if isinstance(panels, dict) else {}
+        vitals = incoming.get("vitals") if isinstance(incoming.get("vitals"), dict) else None
+        if not vitals:
+            raise ValueError("merge_vitals: panels.vitals gerekli")
+        merged_panels = dict(existing_panels) if isinstance(existing_panels, dict) else {}
+        merged_panels["vitals"] = vitals
+        pages = (
+            dict(merged_panels.get("pages") or {})
+            if isinstance(merged_panels.get("pages"), dict)
+            else {}
+        )
+        for pk, pv in (incoming.get("pages") or {}).items():
+            if isinstance(pv, dict):
+                pages[str(pk)] = pv
+        merged_panels["pages"] = pages
+        if incoming.get("vitals_category_count") is not None:
+            merged_panels["vitals_category_count"] = incoming.get("vitals_category_count")
+        if incoming.get("vitals_overview_row_count") is not None:
+            merged_panels["vitals_overview_row_count"] = incoming.get(
+                "vitals_overview_row_count"
+            )
+        # Mevcut metrics/reviews/rating korunur (gönderilse bile boş listeyle ezilmez)
+        try:
+            existing_reviews = json.loads(row.reviews_json or "[]")
+        except Exception:
+            existing_reviews = []
+        try:
+            existing_rating = json.loads(row.rating_summary_json or "{}")
+        except Exception:
+            existing_rating = {}
+        metrics = existing_metrics
+        panels = merged_panels
+        reviews = existing_reviews if isinstance(existing_reviews, list) else []
+        rating_summary = existing_rating if isinstance(existing_rating, dict) else {}
+
     cleaned = normalize_play_snapshot(
         metrics=metrics,
         panels=panels,
@@ -83,7 +124,6 @@ def ingest_play_console_payload(
     panels = cleaned["panels"]
     reviews = cleaned["reviews"]
     rating_summary = cleaned["rating_summary"]
-    row = _get_or_create(db)
     if metrics is not None or panels is not None:
         row.metrics_json = _pack_metrics_blob(metrics, panels)
     if reviews is not None:
