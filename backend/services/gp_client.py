@@ -24,6 +24,7 @@ import io
 import json
 import logging
 import os
+import re
 import time
 from datetime import date, timedelta
 from typing import Any
@@ -249,6 +250,101 @@ def _row_date(row: dict[str, Any]) -> str | None:
         return None
 
 
+def _parse_freshness_exclusive(meta: dict[str, Any] | None) -> date | None:
+    """Metric set get() → DAILY latestEndTime (TimelineSpec endTime için exclusive)."""
+    if not isinstance(meta, dict):
+        return None
+    for f in (meta.get("freshnessInfo") or {}).get("freshnesses") or []:
+        if not isinstance(f, dict):
+            continue
+        if str(f.get("aggregationPeriod") or "") != "DAILY":
+            continue
+        et = f.get("latestEndTime") or {}
+        try:
+            return date(int(et["year"]), int(et["month"]), int(et["day"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None
+
+
+def _freshness_from_error(exc: BaseException) -> date | None:
+    """'at most the current freshness 2026-08-06 00:00' → date."""
+    m = re.search(
+        r"freshness\s+(\d{4})-(\d{2})-(\d{2})",
+        str(exc),
+        flags=re.I,
+    )
+    if not m:
+        return None
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def _clip_reporting_range(
+    start: date | None,
+    end: date | None,
+    *,
+    freshness_exclusive: date | None,
+) -> tuple[date, date, date]:
+    """Inclusive start/end + exclusive endTime; freshness dışına çıkma.
+
+    Returns: (start_inclusive, end_inclusive, end_exclusive)
+    """
+    end_req = end or (date.today() - timedelta(days=3))
+    start_d = start or date(2025, 1, 1)
+    # İstenen exclusive uç
+    end_excl = end_req + timedelta(days=1)
+    # Güvenlik: bugünden ileri gitme
+    end_excl = min(end_excl, date.today() + timedelta(days=1))
+    if freshness_exclusive is not None:
+        end_excl = min(end_excl, freshness_exclusive)
+    end_incl = end_excl - timedelta(days=1)
+    if start_d > end_incl:
+        start_d = end_incl - timedelta(days=27)
+    return start_d, end_incl, end_excl
+
+
+def _get_metric_freshness(svc: Any, *, kind: str, package_name: str) -> date | None:
+    """kind: anr | crash | errors"""
+    try:
+        if kind == "anr":
+            meta = (
+                svc.vitals()
+                .anrrate()
+                .get(name=f"apps/{package_name}/anrRateMetricSet")
+                .execute()
+            )
+        elif kind == "crash":
+            meta = (
+                svc.vitals()
+                .crashrate()
+                .get(name=f"apps/{package_name}/crashRateMetricSet")
+                .execute()
+            )
+        else:
+            try:
+                meta = (
+                    svc.vitals()
+                    .errors()
+                    .counts()
+                    .get(name=f"apps/{package_name}/errorCountMetricSet")
+                    .execute()
+                )
+            except AttributeError:
+                meta = (
+                    svc.vitals()
+                    .errorcounts()
+                    .get(name=f"apps/{package_name}/errorCountMetricSet")
+                    .execute()
+                )
+        return _parse_freshness_exclusive(meta)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("GP freshness get (%s/%s): %s", kind, package_name, exc)
+        return None
+
+
 def fetch_error_counts_by_dimension(
     package_name: str,
     *,
@@ -257,45 +353,37 @@ def fetch_error_counts_by_dimension(
     start: date | None = None,
     end: date | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
-    """Mutlak ANR/çökme sayıları — errorCountMetricSet (reportType zorunlu).
-
-    report_type: APPLICATION_NOT_RESPONDING | CRASH
-    dimension: versionCode | deviceModel | apiLevel  (countryCode bu sette yok)
-    """
+    """Mutlak ANR/çökme sayıları — errorCountMetricSet (reportType zorunlu)."""
     svc = _reporting_service()
     if svc is None:
         return [], "Reporting service yok (GP_SERVICE_ACCOUNT_JSON?)"
     dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel") else "versionCode"
     ui_dim = _reporting_ui_dim(dim)
     metric_key = "anrs" if report_type == "APPLICATION_NOT_RESPONDING" else "crashes"
-    # Vitals 2–3 gün gecikmeli
-    end_d = min(end or (date.today() - timedelta(days=3)), date.today() - timedelta(days=2))
-    start_d = start or date(2025, 1, 1)
-    if start_d > end_d:
-        start_d = end_d - timedelta(days=27)
+    fresh = _get_metric_freshness(svc, kind="errors", package_name=package_name)
+    start_d, _, end_excl = _clip_reporting_range(start, end, freshness_exclusive=fresh)
     name = f"apps/{package_name}/errorCountMetricSet"
-    body: dict[str, Any] = {
-        "timelineSpec": {
-            "aggregationPeriod": "DAILY",
-            "startTime": _date_to_gp(start_d),
-            "endTime": _date_to_gp(end_d + timedelta(days=1)),
-        },
-        "dimensions": ["reportType", dim],
-        "metrics": ["errorReportCount", "distinctUsers"],
-        "filter": f'reportType = "{report_type}"',
-        "pageSize": 100000,
-    }
-    out: list[dict[str, Any]] = []
-    page_token = None
-    try:
+
+    def _collect(start_inclusive: date, end_exclusive: date) -> list[dict[str, Any]]:
+        body: dict[str, Any] = {
+            "timelineSpec": {
+                "aggregationPeriod": "DAILY",
+                "startTime": _date_to_gp(start_inclusive),
+                "endTime": _date_to_gp(end_exclusive),
+            },
+            "dimensions": ["reportType", dim],
+            "metrics": ["errorReportCount", "distinctUsers"],
+            "filter": f'reportType = "{report_type}"',
+            "pageSize": 100000,
+        }
+        out: list[dict[str, Any]] = []
+        page_token = None
         while True:
             if page_token:
                 body["pageToken"] = page_token
-            # discovery: vitals().errors().counts() — sürümler değişebilir
             try:
                 resp = svc.vitals().errors().counts().query(name=name, body=body).execute()
             except AttributeError:
-                # bazı client sürümlerinde düz isim
                 resp = svc.vitals().errorcounts().query(name=name, body=body).execute()
             for row in resp.get("rows") or []:
                 if not isinstance(row, dict):
@@ -305,7 +393,6 @@ def fetch_error_counts_by_dimension(
                     continue
                 seg = _dim_segment(row, dim)
                 if not seg or seg in ("UNKNOWN", report_type):
-                    # bazen yalnızca reportType boyutu dolu gelir
                     continue
                 metrics = {
                     (m.get("metric") or ""): m
@@ -338,10 +425,129 @@ def fetch_error_counts_by_dimension(
             page_token = resp.get("nextPageToken")
             if not page_token or len(out) >= 200000:
                 break
+        return out
+
+    try:
+        return _collect(start_d, end_excl), None
     except Exception as exc:  # noqa: BLE001
+        fresh2 = _freshness_from_error(exc) or fresh
+        if fresh2 is not None:
+            try:
+                start2, _, end2 = _clip_reporting_range(
+                    start, end, freshness_exclusive=fresh2
+                )
+                return _collect(start2, end2), None
+            except Exception as exc2:  # noqa: BLE001
+                logger.warning("GP errorCount retry (%s): %s", package_name, exc2)
+                return [], f"errorCountMetricSet hata: {exc2}"
         logger.warning("GP errorCount (%s/%s/%s): %s", package_name, report_type, dim, exc)
         return [], f"errorCountMetricSet hata: {exc}"
-    return out, None
+
+
+def _query_rate_by_dimension(
+    *,
+    package_name: str,
+    metric_key: str,
+    dim: str,
+    start: date | None,
+    end: date | None,
+    rate_kind: str,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """anrRate / crashRate boyut sorgusu — freshness clip + retry."""
+    svc = _reporting_service()
+    if svc is None:
+        return [], "Reporting service yok"
+    ui_dim = _reporting_ui_dim(dim)
+    fresh = _get_metric_freshness(svc, kind=rate_kind, package_name=package_name)
+    start_d, _, end_excl = _clip_reporting_range(start, end, freshness_exclusive=fresh)
+    if rate_kind == "anr":
+        name = f"apps/{package_name}/anrRateMetricSet"
+        metric_names = ["anrRate", "anrRate7dUserWeighted", "distinctUsers"]
+        query_fn = lambda body: svc.vitals().anrrate().query(name=name, body=body).execute()
+    else:
+        name = f"apps/{package_name}/crashRateMetricSet"
+        metric_names = ["crashRate", "crashRate7dUserWeighted", "distinctUsers"]
+        query_fn = lambda body: svc.vitals().crashrate().query(name=name, body=body).execute()
+
+    def _collect(start_inclusive: date, end_exclusive: date) -> list[dict[str, Any]]:
+        body: dict[str, Any] = {
+            "timelineSpec": {
+                "aggregationPeriod": "DAILY",
+                "startTime": _date_to_gp(start_inclusive),
+                "endTime": _date_to_gp(end_exclusive),
+            },
+            "dimensions": [dim],
+            "metrics": metric_names,
+            "pageSize": 100000,
+        }
+        out: list[dict[str, Any]] = []
+        page_token = None
+        while True:
+            if page_token:
+                body["pageToken"] = page_token
+            resp = query_fn(body)
+            for row in resp.get("rows") or []:
+                if not isinstance(row, dict):
+                    continue
+                ds = _row_date(row)
+                if not ds:
+                    continue
+                seg = _dim_segment(row, dim)
+                metrics = {
+                    (m.get("metric") or ""): m
+                    for m in (row.get("metrics") or [])
+                    if isinstance(m, dict)
+                }
+                rate = None
+                for key in metric_names[:2]:
+                    rate = _parse_gp_decimal(
+                        (metrics.get(key) or {}).get("decimalValue")
+                        or (metrics.get(key) or {}).get("value")
+                    )
+                    if rate is not None:
+                        break
+                users = _parse_gp_decimal(
+                    (metrics.get("distinctUsers") or {}).get("decimalValue")
+                    or (metrics.get("distinctUsers") or {}).get("value")
+                )
+                approx = (
+                    round(rate * users, 4)
+                    if rate is not None and users is not None
+                    else rate
+                )
+                if approx is None:
+                    continue
+                out.append(
+                    {
+                        "metric": metric_key,
+                        "view_id": f"{metric_key}_reporting_{dim}",
+                        "dim": ui_dim,
+                        "segment": seg,
+                        "date": ds,
+                        "value": float(approx),
+                        "distinct_users": users,
+                        "label": f"{metric_key}:{dim}:{seg}",
+                        "source": "reporting_api",
+                    }
+                )
+            page_token = resp.get("nextPageToken")
+            if not page_token or len(out) >= 200000:
+                break
+        return out
+
+    try:
+        return _collect(start_d, end_excl), None
+    except Exception as exc:  # noqa: BLE001
+        fresh2 = _freshness_from_error(exc) or fresh
+        if fresh2 is not None:
+            try:
+                start2, _, end2 = _clip_reporting_range(
+                    start, end, freshness_exclusive=fresh2
+                )
+                return _collect(start2, end2), None
+            except Exception as exc2:  # noqa: BLE001
+                return [], str(exc2)
+        return [], str(exc)
 
 
 def fetch_anr_by_dimension(
@@ -352,9 +558,12 @@ def fetch_anr_by_dimension(
     end: date | None = None,
 ) -> list[dict[str, Any]]:
     """ANR kırılımı: önce mutlak errorCount, yoksa anrRate × kullanıcı."""
-    dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
+    dim = (
+        dimension
+        if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode")
+        else "versionCode"
+    )
     err_count = None
-    # country yalnızca rate set’te
     if dim != "countryCode":
         rows, err_count = fetch_error_counts_by_dimension(
             package_name,
@@ -369,87 +578,21 @@ def fetch_anr_by_dimension(
         if err_count:
             logger.info("ANR errorCount fallback rate: %s", err_count)
 
-    svc = _reporting_service()
-    if svc is None:
-        fetch_anr_by_dimension.last_error = err_count or "Reporting service yok"  # type: ignore[attr-defined]
-        return []
-    ui_dim = _reporting_ui_dim(dim)
-    end_d = min(end or (date.today() - timedelta(days=3)), date.today() - timedelta(days=2))
-    start_d = start or date(2025, 1, 1)
-    if start_d > end_d:
-        start_d = end_d - timedelta(days=27)
-    name = f"apps/{package_name}/anrRateMetricSet"
-    body: dict[str, Any] = {
-        "timelineSpec": {
-            "aggregationPeriod": "DAILY",
-            "startTime": _date_to_gp(start_d),
-            "endTime": _date_to_gp(end_d + timedelta(days=1)),
-        },
-        "dimensions": [dim],
-        "metrics": ["anrRate", "anrRate7dUserWeighted", "distinctUsers"],
-        "pageSize": 100000,
-    }
-    out: list[dict[str, Any]] = []
-    page_token = None
-    rate_err = None
-    try:
-        while True:
-            if page_token:
-                body["pageToken"] = page_token
-            resp = svc.vitals().anrrate().query(name=name, body=body).execute()
-            for row in resp.get("rows") or []:
-                if not isinstance(row, dict):
-                    continue
-                ds = _row_date(row)
-                if not ds:
-                    continue
-                seg = _dim_segment(row, dim)
-                metrics = {
-                    (m.get("metric") or ""): m
-                    for m in (row.get("metrics") or [])
-                    if isinstance(m, dict)
-                }
-                rate = None
-                for key in ("anrRate", "anrRate7dUserWeighted"):
-                    rate = _parse_gp_decimal(
-                        (metrics.get(key) or {}).get("decimalValue")
-                        or (metrics.get(key) or {}).get("value")
-                    )
-                    if rate is not None:
-                        break
-                users = _parse_gp_decimal(
-                    (metrics.get("distinctUsers") or {}).get("decimalValue")
-                    or (metrics.get("distinctUsers") or {}).get("value")
-                )
-                approx = round(rate * users, 4) if rate is not None and users is not None else rate
-                if approx is None:
-                    continue
-                out.append(
-                    {
-                        "metric": "anrs",
-                        "view_id": f"anrs_reporting_{dim}",
-                        "dim": ui_dim,
-                        "segment": seg,
-                        "date": ds,
-                        "value": float(approx),
-                        "anr_rate": rate,
-                        "distinct_users": users,
-                        "label": f"anr:{dim}:{seg}",
-                        "source": "reporting_api",
-                    }
-                )
-            page_token = resp.get("nextPageToken")
-            if not page_token or len(out) >= 200000:
-                break
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("GP ANR dimension query (%s/%s): %s", package_name, dim, exc)
-        rate_err = str(exc)
-        out = []
-    if out:
+    rows, rate_err = _query_rate_by_dimension(
+        package_name=package_name,
+        metric_key="anrs",
+        dim=dim,
+        start=start,
+        end=end,
+        rate_kind="anr",
+    )
+    if rows:
         fetch_anr_by_dimension.last_error = None  # type: ignore[attr-defined]
     else:
-        fetch_anr_by_dimension.last_error = rate_err or err_count or "yanıt boş"  # type: ignore[attr-defined]
-    return out
+        fetch_anr_by_dimension.last_error = (  # type: ignore[attr-defined]
+            rate_err or err_count or "yanıt boş"
+        )
+    return rows
 
 
 def fetch_crash_by_dimension(
@@ -460,7 +603,11 @@ def fetch_crash_by_dimension(
     end: date | None = None,
 ) -> list[dict[str, Any]]:
     """Crash kırılımı: önce errorCount, yoksa crashRate."""
-    dim = dimension if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode") else "versionCode"
+    dim = (
+        dimension
+        if dimension in ("versionCode", "deviceModel", "apiLevel", "countryCode")
+        else "versionCode"
+    )
     err_count = None
     if dim != "countryCode":
         rows, err_count = fetch_error_counts_by_dimension(
@@ -476,85 +623,21 @@ def fetch_crash_by_dimension(
         if err_count:
             logger.info("Crash errorCount fallback rate: %s", err_count)
 
-    svc = _reporting_service()
-    if svc is None:
-        fetch_crash_by_dimension.last_error = err_count or "Reporting service yok"  # type: ignore[attr-defined]
-        return []
-    ui_dim = _reporting_ui_dim(dim)
-    end_d = min(end or (date.today() - timedelta(days=3)), date.today() - timedelta(days=2))
-    start_d = start or date(2025, 1, 1)
-    if start_d > end_d:
-        start_d = end_d - timedelta(days=27)
-    name = f"apps/{package_name}/crashRateMetricSet"
-    body: dict[str, Any] = {
-        "timelineSpec": {
-            "aggregationPeriod": "DAILY",
-            "startTime": _date_to_gp(start_d),
-            "endTime": _date_to_gp(end_d + timedelta(days=1)),
-        },
-        "dimensions": [dim],
-        "metrics": ["crashRate", "crashRate7dUserWeighted", "distinctUsers"],
-        "pageSize": 100000,
-    }
-    out: list[dict[str, Any]] = []
-    page_token = None
-    rate_err = None
-    try:
-        while True:
-            if page_token:
-                body["pageToken"] = page_token
-            resp = svc.vitals().crashrate().query(name=name, body=body).execute()
-            for row in resp.get("rows") or []:
-                if not isinstance(row, dict):
-                    continue
-                ds = _row_date(row)
-                if not ds:
-                    continue
-                seg = _dim_segment(row, dim)
-                metrics = {
-                    (m.get("metric") or ""): m
-                    for m in (row.get("metrics") or [])
-                    if isinstance(m, dict)
-                }
-                rate = None
-                for key in ("crashRate", "crashRate7dUserWeighted"):
-                    rate = _parse_gp_decimal(
-                        (metrics.get(key) or {}).get("decimalValue")
-                        or (metrics.get(key) or {}).get("value")
-                    )
-                    if rate is not None:
-                        break
-                users = _parse_gp_decimal(
-                    (metrics.get("distinctUsers") or {}).get("decimalValue")
-                    or (metrics.get("distinctUsers") or {}).get("value")
-                )
-                approx = round(rate * users, 4) if rate is not None and users is not None else rate
-                if approx is None:
-                    continue
-                out.append(
-                    {
-                        "metric": "crashes",
-                        "view_id": f"crashes_reporting_{dim}",
-                        "dim": ui_dim,
-                        "segment": seg,
-                        "date": ds,
-                        "value": float(approx),
-                        "label": f"crash:{dim}:{seg}",
-                        "source": "reporting_api",
-                    }
-                )
-            page_token = resp.get("nextPageToken")
-            if not page_token or len(out) >= 200000:
-                break
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("GP crash dimension query (%s/%s): %s", package_name, dim, exc)
-        rate_err = str(exc)
-        out = []
-    if out:
+    rows, rate_err = _query_rate_by_dimension(
+        package_name=package_name,
+        metric_key="crashes",
+        dim=dim,
+        start=start,
+        end=end,
+        rate_kind="crash",
+    )
+    if rows:
         fetch_crash_by_dimension.last_error = None  # type: ignore[attr-defined]
     else:
-        fetch_crash_by_dimension.last_error = rate_err or err_count or "yanıt boş"  # type: ignore[attr-defined]
-    return out
+        fetch_crash_by_dimension.last_error = (  # type: ignore[attr-defined]
+            rate_err or err_count or "yanıt boş"
+        )
+    return rows
 
 
 def fetch_slow_render_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | None:
