@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto w-full max-w-7xl space-y-5 android-play-page" data-header-title="Android · Play Console">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-800">Android</span>
+          <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">Play Console</h1>
+          <span id="pc-package" class="font-mono text-xs text-slate-500 dark:text-zinc-400">com.Doviz</span>
+        </div>
+        <p id="pc-meta" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge scrape · yükleniyor…</p>
+      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <a id="pc-console-link"
+           href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/app-dashboard"
+           target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+          Play Console ↗
+        </a>
+        <button id="pc-refresh" type="button" title="Ofis Mac bridge: POST /sync-play"
+                class="inline-flex items-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
+          Elle yenile
+        </button>
+      </div>
+    </div>
+    <p id="pc-status" class="mt-3 text-xs text-slate-500 dark:text-zinc-400"></p>
+  </div>
+
+  <div id="pc-rating" class="grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">TPG / dashboard metrikleri</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console app-dashboard kartları (scrape)</p>
+    <div id="pc-metrics" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-metrics-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz metric yok</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Yorumlar</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · Kullanıcı puanları ve yorumlar</p>
+      </div>
+      <span id="pc-review-count" class="text-xs tabular-nums text-slate-500"></span>
+    </div>
+    <div id="pc-reviews" class="mt-4 space-y-3"></div>
+    <p id="pc-reviews-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz yorum yok</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  var statusEl = document.getElementById("pc-status");
+  var metaEl = document.getElementById("pc-meta");
+  var pkgEl = document.getElementById("pc-package");
+  var metricsEl = document.getElementById("pc-metrics");
+  var metricsEmpty = document.getElementById("pc-metrics-empty");
+  var reviewsEl = document.getElementById("pc-reviews");
+  var reviewsEmpty = document.getElementById("pc-reviews-empty");
+  var ratingEl = document.getElementById("pc-rating");
+  var reviewCountEl = document.getElementById("pc-review-count");
+  var btn = document.getElementById("pc-refresh");
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function fmtSync(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso).replace("T", " ").slice(0, 16);
+    return d.toLocaleString("tr-TR", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function renderRating(sum) {
+    sum = sum || {};
+    var cards = [
+      { label: "Varsayılan Play puanı", value: sum.default_rating || "—" },
+      { label: "Kullanıcılar", value: sum.users || "—" },
+      { label: "Yorum içeren puanlar", value: sum.ratings_with_reviews || "—" }
+    ];
+    ratingEl.innerHTML = cards.map(function (c) {
+      return (
+        '<div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">' +
+          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">' + esc(c.label) + "</p>" +
+          '<p class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(c.value) + "</p>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  function renderMetrics(rows) {
+    rows = Array.isArray(rows) ? rows : [];
+    if (!rows.length) {
+      metricsEl.innerHTML = "";
+      metricsEmpty.classList.remove("hidden");
+      return;
+    }
+    metricsEmpty.classList.add("hidden");
+    metricsEl.innerHTML = rows.map(function (m) {
+      var delta = m.delta ? '<p class="mt-1 text-xs tabular-nums text-slate-500">' + esc(m.delta) + "</p>" : "";
+      return (
+        '<article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+          '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(m.title || "—") + "</p>" +
+          '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(m.value || "—") + "</p>" +
+          delta +
+        "</article>"
+      );
+    }).join("");
+  }
+
+  function renderReviews(rows) {
+    rows = Array.isArray(rows) ? rows : [];
+    reviewCountEl.textContent = rows.length ? (rows.length + " yorum") : "";
+    if (!rows.length) {
+      reviewsEl.innerHTML = "";
+      reviewsEmpty.classList.remove("hidden");
+      return;
+    }
+    reviewsEmpty.classList.add("hidden");
+    reviewsEl.innerHTML = rows.map(function (r) {
+      return (
+        '<article class="rounded-xl border border-slate-200 p-3 dark:border-zinc-700">' +
+          '<div class="flex flex-wrap items-center justify-between gap-2">' +
+            '<p class="text-sm font-bold text-slate-800 dark:text-zinc-100">' + esc(r.author || "Anonim") + "</p>" +
+            (r.stars ? '<span class="text-xs text-amber-600">' + esc(r.stars) + "</span>" : "") +
+          "</div>" +
+          '<p class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-zinc-300">' + esc(r.body || r.raw || "") + "</p>" +
+        "</article>"
+      );
+    }).join("");
+  }
+
+  async function loadSnapshot() {
+    statusEl.textContent = "Snapshot yükleniyor…";
+    try {
+      var r = await fetch("/api/play-console/snapshot", { credentials: "same-origin", cache: "no-store" });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+      if (pkgEl) pkgEl.textContent = data.package_name || "com.Doviz";
+      metaEl.textContent =
+        (data.empty ? "Veri yok — bridge login + sync gerekli" : (data.metric_count + " metric · " + data.review_count + " review")) +
+        " · son sync: " + fmtSync(data.updated_at || data.background_synced_at) +
+        (data.sync_message ? " · " + data.sync_message : "");
+      renderRating(data.rating_summary);
+      renderMetrics(data.metrics);
+      renderReviews(data.reviews);
+      statusEl.textContent = data.sync_ok === false
+        ? ("Son sync uyarısı: " + (data.sync_message || "başarısız"))
+        : "Hazır";
+    } catch (err) {
+      statusEl.textContent = (err && err.message) || String(err);
+    }
+  }
+
+  async function syncViaBridge() {
+    if (btn) btn.disabled = true;
+    statusEl.textContent = "Mac bridge çağrılıyor (POST /sync-play)…";
+    try {
+      var br = await fetch("http://127.0.0.1:18765/sync-play", {
+        method: "POST",
+        headers: { Accept: "application/json" }
+      });
+      var body = null;
+      try { body = await br.json(); } catch (_) {}
+      if (!br.ok || (body && body.ok === false)) {
+        throw new Error((body && (body.message || body.detail)) || ("Köprü HTTP " + br.status));
+      }
+      statusEl.textContent = (body && body.message) || "Sync OK";
+      await loadSnapshot();
+    } catch (err) {
+      statusEl.textContent =
+        "Bridge hatası: " + ((err && err.message) || err) +
+        " — Mac’te bridge --daemon + play_console_scrape.py --login gerekir";
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  if (btn) btn.addEventListener("click", syncViaBridge);
+  loadSnapshot();
+})();
+</script>
+{% endblock %}

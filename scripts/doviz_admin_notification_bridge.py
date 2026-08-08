@@ -15,6 +15,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-news?days=7  → son 1 hafta (Elle yenile + ~30 dk auto)
   POST /sync-news?full=1  → tam geçmiş (seyrek)
   POST /sync-virgul → Virgül Excel (~30 dk auto)
+  POST /sync-play   → Play Console scrape (~30 dk auto)
   POST /sync-all   → notification + news
 """
 
@@ -74,6 +75,9 @@ NEWS_AUTO_INTERVAL_SEC = int(
 VIRGUL_AUTO_INTERVAL_SEC = int(
     os.environ.get("VIRGUL_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
 )
+PLAY_AUTO_INTERVAL_SEC = int(
+    os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
+)
 # Eski ayar: her N. bildirim turunda haber (NEWS_BRIDGE_INTERVAL_SEC yoksa)
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
@@ -121,9 +125,11 @@ _TRANSIENT_FAIL_MARKERS = (
 # sync'i Elle yenile'yi 409 ile kilitlemesin.
 _nt_lock = threading.Lock()
 _virgul_lock = threading.Lock()
+_play_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_play_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -143,6 +149,7 @@ _nt_progress: dict[str, Any] = {
 _auto_cycle = 0
 _last_news_auto_at = 0.0
 _last_virgul_auto_at = 0.0
+_last_play_auto_at = 0.0
 _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
 
@@ -320,6 +327,13 @@ def _virgul_ingest_url() -> str:
     ).strip()
 
 
+def _play_console_ingest_url() -> str:
+    return (
+        os.environ.get("PLAY_CONSOLE_INGEST_URL")
+        or "https://projectcontrol.up.railway.app/api/play-console/ingest"
+    ).strip()
+
+
 def _require_creds() -> dict[str, Any] | None:
     if not _ingest_token():
         return {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
@@ -489,6 +503,68 @@ def run_virgul_bridge_once() -> dict[str, Any]:
         "body": {"streams": stream_results, "ok_count": ok_n},
     }
     _last_virgul_result = out
+    return out
+
+
+def run_play_bridge_once() -> dict[str, Any]:
+    """Play Console dashboard + reviews scrape → Railway ingest."""
+    global _last_play_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_play_result = err
+        return err
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "play_console_scrape.py"
+        spec = importlib.util.spec_from_file_location("play_console_scrape", path)
+        if spec is None or spec.loader is None:
+            err = {"ok": False, "message": "play_console_scrape.py yüklenemedi"}
+            _last_play_result = err
+            return err
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        scrape_play_console = mod.scrape_play_console
+        ingest_scrape_result = mod.ingest_scrape_result
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "message": f"play_console_scrape import: {exc}"}
+        _last_play_result = err
+        return err
+
+    print("Play Console scrape başlıyor…", flush=True)
+    result = scrape_play_console(headed=False)
+    if result.get("needs_login"):
+        out = {
+            "ok": False,
+            "kind": "play",
+            "needs_login": True,
+            "message": result.get("message") or "Play login gerekli (--login)",
+        }
+        _last_play_result = out
+        return out
+    try:
+        # URL override for ingest if bridge has custom env
+        os.environ.setdefault(
+            "PLAY_CONSOLE_INGEST_URL",
+            _play_console_ingest_url(),
+        )
+        ing = ingest_scrape_result(result)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "play", "message": f"Ingest hata: {exc}"}
+        _last_play_result = out
+        return out
+    out = {
+        "ok": bool(ing.get("ok")) and bool(result.get("ok")),
+        "kind": "play",
+        "http_status": ing.get("http_status"),
+        "metric_count": len(result.get("metrics") or []),
+        "review_count": len(result.get("reviews") or []),
+        "message": result.get("message") or ing.get("message") or "Play sync",
+        "needs_login": False,
+        "ingest": {k: ing.get(k) for k in ("ok", "updated_at", "metric_count", "review_count", "message")},
+    }
+    _last_play_result = out
+    print(f"Play sync · {out['message']}", flush=True)
     return out
 
 
@@ -878,6 +954,8 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last": _last_result,
                     "last_news": _last_news_result,
                     "last_virgul": _last_virgul_result,
+                    "last_play": _last_play_result,
+                    "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
                     "news_progress": dict(_news_progress),
                     "nt_progress": dict(_nt_progress),
                 },
@@ -927,6 +1005,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "Virgül sync zaten çalışıyor, bekleyin.",
                 run_virgul_bridge_once,
             )
+        elif path in ("/sync-play", "/play", "/sync-android"):
+            lock, busy, runner = (
+                _play_lock,
+                "Play Console sync zaten çalışıyor, bekleyin.",
+                run_play_bridge_once,
+            )
         elif path in ("/sync-all", "/all"):
             lock, busy, runner = (_nt_lock, "Sync zaten çalışıyor, bekleyin.", run_all_once)
         else:
@@ -962,9 +1046,16 @@ def _should_run_virgul_auto() -> bool:
     return (time.time() - _last_virgul_auto_at) >= max(300, VIRGUL_AUTO_INTERVAL_SEC)
 
 
+def _should_run_play_auto() -> bool:
+    global _last_play_auto_at
+    if _last_play_auto_at <= 0:
+        return True
+    return (time.time() - _last_play_auto_at) >= max(300, PLAY_AUTO_INTERVAL_SEC)
+
+
 def _auto_loop() -> None:
     """Notification/news ve Virgül ayrı kilit — hepsi ~30 dk; hata → e-posta."""
-    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at
+    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at
     while True:
         if _nt_lock.acquire(blocking=False):
             try:
@@ -1033,6 +1124,31 @@ def _auto_loop() -> None:
             )
             print(f"Virgul auto atlandı (sonraki ~{left_v}s)", flush=True)
 
+        if _should_run_play_auto():
+            if _play_lock.acquire(blocking=False):
+                try:
+                    try:
+                        pl = run_play_bridge_once()
+                        _last_play_auto_at = time.time()
+                        if pl.get("ok"):
+                            _note_auto_success("play")
+                        else:
+                            _notify_auto_failure("play", pl)
+                    except Exception as exc:
+                        traceback.print_exc()
+                        _last_play_auto_at = time.time()
+                        _notify_auto_failure("play", exc=exc)
+                finally:
+                    _play_lock.release()
+            else:
+                print("Auto Play atlandı (manuel play sync sürüyor)", flush=True)
+        else:
+            left_p = max(
+                0,
+                int(PLAY_AUTO_INTERVAL_SEC - (time.time() - _last_play_auto_at)),
+            )
+            print(f"Play auto atlandı (sonraki ~{left_p}s)", flush=True)
+
         time.sleep(max(60, AUTO_INTERVAL_SEC))
 
 
@@ -1047,8 +1163,8 @@ def run_daemon() -> int:
     )
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"(POST /sync | /sync-news | /sync-virgul | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
-        f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s)",
+        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
+        f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s, play={PLAY_AUTO_INTERVAL_SEC}s)",
         flush=True,
     )
     try:
@@ -1063,7 +1179,13 @@ def main(argv: list[str] | None = None) -> int:
     if "--daemon" in args or "-d" in args:
         return run_daemon()
     virgul_only = "--virgul-only" in args
-    lock = _virgul_lock if virgul_only else _nt_lock
+    play_only = "--play-only" in args
+    if virgul_only:
+        lock = _virgul_lock
+    elif play_only:
+        lock = _play_lock
+    else:
+        lock = _nt_lock
     if not lock.acquire(blocking=False):
         print("Sync zaten çalışıyor", file=sys.stderr)
         return 1
@@ -1072,6 +1194,8 @@ def main(argv: list[str] | None = None) -> int:
             result = run_news_bridge_once()
         elif virgul_only:
             result = run_virgul_bridge_once()
+        elif play_only:
+            result = run_play_bridge_once()
         elif "--notifications-only" in args:
             result = run_notification_bridge_once()
         else:

@@ -91,5 +91,5 @@ launchctl enable "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
 
 echo "Kuruldu: $PLIST_DST"
-echo "Daemon: bildirim/haber/virgül ~30 dk · hata mail → BRIDGE_ALERT_EMAIL · Elle → :18765/sync"
+echo "Daemon: bildirim/haber/virgül/play ~30 dk · hata mail → BRIDGE_ALERT_EMAIL · Elle → :18765/sync|/sync-play"
 echo "Log: $OUT_LOG"
