@@ -54,6 +54,11 @@ def test_ingest_merge_keeps_old_ids(monkeypatch):
         }
 
     monkeypatch.setattr(sheet, "set_doviz_news_rows_cache", _fake_cache)
+    # Network enrich’i bu birim testinde atla
+    monkeypatch.setattr(
+        "backend.services.doviz_news_live.enrich_rows_with_publish_dates",
+        lambda rows, **kwargs: (list(rows), {"ok": True, "updated": 0}),
+    )
     out = sheet.ingest_doviz_news_rows(
         [
             {

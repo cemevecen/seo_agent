@@ -10,8 +10,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 import requests
+
+_TR_TZ = ZoneInfo("Europe/Istanbul")
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +110,23 @@ def _parse_iso_dt(raw: str | None) -> datetime | None:
         return None
 
 
+def _to_naive_turkey(dt: datetime | None) -> datetime | None:
+    """Aware → Europe/Istanbul duvar saati (naive). Impala/sheet ile uyumlu."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(_TR_TZ).replace(tzinfo=None)
+
+
+def _apply_dt_fields(row: dict[str, Any], dt: datetime) -> None:
+    row["date"] = dt.isoformat(sep=" ", timespec="seconds")
+    row["date_day"] = dt.strftime("%Y-%m-%d")
+    row["hour"] = dt.hour
+    row["weekday"] = dt.weekday()
+    row["iso_week"] = f"{dt.isocalendar()[0]}-W{dt.isocalendar()[1]:02d}"
+
+
 def _first_news_article_ld(html: str) -> dict[str, Any] | None:
     for m in re.finditer(
         r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
@@ -150,22 +170,18 @@ def fetch_article_row(
     if not ld:
         return None
 
-    # Impala / admin Date ≈ dateCreated; datePublished bazen gecikmeli
-    dt = (
-        _parse_iso_dt(ld.get("dateCreated"))
-        or _parse_iso_dt(ld.get("datePublished"))
+    # Yayına alma zamanı: datePublished (dateCreated genelde taslak/import saati)
+    dt = _to_naive_turkey(
+        _parse_iso_dt(ld.get("datePublished"))
         or _parse_iso_dt(ld.get("dateModified"))
+        or _parse_iso_dt(ld.get("dateCreated"))
     )
     title = str(ld.get("headline") or ld.get("alternativeHeadline") or "").strip()
     category = str(ld.get("articleSection") or "").strip() or "Diğer"
     if not title:
         return None
 
-    # Sheet tarihleri timezone’suz; Impala Date ile uyum için offset’i düş
-    if dt is not None and dt.tzinfo is not None:
-        dt = dt.replace(tzinfo=None)
-
-    return {
+    row: dict[str, Any] = {
         "id": news_id,
         "active": True,
         "title": title,
@@ -173,16 +189,17 @@ def fetch_article_row(
         "source_key": "",
         "is_own": True,
         "category": category,
-        "date": dt.isoformat(sep=" ", timespec="seconds") if dt else None,
-        "date_day": dt.strftime("%Y-%m-%d") if dt else None,
-        "hour": dt.hour if dt else None,
-        "weekday": dt.weekday() if dt else None,
-        "iso_week": (
-            f"{dt.isocalendar()[0]}-W{dt.isocalendar()[1]:02d}" if dt else None
-        ),
+        "date": None,
+        "date_day": None,
+        "hour": None,
+        "weekday": None,
+        "iso_week": None,
         "_live": True,
         "_url": url,
     }
+    if dt is not None:
+        _apply_dt_fields(row, dt)
+    return row
 
 
 def fetch_live_gap_rows(
@@ -251,21 +268,133 @@ def merge_sheet_with_live(
     sheet_rows: list[dict[str, Any]],
     live_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Sheet birincil; canlı satırlar eksik ID’leri tamamlar."""
+    """Sheet birincil; canlı satırlar eksik ID’leri tamamlar.
+
+    Aynı ID için canlı tarih daha yeniyse (yayın saati) sheet tarihini günceller.
+    """
     by_id: dict[str, dict[str, Any]] = {}
     for r in sheet_rows or []:
         nid = str(r.get("id") or "").strip()
         if nid:
-            by_id[nid] = r
+            by_id[nid] = dict(r)
     added = 0
+    updated = 0
     for r in live_rows or []:
         nid = str(r.get("id") or "").strip()
-        if not nid or nid in by_id:
+        if not nid:
             continue
-        by_id[nid] = r
-        added += 1
+        live_date = str(r.get("date") or "")
+        if nid not in by_id:
+            by_id[nid] = r
+            added += 1
+            continue
+        sheet_date = str(by_id[nid].get("date") or "")
+        if live_date and live_date > sheet_date:
+            cur = dict(by_id[nid])
+            for k in ("date", "date_day", "hour", "weekday", "iso_week"):
+                if r.get(k) is not None:
+                    cur[k] = r.get(k)
+            by_id[nid] = cur
+            updated += 1
     merged = list(by_id.values())
     merged.sort(key=lambda r: r.get("date") or "", reverse=True)
-    if added:
-        logger.info("doviz news merge: +%s live rows → total %s", added, len(merged))
+    if added or updated:
+        logger.info(
+            "doviz news merge: +%s live · %s tarih güncellendi → total %s",
+            added,
+            updated,
+            len(merged),
+        )
     return merged
+
+
+def enrich_rows_with_publish_dates(
+    rows: list[dict[str, Any]],
+    *,
+    limit: int = 80,
+    discover_limit: int = 160,
+    workers: int = 8,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Admin/Impala dateCreated yerine JSON-LD datePublished ile son kayıtları düzeltir."""
+    if not rows:
+        return [], {"ok": True, "checked": 0, "updated": 0}
+
+    t0 = time.monotonic()
+    try:
+        refs = discover_live_article_refs(limit=discover_limit)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("doviz news publish enrich discover failed: %s", exc)
+        return list(rows), {"ok": False, "error": str(exc)[:200], "updated": 0}
+
+    ref_by_id = {str(r.get("id") or ""): r for r in refs if r.get("id")}
+    todo: list[dict[str, str]] = []
+    for row in sorted(
+        rows,
+        key=lambda r: int(str(r.get("id") or "0") or 0) if str(r.get("id") or "").isdigit() else 0,
+        reverse=True,
+    ):
+        nid = str(row.get("id") or "").strip()
+        ref = ref_by_id.get(nid)
+        if not ref:
+            continue
+        todo.append(ref)
+        if len(todo) >= max(1, min(int(limit), 200)):
+            break
+
+    if not todo:
+        return list(rows), {
+            "ok": True,
+            "checked": 0,
+            "updated": 0,
+            "discovered": len(refs),
+            "elapsed_sec": round(time.monotonic() - t0, 2),
+        }
+
+    live_by_id: dict[str, dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=max(1, min(workers, 12))) as pool:
+        futs = {pool.submit(fetch_article_row, ref): ref for ref in todo}
+        for fut in as_completed(futs):
+            try:
+                article = fut.result()
+            except Exception:  # noqa: BLE001
+                continue
+            if article and article.get("id") and article.get("date"):
+                live_by_id[str(article["id"])] = article
+
+    updated = 0
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        nid = str(row.get("id") or "").strip()
+        live = live_by_id.get(nid)
+        if not live:
+            out.append(row)
+            continue
+        live_date = str(live.get("date") or "")
+        sheet_date = str(row.get("date") or "")
+        if live_date and live_date != sheet_date:
+            cur = dict(row)
+            for k in ("date", "date_day", "hour", "weekday", "iso_week"):
+                if live.get(k) is not None:
+                    cur[k] = live.get(k)
+            out.append(cur)
+            updated += 1
+        else:
+            out.append(row)
+
+    out.sort(key=lambda r: r.get("date") or "", reverse=True)
+    meta = {
+        "ok": True,
+        "checked": len(todo),
+        "fetched": len(live_by_id),
+        "updated": updated,
+        "discovered": len(refs),
+        "elapsed_sec": round(time.monotonic() - t0, 2),
+    }
+    logger.info(
+        "doviz news publish enrich: checked=%s fetched=%s updated=%s in %.1fs",
+        meta["checked"],
+        meta["fetched"],
+        updated,
+        meta["elapsed_sec"],
+    )
+    return out, meta

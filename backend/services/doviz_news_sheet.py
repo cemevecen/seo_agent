@@ -519,6 +519,16 @@ def fetch_doviz_news_rows(
             fetched = fetch_active_news_rows_from_admin()
             rows = fetched.get("rows") or []
             if rows:
+                try:
+                    from backend.services.doviz_news_live import (
+                        enrich_rows_with_publish_dates,
+                    )
+
+                    rows, _pub = enrich_rows_with_publish_dates(
+                        rows, limit=80, discover_limit=160
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("doviz news publish enrich after admin: %s", exc)
                 set_doviz_news_rows_cache(
                     rows,
                     source="doviz_admin_news",
@@ -542,6 +552,28 @@ def fetch_doviz_news_rows(
             src,
             len(kept),
         )
+        if force:
+            try:
+                from backend.services.doviz_news_live import (
+                    enrich_rows_with_publish_dates,
+                )
+
+                kept, pub = enrich_rows_with_publish_dates(
+                    kept, limit=80, discover_limit=160
+                )
+                set_doviz_news_rows_cache(
+                    kept,
+                    source=src,
+                    source_url=DOVIZ_NEWS_ADMIN_URL,
+                    sync_ok=True,
+                    sync_message=(
+                        f"Snapshot + yayın saati ({int(pub.get('updated') or 0)} düzeltme)"
+                    ),
+                    sync_mode="publish_enrich",
+                    mark_background=True,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("doviz news publish enrich on db snapshot: %s", exc)
         if _CACHE is not None:
             _CACHE["sheet_skipped"] = True
             if admin_err:
@@ -646,6 +678,20 @@ def ingest_doviz_news_rows(
         final_rows = list(norm)
 
     final_rows.sort(key=lambda r: r.get("date") or "", reverse=True)
+
+    # Admin Date ≈ dateCreated; yayına alma = JSON-LD datePublished
+    publish_meta: dict[str, Any] = {}
+    try:
+        from backend.services.doviz_news_live import enrich_rows_with_publish_dates
+
+        final_rows, publish_meta = enrich_rows_with_publish_dates(
+            final_rows, limit=80, discover_limit=160
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("doviz news publish-date enrich failed: %s", exc)
+        publish_meta = {"ok": False, "error": str(exc)[:160]}
+
+    pub_n = int(publish_meta.get("updated") or 0)
     set_doviz_news_rows_cache(
         final_rows,
         source=source,
@@ -655,6 +701,7 @@ def ingest_doviz_news_rows(
         sync_message=(
             f"{len(norm)} yeni/güncel · toplam {len(final_rows)}"
             + (f" · +{merged_n} yeni id" if merge and merged_n else "")
+            + (f" · {pub_n} yayın saati düzeltildi" if pub_n else "")
         ),
         sync_mode=mode,
         mark_background=True,
@@ -670,10 +717,12 @@ def ingest_doviz_news_rows(
         "skipped_old": skipped_old,
         "min_id": DOVIZ_NEWS_MIN_ID,
         "sync_mode": mode,
+        "publish_dates_updated": pub_n,
         "message": (
             f"Doviz news admin ingest · {len(norm)} çekildi → {len(final_rows)} toplam"
             f" ({mode}"
             + (f", {skipped_old} eski atıldı" if skipped_old else "")
+            + (f", {pub_n} yayın saati" if pub_n else "")
             + ")."
         ),
         "source": source,

@@ -31,7 +31,7 @@ def test_first_news_article_ld_extracts_created():
     assert ld["dateCreated"].startswith("2026-08-07T14:54")
 
 
-def test_merge_sheet_with_live_adds_missing_ids_only():
+def test_merge_sheet_with_live_adds_missing_and_updates_newer_date():
     sheet = [
         {
             "id": "910272",
@@ -43,8 +43,10 @@ def test_merge_sheet_with_live_adds_missing_ids_only():
     live = [
         {
             "id": "910272",
-            "title": "Should not replace",
+            "title": "Should keep title",
             "date": "2026-08-07 09:00:00",
+            "date_day": "2026-08-07",
+            "hour": 9,
             "category": "Gündem Haberleri",
         },
         {
@@ -58,7 +60,10 @@ def test_merge_sheet_with_live_adds_missing_ids_only():
     assert len(merged) == 2
     assert merged[0]["id"] == "910489"
     assert merged[0]["title"] == "Özgür Özel Le Monde"
-    assert merged[1]["title"] == "Sheet eski"
+    # Aynı ID: yayın saati daha yeni → tarih güncellenir, başlık sheet’ten kalır
+    old = next(r for r in merged if r["id"] == "910272")
+    assert old["title"] == "Sheet eski"
+    assert old["date"] == "2026-08-07 09:00:00"
 
 
 def test_discover_live_article_refs_from_html(monkeypatch):
@@ -87,7 +92,7 @@ def test_discover_live_article_refs_from_html(monkeypatch):
     assert ids.count("910489") == 1
 
 
-def test_fetch_article_row_uses_date_created(monkeypatch):
+def test_fetch_article_row_uses_date_published(monkeypatch):
     html = """
     <script type="application/ld+json">
     {"@type":"NewsArticle","headline":"Özgür Özel'den Le Monde",
@@ -115,6 +120,7 @@ def test_fetch_article_row_uses_date_created(monkeypatch):
     )
     assert row is not None
     assert row["id"] == "910489"
-    assert row["date"] == "2026-08-07 14:54:00"
+    # Yayına alma saati (datePublished), taslak/created değil
+    assert row["date"] == "2026-08-07 16:32:35"
     assert row["category"] == "Gündem Haberleri"
     assert row.get("_live") is True
