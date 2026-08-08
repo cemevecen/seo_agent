@@ -2357,11 +2357,11 @@ def _vitals_version_code() -> str:
 
 
 def _vitals_detail_limit() -> int:
-    raw = (os.environ.get("PLAY_CONSOLE_VITALS_DETAIL_LIMIT") or "15").strip()
+    raw = (os.environ.get("PLAY_CONSOLE_VITALS_DETAIL_LIMIT") or "40").strip()
     try:
-        return max(0, min(40, int(raw)))
+        return max(0, min(80, int(raw)))
     except ValueError:
-        return 15
+        return 40
 
 
 def _vitals_crashes_url(
@@ -2947,7 +2947,8 @@ def _scrape_vitals_crashes_error_type(
     _scroll_full_page(page)
 
     categories_out: list[dict[str, Any]] = []
-    general_issues: list[dict[str, Any]] = []
+    all_issues_for_details: list[dict[str, Any]] = []
+    seen_detail_ids: set[str] = set()
     for cat in VITALS_ISSUE_CATEGORIES:
         cat_id = str(cat["id"])
         labels = tuple(cat["labels"])
@@ -2993,29 +2994,30 @@ def _scrape_vitals_crashes_error_type(
                 detail_url = _vitals_issue_detail_url(
                     iid, days=days, version_code=vc
                 )
-            clean_issues.append(
-                {
-                    "issue_id": iid,
-                    "detail_url": detail_url,
-                    "title": title[:240],
-                    "subtitle": str(iss.get("subtitle") or "")[:240],
-                    "tags": [
-                        str(t)[:80]
-                        for t in (iss.get("tags") or [])
-                        if str(t).strip()
-                    ][:6],
-                    "issue_type": str(iss.get("issue_type") or "")[:64],
-                    "affected_versions": str(iss.get("affected_versions") or "")[:80],
-                    "version_track": str(iss.get("version_track") or "")[:64],
-                    "users": str(iss.get("users") or "")[:32],
-                    "events": str(iss.get("events") or "")[:32],
-                    "events_share": str(iss.get("events_share") or "")[:32],
-                    "last_occurrence": str(iss.get("last_occurrence") or "")[:64],
-                    "extra": str(iss.get("extra") or "")[:120],
-                }
-            )
-        if cat_id == "general":
-            general_issues = list(clean_issues)
+            row = {
+                "issue_id": iid,
+                "detail_url": detail_url,
+                "title": title[:240],
+                "subtitle": str(iss.get("subtitle") or "")[:240],
+                "tags": [
+                    str(t)[:80]
+                    for t in (iss.get("tags") or [])
+                    if str(t).strip()
+                ][:6],
+                "issue_type": str(iss.get("issue_type") or "")[:64],
+                "affected_versions": str(iss.get("affected_versions") or "")[:80],
+                "version_track": str(iss.get("version_track") or "")[:64],
+                "users": str(iss.get("users") or "")[:32],
+                "events": str(iss.get("events") or "")[:32],
+                "events_share": str(iss.get("events_share") or "")[:32],
+                "last_occurrence": str(iss.get("last_occurrence") or "")[:64],
+                "extra": str(iss.get("extra") or "")[:120],
+            }
+            clean_issues.append(row)
+            # Tüm kategorilerden benzersiz sorun → detay sayfası çek
+            if iid and iid not in seen_detail_ids:
+                seen_detail_ids.add(iid)
+                all_issues_for_details.append(row)
         categories_out.append(
             {
                 "id": cat_id,
@@ -3036,11 +3038,15 @@ def _scrape_vitals_crashes_error_type(
         )
 
     issue_details: dict[str, dict[str, Any]] = {}
-    if scrape_details and general_issues:
-        print(f"  · vitals issue details ({error_type}) …", flush=True)
+    if scrape_details and all_issues_for_details:
+        print(
+            f"  · vitals issue details ({error_type}) "
+            f"candidates={len(all_issues_for_details)} …",
+            flush=True,
+        )
         issue_details = _scrape_vitals_issue_details(
             page,
-            general_issues,
+            all_issues_for_details,
             days=days,
             version_code=vc,
             headed=headed,
