@@ -87,6 +87,24 @@ def get_play_analytics_query(
         prefer == "auto" and metric in _NO_GCS_FALLBACK
     )
 
+    # Puan: önce GCS stats/ratings CSV (günlük ort.), sonra scrape
+    if prefer == "auto" and metric == "rating":
+        try:
+            gcs = query_play_analytics(
+                start=start,
+                end=end,
+                metric="rating",
+                breakdown=breakdown,
+                dim=dim if dim in ("overview", "country", "os_version", "app_version", "device", "language", "carrier") else "overview",
+                segment=segment,
+                compare=compare,
+            )
+            gcs["source"] = "gcs"
+            if gcs.get("ok") and gcs.get("series"):
+                return gcs
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("rating gcs-first failed")
+
     scrape_res: dict[str, Any] | None = None
     if try_scrape:
         try:

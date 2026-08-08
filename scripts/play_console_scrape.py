@@ -182,8 +182,17 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension_values": "OVERALL%2CTR%2CDE%2CIQ%2CAT",
         "needles": ("Edinme", "Acquisition", "Mağaza", "İstatistik", "Veri tablosu"),
     },
-    # rating: statistics URL kartı tek OVERALL=5 üretiyordu — iptal.
-    # Günlük puan: /user-feedback/ratings scrape + GCS stats/ratings CSV.
+    {
+        # Günlük ortalama / Play puanı — yalnızca protobuf/tablo tarihli fact (kart OVERALL=5 yok)
+        "id": "rating",
+        "label": "Google Play puanı",
+        "metric_key": "rating",
+        "metrics": "GOOGLE_PLAY_RATING-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL",
+        "dim_hint": "overview",
+        "needles": ("Puan", "Rating", "Google Play", "İstatistik", "Veri tablosu", "Ortalama"),
+    },
     {
         "id": "active_users",
         "label": "Etkin kullanıcılar",
@@ -916,6 +925,21 @@ def _fact_value_ok(metric_key: str, value: float, *, source: str, raw: str = "")
     return True
 
 
+def _normalize_rating_value(val: float) -> float | None:
+    """Play bazen 4.65, bazen 4650 (milli) döner — 1–5.5 aralığına çek."""
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return None
+    if 0 < v <= 5.5:
+        return round(v, 4)
+    if 1000 < v <= 5500:
+        return round(v / 1000.0, 4)
+    if 100 < v <= 550:
+        return round(v / 100.0, 4)
+    return None
+
+
 def _dim_key(dimension: str) -> str:
     d = (dimension or "").upper()
     if d == "COUNTRY":
@@ -1279,50 +1303,52 @@ def _explorer_facts_from_view(
             continue
         facts.append(tf)
 
-    for b in scraped.get("breakdowns") or []:
-        if not isinstance(b, dict):
-            continue
-        raw = str(b.get("value") or "")
-        num = _parse_numeric_tr(b.get("value"))
-        if num is None or not _fact_value_ok(metric_key, num, source="breakdown", raw=raw):
-            continue
-        seg = str(b.get("segment") or "OVERALL").strip() or "OVERALL"
-        facts.append(
-            {
-                "metric": metric_key,
-                "view_id": view_id,
-                "dim": dim,
-                "segment": seg,
-                "date": None,
-                "value": num,
-                "label": str(b.get("title") or "")[:120],
-                "delta": str(b.get("delta") or ""),
-                "source": "breakdown",
-            }
-        )
+    # Puan: tarihsiz kart/kırılım (tek OVERALL≈5) günlük seri sanılmasın
+    if metric_key != "rating":
+        for b in scraped.get("breakdowns") or []:
+            if not isinstance(b, dict):
+                continue
+            raw = str(b.get("value") or "")
+            num = _parse_numeric_tr(b.get("value"))
+            if num is None or not _fact_value_ok(metric_key, num, source="breakdown", raw=raw):
+                continue
+            seg = str(b.get("segment") or "OVERALL").strip() or "OVERALL"
+            facts.append(
+                {
+                    "metric": metric_key,
+                    "view_id": view_id,
+                    "dim": dim,
+                    "segment": seg,
+                    "date": None,
+                    "value": num,
+                    "label": str(b.get("title") or "")[:120],
+                    "delta": str(b.get("delta") or ""),
+                    "source": "breakdown",
+                }
+            )
 
-    # Kartlar → overview segment
-    for c in scraped.get("cards") or scraped.get("tpg") or []:
-        if not isinstance(c, dict):
-            continue
-        raw = str(c.get("value") or "")
-        num = _parse_numeric_tr(c.get("value"))
-        if num is None or not _fact_value_ok(metric_key, num, source="card", raw=raw):
-            continue
-        facts.append(
-            {
-                "metric": metric_key,
-                "view_id": view_id,
-                "dim": "overview",
-                "segment": "OVERALL",
-                "date": None,
-                "value": num,
-                "label": str(c.get("title") or "")[:120],
-                "delta": str(c.get("delta") or ""),
-                "period": str(c.get("period") or ""),
-                "source": "card",
-            }
-        )
+        # Kartlar → overview segment
+        for c in scraped.get("cards") or scraped.get("tpg") or []:
+            if not isinstance(c, dict):
+                continue
+            raw = str(c.get("value") or "")
+            num = _parse_numeric_tr(c.get("value"))
+            if num is None or not _fact_value_ok(metric_key, num, source="card", raw=raw):
+                continue
+            facts.append(
+                {
+                    "metric": metric_key,
+                    "view_id": view_id,
+                    "dim": "overview",
+                    "segment": "OVERALL",
+                    "date": None,
+                    "value": num,
+                    "label": str(c.get("title") or "")[:120],
+                    "delta": str(c.get("delta") or ""),
+                    "period": str(c.get("period") or ""),
+                    "source": "card",
+                }
+            )
 
     for s in series or []:
         if not isinstance(s, dict):
@@ -1367,6 +1393,23 @@ def _explorer_facts_from_view(
                         "source": "series",
                     }
                 )
+
+    if metric_key == "rating":
+        cleaned: list[dict[str, Any]] = []
+        for f in facts:
+            ds = str(f.get("date") or "")
+            if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds[:10]):
+                continue
+            nv = _normalize_rating_value(f.get("value"))
+            if nv is None:
+                continue
+            f = dict(f)
+            f["date"] = ds[:10]
+            f["value"] = nv
+            f["dim"] = "overview"
+            f["segment"] = "OVERALL"
+            cleaned.append(f)
+        return cleaned
     return facts
 
 
@@ -2063,17 +2106,45 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "debug": debug,
         }
 
-        # Ratings sayfası (günlük ortalama puan) — statistics kartı yerine
+        # Ratings sayfası — network protobuf/seri + DOM tablo (statistics rating’e yedek)
         print("  · ratings page …", flush=True)
+        net_before_rt = len(network)
         page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
-        _settle(page, seconds=5.0)
+        _settle(page, seconds=6.0)
         need_rt, _, _ = _page_needs_login(page)
         if need_rt and headed:
             _wait_until_console(page, timeout_sec=300)
             page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
-            _settle(page, seconds=5.0)
+            _settle(page, seconds=6.0)
         rating_summary = _extract_rating_summary_dom(page) or {}
         ratings_series = _extract_ratings_series_dom(page) or []
+        net_slice_rt = network[net_before_rt:]
+        proto_rt = _best_stats_protobuf(net_slice_rt)
+        if proto_rt is not None:
+            for f in _parse_stats_protobuf(
+                proto_rt, metric_key="rating", view_id="ratings_page", dim_hint="overview"
+            ):
+                nv = _normalize_rating_value(f.get("value"))
+                ds = str(f.get("date") or "")[:10]
+                if nv is None or not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
+                    continue
+                ratings_series.append({"date": ds, "value": nv})
+        for s in _series_from_network(net_slice_rt):
+            for p in s.get("points") or []:
+                if not isinstance(p, dict):
+                    continue
+                ds = str(p.get("date") or "")
+                m = re.search(r"(20\d{2})[-_/](\d{1,2})[-_/](\d{1,2})", ds)
+                if not m:
+                    continue
+                ds_s = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+                try:
+                    nv = _normalize_rating_value(float(p["value"]))
+                except (TypeError, ValueError, KeyError):
+                    continue
+                if nv is None:
+                    continue
+                ratings_series.append({"date": ds_s, "value": nv})
         # Tablo sayfalama varsa ekstra metin
         if len(ratings_series) < 14:
             try:
@@ -2087,24 +2158,42 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 have_d = {str(p.get("date")) for p in ratings_series}
                 for f in extra:
                     ds = str(f.get("date") or "")[:10]
-                    if ds and ds not in have_d and f.get("value") is not None:
-                        ratings_series.append({"date": ds, "value": float(f["value"])})
+                    nv = _normalize_rating_value(f.get("value"))
+                    if ds and ds not in have_d and nv is not None:
+                        ratings_series.append({"date": ds, "value": nv})
                         have_d.add(ds)
             except Exception:
                 pass
+        # dedupe by date (son değer)
+        by_day: dict[str, float] = {}
+        for pt in ratings_series:
+            if not isinstance(pt, dict):
+                continue
+            ds = str(pt.get("date") or "")[:10]
+            nv = _normalize_rating_value(pt.get("value"))
+            if nv is None or not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
+                continue
+            by_day[ds] = nv
+        ratings_series = [{"date": k, "value": by_day[k]} for k in sorted(by_day)]
         rating_facts = _ratings_facts_from_series(ratings_series)
         if rating_facts:
-            # Eski tarihsiz rating kartlarını temizle
-            explorer_facts = [
+            # statistics’ten gelen tarihli rating fact’leriyle birleştir (tarih bazında)
+            have_d = {str(f.get("date"))[:10] for f in rating_facts}
+            keep = [
                 f
                 for f in explorer_facts
                 if not (
                     str(f.get("metric")) == "rating"
-                    and not f.get("date")
+                    and (
+                        not f.get("date")
+                        or str(f.get("date"))[:10] in have_d
+                    )
                 )
             ]
-            explorer_facts.extend(rating_facts)
+            explorer_facts = keep + rating_facts
             print(f"    → ratings_page facts={len(rating_facts)}", flush=True)
+        else:
+            print("    → ratings_page facts=0 (statistics rating fact’leri korunur)", flush=True)
         view_summaries.append(
             {
                 "id": "ratings_page",

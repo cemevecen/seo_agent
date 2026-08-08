@@ -560,7 +560,9 @@ def _load_install_facts(
                             "Daily Average Rating",
                             "Daily average rating",
                             "Ortalama puan (günlük)",
+                            "Günlük ortalama puan",
                             "Average Rating",
+                            "Daily Average Star Rating",
                         ),
                     )
                     total_avg = _float_cell(
@@ -569,15 +571,25 @@ def _load_install_facts(
                             "Total Average Rating",
                             "Total average rating",
                             "Lifetime Average Rating",
+                            "Yaşam boyu ortalama puan",
                             "Varsayılan Google Play puanı",
+                            "Google Play puanı",
+                            "Total Average Star Rating",
                         ),
                     )
                     # Günlük seri için Daily Average; yoksa lifetime total
                     rating_val = daily if daily is not None else total_avg
                     if rating_val is None:
                         continue
-                    if not (0 < float(rating_val) <= 5.5):
+                    rv = float(rating_val)
+                    # milli ölçek (4650 → 4.65)
+                    if 1000 < rv <= 5500:
+                        rv = rv / 1000.0
+                    elif 100 < rv <= 550:
+                        rv = rv / 100.0
+                    if not (0 < rv <= 5.5):
                         continue
+                    rating_val = rv
                     segment = "OVERALL"
                     if dim != "overview":
                         cols = _DIM_COL_CANDIDATES.get(dim) or ()
@@ -984,8 +996,15 @@ def query_play_analytics(
     if lag_note:
         msg = f"{msg} · {lag_note}" if msg else lag_note
 
+    if metric == "rating" and not series:
+        msg = (
+            (msg + " · " if msg else "")
+            + "Puan satırı yok — GCS stats/ratings/*.csv veya Play scrape "
+            "(/user-feedback/ratings + statistics GOOGLE_PLAY_RATING) gerekli."
+        )
+
     return {
-        "ok": bool(warehouse.get("ok")) or bool(series),
+        "ok": bool(series) if metric == "rating" else (bool(warehouse.get("ok")) or bool(series)),
         "configured": warehouse.get("configured"),
         "bucket": warehouse.get("bucket"),
         "message": msg,
