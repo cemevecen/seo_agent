@@ -104,8 +104,19 @@ def ingest_play_console_payload(
                 by_date[ds] = f
         for f in new_facts:
             ds = str(f.get("date") or "")[:10]
-            if ds:
-                by_date[ds] = f
+            if not ds:
+                continue
+            prev = by_date.get(ds)
+            new_stars = f.get("stars") if isinstance(f.get("stars"), dict) else {}
+            prev_stars = (
+                prev.get("stars") if isinstance(prev, dict) and isinstance(prev.get("stars"), dict) else {}
+            )
+            # Yıldızlı CSV’yi yıldızsız kısa satırla ezme
+            if prev and prev_stars and any(prev_stars.values()) and not any(
+                (new_stars or {}).values()
+            ):
+                continue
+            by_date[ds] = f
         merged_panels["explorer_facts"] = other_facts + list(by_date.values())
         merged_panels["explorer_fact_count"] = len(merged_panels["explorer_facts"])
         try:

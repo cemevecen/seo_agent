@@ -7,9 +7,10 @@
 Sync (varsayılan headed; Google headless’ta session düşürür):
   .venv/bin/python scripts/play_console_scrape.py --sync --ingest
 
-Sadece vitals / yorumlar:
+Sadece vitals / yorumlar / puan dağılımı:
   .venv/bin/python scripts/play_console_scrape.py --vitals-only --sync --ingest
   .venv/bin/python scripts/play_console_scrape.py --reviews-only --sync --ingest
+  .venv/bin/python scripts/play_console_scrape.py --ratings-dist-only --sync --ingest
 
 Env:
   PLAY_CONSOLE_DEVELOPER_ID  (default 7587799419591090593)
@@ -1831,22 +1832,57 @@ def _expand_ratings_page_date_range(page) -> str:
 def _download_ratings_distribution_csv(page) -> list[dict[str, Any]]:
     """Puan dağılımı → CSV indir → günlük oy toplamları (mümkünse ömür boyu)."""
     try:
-        # URL ile uzun aralık dene (statistics ile aynı QS)
+        # Uzun tarih aralığı (2025-01-01 → dün) — kısa 28g chip’ini URL ile ez
         try:
-            cur = page.url or RATINGS_URL
-            if "dateRange=" not in cur:
-                sep = "&" if "?" in cur else "?"
-                page.goto(
-                    f"{cur.split('#')[0]}{sep}dateRange={_console_date_range()}",
-                    wait_until="domcontentloaded",
-                    timeout=90_000,
-                )
-                _settle(page, seconds=3.0)
+            base = (RATINGS_URL or "").split("#")[0].split("?")[0]
+            page.goto(
+                f"{base}?dateRange={_console_date_range()}",
+                wait_until="domcontentloaded",
+                timeout=90_000,
+            )
+            _settle(page, seconds=3.5)
         except Exception:
             pass
         selected = _expand_ratings_page_date_range(page)
         if selected:
             print(f"    → ratings date range UI: {selected}", flush=True)
+        # Dağılım grafiği yakınındaki aralık seçiciyi de dene
+        try:
+            dist_hdr = page.get_by_text(
+                re.compile(r"Puan\s*dağılımı|Ratings?\s*distribution", re.I)
+            )
+            if dist_hdr.count():
+                dist_hdr.first.scroll_into_view_if_needed(timeout=3000)
+                page.wait_for_timeout(400)
+                nearby = page.locator("button, [role='button']").filter(
+                    has_text=re.compile(
+                        r"Ömür boyu|Lifetime|Son\s+1\s+yıl|Last\s+1\s+year|Son\s+\d+\s+gün|Last\s+\d+\s+days",
+                        re.I,
+                    )
+                )
+                if nearby.count():
+                    nearby.first.click(timeout=4000)
+                    page.wait_for_timeout(600)
+                    for label in ("Ömür boyu", "Lifetime", "Son 1 yıl", "Last 1 year"):
+                        opt = page.get_by_role(
+                            "option", name=re.compile(f"^{re.escape(label)}$", re.I)
+                        )
+                        if opt.count() == 0:
+                            opt = page.get_by_text(
+                                re.compile(f"^{re.escape(label)}$", re.I)
+                            )
+                        if opt.count():
+                            opt.first.click(timeout=4000)
+                            _settle(page, seconds=4.0)
+                            print(f"    → ratings dist range UI: {label}", flush=True)
+                            break
+                    else:
+                        page.keyboard.press("Escape")
+        except Exception:
+            try:
+                page.keyboard.press("Escape")
+            except Exception:
+                pass
         # İkinci CSV genelde dağılım; yoksa tüm CSV butonlarını dene
         buttons = page.locator("button").filter(
             has_text=re.compile(r"CSV dosyasını indir|Download CSV|CSV", re.I)
@@ -4310,8 +4346,20 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                     by_date[ds] = f
             for f in count_facts:
                 ds = str(f.get("date") or "")[:10]
-                if ds:
-                    by_date[ds] = f
+                if not ds:
+                    continue
+                prev = by_date.get(ds)
+                new_stars = f.get("stars") if isinstance(f.get("stars"), dict) else {}
+                prev_stars = (
+                    prev.get("stars")
+                    if isinstance(prev, dict) and isinstance(prev.get("stars"), dict)
+                    else {}
+                )
+                if prev and prev_stars and any(prev_stars.values()) and not any(
+                    (new_stars or {}).values()
+                ):
+                    continue
+                by_date[ds] = f
             explorer_facts = kept + list(by_date.values())
             print(
                 f"    → ratings_count facts={len(count_facts)} "
@@ -4616,6 +4664,75 @@ def scrape_reviews_only(*, headed: bool | None = None) -> dict[str, Any]:
             pass
 
 
+def scrape_ratings_dist_only(*, headed: bool | None = None) -> dict[str, Any]:
+    """Sadece Puan dağılımı CSV → ratings_count + star_1..5 (ömür boyu mümkünse)."""
+    if headed is None:
+        env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
+        headed = env_hl not in ("1", "true", "yes")
+    pw, context = _launch_context(headed=True if headed else False)
+    try:
+        page = context.new_page()
+        page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
+        _settle(page, seconds=2.5)
+        need, _, _ = _page_needs_login(page)
+        if need and headed:
+            _wait_until_console(page, timeout_sec=300)
+        elif need:
+            return {
+                "ok": False,
+                "needs_login": True,
+                "message": "Play Console login gerekli (--login veya headed sync)",
+                "panels": {},
+            }
+        dist_rows = _download_ratings_distribution_csv(page) or []
+        count_facts = _ratings_count_facts_from_distribution(dist_rows)
+        ok = bool(count_facts)
+        dates = sorted(str(f.get("date") or "") for f in count_facts if f.get("date"))
+        return {
+            "ok": ok,
+            "needs_login": False,
+            "message": (
+                f"Ratings distribution · facts={len(count_facts)}"
+                + (
+                    f" · {dates[0]}→{dates[-1]}"
+                    if len(dates) >= 2
+                    else ""
+                )
+            ),
+            "package_name": PACKAGE,
+            "app_id": APP_ID,
+            "metrics": [],
+            "panels": {
+                "explorer_facts": count_facts,
+                "explorer_fact_count": len(count_facts),
+            },
+            "reviews": None,
+            "rating_summary": None,
+            "merge_ratings_counts": True,
+            "source": "play_console_bridge",
+            "source_url": RATINGS_URL,
+            "sync_ok": ok,
+            "sync_mode": "ratings_count_only",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "needs_login": False,
+            "message": f"Ratings dist scrape hata: {exc}",
+            "panels": {},
+            "merge_ratings_counts": False,
+        }
+    finally:
+        try:
+            context.close()
+        except Exception:
+            pass
+        try:
+            pw.stop()
+        except Exception:
+            pass
+
+
 def _snapshot_cache_path() -> Path:
     return PROFILE_DIR.parent / "play-console-last-full.json"
 
@@ -4673,9 +4790,37 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
     rating_summary = result.get("rating_summary")
     merge_vitals = bool(result.get("merge_vitals"))
     merge_reviews = bool(result.get("merge_reviews"))
+    merge_ratings_counts = bool(result.get("merge_ratings_counts"))
 
     # vitals-only: birleştirme sunucuda yapılır (snapshot admin auth ister)
-    if merge_vitals:
+    if merge_ratings_counts:
+        facts = []
+        if isinstance(panels, dict):
+            facts = [
+                f
+                for f in (panels.get("explorer_facts") or [])
+                if isinstance(f, dict) and str(f.get("metric")) == "ratings_count"
+            ]
+        if not facts:
+            return {"ok": False, "message": "merge_ratings_counts için ratings_count fact gerekli"}
+        payload = {
+            "metrics": [],
+            "panels": {"explorer_facts": facts},
+            "reviews": [],
+            "rating_summary": {},
+            "raw_network": [],
+            "source": result.get("source") or "play_console_bridge",
+            "source_url": result.get("source_url") or RATINGS_URL,
+            "package_name": result.get("package_name") or PACKAGE,
+            "app_id": result.get("app_id") or APP_ID,
+            "sync_ok": bool(result.get("ok")),
+            "sync_message": result.get("message"),
+            "sync_mode": result.get("sync_mode") or "ratings_count_only",
+            "merge_vitals": False,
+            "merge_reviews": False,
+            "merge_ratings_counts": True,
+        }
+    elif merge_vitals:
         if not isinstance(panels, dict) or not panels.get("vitals"):
             return {"ok": False, "message": "merge_vitals için panels.vitals gerekli"}
         payload = {
@@ -4796,8 +4941,17 @@ def main(argv: list[str] | None = None) -> int:
     do_ingest = "--ingest" in args or "--sync" in args
     vitals_only = "--vitals-only" in args
     reviews_only = "--reviews-only" in args
+    ratings_dist_only = "--ratings-dist-only" in args
     # --sync implies scrape (+ ingest if token)
-    mode = "vitals-only" if vitals_only else ("reviews-only" if reviews_only else "")
+    mode = (
+        "vitals-only"
+        if vitals_only
+        else (
+            "reviews-only"
+            if reviews_only
+            else ("ratings-dist-only" if ratings_dist_only else "")
+        )
+    )
     print(
         f"Play scrape · headed={headed}"
         + (f" · {mode}" if mode else ""),
@@ -4807,6 +4961,8 @@ def main(argv: list[str] | None = None) -> int:
         result = scrape_vitals_only(headed=headed)
     elif reviews_only:
         result = scrape_reviews_only(headed=headed)
+    elif ratings_dist_only:
+        result = scrape_ratings_dist_only(headed=headed)
     else:
         result = scrape_play_console(headed=headed)
     print(json.dumps({k: v for k, v in result.items() if k != "raw_network"}, ensure_ascii=False, indent=2))
@@ -4835,7 +4991,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ing.get("ok") else 1
     if do_ingest and not result.get("ok"):
         # Kısmi merge / boş payload ile mevcut snapshot'ı ezme
-        if result.get("merge_vitals") or result.get("merge_reviews") or reviews_only or vitals_only:
+        if (
+            result.get("merge_vitals")
+            or result.get("merge_reviews")
+            or result.get("merge_ratings_counts")
+            or reviews_only
+            or vitals_only
+            or ratings_dist_only
+        ):
             print(
                 "INGEST skipped (fail + merge/partial mode) — mevcut Railway snapshot korunur",
                 flush=True,
