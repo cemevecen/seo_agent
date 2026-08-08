@@ -322,6 +322,15 @@ def _wait_until_console(page, *, timeout_sec: int = 600) -> bool:
     return False
 
 
+def _settle(page, *, seconds: float = 4.0) -> None:
+    """Play Console sürekli XHR atar — networkidle kullanma (sonsuz/yenileme hissi)."""
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=30_000)
+    except Exception:
+        pass
+    time.sleep(max(1.0, seconds))
+
+
 def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
     if headed is None:
         # Google Play, headless Chromium’da cookie’yi sık sık reddeder.
@@ -335,11 +344,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         _attach_network_capture(page, network)
 
         page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
-        try:
-            page.wait_for_load_state("networkidle", timeout=45_000)
-        except Exception:
-            pass
-        time.sleep(2)
+        _settle(page, seconds=4.0)
 
         need, url, title = _page_needs_login(page)
         if need:
@@ -368,11 +373,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 }
             # Dashboard’a tekrar bas
             page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120_000)
-            try:
-                page.wait_for_load_state("networkidle", timeout=45_000)
-            except Exception:
-                pass
-            time.sleep(3)
+            _settle(page, seconds=4.0)
 
         need2, url2, _ = _page_needs_login(page)
         if need2:
@@ -390,17 +391,13 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         metrics = _extract_metrics_dom(page) or []
         # Reviews sayfası
         page.goto(REVIEWS_URL, wait_until="domcontentloaded", timeout=120_000)
-        try:
-            page.wait_for_load_state("networkidle", timeout=45_000)
-        except Exception:
-            pass
-        time.sleep(2)
+        _settle(page, seconds=5.0)
         # Reviews de login isterse bekle
         need_r, _, _ = _page_needs_login(page)
         if need_r and headed:
             _wait_until_console(page, timeout_sec=300)
             page.goto(REVIEWS_URL, wait_until="domcontentloaded", timeout=120_000)
-            time.sleep(2)
+            _settle(page, seconds=5.0)
         rating_summary = _extract_rating_summary_dom(page) or {}
         reviews = _extract_reviews_dom(page) or []
 
