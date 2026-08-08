@@ -2160,7 +2160,7 @@ def _scrape_vitals_crashes_error_type(
         issues = snap.get("issues") if isinstance(snap.get("issues"), list) else []
         cards = snap.get("cards") if isinstance(snap.get("cards"), list) else []
         count_raw = snap.get("issue_count")
-        if count_raw is None and issues:
+        if count_raw is None:
             count_raw = str(len(issues))
         categories_out.append(
             {
