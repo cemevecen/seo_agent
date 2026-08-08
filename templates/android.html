@@ -32,7 +32,7 @@
     <div class="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Keşif · zaman &amp; kırılım</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console statistics scrape · ANR/çökme boyutları Reporting API (sürüm/cihaz/OS/ülke) · bazı metrikler 1–3 gün gecikmeli</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play scrape (tarih=mutlak ANR sayısı) · sürüm/cihaz/OS=Reporting API (önce mutlak rapor sayısı; yoksa oran×kullanıcı ≈ etkilenen) · 1–3 gün gecikme</p>
       </div>
       <p id="pa-status" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
     </div>
@@ -55,8 +55,8 @@
       </label>
       <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
         <select id="pa-metric" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
-          <option value="anrs" selected>ANR sayıları</option>
-          <option value="crashes">Çökme sayıları</option>
+          <option value="anrs" selected>ANR (sayı / boyut≈etkilenen)</option>
+          <option value="crashes">Çökme (sayı / boyut≈etkilenen)</option>
           <option value="device_acquisition">Cihaz edinme</option>
           <option value="user_lost">Kullanıcı kaybı</option>
           <option value="active_devices">Etkin cihazlar</option>
@@ -344,9 +344,16 @@
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
   }
-  function fmtNum(n) {
+  function fmtNum(n, asInt) {
     if (n == null || isNaN(n)) return "—";
-    return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+    var opts = asInt
+      ? { maximumFractionDigits: 0, minimumFractionDigits: 0 }
+      : { maximumFractionDigits: 2 };
+    return Number(n).toLocaleString("tr-TR", opts);
+  }
+  function metricIsCountLike() {
+    var m = (paMetric && paMetric.value) || "";
+    return m === "anrs" || m === "crashes";
   }
   function isTimeBreakdown(breakdown) {
     return breakdown === "date" || breakdown === "week" || breakdown === "month";
@@ -417,7 +424,7 @@
     var pt = paChartState.curPts[idx];
     var ppt = paChartState.prevPts[idx];
     if (paTipTitle) paTipTitle.textContent = String(row.key);
-    if (paTipCur) paTipCur.textContent = "Seçili: " + fmtNum(row.value);
+    if (paTipCur) paTipCur.textContent = "Seçili: " + fmtNum(row.value, metricIsCountLike());
     if (paTipPrev) {
       if (row.prevValue == null) {
         paTipPrev.textContent = "";
@@ -425,7 +432,7 @@
         var label = row.prevKey && row.prevKey !== row.key
           ? ("Önceki (" + row.prevKey + "): ")
           : "Önceki: ";
-        paTipPrev.textContent = label + fmtNum(row.prevValue);
+        paTipPrev.textContent = label + fmtNum(row.prevValue, metricIsCountLike());
       }
     }
     var guide = paChart.querySelector("#pa-guide");
@@ -587,19 +594,18 @@
       var dltCls = dlt == null ? "text-slate-400" : (dlt >= 0 ? "text-emerald-700" : "text-rose-600");
       var prevCell = "—";
       if (pv != null) {
-        prevCell = fmtNum(pv);
         if (r.prevKey && r.prevKey !== r.key) {
           prevCell =
-            '<span class="block tabular-nums">' + esc(fmtNum(pv)) + "</span>" +
+            '<span class="block tabular-nums">' + esc(fmtNum(pv, metricIsCountLike())) + "</span>" +
             '<span class="block text-[10px] font-normal text-slate-400">' + esc(r.prevKey) + "</span>";
         } else {
-          prevCell = esc(fmtNum(pv));
+          prevCell = esc(fmtNum(pv, metricIsCountLike()));
         }
       }
       return (
         "<tr class=\"hover:bg-slate-50/80 dark:hover:bg-zinc-800/40\">" +
           '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
-          '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' + esc(fmtNum(r.value)) + "</td>" +
+          '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' + esc(fmtNum(r.value, metricIsCountLike())) + "</td>" +
           '<td class="px-3 py-1.5 tabular-nums text-slate-500">' + prevCell + "</td>" +
           '<td class="px-3 py-1.5 tabular-nums ' + dltCls + '">' +
             (dlt == null ? "—" : ((dlt >= 0 ? "+" : "") + dlt.toFixed(1) + "%")) +
@@ -647,7 +653,7 @@
       var data = await r.json().catch(function () { return {}; });
       if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
       fillSegments((data.facets && data.facets.segments) || []);
-      paTotal.textContent = fmtNum(data.total);
+      paTotal.textContent = fmtNum(data.total, metricIsCountLike());
       var mode = data.total_mode || ((data.compare && data.compare.total_mode) || "sum");
       if (paTotalLabel) {
         paTotalLabel.textContent = mode === "last" ? "Son gün" : (mode === "avg" ? "Ortalama" : "Toplam / seçili");
@@ -656,7 +662,7 @@
         paPrevLabel.textContent = mode === "last" ? "Önceki son gün" : (mode === "avg" ? "Önceki ort." : "Önceki dönem");
       }
       var cmp = data.compare;
-      paPrev.textContent = cmp ? fmtNum(cmp.total) : "—";
+      paPrev.textContent = cmp ? fmtNum(cmp.total, metricIsCountLike()) : "—";
       if (cmp && cmp.delta_pct != null) {
         var d = cmp.delta_pct;
         paDelta.textContent = (d >= 0 ? "+" : "") + d + "%";

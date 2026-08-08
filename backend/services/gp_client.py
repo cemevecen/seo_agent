@@ -409,6 +409,8 @@ def fetch_error_counts_by_dimension(
                 )
                 if count is None and users is None:
                     continue
+                # errorReportCount mutlak olay sayısı (tam sayı)
+                val = int(round(count if count is not None else users or 0.0))
                 out.append(
                     {
                         "metric": metric_key,
@@ -416,8 +418,9 @@ def fetch_error_counts_by_dimension(
                         "dim": ui_dim,
                         "segment": seg,
                         "date": ds,
-                        "value": float(count if count is not None else users or 0.0),
+                        "value": float(val),
                         "distinct_users": users,
+                        "value_kind": "error_report_count",
                         "label": f"{metric_key}:{dim}:{seg}",
                         "source": "reporting_api_errors",
                     }
@@ -511,9 +514,9 @@ def _query_rate_by_dimension(
                     or (metrics.get("distinctUsers") or {}).get("value")
                 )
                 approx = (
-                    round(rate * users, 4)
+                    round(rate * users)
                     if rate is not None and users is not None
-                    else rate
+                    else (round(rate) if rate is not None else None)
                 )
                 if approx is None:
                     continue
@@ -524,8 +527,9 @@ def _query_rate_by_dimension(
                         "dim": ui_dim,
                         "segment": seg,
                         "date": ds,
-                        "value": float(approx),
+                        "value": float(int(approx)),
                         "distinct_users": users,
+                        "value_kind": "approx_affected_users",
                         "label": f"{metric_key}:{dim}:{seg}",
                         "source": "reporting_api",
                     }

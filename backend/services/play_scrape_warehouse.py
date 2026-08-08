@@ -212,7 +212,13 @@ def _enrich_reporting(
         )
     ]
     src = str((extra[0] or {}).get("source") or "reporting_api")
-    return kept + extra, f"Reporting API +{len(extra)} satır ({api_dim}→{dim}, {src})"
+    kind = str((extra[0] or {}).get("value_kind") or "")
+    unit = (
+        "mutlak ANR/çökme raporu"
+        if kind == "error_report_count"
+        else "yaklaşık etkilenen kullanıcı (oran×kullanıcı)"
+    )
+    return kept + extra, f"Reporting API +{len(extra)} satır ({api_dim}→{dim}, {src}, {unit})"
 
 
 def _aggregate(
