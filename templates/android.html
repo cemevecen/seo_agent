@@ -427,6 +427,9 @@
       if (!data.ok && data.debug && data.debug.samples && data.debug.samples.length) {
         paStatus.textContent += " · örnek: " + data.debug.samples.slice(0, 3).join(" | ");
       }
+      if (data.debug && data.debug.headers && data.debug.headers.length && !(data.total > 0)) {
+        paStatus.textContent += " · kolon: " + data.debug.headers.slice(0, 6).join(", ");
+      }
     } catch (err) {
       var msg = (err && err.name === "AbortError")
         ? "Zaman aşımı (45s) — GCS yavaş veya yetki yok; tekrar dene."

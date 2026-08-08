@@ -42,9 +42,25 @@ _DIM_COL_CANDIDATES: dict[str, tuple[str, ...]] = {
 }
 
 _METRIC_COLS: dict[str, tuple[str, ...]] = {
-    "installs": ("Daily User Installs", "Daily Device Installs", "Install events"),
-    "uninstalls": ("Daily User Uninstalls", "Daily Device Uninstalls"),
-    "active": ("Active Device Installs", "Installs on active devices"),
+    "installs": (
+        "Daily User Installs",
+        "Daily Device Installs",
+        "Install events",
+        "User Installs",
+        "Device Installs",
+    ),
+    "uninstalls": (
+        "Daily User Uninstalls",
+        "Daily Device Uninstalls",
+        "User Uninstalls",
+        "Device Uninstalls",
+    ),
+    "active": (
+        "Installs on active devices",
+        "Active Device Installs",
+        "Active Devices",
+        "Installs on Active Devices",
+    ),
     "update": ("Daily Device Upgrades", "Daily User Upgrades"),
 }
 
@@ -53,50 +69,76 @@ def _pkg() -> str:
     return (gp_client._env("GP_PACKAGE_NAME") or "com.Doviz").strip()  # noqa: SLF001
 
 
-def _parse_date(s: str) -> str | None:
-    t = (s or "").strip()
+def _parse_date(s: str, *, file_yyyymm: str | None = None) -> str | None:
+    """Play CSV Date = YYYY-MM-DD. YYYYMMDD’yi yalnızca dosya ayıyla uyumluysa kabul et
+    (aksi halde App Version Code gibi 20120403 değerleri sahte tarihe döner)."""
+    t = _clean_text(s)
     if not t:
         return None
-    # YYYY-MM-DD or YYYYMMDD
+    ds: str | None = None
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", t):
-        return t
-    if re.fullmatch(r"\d{8}", t):
-        return f"{t[:4]}-{t[4:6]}-{t[6:8]}"
-    return None
+        ds = t
+    elif re.fullmatch(r"\d{8}", t) and file_yyyymm and t.startswith(file_yyyymm):
+        ds = f"{t[:4]}-{t[4:6]}-{t[6:8]}"
+    if not ds:
+        return None
+    try:
+        d = date.fromisoformat(ds)
+    except ValueError:
+        return None
+    # Play raporları son yıllar; 2011–2012 version-code sahteciliğini ele
+    if d.year < date.today().year - 4:
+        return None
+    if file_yyyymm and re.fullmatch(r"\d{6}", file_yyyymm):
+        fy, fm = int(file_yyyymm[:4]), int(file_yyyymm[4:6])
+        # Dosya ayı ±1 dışında ise kolon kayması
+        if abs((d.year - fy) * 12 + (d.month - fm)) > 1:
+            return None
+    return ds
 
 
 def _decode_csv(raw: bytes) -> str:
     if not raw:
         return ""
-    # Play GCS raporları UTF-16 (BOM’lu). Yanlış decode kolon adlarını bozar.
+    text = ""
+    # Play GCS raporları UTF-16 (çoğunlukla LE + BOM).
     if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
-        return raw.decode("utf-16")
-    if len(raw) >= 4 and raw[1] == 0 and raw[3] == 0:
+        text = raw.decode("utf-16")
+    elif len(raw) >= 4 and raw[1] == 0 and raw[3] == 0:
         try:
-            return raw.decode("utf-16-le")
+            text = raw.decode("utf-16-le")
         except UnicodeDecodeError:
-            pass
-    try:
-        return raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
+            text = ""
+    if not text:
         try:
-            return raw.decode("utf-16")
+            text = raw.decode("utf-8-sig")
         except UnicodeDecodeError:
-            return raw.decode("utf-8", errors="replace")
+            try:
+                text = raw.decode("utf-16")
+            except UnicodeDecodeError:
+                text = raw.decode("utf-8", errors="replace")
+    # Yanlış 8-bit decode sonrası NUL’lar: D\\x00a\\x00t\\x00e → Date
+    if "\x00" in text:
+        text = text.replace("\x00", "")
+    return text
+
+
+def _clean_text(s: str | None) -> str:
+    return (s or "").replace("\x00", "").replace("\ufeff", "").strip()
 
 
 def _norm_header(k: str | None) -> str:
-    return (k or "").replace("\ufeff", "").strip()
+    return _clean_text(k)
 
 
 def _row_get(row: dict[str, str], *names: str) -> str:
-    """BOM / boşluk farkını yok sayarak hücre oku."""
+    """BOM / NUL / boşluk farkını yok sayarak hücre oku."""
     if not row:
         return ""
     wanted = {n.lower() for n in names}
     for k, v in row.items():
         if _norm_header(k).lower() in wanted:
-            return "" if v is None else str(v)
+            return _clean_text(v if v is None else str(v))
     return ""
 
 
@@ -116,7 +158,8 @@ def _int_cell(row: dict[str, str], candidates: tuple[str, ...]) -> int:
     if not col:
         return 0
     try:
-        return int(float(str(row.get(col) or "0").replace(",", "").strip() or "0"))
+        raw = _clean_text(str(row.get(col) or "0")).replace(",", "")
+        return int(float(raw or "0"))
     except (TypeError, ValueError):
         return 0
 
@@ -126,6 +169,12 @@ def _fact_date_bounds(facts: list[dict[str, Any]]) -> tuple[str | None, str | No
     if not dates:
         return None, None
     return dates[0], dates[-1]
+
+
+def _sample_headers(row: dict[str, str] | None) -> list[str]:
+    if not row:
+        return []
+    return [_norm_header(k) for k in row.keys()][:20]
 
 
 def _recent_yyyymm(months: int = 4) -> set[str]:
@@ -167,7 +216,7 @@ def _load_install_facts(
 
     want_dims = set(dims) if dims else set(_DIM_SUFFIXES)
     want_dims.add("overview")
-    cache_key = f"{package_name}|{','.join(sorted(want_dims))}|m{months}"
+    cache_key = f"v2|{package_name}|{','.join(sorted(want_dims))}|m{months}"
     now = time.time()
     cached = _CACHE.get(cache_key)
     if cached and (now - cached["ts"]) < _CACHE_TTL:
@@ -236,7 +285,7 @@ def _load_install_facts(
         _CACHE[cache_key + "|err"] = {"ts": now, "data": data}
         return data
 
-    # Önce overview, sonra istenen dim — ay filtresi (önce gevşek: ay yoksa yine al)
+    # Önce overview, sonra istenen dim — ay filtresi
     selected = []
     skipped_month = 0
     skipped_dim = 0
@@ -257,20 +306,23 @@ def _load_install_facts(
         if yyyymm not in months_ok:
             skipped_month += 1
             continue
-        selected.append((0 if dim == "overview" else 1, name, dim, blob))
+        selected.append((0 if dim == "overview" else 1, name, dim, yyyymm, blob))
 
-    # Ay filtresi her şeyi elediysse: son bulunan dosyalardan al (max 12)
+    # Ay filtresi her şeyi elediysse: en yeni yyyymm dosyalarından al
     if not selected and blobs:
+        ranked: list[tuple[str, int, str, str, Any]] = []
         for blob in blobs:
             name = blob.name or ""
             m = re.search(r"installs_[^/]+_(\d{6})_([a-z0-9_]+)\.csv$", name, re.I)
             if not m:
                 continue
-            dim = m.group(2).lower()
+            yyyymm, dim = m.group(1), m.group(2).lower()
             if dim not in want_dims:
                 continue
-            selected.append((0 if dim == "overview" else 1, name, dim, blob))
-        selected = selected[:12]
+            ranked.append((yyyymm, 0 if dim == "overview" else 1, name, dim, blob))
+        ranked.sort(key=lambda x: (x[0], -x[1]), reverse=True)
+        for yyyymm, pri, name, dim, blob in ranked[:12]:
+            selected.append((pri, name, dim, yyyymm, blob))
 
     selected.sort(key=lambda x: (x[0], x[1]))
     selected = selected[:24]
@@ -278,7 +330,9 @@ def _load_install_facts(
     facts: list[dict[str, Any]] = []
     files_read = 0
     parse_errors = 0
-    for _, name, dim, blob in selected:
+    header_samples: list[str] = []
+    row_samples: list[dict[str, str]] = []
+    for _, name, dim, yyyymm, blob in selected:
         try:
             raw = blob.download_as_bytes(timeout=30)
         except TypeError:
@@ -296,14 +350,24 @@ def _load_install_facts(
         for row in reader:
             if not isinstance(row, dict):
                 continue
-            ds = _parse_date(_row_get(row, "Date", "date", "Day", "day"))
+            if not header_samples:
+                header_samples = _sample_headers(row)
+            # Sadece Date — App Version Code (20120403) tarih sanılmasın
+            ds = _parse_date(_row_get(row, "Date", "date"), file_yyyymm=yyyymm)
             if not ds:
                 parse_errors += 1
+                if len(row_samples) < 2:
+                    row_samples.append(
+                        {
+                            _norm_header(k): _clean_text(str(v or ""))[:48]
+                            for k, v in list(row.items())[:8]
+                        }
+                    )
                 continue
             segment = "OVERALL"
             if dim != "overview":
                 col = _pick_col(row, _DIM_COL_CANDIDATES.get(dim, ()))
-                segment = str(row.get(col) or "").strip() or "UNKNOWN"
+                segment = _clean_text(str(row.get(col) or "")) or "UNKNOWN"
             installs = _int_cell(row, _METRIC_COLS["installs"])
             uninstalls = _int_cell(row, _METRIC_COLS["uninstalls"])
             active = _int_cell(row, _METRIC_COLS["active"])
@@ -328,6 +392,7 @@ def _load_install_facts(
                 m = re.search(r"_(\d{6})_overview\.csv$", name)
                 if not m or m.group(1) not in months_ok:
                     continue
+                file_ym = m.group(1)
                 try:
                     raw = blob.download_as_bytes()
                 except Exception:
@@ -338,7 +403,7 @@ def _load_install_facts(
                 for row in reader:
                     if not isinstance(row, dict):
                         continue
-                    ds = _parse_date(_row_get(row, "Date", "date", "Day", "day"))
+                    ds = _parse_date(_row_get(row, "Date", "date"), file_yyyymm=file_ym)
                     if not ds:
                         continue
                     crashes = _int_cell(row, ("Crashes", "Daily Crashes", "crash"))
@@ -380,7 +445,9 @@ def _load_install_facts(
             )
         else:
             msg = (
-                f"{files_read} CSV indirildi ama satır yok (tarih/kolon parse). "
+                f"{files_read} CSV indirildi ama geçerli tarih satırı yok "
+                f"(parse_err={parse_errors}). "
+                f"Başlıklar: {', '.join(header_samples) or '—'}. "
                 f"Örnek dosya: {selected[0][1] if selected else '—'}"
             )
     else:
@@ -402,6 +469,8 @@ def _load_install_facts(
             "months": sorted(months_ok),
             "want_dims": sorted(want_dims),
             "samples": sample_names[:12],
+            "headers": header_samples,
+            "row_samples": row_samples,
             "parse_errors": parse_errors,
             "skipped": {
                 "month": skipped_month,
