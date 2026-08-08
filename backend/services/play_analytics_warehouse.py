@@ -633,11 +633,23 @@ def _densify_date_series(
     *,
     start: date,
     end: date,
+    clip_to_data: bool = True,
 ) -> list[dict[str, Any]]:
     by_key = {str(r["key"]): float(r.get("value") or 0) for r in series}
+    data_dates = []
+    for k in by_key:
+        try:
+            data_dates.append(date.fromisoformat(str(k)[:10]))
+        except ValueError:
+            continue
+    eff_end = end
+    if clip_to_data and data_dates:
+        eff_end = min(end, max(data_dates))
+        if start > eff_end:
+            return []
     out: list[dict[str, Any]] = []
     cur = start
-    while cur <= end:
+    while cur <= eff_end:
         k = cur.isoformat()
         out.append({"key": k, "value": round(by_key.get(k, 0.0), 4)})
         cur += timedelta(days=1)
@@ -725,17 +737,34 @@ def query_play_analytics(
             pass
 
     series = _aggregate(cur_facts, breakdown=breakdown, metric=metric)
+    effective_end_d = end_d
+    lag_note = None
+    if breakdown == "date" and date_max:
+        try:
+            dmax = date.fromisoformat(str(date_max))
+            if end_d > dmax:
+                effective_end_d = dmax
+                lag_note = (
+                    f"Play gecikmesi: son veri {dmax.isoformat()} "
+                    f"(seçili bitiş {end_s})"
+                )
+        except ValueError:
+            pass
     if breakdown == "date":
-        series = _densify_date_series(series, start=start_d, end=end_d)
+        series = _densify_date_series(
+            series, start=start_d, end=effective_end_d, clip_to_data=True
+        )
     total = sum(r["value"] for r in series) if metric != "active" else (series[-1]["value"] if series else 0)
 
     compare_payload = None
     if compare == "previous_period":
-        ps, pe = _prev_range(start_s, end_s)
+        span = (effective_end_d - start_d).days + 1
+        pe = start_d - timedelta(days=1)
+        ps = pe - timedelta(days=max(span, 1) - 1)
         prev_facts = _filter_facts(
             metric_facts,
-            start=ps,
-            end=pe,
+            start=ps.isoformat(),
+            end=pe.isoformat(),
             dim=dim if metric not in ("crashes", "anrs") else "overview",
             segment=segment,
         )
@@ -743,8 +772,9 @@ def query_play_analytics(
         if breakdown == "date":
             prev_series = _densify_date_series(
                 prev_series,
-                start=date.fromisoformat(ps),
-                end=date.fromisoformat(pe),
+                start=ps,
+                end=pe,
+                clip_to_data=True,
             )
         prev_total = sum(r["value"] for r in prev_series) if metric != "active" else (prev_series[-1]["value"] if prev_series else 0)
         delta_pct = None
@@ -752,8 +782,8 @@ def query_play_analytics(
             delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
         compare_payload = {
             "mode": "previous_period",
-            "start": ps,
-            "end": pe,
+            "start": ps.isoformat(),
+            "end": pe.isoformat(),
             "total": prev_total,
             "delta_pct": delta_pct,
             "series": prev_series,
@@ -785,6 +815,8 @@ def query_play_analytics(
             f"Metrik `{metric}` için satır yok (CSV kolon/parse). "
             f"Ham warehouse: {len(facts)} satır. · {msg}"
         )
+    if lag_note:
+        msg = f"{msg} · {lag_note}" if msg else lag_note
 
     return {
         "ok": bool(warehouse.get("ok")) or bool(series),
@@ -794,6 +826,7 @@ def query_play_analytics(
         "package_name": pkg,
         "start": start_s,
         "end": end_s,
+        "effective_end": effective_end_d.isoformat() if breakdown == "date" else end_s,
         "requested_start": requested_start,
         "requested_end": requested_end,
         "auto_shifted": auto_shifted,

@@ -139,12 +139,35 @@ def _densify_date_series(
     *,
     start: date,
     end: date,
+    clip_to_data: bool = True,
 ) -> list[dict[str, Any]]:
-    """Eksik günleri 0 ile doldur — önceki dönem indeks hizası için."""
+    """Eksik günleri 0 ile doldur.
+
+    clip_to_data=True: serideki son gerçek tarihten sonrasını ekleme
+    (Play gecikmeli metriklerde son 1–3 günü sahte 0 yapmamak için).
+    """
     by_key = {str(r["key"]): float(r.get("value") or 0) for r in series}
+    data_dates = []
+    for k in by_key:
+        try:
+            data_dates.append(date.fromisoformat(str(k)[:10]))
+        except ValueError:
+            continue
+    eff_end = end
+    eff_start = start
+    if clip_to_data and data_dates:
+        data_max = max(data_dates)
+        data_min = min(data_dates)
+        eff_end = min(end, data_max)
+        # Seçili aralık tamamen veri dışında kalmasın diye başlangıcı da sıkıştır
+        if eff_start > eff_end:
+            return []
+        if eff_start < data_min and start < data_min:
+            # aralık içinde veri yoksa boş bırakma — sadece [start,eff_end] doldur
+            pass
     out: list[dict[str, Any]] = []
-    cur = start
-    while cur <= end:
+    cur = eff_start
+    while cur <= eff_end:
         k = cur.isoformat()
         out.append({"key": k, "value": round(by_key.get(k, 0.0), 4)})
         cur += timedelta(days=1)
@@ -261,13 +284,42 @@ def query_scrape_analytics(
     # segment breakdown + date grain: top segments by sum
     if breakdown == "segment" and not series and dated:
         series = _aggregate(dated, breakdown="segment")
+
+    metric_dates = sorted(
+        {
+            str(f.get("date"))[:10]
+            for f in dim_facts
+            if f.get("date") and isinstance(f.get("date"), str) and not str(f["date"]).startswith("i")
+        }
+    )
+    metric_date_max = None
+    metric_date_min = None
+    if metric_dates:
+        try:
+            metric_date_min = date.fromisoformat(metric_dates[0])
+            metric_date_max = date.fromisoformat(metric_dates[-1])
+        except ValueError:
+            metric_date_min = metric_date_max = None
+
+    lag_note = None
+    effective_end = end_d
+    if breakdown == "date" and dated and metric_date_max and end_d > metric_date_max:
+        effective_end = metric_date_max
+        lag_note = (
+            f"Play gecikmesi: `{metric_key}` son veri {metric_date_max.isoformat()} "
+            f"(seçili bitiş {end_s} — son {(end_d - metric_date_max).days} gün henüz yok)"
+        )
+
     if breakdown == "date" and dated:
-        series = _densify_date_series(series, start=start_d, end=end_d)
+        series = _densify_date_series(series, start=start_d, end=effective_end, clip_to_data=True)
     total = sum(r["value"] for r in series)
 
     compare_payload = None
     if compare == "previous_period" and dated:
-        span = (end_d - start_d).days + 1
+        # Kıyası etkili (verisi olan) aralık uzunluğuna göre yap — sahte 0 günleri şişirmesin
+        span = (effective_end - start_d).days + 1
+        if span < 1:
+            span = (end_d - start_d).days + 1
         pe = start_d - timedelta(days=1)
         ps = pe - timedelta(days=span - 1)
         prev = [
@@ -280,7 +332,7 @@ def query_scrape_analytics(
         ]
         prev_series = _aggregate(prev, breakdown=breakdown)
         if breakdown == "date":
-            prev_series = _densify_date_series(prev_series, start=ps, end=pe)
+            prev_series = _densify_date_series(prev_series, start=ps, end=pe, clip_to_data=True)
         prev_total = sum(r["value"] for r in prev_series)
         delta_pct = None
         if prev_total:
@@ -302,7 +354,7 @@ def query_scrape_analytics(
         }
     )[:120]
 
-    dates = sorted(
+    dates = metric_dates or sorted(
         {
             str(f.get("date"))[:10]
             for f in cur
@@ -315,6 +367,8 @@ def query_scrape_analytics(
         msg += f" · {enrich_msg}"
     if dates:
         msg += f" · bucket {dates[0]}→{dates[-1]}"
+    if lag_note:
+        msg += f" · {lag_note}"
 
     return {
         "ok": bool(series),
@@ -324,6 +378,7 @@ def query_scrape_analytics(
         "message": msg,
         "start": start_s,
         "end": end_s,
+        "effective_end": effective_end.isoformat() if breakdown == "date" else end_s,
         "metric": metric_key,
         "breakdown": breakdown,
         "dim": dim,
@@ -342,5 +397,6 @@ def query_scrape_analytics(
         "synced_at": meta.get("synced_at"),
         "date_min": dates[0] if dates else None,
         "date_max": dates[-1] if dates else None,
-        "auto_shifted": False,
+        "auto_shifted": bool(lag_note),
+        "lag_days": (end_d - metric_date_max).days if lag_note and metric_date_max else 0,
     }
