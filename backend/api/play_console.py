@@ -54,6 +54,7 @@ class PlayConsoleIngestBody(BaseModel):
     sync_mode: str | None = "dashboard_reviews"
     merge_vitals: bool = False
     merge_reviews: bool = False
+    merge_ratings_counts: bool = False
 
 
 @router.get("/play-console/snapshot")
@@ -86,6 +87,7 @@ def post_play_console_ingest(
             sync_mode=body.sync_mode or "dashboard_reviews",
             merge_vitals=bool(body.merge_vitals),
             merge_reviews=bool(body.merge_reviews),
+            merge_ratings_counts=bool(body.merge_ratings_counts),
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("play-console ingest failed")

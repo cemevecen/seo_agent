@@ -12,7 +12,11 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from backend.services.play_analytics_warehouse import play_analytics_status, query_play_analytics
-from backend.services.play_scrape_warehouse import query_scrape_analytics, scrape_metric_keys
+from backend.services.play_scrape_warehouse import (
+    enrich_rating_series_review_splits,
+    query_scrape_analytics,
+    scrape_metric_keys,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +91,11 @@ def get_play_analytics_query(
         prefer == "auto" and metric in _NO_GCS_FALLBACK
     )
 
+    def _finalize(payload: dict[str, Any]) -> dict[str, Any]:
+        if metric == "rating":
+            return enrich_rating_series_review_splits(payload)
+        return payload
+
     # Puan: önce GCS stats/ratings CSV (günlük ort.), sonra scrape
     if prefer == "auto" and metric == "rating":
         try:
@@ -101,7 +110,7 @@ def get_play_analytics_query(
             )
             gcs["source"] = "gcs"
             if gcs.get("ok") and gcs.get("series"):
-                return gcs
+                return _finalize(gcs)
         except Exception as exc:  # noqa: BLE001
             logger.exception("rating gcs-first failed")
 
@@ -126,16 +135,16 @@ def get_play_analytics_query(
                         for k in keys
                     )
                     if dated_ok:
-                        return scrape_res
+                        return _finalize(scrape_res)
                 else:
-                    return scrape_res
+                    return _finalize(scrape_res)
             # Scrape metrikleri için installs CSV’ye düşme
             if (
                 scrape_res is not None
                 and prefer != "gcs"
                 and metric in _NO_GCS_FALLBACK
             ):
-                return scrape_res
+                return _finalize(scrape_res)
         except Exception as exc:  # noqa: BLE001
             logger.exception("scrape analytics query failed")
             scrape_res = {"ok": False, "message": str(exc), "series": [], "total": 0}
@@ -160,7 +169,7 @@ def get_play_analytics_query(
             if scrape_res and not scrape_res.get("ok"):
                 gcs["scrape_message"] = scrape_res.get("message")
             if gcs.get("ok") and (gcs.get("series") or gcs.get("total")):
-                return gcs
+                return _finalize(gcs)
             # ANR/çökme: installs CSV “kolon yok” mesajını gösterme — scrape uyarısı kalsın
             if metric in _ANR_CRASH and scrape_res is not None:
                 scrape_res["gcs_message"] = gcs.get("message")
@@ -168,7 +177,7 @@ def get_play_analytics_query(
             if scrape_res and not scrape_res.get("ok"):
                 scrape_res["gcs_message"] = gcs.get("message")
                 return scrape_res
-            return gcs
+            return _finalize(gcs)
         except Exception as exc:  # noqa: BLE001
             logger.exception("play-analytics gcs query failed")
             if scrape_res:

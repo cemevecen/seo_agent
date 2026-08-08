@@ -615,6 +615,34 @@ def _strip_review_noise(text: str) -> str:
     return t
 
 
+_TR_MONTH_NUM = {
+    "oca": 1,
+    "sub": 2,
+    "şub": 2,
+    "mar": 3,
+    "nis": 4,
+    "may": 5,
+    "haz": 6,
+    "tem": 7,
+    "agu": 8,
+    "ağu": 8,
+    "eyl": 9,
+    "eki": 10,
+    "kas": 11,
+    "ara": 12,
+    "jan": 1,
+    "feb": 2,
+    "apr": 4,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
+
 def _parse_author_date(author_raw: str) -> tuple[str, str]:
     s = (author_raw or "").strip()
     # "Yunus Leblebici7 Ağu 2026, 18:08" → split
@@ -626,6 +654,38 @@ def _parse_author_date(author_raw: str) -> tuple[str, str]:
     if m:
         return m.group(1).strip() or s, m.group(2).strip()
     return s, ""
+
+
+def review_date_iso(date_raw: str | None) -> str | None:
+    """'7 Ağu 2026, 18:08' / '2026-08-07' → YYYY-MM-DD."""
+    s = str(date_raw or "").strip()
+    if not s:
+        return None
+    m = re.match(r"^(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})", s)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    m = re.search(
+        r"(\d{1,2})\s*([A-Za-zÇĞİÖŞÜçğıöşü]{3,})\s*(20\d{2})",
+        s,
+        re.I,
+    )
+    if not m:
+        return None
+    day = int(m.group(1))
+    mon_key = (
+        m.group(2)
+        .lower()
+        .replace("ı", "i")
+        .replace("ş", "s")
+        .replace("ğ", "g")
+        .replace("ü", "u")
+        .replace("ö", "o")
+        .replace("ç", "c")
+    )
+    mon = _TR_MONTH_NUM.get(mon_key[:3]) or _TR_MONTH_NUM.get(m.group(2).lower()[:3])
+    if not mon or day < 1 or day > 31:
+        return None
+    return f"{int(m.group(3))}-{mon:02d}-{day:02d}"
 
 
 def _is_calendar_review_junk(*parts: Any) -> bool:
@@ -723,10 +783,12 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         if key in seen:
             continue
         seen.add(key)
+        date_iso = review_date_iso(date)
         cleaned.append(
             {
                 "author": author[:80],
                 "date": date[:64] if date else "",
+                "date_iso": date_iso or "",
                 "device": device,
                 "body": body,
                 "stars": stars,

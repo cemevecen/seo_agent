@@ -221,6 +221,8 @@
             <tr>
               <th class="px-3 py-2 font-bold">Kırılım</th>
               <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
+              <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumlu</th>
+              <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumsuz</th>
               <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
               <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
             </tr>
@@ -538,6 +540,8 @@
   var paCompareNote = document.getElementById("pa-compare-note");
   var paThPrev = document.getElementById("pa-th-prev");
   var paThDelta = document.getElementById("pa-th-delta");
+  var paThWithRev = document.getElementById("pa-th-with-rev");
+  var paThWithoutRev = document.getElementById("pa-th-without-rev");
   var paTable = document.getElementById("pa-table");
   var paChartState = null;
 
@@ -559,6 +563,16 @@
     if (paThDelta) {
       if (show) paThDelta.classList.remove("hidden");
       else paThDelta.classList.add("hidden");
+    }
+  }
+  function setReviewSplitColsVisible(show) {
+    if (paThWithRev) {
+      if (show) paThWithRev.classList.remove("hidden");
+      else paThWithRev.classList.add("hidden");
+    }
+    if (paThWithoutRev) {
+      if (show) paThWithoutRev.classList.remove("hidden");
+      else paThWithoutRev.classList.add("hidden");
     }
   }
   function setCompareKpisVisible(show) {
@@ -639,7 +653,10 @@
         value: Number(r.value) || 0,
         prevValue: prevValue,
         prevKey: match ? match.key : null,
-        prevMissing: compareOn && prevValue == null
+        prevMissing: compareOn && prevValue == null,
+        with_reviews: r.with_reviews != null ? Number(r.with_reviews) : null,
+        without_reviews: r.without_reviews != null ? Number(r.without_reviews) : null,
+        ratings_count: r.ratings_count != null ? Number(r.ratings_count) : null
       };
     });
   }
@@ -862,7 +879,14 @@
       && compareMeta.available !== false
       && rows.some(function (r) { return r.prevValue != null && !r.prevMissing; })
     );
+    var showReviewSplit = !!(
+      (paMetric && paMetric.value === "rating")
+      && rows.some(function (r) {
+        return r.with_reviews != null || r.without_reviews != null || r.ratings_count != null;
+      })
+    );
     setCompareColsVisible(showCompare);
+    setReviewSplitColsVisible(showReviewSplit);
     if (showCompare && paThPrev) {
       if (compareMeta.start && compareMeta.end) {
         paThPrev.textContent = "Önceki (" + compareMeta.start.slice(5) + "→" + compareMeta.end.slice(5) + ")";
@@ -870,9 +894,10 @@
         paThPrev.textContent = "Önceki";
       }
     }
+    var colCount = 2 + (showReviewSplit ? 2 : 0) + (showCompare ? 2 : 0);
     if (!rows.length) {
       paTable.innerHTML =
-        '<tr><td colspan="' + (showCompare ? 4 : 2) +
+        '<tr><td colspan="' + colCount +
         '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       return;
     }
@@ -881,6 +906,15 @@
         '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
         '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' +
           esc(fmtNum(r.value, metricIsCountLike())) + "</td>";
+      if (showReviewSplit) {
+        var wr = r.with_reviews;
+        var wor = r.without_reviews;
+        cells +=
+          '<td class="px-3 py-1.5 tabular-nums text-slate-700 dark:text-zinc-200">' +
+            (wr == null ? "—" : esc(fmtNum(wr, true))) + "</td>" +
+          '<td class="px-3 py-1.5 tabular-nums text-slate-700 dark:text-zinc-200">' +
+            (wor == null ? "—" : esc(fmtNum(wor, true))) + "</td>";
+      }
       if (showCompare) {
         var pv = r.prevValue;
         var dlt = (pv != null && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
@@ -1017,6 +1051,7 @@
       if (paCompareRange) paCompareRange.textContent = "";
       setCompareNote("");
       setCompareColsVisible(false);
+      setReviewSplitColsVisible(false);
       setCompareKpisVisible(false);
       hidePaTooltip();
     } finally {
@@ -1057,6 +1092,7 @@
       applyPreset();
     }
     setCompareColsVisible(false);
+    setReviewSplitColsVisible(false);
     setCompareKpisVisible(false);
     setCompareNote("");
     if (paCompareRange) paCompareRange.textContent = "";

@@ -487,6 +487,7 @@ def _launch_context(*, headed: bool):
         "headless": not headed,
         "viewport": {"width": 1440, "height": 1100},
         "locale": "tr-TR",
+        "accept_downloads": True,
         "args": ["--disable-blink-features=AutomationControlled"],
     }
     # Bundled Chromium can crash on newer macOS; system Chrome is more stable.
@@ -1625,6 +1626,159 @@ def _ratings_facts_from_series(series: list[dict[str, Any]]) -> list[dict[str, A
             }
         )
     return facts
+
+
+def _parse_ratings_distribution_csv(text: str) -> list[dict[str, Any]]:
+    """Play 'Puan dağılımı' CSV → günlük toplam oy (1–5 yıldız toplamı)."""
+    import csv
+    import io
+
+    rows_out: list[dict[str, Any]] = []
+    reader = csv.DictReader(io.StringIO(text or ""))
+    if not reader.fieldnames:
+        return rows_out
+    star_cols = [
+        c
+        for c in reader.fieldnames
+        if c and re.search(r"yıldız|star", c, re.I)
+    ]
+    date_col = next(
+        (c for c in reader.fieldnames if c and re.search(r"tarih|date", c, re.I)),
+        reader.fieldnames[0],
+    )
+    for row in reader:
+        if not isinstance(row, dict):
+            continue
+        raw_d = str(row.get(date_col) or "").strip()
+        ds = _parse_tr_day_label(raw_d)
+        if not ds:
+            m = re.search(r"(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})", raw_d)
+            if m:
+                ds = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        if not ds:
+            continue
+        total = 0
+        stars: dict[str, int] = {}
+        for col in star_cols:
+            try:
+                n = int(float(str(row.get(col) or "0").replace(",", ".").strip() or 0))
+            except (TypeError, ValueError):
+                n = 0
+            sm = re.search(r"([1-5])", col)
+            if sm:
+                stars[sm.group(1)] = n
+            total += max(0, n)
+        rows_out.append({"date": ds, "total": total, "stars": stars})
+    return rows_out
+
+
+def _ratings_count_facts_from_distribution(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    for pt in rows or []:
+        if not isinstance(pt, dict):
+            continue
+        ds = str(pt.get("date") or "")[:10]
+        if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
+            continue
+        try:
+            total = int(pt.get("total") or 0)
+        except (TypeError, ValueError):
+            continue
+        facts.append(
+            {
+                "metric": "ratings_count",
+                "view_id": "ratings_distribution",
+                "dim": "overview",
+                "segment": "OVERALL",
+                "date": ds,
+                "value": float(total),
+                "label": "Günlük puan sayısı",
+                "source": "ratings_distribution_csv",
+                "stars": pt.get("stars") if isinstance(pt.get("stars"), dict) else {},
+            }
+        )
+    return facts
+
+
+def _expand_ratings_page_date_range(page) -> None:
+    """Mümkünse puanlar sayfasında tarih aralığını genişlet (1 yıl / ömür boyu)."""
+    try:
+        btn = page.locator("button").filter(
+            has_text=re.compile(r"Son\s+\d+\s+gün|Last\s+\d+\s+days|Ömür boyu|Lifetime", re.I)
+        )
+        if btn.count() == 0:
+            return
+        btn.first.click(timeout=4000)
+        page.wait_for_timeout(600)
+        for label in (
+            "Son 1 yıl",
+            "Last 1 year",
+            "Ömür boyu",
+            "Lifetime",
+            "Son 90 gün",
+            "Last 90 days",
+            "Son 6 ay",
+        ):
+            opt = page.get_by_role("option", name=re.compile(f"^{re.escape(label)}$", re.I))
+            if opt.count() == 0:
+                opt = page.get_by_text(re.compile(f"^{re.escape(label)}$", re.I))
+            if opt.count():
+                opt.first.click(timeout=4000)
+                _settle(page, seconds=4.0)
+                return
+        page.keyboard.press("Escape")
+    except Exception:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+
+
+def _download_ratings_distribution_csv(page) -> list[dict[str, Any]]:
+    """Puan dağılımı → CSV indir → günlük oy toplamları."""
+    try:
+        _expand_ratings_page_date_range(page)
+        # İkinci CSV genelde dağılım; yoksa tüm CSV butonlarını dene
+        buttons = page.locator("button").filter(
+            has_text=re.compile(r"CSV dosyasını indir|Download CSV|CSV", re.I)
+        )
+        n = buttons.count()
+        if n < 1:
+            return []
+        # Tercihen "Puan dağılımı" bölümündeki buton
+        idx_order = list(range(n))
+        if n >= 2:
+            idx_order = [1, 0] + list(range(2, n))
+        for idx in idx_order:
+            try:
+                with page.expect_download(timeout=20_000) as di:
+                    buttons.nth(idx).click(timeout=5000)
+                download = di.value
+                # Playwright save to temp
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(
+                    suffix=".csv", delete=False
+                ) as tmp:
+                    path = tmp.name
+                download.save_as(path)
+                text = Path(path).read_text(encoding="utf-8", errors="replace")
+                try:
+                    Path(path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+                if not re.search(r"yıldız|star", text, re.I):
+                    continue
+                rows = _parse_ratings_distribution_csv(text)
+                if rows:
+                    return rows
+            except Exception:
+                continue
+    except Exception:
+        return []
+    return []
 
 
 def _reviews_days() -> int:
@@ -3677,6 +3831,18 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             print(f"    → ratings_page facts={len(rating_facts)}", flush=True)
         else:
             print("    → ratings_page facts=0 (statistics rating fact’leri korunur)", flush=True)
+        # Günlük puan adedi (yorumlu/yorumsuz kırılımı için)
+        dist_rows = _download_ratings_distribution_csv(page) or []
+        count_facts = _ratings_count_facts_from_distribution(dist_rows)
+        if count_facts:
+            explorer_facts = [
+                f
+                for f in explorer_facts
+                if str(f.get("metric")) != "ratings_count"
+            ] + count_facts
+            print(f"    → ratings_count facts={len(count_facts)}", flush=True)
+        else:
+            print("    → ratings_count facts=0", flush=True)
         view_summaries.append(
             {
                 "id": "ratings_page",

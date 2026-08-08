@@ -74,11 +74,44 @@ def ingest_play_console_payload(
     sync_mode: str = "dashboard_reviews",
     merge_vitals: bool = False,
     merge_reviews: bool = False,
+    merge_ratings_counts: bool = False,
 ) -> dict[str, Any]:
     row = _get_or_create(db)
 
+    # ratings_counts-only: explorer_facts içine ratings_count satırlarını birleştir
+    if merge_ratings_counts or str(sync_mode or "").startswith("ratings_count"):
+        existing_metrics, existing_panels = _unpack_metrics_blob(row.metrics_json or "[]")
+        incoming = panels if isinstance(panels, dict) else {}
+        new_facts = [
+            f
+            for f in (incoming.get("explorer_facts") or [])
+            if isinstance(f, dict) and str(f.get("metric")) == "ratings_count"
+        ]
+        if not new_facts:
+            raise ValueError("merge_ratings_counts: ratings_count fact gerekli")
+        merged_panels = dict(existing_panels) if isinstance(existing_panels, dict) else {}
+        old_facts = [
+            f
+            for f in (merged_panels.get("explorer_facts") or [])
+            if isinstance(f, dict) and str(f.get("metric")) != "ratings_count"
+        ]
+        merged_panels["explorer_facts"] = old_facts + new_facts
+        merged_panels["explorer_fact_count"] = len(merged_panels["explorer_facts"])
+        try:
+            existing_reviews = json.loads(row.reviews_json or "[]")
+        except Exception:
+            existing_reviews = []
+        try:
+            existing_rating = json.loads(row.rating_summary_json or "{}")
+        except Exception:
+            existing_rating = {}
+        metrics = existing_metrics
+        panels = merged_panels
+        reviews = existing_reviews if isinstance(existing_reviews, list) else []
+        rating_summary = existing_rating if isinstance(existing_rating, dict) else {}
+
     # vitals-only: sunucu tarafında birleştir — mevcut explorer/kartları silme
-    if merge_vitals or str(sync_mode or "").startswith("vitals"):
+    elif merge_vitals or str(sync_mode or "").startswith("vitals"):
         existing_metrics, existing_panels = _unpack_metrics_blob(row.metrics_json or "[]")
         incoming = panels if isinstance(panels, dict) else {}
         vitals = incoming.get("vitals") if isinstance(incoming.get("vitals"), dict) else None

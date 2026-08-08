@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from backend.services import gp_client, play_console_store
+from backend.services.play_console_normalize import review_date_iso
 
 _SCRAPE_METRICS = (
     "device_acquisition",
@@ -38,6 +39,120 @@ _CUMULATIVE = frozenset({"device_acquisition"})
 
 def scrape_metric_keys() -> list[str]:
     return list(_SCRAPE_METRICS)
+
+
+def _load_reviews() -> list[dict[str, Any]]:
+    from backend.database import SessionLocal
+
+    with SessionLocal() as db:
+        payload = play_console_store.play_console_payload(db)
+    rows = payload.get("reviews") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return []
+    return [r for r in rows if isinstance(r, dict)]
+
+
+def _period_bucket(ds: str, breakdown: str) -> str | None:
+    try:
+        d = date.fromisoformat(str(ds)[:10])
+    except ValueError:
+        return None
+    if breakdown == "week":
+        iso = d.isocalendar()
+        return f"{iso.year}-W{iso.week:02d}"
+    if breakdown == "month":
+        return f"{d.year}-{d.month:02d}"
+    return d.isoformat()
+
+
+def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]:
+    """Puan + tarih kırılımında satırlara yorumlu/yorumsuz puan sayılarını ekle.
+
+    - ratings_count: Play Puan dağılımı CSV (günlük toplam oy)
+    - with_reviews: scrape yorumları (metinli) gün bazında
+    - without_reviews: max(0, ratings_count - with_reviews)
+    """
+    if not isinstance(result, dict):
+        return result
+    if str(result.get("metric") or "") != "rating":
+        return result
+    breakdown = str(result.get("breakdown") or "date")
+    if breakdown not in ("date", "week", "month"):
+        return result
+    dim = str(result.get("dim") or "overview")
+    if dim not in ("", "overview", "all"):
+        return result
+    series = result.get("series")
+    if not isinstance(series, list) or not series:
+        return result
+
+    facts, _meta = _load_facts()
+    totals: dict[str, float] = defaultdict(float)
+    for f in facts:
+        if str(f.get("metric")) != "ratings_count":
+            continue
+        if str(f.get("dim") or "overview") not in ("overview", "", "all"):
+            continue
+        if str(f.get("segment") or "OVERALL") not in ("OVERALL", "", "all"):
+            continue
+        ds = str(f.get("date") or "")[:10]
+        key = _period_bucket(ds, breakdown)
+        if not key:
+            continue
+        try:
+            totals[key] += float(f.get("value") or 0)
+        except (TypeError, ValueError):
+            continue
+
+    with_map: dict[str, int] = defaultdict(int)
+    for rev in _load_reviews():
+        body = str(rev.get("body") or "").strip()
+        if len(body) < 8:
+            continue
+        ds = str(rev.get("date_iso") or "").strip() or (review_date_iso(rev.get("date")) or "")
+        if not ds:
+            continue
+        key = _period_bucket(ds, breakdown)
+        if not key:
+            continue
+        start_s = str(result.get("start") or "")
+        end_s = str(result.get("effective_end") or result.get("end") or "")
+        if start_s and end_s and not (start_s <= ds <= end_s):
+            continue
+        with_map[key] += 1
+
+    if not totals and not with_map:
+        return result
+
+    enriched = 0
+    for row in series:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("key") or "")
+        total_n = totals.get(key)
+        with_n = with_map.get(key, 0)
+        if total_n is None and not with_n:
+            continue
+        if total_n is None:
+            # Sadece yorum biliniyor — toplam yokken yorumsuz bilinmez
+            row["with_reviews"] = int(with_n)
+            row["without_reviews"] = None
+            row["ratings_count"] = None
+        else:
+            total_i = int(round(total_n))
+            with_i = min(int(with_n), total_i)
+            row["ratings_count"] = total_i
+            row["with_reviews"] = with_i
+            row["without_reviews"] = max(0, total_i - with_i)
+        enriched += 1
+
+    if enriched:
+        result["rating_review_splits"] = True
+        msg = str(result.get("message") or "")
+        note = " · yorumlu/yorumsuz puan sütunları"
+        if note not in msg:
+            result["message"] = msg + note
+    return result
 
 
 def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -685,4 +800,6 @@ def query_scrape_analytics(
             if isinstance(meta.get("version_name_map"), dict)
             else None,
         )
+    if metric_key == "rating":
+        out = enrich_rating_series_review_splits(out)
     return out
