@@ -199,7 +199,7 @@
       <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
           <div id="pa-legend-line" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
-            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"></span>Seçili dönem</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span>Seçili dönem</span>
             <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
           </div>
           <div id="pa-legend-stars" class="hidden flex flex-wrap items-center gap-2.5 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
@@ -216,7 +216,7 @@
           <svg id="pa-chart" viewBox="0 0 720 260" class="h-56 w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Metrikler grafiği"></svg>
           <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden min-w-[10.5rem] max-w-[14rem] min-h-[3.25rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
             <p id="pa-tip-title" class="truncate text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
-            <p id="pa-tip-cur" class="mt-1 truncate text-[11px] tabular-nums text-emerald-700 dark:text-emerald-400"></p>
+            <p id="pa-tip-cur" class="mt-1 truncate text-[11px] tabular-nums text-blue-700 dark:text-blue-400"></p>
             <p id="pa-tip-prev" class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
             <div id="pa-tip-stars" class="mt-1.5 hidden space-y-0.5"></div>
           </div>
@@ -730,6 +730,8 @@
   var paCompareRange = document.getElementById("pa-compare-range");
   var paCompareNote = document.getElementById("pa-compare-note");
   var STAR_DIST_COLORS = { 5: "#c5d7f2", 4: "#8eb4e6", 3: "#5a8fd4", 2: "#3b6fbf", 1: "#1a3a6e" };
+  // Saks mavisi — Metrikler çizgi/alan grafikleri
+  var PA_LINE_COLOR = "#2563EB";
   var paThPrev = document.getElementById("pa-th-prev");
   var paThDelta = document.getElementById("pa-th-delta");
   var paThWithRev = document.getElementById("pa-th-with-rev");
@@ -1209,26 +1211,26 @@
     var dots = curPts.map(function (p, i) {
       return (
         '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-        '" r="3.5" fill="#059669" stroke="#fff" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
+        '" r="3.5" fill="' + PA_LINE_COLOR + '" stroke="#fff" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
       );
     }).join("");
 
     paChart.innerHTML =
       '<defs>' +
         '<linearGradient id="pa-fill" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0%" stop-color="#059669" stop-opacity="0.28"/>' +
-          '<stop offset="100%" stop-color="#059669" stop-opacity="0.02"/>' +
+          '<stop offset="0%" stop-color="' + PA_LINE_COLOR + '" stop-opacity="0.28"/>' +
+          '<stop offset="100%" stop-color="' + PA_LINE_COLOR + '" stop-opacity="0.02"/>' +
         "</linearGradient>" +
       "</defs>" +
       '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
       grid +
       (areaD ? '<path d="' + areaD + '" fill="url(#pa-fill)" />' : "") +
       (prevD ? '<path d="' + prevD + '" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
-      (lineD ? '<path d="' + lineD + '" fill="none" stroke="#059669" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + PA_LINE_COLOR + '" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       dots +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
       '" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
-      '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="#059669" stroke="#fff" stroke-width="2" opacity="0" />' +
+      '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="' + PA_LINE_COLOR + '" stroke="#fff" stroke-width="2" opacity="0" />' +
       '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="#94a3b8" stroke="#fff" stroke-width="2" opacity="0" />' +
       xLabels +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
