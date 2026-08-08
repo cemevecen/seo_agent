@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from backend.models import PlayConsoleWorkspace
+from backend.services.play_console_normalize import normalize_play_snapshot
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +41,14 @@ def ingest_play_console_payload(
     sync_message: str | None = None,
     sync_mode: str = "dashboard_reviews",
 ) -> dict[str, Any]:
+    cleaned = normalize_play_snapshot(
+        metrics=metrics,
+        reviews=reviews,
+        rating_summary=rating_summary,
+    )
+    metrics = cleaned["metrics"]
+    reviews = cleaned["reviews"]
+    rating_summary = cleaned["rating_summary"]
     row = _get_or_create(db)
     if metrics is not None:
         row.metrics_json = json.dumps(metrics, ensure_ascii=False)
@@ -98,12 +107,20 @@ def play_console_payload(db: Session) -> dict[str, Any]:
     metrics = _loads(row.metrics_json, [])
     reviews = _loads(row.reviews_json, [])
     rating_summary = _loads(row.rating_summary_json, {})
+    cleaned = normalize_play_snapshot(
+        metrics=metrics if isinstance(metrics, list) else [],
+        reviews=reviews if isinstance(reviews, list) else [],
+        rating_summary=rating_summary if isinstance(rating_summary, dict) else {},
+    )
+    metrics = cleaned["metrics"]
+    reviews = cleaned["reviews"]
+    rating_summary = cleaned["rating_summary"]
     return {
         "ok": bool(row.sync_ok),
         "empty": not metrics and not reviews,
-        "metrics": metrics if isinstance(metrics, list) else [],
-        "reviews": reviews if isinstance(reviews, list) else [],
-        "rating_summary": rating_summary if isinstance(rating_summary, dict) else {},
+        "metrics": metrics,
+        "reviews": reviews,
+        "rating_summary": rating_summary,
         "package_name": row.package_name or "com.Doviz",
         "app_id": row.app_id or "",
         "source": row.source or "",
@@ -115,6 +132,6 @@ def play_console_payload(db: Session) -> dict[str, Any]:
         "background_synced_at": (
             row.background_synced_at.isoformat() + "Z" if row.background_synced_at else None
         ),
-        "metric_count": len(metrics) if isinstance(metrics, list) else 0,
-        "review_count": len(reviews) if isinstance(reviews, list) else 0,
+        "metric_count": len(metrics),
+        "review_count": len(reviews),
     }
