@@ -426,38 +426,58 @@ def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
     def on_response(resp) -> None:
         try:
             url = resp.url or ""
+            low = url.lower()
             if not any(
-                x in url
+                x in low
                 for x in (
                     "play.google.com",
                     "androidpublisher",
                     "playdeveloperreporting",
                     "googleapis.com",
+                    "batchexecute",
+                    "/_$rpc/",
+                    "playconsole",
                 )
             ):
                 return
-            ctype = (resp.headers or {}).get("content-type", "")
-            if "json" not in ctype and "javascript" not in ctype:
+            if resp.status and int(resp.status) >= 400:
                 return
-            # Boyut sınırı
+            ctype = ((resp.headers or {}).get("content-type") or "").lower()
             body = None
+            # JSON tercih; değilse text dene (Play bazen json’u text/plain döner)
             try:
                 body = resp.json()
             except Exception:
                 try:
                     text = resp.text()
-                    if len(text) > 200_000:
-                        text = text[:200_000]
-                    body = {"_text": text}
+                    if not text:
+                        return
+                    if len(text) > 400_000:
+                        text = text[:400_000]
+                    tstrip = text.lstrip()
+                    if tstrip.startswith("{") or tstrip.startswith("["):
+                        try:
+                            body = json.loads(text)
+                        except Exception:
+                            body = {"_text": text[:80_000]}
+                    elif "json" in ctype or "javascript" in ctype or "text/plain" in ctype:
+                        body = {"_text": text[:80_000]}
+                    else:
+                        return
                 except Exception:
                     return
+            if body is None:
+                return
             bag.append(
                 {
                     "url": url[:500],
                     "status": resp.status,
+                    "ctype": ctype[:80],
                     "body": body,
                 }
             )
+            if len(bag) > 400:
+                del bag[:50]
         except Exception:
             return
 
@@ -763,18 +783,25 @@ def _parse_numeric_tr(val: Any) -> float | None:
     s = str(val).strip()
     if not s:
         return None
-    # %4,60 · 56,5 B · 2,6 Mn · $1.234
+    # %4,60 · 56,5 B · 2,6 Mn · $1.234 · 2.597.608 (TR binlik)
+    s0 = s
     s = s.replace("\u00a0", " ").replace("%", "").replace("$", "").strip()
     mult = 1.0
     low = s.lower()
-    if re.search(r"\bmn\b|\bmilyon\b|\bm\b", low):
+    if re.search(r"\bmn\b|\bmilyon\b", low) or re.search(r"(?<![a-zA-Z])M(?![a-zA-Z])", s0):
         mult = 1_000_000.0
-    elif re.search(r"\bb\b|\bbin\b|\bk\b", low):
+    elif re.search(r"\bb\b|\bbin\b", low) or re.search(r"(?<![a-zA-Z])K(?![a-zA-Z])", s0):
         mult = 1_000.0
     s = re.sub(r"[^0-9,.\-]", "", s)
     if not s or s in {"-", ".", ","}:
         return None
-    # TR: 1.234,56 → 1234.56 ; EN: 1,234.56
+    # TR binlik nokta: 2.597.608 veya 96.992
+    if re.fullmatch(r"-?\d{1,3}(\.\d{3})+", s):
+        try:
+            return float(s.replace(".", "")) * mult
+        except ValueError:
+            return None
+    # 1.234,56
     if "," in s and "." in s:
         if s.rfind(",") > s.rfind("."):
             s = s.replace(".", "").replace(",", ".")
@@ -782,7 +809,7 @@ def _parse_numeric_tr(val: Any) -> float | None:
             s = s.replace(",", "")
     elif "," in s:
         parts = s.split(",")
-        if len(parts[-1]) <= 2:
+        if len(parts) == 2 and len(parts[-1]) <= 2:
             s = s.replace(",", ".")
         else:
             s = s.replace(",", "")
@@ -790,6 +817,17 @@ def _parse_numeric_tr(val: Any) -> float | None:
         return float(s) * mult
     except ValueError:
         return None
+
+
+
+def _fact_value_ok(metric_key: str, value: float, *, source: str, raw: str = "") -> bool:
+    """Tek haneli sahte kartları (ör. '5') ele — rating hariç."""
+    if metric_key == "rating":
+        return 0 < value <= 5.5
+    if source == "card" and value < 20 and "B" not in raw and "Mn" not in raw and "%" not in raw:
+        # Büyük metriklerde 5 gibi DOM gürültüsü
+        return False
+    return True
 
 
 def _dim_key(dimension: str) -> str:
@@ -803,22 +841,171 @@ def _dim_key(dimension: str) -> str:
     return d.lower() or "overview"
 
 
+
+_TR_MONTHS = {
+    "oca": 1,
+    "şub": 2,
+    "sub": 2,
+    "mar": 3,
+    "nis": 4,
+    "may": 5,
+    "haz": 6,
+    "tem": 7,
+    "ağu": 8,
+    "agu": 8,
+    "eyl": 9,
+    "eki": 10,
+    "kas": 11,
+    "ara": 12,
+}
+
+
+def _parse_tr_day_label(line: str) -> str | None:
+    """'3 Ağu 2026' → 2026-08-03"""
+    m = re.match(
+        r"^(\d{1,2})\s+([A-Za-zÇĞİÖŞÜçğıöşü]{3,})\s+(20\d{2})$",
+        (line or "").strip(),
+    )
+    if not m:
+        return None
+    day = int(m.group(1))
+    mon_key = m.group(2).lower()
+    # normalize ı/ş
+    mon_key = mon_key.replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c")
+    mon = _TR_MONTHS.get(mon_key[:3]) or _TR_MONTHS.get(m.group(2).lower()[:3])
+    year = int(m.group(3))
+    if not mon or day < 1 or day > 31:
+        return None
+    return f"{year}-{mon:02d}-{day:02d}"
+
+
+def _segments_from_dimension_values(dv: str) -> list[str]:
+    raw = (dv or "").replace("%2C", ",").split(",")
+    out = [p.strip() for p in raw if p.strip()]
+    return out or ["OVERALL"]
+
+
+def _parse_stats_data_table(
+    text: str,
+    *,
+    metric_key: str,
+    view_id: str,
+    segments: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Play Console 'Veri tablosu' metninden günlük × ülke fact'leri."""
+    lines = [ln.strip() for ln in (text or "").splitlines()]
+    lines = [ln for ln in lines if ln]
+    segs = list(segments or ["OVERALL", "TR", "DE", "FR", "NL"])
+    label_map = {
+        "tum ulkeler / bolgeler": "OVERALL",
+        "tum ulkeler": "OVERALL",
+        "genel": "OVERALL",
+        "overall": "OVERALL",
+        "turkiye": "TR",
+        "turkey": "TR",
+        "almanya": "DE",
+        "germany": "DE",
+        "fransa": "FR",
+        "france": "FR",
+        "hollanda": "NL",
+        "netherlands": "NL",
+        "avusturya": "AT",
+        "austria": "AT",
+        "kibris": "CY",
+        "cyprus": "CY",
+        "irak": "IQ",
+        "iraq": "IQ",
+        "misir": "EG",
+        "egypt": "EG",
+    }
+
+    def _norm(s: str) -> str:
+        t = (s or "").lower()
+        for a, b in (("ı", "i"), ("ş", "s"), ("ğ", "g"), ("ü", "u"), ("ö", "o"), ("ç", "c")):
+            t = t.replace(a, b)
+        return t
+
+    header_segs: list[str] = []
+    for ln in lines:
+        key = _norm(ln)
+        if key in label_map:
+            code = label_map[key]
+            if code not in header_segs:
+                header_segs.append(code)
+        if _parse_tr_day_label(ln):
+            break
+    if len(header_segs) >= 2:
+        segs = header_segs
+
+    facts: list[dict[str, Any]] = []
+    i = 0
+    while i < len(lines):
+        ds = _parse_tr_day_label(lines[i])
+        if not ds:
+            i += 1
+            continue
+        i += 1
+        if i < len(lines) and "yuzde" in _norm(lines[i]):
+            i += 1
+        values: list[float] = []
+        while i < len(lines) and len(values) < len(segs):
+            ln = lines[i]
+            if _parse_tr_day_label(ln):
+                break
+            if ln.startswith("%") or "yuzde" in _norm(ln):
+                i += 1
+                continue
+            num = _parse_numeric_tr(ln)
+            if num is not None:
+                values.append(num)
+            i += 1
+        for seg, val in zip(segs, values):
+            facts.append(
+                {
+                    "metric": metric_key,
+                    "view_id": view_id,
+                    "dim": "country" if str(view_id) and seg != "OVERALL" else ("overview" if seg == "OVERALL" else "country"),
+                    "segment": seg,
+                    "date": ds,
+                    "value": val,
+                    "label": f"{view_id}:{seg}",
+                    "source": "data_table",
+                }
+            )
+            if seg == "OVERALL":
+                facts[-1]["dim"] = "overview"
+            else:
+                facts[-1]["dim"] = "country"
+    return facts
+
+
 def _explorer_facts_from_view(
     view: dict[str, Any],
     scraped: dict[str, Any],
     series: list[dict[str, Any]],
+    page_text: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Kart + kırılım + network serisini keşif fact’lerine çevir."""
+    """Kart + kırılım + veri tablosu + network serisini keşif fact’lerine çevir."""
     facts: list[dict[str, Any]] = []
     metric_key = str(view.get("metric_key") or view.get("id") or "metric")
     dim = _dim_key(str(view.get("dimension") or "COUNTRY"))
     view_id = str(view.get("id") or metric_key)
 
+    # Birincil kaynak: Veri tablosu (günlük × ülke)
+    table_facts = _parse_stats_data_table(
+        page_text or "",
+        metric_key=metric_key,
+        view_id=view_id,
+        segments=_segments_from_dimension_values(str(view.get("dimension_values") or "")),
+    )
+    facts.extend(table_facts)
+
     for b in scraped.get("breakdowns") or []:
         if not isinstance(b, dict):
             continue
+        raw = str(b.get("value") or "")
         num = _parse_numeric_tr(b.get("value"))
-        if num is None:
+        if num is None or not _fact_value_ok(metric_key, num, source="breakdown", raw=raw):
             continue
         seg = str(b.get("segment") or "OVERALL").strip() or "OVERALL"
         facts.append(
@@ -839,8 +1026,9 @@ def _explorer_facts_from_view(
     for c in scraped.get("cards") or scraped.get("tpg") or []:
         if not isinstance(c, dict):
             continue
+        raw = str(c.get("value") or "")
         num = _parse_numeric_tr(c.get("value"))
-        if num is None:
+        if num is None or not _fact_value_ok(metric_key, num, source="card", raw=raw):
             continue
         facts.append(
             {
@@ -1086,17 +1274,89 @@ def _scrape_one_stats_page(
     headed: bool,
 ) -> dict[str, Any]:
     page.goto(url, wait_until="domcontentloaded", timeout=120_000)
-    _settle(page, seconds=4.0)
+    _settle(page, seconds=5.0)
     need, _, _ = _page_needs_login(page)
     if need and headed:
         _wait_until_console(page, timeout_sec=300)
         page.goto(url, wait_until="domcontentloaded", timeout=120_000)
-        _settle(page, seconds=4.0)
-    _wait_page_text(page, wait_needles, timeout_sec=40.0)
+        _settle(page, seconds=5.0)
+    _wait_page_text(page, wait_needles, timeout_sec=45.0)
     _scroll_full_page(page)
-    _settle(page, seconds=2.5)
-    _wait_page_text(page, wait_needles, timeout_sec=15.0)
-    return _extract_stats_page(page, known=known, page_key=page_key) or {}
+    _settle(page, seconds=3.5)
+    # Veri tablosunda daha fazla satır göster (10 → 50)
+    try:
+        page.evaluate(
+            """async () => {
+              const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+              const nodes = Array.from(document.querySelectorAll('button, div, span, mat-select'));
+              const hit = nodes.find((el) => /Satırları göster|Rows per page|10/i.test((el.innerText || '').trim()) && (el.innerText || '').length < 40);
+              if (hit) { hit.click(); await sleep(400); }
+              const opt = Array.from(document.querySelectorAll('button, mat-option, li, span'))
+                .find((el) => /^(50|100|25)$/.test((el.innerText || '').trim()));
+              if (opt) { opt.click(); await sleep(800); }
+            }"""
+        )
+    except Exception:
+        pass
+    _wait_page_text(page, wait_needles, timeout_sec=20.0)
+    extracted = _extract_stats_page(page, known=known, page_key=page_key) or {}
+    # İstatistik sayfalarında ana KPI + ülke tablosu (DOM metin)
+    try:
+        extra = page.evaluate(
+            """() => {
+              const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b]/g, ' ').replace(/\\s+/g, ' ').trim();
+              const text = clean(document.body && document.body.innerText);
+              const lines = text.split('\\n').map(clean).filter(Boolean);
+              const NUM = /^[\\$€]?\\s*-?[\\d][\\d.,\\s]*\\s*(%|B|Mn|M|K|bin|milyon)?$/i;
+              const isNum = (s) => NUM.test(s) || /^[\\d][\\d.,]*$/.test(s);
+              const cards = [];
+              // Büyük metrik: satırda başlık, sonraki satırda büyük sayı
+              for (let i = 0; i < lines.length - 1; i++) {
+                const a = lines[i], b = lines[i+1];
+                if (a.length >= 4 && a.length <= 80 && isNum(b) && b.length >= 2) {
+                  // tek haneli yıldız/puan hariç tut (5) — rating hariç
+                  const bare = b.replace(/[^0-9]/g,'');
+                  if (bare.length <= 1 && !/%/.test(b) && !/B|Mn|M|K/i.test(b)) continue;
+                  cards.push({ title: a, value: b, delta: '', period: '', kind: 'stats_headline' });
+                }
+                if (cards.length >= 12) break;
+              }
+              // Ülke / segment satırları: "Türkiye 12.345" veya "TR\\n12.345"
+              const countries = ['Türkiye','Turkey','Almanya','Germany','Fransa','France','Hollanda','Netherlands','Avusturya','Austria','Kıbrıs','Cyprus','Irak','Iraq','Mısır','Egypt','OVERALL','Genel','Toplam'];
+              const codes = ['TR','DE','FR','NL','AT','CY','IQ','EG','GE','GR','IR'];
+              const breakdowns = [];
+              for (let i = 0; i < lines.length - 1; i++) {
+                const a = lines[i], b = lines[i+1];
+                const hit = countries.some(c => a === c || a.startsWith(c + ' ')) || codes.includes(a);
+                if (hit && isNum(b)) {
+                  breakdowns.push({ title: a + ' · ' + b, value: b, segment: a, metric: a, kind: 'breakdown' });
+                }
+                if (breakdowns.length >= 40) break;
+              }
+              return { cards, breakdowns, line_count: lines.length };
+            }"""
+        )
+        if isinstance(extra, dict):
+            base_cards = list(extracted.get("cards") or extracted.get("tpg") or [])
+            base_br = list(extracted.get("breakdowns") or [])
+            # Prefer headline cards with real magnitudes
+            for c in extra.get("cards") or []:
+                if isinstance(c, dict) and c.get("value"):
+                    base_cards.append(c)
+            for b in extra.get("breakdowns") or []:
+                if isinstance(b, dict) and b.get("value"):
+                    base_br.append(b)
+            extracted["cards"] = base_cards
+            extracted["tpg"] = base_cards
+            extracted["breakdowns"] = base_br
+            dbg = extracted.get("debug") if isinstance(extracted.get("debug"), dict) else {}
+            dbg["stats_extra_lines"] = extra.get("line_count")
+            dbg["stats_extra_cards"] = len(extra.get("cards") or [])
+            dbg["stats_extra_br"] = len(extra.get("breakdowns") or [])
+            extracted["debug"] = dbg
+    except Exception as exc:  # noqa: BLE001
+        extracted.setdefault("debug", {})["stats_extra_error"] = str(exc)[:120]
+    return extracted
 
 
 def _page_payload(url: str, scraped: dict[str, Any]) -> dict[str, Any]:
@@ -1328,7 +1588,13 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             )
             stats_cards.extend(cards_i)
             stats_br.extend(br_i)
-            facts_i = _explorer_facts_from_view(view, scraped, view_series)
+            page_text = ""
+            try:
+                page_text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
+            except Exception:
+                page_text = ""
+            scraped["_page_text_len"] = len(page_text)
+            facts_i = _explorer_facts_from_view(view, scraped, view_series, page_text=page_text)
             explorer_facts.extend(facts_i)
             page_payload = _page_payload(url, scraped)
             page_payload["series"] = view_series[:12]
