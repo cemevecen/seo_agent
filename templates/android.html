@@ -1292,7 +1292,8 @@
         "</tbody></table>";
   }
 
-  function renderVitalsCategories() {
+  function renderVitalsCategories(opts) {
+    opts = opts || {};
     var vitals = vitalsState.data || {};
     var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
     var cats = Array.isArray(block.categories) ? block.categories : [];
@@ -1393,10 +1394,11 @@
           );
         }).join("") +
         "</tbody></table>";
-    renderVitalsDetail();
+    renderVitalsDetail({ scroll: !!(opts && opts.scrollDetail) });
   }
 
-  function renderVitalsDetail() {
+  function renderVitalsDetail(opts) {
+    opts = opts || {};
     if (!vitalsDetailEl) return;
     var vitals = vitalsState.data || {};
     var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
@@ -1471,9 +1473,12 @@
             : (link
                 ? '<p class="mt-2 text-[11px] text-slate-500">Stack henüz senkron değil · <a href="' + esc(link) + '" target="_blank" rel="noopener" class="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play Console’da aç ↗</a></p>'
                 : '<p class="mt-2 text-[11px] text-slate-400">Stack özeti yok</p>')));
-    try {
-      vitalsDetailEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    } catch (_) {}
+    // İlk yüklemede scroll etme — sayfa en üstte kalsın; yalnızca kullanıcı seçince kaydır
+    if (opts.scroll) {
+      try {
+        vitalsDetailEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (_) {}
+    }
   }
 
   function renderVitals(vitals) {
@@ -1511,7 +1516,7 @@
       // Dış link: yeni sekmede açılsın, yine de alt panel seçilsin
       if (link && link.tagName === "A") {
         vitalsState.selectedIssue = iid;
-        renderVitalsDetail();
+        renderVitalsDetail({ scroll: true });
         // highlight için tabloyu yenilemeden satır seçimi
         Array.prototype.forEach.call(vitalsIssuesEl.querySelectorAll(".pc-vitals-issue"), function (tr) {
           var on = tr.getAttribute("data-issue") === iid;
@@ -1525,7 +1530,7 @@
         ev.preventDefault();
       }
       vitalsState.selectedIssue = iid;
-      renderVitalsCategories();
+      renderVitalsCategories({ scrollDetail: true });
     });
   }
 
