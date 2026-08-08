@@ -27,7 +27,115 @@
     <p id="pc-status" class="mt-3 text-xs text-slate-500 dark:text-zinc-400"></p>
   </div>
 
+  <!-- Interaktif Play analytics (GCS raporları · Virgül tarzı) -->
+  <section class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900">
+    <div class="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Keşif · zaman &amp; kırılım</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play rapor bucket (installs/crashes) · tarih seç · boyut kır · önceki dönem kıyas</p>
+      </div>
+      <p id="pa-status" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-end gap-3">
+      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Başlangıç
+        <input id="pa-start" type="date" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100" />
+      </label>
+      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Bitiş
+        <input id="pa-end" type="date" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100" />
+      </label>
+      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Preset
+        <select id="pa-preset" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+          <option value="7">Son 7 gün</option>
+          <option value="28" selected>Son 28 gün</option>
+          <option value="90">Son 90 gün</option>
+          <option value="365">Son 365 gün</option>
+        </select>
+      </label>
+      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
+        <select id="pa-metric" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+          <option value="installs">Yüklemeler</option>
+          <option value="uninstalls">Kaldırmalar</option>
+          <option value="net">Net (yükleme−kaldırma)</option>
+          <option value="active">Aktif cihazlar</option>
+          <option value="crashes">Çökmeler</option>
+          <option value="anrs">ANR</option>
+        </select>
+      </label>
+      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
+        <select id="pa-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+          <option value="date" selected>Gün</option>
+          <option value="week">Hafta</option>
+          <option value="month">Ay</option>
+          <option value="segment">Boyut (ülke/OS/…)</option>
+        </select>
+      </label>
+      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Boyut
+        <select id="pa-dim" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+          <option value="overview">Genel</option>
+          <option value="country">Ülke</option>
+          <option value="os_version">Android OS</option>
+          <option value="app_version">Uygulama sürümü</option>
+          <option value="device">Cihaz</option>
+          <option value="language">Dil</option>
+          <option value="carrier">Operatör</option>
+        </select>
+      </label>
+      <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Segment
+        <select id="pa-segment" class="mt-1 block max-w-[10rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+          <option value="all">Tümü</option>
+        </select>
+      </label>
+      <label class="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-zinc-300 pb-1.5">
+        <input id="pa-compare" type="checkbox" checked class="rounded border-slate-300" />
+        Önceki dönem kıyas
+      </label>
+      <button id="pa-run" type="button"
+              class="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500">
+        Uygula
+      </button>
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
+        <p id="pa-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Önceki dönem</p>
+        <p id="pa-prev" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">
+        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Değişim</p>
+        <p id="pa-delta" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
+      </div>
+    </div>
+
+    <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700">
+      <svg id="pa-chart" viewBox="0 0 640 160" class="h-40 w-full bg-white dark:bg-zinc-950" preserveAspectRatio="none"></svg>
+    </div>
+
+    <div class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
+      <table class="min-w-full text-left text-xs">
+        <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
+          <tr>
+            <th class="px-3 py-2 font-bold">Kırılım</th>
+            <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
+            <th class="px-3 py-2 font-bold tabular-nums">Önceki</th>
+            <th class="px-3 py-2 font-bold tabular-nums">Δ %</th>
+          </tr>
+        </thead>
+        <tbody id="pa-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+      </table>
+    </div>
+  </section>
+
   <div id="pc-rating" class="grid grid-cols-1 gap-3 sm:grid-cols-3"></div>
+
+  <details class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <summary class="cursor-pointer text-sm font-bold text-slate-800 dark:text-zinc-100">Scrape özet kartları (Play Console anlık snapshot)</summary>
+    <p class="mt-1 text-[11px] text-slate-500">Mac bridge scrape — KPI kartları; ana keşif yukarıdaki tarih/kırılım paneli.</p>
+    <div class="mt-4 space-y-5" id="pc-scrape-wrap">
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Dashboard KPI</h2>
@@ -121,6 +229,9 @@
     <p id="pc-breakdowns-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz kırılım yok</p>
   </section>
 
+    </div>
+  </details>
+
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
@@ -162,6 +273,151 @@
   var reviewCountEl = document.getElementById("pc-review-count");
   var btn = document.getElementById("pc-refresh");
 
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  /* ── Play analytics explorer ── */
+  var paStart = document.getElementById("pa-start");
+  var paEnd = document.getElementById("pa-end");
+  var paPreset = document.getElementById("pa-preset");
+  var paMetric = document.getElementById("pa-metric");
+  var paBreakdown = document.getElementById("pa-breakdown");
+  var paDim = document.getElementById("pa-dim");
+  var paSegment = document.getElementById("pa-segment");
+  var paCompare = document.getElementById("pa-compare");
+  var paRun = document.getElementById("pa-run");
+  var paStatus = document.getElementById("pa-status");
+  var paTotal = document.getElementById("pa-total");
+  var paPrev = document.getElementById("pa-prev");
+  var paDelta = document.getElementById("pa-delta");
+  var paChart = document.getElementById("pa-chart");
+  var paTable = document.getElementById("pa-table");
+
+  function isoDate(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+  function applyPreset() {
+    var days = parseInt(paPreset.value, 10) || 28;
+    var end = new Date();
+    var start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+    paEnd.value = isoDate(end);
+    paStart.value = isoDate(start);
+  }
+  function fmtNum(n) {
+    if (n == null || isNaN(n)) return "—";
+    return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+  }
+  function drawChart(series, prevSeries) {
+    if (!paChart) return;
+    var w = 640, h = 160, pad = 12;
+    var vals = (series || []).map(function (r) { return Number(r.value) || 0; });
+    var pvals = (prevSeries || []).map(function (r) { return Number(r.value) || 0; });
+    var all = vals.concat(pvals);
+    var max = Math.max.apply(null, all.concat([1]));
+    var min = Math.min.apply(null, all.concat([0]));
+    var span = Math.max(max - min, 1e-9);
+    function path(arr, color) {
+      if (!arr.length) return "";
+      var pts = arr.map(function (v, i) {
+        var x = pad + (arr.length <= 1 ? 0 : (i / (arr.length - 1)) * (w - pad * 2));
+        var y = pad + (1 - (v - min) / span) * (h - pad * 2);
+        return x.toFixed(1) + "," + y.toFixed(1);
+      });
+      return '<polyline fill="none" stroke="' + color + '" stroke-width="2" points="' + pts.join(" ") + '" />';
+    }
+    paChart.innerHTML =
+      '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
+      path(vals, "#059669") +
+      path(pvals, "#94a3b8");
+  }
+  function renderPaTable(series, prevSeries) {
+    var prevMap = {};
+    (prevSeries || []).forEach(function (r) { prevMap[r.key] = r.value; });
+    if (!series || !series.length) {
+      paTable.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      return;
+    }
+    paTable.innerHTML = series.map(function (r) {
+      var pv = prevMap[r.key];
+      var dlt = (pv && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
+      var dltCls = dlt == null ? "text-slate-400" : (dlt >= 0 ? "text-emerald-700" : "text-rose-600");
+      return (
+        "<tr>" +
+          '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
+          '<td class="px-3 py-1.5 tabular-nums">' + esc(fmtNum(r.value)) + "</td>" +
+          '<td class="px-3 py-1.5 tabular-nums text-slate-500">' + esc(pv == null ? "—" : fmtNum(pv)) + "</td>" +
+          '<td class="px-3 py-1.5 tabular-nums ' + dltCls + '">' +
+            (dlt == null ? "—" : ((dlt >= 0 ? "+" : "") + dlt.toFixed(1) + "%")) +
+          "</td>" +
+        "</tr>"
+      );
+    }).join("");
+  }
+  function fillSegments(list) {
+    var cur = paSegment.value || "all";
+    paSegment.innerHTML = '<option value="all">Tümü</option>' +
+      (list || []).filter(Boolean).map(function (s) {
+        return '<option value="' + esc(s) + '">' + esc(s) + "</option>";
+      }).join("");
+    paSegment.value = cur;
+    if (paSegment.value !== cur) paSegment.value = "all";
+  }
+  async function runPlayAnalytics() {
+    if (paStatus) paStatus.textContent = "Sorgulanıyor…";
+    try {
+      var qs = new URLSearchParams({
+        start: paStart.value,
+        end: paEnd.value,
+        metric: paMetric.value,
+        breakdown: paBreakdown.value,
+        dim: paDim.value,
+        compare: paCompare.checked ? "previous_period" : ""
+      });
+      if (paSegment.value && paSegment.value !== "all") qs.set("segment", paSegment.value);
+      var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
+        credentials: "same-origin", cache: "no-store"
+      });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+      fillSegments((data.facets && data.facets.segments) || []);
+      paTotal.textContent = fmtNum(data.total);
+      var cmp = data.compare;
+      paPrev.textContent = cmp ? fmtNum(cmp.total) : "—";
+      if (cmp && cmp.delta_pct != null) {
+        var d = cmp.delta_pct;
+        paDelta.textContent = (d >= 0 ? "+" : "") + d + "%";
+        paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums " + (d >= 0 ? "text-emerald-700" : "text-rose-600");
+      } else {
+        paDelta.textContent = "—";
+        paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
+      }
+      drawChart(data.series || [], (cmp && cmp.series) || []);
+      renderPaTable(data.series || [], (cmp && cmp.series) || []);
+      paStatus.textContent = data.ok
+        ? ((data.row_count || 0) + " satır · " + (data.message || ""))
+        : ("Uyarı: " + (data.message || "veri yok — GP_REPORTS_BUCKET kontrol et"));
+    } catch (err) {
+      if (paStatus) paStatus.textContent = (err && err.message) || String(err);
+    }
+  }
+  if (paPreset) paPreset.addEventListener("change", function () { applyPreset(); });
+  if (paRun) paRun.addEventListener("click", runPlayAnalytics);
+  ["pa-metric", "pa-breakdown", "pa-dim", "pa-segment", "pa-compare"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", runPlayAnalytics);
+  });
+  applyPreset();
+  runPlayAnalytics();
+
   var KPI_TITLES = {
     "Kilitlenme oranı": 1,
     "ANR oranı": 1,
@@ -175,14 +431,6 @@
     "ÖYKBOG": 1,
     "Alıcı Sayısı": 1
   };
-
-  function esc(s) {
-    return String(s == null ? "" : s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
 
   function fmtSync(iso) {
     if (!iso) return "—";

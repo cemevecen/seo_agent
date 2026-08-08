@@ -56,6 +56,7 @@ from backend.api.ad_analytics import router as ad_analytics_router
 from backend.api.virgul_analytics import router as virgul_analytics_router
 from backend.api.doviz_news import router as doviz_news_router
 from backend.api.play_console import router as play_console_router
+from backend.api.play_analytics import router as play_analytics_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -1026,6 +1027,7 @@ app.include_router(ad_analytics_router, prefix="/api")
 app.include_router(virgul_analytics_router, prefix="/api")
 app.include_router(doviz_news_router, prefix="/api")
 app.include_router(play_console_router, prefix="/api")
+app.include_router(play_analytics_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 
 from backend.karma.router import router as karma_router
