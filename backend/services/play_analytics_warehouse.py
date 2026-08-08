@@ -164,6 +164,19 @@ def _int_cell(row: dict[str, str], candidates: tuple[str, ...]) -> int:
         return 0
 
 
+def _float_cell(row: dict[str, str], candidates: tuple[str, ...]) -> float | None:
+    col = _pick_col(row, candidates)
+    if not col:
+        return None
+    try:
+        raw = _clean_text(str(row.get(col) or "")).replace(",", ".")
+        if not raw or raw in {"-", "—", "n/a", "N/A"}:
+            return None
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _fact_date_bounds(facts: list[dict[str, Any]]) -> tuple[str | None, str | None]:
     dates = sorted({str(f.get("date")) for f in facts if f.get("date")})
     if not dates:
@@ -216,7 +229,7 @@ def _load_install_facts(
 
     want_dims = set(dims) if dims else set(_DIM_SUFFIXES)
     want_dims.add("overview")
-    cache_key = f"v3|{package_name}|{','.join(sorted(want_dims))}|m{months}"
+    cache_key = f"v4|{package_name}|{','.join(sorted(want_dims))}|m{months}"
     now = time.time()
     cached = _CACHE.get(cache_key)
     if cached and (now - cached["ts"]) < _CACHE_TTL:
@@ -508,6 +521,86 @@ def _load_install_facts(
     except Exception as exc:  # noqa: BLE001
         LOGGER.debug("crashes CSV skip: %s", exc)
 
+    # Ratings CSV — Daily Average Rating (günlük puan serisi)
+    # gs://…/stats/ratings/ratings_<pkg>_YYYYMM_overview.csv
+    try:
+        rating_dims = want_dims | {"overview"}
+        for pkg in pkg_variants:
+            rprefix = f"stats/ratings/ratings_{pkg}_"
+            for blob in bucket.list_blobs(prefix=rprefix, max_results=120):
+                name = blob.name or ""
+                m = re.search(
+                    r"_(\d{6})_(overview|app_version(?:_code)?|device|os_version|country|language|carrier)\.csv$",
+                    name,
+                    re.I,
+                )
+                if not m or m.group(1) not in months_ok:
+                    continue
+                file_ym = m.group(1)
+                raw_dim = m.group(2).lower()
+                dim = "app_version" if "app_version" in raw_dim else raw_dim
+                if dim not in rating_dims:
+                    continue
+                try:
+                    raw = blob.download_as_bytes()
+                except Exception:
+                    continue
+                text = _decode_csv(raw)
+                reader = csv.DictReader(io.StringIO(text))
+                files_read += 1
+                for row in reader:
+                    if not isinstance(row, dict):
+                        continue
+                    ds = _parse_date(_row_get(row, "Date", "date"), file_yyyymm=file_ym)
+                    if not ds:
+                        continue
+                    daily = _float_cell(
+                        row,
+                        (
+                            "Daily Average Rating",
+                            "Daily average rating",
+                            "Ortalama puan (günlük)",
+                            "Average Rating",
+                        ),
+                    )
+                    total_avg = _float_cell(
+                        row,
+                        (
+                            "Total Average Rating",
+                            "Total average rating",
+                            "Lifetime Average Rating",
+                            "Varsayılan Google Play puanı",
+                        ),
+                    )
+                    # Günlük seri için Daily Average; yoksa lifetime total
+                    rating_val = daily if daily is not None else total_avg
+                    if rating_val is None:
+                        continue
+                    if not (0 < float(rating_val) <= 5.5):
+                        continue
+                    segment = "OVERALL"
+                    if dim != "overview":
+                        cols = _DIM_COL_CANDIDATES.get(dim) or ()
+                        for col in cols:
+                            if _row_get(row, col):
+                                segment = _clean_text(str(_row_get(row, col))) or "UNKNOWN"
+                                break
+                    facts.append(
+                        {
+                            "date": ds,
+                            "dim": dim,
+                            "segment": segment,
+                            "installs": 0,
+                            "uninstalls": 0,
+                            "active": 0,
+                            "net": 0,
+                            "rating": round(float(rating_val), 4),
+                            "rating_kind": "daily" if daily is not None else "total",
+                        }
+                    )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.debug("ratings CSV skip: %s", exc)
+
     if not facts:
         if raw_count == 0 and not sample_names:
             msg = (
@@ -629,19 +722,27 @@ def _aggregate(
 ) -> list[dict[str, Any]]:
     """breakdown: date|week|month|segment"""
     buckets: dict[str, float] = defaultdict(float)
+    counts: dict[str, int] = defaultdict(int)
     for f in facts:
         if breakdown in ("date", "week", "month"):
             key = _period_key(str(f.get("date")), "day" if breakdown == "date" else breakdown)
         else:
             key = str(f.get("segment") or "UNKNOWN")
         val = float(f.get(metric) or 0)
-        # active: son gün değeri için max; diğerleri sum
+        # active: son gün değeri için max; rating: ortalama; diğerleri sum
         if metric == "active":
             buckets[key] = max(buckets[key], val)
+        elif metric == "rating":
+            buckets[key] += val
+            counts[key] += 1
         else:
             buckets[key] += val
 
-    rows = [{"key": k, "value": round(v, 4)} for k, v in buckets.items()]
+    rows = []
+    for k, v in buckets.items():
+        if metric == "rating" and counts[k]:
+            v = v / counts[k]
+        rows.append({"key": k, "value": round(v, 4)})
     if breakdown in ("date", "week", "month"):
         rows.sort(key=lambda r: r["key"])
         if breakdown != "date":
@@ -659,6 +760,9 @@ def _densify_date_series(
     end: date,
     clip_to_data: bool = True,
 ) -> list[dict[str, Any]]:
+    """Eksik günleri 0 ile doldur. Boş seri → [] (sahte sıfır üretme)."""
+    if not series:
+        return []
     by_key = {str(r["key"]): float(r.get("value") or 0) for r in series}
     data_dates = []
     for k in by_key:
@@ -666,6 +770,8 @@ def _densify_date_series(
             data_dates.append(date.fromisoformat(str(k)[:10]))
         except ValueError:
             continue
+    if not data_dates:
+        return []
     eff_end = end
     if clip_to_data and data_dates:
         eff_end = min(end, max(data_dates))
@@ -707,12 +813,12 @@ def query_play_analytics(
     requested_start, requested_end = start_s, end_s
     auto_shifted = False
 
-    metric = metric if metric in ("installs", "uninstalls", "active", "net", "crashes", "anrs") else "installs"
+    metric = metric if metric in ("installs", "uninstalls", "active", "net", "crashes", "anrs", "rating") else "installs"
     breakdown = breakdown if breakdown in ("date", "week", "month", "segment") else "date"
     dim = dim if dim in _DIM_SUFFIXES else "overview"
     if breakdown == "segment" and dim == "overview":
         dim = "country"
-    if metric in ("crashes", "anrs") and dim != "overview" and breakdown in ("date", "week", "month"):
+    if metric in ("crashes", "anrs", "rating") and dim != "overview" and breakdown in ("date", "week", "month"):
         seg_picked = bool(segment and segment not in ("", "all", "ALL", "OVERALL"))
         if not seg_picked:
             breakdown = "segment"
@@ -727,14 +833,18 @@ def query_play_analytics(
     if not date_min or not date_max:
         date_min, date_max = _fact_date_bounds(facts)
 
-    # Crash CSV satırları installs=0 ile overview'a karışmasın
+    # Crash/rating CSV satırları installs overview’a karışmasın
     metric_facts = facts
     if metric in ("installs", "uninstalls", "active", "net"):
-        metric_facts = [f for f in facts if "crashes" not in f and "anrs" not in f]
+        metric_facts = [
+            f
+            for f in facts
+            if "crashes" not in f and "anrs" not in f and "rating" not in f
+        ]
         dmin2, dmax2 = _fact_date_bounds(metric_facts)
         if dmin2 and dmax2:
             date_min, date_max = dmin2, dmax2
-    elif metric in ("crashes", "anrs"):
+    elif metric in ("crashes", "anrs", "rating"):
         metric_facts = [f for f in facts if metric in f]
         dmin2, dmax2 = _fact_date_bounds(metric_facts)
         if dmin2 and dmax2:
@@ -773,11 +883,22 @@ def query_play_analytics(
                 )
         except ValueError:
             pass
-    if breakdown == "date":
+    # Puan: eksik günleri 0 ile doldurma (0★ yanıltır)
+    if breakdown == "date" and metric != "rating":
         series = _densify_date_series(
             series, start=start_d, end=effective_end_d, clip_to_data=True
         )
-    total = sum(r["value"] for r in series) if metric != "active" else (series[-1]["value"] if series else 0)
+    if metric == "rating":
+        total = (
+            round(sum(r["value"] for r in series) / len(series), 4) if series else 0
+        )
+        total_mode = "avg"
+    elif metric == "active":
+        total = series[-1]["value"] if series else 0
+        total_mode = "last"
+    else:
+        total = sum(r["value"] for r in series)
+        total_mode = "sum"
 
     compare_payload = None
     if compare == "previous_period":
@@ -791,25 +912,47 @@ def query_play_analytics(
             dim=dim,
             segment=segment,
         )
-        prev_series = _aggregate(prev_facts, breakdown=breakdown, metric=metric)
-        if breakdown == "date":
-            prev_series = _densify_date_series(
-                prev_series,
-                start=ps,
-                end=pe,
-                clip_to_data=True,
-            )
-        prev_total = sum(r["value"] for r in prev_series) if metric != "active" else (prev_series[-1]["value"] if prev_series else 0)
+        prev_available = bool(prev_facts)
+        prev_series: list[dict[str, Any]] = []
+        prev_total = 0.0
         delta_pct = None
-        if prev_total:
-            delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
+        if prev_available:
+            prev_series = _aggregate(prev_facts, breakdown=breakdown, metric=metric)
+            if breakdown == "date" and metric != "rating":
+                prev_series = _densify_date_series(
+                    prev_series,
+                    start=ps,
+                    end=pe,
+                    clip_to_data=True,
+                )
+            if metric == "rating":
+                prev_total = (
+                    round(sum(r["value"] for r in prev_series) / len(prev_series), 4)
+                    if prev_series
+                    else 0
+                )
+            elif metric == "active":
+                prev_total = prev_series[-1]["value"] if prev_series else 0
+            else:
+                prev_total = sum(r["value"] for r in prev_series)
+            if prev_total:
+                delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
+            if not prev_series:
+                prev_available = False
         compare_payload = {
             "mode": "previous_period",
             "start": ps.isoformat(),
             "end": pe.isoformat(),
-            "total": prev_total,
+            "total": prev_total if prev_available else None,
             "delta_pct": delta_pct,
-            "series": prev_series,
+            "series": prev_series if prev_available else [],
+            "available": prev_available,
+            "missing_reason": (
+                None
+                if prev_available
+                else "İlgili dönem için önceki dönem verisi bulunamadı"
+            ),
+            "total_mode": total_mode,
         }
 
     # facets: available segments for current dim
@@ -860,11 +1003,12 @@ def query_play_analytics(
         "dim": dim,
         "segment": segment or "all",
         "total": total,
+        "total_mode": total_mode,
         "series": series,
         "compare": compare_payload,
         "facets": {
             "dims": list(_DIM_SUFFIXES),
-            "metrics": ["installs", "uninstalls", "net", "active", "crashes", "anrs"],
+            "metrics": ["installs", "uninstalls", "net", "active", "crashes", "anrs", "rating"],
             "breakdowns": ["date", "week", "month", "segment"],
             "segments": seg_set,
         },

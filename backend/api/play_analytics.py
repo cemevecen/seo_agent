@@ -35,9 +35,9 @@ _SCRAPE_FIRST = {
 }
 
 # GCS installs CSV’de olmayan metrikler — installs “kolon yok” mesajına düşmesin
+# rating artık stats/ratings/*.csv’den gelir → GCS fallback açık
 _NO_GCS_FALLBACK = {
     "dau",
-    "rating",
     "revenue",
     "ar2_visitors",
     "ar2_acquisitions",
@@ -100,7 +100,17 @@ def get_play_analytics_query(
                 compare=compare,
             )
             if scrape_res.get("ok") and scrape_res.get("series"):
-                return scrape_res
+                # Puan: tarihsiz OVERALL kartı (tek nokta "5") GCS’i engellemesin
+                if metric == "rating" and breakdown in ("date", "week", "month"):
+                    keys = [str(r.get("key") or "") for r in (scrape_res.get("series") or [])]
+                    dated_ok = any(
+                        len(k) >= 8 and k[0:4].isdigit() and k[4] in "-/"
+                        for k in keys
+                    )
+                    if dated_ok:
+                        return scrape_res
+                else:
+                    return scrape_res
             # Scrape metrikleri için installs CSV’ye düşme
             if (
                 scrape_res is not None
@@ -116,10 +126,13 @@ def get_play_analytics_query(
 
     if try_gcs:
         try:
+            gcs_metric = metric
+            if metric not in ("installs", "uninstalls", "active", "net", "crashes", "anrs", "rating"):
+                gcs_metric = "installs"
             gcs = query_play_analytics(
                 start=start,
                 end=end,
-                metric=metric if metric in ("installs", "uninstalls", "active", "net", "crashes", "anrs") else "installs",
+                metric=gcs_metric,
                 breakdown=breakdown,
                 dim=dim if dim in ("overview", "country", "os_version", "app_version", "device", "language", "carrier") else "overview",
                 segment=segment,

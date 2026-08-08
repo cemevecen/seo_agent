@@ -172,8 +172,20 @@ def _enrich_reporting(
         and str(f.get("metric")) == metric_key
         and str(f.get("segment") or "") not in ("", "OVERALL", "all", "ALL")
     ]
-    if len(existing) >= 8:
-        return facts, None
+    if existing:
+        covered_dates: list[date] = []
+        for f in existing:
+            try:
+                covered_dates.append(date.fromisoformat(str(f.get("date") or "")[:10]))
+            except ValueError:
+                continue
+        if (
+            len(existing) >= 8
+            and covered_dates
+            and min(covered_dates) <= start_d
+            and max(covered_dates) >= end_d - timedelta(days=3)
+        ):
+            return facts, None
     if not gp_client.is_configured():
         return facts, (
             "Sürüm/cihaz/OS ANR için Railway’de GP_SERVICE_ACCOUNT_JSON gerekir "
@@ -269,7 +281,10 @@ def _densify_date_series(
 
     clip_to_data=True: serideki son gerçek tarihten sonrasını ekleme
     (Play gecikmeli metriklerde son 1–3 günü sahte 0 yapmamak için).
+    Boş seri → [] (sahte sıfır serisi üretme; önceki dönem kıyasında yanıltır).
     """
+    if not series:
+        return []
     by_key = {str(r["key"]): float(r.get("value") or 0) for r in series}
     data_dates = []
     for k in by_key:
@@ -277,6 +292,8 @@ def _densify_date_series(
             data_dates.append(date.fromisoformat(str(k)[:10]))
         except ValueError:
             continue
+    if not data_dates:
+        return []
     eff_end = end
     eff_start = start
     if clip_to_data and data_dates:
@@ -332,11 +349,16 @@ def query_scrape_analytics(
         facts = _normalize_revenue_facts(facts)
     pkg = str(meta.get("package_name") or "com.Doviz")
     enrich_msg = None
+    # Kıyas açıksa Reporting API’yi önceki dönemi de kapsayacak şekilde çek
+    enrich_start = start_d
+    if compare == "previous_period":
+        span_est = max((end_d - start_d).days + 1, 1)
+        enrich_start = start_d - timedelta(days=span_est)
     facts, enrich_msg = _enrich_reporting(
         facts,
         metric_key=metric_key,
         dim=dim,
-        start_d=start_d,
+        start_d=enrich_start,
         end_d=end_d,
         package_name=pkg,
     )
@@ -414,6 +436,36 @@ def query_scrape_analytics(
         else:
             undated.append(f)
     use = dated if dated else undated
+    # Puan günlük/haftalık/aylık: tarihsiz OVERALL kartını (tek "5") seri yapma
+    if metric_key == "rating" and breakdown in ("date", "week", "month"):
+        use = dated
+        if not use:
+            return {
+                "ok": False,
+                "source": "scrape",
+                "configured": True,
+                "message": (
+                    "Puan için günlük scrape serisi yok — GCS stats/ratings CSV veya "
+                    "Play Console /user-feedback/ratings sayfası kullanılır."
+                    + (f" · {enrich_msg}" if enrich_msg else "")
+                ),
+                "series": [],
+                "total": 0,
+                "total_mode": "avg",
+                "row_count": len(dim_facts),
+                "start": start_s,
+                "end": end_s,
+                "metric": metric_key,
+                "breakdown": breakdown,
+                "dim": dim,
+                "compare": None,
+                "facets": {
+                    "metrics": scrape_metric_keys(),
+                    "dims": ["overview", "country", "app_version", "device", "os_version"],
+                    "breakdowns": ["date", "week", "month", "segment"],
+                    "segments": [],
+                },
+            }
 
     # Reporting boyut satırlarında OVERALL’i gösterme
     if dim in _DIM_TO_REPORTING:
@@ -494,43 +546,55 @@ def query_scrape_analytics(
             and not str(f["date"]).startswith("i")
             and ps.isoformat() <= str(f["date"])[:10] <= pe.isoformat()
         ]
-        prev_series = _aggregate(prev, breakdown=breakdown)
-        if breakdown == "date":
-            prev_series = _densify_date_series(prev_series, start=ps, end=pe, clip_to_data=True)
-        if metric_key in _CUMULATIVE and breakdown == "date" and prev_series:
-            seed = None
-            try:
-                first_d = date.fromisoformat(str(prev_series[0]["key"])[:10])
-                seed_day = (first_d - timedelta(days=1)).isoformat()
-                for f in dim_facts:
-                    if str(f.get("date") or "")[:10] == seed_day:
-                        seed = float(f.get("value") or 0)
-                        break
-                # also search all metric facts before range
-                if seed is None:
-                    for f in cur:
-                        if (
-                            str(f.get("metric")) == metric_key
-                            and str(f.get("date") or "")[:10] == seed_day
-                            and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
-                        ):
+        prev_available = bool(prev)
+        prev_series: list[dict[str, Any]] = []
+        prev_total = 0.0
+        delta_pct = None
+        if prev_available:
+            prev_series = _aggregate(prev, breakdown=breakdown)
+            if breakdown == "date":
+                prev_series = _densify_date_series(prev_series, start=ps, end=pe, clip_to_data=True)
+            if metric_key in _CUMULATIVE and breakdown == "date" and prev_series:
+                seed = None
+                try:
+                    first_d = date.fromisoformat(str(prev_series[0]["key"])[:10])
+                    seed_day = (first_d - timedelta(days=1)).isoformat()
+                    for f in dim_facts:
+                        if str(f.get("date") or "")[:10] == seed_day:
                             seed = float(f.get("value") or 0)
                             break
-            except (TypeError, ValueError, KeyError, IndexError):
-                seed = None
-            prev_series = _decumulate_series(prev_series, seed_value=seed)
-        prev_total, _ = _series_total(prev_series, metric_key, breakdown)
-        delta_pct = None
-        if prev_total:
-            delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
+                    # also search all metric facts before range
+                    if seed is None:
+                        for f in cur:
+                            if (
+                                str(f.get("metric")) == metric_key
+                                and str(f.get("date") or "")[:10] == seed_day
+                                and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
+                            ):
+                                seed = float(f.get("value") or 0)
+                                break
+                except (TypeError, ValueError, KeyError, IndexError):
+                    seed = None
+                prev_series = _decumulate_series(prev_series, seed_value=seed)
+            prev_total, _ = _series_total(prev_series, metric_key, breakdown)
+            if prev_total:
+                delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
+            if not prev_series:
+                prev_available = False
         compare_payload = {
             "mode": "previous_period",
             "start": ps.isoformat(),
             "end": pe.isoformat(),
-            "total": prev_total,
+            "total": prev_total if prev_available else None,
             "delta_pct": delta_pct,
-            "series": prev_series,
+            "series": prev_series if prev_available else [],
             "total_mode": total_mode,
+            "available": prev_available,
+            "missing_reason": (
+                None
+                if prev_available
+                else "İlgili dönem için önceki dönem verisi bulunamadı"
+            ),
         }
 
     segs = sorted(

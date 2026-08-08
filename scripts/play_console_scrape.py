@@ -65,6 +65,9 @@ DASHBOARD_URL = (
 REVIEWS_URL = (
     os.environ.get("PLAY_CONSOLE_REVIEWS_URL") or f"{BASE_APP}/user-feedback/reviews"
 ).strip()
+RATINGS_URL = (
+    os.environ.get("PLAY_CONSOLE_RATINGS_URL") or f"{BASE_APP}/user-feedback/ratings"
+).strip()
 MONETIZE_URL = (
     os.environ.get("PLAY_CONSOLE_MONETIZE_URL") or f"{BASE_APP}/monetize"
 ).strip()
@@ -179,15 +182,8 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension_values": "OVERALL%2CTR%2CDE%2CIQ%2CAT",
         "needles": ("Edinme", "Acquisition", "Mağaza", "İstatistik", "Veri tablosu"),
     },
-    {
-        "id": "rating",
-        "label": "Google Play puanı",
-        "metric_key": "rating",
-        "metrics": "GOOGLE_PLAY_RATING-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY",
-        "dimension": "COUNTRY",
-        "dimension_values": "OVERALL%2CEG%2CGE%2CGR%2CIR",
-        "needles": ("Puan", "Rating", "Google Play", "İstatistik", "Veri tablosu"),
-    },
+    # rating: statistics URL kartı tek OVERALL=5 üretiyordu — iptal.
+    # Günlük puan: /user-feedback/ratings scrape + GCS stats/ratings CSV.
     {
         "id": "active_users",
         "label": "Etkin kullanıcılar",
@@ -1425,9 +1421,106 @@ def _extract_rating_summary_dom(page) -> dict[str, Any]:
           || pick(/Google Play puanı[^\\d]*([\\d,\\.]+)/i),
         users: pick(/Kullanıcılar[^\\d]*([\\d\\.\\s]+)/i),
         ratings_with_reviews: pick(/Yorum içeren puanlar[^\\d]*([\\d\\.\\s]+)/i),
+        lifetime_average: pick(/Yaşam boyu ortalama puan[^\\d]*([\\d,\\.]+)/i)
+          || pick(/Lifetime average rating[^\\d]*([\\d,\\.]+)/i),
       };
     }"""
     )
+
+
+def _extract_ratings_series_dom(page) -> list[dict[str, Any]]:
+    """/user-feedback/ratings sayfasından günlük ortalama puan serisi.
+
+    Önce veri tablosu satırları (tarih + puan), yoksa SVG/ARIA etiketleri.
+    """
+    return page.evaluate(
+        """() => {
+      const out = [];
+      const seen = new Set();
+      const push = (date, value) => {
+        if (!date || value == null || !(value > 0) || value > 5.5) return;
+        const k = date + '|' + value;
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push({ date, value: Math.round(value * 1000) / 1000 });
+      };
+      const parseTrDate = (s) => {
+        const t = (s || '').trim();
+        let m = t.match(/^(20\\d{2})[-/.](\\d{1,2})[-/.](\\d{1,2})$/);
+        if (m) return m[1] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[3]).padStart(2,'0');
+        m = t.match(/^(\\d{1,2})[./](\\d{1,2})[./](20\\d{2})$/);
+        if (m) return m[3] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[1]).padStart(2,'0');
+        const months = {oca:1,sub:2,şub:2,mar:3,nis:4,may:5,haz:6,tem:7,agu:8,ağu:8,eyl:9,eki:10,kas:11,ara:12,
+          jan:1,feb:2,apr:4,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+        m = t.match(/^(\\d{1,2})\\s+([A-Za-zÇĞİÖŞÜçğıöşü]{3,})\\s+(20\\d{2})$/i);
+        if (m) {
+          let mon = m[2].toLowerCase().replace('ı','i').replace('ş','s').replace('ğ','g').replace('ü','u').replace('ö','o').replace('ç','c');
+          const mi = months[mon.slice(0,3)] || months[m[2].toLowerCase().slice(0,3)];
+          if (mi) return m[3] + '-' + String(mi).padStart(2,'0') + '-' + String(m[1]).padStart(2,'0');
+        }
+        return null;
+      };
+      const parseNum = (s) => {
+        const t = String(s || '').trim().replace(',', '.');
+        const m = t.match(/([1-5](?:\\.\\d{1,3})?)/);
+        if (!m) return null;
+        const v = parseFloat(m[1]);
+        return Number.isFinite(v) ? v : null;
+      };
+      // Tablo satırları
+      for (const tr of Array.from(document.querySelectorAll('tr'))) {
+        const cells = Array.from(tr.querySelectorAll('th,td')).map(c => (c.innerText || '').trim()).filter(Boolean);
+        if (cells.length < 2) continue;
+        let ds = null, val = null;
+        for (const c of cells) {
+          const d = parseTrDate(c);
+          if (d) ds = d;
+          const n = parseNum(c);
+          if (n != null && n >= 1 && n <= 5.5) val = n;
+        }
+        if (ds && val != null) push(ds, val);
+      }
+      // Metin blokları: satır satır tarih + puan
+      const lines = (document.body && document.body.innerText || '').split('\\n').map(s => s.trim()).filter(Boolean);
+      for (let i = 0; i < lines.length - 1; i++) {
+        const ds = parseTrDate(lines[i]);
+        if (!ds) continue;
+        const val = parseNum(lines[i + 1]);
+        if (val != null) push(ds, val);
+      }
+      out.sort((a, b) => a.date.localeCompare(b.date));
+      return out.slice(-400);
+    }"""
+    )
+
+
+def _ratings_facts_from_series(series: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    facts: list[dict[str, Any]] = []
+    for pt in series or []:
+        if not isinstance(pt, dict):
+            continue
+        ds = str(pt.get("date") or "")[:10]
+        try:
+            val = float(pt.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
+            continue
+        if not (0 < val <= 5.5):
+            continue
+        facts.append(
+            {
+                "metric": "rating",
+                "view_id": "ratings_page",
+                "dim": "overview",
+                "segment": "OVERALL",
+                "date": ds,
+                "value": round(val, 4),
+                "label": "Ortalama puan",
+                "source": "ratings_page",
+            }
+        )
+    return facts
 
 
 def _extract_reviews_dom(page) -> list[dict[str, Any]]:
@@ -1970,6 +2063,66 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "debug": debug,
         }
 
+        # Ratings sayfası (günlük ortalama puan) — statistics kartı yerine
+        print("  · ratings page …", flush=True)
+        page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
+        _settle(page, seconds=5.0)
+        need_rt, _, _ = _page_needs_login(page)
+        if need_rt and headed:
+            _wait_until_console(page, timeout_sec=300)
+            page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=120_000)
+            _settle(page, seconds=5.0)
+        rating_summary = _extract_rating_summary_dom(page) or {}
+        ratings_series = _extract_ratings_series_dom(page) or []
+        # Tablo sayfalama varsa ekstra metin
+        if len(ratings_series) < 14:
+            try:
+                extra_txt = _collect_paginated_table_text(page, max_pages=4)
+                extra = _parse_stats_data_table(
+                    extra_txt,
+                    metric_key="rating",
+                    view_id="ratings_page",
+                    segments=["OVERALL"],
+                )
+                have_d = {str(p.get("date")) for p in ratings_series}
+                for f in extra:
+                    ds = str(f.get("date") or "")[:10]
+                    if ds and ds not in have_d and f.get("value") is not None:
+                        ratings_series.append({"date": ds, "value": float(f["value"])})
+                        have_d.add(ds)
+            except Exception:
+                pass
+        rating_facts = _ratings_facts_from_series(ratings_series)
+        if rating_facts:
+            # Eski tarihsiz rating kartlarını temizle
+            explorer_facts = [
+                f
+                for f in explorer_facts
+                if not (
+                    str(f.get("metric")) == "rating"
+                    and not f.get("date")
+                )
+            ]
+            explorer_facts.extend(rating_facts)
+            print(f"    → ratings_page facts={len(rating_facts)}", flush=True)
+        view_summaries.append(
+            {
+                "id": "ratings_page",
+                "label": "Google Play puanı (ratings)",
+                "metric_key": "rating",
+                "fact_count": len(rating_facts),
+                "url": RATINGS_URL,
+            }
+        )
+        panels["explorer_facts"] = explorer_facts[:50000]
+        panels["explorer_fact_count"] = len(explorer_facts)
+        panels["stats_views"] = view_summaries
+        panels["stats_view_count"] = len(view_summaries)
+        panels["pages"] = {
+            **(panels.get("pages") or {}),
+            "ratings": {"url": RATINGS_URL, "fact_count": len(rating_facts)},
+        }
+
         # Reviews sayfası
         page.goto(REVIEWS_URL, wait_until="domcontentloaded", timeout=120_000)
         _settle(page, seconds=5.0)
@@ -1978,13 +2131,16 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             _wait_until_console(page, timeout_sec=300)
             page.goto(REVIEWS_URL, wait_until="domcontentloaded", timeout=120_000)
             _settle(page, seconds=5.0)
-        rating_summary = _extract_rating_summary_dom(page) or {}
+        # Ratings özeti reviews’ta da olabilir — boşsa doldur
+        if not rating_summary.get("default_rating"):
+            rating_summary = {**rating_summary, **(_extract_rating_summary_dom(page) or {})}
         reviews = _extract_reviews_dom(page) or []
 
         ok = bool(
             metrics
             or reviews
             or rating_summary.get("default_rating")
+            or rating_facts
             or panels.get("tpg")
             or panels.get("monetize")
             or panels.get("grow")
@@ -2008,7 +2164,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             f"{panels.get('grow_count', 0)} grow · {panels.get('monitor_count', 0)} monitor · "
             f"{panels.get('release_count', 0)} release · {panels.get('statistics_count', 0)} stats · "
             f"{panels.get('stats_view_count', 0)} stats_views · "
-            f"{panels.get('explorer_fact_count', 0)} explorer_facts · "
+            f"{len(explorer_facts)} explorer_facts · {len(rating_facts)} rating_days · "
             f"{panels.get('breakdown_count', 0)} kırılım · {len(reviews)} review{dbg}"
         )
         return {
@@ -2027,7 +2183,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "source_url": DASHBOARD_URL,
             "sync_ok": ok,
             "sync_message": None,
-            "sync_mode": "dashboard_monetize_grow_monitor_release_stats_catalog_reviews",
+            "sync_mode": "dashboard_monetize_grow_monitor_release_stats_catalog_ratings_reviews",
         }
     except Exception as exc:  # noqa: BLE001
         return {

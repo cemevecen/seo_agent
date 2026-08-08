@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mx-auto w-full max-w-7xl space-y-5 android-play-page" data-header-title="Android · Play Console">
+<div class="w-full max-w-none space-y-5 android-play-page" data-header-title="Android · Play Console">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0">
@@ -63,7 +63,7 @@
           <option value="active_users">Etkin kullanıcılar</option>
           <option value="ar2_acquisitions">Mağaza edinme (AR2)</option>
           <option value="ar2_visitors">Mağaza ziyaretçileri</option>
-          <option value="rating">Google Play puanı</option>
+          <option value="rating">Google Play puanı (günlük ort.)</option>
           <option value="revenue">Gelir (Play · günlük)</option>
         </select>
       </label>
@@ -114,7 +114,7 @@
       </div>
     </div>
 
-    <div id="pa-chart-card" class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
+    <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
         <div class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
           <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"></span>Seçili dönem</span>
@@ -122,12 +122,12 @@
         </div>
         <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
       </div>
-      <div id="pa-chart-wrap" class="relative px-1 pb-1 pt-2">
+      <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
         <svg id="pa-chart" viewBox="0 0 720 260" class="h-56 w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Keşif grafiği"></svg>
-        <div id="pa-tooltip" class="pointer-events-none absolute z-20 hidden min-w-[9.5rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="transform:translate(-50%,-110%)">
-          <p id="pa-tip-title" class="text-[11px] font-bold text-slate-800 dark:text-zinc-100"></p>
-          <p id="pa-tip-cur" class="mt-1 text-[11px] tabular-nums text-emerald-700 dark:text-emerald-400"></p>
-          <p id="pa-tip-prev" class="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
+        <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-48 min-h-[4.75rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
+          <p id="pa-tip-title" class="truncate text-[11px] font-bold tabular-nums text-slate-800 dark:text-zinc-100"></p>
+          <p id="pa-tip-cur" class="mt-1 truncate text-[11px] tabular-nums text-emerald-700 dark:text-emerald-400"></p>
+          <p id="pa-tip-prev" class="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-zinc-400"></p>
         </div>
       </div>
     </div>
@@ -358,23 +358,37 @@
   function isTimeBreakdown(breakdown) {
     return breakdown === "date" || breakdown === "week" || breakdown === "month";
   }
+  var PREV_MISSING_LONG = "İlgili dönem için önceki dönem verisi çekilemedi";
+  var PREV_MISSING_SHORT = "Bulunamadı";
   /** Önceki dönem tarihleri örtüşmez → zaman kırılımında indeks hizası; segmentte anahtar. */
-  function alignPrevRows(series, prevSeries, breakdown) {
+  function alignPrevRows(series, prevSeries, breakdown, compareMeta) {
     var prev = prevSeries || [];
     var prevMap = {};
     prev.forEach(function (r) { prevMap[String(r.key)] = r; });
+    var compareOn = !!(compareMeta && compareMeta.mode === "previous_period");
+    var available = compareOn
+      ? (compareMeta.available !== false && prev.length > 0)
+      : false;
     return (series || []).map(function (r, i) {
       var match = null;
-      if (isTimeBreakdown(breakdown)) {
-        match = prev[i] || null;
-      } else {
-        match = prevMap[String(r.key)] || null;
+      if (available) {
+        if (isTimeBreakdown(breakdown)) {
+          match = prev[i] || null;
+        } else {
+          match = prevMap[String(r.key)] || null;
+        }
+      }
+      var prevValue = null;
+      if (match) {
+        var nv = Number(match.value);
+        prevValue = Number.isFinite(nv) ? nv : null;
       }
       return {
         key: r.key,
         value: Number(r.value) || 0,
-        prevValue: match ? Number(match.value) || 0 : null,
-        prevKey: match ? match.key : null
+        prevValue: prevValue,
+        prevKey: match ? match.key : null,
+        prevMissing: compareOn && prevValue == null
       };
     });
   }
@@ -426,13 +440,18 @@
     if (paTipTitle) paTipTitle.textContent = String(row.key);
     if (paTipCur) paTipCur.textContent = "Seçili: " + fmtNum(row.value, metricIsCountLike());
     if (paTipPrev) {
-      if (row.prevValue == null) {
+      if (row.prevMissing) {
+        paTipPrev.textContent = PREV_MISSING_LONG;
+        paTipPrev.className = "mt-0.5 text-[11px] leading-snug text-amber-700 dark:text-amber-400";
+      } else if (row.prevValue == null) {
         paTipPrev.textContent = "";
+        paTipPrev.className = "mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
       } else {
         var label = row.prevKey && row.prevKey !== row.key
           ? ("Önceki (" + row.prevKey + "): ")
           : "Önceki: ";
         paTipPrev.textContent = label + fmtNum(row.prevValue, metricIsCountLike());
+        paTipPrev.className = "mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
       }
     }
     var guide = paChart.querySelector("#pa-guide");
@@ -449,7 +468,7 @@
       dot.setAttribute("opacity", "1");
     }
     if (dotP) {
-      if (ppt && row.prevValue != null) {
+      if (ppt && row.prevValue != null && !row.prevMissing) {
         dotP.setAttribute("cx", ppt.x.toFixed(1));
         dotP.setAttribute("cy", ppt.y.toFixed(1));
         dotP.setAttribute("opacity", "1");
@@ -458,17 +477,29 @@
       }
     }
     var wrapRect = paChartWrap.getBoundingClientRect();
-    var left = clientX - wrapRect.left;
-    var top = clientY - wrapRect.top;
-    left = Math.max(56, Math.min(wrapRect.width - 56, left));
-    top = Math.max(28, top);
+    var pad = 8;
+    var tipW = 192; /* w-48 sabit */
+    var tipH = 76;  /* min-h yaklaşık */
+    paTooltip.classList.remove("hidden");
+    /* Ölçüm için bir frame konumlandır — sabit genişlik, yükseklik içeriğe göre ama min korunur */
+    paTooltip.style.width = tipW + "px";
+    paTooltip.style.minHeight = tipH + "px";
+    paTooltip.style.transform = "none";
+    tipW = paTooltip.offsetWidth || tipW;
+    tipH = Math.max(tipH, paTooltip.offsetHeight || tipH);
+    var x = clientX - wrapRect.left;
+    var y = clientY - wrapRect.top;
+    var left = x - tipW / 2;
+    var top = y - tipH - 14;
+    if (top < pad) top = Math.min(wrapRect.height - tipH - pad, y + 18);
+    left = Math.max(pad, Math.min(wrapRect.width - tipW - pad, left));
+    top = Math.max(pad, Math.min(Math.max(pad, wrapRect.height - tipH - pad), top));
     paTooltip.style.left = left + "px";
     paTooltip.style.top = top + "px";
-    paTooltip.classList.remove("hidden");
   }
-  function drawChart(series, prevSeries, breakdown) {
+  function drawChart(series, prevSeries, breakdown, compareMeta) {
     if (!paChart) return;
-    var rows = alignPrevRows(series, prevSeries, breakdown);
+    var rows = alignPrevRows(series, prevSeries, breakdown, compareMeta);
     var w = 720, h = 260;
     var left = 48, right = 16, top = 16, bottom = 36;
     var plotW = w - left - right;
@@ -493,7 +524,7 @@
       return chartXY(i, r.value, n, min, span, left, top, plotW, plotH);
     });
     var prevPts = rows.map(function (r, i) {
-      if (r.prevValue == null) return null;
+      if (r.prevValue == null || r.prevMissing) return null;
       return chartXY(i, r.prevValue, n, min, span, left, top, plotW, plotH);
     });
     paChartState = { rows: rows, curPts: curPts, prevPts: prevPts, baseY: top + plotH, left: left, plotW: plotW };
@@ -576,7 +607,7 @@
     }
   }
   function renderPaTable(series, prevSeries, breakdown, compareMeta) {
-    var rows = alignPrevRows(series, prevSeries, breakdown);
+    var rows = alignPrevRows(series, prevSeries, breakdown, compareMeta);
     if (paThPrev) {
       if (compareMeta && compareMeta.start && compareMeta.end) {
         paThPrev.textContent = "Önceki (" + compareMeta.start.slice(5) + "→" + compareMeta.end.slice(5) + ")";
@@ -592,8 +623,13 @@
       var pv = r.prevValue;
       var dlt = (pv != null && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
       var dltCls = dlt == null ? "text-slate-400" : (dlt >= 0 ? "text-emerald-700" : "text-rose-600");
-      var prevCell = "—";
-      if (pv != null) {
+      var prevCell;
+      if (r.prevMissing) {
+        prevCell =
+          '<span class="block max-w-[14rem] text-[10px] font-medium leading-snug text-amber-700 dark:text-amber-400">' +
+          esc(PREV_MISSING_LONG) +
+          "</span>";
+      } else if (pv != null) {
         if (r.prevKey && r.prevKey !== r.key) {
           prevCell =
             '<span class="block tabular-nums">' + esc(fmtNum(pv, metricIsCountLike())) + "</span>" +
@@ -601,6 +637,8 @@
         } else {
           prevCell = esc(fmtNum(pv, metricIsCountLike()));
         }
+      } else {
+        prevCell = '<span class="text-slate-400">—</span>';
       }
       return (
         "<tr class=\"hover:bg-slate-50/80 dark:hover:bg-zinc-800/40\">" +
@@ -662,8 +700,21 @@
         paPrevLabel.textContent = mode === "last" ? "Önceki son gün" : (mode === "avg" ? "Önceki ort." : "Önceki dönem");
       }
       var cmp = data.compare;
-      paPrev.textContent = cmp ? fmtNum(cmp.total, metricIsCountLike()) : "—";
-      if (cmp && cmp.delta_pct != null) {
+      var cmpMeta = cmp || null;
+      if (cmp && cmp.available === false) {
+        paPrev.textContent = PREV_MISSING_SHORT;
+        paPrev.className = "mt-1 text-sm font-bold leading-snug text-amber-700 dark:text-amber-400";
+        paPrev.title = (cmp.missing_reason || PREV_MISSING_LONG);
+      } else if (cmp && cmp.total != null) {
+        paPrev.textContent = fmtNum(cmp.total, metricIsCountLike());
+        paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
+        paPrev.title = "";
+      } else {
+        paPrev.textContent = "—";
+        paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
+        paPrev.title = "";
+      }
+      if (cmp && cmp.available !== false && cmp.delta_pct != null) {
         var d = cmp.delta_pct;
         paDelta.textContent = (d >= 0 ? "+" : "") + d + "%";
         paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums " + (d >= 0 ? "text-emerald-700" : "text-rose-600");
@@ -671,11 +722,15 @@
         paDelta.textContent = "—";
         paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
       }
-      drawChart(data.series || [], (cmp && cmp.series) || [], paBreakdown.value);
-      renderPaTable(data.series || [], (cmp && cmp.series) || [], paBreakdown.value, cmp || null);
+      drawChart(data.series || [], (cmp && cmp.available !== false && cmp.series) ? cmp.series : [], paBreakdown.value, cmpMeta);
+      renderPaTable(data.series || [], (cmp && cmp.available !== false && cmp.series) ? cmp.series : [], paBreakdown.value, cmpMeta);
       if (paCompareRange) {
         if (cmp && cmp.start && cmp.end) {
-          paCompareRange.textContent = "Kıyas: " + cmp.start + " → " + cmp.end;
+          var rangeTxt = "Kıyas: " + cmp.start + " → " + cmp.end;
+          if (cmp.available === false) {
+            rangeTxt += " · " + (cmp.missing_reason || PREV_MISSING_LONG);
+          }
+          paCompareRange.textContent = rangeTxt;
         } else {
           paCompareRange.textContent = "";
         }
