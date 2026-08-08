@@ -19,6 +19,12 @@ _ICON_NAMES = {
     "expand_more",
     "expand_less",
     "feature_search",
+    "keyboard_arrow_left",
+    "keyboard_arrow_right",
+    "chevron_left",
+    "chevron_right",
+    "help",
+    "help_outline",
     "visibility_off",
     "more_vert",
     "dashboard",
@@ -68,6 +74,11 @@ _METRIC_TITLE_HINTS = (
     "üretim",
     "rollout",
     "sürüm",
+    "erişim",
+    "reach",
+    "install base",
+    "ram",
+    "soc",
 )
 
 _JUNK_AUTHOR = re.compile(
@@ -177,6 +188,9 @@ def normalize_metrics(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         if key in seen:
             continue
         seen.add(key)
+        url = str(m.get("url") or m.get("href") or "").strip()
+        if url and not url.startswith(("http://", "https://", "/")):
+            url = ""
         cleaned.append(
             {
                 "title": title,
@@ -186,12 +200,14 @@ def normalize_metrics(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
                 "segment": str(m.get("segment") or "").strip() or None,
                 "metric": str(m.get("metric") or "").strip() or None,
                 "period": str(m.get("period") or "").strip() or None,
+                "page": str(m.get("page") or "").strip() or None,
+                "url": url[:512] if url else None,
                 "lines": lines[:6] if lines else [title, value] + ([delta] if delta else []),
             }
         )
     # None alanları temizle
     for row in cleaned:
-        for k in ("kind", "segment", "metric", "period"):
+        for k in ("kind", "segment", "metric", "period", "page", "url"):
             if not row.get(k):
                 row.pop(k, None)
     return cleaned
@@ -201,6 +217,29 @@ def _norm_kind_list(raw_list: Any, kind: str) -> list[dict[str, Any]]:
     return normalize_metrics(
         [{**x, "kind": kind} for x in (raw_list or []) if isinstance(x, dict)]
     )
+
+
+_STACK_UI_JUNK = re.compile(
+    r"^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next)$",
+    re.I,
+)
+
+
+def _clean_stack_trace(text: str) -> str:
+    """Yığın bloğundan Material ikon adları ve Console UI gürültüsünü ayıkla."""
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    kept: list[str] = []
+    for ln in raw.splitlines():
+        s = ln.strip()
+        if not s or _is_iconish(s) or _STACK_UI_JUNK.match(s):
+            continue
+        # Tek basamak / sayfalama
+        if re.fullmatch(r"\d{1,3}", s):
+            continue
+        kept.append(s)
+    return "\n".join(kept)[:6000]
 
 
 def _strip_issue_nav_noise(text: str) -> str:
@@ -283,7 +322,7 @@ def _normalize_vitals_issue_detail(det: dict[str, Any]) -> dict[str, Any] | None
         )[:240],
         "summary_cards": cards[:12],
         "insights": insights,
-        "stack_trace": str(det.get("stack_trace") or "")[:6000],
+        "stack_trace": _clean_stack_trace(str(det.get("stack_trace") or "")),
         "sections": sections[:10],
         "error": str(det.get("error") or "")[:200] or None,
     }
@@ -444,6 +483,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
     grow = _norm_kind_list(d.get("grow"), "grow")
     monitor = _norm_kind_list(d.get("monitor"), "monitor")
     release = _norm_kind_list(d.get("release"), "release")
+    devices = _norm_kind_list(d.get("devices"), "devices")
     statistics = _norm_kind_list(d.get("statistics"), "statistics")
 
     for key, bucket, kind in (
@@ -451,6 +491,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         ("grow", "grow", "grow"),
         ("monitor", "monitor", "monitor"),
         ("release", "release", "release"),
+        ("devices", "devices", "devices"),
         ("statistics", "statistics", "statistics"),
     ):
         cur = {
@@ -458,6 +499,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
             "grow": grow,
             "monitor": monitor,
             "release": release,
+            "devices": devices,
             "statistics": statistics,
         }[bucket]
         if not cur and isinstance(pages_in.get(key), dict):
@@ -470,6 +512,8 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
                 monitor = filled
             elif bucket == "release":
                 release = filled
+            elif bucket == "devices":
+                devices = filled
             else:
                 statistics = filled
     # visitors URL cards → statistics'e ekle
@@ -496,13 +540,15 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
                 "delta": str(x.get("delta") or "").strip(),
                 "segment": str(x.get("segment") or "").strip(),
                 "metric": str(x.get("metric") or "").strip() or title.split("(")[0].strip(),
+                "dimension": str(x.get("dimension") or "").strip() or None,
                 "kind": "breakdown",
                 "page": str(x.get("page") or "").strip() or None,
             }
         )
     for row in breakdowns:
-        if not row.get("page"):
-            row.pop("page", None)
+        for k in ("page", "dimension"):
+            if not row.get(k):
+                row.pop(k, None)
     series = []
     for s in d.get("series") or []:
         if not isinstance(s, dict):
@@ -523,7 +569,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
     for pk, pv in pages_in.items():
         if not isinstance(pv, dict):
             continue
-        pages_out[str(pk)] = {
+        page_row: dict[str, Any] = {
             "url": str(pv.get("url") or "")[:512],
             "cards": normalize_metrics(pv.get("cards") if isinstance(pv.get("cards"), list) else []),
             "breakdowns": [
@@ -532,12 +578,27 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
                     "value": str(x.get("value") or ""),
                     "delta": str(x.get("delta") or ""),
                     "segment": str(x.get("segment") or ""),
+                    "dimension": str(x.get("dimension") or "")[:80] or None,
                     "kind": "breakdown",
                 }
                 for x in (pv.get("breakdowns") or [])
                 if isinstance(x, dict) and re.search(r"\d", str(x.get("value") or ""))
             ],
         }
+        for br in page_row["breakdowns"]:
+            if not br.get("dimension"):
+                br.pop("dimension", None)
+        if pk == "devices" and isinstance(pv.get("breakdown_pages"), dict):
+            page_row["breakdown_pages"] = {
+                str(k)[:64]: {
+                    "url": str((v or {}).get("url") or "")[:512],
+                    "card_count": int((v or {}).get("card_count") or 0),
+                    "breakdown_count": int((v or {}).get("breakdown_count") or 0),
+                }
+                for k, v in pv["breakdown_pages"].items()
+                if isinstance(v, dict)
+            }
+        pages_out[str(pk)] = page_row
     vitals_in = d.get("vitals") if isinstance(d.get("vitals"), dict) else {}
     vitals = _normalize_vitals(vitals_in)
 
@@ -548,6 +609,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "grow": grow,
         "monitor": monitor,
         "release": release,
+        "devices": devices,
         "statistics": statistics,
         "breakdowns": breakdowns,
         "vitals": vitals,
@@ -567,6 +629,7 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "grow_count": len(grow),
         "monitor_count": len(monitor),
         "release_count": len(release),
+        "devices_count": len(devices),
         "statistics_count": len(statistics),
         "breakdown_count": len(breakdowns),
         "series_count": len(series),
@@ -839,7 +902,7 @@ def normalize_play_snapshot(
     metrics_n = normalize_metrics(metrics)
     panels_n = normalize_panels(panels)
     # panels boşsa metrics'ten türet
-    special = ("breakdown", "monetize", "grow", "monitor", "release", "statistics")
+    special = ("breakdown", "monetize", "grow", "monitor", "release", "devices", "statistics")
     if (
         not panels_n.get("tpg")
         and not panels_n.get("breakdowns")
@@ -847,6 +910,7 @@ def normalize_play_snapshot(
         and not panels_n.get("grow")
         and not panels_n.get("monitor")
         and not panels_n.get("release")
+        and not panels_n.get("devices")
         and not panels_n.get("statistics")
         and metrics_n
     ):
@@ -857,12 +921,13 @@ def normalize_play_snapshot(
                 "grow": [m for m in metrics_n if m.get("kind") == "grow"],
                 "monitor": [m for m in metrics_n if m.get("kind") == "monitor"],
                 "release": [m for m in metrics_n if m.get("kind") == "release"],
+                "devices": [m for m in metrics_n if m.get("kind") == "devices"],
                 "statistics": [m for m in metrics_n if m.get("kind") == "statistics"],
                 "breakdowns": [m for m in metrics_n if m.get("kind") == "breakdown"],
             }
         )
     elif metrics_n:
-        for kind in ("monetize", "grow", "monitor", "release", "statistics"):
+        for kind in ("monetize", "grow", "monitor", "release", "devices", "statistics"):
             if not panels_n.get(kind):
                 rows = [m for m in metrics_n if m.get("kind") == kind]
                 if rows:

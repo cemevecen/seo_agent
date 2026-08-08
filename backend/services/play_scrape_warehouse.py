@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
@@ -65,12 +66,35 @@ def _period_bucket(ds: str, breakdown: str) -> str | None:
     return d.isoformat()
 
 
-def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]:
-    """Puan + tarih kırılımında satırlara yorumlu/yorumsuz puan sayılarını ekle.
+def _parse_review_star(rev: dict[str, Any]) -> int | None:
+    raw = rev.get("stars")
+    if raw is None:
+        raw = rev.get("score")
+    if isinstance(raw, (int, float)) and 1 <= int(raw) <= 5:
+        return int(raw)
+    m = re.search(r"([1-5])", str(raw or ""))
+    if m:
+        return int(m.group(1))
+    return None
 
-    - ratings_count: Play Puan dağılımı CSV (günlük toplam oy)
-    - with_reviews: scrape yorumları (metinli) gün bazında
+
+def _review_day_iso(rev: dict[str, Any]) -> str:
+    ds = str(rev.get("date_iso") or "").strip()[:10]
+    if re.fullmatch(r"20\d{2}-\d{2}-\d{2}", ds):
+        return ds
+    parsed = review_date_iso(rev.get("date")) or review_date_iso(rev.get("raw"))
+    if parsed and re.fullmatch(r"20\d{2}-\d{2}-\d{2}", str(parsed)[:10]):
+        return str(parsed)[:10]
+    return ""
+
+
+def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]:
+    """Puan + tarih kırılımında satırlara yorumlu/yorumsuz + 1–5 yıldız sayılarını ekle.
+
+    - ratings_count / star_1..5: Play Puan dağılımı CSV (tercih)
+    - with_reviews: metinli yorumlar (body ≥ 8)
     - without_reviews: max(0, ratings_count - with_reviews)
+    - CSV yoksa yıldızlar metinli yorumlardan (kısmi) doldurulur
     """
     if not isinstance(result, dict):
         return result
@@ -88,6 +112,7 @@ def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]
 
     facts, _meta = _load_facts()
     totals: dict[str, float] = defaultdict(float)
+    stars_csv: dict[str, dict[str, int]] = defaultdict(lambda: {str(i): 0 for i in range(1, 6)})
     for f in facts:
         if str(f.get("metric")) != "ratings_count":
             continue
@@ -103,25 +128,39 @@ def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]
             totals[key] += float(f.get("value") or 0)
         except (TypeError, ValueError):
             continue
+        stars = f.get("stars") if isinstance(f.get("stars"), dict) else {}
+        for i in range(1, 6):
+            sk = str(i)
+            try:
+                stars_csv[key][sk] += int(float(stars.get(sk) or stars.get(i) or 0))
+            except (TypeError, ValueError):
+                continue
 
+    start_s = str(result.get("start") or "")
+    end_s = str(result.get("effective_end") or result.get("end") or "")
     with_map: dict[str, int] = defaultdict(int)
+    stars_rev: dict[str, dict[str, int]] = defaultdict(lambda: {str(i): 0 for i in range(1, 6)})
     for rev in _load_reviews():
-        body = str(rev.get("body") or "").strip()
-        if len(body) < 8:
+        if not isinstance(rev, dict):
             continue
-        ds = str(rev.get("date_iso") or "").strip() or (review_date_iso(rev.get("date")) or "")
+        ds = _review_day_iso(rev)
         if not ds:
+            continue
+        if start_s and end_s and not (start_s <= ds <= end_s):
             continue
         key = _period_bucket(ds, breakdown)
         if not key:
             continue
-        start_s = str(result.get("start") or "")
-        end_s = str(result.get("effective_end") or result.get("end") or "")
-        if start_s and end_s and not (start_s <= ds <= end_s):
-            continue
-        with_map[key] += 1
+        body = str(rev.get("body") or "").strip()
+        if len(body) >= 8:
+            with_map[key] += 1
+        star = _parse_review_star(rev)
+        if star is not None:
+            stars_rev[key][str(star)] += 1
 
-    if not totals and not with_map:
+    if not totals and not with_map and not any(any(v.values()) for v in stars_csv.values()) and not any(
+        any(v.values()) for v in stars_rev.values()
+    ):
         return result
 
     enriched = 0
@@ -131,11 +170,14 @@ def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]
         key = str(row.get("key") or "")
         total_n = totals.get(key)
         with_n = with_map.get(key, 0)
-        if total_n is None and not with_n:
+        csv_stars = stars_csv.get(key)
+        rev_stars = stars_rev.get(key)
+        has_csv_stars = bool(csv_stars and any(csv_stars.values()))
+        has_rev_stars = bool(rev_stars and any(rev_stars.values()))
+        if total_n is None and not with_n and not has_csv_stars and not has_rev_stars:
             continue
         if total_n is None:
-            # Sadece yorum biliniyor — toplam yokken yorumsuz bilinmez
-            row["with_reviews"] = int(with_n)
+            row["with_reviews"] = int(with_n) if with_n else None
             row["without_reviews"] = None
             row["ratings_count"] = None
         else:
@@ -144,14 +186,26 @@ def enrich_rating_series_review_splits(result: dict[str, Any]) -> dict[str, Any]
             row["ratings_count"] = total_i
             row["with_reviews"] = with_i
             row["without_reviews"] = max(0, total_i - with_i)
+        use_stars = None
+        if csv_stars is not None and (has_csv_stars or total_n is not None):
+            use_stars = csv_stars
+            src = "distribution_csv"
+        elif rev_stars is not None and has_rev_stars:
+            use_stars = rev_stars
+            src = "reviews"
+        if use_stars is not None:
+            for i in range(1, 6):
+                row[f"star_{i}"] = int(use_stars.get(str(i)) or 0)
+            row["stars_source"] = src
         enriched += 1
 
     if enriched:
         result["rating_review_splits"] = True
         msg = str(result.get("message") or "")
-        note = " · yorumlu/yorumsuz puan sütunları"
-        if note not in msg:
-            result["message"] = msg + note
+        if "1–5★" not in msg and "yorumlu/yorumsuz" not in msg:
+            result["message"] = (msg + " · yorumlu/yorumsuz + 1–5★ sütunları").strip(" ·")
+        elif "1–5★" not in msg:
+            result["message"] = msg + " + 1–5★"
     return result
 
 

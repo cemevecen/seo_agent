@@ -223,6 +223,11 @@
               <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
               <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumlu</th>
               <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumsuz</th>
+              <th id="pa-th-star-5" class="hidden px-3 py-2 font-bold tabular-nums">5★</th>
+              <th id="pa-th-star-4" class="hidden px-3 py-2 font-bold tabular-nums">4★</th>
+              <th id="pa-th-star-3" class="hidden px-3 py-2 font-bold tabular-nums">3★</th>
+              <th id="pa-th-star-2" class="hidden px-3 py-2 font-bold tabular-nums">2★</th>
+              <th id="pa-th-star-1" class="hidden px-3 py-2 font-bold tabular-nums">1★</th>
               <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
               <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
             </tr>
@@ -280,7 +285,7 @@
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Özet</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console anlık snapshot · KPI / TPG / monetize / grow / monitor</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console anlık snapshot · KPI / TPG / monetize / grow / monitor / devices</p>
       </div>
       <button type="button" data-pc-close="scrape" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200">Kapat</button>
     </div>
@@ -340,6 +345,24 @@
     </div>
     <div id="pc-monitor" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
     <p id="pc-monitor-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz monitor kartı yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Cihazlar · Reach</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /devices/dashboard (yükleme tabanı, vitals, Android sürüm / RAM / SoC kırılımları)</p>
+      </div>
+      <a id="pc-devices-link"
+         href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/devices/dashboard?days=28&amp;peerset_key=3%3A6a1f18dbb44333cd&amp;expanded_breakdowns=ANDROID_VERSION"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+    </div>
+    <div id="pc-devices" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-devices-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz devices kartı yok — sync sonrası dolacak</p>
+    <h3 class="mt-5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Alt kırılımlar</h3>
+    <div id="pc-devices-br" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
+    <p id="pc-devices-br-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz devices kırılımı yok</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -412,6 +435,11 @@
   var growEmpty = document.getElementById("pc-grow-empty");
   var monitorEl = document.getElementById("pc-monitor");
   var monitorEmpty = document.getElementById("pc-monitor-empty");
+  var devicesEl = document.getElementById("pc-devices");
+  var devicesEmpty = document.getElementById("pc-devices-empty");
+  var devicesBrEl = document.getElementById("pc-devices-br");
+  var devicesBrEmpty = document.getElementById("pc-devices-br-empty");
+  var devicesLink = document.getElementById("pc-devices-link");
   var releaseEl = document.getElementById("pc-release");
   var releaseEmpty = document.getElementById("pc-release-empty");
   var statsEl = document.getElementById("pc-statistics");
@@ -446,6 +474,21 @@
       .replace(/\s*show\s*details?\s*$/i, "")
       .replace(/\s*view\s*details?\s*$/i, "")
       .trim();
+  }
+
+  function cleanStackTrace(text) {
+    return String(text == null ? "" : text)
+      .split(/\n+/)
+      .map(function (l) { return l.replace(/\s+/g, " ").trim(); })
+      .filter(function (l) {
+        if (!l) return false;
+        if (/^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next)$/i.test(l)) return false;
+        if (/^(keyboard_arrow_|chevron_|feature_|arrow_|expand_|visibility_)/i.test(l)) return false;
+        if (/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/i.test(l) && l.length < 40 && !/\d/.test(l)) return false;
+        if (/^\d{1,3}$/.test(l)) return false;
+        return true;
+      })
+      .join("\n");
   }
 
   function findVitalsIssue(iid) {
@@ -542,6 +585,9 @@
   var paThDelta = document.getElementById("pa-th-delta");
   var paThWithRev = document.getElementById("pa-th-with-rev");
   var paThWithoutRev = document.getElementById("pa-th-without-rev");
+  var paThStars = [5, 4, 3, 2, 1].map(function (n) {
+    return document.getElementById("pa-th-star-" + n);
+  });
   var paTable = document.getElementById("pa-table");
   var paChartState = null;
 
@@ -565,7 +611,7 @@
       else paThDelta.classList.add("hidden");
     }
   }
-  function setReviewSplitColsVisible(show) {
+  function setReviewSplitColsVisible(show, showStars) {
     if (paThWithRev) {
       if (show) paThWithRev.classList.remove("hidden");
       else paThWithRev.classList.add("hidden");
@@ -574,6 +620,12 @@
       if (show) paThWithoutRev.classList.remove("hidden");
       else paThWithoutRev.classList.add("hidden");
     }
+    var starOn = !!(show && showStars);
+    paThStars.forEach(function (th) {
+      if (!th) return;
+      if (starOn) th.classList.remove("hidden");
+      else th.classList.add("hidden");
+    });
   }
   function setCompareKpisVisible(show) {
     if (paKpiPrev) {
@@ -648,7 +700,7 @@
         var nv = Number(match.value);
         prevValue = Number.isFinite(nv) ? nv : null;
       }
-      return {
+      var out = {
         key: r.key,
         value: Number(r.value) || 0,
         prevValue: prevValue,
@@ -658,6 +710,11 @@
         without_reviews: r.without_reviews != null ? Number(r.without_reviews) : null,
         ratings_count: r.ratings_count != null ? Number(r.ratings_count) : null
       };
+      [1, 2, 3, 4, 5].forEach(function (n) {
+        var k = "star_" + n;
+        out[k] = r[k] != null ? Number(r[k]) : null;
+      });
+      return out;
     });
   }
   function niceMax(v) {
@@ -882,11 +939,20 @@
     var showReviewSplit = !!(
       (paMetric && paMetric.value === "rating")
       && rows.some(function (r) {
-        return r.with_reviews != null || r.without_reviews != null || r.ratings_count != null;
+        return r.with_reviews != null || r.without_reviews != null || r.ratings_count != null
+          || r.star_1 != null || r.star_2 != null || r.star_3 != null
+          || r.star_4 != null || r.star_5 != null;
+      })
+    );
+    var showStars = !!(
+      showReviewSplit
+      && rows.some(function (r) {
+        return r.star_1 != null || r.star_2 != null || r.star_3 != null
+          || r.star_4 != null || r.star_5 != null;
       })
     );
     setCompareColsVisible(showCompare);
-    setReviewSplitColsVisible(showReviewSplit);
+    setReviewSplitColsVisible(showReviewSplit, showStars);
     if (showCompare && paThPrev) {
       if (compareMeta.start && compareMeta.end) {
         paThPrev.textContent = "Önceki (" + compareMeta.start.slice(5) + "→" + compareMeta.end.slice(5) + ")";
@@ -894,7 +960,7 @@
         paThPrev.textContent = "Önceki";
       }
     }
-    var colCount = 2 + (showReviewSplit ? 2 : 0) + (showCompare ? 2 : 0);
+    var colCount = 2 + (showReviewSplit ? 2 : 0) + (showStars ? 5 : 0) + (showCompare ? 2 : 0);
     if (!rows.length) {
       paTable.innerHTML =
         '<tr><td colspan="' + colCount +
@@ -914,6 +980,14 @@
             (wr == null ? "—" : esc(fmtNum(wr, true))) + "</td>" +
           '<td class="px-3 py-1.5 tabular-nums text-slate-700 dark:text-zinc-200">' +
             (wor == null ? "—" : esc(fmtNum(wor, true))) + "</td>";
+      }
+      if (showStars) {
+        [5, 4, 3, 2, 1].forEach(function (n) {
+          var sv = r["star_" + n];
+          cells +=
+            '<td class="px-3 py-1.5 tabular-nums text-slate-700 dark:text-zinc-200">' +
+              (sv == null ? "—" : esc(fmtNum(sv, true))) + "</td>";
+        });
       }
       if (showCompare) {
         var pv = r.prevValue;
@@ -1079,7 +1153,8 @@
     }
   }
   function resetPaFiltersForMetricChange() {
-    // Metrik değişince kırılım / boyut / segment / kıyas varsayılana dönsün
+    // Metrik değişince kırılım / boyut / segment / kıyas varsayılana dönsün.
+    // Zaman filtresi (preset, başlangıç, bitiş) aynı kalsın.
     if (paBreakdown) paBreakdown.value = "date";
     if (paDim) paDim.value = "overview";
     if (paSegment) {
@@ -1087,10 +1162,6 @@
       paSegment.value = "all";
     }
     if (paCompare) paCompare.checked = false;
-    if (paPreset) {
-      paPreset.value = "14";
-      applyPreset();
-    }
     setCompareColsVisible(false);
     setReviewSplitColsVisible(false);
     setCompareKpisVisible(false);
@@ -1153,17 +1224,157 @@
     return "text-slate-500";
   }
 
+  function pcAppBase() {
+    var a = document.getElementById("pc-console-link");
+    var href = (a && a.getAttribute("href")) || "";
+    if (!href) {
+      href = "https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/app-dashboard";
+    }
+    return href.replace(/\/(app-dashboard|statistics|monetize|grow-overview|monitor|devices|test-and-release|user-feedback|vitals).*$/i, "");
+  }
+
+  function metricIconSvg(kind) {
+    var paths = {
+      crash: "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z",
+      anr: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z",
+      star: "M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z",
+      download: "M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3",
+      devices: "M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3",
+      rocket: "M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.63 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z",
+      users: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z",
+      store: "M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .414.336.75.75.75z",
+      money: "M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z",
+      churn: "M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75",
+      release: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+      chart: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
+    };
+    var d = paths[kind] || paths.chart;
+    return (
+      '<svg class="h-4 w-4 shrink-0 text-slate-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">' +
+        '<path stroke-linecap="round" stroke-linejoin="round" d="' + d + '" />' +
+      "</svg>"
+    );
+  }
+
+  function externalLinkSvg() {
+    return (
+      '<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">' +
+        '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />' +
+      "</svg>"
+    );
+  }
+
+  function resolveMetricMeta(m) {
+    var title = String((m && m.title) || "");
+    var t = title.toLowerCase();
+    var base = pcAppBase();
+    var page = String((m && m.page) || "").toLowerCase();
+    var icon = "chart";
+    var path = "";
+
+    if (/kilitlenme|crash|çökme/.test(t)) {
+      icon = "crash";
+      path = "/vitals/crashes?errorType=CRASH&isUserPerceived=true&days=28";
+    } else if (/\banr\b/.test(t)) {
+      icon = "anr";
+      path = "/vitals/crashes?errorType=ANR&isUserPerceived=true&days=28";
+    } else if (/puan|rating|yıldız|yorum/.test(t)) {
+      icon = "star";
+      path = "/user-feedback/ratings";
+    } else if (/mağaza girişi dönüşüm|store listing conversion|dönüşüm oranı/.test(t)) {
+      icon = "store";
+      path = "/statistics?metrics=STORE_LISTING_CONVERSION_RATE-ALL-COUNT_UNSPECIFIED-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/mağaza girişi edinme|store listing acquisition|ar2/.test(t)) {
+      icon = "store";
+      path = "/statistics?metrics=AR2_ACQUISITIONS-ALL-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/mağaza girişi ziyaret|store listing visitor|ziyaretçi/.test(t)) {
+      icon = "store";
+      path = "/statistics?metrics=STORE_LISTING_VISITORS-ALL-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/kullanıcı kayb|user lost|churn/.test(t)) {
+      icon = "churn";
+      path = "/statistics?metrics=USER_LOST-ALL-EVENTS-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/günlük etkin|daily active|\bdau\b|\baeks\b/.test(t)) {
+      icon = "users";
+      path = "/statistics?metrics=ENGAGEMENT_DAILY_ACTIVE_USERS-ACQUISITION_UNSPECIFIED-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/etkin cihaz|active device/.test(t)) {
+      icon = "devices";
+      path = "/statistics?metrics=ACTIVE_DEVICES-ALL-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/etkin kullanıcı|active user|yükleyen kullanıcı/.test(t)) {
+      icon = "users";
+      path = "/statistics?metrics=ACTIVE_USERS-ALL-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/cihaz ilk açılış|first open/.test(t)) {
+      icon = "rocket";
+      path = "/grow-overview";
+    } else if (/cihaz edinme|device acquisition|yeni cihaz/.test(t)) {
+      icon = "rocket";
+      path = "/statistics?metrics=DEVICE_ACQUISITION-NEW-EVENTS-CUMULATIVE-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/yükleme tabanı|install base/.test(t)) {
+      icon = "devices";
+      path = "/statistics?metrics=INSTALL_BASE-ALL-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/yükleme|install|download/.test(t)) {
+      icon = "download";
+      path = "/grow-overview";
+    } else if (/gelir|alıcı|öykbog|abonelik|revenue|buyer|arppu|arpu|satın/.test(t)) {
+      icon = "money";
+      path = "/monetize";
+    } else if (/sürüm|release|version/.test(t)) {
+      icon = "release";
+      path = "/test-and-release";
+    }
+
+    var pageFallback = {
+      dashboard: "/app-dashboard",
+      monetize: "/monetize",
+      grow: "/grow-overview",
+      monitor: "/monitor",
+      devices: "/devices/dashboard?days=28&peerset_key=3%3A6a1f18dbb44333cd&expanded_breakdowns=ANDROID_VERSION",
+      release: "/test-and-release",
+      statistics: "/statistics"
+    };
+    if (!path) {
+      if (page.indexOf("stats_") === 0 || page === "statistics") path = pageFallback.statistics;
+      else path = pageFallback[page] || "/app-dashboard";
+    }
+
+    var scraped = String((m && (m.url || m.href)) || "").trim();
+    var url = scraped;
+    if (!url || !/^https?:\/\//i.test(url)) {
+      url = base + path;
+    }
+    return { icon: icon, url: url };
+  }
+
   function metricCard(m, opts) {
     opts = opts || {};
     var sub = opts.subtitle || m.segment || m.period || "";
+    var meta = resolveMetricMeta(m);
     var delta = m.delta
       ? '<p class="mt-1 text-xs tabular-nums ' + deltaClass(m.delta) + '">' + esc(m.delta) + "</p>"
       : "";
+    var link = meta.url
+      ? (
+          '<a href="' + esc(meta.url) + '" target="_blank" rel="noopener noreferrer" ' +
+          'title="Play Console’da aç" ' +
+          'class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200/80 hover:text-emerald-700 dark:hover:bg-zinc-800 dark:hover:text-emerald-400" ' +
+          'onclick="event.stopPropagation()">' +
+            externalLinkSvg() +
+            '<span class="sr-only">Play Console’da aç</span>' +
+          "</a>"
+        )
+      : "";
     return (
-      '<article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
-        '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(m.title || "—") + "</p>" +
-        (sub ? '<p class="mt-0.5 text-[10px] text-slate-400">' + esc(sub) + "</p>" : "") +
-        '<p class="mt-1 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(m.value || "—") + "</p>" +
+      '<article class="relative rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+        '<div class="flex items-start justify-between gap-2">' +
+          '<div class="flex min-w-0 items-start gap-2">' +
+            metricIconSvg(meta.icon) +
+            '<div class="min-w-0">' +
+              '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(m.title || "—") + "</p>" +
+              (sub ? '<p class="mt-0.5 text-[10px] text-slate-400">' + esc(sub) + "</p>" : "") +
+            "</div>" +
+          "</div>" +
+          link +
+        "</div>" +
+        '<p class="mt-2 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(m.value || "—") + "</p>" +
         delta +
       "</article>"
     );
@@ -1211,17 +1422,25 @@
     var monetize = pageCards(panels, "monetize", "monetize");
     var grow = pageCards(panels, "grow", "grow");
     var monitor = pageCards(panels, "monitor", "monitor");
+    var devices = pageCards(panels, "devices", "devices");
     var release = pageCards(panels, "release", "release");
     var statistics = pageCards(panels, "statistics", "statistics");
     var breakdowns = Array.isArray(panels.breakdowns) ? panels.breakdowns.slice() : [];
+    var devicesBreakdowns = breakdowns.filter(function (m) {
+      return String((m && m.page) || "") === "devices";
+    });
+    if (!devicesBreakdowns.length && panels.pages && panels.pages.devices && Array.isArray(panels.pages.devices.breakdowns)) {
+      devicesBreakdowns = panels.pages.devices.breakdowns.slice();
+    }
     var metrics = Array.isArray(data.metrics) ? data.metrics : [];
 
-    if (!tpg.length && !breakdowns.length && !monetize.length && !grow.length && !monitor.length && !release.length && !statistics.length && metrics.length) {
+    if (!tpg.length && !breakdowns.length && !monetize.length && !grow.length && !monitor.length && !devices.length && !release.length && !statistics.length && metrics.length) {
       metrics.forEach(function (m) {
         if (m.kind === "breakdown") breakdowns.push(m);
         else if (m.kind === "monetize") monetize.push(m);
         else if (m.kind === "grow") grow.push(m);
         else if (m.kind === "monitor") monitor.push(m);
+        else if (m.kind === "devices") devices.push(m);
         else if (m.kind === "release") release.push(m);
         else if (m.kind === "statistics") statistics.push(m);
         else tpg.push(m);
@@ -1235,7 +1454,16 @@
       if (KPI_TITLES[title] && title.indexOf("(") < 0) kpi.push(m);
       else tpgOnly.push(m);
     });
-    var base = { monetize: monetize, grow: grow, monitor: monitor, release: release, statistics: statistics, breakdowns: breakdowns };
+    var base = {
+      monetize: monetize,
+      grow: grow,
+      monitor: monitor,
+      devices: devices,
+      devicesBreakdowns: devicesBreakdowns,
+      release: release,
+      statistics: statistics,
+      breakdowns: breakdowns
+    };
     if (!kpi.length) {
       return Object.assign({ kpi: tpg, tpg: [] }, base);
     }
@@ -1375,15 +1603,27 @@
             ev += '<div class="text-[10px] text-slate-400">' + esc(iss.events_share) + "</div>";
           }
           var detailHref = iss.detail_url || "";
-          var titleHtml = detailHref
-            ? '<a href="' + esc(detailHref) + '" target="_blank" rel="noopener" class="pc-vitals-detail-link font-medium text-emerald-700 hover:underline dark:text-emerald-400" data-issue="' + esc(iid) + '">' + esc(title) + "</a>"
-            : '<button type="button" class="pc-vitals-detail-link text-left font-medium text-emerald-700 hover:underline dark:text-emerald-400" data-issue="' + esc(iid) + '">' + esc(title) + "</button>";
+          var linkIcon = detailHref
+            ? (
+                '<a href="' + esc(detailHref) + '" target="_blank" rel="noopener noreferrer" ' +
+                'class="pc-vitals-console-link mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40" ' +
+                'title="Play Console’da aç" data-issue="' + esc(iid) + '" onclick="event.stopPropagation()">' +
+                  externalLinkSvg() +
+                  '<span class="sr-only">Play Console’da aç</span>' +
+                "</a>"
+              )
+            : "";
           return (
             '<tr class="pc-vitals-issue cursor-pointer ' + (on ? "bg-emerald-50/70 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-zinc-900/50") + '" data-issue="' + esc(iid) + '">' +
               '<td class="px-3 py-2">' +
-                '<div>' + titleHtml + "</div>" +
-                (iss.subtitle ? '<div class="mt-0.5 text-[11px] text-slate-500">' + esc(cleanIssueTitle(iss.subtitle)) + "</div>" : "") +
-                (tags ? '<div class="mt-1">' + tags + "</div>" : "") +
+                '<div class="flex items-start gap-1.5">' +
+                  linkIcon +
+                  '<div class="min-w-0">' +
+                    '<p class="font-medium text-slate-800 dark:text-zinc-100">' + esc(title) + "</p>" +
+                    (iss.subtitle ? '<div class="mt-0.5 text-[11px] text-slate-500">' + esc(cleanIssueTitle(iss.subtitle)) + "</div>" : "") +
+                    (tags ? '<div class="mt-1">' + tags + "</div>" : "") +
+                  "</div>" +
+                "</div>" +
               "</td>" +
               '<td class="px-3 py-2 text-slate-600 dark:text-zinc-300">' + esc(iss.issue_type || vitalsState.etype) + "</td>" +
               '<td class="px-3 py-2 text-slate-600 dark:text-zinc-300">' + ver + "</td>" +
@@ -1465,14 +1705,28 @@
               '<p class="text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(c.value || "") + "</p></div>";
           }).join("") + "</div>"
         : "") +
-      (d.stack_trace
-        ? '<pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-zinc-900 p-3 text-[10px] leading-relaxed text-zinc-100">' +
-            esc(d.stack_trace) + "</pre>"
-        : (d.error
-            ? '<p class="mt-2 text-[11px] text-rose-600">' + esc(d.error) + "</p>"
-            : (link
-                ? '<p class="mt-2 text-[11px] text-slate-500">Stack henüz senkron değil · <a href="' + esc(link) + '" target="_blank" rel="noopener" class="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play Console’da aç ↗</a></p>'
-                : '<p class="mt-2 text-[11px] text-slate-400">Stack özeti yok</p>')));
+      (function () {
+        var stack = cleanStackTrace(d.stack_trace || "");
+        if (stack) {
+          return (
+            '<div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900/50">' +
+              '<div class="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-1.5 dark:border-zinc-700">' +
+                '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Yığın izi / örnek</p>' +
+              "</div>" +
+              '<pre class="max-h-52 overflow-auto whitespace-pre-wrap px-3 py-2.5 font-mono text-[11px] leading-relaxed text-slate-700 dark:text-zinc-200">' +
+                esc(stack) +
+              "</pre>" +
+            "</div>"
+          );
+        }
+        if (d.error) {
+          return '<p class="mt-2 text-[11px] text-rose-600">' + esc(d.error) + "</p>";
+        }
+        if (link) {
+          return '<p class="mt-2 text-[11px] text-slate-500">Stack henüz senkron değil · <a href="' + esc(link) + '" target="_blank" rel="noopener" class="font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play Console’da aç ↗</a></p>';
+        }
+        return '<p class="mt-2 text-[11px] text-slate-400">Stack özeti yok</p>';
+      })());
     // İlk yüklemede scroll etme — sayfa en üstte kalsın; yalnızca kullanıcı seçince kaydır
     if (opts.scroll) {
       try {
@@ -1509,15 +1763,16 @@
   }
   if (vitalsIssuesEl) {
     vitalsIssuesEl.addEventListener("click", function (ev) {
-      var link = ev.target.closest(".pc-vitals-detail-link");
+      var consoleLink = ev.target.closest(".pc-vitals-console-link");
       var row = ev.target.closest(".pc-vitals-issue");
-      if (!row && !link) return;
-      var iid = (link && link.getAttribute("data-issue")) || (row && row.getAttribute("data-issue")) || null;
-      // Dış link: yeni sekmede açılsın, yine de alt panel seçilsin
-      if (link && link.tagName === "A") {
+      if (!row && !consoleLink) return;
+      var iid = (consoleLink && consoleLink.getAttribute("data-issue"))
+        || (row && row.getAttribute("data-issue"))
+        || null;
+      // Dış link simgesi: yeni sekmede Play Console; satır da seçilsin
+      if (consoleLink) {
         vitalsState.selectedIssue = iid;
         renderVitalsDetail({ scroll: true });
-        // highlight için tabloyu yenilemeden satır seçimi
         Array.prototype.forEach.call(vitalsIssuesEl.querySelectorAll(".pc-vitals-issue"), function (tr) {
           var on = tr.getAttribute("data-issue") === iid;
           tr.className = "pc-vitals-issue cursor-pointer " + (on
@@ -1525,9 +1780,6 @@
             : "hover:bg-slate-50 dark:hover:bg-zinc-900/50");
         });
         return;
-      }
-      if (link && link.tagName === "BUTTON") {
-        ev.preventDefault();
       }
       vitalsState.selectedIssue = iid;
       renderVitalsCategories({ scrollDetail: true });
@@ -1615,6 +1867,9 @@
       if (statsLink && data.panels && data.panels.pages && data.panels.pages.statistics && data.panels.pages.statistics.url) {
         statsLink.href = data.panels.pages.statistics.url;
       }
+      if (devicesLink && data.panels && data.panels.pages && data.panels.pages.devices && data.panels.pages.devices.url) {
+        devicesLink.href = data.panels.pages.devices.url;
+      }
       setPcLine(metaEl, data.empty ? "Veri yok — bridge login + sync gerekli" : "");
       renderVitals((data.panels && data.panels.vitals) || {});
       renderRating(data.rating_summary);
@@ -1623,6 +1878,10 @@
       renderGrid(monEl, monEmpty, parts.monetize, function (m) { return metricCard(m); });
       renderGrid(growEl, growEmpty, parts.grow, function (m) { return metricCard(m); });
       renderGrid(monitorEl, monitorEmpty, parts.monitor, function (m) { return metricCard(m); });
+      renderGrid(devicesEl, devicesEmpty, parts.devices, function (m) { return metricCard(m); });
+      renderGrid(devicesBrEl, devicesBrEmpty, parts.devicesBreakdowns, function (m) {
+        return metricCard(m, { subtitle: [m.dimension, m.segment, m.page].filter(Boolean).join(" · ") });
+      });
       renderGrid(releaseEl, releaseEmpty, parts.release, function (m) { return metricCard(m); });
       renderGrid(statsEl, statsEmpty, parts.statistics, function (m) { return metricCard(m); });
       renderGrid(brEl, brEmpty, parts.breakdowns, function (m) {

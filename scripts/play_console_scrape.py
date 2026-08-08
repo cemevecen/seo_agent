@@ -80,6 +80,29 @@ GROW_URL = (
 ).strip()
 MONITOR_URL = (
     os.environ.get("PLAY_CONSOLE_MONITOR_URL") or f"{BASE_APP}/monitor"
+)
+# Reach and devices · Overview (kullanıcı peerset + Android sürüm kırılımı)
+_DEVICES_PEERSET = os.environ.get("PLAY_CONSOLE_DEVICES_PEERSET") or "3%3A6a1f18dbb44333cd"
+DEVICES_URL = (
+    os.environ.get("PLAY_CONSOLE_DEVICES_URL")
+    or (
+        f"{BASE_APP}/devices/dashboard"
+        f"?days=28&peerset_key={_DEVICES_PEERSET}"
+        f"&expanded_breakdowns=ANDROID_VERSION"
+    )
+)
+# Alt kırılımlar — Play Console expanded_breakdowns
+DEVICES_BREAKDOWNS: tuple[str, ...] = (
+    "ANDROID_VERSION",
+    "RAM",
+    "SYSTEM_ON_CHIP",
+    "GPU",
+    "OPENGL_ES_VERSION",
+    "VULKAN_VERSION",
+    "SCREEN_METRICS",
+    "ABI",
+    "DEVICE_TYPE",
+    "FORM_FACTOR",
 ).strip()
 RELEASE_URL = (
     os.environ.get("PLAY_CONSOLE_RELEASE_URL") or f"{BASE_APP}/test-and-release"
@@ -437,6 +460,46 @@ _KNOWN_MONITOR = (
     "Vital",
     "Çökme",
 )
+_KNOWN_DEVICES = (
+    "Yükleme tabanı",
+    "Install base",
+    "Etkin cihazlar",
+    "Active devices",
+    "Kilitlenme oranı",
+    "Crash rate",
+    "ANR oranı",
+    "ANR rate",
+    "Kullanıcı tarafından algılanan kilitlenme oranı",
+    "User-perceived crash rate",
+    "Kullanıcı tarafından algılanan ANR oranı",
+    "User-perceived ANR rate",
+    "Günlük etkin kullanıcı sayısı",
+    "Daily active users",
+    "DAU",
+    "AEKS",
+    "Cihaz edinme sayısı",
+    "Device acquisition",
+    "Yeni cihaz edinme",
+    "Kullanıcı kaybı",
+    "User lost",
+    "Google Play puanı",
+    "Ortalama puan",
+    "Slow rendering",
+    "Excessive wakeups",
+    "Stuck partial wake locks",
+    "LMK",
+    "Uygulama boyutu",
+    "App size",
+    "Erişim",
+    "Reach",
+    "Cihazlar",
+    "Devices",
+    "Android sürümü",
+    "Android version",
+    "RAM",
+    "SoC",
+    "GPU",
+)
 _KNOWN_RELEASE = (
     "Kilitlenme oranı",
     "ANR oranı",
@@ -685,20 +748,33 @@ def _extract_stats_page(page, *, known: tuple[str, ...] | list[str], page_key: s
         if (t.length > 48) return false;
         return /[\\d₺$€%]/.test(t) || /\\b[BbMmKk]\\b/.test(t) || /yıldız/i.test(t);
       };
-      const hintRe = /yükleme|kilitlenme|anr|puan|cihaz|aeks|gelir|alıcı|etkin|kitle|mağaza|öykbog|edinme|kaybı|abonelik|satın|revenue|buyer|arppu|arpu|crash|çökme|dau|mau/i;
+      const hintRe = /yükleme|kilitlenme|anr|puan|cihaz|aeks|gelir|alıcı|etkin|kitle|mağaza|öykbog|edinme|kaybı|abonelik|satın|revenue|buyer|arppu|arpu|crash|çökme|dau|mau|reach|erişim|ram|soc|vulkan|opengl|install base|slow rendering|wake/i;
 
       const cards = [];
       const breakdowns = [];
       const seen = new Set();
       const seenBr = new Set();
 
-      function pushCard(title, value, delta, period) {
+      function cardHref(fromEl) {
+        if (!fromEl || !fromEl.querySelector) return '';
+        const a = fromEl.querySelector(
+          'a[href*="/statistics"], a[href*="/vitals"], a[href*="/user-feedback"], a[href*="/monetize"], a[href*="/grow"], a[href*="/monitor"], a[href*="/devices"], a[href*="/test-and-release"], a[href*="/app-dashboard"], a[href*="play.google.com/console"]'
+        );
+        if (!a) return '';
+        const href = String(a.href || a.getAttribute('href') || '').trim();
+        if (!href || href === '#' || href.startsWith('javascript:')) return '';
+        return href.slice(0, 512);
+      }
+      function pushCard(title, value, delta, period, url) {
         title = clean(title); value = clean(value); delta = clean(delta || ''); period = clean(period || '');
+        url = clean(url || '');
         if (!title || !value || !isValue(value)) return;
         const key = title + '|' + value;
         if (seen.has(key)) return;
         seen.add(key);
-        cards.push({ title, value, delta, period, kind: 'metric', page: pageKey });
+        const row = { title, value, delta, period, kind: 'metric', page: pageKey };
+        if (url) row.url = url;
+        cards.push(row);
       }
       function pushBr(title, value, delta, segment) {
         title = clean(title); value = clean(value); delta = clean(delta || ''); segment = clean(segment || '');
@@ -787,7 +863,7 @@ def _extract_stats_page(page, *, known: tuple[str, ...] | list[str], page_key: s
         }
         const knownHit = KNOWN.find((k) => title === k || title.startsWith(k));
         if (knownHit || hintRe.test(title)) {
-          pushCard(knownHit || title, value, delta, '');
+          pushCard(knownHit || title, value, delta, '', cardHref(el));
         }
       }
 
@@ -1702,44 +1778,75 @@ def _ratings_count_facts_from_distribution(
     return facts
 
 
-def _expand_ratings_page_date_range(page) -> None:
-    """Mümkünse puanlar sayfasında tarih aralığını genişlet (1 yıl / ömür boyu)."""
+def _expand_ratings_page_date_range(page) -> str:
+    """Mümkünse puanlar sayfasında tarih aralığını genişlet. Seçilen etiketi döner."""
+    chosen = ""
+    # Önce Ömür boyu / 1 yıl — kısa 28 gün penceresi yorumlu/yorumsuz geçmişini kesiyor
+    labels = (
+        "Ömür boyu",
+        "Lifetime",
+        "Son 1 yıl",
+        "Last 1 year",
+        "Last year",
+        "Son 6 ay",
+        "Last 6 months",
+        "Son 90 gün",
+        "Last 90 days",
+    )
     try:
         btn = page.locator("button").filter(
-            has_text=re.compile(r"Son\s+\d+\s+gün|Last\s+\d+\s+days|Ömür boyu|Lifetime", re.I)
+            has_text=re.compile(
+                r"Son\s+\d+\s+gün|Last\s+\d+\s+days|Ömür boyu|Lifetime|Son\s+1\s+yıl|Last\s+1\s+year|Son\s+6\s+ay",
+                re.I,
+            )
         )
         if btn.count() == 0:
-            return
-        btn.first.click(timeout=4000)
-        page.wait_for_timeout(600)
-        for label in (
-            "Son 1 yıl",
-            "Last 1 year",
-            "Ömür boyu",
-            "Lifetime",
-            "Son 90 gün",
-            "Last 90 days",
-            "Son 6 ay",
-        ):
+            # Bazen chip / combobox
+            btn = page.locator("[role='button'], [aria-haspopup='listbox']").filter(
+                has_text=re.compile(r"gün|days|Lifetime|ömür|year|yıl", re.I)
+            )
+        if btn.count() == 0:
+            return ""
+        btn.first.click(timeout=5000)
+        page.wait_for_timeout(700)
+        for label in labels:
             opt = page.get_by_role("option", name=re.compile(f"^{re.escape(label)}$", re.I))
             if opt.count() == 0:
                 opt = page.get_by_text(re.compile(f"^{re.escape(label)}$", re.I))
             if opt.count():
                 opt.first.click(timeout=4000)
-                _settle(page, seconds=4.0)
-                return
-        page.keyboard.press("Escape")
+                _settle(page, seconds=4.5)
+                chosen = label
+                break
+        if not chosen:
+            page.keyboard.press("Escape")
     except Exception:
         try:
             page.keyboard.press("Escape")
         except Exception:
             pass
+    return chosen
 
 
 def _download_ratings_distribution_csv(page) -> list[dict[str, Any]]:
-    """Puan dağılımı → CSV indir → günlük oy toplamları."""
+    """Puan dağılımı → CSV indir → günlük oy toplamları (mümkünse ömür boyu)."""
     try:
-        _expand_ratings_page_date_range(page)
+        # URL ile uzun aralık dene (statistics ile aynı QS)
+        try:
+            cur = page.url or RATINGS_URL
+            if "dateRange=" not in cur:
+                sep = "&" if "?" in cur else "?"
+                page.goto(
+                    f"{cur.split('#')[0]}{sep}dateRange={_console_date_range()}",
+                    wait_until="domcontentloaded",
+                    timeout=90_000,
+                )
+                _settle(page, seconds=3.0)
+        except Exception:
+            pass
+        selected = _expand_ratings_page_date_range(page)
+        if selected:
+            print(f"    → ratings date range UI: {selected}", flush=True)
         # İkinci CSV genelde dağılım; yoksa tüm CSV butonlarını dene
         buttons = page.locator("button").filter(
             has_text=re.compile(r"CSV dosyasını indir|Download CSV|CSV", re.I)
@@ -1751,9 +1858,10 @@ def _download_ratings_distribution_csv(page) -> list[dict[str, Any]]:
         idx_order = list(range(n))
         if n >= 2:
             idx_order = [1, 0] + list(range(2, n))
+        best: list[dict[str, Any]] = []
         for idx in idx_order:
             try:
-                with page.expect_download(timeout=20_000) as di:
+                with page.expect_download(timeout=25_000) as di:
                     buttons.nth(idx).click(timeout=5000)
                 download = di.value
                 # Playwright save to temp
@@ -1772,10 +1880,34 @@ def _download_ratings_distribution_csv(page) -> list[dict[str, Any]]:
                 if not re.search(r"yıldız|star", text, re.I):
                     continue
                 rows = _parse_ratings_distribution_csv(text)
-                if rows:
+                if not rows:
+                    continue
+                # En uzun tarih aralığını tut
+                if len(rows) > len(best):
+                    best = rows
+                dates = sorted(str(r.get("date") or "") for r in rows if r.get("date"))
+                span = 0
+                if len(dates) >= 2:
+                    try:
+                        from datetime import date as date_cls
+
+                        span = (
+                            date_cls.fromisoformat(dates[-1]) - date_cls.fromisoformat(dates[0])
+                        ).days
+                    except ValueError:
+                        span = len(dates)
+                print(
+                    f"    → ratings CSV rows={len(rows)} span_days≈{span} "
+                    f"{dates[0] if dates else '?'}→{dates[-1] if dates else '?'}",
+                    flush=True,
+                )
+                # 60+ gün yeterli; kısa kaldıysa diğer buton / tekrar dene
+                if span >= 60 or len(rows) >= 60:
                     return rows
             except Exception:
                 continue
+        if best:
+            return best
     except Exception:
         return []
     return []
@@ -2401,6 +2533,164 @@ def _page_payload(url: str, scraped: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _devices_dashboard_url(*, breakdown: str | None = None, days: int = 28) -> str:
+    qs = f"days={days}&peerset_key={_DEVICES_PEERSET}"
+    if breakdown:
+        qs += f"&expanded_breakdowns={breakdown}"
+    return f"{BASE_APP}/devices/dashboard?{qs}"
+
+
+def _extract_devices_attribute_tables(page, *, dimension: str) -> list[dict[str, Any]]:
+    """Devices dashboard tablolarından satır kırılımları (Android sürüm, RAM, …)."""
+    try:
+        rows = page.evaluate(
+            """(dim) => {
+          const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b\\ufeff]/g, ' ').replace(/\\s+/g, ' ').trim();
+          const out = [];
+          const seen = new Set();
+          const tables = Array.from(document.querySelectorAll('table'));
+          for (const table of tables) {
+            const headers = Array.from(table.querySelectorAll('th')).map((th) => clean(th.innerText || ''));
+            const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+            for (const tr of bodyRows) {
+              const cells = Array.from(tr.querySelectorAll('td')).map((td) => clean(td.innerText || ''));
+              if (cells.length < 2) continue;
+              const segment = cells[0];
+              if (!segment || segment.length > 80) continue;
+              if (/^(toplam|total|genel|overall|metric|metrik)$/i.test(segment)) continue;
+              // Sayısal hücreler
+              const nums = cells.slice(1).filter((c) => /\\d/.test(c) && c.length < 40);
+              if (!nums.length) continue;
+              const value = nums[0];
+              const delta = nums.find((c) => /^[+\\-−%]/.test(c) || /yüzde/i.test(c)) || '';
+              const metricHint = headers[1] || headers[0] || dim || 'Cihaz kırılımı';
+              const title = metricHint + ' (' + segment + ')';
+              const key = title + '|' + value;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              out.push({
+                title,
+                value,
+                delta,
+                segment,
+                metric: metricHint,
+                dimension: dim || '',
+                kind: 'breakdown',
+                page: 'devices',
+              });
+              if (out.length >= 80) return out;
+            }
+          }
+          return out;
+        }""",
+            dimension or "",
+        )
+        return [r for r in (rows or []) if isinstance(r, dict)]
+    except Exception:
+        return []
+
+
+def _scrape_devices_dashboard(page, *, headed: bool = True, days: int = 28) -> dict[str, Any]:
+    """Reach and devices · dashboard + alt kırılımlar (Android sürüm, RAM, SoC, …)."""
+    known = tuple(dict.fromkeys(list(_KNOWN_DEVICES) + list(_KNOWN_DASHBOARD) + list(_KNOWN_MONITOR)))
+    wait_needles = (
+        "Yükleme tabanı",
+        "Install base",
+        "Kilitlenme",
+        "ANR",
+        "Cihaz",
+        "Device",
+        "Android",
+        "Reach",
+        "Erişim",
+        "RAM",
+    )
+    # Önce kullanıcının verdiği URL (ANDROID_VERSION açık), sonra diğer kırılımlar
+    order: list[str | None] = [None]
+    for bd in DEVICES_BREAKDOWNS:
+        if bd not in order:
+            order.append(bd)
+
+    all_cards: list[dict[str, Any]] = []
+    all_br: list[dict[str, Any]] = []
+    seen_c: set[str] = set()
+    seen_b: set[str] = set()
+    pages_detail: dict[str, Any] = {}
+    primary_url = DEVICES_URL
+    errors: list[str] = []
+
+    for bd in order:
+        url = DEVICES_URL if bd is None else _devices_dashboard_url(breakdown=bd, days=days)
+        if bd is None:
+            # ENV override veya varsayılan kullanıcı linki
+            url = DEVICES_URL
+        label = bd or "overview"
+        print(f"  · devices/{label} …", flush=True)
+        scraped = _safe_scrape_page(
+            page,
+            url=url,
+            known=known,
+            page_key="devices",
+            wait_needles=wait_needles,
+            headed=bool(headed),
+        )
+        if scraped.get("error"):
+            errors.append(f"{label}:{scraped.get('error')}")
+        cards = scraped.get("cards") or scraped.get("tpg") or []
+        br = list(scraped.get("breakdowns") or [])
+        # Tablo satırları (kırılım)
+        dim_key = bd or "ANDROID_VERSION"
+        table_br = _extract_devices_attribute_tables(page, dimension=dim_key)
+        for row in table_br:
+            row["dimension"] = dim_key
+            br.append(row)
+        for c in cards:
+            if not isinstance(c, dict):
+                continue
+            key = f"{c.get('title')}|{c.get('value')}"
+            if key in seen_c:
+                continue
+            seen_c.add(key)
+            c = dict(c)
+            c["page"] = "devices"
+            c["kind"] = c.get("kind") or "metric"
+            all_cards.append(c)
+        for b in br:
+            if not isinstance(b, dict):
+                continue
+            b = dict(b)
+            b["page"] = "devices"
+            b["kind"] = "breakdown"
+            if bd and not b.get("dimension"):
+                b["dimension"] = bd
+            if bd and b.get("segment") and "(" not in str(b.get("title") or ""):
+                # Boyut bilgisini başlığa ekle
+                b["title"] = f"{b.get('title')} · {bd}"
+            key = f"{b.get('title')}|{b.get('value')}|{b.get('segment')}|{b.get('dimension')}"
+            if key in seen_b:
+                continue
+            seen_b.add(key)
+            all_br.append(b)
+        pages_detail[label] = {
+            "url": url,
+            "card_count": len(cards) if isinstance(cards, list) else 0,
+            "breakdown_count": len(br),
+            "error": scraped.get("error"),
+        }
+        # Overview kartları bir kez yeter; kırılımlarda tabloya odaklan
+        if bd is None and all_cards:
+            primary_url = url
+
+    return {
+        "url": primary_url,
+        "cards": all_cards,
+        "breakdowns": all_br,
+        "breakdown_pages": pages_detail,
+        "error": "; ".join(errors)[:400] if errors else None,
+        "debug": {"breakdown_keys": [x or "overview" for x in order]},
+    }
+
+
 def _append_page_metrics(
     metrics: list[dict[str, Any]],
     scraped: dict[str, Any],
@@ -2434,10 +2724,16 @@ def _append_page_metrics(
             "value": b.get("value"),
             "delta": b.get("delta") or "",
             "segment": b.get("segment") or "",
+            "metric": b.get("metric") or "",
+            "dimension": b.get("dimension") or "",
             "kind": "breakdown",
             "page": page_key,
             "lines": [b.get("title"), b.get("value"), b.get("delta")],
         }
+        if not row["dimension"]:
+            row.pop("dimension", None)
+        if not row["metric"]:
+            row.pop("metric", None)
         metrics.append(row)
         out_br.append(row)
     return out_cards, out_br
@@ -2819,7 +3115,16 @@ def _extract_vitals_issue_detail(page) -> dict[str, Any]:
         if (insights.length >= 10) break;
       }
 
-      // Stack / traceback bloğu
+      // Stack / traceback bloğu (Material ikon / sayfalama UI'sını ele)
+      const isStackJunk = (l) => {
+        const t = clean(l);
+        if (!t) return true;
+        if (/^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next)$/i.test(t)) return true;
+        if (/^(keyboard_arrow_|chevron_|feature_|arrow_|expand_|visibility_)/i.test(t)) return true;
+        if (/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/.test(t) && t.length < 40 && !/\\d/.test(t)) return true;
+        if (/^\\d{1,3}$/.test(t)) return true;
+        return false;
+      };
       let stack = '';
       const stackIdx = lines.findIndex((l) =>
         /stack\\s*trace|yığın|backtrace|at\\s+[\\w.$]+\\(/i.test(l)
@@ -2827,10 +3132,12 @@ def _extract_vitals_issue_detail(page) -> dict[str, Any]:
         || /#(0|00)\\s+pc\\s+/i.test(l)
       );
       if (stackIdx >= 0) {
-        stack = lines.slice(stackIdx, stackIdx + 40).join('\\n');
+        stack = lines.slice(stackIdx, stackIdx + 50).filter((l) => !isStackJunk(l)).slice(0, 40).join('\\n');
       } else {
         const codeish = lines.filter((l) =>
-          /^at\\s+/i.test(l) || /\\(\\w+\\.\\w+:\\d+\\)/.test(l) || /SourceFile|#\\d+\\s+pc/.test(l)
+          !isStackJunk(l) && (
+            /^at\\s+/i.test(l) || /\\(\\w+\\.\\w+:\\d+\\)/.test(l) || /SourceFile|#\\d+\\s+pc/.test(l)
+          )
         );
         if (codeish.length) stack = codeish.slice(0, 35).join('\\n');
       }
@@ -3576,6 +3883,14 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             headed=bool(headed),
         )
 
+        # Reach and devices · dashboard + Android sürüm / RAM / SoC … kırılımları
+        devices_bundle: dict[str, Any] = {}
+        try:
+            devices_bundle = _scrape_devices_dashboard(page, headed=bool(headed), days=28)
+        except Exception as exc:  # noqa: BLE001
+            devices_bundle = {"url": DEVICES_URL, "cards": [], "breakdowns": [], "error": str(exc)[:240]}
+            print(f"  · devices scrape hata: {exc}", flush=True)
+
         # Android Vitals: crashes 4 kategori + metrics overview (crash/ANR/LMK)
         vitals_bundle: dict[str, Any] = {}
         try:
@@ -3674,6 +3989,16 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         release_cards, release_br = _append_page_metrics(
             metrics, release, kind="release", page_key="release"
         )
+        devices_cards, devices_br = _append_page_metrics(
+            metrics,
+            {
+                "cards": devices_bundle.get("cards") or [],
+                "breakdowns": devices_bundle.get("breakdowns") or [],
+                "error": devices_bundle.get("error"),
+            },
+            kind="devices",
+            page_key="devices",
+        )
 
         dash_cards = structured.get("tpg") or structured.get("cards") or []
         dash_br = list(structured.get("breakdowns") or [])
@@ -3683,6 +4008,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             + list(grow_br)
             + list(monitor_br)
             + list(release_br)
+            + list(devices_br)
             + list(stats_br)
         )
         series = _series_from_network(network)
@@ -3700,6 +4026,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "grow": grow_cards,
             "monitor": monitor_cards,
             "release": release_cards,
+            "devices": devices_cards,
             "statistics": stats_cards,
             "vitals": vitals_bundle,
             "version_name_map": version_name_map,
@@ -3714,6 +4041,14 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "grow": _page_payload(GROW_URL, grow),
                 "monitor": _page_payload(MONITOR_URL, monitor),
                 "release": _page_payload(RELEASE_URL, release),
+                "devices": {
+                    "url": str(devices_bundle.get("url") or DEVICES_URL),
+                    "cards": devices_cards,
+                    "breakdowns": devices_br,
+                    "breakdown_pages": devices_bundle.get("breakdown_pages") or {},
+                    "error": devices_bundle.get("error"),
+                    "debug": devices_bundle.get("debug") or {},
+                },
                 "vitals_crashes": {
                     "url": _vitals_crashes_url("CRASH", days=28),
                     "anr_url": _vitals_crashes_url("ANR", days=28),
@@ -3733,6 +4068,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "grow_count": len(grow_cards),
             "monitor_count": len(monitor_cards),
             "release_count": len(release_cards),
+            "devices_count": len(devices_cards),
+            "devices_breakdown_count": len(devices_br),
             "statistics_count": len(stats_cards),
             "series_count": len(series),
             "explorer_fact_count": len(explorer_facts),
@@ -3839,12 +4176,28 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         dist_rows = _download_ratings_distribution_csv(page) or []
         count_facts = _ratings_count_facts_from_distribution(dist_rows)
         if count_facts:
-            explorer_facts = [
-                f
-                for f in explorer_facts
-                if str(f.get("metric")) != "ratings_count"
-            ] + count_facts
-            print(f"    → ratings_count facts={len(count_facts)}", flush=True)
+            # Tarih bazında birleştir — kısa CSV eski günleri silmesin
+            by_date: dict[str, dict[str, Any]] = {}
+            kept: list[dict[str, Any]] = []
+            for f in explorer_facts:
+                if not isinstance(f, dict):
+                    continue
+                if str(f.get("metric")) != "ratings_count":
+                    kept.append(f)
+                    continue
+                ds = str(f.get("date") or "")[:10]
+                if ds:
+                    by_date[ds] = f
+            for f in count_facts:
+                ds = str(f.get("date") or "")[:10]
+                if ds:
+                    by_date[ds] = f
+            explorer_facts = kept + list(by_date.values())
+            print(
+                f"    → ratings_count facts={len(count_facts)} "
+                f"(merged_total={len(by_date)})",
+                flush=True,
+            )
         else:
             print("    → ratings_count facts=0", flush=True)
         view_summaries.append(
@@ -3894,6 +4247,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             or panels.get("monetize")
             or panels.get("grow")
             or panels.get("monitor")
+            or panels.get("devices")
             or panels.get("release")
             or panels.get("statistics")
             or (vitals_bundle.get("metrics_overview") or {}).get("rows")
@@ -3905,6 +4259,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             or panels.get("monetize")
             or panels.get("grow")
             or panels.get("monitor")
+            or panels.get("devices")
             or panels.get("release")
             or panels.get("statistics")
         ) and debug:
@@ -3913,6 +4268,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             f"Play scrape · {len(metrics)} metric · "
             f"{panels.get('tpg_count', 0)} dash · {panels.get('monetize_count', 0)} mon · "
             f"{panels.get('grow_count', 0)} grow · {panels.get('monitor_count', 0)} monitor · "
+            f"{panels.get('devices_count', 0)} devices · "
             f"{panels.get('release_count', 0)} release · {panels.get('statistics_count', 0)} stats · "
             f"{panels.get('stats_view_count', 0)} stats_views · "
             f"{len(explorer_facts)} explorer_facts · {len(rating_facts)} rating_days · "
@@ -3938,7 +4294,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "sync_ok": ok,
             "sync_message": None,
             "sync_mode": (
-                "dashboard_monetize_grow_monitor_release_vitals_"
+                "dashboard_monetize_grow_monitor_release_devices_vitals_"
                 "stats_catalog_ratings_reviews"
             ),
         }

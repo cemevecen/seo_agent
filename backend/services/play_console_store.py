@@ -90,12 +90,23 @@ def ingest_play_console_payload(
         if not new_facts:
             raise ValueError("merge_ratings_counts: ratings_count fact gerekli")
         merged_panels = dict(existing_panels) if isinstance(existing_panels, dict) else {}
-        old_facts = [
-            f
-            for f in (merged_panels.get("explorer_facts") or [])
-            if isinstance(f, dict) and str(f.get("metric")) != "ratings_count"
-        ]
-        merged_panels["explorer_facts"] = old_facts + new_facts
+        # Tarih bazında birleştir — kısa CSV eski uzun geçmişi silmesin
+        by_date: dict[str, dict[str, Any]] = {}
+        other_facts: list[dict[str, Any]] = []
+        for f in merged_panels.get("explorer_facts") or []:
+            if not isinstance(f, dict):
+                continue
+            if str(f.get("metric")) != "ratings_count":
+                other_facts.append(f)
+                continue
+            ds = str(f.get("date") or "")[:10]
+            if ds:
+                by_date[ds] = f
+        for f in new_facts:
+            ds = str(f.get("date") or "")[:10]
+            if ds:
+                by_date[ds] = f
+        merged_panels["explorer_facts"] = other_facts + list(by_date.values())
         merged_panels["explorer_fact_count"] = len(merged_panels["explorer_facts"])
         try:
             existing_reviews = json.loads(row.reviews_json or "[]")
