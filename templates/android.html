@@ -369,7 +369,8 @@
           <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
             <tr>
               <th class="px-3 py-2 font-bold">Kırılım</th>
-              <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
+              <th id="pa-th-value" class="px-3 py-2 font-bold tabular-nums">Değer</th>
+              <th id="pa-th-overlay" class="hidden px-3 py-2 font-bold tabular-nums text-amber-700 dark:text-amber-400">Ek grafik</th>
               <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumlu</th>
               <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumsuz</th>
               <th id="pa-th-star-5" class="hidden px-3 py-2 font-bold tabular-nums">5★</th>
@@ -887,6 +888,8 @@
   var paLegendOverlayLabel = document.getElementById("pa-legend-overlay-label");
   var paLastChart = null; // { series, prevSeries, breakdown, compareMeta }
   var paOverlay = null;   // { metric, label, series, breakdown, dim, segment }
+  var paThValue = document.getElementById("pa-th-value");
+  var paThOverlay = document.getElementById("pa-th-overlay");
   var paThPrev = document.getElementById("pa-th-prev");
   var paThDelta = document.getElementById("pa-th-delta");
   var paThWithRev = document.getElementById("pa-th-with-rev");
@@ -915,6 +918,31 @@
     if (paThDelta) {
       if (show) paThDelta.classList.remove("hidden");
       else paThDelta.classList.add("hidden");
+    }
+  }
+  function shortMetricLabel(label, fallback) {
+    var s = String(label || "").trim();
+    if (!s) return fallback || "Değer";
+    var cut = s.indexOf("(");
+    if (cut > 0) s = s.slice(0, cut).trim();
+    if (s.length > 22) s = s.slice(0, 20) + "…";
+    return s || fallback || "Değer";
+  }
+  function setOverlayColVisible(show, primaryLabel, overlayLabel) {
+    if (paThValue) {
+      paThValue.textContent = show
+        ? shortMetricLabel(primaryLabel, "Değer")
+        : "Değer";
+    }
+    if (!paThOverlay) return;
+    if (show) {
+      paThOverlay.textContent = shortMetricLabel(overlayLabel, "Ek grafik");
+      paThOverlay.title = overlayLabel || "Ek grafik";
+      paThOverlay.classList.remove("hidden");
+    } else {
+      paThOverlay.textContent = "Ek grafik";
+      paThOverlay.removeAttribute("title");
+      paThOverlay.classList.add("hidden");
     }
   }
   function setReviewSplitColsVisible(show, showStars) {
@@ -974,8 +1002,8 @@
       : { maximumFractionDigits: 2 };
     return Number(n).toLocaleString("tr-TR", opts);
   }
-  function metricIsCountLike() {
-    var m = (paMetric && paMetric.value) || "";
+  function metricIsCountLike(metricKey) {
+    var m = metricKey || (paMetric && paMetric.value) || "";
     return m === "anrs" || m === "crashes";
   }
   function isTimeBreakdown(breakdown) {
@@ -1113,6 +1141,15 @@
     if (!keepOverlay && paOvClear) paOvClear.classList.add("hidden");
   }
 
+  function refreshPaTableFromLast() {
+    if (!paLastChart) return;
+    renderPaTable(
+      paLastChart.series,
+      paLastChart.prevSeries,
+      paLastChart.breakdown,
+      paLastChart.compareMeta
+    );
+  }
   function clearOverlayAndRedraw() {
     paOverlay = null;
     if (paLegendOverlay) paLegendOverlay.classList.add("hidden");
@@ -1125,6 +1162,9 @@
         paLastChart.breakdown,
         paLastChart.compareMeta
       );
+      refreshPaTableFromLast();
+    } else {
+      setOverlayColVisible(false);
     }
   }
 
@@ -1569,6 +1609,14 @@
   }
   function renderPaTable(series, prevSeries, breakdown, compareMeta) {
     var rows = alignPrevRows(series, prevSeries, breakdown, compareMeta);
+    var showOverlay = !!(paOverlay && paOverlay.series);
+    var overlayAligned = showOverlay ? alignOverlayValues(rows, paOverlay.series) : [];
+    var primaryLabel = metricOptionLabel((paMetric && paMetric.value) || "");
+    setOverlayColVisible(
+      showOverlay,
+      primaryLabel,
+      (paOverlay && paOverlay.label) || "Ek grafik"
+    );
     var showCompare = !!(
       compareMeta
       && compareMeta.mode === "previous_period"
@@ -1576,7 +1624,8 @@
       && rows.some(function (r) { return r.prevValue != null && !r.prevMissing; })
     );
     var showReviewSplit = !!(
-      (paMetric && paMetric.value === "rating")
+      !showOverlay
+      && (paMetric && paMetric.value === "rating")
       && rows.some(function (r) {
         return r.with_reviews != null || r.without_reviews != null || r.ratings_count != null
           || r.star_1 != null || r.star_2 != null || r.star_3 != null
@@ -1599,18 +1648,27 @@
         paThPrev.textContent = "Önceki";
       }
     }
-    var colCount = 2 + (showReviewSplit ? 2 : 0) + (showStars ? 5 : 0) + (showCompare ? 2 : 0);
+    var colCount = 2 + (showOverlay ? 1 : 0) + (showReviewSplit ? 2 : 0) + (showStars ? 5 : 0) + (showCompare ? 2 : 0);
     if (!rows.length) {
       paTable.innerHTML =
         '<tr><td colspan="' + colCount +
         '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       return;
     }
-    paTable.innerHTML = rows.map(function (r) {
+    var ovCountLike = showOverlay ? metricIsCountLike(paOverlay.metric) : false;
+    paTable.innerHTML = rows.map(function (r, i) {
       var cells =
         '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
         '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' +
           esc(fmtNum(r.value, metricIsCountLike())) + "</td>";
+      if (showOverlay) {
+        var ov = overlayAligned[i];
+        var ovVal = ov ? ov.value : null;
+        cells +=
+          '<td class="px-3 py-1.5 tabular-nums font-semibold text-amber-700 dark:text-amber-400">' +
+            (ovVal == null ? "—" : esc(fmtNum(ovVal, ovCountLike))) +
+          "</td>";
+      }
       if (showReviewSplit) {
         var wr = r.with_reviews;
         var wor = r.without_reviews;
@@ -1774,6 +1832,7 @@
       setCompareNote("");
       setCompareColsVisible(false);
       setReviewSplitColsVisible(false);
+      setOverlayColVisible(false);
       setCompareKpisVisible(false);
       setAddChartVisible(false);
       paLastChart = null;
@@ -1833,6 +1892,7 @@
         paLastChart.breakdown,
         paLastChart.compareMeta
       );
+      refreshPaTableFromLast();
       closeOverlayPanel(true);
       if (paOverlayPanel) paOverlayPanel.classList.add("hidden");
     } catch (err) {
