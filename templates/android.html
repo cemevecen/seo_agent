@@ -166,6 +166,53 @@
               class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80">
         <span id="pa-run-label">Uygula</span>
       </button>
+      <button id="pa-add-chart" type="button"
+              class="hidden inline-flex items-center justify-center rounded-lg border border-blue-600 bg-white px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 dark:border-blue-500 dark:bg-zinc-900 dark:text-blue-300 dark:hover:bg-blue-950/40">
+        + grafik
+      </button>
+    </div>
+
+    <div id="pa-overlay-panel" class="mt-3 hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
+          <select id="pa-ov-metric" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"></select>
+        </label>
+        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
+          <select id="pa-ov-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+            <option value="date" selected>Gün</option>
+            <option value="week">Hafta</option>
+            <option value="month">Ay</option>
+            <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
+          </select>
+        </label>
+        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Boyut
+          <select id="pa-ov-dim" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+            <option value="overview">Genel (tarih)</option>
+            <option value="app_version">Uygulama sürümü</option>
+            <option value="device">Cihaz</option>
+            <option value="country">Ülke</option>
+            <option value="os_version">Android OS</option>
+          </select>
+        </label>
+        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Segment
+          <select id="pa-ov-segment" class="mt-1 block max-w-[10rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+            <option value="all">Tümü</option>
+          </select>
+        </label>
+        <button id="pa-ov-run" type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500">
+          Uygula
+        </button>
+        <button id="pa-ov-cancel" type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+          İptal
+        </button>
+        <button id="pa-ov-clear" type="button"
+                class="hidden inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-900 dark:text-rose-300">
+          Ek grafiği kaldır
+        </button>
+      </div>
+      <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Aynı tarih aralığında ikinci metrik çizilir (mevcut metrik listede yok).</p>
     </div>
 
     <div id="pa-results" class="relative mt-4">
@@ -199,8 +246,9 @@
       <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-700 dark:from-zinc-950 dark:to-zinc-900">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
           <div id="pa-legend-line" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
-            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span>Seçili dönem</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span><span id="pa-legend-primary-label">Seçili dönem</span></span>
             <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
+            <span id="pa-legend-overlay" class="hidden inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-amber-500 ring-2 ring-amber-500/30"></span><span id="pa-legend-overlay-label">Ek grafik</span></span>
           </div>
           <div id="pa-legend-stars" class="hidden flex flex-wrap items-center gap-2.5 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
             <span class="mr-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Puan dağılımı</span>
@@ -732,6 +780,21 @@
   var STAR_DIST_COLORS = { 5: "#c5d7f2", 4: "#8eb4e6", 3: "#5a8fd4", 2: "#3b6fbf", 1: "#1a3a6e" };
   // Saks mavisi — Metrikler çizgi/alan grafikleri
   var PA_LINE_COLOR = "#2563EB";
+  var PA_OVERLAY_COLOR = "#F59E0B";
+  var paAddChartBtn = document.getElementById("pa-add-chart");
+  var paOverlayPanel = document.getElementById("pa-overlay-panel");
+  var paOvMetric = document.getElementById("pa-ov-metric");
+  var paOvBreakdown = document.getElementById("pa-ov-breakdown");
+  var paOvDim = document.getElementById("pa-ov-dim");
+  var paOvSegment = document.getElementById("pa-ov-segment");
+  var paOvRun = document.getElementById("pa-ov-run");
+  var paOvCancel = document.getElementById("pa-ov-cancel");
+  var paOvClear = document.getElementById("pa-ov-clear");
+  var paLegendPrimaryLabel = document.getElementById("pa-legend-primary-label");
+  var paLegendOverlay = document.getElementById("pa-legend-overlay");
+  var paLegendOverlayLabel = document.getElementById("pa-legend-overlay-label");
+  var paLastChart = null; // { series, prevSeries, breakdown, compareMeta }
+  var paOverlay = null;   // { metric, label, series, breakdown, dim, segment }
   var paThPrev = document.getElementById("pa-th-prev");
   var paThDelta = document.getElementById("pa-th-delta");
   var paThWithRev = document.getElementById("pa-th-with-rev");
@@ -906,6 +969,85 @@
       if (mode === "stars") paLegendStars.classList.remove("hidden");
       else paLegendStars.classList.add("hidden");
     }
+    if (paLegendOverlay) {
+      if (mode === "stars" || !paOverlay) paLegendOverlay.classList.add("hidden");
+      else paLegendOverlay.classList.remove("hidden");
+    }
+  }
+
+  function metricOptionLabel(value) {
+    if (!paMetric) return value;
+    var opt = paMetric.querySelector('option[value="' + value + '"]');
+    return opt ? String(opt.textContent || value).trim() : value;
+  }
+
+  function setAddChartVisible(on) {
+    if (!paAddChartBtn) return;
+    if (on) paAddChartBtn.classList.remove("hidden");
+    else paAddChartBtn.classList.add("hidden");
+  }
+
+  function fillOverlayMetricOptions() {
+    if (!paOvMetric || !paMetric) return;
+    var cur = paMetric.value;
+    paOvMetric.innerHTML = "";
+    Array.prototype.forEach.call(paMetric.options, function (opt) {
+      if (!opt.value || opt.value === cur) return;
+      var o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.textContent;
+      paOvMetric.appendChild(o);
+    });
+  }
+
+  function openOverlayPanel() {
+    if (!paOverlayPanel) return;
+    fillOverlayMetricOptions();
+    if (paOvBreakdown && paBreakdown) paOvBreakdown.value = paBreakdown.value || "date";
+    if (paOvDim && paDim) paOvDim.value = paDim.value || "overview";
+    if (paOvSegment) {
+      paOvSegment.innerHTML = '<option value="all">Tümü</option>';
+      paOvSegment.value = "all";
+    }
+    paOverlayPanel.classList.remove("hidden");
+    if (paOvClear) {
+      if (paOverlay) paOvClear.classList.remove("hidden");
+      else paOvClear.classList.add("hidden");
+    }
+  }
+
+  function closeOverlayPanel(keepOverlay) {
+    if (paOverlayPanel) paOverlayPanel.classList.add("hidden");
+    if (!keepOverlay && paOvClear) paOvClear.classList.add("hidden");
+  }
+
+  function clearOverlayAndRedraw() {
+    paOverlay = null;
+    if (paLegendOverlay) paLegendOverlay.classList.add("hidden");
+    if (paOvClear) paOvClear.classList.add("hidden");
+    closeOverlayPanel(false);
+    if (paLastChart) {
+      drawChart(
+        paLastChart.series,
+        paLastChart.prevSeries,
+        paLastChart.breakdown,
+        paLastChart.compareMeta
+      );
+    }
+  }
+
+  function alignOverlayValues(primaryRows, overlaySeries) {
+    var map = {};
+    (overlaySeries || []).forEach(function (r) {
+      if (!r) return;
+      var nv = Number(r.value);
+      map[String(r.key)] = Number.isFinite(nv) ? nv : null;
+    });
+    return (primaryRows || []).map(function (r) {
+      var key = String(r.key);
+      var v = Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+      return { key: key, value: v };
+    });
   }
   function seriesHasStarDist(rows) {
     return (rows || []).some(function (r) {
@@ -937,7 +1079,8 @@
     var row = paChartState.rows[idx];
     if (!row) return;
     var pt = paChartState.curPts[idx];
-    var ppt = paChartState.prevPts && paChartState.prevPts[idx];
+    var ppt = (paChartState.overlayPts && paChartState.overlayPts[idx])
+      || (paChartState.prevPts && paChartState.prevPts[idx]);
     var isStars = paChartState.mode === "stars";
     if (paTipTitle) paTipTitle.textContent = isStars ? fmtTipDateKey(row.key) : String(row.key);
     if (paTipStars) {
@@ -964,9 +1107,17 @@
       }
     }
     if (!isStars) {
-      if (paTipCur) paTipCur.textContent = "Seçili: " + fmtNum(row.value, metricIsCountLike());
+      var primaryName = (paLegendPrimaryLabel && paLegendPrimaryLabel.textContent) || "Seçili";
+      if (paTipCur) {
+        paTipCur.textContent = primaryName + ": " + fmtNum(row.value, metricIsCountLike());
+        paTipCur.className = "mt-1 truncate text-[11px] tabular-nums text-blue-700 dark:text-blue-400";
+      }
       if (paTipPrev) {
-        if (row.prevMissing || row.prevValue == null) {
+        if (paChartState.overlayVals && paChartState.overlayVals[idx] != null) {
+          var ovName = (paOverlay && paOverlay.label) || "Ek grafik";
+          paTipPrev.textContent = ovName + ": " + fmtNum(paChartState.overlayVals[idx], false);
+          paTipPrev.className = "mt-0.5 truncate text-[11px] tabular-nums text-amber-700 dark:text-amber-400";
+        } else if (row.prevMissing || row.prevValue == null) {
           paTipPrev.textContent = "";
           paTipPrev.className = "mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
         } else {
@@ -996,7 +1147,11 @@
       }
     }
     if (dotP) {
-      if (!isStars && ppt && row.prevValue != null && !row.prevMissing) {
+      var showOvDot = !isStars && ppt && (
+        (paChartState.overlayVals && paChartState.overlayVals[idx] != null)
+        || (row.prevValue != null && !row.prevMissing)
+      );
+      if (showOvDot) {
         dotP.setAttribute("cx", ppt.x.toFixed(1));
         dotP.setAttribute("cy", ppt.y.toFixed(1));
         dotP.setAttribute("opacity", "1");
@@ -1150,21 +1305,38 @@
     var plotH = h - top - bottom;
     if (!rows.length) {
       paChartState = null;
+      setAddChartVisible(false);
       setPaChartLegendMode("line");
       paChart.innerHTML =
         '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
       hidePaTooltip();
       return;
     }
-    if (paMetric && paMetric.value === "rating" && seriesHasStarDist(rows)) {
+    // Ek grafik varken puan dağılımı stacked yerine çizgi (üst üste çizim için)
+    if (!paOverlay && paMetric && paMetric.value === "rating" && seriesHasStarDist(rows)) {
       drawRatingDistChart(rows);
+      setAddChartVisible(true);
       return;
     }
     setPaChartLegendMode("line");
+    if (paLegendPrimaryLabel) {
+      paLegendPrimaryLabel.textContent = metricOptionLabel((paMetric && paMetric.value) || "") || "Seçili dönem";
+    }
+    var ovAligned = paOverlay ? alignOverlayValues(rows, paOverlay.series) : [];
+    var ovVals = ovAligned.map(function (r) { return r.value; });
+    if (paOverlay && paLegendOverlayLabel) {
+      paLegendOverlayLabel.textContent = paOverlay.label || "Ek grafik";
+    }
+    if (paLegendOverlay) {
+      if (paOverlay) paLegendOverlay.classList.remove("hidden");
+      else paLegendOverlay.classList.add("hidden");
+    }
+
     var vals = rows.map(function (r) { return r.value; });
     var pvals = rows.map(function (r) { return r.prevValue == null ? null : r.prevValue; });
     var all = vals.slice();
     pvals.forEach(function (v) { if (v != null) all.push(v); });
+    ovVals.forEach(function (v) { if (v != null) all.push(v); });
     var rawMax = Math.max.apply(null, all.concat([0]));
     var max = niceMax(rawMax);
     var min = 0;
@@ -1177,7 +1349,21 @@
       if (r.prevValue == null || r.prevMissing) return null;
       return chartXY(i, r.prevValue, n, min, span, left, top, plotW, plotH);
     });
-    paChartState = { mode: "line", rows: rows, curPts: curPts, prevPts: prevPts, baseY: top + plotH, left: left, plotW: plotW };
+    var ovPts = ovAligned.map(function (r, i) {
+      if (r.value == null) return null;
+      return chartXY(i, r.value, n, min, span, left, top, plotW, plotH);
+    });
+    paChartState = {
+      mode: "line",
+      rows: rows,
+      curPts: curPts,
+      prevPts: prevPts,
+      overlayPts: ovPts,
+      overlayVals: ovVals,
+      baseY: top + plotH,
+      left: left,
+      plotW: plotW
+    };
 
     var grid = "";
     var ticks = 4;
@@ -1205,13 +1391,22 @@
     }
 
     var prevLinePts = prevPts.filter(Boolean);
-    var areaD = buildAreaPath(curPts);
+    var areaD = !paOverlay ? buildAreaPath(curPts) : "";
     var lineD = buildLinePath(curPts);
-    var prevD = buildLinePath(prevLinePts);
+    var prevD = !paOverlay ? buildLinePath(prevLinePts) : "";
+    var ovLinePts = ovPts.filter(Boolean);
+    var ovD = buildLinePath(ovLinePts);
     var dots = curPts.map(function (p, i) {
       return (
         '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
         '" r="3.5" fill="' + PA_LINE_COLOR + '" stroke="#fff" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
+      );
+    }).join("");
+    var ovDots = ovPts.map(function (p, i) {
+      if (!p) return "";
+      return (
+        '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+        '" r="3" fill="' + PA_OVERLAY_COLOR + '" stroke="#fff" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
       );
     }).join("");
 
@@ -1227,11 +1422,13 @@
       (areaD ? '<path d="' + areaD + '" fill="url(#pa-fill)" />' : "") +
       (prevD ? '<path d="' + prevD + '" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + PA_LINE_COLOR + '" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      (ovD ? '<path d="' + ovD + '" fill="none" stroke="' + PA_OVERLAY_COLOR + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       dots +
+      ovDots +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
       '" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
       '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="' + PA_LINE_COLOR + '" stroke="#fff" stroke-width="2" opacity="0" />' +
-      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="#94a3b8" stroke="#fff" stroke-width="2" opacity="0" />' +
+      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="' + PA_OVERLAY_COLOR + '" stroke="#fff" stroke-width="2" opacity="0" />' +
       xLabels +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
@@ -1255,6 +1452,7 @@
         showPaTooltip(idxFromEvent(t), t.clientX, t.clientY);
       };
     }
+    setAddChartVisible(true);
   }
   function renderPaTable(series, prevSeries, breakdown, compareMeta) {
     var rows = alignPrevRows(series, prevSeries, breakdown, compareMeta);
@@ -1429,7 +1627,16 @@
         paDelta.textContent = "—";
         paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
       }
-      drawChart(data.series || [], hasPrev && cmp.series ? cmp.series : [], paBreakdown.value, cmpMeta);
+      // Ana metrik yenilenince ek grafiği temizle (tarih/metrik değişmiş olabilir)
+      paOverlay = null;
+      closeOverlayPanel(false);
+      paLastChart = {
+        series: data.series || [],
+        prevSeries: hasPrev && cmp.series ? cmp.series : [],
+        breakdown: paBreakdown.value,
+        compareMeta: cmpMeta
+      };
+      drawChart(paLastChart.series, paLastChart.prevSeries, paLastChart.breakdown, paLastChart.compareMeta);
       renderPaTable(data.series || [], hasPrev && cmp.series ? cmp.series : [], paBreakdown.value, cmpMeta);
       if (paCompareRange) {
         if (hasPrev && cmp.start && cmp.end) {
@@ -1455,6 +1662,9 @@
       setCompareColsVisible(false);
       setReviewSplitColsVisible(false);
       setCompareKpisVisible(false);
+      setAddChartVisible(false);
+      paLastChart = null;
+      paOverlay = null;
       hidePaTooltip();
     } finally {
       if (timer) clearTimeout(timer);
@@ -1462,8 +1672,98 @@
       setPaLoading(false);
     }
   }
+
+  async function runOverlayAnalytics() {
+    if (!paOvMetric || !paOvMetric.value || !paLastChart) return;
+    if (paBusy) return;
+    paBusy = true;
+    setPaLoading(true);
+    try {
+      var qs = new URLSearchParams({
+        start: paStart.value,
+        end: paEnd.value,
+        metric: paOvMetric.value,
+        breakdown: (paOvBreakdown && paOvBreakdown.value) || "date",
+        dim: (paOvDim && paOvDim.value) || "overview",
+        compare: ""
+      });
+      if (paOvSegment && paOvSegment.value && paOvSegment.value !== "all") {
+        qs.set("segment", paOvSegment.value);
+      }
+      var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      var data = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+      if (data.facets && data.facets.segments && paOvSegment) {
+        var curSeg = paOvSegment.value || "all";
+        paOvSegment.innerHTML = '<option value="all">Tümü</option>' +
+          (data.facets.segments || []).filter(Boolean).map(function (s) {
+            return '<option value="' + esc(s) + '">' + esc(s) + "</option>";
+          }).join("");
+        paOvSegment.value = curSeg;
+        if (paOvSegment.value !== curSeg) paOvSegment.value = "all";
+      }
+      paOverlay = {
+        metric: paOvMetric.value,
+        label: metricOptionLabel(paOvMetric.value),
+        series: data.series || [],
+        breakdown: (paOvBreakdown && paOvBreakdown.value) || "date",
+        dim: (paOvDim && paOvDim.value) || "overview",
+        segment: (paOvSegment && paOvSegment.value) || "all"
+      };
+      if (paOvClear) paOvClear.classList.remove("hidden");
+      drawChart(
+        paLastChart.series,
+        paLastChart.prevSeries,
+        paLastChart.breakdown,
+        paLastChart.compareMeta
+      );
+      closeOverlayPanel(true);
+      if (paOverlayPanel) paOverlayPanel.classList.add("hidden");
+    } catch (err) {
+      alert((err && err.message) || "Ek grafik yüklenemedi");
+    } finally {
+      paBusy = false;
+      setPaLoading(false);
+    }
+  }
+
   if (paPreset) paPreset.addEventListener("change", function () { applyPreset(); });
   if (paRun) paRun.addEventListener("click", runPlayAnalytics);
+  if (paAddChartBtn) {
+    paAddChartBtn.addEventListener("click", function () {
+      openOverlayPanel();
+    });
+  }
+  if (paOvCancel) {
+    paOvCancel.addEventListener("click", function () {
+      closeOverlayPanel(!!paOverlay);
+    });
+  }
+  if (paOvClear) {
+    paOvClear.addEventListener("click", function () {
+      clearOverlayAndRedraw();
+    });
+  }
+  if (paOvRun) paOvRun.addEventListener("click", runOverlayAnalytics);
+  function syncOvDimBreakdown() {
+    if (!paOvDim || !paOvBreakdown) return;
+    var dim = paOvDim.value || "overview";
+    var seg = (paOvSegment && paOvSegment.value) || "all";
+    if (dim === "overview") {
+      if (paOvBreakdown.value === "segment") paOvBreakdown.value = "date";
+      return;
+    }
+    if (seg === "all") {
+      if (paOvBreakdown.value === "date") paOvBreakdown.value = "segment";
+    } else {
+      paOvBreakdown.value = "date";
+    }
+  }
+  if (paOvDim) paOvDim.addEventListener("change", syncOvDimBreakdown);
+  if (paOvSegment) paOvSegment.addEventListener("change", syncOvDimBreakdown);
   function syncDimBreakdown() {
     if (!paDim || !paBreakdown) return;
     var dim = paDim.value || "overview";
