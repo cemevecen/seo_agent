@@ -220,9 +220,41 @@ def _norm_kind_list(raw_list: Any, kind: str) -> list[dict[str, Any]]:
 
 
 _STACK_UI_JUNK = re.compile(
-    r"^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next)$",
+    r"^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next|"
+    r"yardım|yığın\s*izi|stack\s*trace|gizlilik|privacy|terms|"
+    r"hizmet\s*şartları|evet|hayır|yes|no)$",
     re.I,
 )
+_STACK_UI_JUNK_CONTAINS = re.compile(
+    r"yardımcı\s*oldu\s*mu|ürün\s*güncellemeleri|product\s*updates|"
+    r"durum\s*kontrol\s*paneli|status\s*dashboard|"
+    r"bu\s*anr.?yi\s*paylaş|share\s*this\s*anr|"
+    r"daha\s*fazla\s*bilgi|learn\s*more|more\s*info|"
+    r"play-services-ads|çözülmesine\s*yardımcı|"
+    r"paylaşın\.?\s*böylece|share\s+with\s+|"
+    r"uygulamanızın\s*adını|full\s*stack\s*trace|"
+    r"©\s*\d{4}|copyright\s+\d{4}|\bgoogle\s*llc\b|"
+    r"was\s*this\s*helpful|feedback",
+    re.I,
+)
+_STACK_FRAMEISH = re.compile(
+    r"(^|\s)at\s+[\w.$]+|#\d+\s+pc\s+|SourceFile|"
+    r"\.(java|kt|cpp|cc|c|so):\d+|Exception|Error|SIG[A-Z]+|"
+    r"Native\s+method|Input\s+dispatching|ANR\s+in\s+|TimeoutException|"
+    r"java\.|android\.|kotlin\.|dalvik\.|lib[a-z0-9_]+\.so",
+    re.I,
+)
+
+
+def _is_stack_ui_junk(s: str) -> bool:
+    t = (s or "").strip()
+    if not t:
+        return True
+    if _STACK_UI_JUNK.fullmatch(t):
+        return True
+    if _STACK_UI_JUNK_CONTAINS.search(t):
+        return True
+    return False
 
 
 def _clean_stack_trace(text: str) -> str:
@@ -233,12 +265,28 @@ def _clean_stack_trace(text: str) -> str:
     kept: list[str] = []
     for ln in raw.splitlines():
         s = ln.strip()
-        if not s or _is_iconish(s) or _STACK_UI_JUNK.match(s):
+        if not s or _is_iconish(s) or _is_stack_ui_junk(s):
             continue
-        # Tek basamak / sayfalama
         if re.fullmatch(r"\d{1,3}", s):
             continue
         kept.append(s)
+    if not kept:
+        return ""
+    # Sadece Chrome/footer kaldıysa boş bırak
+    if not any(_STACK_FRAMEISH.search(x) for x in kept):
+        # Kısa teknik satır (paket/sınıf) kalabilir; uzun cümleleri at
+        tech = [
+            x
+            for x in kept
+            if len(x) < 220
+            and (
+                "." in x
+                or "(" in x
+                or re.search(r"[A-Z][a-zA-Z0-9_]+(?:Exception|Error|ANR)", x)
+            )
+            and not re.search(r"\b(için|ile|your|please|click)\b", x, re.I)
+        ]
+        kept = tech
     return "\n".join(kept)[:6000]
 
 
@@ -328,10 +376,8 @@ def _normalize_vitals_issue_detail(det: dict[str, Any]) -> dict[str, Any] | None
     }
 
 
-def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
-    """Vitals crashes (4 sorun kategorisi) + metrics overview tablosu."""
-    d = dict(raw) if isinstance(raw, dict) else {}
-    crashes_in = d.get("crashes") if isinstance(d.get("crashes"), dict) else {}
+def _normalize_vitals_crashes_map(crashes_in: dict[str, Any]) -> tuple[dict[str, Any], int, int]:
+    """CRASH/ANR bloklarını normalize et → (crashes_out, category_count, issue_detail_total)."""
     crashes_out: dict[str, Any] = {}
     category_count = 0
     issue_detail_total = 0
@@ -400,6 +446,45 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
             "issue_details": details_out,
             "issue_detail_count": len(details_out),
         }
+    return crashes_out, category_count, issue_detail_total
+
+
+def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Vitals crashes (4 sorun kategorisi) + metrics overview tablosu."""
+    d = dict(raw) if isinstance(raw, dict) else {}
+    crashes_in = d.get("crashes") if isinstance(d.get("crashes"), dict) else {}
+    crashes_out, category_count, issue_detail_total = _normalize_vitals_crashes_map(crashes_in)
+
+    by_version_out: dict[str, Any] = {}
+    by_in = d.get("by_version") if isinstance(d.get("by_version"), dict) else {}
+    for vc_key, payload in by_in.items():
+        code = str(vc_key or "").strip()[:32]
+        if not code or not isinstance(payload, dict):
+            continue
+        cr = payload.get("crashes") if isinstance(payload.get("crashes"), dict) else payload
+        if not isinstance(cr, dict):
+            continue
+        norm_cr, _, det_n = _normalize_vitals_crashes_map(cr)
+        by_version_out[code] = {"crashes": norm_cr}
+        issue_detail_total = max(issue_detail_total, det_n)
+
+    versions_out: list[dict[str, str]] = []
+    for v in d.get("versions") or []:
+        if not isinstance(v, dict):
+            continue
+        code = str(v.get("code") or "").strip()[:32]
+        if not code:
+            continue
+        versions_out.append({"code": code, "name": str(v.get("name") or "").strip()[:40]})
+    if not versions_out and by_version_out:
+        versions_out = [
+            {"code": k, "name": ""}
+            for k in sorted(
+                [x for x in by_version_out if x != "all" and str(x).isdigit()],
+                key=lambda x: int(x),
+                reverse=True,
+            )[:3]
+        ]
 
     ov_in = d.get("metrics_overview") if isinstance(d.get("metrics_overview"), dict) else {}
     rows_raw: list[dict[str, Any]] = []
@@ -448,10 +533,17 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
             for k, v in d["version_name_map"].items()
             if str(k).strip() and str(v).strip()
         }
+    # version_name_map ile versions isimlerini doldur
+    for row in versions_out:
+        if not row.get("name") and row["code"] in vmap:
+            row["name"] = vmap[row["code"]][:40]
+
     return {
         "version": int(d.get("version") or 1),
         "days": int(d.get("days") or 28),
         "version_code": str(d.get("version_code") or "")[:32] or None,
+        "versions": versions_out[:3],
+        "by_version": by_version_out,
         "is_user_perceived": bool(d.get("is_user_perceived", True)),
         "scraped_at": str(d.get("scraped_at") or "")[:40] or None,
         "error": str(d.get("error") or "")[:240] or None,

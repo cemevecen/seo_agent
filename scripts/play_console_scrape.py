@@ -2810,6 +2810,28 @@ def _vitals_version_code() -> str:
     return (os.environ.get("PLAY_CONSOLE_VITALS_VERSION_CODE") or "").strip()
 
 
+def _vitals_version_codes() -> list[str]:
+    """Son N sürüm (max 3). VERSION_CODES=290,289,288 veya tek CODE → CODE..CODE-2."""
+    multi = (os.environ.get("PLAY_CONSOLE_VITALS_VERSION_CODES") or "").strip()
+    out: list[str] = []
+    if multi:
+        for part in multi.split(","):
+            p = part.strip()
+            if p and p not in out:
+                out.append(p)
+            if len(out) >= 3:
+                break
+        return out
+    single = _vitals_version_code()
+    if not single:
+        return []
+    try:
+        n = int(single)
+        return [str(n - i) for i in range(3)]
+    except ValueError:
+        return [single]
+
+
 def _vitals_detail_limit() -> int:
     raw = (os.environ.get("PLAY_CONSOLE_VITALS_DETAIL_LIMIT") or "40").strip()
     try:
@@ -3115,28 +3137,38 @@ def _extract_vitals_issue_detail(page) -> dict[str, Any]:
         if (insights.length >= 10) break;
       }
 
-      // Stack / traceback bloğu (Material ikon / sayfalama UI'sını ele)
+      // Stack / traceback bloğu (Console chrome + partner-share UI'sını ele)
       const isStackJunk = (l) => {
         const t = clean(l);
         if (!t) return true;
-        if (/^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next)$/i.test(t)) return true;
+        if (/^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next|yardım|yığın\\s*izi|stack\\s*trace|gizlilik|privacy|terms|hizmet\\s*şartları|evet|hayır|yes|no)$/i.test(t)) return true;
+        if (/yardımcı\\s*oldu\\s*mu|ürün\\s*güncellemeleri|product\\s*updates|durum\\s*kontrol\\s*paneli|status\\s*dashboard/i.test(t)) return true;
+        if (/bu\\s*anr.?yi\\s*paylaş|share\\s*this\\s*anr|daha\\s*fazla\\s*bilgi|learn\\s*more|more\\s*info/i.test(t)) return true;
+        if (/play-services-ads|çözülmesine\\s*yardımcı|paylaşın\\.?\\s*böylece|share\\s+with\\s+|uygulamanızın\\s*adını|full\\s*stack\\s*trace/i.test(t)) return true;
+        if (/©\\s*\\d{4}|copyright\\s+\\d{4}|\\bgoogle\\s*llc\\b|was\\s*this\\s*helpful|feedback/i.test(t)) return true;
         if (/^(keyboard_arrow_|chevron_|feature_|arrow_|expand_|visibility_)/i.test(t)) return true;
         if (/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/.test(t) && t.length < 40 && !/\\d/.test(t)) return true;
         if (/^\\d{1,3}$/.test(t)) return true;
         return false;
       };
+      const isFrameish = (l) =>
+        /(?:^|\\s)at\\s+[\\w.$]+|#\\d+\\s+pc\\s+|SourceFile|\\.(java|kt|cpp|cc|c|so):\\d+|Exception|Error|SIG[A-Z]+|Native\\s+method|Input\\s+dispatching|ANR\\s+in\\s+|TimeoutException|java\\.|android\\.|kotlin\\.|dalvik\\.|lib[a-z0-9_]+\\.so/i.test(l);
       let stack = '';
       const stackIdx = lines.findIndex((l) =>
-        /stack\\s*trace|yığın|backtrace|at\\s+[\\w.$]+\\(/i.test(l)
+        /stack\\s*trace|yığın\\s*izi|backtrace|at\\s+[\\w.$]+\\(/i.test(l)
         || /^\\s*at\\s+/i.test(l)
         || /#(0|00)\\s+pc\\s+/i.test(l)
       );
       if (stackIdx >= 0) {
-        stack = lines.slice(stackIdx, stackIdx + 50).filter((l) => !isStackJunk(l)).slice(0, 40).join('\\n');
+        const raw = lines.slice(stackIdx, stackIdx + 50).filter((l) => !isStackJunk(l)).slice(0, 40);
+        const frames = raw.filter(isFrameish);
+        stack = (frames.length ? frames : raw.filter((l) =>
+          l.length < 220 && (l.includes('.') || l.includes('(')) && !/\\b(için|ile|your|please|click)\\b/i.test(l)
+        )).slice(0, 35).join('\\n');
       } else {
         const codeish = lines.filter((l) =>
           !isStackJunk(l) && (
-            /^at\\s+/i.test(l) || /\\(\\w+\\.\\w+:\\d+\\)/.test(l) || /SourceFile|#\\d+\\s+pc/.test(l)
+            /^at\\s+/i.test(l) || /\\(\\w+\\.\\w+:\\d+\\)/.test(l) || /SourceFile|#\\d+\\s+pc/.test(l) || isFrameish(l)
           )
         );
         if (codeish.length) stack = codeish.slice(0, 35).join('\\n');
@@ -3681,78 +3713,127 @@ def _scrape_vitals_metrics_overview(page, *, headed: bool = True) -> dict[str, A
     }
 
 
+def _harvest_version_names_from_vitals_block(
+    block: dict[str, Any], version_name_map: dict[str, str]
+) -> dict[str, str]:
+    """Issue / detay metinlerinden 290 (9.5.10) eşlemelerini topla."""
+    out = dict(version_name_map)
+    for det in (block.get("issue_details") or {}).values():
+        if not isinstance(det, dict):
+            continue
+        blob = " ".join(
+            [
+                str(det.get("title") or ""),
+                str(det.get("list_title") or ""),
+                " ".join(
+                    str(c.get("value") or "")
+                    for c in (det.get("summary_cards") or [])
+                    if isinstance(c, dict)
+                ),
+            ]
+        )
+        for m in re.finditer(r"\b(\d{2,8})\s*\((\d+\.\d+(?:\.\d+)*)\)", blob):
+            out[m.group(1)] = m.group(2).strip()
+    for cat in block.get("categories") or []:
+        if not isinstance(cat, dict):
+            continue
+        for iss in cat.get("issues") or []:
+            if not isinstance(iss, dict):
+                continue
+            av = str(iss.get("affected_versions") or "").strip()
+            m = re.match(r"^(\d{2,8})\s*\(([^)]+)\)$", av)
+            if m:
+                out[m.group(1)] = m.group(2).strip()
+    return out
+
+
 def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[str, Any]:
-    """Crashes 4 kategori (CRASH+ANR) + metrics overview tablosu."""
+    """Crashes 4 kategori (CRASH+ANR) × son 3 sürüm + metrics overview."""
     version_name_map: dict[str, str] = {}
-    vc = _vitals_version_code()
-    if vc:
-        print(f"  · vitals versionCode={vc}", flush=True)
-    print("  · vitals crashes (CRASH) …", flush=True)
-    crash = _scrape_vitals_crashes_error_type(
-        page, error_type="CRASH", days=days, headed=headed, version_code=vc
-    )
-    version_name_map = _merge_version_name_maps(
-        version_name_map, _extract_version_name_map(page)
-    )
-    # Detaylardan da sürüm etiketleri topla
-    for det in (crash.get("issue_details") or {}).values():
-        if isinstance(det, dict):
-            version_name_map = _merge_version_name_maps(
-                version_name_map,
-                {
-                    str(m.group(1)): str(m.group(2))
-                    for m in re.finditer(
-                        r"\b(\d{2,8})\s*\((\d+\.\d+(?:\.\d+)*)\)",
-                        " ".join(
-                            [
-                                str(det.get("title") or ""),
-                                str(det.get("list_title") or ""),
-                                " ".join(
-                                    str(c.get("value") or "")
-                                    for c in (det.get("summary_cards") or [])
-                                    if isinstance(c, dict)
-                                ),
-                            ]
-                        ),
-                    )
-                },
-            )
-    print("  · vitals crashes (ANR) …", flush=True)
-    anr = _scrape_vitals_crashes_error_type(
-        page, error_type="ANR", days=days, headed=headed, version_code=vc
-    )
-    version_name_map = _merge_version_name_maps(
-        version_name_map, _extract_version_name_map(page)
-    )
+    codes = _vitals_version_codes()
+    # codes boş → tek geçiş (tüm sürümler / filtresiz)
+    pass_codes: list[str | None] = list(codes) if codes else [None]
+    by_version: dict[str, Any] = {}
+    primary_crash: dict[str, Any] = {}
+    primary_anr: dict[str, Any] = {}
+    primary_vc: str | None = codes[0] if codes else None
+
+    for idx, vc in enumerate(pass_codes):
+        label = vc or "all"
+        # Detay sayfaları yalnızca en yeni sürümde (süre); diğerlerinde liste yeterli
+        want_details = idx == 0
+        if vc:
+            print(f"  · vitals versionCode={vc} (details={want_details}) …", flush=True)
+        else:
+            print("  · vitals (all versions) …", flush=True)
+        print(f"  · vitals crashes (CRASH) [{label}] …", flush=True)
+        crash = _scrape_vitals_crashes_error_type(
+            page,
+            error_type="CRASH",
+            days=days,
+            headed=headed,
+            version_code=vc if vc is not None else "",
+            scrape_details=want_details,
+        )
+        version_name_map = _merge_version_name_maps(
+            version_name_map, _extract_version_name_map(page)
+        )
+        version_name_map = _harvest_version_names_from_vitals_block(crash, version_name_map)
+        print(f"  · vitals crashes (ANR) [{label}] …", flush=True)
+        anr = _scrape_vitals_crashes_error_type(
+            page,
+            error_type="ANR",
+            days=days,
+            headed=headed,
+            version_code=vc if vc is not None else "",
+            scrape_details=want_details,
+        )
+        version_name_map = _merge_version_name_maps(
+            version_name_map, _extract_version_name_map(page)
+        )
+        version_name_map = _harvest_version_names_from_vitals_block(anr, version_name_map)
+        key = str(vc) if vc else "all"
+        by_version[key] = {"crashes": {"CRASH": crash, "ANR": anr}}
+        if idx == 0:
+            primary_crash, primary_anr = crash, anr
+            if vc:
+                primary_vc = str(vc)
+
     print("  · vitals metrics overview …", flush=True)
     overview = _scrape_vitals_metrics_overview(page, headed=headed)
     version_name_map = _merge_version_name_maps(
         version_name_map, _extract_version_name_map(page)
     )
-    # Liste satırlarındaki 290 (9.5.10)
-    for block in (crash, anr):
-        for cat in block.get("categories") or []:
-            if not isinstance(cat, dict):
-                continue
-            for iss in cat.get("issues") or []:
-                if not isinstance(iss, dict):
-                    continue
-                av = str(iss.get("affected_versions") or "")
-                m = re.match(r"^(\d{2,8})\s*\(([^)]+)\)$", av.strip())
-                if m:
-                    version_name_map[m.group(1)] = m.group(2).strip()
+
+    versions: list[dict[str, str]] = []
+    for c in pass_codes:
+        if c is None:
+            continue
+        versions.append(
+            {
+                "code": str(c),
+                "name": version_name_map.get(str(c), ""),
+            }
+        )
+    # Map’ten eksik isimleri tamamla
+    if not versions and version_name_map:
+        for code in sorted(version_name_map.keys(), key=lambda x: int(x) if x.isdigit() else 0, reverse=True)[:3]:
+            versions.append({"code": code, "name": version_name_map[code]})
+
     if version_name_map:
-        print(f"    · version_name_map={len(version_name_map)}", flush=True)
-    detail_n = int(crash.get("issue_detail_count") or 0) + int(
-        anr.get("issue_detail_count") or 0
+        print(f"    · version_name_map={len(version_name_map)} versions={versions}", flush=True)
+    detail_n = int(primary_crash.get("issue_detail_count") or 0) + int(
+        primary_anr.get("issue_detail_count") or 0
     )
-    print(f"    · issue_details total={detail_n}", flush=True)
+    print(f"    · issue_details total={detail_n} by_version={list(by_version.keys())}", flush=True)
     return {
-        "version": 2,
+        "version": 3,
         "days": days,
-        "version_code": vc or None,
+        "version_code": primary_vc,
+        "versions": versions,
+        "by_version": by_version,
         "is_user_perceived": True,
-        "crashes": {"CRASH": crash, "ANR": anr},
+        "crashes": {"CRASH": primary_crash, "ANR": primary_anr},
         "metrics_overview": overview,
         "version_name_map": version_name_map,
         "scraped_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

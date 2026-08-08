@@ -271,6 +271,7 @@
           <button type="button" data-etype="CRASH" class="pc-vitals-etype rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">Crash</button>
           <button type="button" data-etype="ANR" class="pc-vitals-etype rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">ANR</button>
         </div>
+        <div id="pc-vitals-versions" class="ml-auto flex flex-wrap items-center gap-1" aria-label="Uygulama sürümleri"></div>
       </div>
       <div id="pc-vitals-cats" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
       <p id="pc-vitals-cats-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz kategori yok — vitals sync sonrası dolacak</p>
@@ -412,7 +413,7 @@
       </div>
       <div class="flex items-center gap-3">
         <span id="pc-review-count" class="text-xs tabular-nums text-slate-500"></span>
-        <button type="button" data-pc-close="reviews" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200">Kapat</button>
+        <button type="button" data-pc-close="reviews" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
       </div>
     </div>
     <div id="pc-reviews" class="mt-4 max-h-[36rem] space-y-3 overflow-auto"></div>
@@ -458,6 +459,7 @@
   var vitalsIssuesEl = document.getElementById("pc-vitals-issues");
   var vitalsDetailEl = document.getElementById("pc-vitals-detail");
   var vitalsEtypeWrap = document.getElementById("pc-vitals-etype");
+  var vitalsVersionsEl = document.getElementById("pc-vitals-versions");
   var vitalsCrashesLink = document.getElementById("pc-vitals-crashes-link");
   var vitalsOverviewLink = document.getElementById("pc-vitals-overview-link");
   var btn = document.getElementById("pc-refresh");
@@ -466,7 +468,7 @@
   var panelScrape = document.getElementById("pc-panel-scrape");
   var panelReviews = document.getElementById("pc-panel-reviews");
   var btnReviewCount = document.getElementById("pc-btn-review-count");
-  var vitalsState = { etype: "ANR", data: null, selectedCat: "general", selectedIssue: null };
+  var vitalsState = { etype: "ANR", data: null, selectedCat: "general", selectedIssue: null, selectedVersion: null };
 
   function cleanIssueTitle(t) {
     return String(t == null ? "" : t)
@@ -476,24 +478,127 @@
       .trim();
   }
 
+  function isStackUiJunk(l) {
+    var t = String(l == null ? "" : l).replace(/\s+/g, " ").trim();
+    if (!t) return true;
+    if (/^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next|yardım|yığın\s*izi|stack\s*trace|gizlilik|privacy|terms|hizmet\s*şartları|evet|hayır|yes|no)$/i.test(t)) return true;
+    if (/yardımcı\s*oldu\s*mu|ürün\s*güncellemeleri|product\s*updates|durum\s*kontrol\s*paneli|status\s*dashboard/i.test(t)) return true;
+    if (/bu\s*anr.?yi\s*paylaş|share\s*this\s*anr|daha\s*fazla\s*bilgi|learn\s*more|more\s*info/i.test(t)) return true;
+    if (/play-services-ads|çözülmesine\s*yardımcı|paylaşın\.?\s*böylece|share\s+with\s+|uygulamanızın\s*adını|full\s*stack\s*trace/i.test(t)) return true;
+    if (/©\s*\d{4}|copyright\s+\d{4}|\bgoogle\s*llc\b|was\s*this\s*helpful|feedback/i.test(t)) return true;
+    if (/^(keyboard_arrow_|chevron_|feature_|arrow_|expand_|visibility_)/i.test(t)) return true;
+    if (/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/i.test(t) && t.length < 40 && !/\d/.test(t)) return true;
+    return false;
+  }
+
   function cleanStackTrace(text) {
-    return String(text == null ? "" : text)
+    var kept = String(text == null ? "" : text)
       .split(/\n+/)
       .map(function (l) { return l.replace(/\s+/g, " ").trim(); })
       .filter(function (l) {
-        if (!l) return false;
-        if (/^(help|gelişmiş|advanced|close|menu|more|önceki|sonraki|previous|next)$/i.test(l)) return false;
-        if (/^(keyboard_arrow_|chevron_|feature_|arrow_|expand_|visibility_)/i.test(l)) return false;
-        if (/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/i.test(l) && l.length < 40 && !/\d/.test(l)) return false;
+        if (!l || isStackUiJunk(l)) return false;
         if (/^\d{1,3}$/.test(l)) return false;
         return true;
-      })
-      .join("\n");
+      });
+    if (!kept.length) return "";
+    var frameish = /(?:^|\s)at\s+[\w.$]+|#\d+\s+pc\s+|SourceFile|\.(java|kt|cpp|cc|c|so):\d+|Exception|Error|SIG[A-Z]+|Native\s+method|Input\s+dispatching|ANR\s+in\s+|TimeoutException|java\.|android\.|kotlin\.|dalvik\.|lib[a-z0-9_]+\.so/i;
+    if (!kept.some(function (x) { return frameish.test(x); })) {
+      kept = kept.filter(function (x) {
+        return x.length < 220
+          && (x.indexOf(".") >= 0 || x.indexOf("(") >= 0 || /[A-Z][a-zA-Z0-9_]+(?:Exception|Error|ANR)/.test(x))
+          && !/\b(için|ile|your|please|click)\b/i.test(x);
+      });
+    }
+    return kept.join("\n");
+  }
+
+  function resolveVitalsVersions(vitals) {
+    vitals = vitals || {};
+    var vmap = vitals.version_name_map || {};
+    var byv = vitals.by_version || {};
+    var versions = (Array.isArray(vitals.versions) ? vitals.versions : []).filter(function (v) {
+      return v && String(v.code || "").trim();
+    }).map(function (v) {
+      var code = String(v.code).trim();
+      return { code: code, name: String(v.name || vmap[code] || "").trim() };
+    });
+    if (!versions.length) {
+      var codes = Object.keys(byv).filter(function (k) {
+        return k !== "all" && /^\d+$/.test(k);
+      }).sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); }).slice(0, 3);
+      versions = codes.map(function (c) {
+        return { code: c, name: String(vmap[c] || "").trim() };
+      });
+    }
+    if (!versions.length && vitals.version_code) {
+      var n = parseInt(String(vitals.version_code), 10);
+      if (!isNaN(n)) {
+        versions = [0, 1, 2].map(function (i) {
+          var c = String(n - i);
+          return { code: c, name: String(vmap[c] || "").trim() };
+        });
+      } else {
+        var only = String(vitals.version_code).trim();
+        versions = [{ code: only, name: String(vmap[only] || "").trim() }];
+      }
+    }
+    return versions.slice(0, 3);
+  }
+
+  function vitalsVersionChipLabel(v) {
+    if (!v) return "—";
+    var code = String(v.code || "").trim();
+    var name = String(v.name || "").trim();
+    if (name && name !== code) return code + " (" + name + ")";
+    return code || "—";
+  }
+
+  function filterVitalsBlockByVersion(block, vc) {
+    block = block || {};
+    vc = String(vc || "").trim();
+    if (!vc) return block;
+    if (String(block.version_code || "") === vc) return block;
+    var cats = Array.isArray(block.categories) ? block.categories : [];
+    var filtered = cats.map(function (cat) {
+      var issues = (Array.isArray(cat.issues) ? cat.issues : []).filter(function (iss) {
+        var av = String(iss.affected_versions || "");
+        return av.indexOf(vc) >= 0;
+      });
+      var next = Object.assign({}, cat, {
+        issues: issues,
+        issue_row_count: issues.length
+      });
+      if (cat.issue_count != null && cat.issue_count !== "") {
+        next.issue_count = String(issues.length);
+      }
+      return next;
+    });
+    return Object.assign({}, block, { categories: filtered });
+  }
+
+  function getActiveVitalsCrashes() {
+    var vitals = vitalsState.data || {};
+    var vc = String(vitalsState.selectedVersion || "").trim();
+    var byv = vitals.by_version || {};
+    var crashes = vitals.crashes || {};
+    if (vc && byv[vc] && byv[vc].crashes) {
+      return byv[vc].crashes;
+    }
+    if (!vc) return crashes;
+    // Eski payload: tek crashes bloğu — satırları sürüm koduna göre süz
+    var out = {};
+    ["CRASH", "ANR"].forEach(function (et) {
+      out[et] = filterVitalsBlockByVersion(crashes[et] || {}, vc);
+    });
+    return out;
+  }
+
+  function getActiveVitalsBlock() {
+    return (getActiveVitalsCrashes()[vitalsState.etype]) || {};
   }
 
   function findVitalsIssue(iid) {
-    var vitals = vitalsState.data || {};
-    var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
+    var block = getActiveVitalsBlock();
     var cats = Array.isArray(block.categories) ? block.categories : [];
     var sel = cats.find(function (c) { return c.id === vitalsState.selectedCat; }) || cats[0];
     var issues = sel && Array.isArray(sel.issues) ? sel.issues : [];
@@ -503,6 +608,33 @@
       if (("idx-" + i) === String(iid)) return issues[i];
     }
     return null;
+  }
+
+  function renderVitalsVersionChips() {
+    if (!vitalsVersionsEl) return;
+    var versions = resolveVitalsVersions(vitalsState.data || {});
+    if (!versions.length) {
+      vitalsVersionsEl.innerHTML = "";
+      return;
+    }
+    if (!vitalsState.selectedVersion || !versions.some(function (v) {
+      return String(v.code) === String(vitalsState.selectedVersion);
+    })) {
+      vitalsState.selectedVersion = String(versions[0].code);
+    }
+    vitalsVersionsEl.innerHTML = versions.map(function (v) {
+      var on = String(v.code) === String(vitalsState.selectedVersion);
+      return (
+        '<button type="button" data-version="' + esc(v.code) + '" ' +
+          'class="pc-vitals-version rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums transition ' +
+          (on
+            ? "bg-emerald-600 text-white"
+            : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700") +
+          '" title="Sürüm ' + esc(vitalsVersionChipLabel(v)) + '">' +
+          esc(vitalsVersionChipLabel(v)) +
+        "</button>"
+      );
+    }).join("");
   }
 
   function setPanelButtonActive(btnEl, on) {
@@ -898,7 +1030,7 @@
       grid +
       (areaD ? '<path d="' + areaD + '" fill="url(#pa-fill)" />' : "") +
       (prevD ? '<path d="' + prevD + '" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
-      (lineD ? '<path d="' + lineD + '" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      (lineD ? '<path d="' + lineD + '" fill="none" stroke="#059669" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       dots +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
       '" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
@@ -1522,10 +1654,26 @@
 
   function renderVitalsCategories(opts) {
     opts = opts || {};
-    var vitals = vitalsState.data || {};
-    var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
+    renderVitalsVersionChips();
+    var block = getActiveVitalsBlock();
     var cats = Array.isArray(block.categories) ? block.categories : [];
-    if (vitalsCrashesLink && block.url) vitalsCrashesLink.href = block.url;
+    if (vitalsCrashesLink) {
+      var href = block.url || "";
+      if (href && vitalsState.selectedVersion) {
+        try {
+          var u = new URL(href);
+          u.searchParams.set("versionCode", String(vitalsState.selectedVersion));
+          href = u.toString();
+        } catch (_) {
+          if (href.indexOf("versionCode=") >= 0) {
+            href = href.replace(/([?&])versionCode=[^&]*/i, "$1versionCode=" + encodeURIComponent(String(vitalsState.selectedVersion)));
+          } else {
+            href += (href.indexOf("?") >= 0 ? "&" : "?") + "versionCode=" + encodeURIComponent(String(vitalsState.selectedVersion));
+          }
+        }
+      }
+      if (href) vitalsCrashesLink.href = href;
+    }
 
     if (vitalsEtypeWrap) {
       Array.prototype.forEach.call(vitalsEtypeWrap.querySelectorAll(".pc-vitals-etype"), function (b) {
@@ -1640,8 +1788,7 @@
   function renderVitalsDetail(opts) {
     opts = opts || {};
     if (!vitalsDetailEl) return;
-    var vitals = vitalsState.data || {};
-    var block = ((vitals.crashes || {})[vitalsState.etype]) || {};
+    var block = getActiveVitalsBlock();
     var details = block.issue_details || {};
     var iid = vitalsState.selectedIssue;
     var listIss = findVitalsIssue(iid);
@@ -1738,6 +1885,8 @@
   function renderVitals(vitals) {
     vitalsState.data = vitals || null;
     vitalsState.selectedIssue = null;
+    var versions = resolveVitalsVersions(vitals || {});
+    vitalsState.selectedVersion = versions.length ? String(versions[0].code) : null;
     renderVitalsOverview(vitals);
     renderVitalsCategories();
   }
@@ -1747,6 +1896,18 @@
       var b = ev.target.closest(".pc-vitals-etype");
       if (!b) return;
       vitalsState.etype = b.getAttribute("data-etype") || "ANR";
+      vitalsState.selectedCat = "general";
+      vitalsState.selectedIssue = null;
+      renderVitalsCategories();
+    });
+  }
+  if (vitalsVersionsEl) {
+    vitalsVersionsEl.addEventListener("click", function (ev) {
+      var b = ev.target.closest(".pc-vitals-version");
+      if (!b) return;
+      var vc = b.getAttribute("data-version") || "";
+      if (!vc || String(vc) === String(vitalsState.selectedVersion)) return;
+      vitalsState.selectedVersion = vc;
       vitalsState.selectedCat = "general";
       vitalsState.selectedIssue = null;
       renderVitalsCategories();
