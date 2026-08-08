@@ -65,11 +65,17 @@ _JUNK_AUTHOR = re.compile(
 
 
 def _is_iconish(s: str) -> bool:
-    t = (s or "").strip().lower().replace(" ", "_")
+    raw = (s or "").strip()
+    if not raw:
+        return True
+    # İnsan adı / cümle (boşluklu) icon değildir
+    if " " in raw or any(ch in raw for ch in "çğıöşüÇĞİÖŞÜ"):
+        return False
+    t = raw.lower()
     if t in _ICON_NAMES:
         return True
-    if re.fullmatch(r"[a-z0-9_]+", t) and "_" in t and len(t) < 40:
-        # material icon snake_case
+    # Tek kelime snake_case Material ikon
+    if re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+", t) and len(t) < 40:
         if not re.search(r"\d", t):
             return True
     return False
@@ -81,19 +87,30 @@ def _clean_lines(lines: list[str] | None) -> list[str]:
         s = str(ln or "").strip()
         if not s or _is_iconish(s):
             continue
-        if s.lower() in ("artışın iyi olduğu delta", "grafik alan değerlerinde gezinmek için sol ve sağ tuşları kullanın."):
+        if s.lower() in (
+            "artışın iyi olduğu delta",
+            "grafik alan değerlerinde gezinmek için sol ve sağ tuşları kullanın.",
+        ):
             continue
         out.append(s)
     return out
 
 
 def _looks_like_metric_title(title: str) -> bool:
-    t = (title or "").strip().lower()
+    t = (title or "").strip()
     if len(t) < 3 or _is_iconish(t):
+        return False
+    # Saf tarih / sayı başlık olmasın
+    if re.match(
+        r"^\d{1,2}\s*(Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara)\b",
+        t,
+        re.I,
+    ):
         return False
     if re.fullmatch(r"[%\d\s.,+\-−₺BmMkK]+", t):
         return False
-    return any(h in t for h in _METRIC_TITLE_HINTS) or (
+    tl = t.lower()
+    return any(h in tl for h in _METRIC_TITLE_HINTS) or (
         any(c.isalpha() for c in t) and len(t) >= 4 and not t.startswith("%")
     )
 
