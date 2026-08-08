@@ -1782,10 +1782,12 @@ def _ratings_count_facts_from_distribution(
 def _expand_ratings_page_date_range(page) -> str:
     """Mümkünse puanlar sayfasında tarih aralığını genişlet. Seçilen etiketi döner."""
     chosen = ""
-    # Önce Ömür boyu / 1 yıl — kısa 28 gün penceresi yorumlu/yorumsuz geçmişini kesiyor
+    # Önce Ömür boyu / 1 yıl — kısa 28 gün penceresi dağılımı kesiyor
     labels = (
         "Ömür boyu",
         "Lifetime",
+        "Tüm zamanlar",
+        "All time",
         "Son 1 yıl",
         "Last 1 year",
         "Last year",
@@ -1794,33 +1796,74 @@ def _expand_ratings_page_date_range(page) -> str:
         "Son 90 gün",
         "Last 90 days",
     )
+
+    def _pick_label() -> str:
+        for label in labels:
+            try:
+                opt = page.get_by_role(
+                    "option", name=re.compile(f"^{re.escape(label)}$", re.I)
+                )
+                if opt.count() == 0:
+                    opt = page.locator("[role='option'], li, button, a").filter(
+                        has_text=re.compile(f"^{re.escape(label)}$", re.I)
+                    )
+                if opt.count() == 0:
+                    opt = page.get_by_text(re.compile(f"^{re.escape(label)}$", re.I))
+                if opt.count():
+                    opt.first.click(timeout=4000)
+                    _settle(page, seconds=4.5)
+                    return label
+            except Exception:
+                continue
+        return ""
+
     try:
-        btn = page.locator("button").filter(
+        # Tüm tarih chip/butonlarını dene (ortalama + dağılım)
+        candidates = page.locator(
+            "button, [role='button'], [aria-haspopup='listbox'], [aria-haspopup='menu']"
+        ).filter(
             has_text=re.compile(
-                r"Son\s+\d+\s+gün|Last\s+\d+\s+days|Ömür boyu|Lifetime|Son\s+1\s+yıl|Last\s+1\s+year|Son\s+6\s+ay",
+                r"Son\s+\d+\s+gün|Last\s+\d+\s+days|Ömür boyu|Lifetime|"
+                r"Son\s+1\s+yıl|Last\s+1\s+year|Son\s+6\s+ay|Tüm zaman|"
+                r"\d{1,2}\s*[A-Za-zÇĞİÖŞÜçğıöşü]{3}.{0,40}\d{4}",
                 re.I,
             )
         )
-        if btn.count() == 0:
-            # Bazen chip / combobox
-            btn = page.locator("[role='button'], [aria-haspopup='listbox']").filter(
-                has_text=re.compile(r"gün|days|Lifetime|ömür|year|yıl", re.I)
-            )
-        if btn.count() == 0:
+        n = min(candidates.count(), 6)
+        if n == 0:
             return ""
-        btn.first.click(timeout=5000)
-        page.wait_for_timeout(700)
-        for label in labels:
-            opt = page.get_by_role("option", name=re.compile(f"^{re.escape(label)}$", re.I))
-            if opt.count() == 0:
-                opt = page.get_by_text(re.compile(f"^{re.escape(label)}$", re.I))
-            if opt.count():
-                opt.first.click(timeout=4000)
-                _settle(page, seconds=4.5)
-                chosen = label
-                break
-        if not chosen:
-            page.keyboard.press("Escape")
+        for i in range(n):
+            try:
+                candidates.nth(i).click(timeout=4000)
+                page.wait_for_timeout(700)
+                chosen = _pick_label()
+                if chosen:
+                    return chosen
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+            except Exception:
+                try:
+                    page.keyboard.press("Escape")
+                except Exception:
+                    pass
+        # JS yedek: menüde Ömür boyu görünürse tıkla
+        clicked = page.evaluate(
+            """() => {
+              const want = /^(ömür boyu|lifetime|tüm zamanlar|all time|son 1 yıl|last 1 year)$/i;
+              const nodes = Array.from(document.querySelectorAll('[role="option"], li, button, a, span'));
+              for (const el of nodes) {
+                const t = (el.innerText || el.textContent || '').trim();
+                if (want.test(t) && el.offsetParent !== null) {
+                  el.click();
+                  return t;
+                }
+              }
+              return '';
+            }"""
+        )
+        if clicked:
+            _settle(page, seconds=4.5)
+            chosen = str(clicked)
     except Exception:
         try:
             page.keyboard.press("Escape")
