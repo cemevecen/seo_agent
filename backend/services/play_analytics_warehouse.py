@@ -713,7 +713,9 @@ def query_play_analytics(
     if breakdown == "segment" and dim == "overview":
         dim = "country"
     if metric in ("crashes", "anrs") and dim != "overview" and breakdown in ("date", "week", "month"):
-        breakdown = "segment"
+        seg_picked = bool(segment and segment not in ("", "all", "ALL", "OVERALL"))
+        if not seg_picked:
+            breakdown = "segment"
 
     warehouse = _load_install_facts(
         pkg,

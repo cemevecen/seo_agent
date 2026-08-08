@@ -317,8 +317,14 @@ def query_scrape_analytics(
     metric_key = _resolve_metric(metric)
     breakdown = breakdown if breakdown in ("date", "week", "month", "segment") else "date"
     dim = dim if dim else "overview"
-    # Sürüm/cihaz/OS/ülke seçiliyse günlük toplam yanıltıcı (segmentleri üst üste biner) → boyut kırılımı
-    if dim in _DIM_TO_REPORTING and breakdown in ("date", "week", "month"):
+    # Sürüm/cihaz/OS seçili ama segment=Tümü iken günlük toplam yanıltıcı (tüm kırılımlar üst üste).
+    # Belirli bir segment seçiliyse günlük/haftalık/aylık seriyi koru.
+    seg_picked = bool(segment and segment not in ("", "all", "ALL", "OVERALL"))
+    if (
+        dim in _DIM_TO_REPORTING
+        and breakdown in ("date", "week", "month")
+        and not seg_picked
+    ):
         breakdown = "segment"
 
     facts, meta = _load_facts()
