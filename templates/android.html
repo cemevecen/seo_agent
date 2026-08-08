@@ -139,8 +139,8 @@
           <tr>
             <th class="px-3 py-2 font-bold">Kırılım</th>
             <th class="px-3 py-2 font-bold tabular-nums">Değer</th>
-            <th id="pa-th-prev" class="px-3 py-2 font-bold tabular-nums">Önceki</th>
-            <th class="px-3 py-2 font-bold tabular-nums">Δ %</th>
+            <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
+            <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
           </tr>
         </thead>
         <tbody id="pa-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
@@ -324,6 +324,7 @@
   var paCompareRange = document.getElementById("pa-compare-range");
   var paCompareNote = document.getElementById("pa-compare-note");
   var paThPrev = document.getElementById("pa-th-prev");
+  var paThDelta = document.getElementById("pa-th-delta");
   var paTable = document.getElementById("pa-table");
   var paChartState = null;
 
@@ -335,6 +336,16 @@
     } else {
       paCompareNote.textContent = "";
       paCompareNote.classList.add("hidden");
+    }
+  }
+  function setCompareColsVisible(show) {
+    if (paThPrev) {
+      if (show) paThPrev.classList.remove("hidden");
+      else paThPrev.classList.add("hidden");
+    }
+    if (paThDelta) {
+      if (show) paThDelta.classList.remove("hidden");
+      else paThDelta.classList.add("hidden");
     }
   }
 
@@ -618,43 +629,54 @@
   }
   function renderPaTable(series, prevSeries, breakdown, compareMeta) {
     var rows = alignPrevRows(series, prevSeries, breakdown, compareMeta);
-    if (paThPrev) {
-      if (compareMeta && compareMeta.start && compareMeta.end) {
+    var showCompare = !!(
+      compareMeta
+      && compareMeta.mode === "previous_period"
+      && compareMeta.available !== false
+      && rows.some(function (r) { return r.prevValue != null && !r.prevMissing; })
+    );
+    setCompareColsVisible(showCompare);
+    if (showCompare && paThPrev) {
+      if (compareMeta.start && compareMeta.end) {
         paThPrev.textContent = "Önceki (" + compareMeta.start.slice(5) + "→" + compareMeta.end.slice(5) + ")";
       } else {
         paThPrev.textContent = "Önceki";
       }
     }
     if (!rows.length) {
-      paTable.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      paTable.innerHTML =
+        '<tr><td colspan="' + (showCompare ? 4 : 2) +
+        '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       return;
     }
     paTable.innerHTML = rows.map(function (r) {
-      var pv = r.prevValue;
-      var dlt = (pv != null && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
-      var dltCls = dlt == null ? "text-slate-400" : (dlt >= 0 ? "text-emerald-700" : "text-rose-600");
-      var prevCell;
-      if (pv != null && !r.prevMissing) {
-        if (r.prevKey && r.prevKey !== r.key) {
-          prevCell =
-            '<span class="block tabular-nums">' + esc(fmtNum(pv, metricIsCountLike())) + "</span>" +
-            '<span class="block text-[10px] font-normal text-slate-400">' + esc(r.prevKey) + "</span>";
+      var cells =
+        '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
+        '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' +
+          esc(fmtNum(r.value, metricIsCountLike())) + "</td>";
+      if (showCompare) {
+        var pv = r.prevValue;
+        var dlt = (pv != null && pv !== 0) ? (((r.value - pv) / Math.abs(pv)) * 100) : null;
+        var dltCls = dlt == null ? "text-slate-400" : (dlt >= 0 ? "text-emerald-700" : "text-rose-600");
+        var prevCell;
+        if (pv != null && !r.prevMissing) {
+          if (r.prevKey && r.prevKey !== r.key) {
+            prevCell =
+              '<span class="block tabular-nums">' + esc(fmtNum(pv, metricIsCountLike())) + "</span>" +
+              '<span class="block text-[10px] font-normal text-slate-400">' + esc(r.prevKey) + "</span>";
+          } else {
+            prevCell = esc(fmtNum(pv, metricIsCountLike()));
+          }
         } else {
-          prevCell = esc(fmtNum(pv, metricIsCountLike()));
+          prevCell = '<span class="text-slate-400">—</span>';
         }
-      } else {
-        prevCell = '<span class="text-slate-400">—</span>';
-      }
-      return (
-        "<tr class=\"hover:bg-slate-50/80 dark:hover:bg-zinc-800/40\">" +
-          '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
-          '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' + esc(fmtNum(r.value, metricIsCountLike())) + "</td>" +
+        cells +=
           '<td class="px-3 py-1.5 tabular-nums text-slate-500">' + prevCell + "</td>" +
           '<td class="px-3 py-1.5 tabular-nums ' + dltCls + '">' +
             (dlt == null ? "—" : ((dlt >= 0 ? "+" : "") + dlt.toFixed(1) + "%")) +
-          "</td>" +
-        "</tr>"
-      );
+          "</td>";
+      }
+      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800/40">' + cells + "</tr>";
     }).join("");
   }
   function fillSegments(list) {
