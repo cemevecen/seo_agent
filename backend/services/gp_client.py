@@ -103,6 +103,204 @@ def fetch_app_details(package_name: str) -> dict[str, Any] | None:
         return None
 
 
+_VERSION_NAME_CACHE: dict[str, tuple[float, dict[str, str]]] = {}
+_VERSION_NAME_TTL_SEC = 3600.0
+
+
+def app_version_code_key(segment: str | None) -> str:
+    """'290 (9.5.10)' / '290' → '290'; isim-only ise olduğu gibi."""
+    s = str(segment or "").strip()
+    if not s:
+        return ""
+    m = re.match(r"^(\d{1,10})\s*\(", s)
+    if m:
+        return m.group(1)
+    if re.fullmatch(r"\d{1,10}", s):
+        return s
+    return s
+
+
+def format_app_version_label(segment: str | None, name_map: dict[str, str] | None = None) -> str:
+    """Play Console chip: '290 (9.5.10)'."""
+    s = str(segment or "").strip()
+    if not s or s in ("OVERALL", "all", "ALL", "UNKNOWN"):
+        return s
+    name_map = name_map or {}
+    # Zaten code (name)
+    m = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", s)
+    if m:
+        code, name = m.group(1), m.group(2).strip()
+        return f"{code} ({name})" if name else code
+    code = app_version_code_key(s)
+    name = str(name_map.get(code) or "").strip()
+    if not name:
+        # Segment yalnızca isim olabilir (GCS App Version Name)
+        for c, n in name_map.items():
+            n2 = str(n or "").strip()
+            nm = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", n2)
+            pretty = nm.group(2).strip() if nm else n2
+            if s == n2 or s == pretty:
+                return f"{c} ({pretty})" if pretty else c
+        return code if re.fullmatch(r"\d{1,10}", s) else s
+    # name_map değeri bazen '290 (9.5.10)' gelir
+    nm = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", name)
+    if nm:
+        return f"{nm.group(1)} ({nm.group(2).strip()})"
+    if re.fullmatch(r"\d{1,10}", name):
+        return code
+    return f"{code} ({name})"
+
+
+def _parse_release_version_name(raw: str | None, codes: list[str]) -> str | None:
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    m = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", s)
+    if m:
+        return m.group(2).strip() or None
+    # '9.5.10' / 'v9.5.10'
+    s2 = re.sub(r"^[vV]", "", s).strip()
+    if re.fullmatch(r"\d+\.\d+(\.\d+)*([._-]\w+)?", s2):
+        return s2
+    # Tek kod ile aynıysa isim değil
+    if codes and s2 in codes:
+        return None
+    # Anlamsız uzun release notları at
+    if len(s2) > 40 or "\n" in s2:
+        return None
+    if re.search(r"[A-Za-zığüşöçİĞÜŞÖÇ]", s2) and not re.search(r"\d", s2):
+        return None
+    return s2 or None
+
+
+def fetch_android_version_name_map(package_name: str) -> dict[str, str]:
+    """versionCode → versionName (ör. {'290': '9.5.10'}). Tracks release name'lerinden."""
+    pkg = (package_name or "").strip()
+    if not pkg:
+        return {}
+    now = time.time()
+    cached = _VERSION_NAME_CACHE.get(pkg)
+    if cached and (now - cached[0]) < _VERSION_NAME_TTL_SEC:
+        return dict(cached[1])
+
+    svc = _publisher_service()
+    if svc is None:
+        return {}
+    edit_id = None
+    out: dict[str, str] = {}
+    try:
+        edit_id = svc.edits().insert(body={}, packageName=pkg).execute()["id"]
+        tracks_resp = svc.edits().tracks().list(packageName=pkg, editId=edit_id).execute()
+        for track in tracks_resp.get("tracks") or []:
+            if not isinstance(track, dict):
+                continue
+            for rel in track.get("releases") or []:
+                if not isinstance(rel, dict):
+                    continue
+                codes = [str(c).strip() for c in (rel.get("versionCodes") or []) if str(c).strip()]
+                name = _parse_release_version_name(rel.get("name"), codes)
+                if not name:
+                    continue
+                for code in codes:
+                    # Daha yeni track/release üzerine yazabilir; kod başına bir isim yeter
+                    out.setdefault(code, name)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("GP version name map (%s): %s", pkg, exc)
+    finally:
+        if edit_id and svc is not None:
+            try:
+                svc.edits().delete(packageName=pkg, editId=edit_id).execute()
+            except Exception:  # noqa: BLE001
+                pass
+
+    _VERSION_NAME_CACHE[pkg] = (now, dict(out))
+    return dict(out)
+
+
+def segments_match_app_version(fact_seg: str | None, wanted: str | None) -> bool:
+    """Filtre: '290' ile '290 (9.5.10)' eşleşsin."""
+    a = str(fact_seg or "").strip()
+    b = str(wanted or "").strip()
+    if not b or b in ("all", "ALL", "OVERALL"):
+        return True
+    if not a:
+        return False
+    if a == b or a.upper() == b.upper():
+        return True
+    return app_version_code_key(a) == app_version_code_key(b) and bool(app_version_code_key(a))
+
+
+def merge_version_name_maps(*maps: dict[str, str] | None) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for m in maps:
+        if not isinstance(m, dict):
+            continue
+        for k, v in m.items():
+            code = app_version_code_key(str(k))
+            name = str(v or "").strip()
+            if not code or not name:
+                continue
+            nm = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", name)
+            pretty = nm.group(2).strip() if nm else name
+            if pretty and not re.fullmatch(r"\d{1,10}", pretty):
+                out[code] = pretty
+    return out
+
+
+def version_name_map_from_labels(labels: list[str] | None) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for raw in labels or []:
+        m = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", str(raw or "").strip())
+        if m:
+            out[m.group(1)] = m.group(2).strip()
+    return out
+
+
+def relabel_app_version_analytics(
+    payload: dict[str, Any],
+    *,
+    package_name: str,
+    dim: str | None,
+    extra_name_map: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """series/facets/segment alanlarında sürüm koduna (isim) ekler."""
+    if (dim or "") != "app_version" or not isinstance(payload, dict):
+        return payload
+    harvested: list[str] = []
+    for row in payload.get("series") or []:
+        if isinstance(row, dict):
+            harvested.append(str(row.get("key") or ""))
+    facets = payload.get("facets") if isinstance(payload.get("facets"), dict) else {}
+    harvested.extend(str(s) for s in (facets.get("segments") or []))
+    name_map = merge_version_name_maps(
+        fetch_android_version_name_map(package_name),
+        extra_name_map,
+        version_name_map_from_labels(harvested),
+    )
+    if not name_map:
+        return payload
+
+    def _lab(seg: Any) -> str:
+        return format_app_version_label(str(seg or ""), name_map)
+
+    series = payload.get("series")
+    if isinstance(series, list):
+        for row in series:
+            if isinstance(row, dict) and row.get("key") is not None:
+                row["key"] = _lab(row.get("key"))
+    cmp = payload.get("compare")
+    if isinstance(cmp, dict) and isinstance(cmp.get("series"), list):
+        for row in cmp["series"]:
+            if isinstance(row, dict) and row.get("key") is not None:
+                row["key"] = _lab(row.get("key"))
+    facets = payload.get("facets")
+    if isinstance(facets, dict) and isinstance(facets.get("segments"), list):
+        facets["segments"] = [_lab(s) for s in facets["segments"]]
+    if payload.get("segment") and str(payload.get("segment")) not in ("", "all", "ALL", "OVERALL"):
+        payload["segment"] = _lab(payload.get("segment"))
+    return payload
+
+
 def fetch_reviews(package_name: str, *, lang: str = "tr", max_results: int = 100) -> list[dict[str, Any]]:
     """Son yorumları çek."""
     svc = _publisher_service()

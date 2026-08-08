@@ -41,6 +41,45 @@ _DIM_COL_CANDIDATES: dict[str, tuple[str, ...]] = {
     "carrier": ("Carrier", "carrier"),
 }
 
+
+def _app_version_segment_from_row(row: dict[str, Any]) -> str | None:
+    """CSV'den '290 (9.5.10)' üret (code + name varsa)."""
+    code = _clean_text(
+        str(
+            _row_get(
+                row,
+                "App Version Code",
+                "Version Code",
+                "app_version_code",
+                "version_code",
+            )
+            or ""
+        )
+    )
+    name = _clean_text(
+        str(
+            _row_get(
+                row,
+                "App Version Name",
+                "Version Name",
+                "app_version_name",
+                "version_name",
+                "Version",
+            )
+            or ""
+        )
+    )
+    if code and name and name != code:
+        # Name zaten '290 (9.5.10)' ise tekrar sarma
+        if re.fullmatch(r"\d{1,10}\s*\([^)]+\)", name):
+            return name
+        return f"{code} ({name})"
+    if code:
+        return code
+    if name:
+        return name
+    return None
+
 _METRIC_COLS: dict[str, tuple[str, ...]] = {
     "installs": (
         "Daily User Installs",
@@ -439,8 +478,11 @@ def _load_install_facts(
                 continue
             segment = "OVERALL"
             if dim != "overview":
-                col = _pick_col(row, _DIM_COL_CANDIDATES.get(dim, ()))
-                segment = _clean_text(str(row.get(col) or "")) or "UNKNOWN"
+                if dim == "app_version":
+                    segment = _app_version_segment_from_row(row) or "UNKNOWN"
+                else:
+                    col = _pick_col(row, _DIM_COL_CANDIDATES.get(dim, ()))
+                    segment = _clean_text(str(row.get(col) or "")) or "UNKNOWN"
             installs = _int_cell(row, _METRIC_COLS["installs"])
             uninstalls = _int_cell(row, _METRIC_COLS["uninstalls"])
             active = _int_cell(row, _METRIC_COLS["active"])
@@ -492,11 +534,14 @@ def _load_install_facts(
                     anrs = _int_cell(row, ("ANRs", "Daily ANRs", "anr"))
                     segment = "OVERALL"
                     if dim != "overview":
-                        cols = _DIM_COL_CANDIDATES.get(dim) or ()
-                        for col in cols:
-                            if _row_get(row, col):
-                                segment = _clean_text(str(_row_get(row, col))) or "UNKNOWN"
-                                break
+                        if dim == "app_version":
+                            segment = _app_version_segment_from_row(row) or "UNKNOWN"
+                        else:
+                            cols = _DIM_COL_CANDIDATES.get(dim) or ()
+                            for col in cols:
+                                if _row_get(row, col):
+                                    segment = _clean_text(str(_row_get(row, col))) or "UNKNOWN"
+                                    break
                         if segment == "OVERALL":
                             # fallback: non-date/non-metric column
                             for k, v in row.items():
@@ -592,11 +637,14 @@ def _load_install_facts(
                     rating_val = rv
                     segment = "OVERALL"
                     if dim != "overview":
-                        cols = _DIM_COL_CANDIDATES.get(dim) or ()
-                        for col in cols:
-                            if _row_get(row, col):
-                                segment = _clean_text(str(_row_get(row, col))) or "UNKNOWN"
-                                break
+                        if dim == "app_version":
+                            segment = _app_version_segment_from_row(row) or "UNKNOWN"
+                        else:
+                            cols = _DIM_COL_CANDIDATES.get(dim) or ()
+                            for col in cols:
+                                if _row_get(row, col):
+                                    segment = _clean_text(str(_row_get(row, col))) or "UNKNOWN"
+                                    break
                     facts.append(
                         {
                             "date": ds,
@@ -717,10 +765,14 @@ def _filter_facts(
         if ds < start or ds > end:
             continue
         if segment and segment not in ("", "all", "ALL", "OVERALL"):
-            if str(f.get("segment") or "").upper() != segment.upper() and str(f.get("segment")) != segment:
-                # allow exact match case-sensitive too
-                if str(f.get("segment")) != segment:
+            if dim == "app_version":
+                if not gp_client.segments_match_app_version(f.get("segment"), segment):
                     continue
+            elif (
+                str(f.get("segment") or "").upper() != segment.upper()
+                and str(f.get("segment")) != segment
+            ):
+                continue
         out.append(f)
     return out
 
@@ -1003,7 +1055,7 @@ def query_play_analytics(
             "(/user-feedback/ratings + statistics GOOGLE_PLAY_RATING) gerekli."
         )
 
-    return {
+    out = {
         "ok": bool(series) if metric == "rating" else (bool(warehouse.get("ok")) or bool(series)),
         "configured": warehouse.get("configured"),
         "bucket": warehouse.get("bucket"),
@@ -1036,6 +1088,9 @@ def query_play_analytics(
         "row_count": len(cur_facts),
         "debug": warehouse.get("debug"),
     }
+    if dim == "app_version":
+        out = gp_client.relabel_app_version_analytics(out, package_name=pkg, dim=dim)
+    return out
 
 
 def play_analytics_status() -> dict[str, Any]:

@@ -1899,6 +1899,49 @@ def _safe_scrape_page(
         return {"page": page_key, "cards": [], "breakdowns": [], "error": str(exc)[:200]}
 
 
+def _extract_version_name_map(page) -> dict[str, str]:
+    """Play UI: '290 (9.5.10)' / 'Uygulama sürümü: 290 (9.5.10)' → {290: 9.5.10}."""
+    try:
+        found = page.evaluate(
+            """() => {
+          const body = (document.body && document.body.innerText) || '';
+          const out = {};
+          const re = /(?:Uygulama sürümü|App version|Sürüm adı)\\s*:?\\s*(\\d{1,10})\\s*\\(([^)\\n]{1,40})\\)/gi;
+          let m;
+          while ((m = re.exec(body)) !== null) {
+            const code = String(m[1] || '').trim();
+            const name = String(m[2] || '').trim();
+            if (code && name) out[code] = name;
+          }
+          const re2 = /\\b(\\d{2,6})\\s*\\((\\d+\\.\\d+(?:\\.\\d+)*)\\)/g;
+          while ((m = re2.exec(body)) !== null) {
+            const code = String(m[1] || '').trim();
+            const name = String(m[2] || '').trim();
+            if (code && name && !out[code]) out[code] = name;
+          }
+          return out;
+        }"""
+        )
+        if isinstance(found, dict):
+            return {
+                str(k).strip(): str(v).strip()
+                for k, v in found.items()
+                if str(k).strip() and str(v).strip()
+            }
+    except Exception:
+        pass
+    return {}
+
+
+def _merge_version_name_maps(*maps: dict[str, str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for m in maps:
+        for k, v in (m or {}).items():
+            if str(k).strip() and str(v).strip():
+                out[str(k).strip()] = str(v).strip()
+    return out
+
+
 def _vitals_crashes_url(error_type: str, *, days: int = 28) -> str:
     et = (error_type or "CRASH").strip().upper()
     return (
@@ -2338,22 +2381,35 @@ def _scrape_vitals_metrics_overview(page, *, headed: bool = True) -> dict[str, A
 
 def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[str, Any]:
     """Crashes 4 kategori (CRASH+ANR) + metrics overview tablosu."""
+    version_name_map: dict[str, str] = {}
     print("  · vitals crashes (CRASH) …", flush=True)
     crash = _scrape_vitals_crashes_error_type(
         page, error_type="CRASH", days=days, headed=headed
+    )
+    version_name_map = _merge_version_name_maps(
+        version_name_map, _extract_version_name_map(page)
     )
     print("  · vitals crashes (ANR) …", flush=True)
     anr = _scrape_vitals_crashes_error_type(
         page, error_type="ANR", days=days, headed=headed
     )
+    version_name_map = _merge_version_name_maps(
+        version_name_map, _extract_version_name_map(page)
+    )
     print("  · vitals metrics overview …", flush=True)
     overview = _scrape_vitals_metrics_overview(page, headed=headed)
+    version_name_map = _merge_version_name_maps(
+        version_name_map, _extract_version_name_map(page)
+    )
+    if version_name_map:
+        print(f"    · version_name_map={len(version_name_map)}", flush=True)
     return {
         "version": 1,
         "days": days,
         "is_user_perceived": True,
         "crashes": {"CRASH": crash, "ANR": anr},
         "metrics_overview": overview,
+        "version_name_map": version_name_map,
         "scraped_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
@@ -2592,6 +2648,12 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             + list(stats_br)
         )
         series = _series_from_network(network)
+        version_name_map = _merge_version_name_maps(
+            _extract_version_name_map(page),
+            (vitals_bundle.get("version_name_map")
+             if isinstance(vitals_bundle.get("version_name_map"), dict)
+             else {}),
+        )
         panels = {
             "version": 3,
             "tpg": dash_cards,
@@ -2602,6 +2664,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "release": release_cards,
             "statistics": stats_cards,
             "vitals": vitals_bundle,
+            "version_name_map": version_name_map,
             "pages": {
                 "dashboard": {
                     "url": DASHBOARD_URL,
@@ -2873,6 +2936,11 @@ def scrape_vitals_only(*, headed: bool | None = None) -> dict[str, Any]:
         panels = {
             "version": 3,
             "vitals": vitals_bundle,
+            "version_name_map": (
+                vitals_bundle.get("version_name_map")
+                if isinstance(vitals_bundle.get("version_name_map"), dict)
+                else {}
+            ),
             "pages": {
                 "vitals_crashes": {
                     "url": _vitals_crashes_url("CRASH", days=28),

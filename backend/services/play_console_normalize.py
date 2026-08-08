@@ -467,6 +467,15 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         ),
         "vitals_category_count": int(vitals.get("category_count") or 0),
         "vitals_overview_row_count": int(vitals.get("overview_row_count") or 0),
+        "version_name_map": {
+            str(k).strip(): str(v).strip()
+            for k, v in (
+                d.get("version_name_map").items()
+                if isinstance(d.get("version_name_map"), dict)
+                else []
+            )
+            if str(k).strip() and str(v).strip()
+        },
     }
 
 

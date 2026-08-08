@@ -100,6 +100,40 @@ def ingest_play_console_payload(
             merged_panels["vitals_overview_row_count"] = incoming.get(
                 "vitals_overview_row_count"
             )
+        if isinstance(incoming.get("version_name_map"), dict):
+            base_map = (
+                merged_panels.get("version_name_map")
+                if isinstance(merged_panels.get("version_name_map"), dict)
+                else {}
+            )
+            merged_panels["version_name_map"] = {
+                **{str(k): str(v) for k, v in base_map.items() if str(k) and str(v)},
+                **{
+                    str(k): str(v)
+                    for k, v in incoming["version_name_map"].items()
+                    if str(k).strip() and str(v).strip()
+                },
+            }
+        # vitals bundle içindeki map de birleştir
+        vitals_map = (
+            vitals.get("version_name_map")
+            if isinstance(vitals.get("version_name_map"), dict)
+            else {}
+        )
+        if vitals_map:
+            base_map = (
+                merged_panels.get("version_name_map")
+                if isinstance(merged_panels.get("version_name_map"), dict)
+                else {}
+            )
+            merged_panels["version_name_map"] = {
+                **{str(k): str(v) for k, v in base_map.items() if str(k) and str(v)},
+                **{
+                    str(k): str(v)
+                    for k, v in vitals_map.items()
+                    if str(k).strip() and str(v).strip()
+                },
+            }
         # Mevcut metrics/reviews/rating korunur (gönderilse bile boş listeyle ezilmez)
         try:
             existing_reviews = json.loads(row.reviews_json or "[]")

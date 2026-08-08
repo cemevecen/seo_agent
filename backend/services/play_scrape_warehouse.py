@@ -51,12 +51,18 @@ def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     facts = panels.get("explorer_facts") or []
     if not isinstance(facts, list):
         facts = []
+    vmap = panels.get("version_name_map") if isinstance(panels.get("version_name_map"), dict) else {}
     meta = {
         "synced_at": payload.get("updated_at") or payload.get("background_synced_at"),
         "stats_views": panels.get("stats_views") or [],
         "explorer_fact_count": panels.get("explorer_fact_count") or len(facts),
         "message": payload.get("message") if isinstance(payload, dict) else None,
         "package_name": (payload.get("package_name") if isinstance(payload, dict) else None) or "com.Doviz",
+        "version_name_map": {
+            str(k): str(v)
+            for k, v in vmap.items()
+            if str(k).strip() and str(v).strip()
+        },
     }
     return [f for f in facts if isinstance(f, dict)], meta
 
@@ -419,12 +425,19 @@ def query_scrape_analytics(
             dim_facts = []
 
     if segment and segment not in ("", "all", "ALL", "OVERALL"):
-        dim_facts = [
-            f
-            for f in dim_facts
-            if str(f.get("segment") or "").upper() == segment.upper()
-            or str(f.get("segment") or "") == segment
-        ]
+        if dim == "app_version":
+            dim_facts = [
+                f
+                for f in dim_facts
+                if gp_client.segments_match_app_version(f.get("segment"), segment)
+            ]
+        else:
+            dim_facts = [
+                f
+                for f in dim_facts
+                if str(f.get("segment") or "").upper() == segment.upper()
+                or str(f.get("segment") or "") == segment
+            ]
 
     dated = []
     undated = []
@@ -632,7 +645,7 @@ def query_scrape_analytics(
             + (enrich_msg or "Reporting yanıtı yok — GP_SERVICE_ACCOUNT_JSON / playdeveloperreporting yetkisini kontrol et.")
         )
 
-    return {
+    out = {
         "ok": bool(series),
         "source": "scrape+reporting" if enrich_msg and "Reporting" in (enrich_msg or "") else "scrape",
         "configured": True,
@@ -663,3 +676,13 @@ def query_scrape_analytics(
         "auto_shifted": bool(lag_note),
         "lag_days": (end_d - metric_date_max).days if lag_note and metric_date_max else 0,
     }
+    if dim == "app_version":
+        out = gp_client.relabel_app_version_analytics(
+            out,
+            package_name=pkg,
+            dim=dim,
+            extra_name_map=meta.get("version_name_map")
+            if isinstance(meta.get("version_name_map"), dict)
+            else None,
+        )
+    return out
