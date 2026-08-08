@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skeleton loading — 10 örnek</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --bone: #e8eef5;
+      --bone-2: #d7e0ec;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --good: #059669;
+      --radius: 14px;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #dbeafe 0%, transparent 55%),
+        radial-gradient(900px 400px at 100% 0%, #e0e7ff 0%, transparent 50%),
+        var(--bg);
+      color: var(--ink);
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    header { margin-bottom: 2rem; }
+    header h1 {
+      margin: 0 0 0.4rem;
+      font-size: 1.65rem;
+      letter-spacing: -0.03em;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 42rem;
+      line-height: 1.5;
+    }
+    header .hint {
+      display: inline-flex;
+      margin-top: 0.85rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #1d4ed8;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+    .sample {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: calc(var(--radius) + 4px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 280px;
+    }
+    .sample-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 1rem 1.1rem 0.75rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .sample-num {
+      flex: 0 0 auto;
+      width: 1.85rem;
+      height: 1.85rem;
+      border-radius: 999px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+    }
+    .sample-meta { min-width: 0; flex: 1; }
+    .sample-meta h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+    }
+    .sample-meta p {
+      margin: 0.2rem 0 0;
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .sample-pick {
+      flex: 0 0 auto;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-radius: 999px;
+      padding: 0.3rem 0.55rem;
+      white-space: nowrap;
+    }
+    .sample-body {
+      padding: 1.1rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: #f8fafc;
+    }
+
+    /* Shared bone */
+    .bone {
+      background: var(--bone);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ========== 01 Soft Pulse ========== */
+    .s01 .kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
+    .s01 .kpi {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.75rem;
+    }
+    .s01 .b-label { height: 8px; width: 48%; margin-bottom: 0.75rem; }
+    .s01 .b-value { height: 22px; width: 62%; margin-bottom: 0.85rem; }
+    .s01 .b-spark { height: 28px; width: 100%; }
+    .s01 .bone { animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+
+    /* ========== 02 Shimmer Sweep ========== */
+    .s02 .chart-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.85rem;
+    }
+    .s02 .b-title { height: 10px; width: 55%; margin-bottom: 1rem; }
+    .s02 .b-chart { height: 110px; width: 100%; border-radius: 10px; }
+    .s02 .bone::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      transform: translateX(-100%);
+      background: linear-gradient(
+        105deg,
+        transparent 0%,
+        transparent 40%,
+        rgba(255,255,255,0.75) 50%,
+        transparent 60%,
+        transparent 100%
+      );
+      animation: shimmer 1.6s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      100% { transform: translateX(100%); }
+    }
+
+    /* ========== 03 Stagger Cascade ========== */
+    .s03 .stack { display: flex; flex-direction: column; gap: 0.55rem; }
+    .s03 .row {
+      display: grid;
+      grid-template-columns: 36px 1fr 48px;
+      gap: 0.55rem;
+      align-items: center;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.55rem 0.65rem;
+    }
+    .s03 .avatar { width: 36px; height: 36px; border-radius: 999px; }
+    .s03 .lines { display: flex; flex-direction: column; gap: 0.35rem; }
+    .s03 .l1 { height: 9px; width: 70%; }
+    .s03 .l2 { height: 7px; width: 42%; }
+    .s03 .chip { height: 18px; border-radius: 999px; }
+    .s03 .bone { animation: cascade 1.5s ease-in-out infinite; }
+    .s03 .row:nth-child(1) .bone { animation-delay: 0s; }
+    .s03 .row:nth-child(2) .bone { animation-delay: 0.12s; }
+    .s03 .row:nth-child(3) .bone { animation-delay: 0.24s; }
+    .s03 .row:nth-child(4) .bone { animation-delay: 0.36s; }
+    @keyframes cascade {
+      0%, 100% { opacity: 0.35; transform: translateY(2px); }
+      40% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ========== 04 KPI Exact Mock ========== */
+    .s04 .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.4rem;
+    }
+    @media (max-width: 520px) {
+      .s04 .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    .s04 .kpi {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.55rem 0.5rem 0.45rem;
+      min-height: 88px;
+    }
+    .s04 .b-label { height: 6px; width: 70%; margin-bottom: 0.55rem; }
+    .s04 .b-value { height: 14px; width: 55%; margin-bottom: 0.55rem; }
+    .s04 .b-spark {
+      height: 22px;
+      border-radius: 4px;
+      background:
+        linear-gradient(90deg, var(--bone) 0%, var(--bone-2) 50%, var(--bone) 100%);
+      background-size: 200% 100%;
+      animation: flow 1.8s linear infinite;
+    }
+    @keyframes flow {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+
+    /* ========== 05 Chart Frame ========== */
+    .s05 .frame {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.85rem;
+    }
+    .s05 .hdr {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+    }
+    .s05 .b-title { height: 10px; width: 45%; }
+    .s05 .b-ctrl { height: 18px; width: 88px; border-radius: 999px; }
+    .s05 .plot {
+      height: 120px;
+      border-radius: 10px;
+      border: 1px dashed #cbd5e1;
+      position: relative;
+      overflow: hidden;
+      background:
+        repeating-linear-gradient(
+          to top,
+          transparent 0,
+          transparent 23px,
+          #eef2f7 23px,
+          #eef2f7 24px
+        );
+    }
+    .s05 .wave {
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      bottom: 18%;
+      height: 54%;
+      border-radius: 40% 60% 45% 55% / 55% 40% 60% 45%;
+      background: linear-gradient(180deg, rgba(37,99,235,0.18), rgba(37,99,235,0.04));
+      animation: bob 2.2s ease-in-out infinite;
+    }
+    .s05 .wave::before {
+      content: "";
+      position: absolute;
+      inset: 18% 0 auto;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #2563eb, transparent);
+      opacity: 0.55;
+      animation: scan 2.2s ease-in-out infinite;
+    }
+    @keyframes bob {
+      0%, 100% { transform: translateY(4px) scaleX(1); }
+      50% { transform: translateY(-3px) scaleX(1.02); }
+    }
+    @keyframes scan {
+      0%, 100% { transform: translateY(0); opacity: 0.3; }
+      50% { transform: translateY(18px); opacity: 0.7; }
+    }
+
+    /* ========== 06 Frosted Breath ========== */
+    .s06 .glass {
+      border-radius: 14px;
+      padding: 1rem;
+      background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(219,234,254,0.55));
+      border: 1px solid rgba(148,163,184,0.35);
+      backdrop-filter: blur(8px);
+    }
+    .s06 .b-label { height: 8px; width: 40%; margin-bottom: 0.9rem; background: rgba(148,163,184,0.35); }
+    .s06 .b-value { height: 28px; width: 50%; margin-bottom: 1rem; background: rgba(37,99,235,0.18); }
+    .s06 .bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 72px;
+    }
+    .s06 .bar {
+      flex: 1;
+      border-radius: 6px 6px 2px 2px;
+      background: rgba(37,99,235,0.22);
+      animation: breath 1.6s ease-in-out infinite;
+    }
+    .s06 .bar:nth-child(1) { height: 35%; animation-delay: 0s; }
+    .s06 .bar:nth-child(2) { height: 58%; animation-delay: 0.1s; }
+    .s06 .bar:nth-child(3) { height: 42%; animation-delay: 0.2s; }
+    .s06 .bar:nth-child(4) { height: 78%; animation-delay: 0.3s; }
+    .s06 .bar:nth-child(5) { height: 50%; animation-delay: 0.4s; }
+    .s06 .bar:nth-child(6) { height: 65%; animation-delay: 0.5s; }
+    .s06 .bar:nth-child(7) { height: 40%; animation-delay: 0.6s; }
+    @keyframes breath {
+      0%, 100% { opacity: 0.4; filter: blur(0); }
+      50% { opacity: 1; filter: blur(0.2px); }
+    }
+
+    /* ========== 07 Dual-tone Stripe ========== */
+    .s07 .panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.85rem;
+    }
+    .s07 .stripe {
+      height: 12px;
+      border-radius: 6px;
+      margin-bottom: 0.65rem;
+      background: repeating-linear-gradient(
+        -55deg,
+        #e2e8f0 0 10px,
+        #f1f5f9 10px 20px
+      );
+      background-size: 28px 28px;
+      animation: stripeMove 0.9s linear infinite;
+    }
+    .s07 .stripe.lg { height: 96px; border-radius: 10px; margin-bottom: 0; }
+    .s07 .stripe.w40 { width: 40%; }
+    .s07 .stripe.w70 { width: 70%; }
+    @keyframes stripeMove {
+      100% { background-position: 28px 0; }
+    }
+
+    /* ========== 08 Spotlight Reveal ========== */
+    .s08 .stage {
+      position: relative;
+      background: #0f172a;
+      border-radius: 14px;
+      padding: 1rem;
+      overflow: hidden;
+      min-height: 160px;
+    }
+    .s08 .ghost {
+      height: 10px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.08);
+      margin-bottom: 0.7rem;
+    }
+    .s08 .ghost.v { height: 24px; width: 45%; }
+    .s08 .ghost.c { height: 72px; margin-bottom: 0; }
+    .s08 .spot {
+      position: absolute;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(96,165,250,0.35), transparent 70%);
+      top: 20%;
+      left: -40px;
+      animation: spotlight 2.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes spotlight {
+      0% { left: -50px; top: 10%; }
+      50% { left: 55%; top: 35%; }
+      100% { left: 90%; top: 5%; }
+    }
+
+    /* ========== 09 Morph Line ========== */
+    .s09 .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.85rem 0.85rem 0.5rem;
+    }
+    .s09 .b-title { height: 9px; width: 50%; margin-bottom: 0.85rem; }
+    .s09 svg { width: 100%; height: 100px; display: block; }
+    .s09 .path {
+      fill: none;
+      stroke: #94a3b8;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 8 10;
+      animation: dash 1.2s linear infinite, pathPulse 2s ease-in-out infinite;
+    }
+    .s09 .fill {
+      fill: url(#g09);
+      opacity: 0.55;
+      animation: pathPulse 2s ease-in-out infinite;
+    }
+    @keyframes dash { to { stroke-dashoffset: -36; } }
+    @keyframes pathPulse {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 0.85; }
+    }
+
+    /* ========== 10 Editorial Split ========== */
+    .s10 .split {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 0.65rem;
+      min-height: 150px;
+    }
+    .s10 .left, .s10 .right {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.75rem;
+    }
+    .s10 .b-kicker {
+      height: 7px;
+      width: 36%;
+      margin-bottom: 0.65rem;
+      background: #bfdbfe;
+      border-radius: 4px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .s10 .b-hero {
+      height: 26px;
+      width: 72%;
+      margin-bottom: 0.75rem;
+      border-radius: 8px;
+      background: linear-gradient(90deg, #dbeafe, #e2e8f0, #dbeafe);
+      background-size: 200% 100%;
+      animation: flow 2s linear infinite;
+    }
+    .s10 .b-sub { height: 8px; width: 88%; margin-bottom: 0.4rem; }
+    .s10 .b-sub.short { width: 55%; margin-bottom: 0; }
+    .s10 .ring {
+      width: 78px;
+      height: 78px;
+      margin: 0.4rem auto 0.65rem;
+      border-radius: 50%;
+      border: 6px solid #e2e8f0;
+      border-top-color: #2563eb;
+      animation: spin 1.1s linear infinite;
+    }
+    .s10 .b-cap { height: 8px; width: 60%; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+    footer strong { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Skeleton loading — 10 örnek</h1>
+      <p>
+        Ad / Virgül paneli container’ları için (KPI kartları + trend grafikleri).
+        Canlı animasyonları karşılaştır; uygulamamı istediğin numarayı yazman yeterli.
+      </p>
+      <span class="hint">Örn: «3 numarayı uygula» veya «Shimmer Sweep»</span>
+    </header>
+
+    <div class="grid">
+      <!-- 1 -->
+      <article class="sample s01">
+        <div class="sample-head">
+          <span class="sample-num">1</span>
+          <div class="sample-meta">
+            <h2>Soft Pulse</h2>
+            <p>Klasik, sakin opacity nabız. KPI grid için en güvenli seçim.</p>
+          </div>
+          <span class="sample-pick">seç · 1</span>
+        </div>
+        <div class="sample-body">
+          <div class="kpi-row">
+            <div class="kpi">
+              <div class="bone b-label"></div>
+              <div class="bone b-value"></div>
+              <div class="bone b-spark"></div>
+            </div>
+            <div class="kpi">
+              <div class="bone b-label"></div>
+              <div class="bone b-value"></div>
+              <div class="bone b-spark"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 2 -->
+      <article class="sample s02">
+        <div class="sample-head">
+          <span class="sample-num">2</span>
+          <div class="sample-meta">
+            <h2>Shimmer Sweep</h2>
+            <p>Işık bandı soldan sağa. Chart kartlarında premium his.</p>
+          </div>
+          <span class="sample-pick">seç · 2</span>
+        </div>
+        <div class="sample-body">
+          <div class="chart-card">
+            <div class="bone b-title"></div>
+            <div class="bone b-chart"></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 3 -->
+      <article class="sample s03">
+        <div class="sample-head">
+          <span class="sample-num">3</span>
+          <div class="sample-meta">
+            <h2>Stagger Cascade</h2>
+            <p>Satırlar sırayla uyanır. Liste / tablo yüklemelerinde çok net.</p>
+          </div>
+          <span class="sample-pick">seç · 3</span>
+        </div>
+        <div class="sample-body">
+          <div class="stack">
+            <div class="row"><div class="bone avatar"></div><div class="lines"><div class="bone l1"></div><div class="bone l2"></div></div><div class="bone chip"></div></div>
+            <div class="row"><div class="bone avatar"></div><div class="lines"><div class="bone l1"></div><div class="bone l2"></div></div><div class="bone chip"></div></div>
+            <div class="row"><div class="bone avatar"></div><div class="lines"><div class="bone l1"></div><div class="bone l2"></div></div><div class="bone chip"></div></div>
+            <div class="row"><div class="bone avatar"></div><div class="lines"><div class="bone l1"></div><div class="bone l2"></div></div><div class="bone chip"></div></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 4 -->
+      <article class="sample s04">
+        <div class="sample-head">
+          <span class="sample-num">4</span>
+          <div class="sample-meta">
+            <h2>KPI Ribbon Flow</h2>
+            <p>Paneldeki 10’lu KPI grid’e birebir. Yatay akışlı spark şeritleri.</p>
+          </div>
+          <span class="sample-pick">seç · 4</span>
+        </div>
+        <div class="sample-body">
+          <div class="kpi-grid">
+            <div class="kpi"><div class="bone b-label"></div><div class="bone b-value"></div><div class="b-spark"></div></div>
+            <div class="kpi"><div class="bone b-label"></div><div class="bone b-value"></div><div class="b-spark"></div></div>
+            <div class="kpi"><div class="bone b-label"></div><div class="bone b-value"></div><div class="b-spark"></div></div>
+            <div class="kpi"><div class="bone b-label"></div><div class="bone b-value"></div><div class="b-spark"></div></div>
+            <div class="kpi"><div class="bone b-label"></div><div class="bone b-value"></div><div class="b-spark"></div></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 5 -->
+      <article class="sample s05">
+        <div class="sample-head">
+          <span class="sample-num">5</span>
+          <div class="sample-meta">
+            <h2>Chart Frame Scan</h2>
+            <p>Grid + dalga + tarama çizgisi. Günlük trend container’ı için ideal.</p>
+          </div>
+          <span class="sample-pick">seç · 5</span>
+        </div>
+        <div class="sample-body">
+          <div class="frame">
+            <div class="hdr"><div class="bone b-title"></div><div class="bone b-ctrl"></div></div>
+            <div class="plot"><div class="wave"></div></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 6 -->
+      <article class="sample s06">
+        <div class="sample-head">
+          <span class="sample-num">6</span>
+          <div class="sample-meta">
+            <h2>Frosted Breath Bars</h2>
+            <p>Cam yüzeyi + nefes alan barlar. Toplam gelir / özet blokları için.</p>
+          </div>
+          <span class="sample-pick">seç · 6</span>
+        </div>
+        <div class="sample-body">
+          <div class="glass">
+            <div class="bone b-label"></div>
+            <div class="bone b-value"></div>
+            <div class="bars">
+              <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+              <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 7 -->
+      <article class="sample s07">
+        <div class="sample-head">
+          <span class="sample-num">7</span>
+          <div class="sample-meta">
+            <h2>Dual-tone Stripe</h2>
+            <p>Hareketli çapraz çizgiler. Teknik / “işleniyor” hissi verir.</p>
+          </div>
+          <span class="sample-pick">seç · 7</span>
+        </div>
+        <div class="sample-body">
+          <div class="panel">
+            <div class="stripe w40"></div>
+            <div class="stripe w70"></div>
+            <div class="stripe lg"></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 8 -->
+      <article class="sample s08">
+        <div class="sample-head">
+          <span class="sample-num">8</span>
+          <div class="sample-meta">
+            <h2>Spotlight Reveal</h2>
+            <p>Koyu sahne + dolaşan ışık. Gece modu / dramatic chart wait.</p>
+          </div>
+          <span class="sample-pick">seç · 8</span>
+        </div>
+        <div class="sample-body">
+          <div class="stage">
+            <div class="spot"></div>
+            <div class="ghost" style="width:38%"></div>
+            <div class="ghost v"></div>
+            <div class="ghost c"></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 9 -->
+      <article class="sample s09">
+        <div class="sample-head">
+          <span class="sample-num">9</span>
+          <div class="sample-meta">
+            <h2>Morph Line Trace</h2>
+            <p>Kesikli çizgi trendi yürür. Line chart beklerken en doğal metafor.</p>
+          </div>
+          <span class="sample-pick">seç · 9</span>
+        </div>
+        <div class="sample-body">
+          <div class="card">
+            <div class="bone b-title"></div>
+            <svg viewBox="0 0 320 100" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="g09" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.45"/>
+                  <stop offset="100%" stop-color="#93c5fd" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path class="fill" d="M8,72 C40,68 55,40 90,48 C125,56 140,22 175,30 C210,38 230,60 260,44 C285,32 300,50 312,42 L312,100 L8,100 Z"/>
+              <path class="path" d="M8,72 C40,68 55,40 90,48 C125,56 140,22 175,30 C210,38 230,60 260,44 C285,32 300,50 312,42"/>
+            </svg>
+          </div>
+        </div>
+      </article>
+
+      <!-- 10 -->
+      <article class="sample s10">
+        <div class="sample-head">
+          <span class="sample-num">10</span>
+          <div class="sample-meta">
+            <h2>Editorial Split + Ring</h2>
+            <p>Sol metrik iskeleti, sağ dönen halka. “Yükleniyor” net ama zarif.</p>
+          </div>
+          <span class="sample-pick">seç · 10</span>
+        </div>
+        <div class="sample-body">
+          <div class="split">
+            <div class="left">
+              <div class="b-kicker"></div>
+              <div class="b-hero"></div>
+              <div class="bone b-sub"></div>
+              <div class="bone b-sub short"></div>
+            </div>
+            <div class="right">
+              <div class="ring"></div>
+              <div class="bone b-cap"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <footer>
+      <strong>Nasıl seçersin?</strong>
+      Chat’e örneğin yaz: <strong>«4 numarayı KPI’lara uygula»</strong> veya
+      <strong>«5 + 2’yi grafiklere uygula»</strong>.
+      İstersen karışım da yaparız (KPI’da 4, chart’ta 5).
+      <br />Dosya: <code>seo-agent/tmp/skeleton-loading-gallery.html</code> — tarayıcıda aç.
+    </footer>
+  </div>
+</body>
+</html>

@@ -206,30 +206,7 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension_values": "OVERALL",
         "dim_hint": "overview",
         "needles": ("ANR", "Veri tablosu", "İstatistik"),
-    },
-    {
-        "id": "anrs_app_version",
-        "label": "ANR · uygulama sürümü",
-        "metric_key": "anrs",
-        "metrics": _ANR_METRICS,
-        "dimension": "APP_VERSION",
-        "dimension_values": "OVERALL",
-        "dim_hint": "app_version",
-        "needles": ("ANR", "sürüm", "Veri tablosu", "İstatistik"),
-        "enrich": "reporting_version",
-    },
-    {
-        "id": "anrs_device",
-        "label": "ANR · cihaz",
-        "metric_key": "anrs",
-        "metrics": _ANR_METRICS,
-        "dimension": "DEVICE",
-        "dimension_values": "OVERALL",
-        "dim_hint": "device",
-        "needles": ("ANR", "cihaz", "Veri tablosu", "İstatistik"),
-        "enrich": "reporting_device",
-    },
-    {
+    },    {
         "id": "crashes_date",
         "label": "Çökme · tarih",
         "metric_key": "crashes",
@@ -493,7 +470,6 @@ def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
                 return
             ctype = ((resp.headers or {}).get("content-type") or "").lower()
             body = None
-            # JSON tercih; değilse text dene (Play bazen json’u text/plain döner)
             try:
                 body = resp.json()
             except Exception:
@@ -501,15 +477,15 @@ def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
                     text = resp.text()
                     if not text:
                         return
-                    if len(text) > 400_000:
-                        text = text[:400_000]
+                    if len(text) > 500_000:
+                        text = text[:500_000]
                     tstrip = text.lstrip()
                     if tstrip.startswith("{") or tstrip.startswith("["):
                         try:
                             body = json.loads(text)
                         except Exception:
                             body = {"_text": text[:80_000]}
-                    elif "json" in ctype or "javascript" in ctype or "text/plain" in ctype:
+                    elif "json" in ctype or "protobuf" in ctype or "text/plain" in ctype:
                         body = {"_text": text[:80_000]}
                     else:
                         return
@@ -525,12 +501,38 @@ def _attach_network_capture(page, bag: list[dict[str, Any]]) -> None:
                     "body": body,
                 }
             )
-            if len(bag) > 400:
-                del bag[:50]
+            if len(bag) > 500:
+                del bag[:80]
         except Exception:
             return
 
     page.on("response", on_response)
+
+
+def _attach_network_capture_context(context, bag: list[dict[str, Any]]) -> None:
+    """Tüm sayfalar için context-level capture (SPA XHR kaçmasın)."""
+    def on_response(resp) -> None:
+        try:
+            url = resp.url or ""
+            low = url.lower()
+            if "clients6.google.com" not in low and "playconsole" not in low and "play.google.com" not in low:
+                return
+            if resp.status and int(resp.status) >= 400:
+                return
+            body = None
+            try:
+                body = resp.json()
+            except Exception:
+                return
+            if not isinstance(body, dict):
+                return
+            bag.append({"url": url[:500], "status": resp.status, "body": body})
+            if len(bag) > 500:
+                del bag[:80]
+        except Exception:
+            return
+
+    context.on("response", on_response)
 
 
 def _scroll_full_page(page) -> None:
@@ -1067,23 +1069,44 @@ def _parse_stats_protobuf(
             points = series.get("2")
             if not isinstance(points, list):
                 continue
+            def _dig_num(obj, depth=0):
+                if depth > 6:
+                    return None
+                if isinstance(obj, (int, float)):
+                    return float(obj)
+                if isinstance(obj, str):
+                    try:
+                        return float(obj.replace(",", ""))
+                    except ValueError:
+                        return None
+                if isinstance(obj, dict):
+                    # tercih: {"2": "63"} veya {"2": 63}
+                    if "2" in obj and not isinstance(obj.get("2"), (dict, list)):
+                        return _dig_num(obj.get("2"), depth + 1)
+                    for vv in obj.values():
+                        n = _dig_num(vv, depth + 1)
+                        if n is not None:
+                            return n
+                if isinstance(obj, list):
+                    for vv in obj[:8]:
+                        n = _dig_num(vv, depth + 1)
+                        if n is not None:
+                            return n
+                return None
+
             for pi, pt in enumerate(points):
                 if not isinstance(pt, dict):
                     continue
-                val_obj = pt.get("2") if isinstance(pt.get("2"), dict) else {}
-                raw = val_obj.get("2") if isinstance(val_obj, dict) else None
-                if raw is None:
-                    continue
-                try:
-                    val = float(str(raw).replace(",", ""))
-                except (TypeError, ValueError):
+                val = _dig_num(pt.get("2"))
+                if val is None:
+                    val = _dig_num(pt)
+                if val is None:
                     continue
                 # segment id (varsa)
                 seg_obj = pt.get("1") if isinstance(pt.get("1"), dict) else {}
                 seg = "OVERALL"
                 if isinstance(seg_obj, dict):
-                    # {"1": 1} overall; diğerleri string olabilir
-                    if "2" in seg_obj:
+                    if "2" in seg_obj and not isinstance(seg_obj.get("2"), (dict, list)):
                         seg = str(seg_obj.get("2") or "OVERALL")[:80]
                     elif seg_obj.get("1") not in (None, 1, "1"):
                         seg = str(seg_obj.get("1"))[:80]
@@ -1119,14 +1142,13 @@ def _best_stats_protobuf(network_slice: list[dict[str, Any]]) -> Any | None:
     return best if best_n >= 3 else None
 
 
-def _collect_paginated_table_text(page, *, max_pages: int = 80) -> str:
-    """Veri tablosu sayfalarını dolaş (Satırları göster 100 + next)."""
+def _collect_paginated_table_text(page, *, max_pages: int = 8) -> str:
+    """Veri tablosu sayfalarını dolaş — protobuf yoksa sınırlı fallback."""
     chunks: list[str] = []
     try:
         page.evaluate(
             """async () => {
               const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-              // open rows-per-page
               const labels = [...document.querySelectorAll('div,span,button,mat-select')];
               const hit = labels.find((el) => /Satırları göster|Rows per page/i.test((el.innerText || '').trim()) && (el.innerText || '').length < 48);
               if (hit) { hit.click(); await sleep(350); }
@@ -1137,6 +1159,7 @@ def _collect_paginated_table_text(page, *, max_pages: int = 80) -> str:
         )
     except Exception:
         pass
+    seen_ends: set[int] = set()
     for _ in range(max_pages):
         try:
             text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
@@ -1144,32 +1167,29 @@ def _collect_paginated_table_text(page, *, max_pages: int = 80) -> str:
             text = ""
         if text:
             chunks.append(text)
-        # pager: "1 - 100 / 584"
         try:
             info = page.evaluate(
                 """() => {
                   const t = document.body ? document.body.innerText : '';
                   const m = t.match(/(\\d+)\\s*-\\s*(\\d+)\\s*\\/\\s*(\\d+)/);
-                  if (!m) return {done: true};
+                  if (!m) return {done: true, end: 0, total: 0};
                   const end = parseInt(m[2], 10), total = parseInt(m[3], 10);
                   return {done: end >= total, end, total};
                 }"""
             )
         except Exception:
-            info = {"done": True}
+            info = {"done": True, "end": 0}
         if not isinstance(info, dict) or info.get("done"):
             break
+        end_n = int(info.get("end") or 0)
+        if end_n in seen_ends:
+            break
+        seen_ends.add(end_n)
         try:
             clicked = page.evaluate(
                 """() => {
-                  const btn = [...document.querySelectorAll('button, [role=button]')]
-                    .find((el) => {
-                      const t = (el.getAttribute('aria-label') || el.innerText || '').toLowerCase();
-                      return t.includes('next') || t.includes('sonraki') || t.includes('chevron_right');
-                    });
-                  // material icon button near pager
                   const icons = [...document.querySelectorAll('button')].filter((el) => /chevron_right/i.test(el.innerText || ''));
-                  const target = icons.length ? icons[icons.length - 1] : btn;
+                  const target = icons.length ? icons[icons.length - 1] : null;
                   if (!target || target.disabled) return false;
                   target.click();
                   return true;
@@ -1179,8 +1199,7 @@ def _collect_paginated_table_text(page, *, max_pages: int = 80) -> str:
             clicked = False
         if not clicked:
             break
-        _settle(page, seconds=1.2)
-    # unique-ish merge: join all (parser dedupes by date+segment)
+        _settle(page, seconds=1.0)
     return "\n".join(chunks)
 
 
@@ -1495,90 +1514,76 @@ def _scrape_one_stats_page(
     page_key: str,
     wait_needles: tuple[str, ...],
     headed: bool,
+    network_bag: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+    captured_proto: list[Any] = []
+
+    def _maybe_store(resp) -> None:
+        try:
+            u = (resp.url or "").lower()
+            if "statsfrontend" not in u and "statspage" not in u:
+                return
+            if resp.status and int(resp.status) >= 400:
+                return
+            body = resp.json()
+            if isinstance(body, dict) and isinstance(body.get("1"), list) and len(body["1"]) >= 10:
+                captured_proto.append(body)
+                if network_bag is not None:
+                    network_bag.append({"url": (resp.url or "")[:500], "status": resp.status, "body": body})
+        except Exception:
+            return
+
+    # goto sırasında statsfrontend’i yakala
+    try:
+        with page.expect_response(
+            lambda r: ("statsfrontend" in (r.url or "").lower() or "statspage" in (r.url or "").lower())
+            and (not r.status or int(r.status) < 400),
+            timeout=45_000,
+        ) as ri:
+            page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        try:
+            _maybe_store(ri.value)
+        except Exception:
+            pass
+    except Exception:
+        page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+
     _settle(page, seconds=5.0)
     need, _, _ = _page_needs_login(page)
     if need and headed:
         _wait_until_console(page, timeout_sec=300)
-        page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        try:
+            with page.expect_response(
+                lambda r: "statsfrontend" in (r.url or "").lower(),
+                timeout=45_000,
+            ) as ri:
+                page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+            _maybe_store(ri.value)
+        except Exception:
+            page.goto(url, wait_until="domcontentloaded", timeout=120_000)
         _settle(page, seconds=5.0)
+
     _wait_page_text(page, wait_needles, timeout_sec=45.0)
     _scroll_full_page(page)
-    _settle(page, seconds=3.5)
-    # Veri tablosunda daha fazla satır göster (10 → 50)
-    try:
-        page.evaluate(
-            """async () => {
-              const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-              const nodes = Array.from(document.querySelectorAll('button, div, span, mat-select'));
-              const hit = nodes.find((el) => /Satırları göster|Rows per page|10/i.test((el.innerText || '').trim()) && (el.innerText || '').length < 40);
-              if (hit) { hit.click(); await sleep(400); }
-              const opt = Array.from(document.querySelectorAll('button, mat-option, li, span'))
-                .find((el) => /^(50|100|25)$/.test((el.innerText || '').trim()));
-              if (opt) { opt.click(); await sleep(800); }
-            }"""
-        )
-    except Exception:
-        pass
-    _wait_page_text(page, wait_needles, timeout_sec=20.0)
+    _settle(page, seconds=3.0)
+
+    # Hâlâ yoksa kısa bekle + yeniden dene (XHR gecikmeli)
+    if not captured_proto:
+        for _ in range(8):
+            _settle(page, seconds=0.8)
+            # network_bag’den de bak
+            if network_bag:
+                best = _best_stats_protobuf(network_bag[-30:])
+                if best is not None:
+                    captured_proto.append(best)
+                    break
+
     extracted = _extract_stats_page(page, known=known, page_key=page_key) or {}
-    # İstatistik sayfalarında ana KPI + ülke tablosu (DOM metin)
-    try:
-        extra = page.evaluate(
-            """() => {
-              const clean = (s) => String(s || '').replace(/[\\u00a0\\u200b]/g, ' ').replace(/\\s+/g, ' ').trim();
-              const text = clean(document.body && document.body.innerText);
-              const lines = text.split('\\n').map(clean).filter(Boolean);
-              const NUM = /^[\\$€]?\\s*-?[\\d][\\d.,\\s]*\\s*(%|B|Mn|M|K|bin|milyon)?$/i;
-              const isNum = (s) => NUM.test(s) || /^[\\d][\\d.,]*$/.test(s);
-              const cards = [];
-              // Büyük metrik: satırda başlık, sonraki satırda büyük sayı
-              for (let i = 0; i < lines.length - 1; i++) {
-                const a = lines[i], b = lines[i+1];
-                if (a.length >= 4 && a.length <= 80 && isNum(b) && b.length >= 2) {
-                  // tek haneli yıldız/puan hariç tut (5) — rating hariç
-                  const bare = b.replace(/[^0-9]/g,'');
-                  if (bare.length <= 1 && !/%/.test(b) && !/B|Mn|M|K/i.test(b)) continue;
-                  cards.push({ title: a, value: b, delta: '', period: '', kind: 'stats_headline' });
-                }
-                if (cards.length >= 12) break;
-              }
-              // Ülke / segment satırları: "Türkiye 12.345" veya "TR\\n12.345"
-              const countries = ['Türkiye','Turkey','Almanya','Germany','Fransa','France','Hollanda','Netherlands','Avusturya','Austria','Kıbrıs','Cyprus','Irak','Iraq','Mısır','Egypt','OVERALL','Genel','Toplam'];
-              const codes = ['TR','DE','FR','NL','AT','CY','IQ','EG','GE','GR','IR'];
-              const breakdowns = [];
-              for (let i = 0; i < lines.length - 1; i++) {
-                const a = lines[i], b = lines[i+1];
-                const hit = countries.some(c => a === c || a.startsWith(c + ' ')) || codes.includes(a);
-                if (hit && isNum(b)) {
-                  breakdowns.push({ title: a + ' · ' + b, value: b, segment: a, metric: a, kind: 'breakdown' });
-                }
-                if (breakdowns.length >= 40) break;
-              }
-              return { cards, breakdowns, line_count: lines.length };
-            }"""
-        )
-        if isinstance(extra, dict):
-            base_cards = list(extracted.get("cards") or extracted.get("tpg") or [])
-            base_br = list(extracted.get("breakdowns") or [])
-            # Prefer headline cards with real magnitudes
-            for c in extra.get("cards") or []:
-                if isinstance(c, dict) and c.get("value"):
-                    base_cards.append(c)
-            for b in extra.get("breakdowns") or []:
-                if isinstance(b, dict) and b.get("value"):
-                    base_br.append(b)
-            extracted["cards"] = base_cards
-            extracted["tpg"] = base_cards
-            extracted["breakdowns"] = base_br
-            dbg = extracted.get("debug") if isinstance(extracted.get("debug"), dict) else {}
-            dbg["stats_extra_lines"] = extra.get("line_count")
-            dbg["stats_extra_cards"] = len(extra.get("cards") or [])
-            dbg["stats_extra_br"] = len(extra.get("breakdowns") or [])
-            extracted["debug"] = dbg
-    except Exception as exc:  # noqa: BLE001
-        extracted.setdefault("debug", {})["stats_extra_error"] = str(exc)[:120]
+    if captured_proto:
+        # en uzun seriyi seç
+        captured_proto.sort(key=lambda b: len(b.get("1") or []), reverse=True)
+        extracted["_protobuf"] = captured_proto[0]
+        extracted["_protobuf_rows"] = len(captured_proto[0].get("1") or [])
     return extracted
 
 
@@ -1644,6 +1649,7 @@ def _safe_scrape_page(
     page_key: str,
     wait_needles: tuple[str, ...],
     headed: bool,
+    network_bag: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     try:
         return _scrape_one_stats_page(
@@ -1653,6 +1659,7 @@ def _safe_scrape_page(
             page_key=page_key,
             wait_needles=wait_needles,
             headed=headed,
+            network_bag=network_bag,
         )
     except Exception as exc:  # noqa: BLE001
         return {"page": page_key, "cards": [], "breakdowns": [], "error": str(exc)[:200]}
@@ -1667,6 +1674,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
     pw, context = _launch_context(headed=True if headed else False)
     network: list[dict[str, Any]] = []
     try:
+        _attach_network_capture_context(context, network)
         page = context.pages[0] if context.pages else context.new_page()
         _attach_network_capture(page, network)
 
@@ -1795,6 +1803,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 dimension=str(view["dimension"]),
                 dimension_values=str(view["dimension_values"]),
             )
+            print(f"  · stats view {view_id} …", flush=True)
             net_before = len(network)
             scraped = _safe_scrape_page(
                 page,
@@ -1803,7 +1812,9 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 page_key=f"stats_{view_id}",
                 wait_needles=tuple(view.get("needles") or ("İstatistik", "Statistics")),
                 headed=bool(headed),
+                network_bag=network,
             )
+            _settle(page, seconds=1.0)
             net_slice = network[net_before:]
             view_series = _series_from_network(net_slice)
             cards_i, br_i = _append_page_metrics(
@@ -1811,23 +1822,27 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             )
             stats_cards.extend(cards_i)
             stats_br.extend(br_i)
-            proto = _best_stats_protobuf(net_slice)
+            proto = scraped.get("_protobuf") or _best_stats_protobuf(net_slice)
             page_text = ""
             try:
-                # Protobuf yoksa / yetersizse tüm tablo sayfalarını gez
                 if proto is None or len((proto.get("1") or [])) < 30:
-                    page_text = _collect_paginated_table_text(page, max_pages=70)
+                    print(
+                        f"    protobuf zayıf ({0 if not proto else len(proto.get('1') or [])}) — tablo fallback",
+                        flush=True,
+                    )
+                    page_text = _collect_paginated_table_text(page, max_pages=6)
                 else:
-                    page_text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
-            except Exception:
-                try:
-                    page_text = page.evaluate("() => (document.body && document.body.innerText) || ''") or ""
-                except Exception:
                     page_text = ""
+            except Exception:
+                page_text = ""
             scraped["_page_text_len"] = len(page_text)
             scraped["_protobuf_rows"] = len((proto or {}).get("1") or []) if isinstance(proto, dict) else 0
             facts_i = _explorer_facts_from_view(
                 view, scraped, view_series, page_text=page_text, protobuf_body=proto
+            )
+            print(
+                f"    → facts={len(facts_i)} proto_rows={scraped.get('_protobuf_rows')} cards={len(cards_i)}",
+                flush=True,
             )
             explorer_facts.extend(facts_i)
             page_payload = _page_payload(url, scraped)

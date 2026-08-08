@@ -57,7 +57,7 @@ def get_play_analytics_status() -> dict[str, Any]:
 def get_play_analytics_query(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
-    metric: str = Query(default="device_acquisition"),
+    metric: str = Query(default="anrs"),
     breakdown: str = Query(default="date"),
     dim: str = Query(default="overview"),
     segment: str | None = Query(default=None),
