@@ -423,13 +423,28 @@ def normalize_play_snapshot(
     metrics_n = normalize_metrics(metrics)
     panels_n = normalize_panels(panels)
     # panels boşsa metrics'ten türet
-    if not panels_n.get("tpg") and not panels_n.get("breakdowns") and metrics_n:
+    if (
+        not panels_n.get("tpg")
+        and not panels_n.get("breakdowns")
+        and not panels_n.get("monetize")
+        and metrics_n
+    ):
         panels_n = normalize_panels(
             {
-                "tpg": [m for m in metrics_n if m.get("kind") != "breakdown"],
+                "tpg": [
+                    m
+                    for m in metrics_n
+                    if m.get("kind") not in ("breakdown", "monetize")
+                ],
+                "monetize": [m for m in metrics_n if m.get("kind") == "monetize"],
                 "breakdowns": [m for m in metrics_n if m.get("kind") == "breakdown"],
             }
         )
+    elif metrics_n and not panels_n.get("monetize"):
+        mon = [m for m in metrics_n if m.get("kind") == "monetize"]
+        if mon:
+            panels_n["monetize"] = mon
+            panels_n["monetize_count"] = len(mon)
     return {
         "metrics": metrics_n,
         "panels": panels_n,
