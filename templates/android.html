@@ -262,10 +262,10 @@
         </div>
         <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
           <svg id="pa-chart" viewBox="0 0 720 260" class="h-56 w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Metrikler grafiği"></svg>
-          <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden min-w-[10.5rem] max-w-[14rem] min-h-[3.25rem] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
-            <p id="pa-tip-title" class="truncate text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
-            <p id="pa-tip-cur" class="mt-1 truncate text-[11px] tabular-nums text-blue-700 dark:text-blue-400"></p>
-            <p id="pa-tip-prev" class="mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400"></p>
+          <div id="pa-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
+            <p id="pa-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
+            <div id="pa-tip-cur" class="mt-1.5 hidden"></div>
+            <div id="pa-tip-prev" class="mt-1 hidden"></div>
             <div id="pa-tip-stars" class="mt-1.5 hidden space-y-0.5"></div>
           </div>
         </div>
@@ -1082,6 +1082,19 @@
     var ppt = (paChartState.overlayPts && paChartState.overlayPts[idx])
       || (paChartState.prevPts && paChartState.prevPts[idx]);
     var isStars = paChartState.mode === "stars";
+    function tipMetricRow(name, value, colorClass, swatch) {
+      return (
+        '<div class="flex items-start justify-between gap-3 text-[11px] leading-snug">' +
+          '<span class="inline-flex min-w-0 items-start gap-1.5 ' + colorClass + '">' +
+            (swatch
+              ? '<span class="mt-1 inline-block h-2 w-2 shrink-0 rounded-full" style="background:' + swatch + '"></span>'
+              : "") +
+            '<span class="break-words font-medium">' + esc(name) + "</span>" +
+          "</span>" +
+          '<span class="shrink-0 tabular-nums font-bold text-slate-900 dark:text-zinc-50">' + esc(value) + "</span>" +
+        "</div>"
+      );
+    }
     if (paTipTitle) paTipTitle.textContent = isStars ? fmtTipDateKey(row.key) : String(row.key);
     if (paTipStars) {
       if (isStars) {
@@ -1089,18 +1102,10 @@
         paTipStars.innerHTML = [5, 4, 3, 2, 1].map(function (n) {
           var v = row["star_" + n];
           var nVal = v == null || isNaN(Number(v)) ? 0 : Number(v);
-          return (
-            '<div class="flex items-center justify-between gap-3 text-[11px] tabular-nums">' +
-              '<span class="inline-flex items-center gap-1.5 text-slate-600 dark:text-zinc-300">' +
-                '<span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style="background:' + STAR_DIST_COLORS[n] + '"></span>' +
-                n + " yıldız" +
-              "</span>" +
-              '<span class="font-semibold text-slate-800 dark:text-zinc-100">' + esc(fmtNum(nVal, true)) + "</span>" +
-            "</div>"
-          );
+          return tipMetricRow(n + " yıldız", fmtNum(nVal, true), "text-slate-600 dark:text-zinc-300", STAR_DIST_COLORS[n]);
         }).join("");
-        if (paTipCur) paTipCur.textContent = "";
-        if (paTipPrev) paTipPrev.textContent = "";
+        if (paTipCur) { paTipCur.classList.add("hidden"); paTipCur.innerHTML = ""; }
+        if (paTipPrev) { paTipPrev.classList.add("hidden"); paTipPrev.innerHTML = ""; }
       } else {
         paTipStars.classList.add("hidden");
         paTipStars.innerHTML = "";
@@ -1109,23 +1114,38 @@
     if (!isStars) {
       var primaryName = (paLegendPrimaryLabel && paLegendPrimaryLabel.textContent) || "Seçili";
       if (paTipCur) {
-        paTipCur.textContent = primaryName + ": " + fmtNum(row.value, metricIsCountLike());
-        paTipCur.className = "mt-1 truncate text-[11px] tabular-nums text-blue-700 dark:text-blue-400";
+        paTipCur.classList.remove("hidden");
+        paTipCur.innerHTML = tipMetricRow(
+          primaryName,
+          fmtNum(row.value, metricIsCountLike()),
+          "text-blue-700 dark:text-blue-400",
+          PA_LINE_COLOR
+        );
       }
       if (paTipPrev) {
         if (paChartState.overlayVals && paChartState.overlayVals[idx] != null) {
           var ovName = (paOverlay && paOverlay.label) || "Ek grafik";
-          paTipPrev.textContent = ovName + ": " + fmtNum(paChartState.overlayVals[idx], false);
-          paTipPrev.className = "mt-0.5 truncate text-[11px] tabular-nums text-amber-700 dark:text-amber-400";
+          paTipPrev.classList.remove("hidden");
+          paTipPrev.innerHTML = tipMetricRow(
+            ovName,
+            fmtNum(paChartState.overlayVals[idx], false),
+            "text-amber-700 dark:text-amber-400",
+            PA_OVERLAY_COLOR
+          );
         } else if (row.prevMissing || row.prevValue == null) {
-          paTipPrev.textContent = "";
-          paTipPrev.className = "mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
+          paTipPrev.classList.add("hidden");
+          paTipPrev.innerHTML = "";
         } else {
           var label = row.prevKey && row.prevKey !== row.key
-            ? ("Önceki (" + row.prevKey + "): ")
-            : "Önceki: ";
-          paTipPrev.textContent = label + fmtNum(row.prevValue, metricIsCountLike());
-          paTipPrev.className = "mt-0.5 truncate text-[11px] tabular-nums text-slate-500 dark:text-zinc-400";
+            ? ("Önceki (" + row.prevKey + ")")
+            : "Önceki";
+          paTipPrev.classList.remove("hidden");
+          paTipPrev.innerHTML = tipMetricRow(
+            label,
+            fmtNum(row.prevValue, metricIsCountLike()),
+            "text-slate-500 dark:text-zinc-400",
+            "#94a3b8"
+          );
         }
       }
     }
@@ -1161,14 +1181,15 @@
     }
     var wrapRect = paChartWrap.getBoundingClientRect();
     var pad = 8;
-    var tipW = isStars ? 168 : 192;
-    var tipH = isStars ? 120 : 76;
+    var maxTipW = Math.max(160, Math.min(360, wrapRect.width - pad * 2));
     paTooltip.classList.remove("hidden");
-    paTooltip.style.width = tipW + "px";
-    paTooltip.style.minHeight = tipH + "px";
+    paTooltip.style.width = "max-content";
+    paTooltip.style.maxWidth = maxTipW + "px";
+    paTooltip.style.minHeight = "";
     paTooltip.style.transform = "none";
-    tipW = paTooltip.offsetWidth || tipW;
-    tipH = Math.max(tipH, paTooltip.offsetHeight || tipH);
+    // İçerik ölçülsün
+    var tipW = Math.min(maxTipW, Math.max(paTooltip.offsetWidth || 0, 140));
+    var tipH = Math.max(paTooltip.offsetHeight || 0, 48);
     var x = clientX - wrapRect.left;
     var y = clientY - wrapRect.top;
     var left = x - tipW / 2;
