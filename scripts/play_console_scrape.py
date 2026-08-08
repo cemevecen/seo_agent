@@ -70,6 +70,12 @@ MONETIZE_URL = (
 GROW_URL = (
     os.environ.get("PLAY_CONSOLE_GROW_URL") or f"{BASE_APP}/grow-overview"
 ).strip()
+MONITOR_URL = (
+    os.environ.get("PLAY_CONSOLE_MONITOR_URL") or f"{BASE_APP}/monitor"
+).strip()
+RELEASE_URL = (
+    os.environ.get("PLAY_CONSOLE_RELEASE_URL") or f"{BASE_APP}/test-and-release"
+).strip()
 # Crash + ANR + DAU/MAU peerset — tarih paramı yoksa Console son ~28 günü kullanır
 _DEFAULT_STATS_QS = (
     "metrics=CRASHES-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-PER_INTERVAL-DAY"
@@ -82,6 +88,19 @@ _DEFAULT_STATS_QS = (
 STATISTICS_URL = (
     os.environ.get("PLAY_CONSOLE_STATISTICS_URL")
     or f"{BASE_APP}/statistics?{_DEFAULT_STATS_QS}"
+).strip()
+# Mağaza ziyaretçileri · ülke kırılımı (TR/DE/FR/CY)
+_DEFAULT_STATS_VISITORS_QS = (
+    "metrics=AR2_VISITORS-ALL-UNIQUE-PER_INTERVAL-DAY"
+    "&dimension=COUNTRY"
+    "&dimensionValues=OVERALL%2CTR%2CDE%2CFR%2CCY"
+    "&tab=APP_STATISTICS"
+    "&ctpMetric=DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY"
+    "&ctpDimension=COUNTRY&ctpDimensionValue=OVERALL"
+)
+STATISTICS_VISITORS_URL = (
+    os.environ.get("PLAY_CONSOLE_STATISTICS_VISITORS_URL")
+    or f"{BASE_APP}/statistics?{_DEFAULT_STATS_VISITORS_QS}"
 ).strip()
 INGEST_URL = (
     os.environ.get("PLAY_CONSOLE_INGEST_URL")
@@ -161,6 +180,37 @@ _KNOWN_STATISTICS = (
     "Yükleme tabanı",
     "Kullanıcı kaybı",
     "Cihaz edinme sayısı",
+    "Mağaza girişi ziyaretçileri",
+    "Store listing visitors",
+    "Ziyaretçiler",
+    "Unique visitors",
+)
+_KNOWN_MONITOR = (
+    "Kilitlenme oranı",
+    "ANR oranı",
+    "Kilitlenme sayısı",
+    "ANR sayısı",
+    "Ortalama puan",
+    "Google Play puanı",
+    "Etkin cihazlar",
+    "Yükleme tabanı",
+    "Kullanıcı kaybı",
+    "Vital",
+    "Çökme",
+)
+_KNOWN_RELEASE = (
+    "Kilitlenme oranı",
+    "ANR oranı",
+    "Yüklemeler",
+    "Yükleme tabanı",
+    "Üretim",
+    "Production",
+    "Açık test",
+    "Kapalı test",
+    "Dahili test",
+    "Rollout",
+    "Yayın",
+    "Sürüm",
 )
 
 
@@ -371,7 +421,9 @@ def _extract_stats_page(page, *, known: tuple[str, ...] | list[str], page_key: s
         const line = lines[i];
         let bm = line.match(/^(Yükleme tabanı)\\s*\\((.+)\\)$/i)
           || line.match(/^(Yeni cihaz edinme)\\s*\\((.+)\\)$/i)
-          || line.match(/^(Gelir|Alıcı|ÖYKBOG|Abonelik)\\s*\\((.+)\\)$/i);
+          || line.match(/^(Gelir|Alıcı|ÖYKBOG|Abonelik)\\s*\\((.+)\\)$/i)
+          || line.match(/^(Mağaza girişi ziyaretçileri|Ziyaretçiler|Store listing visitors)\\s*\\((.+)\\)$/i)
+          || line.match(/^(Kilitlenme oranı|ANR oranı|Kilitlenme sayısı|ANR sayısı)\\s*\\((.+)\\)$/i);
         if (bm) {
           let value = '', delta = '';
           for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
@@ -428,7 +480,7 @@ def _extract_stats_page(page, *, known: tuple[str, ...] | list[str], page_key: s
         let value = cardLines.find((l, idx) => idx > 0 && isValue(l)) || '';
         let delta = cardLines.find((l) => l !== value && isDelta(l)) || '';
         if (!value) continue;
-        if (br && /yükleme tabanı|yeni cihaz|gelir|alıcı|ülke|ürün/i.test(br[1])) {
+        if (br && /yükleme tabanı|yeni cihaz|gelir|alıcı|ülke|ürün|ziyaret|kilitlenme|anr|türkiye|germany|france|cyprus|\\bTR\\b|\\bDE\\b|\\bFR\\b|\\bCY\\b/i.test(br[1] + ' ' + br[2])) {
           pushBr(title, value, delta, br[2]);
           continue;
         }
@@ -878,6 +930,38 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             ),
             headed=bool(headed),
         )
+        monitor = _safe_scrape_page(
+            page,
+            url=MONITOR_URL,
+            known=tuple(dict.fromkeys(list(_KNOWN_MONITOR) + list(_KNOWN_DASHBOARD))),
+            page_key="monitor",
+            wait_needles=(
+                "Kilitlenme",
+                "ANR",
+                "Monitor",
+                "İzle",
+                "Vital",
+                "Ortalama puan",
+            ),
+            headed=bool(headed),
+        )
+        release = _safe_scrape_page(
+            page,
+            url=RELEASE_URL,
+            known=tuple(dict.fromkeys(list(_KNOWN_RELEASE) + list(_KNOWN_DASHBOARD))),
+            page_key="release",
+            wait_needles=(
+                "Üretim",
+                "Production",
+                "Test",
+                "Yayın",
+                "Sürüm",
+                "Rollout",
+                "Kilitlenme",
+                "Yükleme",
+            ),
+            headed=bool(headed),
+        )
         statistics = _safe_scrape_page(
             page,
             url=STATISTICS_URL,
@@ -894,17 +978,62 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             ),
             headed=bool(headed),
         )
+        statistics_visitors = _safe_scrape_page(
+            page,
+            url=STATISTICS_VISITORS_URL,
+            known=tuple(
+                dict.fromkeys(
+                    list(_KNOWN_STATISTICS)
+                    + [
+                        "Mağaza girişi ziyaretçileri",
+                        "Ziyaretçiler",
+                        "Store listing visitors",
+                    ]
+                    + list(_KNOWN_DASHBOARD)
+                )
+            ),
+            page_key="statistics_visitors",
+            wait_needles=(
+                "Ziyaret",
+                "Visitor",
+                "Mağaza girişi",
+                "İstatistik",
+                "Statistics",
+                "Türkiye",
+                "Turkey",
+            ),
+            headed=bool(headed),
+        )
 
         mon_cards, mon_br = _append_page_metrics(metrics, monetize, kind="monetize", page_key="monetize")
         grow_cards, grow_br = _append_page_metrics(metrics, grow, kind="grow", page_key="grow")
+        monitor_cards, monitor_br = _append_page_metrics(
+            metrics, monitor, kind="monitor", page_key="monitor"
+        )
+        release_cards, release_br = _append_page_metrics(
+            metrics, release, kind="release", page_key="release"
+        )
         stats_cards, stats_br = _append_page_metrics(
             metrics, statistics, kind="statistics", page_key="statistics"
         )
+        vis_cards, vis_br = _append_page_metrics(
+            metrics, statistics_visitors, kind="statistics", page_key="statistics_visitors"
+        )
+        # İki statistics görünümünü birleştir
+        stats_cards = list(stats_cards) + list(vis_cards)
+        stats_br = list(stats_br) + list(vis_br)
 
         dash_cards = structured.get("tpg") or structured.get("cards") or []
         dash_br = list(structured.get("breakdowns") or [])
-        all_br = dash_br + list(mon_br) + list(grow_br) + list(stats_br)
-        # series: dashboard network + sonraki sayfalar
+        all_br = (
+            dash_br
+            + list(mon_br)
+            + list(grow_br)
+            + list(monitor_br)
+            + list(release_br)
+            + list(stats_br)
+        )
+        # series: tüm sayfalar sonrası network
         series = _series_from_network(network)
         panels = {
             "version": 2,
@@ -912,6 +1041,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "breakdowns": all_br,
             "monetize": mon_cards,
             "grow": grow_cards,
+            "monitor": monitor_cards,
+            "release": release_cards,
             "statistics": stats_cards,
             "pages": {
                 "dashboard": {
@@ -922,7 +1053,10 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 },
                 "monetize": _page_payload(MONETIZE_URL, monetize),
                 "grow": _page_payload(GROW_URL, grow),
+                "monitor": _page_payload(MONITOR_URL, monitor),
+                "release": _page_payload(RELEASE_URL, release),
                 "statistics": _page_payload(STATISTICS_URL, statistics),
+                "statistics_visitors": _page_payload(STATISTICS_VISITORS_URL, statistics_visitors),
             },
             "sections": structured.get("sections") or [],
             "series": series,
@@ -930,6 +1064,8 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "breakdown_count": len(all_br),
             "monetize_count": len(mon_cards),
             "grow_count": len(grow_cards),
+            "monitor_count": len(monitor_cards),
+            "release_count": len(release_cards),
             "statistics_count": len(stats_cards),
             "series_count": len(series),
             "debug": debug,
@@ -953,15 +1089,25 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             or panels.get("tpg")
             or panels.get("monetize")
             or panels.get("grow")
+            or panels.get("monitor")
+            or panels.get("release")
             or panels.get("statistics")
         )
         dbg = ""
-        if not (panels.get("tpg") or panels.get("monetize") or panels.get("grow") or panels.get("statistics")) and debug:
+        if not (
+            panels.get("tpg")
+            or panels.get("monetize")
+            or panels.get("grow")
+            or panels.get("monitor")
+            or panels.get("release")
+            or panels.get("statistics")
+        ) and debug:
             dbg = f" · dash_known={debug.get('known_found_count')} body={debug.get('body_len')}"
         msg = (
             f"Play scrape · {len(metrics)} metric · "
             f"{panels.get('tpg_count', 0)} dash · {panels.get('monetize_count', 0)} mon · "
-            f"{panels.get('grow_count', 0)} grow · {panels.get('statistics_count', 0)} stats · "
+            f"{panels.get('grow_count', 0)} grow · {panels.get('monitor_count', 0)} monitor · "
+            f"{panels.get('release_count', 0)} release · {panels.get('statistics_count', 0)} stats · "
             f"{panels.get('breakdown_count', 0)} kırılım · {len(reviews)} review{dbg}"
         )
         return {
@@ -980,7 +1126,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "source_url": DASHBOARD_URL,
             "sync_ok": ok,
             "sync_message": None,
-            "sync_mode": "dashboard_monetize_grow_stats_reviews",
+            "sync_mode": "dashboard_monetize_grow_monitor_release_stats_reviews",
         }
     except Exception as exc:  # noqa: BLE001
         return {

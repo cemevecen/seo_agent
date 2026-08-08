@@ -65,6 +65,9 @@ _METRIC_TITLE_HINTS = (
     "anr sayısı",
     "dau",
     "mau",
+    "üretim",
+    "rollout",
+    "sürüm",
 )
 
 _JUNK_AUTHOR = re.compile(
@@ -197,22 +200,44 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
     tpg = _norm_kind_list(d.get("tpg"), "tpg")
     monetize = _norm_kind_list(d.get("monetize"), "monetize")
     grow = _norm_kind_list(d.get("grow"), "grow")
+    monitor = _norm_kind_list(d.get("monitor"), "monitor")
+    release = _norm_kind_list(d.get("release"), "release")
     statistics = _norm_kind_list(d.get("statistics"), "statistics")
 
     for key, bucket, kind in (
         ("monetize", "monetize", "monetize"),
         ("grow", "grow", "grow"),
+        ("monitor", "monitor", "monitor"),
+        ("release", "release", "release"),
         ("statistics", "statistics", "statistics"),
     ):
-        cur = {"monetize": monetize, "grow": grow, "statistics": statistics}[bucket]
+        cur = {
+            "monetize": monetize,
+            "grow": grow,
+            "monitor": monitor,
+            "release": release,
+            "statistics": statistics,
+        }[bucket]
         if not cur and isinstance(pages_in.get(key), dict):
             filled = _norm_kind_list(pages_in[key].get("cards"), kind)
             if bucket == "monetize":
                 monetize = filled
             elif bucket == "grow":
                 grow = filled
+            elif bucket == "monitor":
+                monitor = filled
+            elif bucket == "release":
+                release = filled
             else:
                 statistics = filled
+    # visitors URL cards → statistics'e ekle
+    if isinstance(pages_in.get("statistics_visitors"), dict):
+        extra = _norm_kind_list(pages_in["statistics_visitors"].get("cards"), "statistics")
+        if extra:
+            seen = {(x.get("title"), x.get("value")) for x in statistics}
+            for x in extra:
+                if (x.get("title"), x.get("value")) not in seen:
+                    statistics.append(x)
 
     breakdowns = []
     for x in d.get("breakdowns") or []:
@@ -276,6 +301,8 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "tpg": tpg,
         "monetize": monetize,
         "grow": grow,
+        "monitor": monitor,
+        "release": release,
         "statistics": statistics,
         "breakdowns": breakdowns,
         "pages": pages_out,
@@ -284,6 +311,8 @@ def normalize_panels(raw: dict[str, Any] | None) -> dict[str, Any]:
         "tpg_count": len(tpg),
         "monetize_count": len(monetize),
         "grow_count": len(grow),
+        "monitor_count": len(monitor),
+        "release_count": len(release),
         "statistics_count": len(statistics),
         "breakdown_count": len(breakdowns),
         "series_count": len(series),
@@ -435,12 +464,14 @@ def normalize_play_snapshot(
     metrics_n = normalize_metrics(metrics)
     panels_n = normalize_panels(panels)
     # panels boşsa metrics'ten türet
-    special = ("breakdown", "monetize", "grow", "statistics")
+    special = ("breakdown", "monetize", "grow", "monitor", "release", "statistics")
     if (
         not panels_n.get("tpg")
         and not panels_n.get("breakdowns")
         and not panels_n.get("monetize")
         and not panels_n.get("grow")
+        and not panels_n.get("monitor")
+        and not panels_n.get("release")
         and not panels_n.get("statistics")
         and metrics_n
     ):
@@ -449,12 +480,14 @@ def normalize_play_snapshot(
                 "tpg": [m for m in metrics_n if m.get("kind") not in special],
                 "monetize": [m for m in metrics_n if m.get("kind") == "monetize"],
                 "grow": [m for m in metrics_n if m.get("kind") == "grow"],
+                "monitor": [m for m in metrics_n if m.get("kind") == "monitor"],
+                "release": [m for m in metrics_n if m.get("kind") == "release"],
                 "statistics": [m for m in metrics_n if m.get("kind") == "statistics"],
                 "breakdowns": [m for m in metrics_n if m.get("kind") == "breakdown"],
             }
         )
     elif metrics_n:
-        for kind in ("monetize", "grow", "statistics"):
+        for kind in ("monetize", "grow", "monitor", "release", "statistics"):
             if not panels_n.get(kind):
                 rows = [m for m in metrics_n if m.get("kind") == kind]
                 if rows:

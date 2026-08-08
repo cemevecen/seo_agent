@@ -74,8 +74,36 @@
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Monitor</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /monitor (vitals, kilitlenme, ANR, puan)</p>
+      </div>
+      <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/monitor"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+    </div>
+    <div id="pc-monitor" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-monitor-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz monitor kartı yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Test &amp; Release</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /test-and-release (üretim, rollout, vitals)</p>
+      </div>
+      <a href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/test-and-release"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+    </div>
+    <div id="pc-release" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+    <p id="pc-release-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz release kartı yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Statistics</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Crash / ANR / DAU·MAU · /statistics</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Crash/ANR + mağaza ziyaretçileri (ülke) · /statistics</p>
       </div>
       <a id="pc-stats-link"
          href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/statistics"
@@ -119,6 +147,10 @@
   var monEmpty = document.getElementById("pc-monetize-empty");
   var growEl = document.getElementById("pc-grow");
   var growEmpty = document.getElementById("pc-grow-empty");
+  var monitorEl = document.getElementById("pc-monitor");
+  var monitorEmpty = document.getElementById("pc-monitor-empty");
+  var releaseEl = document.getElementById("pc-release");
+  var releaseEmpty = document.getElementById("pc-release-empty");
   var statsEl = document.getElementById("pc-statistics");
   var statsEmpty = document.getElementById("pc-statistics-empty");
   var statsLink = document.getElementById("pc-stats-link");
@@ -229,15 +261,19 @@
     var tpg = Array.isArray(panels.tpg) ? panels.tpg.slice() : [];
     var monetize = pageCards(panels, "monetize", "monetize");
     var grow = pageCards(panels, "grow", "grow");
+    var monitor = pageCards(panels, "monitor", "monitor");
+    var release = pageCards(panels, "release", "release");
     var statistics = pageCards(panels, "statistics", "statistics");
     var breakdowns = Array.isArray(panels.breakdowns) ? panels.breakdowns.slice() : [];
     var metrics = Array.isArray(data.metrics) ? data.metrics : [];
 
-    if (!tpg.length && !breakdowns.length && !monetize.length && !grow.length && !statistics.length && metrics.length) {
+    if (!tpg.length && !breakdowns.length && !monetize.length && !grow.length && !monitor.length && !release.length && !statistics.length && metrics.length) {
       metrics.forEach(function (m) {
         if (m.kind === "breakdown") breakdowns.push(m);
         else if (m.kind === "monetize") monetize.push(m);
         else if (m.kind === "grow") grow.push(m);
+        else if (m.kind === "monitor") monitor.push(m);
+        else if (m.kind === "release") release.push(m);
         else if (m.kind === "statistics") statistics.push(m);
         else tpg.push(m);
       });
@@ -250,10 +286,11 @@
       if (KPI_TITLES[title] && title.indexOf("(") < 0) kpi.push(m);
       else tpgOnly.push(m);
     });
+    var base = { monetize: monetize, grow: grow, monitor: monitor, release: release, statistics: statistics, breakdowns: breakdowns };
     if (!kpi.length) {
-      return { kpi: tpg, tpg: [], monetize: monetize, grow: grow, statistics: statistics, breakdowns: breakdowns };
+      return Object.assign({ kpi: tpg, tpg: [] }, base);
     }
-    return { kpi: kpi, tpg: tpgOnly, monetize: monetize, grow: grow, statistics: statistics, breakdowns: breakdowns };
+    return Object.assign({ kpi: kpi, tpg: tpgOnly }, base);
   }
 
   function renderReviews(rows) {
@@ -298,6 +335,8 @@
           ((data.tpg_count || parts.tpg.length || parts.kpi.length) + " dash · " +
            (parts.monetize.length) + " mon · " +
            (parts.grow.length) + " grow · " +
+           (parts.monitor.length) + " monitor · " +
+           (parts.release.length) + " release · " +
            (parts.statistics.length) + " stats · " +
            (data.breakdown_count || parts.breakdowns.length) + " kırılım · " +
            data.review_count + " review")) +
@@ -308,6 +347,8 @@
       renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });
       renderGrid(monEl, monEmpty, parts.monetize, function (m) { return metricCard(m); });
       renderGrid(growEl, growEmpty, parts.grow, function (m) { return metricCard(m); });
+      renderGrid(monitorEl, monitorEmpty, parts.monitor, function (m) { return metricCard(m); });
+      renderGrid(releaseEl, releaseEmpty, parts.release, function (m) { return metricCard(m); });
       renderGrid(statsEl, statsEmpty, parts.statistics, function (m) { return metricCard(m); });
       renderGrid(brEl, brEmpty, parts.breakdowns, function (m) {
         return metricCard(m, { subtitle: m.segment || m.page || "" });
