@@ -1133,18 +1133,23 @@ def _parse_stats_protobuf(
             def _dig_num(obj, depth=0):
                 if depth > 6:
                     return None
-                if isinstance(obj, (int, float)):
+                if isinstance(obj, (int, float)) and not isinstance(obj, bool):
                     return float(obj)
                 if isinstance(obj, str):
                     try:
-                        return float(obj.replace(",", ""))
+                        return float(obj.replace(",", "").replace(" ", ""))
                     except ValueError:
                         return None
                 if isinstance(obj, dict):
-                    # tercih: {"2": "63"} veya {"2": 63}
-                    if "2" in obj and not isinstance(obj.get("2"), (dict, list)):
-                        return _dig_num(obj.get("2"), depth + 1)
-                    for vv in obj.values():
+                    # Play value slot çoğunlukla "2"; "1" sık tip/indeks bayrağı (rating’de hep 1.0 yapıyordu)
+                    for key in ("2", "3", "4"):
+                        if key in obj:
+                            n = _dig_num(obj.get(key), depth + 1)
+                            if n is not None:
+                                return n
+                    for key, vv in obj.items():
+                        if str(key) == "1":
+                            continue
                         n = _dig_num(vv, depth + 1)
                         if n is not None:
                             return n
