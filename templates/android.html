@@ -612,12 +612,11 @@
 
   async function refreshPage() {
     if (btn) btn.disabled = true;
-    statusEl.textContent = "Snapshot yenileniyor…";
-    var bridgeNote = "";
-    // Bridge yalnızca bu makinede daemon varsa çalışır (canlı sitede çoğu zaman yok).
+    statusEl.textContent = "Yenileniyor…";
+    var bridgeOk = false;
     try {
       var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-      var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 2500) : null;
+      var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 1500) : null;
       var br = await fetch("http://127.0.0.1:18765/sync-play", {
         method: "POST",
         headers: { Accept: "application/json" },
@@ -627,20 +626,16 @@
       var body = null;
       try { body = await br.json(); } catch (_) {}
       if (br.ok && !(body && body.ok === false)) {
-        bridgeNote = " · Mac bridge sync OK";
-        statusEl.textContent = (body && body.message) || "Bridge sync OK — snapshot yükleniyor…";
-      } else {
-        bridgeNote = " · bridge yanıt vermedi (normal — canlı sitede gerekmez)";
+        bridgeOk = true;
+        statusEl.textContent = (body && body.message) || "Mac sync OK — yükleniyor…";
       }
     } catch (_) {
-      bridgeNote = " · bridge yok (normal — veri Railway snapshot’tan)";
+      /* canlı sitede bridge yok — sessiz geç */
     }
     try {
       await loadSnapshot();
-      if (statusEl && statusEl.textContent === "Hazır") {
-        statusEl.textContent = "Hazır" + bridgeNote;
-      } else if (statusEl && bridgeNote && statusEl.textContent.indexOf("bridge") < 0) {
-        statusEl.textContent = (statusEl.textContent || "Hazır") + bridgeNote;
+      if (bridgeOk && statusEl) {
+        statusEl.textContent = (statusEl.textContent || "Hazır") + " · Mac scrape tetiklendi";
       }
     } finally {
       if (btn) btn.disabled = false;
