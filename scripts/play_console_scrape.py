@@ -4934,6 +4934,21 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
                 "merge_reviews": True,
             }
     else:
+        facts_n = 0
+        if isinstance(panels, dict):
+            facts_n = len(
+                [f for f in (panels.get("explorer_facts") or []) if isinstance(f, dict)]
+            )
+        if facts_n <= 0 and not result.get("merge_vitals") and not result.get("merge_reviews"):
+            return {
+                "ok": False,
+                "message": (
+                    "Ingest atlandı: explorer_facts boş — mevcut Railway snapshot korunur. "
+                    "Play scrape stats views başarısız; tekrar --sync --ingest deneyin."
+                ),
+                "http_status": 0,
+                "skipped_empty_facts": True,
+            }
         payload = {
             "metrics": metrics if metrics is not None else [],
             "panels": panels if isinstance(panels, dict) else {},

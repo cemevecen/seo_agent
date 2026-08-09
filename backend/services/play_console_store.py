@@ -227,6 +227,33 @@ def ingest_play_console_payload(
     panels = cleaned["panels"]
     reviews = cleaned["reviews"]
     rating_summary = cleaned["rating_summary"]
+
+    # Boş/başarısız scrape explorer_facts'i silmesin / boş snapshot yazmasın
+    if not (
+        merge_vitals
+        or merge_reviews
+        or merge_ratings_counts
+        or str(sync_mode or "").startswith(("vitals", "reviews", "ratings_count"))
+    ):
+        incoming_facts = (panels or {}).get("explorer_facts") if isinstance(panels, dict) else None
+        incoming_n = len(incoming_facts) if isinstance(incoming_facts, list) else 0
+        try:
+            _em, existing_panels = _unpack_metrics_blob(row.metrics_json or "[]")
+        except Exception:
+            existing_panels = {}
+        existing_facts = (
+            (existing_panels or {}).get("explorer_facts")
+            if isinstance(existing_panels, dict)
+            else None
+        )
+        existing_n = len(existing_facts) if isinstance(existing_facts, list) else 0
+        if incoming_n == 0:
+            raise ValueError(
+                "Boş explorer_facts ingest reddedildi"
+                + (f" (mevcut {existing_n} fact korunuyor)" if existing_n else "")
+                + ". Play scrape stats views başarısız — yeniden sync gerekir."
+            )
+
     if metrics is not None or panels is not None:
         row.metrics_json = _pack_metrics_blob(metrics, panels)
     if reviews is not None:
