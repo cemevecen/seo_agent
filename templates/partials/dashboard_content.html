@@ -1293,10 +1293,7 @@
   {# Anlık aktif kullanıcı — Günün Özeti başlığının hemen altında, tek container / tek row #}
   <link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
   <script src="/static/js/rt_slot_fx.js?v=2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
-  <script src="/static/js/home_gitlab_boards.js?v=5" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-  <script src="/static/js/home_top_pages.js?v=1" defer></script>
+  <script src="/static/js/home_top_pages.js?v=1"></script>
   <div data-home-container-slot="realtime">
   <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -1582,16 +1579,52 @@
       .then(function (j) { if (j) window.__pcHomeMetrics = j; })
       .catch(function () {});
   }
-  function scheduleHomeMetrics() {
-    var run = function () { loadHomeMetrics(); };
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(run, { timeout: 12000 });
-    } else {
-      window.setTimeout(run, 6000);
-    }
-  }
-  scheduleHomeMetrics();
+  // AI bağlamı — ilk ekranı bloke etmesin (önceden ~10s worker meşguliyeti)
+  window.setTimeout(loadHomeMetrics, 15000);
   setInterval(loadHomeMetrics, 120000);
+
+  function loadScriptOnce(src) {
+    return new Promise(function (resolve, reject) {
+      var existing = document.querySelector('script[src="' + src.replace(/"/g, '\\"') + '"]');
+      if (existing) {
+        if (existing.getAttribute('data-loaded') === '1') return resolve();
+        existing.addEventListener('load', function () { resolve(); });
+        existing.addEventListener('error', reject);
+        return;
+      }
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = function () { s.setAttribute('data-loaded', '1'); resolve(); };
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  var homeGitlabStackPromise = null;
+  function ensureHomeGitlabStack() {
+    if (homeGitlabStackPromise) return homeGitlabStackPromise;
+    homeGitlabStackPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js')
+      .then(function () { return loadScriptOnce('/static/js/home_gitlab_boards.js?v=5'); })
+      .then(function () {
+        if (window.Alpine) return;
+        return loadScriptOnce('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
+      })
+      .catch(function (err) { console.warn('home gitlab stack', err); });
+    return homeGitlabStackPromise;
+  }
+  document.body.addEventListener('htmx:beforeRequest', function (ev) {
+    var elt = ev && ev.detail && ev.detail.elt;
+    if (elt && elt.getAttribute && elt.getAttribute('data-home-container') === 'priority-board') {
+      ensureHomeGitlabStack();
+    }
+  });
+  document.body.addEventListener('htmx:afterSwap', function (ev) {
+    var t = ev && ev.detail && ev.detail.target;
+    if (!t) return;
+    if (t.getAttribute && t.getAttribute('data-home-container') === 'priority-board') {
+      ensureHomeGitlabStack();
+    }
+  });
 
   var HOME_REFRESH_ICON =
     '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">' +
@@ -1981,17 +2014,13 @@
   }
   window.__pcHomeDriveRefreshBadges = refreshHomeDriveBadges;
   document.body.addEventListener('htmx:afterSwap', function (ev) {
-    var t = ev && ev.target;
+    var t = ev && ev.detail && ev.detail.target;
     if (t && t.getAttribute && t.getAttribute('data-home-container') === 'drive-uploads') {
       refreshHomeDriveBadges();
     }
     applyHomeDriveBadges(homeDriveBadgeMap);
   });
-  if (window.requestIdleCallback) {
-    window.requestIdleCallback(function () { refreshHomeDriveBadges(); }, { timeout: 15000 });
-  } else {
-    window.setTimeout(refreshHomeDriveBadges, 8000);
-  }
+  window.setTimeout(refreshHomeDriveBadges, 12000);
 
   document.body.addEventListener('click', function (ev) {
     var closeBtn = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-preview-close]');
