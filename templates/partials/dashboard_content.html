@@ -843,6 +843,45 @@
   .home-project-heads {
     position: relative;
     align-items: stretch;
+    transition: background-color 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+  }
+  /* Tekli focus: başlık çubuğu marka rengi @ %50 opaklık */
+  #home-board[data-home-focus="doviz"] .home-project-heads {
+    border-radius: 1rem;
+    background: rgb(37 99 235 / 0.5);
+    box-shadow: inset 0 0 0 1px rgb(37 99 235 / 0.35);
+  }
+  #home-board[data-home-focus="sinemalar"] .home-project-heads {
+    border-radius: 1rem;
+    background: rgb(225 29 72 / 0.5);
+    box-shadow: inset 0 0 0 1px rgb(225 29 72 / 0.35);
+  }
+  html.dark #home-board[data-home-focus="doviz"] .home-project-heads {
+    background: rgb(37 99 235 / 0.5);
+    box-shadow: inset 0 0 0 1px rgb(96 165 250 / 0.35);
+  }
+  html.dark #home-board[data-home-focus="sinemalar"] .home-project-heads {
+    background: rgb(225 29 72 / 0.5);
+    box-shadow: inset 0 0 0 1px rgb(251 113 133 / 0.35);
+  }
+  #home-board[data-home-focus="doviz"] .home-project-heads > .home-project-head,
+  #home-board[data-home-focus="sinemalar"] .home-project-heads > .home-project-head {
+    background: transparent !important;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-ring-offset-shadow: 0 0 #0000;
+    box-shadow: none !important;
+  }
+  #home-board[data-home-focus="doviz"] .home-project-head--doviz h2 {
+    color: #1e3a8a;
+  }
+  #home-board[data-home-focus="sinemalar"] .home-project-head--sinemalar h2 {
+    color: #9f1239;
+  }
+  html.dark #home-board[data-home-focus="doviz"] .home-project-head--doviz h2 {
+    color: #dbeafe;
+  }
+  html.dark #home-board[data-home-focus="sinemalar"] .home-project-head--sinemalar h2 {
+    color: #ffe4e6;
   }
   .home-project-head {
     display: flex;
