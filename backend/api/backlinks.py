@@ -81,7 +81,7 @@ def backlinks_domain_links(
     site_id: int = Query(..., ge=1),
     report_type: str = Query("external"),
     domain: str = Query(..., min_length=1),
-    limit: int = Query(10000, ge=1, le=50000),
+    limit: int = Query(0, ge=0, description="0 = sınırsız"),
     all_link_imports: bool = Query(False, description="Tüm link importları (top target pages hariç)"),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
@@ -107,7 +107,7 @@ def backlinks_target_page_links(
     report_type: str = Query("external"),
     target_url: str = Query(..., min_length=1),
     link_kind: str = Query("all", description="all|external|internal"),
-    limit: int = Query(10000, ge=1, le=50000),
+    limit: int = Query(0, ge=0, description="0 = sınırsız"),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     _require_internal_site(db, site_id)

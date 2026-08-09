@@ -65,9 +65,20 @@ _GSC_TARGET_AGG_REPORT_TYPES = frozenset(
 )
 _GSC_DOMAIN_AGG_REPORT_TYPES = frozenset({"domain", "top_linking_sites"})
 _GSC_ANCHOR_REPORT_TYPES = frozenset({"anchor_text"})
-# Dashboard JSON + UI: sınırsız domain listesi tarayıcıyı kilitleyebilir.
-_DASHBOARD_DOMAINS_PAYLOAD_CAP = 3500
-_DIFF_DOMAINS_PAYLOAD_CAP = 800
+# Dashboard / diff: çekilen tüm satırlar döner (yapay 300–3500 kesmesi yok).
+_DASHBOARD_DOMAINS_PAYLOAD_CAP = 0  # 0 = sınırsız
+_DIFF_DOMAINS_PAYLOAD_CAP = 0
+_DIFF_LINKS_PAYLOAD_CAP = 0
+_ANCHORS_PAYLOAD_CAP = 0
+_TOP_RANKINGS_PAYLOAD_CAP = 0
+
+
+def _apply_list_cap(items: list, cap: int) -> list:
+    """cap<=0 ise tüm liste; aksi halde ilk cap öğe."""
+    if cap is None or int(cap) <= 0:
+        return list(items)
+    return list(items)[: int(cap)]
+
 
 _HEADER_ALIASES: dict[str, list[str]] = {
     "source_url": [
@@ -1063,12 +1074,17 @@ def build_top_backlink_rankings(
     db: Session,
     *,
     site_id: int,
-    limit: int = 100,
+    limit: int = 0,
     report_type: str = "external",
     gsc_resource_id: str = "",
 ) -> dict[str, Any]:
-    """Seçili rapor türüne göre top site / hedef sayfa listeleri."""
-    cap = max(1, min(int(limit), 100))
+    """Seçili rapor türüne göre top site / hedef sayfa listeleri (limit<=0 = hepsi)."""
+    if limit and int(limit) > 0:
+        cap = int(limit)
+    elif _TOP_RANKINGS_PAYLOAD_CAP and int(_TOP_RANKINGS_PAYLOAD_CAP) > 0:
+        cap = int(_TOP_RANKINGS_PAYLOAD_CAP)
+    else:
+        cap = 10**9
     rt = (report_type or "external").strip().lower()
     if rt == "top_target_pages":
         rt = "external"
@@ -1433,14 +1449,16 @@ def build_dashboard(
             lost_d = sorted(prev_domains - latest_domains)
             diff["new_domains_count"] = len(new_d)
             diff["lost_domains_count"] = len(lost_d)
-            diff["new_domains"] = new_d[:_DIFF_DOMAINS_PAYLOAD_CAP]
-            diff["lost_domains"] = lost_d[:_DIFF_DOMAINS_PAYLOAD_CAP]
-            diff["new_links"] = [
-                latest_fps[k] for k in sorted(latest_fps.keys() - prev_fps.keys())
-            ][:300]
-            diff["lost_links"] = [
-                prev_fps[k] for k in sorted(prev_fps.keys() - latest_fps.keys())
-            ][:300]
+            diff["new_domains"] = _apply_list_cap(new_d, _DIFF_DOMAINS_PAYLOAD_CAP)
+            diff["lost_domains"] = _apply_list_cap(lost_d, _DIFF_DOMAINS_PAYLOAD_CAP)
+            diff["new_links"] = _apply_list_cap(
+                [latest_fps[k] for k in sorted(latest_fps.keys() - prev_fps.keys())],
+                _DIFF_LINKS_PAYLOAD_CAP,
+            )
+            diff["lost_links"] = _apply_list_cap(
+                [prev_fps[k] for k in sorted(prev_fps.keys() - latest_fps.keys())],
+                _DIFF_LINKS_PAYLOAD_CAP,
+            )
             diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
             diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
 
@@ -1462,8 +1480,8 @@ def build_dashboard(
             lost_a = sorted(prev_set - latest_set)
             diff["new_domains_count"] = len(new_a)
             diff["lost_domains_count"] = len(lost_a)
-            diff["new_domains"] = new_a[:_DIFF_DOMAINS_PAYLOAD_CAP]
-            diff["lost_domains"] = lost_a[:_DIFF_DOMAINS_PAYLOAD_CAP]
+            diff["new_domains"] = _apply_list_cap(new_a, _DIFF_DOMAINS_PAYLOAD_CAP)
+            diff["lost_domains"] = _apply_list_cap(lost_a, _DIFF_DOMAINS_PAYLOAD_CAP)
             diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
             diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
     else:
@@ -1478,8 +1496,8 @@ def build_dashboard(
         lost_pages = sorted(prev_map[k] for k in sorted(set(prev_map) - set(latest_map)))
         diff["new_domains_count"] = len(new_pages)
         diff["lost_domains_count"] = len(lost_pages)
-        diff["new_domains"] = new_pages[:_DIFF_DOMAINS_PAYLOAD_CAP]
-        diff["lost_domains"] = lost_pages[:_DIFF_DOMAINS_PAYLOAD_CAP]
+        diff["new_domains"] = _apply_list_cap(new_pages, _DIFF_DOMAINS_PAYLOAD_CAP)
+        diff["lost_domains"] = _apply_list_cap(lost_pages, _DIFF_DOMAINS_PAYLOAD_CAP)
         diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
         diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
 
@@ -1585,14 +1603,27 @@ def build_dashboard(
         "diff": diff,
         "action_counts": action_counts,
         "category_counts": category_counts,
-        "domains": domains_out[:_DASHBOARD_DOMAINS_PAYLOAD_CAP],
-        "domains_truncated": len(domains_out) > _DASHBOARD_DOMAINS_PAYLOAD_CAP,
+        "domains": _apply_list_cap(domains_out, _DASHBOARD_DOMAINS_PAYLOAD_CAP),
+        "domains_truncated": bool(
+            _DASHBOARD_DOMAINS_PAYLOAD_CAP > 0
+            and len(domains_out) > _DASHBOARD_DOMAINS_PAYLOAD_CAP
+        ),
         "domain_total": domain_total,
-        "anchors": anchors[:1000] if is_anchor_mode else [],
+        "anchors": (
+            _apply_list_cap(anchors, _ANCHORS_PAYLOAD_CAP) if is_anchor_mode else []
+        ),
         "top_rankings": build_top_backlink_rankings(
-            db, site_id=site_id, limit=100, report_type=rt, gsc_resource_id=rid
+            db, site_id=site_id, limit=0, report_type=rt, gsc_resource_id=rid
         ),
     }
+
+
+def _cap_links_payload(links: list[dict[str, Any]], limit: int) -> tuple[list[dict[str, Any]], bool]:
+    """limit<=0 → tüm linkler; aksi halde kes + truncated bayrağı."""
+    if not limit or int(limit) <= 0:
+        return list(links), False
+    cap = int(limit)
+    return list(links)[:cap], len(links) > cap
 
 
 def list_domain_links(
@@ -1601,10 +1632,10 @@ def list_domain_links(
     site_id: int,
     report_type: str,
     domain: str,
-    limit: int = 10000,
+    limit: int = 0,
     all_link_imports: bool = False,
 ) -> dict[str, Any]:
-    """Tek domain için benzersiz kaynak+hedef linkleri."""
+    """Tek domain için benzersiz kaynak+hedef linkleri (limit<=0 = hepsi)."""
     rt = (report_type or "latest_links").strip().lower()
     dom = normalize_domain(domain) or (domain or "").strip().lower()
     if not dom:
@@ -1649,13 +1680,12 @@ def list_domain_links(
     )
     links = _link_entries_from_rows(rows)
     links.sort(key=lambda x: ((x.get("source_url") or "").lower(), (x.get("target_url") or "").lower()))
-    cap = max(1, min(int(limit), 50000))
-    truncated = len(links) > cap
+    out_links, truncated = _cap_links_payload(links, limit)
     return {
         "domain": dom,
         "report_type": rt,
         "link_count": len(links),
-        "links": links[:cap],
+        "links": out_links,
         "truncated": truncated,
     }
 
@@ -1667,9 +1697,9 @@ def list_target_page_links(
     report_type: str,
     target_url: str,
     link_kind: str = "all",
-    limit: int = 10000,
+    limit: int = 0,
 ) -> dict[str, Any]:
-    """Tek hedef URL için bağlantı veren kaynak URL listesi (iç/dış filtrelenebilir)."""
+    """Tek hedef URL için bağlantı veren kaynak URL listesi (limit<=0 = hepsi)."""
     rt = (report_type or "latest_links").strip().lower()
     site = db.query(Site).filter(Site.id == site_id).first()
     site_domain = (site.domain if site else "") or ""
@@ -1714,15 +1744,14 @@ def list_target_page_links(
         matched.append(r)
     links = _link_entries_from_rows(matched)
     links.sort(key=lambda x: ((x.get("source_url") or "").lower(), (x.get("target_url") or "").lower()))
-    cap = max(1, min(int(limit), 50000))
-    truncated = len(links) > cap
+    out_links, truncated = _cap_links_payload(links, limit)
     return {
         "target_url": tgt_in,
         "target_key": tkey,
         "report_type": rt,
         "link_kind": lk,
         "link_count": len(links),
-        "links": links[:cap],
+        "links": out_links,
         "truncated": truncated,
     }
 

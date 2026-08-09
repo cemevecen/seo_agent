@@ -1085,8 +1085,8 @@
   function renderDiffDomainBlock(title, domains, tone, totalCount) {
     if (!domains || !domains.length) return "";
     var total = totalCount != null && !isNaN(totalCount) ? parseInt(totalCount, 10) : domains.length;
-    var showCap = 400;
-    var slice = domains.length > showCap ? domains.slice(0, showCap) : domains;
+    var showCap = 0;
+    var slice = showCap > 0 && domains.length > showCap ? domains.slice(0, showCap) : domains;
     var isLost = tone === "lost";
     var border = isLost
       ? "border-rose-200 dark:border-rose-800"
@@ -1148,7 +1148,6 @@
         ? "text-rose-800 dark:text-rose-200"
         : "text-emerald-800 dark:text-emerald-200";
     var body = items
-      .slice(0, 80)
       .map(function (ln) {
         return (
           '<li class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900/60">' +
@@ -1198,8 +1197,8 @@
   var BL_LOTTIE_DASHBOARD = "https://assets2.lottiefiles.com/packages/lf20_p8bfn5ty.json";
   var BL_IMPORT_SUCCESS_MIN_MS = 500;
   var BL_DASHBOARD_LOAD_MIN_MS = 320;
-  var BL_DOMAINS_TABLE_RENDER_CAP = 400;
-  var blDomainsTableRenderLimit = BL_DOMAINS_TABLE_RENDER_CAP;
+  var BL_DOMAINS_TABLE_RENDER_CAP = 0; // 0 = tüm domainler (yapay 400 kesmesi yok)
+  var blDomainsTableRenderLimit = 0;
   var blDomainsPayloadTruncated = false;
   var blDashboardLoadSeq = 0;
   var blDashboardLottieStarted = false;
@@ -1735,7 +1734,8 @@
   var blTopPageOpen = {};
 
   function blTopRankLimit(expanded) {
-    return expanded ? 100 : 10;
+    // Tüm ranking satırları — 10/100 kesmesi yok
+    return 1e9;
   }
 
   function blTopPageLinkKind() {
@@ -1925,12 +1925,7 @@
       })
       .join("");
     if (btn) {
-      if (total > 10 || items.length > 10) {
-        btn.classList.remove("hidden");
-        btn.textContent = blTopSitesExpanded ? "Top 10 göster" : "Top 100 göster";
-      } else {
-        btn.classList.add("hidden");
-      }
+      btn.classList.add("hidden");
     }
   }
 
@@ -2009,12 +2004,7 @@
       })
       .join("");
     if (btn) {
-      if (totalAll > 10 || (blTopRankingsCache.top_linking_pages || []).length > 10) {
-        btn.classList.remove("hidden");
-        btn.textContent = blTopPagesExpanded ? "Top 10 göster" : "Top 100 göster";
-      } else {
-        btn.classList.add("hidden");
-      }
+      btn.classList.add("hidden");
     }
   }
 
@@ -2781,9 +2771,13 @@
         ? "Gösterilen " + shown + " / " + total + " domain (filtre sonrası)."
         : "";
     if (blDomainsPayloadTruncated && total > 0) {
-      base += " Sunucu listesi üst sınırda; tablo en yüksek hacimli domainlerle sınırlı.";
+      base += " Sunucu listesi üst sınırda kesilmiş.";
     }
-    if (shown < total && blDomainsTableRenderLimit < total) {
+    if (
+      blDomainsTableRenderLimit > 0 &&
+      shown < total &&
+      blDomainsTableRenderLimit < total
+    ) {
       base +=
         " Tabloda ilk " +
         blDomainsTableRenderLimit +
@@ -3277,12 +3271,12 @@
       return;
     }
     var sorted = sortBlDomains(domains);
-    var limit = Math.max(1, blDomainsTableRenderLimit || BL_DOMAINS_TABLE_RENDER_CAP);
-    var page = sorted.slice(0, limit);
+    var limit = blDomainsTableRenderLimit || BL_DOMAINS_TABLE_RENDER_CAP;
+    var page = !limit || limit <= 0 ? sorted : sorted.slice(0, Math.max(1, limit));
     if (tbody) tbody.innerHTML = page.map(renderDomainRow).join("");
     if (cards) cards.innerHTML = page.map(renderDomainCard).join("");
     if (moreWrap) {
-      if (sorted.length > page.length) {
+      if (limit > 0 && sorted.length > page.length) {
         moreWrap.classList.remove("hidden");
         var btn = document.getElementById("bl-domains-more-btn");
         if (btn) {
@@ -3351,7 +3345,6 @@
 
       function listBlock(title, items, labelKey) {
         var lis = (items || [])
-          .slice(0, 40)
           .map(function (it) {
             var lab = typeof it === "string" ? it : it[labelKey] || it.label || it.key || "";
             var extra = "";
@@ -3567,7 +3560,12 @@
     if (!btn || btn.dataset.wired === "1") return;
     btn.dataset.wired = "1";
     btn.addEventListener("click", function () {
-      blDomainsTableRenderLimit += BL_DOMAINS_TABLE_RENDER_CAP;
+      if (!BL_DOMAINS_TABLE_RENDER_CAP || BL_DOMAINS_TABLE_RENDER_CAP <= 0) {
+        blDomainsTableRenderLimit = 0;
+      } else {
+        blDomainsTableRenderLimit =
+          (blDomainsTableRenderLimit || 0) + BL_DOMAINS_TABLE_RENDER_CAP;
+      }
       refreshDomainsView();
     });
   })();

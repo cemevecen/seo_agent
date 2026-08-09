@@ -553,9 +553,9 @@ def build_change_window(
             "new_count": len(new_keys),
             "lost_count": len(lost_keys),
             "changed_count": len(changed),
-            "new": [latest_map[k] for k in new_keys[:200]],
-            "lost": [base_map[k] for k in lost_keys[:200]],
-            "changed": changed[:200],
+            "new": [latest_map[k] for k in new_keys],
+            "lost": [base_map[k] for k in lost_keys],
+            "changed": changed,
         },
         "series": series,
     }

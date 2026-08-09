@@ -317,6 +317,78 @@ def _extract_page_payload(page) -> dict[str, Any]:
     )
 
 
+def _scroll_gsc_table_fully(page, *, max_rounds: int = 400) -> int:
+    """GSC Links tablosunu sonuna kadar kaydır — lazy/virtual satırlar yüklensin.
+
+    Dönüş: DOM'daki tbody satır sayısı (yapay 300–1000 kesmesi yok).
+    """
+    try:
+        return int(
+            page.evaluate(
+                """async (maxRounds) => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const rowCount = () => document.querySelectorAll('table tbody tr').length;
+  const scrollTargets = () => {
+    const out = [];
+    const table = document.querySelector('table');
+    let el = table;
+    while (el && el !== document.body) {
+      const st = window.getComputedStyle(el);
+      const oy = st.overflowY || st.overflow || '';
+      if ((oy.includes('auto') || oy.includes('scroll')) && el.scrollHeight > el.clientHeight + 40) {
+        out.push(el);
+      }
+      el = el.parentElement;
+    }
+    if (document.scrollingElement) out.push(document.scrollingElement);
+    out.push(document.documentElement, document.body);
+    return out;
+  };
+  // "Daha fazla göster" / Show more
+  const clickMore = () => {
+    const nodes = [...document.querySelectorAll('button, a, [role=button], span')];
+    for (const n of nodes) {
+      const t = ((n.innerText || n.textContent || '') + '').trim().toLowerCase();
+      if (!t || t.length > 48) continue;
+      if (
+        t.includes('daha fazla') ||
+        t.includes('daha çok') ||
+        t === 'more' ||
+        t.startsWith('show more') ||
+        t.includes('load more')
+      ) {
+        try { n.click(); return true; } catch (_) {}
+      }
+    }
+    return false;
+  };
+  let last = rowCount();
+  let stable = 0;
+  for (let i = 0; i < maxRounds; i++) {
+    clickMore();
+    for (const el of scrollTargets()) {
+      try { el.scrollTop = el.scrollHeight; } catch (_) {}
+    }
+    try { window.scrollTo(0, document.body.scrollHeight); } catch (_) {}
+    await sleep(350);
+    const now = rowCount();
+    if (now <= last) {
+      stable += 1;
+      if (stable >= 8) break;
+    } else {
+      stable = 0;
+      last = now;
+    }
+  }
+  return rowCount();
+}""",
+                max_rounds,
+            )
+        )
+    except Exception:
+        return 0
+
+
 def scrape_one(
     page,
     *,
@@ -340,6 +412,7 @@ def scrape_one(
             "link_type": link_type,
             "url": page.url,
         }
+    scrolled = _scroll_gsc_table_fully(page)
     raw = _extract_page_payload(page)
     rows = _normalize_rows(link_type, raw.get("headers") or [], raw.get("rows") or [])
     kpis_raw = raw.get("kpis") or {}
@@ -350,7 +423,12 @@ def scrape_one(
     return {
         "ok": bool(rows),
         "needs_login": False,
-        "message": f"{link_type} · {len(rows)} satır" if rows else f"{link_type} · tablo boş",
+        "message": (
+            f"{link_type} · {len(rows)} satır"
+            + (f" (scroll={scrolled})" if scrolled else "")
+            if rows
+            else f"{link_type} · tablo boş"
+        ),
         "resource_id": resource_id,
         "link_type": link_type,
         "url": url,
