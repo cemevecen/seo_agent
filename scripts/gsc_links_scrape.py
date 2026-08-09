@@ -236,7 +236,7 @@ def _launch_context(*, headed: bool):
         "user_data_dir": str(PROFILE_DIR),
         "headless": not headed,
         "viewport": {"width": 1440, "height": 1100},
-        "locale": "tr-TR",
+        "locale": "en-US",
         "accept_downloads": True,
         "args": ["--disable-blink-features=AutomationControlled"],
     }
