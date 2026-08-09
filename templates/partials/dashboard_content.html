@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v10">
+<style id="home-site-borders" data-home-css="v11">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -868,8 +868,23 @@
     font-size: 0.95rem !important;
     line-height: 1.15 !important;
   }
+  .home-project-logo {
+    display: block;
+    flex-shrink: 0;
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: 0.42rem;
+    object-fit: cover;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+  }
   .home-project-rail-label {
     display: none;
+  }
+  .home-project-rail-label .home-project-logo {
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 0.45rem;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.16);
   }
   .home-focus-chev {
     display: inline-flex;
@@ -973,18 +988,22 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.62rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    line-height: 1;
+    padding: 0.12rem;
+    overflow: hidden;
+  }
+  .home-focus-split-face .home-project-logo {
+    width: 100%;
+    height: 100%;
+    max-width: 1.35rem;
+    max-height: 1.35rem;
+    border-radius: 0.28rem;
+    box-shadow: none;
   }
   .home-focus-split-face--d {
-    background: linear-gradient(180deg, #60a5fa, #2563eb);
-    color: #eff6ff;
+    background: #1d4ed8;
   }
   .home-focus-split-face--s {
-    background: linear-gradient(180deg, #fb7185, #e11d48);
-    color: #fff1f2;
+    background: #e11d48;
   }
   html.dark .home-focus-split {
     box-shadow:
@@ -1065,22 +1084,23 @@
       align-items: center;
       justify-content: center;
       padding: 0 0.1rem;
-      box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.06);
+      box-shadow: none;
+      background: transparent;
       box-sizing: border-box;
     }
     #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] {
-      background: linear-gradient(180deg, #ffe4e6, #fecdd3);
+      background: transparent;
     }
     #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] {
-      background: linear-gradient(180deg, #dbeafe, #bfdbfe);
+      background: transparent;
     }
     html.dark #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] {
-      background: linear-gradient(180deg, rgb(136 19 55 / 0.55), rgb(127 29 29 / 0.45));
-      box-shadow: inset 0 0 0 1px rgb(253 164 175 / 0.2);
+      background: transparent;
+      box-shadow: none;
     }
     html.dark #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] {
-      background: linear-gradient(180deg, rgb(30 58 138 / 0.55), rgb(30 64 175 / 0.4));
-      box-shadow: inset 0 0 0 1px rgb(147 197 253 / 0.2);
+      background: transparent;
+      box-shadow: none;
     }
 
     #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] > *:not(.home-project-rail-label),
@@ -1098,32 +1118,21 @@
     }
     #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label,
     #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label {
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       position: static;
-      writing-mode: vertical-rl;
-      transform: rotate(180deg);
-      max-height: calc(var(--home-head-h) - 0.35rem);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 0.52rem;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      line-height: 1;
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      overflow: visible;
       pointer-events: none;
-    }
-    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label {
-      color: #9f1239;
-    }
-    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label {
-      color: #1d4ed8;
-    }
-    html.dark #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label {
-      color: #fecdd3;
-    }
-    html.dark #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label {
-      color: #bfdbfe;
+      writing-mode: horizontal-tb;
+      transform: none;
+      font-size: 0;
+      letter-spacing: 0;
+      text-transform: none;
+      color: transparent;
     }
 
     /* Expanded head: muted chevrons while focused */
@@ -1238,8 +1247,12 @@
     <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
       <button type="button" class="home-focus-split home-focus-split--bar lg:hidden" data-home-focus-set="split"
               title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
-        <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">D</span>
-        <span class="home-focus-split-face home-focus-split-face--s" aria-hidden="true">S</span>
+        <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">
+          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
+        </span>
+        <span class="home-focus-split-face home-focus-split-face--s" aria-hidden="true">
+          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
+        </span>
       </button>
       <a href="/alerts" hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
          class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:px-4 sm:py-2 sm:text-xs">Uyarılar</a>
@@ -1352,17 +1365,23 @@
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 11-1.06-1.06L15.94 10l-5.47-5.47a.75.75 0 010-1.06z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M4.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 01-1.06-1.06L10.94 10 4.47 4.53a.75.75 0 010-1.06z" clip-rule="evenodd"/></svg>
         </button>
         <div class="home-project-head-main min-w-0 flex-1">
-          <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600 ring-2 ring-blue-200/60 dark:bg-blue-400 dark:ring-blue-300/20"></span>
+          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
           <h2 class="truncate text-lg font-bold tracking-tight text-blue-900 dark:text-blue-200 sm:text-xl">doviz.com</h2>
         </div>
         <button type="button" class="home-focus-chev" data-home-focus-set="doviz" title="doviz.com genişlet" aria-label="doviz.com genişlet (sol)">
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9.53 3.22a.75.75 0 00-1.06 0l-6 6a.75.75 0 000 1.06l6 6a.75.75 0 101.06-1.06L4.06 10l5.47-5.47a.75.75 0 000-1.06z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M15.53 3.22a.75.75 0 00-1.06 0l-6 6a.75.75 0 000 1.06l6 6a.75.75 0 101.06-1.06L10.06 10l5.47-5.47a.75.75 0 000-1.06z" clip-rule="evenodd"/></svg>
         </button>
-        <span class="home-project-rail-label" aria-hidden="true">doviz</span>
+        <span class="home-project-rail-label" aria-hidden="true">
+          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
+        </span>
       </div>
       <button type="button" class="home-focus-split" data-home-focus-set="split" title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
-        <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">D</span>
-        <span class="home-focus-split-face home-focus-split-face--s" aria-hidden="true">S</span>
+        <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">
+          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
+        </span>
+        <span class="home-focus-split-face home-focus-split-face--s" aria-hidden="true">
+          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
+        </span>
       </button>
       <div class="home-project-head home-project-head--sinemalar flex items-center gap-2 rounded-2xl bg-rose-50/60 px-3 ring-1 ring-rose-300/70 dark:bg-rose-950/30 dark:ring-rose-800/60 sm:px-4"
            data-home-project="sinemalar">
@@ -1370,13 +1389,15 @@
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 11-1.06-1.06L15.94 10l-5.47-5.47a.75.75 0 010-1.06z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M4.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 01-1.06-1.06L10.94 10 4.47 4.53a.75.75 0 010-1.06z" clip-rule="evenodd"/></svg>
         </button>
         <div class="home-project-head-main min-w-0 flex-1">
-          <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-rose-600 ring-2 ring-rose-200/60 dark:bg-rose-400 dark:ring-rose-300/20"></span>
+          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
           <h2 class="truncate text-lg font-bold tracking-tight text-rose-900 dark:text-rose-200 sm:text-xl">sinemalar.com</h2>
         </div>
         <button type="button" class="home-focus-chev" data-home-focus-set="sinemalar" title="sinemalar.com genişlet" aria-label="sinemalar.com genişlet">
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9.53 3.22a.75.75 0 00-1.06 0l-6 6a.75.75 0 000 1.06l6 6a.75.75 0 101.06-1.06L4.06 10l5.47-5.47a.75.75 0 000-1.06z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M15.53 3.22a.75.75 0 00-1.06 0l-6 6a.75.75 0 000 1.06l6 6a.75.75 0 101.06-1.06L10.06 10l5.47-5.47a.75.75 0 000-1.06z" clip-rule="evenodd"/></svg>
         </button>
-        <span class="home-project-rail-label" aria-hidden="true">sinemalar</span>
+        <span class="home-project-rail-label" aria-hidden="true">
+          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
+        </span>
       </div>
     </div>
 
