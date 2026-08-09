@@ -172,7 +172,7 @@
     text-align: right;
     padding-left: 1rem;
   }
-  /* Grafik çizim tarzı (çizgi / alan / lollipop) */
+  /* Grafik çizim tarzı (çizgi / alan / çubuk) */
   .pa-chart-style {
     display: inline-flex;
     align-items: center;
@@ -762,8 +762,8 @@
               <button type="button" data-pa-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-pa-chart-style="lollipop" title="Lollipop" aria-label="Lollipop grafik" aria-pressed="false">
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 12 V7 M8 12 V5 M12 12 V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="4" cy="7" r="1.6" fill="currentColor"/><circle cx="8" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="8" r="1.6" fill="currentColor"/></svg>
+              <button type="button" data-pa-chart-style="bar" title="Çubuk" aria-label="Çubuk grafik" aria-pressed="false">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="7" width="2.8" height="5" rx="0.6" fill="currentColor"/><rect x="6.6" y="4" width="2.8" height="8" rx="0.6" fill="currentColor"/><rect x="10.7" y="6" width="2.8" height="6" rx="0.6" fill="currentColor"/></svg>
               </button>
             </div>
             <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
@@ -1316,7 +1316,8 @@
   var paChartStyle = "line";
   try {
     var _pcs = localStorage.getItem("paChartStyle");
-    if (_pcs === "area" || _pcs === "lollipop" || _pcs === "line") paChartStyle = _pcs;
+    if (_pcs === "lollipop") _pcs = "bar";
+    if (_pcs === "area" || _pcs === "bar" || _pcs === "line") paChartStyle = _pcs;
   } catch (_) {}
   function syncPaChartStyleUi() {
     var root = document.getElementById("pa-chart-style");
@@ -1328,7 +1329,7 @@
     });
   }
   function setPaChartStyle(style) {
-    if (style !== "line" && style !== "area" && style !== "lollipop") return;
+    if (style !== "line" && style !== "area" && style !== "bar") return;
     paChartStyle = style;
     try { localStorage.setItem("paChartStyle", style); } catch (_) {}
     syncPaChartStyleUi();
@@ -2299,11 +2300,13 @@
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
         pct + "%</text>";
     }
-    var pathsHtml = linePaths.map(function (lp) {
+    var pathsHtml = linePaths.map(function (lp, li) {
       return buildSeriesStyleHtml(style, lp.pts, lp.color, baseY, {
         strokeW: PA_STROKE_W,
         fillOpacity: 0.16,
-        showDots: false
+        showDots: false,
+        seriesIndex: li,
+        seriesCount: linePaths.length
       });
     }).join("");
     // Özet (ANR/Crash/Kayıp) üzerine +grafik ekleri — kendi max % ölçeği
@@ -2341,12 +2344,14 @@
         countLike: metricIsCountLike(ov.metric)
       };
     });
-    var ovPathsHtml = ovSeriesState.map(function (os) {
+    var ovPathsHtml = ovSeriesState.map(function (os, oi) {
       return buildSeriesStyleHtml(style, os.pts, os.color, baseY, {
         strokeW: PA_STROKE_W_OV,
         fillOpacity: 0.12,
         showDots: false,
-        dotR: PA_DOT_R_OV
+        dotR: PA_DOT_R_OV,
+        seriesIndex: linePaths.length + oi,
+        seriesCount: linePaths.length + ovSeriesState.length
       });
     }).join("");
     var ovDotsHtml = "";
@@ -2817,7 +2822,7 @@
     for (var i = 1; i < pts.length; i++) d += " L" + pts[i].x.toFixed(1) + "," + pts[i].y.toFixed(1);
     return d;
   }
-  /** Çizgi / alan / lollipop SVG parçası */
+  /** Çizgi / alan / çubuk SVG parçası */
   function buildSeriesStyleHtml(style, pts, color, baseY, opts) {
     opts = opts || {};
     var list = (pts || []).filter(Boolean);
@@ -2827,15 +2832,29 @@
     var fillOp = opts.fillOpacity != null ? opts.fillOpacity : 0.2;
     var showDots = !!opts.showDots;
     var html = "";
-    if (style === "lollipop") {
+    if (style === "bar") {
+      var seriesCount = Math.max(1, opts.seriesCount || 1);
+      var seriesIndex = opts.seriesIndex != null ? opts.seriesIndex : 0;
+      var slot = opts.slotWidth;
+      if (!(slot > 0) && list.length > 1) {
+        var minGap = Infinity;
+        for (var gi = 1; gi < list.length; gi++) {
+          var g = Math.abs(list[gi].x - list[gi - 1].x);
+          if (g > 0 && g < minGap) minGap = g;
+        }
+        if (Number.isFinite(minGap)) slot = minGap;
+      }
+      if (!(slot > 0)) slot = 16;
+      var groupW = Math.min(slot * 0.72, seriesCount > 1 ? 22 : 14);
+      var barW = Math.max(2.2, (groupW / seriesCount) - (seriesCount > 1 ? 0.8 : 0));
+      var barOp = opts.barOpacity != null ? opts.barOpacity : 0.82;
       list.forEach(function (p) {
+        var x0 = p.x - groupW / 2 + seriesIndex * (groupW / seriesCount);
+        var h = Math.max(0.5, Number(baseY) - p.y);
         html +=
-          '<line x1="' + p.x.toFixed(1) + '" y1="' + Number(baseY).toFixed(1) +
-          '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) +
-          '" stroke="' + color + '" stroke-width="1.45" stroke-linecap="round" />' +
-          '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-          '" r="' + Math.max(3.1, Number(dotR) || 3.1) + '" fill="' + color +
-          '" stroke="#fff" stroke-width="1.15" />';
+          '<rect x="' + x0.toFixed(1) + '" y="' + p.y.toFixed(1) +
+          '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) +
+          '" rx="1.1" fill="' + color + '" fill-opacity="' + barOp + '" />';
       });
       return html;
     }
@@ -3780,15 +3799,25 @@
     var ovPathsHtml = "";
     var dots = "";
     var ovDots = "";
-    if (style === "lollipop") {
-      primaryHtml = buildSeriesStyleHtml("lollipop", curPts, PA_LINE_COLOR, baseYDraw, { dotR: PA_DOT_R });
-      if (!hasOv && !useNorm) {
-        prevHtml = buildSeriesStyleHtml("lollipop", prevLinePts, pal.prev, baseYDraw, { dotR: PA_DOT_R * 0.85 });
+    if (style === "bar") {
+      var barSeriesN = 1 + overlaySeriesState.length + ((!hasOv && !useNorm && prevLinePts.length) ? 1 : 0);
+      primaryHtml = buildSeriesStyleHtml("bar", curPts, PA_LINE_COLOR, baseYDraw, {
+        seriesIndex: 0,
+        seriesCount: barSeriesN,
+        barOpacity: 0.88
+      });
+      if (!hasOv && !useNorm && prevLinePts.length) {
+        prevHtml = buildSeriesStyleHtml("bar", prevLinePts, pal.prev, baseYDraw, {
+          seriesIndex: 1,
+          seriesCount: barSeriesN,
+          barOpacity: 0.45
+        });
       }
-      ovPathsHtml = overlaySeriesState.map(function (os) {
-        return buildSeriesStyleHtml("lollipop", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
-          strokeW: PA_STROKE_W_OV,
-          dotR: PA_DOT_R_OV
+      ovPathsHtml = overlaySeriesState.map(function (os, oi) {
+        return buildSeriesStyleHtml("bar", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
+          seriesIndex: 1 + oi,
+          seriesCount: Math.max(1, 1 + overlaySeriesState.length),
+          barOpacity: 0.75
         });
       }).join("");
     } else if (style === "area") {

@@ -194,7 +194,7 @@
     .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
     .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
   }
-  /* Grafik çizim tarzı (çizgi / alan / lollipop) */
+  /* Grafik çizim tarzı (çizgi / alan / çubuk) */
   .pa-chart-style {
     display: inline-flex;
     align-items: center;
@@ -456,8 +456,8 @@
               <button type="button" data-ia-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-ia-chart-style="lollipop" title="Lollipop" aria-label="Lollipop grafik" aria-pressed="false">
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 12 V7 M8 12 V5 M12 12 V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="4" cy="7" r="1.6" fill="currentColor"/><circle cx="8" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="8" r="1.6" fill="currentColor"/></svg>
+              <button type="button" data-ia-chart-style="bar" title="Çubuk" aria-label="Çubuk grafik" aria-pressed="false">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="7" width="2.8" height="5" rx="0.6" fill="currentColor"/><rect x="6.6" y="4" width="2.8" height="8" rx="0.6" fill="currentColor"/><rect x="10.7" y="6" width="2.8" height="6" rx="0.6" fill="currentColor"/></svg>
               </button>
             </div>
           </div>
@@ -550,7 +550,8 @@
   var iaChartStyle = "line";
   try {
     var _ics = localStorage.getItem("iaChartStyle");
-    if (_ics === "area" || _ics === "lollipop" || _ics === "line") iaChartStyle = _ics;
+    if (_ics === "lollipop") _ics = "bar";
+    if (_ics === "area" || _ics === "bar" || _ics === "line") iaChartStyle = _ics;
   } catch (_) {}
   function syncIaChartStyleUi() {
     var root = document.getElementById("ia-chart-style");
@@ -562,7 +563,7 @@
     });
   }
   function setIaChartStyle(style) {
-    if (style !== "line" && style !== "area" && style !== "lollipop") return;
+    if (style !== "line" && style !== "area" && style !== "bar") return;
     iaChartStyle = style;
     try { localStorage.setItem("iaChartStyle", style); } catch (_) {}
     syncIaChartStyleUi();
@@ -1387,18 +1388,31 @@
     var list = (pts || []).filter(Boolean);
     if (!list.length) return "";
     var strokeW = opts.strokeW != null ? opts.strokeW : STROKE;
-    var dotR = opts.dotR != null ? opts.dotR : 3.1;
     var fillOp = opts.fillOpacity != null ? opts.fillOpacity : 0.2;
     var html = "";
-    if (style === "lollipop") {
+    if (style === "bar") {
+      var seriesCount = Math.max(1, opts.seriesCount || 1);
+      var seriesIndex = opts.seriesIndex != null ? opts.seriesIndex : 0;
+      var slot = opts.slotWidth;
+      if (!(slot > 0) && list.length > 1) {
+        var minGap = Infinity;
+        for (var gi = 1; gi < list.length; gi++) {
+          var g = Math.abs(list[gi].x - list[gi - 1].x);
+          if (g > 0 && g < minGap) minGap = g;
+        }
+        if (Number.isFinite(minGap)) slot = minGap;
+      }
+      if (!(slot > 0)) slot = 16;
+      var groupW = Math.min(slot * 0.72, seriesCount > 1 ? 22 : 14);
+      var barW = Math.max(2.2, (groupW / seriesCount) - (seriesCount > 1 ? 0.8 : 0));
+      var barOp = opts.barOpacity != null ? opts.barOpacity : 0.82;
       list.forEach(function (p) {
+        var x0 = p.x - groupW / 2 + seriesIndex * (groupW / seriesCount);
+        var h = Math.max(0.5, Number(baseY) - p.y);
         html +=
-          '<line x1="' + p.x.toFixed(1) + '" y1="' + Number(baseY).toFixed(1) +
-          '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) +
-          '" stroke="' + color + '" stroke-width="1.45" stroke-linecap="round" />' +
-          '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-          '" r="' + Math.max(3.1, Number(dotR) || 3.1) + '" fill="' + color +
-          '" stroke="#fff" stroke-width="1.15" />';
+          '<rect x="' + x0.toFixed(1) + '" y="' + p.y.toFixed(1) +
+          '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) +
+          '" rx="1.1" fill="' + color + '" fill-opacity="' + barOp + '" />';
       });
       return html;
     }
@@ -1476,10 +1490,12 @@
     var style = iaChartStyle || "line";
     var baseY = top + plotH;
     var fillOp = list.length > 1 ? 0.12 : 0.22;
-    var paths = seriesList.map(function (s) {
+    var paths = seriesList.map(function (s, si) {
       return buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
         strokeW: STROKE,
-        fillOpacity: fillOp
+        fillOpacity: fillOp,
+        seriesIndex: si,
+        seriesCount: seriesList.length
       });
     }).join("");
     var dots = seriesList.map(function (s, i) {
