@@ -1031,9 +1031,9 @@
           <option value="custom">Özel aralık</option>
           <option value="today">Bugün</option>
           <option value="yesterday">Dün</option>
-          <option value="7d"{% if ad_mode == 'virgul' %} selected{% endif %}>Son 7 gün</option>
+          <option value="7d">Son 7 gün</option>
           <option value="14d">Son 2 hafta</option>
-          <option value="30d">Son 30 gün</option>
+          <option value="30d"{% if ad_mode == 'virgul' %} selected{% endif %}>Son 30 gün</option>
           <option value="60d">Son 60 gün</option>
           <option value="90d">Son 90 gün</option>
           <option value="180d">Son 180 gün</option>
