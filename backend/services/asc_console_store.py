@@ -106,7 +106,7 @@ def ingest_asc_console_payload(
     merged_panels["version"] = 1
     merged_panels["explorer_facts"] = merged_facts[:50000]
     merged_panels["explorer_fact_count"] = len(merged_facts)
-    for k in ("pages", "measure_keys", "scrape_meta"):
+    for k in ("pages", "measure_keys", "scrape_meta", "ratings"):
         if incoming_panels.get(k) is not None:
             merged_panels[k] = incoming_panels[k]
 
@@ -201,5 +201,7 @@ def load_asc_scrape_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         "bundle_id": payload.get("bundle_id"),
         "app_id": payload.get("app_id"),
         "sync_ok": payload.get("sync_ok"),
+        "ratings": panels.get("ratings") if isinstance(panels.get("ratings"), dict) else None,
+        "measure_keys": panels.get("measure_keys") if isinstance(panels.get("measure_keys"), list) else None,
     }
     return [f for f in facts if isinstance(f, dict)], meta

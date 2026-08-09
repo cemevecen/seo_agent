@@ -78,16 +78,32 @@ MEASURE_MAP: dict[str, str] = {
     "iap": "iap",
     "payingUsers": "paying_users",
     "proceeds": "proceeds",
+    "sales": "sales",
+    "activeDevices": "active_devices",
+    "sessions": "sessions",
+    "installs": "installs",
+    "crashes": "crashes",
+    "uninstalls": "uninstalls",
     "subscription-state-plans-active": "active_subscriptions",
+    "subscription-state-churned": "subscription_churned",
+    "subscription-events-renewals": "subscription_renewals",
 }
-# Batch grupları (tek POST’ta birden fazla measure)
+# Batch grupları (tek POST’ta birden fazla measure) — 365g günlük
 MEASURE_BATCHES: list[list[str]] = [
     ["units", "redownloads", "conversionRate", "impressionsTotal", "pageViewCount"],
-    ["iap", "payingUsers", "proceeds"],
-    ["subscription-state-plans-active"],
+    ["iap", "payingUsers", "proceeds", "sales"],
+    ["activeDevices", "sessions", "installs", "crashes", "uninstalls"],
+    [
+        "subscription-state-plans-active",
+        "subscription-state-churned",
+        "subscription-events-renewals",
+    ],
 ]
 ANALYTICS_MEASURES_URL = (
     "https://appstoreconnect.apple.com/analytics/api/v1/data/app/detail/measures"
+)
+RATINGS_URL = (
+    f"https://appstoreconnect.apple.com/apps/{APP_ID}/distribution/ratings/ios"
 )
 
 
@@ -512,11 +528,124 @@ def _metrics_page_url(measure_key: str) -> str:
     base = f"https://appstoreconnect.apple.com/apps/{APP_ID}"
     days = _scrape_days()
     q = f"chartType=singleaxis&dateSpec=d{days}&frequency=day&measureKey={measure_key}"
-    if measure_key in ("iap", "payingUsers", "proceeds"):
+    if measure_key in ("iap", "payingUsers", "proceeds", "sales"):
         return f"{base}/analytics/monetization/sales/metrics?{q}"
     if measure_key.startswith("subscription"):
         return f"{base}/analytics/monetization/subscriptions/metrics?{q}"
     return f"{base}/analytics/metrics?{q}"
+
+
+def _synthesize_total_downloads(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """units + redownloads → total_downloads (ASC’de ayrı measure yok)."""
+    by_date: dict[str, float] = {}
+    for f in facts:
+        m = str(f.get("metric") or "")
+        if m not in ("units", "redownloads"):
+            continue
+        ds = str(f.get("date") or "")[:10]
+        if not ds:
+            continue
+        try:
+            by_date[ds] = by_date.get(ds, 0.0) + float(f.get("value") or 0)
+        except (TypeError, ValueError):
+            continue
+    out: list[dict[str, Any]] = []
+    for ds in sorted(by_date.keys()):
+        out.append(
+            {
+                "metric": "total_downloads",
+                "view_id": "total_downloads",
+                "dim": "overview",
+                "segment": "OVERALL",
+                "date": ds,
+                "value": round(by_date[ds], 4),
+                "label": "total_downloads:OVERALL",
+                "source": "asc_derived",
+            }
+        )
+    return out
+
+
+def _scrape_ratings_summary(page) -> dict[str, Any]:
+    """ASC /distribution/ratings/ios — anlık puan / dağılım özeti."""
+    out: dict[str, Any] = {
+        "ok": False,
+        "url": RATINGS_URL,
+        "rating": None,
+        "ratings_count": None,
+        "stars": {},
+        "scraped_at": datetime.utcnow().isoformat() + "Z",
+    }
+    try:
+        page.goto(RATINGS_URL, wait_until="domcontentloaded", timeout=90_000)
+        time.sleep(2.5)
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = str(exc)[:160]
+        return out
+    try:
+        raw = page.evaluate(
+            """() => {
+              const text = (document.body && document.body.innerText) || '';
+              const html = document.documentElement ? document.documentElement.innerHTML : '';
+              // "4,7" / "4.7" + ratings count nearby
+              const ratingRe = /(?:\\b|^)([1-5][.,]\\d)\\s*(?:\\/\\s*5)?/;
+              const countRe = /([\\d.\\s]+)\\s*(?:oy|rating|ratings|değerlendirme)/i;
+              let rating = null, count = null;
+              const m1 = text.match(ratingRe);
+              if (m1) rating = m1[1];
+              const m2 = text.match(countRe);
+              if (m2) count = m2[1];
+              // star histogram rows e.g. "5★ 12.345"
+              const stars = {};
+              for (let s = 5; s >= 1; s--) {
+                const re = new RegExp(s + '\\\\s*[★*]\\\\s*([\\\\d.]+[\\\\s]?[KkMm]?)', 'i');
+                const m = text.match(re);
+                if (m) stars[String(s)] = m[1];
+              }
+              return { rating, count, stars, textSample: text.slice(0, 800), htmlHasIris: /iris|ratings/i.test(html) };
+            }"""
+        )
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = str(exc)[:160]
+        return out
+    if not isinstance(raw, dict):
+        return out
+
+    def _num(v: Any) -> float | None:
+        if v is None:
+            return None
+        s = str(v).strip().replace("\xa0", " ").replace(" ", "").replace(",", ".")
+        if not s:
+            return None
+        mult = 1.0
+        if s[-1:].lower() == "k":
+            mult = 1_000.0
+            s = s[:-1]
+        elif s[-1:].lower() == "m":
+            mult = 1_000_000.0
+            s = s[:-1]
+        try:
+            return float(s) * mult
+        except ValueError:
+            return None
+
+    rating = _num(raw.get("rating"))
+    count = _num(raw.get("count"))
+    stars: dict[str, float] = {}
+    for k, v in (raw.get("stars") or {}).items():
+        nv = _num(v)
+        if nv is not None:
+            stars[str(k)] = nv
+    out.update(
+        {
+            "ok": rating is not None or count is not None or bool(stars),
+            "rating": rating,
+            "ratings_count": int(count) if count is not None else None,
+            "stars": stars,
+            "text_sample": str(raw.get("textSample") or "")[:240],
+        }
+    )
+    return out
 
 
 def _analytics_headers(referer: str) -> dict[str, str]:
@@ -996,15 +1125,49 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             key = (str(f.get("metric")), str(f.get("date") or "")[:10])
             if key[1]:
                 by_key[key] = f
+        # units+redownloads → total_downloads
+        for f in _synthesize_total_downloads(list(by_key.values())):
+            key = (str(f.get("metric")), str(f.get("date") or "")[:10])
+            if key[1]:
+                by_key[key] = f
         explorer_facts = [by_key[k] for k in sorted(by_key.keys())]
+
+        ratings = _scrape_ratings_summary(page)
+        print(
+            f"ASC ratings · ok={ratings.get('ok')} · rating={ratings.get('rating')} · "
+            f"count={ratings.get('ratings_count')}",
+            flush=True,
+        )
+        rating_metrics: list[dict[str, Any]] = []
+        if ratings.get("rating") is not None:
+            rating_metrics.append(
+                {
+                    "title": "App Store puanı",
+                    "value": f"{ratings['rating']:.2f}".replace(".", ","),
+                    "delta": "",
+                    "kind": "ratings",
+                    "page": "ratings",
+                }
+            )
+        if ratings.get("ratings_count") is not None:
+            rating_metrics.append(
+                {
+                    "title": "Değerlendirme sayısı",
+                    "value": f"{int(ratings['ratings_count']):,}".replace(",", "."),
+                    "delta": "",
+                    "kind": "ratings",
+                    "page": "ratings",
+                }
+            )
 
         ok_metrics = sum(1 for v in pages_meta.values() if v.get("ok"))
         msg = (
             f"ASC scrape · {len(explorer_facts)} fact · "
             f"{ok_metrics}/{len(MEASURE_MAP)} measure"
+            + (" · ratings OK" if ratings.get("ok") else "")
         )
         return {
-            "ok": bool(explorer_facts),
+            "ok": bool(explorer_facts) or bool(ratings.get("ok")),
             "needs_login": False,
             "message": msg,
             "sync_mode": "analytics_scrape",
@@ -1013,17 +1176,20 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             "app_id": APP_ID,
             "source": "asc_console_bridge",
             "source_url": f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics/metrics",
-            "metrics": [],
+            "metrics": rating_metrics,
             "panels": {
                 "version": 1,
                 "explorer_facts": explorer_facts[:50000],
                 "explorer_fact_count": len(explorer_facts),
                 "pages": pages_meta,
                 "measure_keys": list(MEASURE_MAP.keys()),
+                "ratings": ratings,
                 "scrape_meta": {
                     "start": start_d.isoformat(),
                     "end": end_d.isoformat(),
+                    "days": scrape_days,
                     "api": ANALYTICS_MEASURES_URL,
+                    "ratings_url": RATINGS_URL,
                 },
             },
             "raw_network": raw_network[-40:],

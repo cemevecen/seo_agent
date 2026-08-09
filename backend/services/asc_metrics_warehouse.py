@@ -26,16 +26,7 @@ _SCRAPE_TTL_SEC = 60.0
 _bundle_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _scrape_cache: tuple[float, list[dict[str, Any]], dict[str, Any]] | None = None
 
-_SALES_METRICS = frozenset(
-    {
-        "units",
-        "redownloads",
-        "total_downloads",
-        "proceeds",
-        "iap",
-        "paying_users",
-    }
-)
+_SALES_METRICS = frozenset({"units", "proceeds", "total_downloads", "sales"})
 _ANALYTICS_METRICS = frozenset(
     {
         "units",
@@ -46,9 +37,22 @@ _ANALYTICS_METRICS = frozenset(
         "conversion_rate",
         "iap",
         "paying_users",
+        "sales",
+        "active_devices",
+        "sessions",
+        "installs",
+        "crashes",
+        "uninstalls",
     }
 )
-_SUBS_METRICS = frozenset({"active_subscriptions", "free_trials"})
+_SUBS_METRICS = frozenset(
+    {
+        "active_subscriptions",
+        "free_trials",
+        "subscription_churned",
+        "subscription_renewals",
+    }
+)
 
 # UI metrik anahtarı → (kaynak alanı, toplam modu: sum|avg|last)
 _METRIC_META: dict[str, tuple[str, str, str]] = {
@@ -61,7 +65,15 @@ _METRIC_META: dict[str, tuple[str, str, str]] = {
     "iap": ("in_app_purchases", "sum", "Uygulama içi satın alma"),
     "paying_users": ("paying_users", "sum", "Ödeyen kullanıcı"),
     "proceeds": ("proceeds_usd", "sum", "Gelir (USD)"),
+    "sales": ("sales", "sum", "Sales"),
+    "active_devices": ("active_devices", "sum", "Aktif cihaz"),
+    "sessions": ("sessions", "sum", "Oturum (ASC)"),
+    "installs": ("installs", "sum", "Installs"),
+    "crashes": ("crashes", "sum", "Çökme (ASC)"),
+    "uninstalls": ("uninstalls", "sum", "Kaldırma"),
     "active_subscriptions": ("active_plans", "last", "Aktif abonelik"),
+    "subscription_churned": ("subscription_churned", "sum", "Abonelik churn"),
+    "subscription_renewals": ("subscription_renewals", "sum", "Abonelik yenileme"),
     "free_trials": ("free_trials", "last", "Ücretsiz deneme"),
 }
 
@@ -133,7 +145,74 @@ def _scrape_covers_metric(
     start: date,
     end: date,
 ) -> bool:
-    return bool(_series_from_scrape_facts(facts, metric, start=start, end=end))
+    if metric == "total_downloads":
+        # Doğrudan fact veya units/redownloads türetimi
+        if _series_from_scrape_facts(facts, "total_downloads", start=start, end=end, _derive=False):
+            return True
+        return bool(
+            _series_from_scrape_facts(facts, "units", start=start, end=end, _derive=False)
+            or _series_from_scrape_facts(
+                facts, "redownloads", start=start, end=end, _derive=False
+            )
+        )
+    return bool(_series_from_scrape_facts(facts, metric, start=start, end=end, _derive=False))
+
+
+def _series_from_scrape_facts(
+    facts: list[dict[str, Any]],
+    metric: str,
+    *,
+    start: date,
+    end: date,
+    _derive: bool = True,
+) -> list[dict[str, Any]]:
+    if metric == "total_downloads" and _derive:
+        direct = _series_from_scrape_facts(
+            facts, "total_downloads", start=start, end=end, _derive=False
+        )
+        if direct:
+            return direct
+        units = {
+            r["key"]: float(r["value"])
+            for r in _series_from_scrape_facts(
+                facts, "units", start=start, end=end, _derive=False
+            )
+        }
+        redos = {
+            r["key"]: float(r["value"])
+            for r in _series_from_scrape_facts(
+                facts, "redownloads", start=start, end=end, _derive=False
+            )
+        }
+        keys = sorted(set(units) | set(redos))
+        return [
+            {
+                "key": k,
+                "value": round(units.get(k, 0.0) + redos.get(k, 0.0), 4),
+            }
+            for k in keys
+        ]
+
+    by_date: dict[str, float] = {}
+    for f in facts:
+        if str(f.get("metric") or "") != metric:
+            continue
+        if str(f.get("dim") or "overview") not in ("overview", "", "all"):
+            continue
+        ds = str(f.get("date") or "")[:10]
+        if not ds:
+            continue
+        try:
+            d = date.fromisoformat(ds)
+        except ValueError:
+            continue
+        if d < start or d > end:
+            continue
+        try:
+            by_date[ds] = float(f.get("value") or 0)
+        except (TypeError, ValueError):
+            continue
+    return [{"key": k, "value": round(by_date[k], 4)} for k in sorted(by_date.keys())]
 
 
 def _load_bundle(
@@ -261,35 +340,6 @@ def _load_bundle(
             if ts < cutoff:
                 _bundle_cache.pop(k, None)
     return out
-
-
-def _series_from_scrape_facts(
-    facts: list[dict[str, Any]],
-    metric: str,
-    *,
-    start: date,
-    end: date,
-) -> list[dict[str, Any]]:
-    by_date: dict[str, float] = {}
-    for f in facts:
-        if str(f.get("metric") or "") != metric:
-            continue
-        if str(f.get("dim") or "overview") not in ("overview", "", "all"):
-            continue
-        ds = str(f.get("date") or "")[:10]
-        if not ds:
-            continue
-        try:
-            d = date.fromisoformat(ds)
-        except ValueError:
-            continue
-        if d < start or d > end:
-            continue
-        try:
-            by_date[ds] = float(f.get("value") or 0)
-        except (TypeError, ValueError):
-            continue
-    return [{"key": k, "value": round(by_date[k], 4)} for k in sorted(by_date.keys())]
 
 
 def _pick_series(
@@ -634,6 +684,8 @@ def asc_metrics_status() -> dict[str, Any]:
         "scrape_fact_count": len(scrape_facts),
         "scrape_synced_at": scrape_meta.get("synced_at"),
         "scrape_message": scrape_meta.get("message"),
+        "ratings": scrape_meta.get("ratings"),
+        "measure_keys": scrape_meta.get("measure_keys"),
         "bundle_id": DEFAULT_BUNDLE,
         "app_id": DEFAULT_APP_ID,
         "metrics": metric_catalog(),
@@ -641,6 +693,38 @@ def asc_metrics_status() -> dict[str, Any]:
             "distribution": f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/distribution",
             "ratings": f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/distribution/ratings/ios",
             "analytics": f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics",
+            "pageViewCount": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=pageViewCount"
+            ),
+            "sales": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=sales"
+            ),
+            "iap": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=iap"
+            ),
+            "activeDevices": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=activeDevices"
+            ),
+            "sessions": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=sessions"
+            ),
+            "installs": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=installs"
+            ),
+            "crashes": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=crashes"
+            ),
+            "uninstalls": (
+                f"https://appstoreconnect.apple.com/apps/{DEFAULT_APP_ID}/analytics/metrics"
+                f"?chartType=singleaxis&dateSpec=d365&frequency=day&measureKey=uninstalls"
+            ),
             "finance": "https://appstoreconnect.apple.com/itc/payments_and_financial_reports#/",
         },
     }
