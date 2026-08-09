@@ -139,28 +139,28 @@
       <label class="pa-f pa-f--metric">Metrik
         <select id="ia-metric">
           <option value="" selected>Seçiniz</option>
-          <optgroup label="Edinme">
-            <option value="units">İlk indirme (units)</option>
-            <option value="redownloads">Yeniden indirme</option>
-            <option value="total_downloads">Toplam indirme</option>
+          <optgroup label="Acquisition">
+            <option value="units">First-time downloads</option>
+            <option value="redownloads">Redownloads</option>
+            <option value="total_downloads">Total downloads</option>
             <option value="installs">Installs</option>
-            <option value="impressions">Gösterim</option>
-            <option value="page_views">Ürün sayfası görüntüleme</option>
-            <option value="conversion_rate">Dönüşüm oranı (%)</option>
-            <option value="active_devices">Aktif cihaz</option>
-            <option value="sessions">Oturum (ASC)</option>
-            <option value="uninstalls">Kaldırma</option>
-            <option value="crashes">Çökme (ASC)</option>
+            <option value="impressions">Impressions</option>
+            <option value="page_views">Product page views</option>
+            <option value="conversion_rate">Conversion rate (%)</option>
+            <option value="active_devices">Active devices</option>
+            <option value="sessions">Sessions</option>
+            <option value="uninstalls">Uninstalls</option>
+            <option value="crashes">Crashes</option>
           </optgroup>
-          <optgroup label="Gelir / abonelik">
-            <option value="iap">Uygulama içi satın alma</option>
-            <option value="paying_users">Ödeyen kullanıcı</option>
-            <option value="proceeds">Gelir (USD)</option>
+          <optgroup label="Revenue / subscriptions">
+            <option value="iap">In-app purchases</option>
+            <option value="paying_users">Paying users</option>
+            <option value="proceeds">Proceeds (USD)</option>
             <option value="sales">Sales</option>
-            <option value="active_subscriptions">Aktif abonelik</option>
-            <option value="subscription_renewals">Abonelik yenileme</option>
-            <option value="subscription_churned">Abonelik churn</option>
-            <option value="free_trials">Ücretsiz deneme</option>
+            <option value="active_subscriptions">Active subscriptions</option>
+            <option value="subscription_renewals">Subscription renewals</option>
+            <option value="subscription_churned">Subscription churn</option>
+            <option value="free_trials">Free trials</option>
           </optgroup>
           <optgroup label="GA4 (iOS)">
             <option value="ga4:sessions">GA4 · Sessions</option>
@@ -1013,7 +1013,7 @@
         var chartBundles = chartOnly.filter(function (b) { return b.onChart; });
         var units = chartOnly.find(function (b) { return b.metric === "units"; }) || chartBundles[0];
         iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
-        iaTotalLabel.textContent = "Özet (ilk indirme)";
+        iaTotalLabel.textContent = "Overview (first-time downloads)";
         iaCompareRange.textContent = dataChart.scrape_ok
           ? ("Özet · scrape " + (dataChart.scrape_fact_count || "") + " fact (kendi ölçeği)")
           : "Özet · ASC Sales/API yedek (kendi ölçeği)";

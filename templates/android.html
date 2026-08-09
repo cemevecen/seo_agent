@@ -390,25 +390,25 @@
       <label class="pa-f pa-f--metric">Metrik
         <select id="pa-metric">
           <option value="" selected>Seçiniz</option>
-          <optgroup label="Kalite">
+          <optgroup label="Quality">
             <option value="anrs">ANR</option>
             <option value="crashes">Crash</option>
           </optgroup>
-          <optgroup label="Büyüme">
-            <option value="device_acquisition">Cihaz edinme</option>
-            <option value="user_lost">Kullanıcı kaybı</option>
-            <option value="active_devices">Etkin cihazlar</option>
-            <option value="active_users">Etkin kullanıcılar</option>
+          <optgroup label="Growth">
+            <option value="device_acquisition">Device acquisition</option>
+            <option value="user_lost">User lost</option>
+            <option value="active_devices">Active devices</option>
+            <option value="active_users">Active users</option>
           </optgroup>
-          <optgroup label="Mağaza">
-            <option value="ar2_visitors">Mağaza ziyaretçileri</option>
-            <option value="ar2_acquisitions">Mağaza edinme</option>
+          <optgroup label="Store">
+            <option value="ar2_visitors">Store visitors</option>
+            <option value="ar2_acquisitions">Store acquisitions</option>
           </optgroup>
-          <optgroup label="Gelir">
-            <option value="revenue">Gelir</option>
+          <optgroup label="Revenue">
+            <option value="revenue">Revenue</option>
           </optgroup>
-          <optgroup label="Puan">
-            <option value="rating">Google Play puanı + dağılım</option>
+          <optgroup label="Rating">
+            <option value="rating">Google Play rating + distribution</option>
           </optgroup>
           <optgroup label="GA4 (Android)">
             <option value="ga4:sessions">GA4 · Sessions</option>
@@ -3437,7 +3437,7 @@
         var chartBundles = tableBundles.filter(function (b) { return b.onChart; });
         var anr = tableBundles.find(function (b) { return b.metric === "anrs"; }) || chartBundles[0] || tableBundles[0];
         if (paTotal) paTotal.textContent = anr ? fmtNum(anr.total, metricIsCountLike(anr.metric)) : "—";
-        if (paTotalLabel) paTotalLabel.textContent = "Özet (ANR toplam)";
+        if (paTotalLabel) paTotalLabel.textContent = "Overview (ANR total)";
         if (paPrev) paPrev.textContent = "—";
         if (paDelta) paDelta.textContent = "—";
         var hasSeries = tableBundles.some(function (b) { return (b.series || []).length; });

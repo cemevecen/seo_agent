@@ -212,7 +212,7 @@ def resolve_play_analytics_query(
             gcs["source"] = "gcs"
             if metric == "device_acquisition":
                 gcs["metric"] = "device_acquisition"
-                gcs["label"] = gcs.get("label") or "Cihaz edinme"
+                gcs["label"] = gcs.get("label") or "Device acquisition"
             if scrape_res and not scrape_res.get("ok"):
                 gcs["scrape_message"] = scrape_res.get("message")
             if gcs.get("ok") and (gcs.get("series") or gcs.get("total")):
