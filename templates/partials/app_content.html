@@ -595,7 +595,7 @@
     <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <div class="min-w-0">
         <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Firebase Crashlytics</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">BigQuery · iOS + Android · gerçek zamanlı filtreli</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">/android + /ios scrape · vitals · stability-free (BQ yalnızca iOS peek)</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         {# Yenile butonu #}
@@ -731,7 +731,7 @@
   function startProgressPoll() {
     stopPoll();
     showProgress(true);
-    setProgress(5, "BigQuery bağlantısı kuruluyor…");
+    setProgress(5, "Play Console / iOS scrape yükleniyor…");
     crashState.pollTimer = setInterval(function () {
       fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store" })
         .then(function (r) { return r.json(); })

@@ -1,8 +1,8 @@
 """Firebase sekmesi — /android + /ios scrape / stability-free kaynakları.
 
 BigQuery Crashlytics tam export yerine Play Console vitals scrape +
-Reporting stability-free (+ iOS crash-free peek) kullanır; mevcut
-Crashlytics HTMX şablonlarının beklediği payload şeklini üretir.
+stability-free (+ iOS Crashlytics peek) kullanır. Android cihaz/OS kırılımı
+önce explorer_facts; Reporting yalnızca scrape boşsa. Sentetik veri yok.
 """
 
 from __future__ import annotations
@@ -163,12 +163,92 @@ def _os_label_from_api_level(seg: str) -> str:
     return f"API {api}"
 
 
+def _android_breakdowns_from_scrape(
+    *,
+    days: int = 28,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Play Console explorer_facts — Android cihaz + OS kırılımı (Reporting yok)."""
+    from datetime import date, timedelta
+
+    from backend.services.android_device_names import enrich_device_row
+    from backend.services.crashlytics_detail import merge_breakdown_rows
+    from backend.services.play_scrape_warehouse import load_scrape_facts
+
+    end = date.today() - timedelta(days=1)
+    start = end - timedelta(days=max(int(days or 28), 7) - 1)
+    facts, _meta = load_scrape_facts()
+    if not facts:
+        return [], []
+
+    device_counts: dict[str, int] = {}
+    os_counts: dict[str, int] = {}
+    for f in facts:
+        if not isinstance(f, dict):
+            continue
+        metric = str(f.get("metric") or "")
+        if metric not in ("crashes", "anrs"):
+            continue
+        dim = str(f.get("dim") or "")
+        seg = str(f.get("segment") or "").strip()
+        if not seg or seg.upper() in ("OVERALL", "ALL", "UNKNOWN", "TOTAL"):
+            continue
+        ds = str(f.get("date") or "")
+        if ds and len(ds) >= 8 and not ds.startswith("i"):
+            try:
+                d = date.fromisoformat(ds[:10])
+                if d < start or d > end:
+                    continue
+            except ValueError:
+                pass
+        try:
+            val = int(round(float(f.get("value") or 0)))
+        except (TypeError, ValueError):
+            val = 0
+        if val <= 0:
+            continue
+        if dim == "device":
+            device_counts[seg] = device_counts.get(seg, 0) + val
+        elif dim == "os_version":
+            os_counts[seg] = os_counts.get(seg, 0) + val
+
+    device_labeled: list[dict[str, Any]] = []
+    device_raw: dict[str, str | None] = {}
+    for seg, n in device_counts.items():
+        man, mod = _split_device_segment(seg)
+        er = enrich_device_row(
+            {"manufacturer": man, "model": mod, "event_count": n},
+            platform="android",
+        )
+        device_labeled.append(
+            {
+                "label": er["label"],
+                "manufacturer": er.get("manufacturer") or man,
+                "model": er.get("model") or mod,
+                "event_count": n,
+            }
+        )
+        if er.get("label_raw"):
+            device_raw[er["label"]] = er["label_raw"]
+
+    android_devices = merge_breakdown_rows([device_labeled], "label", limit=20)
+    for row in android_devices:
+        if device_raw.get(row["label"]):
+            row["label_raw"] = device_raw[row["label"]]
+
+    os_rows = [
+        {"os_version": _os_label_from_api_level(seg), "event_count": n}
+        for seg, n in os_counts.items()
+    ]
+    android_os = merge_breakdown_rows([os_rows], "os_version", limit=20)
+    return android_devices, android_os
+
+
 def _android_breakdowns_from_reporting(
     package_name: str,
     *,
     days: int = 28,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Play Reporting API — Android cihaz + OS (API) kırılımı."""
+    """DEPRECATED path — yalnızca scrape boşsa (cihaz/OS fact yok)."""
     from datetime import date, timedelta
 
     from backend.services import gp_client
@@ -684,11 +764,16 @@ def _build_firebase_tab_payload_uncached(
     ios_affected = 0
 
     try:
-        android_device, android_os = _android_breakdowns_from_reporting(
-            package, days=max(int(period_days or 28), int(days or 7))
+        android_device, android_os = _android_breakdowns_from_scrape(
+            days=max(int(period_days or 28), int(days or 7))
         )
+        # Scrape henüz cihaz/OS fact tutmuyorsa (eski snapshot) Reporting yedek
+        if not android_device and not android_os:
+            android_device, android_os = _android_breakdowns_from_reporting(
+                package, days=max(int(period_days or 28), int(days or 7))
+            )
     except Exception:
-        logger.debug("firebase android reporting breakdown failed", exc_info=True)
+        logger.debug("firebase android scrape breakdown failed", exc_info=True)
 
     for v in (ios_cf.get("versions") or [])[:3]:
         if not isinstance(v, dict) or not v.get("version"):
@@ -750,11 +835,7 @@ def _build_firebase_tab_payload_uncached(
             ios_os = (bq.get("os_breakdown_by_platform") or {}).get("ios") or []
             ios_process = (bq.get("process_state_breakdown_by_platform") or {}).get("ios") or []
             ios_trend = (bq.get("trend_by_platform") or {}).get("ios") or []
-            # Android cihaz/OS: Reporting boşsa BQ peek yedek (yalnızca kırılım)
-            if not android_device:
-                android_device = (bq.get("device_breakdown_by_platform") or {}).get("android") or []
-            if not android_os:
-                android_os = (bq.get("os_breakdown_by_platform") or {}).get("android") or []
+            # Android cihaz/OS yalnızca scrape (+ gerekirse Reporting); BQ karışmaz
             if not ios_affected and ios_issues:
                 ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_issues)
             if not ios_fatal and ios_issues:

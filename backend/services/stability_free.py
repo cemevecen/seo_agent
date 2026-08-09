@@ -1,4 +1,4 @@
-"""Crash-free / ANR-free özet — Play scrape oranları + Reporting API + Crashlytics."""
+"""Crash-free / ANR-free özet — Play vitals scrape öncelikli; Reporting yalnızca sürüm kırılımı için."""
 
 from __future__ import annotations
 
@@ -393,8 +393,10 @@ def _build_stability_free_payload_locked(
     play_latest = None
     play_versions: list[dict[str, Any]] = []
     play_err = None
+    # Overall free oranları scrape'ten geldiyse Reporting'i yalnızca sürüm satırları için çağır
+    need_version_rows = True
     try:
-        if gp_client.is_configured():
+        if gp_client.is_configured() and need_version_rows:
             rep = gp_client.fetch_version_stability_free(
                 package_name,
                 days=28,
@@ -418,6 +420,20 @@ def _build_stability_free_payload_locked(
     except Exception as exc:  # noqa: BLE001
         logger.warning("stability-free reporting: %s", exc)
         play_err = str(exc)[:160]
+
+    # Overall scrape varsa Reporting overall'ını ezme
+    if play_overall.get("crash_free_pct") is not None and play_latest:
+        # play_latest sürüm satırı kalsın; overall scrape'ten
+        pass
+    elif play_latest and play_overall.get("crash_free_pct") is None:
+        play_overall = {
+            **play_overall,
+            "crash_free_pct": play_latest.get("crash_free_pct"),
+            "anr_free_pct": play_latest.get("anr_free_pct"),
+            "crash_free_fmt": play_latest.get("crash_free_fmt"),
+            "anr_free_fmt": play_latest.get("anr_free_fmt"),
+            "source": "play_reporting_version",
+        }
 
     crashlytics: dict[str, Any] = {"ok": False, "platforms": {}}
     try:

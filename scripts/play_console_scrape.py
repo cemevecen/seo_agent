@@ -341,6 +341,16 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "needles": ("ANR", "Sürüm", "Veri tablosu", "İstatistik"),
     },
     {
+        "id": "anrs_device",
+        "label": "ANR · cihaz",
+        "metric_key": "anrs",
+        "metrics": _ANR_METRICS,
+        "dimension": "DEVICE_MODEL",
+        "dimension_values": "OVERALL",
+        "dim_hint": "device",
+        "needles": ("ANR", "Cihaz", "Device", "Veri tablosu", "İstatistik"),
+    },
+    {
         "id": "crashes_date",
         "label": "Çökme · tarih",
         "metric_key": "crashes",
@@ -369,6 +379,16 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "dimension_values": "OVERALL",
         "dim_hint": "app_version",
         "needles": ("Kilitlenme", "Crash", "Sürüm", "Veri tablosu", "İstatistik"),
+    },
+    {
+        "id": "crashes_device",
+        "label": "Çökme · cihaz",
+        "metric_key": "crashes",
+        "metrics": _CRASH_METRICS,
+        "dimension": "DEVICE_MODEL",
+        "dimension_values": "OVERALL",
+        "dim_hint": "device",
+        "needles": ("Kilitlenme", "Crash", "Cihaz", "Device", "Veri tablosu", "İstatistik"),
     },
     {
         "id": "revenue",
