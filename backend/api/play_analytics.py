@@ -25,16 +25,20 @@ router = APIRouter(tags=["play-analytics"])
 # Bu metrikler scrape kataloğundan gelir (GCS installs değil)
 _SCRAPE_FIRST = {
     "device_acquisition",
+    "device_first_open",
     "user_lost",
     "active_devices",
     "dau",
     "ar2_acquisitions",
+    "ar2_visitors",
+    "store_conversion",
     "rating",
     "active_users",
     "crashes",
     "anrs",
     "revenue",
-    "ar2_visitors",
+    "buyers",
+    "arppu",
     "active",
 }
 
@@ -45,10 +49,14 @@ _NO_GCS_FALLBACK = {
     "revenue",
     "ar2_visitors",
     "ar2_acquisitions",
+    "store_conversion",
     "active_users",
     "active_devices",
     "device_acquisition",
+    "device_first_open",
     "user_lost",
+    "buyers",
+    "arppu",
 }
 # ANR/çökme: scrape+Reporting önce; boşsa GCS crashes_* CSV denenebilir
 _ANR_CRASH = {"anrs", "crashes"}

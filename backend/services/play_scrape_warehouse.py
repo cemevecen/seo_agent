@@ -12,16 +12,20 @@ from backend.services.play_console_normalize import review_date_iso
 
 _SCRAPE_METRICS = (
     "device_acquisition",
+    "device_first_open",
     "user_lost",
     "active_devices",
     "dau",
     "ar2_acquisitions",
+    "ar2_visitors",
+    "store_conversion",
     "rating",
     "active_users",
     "crashes",
     "anrs",
     "revenue",
-    "ar2_visitors",
+    "buyers",
+    "arppu",
 )
 
 # Eski UI / API uyumu — GCS etiketleri scrape karşılıklarına map
@@ -29,13 +33,21 @@ _METRIC_ALIASES = {
     "active": "active_devices",
     "installs": "device_acquisition",
     "uninstalls": "user_lost",
+    "first_open": "device_first_open",
+    "first_opens": "device_first_open",
+    "store_cvr": "store_conversion",
+    "conversion": "store_conversion",
+    "buyer": "buyers",
+    "oykbog": "arppu",
 }
 
 # Günlük stok (toplamak yanlış): dönem kartında son gün / ortalama
 _STOCK_LAST = frozenset({"active_devices", "active_users", "dau", "active"})
-_STOCK_AVG = frozenset({"rating"})
+_STOCK_AVG = frozenset({"rating", "store_conversion", "arppu"})
 # Play “CUMULATIVE” seriler — grafik/toplam için güne çevrilir
 _CUMULATIVE = frozenset({"device_acquisition"})
+# Mağaza dönüşümü: ziyaretçi + edinmeden türetilir (ayrı scrape gerekmez)
+_COMPUTED_METRICS = frozenset({"store_conversion"})
 
 
 def scrape_metric_keys() -> list[str]:
@@ -239,6 +251,132 @@ def _load_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 def _resolve_metric(metric: str) -> str:
     m = (metric or "").strip()
     return _METRIC_ALIASES.get(m, m)
+
+
+def _merge_rate_series(
+    numer: list[dict[str, Any]],
+    denom: list[dict[str, Any]],
+    *,
+    scale: float = 100.0,
+) -> list[dict[str, Any]]:
+    """numer/denom → oran serisi (aynı key üzerinde)."""
+    dmap: dict[str, float] = {}
+    for r in denom or []:
+        if not isinstance(r, dict) or r.get("key") is None:
+            continue
+        try:
+            dmap[str(r["key"])] = float(r.get("value") or 0)
+        except (TypeError, ValueError):
+            continue
+    out: list[dict[str, Any]] = []
+    for r in numer or []:
+        if not isinstance(r, dict) or r.get("key") is None:
+            continue
+        key = str(r["key"])
+        try:
+            n = float(r.get("value") or 0)
+        except (TypeError, ValueError):
+            continue
+        d = dmap.get(key)
+        if d is None or d <= 0:
+            out.append({"key": key, "value": None})
+            continue
+        out.append({"key": key, "value": round(scale * n / d, 4)})
+    # numer’de olmayan ama denom’de olan günler
+    nkeys = {str(r.get("key")) for r in out}
+    for key, d in dmap.items():
+        if key in nkeys or d <= 0:
+            continue
+        out.append({"key": key, "value": 0.0})
+    out.sort(key=lambda x: str(x.get("key") or ""))
+    # None değerleri grafik için 0 yerine bırak — densify sonrası filtrele
+    return [{"key": r["key"], "value": (0.0 if r.get("value") is None else r["value"])} for r in out]
+
+
+def _query_store_conversion(
+    *,
+    start: str | None,
+    end: str | None,
+    breakdown: str,
+    dim: str,
+    segment: str | None,
+    compare: str | None,
+) -> dict[str, Any]:
+    """Mağaza dönüşüm oranı = edinme / ziyaretçi × 100 (mevcut AR2 fact’lerinden)."""
+    common = dict(
+        start=start,
+        end=end,
+        breakdown=breakdown,
+        dim=dim,
+        segment=segment,
+        compare=compare,
+    )
+    vis = query_scrape_analytics(metric="ar2_visitors", **common)
+    acq = query_scrape_analytics(metric="ar2_acquisitions", **common)
+    series = _merge_rate_series(acq.get("series") or [], vis.get("series") or [])
+    total, total_mode = _series_total(series, "store_conversion", breakdown)
+    compare_payload = None
+    cmp_a = acq.get("compare") if isinstance(acq.get("compare"), dict) else None
+    cmp_v = vis.get("compare") if isinstance(vis.get("compare"), dict) else None
+    if compare == "previous_period" and cmp_a and cmp_v:
+        prev_series = _merge_rate_series(cmp_a.get("series") or [], cmp_v.get("series") or [])
+        prev_total, _ = _series_total(prev_series, "store_conversion", breakdown)
+        prev_available = bool(prev_series) and bool(cmp_a.get("available")) and bool(cmp_v.get("available"))
+        delta_pct = None
+        if prev_available and prev_total:
+            delta_pct = round((total - prev_total) / abs(prev_total) * 100.0, 2)
+        compare_payload = {
+            "mode": "previous_period",
+            "start": cmp_a.get("start") or cmp_v.get("start"),
+            "end": cmp_a.get("end") or cmp_v.get("end"),
+            "total": prev_total if prev_available else None,
+            "delta_pct": delta_pct,
+            "series": prev_series if prev_available else [],
+            "total_mode": total_mode,
+            "available": prev_available,
+            "missing_reason": (
+                None
+                if prev_available
+                else "İlgili dönem için önceki dönem verisi bulunamadı"
+            ),
+        }
+    ok = bool(series) and bool(vis.get("ok")) and bool(acq.get("ok"))
+    msg = "Scrape · türetilmiş store_conversion = ar2_acquisitions / ar2_visitors × 100"
+    if not vis.get("ok") or not acq.get("ok"):
+        msg += f" · ziyaretçi/edinme eksik (vis={vis.get('ok')} acq={acq.get('ok')})"
+    return {
+        "ok": ok,
+        "source": "scrape",
+        "configured": True,
+        "bucket": False,
+        "message": msg,
+        "start": acq.get("start") or vis.get("start") or start,
+        "end": acq.get("end") or vis.get("end") or end,
+        "effective_end": acq.get("effective_end") or vis.get("effective_end"),
+        "metric": "store_conversion",
+        "breakdown": breakdown,
+        "dim": dim,
+        "segment": segment or "all",
+        "total": total,
+        "total_mode": total_mode,
+        "series": series,
+        "compare": compare_payload,
+        "facets": {
+            "metrics": scrape_metric_keys(),
+            "dims": ["overview", "country", "app_version", "device", "os_version"],
+            "breakdowns": ["date", "week", "month", "segment"],
+            "segments": (vis.get("facets") or {}).get("segments")
+            or (acq.get("facets") or {}).get("segments")
+            or [],
+        },
+        "row_count": len(series),
+        "stats_views": vis.get("stats_views") or acq.get("stats_views") or [],
+        "synced_at": vis.get("synced_at") or acq.get("synced_at"),
+        "date_min": vis.get("date_min") or acq.get("date_min"),
+        "date_max": vis.get("date_max") or acq.get("date_max"),
+        "auto_shifted": bool(vis.get("auto_shifted") or acq.get("auto_shifted")),
+        "lag_days": max(int(vis.get("lag_days") or 0), int(acq.get("lag_days") or 0)),
+    }
 
 
 def _series_total(series: list[dict[str, Any]], metric_key: str, breakdown: str) -> tuple[float, str]:
@@ -518,6 +656,16 @@ def query_scrape_analytics(
         and not seg_picked
     ):
         breakdown = "segment"
+
+    if metric_key in _COMPUTED_METRICS and metric_key == "store_conversion":
+        return _query_store_conversion(
+            start=start_s,
+            end=end_s,
+            breakdown=breakdown,
+            dim=dim,
+            segment=segment,
+            compare=compare,
+        )
 
     facts, meta = _load_facts()
     if metric_key == "revenue":
