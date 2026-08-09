@@ -57,6 +57,7 @@ from backend.api.virgul_analytics import router as virgul_analytics_router
 from backend.api.doviz_news import router as doviz_news_router
 from backend.api.play_console import router as play_console_router
 from backend.api.play_analytics import router as play_analytics_router
+from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -1028,6 +1029,7 @@ app.include_router(virgul_analytics_router, prefix="/api")
 app.include_router(doviz_news_router, prefix="/api")
 app.include_router(play_console_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
+app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 
 from backend.karma.router import router as karma_router
@@ -16499,6 +16501,17 @@ def android_play_console_page(request: Request):
     return templates.TemplateResponse(
         request,
         "android.html",
+        context={"request": request},
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
+
+
+@app.get("/ios")
+def ios_app_store_connect_page(request: Request):
+    """App Store Connect Metrikler — Döviz iOS (ASC API üyelik anahtarları)."""
+    return templates.TemplateResponse(
+        request,
+        "ios.html",
         context={"request": request},
         headers=_SC_HTML_NO_CACHE_HEADERS,
     )

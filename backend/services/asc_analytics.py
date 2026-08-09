@@ -401,6 +401,9 @@ def fetch_analytics_summary(
         or daily_merged[d].get("first_time_downloads", 0) + daily_merged[d].get("redownloads", 0)
         for d in dates_sorted
     ]
+    conv_series = [daily_merged[d].get("conversion_rate_pct", 0) for d in dates_sorted]
+    paying_series = [daily_merged[d].get("paying_users", 0) for d in dates_sorted]
+    iap_series = [daily_merged[d].get("in_app_purchases", 0) for d in dates_sorted]
 
     conv = totals.get("conversion_rate_pct") or 0.0
     if not conv and totals.get("impressions") and totals.get("total_downloads"):
@@ -413,6 +416,11 @@ def fetch_analytics_summary(
     total_dl = int(totals.get("total_downloads") or 0)
     if not total_dl:
         total_dl = int(totals.get("first_time_downloads", 0) + totals.get("redownloads", 0))
+
+    daily_clean = {
+        ds: {k: float(v) for k, v in vals.items() if not str(k).startswith("_")}
+        for ds, vals in daily_merged.items()
+    }
 
     out = {
         "ok": True,
@@ -430,6 +438,10 @@ def fetch_analytics_summary(
         "first_downloads_series": ft_series,
         "redownloads_series": rd_series,
         "total_downloads_series": td_series,
+        "conversion_series": conv_series,
+        "paying_users_series": paying_series,
+        "iap_series": iap_series,
+        "daily": daily_clean,
         "warnings": warnings,
     }
     _cache_set(cache_key, out)

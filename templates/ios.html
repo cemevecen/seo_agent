@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .pa-filters {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.65rem 0.75rem; width: 100%;
+  }
+  .pa-filters > label.pa-f {
+    display: flex; flex-direction: column; min-width: 0; flex: 1 1 calc(50% - 0.5rem);
+    font-size: 0.6875rem; font-weight: 600; color: inherit; white-space: nowrap;
+  }
+  .pa-filters > label.pa-f--metric { flex: 1 1 100%; }
+  .pa-filters > label.pa-f--date { flex: 1 1 calc(50% - 0.5rem); min-width: 8.75rem; }
+  .pa-filters > label.pa-f--sm { flex: 1 1 calc(50% - 0.5rem); min-width: 7.5rem; }
+  .pa-filters input[type="date"], .pa-filters select {
+    margin-top: 0.25rem; width: 100%; border-radius: 0.5rem; border: 1px solid #cbd5e1;
+    background: #fff; padding: 0.4rem 0.55rem; font-size: 0.8125rem; box-sizing: border-box;
+  }
+  html.dark .pa-filters input[type="date"], html.dark .pa-filters select {
+    border-color: #3f3f46; background: #18181b; color: #c4c4cc;
+  }
+  .pa-filters .pa-f-actions { display: flex; align-items: flex-end; gap: 0.5rem; margin-left: auto; }
+  .pa-filters .pa-f-btn {
+    border-radius: 0.5rem; border: 1px solid #059669; background: #059669; color: #fff;
+    padding: 0.45rem 0.9rem; font-size: 0.75rem; font-weight: 700; cursor: pointer;
+  }
+  .pa-filters .pa-f-btn:disabled { opacity: 0.6; cursor: wait; }
+  #ia-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #ia-table-wrap > table { width: max-content; max-width: none; border-collapse: collapse; font-size: 0.75rem; }
+  #ia-table-wrap th, #ia-table-wrap td { white-space: nowrap; text-align: right; }
+  #ia-table-wrap th:first-child, #ia-table-wrap td:first-child { text-align: left; }
+  #ia-results.is-loading #ia-chart { opacity: 0.45; }
+  .ia-orbit { display: inline-block; width: 1.1rem; height: 1.1rem; border: 2px solid rgba(5,150,105,.25); border-top-color: #059669; border-radius: 9999px; animation: ia-spin .7s linear infinite; }
+  @keyframes ia-spin { to { transform: rotate(360deg); } }
+  @media (min-width: 900px) {
+    .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
+    .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
+  }
+</style>
+<div class="w-full max-w-none space-y-5" data-header-title="iOS · App Store Connect">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-800 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-200 dark:ring-sky-800">iOS</span>
+          <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">App Store Connect</h1>
+          <span class="font-mono text-xs text-slate-500 dark:text-zinc-400">com.nokta.Finans.Takip · 465599322</span>
+        </div>
+        <p id="ia-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">ASC API üyelik anahtarlarıyla çekilir (Sales + Analytics + Abonelik).</p>
+      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <a href="https://appstoreconnect.apple.com/apps/465599322/analytics/metrics" target="_blank" rel="noopener"
+           class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+          App Store Connect ↗
+        </a>
+        <button id="ia-refresh" type="button"
+                class="inline-flex items-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
+          Yenile
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <section class="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm dark:border-sky-900/50 dark:bg-slate-900">
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrikler</h2>
+    <div class="pa-filters mt-4 text-slate-600 dark:text-zinc-300">
+      <label class="pa-f pa-f--date">Başlangıç <input id="ia-start" type="date" /></label>
+      <label class="pa-f pa-f--date">Bitiş <input id="ia-end" type="date" /></label>
+      <label class="pa-f pa-f--sm">Preset
+        <select id="ia-preset">
+          <option value="7">Son 1 hafta</option>
+          <option value="14">Son 2 hafta</option>
+          <option value="30" selected>Son 1 ay</option>
+          <option value="90">Son 3 ay</option>
+          <option value="180">Son 6 ay</option>
+          <option value="365">Son 1 sene</option>
+        </select>
+      </label>
+      <label class="pa-f pa-f--metric">Metrik
+        <select id="ia-metric">
+          <option value="" selected>Seçiniz</option>
+          <optgroup label="Edinme">
+            <option value="units">İlk indirme (units)</option>
+            <option value="redownloads">Yeniden indirme</option>
+            <option value="total_downloads">Toplam indirme</option>
+            <option value="impressions">Gösterim</option>
+            <option value="page_views">Ürün sayfası görüntüleme</option>
+            <option value="conversion_rate">Dönüşüm oranı (%)</option>
+          </optgroup>
+          <optgroup label="Gelir / abonelik">
+            <option value="iap">Uygulama içi satın alma</option>
+            <option value="paying_users">Ödeyen kullanıcı</option>
+            <option value="proceeds">Gelir (USD)</option>
+            <option value="active_subscriptions">Aktif abonelik</option>
+            <option value="free_trials">Ücretsiz deneme</option>
+          </optgroup>
+        </select>
+      </label>
+      <div class="pa-f-actions">
+        <button id="ia-run" type="button" class="pa-f-btn"><span id="ia-run-label">Uygula</span></button>
+      </div>
+    </div>
+
+    <div id="ia-results" class="mt-4">
+      <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p id="ia-total-label" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
+          <p id="ia-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
+        </div>
+        <p id="ia-compare-range" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
+      </div>
+      <div id="ia-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950">
+        <div class="relative px-1 pb-1 pt-2">
+          <div id="ia-loading" class="absolute inset-0 z-10 hidden items-center justify-center bg-white/70 dark:bg-zinc-950/70" aria-busy="false">
+            <div class="flex flex-col items-center gap-2">
+              <span class="ia-orbit" aria-hidden="true"></span>
+              <span class="text-xs font-semibold text-slate-600 dark:text-zinc-300">Veriler yükleniyor…</span>
+            </div>
+          </div>
+          <div id="ia-legend" class="mb-1 flex flex-wrap gap-2 px-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
+          <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrik grafiği"></svg>
+        </div>
+      </div>
+      <div id="ia-table-wrap" class="mt-4 max-h-96 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
+        <table class="pa-data-table text-left">
+          <thead class="sticky top-0 z-10 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-600 dark:bg-zinc-900 dark:text-zinc-300">
+            <tr id="ia-thead-row">
+              <th class="px-3 py-2 font-bold">Kırılım</th>
+              <th class="px-3 py-2 font-bold">Değer</th>
+            </tr>
+          </thead>
+          <tbody id="ia-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+  var iaStart = document.getElementById("ia-start");
+  var iaEnd = document.getElementById("ia-end");
+  var iaPreset = document.getElementById("ia-preset");
+  var iaMetric = document.getElementById("ia-metric");
+  var iaRun = document.getElementById("ia-run");
+  var iaRunLabel = document.getElementById("ia-run-label");
+  var iaRefresh = document.getElementById("ia-refresh");
+  var iaStatus = document.getElementById("ia-status");
+  var iaResults = document.getElementById("ia-results");
+  var iaLoading = document.getElementById("ia-loading");
+  var iaTotal = document.getElementById("ia-total");
+  var iaTotalLabel = document.getElementById("ia-total-label");
+  var iaCompareRange = document.getElementById("ia-compare-range");
+  var iaChart = document.getElementById("ia-chart");
+  var iaLegend = document.getElementById("ia-legend");
+  var iaTheadRow = document.getElementById("ia-thead-row");
+  var iaTable = document.getElementById("ia-table");
+
+  var CHART_METRICS = ["units", "redownloads", "impressions"];
+  var TABLE_EXTRA = ["page_views", "conversion_rate", "iap", "paying_users", "proceeds", "active_subscriptions"];
+  var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
+  var STROKE = 0.68;
+  var overviewActive = true;
+  var runSeq = 0;
+  var abortCtrl = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function isoDate(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+  function applyPreset() {
+    var end = new Date();
+    var start = new Date();
+    var days = parseInt((iaPreset && iaPreset.value) || "30", 10) || 30;
+    start.setDate(end.getDate() - (days - 1));
+    iaEnd.value = isoDate(end);
+    iaStart.value = isoDate(start);
+  }
+  function fmtNum(n, asInt) {
+    if (n == null || isNaN(n)) return "—";
+    return Number(n).toLocaleString("tr-TR", asInt
+      ? { maximumFractionDigits: 0 }
+      : { maximumFractionDigits: 2 });
+  }
+  function metricLabel(v) {
+    var opt = iaMetric.querySelector('option[value="' + v + '"]');
+    return (opt && opt.textContent) || v;
+  }
+  function isCountLike(m) {
+    return m !== "conversion_rate" && m !== "proceeds";
+  }
+  function colorAt(i) { return COLORS[i % COLORS.length]; }
+  function setLoading(on) {
+    if (iaResults) iaResults.classList.toggle("is-loading", !!on);
+    if (iaLoading) {
+      iaLoading.classList.toggle("hidden", !on);
+      iaLoading.classList.toggle("flex", !!on);
+    }
+    if (iaRun) iaRun.disabled = !!on;
+    if (iaRunLabel) iaRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
+  }
+  function fmtAxisKey(key) {
+    var m = String(key || "").match(/^\d{4}-(\d{2})-(\d{2})$/);
+    return m ? String(parseInt(m[3], 10)) : String(key || "");
+  }
+  function buildLine(keys, map, max, color) {
+    if (!keys.length || max <= 0) return "";
+    var w = 720, h = 260, left = 40, right = 16, top = 16, bottom = 36;
+    var plotW = w - left - right, plotH = h - top - bottom;
+    var n = keys.length;
+    var d = "";
+    keys.forEach(function (key, i) {
+      if (!Object.prototype.hasOwnProperty.call(map, key)) return;
+      var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+      var y = top + (1 - map[key] / max) * plotH;
+      d += (d ? " L " : "M ") + x.toFixed(1) + " " + y.toFixed(1);
+    });
+    if (!d) return "";
+    return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + STROKE + '" stroke-linecap="round" stroke-linejoin="round" />';
+  }
+  function drawMulti(bundles) {
+    var list = (bundles || []).filter(function (b) { return b && (b.series || []).length; });
+    var keySet = {};
+    list.forEach(function (b) {
+      (b.series || []).forEach(function (r) { if (r && r.key != null) keySet[String(r.key)] = true; });
+    });
+    var keys = Object.keys(keySet).sort();
+    var w = 720, h = 260, left = 40, right = 16, top = 16, bottom = 36;
+    var plotW = w - left - right, plotH = h - top - bottom;
+    var grid = "";
+    for (var t = 0; t <= 4; t++) {
+      var ty = top + (t / 4) * plotH;
+      var pct = Math.round(100 * (1 - t / 4));
+      grid += '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) + '" stroke="#e2e8f0" stroke-width="1" />' +
+        '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) + '" text-anchor="end" fill="#94a3b8" font-size="9">' + pct + "%</text>";
+    }
+    var paths = list.map(function (b, i) {
+      var map = {}, max = 0;
+      (b.series || []).forEach(function (r) {
+        var nv = Number(r.value);
+        if (!Number.isFinite(nv)) return;
+        map[String(r.key)] = nv;
+        if (nv > max) max = nv;
+      });
+      if (max <= 0) max = 1;
+      return buildLine(keys, map, max, colorAt(i));
+    }).join("");
+    iaChart.innerHTML = '<rect width="720" height="260" fill="transparent" />' + grid + paths;
+    if (iaLegend) {
+      iaLegend.innerHTML = list.map(function (b, i) {
+        return '<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rounded-full" style="background:' + colorAt(i) + '"></span>' + esc(b.label || b.metric) + "</span>";
+      }).join("");
+    }
+  }
+  function drawSingle(series, color) {
+    var keys = (series || []).map(function (r) { return String(r.key); });
+    var map = {}, max = 0;
+    (series || []).forEach(function (r) {
+      var nv = Number(r.value);
+      if (!Number.isFinite(nv)) return;
+      map[String(r.key)] = nv;
+      if (nv > max) max = nv;
+    });
+    if (max <= 0) max = 1;
+    var w = 720, h = 260, left = 40, right = 16, top = 16, bottom = 36;
+    var plotW = w - left - right, plotH = h - top - bottom;
+    var grid = "";
+    for (var t = 0; t <= 4; t++) {
+      var ty = top + (t / 4) * plotH;
+      grid += '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) + '" stroke="#e2e8f0" stroke-width="1" />';
+    }
+    iaChart.innerHTML = '<rect width="720" height="260" fill="transparent" />' + grid + buildLine(keys, map, max, color || COLORS[0]);
+    if (iaLegend) iaLegend.innerHTML = "";
+  }
+  function renderOverviewTable(bundles) {
+    var list = bundles || [];
+    var keySet = {};
+    list.forEach(function (b) {
+      (b.series || []).forEach(function (r) { if (r && r.key != null) keySet[String(r.key)] = true; });
+    });
+    var keys = Object.keys(keySet).sort();
+    iaTheadRow.innerHTML =
+      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold dark:bg-zinc-900">Kırılım</th>' +
+      list.map(function (b, i) {
+        return '<th class="px-1.5 py-2 font-bold tabular-nums" style="color:' + colorAt(i) + '">' + esc(b.label || b.metric) + "</th>";
+      }).join("");
+    if (!keys.length) {
+      iaTable.innerHTML = '<tr><td class="px-3 py-4 text-center text-slate-400" colspan="' + (1 + list.length) + '">Satır yok</td></tr>';
+      return;
+    }
+    var maps = list.map(function (b) {
+      var m = {};
+      (b.series || []).forEach(function (r) {
+        var nv = Number(r.value);
+        m[String(r.key)] = Number.isFinite(nv) ? nv : null;
+      });
+      return m;
+    });
+    function colAvg(map) {
+      var sum = 0, n = 0;
+      keys.forEach(function (k) {
+        var v = map[k];
+        if (v == null || !Number.isFinite(v)) return;
+        sum += v; n += 1;
+      });
+      return n ? sum / n : null;
+    }
+    var body = keys.map(function (key) {
+      var cells = '<td class="sticky left-0 bg-white px-2 py-1.5 font-medium tabular-nums dark:bg-zinc-950">' + esc(fmtAxisKey(key)) + "</td>";
+      list.forEach(function (b, i) {
+        var v = maps[i][key];
+        cells += '<td class="px-1.5 py-1.5 tabular-nums font-semibold">' + (v == null ? "—" : esc(fmtNum(v, isCountLike(b.metric)))) + "</td>";
+      });
+      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
+    }).join("");
+    var avg = '<td class="sticky left-0 bg-slate-100 px-2 py-1.5 font-bold dark:bg-zinc-900">Ortalama</td>';
+    list.forEach(function (b, i) {
+      var a = colAvg(maps[i]);
+      avg += '<td class="px-1.5 py-1.5 tabular-nums font-bold">' + (a == null ? "—" : esc(fmtNum(a, false))) + "</td>";
+    });
+    iaTable.innerHTML = body + '<tr class="sticky bottom-0 border-t border-slate-200 bg-slate-100/95 dark:border-zinc-700 dark:bg-zinc-900/95">' + avg + "</tr>";
+  }
+  function renderSingleTable(series, metric) {
+    iaTheadRow.innerHTML =
+      '<th class="px-3 py-2 font-bold">Kırılım</th><th class="px-3 py-2 font-bold">Değer</th>';
+    var rows = series || [];
+    if (!rows.length) {
+      iaTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      return;
+    }
+    var sum = 0, n = 0;
+    var body = rows.map(function (r) {
+      var v = Number(r.value);
+      if (Number.isFinite(v)) { sum += v; n += 1; }
+      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800"><td class="px-3 py-1.5 font-medium tabular-nums">' +
+        esc(fmtAxisKey(r.key)) + '</td><td class="px-3 py-1.5 tabular-nums font-semibold">' +
+        esc(fmtNum(v, isCountLike(metric))) + "</td></tr>";
+    }).join("");
+    var avg = n ? sum / n : null;
+    iaTable.innerHTML = body +
+      '<tr class="sticky bottom-0 border-t border-slate-200 bg-slate-100/95 dark:bg-zinc-900/95">' +
+      '<td class="px-3 py-1.5 font-bold">Ortalama</td><td class="px-3 py-1.5 font-bold tabular-nums">' +
+      (avg == null ? "—" : esc(fmtNum(avg, false))) + "</td></tr>";
+  }
+
+  async function runAnalytics() {
+    var metricSelected = !!(iaMetric && iaMetric.value);
+    overviewActive = !metricSelected;
+    var my = ++runSeq;
+    if (abortCtrl) try { abortCtrl.abort(); } catch (_) {}
+    abortCtrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    setLoading(true);
+    try {
+      if (overviewActive) {
+        var metrics = CHART_METRICS.concat(TABLE_EXTRA).join(",");
+        var qs = new URLSearchParams({ start: iaStart.value, end: iaEnd.value, metrics: metrics });
+        var r = await fetch("/api/asc-metrics/overview?" + qs.toString(), {
+          credentials: "same-origin", cache: "no-store", signal: abortCtrl ? abortCtrl.signal : undefined
+        });
+        var data = await r.json().catch(function () { return {}; });
+        if (my !== runSeq) return;
+        if (!r.ok) throw new Error(data.message || ("HTTP " + r.status));
+        var bundles = (data.bundles || []).map(function (b) {
+          return {
+            metric: b.metric,
+            label: b.label || metricLabel(b.metric),
+            series: b.series || [],
+            total: b.total,
+            onChart: CHART_METRICS.indexOf(b.metric) >= 0
+          };
+        });
+        var chartBundles = bundles.filter(function (b) { return b.onChart; });
+        var units = bundles.find(function (b) { return b.metric === "units"; }) || chartBundles[0];
+        iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
+        iaTotalLabel.textContent = "Özet (ilk indirme)";
+        iaCompareRange.textContent = "Özet · ASC Analytics + Sales (kendi ölçeği)";
+        drawMulti(chartBundles);
+        renderOverviewTable(bundles);
+        return;
+      }
+      var qs2 = new URLSearchParams({
+        start: iaStart.value, end: iaEnd.value, metric: iaMetric.value
+      });
+      var r2 = await fetch("/api/asc-metrics/query?" + qs2.toString(), {
+        credentials: "same-origin", cache: "no-store", signal: abortCtrl ? abortCtrl.signal : undefined
+      });
+      var data2 = await r2.json().catch(function () { return {}; });
+      if (my !== runSeq) return;
+      if (!r2.ok) throw new Error(data2.message || ("HTTP " + r2.status));
+      var mode = data2.total_mode || "sum";
+      iaTotal.textContent = fmtNum(data2.total, isCountLike(iaMetric.value));
+      iaTotalLabel.textContent = mode === "last" ? "Son gün" : (mode === "avg" ? "Ortalama" : "Toplam / seçili");
+      iaCompareRange.textContent = data2.message || "";
+      drawSingle(data2.series || [], COLORS[0]);
+      renderSingleTable(data2.series || [], iaMetric.value);
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      if (iaStatus) iaStatus.textContent = (err && err.message) || "Yükleme hatası";
+      iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13">Veri yüklenemedi</text>';
+    } finally {
+      if (my === runSeq) setLoading(false);
+    }
+  }
+
+  async function loadStatus() {
+    try {
+      var r = await fetch("/api/asc-metrics/status", { credentials: "same-origin", cache: "no-store" });
+      var d = await r.json().catch(function () { return {}; });
+      if (!iaStatus) return;
+      if (!d.configured) {
+        iaStatus.textContent = "ASC API anahtarları tanımlı değil (ASC_KEY_ID / ISSUER_ID / PRIVATE_KEY).";
+      } else {
+        iaStatus.textContent = "ASC bağlı · app " + (d.app_id || "465599322") +
+          (d.vendor_configured ? " · Sales/Finance açık" : " · ASC_VENDOR_NUMBER yok (gelir/abonelik sınırlı)");
+      }
+    } catch (_) {}
+  }
+
+  if (iaPreset) iaPreset.addEventListener("change", function () { applyPreset(); runAnalytics(); });
+  if (iaRun) iaRun.addEventListener("click", function () { runAnalytics(); });
+  if (iaRefresh) iaRefresh.addEventListener("click", function () { runAnalytics(); });
+  if (iaMetric) iaMetric.addEventListener("change", function () { runAnalytics(); });
+  ["ia-start", "ia-end"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("change", function () {
+      if (iaPreset) iaPreset.value = "";
+      runAnalytics();
+    });
+  });
+
+  applyPreset();
+  loadStatus();
+  runAnalytics();
+})();
+</script>
+{% endblock %}

@@ -426,18 +426,39 @@ def fetch_subscription_summary(*, days: int) -> dict[str, Any] | None:
 
     Apple aboneliği daily veriyor — son 7 gün özetlenir.
     """
+    series = fetch_subscription_daily_series(days=max(int(days or 7), 7))
+    if not series or not series.get("dates"):
+        return None
+    dates = series["dates"]
+    last = dates[-1]
+    idx = dates.index(last)
+    return {
+        "active_plans": int(series["active_plans_series"][idx]),
+        "paid_plans": int(series["active_plans_series"][idx]),
+        "free_trials": int(series["free_trials_series"][idx]),
+        "dates": dates,
+        "active_plans_series": series["active_plans_series"],
+        "free_trials_series": series["free_trials_series"],
+    }
+
+
+def fetch_subscription_daily_series(*, days: int = 90) -> dict[str, Any] | None:
+    """Günlük aktif abonelik (subscription-state-plans-active) serisi."""
     vendor = _env("ASC_VENDOR_NUMBER")
     if not vendor:
         return None
 
-    end = date.today()
-    active_plans = 0
-    paid_plans = 0
-    free_trials = 0
-    # Son 5 gün için en yeni mevcut raporu kullan (Apple'da dünden önceki gün hazır oluyor)
-    for off in range(1, 6):
-        ds = (end - timedelta(days=off)).isoformat()
-        rows = _fetch_sales_report(
+    effective_days = 365 if days == 0 else max(1, min(int(days), 365))
+    end = date.today() - timedelta(days=1)
+    start = end - timedelta(days=effective_days - 1)
+    all_dates: list[str] = []
+    cur = start
+    while cur <= end:
+        all_dates.append(cur.isoformat())
+        cur += timedelta(days=1)
+
+    def _fetch_day(ds: str):
+        return ds, _fetch_sales_report(
             report_type="SUBSCRIPTION",
             report_sub_type="SUMMARY",
             frequency="DAILY",
@@ -445,19 +466,35 @@ def fetch_subscription_summary(*, days: int) -> dict[str, Any] | None:
             vendor_number=vendor,
             version="1_4",
         )
-        if rows:
-            for r in rows:
-                # ASC SUBSCRIPTION SUMMARY kolonları: Active Standard Price Subscriptions,
-                # Active Free Trial Introductory Offer Subscriptions, vs.
-                active_plans += int(float(r.get("Active Standard Price Subscriptions") or 0))
-                paid_plans += int(float(r.get("Active Standard Price Subscriptions") or 0))
-                free_trials += int(float(r.get("Active Free Trial Introductory Offer Subscriptions") or 0))
-            break  # En yeni rapor yeterli
 
-    if active_plans == 0 and paid_plans == 0 and free_trials == 0:
+    workers = min(12, len(all_dates)) if all_dates else 1
+    date_rows: dict[str, list | None] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_fetch_day, ds): ds for ds in all_dates}
+        for fut in as_completed(futures):
+            ds, rows = fut.result()
+            date_rows[ds] = rows
+
+    dates_out: list[str] = []
+    active_series: list[float] = []
+    trial_series: list[float] = []
+    for ds in all_dates:
+        rows = date_rows.get(ds) or []
+        if not rows:
+            continue
+        active = 0.0
+        trials = 0.0
+        for r in rows:
+            active += float(r.get("Active Standard Price Subscriptions") or 0)
+            trials += float(r.get("Active Free Trial Introductory Offer Subscriptions") or 0)
+        dates_out.append(ds)
+        active_series.append(active)
+        trial_series.append(trials)
+
+    if not dates_out:
         return None
     return {
-        "active_plans": active_plans,
-        "paid_plans": paid_plans,
-        "free_trials": free_trials,
+        "dates": dates_out,
+        "active_plans_series": active_series,
+        "free_trials_series": trial_series,
     }
