@@ -114,7 +114,7 @@ def post_play_console_ingest(
 ):
     _check_ingest_token(authorization, x_notification_ingest_token)
     try:
-        return ingest_play_console_payload(
+        result = ingest_play_console_payload(
             db,
             metrics=body.metrics,
             panels=body.panels,
@@ -135,3 +135,10 @@ def post_play_console_ingest(
     except Exception as exc:  # noqa: BLE001
         logger.exception("play-console ingest failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    try:
+        from backend.services.app_intel import schedule_android_category_rank_refresh
+
+        schedule_android_category_rank_refresh(body.package_name or "com.Doviz")
+    except Exception:
+        pass
+    return result

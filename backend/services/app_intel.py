@@ -1246,6 +1246,84 @@ def _android_pkg_index(pkgs: list[str], target: str) -> int | None:
     return None
 
 
+def _fetch_android_rank_chart_api(
+    package: str,
+    *,
+    country: str = "tr",
+    lang: str = "tr",
+    category_id: str | None = None,
+    chart: str = "topselling_free",
+    count: int = 250,
+) -> dict[str, Any] | None:
+    """Play Store iç API (vyAe2 batchexecute) — ücretsiz kategori top chart.
+
+    Detay sayfasındaki «#N içinde Finans» metni kalkmış olabilir; kategori
+    sıralaması için topselling_free + FINANCE (gl=tr) doğru kaynaktır.
+    """
+    if not package:
+        return None
+    slug = _android_play_category_slug(category_id)
+    chart_name = (chart or "topselling_free").strip() or "topselling_free"
+    n = max(20, min(660, int(count or 250)))
+    url = f"https://play.google.com/_/PlayStoreUi/data/batchexecute?hl={lang}&gl={country}"
+    # Benjamin Altpeter / parse-play: rpcids=vyAe2, [2, chart, category]
+    inner = json.dumps(
+        [[None, [[None, [None, n]], None, None, [113]], [2, chart_name, slug]]],
+        separators=(",", ":"),
+    )
+    from urllib.parse import quote
+
+    body = "f.req=" + quote(json.dumps([[["vyAe2", inner]]], separators=(",", ":")))
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+    }
+    try:
+        with httpx.Client(timeout=28.0, follow_redirects=True, headers=headers) as client:
+            r = client.post(url, content=body)
+            r.raise_for_status()
+            text = r.text or ""
+    except Exception as exc:
+        logger.debug("android rank chart API hata (%s/%s): %s", package, slug, exc)
+        return None
+
+    pkgs = _extract_android_packages(text)
+    if not pkgs:
+        return None
+    idx = _android_pkg_index(pkgs, package)
+    if idx is None:
+        logger.info(
+            "android rank chart API: %s %s/%s listesinde yok (n=%d)",
+            package,
+            chart_name,
+            slug,
+            len(pkgs),
+        )
+        return None
+    rank = idx + 1
+    logger.info(
+        "android rank chart API: %s #%d / %d (%s %s)",
+        package,
+        rank,
+        len(pkgs),
+        chart_name,
+        slug,
+    )
+    return {
+        "rank": rank,
+        "total": len(pkgs),
+        "chart": "category_top",
+        "chart_label": "Ücretsiz",
+        "category_name": slug.replace("_", " ").title(),
+        "estimated": False,
+        "rank_basis": "batchexecute_api",
+        "play_chart": chart_name,
+    }
+
+
 def _fetch_android_category_rank(
     package: str,
     *,
@@ -1255,7 +1333,7 @@ def _fetch_android_category_rank(
     skip_playwright: bool | None = None,
     genre_name_hint: str | None = None,
 ) -> dict[str, Any] | None:
-    """Play kategori sırası (Playwright); yoksa detay sayfası HTML (grafik metni).
+    """Play ücretsiz kategori sırası: chart API → Playwright → detay HTML.
 
     Paket kimliğiyle `store/search` kullanılmaz: Play bu sorguda uygulamayı
     listenin başına aldığı için neredeyse her zaman #1 üretir; kategori sırası
@@ -1266,6 +1344,21 @@ def _fetch_android_category_rank(
         return None
 
     slug = _android_play_category_slug(category_id)
+    api = _fetch_android_rank_chart_api(
+        package,
+        country=country,
+        lang=lang,
+        category_id=slug,
+        chart="topselling_free",
+        count=250,
+    )
+    if api is not None:
+        if genre_name_hint and not api.get("category_name"):
+            api = {**api, "category_name": genre_name_hint}
+        elif genre_name_hint:
+            api = {**api, "category_name": genre_name_hint}
+        return api
+
     sp = _skip_android_playwright_rank() if skip_playwright is None else bool(skip_playwright)
     if not sp:
         result = _fetch_android_rank_playwright(
@@ -1881,7 +1974,7 @@ def _android_cached_category_rank_is_obsolete(cr: Any) -> bool:
     ch = str(cr.get("chart") or "").strip().lower()
     if ch in ("category_top", "details_page", "operator_override"):
         return False
-    if rb == "batchexecute":
+    if rb in ("batchexecute", "batchexecute_api"):
         return False
     return True
 
@@ -2006,11 +2099,13 @@ def ensure_android_category_rank_on_raw(
     if allow_live_fetch:
 
         def _http_rank_job() -> dict[str, Any] | None:
-            return _fetch_android_rank_http_fallback(
+            # Chart API (vyAe2) Playwright'sız; detay HTML yedeği.
+            return _fetch_android_category_rank(
                 spec["android_package"],
                 country="tr",
                 lang="tr",
                 category_id=str(meta.get("genreId") or "") or None,
+                skip_playwright=True,
                 genre_name_hint=(str(meta.get("genre") or "").strip() or None),
             )
 
@@ -2214,6 +2309,7 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
                 "reviews": meta.get("reviews"),
                 "icon": meta.get("icon"),
                 "genre": meta.get("genre"),
+                "genreId": meta.get("genreId"),
                 "category_rank": meta.get("category_rank"),
                 "play_version": meta.get("version"),
                 "play_last_updated_at": _play_updated_iso(meta.get("updated")),
@@ -2430,14 +2526,14 @@ def refresh_category_ranks() -> dict[str, Any]:
             results[product_id] = {"ios": i_rank}
             logger.info("Rank refresh (%s) iOS: %s", product_id, i_rank)
 
-            # Android: cron sırasında Playwright açık (Railway ana istekten ayrı); genre ile HTTP yedeği de iyileşir.
+            # Android: chart API (vyAe2) öncelikli; Playwright isteğe bağlı.
             meta_play, _, _ = _fetch_google_bundle(spec["android_package"], 1)
             a_rank = _fetch_android_category_rank(
                 spec["android_package"],
                 country="tr",
                 lang="tr",
                 category_id=str((meta_play or {}).get("genreId") or "") or None,
-                skip_playwright=False,
+                skip_playwright=True,
                 genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
             )
             if a_rank and a_rank.get("rank") is not None:
@@ -2454,6 +2550,87 @@ def refresh_category_ranks() -> dict[str, Any]:
         if isinstance(block, dict) and block.get("android"):
             invalidate_raw_cache(pid)
     return results
+
+
+def refresh_android_category_rank_for_package(package_name: str | None) -> dict[str, Any] | None:
+    """Tek paket için Android ücretsiz kategori sırasını yeniler (Play Console scrape sonrası)."""
+    pkg = (package_name or "").strip()
+    if not pkg:
+        return None
+    product_id = None
+    spec = None
+    for pid, sp in APP_PRODUCTS.items():
+        if str(sp.get("android_package") or "").strip().lower() == pkg.lower():
+            product_id = pid
+            spec = sp
+            break
+    if not product_id or not spec:
+        return None
+    meta_play, _, _ = _fetch_google_bundle(spec["android_package"], 1)
+    a_rank = _fetch_android_category_rank(
+        spec["android_package"],
+        country="tr",
+        lang="tr",
+        category_id=str((meta_play or {}).get("genreId") or "") or None,
+        skip_playwright=True,
+        genre_name_hint=(str((meta_play or {}).get("genre") or "").strip() or None),
+    )
+    if not a_rank or a_rank.get("rank") is None:
+        return a_rank
+    now_iso = datetime.now(tz=_UTC).isoformat()
+    _append_rank_snapshot(product_id, "android", a_rank, at_iso=now_iso)
+    _save_rank_history()
+    try:
+        raw = get_raw_product_data(product_id, cache_only=True)
+        if not isinstance(raw, dict) or raw.get("error"):
+            raw = {
+                "product_id": product_id,
+                "label": spec.get("label") or product_id,
+                "urls": {"android": spec.get("android_url"), "ios": spec.get("ios_url")},
+                "android": {"meta": {}, "reviews": []},
+                "ios": {"meta": {}, "reviews": []},
+            }
+        android = dict(raw.get("android") or {})
+        meta = dict(android.get("meta") or {})
+        meta["category_rank"] = a_rank
+        if meta_play.get("genre"):
+            meta["genre"] = meta_play.get("genre")
+        if meta_play.get("genreId"):
+            meta["genreId"] = meta_play.get("genreId")
+        android["meta"] = meta
+        raw = {**raw, "android": android, "fetched_at": now_iso}
+        _write_disk_raw(product_id, raw)
+        with _CACHE_LOCK:
+            _RAW_CACHE[product_id] = (time.time(), raw)
+        # DB raw cache satırını da güncelle (varsa)
+        try:
+            with SessionLocal() as db:
+                row = db.get(AppIntelRawCache, product_id)
+                if row is not None:
+                    row.payload_json = _serialize_raw_payload(raw)
+                    row.updated_at = datetime.now(tz=_UTC).replace(tzinfo=None)
+                    db.commit()
+        except Exception as db_exc:
+            logger.debug("rank refresh DB patch (%s): %s", product_id, db_exc)
+    except Exception as exc:
+        logger.debug("rank refresh cache patch (%s): %s", product_id, exc)
+    logger.info("Android kategori sırası güncellendi (%s): %s", product_id, a_rank)
+    return a_rank
+
+
+def schedule_android_category_rank_refresh(package_name: str | None) -> None:
+    """Play Console ingest sonrası arka planda kategori sırasını yenile."""
+    pkg = (package_name or "").strip()
+    if not pkg:
+        return
+
+    def _job() -> None:
+        try:
+            refresh_android_category_rank_for_package(pkg)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("schedule android rank refresh failed (%s): %s", pkg, exc)
+
+    threading.Thread(target=_job, name=f"android-rank-{pkg[:24]}", daemon=True).start()
 
 
 def intel_json_safe(obj: Any) -> Any:

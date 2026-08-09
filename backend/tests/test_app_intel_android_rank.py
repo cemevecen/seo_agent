@@ -3,6 +3,8 @@
 from backend.services.app_intel import (
     _android_cached_category_rank_is_obsolete,
     _android_category_rank_is_displayable,
+    _extract_android_packages,
+    _android_pkg_index,
 )
 
 
@@ -16,3 +18,24 @@ def test_store_search_rank_rejected():
     cr = {"rank": 1, "chart": "store_search_package"}
     assert not _android_category_rank_is_displayable(cr)
     assert _android_cached_category_rank_is_obsolete(cr)
+
+
+def test_chart_api_rank_is_displayable():
+    cr = {
+        "rank": 138,
+        "chart": "category_top",
+        "chart_label": "Ücretsiz",
+        "rank_basis": "batchexecute_api",
+    }
+    assert _android_category_rank_is_displayable(cr)
+    assert not _android_cached_category_rank_is_obsolete(cr)
+
+
+def test_extract_android_packages_and_index():
+    sample = r'[["com.ziraat.ziraatmobil"],[\"com.Doviz\"],["com.haremaltin.android.haremaltin"]]'
+    # mixed escapes
+    text = '[[\\"com.ziraat.ziraatmobil\\"],[\\"com.garanti.cepsubesi\\"],[\\"com.Doviz\\"]]'
+    pkgs = _extract_android_packages(text)
+    assert pkgs[0] == "com.ziraat.ziraatmobil"
+    assert _android_pkg_index(pkgs, "com.Doviz") == 2
+    assert sample  # silence unused in some linters
