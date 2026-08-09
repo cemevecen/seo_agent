@@ -9,14 +9,6 @@
   data-ios="{{ (vbp.get('ios') or []) | map(attribute='app_version') | list | tojson }}"
   data-android="{{ (vbp.get('android') or []) | map(attribute='app_version') | list | tojson }}"></div>
 <div class="space-y-3">
-  {% if data.errors %}
-    {% set _seen = [] %}{% set _unique = [] %}
-    {% for e in data.errors %}{% if e not in _seen %}{% set _ = _seen.append(e) %}{% set _ = _unique.append(e) %}{% endif %}{% endfor %}
-    <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
-      {% for e in _unique %}<p class="text-xs leading-snug text-amber-800 dark:text-amber-400">⚠ {{ e }}</p>{% endfor %}
-    </div>
-  {% endif %}
-
   {% if not rows %}
     <div class="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center dark:border-slate-700">
       <p class="text-sm text-slate-400 dark:text-slate-500">Versiyon verisi yok.</p>

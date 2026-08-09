@@ -2260,8 +2260,9 @@ def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str,
         out["crash_free_sessions_pct"] = None
         out["crash_free_users_pct"] = None
     out["crash_free_method"] = cf.get("method") if cf else None
-    hints = [h for h in (data.get("crash_free_hints") or []) if h.upper().startswith(plat.upper())]
-    out["crash_free_hints"] = hints
+    out["crash_free_hints"] = []
+    # Soft/platform-çapraz uyarılar sütuna sızmasın
+    out["errors"] = []
 
     out["trend"] = (data.get("trend_by_platform") or {}).get(plat) or []
     out["trend_by_platform"] = {plat: out["trend"]} if out["trend"] else {}
@@ -2283,11 +2284,23 @@ def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str,
     out["version_trend"] = vt
 
     out["device_breakdown"] = (data.get("device_breakdown_by_platform") or {}).get(plat) or []
+    out["device_breakdown_by_platform"] = {plat: out["device_breakdown"]} if out["device_breakdown"] else {}
     out["os_breakdown"] = (data.get("os_breakdown_by_platform") or {}).get(plat) or []
+    out["os_breakdown_by_platform"] = {plat: out["os_breakdown"]} if out["os_breakdown"] else {}
     out["process_state_breakdown"] = (data.get("process_state_breakdown_by_platform") or {}).get(plat) or []
+    out["process_state_breakdown_by_platform"] = (
+        {plat: out["process_state_breakdown"]} if out["process_state_breakdown"] else {}
+    )
     out["filter_versions_by_platform"] = {
         plat: (data.get("filter_versions_by_platform") or {}).get(plat) or []
     }
+    # Play-only alanlar iOS diliminde kalmasın
+    if plat == "ios":
+        out.pop("play_overall", None)
+        out.pop("play_latest", None)
+    elif plat == "android":
+        # Android sütununda iOS stability artığı göstermeyelim
+        pass
     return out
 
 

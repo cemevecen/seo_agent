@@ -377,7 +377,7 @@ def build_firebase_tab_payload(
     if pid not in APP_PRODUCTS:
         return {"ok": False, "error": "unknown_product", "configured": False}
 
-    cache_key = f"{pid}:{int(days)}:store_tabs"
+    cache_key = f"{pid}:{int(days)}:store_tabs:v2"
     if force_refresh:
         invalidate_firebase_store_cache(pid)
         try:
@@ -453,7 +453,7 @@ def build_firebase_tab_payload(
     anr_events = sum(int(r.get("event_count") or 0) for r in anr_issues) or len(anr_issues)
     affected = sum(int(r.get("affected_users") or 0) for r in fatal_issues + anr_issues)
 
-    # Crash-free: Android = Play scrape overall (aynı /android); iOS = stability Crashlytics peek
+    # Crash-free: Android = Play scrape; iOS = /ios stability-free (Crashlytics peek)
     android_cf = _cf_from_sf_block(
         {
             "crash_free_pct": play_overall.get("crash_free_pct"),
@@ -466,7 +466,7 @@ def build_firebase_tab_payload(
         method="play_scrape_vitals_overview",
     )
     if not android_cf and (and_cf.get("overall") or {}):
-        android_cf = _cf_from_sf_block(and_cf.get("overall"), method="crashlytics_peek")
+        android_cf = _cf_from_sf_block(and_cf.get("overall"), method="android_crashlytics_peek")
 
     ios_overall = ios_cf.get("overall") if isinstance(ios_cf.get("overall"), dict) else None
     ios_latest = ios_cf.get("latest") if isinstance(ios_cf.get("latest"), dict) else None
@@ -478,15 +478,97 @@ def build_firebase_tab_payload(
     if ios_cf_block:
         crash_free_by_plat["ios"] = ios_cf_block
 
-    # Birleşik CF: öncelik Play overall (Android tab ile aynı sayı)
-    crash_free_pct = (android_cf or {}).get("crash_free_pct")
-    if crash_free_pct is None:
-        crash_free_pct = (ios_cf_block or {}).get("crash_free_pct")
-    crash_free_sessions_pct = (android_cf or {}).get("crash_free_sessions_pct") or crash_free_pct
-    crash_free_users_pct = (android_cf or {}).get("crash_free_users_pct") or crash_free_pct
-    if ios_cf_block and android_cf is None:
-        crash_free_sessions_pct = ios_cf_block.get("crash_free_sessions_pct")
-        crash_free_users_pct = ios_cf_block.get("crash_free_users_pct")
+    # iOS issue/sürüm — yalnızca /ios stability kaynağı (Crashlytics peek); Play vitals karışmaz
+    ios_issues: list[dict[str, Any]] = []
+    ios_anr: list[dict[str, Any]] = []
+    ios_version_rows: list[dict[str, Any]] = []
+    ios_filter_versions: list[str] = []
+    ios_device: list[dict[str, Any]] = []
+    ios_os: list[dict[str, Any]] = []
+    ios_process: list[dict[str, Any]] = []
+    ios_trend: list[dict[str, Any]] = []
+    ios_fatal = int(ios_cf.get("fatal") or 0) if isinstance(ios_cf.get("fatal"), (int, float)) else 0
+    ios_anr_n = int(ios_cf.get("anr") or 0) if isinstance(ios_cf.get("anr"), (int, float)) else 0
+    ios_affected = 0
+
+    for v in (ios_cf.get("versions") or [])[:3]:
+        if not isinstance(v, dict) or not v.get("version"):
+            continue
+        ver = str(v["version"]).strip()
+        ios_filter_versions.append(ver)
+        fatal_c = int(v.get("fatal") or 0)
+        total_c = int(v.get("total_events") or fatal_c or 0)
+        users_c = int(v.get("affected_users") or 0)
+        ios_version_rows.append(
+            {
+                "app_version": ver,
+                "fatal_count": fatal_c,
+                "anr_count": 0,
+                "non_fatal_count": 0,
+                "total_events": total_c,
+                "affected_users": users_c,
+            }
+        )
+    if ios_version_rows:
+        ios_fatal = sum(int(r.get("fatal_count") or 0) for r in ios_version_rows)
+        ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_version_rows)
+
+    try:
+        from backend.services import crashlytics_bq as cbq
+
+        bq = cbq.peek_cached_payload(pid, days=7, platform_filter="all")
+        if bq and bq.get("ok") is not False:
+            # Yalnızca iOS dilimleri — Android BQ satırları Play scrape'e karışmaz
+            raw_ios_issues = (bq.get("issues_by_platform") or {}).get("ios") or []
+            ios_issues = [
+                enrich_issue_row({**r, "platform": "ios"}, days=int(bq.get("days") or 7))
+                for r in raw_ios_issues
+                if isinstance(r, dict)
+            ]
+            raw_ios_anr = (bq.get("anr_by_platform") or {}).get("ios") or []
+            ios_anr = [
+                enrich_issue_row({**r, "platform": "ios"}, days=int(bq.get("days") or 7))
+                for r in raw_ios_anr
+                if isinstance(r, dict)
+            ]
+            bq_ios_sum = (bq.get("summary_by_platform") or {}).get("ios") or {}
+            if bq_ios_sum:
+                ios_fatal = int(bq_ios_sum.get("fatal") or ios_fatal or 0)
+                ios_anr_n = int(bq_ios_sum.get("anr") or ios_anr_n or 0)
+                ios_affected = int(bq_ios_sum.get("affected_users") or ios_affected or 0)
+            if not ios_cf_block:
+                bq_cf = (bq.get("crash_free_by_platform") or {}).get("ios")
+                ios_cf_block = _cf_from_sf_block(bq_cf, method="ios_crashlytics_peek")
+                if ios_cf_block:
+                    crash_free_by_plat["ios"] = ios_cf_block
+            bq_ios_vers = (bq.get("versions_by_platform") or {}).get("ios") or []
+            if bq_ios_vers and not ios_version_rows:
+                ios_version_rows = [r for r in bq_ios_vers if isinstance(r, dict)][:12]
+            bq_filt = (bq.get("filter_versions_by_platform") or {}).get("ios") or []
+            if bq_filt:
+                ios_filter_versions = [str(x).strip() for x in bq_filt if str(x).strip()][:12]
+            ios_device = (bq.get("device_breakdown_by_platform") or {}).get("ios") or []
+            ios_os = (bq.get("os_breakdown_by_platform") or {}).get("ios") or []
+            ios_process = (bq.get("process_state_breakdown_by_platform") or {}).get("ios") or []
+            ios_trend = (bq.get("trend_by_platform") or {}).get("ios") or []
+            if not ios_affected and ios_issues:
+                ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_issues)
+            if not ios_fatal and ios_issues:
+                ios_fatal = sum(int(r.get("event_count") or 0) for r in ios_issues)
+    except Exception:
+        logger.debug("firebase ios BQ peek failed", exc_info=True)
+
+    if not ios_filter_versions and ios_cf.get("latest_version"):
+        ios_filter_versions = [str(ios_cf["latest_version"])]
+
+    version_rows = _version_rows_from_vitals(vitals)
+    filter_versions = [str(r.get("app_version") or "") for r in version_rows if r.get("app_version")]
+    for pv in sf.get("play_versions") or []:
+        if not isinstance(pv, dict):
+            continue
+        name = str(pv.get("version_name") or "").strip()
+        if name and name not in filter_versions:
+            filter_versions.append(name)
 
     summary_by_plat = {
         "android": {
@@ -496,48 +578,31 @@ def build_firebase_tab_payload(
             "affected_users": affected,
         },
         "ios": {
-            "fatal": int((ios_cf.get("fatal") if isinstance(ios_cf.get("fatal"), (int, float)) else 0) or 0),
-            "anr": int((ios_cf.get("anr") if isinstance(ios_cf.get("anr"), (int, float)) else 0) or 0),
+            "fatal": ios_fatal,
+            "anr": ios_anr_n,
             "non_fatal": 0,
-            "affected_users": 0,
+            "affected_users": ios_affected,
         },
     }
 
-    version_rows = _version_rows_from_vitals(vitals)
-    filter_versions = [str(r.get("app_version") or "") for r in version_rows if r.get("app_version")]
-    # Reporting sürümleri ekle
-    for pv in sf.get("play_versions") or []:
-        if not isinstance(pv, dict):
-            continue
-        name = str(pv.get("version_name") or "").strip()
-        if name and name not in filter_versions:
-            filter_versions.append(name)
-
-    errors: list[str] = []
-    if not crashes and not play_overall.get("crash_free_pct"):
-        errors.append(
-            "Play Console vitals scrape henüz yok — /android sekmesinde sync sonrası dolacak."
-        )
-    if not ios_cf_block:
-        errors.append(
-            "iOS crash-free: /ios stability-free henüz hazır değil (ASC/Crashlytics peek)."
-        )
-    if sf.get("play_error"):
-        errors.append(f"Play Reporting: {sf.get('play_error')}")
-
-    hints: list[str] = [
-        "Kaynak: /android Play Console vitals scrape + /ios stability-free (BigQuery export değil).",
-    ]
-    if play_latest and play_latest.get("crash_free_fmt"):
-        hints.append(
-            f"Android latest ({play_latest.get('version_name') or '—'}): "
-            f"crash-free {play_latest.get('crash_free_fmt')}"
-            + (
-                f" · ANR-free {play_latest.get('anr_free_fmt')}"
-                if play_latest.get("anr_free_fmt")
-                else ""
-            )
-        )
+    # Platform birleşik CF yalnızca yan yana özet için; sütun diliminde kendi CF'si kullanılır
+    crash_free_pct = None
+    crash_free_sessions_pct = None
+    crash_free_users_pct = None
+    crash_free_method = None
+    if android_cf and ios_cf_block:
+        # İkisinin ortalamasını yazma — yanıltır; all görünümünde boş bırak
+        crash_free_method = "per_platform"
+    elif android_cf:
+        crash_free_pct = android_cf.get("crash_free_pct")
+        crash_free_sessions_pct = android_cf.get("crash_free_sessions_pct")
+        crash_free_users_pct = android_cf.get("crash_free_users_pct")
+        crash_free_method = android_cf.get("method")
+    elif ios_cf_block:
+        crash_free_pct = ios_cf_block.get("crash_free_pct")
+        crash_free_sessions_pct = ios_cf_block.get("crash_free_sessions_pct")
+        crash_free_users_pct = ios_cf_block.get("crash_free_users_pct")
+        crash_free_method = ios_cf_block.get("method")
 
     result: dict[str, Any] = {
         "ok": True,
@@ -551,31 +616,38 @@ def build_firebase_tab_payload(
         "snap_at": snap_at,
         "source": "android_ios_store_tabs",
         "totals": {
-            "fatal": fatal_events,
-            "anr": anr_events,
+            "fatal": fatal_events + ios_fatal,
+            "anr": anr_events + ios_anr_n,
             "non_fatal": 0,
-            "affected_users": affected,
+            "affected_users": affected + ios_affected,
         },
         "crash_free_pct": crash_free_pct,
         "crash_free_sessions_pct": crash_free_sessions_pct,
         "crash_free_users_pct": crash_free_users_pct,
-        "crash_free_method": (android_cf or ios_cf_block or {}).get("method") or "play_scrape",
-        "crash_free_hints": hints,
+        "crash_free_method": crash_free_method,
+        "crash_free_hints": [],
         "crash_free_by_platform": crash_free_by_plat,
         "summary_by_platform": summary_by_plat,
-        "issues": fatal_issues,
+        # Birleşik listeler: dilimlemede platform kırılımı kullanılır
+        "issues": fatal_issues + ios_issues,
         "issues_by_platform": {
             "android": fatal_issues,
-            "ios": [],
+            "ios": ios_issues,
         },
-        "anr": anr_issues,
+        "anr": anr_issues + ios_anr,
         "anr_by_platform": {
             "android": anr_issues,
-            "ios": [],
+            "ios": ios_anr,
         },
-        "versions": version_rows,
-        "versions_by_platform": {"android": version_rows, "ios": []},
-        "versions_7d_by_platform": {"android": version_rows, "ios": []},
+        "versions": version_rows + ios_version_rows,
+        "versions_by_platform": {
+            "android": version_rows,
+            "ios": ios_version_rows,
+        },
+        "versions_7d_by_platform": {
+            "android": version_rows,
+            "ios": ios_version_rows,
+        },
         "latest_version_stats_by_platform": {
             "android": {
                 "version": (play_latest or {}).get("version_name")
@@ -587,32 +659,30 @@ def build_firebase_tab_payload(
                 else None,
             },
             "ios": {
-                "version": ios_cf.get("latest_version"),
-                "fatal": summary_by_plat["ios"]["fatal"],
-                "anr": summary_by_plat["ios"]["anr"],
+                "version": ios_cf.get("latest_version")
+                or (ios_filter_versions[0] if ios_filter_versions else None),
+                "fatal": ios_fatal,
+                "anr": ios_anr_n,
                 "crash_free": ios_cf_block,
             },
         },
         "filter_versions_by_platform": {
             "android": filter_versions[:30],
-            "ios": (
-                [ios_cf["latest_version"]]
-                if ios_cf.get("latest_version")
-                else []
-            ),
+            "ios": ios_filter_versions[:12],
         },
-        "trend": [],
-        "trend_by_platform": {"android": [], "ios": []},
+        "trend": ios_trend,
+        "trend_by_platform": {"android": [], "ios": ios_trend},
         "version_trend": [],
         "version_trend_by_platform": {},
-        "device_breakdown": [],
-        "device_breakdown_by_platform": {},
-        "os_breakdown": [],
-        "os_breakdown_by_platform": {},
-        "process_state_breakdown": [],
-        "process_state_breakdown_by_platform": {},
+        "device_breakdown": ios_device,
+        "device_breakdown_by_platform": {"android": [], "ios": ios_device},
+        "os_breakdown": ios_os,
+        "os_breakdown_by_platform": {"android": [], "ios": ios_os},
+        "process_state_breakdown": ios_process,
+        "process_state_breakdown_by_platform": {"android": [], "ios": ios_process},
         "storage_mb": {},
-        "errors": errors,
+        # Soft uyarı yok — sütunlarda sarı banner / "çekilemedi" üretmesin
+        "errors": [],
         "play_overall": play_overall,
         "play_latest": play_latest,
         "stability_free": {
