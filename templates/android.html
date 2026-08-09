@@ -110,6 +110,36 @@
     width: 100%;
     max-width: none;
   }
+  /* Liste tablosu: container’ı tam doldur, sağda boşluk bırakma */
+  #pa-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #pa-table-wrap > table.pa-data-table {
+    width: 100%;
+    min-width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  #pa-table-wrap > table.pa-data-table th,
+  #pa-table-wrap > table.pa-data-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+  }
+  #pa-table-wrap > table.pa-data-table th:first-child,
+  #pa-table-wrap > table.pa-data-table td:first-child {
+    width: 5.5rem;
+    min-width: 4.5rem;
+    max-width: 7rem;
+  }
+  #pa-table-wrap > table.pa-data-table th:not(:first-child),
+  #pa-table-wrap > table.pa-data-table td:not(:first-child) {
+    text-align: right;
+  }
   /* viewBox 720×260 ile aynı oran → meet kenarı doldurur, noktalar yuvarlak kalır */
   #pa-chart {
     display: block;
@@ -524,12 +554,12 @@
         <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
       </div>
 
-      <div class="mt-4 max-h-96 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
-        <table class="min-w-full text-left text-xs">
+      <div id="pa-table-wrap" class="mt-4 max-h-96 w-full min-w-0 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
+        <table class="pa-data-table w-full min-w-full table-fixed text-left text-xs">
           <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
             <tr id="pa-thead-row">
-              <th class="px-3 py-2 font-bold">Kırılım</th>
-              <th id="pa-th-value" class="px-3 py-2 font-bold tabular-nums">Değer</th>
+              <th class="px-2 py-2 font-bold sm:px-3">Kırılım</th>
+              <th id="pa-th-value" class="px-2 py-2 font-bold tabular-nums sm:px-3">Değer</th>
               <!-- ek grafik sütunları JS ile pa-th-value sonrasına eklenir -->
               <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumlu</th>
               <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumsuz</th>
@@ -1581,11 +1611,11 @@
     });
     var keys = Object.keys(keySet).sort();
     paTheadRow.innerHTML =
-      '<th class="sticky left-0 z-10 bg-slate-100 px-3 py-2 font-bold dark:bg-zinc-900">Kırılım</th>' +
+      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold sm:px-3 dark:bg-zinc-900">Kırılım</th>' +
       (bundles || []).map(function (b, i) {
         var color = paMetricColor(i);
         return (
-          '<th class="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style="color:' + color + '" title="' + esc(b.label) + '">' +
+          '<th class="px-1.5 py-2 font-bold tabular-nums sm:px-2" style="color:' + color + '" title="' + esc(b.label) + '">' +
             esc(shortMetricLabel(b.label, b.metric)) +
           "</th>"
         );
@@ -1607,13 +1637,14 @@
     });
     paTable.innerHTML = keys.map(function (key) {
       var cells =
-        '<td class="sticky left-0 z-[1] bg-white px-3 py-1.5 font-medium tabular-nums text-slate-700 dark:bg-zinc-950 dark:text-zinc-200">' +
+        '<td class="sticky left-0 z-[1] bg-white px-2 py-1.5 font-medium tabular-nums text-slate-700 sm:px-3 dark:bg-zinc-950 dark:text-zinc-200">' +
           esc(fmtAxisKey(key, dayOnly)) +
         "</td>";
       (bundles || []).forEach(function (b, i) {
         var v = maps[i][key];
         cells +=
-          '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' +
+          '<td class="px-1.5 py-1.5 tabular-nums font-semibold text-slate-900 sm:px-2 dark:text-zinc-100" title="' +
+            (v == null ? "" : esc(fmtNum(v, metricIsCountLike(b.metric)))) + '">' +
             (v == null ? "—" : esc(fmtNum(v, metricIsCountLike(b.metric)))) +
           "</td>";
       });
@@ -1667,7 +1698,7 @@
     var insertBefore = paThValue.nextSibling;
     list.forEach(function (ov, i) {
       var th = document.createElement("th");
-      th.className = "pa-th-ov-dyn px-3 py-2 font-bold tabular-nums";
+      th.className = "pa-th-ov-dyn px-2 py-2 font-bold tabular-nums sm:px-3";
       th.style.color = ov.color || paOverlayColor(i);
       th.textContent = shortMetricLabel(ov.label, "Ek " + (i + 1));
       th.title = ov.label || "";
