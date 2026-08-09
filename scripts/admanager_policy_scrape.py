@@ -253,36 +253,47 @@ def _apply_site_filter(page, site: str = SITE_FILTER) -> None:
 
 
 def _download_csv(page) -> bytes | None:
-    """'CSV dosyasını indir' ile CSV al."""
-    btn = page.locator(
-        "button:has-text('CSV dosyasını indir'), "
-        "button:has-text('Download CSV'), "
-        "a:has-text('CSV dosyasını indir'), "
-        "[aria-label*='CSV' i]"
-    ).first
-    try:
-        if not btn.count() or not btn.is_visible(timeout=3000):
-            return None
-    except Exception:
+    """'CSV dosyasını indir' / Download / Export ile CSV al."""
+    selectors = [
+        "button:has-text('CSV dosyasını indir')",
+        "button:has-text('Download CSV')",
+        "button:has-text('CSV indir')",
+        "button:has-text('Export')",
+        "button:has-text('Dışa aktar')",
+        "a:has-text('CSV dosyasını indir')",
+        "a:has-text('Download CSV')",
+        "[aria-label*='CSV' i]",
+        "[aria-label*='Download' i]",
+        "[aria-label*='Export' i]",
+        "[aria-label*='İndir' i]",
+    ]
+    btn = None
+    for sel in selectors:
+        loc = page.locator(sel).first
+        try:
+            if loc.count() and loc.is_visible(timeout=1200):
+                btn = loc
+                break
+        except Exception:
+            continue
+    if btn is None:
         return None
     try:
         with page.expect_download(timeout=90_000) as dl_info:
             btn.click(timeout=8000)
-            # Açılır menü varsa ikinci tık
-            time.sleep(0.4)
+            time.sleep(0.5)
             menu = page.locator(
                 "[role='menuitem']:has-text('CSV'), button:has-text('CSV'), "
-                "text=CSV dosyasını indir"
+                "text=CSV dosyasını indir, text=Download CSV, text=CSV"
             ).first
             try:
-                if menu.count() and menu.is_visible(timeout=1500):
+                if menu.count() and menu.is_visible(timeout=2000):
                     menu.click(timeout=4000)
             except Exception:
                 pass
         download = dl_info.value
         path = download.path()
         if not path:
-            # suggested filename save
             tmp = Path("/tmp") / f"admanager-policy-{int(time.time())}.csv"
             download.save_as(str(tmp))
             path = str(tmp)
@@ -292,6 +303,26 @@ def _download_csv(page) -> bytes | None:
     except Exception as exc:
         print(f"  · CSV indirme başarısız: {exc}", flush=True)
     return None
+
+
+def _dom_table_stats(page) -> dict[str, int]:
+    try:
+        return page.evaluate(
+            """() => {
+              const tables = Array.from(document.querySelectorAll('table'));
+              let maxRows = 0;
+              for (const t of tables) {
+                maxRows = Math.max(maxRows, t.querySelectorAll('tbody tr').length);
+              }
+              return {
+                tables: tables.length,
+                max_rows: maxRows,
+                all_links: document.querySelectorAll('a[href*=\"sinemalar\"]').length,
+              };
+            }"""
+        )
+    except Exception:
+        return {"tables": 0, "max_rows": 0, "all_links": 0}
 
 
 def _scrape_dom_rows(page) -> list[dict[str, Any]]:
@@ -317,6 +348,21 @@ def _scrape_dom_rows(page) -> list[dict[str, Any]]:
         const rows = t.querySelectorAll('tbody tr');
         if (rows.length > bestN) { best = t; bestN = rows.length; }
       }
+      // Grid / role=row fallback
+      if (!best || bestN < 1) {
+        const gridRows = Array.from(document.querySelectorAll('[role=\"row\"]'))
+          .filter(r => r.querySelectorAll('[role=\"gridcell\"], [role=\"cell\"], td').length >= 2);
+        if (gridRows.length > bestN) {
+          return gridRows.map(tr => {
+            const cells = Array.from(tr.querySelectorAll('[role=\"gridcell\"], [role=\"cell\"], td'));
+            const vals = cells.map(td => (td.innerText || '').trim().replace(/\\s+/g, ' '));
+            const links = Array.from(tr.querySelectorAll('a[href]'))
+              .map(a => a.href)
+              .filter(h => /sinemalar\\.com/i.test(h));
+            return { cells: vals, headers: [], links };
+          });
+        }
+      }
       if (!best) return [];
       const headers = Array.from(best.querySelectorAll('thead th, thead td'))
         .map(el => (el.innerText || '').trim());
@@ -328,6 +374,19 @@ def _scrape_dom_rows(page) -> list[dict[str, Any]]:
         const links = Array.from(tr.querySelectorAll('a[href]'))
           .map(a => a.href)
           .filter(h => /sinemalar\\.com/i.test(h));
+        // href yoksa hücre metninde sinemalar ara
+        if (!links.length) {
+          for (const v of vals) {
+            const m = String(v || '').match(/https?:\\/\\/[^\\s]*sinemalar\\.com[^\\s]*/i)
+              || String(v || '').match(/(?:www\\.)?(?:m\\.)?sinemalar\\.com\\/[^\\s]*/i);
+            if (m) {
+              let u = m[0];
+              if (!/^https?:/i.test(u)) u = 'https://' + u;
+              links.push(u);
+              break;
+            }
+          }
+        }
         const row = { cells: vals, headers, links };
         out.push(row);
       }
@@ -445,8 +504,19 @@ def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
         except Exception as exc:
             print(f"  · Filtre uyarısı: {exc}", flush=True)
 
-        # Filtre chip görünür mü?
-        time.sleep(1.5)
+        # Tablo/filtre yerleşsin
+        time.sleep(2.5)
+        try:
+            page.wait_for_selector("table tbody tr, [role='row']", timeout=25_000)
+        except Exception:
+            pass
+        stats = _dom_table_stats(page)
+        print(
+            f"  · DOM öncesi · tables={stats.get('tables')} max_rows={stats.get('max_rows')} "
+            f"sinemalar_links={stats.get('all_links')}",
+            flush=True,
+        )
+
         csv_bytes = _download_csv(page)
         rows: list[dict[str, Any]] = []
         csv_b64 = None
@@ -484,9 +554,12 @@ def scrape_admanager_policy(*, headed: bool = True) -> dict[str, Any]:
             import base64
 
             csv_b64 = base64.b64encode(csv_bytes).decode("ascii")
+            print(f"  · CSV · {len(csv_bytes)} byte · parse={len(rows)} satır", flush=True)
         else:
             print("  · CSV yok — DOM satırları…", flush=True)
-            for raw in _scrape_dom_rows(page):
+            raw_dom = _scrape_dom_rows(page)
+            print(f"  · DOM ham satır: {len(raw_dom)}", flush=True)
+            for raw in raw_dom:
                 nr = _normalize_row_dict(raw)
                 if nr:
                     rows.append(nr)
@@ -563,11 +636,37 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(req, timeout=180) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
+            status = int(getattr(resp, "status", 200) or 200)
             try:
                 parsed = json.loads(raw)
             except json.JSONDecodeError:
-                parsed = {"ok": True, "message": raw[:200]}
-            parsed["http_status"] = getattr(resp, "status", 200)
+                low = raw[:400].lower()
+                if "<html" in low or "giriş" in low or "<!doctype" in low:
+                    return {
+                        "ok": False,
+                        "http_status": status,
+                        "message": (
+                            "Ingest HTML login sayfası döndü (auth/allowlist). "
+                            "Railway deploy + /api/policy/ingest public olmalı. "
+                            f"Gövde: {raw[:160]!r}"
+                        ),
+                    }
+                return {
+                    "ok": False,
+                    "http_status": status,
+                    "message": f"Ingest JSON değil: {raw[:200]!r}",
+                }
+            if not isinstance(parsed, dict):
+                return {"ok": False, "http_status": status, "message": "Ingest beklenmeyen gövde"}
+            parsed["http_status"] = status
+            if parsed.get("ok") is False:
+                return parsed
+            # Boş scrape’i “başarı” diye yutma — satır yoksa uyarı
+            if not (result.get("rows") or result.get("csv_base64")):
+                parsed.setdefault(
+                    "warning",
+                    "0 satır ingest edildi — Policy Center’da CSV/DOM boş; filtre veya UI değişmiş olabilir.",
+                )
             return parsed
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:400]
