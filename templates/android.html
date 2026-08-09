@@ -412,6 +412,26 @@
           <optgroup label="Puan">
             <option value="rating">Google Play puanı + dağılım</option>
           </optgroup>
+          <optgroup label="GA4 (Android)">
+            <option value="ga4:sessions">GA4 · Sessions</option>
+            <option value="ga4:users">GA4 · Users</option>
+            <option value="ga4:engaged_sessions">GA4 · Engaged sessions</option>
+            <option value="ga4:new_users">GA4 · New users</option>
+            <option value="ga4:avg_session">GA4 · Avg. session</option>
+            <option value="ga4:page_views">GA4 · Page views</option>
+          </optgroup>
+          <optgroup label="Virgül (Android)">
+            <option value="virgul:net_revenue">Virgül · Net revenue (TL)</option>
+            <option value="virgul:ad_request">Virgül · Ad request</option>
+            <option value="virgul:matched_request">Virgül · Matched request</option>
+            <option value="virgul:impression">Virgül · Impression</option>
+            <option value="virgul:click">Virgül · Click</option>
+            <option value="virgul:ad_request_ecpm">Virgül · Ad request eCPM (TL)</option>
+            <option value="virgul:ad_ecpm">Virgül · Ad impression eCPM (TL)</option>
+            <option value="virgul:viewability_pct">Virgül · Viewability (%)</option>
+            <option value="virgul:ctr_pct">Virgül · CTR (%)</option>
+            <option value="virgul:coverage_pct">Virgül · Coverage (%)</option>
+          </optgroup>
         </select>
       </label>
       <label class="pa-f pa-f--sm">Zaman kırılımı
@@ -1185,6 +1205,34 @@
       if (external) paOvPlayDims.classList.add("hidden");
       else paOvPlayDims.classList.remove("hidden");
     }
+  }
+  function syncPrimaryFiltersForMetric() {
+    var external = !!(paMetric && isExternalOverlayMetric(paMetric.value));
+    if (paDim && paDim.closest) {
+      var dimLab = paDim.closest("label");
+      if (dimLab) dimLab.classList.toggle("hidden", external);
+    }
+    if (paSegment && paSegment.closest) {
+      var segLab = paSegment.closest("label");
+      if (segLab) segLab.classList.toggle("hidden", external);
+    }
+  }
+  function externalSeriesTotal(metricKey, series) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      var nv = Number(r && r.value);
+      if (Number.isFinite(nv)) vals.push(nv);
+    });
+    var asAvg = metricKey === "ga4:avg_session" || !!PA_VIRGUL_AVG_METRICS[metricKey];
+    if (!vals.length) return { total: 0, mode: asAvg ? "avg" : "sum" };
+    if (asAvg) {
+      var s = 0;
+      vals.forEach(function (v) { s += v; });
+      return { total: s / vals.length, mode: "avg" };
+    }
+    var sum = 0;
+    vals.forEach(function (v) { sum += v; });
+    return { total: sum, mode: "sum" };
   }
   var paLegendPrimaryLabel = document.getElementById("pa-legend-primary-label");
   var paLegendOverlay = document.getElementById("pa-legend-overlay");
@@ -2377,7 +2425,7 @@
     var ogPlay = document.createElement("optgroup");
     ogPlay.label = "Play Console";
     Array.prototype.forEach.call(paMetric.options, function (opt) {
-      if (!opt.value || opt.value === cur || used[opt.value]) return;
+      if (!opt.value || opt.value === cur || used[opt.value] || isExternalOverlayMetric(opt.value)) return;
       var o = document.createElement("option");
       o.value = opt.value;
       o.textContent = opt.textContent;
@@ -2387,7 +2435,7 @@
     var ogGa4 = document.createElement("optgroup");
     ogGa4.label = "GA4 (Android)";
     PA_GA4_OVERLAY_METRICS.forEach(function (m) {
-      if (used[m.value]) return;
+      if (used[m.value] || m.value === cur) return;
       var o = document.createElement("option");
       o.value = m.value;
       o.textContent = m.label;
@@ -2397,7 +2445,7 @@
     var ogVirgul = document.createElement("optgroup");
     ogVirgul.label = "Virgül (Android)";
     PA_VIRGUL_OVERLAY_METRICS.forEach(function (m) {
-      if (used[m.value]) return;
+      if (used[m.value] || m.value === cur) return;
       var o = document.createElement("option");
       o.value = m.value;
       o.textContent = m.label;
@@ -3389,23 +3437,78 @@
 
       clearOverviewLegend();
       paOverviewBundles = null;
-      var qs = new URLSearchParams({
-        start: paStart.value,
-        end: paEnd.value,
-        metric: paMetric.value,
-        breakdown: paBreakdown.value,
-        dim: paDim.value,
-        compare: paCompare.checked ? "previous_period" : ""
-      });
-      if (paSegment.value && paSegment.value !== "all") qs.set("segment", paSegment.value);
-      var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
-        credentials: "same-origin",
-        cache: "no-store",
-        signal: paAbort ? paAbort.signal : undefined
-      });
-      var data = await r.json().catch(function () { return {}; });
+      syncPrimaryFiltersForMetric();
+      var primaryMetric = (paMetric && paMetric.value) || "";
+      var metricChanged = !!(paLastPrimaryMetric && paLastPrimaryMetric !== primaryMetric);
+      var keptOverlays = (!metricChanged && hasPaOverlays()) ? paOverlays.slice() : [];
+      if (metricChanged) {
+        clearPaOverlaysState();
+        closeOverlayPanel();
+      }
+      paLastPrimaryMetric = primaryMetric;
+
+      var data;
+      if (isExternalOverlayMetric(primaryMetric)) {
+        var extPack = await fetchOneOverlaySeries({
+          metric: primaryMetric,
+          label: metricOptionLabel(primaryMetric) || primaryMetric,
+          source: isVirgulOverlayMetric(primaryMetric) ? "virgul" : "ga4",
+          color: null,
+          series: []
+        }, paAbort ? paAbort.signal : undefined);
+        if (mySeq !== paRunSeq) return;
+        var tm = externalSeriesTotal(primaryMetric, extPack.series);
+        var prevTm = externalSeriesTotal(primaryMetric, extPack.prevSeries);
+        var cmpExt = extPack.compareMeta;
+        var hasPrevExt = !!(cmpExt && cmpExt.available !== false && (extPack.prevSeries || []).length);
+        var deltaExt = null;
+        if (hasPrevExt && prevTm.total) {
+          deltaExt = Math.round(((tm.total - prevTm.total) / Math.abs(prevTm.total)) * 10000) / 100;
+        }
+        data = {
+          series: extPack.series || [],
+          total: tm.total,
+          total_mode: tm.mode,
+          facets: { segments: [] },
+          compare: hasPrevExt ? {
+            mode: "previous_period",
+            start: cmpExt && cmpExt.start,
+            end: cmpExt && cmpExt.end,
+            total: prevTm.total,
+            delta_pct: deltaExt,
+            series: extPack.prevSeries || [],
+            total_mode: tm.mode,
+            available: true
+          } : (cmpExt ? {
+            mode: "previous_period",
+            start: cmpExt.start,
+            end: cmpExt.end,
+            available: false,
+            missing_reason: PREV_MISSING_LONG,
+            series: []
+          } : null),
+          message: metricOptionLabel(primaryMetric)
+        };
+      } else {
+        var qs = new URLSearchParams({
+          start: paStart.value,
+          end: paEnd.value,
+          metric: primaryMetric,
+          breakdown: paBreakdown.value,
+          dim: paDim.value,
+          compare: paCompare.checked ? "previous_period" : ""
+        });
+        if (paSegment.value && paSegment.value !== "all") qs.set("segment", paSegment.value);
+        var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: paAbort ? paAbort.signal : undefined
+        });
+        data = await r.json().catch(function () { return {}; });
+        if (mySeq !== paRunSeq) return;
+        if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+      }
       if (mySeq !== paRunSeq) return;
-      if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
       fillSegments((data.facets && data.facets.segments) || []);
       paTotal.textContent = fmtNum(data.total, metricIsCountLike());
       var mode = data.total_mode || ((data.compare && data.compare.total_mode) || "sum");
@@ -3441,19 +3544,10 @@
         paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
       }
       if (mySeq !== paRunSeq) return;
-      // Ana metrik değiştiyse ekleri sil; zaman/kırılım/boyut değişince ekleri koruyup yeniden çiz
-      var primaryMetric = (paMetric && paMetric.value) || "";
-      var metricChanged = !!(paLastPrimaryMetric && paLastPrimaryMetric !== primaryMetric);
-      var keptOverlays = (!metricChanged && hasPaOverlays()) ? paOverlays.slice() : [];
-      if (metricChanged) {
-        clearPaOverlaysState();
-        closeOverlayPanel();
-      }
-      paLastPrimaryMetric = primaryMetric;
       paLastChart = {
         series: data.series || [],
         prevSeries: hasPrev && cmp.series ? cmp.series : [],
-        breakdown: paBreakdown.value,
+        breakdown: (paBreakdown && paBreakdown.value) || "date",
         compareMeta: cmpMeta
       };
       if (paCompareRange) {
@@ -3474,7 +3568,7 @@
         if (mySeq !== paRunSeq) return;
       } else {
         drawChart(paLastChart.series, paLastChart.prevSeries, paLastChart.breakdown, paLastChart.compareMeta);
-        renderPaTable(data.series || [], hasPrev && cmp.series ? cmp.series : [], paBreakdown.value, cmpMeta);
+        renderPaTable(data.series || [], hasPrev && cmp.series ? cmp.series : [], paLastChart.breakdown, cmpMeta);
         renderOverlayChips();
         fillOverlayMetricOptions();
       }
@@ -3639,10 +3733,12 @@
       if (!paMetric.value) {
         paOverviewActive = true;
         paOverviewHidden = {};
+        syncPrimaryFiltersForMetric();
         runPlayAnalytics();
         return;
       }
       resetPaFiltersForMetricChange();
+      syncPrimaryFiltersForMetric();
       runPlayAnalytics({ fromUser: true });
     });
   }
