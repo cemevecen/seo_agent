@@ -624,11 +624,11 @@
         <select id="pa-preset">
           <option value="7">Son 1 hafta</option>
           <option value="14">Son 2 hafta</option>
-          <option value="30" selected>Son 1 ay</option>
+          <option value="30">Son 1 ay</option>
           <option value="90">Son 3 ay</option>
           <option value="180">Son 6 ay</option>
           <option value="270">Son 9 ay</option>
-          <option value="365">Son 1 sene</option>
+          <option value="365" selected>Son 1 sene</option>
         </select>
       </label>
       <label class="pa-f pa-f--metric">Metrik
@@ -651,13 +651,17 @@
           </optgroup>
           <optgroup label="Growth">
             <option value="device_acquisition">Device acquisition</option>
+            <option value="user_acquisition">User acquisition</option>
             <option value="user_lost">User lost</option>
             <option value="active_devices">Active devices</option>
             <option value="active_users">Active users</option>
+            <option value="dau">Daily active users (DAU)</option>
+            <option value="dau_mau">DAU/MAU</option>
           </optgroup>
           <optgroup label="Store">
             <option value="ar2_visitors">Store visitors</option>
             <option value="ar2_acquisitions">Store acquisitions</option>
+            <option value="store_listing_conversion">Store listing conversion</option>
           </optgroup>
           <optgroup label="Revenue">
             <option value="revenue">Revenue</option>
@@ -920,6 +924,21 @@
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Store listings</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /store-listings (METRIC_ACQUISITION)</p>
+      </div>
+      <a id="pc-store-listings-link"
+         href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/store-listings?metric=METRIC_ACQUISITION"
+         target="_blank" rel="noopener"
+         class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Play’de aç ↗</a>
+    </div>
+    <div id="pc-store-listings" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
+    <p id="pc-store-listings-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz store listings kartı yok — sync sonrası dolacak</p>
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+      <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Monitor</h2>
         <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Play Console · /monitor (vitals, kilitlenme, ANR, puan)</p>
       </div>
@@ -967,7 +986,7 @@
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Statistics</h2>
-        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Crash/ANR + mağaza ziyaretçileri (ülke) · /statistics</p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Crash/ANR · mağaza edinme/ziyaret · kullanıcı edinme · DAU/MAU · /statistics</p>
       </div>
       <a id="pc-stats-link"
          href="https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/statistics"
@@ -1017,6 +1036,9 @@
   var monEmpty = document.getElementById("pc-monetize-empty");
   var growEl = document.getElementById("pc-grow");
   var growEmpty = document.getElementById("pc-grow-empty");
+  var storeListingsEl = document.getElementById("pc-store-listings");
+  var storeListingsEmpty = document.getElementById("pc-store-listings-empty");
+  var storeListingsLink = document.getElementById("pc-store-listings-link");
   var monitorEl = document.getElementById("pc-monitor");
   var monitorEmpty = document.getElementById("pc-monitor-empty");
   var devicesEl = document.getElementById("pc-devices");
@@ -1446,6 +1468,10 @@
   var paSelectedMetrics = [
     "anrs",
     "crashes",
+    "ar2_acquisitions",
+    "ar2_visitors",
+    "user_acquisition",
+    "store_listing_conversion",
     "ga4:sessions",
     "ga4:users",
     "ga4:page_views",
@@ -1752,6 +1778,10 @@
   var PA_OVERVIEW_CHART_METRICS = [
     "anrs",
     "crashes",
+    "ar2_acquisitions",
+    "ar2_visitors",
+    "user_acquisition",
+    "store_listing_conversion",
     "ga4:sessions",
     "ga4:users",
     "ga4:page_views",
@@ -1867,6 +1897,7 @@
   function metricSeriesAsAvg(metricKey) {
     var m = metricKey || "";
     if (m === "rating" || m === "ga4:avg_session") return true;
+    if (m === "store_listing_conversion" || m === "dau_mau") return true;
     if (PA_VIRGUL_AVG_METRICS && PA_VIRGUL_AVG_METRICS[m]) return true;
     return false;
   }
@@ -2887,7 +2918,7 @@
     opts = opts || {};
     var end = new Date();
     var start = new Date();
-    var days = parseInt((paPreset && paPreset.value) || "30", 10) || 30;
+    var days = parseInt((paPreset && paPreset.value) || "365", 10) || 365;
     start.setDate(end.getDate() - (days - 1));
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
@@ -2912,7 +2943,8 @@
         || m === "virgul:impression" || m === "virgul:click";
     }
     return m === "anrs" || m === "crashes" || m === "user_lost"
-      || m === "ar2_acquisitions" || m === "ar2_visitors";
+      || m === "ar2_acquisitions" || m === "ar2_visitors"
+      || m === "user_acquisition" || m === "device_acquisition" || m === "dau";
   }
   function isTimeBreakdown(breakdown) {
     return breakdown === "date" || breakdown === "week" || breakdown === "month";
@@ -4925,7 +4957,7 @@
     if (!href) {
       href = "https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576/app-dashboard";
     }
-    return href.replace(/\/(app-dashboard|statistics|monetize|grow-overview|monitor|devices|test-and-release|user-feedback|vitals).*$/i, "");
+    return href.replace(/\/(app-dashboard|statistics|monetize|grow-overview|store-listings|monitor|devices|test-and-release|user-feedback|vitals).*$/i, "");
   }
 
   function metricIconSvg(kind) {
@@ -4976,6 +5008,9 @@
     } else if (/puan|rating|yıldız|yorum/.test(t)) {
       icon = "star";
       path = "/user-feedback/ratings";
+    } else if (/kullanıcı edinme|user acquisition/.test(t)) {
+      icon = "rocket";
+      path = "/statistics?metrics=USER_ACQUISITION-ALL-EVENTS-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
     } else if (/mağaza girişi dönüşüm|store listing conversion|dönüşüm oranı/.test(t)) {
       icon = "store";
       path = "/statistics?metrics=STORE_LISTING_CONVERSION_RATE-ALL-COUNT_UNSPECIFIED-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
@@ -4988,6 +5023,9 @@
     } else if (/kullanıcı kayb|user lost|churn/.test(t)) {
       icon = "churn";
       path = "/statistics?metrics=USER_LOST-ALL-EVENTS-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
+    } else if (/dau\s*\/\s*mau|dau.mau/.test(t)) {
+      icon = "users";
+      path = "/statistics?metrics=DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
     } else if (/günlük etkin|daily active|\bdau\b|\baeks\b/.test(t)) {
       icon = "users";
       path = "/statistics?metrics=ENGAGEMENT_DAILY_ACTIVE_USERS-ACQUISITION_UNSPECIFIED-UNIQUE-PER_INTERVAL-DAY&dimension=COUNTRY&dimensionValues=OVERALL&tab=APP_STATISTICS";
@@ -5021,6 +5059,7 @@
       dashboard: "/app-dashboard",
       monetize: "/monetize",
       grow: "/grow-overview",
+      store_listings: "/store-listings?metric=METRIC_ACQUISITION",
       monitor: "/monitor",
       devices: "/devices/dashboard?days=28&peerset_key=3%3A6a1f18dbb44333cd&expanded_breakdowns=ANDROID_VERSION",
       release: "/test-and-release",
@@ -5166,6 +5205,7 @@
     var tpg = Array.isArray(panels.tpg) ? panels.tpg.slice() : [];
     var monetize = pageCards(panels, "monetize", "monetize");
     var grow = pageCards(panels, "grow", "grow");
+    var storeListings = pageCards(panels, "store_listings", "store_listings");
     var monitor = pageCards(panels, "monitor", "monitor");
     var devices = pageCards(panels, "devices", "devices");
     var release = pageCards(panels, "release", "release");
@@ -5179,11 +5219,12 @@
     }
     var metrics = Array.isArray(data.metrics) ? data.metrics : [];
 
-    if (!tpg.length && !breakdowns.length && !monetize.length && !grow.length && !monitor.length && !devices.length && !release.length && !statistics.length && metrics.length) {
+    if (!tpg.length && !breakdowns.length && !monetize.length && !grow.length && !storeListings.length && !monitor.length && !devices.length && !release.length && !statistics.length && metrics.length) {
       metrics.forEach(function (m) {
         if (m.kind === "breakdown") breakdowns.push(m);
         else if (m.kind === "monetize") monetize.push(m);
         else if (m.kind === "grow") grow.push(m);
+        else if (m.kind === "store_listings") storeListings.push(m);
         else if (m.kind === "monitor") monitor.push(m);
         else if (m.kind === "devices") devices.push(m);
         else if (m.kind === "release") release.push(m);
@@ -5213,6 +5254,7 @@
     var base = {
       monetize: monetize,
       grow: grow,
+      store_listings: storeListings,
       monitor: monitor,
       devices: devices,
       devicesBreakdowns: devicesBreakdowns,
@@ -5936,6 +5978,9 @@
       if (statsLink && data.panels && data.panels.pages && data.panels.pages.statistics && data.panels.pages.statistics.url) {
         statsLink.href = data.panels.pages.statistics.url;
       }
+      if (storeListingsLink && data.panels && data.panels.pages && data.panels.pages.store_listings && data.panels.pages.store_listings.url) {
+        storeListingsLink.href = data.panels.pages.store_listings.url;
+      }
       if (devicesLink && data.panels && data.panels.pages && data.panels.pages.devices && data.panels.pages.devices.url) {
         devicesLink.href = data.panels.pages.devices.url;
       }
@@ -5946,6 +5991,7 @@
       renderMetricGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m, { withInfo: true }); });
       renderGrid(monEl, monEmpty, parts.monetize, function (m) { return metricCard(m); });
       renderGrid(growEl, growEmpty, parts.grow, function (m) { return metricCard(m); });
+      renderGrid(storeListingsEl, storeListingsEmpty, parts.store_listings, function (m) { return metricCard(m); });
       renderGrid(monitorEl, monitorEmpty, parts.monitor, function (m) { return metricCard(m); });
       renderGrid(devicesEl, devicesEmpty, parts.devices, function (m) { return metricCard(m); });
       renderGrid(devicesBrEl, devicesBrEmpty, parts.devicesBreakdowns, function (m) {

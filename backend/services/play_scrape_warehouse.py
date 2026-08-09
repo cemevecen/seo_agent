@@ -15,7 +15,10 @@ _SCRAPE_METRICS = (
     "user_lost",
     "active_devices",
     "dau",
+    "dau_mau",
     "ar2_acquisitions",
+    "user_acquisition",
+    "store_listing_conversion",
     "rating",
     "active_users",
     "crashes",
@@ -33,7 +36,7 @@ _METRIC_ALIASES = {
 
 # Günlük stok (toplamak yanlış): dönem kartında son gün / ortalama
 _STOCK_LAST = frozenset({"active_devices", "active_users", "dau", "active"})
-_STOCK_AVG = frozenset({"rating"})
+_STOCK_AVG = frozenset({"rating", "store_listing_conversion", "dau_mau"})
 # Play “CUMULATIVE” seriler — grafik/toplam için güne çevrilir
 _CUMULATIVE = frozenset({"device_acquisition"})
 

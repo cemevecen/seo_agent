@@ -79,6 +79,10 @@ MONETIZE_URL = (
 GROW_URL = (
     os.environ.get("PLAY_CONSOLE_GROW_URL") or f"{BASE_APP}/grow-overview"
 ).strip()
+STORE_LISTINGS_URL = (
+    os.environ.get("PLAY_CONSOLE_STORE_LISTINGS_URL")
+    or f"{BASE_APP}/store-listings?metric=METRIC_ACQUISITION"
+).strip()
 MONITOR_URL = (
     os.environ.get("PLAY_CONSOLE_MONITOR_URL") or f"{BASE_APP}/monitor"
 )
@@ -244,8 +248,47 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "metric_key": "ar2_acquisitions",
         "metrics": "AR2_ACQUISITIONS-ALL-UNIQUE-PER_INTERVAL-DAY",
         "dimension": "COUNTRY",
-        "dimension_values": "OVERALL%2CTR%2CDE%2CIQ%2CAT",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CBG%2CBE",
         "needles": ("Edinme", "Acquisition", "Mağaza", "İstatistik", "Veri tablosu"),
+    },
+    {
+        "id": "user_acquisition",
+        "label": "Kullanıcı edinme",
+        "metric_key": "user_acquisition",
+        "metrics": "USER_ACQUISITION-ALL-EVENTS-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CBG%2CBE",
+        "needles": (
+            "Kullanıcı edinme",
+            "User acquisition",
+            "Edinme",
+            "İstatistik",
+            "Veri tablosu",
+        ),
+    },
+    {
+        "id": "store_listing_conversion",
+        "label": "Mağaza dönüşüm oranı",
+        "metric_key": "store_listing_conversion",
+        "metrics": "STORE_LISTING_CONVERSION_RATE-ALL-COUNT_UNSPECIFIED-PER_INTERVAL-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CBG%2CBE",
+        "needles": (
+            "Dönüşüm",
+            "Conversion",
+            "Mağaza girişi",
+            "İstatistik",
+            "Veri tablosu",
+        ),
+    },
+    {
+        "id": "dau_mau",
+        "label": "DAU/MAU",
+        "metric_key": "dau_mau",
+        "metrics": "DAU_MAU-ACQUISITION_UNSPECIFIED-COUNT_UNSPECIFIED-CALCULATION_UNSPECIFIED-DAY",
+        "dimension": "COUNTRY",
+        "dimension_values": "OVERALL%2CTR%2CDE%2CBG%2CBE",
+        "needles": ("DAU/MAU", "DAU", "MAU", "İstatistik", "Veri tablosu"),
     },
     {
         # Günlük ortalama / Play puanı — yalnızca protobuf/tablo tarihli fact (kart OVERALL=5 yok)
@@ -417,6 +460,8 @@ _KNOWN_GROW = (
     "Mağaza girişi ziyaretçileri",
     "Mağaza girişi edinme sayısı",
     "Mağaza girişi dönüşüm oranı",
+    "Kullanıcı edinme",
+    "User acquisition",
     "Kitle büyüme oranı",
     "Günlük etkin kullanıcı sayısı",
     "Etkin cihazlar",
@@ -425,6 +470,22 @@ _KNOWN_GROW = (
     "Toplam yükleme sayısı",
     "Kullanıcı kaybı",
     "Yeni cihaz edinme",
+)
+_KNOWN_STORE_LISTINGS = (
+    "Mağaza girişi ziyaretçileri",
+    "Mağaza girişi edinme sayısı",
+    "Mağaza girişi dönüşüm oranı",
+    "Store listing visitors",
+    "Store listing acquisitions",
+    "Store listing conversion",
+    "Edinme",
+    "Acquisition",
+    "Ziyaretçi",
+    "Visitor",
+    "Dönüşüm",
+    "Conversion",
+    "Varsayılan mağaza girişi",
+    "Default store listing",
 )
 _KNOWN_STATISTICS = (
     "Kilitlenme sayısı",
@@ -443,8 +504,14 @@ _KNOWN_STATISTICS = (
     "Yükleme tabanı",
     "Kullanıcı kaybı",
     "Cihaz edinme sayısı",
+    "Kullanıcı edinme",
+    "User acquisition",
     "Mağaza girişi ziyaretçileri",
+    "Mağaza girişi edinme sayısı",
+    "Mağaza girişi dönüşüm oranı",
     "Store listing visitors",
+    "Store listing acquisitions",
+    "Store listing conversion",
     "Ziyaretçiler",
     "Unique visitors",
 )
@@ -4078,6 +4145,26 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             ),
             headed=bool(headed),
         )
+        store_listings = _safe_scrape_page(
+            page,
+            url=STORE_LISTINGS_URL,
+            known=tuple(
+                dict.fromkeys(
+                    list(_KNOWN_STORE_LISTINGS) + list(_KNOWN_GROW) + list(_KNOWN_DASHBOARD)
+                )
+            ),
+            page_key="store_listings",
+            wait_needles=(
+                "Mağaza",
+                "Store listing",
+                "Edinme",
+                "Acquisition",
+                "Ziyaret",
+                "Dönüşüm",
+                "Conversion",
+            ),
+            headed=bool(headed),
+        )
         monitor = _safe_scrape_page(
             page,
             url=MONITOR_URL,
@@ -4211,6 +4298,9 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
 
         mon_cards, mon_br = _append_page_metrics(metrics, monetize, kind="monetize", page_key="monetize")
         grow_cards, grow_br = _append_page_metrics(metrics, grow, kind="grow", page_key="grow")
+        store_listings_cards, store_listings_br = _append_page_metrics(
+            metrics, store_listings, kind="store_listings", page_key="store_listings"
+        )
         monitor_cards, monitor_br = _append_page_metrics(
             metrics, monitor, kind="monitor", page_key="monitor"
         )
@@ -4234,6 +4324,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             dash_br
             + list(mon_br)
             + list(grow_br)
+            + list(store_listings_br)
             + list(monitor_br)
             + list(release_br)
             + list(devices_br)
@@ -4252,6 +4343,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "breakdowns": all_br,
             "monetize": mon_cards,
             "grow": grow_cards,
+            "store_listings": store_listings_cards,
             "monitor": monitor_cards,
             "release": release_cards,
             "devices": devices_cards,
@@ -4267,6 +4359,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
                 },
                 "monetize": _page_payload(MONETIZE_URL, monetize),
                 "grow": _page_payload(GROW_URL, grow),
+                "store_listings": _page_payload(STORE_LISTINGS_URL, store_listings),
                 "monitor": _page_payload(MONITOR_URL, monitor),
                 "release": _page_payload(RELEASE_URL, release),
                 "devices": {
@@ -4294,6 +4387,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             "breakdown_count": len(all_br),
             "monetize_count": len(mon_cards),
             "grow_count": len(grow_cards),
+            "store_listings_count": len(store_listings_cards),
             "monitor_count": len(monitor_cards),
             "release_count": len(release_cards),
             "devices_count": len(devices_cards),
@@ -4486,6 +4580,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             or panels.get("tpg")
             or panels.get("monetize")
             or panels.get("grow")
+            or panels.get("store_listings")
             or panels.get("monitor")
             or panels.get("devices")
             or panels.get("release")
@@ -4498,6 +4593,7 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             panels.get("tpg")
             or panels.get("monetize")
             or panels.get("grow")
+            or panels.get("store_listings")
             or panels.get("monitor")
             or panels.get("devices")
             or panels.get("release")
@@ -4507,7 +4603,9 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
         msg = (
             f"Play scrape · {len(metrics)} metric · "
             f"{panels.get('tpg_count', 0)} dash · {panels.get('monetize_count', 0)} mon · "
-            f"{panels.get('grow_count', 0)} grow · {panels.get('monitor_count', 0)} monitor · "
+            f"{panels.get('grow_count', 0)} grow · "
+            f"{panels.get('store_listings_count', 0)} store · "
+            f"{panels.get('monitor_count', 0)} monitor · "
             f"{panels.get('devices_count', 0)} devices · "
             f"{panels.get('release_count', 0)} release · {panels.get('statistics_count', 0)} stats · "
             f"{panels.get('stats_view_count', 0)} stats_views · "

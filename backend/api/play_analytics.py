@@ -63,7 +63,10 @@ _SCRAPE_FIRST = {
     "user_lost",
     "active_devices",
     "dau",
+    "dau_mau",
     "ar2_acquisitions",
+    "user_acquisition",
+    "store_listing_conversion",
     "rating",
     "active_users",
     "crashes",
@@ -78,9 +81,12 @@ _SCRAPE_FIRST = {
 # device_acquisition: tarihsiz scrape OVERALL kartı GCS installs CSV’yi engellemesin
 _NO_GCS_FALLBACK = {
     "dau",
+    "dau_mau",
     "revenue",
     "ar2_visitors",
     "ar2_acquisitions",
+    "user_acquisition",
+    "store_listing_conversion",
     "active_users",
     "active_devices",
     "user_lost",
@@ -263,7 +269,11 @@ def get_play_analytics_overview(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
     metrics: str = Query(
-        default="anrs,crashes,user_lost,device_acquisition,revenue,ar2_acquisitions,ar2_visitors,active_devices,active_users,rating",
+        default=(
+            "anrs,crashes,user_lost,device_acquisition,revenue,"
+            "ar2_acquisitions,ar2_visitors,user_acquisition,store_listing_conversion,"
+            "dau,dau_mau,active_devices,active_users,rating"
+        ),
         description="Virgülle ayrılmış metrik listesi (özet ekranı)",
     ),
 ) -> dict[str, Any]:
