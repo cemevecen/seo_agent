@@ -20,6 +20,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
   POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
+  POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
   POST /sync-all   → notification + news
 """
 
@@ -158,6 +159,7 @@ _gsc_links_lock = threading.Lock()
 _policy_lock = threading.Lock()
 _noads_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
+_noads_open_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -800,6 +802,57 @@ def run_admanager_policy_bridge_once() -> dict[str, Any]:
     return out
 
 
+def _load_sinemalar_noads_mod():
+    import importlib.util
+
+    path = ROOT / "scripts" / "sinemalar_noads_scrape.py"
+    spec = importlib.util.spec_from_file_location("sinemalar_noads_scrape", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("sinemalar_noads_scrape.py yüklenemedi")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def run_open_noads_prefill(url: str) -> dict[str, Any]:
+    """Policy «Ekle»: headed noAds + textarea prefill (arka planda tutulur)."""
+    target = (url or "").strip()
+    if not target:
+        return {"ok": False, "kind": "noads_open", "message": "url gerekli"}
+    try:
+        mod = _load_sinemalar_noads_mod()
+        open_fn = mod.open_noads_prefill
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "kind": "noads_open", "message": f"import: {exc}"}
+
+    def _job() -> None:
+        try:
+            out = open_fn(target)
+            print(f"noAds open · {out.get('message')}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            traceback.print_exc()
+            print(f"noAds open hata: {exc}", flush=True)
+        finally:
+            try:
+                _noads_open_lock.release()
+            except RuntimeError:
+                pass
+
+    if not _noads_open_lock.acquire(blocking=False):
+        return {
+            "ok": False,
+            "kind": "noads_open",
+            "message": "noAds penceresi zaten açık — önce onu kapatın veya bekleyin",
+        }
+    threading.Thread(target=_job, name="noads-prefill", daemon=True).start()
+    return {
+        "ok": True,
+        "kind": "noads_open",
+        "url": target,
+        "message": "Tarayıcı açılıyor — textarea doldurulacak; yeşil Ekle'ye basın",
+    }
+
+
 def run_sinemalar_noads_bridge_once() -> dict[str, Any]:
     """Sinemalar management/noAds → Railway /api/policy/noads/ingest."""
     global _last_noads_result
@@ -808,16 +861,7 @@ def run_sinemalar_noads_bridge_once() -> dict[str, Any]:
         _last_noads_result = err
         return err
     try:
-        import importlib.util
-
-        path = ROOT / "scripts" / "sinemalar_noads_scrape.py"
-        spec = importlib.util.spec_from_file_location("sinemalar_noads_scrape", path)
-        if spec is None or spec.loader is None:
-            err = {"ok": False, "message": "sinemalar_noads_scrape.py yüklenemedi"}
-            _last_noads_result = err
-            return err
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _load_sinemalar_noads_mod()
         scrape_fn = mod.scrape_sinemalar_noads
         ingest_fn = mod.ingest_noads_result
     except Exception as exc:  # noqa: BLE001
@@ -1490,6 +1534,20 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "PageSpeed sync zaten çalışıyor, bekleyin.",
                 run_pagespeed_bridge_once,
             )
+        elif path in ("/open-noads", "/noads-open", "/noads-prefill"):
+            length = int(self.headers.get("Content-Length") or 0)
+            raw_body = self.rfile.read(length) if length > 0 else b""
+            url = (qs.get("url") or [""])[0].strip()
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body.decode("utf-8", errors="replace"))
+                    if isinstance(payload, dict) and (payload.get("url") or "").strip():
+                        url = str(payload.get("url") or "").strip()
+                except Exception:
+                    pass
+            result = run_open_noads_prefill(url)
+            self._send(200 if result.get("ok") else 502, result)
+            return
         elif path in ("/sync-all", "/all"):
             lock, busy, runner = (_nt_lock, "Sync zaten çalışıyor, bekleyin.", run_all_once)
         else:

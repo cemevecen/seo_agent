@@ -352,6 +352,123 @@ def ingest_noads_result(result: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "message": str(exc)}
 
 
+def _normalize_prefill_url(url: str) -> str:
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("//"):
+        raw = "https:" + raw
+    if not re.match(r"^https?://", raw, re.I):
+        raw = "https://" + raw.lstrip("/")
+    return raw
+
+
+def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[str, Any]:
+    """Headed Chromium: noAds sayfasını aç, textarea'ya URL yaz, Ekle için beklet.
+
+    Kullanıcı yeşil «Ekle»ye kendisi basar. keep_open_sec boyunca pencere açık kalır.
+    """
+    from playwright.sync_api import sync_playwright
+
+    target = _normalize_prefill_url(url)
+    if not target:
+        return {"ok": False, "message": "URL boş"}
+
+    hold = int(
+        keep_open_sec
+        if keep_open_sec is not None
+        else (os.environ.get("SINEMALAR_NOADS_PREFILL_HOLD_SEC") or "900")
+    )
+    hold = max(60, min(hold, 3600))
+
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        try:
+            (PROFILE_DIR / name).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    channel = (
+        os.environ.get("SINEMALAR_NOADS_BROWSER_CHANNEL")
+        or os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL")
+        or ""
+    ).strip() or None
+
+    print(f"noAds prefill · {target}", flush=True)
+    with sync_playwright() as p:
+        kwargs: dict[str, Any] = {
+            "user_data_dir": str(PROFILE_DIR),
+            "headless": False,
+            "viewport": {"width": 1400, "height": 900},
+            "args": ["--disable-blink-features=AutomationControlled"],
+        }
+        if channel:
+            kwargs["channel"] = channel
+        try:
+            context = p.chromium.launch_persistent_context(**kwargs)
+        except Exception:
+            kwargs.pop("channel", None)
+            context = p.chromium.launch_persistent_context(**kwargs)
+        page = context.pages[0] if context.pages else context.new_page()
+        try:
+            page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
+            time.sleep(1.5)
+            if not _looks_logged_in(page):
+                _try_form_login(page)
+                page.goto(NOADS_URL, wait_until="domcontentloaded", timeout=90000)
+                time.sleep(1.5)
+            if not _looks_logged_in(page):
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "message": "Sinemalar admin oturumu yok — önce --login",
+                }
+
+            if page.locator("textarea").count() == 0:
+                return {"ok": False, "message": "noAds textarea bulunamadı"}
+            ta = page.locator("textarea").first
+            ta.click(timeout=10000)
+            ta.fill(target)
+            # React/controlled alanlar için event
+            page.evaluate(
+                """(u) => {
+                  const el = document.querySelector('textarea');
+                  if (!el) return;
+                  el.focus();
+                  el.value = u;
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                  el.dispatchEvent(new Event('change', { bubbles: true }));
+                }""",
+                target,
+            )
+            try:
+                page.bring_to_front()
+            except Exception:
+                pass
+            print(
+                f"Textarea dolduruldu · yeşil «Ekle»ye basın · pencere ~{hold}s açık kalır",
+                flush=True,
+            )
+            deadline = time.time() + hold
+            while time.time() < deadline:
+                try:
+                    if page.is_closed():
+                        break
+                except Exception:
+                    break
+                time.sleep(1.0)
+            return {
+                "ok": True,
+                "url": target,
+                "message": "noAds textarea dolduruldu — panelde Ekle'ye basın",
+            }
+        finally:
+            try:
+                context.close()
+            except Exception:
+                pass
+
+
 def run_login_interactive() -> int:
     from playwright.sync_api import sync_playwright
 
@@ -383,9 +500,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ingest", action="store_true")
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--prefill", default="", help="noAds textarea'ya URL yaz (headed)")
     args = parser.parse_args(argv)
     if args.login:
         return run_login_interactive()
+    if (args.prefill or "").strip():
+        out = open_noads_prefill(args.prefill.strip())
+        print(json.dumps(out, ensure_ascii=False), flush=True)
+        return 0 if out.get("ok") else 1
     if not args.sync and not args.ingest:
         parser.print_help()
         return 2

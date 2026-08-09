@@ -185,7 +185,14 @@
                 <a href="{{ v.admin_link }}" target="_blank" rel="noopener"
                   class="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400">Panel</a>
                 {% endif %}
-                <button type="button" onclick="copyURL(this, '{{ v.url | e }}')" title="URL kopyala"
+                {% if v.in_noads is sameas false %}
+                <button type="button"
+                  data-noads-url="{{ v.url | e }}"
+                  onclick="openNoAdsAdd(this)"
+                  title="noAds paneline ekle — textarea dolu açılır, siz yeşil Ekle'ye basın"
+                  class="rounded border border-rose-300 bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-rose-700 dark:border-rose-600 dark:bg-rose-700 dark:hover:bg-rose-600">Ekle</button>
+                {% endif %}
+                <button type="button" data-copy-url="{{ v.url | e }}" onclick="copyURL(this)" title="URL kopyala"
                   class="copy-btn rounded p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 </button>
@@ -235,11 +242,11 @@
   #content #policy-table col.policy-col-site { width: 11%; }
   #content #policy-table col.policy-col-status { width: 12%; }
   #content #policy-table col.policy-col-issue { width: 16%; }
-  #content #policy-table col.policy-col-loc { width: 26%; }
+  #content #policy-table col.policy-col-loc { width: 24%; }
   #content #policy-table col.policy-col-req { width: 7%; }
-  #content #policy-table col.policy-col-date { width: 9%; }
+  #content #policy-table col.policy-col-date { width: 8%; }
   #content #policy-table col.policy-col-noads { width: 7%; }
-  #content #policy-table col.policy-col-link { width: 9%; }
+  #content #policy-table col.policy-col-link { width: 12%; }
   #content #policy-table :where(th, td) {
     vertical-align: top;
     overflow: hidden;
@@ -387,14 +394,57 @@
   {% if title_job.running %}pollTitleStatus();{% endif %}
 
   window.copyURL = function (btn, url) {
+    var u = url || (btn && btn.getAttribute("data-copy-url")) || "";
     function flash(ok) {
       var orig = btn.innerHTML;
       btn.innerHTML = ok ? "✓" : "!";
       setTimeout(function () { btn.innerHTML = orig; }, 900);
     }
+    if (!u) { flash(false); return; }
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(function () { flash(true); }, function () { flash(false); });
+      navigator.clipboard.writeText(u).then(function () { flash(true); }, function () { flash(false); });
     }
+  };
+
+  window.openNoAdsAdd = function (btn) {
+    var url = (btn && btn.getAttribute("data-noads-url")) || "";
+    if (!url) return;
+    var orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "…";
+    var bridgeUrl = "http://127.0.0.1:18765/open-noads";
+    var done = function (ok, msg) {
+      btn.disabled = false;
+      btn.textContent = ok ? "✓" : "!";
+      if (msg) console.info("[noAds Ekle]", msg);
+      setTimeout(function () { btn.textContent = orig; }, 1600);
+    };
+    fetch(bridgeUrl, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ url: url }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j && j.ok !== false, j: j }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          done(true, (res.j && res.j.message) || "ok");
+          return;
+        }
+        throw new Error((res.j && res.j.message) || "bridge hata");
+      })
+      .catch(function () {
+        // Bridge yoksa: panoya kopyala + noAds sekmesi (yapıştır → Ekle)
+        var openFallback = function () {
+          window.open("https://www.sinemalar.com/management/noAds", "_blank", "noopener");
+          done(true, "clipboard + sekme");
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(openFallback, openFallback);
+        } else {
+          openFallback();
+        }
+      });
   };
 
   function rowMatchesText(tr, terms) {
