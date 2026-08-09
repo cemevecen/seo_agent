@@ -2435,9 +2435,18 @@
         track.classList.add('is-overflowing');
         more.hidden = false;
 
-        function pushOverflowItem(el) {
+        var overflowed = [];
+        /* Hide from the end; never hide the first (home) item. */
+        for (var i = items.length - 1; i >= 1; i -= 1) {
+          if (usedWidth() <= available + 1) break;
+          var el = items[i];
+          if (el.classList.contains('hidden') || el.hidden) continue;
           el.hidden = true;
           el.setAttribute('data-nav-overflowed', '1');
+          overflowed.unshift(el);
+        }
+
+        function pushOverflowItem(el) {
           if (el.tagName === 'A') {
             var a = document.createElement('a');
             a.href = el.getAttribute('href') || '#';
@@ -2446,17 +2455,6 @@
             var match = el.getAttribute('data-nav-match');
             if (match) a.setAttribute('data-nav-match', match);
             if (el.id) a.dataset.sourceId = el.id;
-            if (el.classList.contains('nav-active') || el.getAttribute('aria-current') === 'page') {
-              a.classList.add('nav-active');
-              a.setAttribute('aria-current', 'page');
-            }
-            var hxGet = el.getAttribute('hx-get');
-            if (hxGet) {
-              a.setAttribute('hx-get', hxGet);
-              a.setAttribute('hx-target', el.getAttribute('hx-target') || '#content');
-              a.setAttribute('hx-swap', el.getAttribute('hx-swap') || 'innerHTML');
-              a.setAttribute('hx-push-url', el.getAttribute('hx-push-url') || 'true');
-            }
             moreMenu.appendChild(a);
           } else {
             var label = el.getAttribute('data-nav-label') || 'more';
@@ -2474,13 +2472,7 @@
           }
         }
 
-        /* Hide from the end; never hide the first (home) item. */
-        for (var i = items.length - 1; i >= 1; i -= 1) {
-          if (usedWidth() <= available + 1) break;
-          var el = items[i];
-          if (el.classList.contains('hidden') || el.hidden) continue;
-          pushOverflowItem(el);
-        }
+        overflowed.forEach(pushOverflowItem);
 
         /* Still overflowing with only home + ⋯ — keep home. */
         syncTopNavActive();
