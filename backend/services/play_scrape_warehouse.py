@@ -41,6 +41,55 @@ _STOCK_AVG = frozenset({"rating", "store_listing_conversion", "dau_mau"})
 _CUMULATIVE = frozenset({"device_acquisition"})
 
 
+def _synthesize_store_listing_conversion(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Play STORE_LISTING_CONVERSION_RATE yoksa AR2 edinme / ziyaretçi → %.
+
+    Aynı gün + aynı segment için oran üretir (OVERALL öncelikli).
+    """
+    acq: dict[tuple[str, str], float] = {}
+    vis: dict[tuple[str, str], float] = {}
+    for f in facts:
+        if not isinstance(f, dict):
+            continue
+        ds = f.get("date")
+        if not (isinstance(ds, str) and len(ds) >= 8 and not str(ds).startswith("i")):
+            continue
+        day = str(ds)[:10]
+        seg = str(f.get("segment") or "OVERALL").strip() or "OVERALL"
+        try:
+            val = float(f.get("value"))
+        except (TypeError, ValueError):
+            continue
+        key = (day, seg)
+        metric = str(f.get("metric") or "")
+        if metric == "ar2_acquisitions":
+            acq[key] = val
+        elif metric == "ar2_visitors":
+            vis[key] = val
+    out: list[dict[str, Any]] = []
+    for key, a in acq.items():
+        v = vis.get(key)
+        if v is None or v <= 0:
+            continue
+        day, seg = key
+        rate = (a / v) * 100.0
+        if rate < 0 or rate > 100:
+            continue
+        out.append(
+            {
+                "metric": "store_listing_conversion",
+                "view_id": "store_listing_conversion_derived",
+                "dim": "overview" if seg in ("OVERALL", "", "all") else "country",
+                "segment": seg,
+                "date": day,
+                "value": round(rate, 4),
+                "label": "derived:ar2_acq/ar2_visitors",
+                "source": "derived_ar2",
+            }
+        )
+    return out
+
+
 def scrape_metric_keys() -> list[str]:
     return list(_SCRAPE_METRICS)
 
@@ -575,6 +624,29 @@ def query_scrape_analytics(
         }
 
     cur = [f for f in facts if str(f.get("metric") or "") == metric_key]
+    derived_note = ""
+    if metric_key == "store_listing_conversion" and not cur:
+        derived = _synthesize_store_listing_conversion(facts)
+        if derived:
+            facts = list(facts) + derived
+            cur = derived
+            derived_note = "derived:ar2_acq/ar2_visitors"
+    # Play bazen oranı 0–1 kesir döner → % göster
+    if metric_key == "store_listing_conversion" and cur:
+        normed: list[dict[str, Any]] = []
+        for f in cur:
+            if not isinstance(f, dict):
+                continue
+            row = dict(f)
+            try:
+                v = float(row.get("value"))
+            except (TypeError, ValueError):
+                normed.append(row)
+                continue
+            if 0 < v <= 1.0:
+                row["value"] = round(v * 100.0, 4)
+            normed.append(row)
+        cur = normed
     if not cur:
         available = sorted({str(f.get("metric")) for f in facts if f.get("metric")})
         return {
@@ -890,6 +962,8 @@ def query_scrape_analytics(
     )
 
     msg = f"Sync · {len(use)} fact · metric={metric_key}"
+    if derived_note:
+        msg += f" · {derived_note}"
     if enrich_msg:
         msg += f" · {enrich_msg}"
     if dates:

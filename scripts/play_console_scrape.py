@@ -271,12 +271,17 @@ STATISTICS_VIEWS: list[dict[str, Any]] = [
         "label": "Mağaza dönüşüm oranı",
         "metric_key": "store_listing_conversion",
         "metrics": "STORE_LISTING_CONVERSION_RATE-ALL-COUNT_UNSPECIFIED-PER_INTERVAL-DAY",
+        # Ülke kırılımı bu metrikte sık boş protobuf döndürüyor — OVERALL + tablo fallback
         "dimension": "COUNTRY",
-        "dimension_values": "OVERALL%2CTR%2CDE%2CBG%2CBE",
+        "dimension_values": "OVERALL",
+        "force_table": True,
         "needles": (
+            "Dönüşüm oranı",
+            "Conversion rate",
+            "Store listing conversion",
+            "Mağaza girişi",
             "Dönüşüm",
             "Conversion",
-            "Mağaza girişi",
             "İstatistik",
             "Veri tablosu",
         ),
@@ -1137,9 +1142,12 @@ def _parse_numeric_tr(val: Any) -> float | None:
 
 
 def _fact_value_ok(metric_key: str, value: float, *, source: str, raw: str = "") -> bool:
-    """Tek haneli sahte kartları (ör. '5') ele — rating hariç."""
+    """Tek haneli sahte kartları (ör. '5') ele — rating / dönüşüm oranı hariç."""
     if metric_key == "rating":
         return 0 < value <= 5.5
+    if metric_key == "store_listing_conversion":
+        # Oran: 0–1 (kesir) veya 0–100 (%)
+        return 0 <= value <= 100
     if source == "card" and value < 20 and "B" not in raw and "Mn" not in raw and "%" not in raw:
         # Büyük metriklerde 5 gibi DOM gürültüsü
         return False
@@ -4270,13 +4278,16 @@ def scrape_play_console(*, headed: bool | None = None) -> dict[str, Any]:
             stats_br.extend(br_i)
             proto = scraped.get("_protobuf") or _best_stats_protobuf(net_slice)
             page_text = ""
+            force_table = bool(view.get("force_table")) or str(view.get("metric_key") or "") == "store_listing_conversion"
             try:
-                if proto is None or len((proto.get("1") or [])) < 30:
+                proto_rows = len((proto or {}).get("1") or []) if isinstance(proto, dict) else 0
+                if force_table or proto is None or proto_rows < 30:
                     print(
-                        f"    protobuf zayıf ({0 if not proto else len(proto.get('1') or [])}) — tablo fallback",
+                        f"    protobuf zayıf ({proto_rows}) — tablo fallback"
+                        + (" [force]" if force_table else ""),
                         flush=True,
                     )
-                    page_text = _collect_paginated_table_text(page, max_pages=6)
+                    page_text = _collect_paginated_table_text(page, max_pages=8)
                 else:
                     page_text = ""
             except Exception:
