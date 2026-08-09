@@ -28,7 +28,7 @@
 </div>
 {% if sites %}
   <div class="home-rt-grid-wrap mt-4">
-    <div class="home-rt-grid" style="display: grid; grid-template-columns: repeat(6, minmax(var(--home-rt-mobile-card-min, 0), 1fr)); gap: 0.5rem;">
+    <div class="home-rt-grid" style="display: grid; gap: 0.5rem;">
       {% for site in sites %}
         {% for prof in site.profiles %}
           <div class="home-rt-metric home-rt-metric--{{ site.site_id }}-{{ prof.key }} min-w-0 rounded-xl px-2.5 py-3 xl:px-3"

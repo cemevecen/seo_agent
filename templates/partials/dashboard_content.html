@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v7">
+<style id="home-site-borders" data-home-css="v8">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -1060,7 +1060,7 @@
     overflow: visible;
   }
 
-  /* Active users: focus filters project cards */
+  /* Active users: focus filters project cards + full-width responsive sparks */
   #home-board[data-home-focus="doviz"] .home-rt-pill--sinemalar,
   #home-board[data-home-focus="doviz"] [data-home-rt-project="sinemalar"] {
     display: none !important;
@@ -1069,9 +1069,41 @@
   #home-board[data-home-focus="sinemalar"] [data-home-rt-project="doviz"] {
     display: none !important;
   }
-  #home-board[data-home-focus="doviz"] .home-rt-grid,
-  #home-board[data-home-focus="sinemalar"] .home-rt-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  #home-board:not([data-home-focus="split"]) .home-rt-grid-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
+  }
+  #home-board:not([data-home-focus="split"]) .home-rt-grid {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr)) !important;
+    gap: 0.65rem !important;
+  }
+  #home-board:not([data-home-focus="split"]) .home-rt-metric {
+    width: 100%;
+    min-width: 0;
+  }
+  @media (min-width: 1280px) {
+    #home-board:not([data-home-focus="split"]) .home-rt-grid {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)) !important;
+      gap: 0.85rem !important;
+    }
+  }
+  @media (max-width: 767px) {
+    #home-board:not([data-home-focus="split"]) .home-rt-grid-wrap {
+      margin-left: 0;
+      margin-right: 0;
+      overflow: visible;
+      padding: 0;
+    }
+    #home-board:not([data-home-focus="split"]) .home-rt-grid {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.75rem), 1fr)) !important;
+      width: 100% !important;
+      min-width: 0 !important;
+    }
   }
   @media (max-width: 1023px) {
     #home-board[data-home-focus="doviz"] [data-home-project="sinemalar"],
