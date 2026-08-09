@@ -1457,6 +1457,7 @@ def _current_panel_session_key(request: Request | None) -> str:
 
 def _record_session(request: Request) -> None:
     from backend.services import app_member_auth as ama
+    from backend.services import panel_visitor_alerts as pva
 
     member = _app_member_from_request(request)
     member_tok = str(request.cookies.get(ama.APP_MEMBER_COOKIE) or "")
@@ -1486,6 +1487,8 @@ def _record_session(request: Request) -> None:
         del _active_sessions[k]
     ip = _extract_client_ip(request)
     ua = request.headers.get("user-agent", "")
+    path = (request.url.path or "").split("?")[0] or "/"
+    is_new = key not in _active_sessions
     if key in _active_sessions:
         _active_sessions[key]["last_seen"] = now
         _active_sessions[key]["ip"] = ip
@@ -1503,11 +1506,43 @@ def _record_session(request: Request) -> None:
             "email": email,
             "label": label,
             "session_kind": session_kind,
+            "paths": [],
         }
+    sess = _active_sessions[key]
+    paths = sess.setdefault("paths", [])
+    if isinstance(paths, list):
+        from backend.services.admin_access_log import admin_path_label, should_track_admin_path
+
+        if should_track_admin_path(path):
+            last_p = paths[-1].get("path") if paths else None
+            if last_p != path:
+                paths.append(
+                    {
+                        "path": path,
+                        "label": admin_path_label(path),
+                        "at_tr": __import__("datetime").datetime.now(
+                            __import__("zoneinfo").ZoneInfo("Europe/Istanbul")
+                        ).strftime("%H:%M:%S"),
+                    }
+                )
+                if len(paths) > 50:
+                    del paths[:-50]
+
     from backend.services import admin_access_log as aal
 
     fp = aal.device_fingerprint(ip, ua)
     aal.record_admin_nav(fp, (request.url.path or ""))
+
+    if is_new and email and not pva.is_owner_email(email, ama.ADMIN_MEMBER_EMAILS):
+        try:
+            pva.maybe_alert_visitor_joined(
+                _active_sessions,
+                email=email,
+                session=sess,
+                owner_emails=ama.ADMIN_MEMBER_EMAILS,
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def get_online_presence_api_payload(request: Request | None = None) -> dict:
@@ -1517,7 +1552,8 @@ def get_online_presence_api_payload(request: Request | None = None) -> dict:
     sessions = _get_active_sessions(request)
     return build_online_presence_api_payload(
         sessions,
-        tracked_emails=ama.ONLINE_PRESENCE_TRACKED_MEMBER_EMAILS,
+        owner_emails=ama.ADMIN_MEMBER_EMAILS,
+        tracked_emails=None,
     )
 
 

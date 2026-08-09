@@ -158,6 +158,7 @@ def api_panel_online_users(request: Request) -> JSONResponse:
 
 @router.post("/auth/logout")
 def member_logout_post(request: Request):
+    _send_logout_usage_summary(request)
     resp = RedirectResponse(url="/admin/login", status_code=303)
     ama.clear_member_session_cookie(resp)
     return resp
@@ -165,9 +166,63 @@ def member_logout_post(request: Request):
 
 @router.get("/auth/logout")
 def member_logout_get(request: Request):
+    _send_logout_usage_summary(request)
     resp = RedirectResponse(url="/admin/login", status_code=303)
     ama.clear_member_session_cookie(resp)
     return resp
+
+
+def _send_logout_usage_summary(request: Request) -> None:
+    """Owner dışı üye çıkışında kullanım özeti maili."""
+    try:
+        import hashlib
+
+        import backend.main as main_mod
+        from backend.services import panel_visitor_alerts as pva
+
+        member = ama.member_from_request(request)
+        if member is None:
+            return
+        email = (member.email or "").strip()
+        if not email or pva.is_owner_email(email, ama.ADMIN_MEMBER_EMAILS):
+            return
+        tok = str(request.cookies.get(ama.APP_MEMBER_COOKIE) or "")
+        key = "m:" + hashlib.sha256(tok.encode()).hexdigest()[:16] if tok else ""
+        sess = None
+        if key and key in getattr(main_mod, "_active_sessions", {}):
+            sess = dict(main_mod._active_sessions.get(key) or {})
+            try:
+                del main_mod._active_sessions[key]
+            except Exception:  # noqa: BLE001
+                pass
+        if sess is None:
+            from datetime import datetime
+
+            from backend.services import admin_access_log as aal
+
+            ip = aal.client_ip_from_request(request)
+            ua = (request.headers.get("user-agent") or "")[:512]
+            sess = {
+                "email": email,
+                "label": (member.display_name or email).strip(),
+                "ip": ip,
+                "device": aal.parse_device_label(ua),
+                "user_agent": ua,
+                "first_seen": None,
+                "last_seen": datetime.utcnow(),
+                "paths": [],
+            }
+        from datetime import datetime
+
+        sess["last_seen"] = datetime.utcnow()
+        pva.send_usage_summary_email(
+            email=email,
+            display_name=(member.display_name or "").strip(),
+            session=sess,
+            paths=list(sess.get("paths") or []),
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Logout usage summary failed: %s", exc)
 
 
 def _require_membership_admin(request: Request) -> bool:

@@ -51,13 +51,42 @@ def dedupe_online_users(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def build_online_presence_api_payload(
     sessions: list[dict[str, Any]],
     *,
-    tracked_emails: frozenset[str],
+    owner_emails: frozenset[str],
+    tracked_emails: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """
-    Yalnızca tracked_emails içindeki üyeler listelenir.
-    Başka üyeler çevrimiçi olsa bile gösterge gizlenmez (onlar listede görünmez).
+    Owner izleyiciler için tüm e-postalı oturumlar listelenir.
+    Yeşil nokta yalnızca owner dışı ziyaretçi çevrimiçiyse yanar.
+    İki owner aynı anda (başka kimse yokken) → nokta yeşil olmaz.
+
+    tracked_emails: geriye uyum; verilirse listedeki visitor'lar bu küme ile
+    sınırlanır (owner'lar her zaman kalır). None = tüm visitor'lar.
     """
-    tracked = {_normalize_email_key(e) for e in tracked_emails if _normalize_email_key(e)}
+    owners = {_normalize_email_key(e) for e in owner_emails if _normalize_email_key(e)}
+    tracked = None
+    if tracked_emails is not None:
+        tracked = {_normalize_email_key(e) for e in tracked_emails if _normalize_email_key(e)}
+
     users = dedupe_online_users(sessions)
-    users = [u for u in users if _normalize_email_key(u.get("email") or "") in tracked]
-    return {"show": True, "users": users, "count": len(users)}
+    enriched: list[dict[str, Any]] = []
+    for u in users:
+        em = _normalize_email_key(u.get("email") or "")
+        is_owner = em in owners
+        is_visitor = bool(em) and not is_owner
+        if tracked is not None and is_visitor and em not in tracked:
+            continue
+        row = dict(u)
+        row["is_owner"] = is_owner
+        row["is_visitor"] = is_visitor
+        enriched.append(row)
+
+    visitors = [u for u in enriched if u.get("is_visitor")]
+    return {
+        "show": True,
+        "users": enriched,
+        "visitors": visitors,
+        "count": len(enriched),
+        "visitor_count": len(visitors),
+        "dot_green": len(visitors) > 0,
+        "owners_online_count": sum(1 for u in enriched if u.get("is_owner")),
+    }

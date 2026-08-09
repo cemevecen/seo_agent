@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from backend.services.app_member_auth import ONLINE_PRESENCE_TRACKED_MEMBER_EMAILS
+from backend.services.app_member_auth import ADMIN_MEMBER_EMAILS
 from backend.services.panel_presence import build_online_presence_api_payload, dedupe_online_users
 
 
@@ -37,13 +37,14 @@ def test_dedupe_online_users_merges_tabs():
     assert onur["last_seen_tr"] == "10:05"
 
 
-def test_build_online_presence_lists_tracked_only_when_other_member_online():
+def test_dot_green_only_for_non_owner_visitors():
     sessions = [
         {
             "email": "cemevecen@nokta.com",
             "label": "Cem",
             "last_seen": datetime(2026, 6, 24, 10, 0, 0),
             "last_seen_tr": "10:00",
+            "is_current": True,
         },
         {
             "email": "onurtorun@nokta.com",
@@ -52,14 +53,35 @@ def test_build_online_presence_lists_tracked_only_when_other_member_online():
             "last_seen_tr": "10:01",
         },
     ]
-    out = build_online_presence_api_payload(
-        sessions, tracked_emails=ONLINE_PRESENCE_TRACKED_MEMBER_EMAILS
-    )
+    out = build_online_presence_api_payload(sessions, owner_emails=ADMIN_MEMBER_EMAILS)
     assert out["show"] is True
-    assert [u["email"] for u in out["users"]] == ["cemevecen@nokta.com"]
+    assert out["dot_green"] is True
+    assert out["visitor_count"] == 1
+    assert [u["email"] for u in out["visitors"]] == ["onurtorun@nokta.com"]
 
 
-def test_build_online_presence_includes_tmdb_only_member():
+def test_two_owners_alone_dot_not_green():
+    sessions = [
+        {
+            "email": "cemevecen@nokta.com",
+            "label": "Cem N",
+            "last_seen": datetime(2026, 6, 24, 10, 0, 0),
+            "is_current": True,
+        },
+        {
+            "email": "cemevecen@gmail.com",
+            "label": "Cem G",
+            "last_seen": datetime(2026, 6, 24, 10, 2, 0),
+            "is_current": False,
+        },
+    ]
+    out = build_online_presence_api_payload(sessions, owner_emails=ADMIN_MEMBER_EMAILS)
+    assert out["dot_green"] is False
+    assert out["visitor_count"] == 0
+    assert out["owners_online_count"] == 2
+
+
+def test_build_online_presence_includes_any_visitor_email():
     sessions = [
         {
             "email": "cemevecen@nokta.com",
@@ -74,11 +96,10 @@ def test_build_online_presence_includes_tmdb_only_member():
             "is_current": False,
         },
     ]
-    out = build_online_presence_api_payload(
-        sessions, tracked_emails=ONLINE_PRESENCE_TRACKED_MEMBER_EMAILS
-    )
+    out = build_online_presence_api_payload(sessions, owner_emails=ADMIN_MEMBER_EMAILS)
     emails = {u["email"] for u in out["users"]}
     assert emails == {"cemevecen@nokta.com", "gozdeunaldi@nokta.com"}
+    assert out["dot_green"] is True
 
 
 def test_dedupe_skips_sessions_without_email():
