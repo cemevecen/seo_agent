@@ -215,6 +215,20 @@
     flex: 1 1 auto;
     min-width: 5.5rem;
   }
+  /* + grafik — Fusion turuncu (light/dark sabit) */
+  .android-play-page #pa-add-chart.pa-btn-fusion,
+  html.dark .android-play-page #pa-add-chart.pa-btn-fusion {
+    border-color: #f59e0b !important;
+    background-color: #f59e0b !important;
+    background-image: none !important;
+    color: #ffffff !important;
+  }
+  .android-play-page #pa-add-chart.pa-btn-fusion:hover,
+  html.dark .android-play-page #pa-add-chart.pa-btn-fusion:hover {
+    border-color: #d97706 !important;
+    background-color: #d97706 !important;
+    color: #ffffff !important;
+  }
   /* Mobil: tam kıyas metni */
   .pa-filters > label.pa-f--compare .pa-f-compare-short { display: none; }
   .pa-filters > label.pa-f--compare .pa-f-compare-full { display: inline; }
@@ -399,7 +413,7 @@
           <span id="pa-run-label">Uygula</span>
         </button>
         <button id="pa-add-chart" type="button"
-                class="pa-f-btn hidden border border-blue-600 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-500 dark:bg-zinc-900 dark:text-blue-300 dark:hover:bg-blue-950/40">
+                class="pa-f-btn pa-btn-fusion hidden border border-amber-500 bg-amber-500 text-white hover:bg-amber-600">
           + grafik
         </button>
       </div>
