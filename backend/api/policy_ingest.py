@@ -47,6 +47,15 @@ class PolicyIngestBody(BaseModel):
     csv_base64: str | None = None
 
 
+class NoAdsIngestBody(BaseModel):
+    source: str = "sinemalar_noads"
+    scraped_at: str = ""
+    message: str = ""
+    entries: list[dict[str, Any] | str] = Field(default_factory=list)
+    urls: list[str] = Field(default_factory=list)
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+
+
 @router.post("/policy/ingest")
 def policy_ingest(
     body: PolicyIngestBody,
@@ -75,4 +84,34 @@ def policy_ingest(
         pcsv.start_title_job(SessionLocal, only_missing=True)
     except Exception:
         pass
+    return result
+
+
+@router.post("/policy/noads/ingest")
+def policy_noads_ingest(
+    body: NoAdsIngestBody,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_notification_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Sinemalar management/noAds listesi → policy URL eşleştirme + alarm."""
+    from backend.services import sinemalar_noads as noads
+
+    _check_ingest_token(authorization, x_notification_ingest_token)
+    entries: list[Any] = list(body.entries or [])
+    if body.urls:
+        entries.extend(body.urls)
+    if body.rows:
+        entries.extend(body.rows)
+    result = noads.ingest_noads_payload(
+        db,
+        {
+            "source": body.source,
+            "scraped_at": body.scraped_at,
+            "message": body.message,
+            "entries": entries,
+        },
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("message") or "noads ingest failed")
     return result

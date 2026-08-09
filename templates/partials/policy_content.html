@@ -21,6 +21,13 @@
       </p>
       <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
         Kaynak: Ad Manager Policy Center (sinemalar.com) · günde 02:00 · CSV/Sheets yok
+        {% if noads_summary and noads_summary.has_data %}
+          · noAds: <b class="text-slate-600 dark:text-slate-300">{{ noads_summary.matched }}</b> yeşil /
+          <b class="text-rose-600 dark:text-rose-300">{{ noads_summary.missing }}</b> kırmızı
+          {% if noads_summary.scraped_at %} ({{ noads_summary.scraped_at[:16]|replace('T',' ') }} UTC){% endif %}
+        {% else %}
+          · noAds eşleşmesi henüz yok (Mac bridge: sync-noads)
+        {% endif %}
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -92,6 +99,7 @@
           <col class="policy-col-loc" />
           <col class="policy-col-req" />
           <col class="policy-col-date" />
+          <col class="policy-col-noads" />
           <col class="policy-col-link" />
         </colgroup>
         <thead>
@@ -103,6 +111,7 @@
             <th data-sort="url" data-sort-type="text" class="sortable-th px-1.5 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sorunun konumu<span class="sort-ind"></span></th>
             <th data-sort="req" data-sort-type="num" data-sort-default="desc" class="sortable-th px-1.5 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İstek<span class="sort-ind"></span></th>
             <th data-sort="first" data-sort-type="date" data-sort-default="desc" class="sortable-th px-1.5 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Bildirim<span class="sort-ind"></span></th>
+            <th data-sort="noads" data-sort-type="text" class="sortable-th px-1.5 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">noAds<span class="sort-ind"></span></th>
             <th class="px-1.5 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Link</th>
           </tr>
         </thead>
@@ -119,8 +128,9 @@
               data-req="{{ v.ad_requests_7d }}"
               data-first="{{ v.first_reported or '' }}"
               data-last="{{ v.last_reported or '' }}"
+              data-noads="{% if v.in_noads is none %}pending{% elif v.in_noads %}yes{% else %}no{% endif %}"
               data-new-import="{{ '1' if v.is_new_import else '0' }}"
-              class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40 {% if v.is_new_import %}new-import-row{% endif %}">
+              class="border-b border-slate-100 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40 {% if v.is_new_import %}new-import-row{% endif %} {% if v.in_noads is sameas true %}policy-row-noads-yes{% elif v.in_noads is sameas false %}policy-row-noads-no{% endif %}">
             <td class="row-num relative px-1.5 py-1.5 text-right text-[10px] text-slate-300 dark:text-slate-600 select-none">
               {% if v.is_new_import %}<span class="absolute left-0 top-0 h-full w-1 bg-emerald-500" aria-hidden="true"></span>{% endif %}
               {{ loop.index }}
@@ -157,6 +167,15 @@
             </td>
             <td class="px-1.5 py-1.5 font-mono text-[11px] tabular-nums text-slate-600 dark:text-slate-300 whitespace-nowrap">
               {{ v.first_reported or v.last_reported or "—" }}
+            </td>
+            <td class="px-1 py-1.5 text-center">
+              {% if v.in_noads is sameas true %}
+              <span class="inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" title="Reklam çıkmayacak (noAds) listesinde">Var</span>
+              {% elif v.in_noads is sameas false %}
+              <span class="inline-flex rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-300" title="noAds panelinde yok — kontrol edin">Yok</span>
+              {% else %}
+              <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400" title="Henüz noAds taraması yok">—</span>
+              {% endif %}
             </td>
             <td class="px-1 py-1.5 text-center">
               <div class="policy-link-actions inline-flex flex-wrap items-center justify-center gap-0.5">
@@ -213,13 +232,14 @@
     min-width: 0 !important;
   }
   #content #policy-table col.policy-col-num { width: 3%; }
-  #content #policy-table col.policy-col-site { width: 12%; }
-  #content #policy-table col.policy-col-status { width: 14%; }
-  #content #policy-table col.policy-col-issue { width: 18%; }
-  #content #policy-table col.policy-col-loc { width: 28%; }
-  #content #policy-table col.policy-col-req { width: 8%; }
+  #content #policy-table col.policy-col-site { width: 11%; }
+  #content #policy-table col.policy-col-status { width: 12%; }
+  #content #policy-table col.policy-col-issue { width: 16%; }
+  #content #policy-table col.policy-col-loc { width: 26%; }
+  #content #policy-table col.policy-col-req { width: 7%; }
   #content #policy-table col.policy-col-date { width: 9%; }
-  #content #policy-table col.policy-col-link { width: 8%; }
+  #content #policy-table col.policy-col-noads { width: 7%; }
+  #content #policy-table col.policy-col-link { width: 9%; }
   #content #policy-table :where(th, td) {
     vertical-align: top;
     overflow: hidden;
@@ -277,6 +297,18 @@
     #content #policy-table .policy-cell-clamp {
       -webkit-line-clamp: 3;
     }
+  }
+  #content #policy-table tbody tr.policy-row-noads-yes {
+    background: rgba(16, 185, 129, 0.08);
+  }
+  #content #policy-table tbody tr.policy-row-noads-no {
+    background: rgba(244, 63, 94, 0.09);
+  }
+  html.dark #content #policy-table tbody tr.policy-row-noads-yes {
+    background: rgba(16, 185, 129, 0.14);
+  }
+  html.dark #content #policy-table tbody tr.policy-row-noads-no {
+    background: rgba(244, 63, 94, 0.16);
   }
 </style>
 

@@ -696,6 +696,8 @@ def _violation_to_dict(r) -> dict:
         "fetched_at": r.fetched_at.isoformat() if r.fetched_at else None,
         "first_seen_at": r.first_seen_at.isoformat() if r.first_seen_at else None,
         "admin_link": _admin_link(r.url),
+        "in_noads": r.in_noads,
+        "noads_checked_at": r.noads_checked_at.isoformat() if getattr(r, "noads_checked_at", None) else None,
         "extras": extras,
     }
 

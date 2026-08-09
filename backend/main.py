@@ -1858,6 +1858,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/pagespeed-web/ingest",
         "/api/gsc-links/ingest",
         "/api/policy/ingest",
+        "/api/policy/noads/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -2019,6 +2020,9 @@ def _run_deferred_startup() -> None:
             "ALTER TABLE ad_policy_violations ADD COLUMN first_seen_at TIMESTAMP",
             "UPDATE ad_policy_violations SET first_seen_at = fetched_at WHERE first_seen_at IS NULL",
             "ALTER TABLE ad_policy_violations ADD CONSTRAINT uq_adpolicy_url_issue UNIQUE (url, issue_type)",
+            "ALTER TABLE ad_policy_violations ADD COLUMN in_noads BOOLEAN",
+            "ALTER TABLE ad_policy_violations ADD COLUMN noads_checked_at TIMESTAMP",
+            "CREATE INDEX IF NOT EXISTS ix_adpolicy_in_noads ON ad_policy_violations (in_noads)",
             "ALTER TABLE realtime_alarm_logs ADD COLUMN email_sent_at TIMESTAMP",
             "CREATE INDEX IF NOT EXISTS ix_realtime_alarm_logs_email_sent_at ON realtime_alarm_logs (email_sent_at)",
             "ALTER TABLE inbox_gmail_credentials ADD COLUMN scheduled_sync_last_success_at TIMESTAMP",
@@ -20526,6 +20530,9 @@ def policy_page(
             host=host_key,
         )
         title_job = pcsv.get_title_job_state()
+        from backend.services import sinemalar_noads as noads
+
+        noads_summary = noads.get_noads_summary(db)
     except Exception as _e:
         LOGGER.exception("policy_page hata: %s", _e)
         stats = {
@@ -20542,6 +20549,7 @@ def policy_page(
         violations = []
         last_upload = None
         title_job = {"running": False, "done": 0, "total": 0}
+        noads_summary = {"has_data": False, "entry_count": 0, "matched": 0, "missing": 0}
 
     last_upload_info = None
     last_upload_iso = None
@@ -20566,6 +20574,7 @@ def policy_page(
         "last_upload_iso": last_upload_iso,
         "title_job": title_job,
         "host_filter": host_key,
+        "noads_summary": noads_summary,
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/policy_content.html", ctx)

@@ -880,6 +880,8 @@ class AdPolicyViolation(Base):
     extra_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
     our_status: Mapped[str] = mapped_column(String(30), nullable=False, default="new")
     our_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    in_noads: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    noads_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
@@ -888,8 +890,27 @@ class AdPolicyViolation(Base):
         Index("ix_adpolicy_url", "url"),
         Index("ix_adpolicy_status", "our_status"),
         Index("ix_adpolicy_issue_type", "issue_type"),
+        Index("ix_adpolicy_in_noads", "in_noads"),
         UniqueConstraint("url", "issue_type", name="uq_adpolicy_url_issue"),
     )
+
+
+class SinemalarNoAdsSnapshot(Base):
+    """Sinemalar management/noAds panelinin son taranan listesi (tek satır id=1)."""
+
+    __tablename__ = "sinemalar_noads_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entries_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    entry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    key_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    matched_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    missing_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    scraped_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_email_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    message: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class PolicyCSVUpload(Base):

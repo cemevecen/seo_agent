@@ -516,6 +516,35 @@ class Settings(BaseSettings):
         default="merkez-bankasi",
         validation_alias=AliasChoices("DOVIZ_ASSET_MONITOR_EXCLUDE_SLUGS", "doviz_asset_monitor_exclude_slugs"),
     )
+    policy_noads_email_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("POLICY_NOADS_EMAIL_ENABLED", "policy_noads_email_enabled"),
+    )
+    policy_noads_email_cooldown_hours: float = Field(
+        default=6.0,
+        ge=0.5,
+        le=72.0,
+        validation_alias=AliasChoices(
+            "POLICY_NOADS_EMAIL_COOLDOWN_HOURS",
+            "policy_noads_email_cooldown_hours",
+        ),
+    )
+    policy_noads_alarm_min_ad_requests: int = Field(
+        default=500,
+        ge=0,
+        validation_alias=AliasChoices(
+            "POLICY_NOADS_ALARM_MIN_AD_REQUESTS",
+            "policy_noads_alarm_min_ad_requests",
+        ),
+    )
+    policy_noads_alarm_min_missing: int = Field(
+        default=15,
+        ge=1,
+        validation_alias=AliasChoices(
+            "POLICY_NOADS_ALARM_MIN_MISSING",
+            "policy_noads_alarm_min_missing",
+        ),
+    )
     doviz_asset_monitor_open_issues_email: bool = Field(
         default=False,
         validation_alias=AliasChoices(

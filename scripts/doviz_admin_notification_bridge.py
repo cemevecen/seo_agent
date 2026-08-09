@@ -86,6 +86,13 @@ GSC_LINKS_AUTO_INTERVAL_SEC = int(
 # Ad Manager Policy — günde 1 kez 02:00 Europe/Istanbul
 POLICY_AUTO_HOUR = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_HOUR") or "2")
 POLICY_AUTO_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "0")
+# Sinemalar noAds — günde 2 kez (03:00 + 15:00 Europe/Istanbul)
+NOADS_AUTO_HOURS = [
+    int(x.strip())
+    for x in (os.environ.get("SINEMALAR_NOADS_BRIDGE_HOURS") or "3,15").split(",")
+    if x.strip().isdigit()
+] or [3, 15]
+NOADS_AUTO_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "10")
 # Eski ayar: her N. bildirim turunda haber (NEWS_BRIDGE_INTERVAL_SEC yoksa)
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
@@ -137,6 +144,7 @@ _play_lock = threading.Lock()
 _asc_lock = threading.Lock()
 _gsc_links_lock = threading.Lock()
 _policy_lock = threading.Lock()
+_noads_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -146,6 +154,8 @@ _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalı
 _last_gsc_links_auto_at = 0.0
 _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_policy_auto_date = ""
+_last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_noads_auto_slot = ""
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -743,6 +753,75 @@ def run_admanager_policy_bridge_once() -> dict[str, Any]:
     return out
 
 
+def run_sinemalar_noads_bridge_once() -> dict[str, Any]:
+    """Sinemalar management/noAds → Railway /api/policy/noads/ingest."""
+    global _last_noads_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_noads_result = err
+        return err
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "sinemalar_noads_scrape.py"
+        spec = importlib.util.spec_from_file_location("sinemalar_noads_scrape", path)
+        if spec is None or spec.loader is None:
+            err = {"ok": False, "message": "sinemalar_noads_scrape.py yüklenemedi"}
+            _last_noads_result = err
+            return err
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        scrape_fn = mod.scrape_sinemalar_noads
+        ingest_fn = mod.ingest_noads_result
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "message": f"sinemalar_noads_scrape import: {exc}"}
+        _last_noads_result = err
+        return err
+
+    print("Sinemalar noAds tarama başlıyor…", flush=True)
+    env_hl = (os.environ.get("SINEMALAR_NOADS_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    result = scrape_fn(headed=headed)
+    if result.get("needs_login"):
+        out = {
+            "ok": False,
+            "kind": "sinemalar_noads",
+            "needs_login": True,
+            "message": result.get("message") or "Sinemalar admin login gerekli (--login)",
+        }
+        _last_noads_result = out
+        return out
+    if not result.get("ok"):
+        out = {
+            "ok": False,
+            "kind": "sinemalar_noads",
+            "message": result.get("message") or "noAds tarama başarısız",
+            "needs_login": False,
+        }
+        _last_noads_result = out
+        return out
+    try:
+        ing = ingest_fn(result)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "sinemalar_noads", "message": f"Ingest hata: {exc}"}
+        _last_noads_result = out
+        return out
+    out = {
+        "ok": bool(ing.get("ok")),
+        "kind": "sinemalar_noads",
+        "entry_count": len(result.get("entries") or []),
+        "matched": ing.get("matched"),
+        "missing": ing.get("missing"),
+        "email_sent": ing.get("email_sent"),
+        "message": ing.get("message") or result.get("message") or "noAds sync",
+        "needs_login": False,
+        "ingest": ing,
+    }
+    _last_noads_result = out
+    print(f"Sinemalar noAds sync · {out['message']}", flush=True)
+    return out
+
+
 def run_asc_bridge_once() -> dict[str, Any]:
     """App Store Connect analytics scrape → Railway ingest."""
     global _last_asc_result
@@ -1266,6 +1345,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "Ad Manager Policy sync zaten çalışıyor, bekleyin.",
                 run_admanager_policy_bridge_once,
             )
+        elif path in ("/sync-noads", "/noads", "/sync-sinemalar-noads"):
+            lock, busy, runner = (
+                _noads_lock,
+                "Sinemalar noAds sync zaten çalışıyor, bekleyin.",
+                run_sinemalar_noads_bridge_once,
+            )
         elif path in ("/sync-asc", "/asc", "/sync-ios"):
             lock, busy, runner = (
                 _asc_lock,
@@ -1335,15 +1420,56 @@ def _should_run_policy_auto() -> bool:
     today = now.strftime("%Y-%m-%d")
     if _last_policy_auto_date == today:
         return False
-    # 02:00–02:45 penceresi (daemon sleep ~30 dk olabilir)
+    # 02:00–02:45 penceresi
     minutes = now.hour * 60 + now.minute
-    target = POLICY_AUTO_HOUR * 60 + POLICY_AUTO_MINUTE
-    return target <= minutes <= target + 45
+    start = POLICY_AUTO_HOUR * 60 + POLICY_AUTO_MINUTE
+    return start <= minutes <= start + 45
+
+
+def _should_run_noads_auto() -> bool:
+    """Europe/Istanbul — günde 2 slot (varsayılan 03:10 ve 15:10)."""
+    global _last_noads_auto_slot
+    try:
+        from zoneinfo import ZoneInfo
+
+        now = __import__("datetime").datetime.now(ZoneInfo("Europe/Istanbul"))
+    except Exception:
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc) + timedelta(hours=3)
+    minutes = now.hour * 60 + now.minute
+    for hour in NOADS_AUTO_HOURS:
+        start = hour * 60 + NOADS_AUTO_MINUTE
+        if start <= minutes <= start + 40:
+            slot = f"{now.strftime('%Y-%m-%d')}-{hour:02d}"
+            if _last_noads_auto_slot == slot:
+                return False
+            return True
+    return False
+
+
+def _mark_noads_auto_slot() -> None:
+    global _last_noads_auto_slot
+    try:
+        from zoneinfo import ZoneInfo
+
+        now = __import__("datetime").datetime.now(ZoneInfo("Europe/Istanbul"))
+    except Exception:
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc) + timedelta(hours=3)
+    minutes = now.hour * 60 + now.minute
+    for hour in NOADS_AUTO_HOURS:
+        start = hour * 60 + NOADS_AUTO_MINUTE
+        if start <= minutes <= start + 40:
+            _last_noads_auto_slot = f"{now.strftime('%Y-%m-%d')}-{hour:02d}"
+            return
+    _last_noads_auto_slot = now.strftime("%Y-%m-%d-%H")
 
 
 def _auto_loop() -> None:
     """Notification/news ve Virgül ayrı kilit — hepsi ~30 dk; hata → e-posta."""
-    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at, _last_gsc_links_auto_at, _last_policy_auto_date
+    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at, _last_gsc_links_auto_at, _last_policy_auto_date, _last_noads_auto_slot
     while True:
         if _nt_lock.acquire(blocking=False):
             try:
@@ -1491,6 +1617,24 @@ def _auto_loop() -> None:
             else:
                 print("Auto Policy atlandı (manuel sync sürüyor)", flush=True)
 
+        if _should_run_noads_auto():
+            if _noads_lock.acquire(blocking=False):
+                try:
+                    try:
+                        nad = run_sinemalar_noads_bridge_once()
+                        _mark_noads_auto_slot()
+                        if nad.get("ok"):
+                            _note_auto_success("sinemalar_noads")
+                        else:
+                            _notify_auto_failure("sinemalar_noads", nad)
+                    except Exception as exc:
+                        traceback.print_exc()
+                        _notify_auto_failure("sinemalar_noads", exc=exc)
+                finally:
+                    _noads_lock.release()
+            else:
+                print("Auto noAds atlandı (manuel sync sürüyor)", flush=True)
+
         time.sleep(max(60, AUTO_INTERVAL_SEC))
 
 
@@ -1505,9 +1649,9 @@ def run_daemon() -> int:
     )
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-gsc-links | /sync-policy | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
+        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-gsc-links | /sync-policy | /sync-noads | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
         f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s, play={PLAY_AUTO_INTERVAL_SEC}s, "
-        f"gsc_links={GSC_LINKS_AUTO_INTERVAL_SEC}s, policy=02:00 TR)",
+        f"gsc_links={GSC_LINKS_AUTO_INTERVAL_SEC}s, policy=02:00 TR, noads={NOADS_AUTO_HOURS} TR)",
         flush=True,
     )
     try:
