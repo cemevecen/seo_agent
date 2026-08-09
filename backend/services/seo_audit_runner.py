@@ -18,18 +18,37 @@ from backend.services.warehouse import finish_collector_run, start_collector_run
 
 logger = logging.getLogger(__name__)
 
-_GA4_TOP_LIMIT = 250
+# GA4 her profilden çekilen üst sınır; birleşik listede trafik sırasına göre TOP_LIMIT alınır
+_GA4_FETCH_PER_PROFILE = 500
+_DEFAULT_TOP_LIMIT = 500
 
 
-def _collect_audit_urls(site_id: int, site_domain: str, progress: dict) -> list[str]:
-    seen_urls: set[str] = set()
-    urls: list[str] = []
+def _seo_audit_top_limit() -> int:
+    try:
+        from backend.config import settings
 
-    def _add(u: str) -> None:
+        return max(50, min(2000, int(getattr(settings, "seo_audit_top_limit", None) or _DEFAULT_TOP_LIMIT)))
+    except Exception:
+        return _DEFAULT_TOP_LIMIT
+
+
+def collect_seo_audit_url_entries(
+    site_id: int,
+    site_domain: str,
+    progress: dict | None = None,
+    *,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """GA4 sessions'a göre en çok trafik alan URL'ler (birleşik top N)."""
+    progress = progress if progress is not None else {}
+    top_n = int(limit) if limit is not None else _seo_audit_top_limit()
+    traffic: dict[str, float] = {}
+
+    def _add(u: str, sessions: float = 0.0) -> None:
         u = repair_seo_audit_url(u.split("?")[0].rstrip("/"))
-        if u and is_seo_audit_crawl_url(u) and u not in seen_urls:
-            seen_urls.add(u)
-            urls.append(u)
+        if not u or not is_seo_audit_crawl_url(u):
+            return
+        traffic[u] = float(traffic.get(u) or 0.0) + max(0.0, float(sessions or 0.0))
 
     base = f"https://{site_domain}"
 
@@ -88,31 +107,36 @@ def _collect_audit_urls(site_id: int, site_domain: str, progress: dict) -> list[
                                     desc=True,
                                 )
                             ],
-                            limit=_GA4_TOP_LIMIT,
+                            limit=_GA4_FETCH_PER_PROFILE,
                         )
                     )
-                    for row in resp.rows:
+                    for row in resp.rows or []:
                         dims = row.dimension_values
+                        mets = row.metric_values
                         hostname = dims[0].value if dims else ""
                         path = dims[1].value if len(dims) > 1 else ""
+                        try:
+                            sessions = float(mets[0].value) if mets else 0.0
+                        except (TypeError, ValueError, IndexError):
+                            sessions = 0.0
                         full_url = seo_audit_url_from_ga4(
                             hostname, path, ga4_profile=profile_key,
                         )
                         if full_url:
-                            _add(full_url)
+                            _add(full_url, sessions)
                     logger.info(
-                        "SEO audit GA4: site=%s profile=%s rows=%d urls=%d",
+                        "SEO audit GA4: site=%s profile=%s rows=%d unique=%d",
                         site_domain,
                         profile_key,
                         len(resp.rows or []),
-                        len(urls),
+                        len(traffic),
                     )
                 except Exception as exc:
                     logger.warning("SEO audit GA4 hatası [%s/%s]: %s", site_domain, profile_key, exc)
     except Exception as exc:
         logger.warning("SEO audit GA4 genel hata [%s]: %s", site_domain, exc)
 
-    has_akaryakit = any("akaryakit" in u for u in urls)
+    has_akaryakit = any("akaryakit" in u for u in traffic)
     if not has_akaryakit and "doviz.com" in (site_domain or ""):
         for u in [
             f"{base}/akaryakit-fiyatlari",
@@ -124,17 +148,24 @@ def _collect_audit_urls(site_id: int, site_domain: str, progress: dict) -> list[
             f"{base}/akaryakit-fiyatlari/bursa",
             f"{base}/akaryakit-fiyatlari/antalya",
         ]:
-            _add(u)
+            _add(u, 0.0)
         logger.info("SEO audit: akaryakit fallback eklendi [%s]", site_domain)
 
     www_base = base if (site_domain or "").startswith("www.") else f"https://www.doviz.com"
-    has_fuel_hub = any("yakit-sarj" in u or "ev-sarj-fiyatlari" in u for u in urls)
+    has_fuel_hub = any("yakit-sarj" in u or "ev-sarj-fiyatlari" in u for u in traffic)
     if not has_fuel_hub and "doviz.com" in (site_domain or ""):
         for u in (f"{www_base}/yakit-sarj", f"{www_base}/ev-sarj-fiyatlari"):
-            _add(u)
+            _add(u, 0.0)
         logger.info("SEO audit: yakit-sarj / ev-sarj fallback eklendi [%s]", site_domain)
 
-    return urls
+    ranked = sorted(traffic.items(), key=lambda kv: (-kv[1], kv[0]))
+    entries = [{"url": u, "sessions": s} for u, s in ranked[:top_n]]
+    progress["current"] = f"Top {len(entries)} URL (trafik sırası)"
+    return entries
+
+
+def _collect_audit_urls(site_id: int, site_domain: str, progress: dict) -> list[str]:
+    return [e["url"] for e in collect_seo_audit_url_entries(site_id, site_domain, progress)]
 
 
 def _persist_audit_result(db, site_id: int, url: str, result: dict, *, collected_at: datetime, sitemap_source: str) -> None:
@@ -188,7 +219,11 @@ def execute_seo_audit_for_site(
     progress: dict | None = None,
     sitemap_source: str = "ga4",
 ) -> dict[str, Any]:
-    """Tek site için SEO audit crawl. progress dict polling için güncellenir."""
+    """Tek site için SEO audit crawl. progress dict polling için güncellenir.
+
+    scrape-primary modda Railway HTTP crawl kapalı — Mac bridge kullanın.
+    """
+    from backend.config import settings
     from backend.database import SessionLocal
 
     site_id = site.id
@@ -201,6 +236,20 @@ def execute_seo_audit_for_site(
         "error": 0,
         "current": "Başlıyor…",
     }
+    if bool(getattr(settings, "seo_audit_scrape_primary", True)):
+        prog["running"] = False
+        prog["current"] = "Mac bridge scrape birincil — Railway HTTP crawl kapalı"
+        return {
+            "status": "skipped",
+            "message": (
+                "SEO audit scrape-primary: Mac bridge POST /sync-seo-audit kullanın "
+                "(Railway HTTP crawl kapalı)."
+            ),
+            "ok": 0,
+            "error": 0,
+            "total": 0,
+            "source": "seo_audit_scrape",
+        }
     prog["running"] = True
 
     run = start_collector_run(

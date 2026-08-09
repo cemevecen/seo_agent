@@ -60,6 +60,7 @@ from backend.api.play_analytics import router as play_analytics_router
 from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.asc_console import router as asc_console_router
 from backend.api.pagespeed_web import router as pagespeed_web_router
+from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
 from backend.api.gsc_links import router as gsc_links_router
 from backend.api.policy_ingest import router as policy_ingest_router
 from backend.api.market_quotes import router as market_quotes_router
@@ -816,6 +817,15 @@ def admin_scheduler_status():
 @app.get("/api/admin/run-seo-audit-now")
 def admin_run_seo_audit_now():
     """Günlük SEO audit job'unu MANUEL tetikler (zamanlanmış akış ile aynı)."""
+    if bool(getattr(settings, "seo_audit_scrape_primary", True)):
+        return {
+            "status": "bridge_required",
+            "message": (
+                "SEO audit Mac bridge scrape birincil — Railway HTTP job kapalı. "
+                "POST http://127.0.0.1:18765/sync-seo-audit"
+            ),
+            "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",
+        }
     try:
         _run_seo_audit_job()
         return {"status": "ok", "message": "SEO audit job arka planda başlatıldı."}
@@ -1039,6 +1049,7 @@ app.include_router(virgul_analytics_router, prefix="/api")
 app.include_router(doviz_news_router, prefix="/api")
 app.include_router(play_console_router, prefix="/api")
 app.include_router(pagespeed_web_router, prefix="/api")
+app.include_router(seo_audit_scrape_router, prefix="/api")
 app.include_router(gsc_links_router, prefix="/api")
 app.include_router(policy_ingest_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
@@ -1862,6 +1873,9 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/gsc-links/ingest",
         "/api/policy/ingest",
         "/api/policy/noads/ingest",
+        "/api/seo-audit/ingest",
+        "/api/seo-audit/urls",
+        "/api/seo-audit/progress",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -2440,21 +2454,30 @@ def _seo_audit_scheduler_health() -> dict:
                     nxt if nxt.tzinfo else nxt.replace(tzinfo=ZoneInfo("UTC")),
                     fallback="—",
                 )
+    scrape_primary = bool(getattr(settings, "seo_audit_scrape_primary", True))
     hour = max(0, min(23, int(settings.seo_audit_scheduled_hour)))
     minute = max(0, min(59, int(settings.seo_audit_scheduled_minute)))
-    enabled = bool(settings.seo_audit_scheduled_enabled)
+    railway_enabled = bool(settings.seo_audit_scheduled_enabled) and not scrape_primary
+    enabled = scrape_primary or railway_enabled
     scheduler_ok = (
         SCHEDULER is not None
         and bool(getattr(SCHEDULER, "running", False))
-        and enabled
+        and railway_enabled
         and job_registered
     )
+    top_limit = int(getattr(settings, "seo_audit_top_limit", 500) or 500)
     return {
         "enabled": enabled,
-        "schedule": f"{hour:02d}:{minute:02d}",
-        "scheduler_running": scheduler_ok,
-        "job_registered": job_registered,
-        "next_run": next_run_label,
+        "scrape_primary": scrape_primary,
+        "schedule": "02:45 + 14:45" if scrape_primary else f"{hour:02d}:{minute:02d}",
+        "scheduler_running": True if scrape_primary else scheduler_ok,
+        "job_registered": True if scrape_primary else job_registered,
+        "next_run": (
+            f"Mac bridge scrape · GA4 top {top_limit}"
+            if scrape_primary
+            else next_run_label
+        ),
+        "top_limit": top_limit,
     }
 
 
@@ -2464,8 +2487,8 @@ def _seo_audit_last_auto_run_label(db, site_id: int) -> str:
         .filter(
             CollectorRun.site_id == site_id,
             CollectorRun.provider == "seo_audit",
-            CollectorRun.strategy == "scheduled",
             CollectorRun.status == "success",
+            CollectorRun.strategy.in_(("scheduled", "scrape", "seo_audit_scrape")),
         )
         .order_by(CollectorRun.finished_at.desc(), CollectorRun.id.desc())
         .first()
@@ -4737,10 +4760,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Günlük meta tag snapshot + kritik regresyon alarmı — 02:15
+    # Günlük meta tag snapshot — bridge scrape (02:45) sonrası
     scheduler.add_job(
         _run_meta_audit_snapshot_job,
-        trigger=CronTrigger(hour=2, minute=15, timezone=timezone),
+        trigger=CronTrigger(hour=4, minute=0, timezone=timezone),
         id="daily-meta-audit-snapshot",
         replace_existing=True,
         max_instances=1,
@@ -4749,8 +4772,10 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     )
     job_count += 1
 
-    # Günlük SEO meta tag taraması — GA4 top 250 web + 250 mweb
-    if settings.seo_audit_scheduled_enabled:
+    # Railway SEO HTTP crawl — scrape-primary iken kapalı (Mac bridge)
+    if settings.seo_audit_scheduled_enabled and not getattr(
+        settings, "seo_audit_scrape_primary", True
+    ):
         scheduler.add_job(
             _run_seo_audit_job,
             trigger=CronTrigger(
@@ -14662,28 +14687,40 @@ def seo_audit_page(request: Request, site_id: int | None = None, filter: str = "
         "total_pages": max(1, (total_count + limit - 1) // limit),
         "seo_audit_scheduler_health": _seo_audit_scheduler_health(),
         "seo_audit_last_auto_run": seo_audit_last_auto_run,
+        "seo_audit_scrape_primary": bool(getattr(settings, "seo_audit_scrape_primary", True)),
+        "seo_audit_top_limit": int(getattr(settings, "seo_audit_top_limit", 500) or 500),
     })
-
-
-_seo_audit_progress: dict[int, dict] = {}  # site_id → progress dict
-
 
 
 @app.post("/api/seo-audit/{site_id}/run")
 def api_seo_audit_run(site_id: int):
-    """Site audit — URL'leri tek tek işler, anında kaydeder, progress döner."""
+    """Manuel tarama: scrape-primary ise bridge gerekir; aksi halde Railway HTTP."""
     import threading
 
     from backend.models import Site
     from backend.services.seo_audit_runner import execute_seo_audit_for_site
+    from backend.services.seo_audit_store import get_seo_audit_progress, set_seo_audit_progress
 
-    if site_id in _seo_audit_progress and _seo_audit_progress[site_id].get("running"):
+    prog_now = get_seo_audit_progress(site_id)
+    if prog_now.get("running"):
         return {"status": "running", "message": "Tarama zaten devam ediyor"}
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
         if not site:
             return {"status": "error", "message": "site not found"}
+
+    if bool(getattr(settings, "seo_audit_scrape_primary", True)):
+        return {
+            "status": "bridge_required",
+            "message": (
+                "SEO audit Mac bridge scrape ile çalışır. "
+                "Tarayıcıdan POST http://127.0.0.1:18765/sync-seo-audit tetiklenmeli."
+            ),
+            "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",
+            "site_id": site_id,
+            "source": "seo_audit_scrape",
+        }
 
     def _run():
         prog = {
@@ -14694,7 +14731,7 @@ def api_seo_audit_run(site_id: int):
             "error": 0,
             "current": "Başlıyor…",
         }
-        _seo_audit_progress[site_id] = prog
+        set_seo_audit_progress(site_id, prog)
         try:
             with SessionLocal() as db:
                 site_row = db.query(Site).filter(Site.id == site_id).first()
@@ -14710,6 +14747,7 @@ def api_seo_audit_run(site_id: int):
             LOGGER.exception("SEO audit manual run hatası site_id=%s", site_id)
             prog["running"] = False
             prog["current"] = "Hata oluştu"
+            set_seo_audit_progress(site_id, prog)
 
     threading.Thread(target=_run, daemon=True, name=f"seo-audit-{site_id}").start()
     return {"status": "started", "message": "Tarama başladı"}
@@ -14717,8 +14755,10 @@ def api_seo_audit_run(site_id: int):
 
 @app.get("/api/seo-audit/{site_id}/status")
 def api_seo_audit_status(site_id: int):
-    """Anlık tarama progress'i."""
-    prog = _seo_audit_progress.get(site_id, {})
+    """Anlık tarama progress'i (bridge scrape progress dahil)."""
+    from backend.services.seo_audit_store import get_seo_audit_progress
+
+    prog = get_seo_audit_progress(site_id)
     with SessionLocal() as db:
         from backend.models import UrlAuditRecord
         count = db.query(UrlAuditRecord).filter(UrlAuditRecord.site_id == site_id).count()
@@ -14730,6 +14770,7 @@ def api_seo_audit_status(site_id: int):
         "error": prog.get("error", 0),
         "current": prog.get("current", ""),
         "url_count": count,
+        "source": prog.get("source") or "",
     }
 
 
@@ -19751,9 +19792,12 @@ def _run_meta_audit_snapshot_job() -> None:
 
 
 def _run_seo_audit_job() -> None:
-    """Günlük SEO meta tag taraması — GA4 top 250 web + 250 mweb (arka plan thread)."""
+    """Eski Railway HTTP crawl — scrape-primary iken hiç çalışmaz."""
     import threading
 
+    if getattr(settings, "seo_audit_scrape_primary", True):
+        LOGGER.info("SEO audit job skipped: Mac bridge scrape birincil.")
+        return
     if not settings.seo_audit_scheduled_enabled:
         LOGGER.info("SEO audit job skipped: scheduled refresh disabled.")
         return
@@ -19761,6 +19805,7 @@ def _run_seo_audit_job() -> None:
     def _worker() -> None:
         from backend.models import Site
         from backend.services.seo_audit_runner import execute_seo_audit_for_site
+        from backend.services.seo_audit_store import get_seo_audit_progress, set_seo_audit_progress
 
         if not SEO_AUDIT_JOB_LOCK.acquire(blocking=False):
             LOGGER.info("SEO audit job skipped: previous run still in progress.")
@@ -19777,7 +19822,7 @@ def _run_seo_audit_job() -> None:
                 site_id = site.id
                 site_domain = site.domain or ""
 
-                if _seo_audit_progress.get(site_id, {}).get("running"):
+                if get_seo_audit_progress(site_id).get("running"):
                     LOGGER.info("SEO audit job: site=%s zaten taranıyor, atlandı", site_domain)
                     continue
 
@@ -19789,7 +19834,7 @@ def _run_seo_audit_job() -> None:
                     "error": 0,
                     "current": "Job başladı",
                 }
-                _seo_audit_progress[site_id] = prog
+                set_seo_audit_progress(site_id, prog)
                 LOGGER.info("SEO audit job başladı: site=%s", site_domain)
                 try:
                     with SessionLocal() as db:

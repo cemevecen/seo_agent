@@ -20,6 +20,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
   POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
+  POST /sync-seo-audit → SEO meta audit scrape (02:45 + 14:45 TR, GA4 top 500)
   POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
   POST /sync-all   → notification + news
 """
@@ -101,6 +102,9 @@ GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "0")
 POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5")
 SPEED_SLOT_MINUTE = int(os.environ.get("PAGESPEED_BRIDGE_MINUTE") or "10")
 NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "15")
+# SEO audit: pagespeed/noAds sonrası — 02:45 + 14:45 TR
+SEO_AUDIT_SLOT_HOURS = (2, 14)
+SEO_AUDIT_SLOT_MINUTE = int(os.environ.get("SEO_AUDIT_BRIDGE_MINUTE") or "45")
 SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "20")
 # Başarısız otomatik tur → en fazla 3 yeniden deneme, 10'ar dk arayla
 BRIDGE_RETRY_MAX = int(os.environ.get("BRIDGE_RETRY_MAX") or "3")
@@ -162,6 +166,7 @@ _gsc_links_lock = threading.Lock()
 _policy_lock = threading.Lock()
 _noads_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
+_seo_audit_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -172,6 +177,7 @@ _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalı
 _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_nt_auto_at = 0.0
 _last_news_auto_at = 0.0
 _last_virgul_auto_slot = ""
@@ -181,6 +187,7 @@ _last_gsc_links_auto_slot = ""
 _last_policy_auto_slot = ""
 _last_noads_auto_slot = ""
 _last_pagespeed_auto_slot = ""
+_last_seo_audit_auto_slot = ""
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -1049,6 +1056,81 @@ def run_pagespeed_bridge_once() -> dict[str, Any]:
     return out
 
 
+def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
+    """GA4 top URL SEO meta scrape → Railway ingest (Playwright)."""
+    global _last_seo_audit_result
+    if not _ingest_token():
+        err = {"ok": False, "kind": "seo_audit", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_seo_audit_result = err
+        return err
+
+    import subprocess
+
+    script = ROOT / "scripts" / "seo_audit_scrape.py"
+    if not script.is_file():
+        err = {"ok": False, "kind": "seo_audit", "message": "seo_audit_scrape.py yok"}
+        _last_seo_audit_result = err
+        return err
+
+    print(
+        f"SEO audit scrape başlıyor… site_id={site_id or 'all'}",
+        flush=True,
+    )
+    cmd = [sys.executable, str(script), "--sync", "--ingest"]
+    if site_id:
+        cmd += ["--site-id", str(int(site_id))]
+    env = os.environ.copy()
+    env.setdefault(
+        "SEO_AUDIT_API_BASE",
+        (
+            os.environ.get("SEO_AUDIT_API_BASE")
+            or "https://projectcontrol.up.railway.app"
+        ).strip(),
+    )
+    # 500 URL × 2 site — uzun sürebilir
+    timeout_sec = int(os.environ.get("SEO_AUDIT_BRIDGE_TIMEOUT_SEC") or "5400")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=max(300, timeout_sec),
+        )
+    except subprocess.TimeoutExpired:
+        out = {
+            "ok": False,
+            "kind": "seo_audit",
+            "message": f"SEO audit scrape timeout ({timeout_sec}s)",
+        }
+        _last_seo_audit_result = out
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "seo_audit", "message": f"SEO audit subprocess: {exc}"}
+        _last_seo_audit_result = out
+        return out
+
+    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    if combined:
+        for line in combined.splitlines()[-40:]:
+            print(line, flush=True)
+
+    if proc.returncode == 0:
+        out = {
+            "ok": True,
+            "kind": "seo_audit",
+            "message": "SEO audit scrape OK",
+            "site_id": site_id,
+        }
+    else:
+        tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
+        out = {"ok": False, "kind": "seo_audit", "message": tail, "site_id": site_id}
+    _last_seo_audit_result = out
+    print(f"SEO audit sync · {out['message']}", flush=True)
+    return out
+
+
 def run_notification_bridge_once() -> dict[str, Any]:
     """Admin notification stats → Railway ingest."""
     global _last_result
@@ -1438,6 +1520,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_play": _last_play_result,
                     "last_asc": _last_asc_result,
                     "last_pagespeed": _last_pagespeed_result,
+                    "last_seo_audit": _last_seo_audit_result,
                     "last_gsc_links": _last_gsc_links_result,
                     "last_policy": _last_policy_result,
                     "last_noads": _last_noads_result,
@@ -1453,6 +1536,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+                        "seo_audit_slots_tr": [
+                            f"{h:02d}:{SEO_AUDIT_SLOT_MINUTE:02d}" for h in SEO_AUDIT_SLOT_HOURS
+                        ],
                         "retry_max": BRIDGE_RETRY_MAX,
                         "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
                     },
@@ -1549,6 +1635,48 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "PageSpeed sync zaten çalışıyor, bekleyin.",
                 run_pagespeed_bridge_once,
             )
+        elif path in ("/sync-seo-audit", "/seo-audit", "/sync-seo"):
+            # Uzun süren scrape — HTTP hemen döner; arka planda çalışır (Tara timeout olmasın)
+            site_id = _qs_int("site_id", 0) or None
+            length = int(self.headers.get("Content-Length") or 0)
+            raw_body = self.rfile.read(length) if length > 0 else b""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body.decode("utf-8", errors="replace"))
+                    if isinstance(payload, dict) and payload.get("site_id"):
+                        try:
+                            site_id = int(payload.get("site_id"))
+                        except (TypeError, ValueError):
+                            pass
+                except Exception:
+                    pass
+            if not _seo_audit_lock.acquire(blocking=False):
+                self._send(
+                    409,
+                    {"ok": False, "message": "SEO audit scrape zaten çalışıyor, bekleyin."},
+                )
+                return
+
+            def _bg() -> None:
+                try:
+                    run_seo_audit_bridge_once(site_id=site_id)
+                except Exception:
+                    traceback.print_exc()
+                finally:
+                    _seo_audit_lock.release()
+
+            threading.Thread(target=_bg, name="seo-audit-bridge", daemon=True).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": "seo_audit",
+                    "site_id": site_id,
+                    "message": "SEO audit scrape arka planda başladı (GA4 top URL)",
+                },
+            )
+            return
         elif path in ("/open-noads", "/noads-open", "/noads-prefill"):
             length = int(self.headers.get("Content-Length") or 0)
             raw_body = self.rfile.read(length) if length > 0 else b""
@@ -1708,6 +1836,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _pagespeed_lock,
             "runner": run_pagespeed_bridge_once,
         },
+        "seo_audit": {
+            "name": "SEO Audit",
+            "lock": _seo_audit_lock,
+            "runner": run_seo_audit_bridge_once,
+        },
         "sinemalar_noads": {
             "name": "noAds",
             "lock": _noads_lock,
@@ -1785,7 +1918,7 @@ def _auto_loop() -> None:
     global _last_nt_auto_at, _last_news_auto_at
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
-    global _last_noads_auto_slot, _last_pagespeed_auto_slot
+    global _last_noads_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
 
     while True:
         _auto_cycle += 1
@@ -1892,6 +2025,10 @@ def _auto_loop() -> None:
             "sinemalar_noads", "noAds", _noads_lock, run_sinemalar_noads_bridge_once,
             "_last_noads_auto_slot", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE,
         )
+        _slot_job(
+            "seo_audit", "SEO Audit", _seo_audit_lock, run_seo_audit_bridge_once,
+            "_last_seo_audit_auto_slot", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE,
+        )
 
         time.sleep(max(30, AUTO_POLL_SEC))
 
@@ -1907,6 +2044,7 @@ def run_daemon() -> int:
         f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
         f"asc=:{ASC_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
+        f"seo={list(SEO_AUDIT_SLOT_HOURS)}:{SEO_AUDIT_SLOT_MINUTE:02d} "
         f"retry={BRIDGE_RETRY_MAX}x/{BRIDGE_RETRY_GAP_SEC}s",
         flush=True,
     )

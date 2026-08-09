@@ -9,6 +9,7 @@
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-300">SEO Denetim</h2>
         <p class="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
           {% if summary.last_crawled %}Son tarama: {{ summary.last_crawled[:16].replace("T"," ") }}{% else %}Henüz tarama yapılmadı{% endif %}
+          {% if seo_audit_scrape_primary %} · Mac bridge scrape · GA4 top {{ seo_audit_top_limit|default(500) }}{% endif %}
           · <a href="/static/docs/seo-audit-denetim-kriterleri.md" download="seo-audit-denetim-kriterleri.md"
                class="text-sky-600 hover:underline dark:text-sky-400">Denetim kriterleri (indir)</a>
           · <a href="/api/seo-audit/{{ selected_site_id }}/export.xlsx?filter={{ filter }}"
@@ -59,7 +60,12 @@
       <div>
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-zinc-500">Otomatik tarama</p>
         <p class="mt-1 text-sm text-slate-600 dark:text-zinc-400">
+          {% if sched.scrape_primary %}
+          Mac bridge Playwright scrape · GA4 en çok trafik alan top {{ sched.top_limit|default(seo_audit_top_limit)|default(500) }} URL
+          (Railway HTTP crawl kapalı). Plan: 02:45 + 14:45 TSİ.
+          {% else %}
           Günlük GA4 top URL meta denetimi (manuel «Tara» burada sayılmaz).
+          {% endif %}
           {% if seo_audit_last_auto_run and seo_audit_last_auto_run != '—' %}
           Son otomatik: <span class="font-medium text-slate-800 dark:text-zinc-300">{{ seo_audit_last_auto_run|e }}</span>
           {% endif %}
@@ -67,11 +73,17 @@
       </div>
       <div class="flex flex-wrap gap-2 text-[11px] sm:text-xs">
         <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
-          Scheduler: {% if sched.scheduler_running %}aktif{% else %}pasif / job yok{% endif %}
+          {% if sched.scrape_primary %}Mac bridge{% else %}Scheduler{% endif %}:
+          {% if sched.scheduler_running %}aktif{% else %}pasif / job yok{% endif %}
         </span>
         {% if sched.enabled and sched.schedule %}
         <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
           Plan: {{ sched.schedule }} TSİ
+        </span>
+        {% endif %}
+        {% if sched.top_limit %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">
+          Top {{ sched.top_limit }}
         </span>
         {% endif %}
         {% if sched.next_run and sched.next_run != '—' %}
@@ -364,6 +376,8 @@
 
 <script>
 var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
+var _scrapePrimary = {{ 'true' if seo_audit_scrape_primary else 'false' }};
+var _bridgeSeoUrl = 'http://127.0.0.1:18765/sync-seo-audit';
 var _openDetail = {};  // rid → active issue type
 
 function toggleDetail(rid, issue) {
@@ -420,6 +434,36 @@ function runAudit() {
   fetch('/api/seo-audit/' + _siteId + '/run', {method: 'POST', credentials: 'same-origin'})
     .then(function(r) { return r.json(); })
     .then(function(d) {
+      if (d.status === 'bridge_required' || (_scrapePrimary && d.bridge_url)) {
+        if (label) label.textContent = 'Bridge…';
+        return fetch(_bridgeSeoUrl, {
+          method: 'POST',
+          mode: 'cors',
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+          body: JSON.stringify({site_id: _siteId})
+        })
+          .then(function(br) {
+            return br.json().then(function(j) { return {httpOk: br.ok, j: j}; });
+          })
+          .then(function(res) {
+            if (res.httpOk && res.j && res.j.ok !== false) {
+              if (label) label.textContent = 'Taranıyor…';
+              _startPolling();
+              return;
+            }
+            if (res.j && res.j.message && String(res.j.message).indexOf('zaten') !== -1) {
+              if (label) label.textContent = 'Taranıyor…';
+              _startPolling();
+              return;
+            }
+            alert('Mac bridge: ' + ((res.j && res.j.message) || 'sync başarısız'));
+            _resetBtn();
+          })
+          .catch(function() {
+            alert('Mac bridge kapalı (127.0.0.1:18765). Önce bridge’i açın, sonra tekrar deneyin.');
+            _resetBtn();
+          });
+      }
       if (d.status === 'started' || d.status === 'running') {
         if (label) label.textContent = 'Taranıyor…';
         _startPolling();

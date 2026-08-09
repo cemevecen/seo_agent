@@ -299,8 +299,10 @@ class Settings(BaseSettings):
     # DB'den /errors tablosuna yüklenecek kayıt üst sınırı (summary API).
     ga4_error_pages_display_limit: int = Field(default=10000, ge=200, le=100000)
 
-    # SEO audit — GA4 top 250 web + mweb meta tag taraması (TSİ)
-    seo_audit_scheduled_enabled: bool = True
+    # SEO audit — Mac bridge scrape birincil; Railway HTTP crawl kapalı
+    seo_audit_scrape_primary: bool = True
+    seo_audit_top_limit: int = Field(default=500, ge=50, le=2000)
+    seo_audit_scheduled_enabled: bool = False  # Railway cron yok — bridge 02:45 / 14:45
     seo_audit_scheduled_hour: int = 3
     seo_audit_scheduled_minute: int = 0
 

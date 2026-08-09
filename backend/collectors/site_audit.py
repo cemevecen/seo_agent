@@ -382,72 +382,42 @@ def _inspect_urls_exact(db: Session, site: Site, urls: list[str], *, limit: int)
     return results
 
 
-def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
-    try:
-        response = requests.get(
-            url,
-            headers={
-                "User-Agent": settings.outbound_user_agent,
-                "Accept": "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
-            },
-            allow_redirects=True,
-            timeout=max(1, int(timeout_seconds)),
-        )
-    except requests.RequestException:
-        return {
-            "url": _normalize_http_url(url),
-            "final_url": _normalize_http_url(url),
-            "status_code": 0,
-            "content_type": "",
-            "checks": {
-                "status_ok": False,
-                "html_content": False,
-                "title": False,
-                "title_length_ok": False,
-                "desc": False,
-                "desc_length_ok": False,
-                "h1": False,
-                "single_h1": False,
-                "canonical": False,
-                "canonical_matches_final": False,
-                "schema": False,
-                "indexable": False,
-                "og_title": False,
-                "og_description": False,
-                "indexed_quick": False,
-                "indexed_exact": False,
-            },
-            "issue_count": 8,
-            "seo_score": "poor",
-        }
+def build_url_audit_from_html(
+    url: str,
+    *,
+    html: str,
+    final_url: str | None = None,
+    status_code: int = 200,
+    content_type: str = "text/html",
+) -> dict:
+    """Ham HTML → SEO audit satırı (HTTP veya Playwright scrape ortak)."""
+    requested = _normalize_http_url(url)
+    final = _normalize_http_url(final_url or url)
+    status_code = int(status_code or 0)
+    content_type = str(content_type or "").split(";", 1)[0].strip().lower()
+    body = html if isinstance(html, str) else ""
+    if content_type and "html" not in content_type and content_type not in ("", "text/plain"):
+        body = ""
 
-    try:
-        final_url = _normalize_http_url(response.url or url)
-        status_code = int(response.status_code or 0)
-        content_type = str(response.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
-        html = response.text if "html" in content_type or content_type == "" else ""
-    finally:
-        response.close()
-
-    title_match = TITLE_RE.search(html or "")
+    title_match = TITLE_RE.search(body or "")
     title = _clean_text(title_match.group(1)) if title_match else ""
-    h1_matches = H1_RE.findall(html or "")
+    h1_matches = H1_RE.findall(body or "")
     h1_values = [_clean_text(match) for match in h1_matches if _clean_text(match)]
     h1 = h1_values[0] if h1_values else ""
-    h2_matches = H2_RE.findall(html or "")
+    h2_matches = H2_RE.findall(body or "")
     h2_count = len([_clean_text(m) for m in h2_matches if _clean_text(m)])
-    meta_description = _extract_meta_content(html, "name", "description")
-    meta_robots = _extract_meta_content(html, "name", "robots")
-    canonical_raw = _extract_link_href(html, "canonical")
-    canonical_url = _normalize_http_url(urljoin(final_url, canonical_raw)) if canonical_raw else ""
-    has_schema = bool(SCHEMA_RE.search(html or ""))
-    has_og_title = bool(_extract_meta_content(html, "property", "og:title"))
-    has_og_description = bool(_extract_meta_content(html, "property", "og:description"))
+    meta_description = _extract_meta_content(body, "name", "description")
+    meta_robots = _extract_meta_content(body, "name", "robots")
+    canonical_raw = _extract_link_href(body, "canonical")
+    canonical_url = _normalize_http_url(urljoin(final, canonical_raw)) if canonical_raw else ""
+    has_schema = bool(SCHEMA_RE.search(body or ""))
+    has_og_title = bool(_extract_meta_content(body, "property", "og:title"))
+    has_og_description = bool(_extract_meta_content(body, "property", "og:description"))
     is_noindex = "noindex" in (meta_robots or "").lower()
 
     checks = {
         "status_ok": status_code == 200,
-        "html_content": bool(html),
+        "html_content": bool(body),
         "title": bool(title),
         "title_length_ok": 20 <= len(title) <= 65 if title else False,
         "desc": bool(meta_description),
@@ -455,7 +425,7 @@ def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
         "h1": bool(h1),
         "single_h1": len(h1_values) == 1 if h1_values else False,
         "canonical": bool(canonical_url),
-        "canonical_matches_final": bool(canonical_url) and canonical_url == final_url,
+        "canonical_matches_final": bool(canonical_url) and canonical_url == final,
         "schema": has_schema,
         "indexable": not is_noindex and status_code == 200,
         "og_title": has_og_title,
@@ -464,8 +434,16 @@ def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
         "indexed_exact": False,
     }
 
-    issue_count = sum(1 for key, ok in checks.items() if key not in {"indexed_quick", "indexed_exact"} and not ok)
-    if not checks["status_ok"] or not checks["html_content"] or not checks["title"] or not checks["desc"] or not checks["h1"]:
+    issue_count = sum(
+        1 for key, ok in checks.items() if key not in {"indexed_quick", "indexed_exact"} and not ok
+    )
+    if (
+        not checks["status_ok"]
+        or not checks["html_content"]
+        or not checks["title"]
+        or not checks["desc"]
+        or not checks["h1"]
+    ):
         seo_score = "poor"
     elif (
         not checks["title_length_ok"]
@@ -483,10 +461,10 @@ def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
         seo_score = "good"
 
     return {
-        "url": _normalize_http_url(url),
-        "final_url": final_url,
+        "url": requested,
+        "final_url": final,
         "status_code": status_code,
-        "content_type": content_type,
+        "content_type": content_type or "text/html",
         "has_title": bool(title),
         "title": title,
         "title_length": len(title),
@@ -508,7 +486,41 @@ def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
         "checks": checks,
         "issue_count": issue_count,
         "seo_score": seo_score,
+        "source": "scrape",
     }
+
+
+def _fetch_url_audit(url: str, *, timeout_seconds: int) -> dict:
+    try:
+        response = requests.get(
+            url,
+            headers={
+                "User-Agent": settings.outbound_user_agent,
+                "Accept": "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+            },
+            allow_redirects=True,
+            timeout=max(1, int(timeout_seconds)),
+        )
+    except requests.RequestException:
+        return build_url_audit_from_html(url, html="", final_url=url, status_code=0, content_type="")
+
+    try:
+        final_url = _normalize_http_url(response.url or url)
+        status_code = int(response.status_code or 0)
+        content_type = str(response.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+        html = response.text if "html" in content_type or content_type == "" else ""
+    finally:
+        response.close()
+
+    out = build_url_audit_from_html(
+        url,
+        html=html,
+        final_url=final_url,
+        status_code=status_code,
+        content_type=content_type,
+    )
+    out["source"] = "http"
+    return out
 
 
 def _build_empty_summary(base_url: str, *, recent_days: int, index_mode: str) -> dict:
