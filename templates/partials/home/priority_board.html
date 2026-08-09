@@ -313,6 +313,8 @@
     <template x-for="project in configProjects" :key="project.path">
       <button type="button"
               @click="setActive(project.path)"
+              :data-home-gl-product="project.product || ''"
+              :data-home-gl-platform="project.platform || ''"
               class="inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition"
               :class="activeProject === project.path
                 ? (project.product === 'sinemalar'

@@ -119,7 +119,8 @@
   {% if cards %}
   <div class="home-vg-rev-grid" role="list">
     {% for c in cards %}
-    <article class="home-vg-rev-card is-{{ c.brand }}" role="listitem" data-stream="{{ c.key }}"
+    <article class="home-vg-rev-card is-{{ c.brand }}" role="listitem"
+             data-stream="{{ c.key }}" data-home-vg-brand="{{ c.brand }}"
              title="{% if c.has_data %}son hafta {{ c.week_days_present|default('?') }}/{{ week_days|default(7) }} gün veri · 3 ay {{ c.month3_days_present|default('?') }}/{{ month3_days|default(90) }} gün veri{% endif %}">
       <p class="home-vg-rev-label">{{ c.label }}</p>
       {% if c.has_data %}

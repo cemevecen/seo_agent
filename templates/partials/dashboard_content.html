@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v8">
+<style id="home-site-borders" data-home-css="v9">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -1105,6 +1105,33 @@
       min-width: 0 !important;
     }
   }
+
+  /* git.nokta + virgül: tekli görünümde proje ayrımı */
+  #home-board[data-home-focus="doviz"] [data-home-gl-product="sinemalar"],
+  #home-board[data-home-focus="sinemalar"] [data-home-gl-product="doviz"] {
+    display: none !important;
+  }
+  #home-board[data-home-focus="doviz"] .home-vg-rev-card.is-sinemalar,
+  #home-board[data-home-focus="sinemalar"] .home-vg-rev-card.is-doviz {
+    display: none !important;
+  }
+  #home-board:not([data-home-focus="split"]) .home-vg-rev-grid {
+    width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr)) !important;
+    gap: 0.75rem;
+  }
+  #home-board:not([data-home-focus="split"]) .home-vg-rev-card {
+    width: 100%;
+    min-width: 0;
+  }
+  @container home-vg-rev (min-width: 900px) {
+    #home-board[data-home-focus="doviz"] .home-vg-rev-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+    #home-board[data-home-focus="sinemalar"] .home-vg-rev-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+  }
   @media (max-width: 1023px) {
     #home-board[data-home-focus="doviz"] [data-home-project="sinemalar"],
     #home-board[data-home-focus="sinemalar"] [data-home-project="doviz"] {
@@ -1147,7 +1174,7 @@
   <script src="/static/js/rt_slot_fx.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-  <script src="/static/js/home_gitlab_boards.js?v=3"></script>
+  <script src="/static/js/home_gitlab_boards.js?v=4"></script>
   <script src="/static/js/home_top_pages.js?v=1"></script>
   <div data-home-container-slot="realtime">
   <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
@@ -1405,6 +1432,9 @@
     if (persist !== false) {
       try { localStorage.setItem(HOME_FOCUS_KEY, mode); } catch (e) {}
     }
+    try {
+      document.dispatchEvent(new CustomEvent('pc-home-focus', { detail: { mode: mode } }));
+    } catch (e) {}
   }
   function initHomeFocus() {
     if (!board) return;

@@ -37,6 +37,25 @@
         this.activeProject = def;
         this.ensureProject(def);
         this.fetchProject(def, false);
+        this._onHomeFocus = this.applyHomeFocus.bind(this);
+        document.addEventListener('pc-home-focus', this._onHomeFocus);
+        // Mevcut ana sayfa focus'una uy
+        var board = document.getElementById('home-board');
+        var mode = board ? board.getAttribute('data-home-focus') : 'split';
+        this.applyHomeFocus({ detail: { mode: mode || 'split' } });
+      },
+
+      applyHomeFocus(ev) {
+        var mode = (ev && ev.detail && ev.detail.mode) || 'split';
+        if (mode !== 'doviz' && mode !== 'sinemalar') return;
+        var active = this.configProjects.find(function (p) {
+          return p.path === this.activeProject;
+        }.bind(this));
+        if (active && active.product === mode) return;
+        var next = this.configProjects.find(function (p) {
+          return p.product === mode;
+        });
+        if (next && next.path) this.setActive(next.path);
       },
 
       ensureProject(path) {
