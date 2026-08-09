@@ -132,6 +132,75 @@ def _parse_tr_int(raw: str) -> int:
         return 0
 
 
+_PUA_RE = re.compile(r"[\ue000-\uf8ff\u0000-\u001f]")
+
+
+def _clean_cell(raw: str) -> str:
+    """Google Translate / material icon private-use chars strip."""
+    s = _PUA_RE.sub("", raw or "")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _normalize_rows(link_type: str, headers: list[str], rows: list[list[str]]) -> list[dict[str, Any]]:
+    lt = (link_type or "").upper()
+    out: list[dict[str, Any]] = []
+    for i, row in enumerate(rows):
+        row = [_clean_cell(c) for c in row]
+        if not row or not any((c or "").strip() for c in row):
+            continue
+        if lt == "EXTERNAL":
+            target = (row[0] or "").strip()
+            if not target:
+                continue
+            incoming = _parse_tr_int(row[1] if len(row) > 1 else "0")
+            sites = _parse_tr_int(row[2] if len(row) > 2 else "0")
+            out.append(
+                {
+                    "target_url": target,
+                    "incoming_links": incoming,
+                    "linking_sites": sites,
+                }
+            )
+        elif lt == "INTERNAL":
+            target = (row[0] or "").strip()
+            if not target:
+                continue
+            incoming = _parse_tr_int(row[1] if len(row) > 1 else "0")
+            out.append(
+                {
+                    "target_url": target,
+                    "incoming_links": incoming,
+                    "linking_sites": 0,
+                }
+            )
+        elif lt == "DOMAIN":
+            domain = (row[0] or "").strip().lower()
+            if not domain:
+                continue
+            linking_pages = _parse_tr_int(row[1] if len(row) > 1 else "0")
+            target_pages = _parse_tr_int(row[2] if len(row) > 2 else "0")
+            out.append(
+                {
+                    "linking_site": domain,
+                    "linking_pages": linking_pages,
+                    "target_pages": target_pages,
+                }
+            )
+        elif lt == "ANCHOR_TEXT":
+            if len(row) >= 2 and re.match(r"^\d+$", (row[0] or "").strip()):
+                rank = _parse_tr_int(row[0])
+                text = (row[1] or "").strip()
+            else:
+                rank = i + 1
+                text = (row[0] or "").strip()
+            if not text:
+                continue
+            out.append({"rank": rank, "anchor_text": text})
+        else:
+            continue
+    return out
+
+
 def _looks_signed_in(page) -> bool:
     try:
         url = (page.url or "").lower()
@@ -246,66 +315,6 @@ def _extract_page_payload(page) -> dict[str, Any]:
       return out;
     }"""
     )
-
-
-def _normalize_rows(link_type: str, headers: list[str], rows: list[list[str]]) -> list[dict[str, Any]]:
-    lt = (link_type or "").upper()
-    out: list[dict[str, Any]] = []
-    for i, row in enumerate(rows):
-        if not row or not any((c or "").strip() for c in row):
-            continue
-        if lt == "EXTERNAL":
-            target = (row[0] or "").strip()
-            if not target:
-                continue
-            incoming = _parse_tr_int(row[1] if len(row) > 1 else "0")
-            sites = _parse_tr_int(row[2] if len(row) > 2 else "0")
-            out.append(
-                {
-                    "target_url": target,
-                    "incoming_links": incoming,
-                    "linking_sites": sites,
-                }
-            )
-        elif lt == "INTERNAL":
-            target = (row[0] or "").strip()
-            if not target:
-                continue
-            incoming = _parse_tr_int(row[1] if len(row) > 1 else "0")
-            out.append(
-                {
-                    "target_url": target,
-                    "incoming_links": incoming,
-                    "linking_sites": 0,
-                }
-            )
-        elif lt == "DOMAIN":
-            domain = (row[0] or "").strip().lower()
-            if not domain:
-                continue
-            linking_pages = _parse_tr_int(row[1] if len(row) > 1 else "0")
-            target_pages = _parse_tr_int(row[2] if len(row) > 2 else "0")
-            out.append(
-                {
-                    "linking_site": domain,
-                    "linking_pages": linking_pages,
-                    "target_pages": target_pages,
-                }
-            )
-        elif lt == "ANCHOR_TEXT":
-            # Rank + link text (GSC UI count göstermiyor)
-            if len(row) >= 2 and re.match(r"^\d+$", (row[0] or "").strip()):
-                rank = _parse_tr_int(row[0])
-                text = (row[1] or "").strip()
-            else:
-                rank = i + 1
-                text = (row[0] or "").strip()
-            if not text:
-                continue
-            out.append({"rank": rank, "anchor_text": text})
-        else:
-            continue
-    return out
 
 
 def scrape_one(
