@@ -94,11 +94,56 @@
             <option value="active_subscriptions">Aktif abonelik</option>
             <option value="free_trials">Ücretsiz deneme</option>
           </optgroup>
+          <optgroup label="GA4 (iOS)">
+            <option value="ga4:sessions">GA4 · Sessions</option>
+            <option value="ga4:users">GA4 · Users</option>
+            <option value="ga4:engaged_sessions">GA4 · Engaged sessions</option>
+            <option value="ga4:new_users">GA4 · New users</option>
+            <option value="ga4:avg_session">GA4 · Avg. session</option>
+            <option value="ga4:page_views">GA4 · Page views</option>
+          </optgroup>
+          <optgroup label="Virgül (iOS)">
+            <option value="virgul:net_revenue">Virgül · Net revenue (TL)</option>
+            <option value="virgul:ad_request">Virgül · Ad request</option>
+            <option value="virgul:matched_request">Virgül · Matched request</option>
+            <option value="virgul:impression">Virgül · Impression</option>
+            <option value="virgul:click">Virgül · Click</option>
+            <option value="virgul:ad_request_ecpm">Virgül · Ad request eCPM (TL)</option>
+            <option value="virgul:ad_ecpm">Virgül · Ad impression eCPM (TL)</option>
+            <option value="virgul:viewability_pct">Virgül · Viewability (%)</option>
+            <option value="virgul:ctr_pct">Virgül · CTR (%)</option>
+            <option value="virgul:coverage_pct">Virgül · Coverage (%)</option>
+          </optgroup>
         </select>
       </label>
       <div class="pa-f-actions">
         <button id="ia-run" type="button" class="pa-f-btn"><span id="ia-run-label">Uygula</span></button>
+        <button id="ia-add-chart" type="button"
+                class="pa-f-btn hidden border border-amber-500 bg-amber-500 text-white hover:bg-amber-600"
+                style="border-color:#f59e0b;background:#f59e0b">+ grafik</button>
       </div>
+    </div>
+
+    <div id="ia-overlay-panel" class="mt-3 hidden rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
+          <select id="ia-ov-metric" class="mt-1 block min-w-[12rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"></select>
+        </label>
+        <button id="ia-ov-run" type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-sky-600 bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-500">
+          Ekle
+        </button>
+        <button id="ia-ov-cancel" type="button"
+                class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+          Kapat
+        </button>
+        <button id="ia-ov-clear" type="button"
+                class="hidden inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-900 dark:text-rose-300">
+          Tüm ekleri kaldır
+        </button>
+      </div>
+      <div id="ia-overlays-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
+      <p id="ia-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">ASC, GA4 veya Virgül (iOS) metriklerini aynı tarih aralığında üst üste ekleyin. Farklı birimler kendi max % ölçeğinde hizalanır.</p>
     </div>
 
     <div id="ia-results" class="mt-4">
@@ -143,6 +188,13 @@
   var iaMetric = document.getElementById("ia-metric");
   var iaRun = document.getElementById("ia-run");
   var iaRunLabel = document.getElementById("ia-run-label");
+  var iaAddChartBtn = document.getElementById("ia-add-chart");
+  var iaOverlayPanel = document.getElementById("ia-overlay-panel");
+  var iaOvMetric = document.getElementById("ia-ov-metric");
+  var iaOvRun = document.getElementById("ia-ov-run");
+  var iaOvCancel = document.getElementById("ia-ov-cancel");
+  var iaOvClear = document.getElementById("ia-ov-clear");
+  var iaOverlaysChips = document.getElementById("ia-overlays-chips");
   var iaRefresh = document.getElementById("ia-refresh");
   var iaStatus = document.getElementById("ia-status");
   var iaResults = document.getElementById("ia-results");
@@ -157,11 +209,129 @@
 
   var CHART_METRICS = ["units", "redownloads", "impressions"];
   var TABLE_EXTRA = ["page_views", "conversion_rate", "iap", "paying_users", "proceeds", "active_subscriptions"];
+  var IA_GA4_METRICS = [
+    { value: "ga4:sessions", label: "GA4 · Sessions" },
+    { value: "ga4:users", label: "GA4 · Users" },
+    { value: "ga4:engaged_sessions", label: "GA4 · Engaged sessions" },
+    { value: "ga4:new_users", label: "GA4 · New users" },
+    { value: "ga4:avg_session", label: "GA4 · Avg. session" },
+    { value: "ga4:page_views", label: "GA4 · Page views" }
+  ];
+  var IA_VIRGUL_METRICS = [
+    { value: "virgul:net_revenue", label: "Virgül · Net revenue (TL)" },
+    { value: "virgul:ad_request", label: "Virgül · Ad request" },
+    { value: "virgul:matched_request", label: "Virgül · Matched request" },
+    { value: "virgul:impression", label: "Virgül · Impression" },
+    { value: "virgul:click", label: "Virgül · Click" },
+    { value: "virgul:ad_request_ecpm", label: "Virgül · Ad request eCPM (TL)" },
+    { value: "virgul:ad_ecpm", label: "Virgül · Ad impression eCPM (TL)" },
+    { value: "virgul:viewability_pct", label: "Virgül · Viewability (%)" },
+    { value: "virgul:ctr_pct", label: "Virgül · CTR (%)" },
+    { value: "virgul:coverage_pct", label: "Virgül · Coverage (%)" }
+  ];
+  var IA_VIRGUL_AVG = {
+    "virgul:ad_request_ecpm": 1,
+    "virgul:ad_ecpm": 1,
+    "virgul:viewability_pct": 1,
+    "virgul:ctr_pct": 1,
+    "virgul:coverage_pct": 1
+  };
   var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
   var STROKE = 0.68;
   var overviewActive = true;
   var runSeq = 0;
   var abortCtrl = null;
+  var iaOverlays = [];
+  var iaLastPrimaryMetric = "";
+  var iaLastChart = null;
+  var iaOverviewBundles = null;
+  var iaBusy = false;
+
+  function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
+  function isVirgulMetric(key) { return String(key || "").indexOf("virgul:") === 0; }
+  function isExternalMetric(key) { return isGa4Metric(key) || isVirgulMetric(key); }
+  function hasIaOverlays() { return iaOverlays.length > 0; }
+  function setAddChartVisible(on) {
+    if (!iaAddChartBtn) return;
+    if (on) iaAddChartBtn.classList.remove("hidden");
+    else iaAddChartBtn.classList.add("hidden");
+  }
+  function clearIaOverlaysState() {
+    iaOverlays = [];
+    if (iaOverlaysChips) iaOverlaysChips.innerHTML = "";
+    if (iaOvClear) iaOvClear.classList.add("hidden");
+  }
+  function closeOverlayPanel() {
+    if (iaOverlayPanel) iaOverlayPanel.classList.add("hidden");
+  }
+  function renderOverlayChips() {
+    if (!iaOverlaysChips) return;
+    iaOverlaysChips.innerHTML = iaOverlays.map(function (ov, i) {
+      return '<span class="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-sky-800 dark:bg-zinc-950 dark:text-zinc-200">' +
+        '<span class="inline-block h-1.5 w-1.5 rounded-full" style="background:' + colorAt(i + 1) + '"></span>' +
+        esc(ov.label || ov.metric) +
+        '<button type="button" data-ia-ov-rm="' + i + '" class="ml-0.5 text-rose-600 hover:text-rose-800" aria-label="Kaldır">×</button></span>';
+    }).join("");
+    if (iaOvClear) {
+      if (iaOverlays.length) iaOvClear.classList.remove("hidden");
+      else iaOvClear.classList.add("hidden");
+    }
+  }
+  function fillOverlayMetricOptions() {
+    if (!iaOvMetric || !iaMetric) return;
+    var cur = iaMetric.value;
+    var used = {};
+    iaOverlays.forEach(function (ov) {
+      if (ov && ov.metric) used[ov.metric] = true;
+    });
+    if (overviewActive && iaOverviewBundles) {
+      iaOverviewBundles.forEach(function (b) {
+        if (b && b.onChart && b.metric) used[b.metric] = true;
+      });
+    }
+    var prev = iaOvMetric.value || "";
+    iaOvMetric.innerHTML = "";
+    var ogAsc = document.createElement("optgroup");
+    ogAsc.label = "App Store Connect";
+    Array.prototype.forEach.call(iaMetric.options, function (opt) {
+      if (!opt.value || isExternalMetric(opt.value) || opt.value === cur || used[opt.value]) return;
+      var o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.textContent;
+      ogAsc.appendChild(o);
+    });
+    if (ogAsc.children.length) iaOvMetric.appendChild(ogAsc);
+    var ogGa4 = document.createElement("optgroup");
+    ogGa4.label = "GA4 (iOS)";
+    IA_GA4_METRICS.forEach(function (m) {
+      if (m.value === cur || used[m.value]) return;
+      var o = document.createElement("option");
+      o.value = m.value;
+      o.textContent = m.label;
+      ogGa4.appendChild(o);
+    });
+    if (ogGa4.children.length) iaOvMetric.appendChild(ogGa4);
+    var ogVirgul = document.createElement("optgroup");
+    ogVirgul.label = "Virgül (iOS)";
+    IA_VIRGUL_METRICS.forEach(function (m) {
+      if (m.value === cur || used[m.value]) return;
+      var o = document.createElement("option");
+      o.value = m.value;
+      o.textContent = m.label;
+      ogVirgul.appendChild(o);
+    });
+    if (ogVirgul.children.length) iaOvMetric.appendChild(ogVirgul);
+    if (prev && iaOvMetric.querySelector('option[value="' + prev + '"]')) {
+      iaOvMetric.value = prev;
+    }
+    if (iaOvRun) iaOvRun.disabled = !iaOvMetric.querySelector("option");
+  }
+  function openOverlayPanel() {
+    if (!iaOverlayPanel) return;
+    fillOverlayMetricOptions();
+    renderOverlayChips();
+    iaOverlayPanel.classList.remove("hidden");
+  }
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -193,7 +363,11 @@
     return (opt && opt.textContent) || v;
   }
   function isCountLike(m) {
-    return m !== "conversion_rate" && m !== "proceeds";
+    if (m === "conversion_rate" || m === "proceeds") return false;
+    if (m === "ga4:avg_session") return false;
+    if (IA_VIRGUL_AVG[m]) return false;
+    if (m === "virgul:net_revenue") return false;
+    return true;
   }
   function colorAt(i) { return COLORS[i % COLORS.length]; }
   function setLoading(on) {
@@ -204,6 +378,134 @@
     }
     if (iaRun) iaRun.disabled = !!on;
     if (iaRunLabel) iaRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
+  }
+  async function fetchExternalSeries(metricKey, signal) {
+    var isVirgul = isVirgulMetric(metricKey);
+    var qs = new URLSearchParams({
+      start: iaStart.value,
+      end: iaEnd.value,
+      metric: metricKey,
+      project: "doviz"
+    });
+    if (isVirgul) qs.set("branch", "ios");
+    else qs.set("profile", "ios");
+    var url = isVirgul
+      ? "/api/play-analytics/virgul-series?"
+      : "/api/play-analytics/ga4-series?";
+    var r = await fetch(url + qs.toString(), {
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: signal
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) {
+      throw new Error(data.message || data.detail || ((isVirgul ? "Virgül" : "GA4") + " HTTP " + r.status));
+    }
+    if (data.configured === false || (data.ok === false && !Array.isArray(data.series))) {
+      throw new Error(data.message || (isVirgul ? "Virgül serisi yok" : "GA4 serisi yok"));
+    }
+    return {
+      metric: metricKey,
+      label: data.label || metricLabel(metricKey),
+      series: Array.isArray(data.series) ? data.series : [],
+      total: data.total,
+      total_mode: data.total_mode || (metricKey === "ga4:avg_session" || IA_VIRGUL_AVG[metricKey] ? "avg" : "sum"),
+      message: data.message || "",
+      source: isVirgul ? "virgul" : "ga4"
+    };
+  }
+  async function fetchAscSeries(metricKey, signal) {
+    var qs = new URLSearchParams({
+      start: iaStart.value,
+      end: iaEnd.value,
+      metric: metricKey
+    });
+    var r = await fetch("/api/asc-metrics/query?" + qs.toString(), {
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: signal
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.message || ("HTTP " + r.status));
+    return {
+      metric: metricKey,
+      label: metricLabel(metricKey),
+      series: data.series || [],
+      total: data.total,
+      total_mode: data.total_mode || "sum",
+      message: data.message || "",
+      source: "asc"
+    };
+  }
+  async function fetchOneOverlaySeries(ov, signal) {
+    var metricKey = ov.metric;
+    if (isExternalMetric(metricKey)) {
+      var ext = await fetchExternalSeries(metricKey, signal);
+      return {
+        metric: metricKey,
+        label: ov.label || ext.label,
+        series: ext.series,
+        source: ext.source,
+        color: ov.color || null
+      };
+    }
+    var asc = await fetchAscSeries(metricKey, signal);
+    return {
+      metric: metricKey,
+      label: ov.label || asc.label,
+      series: asc.series,
+      source: "asc",
+      color: ov.color || null
+    };
+  }
+  async function refreshKeptOverlays(list, signal) {
+    var src = Array.isArray(list) ? list.slice() : [];
+    if (!src.length) return;
+    var results = await Promise.all(src.map(function (ov) {
+      return fetchOneOverlaySeries(ov, signal).catch(function () {
+        return {
+          metric: ov.metric,
+          label: ov.label,
+          series: [],
+          source: ov.source || (isVirgulMetric(ov.metric) ? "virgul" : (isGa4Metric(ov.metric) ? "ga4" : "asc")),
+          color: ov.color || null
+        };
+      });
+    }));
+    if (signal && signal.aborted) return;
+    iaOverlays = results;
+    renderOverlayChips();
+    redrawWithOverlays();
+    fillOverlayMetricOptions();
+  }
+  function redrawWithOverlays() {
+    if (overviewActive && iaOverviewBundles) {
+      var chartBundles = iaOverviewBundles.filter(function (b) { return b.onChart; });
+      var all = chartBundles.concat(iaOverlays.map(function (ov) {
+        return { metric: ov.metric, label: ov.label, series: ov.series || [] };
+      }));
+      drawMulti(all);
+      renderOverviewTable(iaOverviewBundles.concat(iaOverlays.map(function (ov) {
+        return { metric: ov.metric, label: ov.label, series: ov.series || [] };
+      })));
+      return;
+    }
+    if (!iaLastChart) return;
+    var primary = {
+      metric: iaLastChart.metric,
+      label: iaLastChart.label || metricLabel(iaLastChart.metric),
+      series: iaLastChart.series || []
+    };
+    var bundles = [primary].concat(iaOverlays.map(function (ov) {
+      return { metric: ov.metric, label: ov.label, series: ov.series || [] };
+    }));
+    if (bundles.length === 1) {
+      drawSingle(primary.series, COLORS[0]);
+      renderSingleTable(primary.series, primary.metric);
+    } else {
+      drawMulti(bundles);
+      renderOverviewTable(bundles);
+    }
   }
   function fmtAxisKey(key) {
     var m = String(key || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -355,9 +657,13 @@
     var my = ++runSeq;
     if (abortCtrl) try { abortCtrl.abort(); } catch (_) {}
     abortCtrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    iaBusy = true;
     setLoading(true);
     try {
       if (overviewActive) {
+        iaLastPrimaryMetric = "";
+        iaLastChart = null;
+        var keptOverviewOverlays = hasIaOverlays() ? iaOverlays.slice() : [];
         var metrics = CHART_METRICS.concat(TABLE_EXTRA).join(",");
         var qs = new URLSearchParams({ start: iaStart.value, end: iaEnd.value, metrics: metrics });
         var r = await fetch("/api/asc-metrics/overview?" + qs.toString(), {
@@ -382,6 +688,7 @@
             onChart: CHART_METRICS.indexOf(b.metric) >= 0
           };
         });
+        iaOverviewBundles = bundles;
         var chartBundles = bundles.filter(function (b) { return b.onChart; });
         var units = bundles.find(function (b) { return b.metric === "units"; }) || chartBundles[0];
         iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
@@ -389,32 +696,112 @@
         iaCompareRange.textContent = data.scrape_ok
           ? ("Özet · scrape " + (data.scrape_fact_count || "") + " fact (kendi ölçeği)")
           : "Özet · ASC Sales/API yedek (kendi ölçeği)";
-        drawMulti(chartBundles);
-        renderOverviewTable(bundles);
+        if (keptOverviewOverlays.length) {
+          await refreshKeptOverlays(keptOverviewOverlays, abortCtrl ? abortCtrl.signal : undefined);
+        } else {
+          drawMulti(chartBundles);
+          renderOverviewTable(bundles);
+        }
+        setAddChartVisible(true);
+        fillOverlayMetricOptions();
         return;
       }
-      var qs2 = new URLSearchParams({
-        start: iaStart.value, end: iaEnd.value, metric: iaMetric.value
-      });
-      var r2 = await fetch("/api/asc-metrics/query?" + qs2.toString(), {
-        credentials: "same-origin", cache: "no-store", signal: abortCtrl ? abortCtrl.signal : undefined
-      });
-      var data2 = await r2.json().catch(function () { return {}; });
+
+      iaOverviewBundles = null;
+      var primaryMetric = iaMetric.value;
+      var metricChanged = !!(iaLastPrimaryMetric && iaLastPrimaryMetric !== primaryMetric);
+      var keptOverlays = (!metricChanged && hasIaOverlays()) ? iaOverlays.slice() : [];
+      if (metricChanged) {
+        clearIaOverlaysState();
+        closeOverlayPanel();
+      }
+      iaLastPrimaryMetric = primaryMetric;
+
+      var pack;
+      if (isExternalMetric(primaryMetric)) {
+        pack = await fetchExternalSeries(primaryMetric, abortCtrl ? abortCtrl.signal : undefined);
+      } else {
+        pack = await fetchAscSeries(primaryMetric, abortCtrl ? abortCtrl.signal : undefined);
+      }
       if (my !== runSeq) return;
-      if (!r2.ok) throw new Error(data2.message || ("HTTP " + r2.status));
-      var mode = data2.total_mode || "sum";
-      iaTotal.textContent = fmtNum(data2.total, isCountLike(iaMetric.value));
+      var mode = pack.total_mode || "sum";
+      iaTotal.textContent = fmtNum(pack.total, isCountLike(primaryMetric));
       iaTotalLabel.textContent = mode === "last" ? "Son gün" : (mode === "avg" ? "Ortalama" : "Toplam / seçili");
-      iaCompareRange.textContent = data2.message || "";
-      drawSingle(data2.series || [], COLORS[0]);
-      renderSingleTable(data2.series || [], iaMetric.value);
+      iaCompareRange.textContent = pack.message || "";
+      iaLastChart = {
+        metric: primaryMetric,
+        label: pack.label || metricLabel(primaryMetric),
+        series: pack.series || []
+      };
+      if (keptOverlays.length) {
+        await refreshKeptOverlays(keptOverlays, abortCtrl ? abortCtrl.signal : undefined);
+        if (my !== runSeq) return;
+      } else {
+        drawSingle(iaLastChart.series, COLORS[0]);
+        renderSingleTable(iaLastChart.series, primaryMetric);
+        renderOverlayChips();
+        fillOverlayMetricOptions();
+      }
+      setAddChartVisible(true);
     } catch (err) {
       if (err && err.name === "AbortError") return;
+      if (my !== runSeq) return;
       if (iaStatus) iaStatus.textContent = (err && err.message) || "Yükleme hatası";
       iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13">Veri yüklenemedi</text>';
+      setAddChartVisible(false);
+      iaLastChart = null;
+      iaLastPrimaryMetric = "";
+      clearIaOverlaysState();
     } finally {
-      if (my === runSeq) setLoading(false);
+      if (my === runSeq) {
+        iaBusy = false;
+        setLoading(false);
+      }
     }
+  }
+
+  async function runOverlayAnalytics() {
+    if (!iaOvMetric || !iaOvMetric.value) return;
+    if (iaBusy) return;
+    if (!overviewActive && !iaLastChart) return;
+    if (overviewActive && !iaOverviewBundles) return;
+    iaBusy = true;
+    setLoading(true);
+    try {
+      var metricKey = iaOvMetric.value;
+      var next = await fetchOneOverlaySeries({
+        metric: metricKey,
+        label: metricLabel(metricKey) || metricKey,
+        series: []
+      });
+      var existing = -1;
+      iaOverlays.forEach(function (ov, i) {
+        if (ov.metric === metricKey) existing = i;
+      });
+      if (existing >= 0) iaOverlays[existing] = next;
+      else iaOverlays.push(next);
+      redrawWithOverlays();
+      fillOverlayMetricOptions();
+      openOverlayPanel();
+    } catch (err) {
+      alert((err && err.message) || "Ek grafik yüklenemedi");
+    } finally {
+      iaBusy = false;
+      setLoading(false);
+    }
+  }
+
+  function clearOverlayAndRedraw() {
+    clearIaOverlaysState();
+    if (overviewActive && iaOverviewBundles) {
+      var chartBundles = iaOverviewBundles.filter(function (b) { return b.onChart; });
+      drawMulti(chartBundles);
+      renderOverviewTable(iaOverviewBundles);
+    } else if (iaLastChart) {
+      drawSingle(iaLastChart.series || [], COLORS[0]);
+      renderSingleTable(iaLastChart.series || [], iaLastChart.metric);
+    }
+    fillOverlayMetricOptions();
   }
 
   async function loadStatus() {
@@ -458,6 +845,22 @@
   if (iaRun) iaRun.addEventListener("click", function () { runAnalytics(); });
   if (iaRefresh) iaRefresh.addEventListener("click", function () { refreshPage(); });
   if (iaMetric) iaMetric.addEventListener("change", function () { runAnalytics(); });
+  if (iaAddChartBtn) iaAddChartBtn.addEventListener("click", function () { openOverlayPanel(); });
+  if (iaOvCancel) iaOvCancel.addEventListener("click", function () { closeOverlayPanel(); });
+  if (iaOvClear) iaOvClear.addEventListener("click", function () { clearOverlayAndRedraw(); });
+  if (iaOvRun) iaOvRun.addEventListener("click", function () { runOverlayAnalytics(); });
+  if (iaOverlaysChips) {
+    iaOverlaysChips.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-ia-ov-rm]") : null;
+      if (!btn) return;
+      var idx = parseInt(btn.getAttribute("data-ia-ov-rm"), 10);
+      if (!Number.isFinite(idx)) return;
+      iaOverlays.splice(idx, 1);
+      redrawWithOverlays();
+      renderOverlayChips();
+      fillOverlayMetricOptions();
+    });
+  }
   ["ia-start", "ia-end"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener("change", function () {
