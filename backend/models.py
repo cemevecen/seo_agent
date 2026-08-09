@@ -1114,6 +1114,25 @@ class PlayConsoleWorkspace(Base):
     background_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class AscConsoleWorkspace(Base):
+    """App Store Connect scrape snapshot — tek paylaşımlı (id=1, Döviz iOS)."""
+
+    __tablename__ = "asc_console_workspace"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    bundle_id: Mapped[str] = mapped_column(String(128), nullable=False, default="com.nokta.Finans.Takip")
+    app_id: Mapped[str] = mapped_column(String(64), nullable=False, default="465599322")
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    raw_network_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    source_url: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    sync_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sync_message: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    sync_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    background_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class DovizAssetMonitorUrl(Base):
     """CSV manifest — saatlik taranan Döviz URL listesi."""
 

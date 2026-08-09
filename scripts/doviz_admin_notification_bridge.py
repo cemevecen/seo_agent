@@ -16,6 +16,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-news?full=1  → tam geçmiş (seyrek)
   POST /sync-virgul → Virgül Excel (~30 dk auto)
   POST /sync-play   → Play Console scrape (~30 dk auto)
+  POST /sync-asc    → App Store Connect scrape (iOS Metrikler)
   POST /sync-all   → notification + news
 """
 
@@ -126,10 +127,12 @@ _TRANSIENT_FAIL_MARKERS = (
 _nt_lock = threading.Lock()
 _virgul_lock = threading.Lock()
 _play_lock = threading.Lock()
+_asc_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_play_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_asc_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -331,6 +334,13 @@ def _play_console_ingest_url() -> str:
     return (
         os.environ.get("PLAY_CONSOLE_INGEST_URL")
         or "https://projectcontrol.up.railway.app/api/play-console/ingest"
+    ).strip()
+
+
+def _asc_console_ingest_url() -> str:
+    return (
+        os.environ.get("ASC_CONSOLE_INGEST_URL")
+        or "https://projectcontrol.up.railway.app/api/asc-console/ingest"
     ).strip()
 
 
@@ -580,6 +590,73 @@ def run_play_bridge_once() -> dict[str, Any]:
     }
     _last_play_result = out
     print(f"Play sync · {out['message']}", flush=True)
+    return out
+
+
+def run_asc_bridge_once() -> dict[str, Any]:
+    """App Store Connect analytics scrape → Railway ingest."""
+    global _last_asc_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_asc_result = err
+        return err
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "asc_console_scrape.py"
+        spec = importlib.util.spec_from_file_location("asc_console_scrape", path)
+        if spec is None or spec.loader is None:
+            err = {"ok": False, "message": "asc_console_scrape.py yüklenemedi"}
+            _last_asc_result = err
+            return err
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        scrape_asc_console = mod.scrape_asc_console
+        ingest_scrape_result = mod.ingest_scrape_result
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "message": f"asc_console_scrape import: {exc}"}
+        _last_asc_result = err
+        return err
+
+    print("ASC Console scrape başlıyor…", flush=True)
+    env_hl = (os.environ.get("ASC_CONSOLE_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    result = scrape_asc_console(headed=headed)
+    if result.get("needs_login"):
+        out = {
+            "ok": False,
+            "kind": "asc",
+            "needs_login": True,
+            "message": result.get("message") or "ASC login gerekli (--login)",
+        }
+        _last_asc_result = out
+        return out
+    try:
+        os.environ.setdefault("ASC_CONSOLE_INGEST_URL", _asc_console_ingest_url())
+        # scrape modülü INGEST_URL’i import anında okur — override
+        if hasattr(mod, "INGEST_URL"):
+            mod.INGEST_URL = _asc_console_ingest_url()
+        ing = ingest_scrape_result(result)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "asc", "message": f"Ingest hata: {exc}"}
+        _last_asc_result = out
+        return out
+    fact_n = len((result.get("panels") or {}).get("explorer_facts") or [])
+    out = {
+        "ok": bool(ing.get("ok")) and bool(result.get("ok")),
+        "kind": "asc",
+        "http_status": ing.get("http_status"),
+        "fact_count": fact_n,
+        "message": result.get("message") or ing.get("message") or "ASC sync",
+        "needs_login": False,
+        "ingest": {
+            k: ing.get(k)
+            for k in ("ok", "updated_at", "fact_count", "message")
+            if k in ing or k == "ok"
+        },
+    }
+    _last_asc_result = out
+    print(f"ASC sync · {out['message']}", flush=True)
     return out
 
 
@@ -970,6 +1047,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_news": _last_news_result,
                     "last_virgul": _last_virgul_result,
                     "last_play": _last_play_result,
+                    "last_asc": _last_asc_result,
                     "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
                     "news_progress": dict(_news_progress),
                     "nt_progress": dict(_nt_progress),
@@ -1025,6 +1103,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 _play_lock,
                 "Play Console sync zaten çalışıyor, bekleyin.",
                 run_play_bridge_once,
+            )
+        elif path in ("/sync-asc", "/asc", "/sync-ios"):
+            lock, busy, runner = (
+                _asc_lock,
+                "ASC Console sync zaten çalışıyor, bekleyin.",
+                run_asc_bridge_once,
             )
         elif path in ("/sync-all", "/all"):
             lock, busy, runner = (_nt_lock, "Sync zaten çalışıyor, bekleyin.", run_all_once)

@@ -45,7 +45,7 @@
           <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">App Store Connect</h1>
           <span class="font-mono text-xs text-slate-500 dark:text-zinc-400">com.nokta.Finans.Takip · 465599322</span>
         </div>
-        <p id="ia-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">ASC API üyelik anahtarlarıyla çekilir (Sales + Analytics + Abonelik).</p>
+        <p id="ia-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge scrape (Play gibi) · Sales API yedek.</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <a href="https://appstoreconnect.apple.com/apps/465599322/analytics/metrics" target="_blank" rel="noopener"
@@ -385,7 +385,9 @@
         var units = bundles.find(function (b) { return b.metric === "units"; }) || chartBundles[0];
         iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
         iaTotalLabel.textContent = "Özet (ilk indirme)";
-        iaCompareRange.textContent = "Özet · ASC Analytics + Sales (kendi ölçeği)";
+        iaCompareRange.textContent = data.scrape_ok
+          ? ("Özet · scrape " + (data.scrape_fact_count || "") + " fact (kendi ölçeği)")
+          : "Özet · ASC Sales/API yedek (kendi ölçeği)";
         drawMulti(chartBundles);
         renderOverviewTable(bundles);
         return;
@@ -419,18 +421,41 @@
       var r = await fetch("/api/asc-metrics/status", { credentials: "same-origin", cache: "no-store" });
       var d = await r.json().catch(function () { return {}; });
       if (!iaStatus) return;
-      if (!d.configured) {
-        iaStatus.textContent = "ASC API anahtarları tanımlı değil (ASC_KEY_ID / ISSUER_ID / PRIVATE_KEY).";
+      var parts = [];
+      if (d.scrape_ok) {
+        parts.push("Scrape OK · " + (d.scrape_fact_count || 0) + " fact");
+        if (d.scrape_synced_at) parts.push(String(d.scrape_synced_at).slice(0, 19));
       } else {
-        iaStatus.textContent = "ASC bağlı · app " + (d.app_id || "465599322") +
-          (d.vendor_configured ? " · Sales/Finance açık" : " · ASC_VENDOR_NUMBER yok (gelir/abonelik sınırlı)");
+        parts.push("Scrape yok — Mac’te login + bridge POST /sync-asc");
       }
+      if (d.configured) parts.push("API yedek açık");
+      iaStatus.textContent = parts.join(" · ");
     } catch (_) {}
+  }
+
+  async function refreshPage() {
+    var host = (location.hostname || "").toLowerCase();
+    var local = host === "localhost" || host === "127.0.0.1";
+    if (iaRefresh) iaRefresh.disabled = true;
+    try {
+      if (local) {
+        if (iaStatus) iaStatus.textContent = "Mac bridge ASC scrape tetikleniyor…";
+        try {
+          await fetch("http://127.0.0.1:18765/sync-asc", { method: "POST", mode: "cors" });
+        } catch (_) {
+          if (iaStatus) iaStatus.textContent = "Bridge yanıt vermedi (127.0.0.1:18765) — önce bridge + --login";
+        }
+      }
+      await loadStatus();
+      await runAnalytics();
+    } finally {
+      if (iaRefresh) iaRefresh.disabled = false;
+    }
   }
 
   if (iaPreset) iaPreset.addEventListener("change", function () { applyPreset(); runAnalytics(); });
   if (iaRun) iaRun.addEventListener("click", function () { runAnalytics(); });
-  if (iaRefresh) iaRefresh.addEventListener("click", function () { runAnalytics(); });
+  if (iaRefresh) iaRefresh.addEventListener("click", function () { refreshPage(); });
   if (iaMetric) iaMetric.addEventListener("change", function () { runAnalytics(); });
   ["ia-start", "ia-end"].forEach(function (id) {
     var el = document.getElementById(id);

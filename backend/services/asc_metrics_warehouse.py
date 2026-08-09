@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from backend.services import asc_analytics, asc_client
+from backend.services.asc_console_store import load_asc_scrape_facts
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +87,18 @@ def _load_bundle(
 ) -> dict[str, Any]:
     days = _span_days(start, end) + 3  # Apple gecikmesi payı
     days = min(max(days, 7), 365)
-    analytics = asc_analytics.fetch_analytics_summary(
-        bundle_id=bundle_id, days=days, country="all"
-    ) or {}
+    scrape_facts: list[dict[str, Any]] = []
+    scrape_meta: dict[str, Any] = {}
+    try:
+        scrape_facts, scrape_meta = load_asc_scrape_facts()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("ASC scrape facts load failed: %s", exc)
+    analytics = {}
+    # Scrape varsa Analytics API’yi zorlama (yavaş / boş); Sales fallback kalsın
+    if not scrape_facts:
+        analytics = asc_analytics.fetch_analytics_summary(
+            bundle_id=bundle_id, days=days, country="all"
+        ) or {}
     sales = None
     if asc_client.is_configured():
         try:
@@ -99,12 +109,48 @@ def _load_bundle(
             logger.exception("ASC sales load failed: %s", exc)
             sales = None
     subs = None
-    try:
-        subs = asc_client.fetch_subscription_daily_series(days=days)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("ASC subscription load failed: %s", exc)
-        subs = None
-    return {"analytics": analytics, "sales": sales, "subs": subs}
+    if not any(str(f.get("metric")) == "active_subscriptions" for f in scrape_facts):
+        try:
+            subs = asc_client.fetch_subscription_daily_series(days=days)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("ASC subscription load failed: %s", exc)
+            subs = None
+    return {
+        "analytics": analytics,
+        "sales": sales,
+        "subs": subs,
+        "scrape_facts": scrape_facts,
+        "scrape_meta": scrape_meta,
+    }
+
+
+def _series_from_scrape_facts(
+    facts: list[dict[str, Any]],
+    metric: str,
+    *,
+    start: date,
+    end: date,
+) -> list[dict[str, Any]]:
+    by_date: dict[str, float] = {}
+    for f in facts:
+        if str(f.get("metric") or "") != metric:
+            continue
+        if str(f.get("dim") or "overview") not in ("overview", "", "all"):
+            continue
+        ds = str(f.get("date") or "")[:10]
+        if not ds:
+            continue
+        try:
+            d = date.fromisoformat(ds)
+        except ValueError:
+            continue
+        if d < start or d > end:
+            continue
+        try:
+            by_date[ds] = float(f.get("value") or 0)
+        except (TypeError, ValueError):
+            continue
+    return [{"key": k, "value": round(by_date[k], 4)} for k in sorted(by_date.keys())]
 
 
 def _pick_series(
@@ -114,6 +160,15 @@ def _pick_series(
     start: date,
     end: date,
 ) -> list[dict[str, Any]]:
+    # 1) Mac scrape facts (Android Play pattern) — Analytics boşsa asıl kaynak
+    scrape_facts = bundle.get("scrape_facts") or []
+    if scrape_facts:
+        scraped = _series_from_scrape_facts(
+            scrape_facts, metric, start=start, end=end
+        )
+        if scraped:
+            return scraped
+
     a = bundle.get("analytics") or {}
     s = bundle.get("sales") or {}
     sub = bundle.get("subs") or {}
@@ -294,23 +349,34 @@ def query_asc_overview(
             }
         )
     analytics = bundle.get("analytics") or {}
+    scrape_meta = bundle.get("scrape_meta") or {}
+    scrape_facts = bundle.get("scrape_facts") or []
+    scrape_ok = bool(scrape_facts)
     analytics_ok = bool(analytics.get("ok"))
     warnings = list(analytics.get("warnings") or [])
-    if not analytics_ok:
+    if scrape_ok:
         warnings.insert(
             0,
-            analytics.get("message")
-            or "Analytics Reports boş — gösterim/yeniden indirme/IAP bu kaynaktan gelir.",
+            f"Scrape · {len(scrape_facts)} fact"
+            + (f" · {scrape_meta.get('synced_at')}" if scrape_meta.get("synced_at") else ""),
+        )
+    elif not analytics_ok:
+        warnings.insert(
+            0,
+            "Scrape yok — Mac’te `asc_console_scrape.py --login` sonra bridge "
+            "`POST /sync-asc` veya `--sync --ingest`.",
         )
     return {
         "ok": True,
         "configured": True,
-        "source": "asc_api",
+        "source": "asc_scrape" if scrape_ok else "asc_api",
         "app_id": DEFAULT_APP_ID,
         "bundle_id": bid,
         "start": start_d.isoformat(),
         "end": end_d.isoformat(),
-        "analytics_ok": analytics_ok,
+        "analytics_ok": analytics_ok or scrape_ok,
+        "scrape_ok": scrape_ok,
+        "scrape_fact_count": len(scrape_facts),
         "warnings": warnings,
         "bundles": out_bundles,
     }
@@ -319,6 +385,11 @@ def query_asc_overview(
 def asc_metrics_status() -> dict[str, Any]:
     configured = asc_client.is_configured()
     vendor = bool((os.getenv("ASC_VENDOR_NUMBER") or "").strip())
+    scrape_facts, scrape_meta = [], {}
+    try:
+        scrape_facts, scrape_meta = load_asc_scrape_facts()
+    except Exception:  # noqa: BLE001
+        pass
     app_id = None
     if configured:
         try:
@@ -326,9 +397,13 @@ def asc_metrics_status() -> dict[str, Any]:
         except Exception:  # noqa: BLE001
             app_id = None
     return {
-        "ok": configured,
+        "ok": configured or bool(scrape_facts),
         "configured": configured,
         "vendor_configured": vendor,
+        "scrape_ok": bool(scrape_facts),
+        "scrape_fact_count": len(scrape_facts),
+        "scrape_synced_at": scrape_meta.get("synced_at"),
+        "scrape_message": scrape_meta.get("message"),
         "bundle_id": DEFAULT_BUNDLE,
         "app_id": app_id or DEFAULT_APP_ID,
         "metrics": metric_catalog(),
