@@ -66,6 +66,21 @@ INGEST_URL = (
 DEVICE_MOBILE = 2
 DEVICE_DESKTOP = 1
 
+# Bilinen kırılım anahtarları (tıklama başarısız olursa fallback)
+KNOWN_ITEM_KEYS = {
+    DEVICE_MOBILE: [
+        "CAMQAhgC",  # LCP NI
+        "CAUQAhgC",  # INP NI
+        "CAUQAhgD",  # INP Poor
+        "CAQQAhgC",  # CLS NI
+    ],
+    DEVICE_DESKTOP: [
+        "CAQQARgC",  # CLS NI
+        "CAMQARgD",  # LCP Poor
+        "CAMQARgC",  # LCP NI
+    ],
+}
+
 PROPERTIES: list[dict[str, str]] = [
     {
         "site_key": "doviz",
@@ -528,16 +543,28 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
         if idx >= n:
             break
         print(f"    issue {idx + 1}/{n}…", flush=True)
-        rows.nth(idx).click()
-        time.sleep(3.5)
+        try:
+            rows.nth(idx).click(timeout=20_000)
+            time.sleep(3.5)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    issue click skip: {exc}", flush=True)
+            # Bilinen item_key yoksa satırı atla
+            continue
         cur = page.url or ""
+        if "drilldown" not in cur and "item_key" not in cur:
+            print(f"    issue drilldown açılmadı: {cur[:120]}", flush=True)
+            continue
         qs = parse_qs(urlparse(cur).query)
         item_key = (qs.get("item_key") or [""])[0]
         dmeta = _extract_page_meta(page)
         title = issues[idx]["title"] if idx < len(issues) else (dmeta.get("title") or "")
         status = issues[idx]["status"] if idx < len(issues) else _status_from_text(dmeta.get("body_head") or "")
         metric = _metric_from_issue(title)
-        urls = _scrape_url_table(page)
+        try:
+            urls = _scrape_url_table(page)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    url table skip: {exc}", flush=True)
+            urls = []
         for u in urls:
             u.setdefault("metric", metric)
         drilldowns.append(
@@ -556,13 +583,62 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
             issues[idx]["item_key"] = item_key
             issues[idx]["drilldown_url"] = cur
 
+    # Tıklanamayan / eksik kırılımlar için bilinen item_key fallback
+    have_keys = {str(d.get("item_key") or "") for d in drilldowns}
+    for key in KNOWN_ITEM_KEYS.get(device) or []:
+        if key in have_keys:
+            continue
+        print(f"    fallback item_key={key}…", flush=True)
+        try:
+            page.goto(
+                _cwv_url(resource_id, "/drilldown", item_key=key),
+                wait_until="domcontentloaded",
+                timeout=120_000,
+            )
+            time.sleep(3.5)
+            dmeta = _extract_page_meta(page)
+            body = dmeta.get("body_head") or ""
+            title = ""
+            for marker in ("LCP sorunu", "INP sorunu", "CLS sorunu", "LCP issue", "INP issue", "CLS issue"):
+                if marker.lower() in body.lower():
+                    m = re.search(re.escape(marker) + r"[^\n]{0,80}", body, re.I)
+                    title = (m.group(0) if m else marker).strip()
+                    break
+            status = _status_from_text(body)
+            metric = _metric_from_issue(title or body[:80])
+            urls = _scrape_url_table(page)
+            drilldowns.append(
+                {
+                    "status": status,
+                    "title": title or f"{metric} ({key})",
+                    "metric": metric,
+                    "item_key": key,
+                    "source_url": page.url,
+                    "url_rows": urls,
+                    "url_row_count": len(urls),
+                    "causes": explain_causes(metric, status, title),
+                    "via": "item_key_fallback",
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"    fallback skip {key}: {exc}", flush=True)
+
     # Good URLs drilldown
     print(f"  · {label} good URLs…", flush=True)
-    page.goto(_cwv_url(resource_id, "/drilldown", device=device), wait_until="domcontentloaded", timeout=120_000)
-    time.sleep(4)
-    _wait_table(page)
-    good_urls = _scrape_url_table(page)
-    good_meta = _extract_page_meta(page)
+    good_urls: list[dict[str, Any]] = []
+    good_meta: dict[str, Any] = {}
+    try:
+        page.goto(
+            _cwv_url(resource_id, "/drilldown", device=device),
+            wait_until="domcontentloaded",
+            timeout=120_000,
+        )
+        time.sleep(4)
+        _wait_table(page)
+        good_urls = _scrape_url_table(page)
+        good_meta = _extract_page_meta(page)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  · good URLs skip: {exc}", flush=True)
 
     return {
         "device": device,
@@ -607,9 +683,10 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
         if idx >= rows.count():
             break
         try:
-            rows.nth(idx).click()
+            rows.nth(idx).click(timeout=15_000)
             time.sleep(3)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            print(f"  · AMP issue click skip: {exc}", flush=True)
             continue
         qs = parse_qs(urlparse(page.url).query)
         key = (qs.get("item_key") or [""])[0]
@@ -684,7 +761,11 @@ def scrape_property(page, prop: dict[str, str]) -> dict[str, Any]:
     mobile["last_updated"] = last_upd
     desktop["last_updated"] = last_upd
 
-    amp = _scrape_amp(page, resource_id=rid)
+    try:
+        amp = _scrape_amp(page, resource_id=rid)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  · AMP skip: {exc}", flush=True)
+        amp = {"issues": [], "url_row_count": 0, "error": str(exc)[:200]}
 
     poor = int(mobile["kpis"].get("poor") or 0) + int(desktop["kpis"].get("poor") or 0)
     ni = int(mobile["kpis"].get("needs_improvement") or 0) + int(desktop["kpis"].get("needs_improvement") or 0)
@@ -778,18 +859,28 @@ def run_sync(*, site_filter: str = "", ingest: bool = True, headed: bool | None 
         except Exception:
             pass
 
+    ok_snaps = [s for s in snapshots if isinstance(s, dict) and not s.get("error")]
     payload = {
         "source": "gsc_cwv_scrape",
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "snapshots": snapshots,
     }
-    result: dict[str, Any] = {"ok": True, "snapshots": len(snapshots), "message": f"{len(snapshots)} property"}
-    if ingest:
+    result: dict[str, Any] = {
+        "ok": bool(ok_snaps),
+        "snapshots": len(snapshots),
+        "ok_snapshots": len(ok_snaps),
+        "message": f"{len(ok_snaps)}/{len(snapshots)} property OK",
+    }
+    if ingest and ok_snaps:
+        payload["snapshots"] = ok_snaps
         ing = _post_ingest(payload)
         result["ingest"] = ing
         result["ok"] = bool(ing.get("ok", True))
         result["message"] = ing.get("message") or result["message"]
         print(f"ingest · {result['message']}", flush=True)
+    elif ingest and not ok_snaps:
+        result["ok"] = False
+        result["message"] = "Hiç başarılı CWV snapshot yok"
     else:
         out = ROOT / "scratch" / "gsc_cwv_last.json"
         out.parent.mkdir(parents=True, exist_ok=True)
