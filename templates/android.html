@@ -1479,9 +1479,9 @@
     paLegendMulti.innerHTML = (chartBundles || []).map(function (b) {
       var color = overviewMetricColor(b.metric);
       return (
-        '<button type="button" data-pa-legend-metric="' + esc(b.metric) + '" ' +
-          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-zinc-800 dark:focus-visible:ring-zinc-600" ' +
-          'title="' + esc(b.label) + ' — yalnızca bu metrik">' +
+        '<button type="button" data-pa-legend-dismiss="overview" data-pa-legend-metric="' + esc(b.metric) + '" ' +
+          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 dark:focus-visible:ring-zinc-600" ' +
+          'title="' + esc(shortMetricLabel(b.label, b.metric)) + ' — grafikten kaldır">' +
           '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
           '<span>' + esc(shortMetricLabel(b.label, b.metric)) + "</span>" +
         "</button>"
@@ -1497,14 +1497,36 @@
     if (paLegendPrimary) paLegendPrimary.classList.remove("hidden");
     // filtreli modda ek çizgi legend'ı drawChart/renderOverlayLegend yönetir
   }
-  if (paLegendMulti) {
-    paLegendMulti.addEventListener("click", function (ev) {
+  function dismissLegendSeries(kind, key) {
+    if (kind === "overview") {
+      if (key) removeOverviewColumn(key);
+      return;
+    }
+    if (kind === "overlay") {
+      var idx = parseInt(key, 10);
+      if (!isNaN(idx)) removeOverlayAt(idx);
+      return;
+    }
+    if (kind === "primary") {
+      // Ana metrik legend’ı → özet moda dön; tıklanan metrik grafikte gizli kalsın, ekler (GA4/Virgül) korunur
+      var m = (paMetric && paMetric.value) || key || "";
+      if (m) paOverviewHidden[m] = true;
+      if (paMetric) paMetric.value = "";
+      paOverviewActive = true;
+      runPlayAnalytics();
+    }
+  }
+  if (paLegendLine) {
+    paLegendLine.addEventListener("click", function (ev) {
       var btn = ev.target && ev.target.closest
-        ? ev.target.closest("[data-pa-legend-metric]")
+        ? ev.target.closest("[data-pa-legend-dismiss]")
         : null;
-      if (!btn || !paOverviewActive) return;
-      var metric = btn.getAttribute("data-pa-legend-metric");
-      if (metric) selectOverviewMetric(metric);
+      if (!btn) return;
+      ev.preventDefault();
+      dismissLegendSeries(
+        btn.getAttribute("data-pa-legend-dismiss"),
+        btn.getAttribute("data-pa-legend-metric") || btn.getAttribute("data-pa-legend-ov")
+      );
     });
   }
   function drawOverviewMainChart(chartBundles) {
@@ -1519,22 +1541,27 @@
     var left = 40, right = 16, top = 16, bottom = 36;
     var plotW = w - left - right;
     var plotH = h - top - bottom;
-    if (!bundles.length) {
-      paChartState = null;
-      paChart.innerHTML =
-        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
-      hidePaTooltip();
-      return;
-    }
-    // Ortak tarih ekseni (birleşik key sırası)
+    // Ortak tarih ekseni (birleşik key sırası) — sadece ekler kaldıysa onlardan kur
     var keySet = {};
     bundles.forEach(function (b) {
       (b.series || []).forEach(function (r) {
         if (r && r.key != null) keySet[String(r.key)] = true;
       });
     });
+    (paOverlays || []).forEach(function (ov) {
+      (ov.series || []).forEach(function (r) {
+        if (r && r.key != null) keySet[String(r.key)] = true;
+      });
+    });
     var keys = Object.keys(keySet).sort();
     var n = keys.length;
+    if (!n) {
+      paChartState = null;
+      paChart.innerHTML =
+        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
+      hidePaTooltip();
+      return;
+    }
     var rows = keys.map(function (k) { return { key: k, value: null }; });
     var seriesPts = bundles.map(function (b) {
       var map = {};
@@ -2052,11 +2079,14 @@
     paLegendOverlays.classList.remove("hidden");
     paLegendOverlays.innerHTML = paOverlays.map(function (ov, i) {
       var color = ov.color || paOverlayColor(i);
+      var short = shortMetricLabel(ov.label, ov.metric);
       return (
-        '<span class="inline-flex items-center gap-1.5">' +
+        '<button type="button" data-pa-legend-dismiss="overlay" data-pa-legend-ov="' + i + '" ' +
+          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 dark:focus-visible:ring-zinc-600" ' +
+          'title="' + esc(short) + ' — grafikten kaldır">' +
           '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
-          '<span>' + esc(shortMetricLabel(ov.label, ov.metric)) + "</span>" +
-        "</span>"
+          '<span>' + esc(short) + "</span>" +
+        "</button>"
       );
     }).join("");
   }
@@ -2651,12 +2681,26 @@
     }
     setPaChartLegendMode("line");
     var primaryLegend = metricOptionLabel((paMetric && paMetric.value) || "");
-    if (paLegendPrimaryLabel) {
-      paLegendPrimaryLabel.textContent = primaryLegend || "Seçili dönem";
-    }
     if (paLegendPrimary) {
-      if (primaryLegend) paLegendPrimary.classList.remove("hidden");
-      else paLegendPrimary.classList.add("hidden");
+      if (primaryLegend) {
+        paLegendPrimary.classList.remove("hidden");
+        paLegendPrimary.setAttribute("data-pa-legend-dismiss", "primary");
+        paLegendPrimary.setAttribute("data-pa-legend-metric", (paMetric && paMetric.value) || "");
+        paLegendPrimary.setAttribute("role", "button");
+        paLegendPrimary.setAttribute("tabindex", "0");
+        paLegendPrimary.setAttribute("title", primaryLegend + " — grafikten kaldır");
+        paLegendPrimary.classList.add("cursor-pointer", "rounded-md", "px-1", "py-0.5", "transition", "hover:bg-rose-50", "hover:text-rose-700", "dark:hover:bg-rose-950/40", "dark:hover:text-rose-300");
+        if (paLegendPrimaryLabel) paLegendPrimaryLabel.textContent = primaryLegend;
+      } else {
+        paLegendPrimary.classList.add("hidden");
+        paLegendPrimary.removeAttribute("data-pa-legend-dismiss");
+        paLegendPrimary.removeAttribute("data-pa-legend-metric");
+        paLegendPrimary.removeAttribute("role");
+        paLegendPrimary.removeAttribute("tabindex");
+        paLegendPrimary.removeAttribute("title");
+      }
+    } else if (paLegendPrimaryLabel) {
+      paLegendPrimaryLabel.textContent = primaryLegend || "Seçili dönem";
     }
     var overlaySeriesState = paOverlays.map(function (ov, oi) {
       var aligned = alignOverlayValues(rows, ov.series);
