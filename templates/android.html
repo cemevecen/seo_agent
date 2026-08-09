@@ -2098,7 +2098,7 @@
     if (!metric) return;
     if (!paOverviewActive && paSelectedMetrics.length < 2) return;
     paOverviewHidden[metric] = true;
-    refreshOverviewViewFromBundles();
+    runPaChartMotion(function () { refreshOverviewViewFromBundles(); });
   }
   function paOverviewMetricDefs() {
     var chartSet = {};
