@@ -361,6 +361,16 @@
       </div>
     </div>
     <p id="pc-status" class="mt-3 hidden text-xs text-slate-500 dark:text-zinc-400"></p>
+    <div class="mt-4 border-t border-slate-100 pt-3 dark:border-zinc-800">
+      <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Crash-free · ANR-free</p>
+          <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Play scrape · Reporting · Crashlytics (Android)</p>
+        </div>
+      </div>
+      <div id="pc-stability-free" class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"></div>
+      <p id="pc-stability-free-empty" class="mt-2 hidden text-center text-sm text-slate-400">Crash-free verisi yükleniyor…</p>
+    </div>
   </div>
 
   <!-- Interaktif Play analytics (scrape statistics + GCS yedek) -->
@@ -618,13 +628,6 @@
            target="_blank" rel="noopener"
            class="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Overview ↗</a>
       </div>
-    </div>
-
-    <div class="mt-4">
-      <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Crash-free · ANR-free</h3>
-      <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Play scrape (28g) · son sürüm Reporting · Crashlytics (7g) — iOS + Android</p>
-      <div id="pc-stability-free" class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
-      <p id="pc-stability-free-empty" class="mt-2 hidden text-center text-sm text-slate-400">Crash-free verisi yükleniyor…</p>
     </div>
 
     <div class="mt-4">
@@ -4221,37 +4224,36 @@
     var playLatest = data.play_latest || null;
     var cf = (data.crashlytics && data.crashlytics.platforms) || {};
     var and = cf.android || {};
-    var ios = cf.ios || {};
 
     if (play.crash_free_fmt) {
       cards.push(renderStabilityFreeCard({
-        title: "Android · Crash-free",
-        sub: "Play scrape · tüm sürüm · 28g",
+        title: "Crash-free",
+        sub: "Play scrape · all versions · 28d",
         value: play.crash_free_fmt,
         toneClass: stabilityToneClass(play.crash_free_pct),
         extra: play.crash_rate_pct != null
-          ? "oran %" + String(play.crash_rate_pct).replace(".", ",") + (play.crash_metric ? " · " + esc(play.crash_metric) : "")
+          ? "rate %" + String(play.crash_rate_pct).replace(".", ",") + (play.crash_metric ? " · " + esc(play.crash_metric) : "")
           : ""
       }));
     }
     if (play.anr_free_fmt) {
       cards.push(renderStabilityFreeCard({
-        title: "Android · ANR-free",
-        sub: "Play scrape · tüm sürüm · 28g",
+        title: "ANR-free",
+        sub: "Play scrape · all versions · 28d",
         value: play.anr_free_fmt,
         toneClass: stabilityToneClass(play.anr_free_pct),
         extra: play.anr_rate_pct != null
-          ? "oran %" + String(play.anr_rate_pct).replace(".", ",")
+          ? "rate %" + String(play.anr_rate_pct).replace(".", ",")
           : ""
       }));
     }
     if (playLatest && (playLatest.crash_free_fmt || playLatest.anr_free_fmt)) {
       var lvLabel = playLatest.version_name
         ? ("v" + playLatest.version_name)
-        : (playLatest.version_code ? ("code " + playLatest.version_code) : "son sürüm");
+        : (playLatest.version_code ? ("code " + playLatest.version_code) : "latest");
       cards.push(renderStabilityFreeCard({
-        title: "Android · " + lvLabel,
-        sub: "Play Reporting · son sürüm · user-perceived",
+        title: lvLabel,
+        sub: "Play Reporting · latest · user-perceived",
         value: playLatest.crash_free_fmt || "—",
         toneClass: stabilityToneClass(playLatest.crash_free_pct),
         extra: [
@@ -4262,38 +4264,20 @@
     }
     if (and.latest && and.latest.crash_free_fmt) {
       cards.push(renderStabilityFreeCard({
-        title: "Android · v" + (and.latest_version || and.latest.version || "—"),
-        sub: "Crashlytics · son sürüm · 7g sessions",
+        title: "Crashlytics · v" + (and.latest_version || and.latest.version || "—"),
+        sub: "Latest version · 7d sessions",
         value: and.latest.crash_free_fmt,
         toneClass: stabilityToneClass(and.latest.crash_free_pct),
         extra: and.overall && and.overall.crash_free_fmt
-          ? ("tüm sürüm " + esc(and.overall.crash_free_fmt))
+          ? ("all versions " + esc(and.overall.crash_free_fmt))
           : ""
       }));
     } else if (and.overall && and.overall.crash_free_fmt) {
       cards.push(renderStabilityFreeCard({
-        title: "Android · Crashlytics",
-        sub: "Tüm sürüm · 7g sessions",
+        title: "Crashlytics",
+        sub: "All versions · 7d sessions",
         value: and.overall.crash_free_fmt,
         toneClass: stabilityToneClass(and.overall.crash_free_pct)
-      }));
-    }
-    if (ios.latest && ios.latest.crash_free_fmt) {
-      cards.push(renderStabilityFreeCard({
-        title: "iOS · v" + (ios.latest_version || ios.latest.version || "—"),
-        sub: "Crashlytics · son sürüm · 7g sessions",
-        value: ios.latest.crash_free_fmt,
-        toneClass: stabilityToneClass(ios.latest.crash_free_pct),
-        extra: ios.overall && ios.overall.crash_free_fmt
-          ? ("tüm sürüm " + esc(ios.overall.crash_free_fmt))
-          : ""
-      }));
-    } else if (ios.overall && ios.overall.crash_free_fmt) {
-      cards.push(renderStabilityFreeCard({
-        title: "iOS · Crashlytics",
-        sub: "Tüm sürüm · 7g sessions",
-        value: ios.overall.crash_free_fmt,
-        toneClass: stabilityToneClass(ios.overall.crash_free_pct)
       }));
     }
 
