@@ -460,7 +460,8 @@
   .bl-report-type-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: 0.3rem;
+    align-items: center;
   }
   .bl-rt-item {
     position: relative;
@@ -470,73 +471,80 @@
   }
   .bl-report-type-chip {
     cursor: pointer;
-    border-radius: 9999px;
-    border: 2px solid rgb(203 213 225);
+    border-radius: 0.45rem;
+    border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252);
-    padding: 0.45rem 0.85rem;
-    font-size: 0.75rem;
+    padding: 0.28rem 0.55rem;
+    font-size: 0.6875rem;
     font-weight: 700;
-    line-height: 1.25;
+    line-height: 1.2;
     color: rgb(51 65 85);
-    transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+    white-space: nowrap;
+    transition: border-color 0.12s, background 0.12s, color 0.12s, box-shadow 0.12s;
   }
   .bl-rt-item .bl-report-type-chip {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
-    border-right-width: 1px;
-    padding-right: 0.55rem;
+    border-right-width: 0;
+    padding-right: 0.4rem;
   }
   .bl-report-type-chip:hover:not(:disabled) {
-    border-color: rgb(129 140 248);
+    border-color: rgb(165 180 252);
     background: rgb(238 242 255);
   }
   .bl-report-type-chip[aria-selected="true"] {
     border-color: rgb(79 70 229);
     background: rgb(79 70 229);
     color: #fff;
-    box-shadow: 0 1px 3px rgba(79, 70, 229, 0.35);
+    box-shadow: none;
   }
   .bl-report-type-chip:disabled {
     cursor: not-allowed;
     opacity: 0.55;
   }
   html.dark .bl-report-type-chip {
-    border-color: rgb(71 85 105);
+    border-color: rgb(51 65 85);
     background: rgb(15 23 42);
     color: rgb(226 232 240);
   }
   html.dark .bl-report-type-chip:hover:not(:disabled) {
-    border-color: rgb(129 140 248);
+    border-color: rgb(99 102 241);
     background: rgb(30 27 75);
   }
   html.dark .bl-report-type-chip[aria-selected="true"] {
-    border-color: rgb(129 140 248);
-    background: rgb(99 102 241);
+    border-color: rgb(99 102 241);
+    background: rgb(79 70 229);
     color: #fff;
   }
   .bl-report-type-chip-sub {
-    display: block;
-    font-size: 0.625rem;
-    font-weight: 600;
-    opacity: 0.85;
+    display: inline;
+    margin-left: 0.28rem;
+    font-size: 0.5625rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    opacity: 0.72;
+  }
+  .bl-report-type-chip-sub::before {
+    content: "· ";
+    opacity: 0.8;
   }
   .bl-report-type-chip[aria-selected="true"] .bl-report-type-chip-sub {
-    opacity: 0.92;
+    opacity: 0.9;
   }
   .bl-rt-info-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.55rem;
+    width: 1.35rem;
     min-height: 100%;
     margin: 0;
     padding: 0;
-    border: 2px solid rgb(203 213 225);
-    border-left-width: 1px;
-    border-radius: 0 9999px 9999px 0;
+    border: 1px solid rgb(226 232 240);
+    border-left: 1px solid rgb(203 213 225);
+    border-radius: 0 0.45rem 0.45rem 0;
     background: rgb(248 250 252);
     color: rgb(100 116 139);
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 800;
     font-style: italic;
     font-family: Georgia, "Times New Roman", serif;
@@ -547,7 +555,7 @@
   .bl-rt-item:hover .bl-rt-info-btn,
   .bl-rt-info-btn:hover,
   .bl-rt-info-btn[aria-expanded="true"] {
-    border-color: rgb(129 140 248);
+    border-color: rgb(165 180 252);
     color: rgb(67 56 202);
     background: rgb(238 242 255);
   }
@@ -562,33 +570,33 @@
     color: #fff;
   }
   html.dark .bl-rt-info-btn {
-    border-color: rgb(71 85 105);
+    border-color: rgb(51 65 85);
     background: rgb(15 23 42);
     color: rgb(148 163 184);
   }
   html.dark .bl-rt-item:hover .bl-rt-info-btn,
   html.dark .bl-rt-info-btn:hover,
   html.dark .bl-rt-info-btn[aria-expanded="true"] {
-    border-color: rgb(129 140 248);
+    border-color: rgb(99 102 241);
     background: rgb(30 27 75);
     color: rgb(199 210 254);
   }
   html.dark .bl-rt-item:has(.bl-report-type-chip[aria-selected="true"]) .bl-rt-info-btn {
-    border-color: rgb(129 140 248);
-    background: rgb(79 70 229);
+    border-color: rgb(99 102 241);
+    background: rgb(67 56 202);
     color: #fff;
   }
   .bl-rt-info-tip {
     position: absolute;
     z-index: 50;
     left: 0;
-    top: calc(100% + 0.4rem);
+    top: calc(100% + 0.35rem);
     width: min(17.5rem, calc(100vw - 2rem));
-    padding: 0.55rem 0.7rem;
-    border-radius: 0.65rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.5rem;
     border: 1px solid rgb(226 232 240);
     background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
     font-size: 0.6875rem;
     font-weight: 500;
     line-height: 1.4;
@@ -605,71 +613,85 @@
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
   }
   .bl-toolbar-card {
-    padding: 0.85rem 1rem;
+    padding: 0;
+    overflow: visible;
   }
-  @media (min-width: 640px) {
-    .bl-toolbar-card { padding: 1rem 1.15rem; }
-  }
-  .bl-toolbar-grid {
+  .bl-toolbar-main {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1rem 1.25rem;
-    align-items: start;
+    gap: 0;
+    align-items: stretch;
   }
-  @media (min-width: 1024px) {
-    .bl-toolbar-grid {
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr) minmax(0, 1.15fr);
-      gap: 0 1.25rem;
+  @media (min-width: 900px) {
+    .bl-toolbar-main {
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.35fr);
     }
+  }
+  .bl-toolbar-col {
+    min-width: 0;
+    padding: 0.55rem 0.7rem;
+  }
+  @media (min-width: 900px) {
     .bl-toolbar-col {
-      min-width: 0;
-      padding-right: 1.25rem;
+      padding: 0.6rem 0.75rem;
       border-right: 1px solid rgb(226 232 240);
     }
     html.dark .bl-toolbar-col { border-right-color: rgb(51 65 85); }
-    .bl-toolbar-col:last-child {
-      padding-right: 0;
-      border-right: none;
-    }
+    .bl-toolbar-col:last-child { border-right: none; }
   }
   .bl-toolbar-col h2 {
-    font-size: 0.6875rem;
+    margin: 0 0 0.35rem;
+    font-size: 0.5625rem;
     font-weight: 800;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgb(51 65 85);
+    color: rgb(100 116 139);
+    line-height: 1;
   }
-  html.dark .bl-toolbar-col h2 { color: rgb(203 213 225); }
+  html.dark .bl-toolbar-col h2 { color: rgb(148 163 184); }
   .bl-toolbar-hint {
-    margin-top: 0.2rem;
-    font-size: 0.625rem;
-    line-height: 1.35;
+    margin: 0.3rem 0 0;
+    font-size: 0.5625rem;
+    line-height: 1.3;
+    color: rgb(148 163 184);
+  }
+  html.dark .bl-toolbar-hint { color: rgb(113 113 122); }
+  .bl-toolbar-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.85rem;
+    padding: 0.4rem 0.75rem 0.5rem;
+    border-top: 1px solid rgb(241 245 249);
+    background: rgb(248 250 252 / 0.85);
+  }
+  html.dark .bl-toolbar-meta {
+    border-top-color: rgb(51 65 85);
+    background: rgb(15 23 42 / 0.55);
+  }
+  .bl-toolbar-meta-label {
+    font-size: 0.5625rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: rgb(100 116 139);
   }
-  html.dark .bl-toolbar-hint { color: rgb(148 163 184); }
-  .bl-toolbar-col--import .bl-import-fields {
-    display: grid;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+  html.dark .bl-toolbar-meta-label { color: rgb(148 163 184); }
+  .bl-toolbar-meta-body {
+    flex: 1 1 12rem;
+    min-width: 0;
+    font-size: 0.625rem;
+    line-height: 1.35;
+    color: rgb(71 85 105);
   }
-  @media (min-width: 1280px) {
-    .bl-toolbar-col--import .bl-import-fields {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      align-items: end;
-    }
-    .bl-toolbar-col--import .bl-import-actions {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .bl-toolbar-col--import .bl-import-actions #bl-import-btn {
-      width: auto;
-      flex: 0 0 auto;
-      margin-top: 0;
-    }
-    .bl-file-drop-zone {
+  html.dark .bl-toolbar-meta-body { color: rgb(161 161 170); }
+  #bl-scan-status {
+    margin: 0;
+    display: inline;
+    font-size: inherit;
+    color: inherit;
+  }
+  .bl-file-drop-zone {
     margin-top: 0.25rem;
     border: 1px dashed rgb(203 213 225);
     border-radius: 0.5rem;
@@ -687,12 +709,6 @@
     background: rgb(49 46 129 / 0.25);
     border-color: rgb(129 140 248);
   }
-  .bl-toolbar-col--import .bl-import-actions #bl-import-status {
-      margin-top: 0;
-      flex: 1 1 8rem;
-      min-width: 0;
-    }
-  }
 </style>
 <div class="bl-page mx-auto w-full min-w-0 max-w-[1800px] space-y-4 px-1 sm:space-y-6 sm:px-0">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800 sm:p-6">
@@ -701,12 +717,12 @@
 
   <div id="bl-banner" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"></div>
 
-  <div class="bl-toolbar-card rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
-    <div class="bl-toolbar-grid">
+  <div class="bl-toolbar-card rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:ring-slate-800">
+    <div class="bl-toolbar-main">
       <section class="bl-toolbar-col min-w-0">
         <h2>Site</h2>
         <input type="hidden" id="bl-site" value="{% if default_site_id %}{{ default_site_id }}{% endif %}" />
-        <div id="bl-site-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="Site">
+        <div id="bl-site-wrap" class="bl-report-type-chips" role="tablist" aria-label="Site">
           {% for s in sites %}
           <button
             type="button"
@@ -726,15 +742,15 @@
       <section class="bl-toolbar-col min-w-0">
         <h2>GSC property</h2>
         <input type="hidden" id="bl-gsc-resource" value="" />
-        <div id="bl-gsc-resource-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="GSC property">
-          <p class="text-[11px] text-slate-500">Site seçilince property listesi gelir…</p>
+        <div id="bl-gsc-resource-wrap" class="bl-report-type-chips" role="tablist" aria-label="GSC property">
+          <p class="text-[10px] text-slate-500">Site seçilince property listesi gelir…</p>
         </div>
       </section>
 
       <section class="bl-toolbar-col min-w-0">
         <h2>Rapor türü</h2>
         <input type="hidden" id="bl-report-type" value="external" />
-        <div id="bl-report-type-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="Rapor türü">
+        <div id="bl-report-type-wrap" class="bl-report-type-chips" role="tablist" aria-label="Rapor türü">
           <div class="bl-rt-item">
             <button type="button" role="tab" class="bl-report-type-chip" data-value="external" aria-selected="true" title="GSC External — top linked pages">
               External
@@ -776,20 +792,18 @@
             </div>
           </div>
         </div>
-        <p class="bl-toolbar-hint mt-2 hidden sm:block">
+        <p class="bl-toolbar-hint hidden sm:block">
           Kaynak: Search Console Links (Sheets yok) · günde 2×
         </p>
       </section>
-
-      <section class="bl-toolbar-col bl-toolbar-col--import min-w-0">
-        <h2>Tarama</h2>
-        <p class="bl-toolbar-hint">Mac bridge · GSC oturumu · günde 2× (01:00 + 13:00 TR)</p>
-        <div class="bl-import-fields">
-          <p id="bl-scan-status" class="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
-            Veri Search Console Links üzerinden otomatik gelir. Google Sheets kapalı.
-          </p>
-        </div>
-      </section>
+    </div>
+    <div class="bl-toolbar-meta">
+      <span class="bl-toolbar-meta-label">Tarama</span>
+      <div class="bl-toolbar-meta-body">
+        <span>Mac bridge · GSC · 01:00 + 13:00 TR</span>
+        <span aria-hidden="true"> · </span>
+        <p id="bl-scan-status">Veri Search Console Links üzerinden otomatik gelir. Google Sheets kapalı.</p>
+      </div>
     </div>
   </div>
 
