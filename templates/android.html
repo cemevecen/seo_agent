@@ -118,6 +118,11 @@
     height: auto;
     aspect-ratio: 720 / 260;
   }
+  /* Dark: yatay kılavuzlar ~%90 silik (veri çizgilerini bastırmasın) */
+  html.dark .android-play-page #pa-chart line.pa-grid {
+    stroke: rgba(255, 255, 255, 0.06) !important;
+    stroke-opacity: 1 !important;
+  }
   html.dark .android-play-page [class*="bg-white"],
   html.dark .android-play-page [class*="bg-slate-50"],
   html.dark .android-play-page [class*="from-slate-50"],
@@ -1025,14 +1030,30 @@
   var STAR_DIST_COLORS = { 5: "#c5d7f2", 4: "#8eb4e6", 3: "#5a8fd4", 2: "#3b6fbf", 1: "#1a3a6e" };
   // Saks mavisi — Metrikler çizgi/alan grafikleri
   function paIsDark() {
-    return !!(document.documentElement && document.documentElement.classList.contains("dark"));
+    var root = document.documentElement;
+    if (root && root.classList.contains("dark")) return true;
+    if (document.body && document.body.classList.contains("dark")) return true;
+    // Chart kartı dark yüzeydeyse (class gecikmeli uygulanmış olsa bile)
+    try {
+      var card = document.getElementById("pa-chart-card");
+      if (card) {
+        var bg = window.getComputedStyle(card).backgroundColor || "";
+        var m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if (m) {
+          var r = +m[1], g = +m[2], b = +m[3];
+          if ((r + g + b) / 3 < 60) return true;
+        }
+      }
+    } catch (_) {}
+    return false;
   }
   function paChartPalette() {
     if (paIsDark()) {
       return {
         line: "#6b8aad",
         overlay: "#b87333",
-        grid: "#2e2e33",
+        // ~%90 silik beyaz kılavuz
+        grid: "rgba(255,255,255,0.06)",
         axis: "#71717a",
         prev: "#71717a",
         guide: "#52525b",
@@ -1301,7 +1322,7 @@
       var ty = top + (t / ticks) * plotH;
       var pct = Math.round(100 * (1 - t / ticks));
       grid +=
-        '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
+        '<line class="pa-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
         '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) +
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
@@ -2103,7 +2124,7 @@
       var tv = max * (1 - t / ticks);
       var ty = top + (t / ticks) * plotH;
       grid +=
-        '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
+        '<line class="pa-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
         '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
@@ -2247,7 +2268,7 @@
       var tv = max * (1 - t / ticks);
       var ty = top + (t / ticks) * plotH;
       grid +=
-        '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
+        '<line class="pa-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
         '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
