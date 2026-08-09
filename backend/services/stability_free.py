@@ -187,6 +187,124 @@ def _latest_cf_since_release(
     return _cf_block(live, version=version)
 
 
+def _ios_version_candidates(payload: dict[str, Any], product_id: str) -> list[str]:
+    """Son 3 iOS sürümü — Crashlytics filtre listesi, yoksa mağaza yayınları."""
+    filter_vers = (payload.get("filter_versions_by_platform") or {}).get("ios") or []
+    out: list[str] = []
+    for v in filter_vers:
+        s = str(v or "").strip()
+        if s and s not in out:
+            out.append(s)
+        if len(out) >= 3:
+            return out[:3]
+    # versions_by_platform satırları
+    for key in ("versions_by_platform", "versions_7d_by_platform"):
+        rows = (payload.get(key) or {}).get("ios") or []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            s = str(r.get("app_version") or "").strip()
+            if s and s not in out:
+                out.append(s)
+            if len(out) >= 3:
+                return out[:3]
+    # Mağaza yayın tarihleri (en yeni önce)
+    try:
+        from backend.services.store_version_releases import fetch_version_releases_for_product
+
+        rel = fetch_version_releases_for_product(product_id) or {}
+        ios_rels = list(rel.get("ios") or [])
+        ios_rels.sort(key=lambda x: str((x or {}).get("released_at") or ""), reverse=True)
+        for row in ios_rels:
+            s = str((row or {}).get("version") or "").strip()
+            if s and s not in out:
+                out.append(s)
+            if len(out) >= 3:
+                break
+    except Exception:
+        logger.debug("ios version candidates store releases failed", exc_info=True)
+    return out[:3]
+
+
+def _build_ios_version_rows(
+    cbq: Any,
+    *,
+    product_id: str,
+    payload: dict[str, Any],
+    versions: list[str],
+    force_refresh: bool,
+) -> list[dict[str, Any]]:
+    """Android vitals chip’leri gibi son 3 iOS sürümü + crash-free."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    ver_stats: dict[str, dict[str, Any]] = {}
+    for key in ("versions_by_platform", "versions_7d_by_platform"):
+        for r in (payload.get(key) or {}).get("ios") or []:
+            if not isinstance(r, dict):
+                continue
+            v = str(r.get("app_version") or "").strip()
+            if v and v not in ver_stats:
+                ver_stats[v] = r
+
+    latest_stats = payload.get("latest_version_stats_by_platform") or {}
+    ios_latest = latest_stats.get("ios") if isinstance(latest_stats.get("ios"), dict) else {}
+
+    def _one(ver: str) -> dict[str, Any]:
+        row = ver_stats.get(ver) or {}
+        cf = None
+        if ios_latest and str(ios_latest.get("version") or "").strip() == ver:
+            cf = _cf_block(ios_latest.get("crash_free"), version=ver)
+        if force_refresh or not cf:
+            try:
+                live = _latest_cf_since_release(
+                    cbq, product_id=product_id, plat="ios", version=ver
+                )
+                if live:
+                    cf = live
+            except Exception as exc:  # noqa: BLE001
+                logger.info("ios version CF (%s): %s", ver, exc)
+        item: dict[str, Any] = {
+            "version": ver,
+            "label": f"v{ver}",
+            "fatal": int(row.get("fatal_count") or row.get("fatal") or 0) or None,
+            "anr": int(row.get("anr_count") or row.get("anr") or 0) or None,
+            "total_events": int(row.get("total_events") or 0) or None,
+            "affected_users": int(row.get("affected_users") or 0) or None,
+        }
+        if cf:
+            item.update(
+                {
+                    "crash_free_pct": cf.get("crash_free_pct"),
+                    "crash_free_sessions_pct": cf.get("crash_free_sessions_pct"),
+                    "crash_free_users_pct": cf.get("crash_free_users_pct"),
+                    "crash_free_fmt": cf.get("crash_free_fmt"),
+                    "period": cf.get("period"),
+                    "period_days": cf.get("period_days"),
+                    "since": cf.get("since"),
+                    "method": cf.get("method"),
+                }
+            )
+        return item
+
+    rows: list[dict[str, Any]] = []
+    if not versions:
+        return rows
+    with ThreadPoolExecutor(max_workers=min(3, len(versions)), thread_name_prefix="ios-sf-ver") as pool:
+        futs = {pool.submit(_one, v): v for v in versions}
+        by_ver: dict[str, dict[str, Any]] = {}
+        for fut in as_completed(futs):
+            ver = futs[fut]
+            try:
+                by_ver[ver] = fut.result()
+            except Exception as exc:  # noqa: BLE001
+                logger.info("ios version row failed (%s): %s", ver, exc)
+                by_ver[ver] = {"version": ver, "label": f"v{ver}"}
+    for v in versions:
+        if v in by_ver:
+            rows.append(by_ver[v])
+    return rows
+
+
 def invalidate_stability_cache(product_id: str | None = None) -> None:
     """Bellek içi stability-free cache temizle (manuel yenile)."""
     with _STABILITY_CACHE_LOCK:
@@ -211,7 +329,7 @@ def build_stability_free_payload(
     from backend.services import gp_client
 
     vitals = vitals if isinstance(vitals, dict) else {}
-    cache_key = f"{product_id}:{package_name}:sf"
+    cache_key = f"{product_id}:{package_name}:sf:v2"
     if force_refresh:
         invalidate_stability_cache(product_id)
     else:
@@ -321,12 +439,68 @@ def build_stability_free_payload(
                     "fatal": (scoped or {}).get("fatal"),
                     "anr": (scoped or {}).get("anr"),
                 }
+                if plat == "ios":
+                    try:
+                        candidates = _ios_version_candidates(payload, product_id)
+                        # latest yoksa listedeki ilkini latest yap
+                        if not ver and candidates:
+                            ver = candidates[0]
+                            plats[plat]["latest_version"] = ver
+                        ios_versions = _build_ios_version_rows(
+                            cbq,
+                            product_id=product_id,
+                            payload=payload,
+                            versions=candidates,
+                            force_refresh=force_refresh,
+                        )
+                        plats[plat]["versions"] = ios_versions
+                        # latest CF: chip listesindeki ilk sürümle hizala
+                        if ios_versions:
+                            top = ios_versions[0]
+                            if top.get("crash_free_fmt") and (
+                                force_refresh
+                                or not latest_cf
+                                or str(plats[plat].get("latest_version") or "")
+                                == str(top.get("version") or "")
+                            ):
+                                if str(plats[plat].get("latest_version") or "") == str(
+                                    top.get("version") or ""
+                                ) or not latest_cf:
+                                    plats[plat]["latest"] = _cf_block(top, version=top.get("version"))
+                                    if top.get("fatal") is not None:
+                                        plats[plat]["fatal"] = top.get("fatal")
+                                    if top.get("anr") is not None:
+                                        plats[plat]["anr"] = top.get("anr")
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("stability-free ios versions: %s", exc)
+                        plats[plat]["versions"] = []
             crashlytics = {
                 "ok": True,
                 "days": payload.get("days") or 7,
                 "fetched_at": payload.get("fetched_at"),
                 "platforms": plats,
             }
+        else:
+            # BQ soğuk — en azından son 3 iOS sürüm adını mağazadan ver (chip listesi)
+            try:
+                candidates = _ios_version_candidates({}, product_id)
+                if candidates:
+                    crashlytics = {
+                        "ok": True,
+                        "days": 7,
+                        "platforms": {
+                            "ios": {
+                                "overall": None,
+                                "latest_version": candidates[0],
+                                "latest": None,
+                                "versions": [
+                                    {"version": v, "label": f"v{v}"} for v in candidates
+                                ],
+                            }
+                        },
+                    }
+            except Exception:
+                logger.debug("stability-free ios cold versions failed", exc_info=True)
     except Exception as exc:  # noqa: BLE001
         logger.warning("stability-free crashlytics: %s", exc)
         crashlytics = {"ok": False, "error": str(exc)[:160], "platforms": {}}

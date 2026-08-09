@@ -117,7 +117,48 @@
   .ia-orbit--sm .ia-orbit__core { inset: 0.72rem; }
   .ia-stability-inline {
     min-width: 0;
-    max-width: min(22rem, calc(100vw - 10rem));
+    max-width: min(28rem, calc(100vw - 8rem));
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+  .ia-stability-versions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+  }
+  .ia-stability-version {
+    border-radius: 9999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .ia-stability-version.is-on {
+    background: #0284c7;
+    color: #fff;
+  }
+  .ia-stability-version:not(.is-on) {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  .ia-stability-version:not(.is-on):hover {
+    background: #e2e8f0;
+  }
+  html.dark .ia-stability-version.is-on {
+    background: #0369a1;
+  }
+  html.dark .ia-stability-version:not(.is-on) {
+    background: #27272a;
+    color: #d4d4d8;
+  }
+  html.dark .ia-stability-version:not(.is-on):hover {
+    background: #3f3f46;
   }
   .ia-stability-inline .ia-stability-grid {
     width: 100%;
@@ -209,6 +250,7 @@
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <div class="ia-stability-inline">
+          <div id="ia-stability-versions" class="ia-stability-versions" aria-label="Son iOS sürümleri"></div>
           <div id="ia-stability-free" class="ia-stability-grid grid gap-1.5" style="--sf-n:1"></div>
           <div id="ia-stability-free-empty" class="ia-stability-free-loading" aria-busy="true" aria-label="Loading">
             <div class="ia-orbit ia-orbit--sm" aria-hidden="true">
@@ -1599,7 +1641,10 @@
   (function loadIosStabilityFree() {
     var el = document.getElementById("ia-stability-free");
     var empty = document.getElementById("ia-stability-free-empty");
+    var chipsEl = document.getElementById("ia-stability-versions");
     if (!el) return;
+    var state = { versions: [], selected: null, overall: null };
+
     function setLoading(on) {
       if (!empty) return;
       if (on) {
@@ -1631,37 +1676,117 @@
         "</div>"
       );
     }
+    function selectedVersionRow() {
+      var sel = String(state.selected || "");
+      for (var i = 0; i < state.versions.length; i++) {
+        if (String(state.versions[i].version || "") === sel) return state.versions[i];
+      }
+      return state.versions[0] || null;
+    }
+    function renderChips() {
+      if (!chipsEl) return;
+      if (!state.versions.length) {
+        chipsEl.innerHTML = "";
+        return;
+      }
+      chipsEl.innerHTML = state.versions.map(function (v) {
+        var ver = String(v.version || "");
+        var on = ver === String(state.selected || "");
+        var label = v.label || ("v" + ver);
+        return (
+          '<button type="button" data-ia-version="' + esc(ver) + '" ' +
+            'class="ia-stability-version' + (on ? " is-on" : "") + '" ' +
+            'title="Sürüm ' + esc(label) + '">' + esc(label) + "</button>"
+        );
+      }).join("");
+    }
+    function renderCards() {
+      var cards = [];
+      var row = selectedVersionRow();
+      var overall = state.overall;
+      if (row && row.crash_free_fmt) {
+        var extraBits = [];
+        if (overall && overall.crash_free_fmt) extraBits.push("all " + esc(overall.crash_free_fmt));
+        if (row.fatal != null) extraBits.push("fatal " + esc(String(row.fatal)));
+        cards.push(card(
+          "Crash-free · " + (row.label || ("v" + row.version)),
+          row.period ? ("since release · " + row.period) : "Crashlytics",
+          row.crash_free_fmt,
+          row.crash_free_pct,
+          extraBits.join(" · ")
+        ));
+      } else if (overall && overall.crash_free_fmt) {
+        cards.push(card(
+          "Crashlytics · all",
+          "",
+          overall.crash_free_fmt,
+          overall.crash_free_pct
+        ));
+      }
+      if (overall && overall.crash_free_fmt && row && row.crash_free_fmt) {
+        cards.push(card(
+          "Crash-free · all",
+          "Crashlytics · 7d",
+          overall.crash_free_fmt,
+          overall.crash_free_pct
+        ));
+      }
+      if (!cards.length && state.versions.length) {
+        cards.push(card(
+          "Crashlytics · " + ((row && row.label) || "sürüm"),
+          "Veri bekleniyor",
+          "—",
+          null
+        ));
+      }
+      var n = cards.length >= 4 ? 4 : Math.max(cards.length, 1);
+      el.style.setProperty("--sf-n", String(n));
+      el.innerHTML = cards.join("");
+    }
+    function renderAll() {
+      renderChips();
+      renderCards();
+    }
+
+    if (chipsEl) {
+      chipsEl.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest && ev.target.closest("[data-ia-version]");
+        if (!btn) return;
+        var ver = btn.getAttribute("data-ia-version");
+        if (!ver || ver === String(state.selected || "")) return;
+        state.selected = ver;
+        renderAll();
+      });
+    }
+
     setLoading(true);
     fetch("/api/play-console/stability-free", { credentials: "same-origin", cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var plats = (data.crashlytics && data.crashlytics.platforms) || {};
         var ios = plats.ios || {};
-        var cards = [];
-        if (ios.latest && ios.latest.crash_free_fmt) {
-          cards.push(card(
-            "Crashlytics · v" + (ios.latest_version || ios.latest.version || "—"),
-            "",
-            ios.latest.crash_free_fmt,
-            ios.latest.crash_free_pct,
-            ios.overall && ios.overall.crash_free_fmt ? ("all versions " + esc(ios.overall.crash_free_fmt)) : ""
-          ));
-        } else if (ios.overall && ios.overall.crash_free_fmt) {
-          cards.push(card("Crashlytics", "", ios.overall.crash_free_fmt, ios.overall.crash_free_pct));
+        state.overall = ios.overall || null;
+        var versions = Array.isArray(ios.versions) ? ios.versions.slice(0, 3) : [];
+        if (!versions.length && ios.latest_version) {
+          versions = [{
+            version: ios.latest_version,
+            label: "v" + ios.latest_version,
+            crash_free_fmt: ios.latest && ios.latest.crash_free_fmt,
+            crash_free_pct: ios.latest && ios.latest.crash_free_pct,
+            period: ios.latest && ios.latest.period,
+            fatal: ios.fatal,
+            anr: ios.anr
+          }];
         }
+        state.versions = versions;
+        state.selected = versions.length ? String(versions[0].version || "") : null;
         setLoading(false);
-        if (!cards.length) {
-          el.innerHTML = "";
-          el.style.setProperty("--sf-n", "1");
-          return;
-        }
-        var n = cards.length >= 4 ? 4 : Math.max(cards.length, 1);
-        el.style.setProperty("--sf-n", String(n));
-        el.innerHTML = cards.join("");
+        renderAll();
       })
       .catch(function () {
         setLoading(false);
         el.innerHTML = "";
+        if (chipsEl) chipsEl.innerHTML = "";
       });
   })();
 })();
