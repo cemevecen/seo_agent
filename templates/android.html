@@ -2016,6 +2016,14 @@
       paOvSegment.innerHTML = '<option value="all">Tümü</option>';
       paOvSegment.value = "all";
     }
+    var note = document.getElementById("pa-ov-note");
+    if (note) {
+      if (!paMetric || !paMetric.value || paOverviewActive) {
+        note.textContent = "Özet modundasınız: buradan seçeceğiniz Play metriği ana grafik olur. GA4 eklemek için önce bir Play metriği seçin.";
+      } else {
+        note.textContent = "Play veya GA4 metriklerini aynı tarih aralığında üst üste ekleyin (sınırsız). GA4 seçilince ölçek kendi maksimumuna göre % olarak hizalanır.";
+      }
+    }
     paOverlayPanel.classList.remove("hidden");
     renderOverlayChips();
     syncOverlayPanelForMetric();
@@ -2873,7 +2881,8 @@
         if (mySeq !== paRunSeq) return;
         drawOverviewMainChart(chartBundles);
         renderOverviewTable(tableBundles);
-        setAddChartVisible(false);
+        // Özet modunda da +grafik görünsün; seçim ana metrik olur (Seçiniz hayaleti yok)
+        setAddChartVisible(true);
         return;
       }
 
@@ -3063,10 +3072,6 @@
   });
   if (paAddChartBtn) {
     paAddChartBtn.addEventListener("click", function () {
-      if (!paMetric || !paMetric.value || paOverviewActive) {
-        alert("Önce Metrikler listesinden bir ana metrik seçin; ardından + grafik ile ek çizgi ekleyebilirsiniz.");
-        return;
-      }
       openOverlayPanel();
     });
   }
