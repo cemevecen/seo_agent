@@ -8357,44 +8357,16 @@ def _site_detail_context(domain: str, period: str, period_days: int) -> dict:
 
 @app.get("/")
 def dashboard(request: Request):
-    """Dashboard ilk yüklemesi: slim veri ile anında render, site kartları HTMX lazy load."""
+    """Dashboard shell: hızlı HTML; veri parçaları HTMX/fetch ile gelir."""
     denied = _ensure_panel_session(request)
     if denied is not None:
         return denied
-    with SessionLocal() as db:
-        recent_alerts = get_recent_alerts(db, limit=100, include_external=False)
-        external_ids = _external_site_ids(db)
-        all_sites = [s for s in db.query(Site).order_by(Site.created_at.desc()).all() if s.id not in external_ids]
-        all_sites.sort(key=lambda s: _preferred_site_order_key(s.domain, s.display_name))
-        sites = list(all_sites)
-        selected_site_raw = (request.query_params.get("site") or "").strip()
-        selected_site_id = int(selected_site_raw) if selected_site_raw.isdigit() else None
-        if selected_site_id is not None:
-            sites = [s for s in sites if s.id == selected_site_id]
-            if not sites:
-                selected_site_id = None
-        period, _period_days = _resolve_period(request.query_params.get("period"))
-        # Batched queries: N+1 yerine ~5 toplam sorgu (SC scope'ları seçilen döneme göre)
-        slim_cards = _build_dashboard_slim_cards_batch(db, sites, recent_alerts_cache=recent_alerts, period=period)
-        dashboard_platform = _normalize_dashboard_platform(request.query_params.get("platform"))
-        sc_segment = _dashboard_period_to_sc_segment(period)
-        payload = {
-            "site_name": "SEO Agent Dashboard",
-            "sites": get_sidebar_sites(),
-            "period": period,
-            "sc_segment": sc_segment,
-            "dashboard_platform": dashboard_platform,
-            "dashboard_platform_label": _dashboard_platform_label(dashboard_platform),
-            "overview_items": _build_dashboard_overview(slim_cards, recent_alerts),
-            "critical_alerts": _build_dashboard_critical_panel(slim_cards, recent_alerts, limit=6),
-            "lazy_site_ids": [(s.id, s.display_name, s.domain) for s in sites],
-            "site_filters": [(s.id, s.display_name) for s in all_sites],
-            "selected_site_id": selected_site_id,
-            "top_drop_items": _build_dashboard_top_drops(slim_cards, limit=7, recent_alerts=recent_alerts),
-            "opportunity_items": _build_dashboard_opportunities(slim_cards, limit=8, recent_alerts=recent_alerts),
-            "ga4_realtime_ui_poll_seconds": settings.ga4_realtime_ui_poll_seconds,
-        }
-        ctx = {"request": request, **payload}
+    ctx = {
+        "request": request,
+        "site_name": "SEO Agent Dashboard",
+        "sites": get_sidebar_sites(),
+        "ga4_realtime_ui_poll_seconds": settings.ga4_realtime_ui_poll_seconds,
+    }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse(request, "partials/dashboard_content.html", context=ctx)
     return templates.TemplateResponse(request, "dashboard.html", context=ctx)

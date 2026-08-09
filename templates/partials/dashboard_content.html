@@ -1293,10 +1293,10 @@
   {# Anlık aktif kullanıcı — Günün Özeti başlığının hemen altında, tek container / tek row #}
   <link rel="stylesheet" href="/static/css/rt_slot_fx.css?v=2">
   <script src="/static/js/rt_slot_fx.js?v=2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
+  <script src="/static/js/home_gitlab_boards.js?v=5" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-  <script src="/static/js/home_gitlab_boards.js?v=4"></script>
-  <script src="/static/js/home_top_pages.js?v=1"></script>
+  <script src="/static/js/home_top_pages.js?v=1" defer></script>
   <div data-home-container-slot="realtime">
   <section id="home-realtime-section" data-home-container="realtime" data-poll-seconds="{{ ga4_realtime_ui_poll_seconds | default(60) }}"
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -1315,7 +1315,6 @@
     if (!pollSec || pollSec < 5) pollSec = 60;
     var pollTimer = null;
     var countdownTimer = null;
-    var warmRefreshDone = false;
     var countdownState = { total: pollSec, remaining: pollSec };
 
     function renderCountdown() {
@@ -1356,9 +1355,6 @@
             window.RtSlotFx.animateHome(section, prevSnap);
           }
           startCountdown();
-          if (typeof window.__pcHomeDriveRefreshBadges === 'function') {
-            window.__pcHomeDriveRefreshBadges();
-          }
           if (typeof window.__pcHomeEnsureRefreshButtons === 'function') {
             window.__pcHomeEnsureRefreshButtons();
           }
@@ -1367,10 +1363,6 @@
     }
 
     loadHomeRealtime();
-    if (!warmRefreshDone) {
-      warmRefreshDone = true;
-      window.setTimeout(loadHomeRealtime, 3500);
-    }
     pollTimer = window.setInterval(loadHomeRealtime, pollSec * 1000);
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') loadHomeRealtime();
@@ -1434,10 +1426,10 @@
         <div class="h-full w-px bg-gradient-to-b from-transparent via-slate-300 to-transparent dark:via-slate-700"></div>
       </div>
 
-      {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
+      {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=28" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
@@ -1445,7 +1437,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=28" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
@@ -1454,10 +1446,10 @@
         </div>
       </div>
 
-      {# Row 3 — Search Console #}
+      {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=28" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
@@ -1465,7 +1457,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=28" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
@@ -1477,17 +1469,15 @@
       {# Row 4 — Position Drops #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/position-drops?site=doviz&v=7" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=8" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-doviz"
-                 hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
         </div>
         <div data-home-container-slot="position-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=7" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=8" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
-                 hx-headers='{"Cache-Control": "no-cache"}'
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
@@ -1495,11 +1485,10 @@
       </div>
     </div>
 
-    {# Full-width — divider yok (Crashlytics ile aynı birleşik kart hissi) #}
+    {# Below-fold: viewport’ta görünene kadar bekle #}
     <div data-home-container-slot="notification-week">
-    <section hx-get="/api/home/notification-week?v=24" hx-trigger="load" hx-swap="innerHTML"
+    <section hx-get="/api/home/notification-week?v=25" hx-trigger="revealed once" hx-swap="innerHTML"
              data-home-container="notification-week"
-             hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Notification · 7g vs önceki 7g</h3>
       {{ _placeholder_tall | safe }}
@@ -1508,7 +1497,7 @@
 
     {# Mobil mağaza / Firebase durum — full width #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=9" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=10" hx-trigger="revealed once" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
@@ -1518,9 +1507,8 @@
 
     {# git.nokta — boards ile aynı GitLab/VPN kaynağı #}
     <div data-home-container-slot="priority-board">
-    <section hx-get="/api/home/priority-board?v=8" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/priority-board?v=9" hx-trigger="revealed once" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="priority-board"
-             hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">git.nokta</h3>
       {{ _placeholder_tall | safe }}
@@ -1529,18 +1517,16 @@
 
     {# Virgül reklam — 6 alan: 1 hafta vs 3 ay günlük ort. gelir #}
     <div data-home-container-slot="virgul-revenue">
-    <section hx-get="/api/home/virgul-revenue?v=3" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/virgul-revenue?v=4" hx-trigger="revealed once" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="virgul-revenue"
-             hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">virgül</h3>
       {{ _placeholder_mid | safe }}
     </section>
     </div>
 
-    <section hx-get="/api/home/drive-uploads?v=10" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/drive-uploads?v=11" hx-trigger="revealed once" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="drive-uploads"
-             hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Drive · upload</h3>
       {{ _placeholder_mid | safe }}
@@ -1596,9 +1582,16 @@
       .then(function (j) { if (j) window.__pcHomeMetrics = j; })
       .catch(function () {});
   }
-  loadHomeMetrics();
-  setInterval(loadHomeMetrics, 60000);
-  document.addEventListener('DOMContentLoaded', loadHomeMetrics);
+  function scheduleHomeMetrics() {
+    var run = function () { loadHomeMetrics(); };
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(run, { timeout: 12000 });
+    } else {
+      window.setTimeout(run, 6000);
+    }
+  }
+  scheduleHomeMetrics();
+  setInterval(loadHomeMetrics, 120000);
 
   var HOME_REFRESH_ICON =
     '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">' +
@@ -1987,10 +1980,18 @@
       .catch(function () {});
   }
   window.__pcHomeDriveRefreshBadges = refreshHomeDriveBadges;
-  refreshHomeDriveBadges();
-  document.body.addEventListener('htmx:afterSwap', function () {
+  document.body.addEventListener('htmx:afterSwap', function (ev) {
+    var t = ev && ev.target;
+    if (t && t.getAttribute && t.getAttribute('data-home-container') === 'drive-uploads') {
+      refreshHomeDriveBadges();
+    }
     applyHomeDriveBadges(homeDriveBadgeMap);
   });
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(function () { refreshHomeDriveBadges(); }, { timeout: 15000 });
+  } else {
+    window.setTimeout(refreshHomeDriveBadges, 8000);
+  }
 
   document.body.addEventListener('click', function (ev) {
     var closeBtn = ev.target && ev.target.closest && ev.target.closest('[data-home-drive-preview-close]');
