@@ -687,12 +687,9 @@
   };
   var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
   var STROKE = 0.68;
+  /* Açılış her zaman yığınlı çubuk; kullanıcı oturumda değiştirebilir. */
   var iaChartStyle = "bar";
-  try {
-    var _ics = localStorage.getItem("iaChartStyle");
-    if (_ics === "lollipop") _ics = "bar";
-    if (_ics === "area" || _ics === "bar" || _ics === "line") iaChartStyle = _ics;
-  } catch (_) {}
+  try { localStorage.setItem("iaChartStyle", "bar"); } catch (_) {}
   function syncIaChartStyleUi() {
     var root = document.getElementById("ia-chart-style");
     if (!root) return;

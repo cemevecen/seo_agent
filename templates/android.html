@@ -1347,12 +1347,9 @@
   var PA_STROKE_W = 0.68;
   var PA_STROKE_W_OV = 0.75;
   var PA_STROKE_W_PREV = 1;
+  /* Açılış her zaman yığınlı çubuk; kullanıcı oturumda değiştirebilir. */
   var paChartStyle = "bar";
-  try {
-    var _pcs = localStorage.getItem("paChartStyle");
-    if (_pcs === "lollipop") _pcs = "bar";
-    if (_pcs === "area" || _pcs === "bar" || _pcs === "line") paChartStyle = _pcs;
-  } catch (_) {}
+  try { localStorage.setItem("paChartStyle", "bar"); } catch (_) {}
   function syncPaChartStyleUi() {
     var root = document.getElementById("pa-chart-style");
     if (!root) return;
