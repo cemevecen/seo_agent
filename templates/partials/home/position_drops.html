@@ -253,23 +253,4 @@
     {{ pos_panels(_top20_drops, _top20_rises, 'Search Console Top 20 içinde anlamlı pozisyon değişimi yok') }}
   </div>
 </div>
-<script>
-(function () {
-  var roots = document.querySelectorAll('[data-home-pos-root]');
-  roots.forEach(function (root) {
-    if (root.dataset.posBound) return;
-    root.dataset.posBound = '1';
-    root.querySelectorAll('[data-pos-mode-set]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var mode = btn.getAttribute('data-pos-mode-set') || 'impact';
-        root.setAttribute('data-pos-mode', mode);
-        root.querySelectorAll('[data-pos-mode-set]').forEach(function (b) {
-          var on = b === btn;
-          b.classList.toggle('is-active', on);
-          b.setAttribute('aria-selected', on ? 'true' : 'false');
-        });
-      });
-    });
-  });
-})();
-</script>
+{# Tab click: document delegation in base.html (HTMX swap inline script çalıştırmaz) #}

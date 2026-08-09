@@ -2791,6 +2791,27 @@
         document.getElementById('header-nav-track')?.addEventListener('scroll', positionMenu);
       })();
 
+      /* Home/alerts pozisyon kartları: değişim ↔ top 20 (HTMX swap sonrası da çalışır) */
+      if (!window.__homePosModeDelegateBound) {
+        window.__homePosModeDelegateBound = true;
+        document.body.addEventListener('click', function (ev) {
+          var btn = ev.target && ev.target.closest
+            ? ev.target.closest('[data-pos-mode-set]')
+            : null;
+          if (!btn || btn.disabled) return;
+          var root = btn.closest('[data-home-pos-root]');
+          if (!root) return;
+          ev.preventDefault();
+          var mode = btn.getAttribute('data-pos-mode-set') || 'impact';
+          root.setAttribute('data-pos-mode', mode);
+          root.querySelectorAll('[data-pos-mode-set]').forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+        });
+      }
+
       /* HTMX afterSwap target genelde #content degil; swap edilen cocuk dugumdur. */
       document.body.addEventListener('htmx:afterSwap', function () {
         syncHeaderFromContent();
