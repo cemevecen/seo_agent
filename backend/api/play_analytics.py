@@ -273,21 +273,80 @@ def get_play_analytics_overview(
     if not ordered:
         return {"ok": False, "message": "metrics boş", "bundles": []}
 
+    from datetime import date, timedelta
+
     facts, meta = load_scrape_facts()
+    requested_start, requested_end = start, end
+    eff_start, eff_end = start, end
+    auto_shifted = False
+    shift_message = None
+
+    # Özet: tüm metrikler için ortak kaydırma — seçili pencere scrape bucket dışında kalmasın
+    if facts and start and end:
+        try:
+            start_d = date.fromisoformat(str(start)[:10])
+            end_d = date.fromisoformat(str(end)[:10])
+            bound_dates: list[date] = []
+            for f in facts:
+                if not isinstance(f, dict):
+                    continue
+                ds = f.get("date")
+                if not (isinstance(ds, str) and len(ds) >= 8 and not ds.startswith("i")):
+                    continue
+                try:
+                    bound_dates.append(date.fromisoformat(ds[:10]))
+                except ValueError:
+                    continue
+            if bound_dates:
+                data_min, data_max = min(bound_dates), max(bound_dates)
+                in_range = any(start_d <= d <= end_d for d in bound_dates)
+                if not in_range:
+                    span_days = max((end_d - start_d).days + 1, 1)
+                    end_d = data_max
+                    start_d = end_d - timedelta(days=span_days - 1)
+                    if start_d < data_min:
+                        start_d = data_min
+                    eff_start, eff_end = start_d.isoformat(), end_d.isoformat()
+                    auto_shifted = True
+                    shift_message = (
+                        f"Seçili aralık boştu ({requested_start}…{requested_end}); "
+                        f"mevcut scrape verisine kaydırıldı ({eff_start}…{eff_end})."
+                    )
+        except ValueError:
+            pass
+
     bundles: list[dict[str, Any]] = []
     for metric in ordered:
-        data = resolve_play_analytics_query(
-            start=start,
-            end=end,
-            metric=metric,
-            breakdown="date",
-            dim="overview",
-            segment=None,
-            compare="",
-            source="auto",
-            facts=facts,
-            meta=meta,
-        )
+        try:
+            data = resolve_play_analytics_query(
+                start=eff_start,
+                end=eff_end,
+                metric=metric,
+                breakdown="date",
+                dim="overview",
+                segment=None,
+                compare="",
+                source="auto",
+                facts=facts,
+                meta=meta,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("play-analytics overview metric failed: %s", metric)
+            data = {
+                "ok": False,
+                "series": [],
+                "total": 0,
+                "total_mode": "sum",
+                "message": str(exc),
+                "source": "error",
+            }
+        if data.get("auto_shifted") and data.get("start") and data.get("end"):
+            # Tek metrik kaydırdıysa özet tarihlerini hizala
+            if not auto_shifted:
+                auto_shifted = True
+                eff_start = data.get("start") or eff_start
+                eff_end = data.get("end") or eff_end
+                shift_message = data.get("message") or shift_message
         bundles.append(
             {
                 "metric": metric,
@@ -299,11 +358,25 @@ def get_play_analytics_overview(
                 "source": data.get("source"),
             }
         )
+    fact_count = int(meta.get("explorer_fact_count") or len(facts) or 0)
+    ok_any = any(bool(b.get("series")) for b in bundles)
+    message = shift_message
+    if not facts:
+        message = (
+            "Scrape explorer_facts boş — Mac’te "
+            "`play_console_scrape.py --sync --ingest` çalıştır."
+        )
+    elif not ok_any and not message:
+        message = "Özet metrikleri için seçili aralıkta seri yok."
     return {
-        "ok": True,
-        "start": start,
-        "end": end,
-        "fact_count": meta.get("explorer_fact_count") or len(facts),
+        "ok": ok_any or fact_count > 0,
+        "start": eff_start,
+        "end": eff_end,
+        "requested_start": requested_start,
+        "requested_end": requested_end,
+        "auto_shifted": auto_shifted,
+        "message": message,
+        "fact_count": fact_count,
         "synced_at": meta.get("synced_at"),
         "bundles": bundles,
     }

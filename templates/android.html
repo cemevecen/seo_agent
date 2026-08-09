@@ -1513,6 +1513,13 @@
     });
     var data = await r.json().catch(function () { return {}; });
     if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+    if (data.auto_shifted && data.start && data.end && paStart && paEnd) {
+      paStart.value = data.start;
+      paEnd.value = data.end;
+    }
+    if (data.message) {
+      if (paCompareRange) paCompareRange.textContent = data.message;
+    }
     var byMetric = {};
     (data.bundles || []).forEach(function (b) {
       if (b && b.metric) byMetric[b.metric] = b;
@@ -3157,7 +3164,9 @@
         var bundles;
         try {
           bundles = await fetchPaOverviewBundles(defs, paAbort ? paAbort.signal : undefined);
-        } catch (_) {
+        } catch (ovErr) {
+          var ovMsg = (ovErr && ovErr.message) ? String(ovErr.message) : "Özet yüklenemedi";
+          if (paCompareRange) paCompareRange.textContent = ovMsg;
           bundles = defs.map(function (m) {
             return {
               metric: m.value,
@@ -3178,10 +3187,19 @@
         if (paTotalLabel) paTotalLabel.textContent = "Özet (ANR toplam)";
         if (paPrev) paPrev.textContent = "—";
         if (paDelta) paDelta.textContent = "—";
+        var hasSeries = tableBundles.some(function (b) { return (b.series || []).length; });
         if (paCompareRange) {
-          paCompareRange.textContent = keptOverviewOverlays.length
-            ? "Özet · çoklu metrik + ekler (kendi ölçeği)"
-            : "Özet · çoklu metrik (kendi ölçeği)";
+          var keepNote = (paCompareRange.textContent || "").trim();
+          var looksLikeShift = /kaydırıldı|explorer_facts|Özet yüklenemedi|scrape/i.test(keepNote);
+          if (looksLikeShift && keepNote) {
+            /* fetchPaOverviewBundles / catch mesajını koru */
+          } else if (!hasSeries) {
+            paCompareRange.textContent = keepNote || "Özet · seçili aralıkta veri yok";
+          } else {
+            paCompareRange.textContent = keptOverviewOverlays.length
+              ? "Özet · çoklu metrik + ekler (kendi ölçeği)"
+              : "Özet · çoklu metrik (kendi ölçeği)";
+          }
         }
         paLastChart = {
           series: (anr && anr.series) || [],
