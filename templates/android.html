@@ -110,7 +110,7 @@
     width: 100%;
     max-width: none;
   }
-  /* Liste tablosu: container’ı tam doldur, sağda boşluk bırakma */
+  /* Liste tablosu: sola yaslı, sütunlar içeriğe göre (az sütunda dağılmasın) */
   #pa-table-wrap {
     width: 100%;
     max-width: 100%;
@@ -119,26 +119,27 @@
     -webkit-overflow-scrolling: touch;
   }
   #pa-table-wrap > table.pa-data-table {
-    width: 100%;
-    min-width: 100%;
-    table-layout: fixed;
+    width: max-content;
+    max-width: none;
+    min-width: 0;
+    table-layout: auto;
     border-collapse: collapse;
+    margin-right: auto;
   }
   #pa-table-wrap > table.pa-data-table th,
   #pa-table-wrap > table.pa-data-table td {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: nowrap;
     vertical-align: middle;
   }
   #pa-table-wrap > table.pa-data-table th:first-child,
   #pa-table-wrap > table.pa-data-table td:first-child {
-    width: 5.5rem;
-    min-width: 4.5rem;
-    max-width: 7rem;
+    text-align: left;
+    padding-right: 1.25rem;
   }
   #pa-table-wrap > table.pa-data-table th:not(:first-child),
   #pa-table-wrap > table.pa-data-table td:not(:first-child) {
     text-align: right;
+    padding-left: 1rem;
   }
   /* viewBox 720×260 ile aynı oran → meet kenarı doldurur, noktalar yuvarlak kalır */
   #pa-chart {
