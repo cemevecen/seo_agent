@@ -439,7 +439,65 @@
   var iaOverviewBundles = null;
   var iaOverviewCacheKey = "";
   var iaBusy = false;
+  var iaHiddenMetrics = {};
+  var iaLastDrawBundles = null;
 
+  function isIaMetricHidden(metric) {
+    return !!(metric && iaHiddenMetrics[metric]);
+  }
+  function pruneIaHiddenMetrics(bundles) {
+    var alive = {};
+    (bundles || []).forEach(function (b) {
+      if (b && b.metric) alive[b.metric] = true;
+    });
+    Object.keys(iaHiddenMetrics).forEach(function (k) {
+      if (!alive[k]) delete iaHiddenMetrics[k];
+    });
+  }
+  function colorForIaBundle(bundles, metric) {
+    var list = bundles || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].metric === metric) return colorAt(i);
+    }
+    return colorAt(0);
+  }
+  function renderIaLegend(allBundles) {
+    if (!iaLegend) return;
+    var items = (allBundles || []).filter(function (b) { return b && b.metric; });
+    if (!items.length) {
+      iaLegend.innerHTML = "";
+      return;
+    }
+    iaLegend.innerHTML = items.map(function (b) {
+      var muted = isIaMetricHidden(b.metric);
+      var color = muted ? "#94a3b8" : colorForIaBundle(items, b.metric);
+      var label = b.label || b.metric;
+      return (
+        '<button type="button" data-ia-legend-metric="' + esc(b.metric) + '" ' +
+          'aria-pressed="' + (muted ? "false" : "true") + '" ' +
+          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 dark:focus-visible:ring-sky-700 ' +
+          (muted
+            ? "opacity-45 text-slate-400 hover:opacity-70 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            : "hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100") +
+          '" title="' + esc(label) + (muted ? " — grafiğe ekle" : " — grafikten gizle") + '">' +
+          '<span class="inline-block h-2 w-2 rounded-full ' + (muted ? "ring-1 ring-slate-300 dark:ring-zinc-600" : "") + '" style="background:' + color + '"></span>' +
+          '<span class="' + (muted ? "line-through decoration-slate-300" : "") + '">' + esc(label) + "</span>" +
+        "</button>"
+      );
+    }).join("");
+  }
+  function toggleIaLegendMetric(metric) {
+    if (!metric) return;
+    if (iaHiddenMetrics[metric]) delete iaHiddenMetrics[metric];
+    else iaHiddenMetrics[metric] = true;
+    // Hepsi gizlenmesin — son kalanı tekrar aç
+    var items = (iaLastDrawBundles || []).filter(function (b) { return b && b.metric && (b.series || []).length; });
+    var visible = items.filter(function (b) { return !isIaMetricHidden(b.metric); });
+    if (!visible.length && items.length) {
+      delete iaHiddenMetrics[metric];
+    }
+    if (iaLastDrawBundles && iaLastDrawBundles.length) drawMulti(iaLastDrawBundles);
+  }
   function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
   function isVirgulMetric(key) { return String(key || "").indexOf("virgul:") === 0; }
   function isExternalMetric(key) { return isGa4Metric(key) || isVirgulMetric(key); }
@@ -1064,7 +1122,17 @@
   }
   function drawMulti(bundles) {
     hideIaTooltip();
-    var list = (bundles || []).filter(function (b) { return b && (b.series || []).length; });
+    var allList = (bundles || []).filter(function (b) { return b && (b.series || []).length; });
+    iaLastDrawBundles = allList.slice();
+    pruneIaHiddenMetrics(allList);
+    var list = allList.filter(function (b) { return !isIaMetricHidden(b.metric); });
+    renderIaLegend(allList);
+    if (!list.length) {
+      iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
+      iaChart.innerHTML =
+        '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13">Legend’dan en az bir metrik açın</text>';
+      return;
+    }
     var keySet = {};
     list.forEach(function (b) {
       (b.series || []).forEach(function (r) { if (r && r.key != null) keySet[String(r.key)] = true; });
@@ -1081,7 +1149,7 @@
       left: left, top: top, plotW: plotW, plotH: plotH,
       mode: "pct", yFontSize: xAxis.layout.yFontSize
     });
-    var seriesList = list.map(function (b, i) {
+    var seriesList = list.map(function (b) {
       var map = {}, max = 0;
       (b.series || []).forEach(function (r) {
         var nv = Number(r.value);
@@ -1090,7 +1158,7 @@
         if (nv > max) max = nv;
       });
       if (max <= 0) max = 1;
-      var color = colorAt(i);
+      var color = colorForIaBundle(allList, b.metric);
       var ys = keys.map(function (key) {
         if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
         return top + (1 - map[key] / max) * plotH;
@@ -1128,11 +1196,6 @@
       xAxis.html +
       '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
-    if (iaLegend) {
-      iaLegend.innerHTML = list.map(function (b, i) {
-        return '<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rounded-full" style="background:' + colorAt(i) + '"></span>' + esc(b.label || b.metric) + "</span>";
-      }).join("");
-    }
     bindIaChartHit(w, left, plotW, n);
   }
   function drawSingle(series, color) {
@@ -1144,6 +1207,7 @@
         '<text x="360" y="120" text-anchor="middle" fill="#94a3b8" font-size="13">Bu aralıkta nokta yok</text>' +
         '<text x="360" y="142" text-anchor="middle" fill="#cbd5e1" font-size="11">ASC scrape veya tarih aralığını kontrol edin</text>';
       if (iaLegend) iaLegend.innerHTML = "";
+      iaLastDrawBundles = null;
       return;
     }
     var keys = rows.map(function (r) { return String(r.key); });
@@ -1201,6 +1265,7 @@
       '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
     if (iaLegend) iaLegend.innerHTML = "";
+    iaLastDrawBundles = null;
     bindIaChartHit(w, left, plotW, n);
   }
   function renderOverviewTable(bundles) {
@@ -1504,6 +1569,14 @@
       runAnalytics();
     });
   });
+  if (iaLegend) {
+    iaLegend.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-ia-legend-metric]") : null;
+      if (!btn) return;
+      ev.preventDefault();
+      toggleIaLegendMetric(btn.getAttribute("data-ia-legend-metric"));
+    });
+  }
 
   applyPreset();
   fillIaMetricOptions();
