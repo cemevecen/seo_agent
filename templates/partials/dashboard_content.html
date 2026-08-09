@@ -1010,8 +1010,9 @@
       0 0 0 2px rgb(24 24 27 / 0.95),
       0 6px 18px rgb(0 0 0 / 0.4);
   }
+  /* Split: madalyon tam opak (siliklik yalnızca tekli focus’ta idle markaya) */
   #home-board[data-home-focus="split"] .home-focus-split {
-    opacity: 0.55;
+    opacity: 1;
     cursor: default;
   }
   #home-board[data-home-focus="split"] .home-focus-split:hover {
@@ -1019,6 +1020,9 @@
   }
   #home-board[data-home-focus="split"] .home-focus-split--bar:hover {
     transform: none;
+  }
+  #home-board[data-home-focus="split"] .home-focus-split-face {
+    opacity: 1;
   }
   .home-focus-split--bar {
     position: static;
