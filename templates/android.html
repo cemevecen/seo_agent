@@ -1211,17 +1211,30 @@
       var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
       return { x: x, y: top + plotH / 2, key: key };
     });
+    var baseY = top + plotH;
     var linePaths = seriesPts.map(function (sp, si) {
       var color = paMetricColor(si);
-      var d = "";
+      var pts = [];
       keys.forEach(function (key, i) {
         var v = Object.prototype.hasOwnProperty.call(sp.map, key) ? sp.map[key] : null;
         if (v == null) return;
-        var x = curPts[i].x;
-        var y = top + (1 - v / sp.max) * plotH;
-        d += (d ? " L " : "M ") + x.toFixed(1) + " " + y.toFixed(1);
+        pts.push({
+          x: curPts[i].x,
+          y: top + (1 - v / sp.max) * plotH
+        });
       });
-      return { d: d, color: color, sp: sp };
+      var d = "";
+      pts.forEach(function (p, pi) {
+        d += (pi ? " L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1);
+      });
+      var areaD = "";
+      if (pts.length) {
+        areaD =
+          "M " + pts[0].x.toFixed(1) + " " + baseY.toFixed(1) +
+          " L " + pts.map(function (p) { return p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" L ") +
+          " L " + pts[pts.length - 1].x.toFixed(1) + " " + baseY.toFixed(1) + " Z";
+      }
+      return { d: d, areaD: areaD, color: color, gradId: "pa-mfill-" + si, sp: sp };
     });
     var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
     var yFs = xAxis.layout.yFontSize;
@@ -1237,6 +1250,18 @@
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
         pct + "%</text>";
     }
+    var defsHtml = linePaths.map(function (lp) {
+      return (
+        '<linearGradient id="' + lp.gradId + '" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="' + lp.color + '" stop-opacity="0.28"/>' +
+          '<stop offset="100%" stop-color="' + lp.color + '" stop-opacity="0.02"/>' +
+        "</linearGradient>"
+      );
+    }).join("");
+    var fillsHtml = linePaths.map(function (lp) {
+      if (!lp.areaD) return "";
+      return '<path d="' + lp.areaD + '" fill="url(#' + lp.gradId + ')" />';
+    }).join("");
     var pathsHtml = linePaths.map(function (lp) {
       if (!lp.d) return "";
       return (
@@ -1258,13 +1283,15 @@
           countLike: sp.countLike
         };
       }),
-      baseY: top + plotH,
+      baseY: baseY,
       left: left,
       plotW: plotW
     };
     paChart.innerHTML =
+      "<defs>" + defsHtml + "</defs>" +
       '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
       grid +
+      fillsHtml +
       pathsHtml +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
       '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
