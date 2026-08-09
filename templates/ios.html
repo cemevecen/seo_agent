@@ -83,6 +83,48 @@
     .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
     .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
   }
+  .ia-stability-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--sf-n, 4), minmax(0, 1fr));
+    width: 100%;
+  }
+  .ia-stability-grid > * {
+    min-width: 0;
+  }
+  .ia-stability-grid .sf-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding: 0.55rem 0.65rem;
+  }
+  .ia-stability-grid .sf-card__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: clamp(0.5625rem, 1.1vw, 0.625rem);
+  }
+  .ia-stability-grid .sf-card__sub,
+  .ia-stability-grid .sf-card__extra {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-size: clamp(0.5625rem, 1vw, 0.625rem);
+    line-height: 1.25;
+  }
+  .ia-stability-grid .sf-card__value {
+    margin-top: 0.35rem;
+    font-size: clamp(1rem, 2.4vw, 1.5rem);
+    line-height: 1.1;
+  }
+  @media (max-width: 640px) {
+    .ia-stability-grid {
+      grid-template-columns: repeat(var(--sf-n, 4), minmax(5.75rem, 1fr));
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 0.15rem;
+    }
+  }
 </style>
 <div class="w-full max-w-none space-y-5" data-header-title="iOS · App Store Connect">
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -114,7 +156,7 @@
         </div>
         <a href="/firebase" class="text-[11px] font-semibold text-sky-700 hover:underline dark:text-sky-400">Firebase ↗</a>
       </div>
-      <div id="ia-stability-free" class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4"></div>
+      <div id="ia-stability-free" class="ia-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:4"></div>
       <p id="ia-stability-free-empty" class="mt-2 text-center text-sm text-slate-400">Crash-free yükleniyor…</p>
     </div>
   </div>
@@ -1407,11 +1449,11 @@
     }
     function card(title, sub, value, pct, extra) {
       return (
-        '<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
-          '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' + esc(title) + "</p>" +
-          (sub ? '<p class="mt-0.5 text-[10px] text-slate-400">' + esc(sub) + "</p>" : "") +
-          '<p class="mt-1.5 text-2xl font-extrabold tabular-nums ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
-          (extra ? '<p class="mt-1 text-[10px] text-slate-500">' + extra + "</p>" : "") +
+        '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+          '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
+          (sub ? '<p class="sf-card__sub mt-0.5 text-slate-400">' + esc(sub) + "</p>" : "") +
+          '<p class="sf-card__value font-extrabold tabular-nums ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
+          (extra ? '<p class="sf-card__extra mt-1 text-slate-500">' + extra + "</p>" : "") +
         "</div>"
       );
     }
@@ -1437,6 +1479,8 @@
           return;
         }
         if (empty) empty.classList.add("hidden");
+        var n = cards.length >= 4 ? 4 : Math.max(cards.length, 1);
+        el.style.setProperty("--sf-n", String(n));
         el.innerHTML = cards.join("");
       })
       .catch(function () {
