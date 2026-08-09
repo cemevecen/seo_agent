@@ -1064,11 +1064,13 @@
   var paChartState = null;
   /** Ana grafikte üst üste çizilecek metrikler */
   var PA_OVERVIEW_CHART_METRICS = [
-    "anrs", "crashes", "device_acquisition", "user_lost",
-    "ar2_acquisitions", "ar2_visitors", "revenue"
+    "anrs", "crashes", "device_acquisition", "user_lost", "revenue"
   ];
   /** Grafikte yok; yalnızca liste tabloda */
-  var PA_OVERVIEW_TABLE_EXTRA = ["active_devices", "active_users", "rating"];
+  var PA_OVERVIEW_TABLE_EXTRA = [
+    "ar2_acquisitions", "ar2_visitors",
+    "active_devices", "active_users", "rating"
+  ];
   var PA_METRIC_COLORS = [
     "#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6",
     "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"
