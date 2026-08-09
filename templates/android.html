@@ -621,6 +621,13 @@
     </div>
 
     <div class="mt-4">
+      <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Crash-free · ANR-free</h3>
+      <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Play scrape (28g) · son sürüm Reporting · Crashlytics (7g) — iOS + Android</p>
+      <div id="pc-stability-free" class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+      <p id="pc-stability-free-empty" class="mt-2 hidden text-center text-sm text-slate-400">Crash-free verisi yükleniyor…</p>
+    </div>
+
+    <div class="mt-4">
       <h3 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Oranlar · son 28 gün</h3>
       <div id="pc-vitals-overview" class="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-zinc-700"></div>
       <p id="pc-vitals-overview-empty" class="mt-2 hidden text-center text-sm text-slate-400">Henüz oran tablosu yok — vitals sync sonrası dolacak</p>
@@ -819,6 +826,8 @@
   var reviewCountEl = document.getElementById("pc-review-count");
   var vitalsOverviewEl = document.getElementById("pc-vitals-overview");
   var vitalsOverviewEmpty = document.getElementById("pc-vitals-overview-empty");
+  var stabilityFreeEl = document.getElementById("pc-stability-free");
+  var stabilityFreeEmpty = document.getElementById("pc-stability-free-empty");
   var vitalsCatsEl = document.getElementById("pc-vitals-cats");
   var vitalsCatsEmpty = document.getElementById("pc-vitals-cats-empty");
   var vitalsIssuesEl = document.getElementById("pc-vitals-issues");
@@ -4144,28 +4153,187 @@
       return;
     }
     vitalsOverviewEmpty.classList.add("hidden");
+    function freeFromRate(raw) {
+      if (raw == null || raw === "") return null;
+      var s = String(raw).replace("%", "").replace(/\u00a0/g, " ").trim().replace(",", ".");
+      var m = s.match(/[-+]?\d+(?:\.\d+)?/);
+      if (!m) return null;
+      var rate = parseFloat(m[0]);
+      if (!isFinite(rate)) return null;
+      return (100 - rate).toFixed(2).replace(".", ",") + "%";
+    }
     vitalsOverviewEl.innerHTML =
       '<table class="min-w-full text-left text-xs">' +
         '<thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">' +
           "<tr>" +
             '<th class="px-3 py-2 font-bold">Metrik</th>' +
             '<th class="px-3 py-2 font-bold tabular-nums">Son 28 gün</th>' +
+            '<th class="px-3 py-2 font-bold tabular-nums">Free</th>' +
             '<th class="px-3 py-2 font-bold tabular-nums">Önceki 28 güne kıyas</th>' +
             '<th class="px-3 py-2 font-bold tabular-nums">Benzerler ortancası</th>' +
           "</tr>" +
         "</thead>" +
         '<tbody class="divide-y divide-slate-100 dark:divide-zinc-800">' +
         rows.map(function (r) {
+          var free = freeFromRate(r.value_28d);
           return (
             "<tr>" +
               '<td class="px-3 py-2.5 font-medium text-slate-800 dark:text-zinc-100">' + esc(r.metric || "—") + "</td>" +
               '<td class="px-3 py-2.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-50">' + esc(r.value_28d || "—") + "</td>" +
+              '<td class="px-3 py-2.5 tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">' + esc(free || "—") + "</td>" +
               '<td class="px-3 py-2.5 tabular-nums ' + vitalsDeltaClass(r.vs_previous_28d, "prev") + '">' + esc(r.vs_previous_28d || "—") + "</td>" +
               '<td class="px-3 py-2.5 tabular-nums ' + vitalsDeltaClass(r.vs_peers_median, "peer") + '">' + esc(r.vs_peers_median || "—") + "</td>" +
             "</tr>"
           );
         }).join("") +
         "</tbody></table>";
+  }
+
+  function stabilityToneClass(pct) {
+    if (pct == null || !isFinite(pct)) return "text-slate-800 dark:text-zinc-100";
+    if (pct >= 99) return "text-emerald-600 dark:text-emerald-400";
+    if (pct >= 95) return "text-amber-600 dark:text-amber-400";
+    return "text-rose-600 dark:text-rose-400";
+  }
+
+  function renderStabilityFreeCard(opts) {
+    opts = opts || {};
+    var title = opts.title || "—";
+    var sub = opts.sub || "";
+    var value = opts.value || "—";
+    var tone = opts.toneClass || "text-slate-800 dark:text-zinc-100";
+    var extra = opts.extra || "";
+    return (
+      '<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+        '<p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' + esc(title) + "</p>" +
+        (sub ? '<p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">' + esc(sub) + "</p>" : "") +
+        '<p class="mt-1.5 text-2xl font-extrabold tabular-nums ' + tone + '">' + esc(value) + "</p>" +
+        (extra ? '<p class="mt-1 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">' + extra + "</p>" : "") +
+      "</div>"
+    );
+  }
+
+  function renderStabilityFree(data) {
+    if (!stabilityFreeEl) return;
+    data = data || {};
+    var cards = [];
+    var play = data.play_overall || {};
+    var playLatest = data.play_latest || null;
+    var cf = (data.crashlytics && data.crashlytics.platforms) || {};
+    var and = cf.android || {};
+    var ios = cf.ios || {};
+
+    if (play.crash_free_fmt) {
+      cards.push(renderStabilityFreeCard({
+        title: "Android · Crash-free",
+        sub: "Play scrape · tüm sürüm · 28g",
+        value: play.crash_free_fmt,
+        toneClass: stabilityToneClass(play.crash_free_pct),
+        extra: play.crash_rate_pct != null
+          ? "oran %" + String(play.crash_rate_pct).replace(".", ",") + (play.crash_metric ? " · " + esc(play.crash_metric) : "")
+          : ""
+      }));
+    }
+    if (play.anr_free_fmt) {
+      cards.push(renderStabilityFreeCard({
+        title: "Android · ANR-free",
+        sub: "Play scrape · tüm sürüm · 28g",
+        value: play.anr_free_fmt,
+        toneClass: stabilityToneClass(play.anr_free_pct),
+        extra: play.anr_rate_pct != null
+          ? "oran %" + String(play.anr_rate_pct).replace(".", ",")
+          : ""
+      }));
+    }
+    if (playLatest && (playLatest.crash_free_fmt || playLatest.anr_free_fmt)) {
+      var lvLabel = playLatest.version_name
+        ? ("v" + playLatest.version_name)
+        : (playLatest.version_code ? ("code " + playLatest.version_code) : "son sürüm");
+      cards.push(renderStabilityFreeCard({
+        title: "Android · " + lvLabel,
+        sub: "Play Reporting · son sürüm · user-perceived",
+        value: playLatest.crash_free_fmt || "—",
+        toneClass: stabilityToneClass(playLatest.crash_free_pct),
+        extra: [
+          playLatest.crash_free_fmt ? ("Crash-free " + esc(playLatest.crash_free_fmt)) : "",
+          playLatest.anr_free_fmt ? ("ANR-free " + esc(playLatest.anr_free_fmt)) : ""
+        ].filter(Boolean).join(" · ")
+      }));
+    }
+    if (and.latest && and.latest.crash_free_fmt) {
+      cards.push(renderStabilityFreeCard({
+        title: "Android · v" + (and.latest_version || and.latest.version || "—"),
+        sub: "Crashlytics · son sürüm · 7g sessions",
+        value: and.latest.crash_free_fmt,
+        toneClass: stabilityToneClass(and.latest.crash_free_pct),
+        extra: and.overall && and.overall.crash_free_fmt
+          ? ("tüm sürüm " + esc(and.overall.crash_free_fmt))
+          : ""
+      }));
+    } else if (and.overall && and.overall.crash_free_fmt) {
+      cards.push(renderStabilityFreeCard({
+        title: "Android · Crashlytics",
+        sub: "Tüm sürüm · 7g sessions",
+        value: and.overall.crash_free_fmt,
+        toneClass: stabilityToneClass(and.overall.crash_free_pct)
+      }));
+    }
+    if (ios.latest && ios.latest.crash_free_fmt) {
+      cards.push(renderStabilityFreeCard({
+        title: "iOS · v" + (ios.latest_version || ios.latest.version || "—"),
+        sub: "Crashlytics · son sürüm · 7g sessions",
+        value: ios.latest.crash_free_fmt,
+        toneClass: stabilityToneClass(ios.latest.crash_free_pct),
+        extra: ios.overall && ios.overall.crash_free_fmt
+          ? ("tüm sürüm " + esc(ios.overall.crash_free_fmt))
+          : ""
+      }));
+    } else if (ios.overall && ios.overall.crash_free_fmt) {
+      cards.push(renderStabilityFreeCard({
+        title: "iOS · Crashlytics",
+        sub: "Tüm sürüm · 7g sessions",
+        value: ios.overall.crash_free_fmt,
+        toneClass: stabilityToneClass(ios.overall.crash_free_pct)
+      }));
+    }
+
+    if (!cards.length) {
+      stabilityFreeEl.innerHTML = "";
+      if (stabilityFreeEmpty) {
+        stabilityFreeEmpty.textContent = data.play_error
+          ? ("Crash-free yok — " + data.play_error)
+          : "Crash-free verisi henüz yok";
+        stabilityFreeEmpty.classList.remove("hidden");
+      }
+      return;
+    }
+    if (stabilityFreeEmpty) stabilityFreeEmpty.classList.add("hidden");
+    stabilityFreeEl.innerHTML = cards.join("");
+  }
+
+  var stabilityFreePromise = null;
+  function loadStabilityFree() {
+    if (stabilityFreePromise) return stabilityFreePromise;
+    stabilityFreePromise = fetch("/api/play-console/stability-free", {
+      credentials: "same-origin",
+      cache: "no-store"
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        renderStabilityFree(data);
+        return data;
+      })
+      .catch(function (err) {
+        if (stabilityFreeEmpty) {
+          stabilityFreeEmpty.textContent = "Crash-free yüklenemedi";
+          stabilityFreeEmpty.classList.remove("hidden");
+        }
+        console.warn("stability-free", err);
+      })
+      .finally(function () {
+        stabilityFreePromise = null;
+      });
+    return stabilityFreePromise;
   }
 
   function renderVitalsCategories(opts) {
@@ -4424,6 +4592,7 @@
     if (keep) vitalsState.selectedIssue = prevIssue;
     renderVitalsOverview(vitals);
     renderVitalsCategories();
+    loadStabilityFree();
   }
   function fmtStoreSyncTime(iso) {
     if (!iso) return "";

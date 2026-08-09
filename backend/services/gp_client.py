@@ -406,6 +406,208 @@ def fetch_anr_rate(package_name: str, *, days: int = 30) -> dict[str, Any] | Non
         return None
 
 
+def _rate_to_free_pct(rate_fraction: float | None) -> float | None:
+    """Reporting API oranı (0–1 kesir) → crash/ANR-free yüzde."""
+    if rate_fraction is None:
+        return None
+    try:
+        r = float(rate_fraction)
+    except (TypeError, ValueError):
+        return None
+    if r < 0:
+        return None
+    # Nadiren API yüzde (0.03 = %0,03) yerine 3 gibi gelebilir — koruma
+    if r > 1.0:
+        r = r / 100.0
+    return round((1.0 - r) * 100.0, 4)
+
+
+def _latest_metric_by_version(
+    resp: dict[str, Any] | None,
+    metric_keys: list[str],
+) -> dict[str, dict[str, float | None]]:
+    """versionCode → {rate, users, date} — her sürümde en yeni günün metrik değeri."""
+    out: dict[str, dict[str, float | None]] = {}
+    if not isinstance(resp, dict):
+        return out
+    for row in resp.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        code = _dim_segment(row, "versionCode")
+        if not code or code == "UNKNOWN":
+            continue
+        ds = _row_date(row) or ""
+        metrics = {
+            (m.get("metric") or ""): m
+            for m in (row.get("metrics") or [])
+            if isinstance(m, dict)
+        }
+        rate = None
+        for key in metric_keys:
+            rate = _parse_gp_decimal(
+                (metrics.get(key) or {}).get("decimalValue")
+                or (metrics.get(key) or {}).get("value")
+            )
+            if rate is not None:
+                break
+        users = _parse_gp_decimal(
+            (metrics.get("distinctUsers") or {}).get("decimalValue")
+            or (metrics.get("distinctUsers") or {}).get("value")
+        )
+        prev = out.get(code)
+        if prev is None or str(ds) >= str(prev.get("date") or ""):
+            out[code] = {"rate": rate, "users": users, "date": ds}  # type: ignore[dict-item]
+    return out
+
+
+def fetch_version_stability_free(
+    package_name: str,
+    *,
+    days: int = 28,
+    prefer_codes: list[str] | None = None,
+) -> dict[str, Any]:
+    """Sürüm bazlı crash/ANR oranı → free % (Play Developer Reporting API).
+
+    Tercihen user-perceived 28g ağırlıklı; yoksa genel crash/ANR 28g.
+    """
+    svc = _reporting_service()
+    empty: dict[str, Any] = {
+        "ok": False,
+        "package_name": package_name,
+        "versions": [],
+        "error": None,
+    }
+    if svc is None:
+        empty["error"] = "Reporting service yok"
+        return empty
+
+    fresh_c = _get_metric_freshness(svc, kind="crash", package_name=package_name)
+    fresh_a = _get_metric_freshness(svc, kind="anr", package_name=package_name)
+    start_c, _, end_c = _clip_reporting_range(None, None, freshness_exclusive=fresh_c)
+    start_a, _, end_a = _clip_reporting_range(None, None, freshness_exclusive=fresh_a)
+    # İstenen pencereyi freshness ile sınırla
+    window = max(7, min(28, int(days or 28)))
+    if end_c:
+        start_c = max(start_c or (end_c - timedelta(days=window)), end_c - timedelta(days=window))
+    if end_a:
+        start_a = max(start_a or (end_a - timedelta(days=window)), end_a - timedelta(days=window))
+
+    def _query(kind: str, metric_candidates: list[list[str]]) -> dict[str, Any] | None:
+        if kind == "anr":
+            name = f"apps/{package_name}/anrRateMetricSet"
+            query_fn = lambda body: svc.vitals().anrrate().query(name=name, body=body).execute()
+            start_d, end_excl = start_a, end_a
+        else:
+            name = f"apps/{package_name}/crashRateMetricSet"
+            query_fn = lambda body: svc.vitals().crashrate().query(name=name, body=body).execute()
+            start_d, end_excl = start_c, end_c
+        if not start_d or not end_excl:
+            return None
+        last_err: Exception | None = None
+        for metrics in metric_candidates:
+            body = {
+                "timelineSpec": {
+                    "aggregationPeriod": "DAILY",
+                    "startTime": _date_to_gp(start_d),
+                    "endTime": _date_to_gp(end_excl),
+                },
+                "dimensions": ["versionCode"],
+                "metrics": metrics + ["distinctUsers"],
+                "pageSize": 100000,
+            }
+            try:
+                return query_fn(body)
+            except Exception as exc:  # noqa: BLE001
+                last_err = exc
+                logger.info("GP version %s metrics %s: %s", kind, metrics, exc)
+        if last_err:
+            logger.warning("GP version %s rate failed (%s): %s", kind, package_name, last_err)
+        return None
+
+    crash_resp = _query(
+        "crash",
+        [
+            ["userPerceivedCrashRate28dUserWeighted", "userPerceivedCrashRate7dUserWeighted"],
+            ["crashRate28dUserWeighted", "crashRate7dUserWeighted"],
+            ["userPerceivedCrashRate", "crashRate"],
+        ],
+    )
+    anr_resp = _query(
+        "anr",
+        [
+            ["userPerceivedAnrRate28dUserWeighted", "userPerceivedAnrRate7dUserWeighted"],
+            ["anrRate28dUserWeighted", "anrRate7dUserWeighted"],
+            ["userPerceivedAnrRate", "anrRate"],
+        ],
+    )
+    crash_by = _latest_metric_by_version(
+        crash_resp,
+        [
+            "userPerceivedCrashRate28dUserWeighted",
+            "userPerceivedCrashRate7dUserWeighted",
+            "crashRate28dUserWeighted",
+            "crashRate7dUserWeighted",
+            "userPerceivedCrashRate",
+            "crashRate",
+        ],
+    )
+    anr_by = _latest_metric_by_version(
+        anr_resp,
+        [
+            "userPerceivedAnrRate28dUserWeighted",
+            "userPerceivedAnrRate7dUserWeighted",
+            "anrRate28dUserWeighted",
+            "anrRate7dUserWeighted",
+            "userPerceivedAnrRate",
+            "anrRate",
+        ],
+    )
+    name_map = fetch_android_version_name_map(package_name) or {}
+    codes = sorted(
+        set(crash_by.keys()) | set(anr_by.keys()),
+        key=lambda c: int(c) if str(c).isdigit() else -1,
+        reverse=True,
+    )
+    prefer = [str(c).strip() for c in (prefer_codes or []) if str(c).strip()]
+    if prefer:
+        ordered = [c for c in prefer if c in crash_by or c in anr_by]
+        ordered += [c for c in codes if c not in ordered]
+        codes = ordered
+
+    versions: list[dict[str, Any]] = []
+    for code in codes[:12]:
+        cr = crash_by.get(code) or {}
+        ar = anr_by.get(code) or {}
+        crash_rate = cr.get("rate")
+        anr_rate = ar.get("rate")
+        versions.append(
+            {
+                "version_code": code,
+                "version_name": name_map.get(code) or None,
+                "crash_rate_pct": round(float(crash_rate) * 100, 4) if crash_rate is not None and float(crash_rate) <= 1 else (
+                    round(float(crash_rate), 4) if crash_rate is not None else None
+                ),
+                "anr_rate_pct": round(float(anr_rate) * 100, 4) if anr_rate is not None and float(anr_rate) <= 1 else (
+                    round(float(anr_rate), 4) if anr_rate is not None else None
+                ),
+                "crash_free_pct": _rate_to_free_pct(crash_rate if isinstance(crash_rate, (int, float)) else None),
+                "anr_free_pct": _rate_to_free_pct(anr_rate if isinstance(anr_rate, (int, float)) else None),
+                "crash_users": cr.get("users"),
+                "anr_users": ar.get("users"),
+                "as_of": cr.get("date") or ar.get("date"),
+                "source": "reporting_api",
+            }
+        )
+
+    return {
+        "ok": bool(versions),
+        "package_name": package_name,
+        "versions": versions,
+        "latest": versions[0] if versions else None,
+        "error": None if versions else "Sürüm oranı bulunamadı",
+    }
+
+
 def _reporting_ui_dim(api_dim: str) -> str:
     return {
         "versionCode": "app_version",

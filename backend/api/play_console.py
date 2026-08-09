@@ -62,6 +62,26 @@ def get_play_console_snapshot(db: Session = Depends(get_db)):
     return play_console_payload(db)
 
 
+@router.get("/play-console/stability-free")
+def get_play_console_stability_free(db: Session = Depends(get_db)):
+    """Crash-free / ANR-free — Play scrape oranları + Reporting sürüm + Crashlytics."""
+    from backend.services.stability_free import build_stability_free_payload
+
+    snap = play_console_payload(db) or {}
+    panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
+    vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
+    package = (snap.get("package_name") or "com.Doviz").strip() or "com.Doviz"
+    try:
+        return build_stability_free_payload(
+            package_name=package,
+            product_id="doviz",
+            vitals=vitals,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("stability-free failed")
+        raise HTTPException(status_code=500, detail=str(exc)[:200]) from exc
+
+
 @router.post("/play-console/sync-store-reviews")
 def post_sync_store_reviews(
     db: Session = Depends(get_db),

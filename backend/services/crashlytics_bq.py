@@ -1000,9 +1000,20 @@ def crash_free_unavailable_hint(
 
 
 def _query_crash_free_sessions(
-    platform: str, crash_table: str, sessions_ref: str, days: int
+    platform: str,
+    crash_table: str,
+    sessions_ref: str,
+    days: int,
+    *,
+    version: str | None = None,
 ) -> dict[str, Any] | None:
-    """Firebase Console uyumlu crash-free — firebase_sessions + crash join."""
+    """Firebase Console uyumlu crash-free — firebase_sessions + crash join.
+
+    version verilirse hem session hem crash tarafında display_version filtrelenir.
+    """
+    safe_ver = (version or "").strip().replace("'", "")
+    ver_s = f"AND s.application.display_version = '{safe_ver}'" if safe_ver else ""
+    ver_c = f"AND c.application.display_version = '{safe_ver}'" if safe_ver else ""
     sql = f"""
 SELECT
   COUNT(DISTINCT s.session_id) AS total_sessions,
@@ -1013,7 +1024,9 @@ FROM {sessions_ref} AS s
 LEFT JOIN {crash_table} AS c
   ON c.firebase_session_id = s.session_id
   AND c.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+  {ver_c}
 WHERE s.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+  {ver_s}
 """
     rows, err = _run_query(platform, sql, skip_budget=True)
     if err or not rows:
@@ -1032,7 +1045,7 @@ WHERE s.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DA
     pct = cfs if cfs is not None else cfu
     if pct is None:
         return None
-    return {
+    out = {
         "total_users": total_inst or total_sess,
         "crashed_users": fatal_users or crashed_sess,
         "total_sessions": total_sess,
@@ -1042,6 +1055,46 @@ WHERE s.event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DA
         "crash_free_users_pct": cfu,
         "method": "firebase_sessions",
     }
+    if safe_ver:
+        out["version"] = safe_ver
+    return out
+
+
+def query_crash_free(
+    platform: str,
+    table: str,
+    days: int,
+    *,
+    bundle: str = "",
+    version: str | None = None,
+) -> dict[str, Any] | None:
+    """Crash-free oranı — önce firebase_sessions, yoksa güvenilmez fallback (gizlenir)."""
+    bundle = (bundle or "").strip()
+    # Session join için batch tablo tercih et (UNION alt sorgusu eksik alan içerebilir)
+    crash_table = table
+    if bundle:
+        batch_ref = _batch_table_ref(platform, bundle)
+        if batch_ref:
+            crash_table = batch_ref
+    if bundle:
+        sessions_ref = _sessions_table_ref(platform, bundle)
+        if sessions_ref:
+            result = _query_crash_free_sessions(
+                platform, crash_table, sessions_ref, days, version=(version or None)
+            )
+            if result and result.get("crash_free_pct") is not None:
+                result["sessions_table"] = sessions_ref.strip("`")
+                return result
+    if version:
+        # Sürüm filtreli legacy paydası güvenilmez — gizle
+        return None
+    legacy = _query_crash_free_crashes_only(platform, crash_table, days)
+    if not legacy:
+        return None
+    # Crash-only taban: neredeyse her satır crash → %0–2; Console'a gösterme
+    if legacy.get("crash_free_pct", 0) < 2.0:
+        return None
+    return legacy
 
 
 def _query_crash_free_crashes_only(platform: str, table: str, days: int) -> dict[str, Any] | None:
@@ -1069,33 +1122,6 @@ WHERE {_ts_filter(days)}
         "method": "crashes_only_unreliable",
         "note": "Sadece crash tablosu — Console ile uyuşmaz; firebase_sessions export gerekir.",
     }
-
-
-def query_crash_free(
-    platform: str, table: str, days: int, *, bundle: str = ""
-) -> dict[str, Any] | None:
-    """Crash-free oranı — önce firebase_sessions, yoksa güvenilmez fallback (gizlenir)."""
-    bundle = (bundle or "").strip()
-    # Session join için batch tablo tercih et (UNION alt sorgusu eksik alan içerebilir)
-    crash_table = table
-    if bundle:
-        batch_ref = _batch_table_ref(platform, bundle)
-        if batch_ref:
-            crash_table = batch_ref
-    if bundle:
-        sessions_ref = _sessions_table_ref(platform, bundle)
-        if sessions_ref:
-            result = _query_crash_free_sessions(platform, crash_table, sessions_ref, days)
-            if result and result.get("crash_free_pct") is not None:
-                result["sessions_table"] = sessions_ref.strip("`")
-                return result
-    legacy = _query_crash_free_crashes_only(platform, crash_table, days)
-    if not legacy:
-        return None
-    # Crash-only taban: neredeyse her satır crash → %0–2; Console'a gösterme
-    if legacy.get("crash_free_pct", 0) < 2.0:
-        return None
-    return legacy
 
 
 def analyze_platform_parity(product_id: str, days: int = 7) -> dict[str, Any]:
@@ -2520,6 +2546,20 @@ def build_full_payload(
                 "devices": scoped_devices,
                 "issues": scoped_issues,
             }
+            bundle = android_pkg if plat == "android" else ios_bundle
+            try:
+                cf_ver = query_crash_free(plat, tbl, days, bundle=bundle, version=lv)
+            except Exception:
+                cf_ver = None
+            if cf_ver and cf_ver.get("crash_free_pct") is not None:
+                latest_version_stats_by_platform[plat]["crash_free"] = {
+                    "crash_free_pct": cf_ver.get("crash_free_pct"),
+                    "crash_free_sessions_pct": cf_ver.get("crash_free_sessions_pct"),
+                    "crash_free_users_pct": cf_ver.get("crash_free_users_pct"),
+                    "method": cf_ver.get("method"),
+                    "total_sessions": cf_ver.get("total_sessions"),
+                    "crashed_sessions": cf_ver.get("crashed_sessions"),
+                }
 
         version_trend_merged: list[dict] = []
         for _plat, rows in version_trend_all:
