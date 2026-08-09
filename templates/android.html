@@ -494,10 +494,12 @@
         <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
       </div>
 
-      <div class="mt-4 max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
+      <div id="pa-overview-charts" class="mt-3 hidden grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"></div>
+
+      <div class="mt-4 max-h-96 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
         <table class="min-w-full text-left text-xs">
           <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
-            <tr>
+            <tr id="pa-thead-row">
               <th class="px-3 py-2 font-bold">Kırılım</th>
               <th id="pa-th-value" class="px-3 py-2 font-bold tabular-nums">Değer</th>
               <th id="pa-th-overlay" class="hidden px-3 py-2 font-bold tabular-nums text-amber-700 dark:text-amber-400">Ek grafik</th>
@@ -1043,6 +1045,11 @@
   var paLegendOverlayLabel = document.getElementById("pa-legend-overlay-label");
   var paLastChart = null; // { series, prevSeries, breakdown, compareMeta }
   var paOverlay = null;   // { metric, label, series, breakdown, dim, segment }
+  var paOverviewActive = true; // ilk açılış: tüm metrikler; ilk filtre sonrası false
+  var paOverviewBundles = null;
+  var paTheadRow = document.getElementById("pa-thead-row");
+  var paDefaultTheadHtml = paTheadRow ? paTheadRow.innerHTML : "";
+  var paOverviewCharts = document.getElementById("pa-overview-charts");
   var paThValue = document.getElementById("pa-th-value");
   var paThOverlay = document.getElementById("pa-th-overlay");
   var paThPrev = document.getElementById("pa-th-prev");
@@ -1054,6 +1061,192 @@
   });
   var paTable = document.getElementById("pa-table");
   var paChartState = null;
+  var PA_METRIC_COLORS = [
+    "#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6",
+    "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"
+  ];
+  var PA_METRIC_COLORS_DARK = [
+    "#6b8aad", "#b87333", "#4a8f73", "#a85a66", "#8b7aa8",
+    "#5b9aa8", "#b87333", "#7a9a4a", "#a86b8a", "#71717a"
+  ];
+
+  function rebindPaTheadRefs() {
+    paThValue = document.getElementById("pa-th-value");
+    paThOverlay = document.getElementById("pa-th-overlay");
+    paThPrev = document.getElementById("pa-th-prev");
+    paThDelta = document.getElementById("pa-th-delta");
+    paThWithRev = document.getElementById("pa-th-with-rev");
+    paThWithoutRev = document.getElementById("pa-th-without-rev");
+    paThStars = [5, 4, 3, 2, 1].map(function (n) {
+      return document.getElementById("pa-th-star-" + n);
+    });
+  }
+  function restoreDefaultPaThead() {
+    if (!paTheadRow || !paDefaultTheadHtml) return;
+    paTheadRow.innerHTML = paDefaultTheadHtml;
+    rebindPaTheadRefs();
+  }
+  function listPaMetricOptions() {
+    if (!paMetric) return [];
+    return Array.prototype.map.call(paMetric.options, function (opt) {
+      return { value: opt.value, label: String(opt.textContent || opt.value).trim() };
+    }).filter(function (o) { return !!o.value; });
+  }
+  function paMetricColor(i) {
+    var pal = paIsDark() ? PA_METRIC_COLORS_DARK : PA_METRIC_COLORS;
+    return pal[i % pal.length];
+  }
+  async function fetchPaMetricBundle(metric, signal) {
+    var qs = new URLSearchParams({
+      start: paStart.value,
+      end: paEnd.value,
+      metric: metric,
+      breakdown: "date",
+      dim: "overview",
+      compare: ""
+    });
+    var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: signal
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+    return {
+      metric: metric,
+      label: metricOptionLabel(metric) || metric,
+      series: data.series || [],
+      total: data.total,
+      total_mode: data.total_mode || "sum"
+    };
+  }
+  function hideOverviewCharts() {
+    if (!paOverviewCharts) return;
+    paOverviewCharts.classList.add("hidden");
+    paOverviewCharts.innerHTML = "";
+  }
+  function drawMiniMetricChart(svgEl, series, color) {
+    if (!svgEl) return;
+    var rows = series || [];
+    var w = 320, h = 96;
+    var left = 6, right = 6, top = 8, bottom = 6;
+    var plotW = w - left - right;
+    var plotH = h - top - bottom;
+    if (!rows.length) {
+      svgEl.innerHTML =
+        '<text x="160" y="52" text-anchor="middle" fill="#94a3b8" font-size="10">Veri yok</text>';
+      return;
+    }
+    var vals = rows.map(function (r) {
+      var nv = Number(r.value);
+      return Number.isFinite(nv) ? nv : null;
+    });
+    var nums = vals.filter(function (v) { return v != null; });
+    var max = nums.length ? Math.max.apply(null, nums.concat([0])) : 1;
+    if (max <= 0) max = 1;
+    var n = rows.length;
+    var pts = rows.map(function (r, i) {
+      var v = vals[i];
+      if (v == null) return null;
+      var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+      var y = top + (1 - v / max) * plotH;
+      return { x: x, y: y };
+    });
+    var d = "";
+    pts.forEach(function (p) {
+      if (!p) return;
+      d += (d ? " L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1);
+    });
+    var area = "";
+    var solid = pts.filter(Boolean);
+    if (solid.length) {
+      area =
+        "M " + solid[0].x.toFixed(1) + " " + (top + plotH).toFixed(1) +
+        " L " + solid.map(function (p) { return p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" L ") +
+        " L " + solid[solid.length - 1].x.toFixed(1) + " " + (top + plotH).toFixed(1) + " Z";
+    }
+    svgEl.setAttribute("viewBox", "0 0 " + w + " " + h);
+    svgEl.innerHTML =
+      (area
+        ? '<path d="' + area + '" fill="' + color + '" fill-opacity="0.12" />'
+        : "") +
+      (d
+        ? '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />'
+        : "");
+  }
+  function renderOverviewCharts(bundles) {
+    if (!paOverviewCharts) return;
+    paOverviewCharts.classList.remove("hidden");
+    paOverviewCharts.innerHTML = (bundles || []).map(function (b, i) {
+      var color = paMetricColor(i);
+      var tot = fmtNum(b.total, metricIsCountLike(b.metric));
+      return (
+        '<article class="rounded-xl border border-slate-200 bg-slate-50/60 p-2.5 dark:border-zinc-800 dark:bg-zinc-950/50">' +
+          '<div class="flex items-baseline justify-between gap-2 px-0.5">' +
+            '<p class="truncate text-[11px] font-bold text-slate-700 dark:text-zinc-300">' + esc(b.label) + "</p>" +
+            '<p class="shrink-0 text-sm font-extrabold tabular-nums text-slate-900 dark:text-zinc-200">' + esc(tot) + "</p>" +
+          "</div>" +
+          '<svg class="pa-mini-chart mt-1 block h-20 w-full" data-mi="' + i + '" preserveAspectRatio="none" role="img" aria-label="' + esc(b.label) + '"></svg>' +
+        "</article>"
+      );
+    }).join("");
+    Array.prototype.forEach.call(paOverviewCharts.querySelectorAll(".pa-mini-chart"), function (svg) {
+      var i = parseInt(svg.getAttribute("data-mi"), 10);
+      var b = bundles[i];
+      if (b) drawMiniMetricChart(svg, b.series, paMetricColor(i));
+    });
+  }
+  function renderOverviewTable(bundles) {
+    restoreDefaultPaThead();
+    if (!paTheadRow || !paTable) return;
+    var dayOnly = (paSelectedRangeDays() != null && paSelectedRangeDays() < 30);
+    var keySet = {};
+    (bundles || []).forEach(function (b) {
+      (b.series || []).forEach(function (r) {
+        if (r && r.key != null) keySet[String(r.key)] = true;
+      });
+    });
+    var keys = Object.keys(keySet).sort();
+    paTheadRow.innerHTML =
+      '<th class="sticky left-0 z-10 bg-slate-100 px-3 py-2 font-bold dark:bg-zinc-900">Kırılım</th>' +
+      (bundles || []).map(function (b, i) {
+        var color = paMetricColor(i);
+        return (
+          '<th class="px-3 py-2 font-bold tabular-nums whitespace-nowrap" style="color:' + color + '" title="' + esc(b.label) + '">' +
+            esc(shortMetricLabel(b.label, b.metric)) +
+          "</th>"
+        );
+      }).join("");
+    if (!keys.length) {
+      paTable.innerHTML =
+        '<tr><td colspan="' + (1 + (bundles || []).length) +
+        '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      return;
+    }
+    var maps = (bundles || []).map(function (b) {
+      var m = {};
+      (b.series || []).forEach(function (r) {
+        if (!r) return;
+        var nv = Number(r.value);
+        m[String(r.key)] = Number.isFinite(nv) ? nv : null;
+      });
+      return m;
+    });
+    paTable.innerHTML = keys.map(function (key) {
+      var cells =
+        '<td class="sticky left-0 z-[1] bg-white px-3 py-1.5 font-medium tabular-nums text-slate-700 dark:bg-zinc-950 dark:text-zinc-200">' +
+          esc(fmtAxisKey(key, dayOnly)) +
+        "</td>";
+      (bundles || []).forEach(function (b, i) {
+        var v = maps[i][key];
+        cells +=
+          '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' +
+            (v == null ? "—" : esc(fmtNum(v, metricIsCountLike(b.metric)))) +
+          "</td>";
+      });
+      return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
+    }).join("");
+  }
 
   function setCompareNote(text) {
     if (!paCompareNote) return;
@@ -1825,6 +2018,7 @@
     setAddChartVisible(true);
   }
   function renderPaTable(series, prevSeries, breakdown, compareMeta) {
+    restoreDefaultPaThead();
     var rows = alignPrevRows(series, prevSeries, breakdown, compareMeta);
     var showOverlay = !!(paOverlay && paOverlay.series);
     var overlayAligned = showOverlay ? alignOverlayValues(rows, paOverlay.series) : [];
@@ -1834,6 +2028,7 @@
       primaryLabel,
       (paOverlay && paOverlay.label) || "Ek grafik"
     );
+    var dayOnly = (paSelectedRangeDays() != null && paSelectedRangeDays() < 30);
     var showCompare = !!(
       compareMeta
       && compareMeta.mode === "previous_period"
@@ -1875,7 +2070,8 @@
     var ovCountLike = showOverlay ? metricIsCountLike(paOverlay.metric) : false;
     paTable.innerHTML = rows.map(function (r, i) {
       var cells =
-        '<td class="px-3 py-1.5 font-medium text-slate-700 dark:text-zinc-200">' + esc(r.key) + "</td>" +
+        '<td class="px-3 py-1.5 font-medium tabular-nums text-slate-700 dark:text-zinc-200">' +
+          esc(fmtAxisKey(r.key, dayOnly)) + "</td>" +
         '<td class="px-3 py-1.5 tabular-nums font-semibold text-slate-900 dark:text-zinc-100">' +
           esc(fmtNum(r.value, metricIsCountLike())) + "</td>";
       if (showOverlay) {
@@ -1955,16 +2151,57 @@
     }
     if (paRunLabel) paRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
   }
-  async function runPlayAnalytics() {
+  async function runPlayAnalytics(opts) {
+    opts = opts || {};
     if (paBusy) return;
+    if (opts.fromUser) paOverviewActive = false;
     paBusy = true;
     setPaLoading(true);
     if (paAbort) {
       try { paAbort.abort(); } catch (_) {}
     }
     paAbort = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var timer = paAbort ? setTimeout(function () { try { paAbort.abort(); } catch (_) {} }, 45000) : null;
+    var timer = paAbort ? setTimeout(function () { try { paAbort.abort(); } catch (_) {} }, 90000) : null;
     try {
+      // İlk açılış: tüm metrikleri tablo + mini grafik olarak yükle
+      if (paOverviewActive) {
+        setCompareKpisVisible(false);
+        setCompareNote("");
+        setCompareColsVisible(false);
+        setReviewSplitColsVisible(false);
+        setOverlayColVisible(false);
+        paOverlay = null;
+        closeOverlayPanel(false);
+        var metricOpts = listPaMetricOptions();
+        var bundles = await Promise.all(metricOpts.map(function (m) {
+          return fetchPaMetricBundle(m.value, paAbort ? paAbort.signal : undefined).catch(function () {
+            return { metric: m.value, label: m.label, series: [], total: null, total_mode: "sum" };
+          });
+        }));
+        paOverviewBundles = bundles;
+        var primary = bundles.find(function (b) {
+          return b.metric === ((paMetric && paMetric.value) || "anrs");
+        }) || bundles[0];
+        if (paTotal) paTotal.textContent = primary ? fmtNum(primary.total, metricIsCountLike(primary.metric)) : "—";
+        if (paTotalLabel) paTotalLabel.textContent = "Toplam / seçili";
+        if (paPrev) paPrev.textContent = "—";
+        if (paDelta) paDelta.textContent = "—";
+        if (paCompareRange) paCompareRange.textContent = "Özet · tüm metrikler";
+        paLastChart = {
+          series: (primary && primary.series) || [],
+          prevSeries: [],
+          breakdown: "date",
+          compareMeta: null
+        };
+        drawChart(paLastChart.series, [], "date", null);
+        renderOverviewCharts(bundles);
+        renderOverviewTable(bundles);
+        setAddChartVisible(false);
+        return;
+      }
+
+      hideOverviewCharts();
+      paOverviewBundles = null;
       var qs = new URLSearchParams({
         start: paStart.value,
         end: paEnd.value,
@@ -2046,6 +2283,7 @@
       if (paTable) paTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       if (paChart) paChart.innerHTML = "";
       if (paCompareRange) paCompareRange.textContent = "";
+      hideOverviewCharts();
       setCompareNote("");
       setCompareColsVisible(false);
       setReviewSplitColsVisible(false);
@@ -2121,7 +2359,9 @@
   }
 
   if (paPreset) paPreset.addEventListener("change", function () { applyPreset(); });
-  if (paRun) paRun.addEventListener("click", runPlayAnalytics);
+  if (paRun) paRun.addEventListener("click", function () {
+    runPlayAnalytics({ fromUser: true });
+  });
   if (paAddChartBtn) {
     paAddChartBtn.addEventListener("click", function () {
       openOverlayPanel();
@@ -2189,7 +2429,7 @@
   if (paMetric) {
     paMetric.addEventListener("change", function () {
       resetPaFiltersForMetricChange();
-      runPlayAnalytics();
+      runPlayAnalytics({ fromUser: true });
     });
   }
   ["pa-breakdown", "pa-dim", "pa-segment", "pa-compare"].forEach(function (id) {
@@ -2197,16 +2437,16 @@
     if (el) el.addEventListener("change", function () {
       if (id === "pa-dim" || id === "pa-segment") syncDimBreakdown();
       if (id === "pa-dim" || id === "pa-breakdown" || id === "pa-segment") {
-        runPlayAnalytics();
+        runPlayAnalytics({ fromUser: true });
       } else if (id === "pa-compare") {
-        runPlayAnalytics();
+        runPlayAnalytics({ fromUser: true });
       }
     });
   });
   if (paCompare) paCompare.checked = false;
   applyPreset();
-  // İlk sorgu kısa gecikmeyle — sayfa render bitsin
-  setTimeout(runPlayAnalytics, 200);
+  // İlk açılış: 2 hafta · tüm metrik özeti (tablo + mini grafikler)
+  setTimeout(function () { runPlayAnalytics({ overview: true }); }, 200);
 
   var KPI_TITLES = {
     "Kilitlenme oranı": 1,
@@ -3020,6 +3260,9 @@
         paLastChart.breakdown,
         paLastChart.compareMeta
       );
+    }
+    if (paOverviewActive && paOverviewBundles) {
+      renderOverviewCharts(paOverviewBundles);
     }
   });
   // İlk açılışta snapshot + (yorum azsa) store senkronu
