@@ -31,6 +31,9 @@ from backend.services.ga4_page_urls import ga4_site_host
 
 LOGGER = logging.getLogger(__name__)
 
+# Panel okumaları yalnızca scrape snapshot’larını görür (eski CSV/Sheets satırları karışmaz).
+SCRAPE_SOURCE_KIND = "gsc_scrape"
+
 REPORT_TYPES = (
     "external",
     "domain",
@@ -491,113 +494,12 @@ def import_backlink_csv(
     source_filename: str = "",
     source_kind: str = "csv_upload",
 ) -> dict[str, Any]:
-    rt = (report_type or "latest_links").strip().lower()
-    if rt not in REPORT_TYPES:
-        raise ValueError(f"Geçersiz report_type: {rt}")
-
-    site = db.query(Site).filter(Site.id == site_id).first()
-    if site is None:
-        raise ValueError("Site bulunamadı.")
-
-    parsed = parse_csv_text(csv_text, report_type=rt)
-    if not parsed:
-        raise ValueError("CSV'de geçerli bağlantı satırı bulunamadı.")
-
-    is_target_agg = rt in _GSC_TARGET_AGG_REPORT_TYPES or any(
-        p.get("is_top_target_aggregate") for p in parsed
+    """Manuel yazma kapalı — veri yalnızca GSC Links scrape (/api/gsc-links/ingest)."""
+    raise ValueError(
+        "Manuel CSV/Sheets import kapatıldı. "
+        "Veri yalnızca GSC Links scrape ile gelir (/api/gsc-links/ingest)."
     )
-    if is_target_agg and rt not in _GSC_TARGET_AGG_REPORT_TYPES:
-        rt = "top_target_pages"
 
-    imp = BacklinkImport(
-        site_id=site.id,
-        report_type=rt,
-        source_filename=(source_filename or "")[:255],
-        source_kind=(source_kind or "csv_upload")[:32],
-        row_count=0,
-        created_at=datetime.utcnow(),
-    )
-    db.add(imp)
-    db.flush()
-
-    existing_fps = _existing_link_fingerprints(db, site_id=site.id, report_type=rt)
-    batch_seen: set[str] = set()
-    row_models: list[BacklinkRow] = []
-    skipped_duplicate = 0
-    for item in parsed:
-        src = item["source_url"]
-        tgt = item.get("target_url") or ""
-        if is_target_agg:
-            tgt = (tgt or src or "").strip()
-            if not tgt or not target_url_belongs_to_site(tgt, site.domain or ""):
-                continue
-            tkey = _canonical_target_key(tgt, site.domain or "")
-            if tkey in batch_seen:
-                skipped_duplicate += 1
-                continue
-            batch_seen.add(tkey)
-            inc = int(item.get("incoming_links") or 0)
-            sites = int(item.get("linking_sites") or 0)
-            anchor = (item.get("anchor_text") or f"{GSC_TARGET_AGG_ANCHOR_PREFIX}{inc}:{sites}")[:512]
-            host_dom = (urlparse(tgt if re.match(r"^https?://", tgt, re.I) else f"https://{tgt}").hostname or "")
-            dom = (normalize_domain(host_dom or tgt) or ga4_site_host(site.domain) or "target")[:255]
-            row_models.append(
-                BacklinkRow(
-                    import_id=imp.id,
-                    site_id=site.id,
-                    source_url=tgt[:2048],
-                    target_url=tgt[:2048],
-                    domain=dom.lower(),
-                    anchor_text=anchor,
-                    last_crawled="",
-                    risk_score=0,
-                    risk_flags_json="[]",
-                    recommended_action=ACTION_IGNORE,
-                )
-            )
-            continue
-
-        risk = assess_linking_url(
-            src,
-            anchor_text=item.get("anchor_text") or "",
-            target_url=tgt,
-        )
-        dom = ((risk.get("domain") or normalize_domain(src)) or "").lower()[:255]
-        fp = _link_fingerprint(dom, src, tgt)
-        if fp in existing_fps or fp in batch_seen:
-            skipped_duplicate += 1
-            continue
-        batch_seen.add(fp)
-        row_models.append(
-            BacklinkRow(
-                import_id=imp.id,
-                site_id=site.id,
-                source_url=src[:2048],
-                target_url=tgt[:2048],
-                domain=dom,
-                anchor_text=(item.get("anchor_text") or "")[:512],
-                last_crawled=(item.get("last_crawled") or "")[:64],
-                risk_score=int(risk.get("risk_score") or 0),
-                risk_flags_json=json.dumps(risk.get("risk_flags") or [], ensure_ascii=False),
-                recommended_action=str(risk.get("recommended_action") or ACTION_MONITOR),
-            )
-        )
-    if row_models:
-        db.bulk_save_objects(row_models)
-    imp.row_count = len(row_models)
-    db.commit()
-    db.refresh(imp)
-
-    summary = build_dashboard(db, site_id=site.id, report_type=rt)
-    summary["import"] = {
-        "id": imp.id,
-        "row_count": imp.row_count,
-        "rows_in_file": len(parsed),
-        "rows_skipped_duplicate": skipped_duplicate,
-        "created_at": imp.created_at.isoformat() if imp.created_at else None,
-        "source_filename": imp.source_filename,
-    }
-    return summary
 
 
 def _domain_actions_map(db: Session, site_id: int) -> dict[str, str]:
@@ -714,12 +616,16 @@ def _referrer_excluded_from_top_rankings(risk_flags_json: str) -> bool:
 
 
 def _existing_link_fingerprints(db: Session, *, site_id: int, report_type: str) -> set[str]:
-    """Bu site + rapor türü için önceki tüm importlardaki benzersiz link anahtarları."""
+    """Bu site + rapor türü için önceki tüm scrape snapshot’larındaki benzersiz link anahtarları."""
     rt = (report_type or "latest_links").strip().lower()
     rows = (
         db.query(BacklinkRow.domain, BacklinkRow.source_url, BacklinkRow.target_url)
         .join(BacklinkImport, BacklinkRow.import_id == BacklinkImport.id)
-        .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
+        .filter(
+            BacklinkImport.site_id == site_id,
+            BacklinkImport.report_type == rt,
+            BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
+        )
         .all()
     )
     out: set[str] = set()
@@ -848,6 +754,7 @@ def _load_latest_gsc_target_page_stats(
     q = db.query(BacklinkImport.id).filter(
         BacklinkImport.site_id == site_id,
         BacklinkImport.report_type == report_type,
+        BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
     )
     rid = (gsc_resource_id or "").strip()
     if rid:
@@ -983,7 +890,10 @@ def _link_row_import_ids_for_target_lookup(
     rt = (report_type or "").strip().lower()
     imp_rows = (
         db.query(BacklinkImport.id, BacklinkImport.report_type)
-        .filter(BacklinkImport.site_id == site_id)
+        .filter(
+            BacklinkImport.site_id == site_id,
+            BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
+        )
         .all()
     )
     if rt in _GSC_TARGET_AGG_REPORT_TYPES:
@@ -1234,6 +1144,7 @@ def build_top_backlink_rankings(
         q = db.query(BacklinkImport).filter(
             BacklinkImport.site_id == site_id,
             BacklinkImport.report_type == rt,
+            BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
         )
         if rid:
             q = q.filter(BacklinkImport.gsc_resource_id == rid)
@@ -1288,7 +1199,11 @@ def build_top_backlink_rankings(
     link_import_ids = [
         i.id
         for i in db.query(BacklinkImport.id)
-        .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
+        .filter(
+            BacklinkImport.site_id == site_id,
+            BacklinkImport.report_type == rt,
+            BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
+        )
         .all()
     ]
     if not link_import_ids:
@@ -1434,7 +1349,9 @@ def build_dashboard(
     is_domain_agg = rt in _GSC_DOMAIN_AGG_REPORT_TYPES
 
     imports_q = db.query(BacklinkImport).filter(
-        BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt
+        BacklinkImport.site_id == site_id,
+        BacklinkImport.report_type == rt,
+        BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
     )
     rid = (gsc_resource_id or "").strip()
     if rid:
@@ -1695,7 +1612,10 @@ def list_domain_links(
     if all_link_imports:
         imp_rows = (
             db.query(BacklinkImport.id, BacklinkImport.report_type)
-            .filter(BacklinkImport.site_id == site_id)
+            .filter(
+                BacklinkImport.site_id == site_id,
+                BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
+            )
             .all()
         )
         import_ids = [iid for iid, imp_rt in imp_rows if (imp_rt or "") not in _GSC_TARGET_AGG_REPORT_TYPES]
@@ -1703,7 +1623,11 @@ def list_domain_links(
         import_ids = [
             i.id
             for i in db.query(BacklinkImport.id)
-            .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
+            .filter(
+                BacklinkImport.site_id == site_id,
+                BacklinkImport.report_type == rt,
+                BacklinkImport.source_kind == SCRAPE_SOURCE_KIND,
+            )
             .all()
         ]
     if not import_ids:

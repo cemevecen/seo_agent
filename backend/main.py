@@ -1287,6 +1287,14 @@ def _schedule_crux_refresh_if_stale(site_id: int, domain: str) -> bool:
     return True
 
 
+def _is_pagespeed_scrape_primary_domain(domain: str) -> bool:
+    """Owned speed siteleri: lab/KPI pagespeed.web.dev scrape; PSI API yazmaz."""
+    d = (domain or "").strip().lower()
+    d = d.removeprefix("https://").removeprefix("http://").split("/")[0].strip()
+    base = d.removeprefix("www.")
+    return base in {"doviz.com", "sinemalar.com"}
+
+
 def _schedule_data_explorer_backfill_if_needed(
     site_id: int,
     domain: str,
@@ -1294,7 +1302,9 @@ def _schedule_data_explorer_backfill_if_needed(
     need_pagespeed: bool,
     need_crux: bool,
 ) -> bool:
-    """PSI skoru yoksa ve/veya CrUX stale ise arka planda PSI+CrUX yeniler."""
+    """CrUX stale / lab eksik: scrape-primary sitelerde PSI API yok; yalnızca CrUX History."""
+    if _is_pagespeed_scrape_primary_domain(domain):
+        need_pagespeed = False
     if not need_pagespeed and not need_crux:
         return False
     with _DATA_EXPLORER_BACKFILL_LOCK:
@@ -1324,7 +1334,6 @@ def _schedule_data_explorer_backfill_if_needed(
                     )
                     db.commit()
                 if need_crux or need_pagespeed:
-                    # PSI sonrası field metriklerle CrUX kartları da taze olsun.
                     collect_crux_history(db, site, trigger_source="system")
                     db.commit()
                 LOGGER.info("Data Explorer backfill finished for %s", domain)
@@ -1848,6 +1857,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/asc-console/ingest",
         "/api/pagespeed-web/ingest",
         "/api/gsc-links/ingest",
+        "/api/policy/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -5187,7 +5197,16 @@ def _refresh_site_detail_measurements(
         return {}
     results: dict[str, dict] = {}
     latest = {metric.metric_type: metric for metric in get_latest_metrics(db, site.id)}
-    if include_pagespeed:
+    if include_pagespeed and _is_pagespeed_scrape_primary_domain(getattr(site, "domain", "") or ""):
+        results["pagespeed"] = {
+            "state": "skipped",
+            "reason": (
+                "pagespeed.web.dev scrape birincil kaynak; PSI API atlandı. "
+                "Mac: scripts/pagespeed_web_scrape.py --sync --ingest"
+            ),
+            "source": "pagespeed_web_scrape",
+        }
+    elif include_pagespeed:
         pagespeed_recent = _latest_collector_run_recent(
             db,
             site_id=site.id,
@@ -6025,7 +6044,7 @@ def _latest_pagespeed_payload_row(db, site_id: int, strategy: str):
         db.query(PageSpeedPayloadSnapshot)
         .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
         .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
-        .limit(12)
+        .limit(48)
         .all()
     )
     scrape_row = None
@@ -6161,7 +6180,8 @@ def _pagespeed_category_score_trend(db, site_id: int, strategy: str, limit: int 
     by_date: dict[str, dict] = {}
     for row in rows:
         try:
-            payload = json.loads(row.payload_json or "{}")
+            raw = json.loads(row.payload_json or "{}")
+            payload = _unwrap_pagespeed_payload(raw if isinstance(raw, dict) else {})
         except json.JSONDecodeError:
             continue
         categories = ((payload.get("lighthouseResult") or {}).get("categories") or {})
@@ -6329,12 +6349,8 @@ def _format_pagespeed_delta_text(diff_ms: float, metric_key: str) -> str:
 
 
 def _latest_pagespeed_payload_snapshot(db, site_id: int, strategy: str) -> tuple[dict, datetime | None]:
-    row = (
-        db.query(PageSpeedPayloadSnapshot)
-        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
-        .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
-        .first()
-    )
+    """KPI/lab snapshot — scrape tercih (_latest_pagespeed_payload_row)."""
+    row = _latest_pagespeed_payload_row(db, site_id, strategy)
     if row is None:
         return {}, None
     try:
@@ -6993,8 +7009,10 @@ def _data_explorer_context(domain: str) -> dict:
         crux_refresh_queued = False
         explorer_backfill_queued = False
         if psi_scores_missing or crux_stale:
-            # Lab skorları scrape birincil — PSI API backfill scrape’i ezmesin
-            if _site_has_pagespeed_web_scrape(db, site.id):
+            # Lab skorları scrape birincil (doviz/sinemalar) — PSI API backfill yok
+            if _is_pagespeed_scrape_primary_domain(site.domain or "") or _site_has_pagespeed_web_scrape(
+                db, site.id
+            ):
                 psi_scores_missing = False
             # CrUX History grafiği scrape’ten bağımsız; eksik/stale ise History API çek
             if psi_scores_missing or crux_stale:
@@ -12275,10 +12293,11 @@ def api_refresh_data_explorer(request: Request, domain: str):
         if site is None:
             return JSONResponse({"error": "Site not found"}, status_code=404)
 
+        scrape_primary = _is_pagespeed_scrape_primary_domain(site.domain or "")
         results = _refresh_site_detail_measurements(
             db,
             site,
-            include_pagespeed=True,
+            include_pagespeed=not scrape_primary,
             include_crawler=False,
             include_search_console=False,
             force=True,
@@ -12286,6 +12305,16 @@ def api_refresh_data_explorer(request: Request, domain: str):
             bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
             trigger_source="manual",
         )
+        if scrape_primary:
+            results["pagespeed"] = {
+                "state": "skipped",
+                "reason": (
+                    "Lab/KPI: pagespeed.web.dev scrape. "
+                    "Bu düğme yalnızca CrUX History yeniler. "
+                    "Scrape: scripts/pagespeed_web_scrape.py --sync --ingest"
+                ),
+                "source": "pagespeed_web_scrape",
+            }
         ps = results.get("pagespeed")
         if isinstance(ps, dict) and ps.get("blocked"):
             return JSONResponse(
@@ -12312,7 +12341,11 @@ def api_refresh_data_explorer(request: Request, domain: str):
             trigger_source="manual",
             site=site,
             results=results,
-            action_label="Data Explorer manuel refresh (PSI + CrUX)",
+            action_label=(
+                "Data Explorer manuel refresh (CrUX; scrape lab)"
+                if scrape_primary
+                else "Data Explorer manuel refresh (PSI + CrUX)"
+            ),
         )
         return JSONResponse(
             {
@@ -20542,7 +20575,7 @@ def policy_page(
 
 
 @app.post("/api/policy/upload")
-async def api_policy_upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def api_policy_upload():
     """CSV yükleme kaldırıldı — yalnızca Ad Manager scrape ingest."""
     return JSONResponse(
         {
@@ -20596,18 +20629,14 @@ def api_policy_export(db: Session = Depends(get_db)):
 
 
 @app.get("/api/policy/last-csv")
-def api_policy_last_csv(db: Session = Depends(get_db)):
-    """Son yüklenen CSV'yi indir."""
-    from backend.services import policy_csv as pcsv
-    upload = pcsv.get_latest_upload(db)
-    if not upload:
-        return JSONResponse({"ok": False, "error": "Henüz CSV yüklenmemiş."}, status_code=404)
-    return Response(
-        content=upload.content,
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": f'attachment; filename="{upload.filename}"',
+def api_policy_last_csv():
+    """Manuel CSV indirme kaldırıldı."""
+    return JSONResponse(
+        {
+            "ok": False,
+            "error": "Manuel CSV indirme kapatıldı. Kaynak: Ad Manager Policy Center scrape.",
         },
+        status_code=410,
     )
 
 

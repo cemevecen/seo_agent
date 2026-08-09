@@ -360,8 +360,8 @@ text-slate-500 dark:text-slate-400
 <div id="data-explorer-shell" class="dex-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-site-domain="{{ domain }}" data-site-profile="verified" data-site-title="{{ site_name|default('PageSpeed')|e }}">
   {% if explorer_backfill_queued or psi_scores_missing %}
   <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status">
-    <p class="font-semibold">PSI + CrUX ölçümü arka planda çalışıyor</p>
-    <p class="mt-1 text-[13px] leading-relaxed opacity-90">Google PageSpeed yaklaşık 2–4 dakika sürer. Bitince bu sayfayı yenileyin — skorlar ve CrUX kartları güncellenecek. İsterseniz üstteki «PSI + CrUX Yenile» ile de manuel tetikleyebilirsiniz.</p>
+    <p class="font-semibold">CrUX History yenileniyor</p>
+    <p class="mt-1 text-[13px] leading-relaxed opacity-90">Grafikler CrUX History API ile güncellenir (~1 dk). Lab/KPI skorları pagespeed.web.dev scrape ile gelir (Mac bridge). İsterseniz üstteki «CrUX Yenile» ile History’yi manuel tetikleyebilirsiniz.</p>
   </div>
   {% endif %}
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -380,7 +380,7 @@ text-slate-500 dark:text-slate-400
           <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
         </span>
         {% if data_explorer_schedule %}
-        <span class="inline-flex items-center gap-1.5" title="Sunucu her gün bu saatte PSI + CrUX verilerini otomatik yeniler. Bu bir plan saati; son başarılı çalışma aşağıdaki satırdadır.">
+        <span class="inline-flex items-center gap-1.5" title="Lab/KPI: pagespeed.web.dev scrape (Mac). Grafikler: CrUX History. Bu saat yalnızca CrUX/planlı işler içindir.">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
           <span>Otomatik yenileme planı:</span>
           <span class="font-medium text-slate-700 dark:text-slate-300">her gün {{ data_explorer_schedule }} (TSİ)</span>
@@ -404,7 +404,7 @@ text-slate-500 dark:text-slate-400
         title="Google PageSpeed Insights + Chrome UX Report verilerini yeniden çek"
       >
         <span id="refresh-data-explorer-icon" aria-hidden="true">↻</span>
-        <span id="refresh-data-explorer-label">PSI + CrUX Yenile</span>
+        <span id="refresh-data-explorer-label">CrUX Yenile</span>
       </button>
     </div>
   </div>
@@ -414,7 +414,7 @@ text-slate-500 dark:text-slate-400
     <summary class="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5 [&::-webkit-details-marker]:hidden">
       <div class="min-w-0 flex-1">
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Otomatik yenileme kaydı</p>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Zamanlanmış PSI + CrUX çekimlerinin son durumu (manuel «PSI + CrUX Yenile» burada listelenmez).</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Zamanlanmış çekimlerin son durumu (manuel «CrUX Yenile» burada listelenmez). Lab: pagespeed.web.dev scrape.</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2 text-[11px] sm:text-xs">
         <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
@@ -540,7 +540,7 @@ text-slate-500 dark:text-slate-400
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_mobile_last_updated|e }}{% if crux_mobile_period_last_label %} · Son dönem: {{ crux_mobile_period_last_label|e }}{% endif %}</p>
           <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kartlar scrape 28g uç · çizgi CrUX History API (scrape ile karışmaz)</p>
           {% if crux_stale or explorer_backfill_queued %}
-          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
+          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — CrUX History arka planda yenileniyor…{% else %}Veri geride — scrape/bridge veya sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
@@ -609,7 +609,7 @@ text-slate-500 dark:text-slate-400
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_desktop_last_updated|e }}{% if crux_desktop_period_last_label %} · Son dönem: {{ crux_desktop_period_last_label|e }}{% endif %}</p>
           <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kartlar scrape 28g uç · çizgi CrUX History API (scrape ile karışmaz)</p>
           {% if crux_stale or explorer_backfill_queued %}
-          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
+          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — CrUX History arka planda yenileniyor…{% else %}Veri geride — scrape/bridge veya sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>

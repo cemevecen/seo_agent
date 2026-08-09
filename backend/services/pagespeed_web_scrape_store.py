@@ -270,6 +270,7 @@ def ingest_pagespeed_web_scrape(
             except Exception:
                 metrics_payload, analysis = {}, {}
             if analysis:
+                analysis["source"] = SOURCE
                 _save_pagespeed_audit_snapshot(db, site.id, ff, analysis, now)
                 try:
                     save_lighthouse_audit_records(
