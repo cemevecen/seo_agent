@@ -1581,8 +1581,13 @@
         row-gap: 0;
       }
       .header-nav-track {
+        /* Default: pack right when all tabs fit. JS sets flex-start when overflowing
+           so the earliest tabs (home → …) stay visible as the viewport shrinks. */
         justify-content: flex-end;
         gap: 0.125rem;
+      }
+      .header-nav-track.is-overflowing {
+        justify-content: flex-start;
       }
     }
     #header-site-title {
@@ -2097,26 +2102,21 @@
               <a href="/realtime" data-nav-match="/realtime" class="header-nav-link">realtime</a>
               <a href="/ga4" data-nav-match="/ga4" class="header-nav-link">ga4</a>
               <a href="/search-console" data-nav-match="/search-console" class="header-nav-link">console</a>
-              <a href="/notification" data-nav-match="/notification" class="header-nav-link">notification</a>
+              <a href="/ios" data-nav-match="/ios" class="header-nav-link">ios</a>
+              <a href="/android" data-nav-match="/android" class="header-nav-link">android</a>
               <a href="/doviz-news" data-nav-match="/doviz-news,/intelligence" class="header-nav-link">news</a>
               {% if ad_menu_visible(request) %}
               <a href="/ad-virgul" data-nav-match="/ad-virgul" class="header-nav-link">virgül</a>
               {% endif %}
-              <a href="/android" data-nav-match="/android" class="header-nav-link">android</a>
-              <a href="/ios" data-nav-match="/ios" class="header-nav-link">ios</a>
+              <a href="/notification" data-nav-match="/notification" class="header-nav-link">notification</a>
               <a href="/firebase" data-nav-match="/firebase" class="header-nav-link">firebase</a>
-              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link">alerts</a>
-              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link">speed</a>
               <a href="/app" data-nav-match="/app" class="header-nav-link">app</a>
-
+              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link">alerts</a>
               <a href="/errors" data-nav-match="/errors" class="header-nav-link">errors</a>
               <a href="/seo-audit" data-nav-match="/seo-audit" class="header-nav-link">seo</a>
               <a href="/backlinks" data-nav-match="/backlinks" class="header-nav-link">backlinks</a>
-              <a href="/boards" data-nav-match="/boards" class="header-nav-link">gitlab</a>
               <a href="/policy" data-nav-match="/policy" class="header-nav-link">policy</a>
               <a href="/inbox" data-nav-match="/inbox" class="header-nav-link">inbox</a>
-              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" class="header-nav-link">movie</a>
-              <a href="/ai" data-nav-match="/ai" class="header-nav-link">ai</a>
               <div class="header-nav-dropdown" id="header-trend-dropdown" data-nav-match="/trend,/karma">
                 <button type="button" class="header-nav-link header-nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">trend ▾</button>
                 <div class="header-nav-dropdown-backdrop" aria-hidden="true" tabindex="-1"></div>
@@ -2133,6 +2133,10 @@
                   {% endfor %}
                 </div>
               </div>
+              <a href="/boards" data-nav-match="/boards" class="header-nav-link">gitlab</a>
+              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" class="header-nav-link">movie</a>
+              <a href="/ai" data-nav-match="/ai" class="header-nav-link">ai</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link">speed</a>
               {% if settings_menu_visible(request) %}
               <a href="/settings" data-nav-match="/settings" class="header-nav-link">settings</a>
               {% endif %}
@@ -2265,6 +2269,29 @@
         });
       }
 
+      /* Keep earliest tabs (home → …) visible when the header track overflows.
+         Wide screens still right-pack when everything fits; on shrink, switch to
+         start alignment and pin scroll to the left. */
+      function fitHeaderNavPriority() {
+        var track = document.getElementById('header-nav-track');
+        if (!track) return;
+        track.classList.remove('is-overflowing');
+        var overflowing = track.scrollWidth > track.clientWidth + 1;
+        if (overflowing) {
+          track.classList.add('is-overflowing');
+          track.scrollLeft = 0;
+        }
+      }
+
+      var _headerNavFitRaf = 0;
+      function scheduleHeaderNavFit() {
+        if (_headerNavFitRaf) cancelAnimationFrame(_headerNavFitRaf);
+        _headerNavFitRaf = requestAnimationFrame(function () {
+          _headerNavFitRaf = 0;
+          fitHeaderNavPriority();
+        });
+      }
+
       (function initTrendDropdown() {
         var wrap = document.getElementById('header-trend-dropdown');
         if (!wrap) return;
@@ -2352,6 +2379,7 @@
       document.body.addEventListener('htmx:afterSwap', function () {
         syncHeaderFromContent();
         syncTopNavActive();
+        scheduleHeaderNavFit();
         if (window.SeoMarketOverlay && SeoMarketOverlay.autoBindMarketOverlays) {
           SeoMarketOverlay.autoBindMarketOverlays();
         }
@@ -2405,7 +2433,15 @@
 
       syncHeaderFromContent();
       syncTopNavActive();
+      scheduleHeaderNavFit();
       window.addEventListener('popstate', syncTopNavActive);
+      window.addEventListener('resize', scheduleHeaderNavFit);
+      if (typeof ResizeObserver !== 'undefined') {
+        var _navEl = document.getElementById('header-main-nav');
+        if (_navEl) {
+          new ResizeObserver(scheduleHeaderNavFit).observe(_navEl);
+        }
+      }
     })();
 
     (function () {
