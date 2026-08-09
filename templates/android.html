@@ -1657,14 +1657,27 @@
     if (paLegendOverlay) paLegendOverlay.classList.add("hidden");
     if (!paLegendMulti) return;
     paLegendMulti.classList.remove("hidden");
-    paLegendMulti.innerHTML = (chartBundles || []).map(function (b) {
-      var color = overviewMetricColor(b.metric);
+    // Tüm özet grafik metrikleri legend’da kalsın; gizli olanlar sönük
+    var legendItems = [];
+    if (paOverviewBundles && paOverviewBundles.length) {
+      legendItems = paOverviewBundles.filter(function (b) { return b && b.onChart && b.metric; });
+    } else {
+      legendItems = chartBundles || [];
+    }
+    paLegendMulti.innerHTML = legendItems.map(function (b) {
+      var muted = !!(paOverviewHidden && paOverviewHidden[b.metric]);
+      var color = muted ? "#94a3b8" : overviewMetricColor(b.metric);
+      var short = shortMetricLabel(b.label, b.metric);
       return (
         '<button type="button" data-pa-legend-dismiss="overview" data-pa-legend-metric="' + esc(b.metric) + '" ' +
-          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 dark:focus-visible:ring-zinc-600" ' +
-          'title="' + esc(shortMetricLabel(b.label, b.metric)) + ' — grafikten kaldır">' +
-          '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
-          '<span>' + esc(shortMetricLabel(b.label, b.metric)) + "</span>" +
+          'aria-pressed="' + (muted ? "false" : "true") + '" ' +
+          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-zinc-600 ' +
+          (muted
+            ? "opacity-45 text-slate-400 hover:opacity-70 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            : "hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100") +
+          '" title="' + esc(short) + (muted ? " — grafiğe ekle" : " — grafikten gizle") + '">' +
+          '<span class="h-2 w-2 rounded-full ' + (muted ? "ring-1 ring-slate-300 dark:ring-zinc-600" : "") + '" style="background:' + color + '"></span>' +
+          '<span class="' + (muted ? "line-through decoration-slate-300" : "") + '">' + esc(short) + "</span>" +
         "</button>"
       );
     }).join("");
@@ -1680,12 +1693,18 @@
   }
   function dismissLegendSeries(kind, key) {
     if (kind === "overview") {
-      if (key) removeOverviewColumn(key);
+      if (!key) return;
+      if (paOverviewHidden[key]) delete paOverviewHidden[key];
+      else paOverviewHidden[key] = true;
+      refreshOverviewViewFromBundles();
       return;
     }
     if (kind === "overlay") {
       var idx = parseInt(key, 10);
-      if (!isNaN(idx)) removeOverlayAt(idx);
+      if (!isNaN(idx) && paOverlays[idx]) {
+        paOverlays[idx].muted = !paOverlays[idx].muted;
+        redrawWithOverlays();
+      }
       return;
     }
     if (kind === "primary") {
@@ -1730,6 +1749,7 @@
       });
     });
     (paOverlays || []).forEach(function (ov) {
+      if (ov && ov.muted) return;
       (ov.series || []).forEach(function (r) {
         if (r && r.key != null) keySet[String(r.key)] = true;
       });
@@ -1809,7 +1829,9 @@
     }).join("");
     // Özet (ANR/Crash/Kayıp) üzerine +grafik ekleri — kendi max % ölçeği
     syncPaOverlayColors();
-    var ovSeriesState = (paOverlays || []).map(function (ov, oi) {
+    var ovSeriesState = (paOverlays || []).filter(function (ov) {
+      return ov && !ov.muted;
+    }).map(function (ov, oi) {
       var map = {};
       var max = 0;
       (ov.series || []).forEach(function (r) {
@@ -2355,14 +2377,19 @@
     }
     paLegendOverlays.classList.remove("hidden");
     paLegendOverlays.innerHTML = paOverlays.map(function (ov, i) {
-      var color = ov.color || paOverlayColor(i);
+      var muted = !!ov.muted;
+      var color = muted ? "#94a3b8" : (ov.color || paOverlayColor(i));
       var short = shortMetricLabel(ov.label, ov.metric);
       return (
         '<button type="button" data-pa-legend-dismiss="overlay" data-pa-legend-ov="' + i + '" ' +
-          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 dark:focus-visible:ring-zinc-600" ' +
-          'title="' + esc(short) + ' — grafikten kaldır">' +
-          '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
-          '<span>' + esc(short) + "</span>" +
+          'aria-pressed="' + (muted ? "false" : "true") + '" ' +
+          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-zinc-600 ' +
+          (muted
+            ? "opacity-45 text-slate-400 hover:opacity-70 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            : "hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-100") +
+          '" title="' + esc(short) + (muted ? " — grafiğe ekle" : " — grafikten gizle") + '">' +
+          '<span class="h-2 w-2 rounded-full ' + (muted ? "ring-1 ring-slate-300 dark:ring-zinc-600" : "") + '" style="background:' + color + '"></span>' +
+          '<span class="' + (muted ? "line-through decoration-slate-300" : "") + '">' + esc(short) + "</span>" +
         "</button>"
       );
     }).join("");
@@ -2374,10 +2401,12 @@
       return;
     }
     paOverlaysChips.innerHTML = paOverlays.map(function (ov, i) {
-      var color = ov.color || paOverlayColor(i);
+      var muted = !!ov.muted;
+      var color = muted ? "#94a3b8" : (ov.color || paOverlayColor(i));
       return (
         '<button type="button" data-pa-ov-remove="' + i + '" ' +
-          'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:border-rose-300 hover:text-rose-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200" ' +
+          'class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:border-rose-300 hover:text-rose-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 ' +
+          (muted ? "opacity-45" : "") + '" ' +
           'title="Kaldır">' +
           '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
           esc(shortMetricLabel(ov.label, ov.metric)) +
@@ -3006,7 +3035,9 @@
       paLegendPrimaryLabel.textContent = primaryLegend || "Seçili dönem";
     }
     syncPaOverlayColors();
-    var overlaySeriesState = paOverlays.map(function (ov, oi) {
+    var overlaySeriesState = paOverlays.filter(function (ov) {
+      return ov && !ov.muted;
+    }).map(function (ov, oi) {
       var aligned = alignOverlayValues(rows, ov.series);
       var vals = aligned.map(function (r) { return r.value; });
       var color = ov.color || paOverlayColor(oi);
