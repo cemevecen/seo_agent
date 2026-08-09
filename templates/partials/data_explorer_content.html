@@ -137,7 +137,16 @@ text-slate-500 dark:text-slate-400
       data-fit-min="9"
       class="mt-1.5 text-[clamp(0.8rem,0.96vw,0.92rem)] font-semibold leading-snug text-slate-500 dark:text-slate-400"
       style="font-size: 14px;"
-    >iyi oran {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%</p>
+    >iyi {{ metric.good_share|max_two_decimals if metric.good_share is not none else "N/A" }}%</p>
+    {% if metric.ni_share is not none or metric.poor_share is not none %}
+    <p class="mt-1 text-[10px] font-medium leading-snug text-slate-500 dark:text-zinc-400">
+      geliştirilebilir {{ metric.ni_share|max_two_decimals if metric.ni_share is not none else "—" }}%
+      · kötü {{ metric.poor_share|max_two_decimals if metric.poor_share is not none else "—" }}%
+    </p>
+    {% endif %}
+    {% if verdict %}
+    <span class="mt-1.5 inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold {{ verdict_class }}" title="{{ verdict_help }}">{{ verdict }}</span>
+    {% endif %}
   </div>
 </div>
 {% endmacro %}
@@ -526,9 +535,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · pagespeed.web.dev / CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_mobile_last_updated|e }}{% if crux_mobile_period_last_label %} · Son dönem: {{ crux_mobile_period_last_label|e }}{% endif %}</p>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_mobile_last_updated|e }}{% if crux_mobile_period_last_label %} · Son dönem: {{ crux_mobile_period_last_label|e }}{% endif %}</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Tercih: pagespeed.web.dev scrape · eski mock/API döşeme karıştırılmaz</p>
           {% if crux_stale or explorer_backfill_queued %}
           <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}
@@ -594,9 +604,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · CrUX 28 gün</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · pagespeed.web.dev / CrUX 28 gün</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son CrUX çekimi: {{ crux_desktop_last_updated|e }}{% if crux_desktop_period_last_label %} · Son dönem: {{ crux_desktop_period_last_label|e }}{% endif %}</p>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_desktop_last_updated|e }}{% if crux_desktop_period_last_label %} · Son dönem: {{ crux_desktop_period_last_label|e }}{% endif %}</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Tercih: pagespeed.web.dev scrape · eski mock/API döşeme karıştırılmaz</p>
           {% if crux_stale or explorer_backfill_queued %}
           <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}
@@ -663,7 +674,7 @@ text-slate-500 dark:text-slate-400
   <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <p class="text-sm uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">Lab · PSI / Lighthouse tek koşum</p>
+        <p class="text-sm uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">Lab · pagespeed.web.dev / Lighthouse</p>
         <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Skor kartları ve audit bulguları</h4>
         <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son güncelleme: {{ psi_lighthouse_last_updated|e }}</p>
       </div>
@@ -676,12 +687,18 @@ text-slate-500 dark:text-slate-400
           <div class="min-w-0 flex-1">
             <p class="text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ report.strategy_label }}</p>
             <h5 class="text-xl font-semibold text-slate-900 dark:text-slate-100">PageSpeed Insights {{ report.strategy_label }}</h5>
-            <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500 dark:text-slate-400">bu alan son lighthouse psi lab ölçümünden üretilir.</p>
+            <p class="mt-1 text-xs lowercase tracking-[0.02em] text-slate-500 dark:text-slate-400">{{ report.source_note or 'lab ölçümü' }}</p>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Report zamanı: {{ report.report_time }}</p>
+            {% if report.analysis_url %}
+            <p class="mt-1 break-words text-xs text-emerald-700 dark:text-emerald-300"><a href="{{ report.analysis_url }}" target="_blank" rel="noopener" class="underline">pagespeed.web.dev analizi ↗</a></p>
+            {% endif %}
             {% if report.final_url %}
             <p class="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">Final URL: {{ report.final_url }}</p>
             {% elif report.requested_url %}
             <p class="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">URL: {{ report.requested_url }}</p>
+            {% endif %}
+            {% if report.has_url_field or report.has_origin_field %}
+            <p class="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">Field kapsam: {% if report.has_url_field %}This URL{% endif %}{% if report.has_url_field and report.has_origin_field %} · {% endif %}{% if report.has_origin_field %}Origin{% endif %}</p>
             {% endif %}
           </div>
           <span class="max-w-full shrink-0 self-start rounded-full border px-3 py-1 text-xs font-semibold leading-tight {{ report.cwv_badge_class }}">Core Web Vitals: {{ report.cwv_label }}</span>

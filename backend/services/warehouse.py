@@ -734,21 +734,39 @@ def save_url_inspection_snapshot(
 
 
 def get_latest_crux_snapshot(db: Session, *, site_id: int, form_factor: str) -> dict | None:
-    row = (
+    rows = (
         db.query(CruxHistorySnapshot)
         .filter(CruxHistorySnapshot.site_id == site_id, CruxHistorySnapshot.form_factor == form_factor)
         .order_by(CruxHistorySnapshot.collected_at.desc(), CruxHistorySnapshot.id.desc())
-        .first()
+        .limit(12)
+        .all()
     )
-    if row is None:
+    if not rows:
         return None
-    return {
-        "form_factor": row.form_factor,
-        "target_url": row.target_url,
-        "summary": json.loads(row.summary_json or "{}"),
-        "payload": json.loads(row.payload_json or "{}"),
-        "collected_at": row.collected_at.isoformat() if row.collected_at else None,
-    }
+
+    def _as_dict(row) -> dict:
+        return {
+            "form_factor": row.form_factor,
+            "target_url": row.target_url,
+            "summary": json.loads(row.summary_json or "{}"),
+            "payload": json.loads(row.payload_json or "{}"),
+            "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+        }
+
+    for row in rows:
+        try:
+            payload = json.loads(row.payload_json or "{}")
+            summary = json.loads(row.summary_json or "{}")
+        except Exception:
+            continue
+        if (
+            isinstance(payload, dict)
+            and payload.get("source") == "pagespeed_web_scrape"
+        ) or (
+            isinstance(summary, dict) and summary.get("source") == "pagespeed_web_scrape"
+        ):
+            return _as_dict(row)
+    return _as_dict(rows[0])
 
 
 def get_latest_url_inspection_snapshot(db: Session, *, site_id: int) -> dict | None:

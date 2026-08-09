@@ -59,6 +59,7 @@ from backend.api.play_console import router as play_console_router
 from backend.api.play_analytics import router as play_analytics_router
 from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.asc_console import router as asc_console_router
+from backend.api.pagespeed_web import router as pagespeed_web_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -1034,6 +1035,7 @@ app.include_router(ad_analytics_router, prefix="/api")
 app.include_router(virgul_analytics_router, prefix="/api")
 app.include_router(doviz_news_router, prefix="/api")
 app.include_router(play_console_router, prefix="/api")
+app.include_router(pagespeed_web_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
 app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(asc_console_router, prefix="/api")
@@ -1839,6 +1841,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/virgul-analytics/ingest",
         "/api/play-console/ingest",
         "/api/asc-console/ingest",
+        "/api/pagespeed-web/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -5999,32 +6002,81 @@ def _data_state_badge(
     }
 
 
+def _unwrap_pagespeed_payload(payload: dict | None) -> dict:
+    """pagespeed_web_scrape sarmalayıcısını aç — ham PSI alanlarına eriş."""
+    if not isinstance(payload, dict):
+        return {}
+    if payload.get("source") == "pagespeed_web_scrape" and isinstance(payload.get("psi"), dict):
+        return payload["psi"]
+    return payload
+
+
+def _latest_pagespeed_payload_row(db, site_id: int, strategy: str):
+    """Önce pagespeed_web_scrape; yoksa en son API/snapshot."""
+    from backend.services.pagespeed_web_scrape_store import SOURCE as PS_SCRAPE_SOURCE
+
+    rows = (
+        db.query(PageSpeedPayloadSnapshot)
+        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
+        .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
+        .limit(12)
+        .all()
+    )
+    scrape_row = None
+    for row in rows:
+        try:
+            data = json.loads(row.payload_json or "{}")
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict) and data.get("source") == PS_SCRAPE_SOURCE:
+            scrape_row = row
+            break
+    return scrape_row or (rows[0] if rows else None)
+
+
+def _site_has_pagespeed_web_scrape(db, site_id: int) -> bool:
+    for strategy in ("mobile", "desktop"):
+        row = _latest_pagespeed_payload_row(db, site_id, strategy)
+        if row is None:
+            return False
+        try:
+            data = json.loads(row.payload_json or "{}")
+        except json.JSONDecodeError:
+            return False
+        if not (isinstance(data, dict) and data.get("source") == "pagespeed_web_scrape"):
+            return False
+    return True
+
+
 PAGESPEED_FIELD_METRIC_MAP = {
     "LARGEST_CONTENTFUL_PAINT_MS": "largest_contentful_paint",
     "INTERACTION_TO_NEXT_PAINT": "interaction_to_next_paint",
     "CUMULATIVE_LAYOUT_SHIFT_SCORE": "cumulative_layout_shift",
     "FIRST_CONTENTFUL_PAINT_MS": "first_contentful_paint",
     "EXPERIMENTAL_TIME_TO_FIRST_BYTE": "experimental_time_to_first_byte",
+    # CrUX / pagespeed.web.dev snake_case
+    "largest_contentful_paint": "largest_contentful_paint",
+    "interaction_to_next_paint": "interaction_to_next_paint",
+    "experimental_interaction_to_next_paint": "interaction_to_next_paint",
+    "cumulative_layout_shift": "cumulative_layout_shift",
+    "first_contentful_paint": "first_contentful_paint",
+    "experimental_time_to_first_byte": "experimental_time_to_first_byte",
 }
 
 
 def _latest_pagespeed_field_metrics(db, site_id: int, strategy: str) -> dict[str, dict]:
-    row = (
-        db.query(PageSpeedPayloadSnapshot)
-        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
-        .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
-        .first()
-    )
+    row = _latest_pagespeed_payload_row(db, site_id, strategy)
     if row is None:
         return {}
     try:
-        payload = json.loads(row.payload_json or "{}")
+        payload = _unwrap_pagespeed_payload(json.loads(row.payload_json or "{}"))
     except json.JSONDecodeError:
         return {}
 
     loading_metrics = (payload.get("loadingExperience") or {}).get("metrics") or {}
     origin_metrics = (payload.get("originLoadingExperience") or {}).get("metrics") or {}
-    source_metrics = loading_metrics or origin_metrics
+    # Origin gerçek kullanıcı kapsamı — This URL (wwwm) ile karışmasın diye origin tercih
+    source_metrics = origin_metrics or loading_metrics
     if not source_metrics:
         return {}
 
@@ -6035,36 +6087,39 @@ def _latest_pagespeed_field_metrics(db, site_id: int, strategy: str) -> dict[str
         if percentile is None:
             continue
         good_share = None
+        ni_share = None
+        poor_share = None
         distributions = metric_payload.get("distributions") or []
         if distributions and isinstance(distributions, list):
-            proportion = (distributions[0] or {}).get("proportion")
             try:
-                good_share = float(proportion) * 100.0 if proportion is not None else None
+                if len(distributions) > 0:
+                    good_share = float((distributions[0] or {}).get("proportion") or 0) * 100.0
+                if len(distributions) > 1:
+                    ni_share = float((distributions[1] or {}).get("proportion") or 0) * 100.0
+                if len(distributions) > 2:
+                    poor_share = float((distributions[2] or {}).get("proportion") or 0) * 100.0
             except (TypeError, ValueError):
-                good_share = None
+                pass
 
         latest_value = float(percentile)
-        if payload_key == "CUMULATIVE_LAYOUT_SHIFT_SCORE":
+        if payload_key in ("CUMULATIVE_LAYOUT_SHIFT_SCORE", "cumulative_layout_shift") and latest_value > 1.5:
             latest_value = latest_value / 100.0
 
         output[metric_key] = {
             "latest": latest_value,
             "good_share": good_share,
+            "ni_share": ni_share,
+            "poor_share": poor_share,
         }
     return output
 
 
 def _latest_pagespeed_category_scores(db, site_id: int, strategy: str) -> dict[str, float]:
-    row = (
-        db.query(PageSpeedPayloadSnapshot)
-        .filter(PageSpeedPayloadSnapshot.site_id == site_id, PageSpeedPayloadSnapshot.strategy == strategy)
-        .order_by(PageSpeedPayloadSnapshot.collected_at.desc(), PageSpeedPayloadSnapshot.id.desc())
-        .first()
-    )
+    row = _latest_pagespeed_payload_row(db, site_id, strategy)
     if row is None:
         return {}
     try:
-        payload = json.loads(row.payload_json or "{}")
+        payload = _unwrap_pagespeed_payload(json.loads(row.payload_json or "{}"))
     except json.JSONDecodeError:
         return {}
 
@@ -6277,7 +6332,7 @@ def _latest_pagespeed_payload_snapshot(db, site_id: int, strategy: str) -> tuple
     if row is None:
         return {}, None
     try:
-        return json.loads(row.payload_json or "{}"), row.collected_at
+        return _unwrap_pagespeed_payload(json.loads(row.payload_json or "{}")), row.collected_at
     except json.JSONDecodeError:
         return {}, row.collected_at
 
@@ -6385,7 +6440,20 @@ def _format_pagespeed_metric_display(audit: dict, fallback_value: float | None =
 
 
 def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dict | None) -> dict:
-    payload, collected_at = _latest_pagespeed_payload_snapshot(db, site_id, strategy)
+    raw_row_payload = None
+    collected_at = None
+    row = _latest_pagespeed_payload_row(db, site_id, strategy)
+    scrape_source = False
+    analysis_url = ""
+    if row is not None:
+        collected_at = row.collected_at
+        try:
+            raw_row_payload = json.loads(row.payload_json or "{}")
+        except json.JSONDecodeError:
+            raw_row_payload = {}
+        scrape_source = isinstance(raw_row_payload, dict) and raw_row_payload.get("source") == "pagespeed_web_scrape"
+        analysis_url = str((raw_row_payload or {}).get("analysis_url") or "") if scrape_source else ""
+    payload = _unwrap_pagespeed_payload(raw_row_payload) if raw_row_payload else {}
     lighthouse = (payload.get("lighthouseResult") or {})
     categories = lighthouse.get("categories") or {}
     loading_experience = payload.get("loadingExperience") or {}
@@ -6535,6 +6603,16 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         "severity_trend": severity_trend,
         "field_lab": field_lab,
         "sections": sections,
+        "data_source": "pagespeed_web_scrape" if scrape_source else "pagespeed_api",
+        "analysis_url": analysis_url,
+        "source_note": (
+            "Kaynak: pagespeed.web.dev scrape (field CWV + lab). Eski API/mock döşeme kullanılmaz."
+            if scrape_source
+            else "Kaynak: PageSpeed API snapshot (scrape yoksa)."
+        ),
+        "url_scope_metrics": _latest_pagespeed_field_metrics(db, site_id, strategy),
+        "has_origin_field": bool(origin_loading_experience.get("metrics")),
+        "has_url_field": bool(loading_experience.get("metrics")),
     }
 
 
@@ -6573,6 +6651,12 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
         good_share = override_item.get("good_share")
         if good_share is None:
             good_share = current_item.get("good_share") if current_item.get("good_share") is not None else item.get("good_share")
+        ni_share = override_item.get("ni_share")
+        if ni_share is None:
+            ni_share = current_item.get("ni_share") if current_item.get("ni_share") is not None else item.get("ni_share")
+        poor_share = override_item.get("poor_share")
+        if poor_share is None:
+            poor_share = current_item.get("poor_share") if current_item.get("poor_share") is not None else item.get("poor_share")
         # queryRecord dönemi history'nin son noktasından yeniyse eksene ekle (TSI'ye daha yakın uç).
         if current_period_last and latest_value is not None:
             last_hist = ""
@@ -6588,8 +6672,8 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
                         "period_last": current_period_last,
                         "value": latest_value,
                         "good_share": good_share,
-                        "ni_share": None,
-                        "poor_share": None,
+                        "ni_share": ni_share,
+                        "poor_share": poor_share,
                         "p25": None,
                         "p50": None,
                         "p90": None,
@@ -6601,6 +6685,10 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
                 tip["value"] = latest_value
                 if good_share is not None:
                     tip["good_share"] = good_share
+                if ni_share is not None:
+                    tip["ni_share"] = ni_share
+                if poor_share is not None:
+                    tip["poor_share"] = poor_share
                 points[-1] = tip
         # Son dönem dolu bir noktanın metadata'sı (collection period bilgisi için)
         latest_period_first = ""
@@ -6610,10 +6698,23 @@ def _format_crux_series(snapshot: dict | None, current_override: dict[str, dict]
                 latest_period_first = p.get("period_first", "")
                 latest_period_last = p.get("period_last", "") or p.get("label", "")
                 break
+        # Tip histogram yoksa chart uçtan al
+        if ni_share is None:
+            for p in reversed(points):
+                if p.get("ni_share") is not None:
+                    ni_share = p.get("ni_share")
+                    break
+        if poor_share is None:
+            for p in reversed(points):
+                if p.get("poor_share") is not None:
+                    poor_share = p.get("poor_share")
+                    break
         formatted[metric_key] = {
             "label": current_item.get("label") or item.get("label") or metric_key.upper(),
             "latest": latest_value,
             "good_share": good_share,
+            "ni_share": ni_share,
+            "poor_share": poor_share,
             "latest_period_first": latest_period_first,
             "latest_period_last": latest_period_last,
             "chart": {
@@ -6878,14 +6979,22 @@ def _data_explorer_context(domain: str) -> dict:
         crux_refresh_queued = False
         explorer_backfill_queued = False
         if psi_scores_missing or crux_stale:
-            # Tek kuyruk: eksik PSI + stale CrUX birlikte (ayrı CrUX-only job'a gerek yok).
-            explorer_backfill_queued = _schedule_data_explorer_backfill_if_needed(
-                site.id,
-                site.domain,
-                need_pagespeed=psi_scores_missing,
-                need_crux=crux_stale or psi_scores_missing,
-            )
-            crux_refresh_queued = explorer_backfill_queued and crux_stale
+            # Scrape birincil kaynak — API backfill scrape’i ezmesin
+            if _site_has_pagespeed_web_scrape(db, site.id):
+                psi_scores_missing = False
+                # Scrape CrUX compat tek nokta; stale history API ile karışmasın
+                if (mobile_crux or {}).get("payload", {}).get("source") == "pagespeed_web_scrape" or (
+                    (mobile_crux or {}).get("summary") or {}
+                ).get("source") == "pagespeed_web_scrape":
+                    crux_stale = False
+            if psi_scores_missing or crux_stale:
+                explorer_backfill_queued = _schedule_data_explorer_backfill_if_needed(
+                    site.id,
+                    site.domain,
+                    need_pagespeed=psi_scores_missing,
+                    need_crux=crux_stale or psi_scores_missing,
+                )
+                crux_refresh_queued = explorer_backfill_queued and crux_stale
         mobile_period = _crux_latest_period_date(mobile_crux)
         desktop_period = _crux_latest_period_date(desktop_crux)
         def _snap_collected_dt(snap: dict | None) -> datetime | None:

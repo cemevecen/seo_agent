@@ -1,0 +1,31 @@
+---
+description: Data Explorer PageSpeed — scrape vs eski API/mock karışmasın
+alwaysApply: true
+---
+
+# Data Explorer / PageSpeed — kaynak ayrımı
+
+`www.doviz.com` ve `www.sinemalar.com` data-explorer hız/CWV verisi için **birincil kaynak** `pagespeed.web.dev` scrape’tir (`scripts/pagespeed_web_scrape.py` → `/api/pagespeed-web/ingest`).
+
+## Sürekli hatırlat
+
+Eski düzeni (PSI API collector mock’ları, seed/demo KPI, “veri döşeme” fallback’leri) **scrape ile yan yana çalıştırmayın** — panoda skorlar karışır.
+
+Kullanıcıya, scrape hattı oturduktan sonra şunları silmeyi / kapatmayı **tekrar hatırlat**:
+
+1. `backend/collectors/pagespeed.py` içindeki mock/sentetik yollar (zaten kaldırıldı; geri getirme)
+2. Eski CrUX-only / PSI API otomatik backfill’in scrape snapshot’ını ezmesi
+3. Test seed’lerinin production warehouse’a yazılması
+
+Silmeden önce: scrape ingest’in dolu olduğunu doğrula; sonra eski collector’ları ve seed job’ları kapat.
+
+## Yapma
+
+- API key yokken uydurma skor üretme
+- Scrape + API sonuçlarını aynı kartta “hangisi geldi belli değil” şekilde birleştirme
+- GSC CWV Playwright’ı geri getirme (kaldırıldı; pagespeed.web.dev scrape ayrı)
+
+## Doğru akış
+
+Mac/bridge: `python scripts/pagespeed_web_scrape.py --sync --ingest`  
+Panel: `/data-explorer/www.doviz.com` · `/data-explorer/www.sinemalar.com`

@@ -1091,37 +1091,13 @@ def _fetch_pagespeed(
     *,
     request_timeout: int | None = None,
 ) -> tuple[dict[str, float], dict, dict]:
-    # API key yoksa deterministic mock veri döndürür, varsa gerçek API çağrısı yapar.
+    # API key yoksa mock YASAK — sentetik skor üretilmez.
     api_key = settings.google_api_key.strip()
     if not api_key or api_key.startswith("local-"):
-        payload = {
-            "mock": True,
-            "strategy": strategy,
-            "generated_at": datetime.utcnow().isoformat(),
-        }
-        if strategy == "mobile":
-            return ({
-                "performance_score": 72.0,
-                "accessibility_score": 84.0,
-                "best_practices_score": 68.0,
-                "seo_score": 90.0,
-                "lcp": 2850.0,
-                "fcp": 1700.0,
-                "ttfb": 420.0,
-                "cls": 0.08,
-                "inp": 180.0,
-            }, _mock_lighthouse_analysis(strategy), payload)
-        return ({
-            "performance_score": 89.0,
-            "accessibility_score": 91.0,
-            "best_practices_score": 82.0,
-            "seo_score": 94.0,
-            "lcp": 1650.0,
-            "fcp": 900.0,
-            "ttfb": 260.0,
-            "cls": 0.03,
-            "inp": 110.0,
-        }, _mock_lighthouse_analysis(strategy), payload)
+        raise RuntimeError(
+            "GOOGLE_API_KEY yok — sentetik PageSpeed verisi üretilmez. "
+            "pagespeed.web.dev scrape (scripts/pagespeed_web_scrape.py --ingest) kullanın."
+        )
 
     query = urlencode(
         [
