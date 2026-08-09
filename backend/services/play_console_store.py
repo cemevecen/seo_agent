@@ -217,6 +217,26 @@ def ingest_play_console_payload(
             except Exception:
                 rating_summary = {}
 
+    # Tam dashboard / DOM scrape: kısa yorum listesi uzun Play Store sync'i ezmesin
+    elif reviews is not None:
+        try:
+            existing_reviews = json.loads(row.reviews_json or "[]")
+        except Exception:
+            existing_reviews = []
+        if isinstance(existing_reviews, list) and isinstance(reviews, list):
+            existing_n = len(existing_reviews)
+            incoming_n = len(reviews)
+            existing_public = sum(
+                1
+                for x in existing_reviews
+                if isinstance(x, dict) and "play_store" in str(x.get("source") or "")
+            )
+            # DOM viewport (~6–20) veya boş liste, dolu public sync'in üstüne yazmasın
+            if existing_n >= 40 and incoming_n < max(25, existing_n // 3) and (
+                existing_public >= max(10, existing_n // 4) or existing_n >= 80
+            ):
+                reviews = existing_reviews
+
     cleaned = normalize_play_snapshot(
         metrics=metrics,
         panels=panels,

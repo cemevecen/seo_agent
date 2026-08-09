@@ -317,6 +317,14 @@
            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
           App Store Connect ↗
         </a>
+        <button id="ia-btn-overview" type="button"
+                class="inline-flex h-9 items-center rounded-lg border border-sky-500 bg-sky-50 px-3 text-xs font-bold text-sky-900 transition dark:border-sky-500/70 dark:bg-sky-950/30 dark:text-sky-200">
+          Özet
+        </button>
+        <button id="ia-btn-reviews" type="button"
+                class="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-600 dark:hover:bg-sky-950/20">
+          Yorumlar
+        </button>
         <button id="ia-refresh" type="button"
                 class="inline-flex items-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
           Yenile
@@ -324,6 +332,21 @@
       </div>
     </div>
   </div>
+
+  <section id="ia-panel-reviews" class="hidden scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Yorumlar</h2>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">App Store · son 1 yıl · iTunes RSS</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="ia-review-count" class="text-xs tabular-nums text-slate-500"></span>
+        <button type="button" data-ia-close="reviews" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
+      </div>
+    </div>
+    <div id="ia-reviews" class="mt-4 max-h-[36rem] space-y-3 overflow-auto"></div>
+    <p id="ia-reviews-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz yorum yok</p>
+  </section>
 
   <section class="rounded-2xl border border-sky-200 bg-white p-4 shadow-sm dark:border-sky-900/50 dark:bg-slate-900">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrikler</h2>
@@ -515,7 +538,124 @@
   var iaLegend = document.getElementById("ia-legend");
   var iaTheadRow = document.getElementById("ia-thead-row");
   var iaTable = document.getElementById("ia-table");
+  var iaBtnOverview = document.getElementById("ia-btn-overview");
+  var iaBtnReviews = document.getElementById("ia-btn-reviews");
+  var iaPanelReviews = document.getElementById("ia-panel-reviews");
+  var iaReviewsEl = document.getElementById("ia-reviews");
+  var iaReviewsEmpty = document.getElementById("ia-reviews-empty");
+  var iaReviewCountEl = document.getElementById("ia-review-count");
+  var _iaReviewsSyncing = false;
 
+  function setIaPanelButtonActive(btn, on) {
+    if (!btn) return;
+    btn.className = on
+      ? "inline-flex h-9 items-center rounded-lg border border-sky-500 bg-sky-50 px-3 text-xs font-bold text-sky-900 transition dark:border-sky-500/70 dark:bg-sky-950/30 dark:text-sky-200"
+      : "inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-600 dark:hover:bg-sky-950/20";
+  }
+
+  function renderIaReviews(rows) {
+    rows = Array.isArray(rows) ? rows.slice() : [];
+    rows.sort(function (a, b) {
+      var da = String((a && a.date_iso) || "");
+      var db = String((b && b.date_iso) || "");
+      if (da && db && da !== db) return da < db ? 1 : -1;
+      return String((b && b.date) || "").localeCompare(String((a && a.date) || ""));
+    });
+    var countLabel = rows.length ? (rows.length + " yorum") : "—";
+    if (iaReviewCountEl) iaReviewCountEl.textContent = rows.length ? countLabel : "";
+    if (!iaReviewsEl || !iaReviewsEmpty) return;
+    if (!rows.length) {
+      iaReviewsEl.innerHTML = "";
+      iaReviewsEmpty.classList.remove("hidden");
+      return;
+    }
+    iaReviewsEmpty.classList.add("hidden");
+    iaReviewsEl.innerHTML = rows.map(function (r) {
+      var date = (r.date || r.date_iso || "").trim();
+      var stars = (r.stars || "").trim();
+      var ver = (r.app_version || "").trim();
+      var starsHtml = stars
+        ? '<span class="inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">' + esc(stars) + "</span>"
+        : "";
+      var dateHtml = date
+        ? '<time class="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">' + esc(date) + "</time>"
+        : "";
+      var metaBits = [];
+      if (r.locale) metaBits.push(String(r.locale).toUpperCase());
+      if (ver) metaBits.push("v" + ver);
+      return (
+        '<article class="relative rounded-xl border border-slate-200 bg-white p-3.5 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+          '<div class="flex items-start justify-between gap-3">' +
+            '<div class="min-w-0">' +
+              '<p class="truncate text-sm font-bold text-slate-900 dark:text-zinc-50">' + esc(r.author || "Anonim") + "</p>" +
+              (metaBits.length
+                ? '<p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-zinc-400">' + esc(metaBits.join(" · ")) + "</p>"
+                : "") +
+            "</div>" +
+            '<div class="flex shrink-0 flex-col items-end gap-1">' +
+              dateHtml +
+              starsHtml +
+            "</div>" +
+          "</div>" +
+          '<p class="mt-2.5 text-sm leading-relaxed text-slate-700 dark:text-zinc-300">' + esc(r.body || "") + "</p>" +
+        "</article>"
+      );
+    }).join("");
+  }
+
+  async function syncAppStoreReviews(opts) {
+    opts = opts || {};
+    var quick = opts.quick !== false;
+    var q = "/api/asc-console/sync-store-reviews?days=365&app_id=465599322" + (quick ? "&quick=1" : "");
+    var sr = await fetch(q, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" }
+    });
+    var sj = null;
+    try { sj = await sr.json(); } catch (_) {}
+    if (!sr.ok) throw new Error((sj && (sj.detail || sj.message)) || ("HTTP " + sr.status));
+    return sj || {};
+  }
+
+  async function loadIaReviewsSnapshot() {
+    var r = await fetch("/api/asc-console/snapshot", { credentials: "same-origin", cache: "no-store" });
+    var data = await r.json().catch(function () { return {}; });
+    renderIaReviews(data.reviews || []);
+    return data;
+  }
+
+  function openIaReviewsPanel() {
+    if (!iaPanelReviews) return;
+    iaPanelReviews.classList.remove("hidden");
+    setIaPanelButtonActive(iaBtnReviews, true);
+    setIaPanelButtonActive(iaBtnOverview, false);
+    requestAnimationFrame(function () {
+      iaPanelReviews.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    if (_iaReviewsSyncing) return;
+    _iaReviewsSyncing = true;
+    if (iaStatus) iaStatus.textContent = "Yorumlar senkron…";
+    if (iaReviewCountEl) iaReviewCountEl.textContent = "yükleniyor…";
+    syncAppStoreReviews({ quick: true })
+      .then(function (sj) {
+        if (iaStatus) iaStatus.textContent = (sj && sj.message) || ("Yorumlar: " + ((sj && sj.review_count) || 0));
+        return loadIaReviewsSnapshot();
+      })
+      .catch(function (err) {
+        if (iaStatus) iaStatus.textContent = (err && err.message) || "Yorum senkron hatası";
+        return loadIaReviewsSnapshot();
+      })
+      .finally(function () {
+        _iaReviewsSyncing = false;
+      });
+  }
+
+  function closeIaReviewsPanel() {
+    if (iaPanelReviews) iaPanelReviews.classList.add("hidden");
+    setIaPanelButtonActive(iaBtnReviews, false);
+    setIaPanelButtonActive(iaBtnOverview, true);
+  }
   var CHART_METRICS = ["units", "redownloads", "impressions"];
   var TABLE_EXTRA = ["page_views", "conversion_rate", "iap", "paying_users", "proceeds", "active_subscriptions"];
   var IA_GA4_METRICS = [
@@ -1907,12 +2047,24 @@
           if (iaStatus) iaStatus.textContent = "Bridge yanıt vermedi (127.0.0.1:18765) — önce bridge + --login";
         }
       }
+      try {
+        if (iaStatus) iaStatus.textContent = "Yorumlar senkron…";
+        var sj = await syncAppStoreReviews({ quick: false });
+        if (iaStatus) iaStatus.textContent = (sj && sj.message) || "Yorumlar güncellendi";
+        await loadIaReviewsSnapshot();
+      } catch (_) {}
       await loadStatus();
       await runAnalytics();
     } finally {
       if (iaRefresh) iaRefresh.disabled = false;
     }
   }
+
+  if (iaBtnReviews) iaBtnReviews.addEventListener("click", function () { openIaReviewsPanel(); });
+  if (iaBtnOverview) iaBtnOverview.addEventListener("click", function () { closeIaReviewsPanel(); });
+  document.querySelectorAll("[data-ia-close='reviews']").forEach(function (el) {
+    el.addEventListener("click", function () { closeIaReviewsPanel(); });
+  });
 
   if (iaPreset) iaPreset.addEventListener("change", function () { applyPreset(); runAnalytics(); });
   if (iaRun) iaRun.addEventListener("click", function () {
@@ -1995,6 +2147,7 @@
   fillIaMetricOptions();
   syncIaDimFilters();
   syncIaChartStyleUi();
+  loadIaReviewsSnapshot().catch(function () {});
   var iaChartStyleRoot = document.getElementById("ia-chart-style");
   if (iaChartStyleRoot) {
     iaChartStyleRoot.addEventListener("click", function (ev) {
@@ -2006,6 +2159,10 @@
   }
   loadStatus();
   runAnalytics();
+  // Arka planda yorum tazele
+  syncAppStoreReviews({ quick: true })
+    .then(function () { return loadIaReviewsSnapshot(); })
+    .catch(function () {});
 
   (function loadIosStabilityFree() {
     var el = document.getElementById("ia-stability-free");

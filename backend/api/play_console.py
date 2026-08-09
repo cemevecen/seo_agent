@@ -87,10 +87,12 @@ def post_sync_store_reviews(
     db: Session = Depends(get_db),
     days: int = 365,
     package_name: str = "com.Doviz",
+    quick: bool = False,
 ):
     """Play Store genel API’den son N gün yorumlarını çekip workspace’e yazar.
 
     Play Console DOM scroll’una bağlı değildir; admin oturumu yeterlidir.
+    quick=1 → TR/EN locale (panel açılışı için daha hızlı).
     """
     from backend.services.play_store_reviews import sync_store_reviews_to_workspace
 
@@ -99,6 +101,7 @@ def post_sync_store_reviews(
             db,
             package_name=(package_name or "com.Doviz").strip() or "com.Doviz",
             days=max(28, min(400, int(days or 365))),
+            quick=bool(quick),
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("sync-store-reviews failed")

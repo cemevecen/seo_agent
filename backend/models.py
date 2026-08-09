@@ -1123,6 +1123,7 @@ class AscConsoleWorkspace(Base):
     bundle_id: Mapped[str] = mapped_column(String(128), nullable=False, default="com.nokta.Finans.Takip")
     app_id: Mapped[str] = mapped_column(String(64), nullable=False, default="465599322")
     metrics_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    reviews_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     raw_network_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     source: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     source_url: Mapped[str] = mapped_column(String(512), nullable=False, default="")

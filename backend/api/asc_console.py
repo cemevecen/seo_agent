@@ -57,6 +57,28 @@ def get_asc_console_snapshot(db: Session = Depends(get_db)):
     return asc_console_payload(db)
 
 
+@router.post("/asc-console/sync-store-reviews")
+def post_sync_asc_store_reviews(
+    db: Session = Depends(get_db),
+    days: int = 365,
+    app_id: str = "465599322",
+    quick: bool = False,
+):
+    """App Store (iTunes RSS) yorumlarını çekip ASC workspace’e yazar."""
+    from backend.services.app_store_reviews import sync_app_store_reviews_to_workspace
+
+    try:
+        return sync_app_store_reviews_to_workspace(
+            db,
+            track_id=(app_id or "465599322").strip() or "465599322",
+            days=max(28, min(400, int(days or 365))),
+            quick=bool(quick),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("asc sync-store-reviews failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/asc-console/ingest")
 def post_asc_console_ingest(
     body: AscConsoleIngestBody,

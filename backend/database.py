@@ -409,6 +409,47 @@ def ensure_indexes() -> None:
             )
         )
 
+        # asc_console_workspace.reviews_json — iOS Yorumlar paneli
+        def _ensure_asc_reviews_col() -> None:
+            try:
+                if _IS_SQLITE:
+                    rc = conn.execute(
+                        _txt(
+                            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='asc_console_workspace'"
+                        )
+                    )
+                    if not rc.fetchone():
+                        return
+                    cols = {
+                        row[1]
+                        for row in conn.execute(_txt("PRAGMA table_info(asc_console_workspace)")).fetchall()
+                    }
+                    if "reviews_json" not in cols:
+                        conn.execute(
+                            _txt(
+                                "ALTER TABLE asc_console_workspace ADD COLUMN reviews_json TEXT NOT NULL DEFAULT '[]'"
+                            )
+                        )
+                else:
+                    try:
+                        conn.execute(
+                            _txt(
+                                "ALTER TABLE asc_console_workspace "
+                                "ADD COLUMN IF NOT EXISTS reviews_json TEXT NOT NULL DEFAULT '[]'"
+                            )
+                        )
+                    except Exception:  # noqa: BLE001
+                        conn.execute(
+                            _txt(
+                                "ALTER TABLE asc_console_workspace "
+                                "ADD COLUMN reviews_json TEXT NOT NULL DEFAULT '[]'"
+                            )
+                        )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("asc_console_workspace reviews_json ADD COLUMN atlandı: %s", exc)
+
+        _ensure_asc_reviews_col()
+
         conn.execute(
             _txt(
                 "CREATE INDEX IF NOT EXISTS ix_doviz_asset_runs_kind_collected "

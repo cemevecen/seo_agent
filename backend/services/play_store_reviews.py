@@ -34,6 +34,12 @@ _DEFAULT_LOCALES: tuple[tuple[str, str], ...] = (
     ("az", "az"),
     ("ar", "ae"),
 )
+# Panel açılışı / hızlı sync — yeterli kapsama, daha az round-trip
+_QUICK_LOCALES: tuple[tuple[str, str], ...] = (
+    ("tr", "tr"),
+    ("en", "tr"),
+    ("en", "us"),
+)
 
 
 def _fmt_tr_dt(dt: datetime) -> str:
@@ -50,6 +56,7 @@ def fetch_play_store_reviews(
     days: int = 365,
     locales: tuple[tuple[str, str], ...] | None = None,
     max_per_locale: int = 5000,
+    quick: bool = False,
 ) -> list[dict[str, Any]]:
     """Play Store'dan son `days` günün tüm metinli yorumlarını çeker."""
     try:
@@ -61,8 +68,9 @@ def fetch_play_store_reviews(
     days = max(28, min(400, int(days or 365)))
     cutoff = datetime.now(_UTC) - timedelta(days=days)
     by_id: dict[str, dict[str, Any]] = {}
+    use_locales = locales or (_QUICK_LOCALES if quick else _DEFAULT_LOCALES)
 
-    for lang, country in locales or _DEFAULT_LOCALES:
+    for lang, country in use_locales:
         token = None
         fetched = 0
         try:
@@ -139,10 +147,11 @@ def sync_store_reviews_to_workspace(
     *,
     package_name: str = "com.Doviz",
     days: int = 365,
+    quick: bool = False,
 ) -> dict[str, Any]:
     from backend.services.play_console_store import ingest_play_console_payload
 
-    reviews = fetch_play_store_reviews(package_name, days=days)
+    reviews = fetch_play_store_reviews(package_name, days=days, quick=quick)
     if not reviews:
         return {
             "ok": False,

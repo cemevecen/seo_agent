@@ -1226,6 +1226,24 @@
       : "inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20";
   }
 
+  var _pcReviewsSyncing = false;
+  async function syncPlayStoreReviews(opts) {
+    opts = opts || {};
+    var quick = opts.quick !== false;
+    var q = "/api/play-console/sync-store-reviews?days=365" + (quick ? "&quick=1" : "");
+    var sr = await fetch(q, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" }
+    });
+    var sj = null;
+    try { sj = await sr.json(); } catch (_) {}
+    if (!sr.ok) {
+      throw new Error((sj && (sj.detail || sj.message)) || ("HTTP " + sr.status));
+    }
+    return sj || {};
+  }
+
   function openPcPanel(which) {
     var panel = which === "reviews" ? panelReviews : panelOverview;
     var other = which === "reviews" ? panelOverview : panelReviews;
@@ -1239,6 +1257,22 @@
     requestAnimationFrame(function () {
       panel.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+    if (which === "reviews" && !_pcReviewsSyncing) {
+      _pcReviewsSyncing = true;
+      setPcLine(statusEl, "Yorumlar senkron…");
+      if (reviewCountEl) reviewCountEl.textContent = "yükleniyor…";
+      syncPlayStoreReviews({ quick: true })
+        .then(function (sj) {
+          setPcLine(statusEl, (sj && sj.message) || ("Yorumlar: " + ((sj && sj.review_count) || 0)));
+          return loadSnapshot();
+        })
+        .catch(function (err) {
+          setPcLine(statusEl, (err && err.message) || "Yorum senkron hatası");
+        })
+        .finally(function () {
+          _pcReviewsSyncing = false;
+        });
+    }
   }
 
   function closePcPanel(which) {
@@ -5668,6 +5702,7 @@
   }
 
   function isCalendarReviewJunk(r) {
+    if (r && (r.source === "play_store_public" || r.source === "app_store_public")) return false;
     var blob = [r && r.author, r && r.body, r && r.raw, r && r.date].join(" ");
     if (/başlangıç\s*tarihi|bitiş\s*tarihi|arrow_drop_down|chevron_|PSÇPCCP/i.test(blob)) return true;
     if (/\b(?:OCA|ŞUB|MAR|N[İI]S|MAY|HAZ|TEM|A[ĞG]U|EYL|EK[İI]|KAS|ARA)\s+20\d{2}\b/.test(blob)) return true;
@@ -5805,17 +5840,13 @@
     // Play Store’dan son 1 yıl yorumlarını sunucuda çek (Console DOM’a bağlı değil)
     try {
       setPcLine(statusEl, "Yorumlar senkron…");
-      var sr = await fetch("/api/play-console/sync-store-reviews?days=365", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { Accept: "application/json" }
-      });
-      var sj = null;
-      try { sj = await sr.json(); } catch (_) {}
-      if (sr.ok && sj && sj.ok) {
+      var sj = await syncPlayStoreReviews({ quick: false });
+      if (sj && sj.ok) {
         setPcLine(statusEl, sj.message || ("Yorumlar: " + (sj.review_count || 0)));
       }
-    } catch (_) {}
+    } catch (err) {
+      setPcLine(statusEl, (err && err.message) || "Yorum senkron hatası");
+    }
     try {
       await loadSnapshot();
       if (bridgeOk) setPcLine(statusEl, "");
@@ -5842,10 +5873,14 @@
       );
     }
   });
-  // İlk açılışta snapshot + vitals polling (365g yorum sync boot’u bloklamasın)
+  // İlk açılışta snapshot + vitals; yorumları arka planda tazele
   (async function bootAndroid() {
     await loadSnapshot();
     startVitalsPolling();
+    try {
+      await syncPlayStoreReviews({ quick: true });
+      await loadSnapshot();
+    } catch (_) {}
   })();
 })();
 </script>

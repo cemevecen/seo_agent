@@ -899,6 +899,48 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     for r in rows:
         if not isinstance(r, dict):
             continue
+        source = str(r.get("source") or "").strip()
+        # Play / App Store public sync: DOM junk filtrelerini atla — gerçek mağaza yorumu
+        if source in ("play_store_public", "app_store_public"):
+            author = str(r.get("author") or "Anonim").strip()[:80] or "Anonim"
+            body = str(r.get("body") or r.get("raw") or "").strip()[:800]
+            stars = r.get("stars")
+            if not stars:
+                score = r.get("score")
+                try:
+                    si = int(score)
+                except (TypeError, ValueError):
+                    si = 0
+                if 1 <= si <= 5:
+                    stars = f"{si} yıldız"
+            if not body and not stars:
+                continue
+            date = str(r.get("date") or "").strip()[:64]
+            date_iso = str(r.get("date_iso") or "").strip() or review_date_iso(date) or ""
+            rid = str(r.get("review_id") or "").strip()
+            key = (
+                (rid.lower() if rid else "")
+                or (author.lower() + "|" + (body[:60] or str(stars) or "").lower() + "|" + date[:16])
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(
+                {
+                    "author": author,
+                    "date": date,
+                    "date_iso": date_iso,
+                    "device": str(r.get("device") or "")[:120],
+                    "body": body or (f"({stars})" if stars else ""),
+                    "stars": stars,
+                    "review_id": rid[:80],
+                    "app_version": str(r.get("app_version") or "")[:40],
+                    "source": source[:40],
+                    "locale": str(r.get("locale") or "")[:16],
+                    "reply": str(r.get("reply") or "")[:800],
+                }
+            )
+            continue
         author_raw = str(r.get("author") or "").strip()
         raw_full = str(r.get("raw") or r.get("body") or "")
         if _is_calendar_review_junk(author_raw, raw_full, r.get("body"), r.get("date")):

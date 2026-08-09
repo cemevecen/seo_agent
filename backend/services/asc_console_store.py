@@ -53,11 +53,51 @@ def _unpack_metrics_blob(raw: str) -> tuple[list[dict[str, Any]], dict[str, Any]
     return [], {}
 
 
+def _normalize_store_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """App Store public / hafif normalize — DOM junk yok."""
+    rows = raw if isinstance(raw, list) else []
+    cleaned: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        author = str(r.get("author") or "Anonim").strip()[:80] or "Anonim"
+        body = str(r.get("body") or r.get("raw") or "").strip()[:800]
+        stars = r.get("stars")
+        if not body and not stars:
+            continue
+        date = str(r.get("date") or "").strip()[:64]
+        date_iso = str(r.get("date_iso") or "").strip()
+        rid = str(r.get("review_id") or "").strip()
+        key = rid.lower() if rid else (author.lower() + "|" + body[:60].lower() + "|" + date[:16])
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(
+            {
+                "author": author,
+                "date": date,
+                "date_iso": date_iso,
+                "device": str(r.get("device") or "")[:120],
+                "body": body or (f"({stars})" if stars else ""),
+                "stars": stars,
+                "review_id": rid[:80],
+                "app_version": str(r.get("app_version") or "")[:40],
+                "source": str(r.get("source") or "app_store_public")[:40],
+                "locale": str(r.get("locale") or "")[:16],
+                "reply": str(r.get("reply") or "")[:800],
+            }
+        )
+    cleaned.sort(key=lambda x: str(x.get("date_iso") or ""), reverse=True)
+    return cleaned
+
+
 def ingest_asc_console_payload(
     db: Session,
     *,
     metrics: list[dict[str, Any]] | None = None,
     panels: dict[str, Any] | None = None,
+    reviews: list[dict[str, Any]] | None = None,
     raw_network: list[dict[str, Any]] | None = None,
     source: str = "asc_console_bridge",
     source_url: str | None = None,
@@ -66,8 +106,40 @@ def ingest_asc_console_payload(
     sync_ok: bool = True,
     sync_message: str | None = None,
     sync_mode: str = "analytics_scrape",
+    merge_reviews: bool = False,
 ) -> dict[str, Any]:
     row = _get_or_create(db)
+
+    # Yorum-only sync: metrics/panels dokunma
+    if merge_reviews or str(sync_mode or "").startswith("reviews"):
+        if not isinstance(reviews, list) or not reviews:
+            raise ValueError("merge_reviews: reviews listesi gerekli")
+        cleaned_reviews = _normalize_store_reviews(reviews)
+        now = datetime.utcnow()
+        row.reviews_json = json.dumps(cleaned_reviews, ensure_ascii=False)
+        row.source = (source or "app_store_public")[:64]
+        row.source_url = (source_url or "")[:512]
+        if bundle_id:
+            row.bundle_id = bundle_id[:128]
+        if app_id:
+            row.app_id = app_id[:64]
+        row.sync_ok = bool(sync_ok)
+        row.sync_message = (sync_message or "")[:512]
+        row.sync_mode = (sync_mode or "reviews_store")[:32]
+        row.updated_at = now
+        if sync_ok:
+            row.background_synced_at = now
+        db.commit()
+        db.refresh(row)
+        return {
+            "ok": True,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            "review_count": len(cleaned_reviews),
+            "fact_count": 0,
+            "message": row.sync_message,
+            "sync_ok": row.sync_ok,
+        }
+
     incoming_panels = panels if isinstance(panels, dict) else {}
     facts = [
         f
@@ -112,6 +184,8 @@ def ingest_asc_console_payload(
 
     now = datetime.utcnow()
     row.metrics_json = _pack_metrics_blob(metrics or [], merged_panels)
+    if reviews is not None:
+        row.reviews_json = json.dumps(_normalize_store_reviews(reviews), ensure_ascii=False)
     if raw_network is not None:
         row.raw_network_json = json.dumps(
             (raw_network or [])[:40], ensure_ascii=False
@@ -140,6 +214,7 @@ def ingest_asc_console_payload(
         "ok": True,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         "fact_count": len(merged_facts),
+        "review_count": len(json.loads(row.reviews_json or "[]") or []),
         "message": row.sync_message,
         "sync_ok": row.sync_ok,
     }
@@ -153,6 +228,8 @@ def asc_console_payload(db: Session) -> dict[str, Any]:
             "empty": True,
             "metrics": [],
             "panels": {"version": 1, "explorer_facts": []},
+            "reviews": [],
+            "review_count": 0,
             "message": "Henüz ASC verisi yok — Mac bridge login + sync gerekli.",
         }
     metrics, panels = _unpack_metrics_blob(row.metrics_json or "[]")
@@ -160,12 +237,20 @@ def asc_console_payload(db: Session) -> dict[str, Any]:
         raw_network = json.loads(row.raw_network_json or "[]")
     except Exception:
         raw_network = []
+    try:
+        reviews = json.loads(getattr(row, "reviews_json", None) or "[]")
+    except Exception:
+        reviews = []
+    if not isinstance(reviews, list):
+        reviews = []
     facts = panels.get("explorer_facts") if isinstance(panels, dict) else []
     return {
         "ok": bool(row.sync_ok),
-        "empty": not facts,
+        "empty": not facts and not reviews,
         "metrics": metrics,
         "panels": panels,
+        "reviews": reviews,
+        "review_count": len(reviews),
         "raw_network": raw_network if isinstance(raw_network, list) else [],
         "bundle_id": row.bundle_id or "com.nokta.Finans.Takip",
         "app_id": row.app_id or "465599322",
