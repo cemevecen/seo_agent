@@ -1540,7 +1540,17 @@
       min-width: 0;
       max-width: 100%;
       width: 100%;
-      overflow: hidden;
+      overflow: visible;
+    }
+    .header-nav-track-wrap {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 0.25rem;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
     .header-nav-track {
       display: flex;
@@ -1549,7 +1559,8 @@
       align-items: center;
       justify-content: flex-start;
       gap: 0.25rem;
-      width: 100%;
+      flex: 1 1 auto;
+      width: auto;
       max-width: 100%;
       min-width: 0;
       /* No horizontal scroll: priority items stay left; overflow goes into ⋯ */
@@ -1563,13 +1574,17 @@
       flex: 1 1 auto;
       min-width: 0;
     }
+    .header-nav-track-wrap.is-overflowing .header-nav-more {
+      flex: 0 0 auto;
+    }
     @media (min-width: 1024px) {
       .header-app-shell {
         grid-template-columns: auto auto minmax(0, 1fr);
         grid-template-areas: "headline actions nav";
         row-gap: 0;
       }
-      .header-nav-track {
+      .header-nav-track,
+      .header-nav-track-wrap {
         gap: 0.125rem;
       }
     }
@@ -1890,7 +1905,8 @@
     }
     .header-nav-dropdown.is-open .header-nav-dropdown-menu { display: block; }
     .header-main-nav:has(.header-nav-dropdown.is-open),
-    .header-nav-track:has(.header-nav-dropdown.is-open) {
+    .header-nav-track:has(.header-nav-dropdown.is-open),
+    .header-nav-track-wrap:has(.header-nav-dropdown.is-open) {
       overflow: visible;
     }
     .header-nav-dropdown-group {
@@ -1977,7 +1993,8 @@
       display: block;
     }
     .header-main-nav:has(.header-nav-more.is-open),
-    .header-nav-track:has(.header-nav-more.is-open) {
+    .header-nav-track:has(.header-nav-more.is-open),
+    .header-nav-track-wrap:has(.header-nav-more.is-open) {
       overflow: visible;
     }
     .header-nav-more-menu a {
@@ -2153,6 +2170,7 @@
               class="header-main-nav"
               aria-label="Ana gezinme"
             >
+              <div class="header-nav-track-wrap" id="header-nav-track-wrap">
               <div class="header-nav-track" id="header-nav-track">
               {% if is_tmdb_guest_view(request) %}
               <span class="rounded-full border border-violet-300 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-900 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200 sm:text-xs">Vizyon takvimi</span>
@@ -2205,6 +2223,9 @@
               <a href="/settings" data-nav-match="/settings" data-nav-priority class="header-nav-link">settings</a>
               {% endif %}
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
+              {% endif %}
+              </div>
+              {% if not is_tmdb_guest_view(request) %}
               <div class="header-nav-more" id="header-nav-more" hidden>
                 <button type="button" id="header-nav-more-trigger" class="header-nav-link header-nav-more-trigger" aria-expanded="false" aria-haspopup="true" title="Diğer sekmeler" aria-label="Diğer sekmeler">⋯</button>
                 <div class="header-nav-more-menu" id="header-nav-more-menu" role="menu"></div>
@@ -2387,8 +2408,9 @@
 
       /* Priority nav: always keep leftmost (most important) tabs visible.
          Items that do not fit are moved into the trailing ⋯ menu — never clipped
-         off the left by flex-end / scroll. */
+         off the left by flex-end / scroll. ⋯ lives outside the clipping track. */
       function fitHeaderNavPriority() {
+        var wrap = document.getElementById('header-nav-track-wrap');
         var track = document.getElementById('header-nav-track');
         var more = document.getElementById('header-nav-more');
         var moreMenu = document.getElementById('header-nav-more-menu');
@@ -2399,6 +2421,7 @@
         if (moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
         moreMenu.innerHTML = '';
         more.hidden = true;
+        if (wrap) wrap.classList.remove('is-overflowing');
 
         var items = Array.prototype.slice.call(track.querySelectorAll(':scope > [data-nav-priority]'));
         items.forEach(function (el) {
@@ -2409,6 +2432,9 @@
         track.scrollLeft = 0;
 
         var gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 0;
+        var wrapGap = wrap
+          ? (parseFloat(getComputedStyle(wrap).columnGap || getComputedStyle(wrap).gap) || 0)
+          : gap;
 
         function visiblePrimary() {
           return items.filter(function (el) {
@@ -2416,38 +2442,53 @@
           });
         }
 
-        function usedWidth() {
+        function primaryWidth() {
           var vis = visiblePrimary();
           var w = 0;
-          var n = 0;
           vis.forEach(function (el) {
             w += el.getBoundingClientRect().width;
-            n += 1;
           });
-          if (!more.hidden) {
-            w += more.getBoundingClientRect().width;
-            n += 1;
-          }
-          if (n > 1) w += gap * (n - 1);
+          if (vis.length > 1) w += gap * (vis.length - 1);
           return w;
         }
 
-        var available = track.clientWidth;
-        if (available <= 0) return;
-        if (usedWidth() <= available + 1) {
+        var available = (wrap || track).clientWidth;
+        if (available <= 0) {
+          if (!fitHeaderNavPriority._zeroRetry) {
+            fitHeaderNavPriority._zeroRetry = true;
+            requestAnimationFrame(function () {
+              fitHeaderNavPriority._zeroRetry = false;
+              fitHeaderNavPriority();
+            });
+          }
+          return;
+        }
+
+        /* Measure ⋯ while briefly visible (outside the clipping track). */
+        more.hidden = false;
+        var moreW = Math.ceil(more.getBoundingClientRect().width) || 36;
+        more.hidden = true;
+
+        if (primaryWidth() <= available + 1) {
           syncTopNavActive();
           return;
         }
 
         track.classList.add('is-overflowing');
+        if (wrap) wrap.classList.add('is-overflowing');
         more.hidden = false;
 
+        var trackBudget = Math.max(0, available - moreW - wrapGap);
         var overflowed = [];
-        /* Hide from the end; never hide the first (home) item. */
-        for (var i = items.length - 1; i >= 1; i -= 1) {
-          if (usedWidth() <= available + 1) break;
+        /* Hide from the end; home may go into ⋯ only as last resort. */
+        for (var i = items.length - 1; i >= 0; i -= 1) {
+          if (primaryWidth() <= trackBudget + 1) break;
           var el = items[i];
           if (el.classList.contains('hidden') || el.hidden) continue;
+          if (i === 0 && visiblePrimary().length === 1) {
+            /* Keep at least home visible when it alone still fits the budget. */
+            if (el.getBoundingClientRect().width <= trackBudget + 1) break;
+          }
           el.hidden = true;
           el.setAttribute('data-nav-overflowed', '1');
           overflowed.unshift(el);
@@ -2481,7 +2522,15 @@
 
         overflowed.forEach(pushOverflowItem);
 
-        /* Still overflowing with only home + ⋯ — keep home. */
+        /* If nothing left in track (extreme narrow), still keep ⋯. */
+        if (!visiblePrimary().length && overflowed.length) {
+          var first = overflowed.shift();
+          first.hidden = false;
+          first.removeAttribute('data-nav-overflowed');
+          moreMenu.innerHTML = '';
+          overflowed.forEach(pushOverflowItem);
+        }
+
         syncTopNavActive();
       }
 
@@ -2703,7 +2752,7 @@
       window.addEventListener('popstate', syncTopNavActive);
       window.addEventListener('resize', scheduleHeaderNavFit);
       if (typeof ResizeObserver !== 'undefined') {
-        var _navEl = document.getElementById('header-main-nav');
+        var _navEl = document.getElementById('header-nav-track-wrap') || document.getElementById('header-main-nav');
         if (_navEl) {
           new ResizeObserver(scheduleHeaderNavFit).observe(_navEl);
         }
