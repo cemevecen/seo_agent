@@ -235,7 +235,7 @@
       {% endif %}
       <div class="home-pos-mode-chips mt-2" role="tablist" aria-label="Pozisyon görünümü">
         <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">değişim</button>
-        <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'En çok tık alan 20 sorgu' }}">top 20</button>
+        <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'Search Console Top queries (ilk 20)' }}">top 20</button>
       </div>
     </div>
     {% if not hide_nav_link %}
@@ -250,7 +250,7 @@
     {{ pos_panels(_real_drops, _real_rises, 'Top 50 içinde anlamlı pozisyon değişimi yok') }}
   </div>
   <div data-pos-panel="top20">
-    {{ pos_panels(_top20_drops, _top20_rises, 'Top 20 trafik sorgusunda anlamlı pozisyon değişimi yok') }}
+    {{ pos_panels(_top20_drops, _top20_rises, 'Search Console Top 20 içinde anlamlı pozisyon değişimi yok') }}
   </div>
 </div>
 <script>

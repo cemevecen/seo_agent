@@ -139,6 +139,11 @@ from backend.services.search_console_reports import (
     sc_extra_card_should_render,
     sc_extra_views_for_nav,
 )
+from backend.services.sc_top_queries import (
+    aggregate_search_console_queries as _aggregate_search_console_queries,
+    build_search_console_top_queries as _build_search_console_top_queries,
+    sc_position_delta as _sc_position_delta,
+)
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
     get_latest_crux_snapshot,
@@ -2661,95 +2666,6 @@ def _filter_search_console_rows_by_device(rows: list[dict], device: str) -> list
         for row in rows
         if str(row.get("device") or "ALL").upper().strip() == normalized_device
     ]
-
-
-def _aggregate_search_console_queries(rows: list[dict]) -> dict[str, dict]:
-    aggregated: dict[str, dict] = {}
-    for row in rows:
-        query = str(row.get("query") or "").strip()
-        if not query:
-            continue
-        item = aggregated.setdefault(
-            query,
-            {
-                "query": query,
-                "clicks": 0.0,
-                "impressions": 0.0,
-                "position_weighted_total": 0.0,
-                "position_weighted_impressions": 0.0,
-                "fallback_position_total": 0.0,
-                "fallback_position_count": 0,
-            },
-        )
-        clicks = float(row.get("clicks", 0.0))
-        impressions = float(row.get("impressions", 0.0))
-        position = float(row.get("position", 0.0))
-        item["clicks"] += clicks
-        item["impressions"] += impressions
-        if impressions > 0:
-            item["position_weighted_total"] += position * impressions
-            item["position_weighted_impressions"] += impressions
-        elif position > 0:
-            item["fallback_position_total"] += position
-            item["fallback_position_count"] += 1
-
-    normalized: dict[str, dict] = {}
-    for query, item in aggregated.items():
-        impressions = float(item["impressions"])
-        if item["position_weighted_impressions"] > 0:
-            position = item["position_weighted_total"] / item["position_weighted_impressions"]
-        elif item["fallback_position_count"] > 0:
-            position = item["fallback_position_total"] / item["fallback_position_count"]
-        else:
-            position = 0.0
-        normalized[query] = {
-            "query": query,
-            "clicks": float(item["clicks"]),
-            "impressions": impressions,
-            "ctr": (float(item["clicks"]) / impressions * 100.0) if impressions > 0 else 0.0,
-            "position": position,
-        }
-    return normalized
-
-
-def _build_search_console_top_queries(current_rows: list[dict], previous_rows: list[dict], *, limit: int = 50) -> list[dict]:
-    current_map = _aggregate_search_console_queries(current_rows)
-    previous_map = _aggregate_search_console_queries(previous_rows)
-    items: list[dict] = []
-
-    # current verisi varsa: normal karşılaştırma
-    if current_map:
-        for query, current in sorted(current_map.items(), key=lambda item: item[1]["clicks"], reverse=True)[:limit]:
-            previous = previous_map.get(query, {})
-            previous_position = float(previous.get("position", current["position"]))
-            current_position = float(current["position"])
-            items.append(
-                {
-                    "query": query,
-                    "clicks_current": float(current.get("clicks", 0.0)),
-                    "clicks_previous": float(previous.get("clicks", 0.0)),
-                    "clicks_diff": float(current.get("clicks", 0.0)) - float(previous.get("clicks", 0.0)),
-                    "position_current": current_position,
-                    "position_previous": previous_position,
-                    "position_diff": _sc_position_delta(current_position, previous_position),
-                }
-            )
-    elif previous_map:
-        # current boşsa previous verisini göster (henüz veri toplanmamış dönemler için)
-        for query, prev in sorted(previous_map.items(), key=lambda item: item[1]["clicks"], reverse=True)[:limit]:
-            prev_position = float(prev.get("position", 0.0))
-            items.append(
-                {
-                    "query": query,
-                    "clicks_current": 0.0,
-                    "clicks_previous": float(prev.get("clicks", 0.0)),
-                    "clicks_diff": -float(prev.get("clicks", 0.0)),
-                    "position_current": 0.0,
-                    "position_previous": prev_position,
-                    "position_diff": -prev_position,
-                }
-            )
-    return items
 
 
 def _build_search_console_top_entities(
@@ -13014,21 +12930,6 @@ def _ga4_period_pct_change(last: float, prev: float) -> float:
     if lv > 0.0:
         return 100.0
     return 0.0
-
-
-def _sc_position_delta(current: float, previous: float) -> float:
-    """Search Console ort. pozisyon: önceki − güncel (sıra birimi, yüzde değil).
-    Pozitif = sıra sayısı düştü (iyileşme), negatif = yükseldi (kötüleşme)."""
-    try:
-        c = float(current or 0.0)
-        p = float(previous or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
-    d = p - c
-    # UI `{:+.2f}` ile gösterim; iki ondalıkta 0.00 olan farkları tam sıfır yap (yeşil/kırmızı sınıfları)
-    if round(d, 2) == 0.0:
-        return 0.0
-    return d
 
 
 def _ga4_sw_float(m: dict | None, key: str) -> float:

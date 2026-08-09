@@ -567,24 +567,35 @@ def _sc_position_data_as_of(db: Session, site: Site) -> tuple[Any, str | None, s
     return as_of_raw, as_of_label, as_of_iso
 
 
-def _top20_traffic_position_changes(
-    ordered_rows: list[dict],
+def _top20_from_search_console_top_queries(
+    db: Session,
+    site: Site,
     *,
     min_diff: float,
     limit: int = HOME_POSITION_TOP20_TRAFFIC,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """En çok tık alan N sorgunun 7g pozisyon düşüş / yükselişi (trafik sırası korunur)."""
-    ranked: list[dict] = []
-    for row in ordered_rows:
-        if is_adult_position_query(str(row.get("query") or "")):
-            continue
-        ranked.append(row)
-    ranked.sort(key=lambda item: float(item.get("clicks") or 0.0), reverse=True)
-    top = ranked[: max(1, int(limit))]
+    """/search-console Top queries tablosu ile aynı liste; pozisyon düşen/yükselenler."""
+    from backend.services.sc_top_queries import build_search_console_top_queries
+
+    current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+    previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+    top = build_search_console_top_queries(
+        current_rows, previous_rows, limit=max(1, int(limit))
+    )
 
     drops: list[dict[str, Any]] = []
     rises: list[dict[str, Any]] = []
-    for row in top:
+    for item in top:
+        query = str(item.get("query") or "")
+        if is_adult_position_query(query):
+            continue
+        row = {
+            "query": query,
+            "position": float(item.get("position_current") or 0.0),
+            "previous_position": float(item.get("position_previous") or 0.0),
+            "clicks": float(item.get("clicks_current") or 0.0),
+            "impressions": float(item.get("impressions_current") or 0.0),
+        }
         drop_item = _position_drop_from_row(row, min_diff=min_diff)
         if drop_item:
             drops.append(drop_item)
@@ -637,8 +648,8 @@ def list_sc_position_changes_7d(
     drops = drops[:row_limit]
     rises = rises[:row_limit]
 
-    top20_drops, top20_rises = _top20_traffic_position_changes(
-        ordered_rows, min_diff=min_diff, limit=HOME_POSITION_TOP20_TRAFFIC
+    top20_drops, top20_rises = _top20_from_search_console_top_queries(
+        db, site, min_diff=min_diff, limit=HOME_POSITION_TOP20_TRAFFIC
     )
 
     _as_of_raw, as_of_label, as_of_iso = _sc_position_data_as_of(db, site)
@@ -651,7 +662,7 @@ def list_sc_position_changes_7d(
         "as_of_label": as_of_label,
         "as_of_iso": as_of_iso,
         "scope_label": "Mobil+Web (gösterim ağırlıklı) · önce Top 50, sonra diğer sorgular",
-        "top20_scope_label": "En çok tık alan 20 sorgunun 7g pozisyon değişimi",
+        "top20_scope_label": "Search Console Top queries (ilk 20) · 7g pozisyon değişimi",
         "row_limit": row_limit,
         "period_label": "Son 7 gün vs önceki 7 gün",
         "sort_label": "",
