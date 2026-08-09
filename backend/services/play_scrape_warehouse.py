@@ -618,15 +618,58 @@ def query_scrape_analytics(
                 or str(f.get("segment") or "") == segment
             ]
 
-    dated = []
-    undated = []
-    for f in dim_facts:
-        ds = f.get("date")
-        if ds and isinstance(ds, str) and len(ds) >= 8 and not str(ds).startswith("i"):
-            if start_s <= str(ds)[:10] <= end_s:
-                dated.append(f)
-        else:
-            undated.append(f)
+    requested_start, requested_end = start_s, end_s
+    range_shifted = False
+    shift_note = None
+
+    def _dated_in_range(rows: list[dict[str, Any]], lo: str, hi: str) -> list[dict[str, Any]]:
+        out_rows: list[dict[str, Any]] = []
+        for f in rows:
+            ds = f.get("date")
+            if ds and isinstance(ds, str) and len(ds) >= 8 and not str(ds).startswith("i"):
+                if lo <= str(ds)[:10] <= hi:
+                    out_rows.append(f)
+        return out_rows
+
+    def _undated_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out_rows: list[dict[str, Any]] = []
+        for f in rows:
+            ds = f.get("date")
+            if not (ds and isinstance(ds, str) and len(ds) >= 8 and not str(ds).startswith("i")):
+                out_rows.append(f)
+        return out_rows
+
+    dated = _dated_in_range(dim_facts, start_s, end_s)
+    undated = _undated_rows(dim_facts)
+
+    # GCS ile aynı: seçili pencerede tarihli fact yoksa son mevcut güne kaydır
+    if not dated and breakdown in ("date", "week", "month"):
+        bound_dates: list[date] = []
+        for f in dim_facts:
+            ds = f.get("date")
+            if not (ds and isinstance(ds, str) and len(ds) >= 8 and not str(ds).startswith("i")):
+                continue
+            try:
+                bound_dates.append(date.fromisoformat(str(ds)[:10]))
+            except ValueError:
+                continue
+        if bound_dates:
+            span_days = max((end_d - start_d).days + 1, 1)
+            data_max = max(bound_dates)
+            data_min = min(bound_dates)
+            end_d = data_max
+            start_d = end_d - timedelta(days=span_days - 1)
+            if start_d < data_min:
+                start_d = data_min
+            start_s, end_s = start_d.isoformat(), end_d.isoformat()
+            range_shifted = (start_s != requested_start) or (end_s != requested_end)
+            dated = _dated_in_range(dim_facts, start_s, end_s)
+            if range_shifted:
+                shift_note = (
+                    f"Seçili aralık boştu ({requested_start}…{requested_end}); "
+                    f"mevcut scrape verisine kaydırıldı ({start_s}…{end_s})."
+                )
+
     use = dated if dated else undated
     # Puan günlük/haftalık/aylık: tarihsiz OVERALL kartını (tek "5") seri yapma
     if metric_key == "rating" and breakdown in ("date", "week", "month"):
@@ -640,6 +683,7 @@ def query_scrape_analytics(
                     "Puan için günlük scrape serisi yok — GCS stats/ratings CSV veya "
                     "Play Console /user-feedback/ratings sayfası kullanılır."
                     + (f" · {enrich_msg}" if enrich_msg else "")
+                    + (f" · {shift_note}" if shift_note else "")
                 ),
                 "series": [],
                 "total": 0,
@@ -647,6 +691,9 @@ def query_scrape_analytics(
                 "row_count": len(dim_facts),
                 "start": start_s,
                 "end": end_s,
+                "requested_start": requested_start,
+                "requested_end": requested_end,
+                "auto_shifted": range_shifted,
                 "metric": metric_key,
                 "breakdown": breakdown,
                 "dim": dim,
@@ -810,6 +857,8 @@ def query_scrape_analytics(
         msg += f" · {enrich_msg}"
     if dates:
         msg += f" · bucket {dates[0]}→{dates[-1]}"
+    if shift_note:
+        msg += f" · {shift_note}"
     if lag_note:
         msg += f" · {lag_note}"
     if metric_key == "revenue":
@@ -833,6 +882,8 @@ def query_scrape_analytics(
         "start": start_s,
         "end": end_s,
         "effective_end": effective_end.isoformat() if breakdown == "date" else end_s,
+        "requested_start": requested_start,
+        "requested_end": requested_end,
         "metric": metric_key,
         "breakdown": breakdown,
         "dim": dim,
@@ -852,7 +903,7 @@ def query_scrape_analytics(
         "synced_at": meta.get("synced_at"),
         "date_min": dates[0] if dates else None,
         "date_max": dates[-1] if dates else None,
-        "auto_shifted": bool(lag_note),
+        "auto_shifted": bool(range_shifted or lag_note),
         "lag_days": (end_d - metric_date_max).days if lag_note and metric_date_max else 0,
     }
     if dim == "app_version":
