@@ -241,11 +241,14 @@ def scrape_site(site_id: int, *, limit: int, concurrency: int, timeout_ms: int) 
     rows = ordered
 
     collected_at = datetime.now(timezone.utc).isoformat()
+    # replace_all yalnızca “tam” top-N turunda: kısmi smoke eski kayıtları silmesin
+    top_default = int(os.environ.get("SEO_AUDIT_TOP_LIMIT") or 500)
+    full_refresh = bool(len(rows) >= min(limit, top_default) and len(rows) >= 50)
     batch_size = 80
     saved = 0
     for i in range(0, len(rows), batch_size):
         chunk = rows[i : i + batch_size]
-        replace = i + batch_size >= len(rows)
+        replace = full_refresh and (i + batch_size >= len(rows))
         ing = _http_json(
             "POST",
             INGEST_URL,
