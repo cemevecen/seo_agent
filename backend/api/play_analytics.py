@@ -35,6 +35,27 @@ _GA4_OVERLAY_METRICS: dict[str, tuple[str, str]] = {
     "page_views": ("screenPageViews", "Page views"),
 }
 
+# Android +grafik → Virgül /ad-virgul Android sekmesi KPI’ları (by_date anahtarları)
+_VIRGUL_OVERLAY_METRICS: dict[str, tuple[str, str]] = {
+    "net_revenue": ("net_revenue", "Net revenue (TL)"),
+    "ad_request": ("ad_request", "Ad request"),
+    "matched_request": ("matched_request", "Matched request"),
+    "impression": ("impression", "Impression"),
+    "click": ("click", "Click"),
+    "ad_request_ecpm": ("ad_request_ecpm", "Ad request eCPM (TL)"),
+    "ad_ecpm": ("ad_ecpm", "Ad impression eCPM (TL)"),
+    "viewability_pct": ("viewability_pct", "Viewability (%)"),
+    "ctr_pct": ("ctr_pct", "CTR (%)"),
+    "coverage_pct": ("coverage_pct", "Coverage (%)"),
+}
+_VIRGUL_AVG_METRICS = frozenset({
+    "ad_request_ecpm",
+    "ad_ecpm",
+    "viewability_pct",
+    "ctr_pct",
+    "coverage_pct",
+})
+
 # Bu metrikler scrape kataloğundan gelir (GCS installs değil)
 _SCRAPE_FIRST = {
     "device_acquisition",
@@ -406,6 +427,151 @@ def get_play_ga4_overlay_series(
         "collected_at": pack.get("collected_at"),
         "facets": {
             "metrics": [f"ga4:{k}" for k in _GA4_OVERLAY_METRICS],
+        },
+        "row_count": len(series),
+    }
+
+
+def _slice_virgul_series(
+    by_date: list[dict[str, Any]],
+    *,
+    field: str,
+    start: str | None,
+    end: str | None,
+) -> list[dict[str, Any]]:
+    start_s = (start or "")[:10]
+    end_s = (end or "")[:10]
+    if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", start_s):
+        start_s = ""
+    if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", end_s):
+        end_s = ""
+    out: list[dict[str, Any]] = []
+    for row in by_date or []:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("date") or "")[:10]
+        if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", key):
+            continue
+        if start_s and key < start_s:
+            continue
+        if end_s and key > end_s:
+            continue
+        v = row.get(field)
+        try:
+            num = float(v) if v is not None and v != "" else None
+        except (TypeError, ValueError):
+            num = None
+        if num is not None and not (num == num):  # NaN
+            num = None
+        out.append({"key": key, "value": num})
+    out.sort(key=lambda r: str(r.get("key") or ""))
+    return out
+
+
+@router.get("/play-analytics/virgul-metrics")
+def list_play_virgul_overlay_metrics() -> dict[str, Any]:
+    """+grafik panelinde listelenecek Virgül Android KPI’ları."""
+    return {
+        "ok": True,
+        "metrics": [
+            {"value": f"virgul:{key}", "label": label, "field": field}
+            for key, (field, label) in _VIRGUL_OVERLAY_METRICS.items()
+        ],
+    }
+
+
+@router.get("/play-analytics/virgul-series")
+def get_play_virgul_overlay_series(
+    db: Session = Depends(get_db),
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    metric: str = Query(default="net_revenue"),
+    project: str = Query(default="doviz"),
+    branch: str = Query(default="android"),
+) -> dict[str, Any]:
+    """Virgül /ad-virgul Android günlük serisini Play Metrikler overlay formatında döner."""
+    from backend.services.ad_analytics_store import query_summary
+
+    raw = (metric or "net_revenue").strip().lower()
+    if raw.startswith("virgul:"):
+        raw = raw[7:]
+    meta = _VIRGUL_OVERLAY_METRICS.get(raw)
+    if not meta:
+        return {
+            "ok": False,
+            "source": "virgul",
+            "configured": False,
+            "message": f"Bilinmeyen Virgül metrik: {metric}",
+            "series": [],
+            "metric": f"virgul:{raw}",
+            "facets": {
+                "metrics": [f"virgul:{k}" for k in _VIRGUL_OVERLAY_METRICS],
+            },
+        }
+    field, label = meta
+    proj = (project or "doviz").strip().lower() or "doviz"
+    br = (branch or "android").strip().lower() or "android"
+    if br not in ("android", "ios", "web", "mweb"):
+        br = "android"
+
+    try:
+        payload = query_summary(
+            db,
+            start=start,
+            end=end,
+            project=proj,
+            branch=br,
+            warehouse="virgul",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("virgul overlay summary failed")
+        return {
+            "ok": False,
+            "source": "virgul",
+            "configured": False,
+            "message": f"Virgül özeti alınamadı: {exc}",
+            "series": [],
+            "metric": f"virgul:{raw}",
+            "label": f"Virgül · {label}",
+        }
+
+    by_date = payload.get("by_date") if isinstance(payload, dict) else None
+    if not isinstance(by_date, list):
+        by_date = []
+    series = _slice_virgul_series(by_date, field=field, start=start, end=end)
+    vals = [float(r["value"]) for r in series if r.get("value") is not None]
+    as_avg = raw in _VIRGUL_AVG_METRICS
+    total = (
+        round(sum(vals) / len(vals), 4)
+        if as_avg and vals
+        else (round(sum(vals), 4) if vals else 0.0)
+    )
+    start_s = (start or "")[:10] or (series[0]["key"] if series else None)
+    end_s = (end or "")[:10] or (series[-1]["key"] if series else None)
+    return {
+        "ok": True,
+        "has_data": bool(vals),
+        "source": "virgul",
+        "configured": True,
+        "message": (
+            f"Virgül · {label} · {proj}:{br} · {len(series)} gün"
+            + ("" if vals else " · seçili aralıkta veri yok")
+        ),
+        "start": start_s,
+        "end": end_s,
+        "metric": f"virgul:{raw}",
+        "label": f"Virgül · {label}",
+        "breakdown": "date",
+        "dim": "overview",
+        "segment": "all",
+        "total": total,
+        "total_mode": "avg" if as_avg else "sum",
+        "series": series,
+        "compare": None,
+        "project": proj,
+        "branch": br,
+        "facets": {
+            "metrics": [f"virgul:{k}" for k in _VIRGUL_OVERLAY_METRICS],
         },
         "row_count": len(series),
     }

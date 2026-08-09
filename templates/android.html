@@ -1135,8 +1135,33 @@
     { value: "ga4:avg_session", label: "GA4 · Avg. session" },
     { value: "ga4:page_views", label: "GA4 · Page views" }
   ];
+  var PA_VIRGUL_OVERLAY_METRICS = [
+    { value: "virgul:net_revenue", label: "Virgül · Net revenue (TL)" },
+    { value: "virgul:ad_request", label: "Virgül · Ad request" },
+    { value: "virgul:matched_request", label: "Virgül · Matched request" },
+    { value: "virgul:impression", label: "Virgül · Impression" },
+    { value: "virgul:click", label: "Virgül · Click" },
+    { value: "virgul:ad_request_ecpm", label: "Virgül · Ad request eCPM (TL)" },
+    { value: "virgul:ad_ecpm", label: "Virgül · Ad impression eCPM (TL)" },
+    { value: "virgul:viewability_pct", label: "Virgül · Viewability (%)" },
+    { value: "virgul:ctr_pct", label: "Virgül · CTR (%)" },
+    { value: "virgul:coverage_pct", label: "Virgül · Coverage (%)" }
+  ];
+  var PA_VIRGUL_AVG_METRICS = {
+    "virgul:ad_request_ecpm": 1,
+    "virgul:ad_ecpm": 1,
+    "virgul:viewability_pct": 1,
+    "virgul:ctr_pct": 1,
+    "virgul:coverage_pct": 1
+  };
   function isGa4OverlayMetric(key) {
     return String(key || "").indexOf("ga4:") === 0;
+  }
+  function isVirgulOverlayMetric(key) {
+    return String(key || "").indexOf("virgul:") === 0;
+  }
+  function isExternalOverlayMetric(key) {
+    return isGa4OverlayMetric(key) || isVirgulOverlayMetric(key);
   }
   function ga4OverlayLabel(key) {
     for (var i = 0; i < PA_GA4_OVERLAY_METRICS.length; i++) {
@@ -1144,10 +1169,16 @@
     }
     return key;
   }
+  function virgulOverlayLabel(key) {
+    for (var i = 0; i < PA_VIRGUL_OVERLAY_METRICS.length; i++) {
+      if (PA_VIRGUL_OVERLAY_METRICS[i].value === key) return PA_VIRGUL_OVERLAY_METRICS[i].label;
+    }
+    return key;
+  }
   function syncOverlayPanelForMetric() {
-    var ga4 = !!(paOvMetric && isGa4OverlayMetric(paOvMetric.value));
+    var external = !!(paOvMetric && isExternalOverlayMetric(paOvMetric.value));
     if (paOvPlayDims) {
-      if (ga4) paOvPlayDims.classList.add("hidden");
+      if (external) paOvPlayDims.classList.add("hidden");
       else paOvPlayDims.classList.remove("hidden");
     }
   }
@@ -1256,30 +1287,36 @@
   async function fetchOneOverlaySeries(ov, signal) {
     var metricKey = ov.metric;
     var brMain = (paBreakdown && paBreakdown.value) || "date";
-    if (isGa4OverlayMetric(metricKey)) {
-      var gqs = new URLSearchParams({
+    if (isGa4OverlayMetric(metricKey) || isVirgulOverlayMetric(metricKey)) {
+      var isVirgul = isVirgulOverlayMetric(metricKey);
+      var extQs = new URLSearchParams({
         start: paStart.value,
         end: paEnd.value,
         metric: metricKey,
-        project: "doviz",
-        profile: "android"
+        project: "doviz"
       });
-      var gr = await fetch("/api/play-analytics/ga4-series?" + gqs.toString(), {
+      if (isVirgul) extQs.set("branch", "android");
+      else extQs.set("profile", "android");
+      var extUrl = isVirgul
+        ? "/api/play-analytics/virgul-series?"
+        : "/api/play-analytics/ga4-series?";
+      var gr = await fetch(extUrl + extQs.toString(), {
         credentials: "same-origin",
         cache: "no-store",
         signal: signal
       });
       var gdata = await gr.json().catch(function () { return {}; });
       if (!gr.ok) {
-        throw new Error(gdata.message || gdata.detail || ("GA4 HTTP " + gr.status));
+        throw new Error(gdata.message || gdata.detail || ((isVirgul ? "Virgül" : "GA4") + " HTTP " + gr.status));
       }
       // Snapshot yok / yapılandırılmamış → hata; boş seri (aralık dışı) → overlay kalsın
       if (gdata.configured === false || (gdata.ok === false && !Array.isArray(gdata.series))) {
-        throw new Error(gdata.message || "GA4 serisi yok");
+        throw new Error(gdata.message || (isVirgul ? "Virgül serisi yok" : "GA4 serisi yok"));
       }
       var gSeries = Array.isArray(gdata.series) ? gdata.series : [];
       if (brMain === "week" || brMain === "month") {
-        gSeries = aggregateOverlaySeries(gSeries, brMain, metricKey === "ga4:avg_session");
+        var asAvg = metricKey === "ga4:avg_session" || !!PA_VIRGUL_AVG_METRICS[metricKey];
+        gSeries = aggregateOverlaySeries(gSeries, brMain, asAvg);
       }
       return {
         metric: metricKey,
@@ -1288,7 +1325,7 @@
         breakdown: brMain,
         dim: "overview",
         segment: "all",
-        source: "ga4",
+        source: isVirgul ? "virgul" : "ga4",
         color: ov.color || null
       };
     }
@@ -1336,7 +1373,7 @@
           breakdown: (paBreakdown && paBreakdown.value) || ov.breakdown || "date",
           dim: ov.dim || "overview",
           segment: ov.segment || "all",
-          source: ov.source || (isGa4OverlayMetric(ov.metric) ? "ga4" : "play"),
+          source: ov.source || (isVirgulOverlayMetric(ov.metric) ? "virgul" : (isGa4OverlayMetric(ov.metric) ? "ga4" : "play")),
           color: ov.color || null
         };
       });
@@ -1929,6 +1966,10 @@
     var m = metricKey || (paMetric && paMetric.value) || "";
     if (m === "ga4:avg_session") return false;
     if (isGa4OverlayMetric(m)) return true;
+    if (isVirgulOverlayMetric(m)) {
+      return m === "virgul:ad_request" || m === "virgul:matched_request"
+        || m === "virgul:impression" || m === "virgul:click";
+    }
     return m === "anrs" || m === "crashes" || m === "user_lost"
       || m === "ar2_acquisitions" || m === "ar2_visitors";
   }
@@ -2062,6 +2103,7 @@
   function metricOptionLabel(value) {
     if (!value) return "";
     if (isGa4OverlayMetric(value)) return ga4OverlayLabel(value);
+    if (isVirgulOverlayMetric(value)) return virgulOverlayLabel(value);
     if (!paMetric) return value;
     var opt = paMetric.querySelector('option[value="' + String(value).replace(/"/g, "") + '"]');
     var label = opt ? String(opt.textContent || value).trim() : String(value);
@@ -2111,6 +2153,16 @@
       ogGa4.appendChild(o);
     });
     if (ogGa4.children.length) paOvMetric.appendChild(ogGa4);
+    var ogVirgul = document.createElement("optgroup");
+    ogVirgul.label = "Virgül (Android)";
+    PA_VIRGUL_OVERLAY_METRICS.forEach(function (m) {
+      if (used[m.value]) return;
+      var o = document.createElement("option");
+      o.value = m.value;
+      o.textContent = m.label;
+      ogVirgul.appendChild(o);
+    });
+    if (ogVirgul.children.length) paOvMetric.appendChild(ogVirgul);
     if (prev && paOvMetric.querySelector('option[value="' + prev + '"]')) {
       paOvMetric.value = prev;
     }
@@ -2130,9 +2182,9 @@
     var note = document.getElementById("pa-ov-note");
     if (note) {
       if (paOverviewActive) {
-        note.textContent = "Özet çizgilerinin (ANR / Crash / Kullanıcı kaybı) üzerine Play veya GA4 ekleyin — her seri kendi maksimumuna göre % ölçeklenir.";
+        note.textContent = "Özet çizgilerinin üzerine Play, GA4 veya Virgül (Android) ekleyin — farklı birimler kendi max % ölçeğinde hizalanır.";
       } else {
-        note.textContent = "Play veya GA4 metriklerini aynı tarih aralığında üst üste ekleyin (sınırsız). GA4 seçilince ölçek kendi maksimumuna göre % olarak hizalanır.";
+        note.textContent = "Play, GA4 veya Virgül (Android) metriklerini aynı tarih aralığında üst üste ekleyin. GA4/Virgül seçilince ölçek kendi maksimumuna göre % olarak hizalanır.";
       }
     }
     paOverlayPanel.classList.remove("hidden");
@@ -2640,7 +2692,7 @@
         metric: ov.metric,
         label: ov.label,
         color: color,
-        source: ov.source || (isGa4OverlayMetric(ov.metric) ? "ga4" : "play"),
+        source: ov.source || (isVirgulOverlayMetric(ov.metric) ? "virgul" : (isGa4OverlayMetric(ov.metric) ? "ga4" : "play")),
         vals: vals,
         aligned: aligned,
         max: omax,
@@ -2654,16 +2706,17 @@
     var primaryMax = 0;
     vals.forEach(function (v) { if (v != null && v > primaryMax) primaryMax = v; });
     if (primaryMax <= 0) primaryMax = 1;
-    var hasGa4Ov = overlaySeriesState.some(function (os) {
-      return os.source === "ga4" || isGa4OverlayMetric(os.metric);
+    var hasExtOv = overlaySeriesState.some(function (os) {
+      return os.source === "ga4" || os.source === "virgul"
+        || isGa4OverlayMetric(os.metric) || isVirgulOverlayMetric(os.metric);
     });
     var sharedMaxCandidate = primaryMax;
     overlaySeriesState.forEach(function (os) {
       if (os.max > sharedMaxCandidate) sharedMaxCandidate = os.max;
     });
     var scaleRatio = sharedMaxCandidate / Math.max(primaryMax, 1e-9);
-    // GA4 veya ölçek uçurumu → her seri kendi max’ına göre % ölçek
-    var useNorm = hasGa4Ov || (overlaySeriesState.length > 0 && scaleRatio >= 8);
+    // GA4 / Virgül veya ölçek uçurumu → her seri kendi max’ına göre % ölçek
+    var useNorm = hasExtOv || (overlaySeriesState.length > 0 && scaleRatio >= 8);
     var n = rows.length;
     var curPts;
     var prevPts;
@@ -3149,8 +3202,10 @@
       var metricKey = paOvMetric.value;
       var next = await fetchOneOverlaySeries({
         metric: metricKey,
-        label: metricOptionLabel(metricKey) || ga4OverlayLabel(metricKey) || metricKey,
-        source: isGa4OverlayMetric(metricKey) ? "ga4" : "play",
+        label: metricOptionLabel(metricKey) || metricKey,
+        source: isVirgulOverlayMetric(metricKey)
+          ? "virgul"
+          : (isGa4OverlayMetric(metricKey) ? "ga4" : "play"),
         color: null,
         series: []
       });
