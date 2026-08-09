@@ -15,8 +15,8 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-news?days=7  → son 1 hafta (Elle yenile + ~30 dk auto)
   POST /sync-news?full=1  → tam geçmiş (seyrek)
   POST /sync-virgul → Virgül Excel (~30 dk auto)
-  POST /sync-play   → Play Console scrape (~30 dk auto)
-  POST /sync-asc    → App Store Connect scrape (iOS Metrikler)
+  POST /sync-play   → Play Console scrape (~2 saat auto)
+  POST /sync-asc    → App Store Connect scrape (iOS — elle / UI; auto yok)
   POST /sync-all   → notification + news
 """
 
@@ -67,6 +67,7 @@ BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = int(os.environ.get("NOTIFICATION_BRIDGE_PORT") or "18765")
 # Üçü de varsayılan 30 dk (notification / news / virgul)
 _DEFAULT_INTERVAL = 30 * 60
+_PLAY_DEFAULT_INTERVAL = 2 * 60 * 60  # Play Console: 2 saat
 AUTO_INTERVAL_SEC = int(
     os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
 )
@@ -77,7 +78,7 @@ VIRGUL_AUTO_INTERVAL_SEC = int(
     os.environ.get("VIRGUL_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
 )
 PLAY_AUTO_INTERVAL_SEC = int(
-    os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
+    os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(_PLAY_DEFAULT_INTERVAL)
 )
 # GSC Links scrape — günde 2 kez (12 saat)
 GSC_LINKS_AUTO_INTERVAL_SEC = int(
@@ -1426,7 +1427,7 @@ def _should_run_play_auto() -> bool:
     global _last_play_auto_at
     if _last_play_auto_at <= 0:
         return True
-    return (time.time() - _last_play_auto_at) >= max(300, PLAY_AUTO_INTERVAL_SEC)
+    return (time.time() - _last_play_auto_at) >= max(600, PLAY_AUTO_INTERVAL_SEC)
 
 
 def _should_run_gsc_links_auto() -> bool:
