@@ -124,7 +124,12 @@ def _user_agent() -> str:
     )
 
 
-def scrape_chunk(urls: list[str], *, timeout_ms: int) -> list[dict[str, Any]]:
+def scrape_chunk(
+    urls: list[str],
+    *,
+    timeout_ms: int,
+    on_row=None,
+) -> list[dict[str, Any]]:
     """Tek worker: bir Chromium, sırayla URL (Playwright sync thread-safe değil)."""
     from playwright.sync_api import sync_playwright
 
@@ -144,7 +149,7 @@ def scrape_chunk(urls: list[str], *, timeout_ms: int) -> list[dict[str, Any]]:
             for url in urls:
                 try:
                     resp = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                    time.sleep(0.2)
+                    time.sleep(0.15)
                     status = int(resp.status) if resp else 0
                     final = page.url or url
                     html = page.content()
@@ -162,14 +167,18 @@ def scrape_chunk(urls: list[str], *, timeout_ms: int) -> list[dict[str, Any]]:
                         content_type=ctype,
                     )
                     row["source"] = "seo_audit_scrape"
-                    out.append(row)
                 except Exception as exc:  # noqa: BLE001
                     row = build_url_audit_from_html(
                         url, html="", final_url=url, status_code=0, content_type=""
                     )
                     row["error"] = str(exc)[:200]
                     row["source"] = "seo_audit_scrape"
-                    out.append(row)
+                out.append(row)
+                if on_row is not None:
+                    try:
+                        on_row(row)
+                    except Exception:
+                        pass
             context.close()
         finally:
             browser.close()
@@ -177,6 +186,8 @@ def scrape_chunk(urls: list[str], *, timeout_ms: int) -> list[dict[str, Any]]:
 
 
 def scrape_site(site_id: int, *, limit: int, concurrency: int, timeout_ms: int) -> dict[str, Any]:
+    import threading
+
     print(f"SEO scrape · site_id={site_id} limit={limit}", flush=True)
     push_progress(site_id, running=True, total=0, done=0, ok=0, error=0, current="URL listesi…")
     listing = fetch_url_list(site_id, limit=limit)
@@ -189,19 +200,39 @@ def scrape_site(site_id: int, *, limit: int, concurrency: int, timeout_ms: int) 
     total = len(urls)
     push_progress(site_id, running=True, total=total, done=0, ok=0, error=0, current="Tarama başladı")
     workers = max(1, min(int(concurrency), 6))
-    # URL'leri worker'lara böl — her worker kendi browser'ını açar
     chunks: list[list[str]] = [[] for _ in range(workers)]
     for i, u in enumerate(urls):
         chunks[i % workers].append(u)
 
     rows: list[dict[str, Any]] = []
-    ok = 0
-    err = 0
-    done = 0
-    lock_print = True
+    state = {"ok": 0, "err": 0, "done": 0}
+    state_lock = threading.Lock()
+
+    def _on_row(row: dict[str, Any]) -> None:
+        with state_lock:
+            state["done"] += 1
+            if int(row.get("status_code") or 0) == 200 and row.get("has_title"):
+                state["ok"] += 1
+            else:
+                state["err"] += 1
+            done = state["done"]
+            ok = state["ok"]
+            err = state["err"]
+            cur = str(row.get("url") or "")
+        if done % 10 == 0 or done == total:
+            push_progress(
+                site_id,
+                running=True,
+                total=total,
+                done=done,
+                ok=ok,
+                error=err,
+                current=cur,
+            )
+            print(f"  {done}/{total} · ok={ok} err={err}", flush=True)
 
     def _on_chunk(chunk: list[str]) -> list[dict[str, Any]]:
-        return scrape_chunk(chunk, timeout_ms=timeout_ms)
+        return scrape_chunk(chunk, timeout_ms=timeout_ms, on_row=_on_row)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futs = [pool.submit(_on_chunk, c) for c in chunks if c]
@@ -211,25 +242,11 @@ def scrape_site(site_id: int, *, limit: int, concurrency: int, timeout_ms: int) 
             except Exception as exc:  # noqa: BLE001
                 print(f"chunk fail: {exc}", flush=True)
                 part = []
-            for row in part:
-                done += 1
-                if int(row.get("status_code") or 0) == 200 and row.get("has_title"):
-                    ok += 1
-                else:
-                    err += 1
-                rows.append(row)
-                if lock_print and (done % 25 == 0 or done == total):
-                    cur = str(row.get("url") or "")
-                    push_progress(
-                        site_id,
-                        running=True,
-                        total=total,
-                        done=done,
-                        ok=ok,
-                        error=err,
-                        current=cur,
-                    )
-                    print(f"  {done}/{total} · ok={ok} err={err}", flush=True)
+            rows.extend(part)
+
+    ok = state["ok"]
+    err = state["err"]
+    done = state["done"]
 
     # Sıra trafik sırasına yakın olsun (chunk karıştı)
     by_url = {str(r.get("url") or ""): r for r in rows}

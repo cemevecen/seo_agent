@@ -1090,12 +1090,11 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
     # 500 URL × 2 site — uzun sürebilir
     timeout_sec = int(os.environ.get("SEO_AUDIT_BRIDGE_TIMEOUT_SEC") or "5400")
     try:
+        # stdout/stderr bridge loguna aksın (canlı progress)
         proc = subprocess.run(
             cmd,
             cwd=str(ROOT),
             env=env,
-            capture_output=True,
-            text=True,
             timeout=max(300, timeout_sec),
         )
     except subprocess.TimeoutExpired:
@@ -1111,11 +1110,6 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
         _last_seo_audit_result = out
         return out
 
-    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
-    if combined:
-        for line in combined.splitlines()[-40:]:
-            print(line, flush=True)
-
     if proc.returncode == 0:
         out = {
             "ok": True,
@@ -1124,8 +1118,12 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
             "site_id": site_id,
         }
     else:
-        tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
-        out = {"ok": False, "kind": "seo_audit", "message": tail, "site_id": site_id}
+        out = {
+            "ok": False,
+            "kind": "seo_audit",
+            "message": f"SEO audit scrape exit {proc.returncode}",
+            "site_id": site_id,
+        }
     _last_seo_audit_result = out
     print(f"SEO audit sync · {out['message']}", flush=True)
     return out
