@@ -669,9 +669,9 @@ def list_live_position_alert_rows(
                     "display_title": "",
                     "display_query": str(drop.get("query") or ""),
                     "display_metric": (
-                        f"Pozisyon {drop.get('pos_prev')} → {drop.get('pos_cur')} | "
-                        f"Düşüş <span class=\"text-rose-600 dark:text-rose-400\">+{drop.get('diff_fmt')}</span>"
-                        f" · {drop.get('clicks_fmt') or '0'} tık · 7g"
+                        f"Pozisyon {drop.get('pos_cur')} · "
+                        f"<span class=\"text-rose-600 dark:text-rose-400\">+{drop.get('diff_fmt')}</span>"
+                        f" · {drop.get('clicks_fmt') or '0'} · 7g"
                     ),
                     "display_tone": "sky",
                     "display_device_code": "",
@@ -701,9 +701,9 @@ def list_live_position_alert_rows(
                     "display_title": "",
                     "display_query": str(rise.get("query") or ""),
                     "display_metric": (
-                        f"Pozisyon {rise.get('pos_prev')} → {rise.get('pos_cur')} | "
-                        f"Yükseliş <span class=\"text-emerald-600 dark:text-emerald-400\">−{rise.get('diff_fmt')}</span>"
-                        f" · {rise.get('clicks_fmt') or '0'} tık · 7g"
+                        f"Pozisyon {rise.get('pos_cur')} · "
+                        f"<span class=\"text-emerald-600 dark:text-emerald-400\">−{rise.get('diff_fmt')}</span>"
+                        f" · {rise.get('clicks_fmt') or '0'} · 7g"
                     ),
                     "display_tone": "sky",
                     "display_device_code": "",
