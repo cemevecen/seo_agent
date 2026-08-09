@@ -524,6 +524,7 @@
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Android Vitals</h2>
+        <p id="pc-vitals-sync" class="mt-1 text-[11px] font-medium tabular-nums text-slate-500 dark:text-zinc-400" aria-live="polite"></p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <a id="pc-vitals-crashes-link"
@@ -747,6 +748,10 @@
   var panelReviews = document.getElementById("pc-panel-reviews");
   var btnReviewCount = document.getElementById("pc-btn-review-count");
   var vitalsState = { etype: "ANR", data: null, selectedCat: "general", selectedIssue: null, selectedVersion: null };
+  var vitalsSyncEl = document.getElementById("pc-vitals-sync");
+  var vitalsLastUpdatedAt = "";
+  var vitalsPollTimer = null;
+  var VITALS_POLL_MS = 30000;
 
   function cleanIssueTitle(t) {
     return String(t == null ? "" : t)
@@ -3206,13 +3211,107 @@
     }
   }
 
-  function renderVitals(vitals) {
+  function renderVitals(vitals, opts) {
+    opts = opts || {};
+    var keep = !!opts.preserveSelection;
+    var prevEtype = vitalsState.etype;
+    var prevVer = vitalsState.selectedVersion;
+    var prevCat = vitalsState.selectedCat;
+    var prevIssue = vitalsState.selectedIssue;
     vitalsState.data = vitals || null;
-    vitalsState.selectedIssue = null;
+    if (!keep) {
+      vitalsState.selectedIssue = null;
+      vitalsState.selectedCat = "general";
+    }
     var versions = resolveVitalsVersions(vitals || {});
-    vitalsState.selectedVersion = versions.length ? String(versions[0].code) : null;
+    var verCodes = versions.map(function (v) { return String(v.code); });
+    if (keep && prevVer && verCodes.indexOf(String(prevVer)) >= 0) {
+      vitalsState.selectedVersion = String(prevVer);
+    } else {
+      vitalsState.selectedVersion = versions.length ? String(versions[0].code) : null;
+    }
+    if (keep && (prevEtype === "ANR" || prevEtype === "CRASH")) {
+      vitalsState.etype = prevEtype;
+    }
+    if (keep && prevCat) vitalsState.selectedCat = prevCat;
+    if (keep) vitalsState.selectedIssue = prevIssue;
     renderVitalsOverview(vitals);
     renderVitalsCategories();
+  }
+  function fmtStoreSyncTime(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return (
+      pad(d.getDate()) + "-" + pad(d.getMonth() + 1) + "-" + d.getFullYear() +
+      " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
+    );
+  }
+  function resolveVitalsSyncIso(data) {
+    data = data || {};
+    var vitals = (data.panels && data.panels.vitals) || {};
+    return (
+      vitals.scraped_at ||
+      data.background_synced_at ||
+      data.updated_at ||
+      ""
+    );
+  }
+  function setVitalsSyncLabel(mode, iso) {
+    if (!vitalsSyncEl) return;
+    if (mode === "stale") {
+      vitalsSyncEl.textContent = "daha yeni veri henüz yok";
+      return;
+    }
+    var stamp = fmtStoreSyncTime(iso);
+    vitalsSyncEl.textContent = stamp
+      ? ("store güncelleme zamanı: " + stamp)
+      : "store güncelleme zamanı: —";
+  }
+  function applyVitalsSnapshot(data, opts) {
+    opts = opts || {};
+    var iso = resolveVitalsSyncIso(data);
+    var vitals = (data && data.panels && data.panels.vitals) || {};
+    var changed = !!(iso && iso !== vitalsLastUpdatedAt);
+    if (opts.force || changed || !vitalsLastUpdatedAt) {
+      if (iso) vitalsLastUpdatedAt = iso;
+      renderVitals(vitals, { preserveSelection: !opts.force && !!changed });
+      setVitalsSyncLabel("fresh", iso || vitalsLastUpdatedAt);
+      return true;
+    }
+    setVitalsSyncLabel("stale", vitalsLastUpdatedAt);
+    return false;
+  }
+  async function pollVitalsSnapshot() {
+    try {
+      var host = (location.hostname || "").toLowerCase();
+      var isLocal = host === "localhost" || host === "127.0.0.1";
+      // Yerelde bridge açıksa ara sıra vitals sync dene (ağır scrape’i boğmamak için seyrek)
+      if (isLocal && Math.random() < 0.35) {
+        try {
+          var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+          var t = ctrl ? setTimeout(function () { ctrl.abort(); }, 2500) : null;
+          await fetch("http://127.0.0.1:18765/sync-play", {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            signal: ctrl ? ctrl.signal : undefined
+          });
+          if (t) clearTimeout(t);
+        } catch (_) {}
+      }
+      var r = await fetch("/api/play-console/snapshot", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      var data = await r.json().catch(function () { return {}; });
+      if (!r.ok) return;
+      applyVitalsSnapshot(data, { force: false });
+    } catch (_) {}
+  }
+  function startVitalsPolling() {
+    if (vitalsPollTimer) clearInterval(vitalsPollTimer);
+    vitalsPollTimer = setInterval(pollVitalsSnapshot, VITALS_POLL_MS);
   }
 
   if (vitalsEtypeWrap) {
@@ -3356,7 +3455,7 @@
         devicesLink.href = data.panels.pages.devices.url;
       }
       setPcLine(metaEl, data.empty ? "Veri yok — bridge login + sync gerekli" : "");
-      renderVitals((data.panels && data.panels.vitals) || {});
+      applyVitalsSnapshot(data, { force: true });
       renderRating(data.rating_summary);
       renderGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m); });
       renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });
@@ -3444,9 +3543,10 @@
       );
     }
   });
-  // İlk açılışta snapshot + (yorum azsa) store senkronu
+  // İlk açılışta snapshot + (yorum azsa) store senkronu + vitals polling
   (async function bootAndroid() {
     await loadSnapshot();
+    startVitalsPolling();
     try {
       var snap = null;
       var r0 = await fetch("/api/play-console/snapshot", { credentials: "same-origin", cache: "no-store" });
