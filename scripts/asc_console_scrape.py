@@ -12,6 +12,7 @@ Env:
   ASC_CONSOLE_INGEST_URL    default …/api/asc-console/ingest
   NOTIFICATION_INGEST_TOKEN
   ASC_CONSOLE_APP_ID        default 465599322
+  ASC_CONSOLE_SCRAPE_DAYS   default 365 (Android ile aynı üst sınır)
   ASC_CONSOLE_HEADLESS=1    (varsayılan headed — Apple oturumu için)
 """
 from __future__ import annotations
@@ -56,6 +57,16 @@ INGEST_URL = (
     os.environ.get("ASC_CONSOLE_INGEST_URL")
     or "https://projectcontrol.up.railway.app/api/asc-console/ingest"
 ).strip()
+
+
+def _scrape_days() -> int:
+    """Android Play ile aynı: varsayılan son 1 yıl (günlük)."""
+    raw = (os.environ.get("ASC_CONSOLE_SCRAPE_DAYS") or "365").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 365
+    return min(max(n, 7), 365)
 
 # ASC web private API measureKey → warehouse metric
 MEASURE_MAP: dict[str, str] = {
@@ -499,7 +510,8 @@ def _unregister_service_workers(page) -> None:
 
 def _metrics_page_url(measure_key: str) -> str:
     base = f"https://appstoreconnect.apple.com/apps/{APP_ID}"
-    q = f"chartType=singleaxis&dateSpec=d90&frequency=day&measureKey={measure_key}"
+    days = _scrape_days()
+    q = f"chartType=singleaxis&dateSpec=d{days}&frequency=day&measureKey={measure_key}"
     if measure_key in ("iap", "payingUsers", "proceeds"):
         return f"{base}/analytics/monetization/sales/metrics?{q}"
     if measure_key.startswith("subscription"):
@@ -907,7 +919,9 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             }
 
         end_d = date.today() - timedelta(days=1)
-        start_d = end_d - timedelta(days=89)
+        scrape_days = _scrape_days()
+        start_d = end_d - timedelta(days=scrape_days - 1)
+        print(f"ASC scrape aralık · {start_d} → {end_d} ({scrape_days} gün)", flush=True)
         for batch in MEASURE_BATCHES:
             resp = _post_measures(page, batch, start=start_d, end=end_d)
             raw_network.append(
