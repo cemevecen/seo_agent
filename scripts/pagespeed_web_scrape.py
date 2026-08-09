@@ -338,10 +338,10 @@ def _lighthouse_form_factor(lh: dict[str, Any]) -> str:
 def _pick_lighthouse(candidates: list[dict[str, Any]], form_factor: str) -> dict[str, Any] | None:
     want = "mobile" if str(form_factor).lower().startswith("m") else "desktop"
     matched = [c for c in candidates if _lighthouse_form_factor(c) == want]
-    pool = matched or candidates
-    if not pool:
+    if not matched:
+        # Yanlış form_factor lab’ı panoya yazma — field CWV kalsın, lab boş kalsın
         return None
-    # Prefer www. (origin) over m./wwwm for desktop; for mobile prefer m./wwwm
+
     def score(lh: dict[str, Any]) -> tuple:
         url = str(lh.get("finalUrl") or lh.get("requestedUrl") or "").lower()
         mobile_host = _is_mobile_host(url)
@@ -349,7 +349,7 @@ def _pick_lighthouse(candidates: list[dict[str, Any]], form_factor: str) -> dict
             return (0 if mobile_host else 1, -len(lh.get("audits") or {}))
         return (1 if mobile_host else 0, -len(lh.get("audits") or {}))
 
-    return sorted(pool, key=score)[0]
+    return sorted(matched, key=score)[0]
 
 
 def _psi_from_batchexecute_bodies(bodies: list[str], *, form_factor: str, page_url: str) -> dict[str, Any] | None:
@@ -543,23 +543,48 @@ def scrape_one(*, site_url: str, form_factor: str, headed: bool = False, timeout
             psi = _psi_from_batchexecute_bodies(batch_bodies, form_factor=form_factor, page_url=page.url)
             has_field = bool((psi or {}).get("loadingExperience", {}).get("metrics"))
             has_lab = bool((psi or {}).get("lighthouseResult", {}).get("categories"))
+            lab_ff_ok = False
+            if has_lab:
+                lab_ff_ok = _lighthouse_form_factor((psi or {}).get("lighthouseResult") or {}) == (
+                    "mobile" if form_factor.startswith("m") else "desktop"
+                )
             try:
                 cwv_ready = page.locator("text=Core Web Vitals Assessment").count() > 0
                 lab_ready = page.locator("text=Diagnose performance issues").count() > 0
             except Exception:
                 cwv_ready = False
                 lab_ready = False
-            if has_field and (has_lab or (cwv_ready and time.time() > deadline - 25)):
-                if lab_ready and not has_lab:
-                    page.wait_for_timeout(4000)
-                    psi = _psi_from_batchexecute_bodies(batch_bodies, form_factor=form_factor, page_url=page.url)
+            if has_field and lab_ff_ok:
+                break
+            if has_field and lab_ready and not lab_ff_ok:
+                # Lab geldi ama yanlış form — ikinci/büyük batchexecute’u bekle
+                page.wait_for_timeout(5000)
+                continue
+            if has_field and cwv_ready and not lab_ready:
+                # Field hazır, lab henüz yok
+                page.wait_for_timeout(2500)
+                continue
+            if has_field and time.time() > deadline - 15:
+                # Timeout’a yakın: yanlış lab varsa temizle, field ile bitir
+                if psi and isinstance(psi.get("lighthouseResult"), dict):
+                    got = _lighthouse_form_factor(psi["lighthouseResult"])
+                    want_ff = "mobile" if form_factor.startswith("m") else "desktop"
+                    if got and got != want_ff:
+                        psi["lighthouseResult"] = {}
                 break
             # klasik API yakalama
             for body in reversed(api_bodies):
                 if body.get("lighthouseResult") or body.get("loadingExperience"):
-                    psi = body
-                    break
-            if psi and psi.get("lighthouseResult") and psi.get("loadingExperience"):
+                    cand = body
+                    got = _lighthouse_form_factor(cand.get("lighthouseResult") or {})
+                    want_ff = "mobile" if form_factor.startswith("m") else "desktop"
+                    if cand.get("loadingExperience") and (not got or got == want_ff):
+                        psi = cand
+                        if got == want_ff:
+                            break
+            if psi and _lighthouse_form_factor((psi.get("lighthouseResult") or {})) == (
+                "mobile" if form_factor.startswith("m") else "desktop"
+            ):
                 break
             page.wait_for_timeout(2000)
 
