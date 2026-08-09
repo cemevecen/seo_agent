@@ -15381,6 +15381,59 @@ def api_crash_version_chart(request: Request):
     )
 
 
+_CRASH_BUNDLE_SECTIONS = (
+    ("summary", "partials/crashlytics/summary.html"),
+    ("version-chart", "partials/crashlytics/version_chart.html"),
+    ("breakdown", "partials/crashlytics/breakdown.html"),
+    ("crashes", "partials/crashlytics/crashes.html"),
+    ("anr", "partials/crashlytics/anr.html"),
+    ("versions", "partials/crashlytics/versions.html"),
+)
+
+
+@app.get("/api/app/crashlytics/bundle")
+def api_crash_bundle(request: Request):
+    """Tek payload → tüm section HTML (platform başına 1 istek; 6× partial yerine)."""
+    params = _crash_params(request)
+    data = _crash_fetch(params)
+    if not data or not data.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": (data or {}).get("error") or (data or {}).get("message") or "no_data",
+                "sections": {},
+            },
+            status_code=200,
+        )
+
+    et = params.get("error_type")
+    sort_key = {"FATAL": "fatal_count", "ANR": "anr_count", "NON_FATAL": "non_fatal_count"}.get(et or "")
+    versions_data = data
+    if sort_key and isinstance(data, dict) and data.get("versions"):
+        versions_data = {**data, "versions": sorted(data["versions"], key=lambda v: -int(v.get(sort_key, 0) or 0))}
+
+    sections: dict[str, str] = {}
+    for name, tpl in _CRASH_BUNDLE_SECTIONS:
+        section_data = versions_data if name == "versions" else data
+        try:
+            sections[name] = templates.get_template(tpl).render(
+                request=request, data=section_data, params=params
+            )
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("crashlytics bundle render %s: %s", name, exc)
+            sections[name] = f'<p class="py-4 text-sm text-rose-600">Bölüm yüklenemedi.</p>'
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "sections": sections,
+            "product": params.get("product"),
+            "platform": params.get("platform"),
+            "days": params.get("days"),
+        }
+    )
+
+
 @app.get("/api/app/crashlytics/diagnose")
 def api_crash_diagnose(product: str = "doviz"):
     """Firebase Crashlytics BigQuery bağlantısını teşhis et.

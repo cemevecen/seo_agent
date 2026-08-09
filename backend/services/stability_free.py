@@ -13,6 +13,17 @@ logger = logging.getLogger(__name__)
 _STABILITY_CACHE_TTL_S = 15 * 60
 _STABILITY_CACHE_LOCK = threading.Lock()
 _STABILITY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_STABILITY_BUILD_LOCKS: dict[str, threading.Lock] = {}
+_STABILITY_BUILD_LOCKS_GUARD = threading.Lock()
+
+
+def _stability_build_lock(key: str) -> threading.Lock:
+    with _STABILITY_BUILD_LOCKS_GUARD:
+        lock = _STABILITY_BUILD_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _STABILITY_BUILD_LOCKS[key] = lock
+        return lock
 
 
 def _stability_cache_get(key: str) -> dict[str, Any] | None:
@@ -325,9 +336,6 @@ def build_stability_free_payload(
     force_refresh: bool = False,
 ) -> dict[str, Any]:
     """Android/iOS crash-free kartları için birleşik payload."""
-    from backend.services import crashlytics_bq as cbq
-    from backend.services import gp_client
-
     vitals = vitals if isinstance(vitals, dict) else {}
     cache_key = f"{product_id}:{package_name}:sf:v2"
     if force_refresh:
@@ -336,6 +344,33 @@ def build_stability_free_payload(
         cached = _stability_cache_get(cache_key)
         if cached:
             return cached
+
+    lock = _stability_build_lock(cache_key)
+    with lock:
+        if not force_refresh:
+            cached = _stability_cache_get(cache_key)
+            if cached:
+                return cached
+        return _build_stability_free_payload_locked(
+            package_name=package_name,
+            product_id=product_id,
+            vitals=vitals,
+            force_refresh=force_refresh,
+            cache_key=cache_key,
+        )
+
+
+def _build_stability_free_payload_locked(
+    *,
+    package_name: str,
+    product_id: str,
+    vitals: dict[str, Any],
+    force_refresh: bool,
+    cache_key: str,
+) -> dict[str, Any]:
+    """stability-free build — caller holds singleflight lock."""
+    from backend.services import crashlytics_bq as cbq
+    from backend.services import gp_client
 
     play_overall = free_rates_from_vitals_overview(vitals)
 

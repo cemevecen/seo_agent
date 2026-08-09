@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 _CACHE_TTL_S = 5 * 60
 _CACHE_LOCK = threading.Lock()
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_BUILD_LOCKS: dict[str, threading.Lock] = {}
+_BUILD_LOCKS_GUARD = threading.Lock()
+_REPORTING_BD_TTL_S = 15 * 60
+_REPORTING_BD_CACHE: dict[str, tuple[float, tuple[list, list]]] = {}
+_REPORTING_BD_LOCK = threading.Lock()
+
+
+def _build_lock(key: str) -> threading.Lock:
+    with _BUILD_LOCKS_GUARD:
+        lock = _BUILD_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _BUILD_LOCKS[key] = lock
+        return lock
 
 
 def invalidate_firebase_store_cache(product_id: str | None = None) -> None:
@@ -26,10 +40,13 @@ def invalidate_firebase_store_cache(product_id: str | None = None) -> None:
     with _CACHE_LOCK:
         if not pid:
             _CACHE.clear()
-            return
-        for k in list(_CACHE):
-            if k.startswith(f"{pid}:"):
-                del _CACHE[k]
+        else:
+            for k in list(_CACHE):
+                if k.startswith(f"{pid}:"):
+                    del _CACHE[k]
+    # Reporting kırılımı package bazlı; product invalidate’da temizle
+    with _REPORTING_BD_LOCK:
+        _REPORTING_BD_CACHE.clear()
 
 
 def _cache_get(key: str) -> dict[str, Any] | None:
@@ -161,6 +178,13 @@ def _android_breakdowns_from_reporting(
     if not gp_client.is_configured():
         return [], []
 
+    pkg = (package_name or "").strip() or "com.Doviz"
+    cache_key = f"{pkg}:{int(days or 28)}"
+    with _REPORTING_BD_LOCK:
+        entry = _REPORTING_BD_CACHE.get(cache_key)
+        if entry and time.time() - entry[0] < _REPORTING_BD_TTL_S:
+            return entry[1]
+
     end = date.today() - timedelta(days=2)
     start = end - timedelta(days=max(int(days or 28), 7) - 1)
 
@@ -209,7 +233,15 @@ def _android_breakdowns_from_reporting(
         for seg, n in os_counts.items()
     ]
     android_os = merge_breakdown_rows([os_rows], "os_version", limit=20)
-    return android_devices, android_os
+    out = (android_devices, android_os)
+    with _REPORTING_BD_LOCK:
+        _REPORTING_BD_CACHE[cache_key] = (time.time(), out)
+        if len(_REPORTING_BD_CACHE) > 16:
+            cutoff = time.time() - _REPORTING_BD_TTL_S
+            for k, (ts, _) in list(_REPORTING_BD_CACHE.items()):
+                if ts < cutoff:
+                    del _REPORTING_BD_CACHE[k]
+    return out
 
 
 def _flatten_vitals_issues(
@@ -494,30 +526,61 @@ def build_firebase_tab_payload(
     error_type: str | None = None,
 ) -> dict[str, Any]:
     """Firebase HTMX partials için scrape/stability-free payload."""
+    pid = (product_id or "doviz").strip().lower()
+    cache_key = f"{pid}:{int(days)}:store_tabs:v3"
+
+    if not force_refresh:
+        cached = _cache_get(cache_key)
+        if cached:
+            if versions or error_type:
+                return _filter_payload(cached, versions=versions, error_type=error_type)
+            return cached
+
+    # Soğuk cache stampede: aynı key için tek build
+    lock = _build_lock(cache_key)
+    with lock:
+        if not force_refresh:
+            cached = _cache_get(cache_key)
+            if cached:
+                if versions or error_type:
+                    return _filter_payload(cached, versions=versions, error_type=error_type)
+                return cached
+        return _build_firebase_tab_payload_uncached(
+            product_id=pid,
+            days=days,
+            force_refresh=force_refresh,
+            versions=versions,
+            error_type=error_type,
+            cache_key=cache_key,
+        )
+
+
+def _build_firebase_tab_payload_uncached(
+    *,
+    product_id: str,
+    days: int,
+    force_refresh: bool,
+    versions: list[str] | None,
+    error_type: str | None,
+    cache_key: str,
+) -> dict[str, Any]:
+    """Firebase HTMX partials için scrape/stability-free payload (lock altında)."""
     from backend.database import SessionLocal
     from backend.services.app_intel import APP_PRODUCTS
     from backend.services.crashlytics_detail import enrich_issue_row
     from backend.services.play_console_store import play_console_payload
     from backend.services.stability_free import build_stability_free_payload, invalidate_stability_cache
 
-    pid = (product_id or "doviz").strip().lower()
+    pid = product_id
     if pid not in APP_PRODUCTS:
         return {"ok": False, "error": "unknown_product", "configured": False}
 
-    cache_key = f"{pid}:{int(days)}:store_tabs:v3"
     if force_refresh:
         invalidate_firebase_store_cache(pid)
         try:
             invalidate_stability_cache(pid)
         except Exception:
             pass
-    else:
-        cached = _cache_get(cache_key)
-        if cached:
-            data = cached
-            if versions or error_type:
-                return _filter_payload(data, versions=versions, error_type=error_type)
-            return data
 
     package = "com.Doviz"
     vitals: dict[str, Any] = {}

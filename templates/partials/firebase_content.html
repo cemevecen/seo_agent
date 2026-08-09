@@ -903,8 +903,10 @@
     _load.bq = { running: false, pct: 0, step: "" };
     showProgress(true);
     SECTIONS.forEach(function (n) {
-      var info = sectionProgressInfo(n);
-      setSecLoading(n, info.pct, info.step);
+      PLATS.forEach(function (plat) {
+        var info = sectionProgressInfo(n);
+        setSecLoading(n, plat, info.pct, info.step);
+      });
     });
     applyCombinedProgress();
     if (_load.phase === "bq") {
@@ -968,7 +970,7 @@
     }
     var ctrl = new AbortController();
     _abortCtrls[sk] = ctrl;
-    var timer = setTimeout(function () { ctrl.abort(); }, 35000);
+    var timer = setTimeout(function () { ctrl.abort(); }, 45000);
     var url = sectionUrl(name, overrides);
     fetch(url, { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true" } })
       .then(function (r) {
@@ -999,13 +1001,110 @@
       });
   }
 
+  function loadPlatformBundle(plat, opts) {
+    opts = opts || {};
+    var overrides = Object.assign({ platform: plat, versions: platVersions(plat) }, opts.overrides || {});
+    var allCached = true;
+    SECTIONS.forEach(function (n) {
+      if (!crashState.htmlCache[cacheKey(n, overrides)] || opts.force) allCached = false;
+    });
+    if (allCached) {
+      SECTIONS.forEach(function (n) {
+        var html = crashState.htmlCache[cacheKey(n, overrides)];
+        applySectionHtml(n, plat, html);
+        if (n === "summary") {
+          var box = document.getElementById(secId(n, plat));
+          ingestFilterVersionsMeta(box);
+        }
+        onSectionLoaded(n, plat);
+      });
+      return;
+    }
+
+    if (!_load.active) beginLoadCycle();
+    var bundleSk = "bundle|" + plat;
+    if (_abortCtrls[bundleSk]) { try { _abortCtrls[bundleSk].abort(); } catch (_) {} }
+    SECTIONS.forEach(function (n) {
+      var sk = seqKey(n, plat);
+      crashState.seqs[sk] = (crashState.seqs[sk] || 0) + 1;
+      _load.loading[sk] = true;
+      if (!opts.silent) {
+        var info = sectionProgressInfo(n);
+        setSecLoading(n, plat, info.pct, info.step);
+      }
+    });
+    applyCombinedProgress();
+
+    var seqSnapshot = {};
+    SECTIONS.forEach(function (n) { seqSnapshot[n] = crashState.seqs[seqKey(n, plat)]; });
+
+    var ctrl = new AbortController();
+    _abortCtrls[bundleSk] = ctrl;
+    var timer = setTimeout(function () { ctrl.abort(); }, 90000);
+    var url = sectionUrl("bundle", overrides);
+    fetch(url, { cache: "no-store", signal: ctrl.signal, headers: { "HX-Request": "true", "Accept": "application/json" } })
+      .then(function (r) {
+        clearTimeout(timer);
+        if (_abortCtrls[bundleSk] === ctrl) _abortCtrls[bundleSk] = null;
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        var sections = (j && j.sections) || {};
+        var any = false;
+        SECTIONS.forEach(function (n) {
+          var sk = seqKey(n, plat);
+          if (crashState.seqs[sk] !== seqSnapshot[n]) return;
+          var html = sections[n];
+          if (html) {
+            any = true;
+            crashState.htmlCache[cacheKey(n, overrides)] = html;
+            applySectionHtml(n, plat, html);
+            if (n === "summary") ingestFilterVersionsMeta(document.getElementById(secId(n, plat)));
+          } else {
+            var box = document.getElementById(secId(n, plat));
+            if (box && !opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+          }
+          onSectionLoaded(n, plat);
+        });
+        if (!any && j && j.ok === false) {
+          SECTIONS.forEach(function (n) {
+            var box = document.getElementById(secId(n, plat));
+            if (box && crashState.seqs[seqKey(n, plat)] === seqSnapshot[n]) {
+              box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+            }
+          });
+        }
+      })
+      .catch(function (e) {
+        if (_abortCtrls[bundleSk] === ctrl) _abortCtrls[bundleSk] = null;
+        if (e.name === "AbortError") {
+          SECTIONS.forEach(function (n) {
+            delete _load.loading[seqKey(n, plat)];
+          });
+          applyCombinedProgress();
+          // Bundle timeout: fallback to per-section (warm cache likely ready)
+          SECTIONS.forEach(function (n) {
+            loadSection(n, Object.assign({}, opts, { plat: plat, overrides: overrides }));
+          });
+          return;
+        }
+        SECTIONS.forEach(function (n) {
+          if (crashState.seqs[seqKey(n, plat)] !== seqSnapshot[n]) return;
+          onSectionLoaded(n, plat);
+          var box = document.getElementById(secId(n, plat));
+          if (box && !opts.silent) box.innerHTML = '<p class="py-4 text-sm text-rose-600 dark:text-rose-400">Veri yüklenemedi.</p>';
+        });
+      });
+  }
+
   function loadAllSections(opts) {
     opts = opts || {};
     if (!opts.skipBeginCycle && !_load.active) beginLoadCycle({ phase: opts.bqPhase ? "bq" : "sections" });
     PLATS.forEach(function (plat) {
-      SECTIONS.forEach(function (n) {
-        loadSection(n, Object.assign({}, opts, { plat: plat, overrides: Object.assign({ platform: plat, versions: platVersions(plat) }, opts.overrides || {}) }));
-      });
+      loadPlatformBundle(plat, Object.assign({}, opts, {
+        overrides: Object.assign({ platform: plat, versions: platVersions(plat) }, opts.overrides || {})
+      }));
     });
   }
 
@@ -1047,7 +1146,7 @@
   function bootstrapSplitLoad(opts) {
     opts = opts || {};
     beginLoadCycle({ phase: "sections" });
-    // Önce sürüm listesini almak için platform=all özet
+    // Önce sürüm meta (platform=all özet) — sonra platform başına tek bundle
     fetch(sectionUrl("summary", { platform: "all", versions: [] }), { cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (html) {
@@ -1781,25 +1880,9 @@
   var refreshBtn = document.getElementById("crash-refresh-btn");
   if (refreshBtn) refreshBtn.addEventListener("click", triggerRefresh);
 
-  // ── İlk yükleme: 7g + her platformda son sürüm ──
+  // ── İlk yükleme: doğrudan bölümler (progress endpoint soğuk BQ beklemez) ──
   syncBtns();
-  fetch("/api/app/crashlytics/progress?product=" + encodeURIComponent(crashState.product), { cache: "no-store", headers: { "HX-Request": "true" } })
-    .then(function (r) { return r.json(); })
-    .then(function (j) {
-      if (j.cache_warm) {
-        bootstrapSplitLoad();
-      } else if (j.running) {
-        startPoll(function () { bootstrapSplitLoad({ skipBeginCycle: true }); });
-      } else {
-        fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
-          { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
-          .then(function () {
-            startPoll(function () { bootstrapSplitLoad({ skipBeginCycle: true }); });
-          })
-          .catch(function () { bootstrapSplitLoad(); });
-      }
-    })
-    .catch(function () { bootstrapSplitLoad(); });
+  bootstrapSplitLoad();
 
   window.__pcPageContext = function () {
     try {
