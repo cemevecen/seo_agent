@@ -1575,14 +1575,7 @@
       pts.forEach(function (p, pi) {
         d += (pi ? " L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1);
       });
-      var areaD = "";
-      if (pts.length) {
-        areaD =
-          "M " + pts[0].x.toFixed(1) + " " + baseY.toFixed(1) +
-          " L " + pts.map(function (p) { return p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" L ") +
-          " L " + pts[pts.length - 1].x.toFixed(1) + " " + baseY.toFixed(1) + " Z";
-      }
-      return { d: d, areaD: areaD, color: color, gradId: "pa-mfill-" + si, sp: sp };
+      return { d: d, color: color, sp: sp };
     });
     var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
     var yFs = xAxis.layout.yFontSize;
@@ -1598,18 +1591,7 @@
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
         pct + "%</text>";
     }
-    var defsHtml = linePaths.map(function (lp) {
-      return (
-        '<linearGradient id="' + lp.gradId + '" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0%" stop-color="' + lp.color + '" stop-opacity="0.28"/>' +
-          '<stop offset="100%" stop-color="' + lp.color + '" stop-opacity="0.02"/>' +
-        "</linearGradient>"
-      );
-    }).join("");
-    var fillsHtml = linePaths.map(function (lp) {
-      if (!lp.areaD) return "";
-      return '<path d="' + lp.areaD + '" fill="url(#' + lp.gradId + ')" />';
-    }).join("");
+    // Çoklu / ek grafik: sadece çizgi — gradyan fill yok
     var pathsHtml = linePaths.map(function (lp) {
       if (!lp.d) return "";
       return (
@@ -1701,10 +1683,8 @@
       plotW: plotW
     };
     paChart.innerHTML =
-      "<defs>" + defsHtml + "</defs>" +
       '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
       grid +
-      fillsHtml +
       pathsHtml +
       ovPathsHtml +
       ovDotsHtml +
@@ -2798,7 +2778,8 @@
 
     var hasOv = overlaySeriesState.length > 0;
     var prevLinePts = prevPts.filter(Boolean);
-    var areaD = !hasOv && !useNorm ? buildAreaPath(curPts) : "";
+    // Tek metrik: fill OK; ek grafik / % ölçek: sadece çizgi
+    var areaD = (!hasOv && !useNorm) ? buildAreaPath(curPts) : "";
     var lineD = buildLinePath(curPts);
     var prevD = !hasOv && !useNorm ? buildLinePath(prevLinePts) : "";
     var ovPathsHtml = overlaySeriesState.map(function (os) {
