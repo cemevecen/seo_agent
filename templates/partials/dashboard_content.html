@@ -1126,13 +1126,33 @@
       height: 100%;
       max-height: none;
       overflow: visible;
-      pointer-events: none;
+      pointer-events: auto;
+      cursor: pointer;
+      border: 0;
+      padding: 0;
+      margin: 0;
+      background: transparent;
       writing-mode: horizontal-tb;
       transform: none;
       font-size: 0;
       letter-spacing: 0;
       text-transform: none;
       color: transparent;
+    }
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label:hover .home-project-logo,
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label:hover .home-project-logo {
+      transform: scale(1.08);
+      box-shadow: 0 2px 8px rgb(15 23 42 / 0.22);
+    }
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label .home-project-logo,
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label .home-project-logo {
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label:focus-visible,
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label:focus-visible {
+      outline: 2px solid rgb(59 130 246 / 0.55);
+      outline-offset: 2px;
+      border-radius: 0.5rem;
     }
 
     /* Genişletilmiş projede maximize ikonları gizlensin */
@@ -1376,9 +1396,10 @@
         <button type="button" class="home-focus-chev" data-home-focus-set="doviz" title="doviz.com genişlet" aria-label="doviz.com genişlet (sol)">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.25V3.5H7.25"/><path d="M12.75 3.5H16.5V7.25"/><path d="M16.5 12.75V16.5H12.75"/><path d="M7.25 16.5H3.5V12.75"/></svg>
         </button>
-        <span class="home-project-rail-label" aria-hidden="true">
+        <button type="button" class="home-project-rail-label" data-home-focus-set="doviz"
+                title="doviz.com tam ekran" aria-label="doviz.com tam ekran">
           <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
-        </span>
+        </button>
       </div>
       <button type="button" class="home-focus-split" data-home-focus-set="split" title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
         <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">
@@ -1400,9 +1421,10 @@
         <button type="button" class="home-focus-chev" data-home-focus-set="sinemalar" title="sinemalar.com genişlet" aria-label="sinemalar.com genişlet">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.25V3.5H7.25"/><path d="M12.75 3.5H16.5V7.25"/><path d="M16.5 12.75V16.5H12.75"/><path d="M7.25 16.5H3.5V12.75"/></svg>
         </button>
-        <span class="home-project-rail-label" aria-hidden="true">
+        <button type="button" class="home-project-rail-label" data-home-focus-set="sinemalar"
+                title="sinemalar.com tam ekran" aria-label="sinemalar.com tam ekran">
           <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
-        </span>
+        </button>
       </div>
     </div>
 
