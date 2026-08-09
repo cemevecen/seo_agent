@@ -245,6 +245,11 @@
     flex: 1 1 auto;
     min-width: 5.5rem;
   }
+  /* .pa-f-btn display, Tailwind .hidden'ı ezmesin */
+  .pa-filters .pa-f-btn.hidden,
+  .android-play-page #pa-add-chart.hidden {
+    display: none !important;
+  }
   /* + grafik — Fusion turuncu (light/dark sabit) */
   .android-play-page #pa-add-chart.pa-btn-fusion,
   html.dark .android-play-page #pa-add-chart.pa-btn-fusion {
@@ -1905,10 +1910,14 @@
   }
 
   function metricOptionLabel(value) {
+    if (!value) return "";
     if (isGa4OverlayMetric(value)) return ga4OverlayLabel(value);
     if (!paMetric) return value;
-    var opt = paMetric.querySelector('option[value="' + value + '"]');
-    return opt ? String(opt.textContent || value).trim() : value;
+    var opt = paMetric.querySelector('option[value="' + String(value).replace(/"/g, "") + '"]');
+    var label = opt ? String(opt.textContent || value).trim() : String(value);
+    // Placeholder asla grafik/legend adı olmasın
+    if (!label || /^seçiniz$/i.test(label)) return "";
+    return label;
   }
 
   function setAddChartVisible(on) {
@@ -2433,8 +2442,13 @@
       return;
     }
     setPaChartLegendMode("line");
+    var primaryLegend = metricOptionLabel((paMetric && paMetric.value) || "");
     if (paLegendPrimaryLabel) {
-      paLegendPrimaryLabel.textContent = metricOptionLabel((paMetric && paMetric.value) || "") || "Seçili dönem";
+      paLegendPrimaryLabel.textContent = primaryLegend || "Seçili dönem";
+    }
+    if (paLegendPrimary) {
+      if (primaryLegend) paLegendPrimary.classList.remove("hidden");
+      else paLegendPrimary.classList.add("hidden");
     }
     var overlaySeriesState = paOverlays.map(function (ov, oi) {
       var aligned = alignOverlayValues(rows, ov.series);
@@ -2941,15 +2955,30 @@
   }
 
   async function runOverlayAnalytics() {
-    if (!paOvMetric || !paOvMetric.value || !paLastChart) return;
+    if (!paOvMetric || !paOvMetric.value) return;
     if (paBusy) return;
+    var metricKey = paOvMetric.value;
+    // Ana metrik seçili değilken / özet modundayken seçim = ana metrik (Seçiniz hayaleti yok)
+    if (!paMetric || !paMetric.value || paOverviewActive) {
+      if (isGa4OverlayMetric(metricKey)) {
+        alert("Önce Metrikler listesinden bir Play metriği seçin; ardından GA4 ekleyebilirsiniz.");
+        return;
+      }
+      closeOverlayPanel();
+      clearPaOverlaysState();
+      paMetric.value = metricKey;
+      paOverviewActive = false;
+      resetPaFiltersForMetricChange();
+      runPlayAnalytics({ fromUser: true });
+      return;
+    }
+    if (!paLastChart) return;
     paBusy = true;
     setPaLoading(true);
     try {
-      var metricKey = paOvMetric.value;
       var next = await fetchOneOverlaySeries({
         metric: metricKey,
-        label: metricOptionLabel(metricKey),
+        label: metricOptionLabel(metricKey) || metricKey,
         source: isGa4OverlayMetric(metricKey) ? "ga4" : "play",
         color: null,
         series: []
@@ -2989,6 +3018,10 @@
   });
   if (paAddChartBtn) {
     paAddChartBtn.addEventListener("click", function () {
+      if (!paMetric || !paMetric.value || paOverviewActive) {
+        alert("Önce Metrikler listesinden bir ana metrik seçin; ardından + grafik ile ek çizgi ekleyebilirsiniz.");
+        return;
+      }
       openOverlayPanel();
     });
   }
