@@ -57,37 +57,31 @@ INGEST_URL = (
     or "https://projectcontrol.up.railway.app/api/asc-console/ingest"
 ).strip()
 
-# measureKey (ASC URL) → warehouse metric
-MEASURE_VIEWS: list[tuple[str, str, str]] = [
-    ("units", "units", "analytics"),
-    ("redownloads", "redownloads", "analytics"),
-    ("conversionRate", "conversion_rate", "analytics"),
-    ("pageViewCount", "page_views", "analytics"),
-    ("impressionsTotal", "impressions", "analytics"),
-    ("iap", "iap", "sales"),
-    ("payingUsers", "paying_users", "sales"),
-    ("subscription-state-plans-active", "active_subscriptions", "subscriptions"),
+# ASC web private API measureKey → warehouse metric
+MEASURE_MAP: dict[str, str] = {
+    "units": "units",
+    "redownloads": "redownloads",
+    "conversionRate": "conversion_rate",
+    "pageViewCount": "page_views",
+    "impressionsTotal": "impressions",
+    "iap": "iap",
+    "payingUsers": "paying_users",
+    "proceeds": "proceeds",
+    "subscription-state-plans-active": "active_subscriptions",
+}
+# Batch grupları (tek POST’ta birden fazla measure)
+MEASURE_BATCHES: list[list[str]] = [
+    ["units", "redownloads", "conversionRate", "impressionsTotal", "pageViewCount"],
+    ["iap", "payingUsers", "proceeds"],
+    ["subscription-state-plans-active"],
 ]
+ANALYTICS_MEASURES_URL = (
+    "https://appstoreconnect.apple.com/analytics/api/v1/data/app/detail/measures"
+)
 
 
 def _ingest_token() -> str:
     return (os.environ.get("NOTIFICATION_INGEST_TOKEN") or "").strip()
-
-
-def _metrics_url(measure_key: str, *, kind: str = "analytics") -> str:
-    base = f"https://appstoreconnect.apple.com/apps/{APP_ID}"
-    q = (
-        "chartType=singleaxis&dateSpec=d90&frequency=day&measureKey="
-        + measure_key
-    )
-    if kind == "sales":
-        return (
-            f"{base}/analytics/monetization/sales/metrics?{q}"
-            "&dimensionFilters=NobwRA5mBcYA4FcBOBjAFgQwM4FMtgBowA3GYAXQF9yg"
-        )
-    if kind == "subscriptions":
-        return f"{base}/analytics/monetization/subscriptions/metrics?{q}"
-    return f"{base}/analytics/metrics?{q}"
 
 
 def _need_login(page_url: str, title: str, body_sample: str) -> bool:
@@ -307,23 +301,97 @@ def _facts_from_payload(
     return facts
 
 
-def _is_asc_api_url(url: str) -> bool:
-    u = (url or "").lower()
-    if "appstoreconnect.apple.com" not in u and "itunesconnect.apple.com" not in u:
-        if "amp-api" not in u and "analytics" not in u:
-            return False
-    needles = (
-        "analytics",
-        "measure",
-        "metrics",
-        "timeseries",
-        "time-series",
-        "sales",
-        "subscription",
-        "graphql",
-        "/api/",
+def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """ASC /data/app/detail/measures → explorer_facts."""
+    facts: list[dict[str, Any]] = []
+    results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(results, list):
+        # fallback: genel walker
+        for measure_key, metric in MEASURE_MAP.items():
+            facts.extend(
+                _facts_from_payload(payload, metric=metric, measure_key=measure_key)
+            )
+        return facts
+    for row in results:
+        if not isinstance(row, dict):
+            continue
+        measure_key = str(row.get("measure") or "").strip()
+        metric = MEASURE_MAP.get(measure_key)
+        if not metric:
+            continue
+        points = row.get("data") if isinstance(row.get("data"), list) else []
+        for pt in points:
+            if not isinstance(pt, dict):
+                continue
+            ds = _normalize_date(pt.get("date"))
+            fv = _as_float(pt.get("value"))
+            if not ds or fv is None:
+                continue
+            facts.append(
+                {
+                    "metric": metric,
+                    "view_id": measure_key,
+                    "dim": "overview",
+                    "segment": "OVERALL",
+                    "date": ds,
+                    "value": round(fv, 4),
+                    "label": f"{metric}:OVERALL",
+                    "source": "asc_measures_api",
+                }
+            )
+    return facts
+
+
+def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict[str, Any]:
+    """Oturumlu sayfa context’inde private measures API’ye POST."""
+    payload = {
+        "adamId": [APP_ID],
+        "startTime": f"{start.isoformat()}T00:00:00Z",
+        "endTime": f"{end.isoformat()}T23:59:59Z",
+        "measures": measures,
+        "frequency": "day",
+        "dimensionFilters": [],
+    }
+    referer = f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
+    # Browser cookie + same-origin fetch (Playwright response dinlemekten daha güvenilir)
+    result = page.evaluate(
+        """async ({url, payload, referer}) => {
+          try {
+            const r = await fetch(url, {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-By': 'appstoreconnect.apple.com',
+                'Origin': 'https://appstoreconnect.apple.com',
+                'Referer': referer,
+              },
+              body: JSON.stringify(payload),
+            });
+            const text = await r.text();
+            return { status: r.status, text: text.slice(0, 2_000_000), ok: r.ok };
+          } catch (e) {
+            return { status: 0, text: String(e), ok: false };
+          }
+        }""",
+        {"url": ANALYTICS_MEASURES_URL, "payload": payload, "referer": referer},
     )
-    return any(n in u for n in needles)
+    if not isinstance(result, dict):
+        return {"ok": False, "status": 0, "message": "evaluate boş", "body": None}
+    status = int(result.get("status") or 0)
+    text = str(result.get("text") or "")
+    body = None
+    try:
+        body = json.loads(text) if text else None
+    except Exception:
+        body = None
+    return {
+        "ok": bool(result.get("ok")) and status == 200 and isinstance(body, dict),
+        "status": status,
+        "message": text[:240] if status != 200 else "ok",
+        "body": body,
+    }
 
 
 def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
@@ -332,48 +400,18 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
         headed = env_hl not in ("1", "true", "yes")
 
     pw, ctx = _launch_context(headed=headed)
-    captured: list[dict[str, Any]] = []
     explorer_facts: list[dict[str, Any]] = []
     pages_meta: dict[str, Any] = {}
-
-    def on_response(resp) -> None:
-        try:
-            url = resp.url or ""
-            if resp.status != 200:
-                return
-            if not _is_asc_api_url(url):
-                return
-            ctype = (resp.headers.get("content-type") or "").lower()
-            if "json" not in ctype and "javascript" not in ctype and "text/" not in ctype:
-                return
-            body = resp.text()
-            if not body or len(body) < 8 or len(body) > 8_000_000:
-                return
-            try:
-                data = json.loads(body)
-            except Exception:
-                return
-            captured.append(
-                {
-                    "url": url[:500],
-                    "status": resp.status,
-                    "ts": datetime.utcnow().isoformat(),
-                    "keys": list(data.keys())[:40] if isinstance(data, dict) else ["__list__"],
-                    "body": data,
-                }
-            )
-        except Exception:
-            return
+    raw_network: list[dict[str, Any]] = []
 
     try:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        page.on("response", on_response)
         page.goto(
             f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics/metrics",
             wait_until="domcontentloaded",
             timeout=120_000,
         )
-        time.sleep(2)
+        time.sleep(3)
         url0 = page.url or ""
         title0 = ""
         try:
@@ -394,61 +432,62 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "raw_network": [],
             }
 
-        for measure_key, metric, kind in MEASURE_VIEWS:
-            before = len(captured)
-            target = _metrics_url(measure_key, kind=kind)
-            try:
-                page.goto(target, wait_until="domcontentloaded", timeout=90_000)
-            except Exception as exc:
-                pages_meta[measure_key] = {"ok": False, "error": str(exc)[:160]}
-                continue
-            # SPA XHR bitsin
-            for _ in range(12):
-                time.sleep(0.75)
-                try:
-                    page.wait_for_load_state("networkidle", timeout=2500)
-                    break
-                except Exception:
-                    pass
-            time.sleep(1.0)
-            batch = captured[before:]
-            facts_m: list[dict[str, Any]] = []
-            for cap in batch:
-                facts_m.extend(
-                    _facts_from_payload(
-                        cap.get("body"), metric=metric, measure_key=measure_key
-                    )
-                )
-            # Aynı günü tekilleştir
-            by_d: dict[str, dict[str, Any]] = {}
-            for f in facts_m:
-                ds = str(f.get("date") or "")[:10]
-                if ds:
-                    by_d[ds] = f
-            facts_m = [by_d[k] for k in sorted(by_d.keys())]
-            # son 400 gün
-            cutoff = (date.today() - timedelta(days=400)).isoformat()
-            facts_m = [f for f in facts_m if str(f.get("date") or "") >= cutoff]
-            explorer_facts.extend(facts_m)
-            pages_meta[measure_key] = {
-                "ok": bool(facts_m),
-                "fact_count": len(facts_m),
-                "captures": len(batch),
-                "url": target,
-            }
-            print(
-                f"ASC scrape · {measure_key} → {metric}: {len(facts_m)} gün "
-                f"({len(batch)} network)",
-                flush=True,
+        end_d = date.today() - timedelta(days=1)
+        start_d = end_d - timedelta(days=89)
+        for batch in MEASURE_BATCHES:
+            resp = _post_measures(page, batch, start=start_d, end=end_d)
+            raw_network.append(
+                {
+                    "url": ANALYTICS_MEASURES_URL,
+                    "status": resp.get("status"),
+                    "ts": datetime.utcnow().isoformat(),
+                    "measures": batch,
+                    "ok": resp.get("ok"),
+                    "message": str(resp.get("message") or "")[:200],
+                }
             )
+            if not resp.get("ok"):
+                print(
+                    f"ASC measures POST fail · {batch} · HTTP {resp.get('status')} · "
+                    f"{str(resp.get('message') or '')[:120]}",
+                    flush=True,
+                )
+                for mk in batch:
+                    pages_meta[mk] = {
+                        "ok": False,
+                        "error": f"HTTP {resp.get('status')}",
+                        "message": str(resp.get("message") or "")[:160],
+                    }
+                continue
+            facts_batch = _facts_from_measures_response(resp.get("body") or {})
+            # metrik bazında say
+            counts: dict[str, int] = {}
+            for f in facts_batch:
+                mk = str(f.get("view_id") or "")
+                counts[mk] = counts.get(mk, 0) + 1
+            explorer_facts.extend(facts_batch)
+            for mk in batch:
+                n = counts.get(mk, 0)
+                pages_meta[mk] = {"ok": n > 0, "fact_count": n}
+                metric = MEASURE_MAP.get(mk, mk)
+                print(f"ASC scrape · {mk} → {metric}: {n} gün (measures API)", flush=True)
+            time.sleep(0.6)
+
+        # tekilleştir
+        by_key: dict[tuple[str, str], dict[str, Any]] = {}
+        for f in explorer_facts:
+            key = (str(f.get("metric")), str(f.get("date") or "")[:10])
+            if key[1]:
+                by_key[key] = f
+        explorer_facts = [by_key[k] for k in sorted(by_key.keys())]
 
         ok_metrics = sum(1 for v in pages_meta.values() if v.get("ok"))
         msg = (
             f"ASC scrape · {len(explorer_facts)} fact · "
-            f"{ok_metrics}/{len(MEASURE_VIEWS)} measure"
+            f"{ok_metrics}/{len(MEASURE_MAP)} measure"
         )
         return {
-            "ok": bool(explorer_facts) or ok_metrics > 0,
+            "ok": bool(explorer_facts),
             "needs_login": False,
             "message": msg,
             "sync_mode": "analytics_scrape",
@@ -463,12 +502,14 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "explorer_facts": explorer_facts[:50000],
                 "explorer_fact_count": len(explorer_facts),
                 "pages": pages_meta,
-                "measure_keys": [m[0] for m in MEASURE_VIEWS],
+                "measure_keys": list(MEASURE_MAP.keys()),
+                "scrape_meta": {
+                    "start": start_d.isoformat(),
+                    "end": end_d.isoformat(),
+                    "api": ANALYTICS_MEASURES_URL,
+                },
             },
-            "raw_network": [
-                {k: c.get(k) for k in ("url", "status", "ts", "keys")}
-                for c in captured[-40:]
-            ],
+            "raw_network": raw_network[-40:],
         }
     except Exception as exc:  # noqa: BLE001
         return {
