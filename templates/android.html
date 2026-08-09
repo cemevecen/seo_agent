@@ -347,21 +347,16 @@
           </optgroup>
           <optgroup label="Büyüme">
             <option value="device_acquisition">Cihaz edinme</option>
-            <option value="device_first_open">Cihaz ilk açılışları</option>
             <option value="user_lost">Kullanıcı kaybı</option>
             <option value="active_devices">Etkin cihazlar</option>
             <option value="active_users">Etkin kullanıcılar</option>
-            <option value="dau">Günlük etkin kullanıcı (DAU)</option>
           </optgroup>
           <optgroup label="Mağaza">
             <option value="ar2_visitors">Mağaza ziyaretçileri</option>
             <option value="ar2_acquisitions">Mağaza edinme</option>
-            <option value="store_conversion">Mağaza dönüşüm oranı</option>
           </optgroup>
           <optgroup label="Gelir">
             <option value="revenue">Gelir</option>
-            <option value="buyers">Alıcı sayısı</option>
-            <option value="arppu">ÖYKBOG (ARPPU)</option>
           </optgroup>
           <optgroup label="Puan">
             <option value="rating">Google Play puanı + dağılım</option>
@@ -1089,15 +1084,15 @@
   });
   var paTable = document.getElementById("pa-table");
   var paChartState = null;
-  /** Ana grafikte üst üste çizilecek metrikler */
+  /** Açılışta ana grafikte üst üste çizilecek metrikler */
   var PA_OVERVIEW_CHART_METRICS = [
-    "anrs", "crashes", "device_acquisition", "device_first_open",
-    "user_lost", "dau", "revenue"
+    "anrs", "crashes", "user_lost"
   ];
   /** Grafikte yok; yalnızca liste tabloda */
   var PA_OVERVIEW_TABLE_EXTRA = [
-    "ar2_acquisitions", "ar2_visitors", "store_conversion",
-    "active_devices", "active_users", "buyers", "arppu", "rating"
+    "device_acquisition", "revenue",
+    "ar2_acquisitions", "ar2_visitors",
+    "active_devices", "active_users", "rating"
   ];
   var PA_METRIC_COLORS = [
     "#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6",
@@ -1552,11 +1547,8 @@
   }
   function metricIsCountLike(metricKey) {
     var m = metricKey || (paMetric && paMetric.value) || "";
-    return (
-      m === "anrs" || m === "crashes" || m === "buyers"
-      || m === "device_first_open" || m === "ar2_acquisitions"
-      || m === "ar2_visitors" || m === "user_lost" || m === "dau"
-    );
+    return m === "anrs" || m === "crashes" || m === "user_lost"
+      || m === "ar2_acquisitions" || m === "ar2_visitors";
   }
   function isTimeBreakdown(breakdown) {
     return breakdown === "date" || breakdown === "week" || breakdown === "month";
