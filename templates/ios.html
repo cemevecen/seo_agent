@@ -28,9 +28,57 @@
   #ia-table-wrap > table { width: max-content; max-width: none; border-collapse: collapse; font-size: 0.75rem; }
   #ia-table-wrap th, #ia-table-wrap td { white-space: nowrap; text-align: right; }
   #ia-table-wrap th:first-child, #ia-table-wrap td:first-child { text-align: left; }
-  #ia-results.is-loading #ia-chart { opacity: 0.45; }
-  .ia-orbit { display: inline-block; width: 1.1rem; height: 1.1rem; border: 2px solid rgba(5,150,105,.25); border-top-color: #059669; border-radius: 9999px; animation: ia-spin .7s linear infinite; }
-  @keyframes ia-spin { to { transform: rotate(360deg); } }
+  #ia-results { position: relative; }
+  #ia-results.is-loading > :not(#ia-loading) {
+    opacity: 0.35;
+    pointer-events: none;
+    filter: saturate(0.7);
+  }
+  .ia-orbit {
+    position: relative;
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+  .ia-orbit__ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2.5px solid transparent;
+    border-top-color: #0284c7;
+    border-right-color: rgba(2, 132, 199, 0.35);
+    animation: ia-orbit-spin 0.9s linear infinite;
+  }
+  .ia-orbit__ring--mid {
+    inset: 0.45rem;
+    border-top-color: #38bdf8;
+    border-right-color: rgba(56, 189, 248, 0.3);
+    animation-duration: 1.25s;
+    animation-direction: reverse;
+  }
+  .ia-orbit__ring--inner {
+    inset: 0.9rem;
+    border-width: 2px;
+    border-top-color: #7dd3fc;
+    border-left-color: rgba(125, 211, 252, 0.4);
+    border-right-color: transparent;
+    animation-duration: 0.7s;
+  }
+  .ia-orbit__core {
+    position: absolute;
+    inset: 1.25rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #bae6fd, #0284c7 70%);
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.45);
+    animation: ia-orbit-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes ia-orbit-spin { to { transform: rotate(360deg); } }
+  @keyframes ia-orbit-pulse {
+    0%, 100% { transform: scale(0.85); opacity: 0.75; }
+    50% { transform: scale(1); opacity: 1; }
+  }
+  html.dark .ia-orbit__ring { border-top-color: #38bdf8; border-right-color: rgba(56, 189, 248, 0.35); }
+  html.dark .ia-orbit__ring--mid { border-top-color: #7dd3fc; }
+  html.dark .ia-orbit__ring--inner { border-top-color: #bae6fd; }
   @media (min-width: 900px) {
     .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
     .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
@@ -146,7 +194,18 @@
       <p id="ia-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">ASC, GA4 veya Virgül (iOS) metriklerini aynı tarih aralığında üst üste ekleyin. Farklı birimler kendi max % ölçeğinde hizalanır.</p>
     </div>
 
-    <div id="ia-results" class="mt-4">
+    <div id="ia-results" class="relative mt-4">
+      <div id="ia-loading" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/55 backdrop-blur-[2px] dark:bg-zinc-950/50" aria-live="polite" aria-busy="false">
+        <div class="flex flex-col items-center gap-3">
+          <div class="ia-orbit" aria-hidden="true">
+            <span class="ia-orbit__ring"></span>
+            <span class="ia-orbit__ring ia-orbit__ring--mid"></span>
+            <span class="ia-orbit__ring ia-orbit__ring--inner"></span>
+            <span class="ia-orbit__core"></span>
+          </div>
+          <p class="text-[11px] font-semibold tracking-wide text-sky-800 dark:text-sky-300">Veriler yükleniyor…</p>
+        </div>
+      </div>
       <div class="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p id="ia-total-label" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
@@ -156,12 +215,6 @@
       </div>
       <div id="ia-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950">
         <div class="relative px-1 pb-1 pt-2">
-          <div id="ia-loading" class="absolute inset-0 z-10 hidden items-center justify-center bg-white/70 dark:bg-zinc-950/70" aria-busy="false">
-            <div class="flex flex-col items-center gap-2">
-              <span class="ia-orbit" aria-hidden="true"></span>
-              <span class="text-xs font-semibold text-slate-600 dark:text-zinc-300">Veriler yükleniyor…</span>
-            </div>
-          </div>
           <div id="ia-legend" class="mb-1 flex flex-wrap gap-2 px-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
           <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrik grafiği"></svg>
         </div>
@@ -376,6 +429,7 @@
     if (iaLoading) {
       iaLoading.classList.toggle("hidden", !on);
       iaLoading.classList.toggle("flex", !!on);
+      iaLoading.setAttribute("aria-busy", on ? "true" : "false");
     }
     if (iaRun) iaRun.disabled = !!on;
     if (iaRunLabel) iaRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
