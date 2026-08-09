@@ -8577,7 +8577,7 @@ def _home_crash_version_counts(payload: dict, plat: str, version: str | None) ->
 
 
 def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) -> dict:
-    """Ana sayfa Firebase/Crashlytics mini kart — cache varsa anında, yoksa BQ'dan senkron çeker.
+    """Ana sayfa Firebase/Crashlytics mini kart — cache varsa anında; yoksa arka planda ısıt.
 
     Metrikler (fatal/ANR/cihaz/issue) mümkün olduğunca mağaza/Crashlytics son sürümüne
     scoped edilir; crash-free sessions hâlâ platform geneli (BQ sessions join sürüm filtresi yok).
@@ -8601,13 +8601,14 @@ def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) ->
 
     payload = cbq.peek_cached_payload(pid, days=7, platform_filter="all")
     if not payload:
-        # Soğuk cache: arka plana atma — ana sayfada her zaman senkron çek
+        # Soğuk cache: ana sayfada BQ senkron bekletme — arka planda ısıt, hızlı shell dön
         try:
-            payload = cbq.build_full_payload(pid, days=7, platform_filter="all")
-        except Exception as exc:  # noqa: BLE001
-            LOGGER.exception("Home Crashlytics sync fetch failed product=%s", pid)
-            out["message"] = f"Crashlytics verisi alınamadı: {str(exc)[:120]}"
-            return out
+            cbq.prewarm_cache(pid)
+        except Exception:
+            LOGGER.debug("Home Crashlytics prewarm failed product=%s", pid, exc_info=True)
+        out["warming"] = True
+        out["message"] = "Crashlytics verisi hazırlanıyor…"
+        return out
 
     if not payload or payload.get("ok") is False:
         out["message"] = (payload or {}).get("message") or "BigQuery verisi yok"
@@ -11242,7 +11243,7 @@ def _home_app_release_platforms(product_id: str = "doviz") -> list[dict]:
         try:
             from backend.services.app_intel import ensure_android_category_rank_on_raw
 
-            raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=True)
+            raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=False)
         except Exception:
             LOGGER.debug("Home app-release Android sıra zenginleştirmesi atlandı", exc_info=True)
         for key, label, version_key, date_key in [

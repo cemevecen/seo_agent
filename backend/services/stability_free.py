@@ -4,9 +4,36 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_STABILITY_CACHE_TTL_S = 15 * 60
+_STABILITY_CACHE_LOCK = threading.Lock()
+_STABILITY_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
+def _stability_cache_get(key: str) -> dict[str, Any] | None:
+    with _STABILITY_CACHE_LOCK:
+        entry = _STABILITY_CACHE.get(key)
+        if not entry:
+            return None
+        ts, payload = entry
+        if time.time() - ts > _STABILITY_CACHE_TTL_S:
+            return None
+        return payload
+
+
+def _stability_cache_set(key: str, payload: dict[str, Any]) -> None:
+    with _STABILITY_CACHE_LOCK:
+        _STABILITY_CACHE[key] = (time.time(), payload)
+        if len(_STABILITY_CACHE) > 24:
+            cutoff = time.time() - _STABILITY_CACHE_TTL_S
+            for k, (ts, _) in list(_STABILITY_CACHE.items()):
+                if ts < cutoff:
+                    del _STABILITY_CACHE[k]
 
 
 def _parse_tr_pct(raw: Any) -> float | None:
@@ -171,6 +198,11 @@ def build_stability_free_payload(
     from backend.services import gp_client
 
     vitals = vitals if isinstance(vitals, dict) else {}
+    cache_key = f"{product_id}:{package_name}:sf"
+    cached = _stability_cache_get(cache_key)
+    if cached:
+        return cached
+
     play_overall = free_rates_from_vitals_overview(vitals)
 
     versions = vitals.get("versions") if isinstance(vitals.get("versions"), list) else []
@@ -236,9 +268,11 @@ def build_stability_free_payload(
                 overall = _cf_block(cf_by.get(plat))
                 scoped = latest_stats.get(plat) if isinstance(latest_stats.get(plat), dict) else {}
                 ver = str((scoped or {}).get("version") or "").strip() or None
+                # Önce cache’deki sürüm CF — canlı BQ since-release ilk açılışı yavaşlatır
                 latest_cf = None
-                # Latest sürüm: sabit 7g değil — yayına girdiği andan bugüne
                 if ver:
+                    latest_cf = _cf_block((scoped or {}).get("crash_free"), version=ver)
+                if ver and not latest_cf:
                     try:
                         latest_cf = _latest_cf_since_release(
                             cbq, product_id=product_id, plat=plat, version=ver
@@ -247,9 +281,6 @@ def build_stability_free_payload(
                         logger.info(
                             "stability-free since-release CF (%s/%s): %s", plat, ver, exc
                         )
-                if ver and not latest_cf:
-                    # Yedek: cache’deki sürüm CF (eski 7g) — yalnızca boşsa
-                    latest_cf = _cf_block((scoped or {}).get("crash_free"), version=ver)
                 plats[plat] = {
                     "overall": overall,
                     "latest_version": ver,
@@ -267,7 +298,7 @@ def build_stability_free_payload(
         logger.warning("stability-free crashlytics: %s", exc)
         crashlytics = {"ok": False, "error": str(exc)[:160], "platforms": {}}
 
-    return {
+    out = {
         "ok": True,
         "package_name": package_name,
         "product_id": product_id,
@@ -277,3 +308,9 @@ def build_stability_free_payload(
         "play_error": play_err,
         "crashlytics": crashlytics,
     }
+    # Vitals’lı Android çağrıları da cache’e yazılsın (sonraki iOS/tekrar açılış)
+    try:
+        _stability_cache_set(cache_key, out)
+    except Exception:
+        pass
+    return out

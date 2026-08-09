@@ -5478,26 +5478,10 @@
       );
     }
   });
-  // İlk açılışta snapshot + (yorum azsa) store senkronu + vitals polling
+  // İlk açılışta snapshot + vitals polling (365g yorum sync boot’u bloklamasın)
   (async function bootAndroid() {
     await loadSnapshot();
     startVitalsPolling();
-    try {
-      var snap = null;
-      var r0 = await fetch("/api/play-console/snapshot", { credentials: "same-origin", cache: "no-store" });
-      snap = await r0.json();
-      var n = Array.isArray(snap && snap.reviews) ? snap.reviews.length : 0;
-      if (n < 40) {
-        setPcLine(statusEl, "Son 1 yıl yorumları çekiliyor…");
-        var sr = await fetch("/api/play-console/sync-store-reviews?days=365", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" }
-        });
-        if (sr.ok) await loadSnapshot();
-        setPcLine(statusEl, "");
-      }
-    } catch (_) {}
   })();
 })();
 </script>

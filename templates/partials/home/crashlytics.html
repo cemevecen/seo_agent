@@ -174,7 +174,7 @@
   {% endif %}
 {%- endmacro %}
 
-<div class="home-crash-shell home-readable" data-home-crash-root>
+<div class="home-crash-shell home-readable{% if card.warming %} is-warming{% endif %}" data-home-crash-root{% if card.warming %} data-home-crash-warming="1"{% endif %}>
   <button type="button"
           class="home-crash-shell-toggle"
           data-home-crash-shell-toggle
@@ -204,7 +204,7 @@
 {% if card.warming %}
   <div class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-5 text-center dark:border-slate-700 dark:bg-slate-800/40">
     <p class="home-body text-slate-500 dark:text-slate-400">{{ card.message or "Veri yükleniyor…" }}</p>
-    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">Sayfayı birkaç dakika içinde yenileyin veya Firebase sekmesine gidin.</p>
+    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">Arka planda hazırlanıyor — birkaç saniye içinde otomatik yenilenecek.</p>
     {% if store_ios or store_android %}
       <div class="home-crash-pair text-left">
         <div class="home-crash-plat">
@@ -333,12 +333,36 @@
     root.setAttribute('data-crash-shell-wired', '1');
     var shellToggle = root.querySelector('[data-home-crash-shell-toggle]');
     var shellBody = root.querySelector('[data-home-crash-shell-body]');
-    if (!shellToggle || !shellBody) return;
-    shellToggle.addEventListener('click', function () {
-      var open = root.classList.toggle('is-open');
-      shellBody.hidden = !open;
-      shellToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
+    if (shellToggle && shellBody) {
+      shellToggle.addEventListener('click', function () {
+        var open = root.classList.toggle('is-open');
+        shellBody.hidden = !open;
+        shellToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+    // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
+    if (root.getAttribute('data-home-crash-warming') === '1') {
+      var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=7';
+      var tries = 0;
+      var timer = window.setInterval(function () {
+        tries += 1;
+        if (tries > 12) {
+          window.clearInterval(timer);
+          return;
+        }
+        if (!sec || !document.body.contains(sec)) {
+          window.clearInterval(timer);
+          return;
+        }
+        if (!sec.querySelector('[data-home-crash-warming="1"]')) {
+          window.clearInterval(timer);
+          return;
+        }
+        if (!window.htmx) return;
+        window.htmx.ajax('GET', url, { target: sec, swap: 'innerHTML' });
+      }, 3500);
+    }
   })();
   </script>
 </div>
