@@ -304,7 +304,9 @@ def _facts_from_payload(
 def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """ASC /data/app/detail/measures → explorer_facts."""
     facts: list[dict[str, Any]] = []
-    results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(payload, dict):
+        return facts
+    results = payload.get("results")
     if not isinstance(results, list):
         # fallback: genel walker
         for measure_key, metric in MEASURE_MAP.items():
@@ -315,16 +317,29 @@ def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any
     for row in results:
         if not isinstance(row, dict):
             continue
-        measure_key = str(row.get("measure") or "").strip()
+        measure_key = str(
+            row.get("measure") or row.get("measureKey") or row.get("key") or ""
+        ).strip()
         metric = MEASURE_MAP.get(measure_key)
         if not metric:
+            # bilinmeyen measure — yine de walker ile dene
             continue
-        points = row.get("data") if isinstance(row.get("data"), list) else []
+        points = row.get("data") or row.get("points") or row.get("values") or []
+        if not isinstance(points, list):
+            points = []
         for pt in points:
-            if not isinstance(pt, dict):
+            if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                ds = _normalize_date(pt[0])
+                fv = _as_float(pt[1])
+            elif isinstance(pt, dict):
+                ds = _normalize_date(pt.get("date") or pt.get("day") or pt.get("key"))
+                fv = _as_float(
+                    pt.get("value")
+                    if pt.get("value") is not None
+                    else pt.get("total")
+                )
+            else:
                 continue
-            ds = _normalize_date(pt.get("date"))
-            fv = _as_float(pt.get("value"))
             if not ds or fv is None:
                 continue
             facts.append(
@@ -339,21 +354,47 @@ def _facts_from_measures_response(payload: dict[str, Any]) -> list[dict[str, Any
                     "source": "asc_measures_api",
                 }
             )
+    if not facts:
+        # results var ama parse edilemedi — walker
+        for measure_key, metric in MEASURE_MAP.items():
+            facts.extend(
+                _facts_from_payload(payload, metric=metric, measure_key=measure_key)
+            )
     return facts
+
+
+def _parse_measures_text(text: str) -> Any:
+    s = (text or "").strip()
+    if not s:
+        return None
+    # bazı proxy/prefix’ler
+    if s.startswith(")]}',"):
+        s = s[5:].lstrip()
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+    # ilk { veya [ bloğu
+    for i, ch in enumerate(s):
+        if ch in "{[":
+            try:
+                return json.loads(s[i:])
+            except Exception:
+                break
+    return None
 
 
 def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict[str, Any]:
     """Oturumlu sayfa context’inde private measures API’ye POST."""
     payload = {
-        "adamId": [APP_ID],
+        "adamId": [str(APP_ID)],
         "startTime": f"{start.isoformat()}T00:00:00Z",
-        "endTime": f"{end.isoformat()}T23:59:59Z",
+        "endTime": f"{end.isoformat()}T00:00:00Z",
         "measures": measures,
         "frequency": "day",
-        "dimensionFilters": [],
     }
     referer = f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
-    # Browser cookie + same-origin fetch (Playwright response dinlemekten daha güvenilir)
+    # JSON’u JS tarafında parse et — Python’a text kesilerek gelmesin
     result = page.evaluate(
         """async ({url, payload, referer}) => {
           try {
@@ -361,7 +402,7 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
               method: 'POST',
               credentials: 'include',
               headers: {
-                'Accept': 'application/json',
+                'Accept': 'application/json, text/plain, */*',
                 'Content-Type': 'application/json',
                 'X-Requested-By': 'appstoreconnect.apple.com',
                 'Origin': 'https://appstoreconnect.apple.com',
@@ -370,9 +411,22 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
               body: JSON.stringify(payload),
             });
             const text = await r.text();
-            return { status: r.status, text: text.slice(0, 2_000_000), ok: r.ok };
+            let data = null;
+            let parseError = null;
+            try { data = text ? JSON.parse(text) : null; }
+            catch (e) { parseError = String(e); }
+            return {
+              status: r.status,
+              ok: r.ok,
+              data,
+              parseError,
+              preview: text.slice(0, 400),
+              keys: data && typeof data === 'object' && !Array.isArray(data)
+                ? Object.keys(data).slice(0, 20) : null,
+              resultCount: data && data.results ? data.results.length : null,
+            };
           } catch (e) {
-            return { status: 0, text: String(e), ok: false };
+            return { status: 0, ok: false, data: null, parseError: String(e), preview: '' };
           }
         }""",
         {"url": ANALYTICS_MEASURES_URL, "payload": payload, "referer": referer},
@@ -380,17 +434,27 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
     if not isinstance(result, dict):
         return {"ok": False, "status": 0, "message": "evaluate boş", "body": None}
     status = int(result.get("status") or 0)
-    text = str(result.get("text") or "")
-    body = None
-    try:
-        body = json.loads(text) if text else None
-    except Exception:
-        body = None
+    body = result.get("data")
+    if body is None and result.get("preview"):
+        body = _parse_measures_text(str(result.get("preview") or ""))
+    ok = status == 200 and isinstance(body, (dict, list))
+    msg = "ok"
+    if status != 200:
+        msg = str(result.get("preview") or result.get("parseError") or f"HTTP {status}")[:240]
+    elif not ok:
+        msg = (
+            f"parse fail · {result.get('parseError') or 'no json'} · "
+            f"preview={str(result.get('preview') or '')[:180]}"
+        )
+    elif isinstance(body, dict):
+        msg = (
+            f"ok · keys={result.get('keys')} · results={result.get('resultCount')}"
+        )
     return {
-        "ok": bool(result.get("ok")) and status == 200 and isinstance(body, dict),
+        "ok": ok,
         "status": status,
-        "message": text[:240] if status != 200 else "ok",
-        "body": body,
+        "message": msg,
+        "body": body if isinstance(body, dict) else ({"results": body} if isinstance(body, list) else None),
     }
 
 
@@ -440,7 +504,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 {
                     "url": ANALYTICS_MEASURES_URL,
                     "status": resp.get("status"),
-                    "ts": datetime.utcnow().isoformat(),
+                    "ts": datetime.now().isoformat(),
                     "measures": batch,
                     "ok": resp.get("ok"),
                     "message": str(resp.get("message") or "")[:200],
@@ -449,9 +513,24 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             if not resp.get("ok"):
                 print(
                     f"ASC measures POST fail · {batch} · HTTP {resp.get('status')} · "
-                    f"{str(resp.get('message') or '')[:120]}",
+                    f"{str(resp.get('message') or '')[:200]}",
                     flush=True,
                 )
+                # debug dump
+                try:
+                    dump = Path("/tmp/asc_measures_last.json")
+                    dump.write_text(
+                        json.dumps(
+                            {"batch": batch, "resp": {k: resp.get(k) for k in ("status", "message", "ok")}, "body": resp.get("body")},
+                            ensure_ascii=False,
+                            indent=2,
+                            default=str,
+                        )[:200000],
+                        encoding="utf-8",
+                    )
+                    print(f"  debug → {dump}", flush=True)
+                except Exception:
+                    pass
                 for mk in batch:
                     pages_meta[mk] = {
                         "ok": False,
