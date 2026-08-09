@@ -73,6 +73,6 @@
   {% endfor %}
 </div>
 {% else %}
-  {{ version_chart_body(data.version_trend or []) }}
+  {{ version_chart_body(vt_by_plat.get(global_plat) or data.version_trend or []) }}
 {% endif %}
 {% endif %}

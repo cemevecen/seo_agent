@@ -243,12 +243,135 @@ def _android_breakdowns_from_scrape(
     return android_devices, android_os
 
 
+def _android_version_trend_from_reporting(
+    package_name: str,
+    *,
+    days: int = 28,
+    limit_versions: int = 6,
+    name_map: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Play Reporting — gün × app sürümü çökme serisi (versiyon trendi)."""
+    from datetime import date, timedelta
+
+    from backend.services import gp_client
+
+    if not gp_client.is_configured():
+        return []
+
+    pkg = (package_name or "").strip() or "com.Doviz"
+    end = date.today() - timedelta(days=2)
+    start = end - timedelta(days=max(int(days or 28), 7) - 1)
+    try:
+        rows = gp_client.fetch_crash_by_dimension(
+            pkg, dimension="versionCode", start=start, end=end
+        ) or []
+    except Exception:
+        logger.debug("firebase android version trend reporting failed", exc_info=True)
+        return []
+
+    # (date, version_label) → count; önce top sürümleri seç
+    by_ver: dict[str, int] = {}
+    daily: dict[tuple[str, str], int] = {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        seg = str(r.get("segment") or "").strip()
+        if not seg or seg.upper() in ("OVERALL", "ALL", "UNKNOWN", "TOTAL"):
+            continue
+        ds = str(r.get("date") or "")[:10]
+        if len(ds) < 8:
+            continue
+        try:
+            val = int(round(float(r.get("value") or 0)))
+        except (TypeError, ValueError):
+            val = 0
+        if val <= 0:
+            continue
+        label = gp_client.format_app_version_label(seg, name_map)
+        by_ver[label] = by_ver.get(label, 0) + val
+        key = (ds, label)
+        daily[key] = daily.get(key, 0) + val
+
+    if not daily:
+        return []
+    top = {
+        v
+        for v, _ in sorted(by_ver.items(), key=lambda x: x[1], reverse=True)[: max(1, limit_versions)]
+    }
+    out = [
+        {"date": d, "app_version": ver, "event_count": n, "platform": "android"}
+        for (d, ver), n in sorted(daily.items())
+        if ver in top
+    ]
+    return out
+
+
+def _android_version_trend_from_scrape(
+    *,
+    days: int = 28,
+    limit_versions: int = 6,
+) -> list[dict[str, Any]]:
+    """explorer_facts dim=app_version × date — varsa versiyon trendi."""
+    from datetime import date, timedelta
+
+    from backend.services.play_scrape_warehouse import load_scrape_facts
+
+    end = date.today() - timedelta(days=1)
+    start = end - timedelta(days=max(int(days or 28), 7) - 1)
+    facts, _meta = load_scrape_facts()
+    if not facts:
+        return []
+
+    by_ver: dict[str, int] = {}
+    daily: dict[tuple[str, str], int] = {}
+    for f in facts:
+        if not isinstance(f, dict):
+            continue
+        if str(f.get("metric") or "") not in ("crashes", "anrs"):
+            continue
+        if str(f.get("dim") or "") != "app_version":
+            continue
+        seg = str(f.get("segment") or "").strip()
+        if not seg or seg.upper() in ("OVERALL", "ALL", "UNKNOWN", "TOTAL"):
+            continue
+        ds = str(f.get("date") or "")
+        if not ds or len(ds) < 8 or ds.startswith("i"):
+            continue
+        try:
+            d = date.fromisoformat(ds[:10])
+            if d < start or d > end:
+                continue
+        except ValueError:
+            continue
+        try:
+            val = int(round(float(f.get("value") or 0)))
+        except (TypeError, ValueError):
+            val = 0
+        if val <= 0:
+            continue
+        by_ver[seg] = by_ver.get(seg, 0) + val
+        key = (ds[:10], seg)
+        daily[key] = daily.get(key, 0) + val
+
+    if not daily:
+        return []
+    top = {
+        v
+        for v, _ in sorted(by_ver.items(), key=lambda x: x[1], reverse=True)[: max(1, limit_versions)]
+    }
+    return [
+        {"date": d, "app_version": ver, "event_count": n, "platform": "android"}
+        for (d, ver), n in sorted(daily.items())
+        if ver in top
+    ]
+
+
 def _android_breakdowns_from_reporting(
     package_name: str,
     *,
     days: int = 28,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """DEPRECATED path — yalnızca scrape boşsa (cihaz/OS fact yok)."""
+    """Reporting API — scrape boşsa cihaz/OS kırılımı."""
     from datetime import date, timedelta
 
     from backend.services import gp_client
@@ -272,13 +395,13 @@ def _android_breakdowns_from_reporting(
     os_counts: dict[str, int] = {}
     for fetch in (gp_client.fetch_crash_by_dimension, gp_client.fetch_anr_by_dimension):
         try:
-            rows = fetch(package_name, dimension="deviceModel", start=start, end=end) or []
+            rows = fetch(pkg, dimension="deviceModel", start=start, end=end) or []
             for seg, n in _sum_reporting_segments(rows).items():
                 device_counts[seg] = device_counts.get(seg, 0) + n
         except Exception:
             logger.debug("firebase android device reporting failed", exc_info=True)
         try:
-            rows = fetch(package_name, dimension="apiLevel", start=start, end=end) or []
+            rows = fetch(pkg, dimension="apiLevel", start=start, end=end) or []
             for seg, n in _sum_reporting_segments(rows).items():
                 os_counts[seg] = os_counts.get(seg, 0) + n
         except Exception:
@@ -607,7 +730,7 @@ def build_firebase_tab_payload(
 ) -> dict[str, Any]:
     """Firebase HTMX partials için scrape/stability-free payload."""
     pid = (product_id or "doviz").strip().lower()
-    cache_key = f"{pid}:{int(days)}:store_tabs:v3"
+    cache_key = f"{pid}:{int(days)}:store_tabs:v4"
 
     if not force_refresh:
         cached = _cache_get(cache_key)
@@ -757,23 +880,34 @@ def _build_firebase_tab_payload_uncached(
     ios_os: list[dict[str, Any]] = []
     ios_process: list[dict[str, Any]] = []
     ios_trend: list[dict[str, Any]] = []
+    ios_version_trend: list[dict[str, Any]] = []
+    android_version_trend: list[dict[str, Any]] = []
     android_device: list[dict[str, Any]] = []
     android_os: list[dict[str, Any]] = []
     ios_fatal = int(ios_cf.get("fatal") or 0) if isinstance(ios_cf.get("fatal"), (int, float)) else 0
     ios_anr_n = int(ios_cf.get("anr") or 0) if isinstance(ios_cf.get("anr"), (int, float)) else 0
     ios_affected = 0
+    bd_days = max(int(period_days or 28), int(days or 7))
 
     try:
-        android_device, android_os = _android_breakdowns_from_scrape(
-            days=max(int(period_days or 28), int(days or 7))
-        )
-        # Scrape henüz cihaz/OS fact tutmuyorsa (eski snapshot) Reporting yedek
+        android_device, android_os = _android_breakdowns_from_scrape(days=bd_days)
+        # Scrape henüz cihaz/OS fact tutmuyorsa Reporting yedek
         if not android_device and not android_os:
             android_device, android_os = _android_breakdowns_from_reporting(
-                package, days=max(int(period_days or 28), int(days or 7))
+                package, days=bd_days
             )
     except Exception:
         logger.debug("firebase android scrape breakdown failed", exc_info=True)
+
+    try:
+        android_version_trend = _android_version_trend_from_scrape(days=bd_days)
+        if not android_version_trend:
+            name_map = vitals.get("version_name_map") if isinstance(vitals.get("version_name_map"), dict) else None
+            android_version_trend = _android_version_trend_from_reporting(
+                package, days=bd_days, name_map=name_map
+            )
+    except Exception:
+        logger.debug("firebase android version trend failed", exc_info=True)
 
     for v in (ios_cf.get("versions") or [])[:3]:
         if not isinstance(v, dict) or not v.get("version"):
@@ -835,7 +969,25 @@ def _build_firebase_tab_payload_uncached(
             ios_os = (bq.get("os_breakdown_by_platform") or {}).get("ios") or []
             ios_process = (bq.get("process_state_breakdown_by_platform") or {}).get("ios") or []
             ios_trend = (bq.get("trend_by_platform") or {}).get("ios") or []
-            # Android cihaz/OS yalnızca scrape (+ gerekirse Reporting); BQ karışmaz
+            bq_ios_vt = (bq.get("version_trend_by_platform") or {}).get("ios") or []
+            if bq_ios_vt:
+                ios_version_trend = [
+                    {**r, "platform": r.get("platform") or "ios"}
+                    for r in bq_ios_vt
+                    if isinstance(r, dict)
+                ]
+            bq_and_vt = (bq.get("version_trend_by_platform") or {}).get("android") or []
+            if bq_and_vt and not android_version_trend:
+                android_version_trend = [
+                    {**r, "platform": r.get("platform") or "android"}
+                    for r in bq_and_vt
+                    if isinstance(r, dict)
+                ]
+            # Android cihaz/OS: scrape+Reporting boşsa Crashlytics peek (iOS ile aynı kaynak)
+            if not android_device:
+                android_device = (bq.get("device_breakdown_by_platform") or {}).get("android") or []
+            if not android_os:
+                android_os = (bq.get("os_breakdown_by_platform") or {}).get("android") or []
             if not ios_affected and ios_issues:
                 ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_issues)
             if not ios_fatal and ios_issues:
@@ -957,8 +1109,11 @@ def _build_firebase_tab_payload_uncached(
         },
         "trend": ios_trend,
         "trend_by_platform": {"android": [], "ios": ios_trend},
-        "version_trend": [],
-        "version_trend_by_platform": {},
+        "version_trend": (android_version_trend or []) + (ios_version_trend or []),
+        "version_trend_by_platform": {
+            "android": android_version_trend or [],
+            "ios": ios_version_trend or [],
+        },
         "device_breakdown": android_device or ios_device,
         "device_breakdown_by_platform": {"android": android_device, "ios": ios_device},
         "os_breakdown": android_os or ios_os,

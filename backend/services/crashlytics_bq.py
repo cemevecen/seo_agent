@@ -2278,10 +2278,13 @@ def slice_payload_for_platform(data: dict[str, Any], platform: str) -> dict[str,
     lv_stats = (data.get("latest_version_stats_by_platform") or {}).get(plat)
     out["latest_version_stats_by_platform"] = {plat: lv_stats} if lv_stats else {}
 
-    vt = [r for r in (data.get("version_trend") or []) if (r.get("platform") or plat) == plat]
+    vt = (data.get("version_trend_by_platform") or {}).get(plat) or []
+    if not vt:
+        vt = [r for r in (data.get("version_trend") or []) if (r.get("platform") or plat) == plat]
     if not vt:
         vt = [r for r in (data.get("version_trend") or []) if not r.get("platform")]
     out["version_trend"] = vt
+    out["version_trend_by_platform"] = {plat: vt} if vt else {}
 
     out["device_breakdown"] = (data.get("device_breakdown_by_platform") or {}).get(plat) or []
     out["device_breakdown_by_platform"] = {plat: out["device_breakdown"]} if out["device_breakdown"] else {}
