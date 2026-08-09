@@ -4265,8 +4265,7 @@
           } else if (!hasSeries) {
             paCompareRange.textContent = keepNote || "Özet · seçili aralıkta veri yok";
           } else {
-            var brNote = brOv === "week" ? "haftalık" : (brOv === "month" ? "aylık" : "çoklu metrik");
-            paCompareRange.textContent = "Özet · " + brNote + " (kendi ölçeği)";
+            paCompareRange.textContent = "";
           }
         }
         paLastChart = {
@@ -4344,10 +4343,9 @@
         if (paPrev) paPrev.textContent = "—";
         if (paDelta) paDelta.textContent = "—";
         if (paCompareRange) {
-          var brLabel = brMulti === "week" ? "haftalık" : (brMulti === "month" ? "aylık" : "kendi ölçeği");
           paCompareRange.textContent = softNotes.length
             ? (softNotes.slice(0, 2).join(" · ") + (softNotes.length > 2 ? (" · +" + (softNotes.length - 2)) : ""))
-            : (packs.length + " metrik · " + brLabel);
+            : "";
         }
         paLastChart = {
           series: (multiChart[0] && multiChart[0].series) || [],

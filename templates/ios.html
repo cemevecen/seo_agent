@@ -1917,9 +1917,7 @@
         var units = chartOnly.find(function (b) { return b.metric === "units"; }) || chartBundles[0];
         iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
         iaTotalLabel.textContent = "Overview (first-time downloads)";
-        iaCompareRange.textContent = dataChart.scrape_ok
-          ? ("Özet · sync " + (dataChart.scrape_fact_count || "") + " fact (" + (iaActiveTimeBreakdown() === "week" ? "haftalık" : (iaActiveTimeBreakdown() === "month" ? "aylık" : "kendi ölçeği")) + ")")
-          : ("Özet · ASC Sales/API yedek (" + (iaActiveTimeBreakdown() === "week" ? "haftalık" : (iaActiveTimeBreakdown() === "month" ? "aylık" : "kendi ölçeği")) + ")");
+        iaCompareRange.textContent = "";
         drawMulti(chartBundles);
         renderOverviewTable(chartOnly);
         setLoading(false);
