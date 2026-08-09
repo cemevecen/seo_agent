@@ -208,33 +208,125 @@ def _fetch_sales_report(
 # conversion gibi metrikleri sağlar. İlk istek bir analyticsReportRequest
 # oluşturur, sonra hazır raporlar listelenir.
 
+# Bilinen Adam ID ↔ bundle (liste/filtre başarısız olursa Analytics yine açılsın)
+_KNOWN_APP_IDS: dict[str, str] = {
+    "com.nokta.finans.takip": "465599322",
+    "com.nokta.sinemalar": "711475888",
+}
+
+
 def _list_apps() -> list[dict[str, Any]] | None:
+    """Tüm uygulamaları sayfala (limit 200’de takılı kalma)."""
     headers = _auth_headers()
     if headers is None:
         return None
+    out: list[dict[str, Any]] = []
+    url: str | None = f"{ASC_BASE}/v1/apps"
+    params: dict[str, Any] | None = {"limit": 200, "fields[apps]": "bundleId,name"}
     try:
-        with httpx.Client(timeout=20) as cli:
-            resp = cli.get(f"{ASC_BASE}/v1/apps", headers=headers,
-                           params={"limit": 200, "fields[apps]": "bundleId,name"})
-        if resp.status_code != 200:
-            logger.warning("ASC /v1/apps → %d", resp.status_code)
-            return None
-        return resp.json().get("data", []) or []
+        with httpx.Client(timeout=30) as cli:
+            while url:
+                resp = cli.get(url, headers=headers, params=params)
+                params = None  # sonraki sayfada links.next tam URL
+                if resp.status_code != 200:
+                    logger.warning("ASC /v1/apps → %d %s", resp.status_code, resp.text[:180])
+                    return out or None
+                payload = resp.json()
+                out.extend(payload.get("data") or [])
+                url = (payload.get("links") or {}).get("next")
+        return out
     except Exception as exc:
         logger.error("ASC apps listesi hatası: %s", exc)
+        return out or None
+
+
+def _find_app_by_bundle_filter(bundle_id: str) -> str | None:
+    headers = _auth_headers()
+    if headers is None:
         return None
+    bid = (bundle_id or "").strip()
+    if not bid:
+        return None
+    try:
+        with httpx.Client(timeout=20) as cli:
+            resp = cli.get(
+                f"{ASC_BASE}/v1/apps",
+                headers=headers,
+                params={
+                    "filter[bundleId]": bid,
+                    "limit": 10,
+                    "fields[apps]": "bundleId,name",
+                },
+            )
+        if resp.status_code != 200:
+            return None
+        rows = resp.json().get("data") or []
+        if rows:
+            return rows[0].get("id")
+    except Exception as exc:
+        logger.debug("ASC filter[bundleId] %s: %s", bid, exc)
+    return None
 
 
 def find_app_id_by_bundle(bundle_id: str) -> str | None:
-    apps = _list_apps()
-    if not apps:
+    bid = (bundle_id or "").strip()
+    bid_lc = bid.lower()
+    if not bid_lc:
         return None
-    bid = (bundle_id or "").strip().lower()
+
+    # 1) Doğrudan filtre
+    hit = _find_app_by_bundle_filter(bid)
+    if hit:
+        return hit
+    # Orijinal casing farklı olabilir
+    if bid != bid_lc:
+        hit = _find_app_by_bundle_filter(bid_lc)
+        if hit:
+            return hit
+
+    # 2) Tam liste tarama
+    apps = _list_apps() or []
     for a in apps:
         attr = a.get("attributes") or {}
-        if (attr.get("bundleId") or "").strip().lower() == bid:
+        if (attr.get("bundleId") or "").strip().lower() == bid_lc:
             return a.get("id")
+    # Kısmi: son segment / contains
+    for a in apps:
+        attr = a.get("attributes") or {}
+        ab = (attr.get("bundleId") or "").strip().lower()
+        if ab.endswith(bid_lc.split(".")[-1]) and "finans" in ab and "finans" in bid_lc:
+            return a.get("id")
+        if ab == bid_lc.replace("finans", "Finans".lower()):
+            return a.get("id")
+
+    # 3) Adam ID doğrudan erişilebilir mi?
+    known = _KNOWN_APP_IDS.get(bid_lc)
+    if known and app_exists(known):
+        logger.info("ASC bundle=%s → bilinen Adam ID %s", bid, known)
+        return known
+    if known:
+        # Liste boş/izin dar olsa bile Analytics request Adam ID ile denenebilir
+        logger.warning(
+            "ASC bundle=%s listede yok; bilinen Adam ID %s ile devam", bid, known
+        )
+        return known
     return None
+
+
+def app_exists(app_id: str) -> bool:
+    headers = _auth_headers()
+    if headers is None or not (app_id or "").strip():
+        return False
+    try:
+        with httpx.Client(timeout=15) as cli:
+            resp = cli.get(
+                f"{ASC_BASE}/v1/apps/{app_id.strip()}",
+                headers=headers,
+                params={"fields[apps]": "bundleId,name"},
+            )
+        return resp.status_code == 200
+    except Exception:
+        return False
 
 
 # ─── Üst seviye toplama ──────────────────────────────────────────────────────

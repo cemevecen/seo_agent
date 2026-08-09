@@ -333,28 +333,49 @@ def fetch_analytics_summary(
         return None
 
     effective_days = 365 if days == 0 else max(1, min(int(days), 365))
-    cache_key = f"asc_analytics:{bundle_id}:{effective_days}:{country}"
+    cache_key = f"asc_analytics:v2:{bundle_id}:{effective_days}:{country}"
     cached = _cache_get(cache_key)
     if cached:
         return cached
 
     app_id = asc_client.find_app_id_by_bundle(bundle_id)
     if not app_id:
-        return {"ok": False, "message": "App Store Connect'te bundle bulunamadı."}
+        # Döviz iOS: Sales vendor ile gelir; Analytics Adam ID ister
+        app_id = "465599322" if "finans" in (bundle_id or "").lower() else None
+    if not app_id:
+        return {
+            "ok": False,
+            "message": (
+                "App Store Connect'te bundle bulunamadı "
+                f"({bundle_id}). ASC key’in Apps erişimini kontrol edin."
+            ),
+        }
+    logger.info("ASC analytics app_id=%s bundle=%s", app_id, bundle_id)
 
     request_id = _ensure_ongoing_request(app_id)
     if not request_id:
-        return {
+        out_fail = {
             "ok": False,
-            "message": "Analytics report request yok; API key Admin veya Sales and Reports rolü gerekir.",
+            "message": (
+                "Analytics report request yok veya oluşturulamadı "
+                f"(app {app_id}). API key’e Admin / Sales and Reports verin."
+            ),
         }
+        # Kısa süre cache’leme — yetki hatasında 6 saat kilitlenmesin
+        _CACHE[cache_key] = (time.time() - _CACHE_TTL + 300, out_fail)
+        return out_fail
 
     reports = _reports_for_request(request_id)
     if not reports:
-        return {
+        out_fail = {
             "ok": False,
-            "message": "Analytics raporları henüz üretilmedi (ONGOING istek sonrası 1–2 gün bekleyin).",
+            "message": (
+                "Analytics raporları henüz üretilmedi "
+                f"(app {app_id}, ONGOING sonrası 1–2 gün)."
+            ),
         }
+        _CACHE[cache_key] = (time.time() - _CACHE_TTL + 600, out_fail)
+        return out_fail
 
     report_names = [
         ((r.get("attributes") or {}).get("name") or "") for r in reports
