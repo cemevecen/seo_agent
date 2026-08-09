@@ -194,6 +194,58 @@
     .pa-filters > label.pa-f--metric { flex: 1.4 1 0; }
     .pa-filters > label.pa-f--date, .pa-filters > label.pa-f--sm { flex: 0.9 1 0; min-width: 0; }
   }
+  /* Grafik çizim tarzı (çizgi / alan / lollipop) */
+  .pa-chart-style {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.9);
+  }
+  html.dark .pa-chart-style {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.9);
+  }
+  .pa-chart-style button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 0.375rem;
+    border: 0;
+    background: transparent;
+    color: rgb(100 116 139);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .pa-chart-style button:hover {
+    background: rgb(241 245 249);
+    color: rgb(15 23 42);
+  }
+  .pa-chart-style button.is-active {
+    background: rgb(15 23 42);
+    color: #fff;
+  }
+  html.dark .pa-chart-style button {
+    color: rgb(161 161 170);
+  }
+  html.dark .pa-chart-style button:hover {
+    background: rgb(39 39 42);
+    color: rgb(244 244 245);
+  }
+  html.dark .pa-chart-style button.is-active {
+    background: rgb(244 244 245);
+    color: rgb(24 24 27);
+  }
+  .pa-chart-style button svg {
+    width: 0.95rem;
+    height: 0.95rem;
+    display: block;
+  }
   .ia-stability-grid {
     display: grid;
     grid-template-columns: repeat(var(--sf-n, 4), minmax(0, 1fr));
@@ -395,7 +447,20 @@
       </div>
       <div id="ia-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950">
         <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
-          <div id="ia-legend" class="mb-1 flex flex-wrap gap-2 px-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
+          <div class="mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
+            <div id="ia-legend" class="flex min-w-0 flex-1 flex-wrap gap-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
+            <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Grafik çizim tarzı">
+              <button type="button" data-ia-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="true" class="is-active">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-ia-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="false">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-ia-chart-style="lollipop" title="Lollipop" aria-label="Lollipop grafik" aria-pressed="false">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 12 V7 M8 12 V5 M12 12 V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="4" cy="7" r="1.6" fill="currentColor"/><circle cx="8" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="8" r="1.6" fill="currentColor"/></svg>
+              </button>
+            </div>
+          </div>
           <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrik grafiği"></svg>
           <div id="ia-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
             <p id="ia-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
@@ -482,6 +547,40 @@
   };
   var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
   var STROKE = 0.68;
+  var iaChartStyle = "line";
+  try {
+    var _ics = localStorage.getItem("iaChartStyle");
+    if (_ics === "area" || _ics === "lollipop" || _ics === "line") iaChartStyle = _ics;
+  } catch (_) {}
+  function syncIaChartStyleUi() {
+    var root = document.getElementById("ia-chart-style");
+    if (!root) return;
+    Array.prototype.forEach.call(root.querySelectorAll("[data-ia-chart-style]"), function (btn) {
+      var on = btn.getAttribute("data-ia-chart-style") === iaChartStyle;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  function setIaChartStyle(style) {
+    if (style !== "line" && style !== "area" && style !== "lollipop") return;
+    iaChartStyle = style;
+    try { localStorage.setItem("iaChartStyle", style); } catch (_) {}
+    syncIaChartStyleUi();
+    redrawIaChartForStyle();
+  }
+  function redrawIaChartForStyle() {
+    if (iaLastDrawBundles && iaLastDrawBundles.length) {
+      drawMulti(iaLastDrawBundles);
+      return;
+    }
+    if (iaLastChart && Array.isArray(iaLastChart.series)) {
+      var c = COLORS[0];
+      if (iaChartState && iaChartState.seriesList && iaChartState.seriesList[0] && iaChartState.seriesList[0].color) {
+        c = iaChartState.seriesList[0].color;
+      }
+      drawSingle(iaLastChart.series, c);
+    }
+  }
   var iaChartState = null;
   var overviewActive = true;
   var runSeq = 0;
@@ -1257,20 +1356,63 @@
       showIaTooltip(idxFromEvent(t), t.clientX, t.clientY);
     };
   }
-  function buildLine(keys, map, max, color) {
-    if (!keys.length || max <= 0) return "";
-    var w = 720, h = 260, left = 52, right = 16, top = 16, bottom = 36;
-    var plotW = w - left - right, plotH = h - top - bottom;
-    var n = keys.length;
-    var d = "";
+  function buildIaLinePath(pts) {
+    if (!pts.length) return "";
+    var d = "M" + pts[0].x.toFixed(1) + "," + pts[0].y.toFixed(1);
+    for (var i = 1; i < pts.length; i++) d += " L" + pts[i].x.toFixed(1) + "," + pts[i].y.toFixed(1);
+    return d;
+  }
+  function buildIaAreaPath(pts, baseY) {
+    if (!pts.length) return "";
+    var d = buildIaLinePath(pts);
+    var last = pts[pts.length - 1];
+    var first = pts[0];
+    d += " L" + last.x.toFixed(1) + "," + Number(baseY).toFixed(1);
+    d += " L" + first.x.toFixed(1) + "," + Number(baseY).toFixed(1) + " Z";
+    return d;
+  }
+  function buildIaSeriesPts(keys, map, max, xs, top, plotH) {
+    var pts = [];
     keys.forEach(function (key, i) {
       if (!Object.prototype.hasOwnProperty.call(map, key)) return;
-      var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
-      var y = top + (1 - map[key] / max) * plotH;
-      d += (d ? " L " : "M ") + x.toFixed(1) + " " + y.toFixed(1);
+      pts.push({
+        x: xs[i],
+        y: top + (1 - map[key] / max) * plotH
+      });
     });
-    if (!d) return "";
-    return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + STROKE + '" stroke-linecap="round" stroke-linejoin="round" />';
+    return pts;
+  }
+  function buildIaSeriesStyleHtml(style, pts, color, baseY, opts) {
+    opts = opts || {};
+    var list = (pts || []).filter(Boolean);
+    if (!list.length) return "";
+    var strokeW = opts.strokeW != null ? opts.strokeW : STROKE;
+    var dotR = opts.dotR != null ? opts.dotR : 3.1;
+    var fillOp = opts.fillOpacity != null ? opts.fillOpacity : 0.2;
+    var html = "";
+    if (style === "lollipop") {
+      list.forEach(function (p) {
+        html +=
+          '<line x1="' + p.x.toFixed(1) + '" y1="' + Number(baseY).toFixed(1) +
+          '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) +
+          '" stroke="' + color + '" stroke-width="1.45" stroke-linecap="round" />' +
+          '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+          '" r="' + Math.max(3.1, Number(dotR) || 3.1) + '" fill="' + color +
+          '" stroke="#fff" stroke-width="1.15" />';
+      });
+      return html;
+    }
+    if (style === "area") {
+      var areaD = buildIaAreaPath(list, baseY);
+      if (areaD) html += '<path d="' + areaD + '" fill="' + color + '" fill-opacity="' + fillOp + '" />';
+    }
+    var lineD = buildIaLinePath(list);
+    if (lineD) {
+      html +=
+        '<path d="' + lineD + '" fill="none" stroke="' + color +
+        '" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round" />';
+    }
+    return html;
   }
   function drawMulti(bundles) {
     hideIaTooltip();
@@ -1319,6 +1461,7 @@
         if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
         return top + (1 - map[key] / max) * plotH;
       });
+      var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
       return {
         metric: b.metric,
         label: b.label || b.metric,
@@ -1326,11 +1469,19 @@
         map: map,
         max: max,
         ys: ys,
-        countLike: isCountLike(b.metric),
-        path: buildLine(keys, map, max, color)
+        pts: pts,
+        countLike: isCountLike(b.metric)
       };
     });
-    var paths = seriesList.map(function (s) { return s.path; }).join("");
+    var style = iaChartStyle || "line";
+    var baseY = top + plotH;
+    var fillOp = list.length > 1 ? 0.12 : 0.22;
+    var paths = seriesList.map(function (s) {
+      return buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
+        strokeW: STROKE,
+        fillOpacity: fillOp
+      });
+    }).join("");
     var dots = seriesList.map(function (s, i) {
       return '<circle id="ia-hover-dot-' + i + '" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + s.color + '" stroke="#fff" stroke-width="1.5" opacity="0" />';
     }).join("");
@@ -1415,10 +1566,17 @@
         countLike: countLike
       }]
     };
+    var style = iaChartStyle || "line";
+    var baseY = top + plotH;
+    var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
+    var seriesHtml = buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
+      strokeW: STROKE,
+      fillOpacity: 0.26
+    });
     iaChart.innerHTML =
       '<rect width="720" height="260" fill="transparent" />' +
       grid +
-      buildLine(keys, map, max, lineColor) +
+      seriesHtml +
       '<line id="ia-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
       '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
       '<circle id="ia-hover-dot-0" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + lineColor + '" stroke="#fff" stroke-width="1.5" opacity="0" />' +
@@ -1747,6 +1905,16 @@
   applyPreset();
   fillIaMetricOptions();
   syncIaDimFilters();
+  syncIaChartStyleUi();
+  var iaChartStyleRoot = document.getElementById("ia-chart-style");
+  if (iaChartStyleRoot) {
+    iaChartStyleRoot.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-ia-chart-style]") : null;
+      if (!btn) return;
+      ev.preventDefault();
+      setIaChartStyle(btn.getAttribute("data-ia-chart-style") || "line");
+    });
+  }
   loadStatus();
   runAnalytics();
 

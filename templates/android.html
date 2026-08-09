@@ -172,6 +172,59 @@
     text-align: right;
     padding-left: 1rem;
   }
+  /* Grafik çizim tarzı (çizgi / alan / lollipop) */
+  .pa-chart-style {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.9);
+  }
+  html.dark .android-play-page .pa-chart-style,
+  html.dark .ios-asc-page .pa-chart-style {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.9);
+  }
+  .pa-chart-style button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 0.375rem;
+    border: 0;
+    background: transparent;
+    color: rgb(100 116 139);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .pa-chart-style button:hover {
+    background: rgb(241 245 249);
+    color: rgb(15 23 42);
+  }
+  .pa-chart-style button.is-active {
+    background: rgb(15 23 42);
+    color: #fff;
+  }
+  html.dark .pa-chart-style button {
+    color: rgb(161 161 170);
+  }
+  html.dark .pa-chart-style button:hover {
+    background: rgb(39 39 42);
+    color: rgb(244 244 245);
+  }
+  html.dark .pa-chart-style button.is-active {
+    background: rgb(244 244 245);
+    color: rgb(24 24 27);
+  }
+  .pa-chart-style button svg {
+    width: 0.95rem;
+    height: 0.95rem;
+    display: block;
+  }
   /* viewBox 720×260 ile aynı oran → meet kenarı doldurur, noktalar yuvarlak kalır */
   #pa-chart {
     display: block;
@@ -701,7 +754,20 @@
             <span class="inline-flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:#3b6fbf"></span>2★</span>
             <span class="inline-flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-sm" style="background:#1a3a6e"></span>1★</span>
           </div>
-          <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
+          <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <div id="pa-chart-style" class="pa-chart-style" role="group" aria-label="Grafik çizim tarzı">
+              <button type="button" data-pa-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="true" class="is-active">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-pa-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="false">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button type="button" data-pa-chart-style="lollipop" title="Lollipop" aria-label="Lollipop grafik" aria-pressed="false">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 12 V7 M8 12 V5 M12 12 V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="4" cy="7" r="1.6" fill="currentColor"/><circle cx="8" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="8" r="1.6" fill="currentColor"/></svg>
+              </button>
+            </div>
+            <p id="pa-compare-range" class="text-[10px] tabular-nums text-slate-400 dark:text-zinc-500"></p>
+          </div>
         </div>
         <div id="pa-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
           <svg id="pa-chart" viewBox="0 0 720 260" class="block w-full max-w-none touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Metrikler grafiği"></svg>
@@ -1247,6 +1313,41 @@
   var PA_STROKE_W = 0.68;
   var PA_STROKE_W_OV = 0.75;
   var PA_STROKE_W_PREV = 1;
+  var paChartStyle = "line";
+  try {
+    var _pcs = localStorage.getItem("paChartStyle");
+    if (_pcs === "area" || _pcs === "lollipop" || _pcs === "line") paChartStyle = _pcs;
+  } catch (_) {}
+  function syncPaChartStyleUi() {
+    var root = document.getElementById("pa-chart-style");
+    if (!root) return;
+    Array.prototype.forEach.call(root.querySelectorAll("[data-pa-chart-style]"), function (btn) {
+      var on = btn.getAttribute("data-pa-chart-style") === paChartStyle;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  function setPaChartStyle(style) {
+    if (style !== "line" && style !== "area" && style !== "lollipop") return;
+    paChartStyle = style;
+    try { localStorage.setItem("paChartStyle", style); } catch (_) {}
+    syncPaChartStyleUi();
+    redrawPaChartForStyle();
+  }
+  function redrawPaChartForStyle() {
+    if (paLastChart && Array.isArray(paLastChart.chartBundles) && paLastChart.chartBundles.length) {
+      drawOverviewMainChart(paLastChart.chartBundles);
+      return;
+    }
+    if (paLastChart && Array.isArray(paLastChart.series)) {
+      drawChart(
+        paLastChart.series,
+        paLastChart.prevSeries || [],
+        paLastChart.breakdown || "date",
+        paLastChart.compareMeta || null
+      );
+    }
+  }
   function paIsDark() {
     // Sadece tema class’ı — kart background luminance light’ta yanlış dark + siyah stroke üretiyordu
     var root = document.documentElement;
@@ -2170,6 +2271,7 @@
       return { x: x, y: top + plotH / 2, key: key };
     });
     var baseY = top + plotH;
+    var style = paChartStyle || "line";
     var linePaths = seriesPts.map(function (sp, si) {
       var color = overviewMetricColor(sp.metric);
       var pts = [];
@@ -2181,11 +2283,7 @@
           y: top + (1 - v / sp.max) * plotH
         });
       });
-      var d = "";
-      pts.forEach(function (p, pi) {
-        d += (pi ? " L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1);
-      });
-      return { d: d, color: color, sp: sp };
+      return { pts: pts, color: color, sp: sp };
     });
     var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
     var yFs = xAxis.layout.yFontSize;
@@ -2201,13 +2299,12 @@
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
         pct + "%</text>";
     }
-    // Çoklu / ek grafik: sadece çizgi — gradyan fill yok
     var pathsHtml = linePaths.map(function (lp) {
-      if (!lp.d) return "";
-      return (
-        '<path d="' + lp.d + '" fill="none" stroke="' + lp.color +
-        '" stroke-width="' + PA_STROKE_W + '" stroke-linecap="round" stroke-linejoin="round" />'
-      );
+      return buildSeriesStyleHtml(style, lp.pts, lp.color, baseY, {
+        strokeW: PA_STROKE_W,
+        fillOpacity: 0.16,
+        showDots: false
+      });
     }).join("");
     // Özet (ANR/Crash/Kayıp) üzerine +grafik ekleri — kendi max % ölçeği
     syncPaOverlayColors();
@@ -2234,40 +2331,25 @@
           y: top + (1 - map[key] / max) * plotH
         });
       });
-      var d = "";
-      pts.forEach(function (p, pi) {
-        d += (pi ? " L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1);
-      });
       return {
         metric: ov.metric,
         label: ov.label,
         color: color,
         map: map,
         max: max,
-        d: d,
+        pts: pts,
         countLike: metricIsCountLike(ov.metric)
       };
     });
     var ovPathsHtml = ovSeriesState.map(function (os) {
-      if (!os.d) return "";
-      return (
-        '<path d="' + os.d + '" fill="none" stroke="' + os.color +
-        '" stroke-width="' + PA_STROKE_W_OV + '" stroke-linecap="round" stroke-linejoin="round" />'
-      );
+      return buildSeriesStyleHtml(style, os.pts, os.color, baseY, {
+        strokeW: PA_STROKE_W_OV,
+        fillOpacity: 0.12,
+        showDots: false,
+        dotR: PA_DOT_R_OV
+      });
     }).join("");
-    var ovDotsHtml = ovSeriesState.map(function (os) {
-      if (!os.map) return "";
-      return keys.map(function (key, i) {
-        if (!Object.prototype.hasOwnProperty.call(os.map, key)) return "";
-        var x = curPts[i].x;
-        var y = top + (1 - os.map[key] / os.max) * plotH;
-        return (
-          '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) +
-          '" r="' + PA_DOT_R_OV + '" fill="' + os.color + '" stroke="' + pal.dotStroke +
-          '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="' + (n > 40 ? "0" : "1") + '" />'
-        );
-      }).join("");
-    }).join("");
+    var ovDotsHtml = "";
     paChartState = {
       mode: "multi",
       rows: rows,
@@ -2734,6 +2816,51 @@
     var d = "M" + pts[0].x.toFixed(1) + "," + pts[0].y.toFixed(1);
     for (var i = 1; i < pts.length; i++) d += " L" + pts[i].x.toFixed(1) + "," + pts[i].y.toFixed(1);
     return d;
+  }
+  /** Çizgi / alan / lollipop SVG parçası */
+  function buildSeriesStyleHtml(style, pts, color, baseY, opts) {
+    opts = opts || {};
+    var list = (pts || []).filter(Boolean);
+    if (!list.length) return "";
+    var strokeW = opts.strokeW != null ? opts.strokeW : PA_STROKE_W;
+    var dotR = opts.dotR != null ? opts.dotR : PA_DOT_R;
+    var fillOp = opts.fillOpacity != null ? opts.fillOpacity : 0.2;
+    var showDots = !!opts.showDots;
+    var html = "";
+    if (style === "lollipop") {
+      list.forEach(function (p) {
+        html +=
+          '<line x1="' + p.x.toFixed(1) + '" y1="' + Number(baseY).toFixed(1) +
+          '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) +
+          '" stroke="' + color + '" stroke-width="1.45" stroke-linecap="round" />' +
+          '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+          '" r="' + Math.max(3.1, Number(dotR) || 3.1) + '" fill="' + color +
+          '" stroke="#fff" stroke-width="1.15" />';
+      });
+      return html;
+    }
+    if (style === "area") {
+      var prevState = paChartState;
+      paChartState = { baseY: baseY };
+      var areaD = buildAreaPath(list);
+      paChartState = prevState;
+      if (areaD) html += '<path d="' + areaD + '" fill="' + color + '" fill-opacity="' + fillOp + '" />';
+    }
+    var lineD = buildLinePath(list);
+    if (lineD) {
+      html +=
+        '<path d="' + lineD + '" fill="none" stroke="' + color +
+        '" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round" />';
+    }
+    if (showDots) {
+      list.forEach(function (p) {
+        html +=
+          '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+          '" r="' + (Number(dotR) || 2.2) + '" fill="' + color +
+          '" stroke="#fff" stroke-width="1" opacity="1" />';
+      });
+    }
+    return html;
   }
   function setPaChartLegendMode(mode) {
     if (paLegendLine) {
@@ -3646,33 +3773,91 @@
 
     var hasOv = overlaySeriesState.length > 0;
     var prevLinePts = prevPts.filter(Boolean);
-    // Tek metrik: fill OK; ek grafik / % ölçek: sadece çizgi
-    var areaD = (!hasOv && !useNorm) ? buildAreaPath(curPts) : "";
-    var lineD = buildLinePath(curPts);
-    var prevD = !hasOv && !useNorm ? buildLinePath(prevLinePts) : "";
-    var ovPathsHtml = overlaySeriesState.map(function (os) {
-      var d = buildLinePath((os.pts || []).filter(Boolean));
-      if (!d) return "";
-      return (
-        '<path d="' + d + '" fill="none" stroke="' + os.color +
-        '" stroke-width="' + PA_STROKE_W_OV + '" stroke-linecap="round" stroke-linejoin="round" />'
-      );
-    }).join("");
-    var dots = curPts.map(function (p, i) {
-      return (
-        '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-        '" r="' + PA_DOT_R + '" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="' + (n > 40 ? "0" : "1") + '" />'
-      );
-    }).join("");
-    var ovDots = overlaySeriesState.map(function (os) {
-      return (os.pts || []).map(function (p) {
-        if (!p) return "";
+    var style = paChartStyle || "line";
+    var baseYDraw = top + plotH;
+    var primaryHtml = "";
+    var prevHtml = "";
+    var ovPathsHtml = "";
+    var dots = "";
+    var ovDots = "";
+    if (style === "lollipop") {
+      primaryHtml = buildSeriesStyleHtml("lollipop", curPts, PA_LINE_COLOR, baseYDraw, { dotR: PA_DOT_R });
+      if (!hasOv && !useNorm) {
+        prevHtml = buildSeriesStyleHtml("lollipop", prevLinePts, pal.prev, baseYDraw, { dotR: PA_DOT_R * 0.85 });
+      }
+      ovPathsHtml = overlaySeriesState.map(function (os) {
+        return buildSeriesStyleHtml("lollipop", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
+          strokeW: PA_STROKE_W_OV,
+          dotR: PA_DOT_R_OV
+        });
+      }).join("");
+    } else if (style === "area") {
+      primaryHtml = buildSeriesStyleHtml("area", curPts, PA_LINE_COLOR, baseYDraw, {
+        strokeW: PA_STROKE_W,
+        fillOpacity: 0.26
+      });
+      if (!hasOv && !useNorm) {
+        var prevD = buildLinePath(prevLinePts);
+        if (prevD) {
+          prevHtml =
+            '<path d="' + prevD + '" fill="none" stroke="' + pal.prev + '" stroke-width="' + PA_STROKE_W_PREV +
+            '" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />';
+        }
+      }
+      ovPathsHtml = overlaySeriesState.map(function (os) {
+        return buildSeriesStyleHtml("area", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
+          strokeW: PA_STROKE_W_OV,
+          fillOpacity: 0.12
+        });
+      }).join("");
+      if (n <= 40) {
+        dots = curPts.map(function (p, i) {
+          return (
+            '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+            '" r="' + PA_DOT_R + '" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="1" />'
+          );
+        }).join("");
+      }
+    } else {
+      // line (mevcut davranış): tek metrikte fill; ek/norm’da sadece çizgi
+      var areaD = (!hasOv && !useNorm) ? buildAreaPath(curPts) : "";
+      var lineD = buildLinePath(curPts);
+      var prevD2 = !hasOv && !useNorm ? buildLinePath(prevLinePts) : "";
+      if (areaD) primaryHtml += '<path d="' + areaD + '" fill="url(#pa-fill)" />';
+      if (lineD) {
+        primaryHtml +=
+          '<path d="' + lineD + '" fill="none" stroke="' + PA_LINE_COLOR + '" stroke-width="' + PA_STROKE_W +
+          '" stroke-linecap="round" stroke-linejoin="round" />';
+      }
+      if (prevD2) {
+        prevHtml =
+          '<path d="' + prevD2 + '" fill="none" stroke="' + pal.prev + '" stroke-width="' + PA_STROKE_W_PREV +
+          '" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />';
+      }
+      ovPathsHtml = overlaySeriesState.map(function (os) {
+        var d = buildLinePath((os.pts || []).filter(Boolean));
+        if (!d) return "";
         return (
-          '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-          '" r="' + PA_DOT_R_OV + '" fill="' + os.color + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="' + (n > 40 ? "0" : "1") + '" />'
+          '<path d="' + d + '" fill="none" stroke="' + os.color +
+          '" stroke-width="' + PA_STROKE_W_OV + '" stroke-linecap="round" stroke-linejoin="round" />'
         );
       }).join("");
-    }).join("");
+      dots = curPts.map(function (p, i) {
+        return (
+          '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+          '" r="' + PA_DOT_R + '" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="' + (n > 40 ? "0" : "1") + '" />'
+        );
+      }).join("");
+      ovDots = overlaySeriesState.map(function (os) {
+        return (os.pts || []).map(function (p) {
+          if (!p) return "";
+          return (
+            '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
+            '" r="' + PA_DOT_R_OV + '" fill="' + os.color + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="' + (n > 40 ? "0" : "1") + '" />'
+          );
+        }).join("");
+      }).join("");
+    }
 
     paChart.innerHTML =
       '<defs>' +
@@ -3683,9 +3868,8 @@
       "</defs>" +
       '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
       grid +
-      (areaD ? '<path d="' + areaD + '" fill="url(#pa-fill)" />' : "") +
-      (prevD ? '<path d="' + prevD + '" fill="none" stroke="' + pal.prev + '" stroke-width="' + PA_STROKE_W_PREV + '" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
-      (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + PA_LINE_COLOR + '" stroke-width="' + PA_STROKE_W + '" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      primaryHtml +
+      prevHtml +
       ovPathsHtml +
       dots +
       ovDots +
@@ -4299,6 +4483,16 @@
   if (paCompare) paCompare.checked = false;
   fillPaMetricOptions();
   syncPaDimFilters();
+  syncPaChartStyleUi();
+  var paChartStyleRoot = document.getElementById("pa-chart-style");
+  if (paChartStyleRoot) {
+    paChartStyleRoot.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-pa-chart-style]") : null;
+      if (!btn) return;
+      ev.preventDefault();
+      setPaChartStyle(btn.getAttribute("data-pa-chart-style") || "line");
+    });
+  }
   applyPreset();
   // İlk açılış: 1 ay · özet (gecikmesiz)
   runPlayAnalytics({ overview: true });
