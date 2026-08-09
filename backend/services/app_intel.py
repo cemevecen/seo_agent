@@ -2373,7 +2373,7 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
             for win in intel["windows"].values():
                 if isinstance(win, dict) and isinstance(win.get("android"), dict):
                     win["android"]["store_score"] = score
-                    win["android"]["store_score_source"] = "play_console_scrape"
+                    win["android"]["store_score_source"] = "play_console"
             if isinstance(intel.get("meta"), dict) and isinstance(intel["meta"].get("android"), dict):
                 intel["meta"]["android"]["score"] = score
     except Exception:

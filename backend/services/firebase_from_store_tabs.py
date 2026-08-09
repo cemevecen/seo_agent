@@ -463,7 +463,7 @@ def build_firebase_tab_payload(
             "crash_free_fmt": play_overall.get("crash_free_fmt"),
             "anr_free_fmt": play_overall.get("anr_free_fmt"),
         },
-        method="play_scrape_vitals_overview",
+        method="play_vitals_overview",
     )
     if not android_cf and (and_cf.get("overall") or {}):
         android_cf = _cf_from_sf_block(and_cf.get("overall"), method="android_crashlytics_peek")

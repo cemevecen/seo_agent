@@ -99,7 +99,7 @@ def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, 
     crash_free = _free_from_rate_pct(crash_rate)
     anr_free = _free_from_rate_pct(anr_rate)
     return {
-        "source": "play_scrape_vitals_overview",
+        "source": "play_vitals_overview",
         "period": "28d",
         "crash_rate_pct": crash_rate,
         "anr_rate_pct": anr_rate,
