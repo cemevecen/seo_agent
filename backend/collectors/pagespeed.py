@@ -1163,8 +1163,10 @@ def _load_latest_strategy_metrics(db: Session, site_id: int, strategy: str) -> d
     }
 
 
-def get_latest_pagespeed_audit_snapshot(db: Session, site_id: int, strategy: str) -> dict | None:
-    """Tercihen pagespeed_web_scrape kaynaklı audit; yoksa en son satır."""
+def get_latest_pagespeed_audit_snapshot(
+    db: Session, site_id: int, strategy: str, *, scrape_only: bool = False
+) -> dict | None:
+    """Tercihen pagespeed_web_scrape kaynaklı audit; scrape_only değilse yoksa en son satır."""
     rows = (
         db.query(PageSpeedAuditSnapshot)
         .filter(PageSpeedAuditSnapshot.site_id == site_id, PageSpeedAuditSnapshot.strategy == strategy)
@@ -1181,7 +1183,7 @@ def get_latest_pagespeed_audit_snapshot(db: Session, site_id: int, strategy: str
         if isinstance(data, dict) and data.get("source") == "pagespeed_web_scrape":
             snapshot = cand
             break
-    if snapshot is None:
+    if snapshot is None and not scrape_only:
         snapshot = rows[0] if rows else None
     if snapshot is None:
         return None

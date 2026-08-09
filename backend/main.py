@@ -1258,6 +1258,8 @@ def _close_stuck_collector_runs(db, site_id: int, *, older_than_minutes: int = 4
 
 def _schedule_crux_refresh_if_stale(site_id: int, domain: str) -> bool:
     """Stale CrUX için arka planda yenileme tetikler. True = job kuyruğa alındı."""
+    if _is_pagespeed_scrape_primary_domain(domain):
+        return False
     with _CRUX_STALE_REFRESH_LOCK:
         if site_id in _CRUX_STALE_REFRESH_PENDING:
             return False
@@ -1302,9 +1304,10 @@ def _schedule_data_explorer_backfill_if_needed(
     need_pagespeed: bool,
     need_crux: bool,
 ) -> bool:
-    """CrUX stale / lab eksik: scrape-primary sitelerde PSI API yok; yalnızca CrUX History."""
+    """CrUX stale / lab eksik: scrape-primary sitelerde PSI + CrUX History API yok."""
     if _is_pagespeed_scrape_primary_domain(domain):
-        need_pagespeed = False
+        # doviz/sinemalar: yalnızca pagespeed.web.dev Mac bridge scrape
+        return False
     if not need_pagespeed and not need_crux:
         return False
     with _DATA_EXPLORER_BACKFILL_LOCK:
@@ -4301,14 +4304,26 @@ def _run_daily_refresh_job() -> None:
                 if isinstance(results.get("crawler"), dict):
                     crawler_batch.append((site, results["crawler"]))
 
-                try:
-                    crux_result = collect_crux_history(db, site, trigger_source="system")
-                    db.commit()
-                    crux_batch.append((site, crux_result))
-                except Exception as exc:  # noqa: BLE001
-                    db.rollback()
-                    LOGGER.warning("Daily refresh CrUX failed for %s: %s", site.domain, exc)
-                    crux_batch.append((site, {"state": "failed", "error": str(exc)}))
+                if _is_pagespeed_scrape_primary_domain(site.domain or ""):
+                    crux_batch.append(
+                        (
+                            site,
+                            {
+                                "state": "skipped",
+                                "reason": "pagespeed.web.dev scrape birincil; CrUX History API atlandı.",
+                                "source": "pagespeed_web_scrape",
+                            },
+                        )
+                    )
+                else:
+                    try:
+                        crux_result = collect_crux_history(db, site, trigger_source="system")
+                        db.commit()
+                        crux_batch.append((site, crux_result))
+                    except Exception as exc:  # noqa: BLE001
+                        db.rollback()
+                        LOGGER.warning("Daily refresh CrUX failed for %s: %s", site.domain, exc)
+                        crux_batch.append((site, {"state": "failed", "error": str(exc)}))
 
                 if connection.get("connected"):
                     try:
@@ -6037,8 +6052,8 @@ def _unwrap_pagespeed_payload(payload: dict | None) -> dict:
     return payload
 
 
-def _latest_pagespeed_payload_row(db, site_id: int, strategy: str):
-    """Önce pagespeed_web_scrape; yoksa en son API/snapshot."""
+def _latest_pagespeed_payload_row(db, site_id: int, strategy: str, *, scrape_only: bool = False):
+    """Önce pagespeed_web_scrape; scrape_only değilse yoksa en son API/snapshot."""
     from backend.services.pagespeed_web_scrape_store import SOURCE as PS_SCRAPE_SOURCE
 
     rows = (
@@ -6057,6 +6072,8 @@ def _latest_pagespeed_payload_row(db, site_id: int, strategy: str):
         if isinstance(data, dict) and data.get("source") == PS_SCRAPE_SOURCE:
             scrape_row = row
             break
+    if scrape_only:
+        return scrape_row
     return scrape_row or (rows[0] if rows else None)
 
 
@@ -6090,8 +6107,10 @@ PAGESPEED_FIELD_METRIC_MAP = {
 }
 
 
-def _latest_pagespeed_field_metrics(db, site_id: int, strategy: str) -> dict[str, dict]:
-    row = _latest_pagespeed_payload_row(db, site_id, strategy)
+def _latest_pagespeed_field_metrics(
+    db, site_id: int, strategy: str, *, scrape_only: bool = False
+) -> dict[str, dict]:
+    row = _latest_pagespeed_payload_row(db, site_id, strategy, scrape_only=scrape_only)
     if row is None:
         return {}
     try:
@@ -6140,8 +6159,10 @@ def _latest_pagespeed_field_metrics(db, site_id: int, strategy: str) -> dict[str
     return output
 
 
-def _latest_pagespeed_category_scores(db, site_id: int, strategy: str) -> dict[str, float]:
-    row = _latest_pagespeed_payload_row(db, site_id, strategy)
+def _latest_pagespeed_category_scores(
+    db, site_id: int, strategy: str, *, scrape_only: bool = False
+) -> dict[str, float]:
+    row = _latest_pagespeed_payload_row(db, site_id, strategy, scrape_only=scrape_only)
     if row is None:
         return {}
     try:
@@ -6462,10 +6483,12 @@ def _format_pagespeed_metric_display(audit: dict, fallback_value: float | None =
     return f"{_format_max_two_decimals(seconds)} s"
 
 
-def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dict | None) -> dict:
+def _build_pagespeed_report_panel(
+    db, site_id: int, strategy: str, analysis: dict | None, *, scrape_only: bool = False
+) -> dict:
     raw_row_payload = None
     collected_at = None
-    row = _latest_pagespeed_payload_row(db, site_id, strategy)
+    row = _latest_pagespeed_payload_row(db, site_id, strategy, scrape_only=scrape_only)
     scrape_source = False
     analysis_url = ""
     if row is not None:
@@ -6484,8 +6507,12 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
     environment = lighthouse.get("environment") or {}
     config_settings = lighthouse.get("configSettings") or {}
     audits = lighthouse.get("audits") or {}
-    field_metrics = _latest_pagespeed_field_metrics(db, site_id, strategy)
-    category_scores = _latest_pagespeed_category_scores(db, site_id, strategy)
+    field_metrics = _latest_pagespeed_field_metrics(
+        db, site_id, strategy, scrape_only=scrape_only
+    )
+    category_scores = _latest_pagespeed_category_scores(
+        db, site_id, strategy, scrape_only=scrape_only
+    )
     overall_category = loading_experience.get("overall_category") or origin_loading_experience.get("overall_category") or ""
     cwv_label, cwv_badge_class = _pagespeed_overall_category_label(overall_category)
     analysis = _normalize_lighthouse_issue_order(analysis)
@@ -6986,46 +7013,42 @@ def _data_explorer_context(domain: str) -> dict:
 
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
         crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
-        # KPI uç değer: scrape tercih (get_latest_crux_snapshot)
-        mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
-        desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
-        # Grafik: çok haftalık CrUX History (scrape tek nokta atlanır)
-        mobile_crux_history = get_latest_crux_history_snapshot(
-            db, site_id=site.id, form_factor="mobile"
+        scrape_primary = _is_pagespeed_scrape_primary_domain(site.domain or "")
+        # KPI uç değer: scrape tercih; scrape-primary’da API satırı hiç kullanılmaz
+        mobile_crux = get_latest_crux_snapshot(
+            db, site_id=site.id, form_factor="mobile", scrape_only=scrape_primary
         )
-        desktop_crux_history = get_latest_crux_history_snapshot(
-            db, site_id=site.id, form_factor="desktop"
+        desktop_crux = get_latest_crux_snapshot(
+            db, site_id=site.id, form_factor="desktop", scrape_only=scrape_primary
         )
-        mobile_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "mobile")
-        desktop_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "desktop")
-        mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
-        desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "desktop")
+        # Grafik: çok haftalık CrUX History (scrape-primary’da API hiç kullanılmaz)
+        if scrape_primary:
+            mobile_crux_history = None
+            desktop_crux_history = None
+        else:
+            mobile_crux_history = get_latest_crux_history_snapshot(
+                db, site_id=site.id, form_factor="mobile"
+            )
+            desktop_crux_history = get_latest_crux_history_snapshot(
+                db, site_id=site.id, form_factor="desktop"
+            )
+        mobile_pagespeed_current = _latest_pagespeed_field_metrics(
+            db, site.id, "mobile", scrape_only=scrape_primary
+        )
+        desktop_pagespeed_current = _latest_pagespeed_field_metrics(
+            db, site.id, "desktop", scrape_only=scrape_primary
+        )
+        mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(
+            db, site.id, "mobile", scrape_only=scrape_primary
+        )
+        desktop_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(
+            db, site.id, "desktop", scrape_only=scrape_primary
+        )
         psi_collected = _psi_lighthouse_metrics_latest_collected_at(db, site.id)
         psi_scores_missing = _psi_performance_scores_missing(db, site.id)
         crux_collected = _crux_history_latest_collected_at(db, site.id)
         today_tsi = _crux_today_tsi()
-        mobile_stale = _crux_snapshot_is_stale(mobile_crux_history, today=today_tsi)
-        desktop_stale = _crux_snapshot_is_stale(desktop_crux_history, today=today_tsi)
-        crux_stale = mobile_stale or desktop_stale
-        crux_refresh_queued = False
-        explorer_backfill_queued = False
-        if psi_scores_missing or crux_stale:
-            # Lab skorları scrape birincil (doviz/sinemalar) — PSI API backfill yok
-            if _is_pagespeed_scrape_primary_domain(site.domain or "") or _site_has_pagespeed_web_scrape(
-                db, site.id
-            ):
-                psi_scores_missing = False
-            # CrUX History grafiği scrape’ten bağımsız; eksik/stale ise History API çek
-            if psi_scores_missing or crux_stale:
-                explorer_backfill_queued = _schedule_data_explorer_backfill_if_needed(
-                    site.id,
-                    site.domain,
-                    need_pagespeed=psi_scores_missing,
-                    need_crux=crux_stale,
-                )
-                crux_refresh_queued = explorer_backfill_queued and crux_stale
-        mobile_period = _crux_latest_period_date(mobile_crux_history or mobile_crux)
-        desktop_period = _crux_latest_period_date(desktop_crux_history or desktop_crux)
+
         def _snap_collected_dt(snap: dict | None) -> datetime | None:
             if not snap:
                 return None
@@ -7040,24 +7063,92 @@ def _data_explorer_context(domain: str) -> dict:
                     return datetime.combine(d, datetime.min.time()) if d else None
             return None
 
-        mobile_state = _data_state_badge(
-            "stale" if mobile_stale else ("live" if (mobile_crux_history or mobile_crux) else "failed"),
-            "CrUX güncel kaydı ve history serisi mevcut",
-            "CrUX dönemi geride — arka planda yenileniyor" if mobile_stale else "Son başarılı CrUX kaydı gösteriliyor",
-            "CrUX geçmiş verisi henüz yok",
-            stale_collected_at=_snap_collected_dt(mobile_crux_history or mobile_crux),
+        if scrape_primary:
+            # Eski CrUX History API dönem tarihi (örn. 21.04) rozete asla düşmesin
+            psi_scores_missing = False
+            mobile_collected = _snap_collected_dt(mobile_crux)
+            desktop_collected = _snap_collected_dt(desktop_crux)
+            mobile_stale = bool(
+                mobile_collected and (today_tsi - mobile_collected.date()).days > 3
+            )
+            desktop_stale = bool(
+                desktop_collected and (today_tsi - desktop_collected.date()).days > 3
+            )
+            crux_stale = False
+            crux_refresh_queued = False
+            explorer_backfill_queued = False
+            mobile_kpi_snap = mobile_crux
+            desktop_kpi_snap = desktop_crux
+            mobile_state = _data_state_badge(
+                "stale" if mobile_stale else ("live" if mobile_crux else "failed"),
+                "pagespeed.web.dev scrape saha KPI güncel",
+                "Scrape geride — Mac bridge sync-pagespeed bekleniyor",
+                "Henüz pagespeed.web.dev scrape yok",
+                stale_collected_at=mobile_collected,
+            )
+            desktop_state = _data_state_badge(
+                "stale" if desktop_stale else ("live" if desktop_crux else "failed"),
+                "pagespeed.web.dev scrape saha KPI güncel",
+                "Scrape geride — Mac bridge sync-pagespeed bekleniyor",
+                "Henüz pagespeed.web.dev scrape yok",
+                stale_collected_at=desktop_collected,
+            )
+        else:
+            mobile_stale = _crux_snapshot_is_stale(mobile_crux_history, today=today_tsi)
+            desktop_stale = _crux_snapshot_is_stale(desktop_crux_history, today=today_tsi)
+            crux_stale = mobile_stale or desktop_stale
+            crux_refresh_queued = False
+            explorer_backfill_queued = False
+            if psi_scores_missing or crux_stale:
+                if _site_has_pagespeed_web_scrape(db, site.id):
+                    psi_scores_missing = False
+                if psi_scores_missing or crux_stale:
+                    explorer_backfill_queued = _schedule_data_explorer_backfill_if_needed(
+                        site.id,
+                        site.domain,
+                        need_pagespeed=psi_scores_missing,
+                        need_crux=crux_stale,
+                    )
+                    crux_refresh_queued = explorer_backfill_queued and crux_stale
+            mobile_kpi_snap = mobile_crux_history or mobile_crux
+            desktop_kpi_snap = desktop_crux_history or desktop_crux
+            mobile_state = _data_state_badge(
+                "stale" if mobile_stale else ("live" if mobile_kpi_snap else "failed"),
+                "CrUX güncel kaydı ve history serisi mevcut",
+                "CrUX dönemi geride — arka planda yenileniyor" if mobile_stale else "Son başarılı CrUX kaydı gösteriliyor",
+                "CrUX geçmiş verisi henüz yok",
+                stale_collected_at=_snap_collected_dt(mobile_kpi_snap),
+            )
+            desktop_state = _data_state_badge(
+                "stale" if desktop_stale else ("live" if desktop_kpi_snap else "failed"),
+                "CrUX güncel kaydı ve history serisi mevcut",
+                "CrUX dönemi geride — arka planda yenileniyor" if desktop_stale else "Son başarılı CrUX kaydı gösteriliyor",
+                "CrUX geçmiş verisi henüz yok",
+                stale_collected_at=_snap_collected_dt(desktop_kpi_snap),
+            )
+
+        if scrape_primary:
+            mobile_period = mobile_collected.date() if mobile_collected else None
+            desktop_period = desktop_collected.date() if desktop_collected else None
+        else:
+            mobile_period = _crux_latest_period_date(mobile_kpi_snap)
+            desktop_period = _crux_latest_period_date(desktop_kpi_snap)
+        mobile_cwv = (
+            _build_crux_cwv_chart((mobile_kpi_snap or {}).get("payload") or {})
+            if mobile_kpi_snap
+            else None
         )
-        desktop_state = _data_state_badge(
-            "stale" if desktop_stale else ("live" if (desktop_crux_history or desktop_crux) else "failed"),
-            "CrUX güncel kaydı ve history serisi mevcut",
-            "CrUX dönemi geride — arka planda yenileniyor" if desktop_stale else "Son başarılı CrUX kaydı gösteriliyor",
-            "CrUX geçmiş verisi henüz yok",
-            stale_collected_at=_snap_collected_dt(desktop_crux_history or desktop_crux),
+        desktop_cwv = (
+            _build_crux_cwv_chart((desktop_kpi_snap or {}).get("payload") or {})
+            if desktop_kpi_snap
+            else None
         )
-        mobile_cwv  = _build_crux_cwv_chart((mobile_crux_history or mobile_crux or {}).get("payload") or {})  if (mobile_crux_history or mobile_crux)  else None
-        desktop_cwv = _build_crux_cwv_chart((desktop_crux_history or desktop_crux or {}).get("payload") or {}) if (desktop_crux_history or desktop_crux) else None
-        mobile_panel = _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis)
-        desktop_panel = _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis)
+        mobile_panel = _build_pagespeed_report_panel(
+            db, site.id, "mobile", mobile_lighthouse_analysis, scrape_only=scrape_primary
+        )
+        desktop_panel = _build_pagespeed_report_panel(
+            db, site.id, "desktop", desktop_lighthouse_analysis, scrape_only=scrape_primary
+        )
         mobile_desktop_delta = _pagespeed_mobile_desktop_delta(mobile_panel, desktop_panel)
         error_widget = _build_error_widget(db, site.id)
         # Gece otomatik yenileme saati — `_run_daily_refresh_job` cron'u
@@ -7067,15 +7158,16 @@ def _data_explorer_context(domain: str) -> dict:
             "site_name": f"PageSpeed - {site.display_name}",
             "sites": get_sidebar_sites(),
             "domain": site.domain,
+            "pagespeed_scrape_primary": scrape_primary,
             "warehouse_summary": warehouse,
             "crawler_link_audit": crawler_link_audit,
             "crux_mobile": mobile_crux,
             "crux_desktop": desktop_crux,
             "crux_mobile_series": _format_crux_series(
-                mobile_crux_history or mobile_crux, mobile_pagespeed_current
+                mobile_kpi_snap, mobile_pagespeed_current
             ),
             "crux_desktop_series": _format_crux_series(
-                desktop_crux_history or desktop_crux, desktop_pagespeed_current
+                desktop_kpi_snap, desktop_pagespeed_current
             ),
             "cwv_mobile": mobile_cwv,
             "cwv_desktop": desktop_cwv,
@@ -7092,22 +7184,36 @@ def _data_explorer_context(domain: str) -> dict:
                 if psi_scores_missing and explorer_backfill_queued
                 else format_local_datetime(
                     psi_collected,
-                    fallback="Henüz PSI/Lighthouse ölçümü yok",
+                    fallback=(
+                        "Henüz pagespeed.web.dev scrape yok"
+                        if scrape_primary
+                        else "Henüz PSI/Lighthouse ölçümü yok"
+                    ),
                 )
             ),
             "psi_scores_missing": psi_scores_missing,
             "explorer_backfill_queued": explorer_backfill_queued,
             "crux_history_last_updated": format_local_datetime(
-                crux_collected,
-                fallback="Henüz CrUX geçmişi yok",
+                crux_collected if not scrape_primary else (
+                    _snap_collected_dt(mobile_crux) or _snap_collected_dt(desktop_crux)
+                ),
+                fallback=(
+                    "Henüz scrape yok" if scrape_primary else "Henüz CrUX geçmişi yok"
+                ),
             ),
             "crux_mobile_last_updated": format_datetime_like(
                 (mobile_crux or {}).get("collected_at"),
-                fallback="Henüz mobil CrUX kaydı yok",
+                fallback=(
+                    "Henüz mobil scrape yok" if scrape_primary else "Henüz mobil CrUX kaydı yok"
+                ),
             ),
             "crux_desktop_last_updated": format_datetime_like(
                 (desktop_crux or {}).get("collected_at"),
-                fallback="Henüz masaüstü CrUX kaydı yok",
+                fallback=(
+                    "Henüz masaüstü scrape yok"
+                    if scrape_primary
+                    else "Henüz masaüstü CrUX kaydı yok"
+                ),
             ),
             "crux_mobile_period_last": mobile_period.isoformat() if mobile_period else "",
             "crux_desktop_period_last": desktop_period.isoformat() if desktop_period else "",
@@ -12310,9 +12416,14 @@ def api_refresh_data_explorer(request: Request, domain: str):
             results["pagespeed"] = {
                 "state": "skipped",
                 "reason": (
-                    "Lab/KPI: pagespeed.web.dev. "
-                    "Bu düğme yalnızca CrUX History yeniler."
+                    "Lab/KPI: pagespeed.web.dev (Mac bridge). "
+                    "PSI API ve CrUX History API kullanılmaz."
                 ),
+                "source": "pagespeed_web_scrape",
+            }
+            results["crux_history"] = {
+                "state": "skipped",
+                "reason": "pagespeed.web.dev scrape birincil; CrUX History API atlandı.",
                 "source": "pagespeed_web_scrape",
             }
         ps = results.get("pagespeed")
@@ -12326,10 +12437,11 @@ def api_refresh_data_explorer(request: Request, domain: str):
                 },
                 status_code=429,
             )
-        try:
-            results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
-        except Exception as exc:  # noqa: BLE001
-            results["crux_history"] = {"state": "failed", "error": str(exc)}
+        if not scrape_primary:
+            try:
+                results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
+            except Exception as exc:  # noqa: BLE001
+                results["crux_history"] = {"state": "failed", "error": str(exc)}
         try:
             _commit_with_lock_retry(db, attempts=8, base_wait=0.2)
         except OperationalError as exc:
@@ -12342,7 +12454,7 @@ def api_refresh_data_explorer(request: Request, domain: str):
             site=site,
             results=results,
             action_label=(
-                "Data Explorer manuel refresh (CrUX; scrape lab)"
+                "Data Explorer manuel refresh (scrape-only; API yok)"
                 if scrape_primary
                 else "Data Explorer manuel refresh (PSI + CrUX)"
             ),
@@ -12376,10 +12488,17 @@ def api_refresh_site_metrics(request: Request, domain: str):
             bypass_pagespeed_quota=settings.pagespeed_manual_refresh_bypass_quota,
             trigger_source="manual",
         )
-        try:
-            results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
-        except Exception as exc:  # noqa: BLE001
-            results["crux_history"] = {"state": "failed", "error": str(exc)}
+        if _is_pagespeed_scrape_primary_domain(site.domain or ""):
+            results["crux_history"] = {
+                "state": "skipped",
+                "reason": "pagespeed.web.dev scrape birincil; CrUX History API atlandı.",
+                "source": "pagespeed_web_scrape",
+            }
+        else:
+            try:
+                results["crux_history"] = collect_crux_history(db, site, trigger_source="manual")
+            except Exception as exc:  # noqa: BLE001
+                results["crux_history"] = {"state": "failed", "error": str(exc)}
         if search_console_connected:
             try:
                 results["url_inspection"] = collect_url_inspection(db, site)

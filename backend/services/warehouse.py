@@ -733,12 +733,18 @@ def save_url_inspection_snapshot(
     )
 
 
-def get_latest_crux_snapshot(db: Session, *, site_id: int, form_factor: str) -> dict | None:
+def get_latest_crux_snapshot(
+    db: Session, *, site_id: int, form_factor: str, scrape_only: bool = False
+) -> dict | None:
+    """En son CrUX/scrape snapshot.
+
+    scrape_only=True: yalnızca pagespeed.web.dev scrape; eski CrUX History API satırı yok.
+    """
     rows = (
         db.query(CruxHistorySnapshot)
         .filter(CruxHistorySnapshot.site_id == site_id, CruxHistorySnapshot.form_factor == form_factor)
         .order_by(CruxHistorySnapshot.collected_at.desc(), CruxHistorySnapshot.id.desc())
-        .limit(12)
+        .limit(24 if scrape_only else 12)
         .all()
     )
     if not rows:
@@ -766,6 +772,8 @@ def get_latest_crux_snapshot(db: Session, *, site_id: int, form_factor: str) -> 
             isinstance(summary, dict) and summary.get("source") == "pagespeed_web_scrape"
         ):
             return _as_dict(row)
+    if scrape_only:
+        return None
     return _as_dict(rows[0])
 
 
