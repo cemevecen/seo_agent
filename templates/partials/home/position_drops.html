@@ -19,24 +19,27 @@
     }
   }
   .home-pos-drops .home-pos-query {
-    display: block;
-    font-size: clamp(0.9375rem, 0.55rem + 1.6cqi, 1.0625rem);
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: clamp(0.8125rem, 0.55rem + 1.1cqi, 0.9375rem);
     font-weight: 650;
-    line-height: 1.35;
+    line-height: 1.25;
     letter-spacing: -0.01em;
     color: rgb(15 23 42);
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   html.dark .home-pos-drops .home-pos-query {
     color: rgb(241 245 249);
   }
   .home-pos-drops .home-pos-row {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2rem;
-    padding: 0.5rem 0;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+    padding: 0.28rem 0;
     border-bottom: 1px solid rgb(241 245 249);
   }
   html.dark .home-pos-drops .home-pos-row {
@@ -49,22 +52,25 @@
   }
   .home-pos-drops .home-pos-meta {
     display: flex;
-    flex-wrap: wrap;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
     align-items: baseline;
-    gap: 0.35rem 0.65rem;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    text-align: right;
     font-variant-numeric: tabular-nums;
   }
   .home-pos-drops .home-pos-change {
-    font-size: clamp(0.8125rem, 0.5rem + 1.1cqi, 0.9375rem);
+    font-size: clamp(0.75rem, 0.5rem + 0.9cqi, 0.8125rem);
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1.25;
     color: rgb(100 116 139);
   }
   html.dark .home-pos-drops .home-pos-change {
     color: rgb(161 161 170);
   }
   .home-pos-drops .home-pos-clicks {
-    font-size: clamp(0.75rem, 0.68rem + 0.35cqi, 0.8125rem);
+    font-size: clamp(0.6875rem, 0.6rem + 0.3cqi, 0.75rem);
     font-weight: 500;
     color: rgb(148 163 184);
   }
@@ -72,11 +78,11 @@
     color: rgb(113 113 122);
   }
   .home-pos-drops .home-pos-pad {
-    min-height: 2.35rem;
+    min-height: 1.7rem;
   }
-  /* Varsayılan ~7 satır; kalanı dikey scroll */
+  /* ~8 tek satırlık query; kalanı dikey scroll */
   .home-pos-drops .home-pos-list {
-    max-height: calc(7 * 2.85rem);
+    max-height: calc(8 * 1.7rem);
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -101,7 +107,7 @@
   }
   .home-pos-drops .home-pos-list .home-pos-row:last-child {
     border-bottom: 1px solid rgb(241 245 249);
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.28rem;
   }
   html.dark .home-pos-drops .home-pos-list .home-pos-row:last-child {
     border-bottom-color: rgb(39 39 42);
