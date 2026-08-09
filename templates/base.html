@@ -1552,27 +1552,16 @@
       width: 100%;
       max-width: 100%;
       min-width: 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior-x: contain;
-      touch-action: pan-x;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+      /* No horizontal scroll: priority items stay left; overflow goes into ⋯ */
+      overflow-x: hidden;
+      overflow-y: visible;
       padding-bottom: 0.125rem;
     }
-    .header-nav-track::-webkit-scrollbar {
-      height: 4px;
-    }
-    .header-nav-track::-webkit-scrollbar-thumb {
-      border-radius: 9999px;
-      background: rgba(100, 116, 139, 0.45);
-    }
-    html.dark .header-nav-track {
-      scrollbar-color: rgba(161, 161, 170, 0.35) transparent;
-    }
-    html.dark .header-nav-track::-webkit-scrollbar-thumb {
-      background: rgba(161, 161, 170, 0.35);
+    /* When everything fits on wide screens, push the group to the right. */
+    .header-nav-track:not(.is-overflowing)::before {
+      content: '';
+      flex: 1 1 auto;
+      min-width: 0;
     }
     @media (min-width: 1024px) {
       .header-app-shell {
@@ -1581,13 +1570,7 @@
         row-gap: 0;
       }
       .header-nav-track {
-        /* Default: pack right when all tabs fit. JS sets flex-start when overflowing
-           so the earliest tabs (home → …) stay visible as the viewport shrinks. */
-        justify-content: flex-end;
         gap: 0.125rem;
-      }
-      .header-nav-track.is-overflowing {
-        justify-content: flex-start;
       }
     }
     #header-site-title {
@@ -1945,8 +1928,6 @@
       }
       .header-nav-track {
         gap: 0.35rem;
-        mask-image: linear-gradient(90deg, transparent 0, #000 0.75rem, #000 calc(100% - 0.75rem), transparent 100%);
-        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 0.75rem, #000 calc(100% - 0.75rem), transparent 100%);
       }
     }
     @media (min-width: 1024px) {
@@ -1955,6 +1936,82 @@
         padding-left: 0.35rem;
         padding-right: 0.35rem;
       }
+    }
+    .header-nav-more {
+      position: relative;
+      flex: 0 0 auto;
+      z-index: 1;
+    }
+    .header-nav-more[hidden] {
+      display: none !important;
+    }
+    .header-nav-more.is-open {
+      z-index: 300;
+    }
+    .header-nav-more-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      left: auto;
+      z-index: 301;
+      min-width: 11rem;
+      max-width: min(16rem, 92vw);
+      max-height: 70vh;
+      overflow-y: auto;
+      border-radius: 0.75rem;
+      border: 1px solid rgb(226 232 240);
+      background: rgb(255 255 255);
+      padding: 0.35rem;
+      box-shadow: 0 12px 32px rgba(0,0,0,.12);
+    }
+    html.dark .header-nav-more-menu,
+    html.midnight .header-nav-more-menu {
+      border-color: rgb(63 63 70);
+      background: rgb(24 24 27);
+    }
+    .header-nav-more.is-open .header-nav-more-menu {
+      display: block;
+    }
+    .header-nav-more-menu a {
+      display: block;
+      padding: 0.4rem 0.65rem;
+      border-radius: 0.45rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: rgb(51 65 85);
+      text-decoration: none;
+    }
+    html.dark .header-nav-more-menu a,
+    html.midnight .header-nav-more-menu a {
+      color: rgb(212 212 216);
+    }
+    .header-nav-more-menu a:hover {
+      background: rgb(241 245 249);
+    }
+    html.dark .header-nav-more-menu a:hover,
+    html.midnight .header-nav-more-menu a:hover {
+      background: rgb(39 39 42);
+    }
+    .header-nav-more-menu a.nav-active {
+      color: rgb(15 23 42);
+      background: rgb(241 245 249);
+    }
+    html.dark .header-nav-more-menu a.nav-active,
+    html.midnight .header-nav-more-menu a.nav-active {
+      color: #fafafa;
+      background: rgb(39 39 42);
+    }
+    .header-nav-more-group {
+      padding: 0.35rem 0.65rem 0.15rem;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: rgb(148 163 184);
+    }
+    html.dark .header-nav-more-group {
+      color: rgb(113 113 122);
     }
   </style>
   <!-- HTMX CDN -->
@@ -2098,26 +2155,26 @@
               <a href="/tmdb-upcoming?guest_logout=1" class="header-nav-link header-nav-link--guest">Çıkış</a>
               {% endif %}
               {% else %}
-              <a href="/" data-nav-match="/" class="header-nav-link">home</a>
-              <a href="/realtime" data-nav-match="/realtime" class="header-nav-link">realtime</a>
-              <a href="/ga4" data-nav-match="/ga4" class="header-nav-link">ga4</a>
-              <a href="/search-console" data-nav-match="/search-console" class="header-nav-link">console</a>
-              <a href="/ios" data-nav-match="/ios" class="header-nav-link">ios</a>
-              <a href="/android" data-nav-match="/android" class="header-nav-link">android</a>
-              <a href="/doviz-news" data-nav-match="/doviz-news,/intelligence" class="header-nav-link">news</a>
+              <a href="/" data-nav-match="/" data-nav-priority class="header-nav-link">home</a>
+              <a href="/realtime" data-nav-match="/realtime" data-nav-priority class="header-nav-link">realtime</a>
+              <a href="/ga4" data-nav-match="/ga4" data-nav-priority class="header-nav-link">ga4</a>
+              <a href="/search-console" data-nav-match="/search-console" data-nav-priority class="header-nav-link">console</a>
+              <a href="/ios" data-nav-match="/ios" data-nav-priority class="header-nav-link">ios</a>
+              <a href="/android" data-nav-match="/android" data-nav-priority class="header-nav-link">android</a>
+              <a href="/doviz-news" data-nav-match="/doviz-news,/intelligence" data-nav-priority class="header-nav-link">news</a>
               {% if ad_menu_visible(request) %}
-              <a href="/ad-virgul" data-nav-match="/ad-virgul" class="header-nav-link">virgül</a>
+              <a href="/ad-virgul" data-nav-match="/ad-virgul" data-nav-priority class="header-nav-link">virgül</a>
               {% endif %}
-              <a href="/notification" data-nav-match="/notification" class="header-nav-link">notification</a>
-              <a href="/firebase" data-nav-match="/firebase" class="header-nav-link">firebase</a>
-              <a href="/app" data-nav-match="/app" class="header-nav-link">app</a>
-              <a href="/alerts" data-nav-match="/alerts" class="header-nav-link">alerts</a>
-              <a href="/errors" data-nav-match="/errors" class="header-nav-link">errors</a>
-              <a href="/seo-audit" data-nav-match="/seo-audit" class="header-nav-link">seo</a>
-              <a href="/backlinks" data-nav-match="/backlinks" class="header-nav-link">backlinks</a>
-              <a href="/policy" data-nav-match="/policy" class="header-nav-link">policy</a>
-              <a href="/inbox" data-nav-match="/inbox" class="header-nav-link">inbox</a>
-              <div class="header-nav-dropdown" id="header-trend-dropdown" data-nav-match="/trend,/karma">
+              <a href="/notification" data-nav-match="/notification" data-nav-priority class="header-nav-link">notification</a>
+              <a href="/firebase" data-nav-match="/firebase" data-nav-priority class="header-nav-link">firebase</a>
+              <a href="/app" data-nav-match="/app" data-nav-priority class="header-nav-link">app</a>
+              <a href="/alerts" data-nav-match="/alerts" data-nav-priority class="header-nav-link">alerts</a>
+              <a href="/errors" data-nav-match="/errors" data-nav-priority class="header-nav-link">errors</a>
+              <a href="/seo-audit" data-nav-match="/seo-audit" data-nav-priority class="header-nav-link">seo</a>
+              <a href="/backlinks" data-nav-match="/backlinks" data-nav-priority class="header-nav-link">backlinks</a>
+              <a href="/policy" data-nav-match="/policy" data-nav-priority class="header-nav-link">policy</a>
+              <a href="/inbox" data-nav-match="/inbox" data-nav-priority class="header-nav-link">inbox</a>
+              <div class="header-nav-dropdown" id="header-trend-dropdown" data-nav-match="/trend,/karma" data-nav-priority data-nav-label="trend">
                 <button type="button" class="header-nav-link header-nav-dropdown-trigger" aria-expanded="false" aria-haspopup="true">trend ▾</button>
                 <div class="header-nav-dropdown-backdrop" aria-hidden="true" tabindex="-1"></div>
                 <div class="header-nav-dropdown-menu" role="menu">
@@ -2133,14 +2190,18 @@
                   {% endfor %}
                 </div>
               </div>
-              <a href="/boards" data-nav-match="/boards" class="header-nav-link">gitlab</a>
-              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" class="header-nav-link">movie</a>
-              <a href="/ai" data-nav-match="/ai" class="header-nav-link">ai</a>
-              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" class="header-nav-link">speed</a>
+              <a href="/boards" data-nav-match="/boards" data-nav-priority class="header-nav-link">gitlab</a>
+              <a href="/tmdb-upcoming" data-nav-match="/tmdb-upcoming" data-nav-priority class="header-nav-link">movie</a>
+              <a href="/ai" data-nav-match="/ai" data-nav-priority class="header-nav-link">ai</a>
+              <a id="header-data-explorer-link" href="{{ '/data-explorer/' ~ header_domain if header_domain else '/' }}" data-nav-match="/data-explorer" data-nav-priority class="header-nav-link">speed</a>
               {% if settings_menu_visible(request) %}
-              <a href="/settings" data-nav-match="/settings" class="header-nav-link">settings</a>
+              <a href="/settings" data-nav-match="/settings" data-nav-priority class="header-nav-link">settings</a>
               {% endif %}
               <a href="/external" data-nav-match="/external,/external-explorer,/public-sites" class="header-nav-link hidden">external</a>
+              <div class="header-nav-more" id="header-nav-more" hidden>
+                <button type="button" id="header-nav-more-trigger" class="header-nav-link header-nav-more-trigger" aria-expanded="false" aria-haspopup="true" title="Diğer sekmeler" aria-label="Diğer sekmeler">⋯</button>
+                <div class="header-nav-more-menu" id="header-nav-more-menu" role="menu"></div>
+              </div>
               {% endif %}
               </div>
             </nav>
@@ -2246,9 +2307,6 @@
           if (active) {
             link.setAttribute('aria-current', 'page');
             link.classList.add('nav-active');
-            if (window.matchMedia('(max-width: 1023px)').matches) {
-              link.scrollIntoView({ inline: 'center', block: 'nearest' });
-            }
           } else {
             link.removeAttribute('aria-current');
             link.classList.remove('nav-active');
@@ -2256,7 +2314,15 @@
         });
         nav.querySelectorAll('.header-nav-dropdown[data-nav-match]').forEach(function (wrap) {
           var rule = (wrap.getAttribute('data-nav-match') || '').toLowerCase();
-          var on = rule && (path === rule || path.startsWith(rule + '/'));
+          var rules = rule.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+          var on = false;
+          for (var j = 0; j < rules.length; j += 1) {
+            var r = rules[j];
+            if (path === r || path.startsWith(r + '/')) {
+              on = true;
+              break;
+            }
+          }
           wrap.querySelectorAll('.header-nav-dropdown-trigger').forEach(function (btn) {
             if (on) {
               btn.classList.add('nav-active');
@@ -2267,20 +2333,157 @@
             }
           });
         });
+        function matchNavPath(rawMatch, href) {
+          var rules = (rawMatch || '')
+            .toLowerCase()
+            .split(',')
+            .map(function (s) { return s.trim(); })
+            .filter(Boolean);
+          if (!rules.length && href) {
+            try {
+              var u = new URL(href, window.location.origin);
+              rules = [u.pathname.toLowerCase()];
+            } catch (e) {}
+          }
+          for (var i = 0; i < rules.length; i += 1) {
+            var rule = rules[i];
+            if (rule === '/') {
+              if (path === '/') return true;
+            } else if (path === rule || path.startsWith(rule + '/')) {
+              return true;
+            }
+          }
+          return false;
+        }
+        /* Mark ⋯ menu + trigger from overflowed / path match. */
+        var moreBtn = document.getElementById('header-nav-more-trigger');
+        var moreMenu = document.getElementById('header-nav-more-menu');
+        var overflowActive = false;
+        if (moreMenu) {
+          moreMenu.querySelectorAll('a').forEach(function (a) {
+            var on = matchNavPath(a.getAttribute('data-nav-match'), a.getAttribute('href'));
+            if (on) {
+              a.classList.add('nav-active');
+              a.setAttribute('aria-current', 'page');
+              overflowActive = true;
+            } else {
+              a.classList.remove('nav-active');
+              a.removeAttribute('aria-current');
+            }
+          });
+        }
+        if (moreBtn) {
+          if (overflowActive) moreBtn.classList.add('nav-active');
+          else moreBtn.classList.remove('nav-active');
+        }
       }
 
-      /* Keep earliest tabs (home → …) visible when the header track overflows.
-         Wide screens still right-pack when everything fits; on shrink, switch to
-         start alignment and pin scroll to the left. */
+      /* Priority nav: always keep leftmost (most important) tabs visible.
+         Items that do not fit are moved into the trailing ⋯ menu — never clipped
+         off the left by flex-end / scroll. */
       function fitHeaderNavPriority() {
         var track = document.getElementById('header-nav-track');
-        if (!track) return;
+        var more = document.getElementById('header-nav-more');
+        var moreMenu = document.getElementById('header-nav-more-menu');
+        var moreBtn = document.getElementById('header-nav-more-trigger');
+        if (!track || !more || !moreMenu) return;
+
+        more.classList.remove('is-open');
+        if (moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
+        moreMenu.innerHTML = '';
+        more.hidden = true;
+
+        var items = Array.prototype.slice.call(track.querySelectorAll(':scope > [data-nav-priority]'));
+        items.forEach(function (el) {
+          el.hidden = false;
+          el.removeAttribute('data-nav-overflowed');
+        });
         track.classList.remove('is-overflowing');
-        var overflowing = track.scrollWidth > track.clientWidth + 1;
-        if (overflowing) {
-          track.classList.add('is-overflowing');
-          track.scrollLeft = 0;
+        track.scrollLeft = 0;
+
+        var gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 0;
+
+        function visiblePrimary() {
+          return items.filter(function (el) {
+            return !el.hidden && !el.classList.contains('hidden');
+          });
         }
+
+        function usedWidth() {
+          var vis = visiblePrimary();
+          var w = 0;
+          var n = 0;
+          vis.forEach(function (el) {
+            w += el.getBoundingClientRect().width;
+            n += 1;
+          });
+          if (!more.hidden) {
+            w += more.getBoundingClientRect().width;
+            n += 1;
+          }
+          if (n > 1) w += gap * (n - 1);
+          return w;
+        }
+
+        var available = track.clientWidth;
+        if (available <= 0) return;
+        if (usedWidth() <= available + 1) {
+          syncTopNavActive();
+          return;
+        }
+
+        track.classList.add('is-overflowing');
+        more.hidden = false;
+
+        function pushOverflowItem(el) {
+          el.hidden = true;
+          el.setAttribute('data-nav-overflowed', '1');
+          if (el.tagName === 'A') {
+            var a = document.createElement('a');
+            a.href = el.getAttribute('href') || '#';
+            a.textContent = (el.textContent || '').trim();
+            a.setAttribute('role', 'menuitem');
+            var match = el.getAttribute('data-nav-match');
+            if (match) a.setAttribute('data-nav-match', match);
+            if (el.id) a.dataset.sourceId = el.id;
+            if (el.classList.contains('nav-active') || el.getAttribute('aria-current') === 'page') {
+              a.classList.add('nav-active');
+              a.setAttribute('aria-current', 'page');
+            }
+            var hxGet = el.getAttribute('hx-get');
+            if (hxGet) {
+              a.setAttribute('hx-get', hxGet);
+              a.setAttribute('hx-target', el.getAttribute('hx-target') || '#content');
+              a.setAttribute('hx-swap', el.getAttribute('hx-swap') || 'innerHTML');
+              a.setAttribute('hx-push-url', el.getAttribute('hx-push-url') || 'true');
+            }
+            moreMenu.appendChild(a);
+          } else {
+            var label = el.getAttribute('data-nav-label') || 'more';
+            var group = document.createElement('div');
+            group.className = 'header-nav-more-group';
+            group.textContent = label;
+            moreMenu.appendChild(group);
+            el.querySelectorAll('.header-nav-dropdown-menu a').forEach(function (src) {
+              var copy = document.createElement('a');
+              copy.href = src.getAttribute('href') || '#';
+              copy.textContent = (src.textContent || '').trim();
+              copy.setAttribute('role', 'menuitem');
+              moreMenu.appendChild(copy);
+            });
+          }
+        }
+
+        /* Hide from the end; never hide the first (home) item. */
+        for (var i = items.length - 1; i >= 1; i -= 1) {
+          if (usedWidth() <= available + 1) break;
+          var el = items[i];
+          if (el.classList.contains('hidden') || el.hidden) continue;
+          pushOverflowItem(el);
+        }
+
+        /* Still overflowing with only home + ⋯ — keep home. */
+        syncTopNavActive();
       }
 
       var _headerNavFitRaf = 0;
@@ -2291,6 +2494,41 @@
           fitHeaderNavPriority();
         });
       }
+
+      (function initHeaderNavMore() {
+        var more = document.getElementById('header-nav-more');
+        var btn = document.getElementById('header-nav-more-trigger');
+        var menu = document.getElementById('header-nav-more-menu');
+        if (!more || !btn || !menu) return;
+
+        function closeMore() {
+          more.classList.remove('is-open');
+          btn.setAttribute('aria-expanded', 'false');
+        }
+
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var open = !more.classList.contains('is-open');
+          if (open) {
+            more.classList.add('is-open');
+            btn.setAttribute('aria-expanded', 'true');
+          } else {
+            closeMore();
+          }
+        });
+
+        menu.addEventListener('click', function (e) {
+          var t = e.target;
+          if (t && t.closest && t.closest('a')) closeMore();
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!more.contains(e.target)) closeMore();
+        });
+
+        window.addEventListener('resize', closeMore);
+      })();
 
       (function initTrendDropdown() {
         var wrap = document.getElementById('header-trend-dropdown');
