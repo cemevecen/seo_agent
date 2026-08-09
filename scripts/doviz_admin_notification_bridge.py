@@ -211,6 +211,14 @@ _nt_progress: dict[str, Any] = {
     "rows": 0,
     "message": "",
 }
+_gsc_cwv_progress: dict[str, Any] = {
+    "running": False,
+    "phase": "idle",
+    "site": "",
+    "message": "",
+    "started_at": 0.0,
+    "finished_at": 0.0,
+}
 _auto_cycle = 0
 _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
@@ -1136,12 +1144,19 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
     return out
 
 
+def _set_gsc_cwv_progress(**kwargs: Any) -> None:
+    _gsc_cwv_progress.update(kwargs)
+
+
 def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
     """GSC Core Web Vitals + AMP scrape → Railway ingest."""
     global _last_gsc_cwv_result
     if not _ingest_token():
         err = {"ok": False, "kind": "gsc_cwv", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
         _last_gsc_cwv_result = err
+        _set_gsc_cwv_progress(
+            running=False, phase="error", message=err["message"], finished_at=time.time()
+        )
         return err
 
     import subprocess
@@ -1150,9 +1165,20 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
     if not script.is_file():
         err = {"ok": False, "kind": "gsc_cwv", "message": "gsc_cwv_scrape.py yok"}
         _last_gsc_cwv_result = err
+        _set_gsc_cwv_progress(
+            running=False, phase="error", message=err["message"], finished_at=time.time()
+        )
         return err
 
     print(f"GSC CWV scrape başlıyor… site={site_key or 'all'}", flush=True)
+    _set_gsc_cwv_progress(
+        running=True,
+        phase="scrape",
+        site=site_key or "all",
+        message=f"GSC CWV scrape · {site_key or 'all'}",
+        started_at=time.time(),
+        finished_at=0.0,
+    )
     cmd = [sys.executable, str(script), "--sync", "--ingest", "--headed"]
     if site_key:
         cmd += ["--site", str(site_key)]
@@ -1179,14 +1205,23 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
             "message": f"GSC CWV scrape timeout ({timeout_sec}s)",
         }
         _last_gsc_cwv_result = out
+        _set_gsc_cwv_progress(
+            running=False, phase="error", message=out["message"], finished_at=time.time()
+        )
         return out
     except Exception as exc:  # noqa: BLE001
         out = {"ok": False, "kind": "gsc_cwv", "message": f"GSC CWV subprocess: {exc}"}
         _last_gsc_cwv_result = out
+        _set_gsc_cwv_progress(
+            running=False, phase="error", message=out["message"], finished_at=time.time()
+        )
         return out
 
     if proc.returncode == 0:
         out = {"ok": True, "kind": "gsc_cwv", "message": "GSC CWV scrape OK", "site": site_key}
+        _set_gsc_cwv_progress(
+            running=False, phase="done", message=out["message"], finished_at=time.time()
+        )
     else:
         out = {
             "ok": False,
@@ -1194,6 +1229,9 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
             "message": f"GSC CWV scrape exit {proc.returncode}",
             "site": site_key,
         }
+        _set_gsc_cwv_progress(
+            running=False, phase="error", message=out["message"], finished_at=time.time()
+        )
     _last_gsc_cwv_result = out
     print(f"GSC CWV sync · {out['message']}", flush=True)
     return out
@@ -1590,6 +1628,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_pagespeed": _last_pagespeed_result,
                     "last_seo_audit": _last_seo_audit_result,
                     "last_gsc_cwv": _last_gsc_cwv_result,
+                    "gsc_cwv_progress": dict(_gsc_cwv_progress),
                     "last_gsc_links": _last_gsc_links_result,
                     "last_policy": _last_policy_result,
                     "last_noads": _last_noads_result,
@@ -1759,25 +1798,50 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     if isinstance(payload, dict):
                         if payload.get("site"):
                             site_key = str(payload.get("site") or "").strip().lower() or site_key
-                        # site_id 1≈doviz, 2≈sinemalar (panel varsayılanı)
-                        elif payload.get("site_id") in (1, "1"):
+                        # domain öncelikli (site_id sabit varsayımı kırılgan)
+                        dom = str(payload.get("domain") or payload.get("site_domain") or "").lower()
+                        if "doviz" in dom:
                             site_key = "doviz"
-                        elif payload.get("site_id") in (2, "2"):
+                        elif "sinemalar" in dom:
+                            site_key = "sinemalar"
+                        elif not site_key and payload.get("site_id") in (1, "1"):
+                            site_key = "doviz"
+                        elif not site_key and payload.get("site_id") in (2, "2"):
                             site_key = "sinemalar"
                 except Exception:
                     pass
             if not _gsc_cwv_lock.acquire(blocking=False):
                 self._send(
                     409,
-                    {"ok": False, "message": "GSC CWV scrape zaten çalışıyor, bekleyin."},
+                    {
+                        "ok": False,
+                        "running": True,
+                        "progress": dict(_gsc_cwv_progress),
+                        "message": "GSC CWV scrape zaten çalışıyor, bekleyin.",
+                    },
                 )
                 return
+
+            _set_gsc_cwv_progress(
+                running=True,
+                phase="starting",
+                site=site_key or "all",
+                message="GSC CWV scrape kuyruğa alındı",
+                started_at=time.time(),
+                finished_at=0.0,
+            )
 
             def _bg_cwv() -> None:
                 try:
                     run_gsc_cwv_bridge_once(site_key=site_key)
                 except Exception:
                     traceback.print_exc()
+                    _set_gsc_cwv_progress(
+                        running=False,
+                        phase="error",
+                        message="GSC CWV thread hatası",
+                        finished_at=time.time(),
+                    )
                 finally:
                     _gsc_cwv_lock.release()
 
@@ -1789,6 +1853,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "started": True,
                     "kind": "gsc_cwv",
                     "site": site_key,
+                    "progress": dict(_gsc_cwv_progress),
                     "message": "GSC CWV + AMP scrape arka planda başladı",
                 },
             )

@@ -607,6 +607,10 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
             status = _status_from_text(body)
             metric = _metric_from_issue(title or body[:80])
             urls = _scrape_url_table(page)
+            # Boş / anlamsız fallback satırlarını ekleme (çift kırılım gürültüsü)
+            if not urls and status in ("", "unknown", "good"):
+                print(f"    fallback skip empty {key}", flush=True)
+                continue
             drilldowns.append(
                 {
                     "status": status,

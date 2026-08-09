@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 from datetime import datetime
@@ -165,10 +166,14 @@ def _send_regression_email(site: Site, payload: dict[str, Any], alerts: list[dic
     )
     domain = site.domain or payload.get("site_domain") or ""
     rows = "".join(
-        f"<li style='margin:6px 0'><b>{a.get('kind')}</b> — {a.get('message')}"
+        f"<li style='margin:6px 0'><b>{html.escape(str(a.get('kind') or ''))}</b> — "
+        f"{html.escape(str(a.get('message') or ''))}"
         + (
             "<ul>"
-            + "".join(f"<li style='font-size:12px;word-break:break-all'>{u}</li>" for u in (a.get('urls') or [])[:15])
+            + "".join(
+                f"<li style='font-size:12px;word-break:break-all'>{html.escape(str(u))}</li>"
+                for u in (a.get("urls") or [])[:15]
+            )
             + "</ul>"
             if a.get("urls")
             else ""
@@ -177,21 +182,23 @@ def _send_regression_email(site: Site, payload: dict[str, Any], alerts: list[dic
         for a in alerts
     )
     totals = payload.get("totals") or {}
-    html = f"""
+    safe_domain = html.escape(str(domain))
+    body_html = f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:680px">
-      <p style="font-size:16px;font-weight:700;color:#b45309;margin:0 0 8px">Web Vitals eşik uyarısı · {domain}</p>
+      <p style="font-size:16px;font-weight:700;color:#b45309;margin:0 0 8px">Web Vitals eşik uyarısı · {safe_domain}</p>
       <p style="font-size:13px;color:#64748b;margin:0 0 16px">
-        Scrape sonrası regresyon · Poor {totals.get('poor', 0)} · NI {totals.get('needs_improvement', 0)} · Good {totals.get('good', 0)}
+        Scrape sonrası regresyon · Poor {int(totals.get('poor') or 0)} ·
+        NI {int(totals.get('needs_improvement') or 0)} · Good {int(totals.get('good') or 0)}
       </p>
       <ul style="padding-left:18px;color:#334155;font-size:13px">{rows}</ul>
       <p style="font-size:12px;color:#94a3b8;margin-top:18px">
-        Panel: <a href="https://projectcontrol.up.railway.app/web-vitals?site_id={site.id}">/web-vitals</a>
+        Panel: <a href="https://projectcontrol.up.railway.app/web-vitals?site_id={int(site.id)}">/web-vitals</a>
       </p>
     </div>
     """
     subject = f"⚠ Web Vitals regresyon · {domain} · {len(alerts)} uyarı"
     try:
-        send_email(subject, html, recipients=[to_addr] if to_addr else None)
+        send_email(subject, body_html, recipients=[to_addr] if to_addr else None)
         LOGGER.info("CWV regression mail gönderildi site=%s alerts=%d", domain, len(alerts))
         return True
     except Exception as exc:  # noqa: BLE001
@@ -209,25 +216,68 @@ def latest_snapshot(db: Session, site_id: int) -> GscCwvReportSnapshot | None:
 
 
 def history_points(db: Session, site_id: int, *, limit: int = 60) -> list[dict[str, Any]]:
+    """Son N scrape noktasını kronolojik (eski→yeni) döner."""
+    lim = max(5, min(200, int(limit or 60)))
     rows = (
         db.query(GscCwvReportSnapshot)
         .filter(GscCwvReportSnapshot.site_id == site_id)
-        .order_by(GscCwvReportSnapshot.collected_at.asc())
-        .limit(max(5, min(200, limit)))
+        .order_by(
+            GscCwvReportSnapshot.collected_at.desc(),
+            GscCwvReportSnapshot.id.desc(),
+        )
+        .limit(lim)
         .all()
     )
+    rows = list(reversed(rows))
     out = []
     for r in rows:
         out.append(
             {
                 "collected_at": r.collected_at.isoformat() if r.collected_at else "",
-                "poor": r.poor_count,
-                "needs_improvement": r.ni_count,
-                "good": r.good_count,
-                "amp_url_count": r.amp_url_count,
+                "poor": int(r.poor_count or 0),
+                "needs_improvement": int(r.ni_count or 0),
+                "good": int(r.good_count or 0),
+                "amp_url_count": int(r.amp_url_count or 0),
             }
         )
     return out
+
+
+def _dedupe_drilldowns(payload: dict[str, Any]) -> dict[str, Any]:
+    """Aynı item_key iki kez gelmesin (click + fallback)."""
+    for key in ("mobile", "desktop"):
+        dev = payload.get(key)
+        if not isinstance(dev, dict):
+            continue
+        seen: set[str] = set()
+        clean: list[dict[str, Any]] = []
+        for d in dev.get("issue_drilldowns") or []:
+            if not isinstance(d, dict):
+                continue
+            ik = str(d.get("item_key") or "").strip()
+            title = str(d.get("title") or "").strip().lower()
+            sig = ik or f"t:{title}"
+            if sig in seen:
+                continue
+            seen.add(sig)
+            clean.append(d)
+        dev["issue_drilldowns"] = clean
+    amp = payload.get("amp")
+    if isinstance(amp, dict):
+        seen_a: set[str] = set()
+        clean_a: list[dict[str, Any]] = []
+        for d in amp.get("issues") or []:
+            if not isinstance(d, dict):
+                continue
+            ik = str(d.get("item_key") or "").strip()
+            if ik and ik in seen_a:
+                continue
+            if ik:
+                seen_a.add(ik)
+            clean_a.append(d)
+        amp["issues"] = clean_a
+        amp["url_row_count"] = sum(int(i.get("url_row_count") or 0) for i in clean_a)
+    return payload
 
 
 def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
@@ -255,6 +305,7 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
             except Exception:
                 prev_payload = None
 
+        snap = _dedupe_drilldowns(dict(snap))
         totals = snap.get("totals") or {}
         poor = int(totals.get("poor") or 0)
         ni = int(totals.get("needs_improvement") or 0)

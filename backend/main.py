@@ -14664,11 +14664,18 @@ def web_vitals_page(request: Request, site_id: int | None = None, tab: str = "mo
                 "ni_increase_pct": cwv_store.NI_INCREASE_PCT,
             },
         }
+    selected_site_domain = ""
+    if site_id:
+        selected_site_domain = next(
+            (str(s.get("domain") or "") for s in all_sites if s.get("id") == site_id),
+            "",
+        )
     return templates.TemplateResponse(request, "web_vitals.html", {
         "request": request,
         "sites": sidebar_sites,
         "all_sites": all_sites,
         "selected_site_id": site_id,
+        "selected_site_domain": selected_site_domain,
         "tab": tab,
         "payload": ctx.get("payload") or {},
         "history": ctx.get("history") or [],

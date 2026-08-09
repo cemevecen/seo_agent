@@ -1,29 +1,47 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-5">
-  <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+{% macro status_tr(s) -%}
+{%- if s == 'poor' -%}Kötü
+{%- elif s == 'needs_improvement' -%}İyileştirme gerekli
+{%- elif s == 'good' -%}İyi
+{%- elif s == 'unknown' -%}Bilinmiyor
+{%- else -%}{{ s or '—' }}
+{%- endif -%}
+{%- endmacro %}
+{% macro fmt_int(n) -%}{{ '{:,}'.format((n or 0)|int).replace(',', '.') }}{%- endmacro %}
+
+<div class="mx-auto w-full min-w-0 max-w-[1400px] space-y-4 sm:space-y-5">
+  <div class="min-w-0 rounded-2xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200 sm:px-5 dark:bg-zinc-900 dark:ring-0 dark:shadow-none">
+    <div class="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div class="min-w-0">
         <h2 class="text-lg font-bold text-slate-900 dark:text-zinc-200">Web Vitals</h2>
-        <p class="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
+        <p class="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
           GSC Core Web Vitals + AMP · Mac bridge scrape
           {% if collected_at %} · Son: {{ collected_at[:16].replace('T',' ') }}{% else %} · Henüz scrape yok{% endif %}
-          · Eşik: Good −{{ thresholds.good_drop_pct }}% / Poor +{{ thresholds.poor_increase_abs }}
-          · <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.main }}" target="_blank" rel="noopener">GSC</a>
+        </p>
+        <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
+          Eşik: Good −{{ thresholds.good_drop_pct|default(5) }}% · Poor +{{ thresholds.poor_increase_abs|default(10) }} · NI +{{ thresholds.ni_increase_pct|default(8) }}%
+          {% if gsc_links and gsc_links.main %}
+          · <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.main }}" target="_blank" rel="noopener">GSC aç</a>
+          {% endif %}
         </p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <select onchange="window.location='/web-vitals?site_id='+this.value+'&tab={{ tab }}'"
-                class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <select id="wv-site" onchange="window.location='/web-vitals?site_id='+this.value+'&tab={{ tab }}'"
+                class="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300">
           {% for s in all_sites %}
           <option value="{{ s.id }}" {% if s.id == selected_site_id %}selected{% endif %}>{{ s.display_name or s.domain }}</option>
           {% endfor %}
         </select>
-        <button id="wv-run" onclick="runWebVitals()"
-                class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
-          Tara
+        <button id="wv-run" type="button" onclick="runWebVitals()"
+                class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+          <span id="wv-run-label">Tara</span>
         </button>
       </div>
+    </div>
+    <div id="wv-progress" class="mt-3 hidden rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
+      <span class="font-semibold">Taranıyor</span>
+      <span id="wv-progress-msg" class="ml-1 opacity-90">Bridge scrape çalışıyor…</span>
     </div>
   </div>
 
@@ -33,126 +51,147 @@
   {% set amp = payload.amp or {} %}
   {% set mk = mob.kpis or ov.mobile or {} %}
   {% set dk = desk.kpis or ov.desktop or {} %}
+  {% set poor_tot = (mk.poor or 0)|int + (dk.poor or 0)|int %}
+  {% set ni_tot = (mk.needs_improvement or 0)|int + (dk.needs_improvement or 0)|int %}
+  {% set good_tot = (mk.good or 0)|int + (dk.good or 0)|int %}
 
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-rose-600">Poor</p>
-      <p class="mt-1 text-2xl font-black text-rose-600">{{ (mk.poor or 0) + (dk.poor or 0) }}</p>
-      <p class="text-[10px] text-slate-400">Mobil {{ mk.poor or 0 }} · Masaüstü {{ dk.poor or 0 }}</p>
+  <div class="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+    <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
+      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-rose-600 sm:text-[11px]">Kötü</p>
+      <p class="mt-1 break-all text-xl font-black tabular-nums text-rose-600 sm:text-2xl">{{ fmt_int(poor_tot) }}</p>
+      <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">M {{ fmt_int(mk.poor) }} · D {{ fmt_int(dk.poor) }}</p>
     </div>
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Needs improvement</p>
-      <p class="mt-1 text-2xl font-black text-amber-600">{{ (mk.needs_improvement or 0) + (dk.needs_improvement or 0) }}</p>
-      <p class="text-[10px] text-slate-400">Mobil {{ mk.needs_improvement or 0 }} · Masaüstü {{ dk.needs_improvement or 0 }}</p>
+    <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
+      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-amber-600 sm:text-[11px]" title="Needs improvement">İyileştir</p>
+      <p class="mt-1 break-all text-xl font-black tabular-nums text-amber-600 sm:text-2xl">{{ fmt_int(ni_tot) }}</p>
+      <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">M {{ fmt_int(mk.needs_improvement) }} · D {{ fmt_int(dk.needs_improvement) }}</p>
     </div>
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Good</p>
-      <p class="mt-1 text-2xl font-black text-emerald-600">{{ (mk.good or 0) + (dk.good or 0) }}</p>
-      <p class="text-[10px] text-slate-400">Mobil {{ mk.good or 0 }} · Masaüstü {{ dk.good or 0 }}</p>
+    <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
+      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-emerald-600 sm:text-[11px]">İyi</p>
+      <p class="mt-1 break-all text-xl font-black tabular-nums text-emerald-600 sm:text-2xl">{{ fmt_int(good_tot) }}</p>
+      <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">M {{ fmt_int(mk.good) }} · D {{ fmt_int(dk.good) }}</p>
     </div>
-    <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-violet-600">AMP URL</p>
-      <p class="mt-1 text-2xl font-black text-violet-600">{{ amp.url_row_count or 0 }}</p>
-      <p class="text-[10px] text-slate-400">{{ (amp.issues or [])|length }} sorun grubu</p>
+    <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
+      <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-violet-600 sm:text-[11px]">AMP URL</p>
+      <p class="mt-1 break-all text-xl font-black tabular-nums text-violet-600 sm:text-2xl">{{ fmt_int(amp.url_row_count) }}</p>
+      <p class="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500">{{ (amp.issues or [])|length }} sorun grubu</p>
     </div>
   </div>
 
-  <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-    <p class="text-xs font-semibold text-slate-600 dark:text-zinc-300 mb-3">Durum trendi (scrape geçmişi)</p>
-    <div class="h-56"><canvas id="wv-history-chart"></canvas></div>
+  <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
+    <p class="mb-3 text-xs font-semibold text-slate-600 dark:text-zinc-300">Durum trendi (son scrape’ler)</p>
+    <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-history-chart"></canvas></div>
   </div>
 
-  <div class="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
-    <div class="flex gap-1 overflow-x-auto border-b border-slate-100 px-4 pt-3 dark:border-zinc-800">
+  <div class="min-w-0 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
+    <div class="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-3 sm:px-4 dark:border-zinc-800" style="-webkit-overflow-scrolling:touch">
       {% for tid, tlabel in [('mobile','Mobil'),('desktop','Masaüstü'),('amp','AMP')] %}
       <a href="/web-vitals?site_id={{ selected_site_id }}&tab={{ tid }}"
-         class="shrink-0 rounded-t-lg px-4 py-2 text-xs font-semibold {% if tab==tid %}border-b-2 border-sky-500 text-sky-600 dark:text-sky-400{% else %}text-slate-500 dark:text-zinc-400{% endif %}">
+         class="shrink-0 rounded-t-lg px-3 py-2 text-xs font-semibold sm:px-4 {% if tab==tid %}border-b-2 border-sky-500 text-sky-600 dark:text-sky-400{% else %}text-slate-500 dark:text-zinc-400{% endif %}">
         {{ tlabel }}
       </a>
       {% endfor %}
     </div>
-    <div class="p-4 space-y-5">
+    <div class="min-w-0 space-y-5 p-3 sm:p-4">
       {% if tab == 'amp' %}
         {% set issues = amp.issues or [] %}
-        <div class="grid gap-3 lg:grid-cols-2">
-          <div class="h-52"><canvas id="wv-device-chart"></canvas></div>
-          <div class="text-sm text-slate-600 dark:text-zinc-300">
-            <p class="font-semibold mb-2">AMP sorunları</p>
-            <p class="text-xs text-slate-500 mb-3">GSC AMP drilldown — satır limiti uygulanmaz (tam kaydırma).</p>
-            <a class="text-sky-600 text-xs hover:underline" href="{{ gsc_links.amp }}" target="_blank" rel="noopener">GSC AMP aç</a>
+        <div class="grid min-w-0 gap-3 lg:grid-cols-2">
+          <div class="relative h-48 min-w-0 sm:h-52"><canvas id="wv-device-chart"></canvas></div>
+          <div class="min-w-0 text-sm text-slate-600 dark:text-zinc-300">
+            <p class="mb-2 font-semibold">AMP sorun grupları</p>
+            <p class="mb-3 text-xs text-slate-500 dark:text-zinc-400">GSC AMP drilldown — satır limiti yok; tablolar kaydırılır.</p>
+            {% if gsc_links and gsc_links.amp %}
+            <a class="text-xs text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.amp }}" target="_blank" rel="noopener">GSC AMP aç</a>
+            {% endif %}
           </div>
         </div>
         {% for iss in issues %}
-        <section class="rounded-xl border border-slate-100 p-4 dark:border-zinc-800">
+        <section class="min-w-0 rounded-xl border border-slate-100 p-3 sm:p-4 dark:border-zinc-800">
           <div class="flex flex-wrap items-start justify-between gap-2">
-            <div>
+            <div class="min-w-0">
               <p class="text-sm font-semibold text-slate-800 dark:text-zinc-200">{{ iss.title }}</p>
-              <p class="text-[11px] text-slate-500">{{ iss.status }} · {{ iss.metric }} · {{ iss.url_row_count or 0 }} URL</p>
+              <p class="text-[11px] text-slate-500 dark:text-zinc-400">
+                <span class="{% if iss.status=='poor' %}text-rose-600{% elif iss.status=='needs_improvement' %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ status_tr(iss.status) }}</span>
+                · {{ iss.metric or '—' }} · {{ fmt_int(iss.url_row_count) }} URL
+              </p>
             </div>
-            {% if iss.source_url %}<a class="text-[11px] text-sky-600 hover:underline" href="{{ iss.source_url }}" target="_blank" rel="noopener">GSC</a>{% endif %}
+            {% if iss.source_url %}<a class="shrink-0 text-[11px] text-sky-600 hover:underline dark:text-sky-400" href="{{ iss.source_url }}" target="_blank" rel="noopener">GSC</a>{% endif %}
           </div>
           {% if iss.causes %}
-          <ul class="mt-2 list-disc pl-5 text-[11px] text-slate-500 dark:text-zinc-400 space-y-0.5">
+          <ul class="mt-2 list-disc space-y-0.5 pl-5 text-[11px] text-slate-500 dark:text-zinc-400">
             {% for c in iss.causes %}<li>{{ c }}</li>{% endfor %}
           </ul>
           {% endif %}
-          <div class="mt-3 overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead><tr class="text-left text-slate-500 border-b border-slate-100 dark:border-zinc-800">
-                <th class="py-1.5 pr-3">URL</th><th class="py-1.5">Son tarama</th>
+          <div class="mt-3 max-h-[360px] overflow-auto overscroll-contain">
+            <table class="w-full min-w-[320px] text-xs">
+              <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
+                <th class="py-1.5 pr-3">URL</th><th class="py-1.5 whitespace-nowrap">Son tarama</th>
               </tr></thead>
               <tbody>
                 {% for r in iss.url_rows or [] %}
                 <tr class="border-b border-slate-50 dark:border-zinc-800/40">
-                  <td class="py-1.5 pr-3 font-mono break-all"><a class="text-sky-700 dark:text-sky-400 hover:underline" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a></td>
-                  <td class="py-1.5 whitespace-nowrap">{{ r.last_crawl or '—' }}</td>
+                  <td class="max-w-[70vw] py-1.5 pr-3 font-mono break-all sm:max-w-none"><a class="text-sky-700 hover:underline dark:text-sky-400" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a></td>
+                  <td class="py-1.5 whitespace-nowrap text-slate-600 dark:text-zinc-400">{{ r.last_crawl or '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="2" class="py-4 text-slate-400">URL yok</td></tr>
+                <tr><td colspan="2" class="py-4 text-slate-400 dark:text-zinc-500">URL yok</td></tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
         </section>
         {% else %}
-        <p class="text-sm text-slate-400 py-8 text-center">AMP verisi yok — Mac bridge ile Tara.</p>
+        <p class="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">AMP verisi yok — Mac bridge ile Tara.</p>
         {% endfor %}
       {% else %}
         {% set dev = mob if tab=='mobile' else desk %}
         {% set kpis = mk if tab=='mobile' else dk %}
-        <div class="grid gap-3 lg:grid-cols-2">
-          <div class="h-52"><canvas id="wv-device-chart"></canvas></div>
-          <div>
-            <p class="text-xs font-semibold text-slate-600 dark:text-zinc-300 mb-2">Özet KPI</p>
-            <div class="grid grid-cols-3 gap-2 text-center">
-              <div class="rounded-xl bg-rose-50 p-3 dark:bg-rose-950/30"><p class="text-[10px] text-rose-600">Poor</p><p class="text-lg font-black text-rose-600">{{ kpis.poor or 0 }}</p></div>
-              <div class="rounded-xl bg-amber-50 p-3 dark:bg-amber-950/30"><p class="text-[10px] text-amber-600">NI</p><p class="text-lg font-black text-amber-600">{{ kpis.needs_improvement or 0 }}</p></div>
-              <div class="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-950/30"><p class="text-[10px] text-emerald-600">Good</p><p class="text-lg font-black text-emerald-600">{{ kpis.good or 0 }}</p></div>
+        <div class="grid min-w-0 gap-3 lg:grid-cols-2">
+          <div class="relative h-48 min-w-0 sm:h-52"><canvas id="wv-device-chart"></canvas></div>
+          <div class="min-w-0">
+            <p class="mb-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">Özet KPI</p>
+            <div class="grid min-w-0 grid-cols-3 gap-2 text-center">
+              <div class="min-w-0 rounded-xl bg-rose-50 p-2 sm:p-3 dark:bg-rose-950/30">
+                <p class="text-[10px] text-rose-600">Kötü</p>
+                <p class="break-all text-base font-black tabular-nums text-rose-600 sm:text-lg">{{ fmt_int(kpis.poor) }}</p>
+              </div>
+              <div class="min-w-0 rounded-xl bg-amber-50 p-2 sm:p-3 dark:bg-amber-950/30">
+                <p class="text-[10px] text-amber-600" title="Needs improvement">İyileştir</p>
+                <p class="break-all text-base font-black tabular-nums text-amber-600 sm:text-lg">{{ fmt_int(kpis.needs_improvement) }}</p>
+              </div>
+              <div class="min-w-0 rounded-xl bg-emerald-50 p-2 sm:p-3 dark:bg-emerald-950/30">
+                <p class="text-[10px] text-emerald-600">İyi</p>
+                <p class="break-all text-base font-black tabular-nums text-emerald-600 sm:text-lg">{{ fmt_int(kpis.good) }}</p>
+              </div>
             </div>
-            <p class="mt-3 text-[11px] text-slate-500">
-              <a class="text-sky-600 hover:underline" href="{% if tab=='mobile' %}{{ gsc_links.mobile_summary }}{% else %}{{ gsc_links.desktop_summary }}{% endif %}" target="_blank" rel="noopener">GSC summary</a>
+            <p class="mt-3 text-[11px] text-slate-500 dark:text-zinc-400">
+              {% if tab=='mobile' and gsc_links.mobile_summary %}
+              <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.mobile_summary }}" target="_blank" rel="noopener">GSC özet</a>
+              {% elif gsc_links.desktop_summary %}
+              <a class="text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.desktop_summary }}" target="_blank" rel="noopener">GSC özet</a>
+              {% endif %}
               · Son GSC güncelleme: {{ payload.last_updated or '—' }}
             </p>
           </div>
         </div>
 
-        <section>
-          <p class="text-xs font-semibold text-slate-600 dark:text-zinc-300 mb-2">Sorunlar (summary)</p>
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead><tr class="text-left text-slate-500 border-b border-slate-100 dark:border-zinc-800">
+        <section class="min-w-0">
+          <p class="mb-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">Sorunlar (summary)</p>
+          <div class="overflow-x-auto overscroll-contain">
+            <table class="w-full min-w-[480px] text-xs">
+              <thead><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
                 <th class="py-1.5 pr-2">Durum</th><th class="py-1.5 pr-2">Sorun</th><th class="py-1.5 pr-2">Doğrulama</th><th class="py-1.5">URL</th>
               </tr></thead>
               <tbody>
                 {% for iss in dev.issues or [] %}
                 <tr class="border-b border-slate-50 dark:border-zinc-800/40">
-                  <td class="py-1.5 pr-2 whitespace-nowrap {% if iss.status=='poor' %}text-rose-600{% elif iss.status=='needs_improvement' %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ iss.status }}</td>
+                  <td class="py-1.5 pr-2 whitespace-nowrap {% if iss.status=='poor' %}text-rose-600{% elif iss.status=='needs_improvement' %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ status_tr(iss.status) }}</td>
                   <td class="py-1.5 pr-2">{{ iss.title }}</td>
-                  <td class="py-1.5 pr-2">{{ iss.verification or '—' }}</td>
-                  <td class="py-1.5 font-semibold">{{ iss.url_count or 0 }}</td>
+                  <td class="py-1.5 pr-2 text-slate-600 dark:text-zinc-400">{{ iss.verification or '—' }}</td>
+                  <td class="py-1.5 font-semibold tabular-nums">{{ fmt_int(iss.url_count) }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="4" class="py-6 text-slate-400 text-center">Sorun satırı yok</td></tr>
+                <tr><td colspan="4" class="py-6 text-center text-slate-400 dark:text-zinc-500">Sorun satırı yok</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -160,36 +199,38 @@
         </section>
 
         {% for d in dev.issue_drilldowns or [] %}
-        <section class="rounded-xl border border-slate-100 p-4 dark:border-zinc-800">
+        <section class="min-w-0 rounded-xl border border-slate-100 p-3 sm:p-4 dark:border-zinc-800">
           <div class="flex flex-wrap items-start justify-between gap-2">
-            <div>
+            <div class="min-w-0">
               <p class="text-sm font-semibold {% if d.status=='poor' %}text-rose-600{% else %}text-amber-700 dark:text-amber-400{% endif %}">{{ d.title }}</p>
-              <p class="text-[11px] text-slate-500">{{ d.metric }} · {{ d.url_row_count or 0 }} grup satırı · item_key={{ d.item_key or '—' }}</p>
+              <p class="text-[11px] text-slate-500 dark:text-zinc-400" title="{{ d.item_key or '' }}">
+                {{ status_tr(d.status) }} · {{ d.metric or '—' }} · {{ fmt_int(d.url_row_count) }} grup satırı
+              </p>
             </div>
-            {% if d.source_url %}<a class="text-[11px] text-sky-600 hover:underline" href="{{ d.source_url }}" target="_blank" rel="noopener">Kırılım</a>{% endif %}
+            {% if d.source_url %}<a class="shrink-0 text-[11px] text-sky-600 hover:underline dark:text-sky-400" href="{{ d.source_url }}" target="_blank" rel="noopener">Kırılım</a>{% endif %}
           </div>
           {% if d.causes %}
           <div class="mt-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-800/60">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Olası sebepler</p>
-            <ul class="list-disc pl-4 text-[11px] text-slate-600 dark:text-zinc-400 space-y-0.5">
+            <p class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Olası sebepler</p>
+            <ul class="list-disc space-y-0.5 pl-4 text-[11px] text-slate-600 dark:text-zinc-400">
               {% for c in d.causes %}<li>{{ c }}</li>{% endfor %}
             </ul>
           </div>
           {% endif %}
-          <div class="mt-3 overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead><tr class="text-left text-slate-500 border-b border-slate-100 dark:border-zinc-800">
+          <div class="mt-3 max-h-[360px] overflow-auto overscroll-contain">
+            <table class="w-full min-w-[420px] text-xs">
+              <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
                 <th class="py-1.5 pr-3">Örnek URL</th><th class="py-1.5 pr-3">Grup URL</th><th class="py-1.5">Değer</th>
               </tr></thead>
               <tbody>
                 {% for r in d.url_rows or [] %}
                 <tr class="border-b border-slate-50 dark:border-zinc-800/40">
-                  <td class="py-1.5 pr-3 font-mono break-all"><a class="text-sky-700 dark:text-sky-400 hover:underline" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a></td>
-                  <td class="py-1.5 pr-3">{{ r.group_url_count or '—' }}</td>
+                  <td class="max-w-[60vw] py-1.5 pr-3 font-mono break-all sm:max-w-none"><a class="text-sky-700 hover:underline dark:text-sky-400" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a></td>
+                  <td class="py-1.5 pr-3 tabular-nums">{{ r.group_url_count or '—' }}</td>
                   <td class="py-1.5 whitespace-nowrap">{{ r.metric_value or '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="3" class="py-3 text-slate-400">Bu kırılımda satır yok (0 URL)</td></tr>
+                <tr><td colspan="3" class="py-3 text-slate-400 dark:text-zinc-500">Bu kırılımda satır yok (0 URL)</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -197,22 +238,22 @@
         </section>
         {% endfor %}
 
-        <section class="rounded-xl border border-emerald-100 p-4 dark:border-emerald-900/40">
-          <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Good URL örnekleri</p>
-          <p class="text-[11px] text-slate-500 mb-2">{{ (dev.good_urls or [])|length }} satır (tam scrape, limit yok)</p>
-          <div class="overflow-x-auto max-h-[480px] overflow-y-auto">
-            <table class="w-full text-xs">
-              <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="text-left text-slate-500 border-b border-slate-100 dark:border-zinc-800">
+        <section class="min-w-0 rounded-xl border border-emerald-100 p-3 sm:p-4 dark:border-emerald-900/40">
+          <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-400">İyi URL örnekleri</p>
+          <p class="mb-2 text-[11px] text-slate-500 dark:text-zinc-400">{{ fmt_int((dev.good_urls or [])|length) }} satır (tam scrape, limit yok)</p>
+          <div class="max-h-[480px] overflow-auto overscroll-contain">
+            <table class="w-full min-w-[360px] text-xs">
+              <thead class="sticky top-0 bg-white dark:bg-zinc-900"><tr class="border-b border-slate-100 text-left text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
                 <th class="py-1.5 pr-3">Örnek URL</th><th class="py-1.5">Grup URL</th>
               </tr></thead>
               <tbody>
                 {% for r in dev.good_urls or [] %}
                 <tr class="border-b border-slate-50 dark:border-zinc-800/40">
-                  <td class="py-1.5 pr-3 font-mono break-all"><a class="text-sky-700 dark:text-sky-400 hover:underline" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a></td>
-                  <td class="py-1.5">{{ r.group_url_count or '—' }}</td>
+                  <td class="max-w-[70vw] py-1.5 pr-3 font-mono break-all sm:max-w-none"><a class="text-sky-700 hover:underline dark:text-sky-400" href="{{ r.url }}" target="_blank" rel="noopener">{{ r.url }}</a></td>
+                  <td class="py-1.5 tabular-nums">{{ r.group_url_count or '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="2" class="py-6 text-slate-400 text-center">Good URL yok — Tara ile çekin</td></tr>
+                <tr><td colspan="2" class="py-6 text-center text-slate-400 dark:text-zinc-500">İyi URL yok — Tara ile çekin</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -226,34 +267,103 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
+var _siteDomain = {{ (selected_site_domain or '')|tojson }};
 var _tab = {{ tab|tojson }};
 var _history = {{ history|tojson }};
+var _bridgeUrl = 'http://127.0.0.1:18765/sync-gsc-cwv';
+var _healthUrl = 'http://127.0.0.1:18765/health';
+var _pollTimer = null;
 {% if tab == 'amp' %}
-var _kpis = { poor: 0, needs_improvement: {{ amp.url_row_count or 0 }}, good: 0 };
+var _ampIssues = {{ (amp.issues or [])|tojson }};
+var _kpis = null;
 {% elif tab == 'desktop' %}
+var _ampIssues = null;
 var _kpis = {{ dk|tojson }};
 {% else %}
+var _ampIssues = null;
 var _kpis = {{ mk|tojson }};
 {% endif %}
 
-function runWebVitals() {
+function _siteKeyFromDomain(dom) {
+  dom = String(dom || '').toLowerCase();
+  if (dom.indexOf('doviz') >= 0) return 'doviz';
+  if (dom.indexOf('sinemalar') >= 0) return 'sinemalar';
+  return '';
+}
+
+function _setRunUi(running, msg) {
   var btn = document.getElementById('wv-run');
-  if (btn) { btn.disabled = true; btn.textContent = 'Bridge…'; }
-  fetch('http://127.0.0.1:18765/sync-gsc-cwv', {
+  var label = document.getElementById('wv-run-label');
+  var box = document.getElementById('wv-progress');
+  var pmsg = document.getElementById('wv-progress-msg');
+  if (btn) btn.disabled = !!running;
+  if (label) label.textContent = running ? 'Taranıyor…' : 'Tara';
+  if (box) box.classList.toggle('hidden', !running);
+  if (pmsg && msg) pmsg.textContent = msg;
+}
+
+function _stopPoll() {
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+}
+
+function _pollBridge() {
+  if (_pollTimer) return;
+  _pollTimer = setInterval(function() {
+    fetch(_healthUrl, { mode: 'cors', cache: 'no-store' })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var p = (j && j.gsc_cwv_progress) || {};
+        var last = (j && j.last_gsc_cwv) || {};
+        if (p.running) {
+          _setRunUi(true, p.message || 'Bridge scrape çalışıyor…');
+          return;
+        }
+        _stopPoll();
+        if (p.phase === 'done' || last.ok) {
+          _setRunUi(false, '');
+          window.location.reload();
+          return;
+        }
+        _setRunUi(false, '');
+        if (p.phase === 'error' || (last && last.ok === false && last.message)) {
+          alert('Web Vitals: ' + (p.message || last.message || 'hata'));
+        }
+      })
+      .catch(function(){ /* bridge kapalı olabilir */ });
+  }, 4000);
+}
+
+function runWebVitals() {
+  var site = _siteKeyFromDomain(_siteDomain);
+  _setRunUi(true, 'Bridge’e istek gönderiliyor…');
+  fetch(_bridgeUrl, {
     method: 'POST', mode: 'cors',
     headers: {'Content-Type':'application/json','Accept':'application/json'},
-    body: JSON.stringify({site_id: _siteId})
-  }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
-    .then(function(res){
-      if (res.ok && res.j && res.j.ok !== false) {
-        if (btn) btn.textContent = 'Çalışıyor…';
-        alert('Web Vitals scrape arka planda başladı. Birkaç dakika sonra sayfayı yenileyin.');
-      } else {
-        alert('Bridge: ' + ((res.j && res.j.message) || 'hata'));
-      }
+    body: JSON.stringify({
+      site_id: _siteId,
+      site: site || undefined,
+      domain: _siteDomain || undefined,
+      site_domain: _siteDomain || undefined
     })
-    .catch(function(){ alert('Mac bridge kapalı (127.0.0.1:18765)'); })
-    .finally(function(){ if (btn) { btn.disabled = false; btn.textContent = 'Tara'; } });
+  }).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, status:r.status, j:j}; }); })
+    .then(function(res){
+      if (res.status === 409 || (res.j && res.j.running)) {
+        _setRunUi(true, (res.j && res.j.message) || 'Zaten çalışıyor…');
+        _pollBridge();
+        return;
+      }
+      if (res.ok && res.j && res.j.ok !== false) {
+        _setRunUi(true, (res.j && res.j.message) || 'Arka planda başladı…');
+        _pollBridge();
+        return;
+      }
+      _setRunUi(false, '');
+      alert('Bridge: ' + ((res.j && res.j.message) || 'hata'));
+    })
+    .catch(function(){
+      _setRunUi(false, '');
+      alert('Mac bridge kapalı (127.0.0.1:18765). Önce bridge’i açın.');
+    });
 }
 
 (function(){
@@ -265,28 +375,69 @@ function runWebVitals() {
       data: {
         labels: labels.length ? labels : ['—'],
         datasets: [
-          { label: 'Poor', data: (_history||[]).map(function(h){return h.poor||0;}), borderColor:'#e11d48', backgroundColor:'rgba(225,29,72,.15)', tension:.3, fill:true },
-          { label: 'Needs improvement', data: (_history||[]).map(function(h){return h.needs_improvement||0;}), borderColor:'#d97706', backgroundColor:'rgba(217,119,6,.12)', tension:.3, fill:true },
-          { label: 'Good', data: (_history||[]).map(function(h){return h.good||0;}), borderColor:'#059669', backgroundColor:'rgba(5,150,105,.12)', tension:.3, fill:true }
+          { label: 'Kötü', data: (_history||[]).map(function(h){return h.poor||0;}), borderColor:'#e11d48', backgroundColor:'rgba(225,29,72,.15)', tension:.3, fill:true },
+          { label: 'İyileştirme gerekli', data: (_history||[]).map(function(h){return h.needs_improvement||0;}), borderColor:'#d97706', backgroundColor:'rgba(217,119,6,.12)', tension:.3, fill:true },
+          { label: 'İyi', data: (_history||[]).map(function(h){return h.good||0;}), borderColor:'#059669', backgroundColor:'rgba(5,150,105,.12)', tension:.3, fill:true }
         ]
       },
-      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+        scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } }
+      }
     });
   }
   var dctx = document.getElementById('wv-device-chart');
   if (dctx && window.Chart) {
-    new Chart(dctx, {
-      type: 'doughnut',
-      data: {
-        labels: ['Poor','Needs improvement','Good'],
-        datasets: [{
-          data: [_kpis.poor||0, _kpis.needs_improvement||0, _kpis.good||0],
-          backgroundColor: ['#e11d48','#d97706','#059669']
-        }]
-      },
-      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
-    });
+    if (_ampIssues) {
+      var ampLabels = (_ampIssues || []).map(function(i){ return (i.title || 'AMP').slice(0, 42); });
+      var ampData = (_ampIssues || []).map(function(i){ return i.url_row_count || 0; });
+      if (!ampLabels.length) { ampLabels = ['Veri yok']; ampData = [0]; }
+      new Chart(dctx, {
+        type: 'doughnut',
+        data: {
+          labels: ampLabels,
+          datasets: [{
+            data: ampData,
+            backgroundColor: ['#7c3aed','#a78bfa','#c4b5fd','#8b5cf6','#6d28d9','#ddd6fe'].slice(0, Math.max(1, ampLabels.length))
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+        }
+      });
+    } else {
+      new Chart(dctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Kötü', 'İyileştirme gerekli', 'İyi'],
+          datasets: [{
+            data: [(_kpis&&_kpis.poor)||0, (_kpis&&_kpis.needs_improvement)||0, (_kpis&&_kpis.good)||0],
+            backgroundColor: ['#e11d48','#d97706','#059669']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }
+        }
+      });
+    }
   }
+  // Sayfa açılışında bridge hâlâ çalışıyorsa banner göster
+  fetch(_healthUrl, { mode: 'cors', cache: 'no-store' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var p = (j && j.gsc_cwv_progress) || {};
+      if (p.running) {
+        _setRunUi(true, p.message || 'Bridge scrape çalışıyor…');
+        _pollBridge();
+      }
+    })
+    .catch(function(){});
 })();
 </script>
 {% endblock %}
