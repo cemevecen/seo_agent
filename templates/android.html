@@ -5853,6 +5853,16 @@
     return !!(months && months.length >= 4);
   }
 
+  function reviewStarTone(starsText) {
+    var m = String(starsText || "").match(/([1-5])/);
+    var n = m ? parseInt(m[1], 10) : 0;
+    if (n === 1) return "bg-red-50 text-red-700 dark:bg-red-950/45 dark:text-red-300";
+    if (n === 2) return "bg-orange-50 text-orange-700 dark:bg-orange-950/45 dark:text-orange-300";
+    if (n === 3) return "bg-yellow-50 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200";
+    if (n === 4) return "bg-lime-50 text-lime-700 dark:bg-lime-950/40 dark:text-lime-300";
+    if (n === 5) return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300";
+    return "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300";
+  }
   function renderReviews(rows) {
     rows = (Array.isArray(rows) ? rows : []).filter(function (r) { return r && !isCalendarReviewJunk(r); });
     rows.sort(function (a, b) {
@@ -5875,7 +5885,7 @@
       var stars = (r.stars || "").trim();
       var ver = (r.app_version || "").trim();
       var starsHtml = stars
-        ? '<span class="inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">' + esc(stars) + "</span>"
+        ? '<span class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold ' + reviewStarTone(stars) + '">' + esc(stars) + "</span>"
         : "";
       var dateHtml = date
         ? '<time class="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 dark:bg-zinc-800 dark:text-zinc-300">' + esc(date) + "</time>"
