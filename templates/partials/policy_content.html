@@ -20,13 +20,13 @@
         {% endif %}
       </p>
       <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-        Kaynak: Ad Manager Policy Center (sinemalar.com) · günde 02:00 · CSV/Sheets yok
+        Kaynak: Ad Manager Policy Center (sinemalar.com) · 01:05 + 13:05 TR · CSV/Sheets yok
         {% if noads_summary and noads_summary.has_data %}
           · noAds: <b class="text-slate-600 dark:text-slate-300">{{ noads_summary.matched }}</b> yeşil /
           <b class="text-rose-600 dark:text-rose-300">{{ noads_summary.missing }}</b> kırmızı
           {% if noads_summary.scraped_at %} ({{ noads_summary.scraped_at[:16]|replace('T',' ') }} UTC){% endif %}
         {% else %}
-          · noAds eşleşmesi henüz yok (Mac bridge: sync-noads)
+          · noAds eşleşmesi henüz yok — «noAds Yenile» ile tara
         {% endif %}
       </p>
     </div>
@@ -36,12 +36,21 @@
         class="inline-flex items-center rounded-lg border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
         Excel İndir
       </a>
+      <button type="button" id="policy-noads-refresh-btn" onclick="refreshNoAdsMatch()"
+        title="Sinemalar noAds listesini Mac bridge ile yeniden tara; yeşil/kırmızı güncellenir"
+        class="inline-flex items-center rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+        noAds Yenile
+      </button>
       <button type="button" onclick="triggerTitleFetch(true)"
         class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
         Başlıkları Yenile
       </button>
       {% endif %}
     </div>
+  </div>
+
+  <div id="noads-refresh-bar" class="hidden flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-800 dark:border-rose-800/40 dark:bg-rose-950/30 dark:text-rose-200">
+    <span id="noads-refresh-label">noAds listesi taranıyor (Mac bridge)…</span>
   </div>
 
   <div id="title-fetch-bar" class="{% if not title_job.running %}hidden{% endif %} flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-300">
@@ -404,6 +413,41 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(u).then(function () { flash(true); }, function () { flash(false); });
     }
+  };
+
+  window.refreshNoAdsMatch = function () {
+    var btn = document.getElementById("policy-noads-refresh-btn");
+    var bar = document.getElementById("noads-refresh-bar");
+    var lab = document.getElementById("noads-refresh-label");
+    var orig = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Taranıyor…"; }
+    if (bar) bar.classList.remove("hidden");
+    if (lab) lab.textContent = "noAds listesi taranıyor (Mac bridge)…";
+    fetch("http://127.0.0.1:18765/sync-noads", {
+      method: "POST",
+      mode: "cors",
+      headers: { "Accept": "application/json" },
+    })
+      .then(function (r) { return r.json().then(function (j) { return { httpOk: r.ok, j: j }; }); })
+      .then(function (res) {
+        var ok = res.httpOk && res.j && res.j.ok !== false;
+        if (lab) {
+          lab.textContent = ok
+            ? ("Tamam · " + ((res.j && res.j.message) || "eşleşme güncellendi") + " — sayfa yenileniyor…")
+            : ("Hata: " + ((res.j && res.j.message) || "sync başarısız"));
+        }
+        if (ok) {
+          setTimeout(function () { location.reload(); }, 700);
+          return;
+        }
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
+      })
+      .catch(function () {
+        if (lab) {
+          lab.textContent = "Mac bridge kapalı (127.0.0.1:18765). Önce bridge’i açın, sonra tekrar deneyin.";
+        }
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
+      });
   };
 
   window.openNoAdsAdd = function (btn) {

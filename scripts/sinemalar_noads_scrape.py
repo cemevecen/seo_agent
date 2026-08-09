@@ -446,7 +446,8 @@ def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[st
             except Exception:
                 pass
             print(
-                f"Textarea dolduruldu · yeşil «Ekle»ye basın · pencere ~{hold}s açık kalır",
+                f"Textarea dolduruldu · yeşil «Ekle»ye basın · pencere ~{hold}s "
+                "(Ekle sonrası veya pencere kapanınca liste yenilenir)",
                 flush=True,
             )
             deadline = time.time() + hold
@@ -454,19 +455,47 @@ def open_noads_prefill(url: str, *, keep_open_sec: int | None = None) -> dict[st
                 try:
                     if page.is_closed():
                         break
+                    # Ekle sonrası textarea genelde boşalır → erken çık, listeyi tara
+                    try:
+                        val = (page.locator("textarea").first.input_value(timeout=800) or "").strip()
+                    except Exception:
+                        val = target
+                    if val != target and target not in val:
+                        time.sleep(1.5)
+                        break
                 except Exception:
                     break
                 time.sleep(1.0)
-            return {
-                "ok": True,
-                "url": target,
-                "message": "noAds textarea dolduruldu — panelde Ekle'ye basın",
-            }
         finally:
             try:
                 context.close()
             except Exception:
                 pass
+
+    # Kullanıcı Ekle'ye bastıktan / pencereyi kapattıktan sonra listeyi tara → yeşil/kırmızı
+    resync: dict[str, Any] = {"ok": False, "message": "resync atlandı"}
+    try:
+        print("noAds prefill sonrası liste yeniden taranıyor…", flush=True)
+        scraped = scrape_sinemalar_noads(headed=True)
+        if scraped.get("ok"):
+            resync = ingest_noads_result(scraped)
+        else:
+            resync = {
+                "ok": False,
+                "message": scraped.get("message") or "resync scrape başarısız",
+                "needs_login": scraped.get("needs_login"),
+            }
+        print(f"noAds resync · {resync.get('message')}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        resync = {"ok": False, "message": f"resync: {exc}"}
+        print(f"noAds resync hata: {exc}", flush=True)
+
+    return {
+        "ok": True,
+        "url": target,
+        "message": "noAds dolduruldu; liste yenilendi" if resync.get("ok") else "noAds dolduruldu (liste yenilemesi kısmi)",
+        "resync": resync,
+    }
 
 
 def run_login_interactive() -> int:
