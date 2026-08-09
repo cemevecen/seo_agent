@@ -1890,7 +1890,18 @@
       });
       return m;
     });
-    paTable.innerHTML = keys.map(function (key) {
+    function overviewColAverage(map) {
+      var sum = 0;
+      var n = 0;
+      keys.forEach(function (key) {
+        var v = map[key];
+        if (v == null || !Number.isFinite(v)) return;
+        sum += v;
+        n += 1;
+      });
+      return n ? sum / n : null;
+    }
+    var bodyRows = keys.map(function (key) {
       var cells =
         '<td class="sticky left-0 z-[1] bg-white px-2 py-1.5 font-medium tabular-nums text-slate-700 sm:px-3 dark:bg-zinc-950 dark:text-zinc-200">' +
           esc(fmtAxisKey(key, dayOnly)) +
@@ -1914,6 +1925,30 @@
       });
       return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
     }).join("");
+    var avgCells =
+      '<td class="sticky left-0 z-[2] bg-slate-100 px-2 py-1.5 font-bold tabular-nums text-slate-800 sm:px-3 dark:bg-zinc-900 dark:text-zinc-100" title="Verisi olan günlerin ortalaması">Ortalama</td>';
+    list.forEach(function (b, i) {
+      var avg = overviewColAverage(maps[i]);
+      avgCells +=
+        '<td class="px-1.5 py-1.5 tabular-nums font-bold text-slate-900 sm:px-2 dark:text-zinc-50" title="' +
+          (avg == null ? "" : esc(fmtNum(avg, false))) + '">' +
+          (avg == null ? "—" : esc(fmtNum(avg, false))) +
+        "</td>";
+    });
+    ovs.forEach(function (ov, oi) {
+      var avg = overviewColAverage(ovMaps[oi]);
+      var color = ov.color || paOverlayColor(oi);
+      avgCells +=
+        '<td class="px-1.5 py-1.5 tabular-nums font-bold sm:px-2" style="color:' + color + '" title="' +
+          (avg == null ? "" : esc(fmtNum(avg, false))) + '">' +
+          (avg == null ? "—" : esc(fmtNum(avg, false))) +
+        "</td>";
+    });
+    var avgRow =
+      '<tr class="sticky bottom-0 z-[1] border-t border-slate-200 bg-slate-100/95 dark:border-zinc-700 dark:bg-zinc-900/95">' +
+        avgCells +
+      "</tr>";
+    paTable.innerHTML = bodyRows + avgRow;
   }
 
   function setCompareNote(text) {
@@ -2021,7 +2056,7 @@
     opts = opts || {};
     var end = new Date();
     var start = new Date();
-    var days = parseInt((paPreset && paPreset.value) || "14", 10) || 14;
+    var days = parseInt((paPreset && paPreset.value) || "30", 10) || 30;
     start.setDate(end.getDate() - (days - 1));
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
@@ -3463,7 +3498,7 @@
   });
   if (paCompare) paCompare.checked = false;
   applyPreset();
-  // İlk açılış: 2 hafta · özet (gecikmesiz; grafik önce, tablo sonra)
+  // İlk açılış: 1 ay · özet (gecikmesiz)
   runPlayAnalytics({ overview: true });
 
   var KPI_TITLES = {
