@@ -384,8 +384,36 @@ def _parse_measures_text(text: str) -> Any:
     return None
 
 
+def _unregister_service_workers(page) -> None:
+    """ASC SW bazen /analytics/api/* isteğini index.html’e düşürüyor."""
+    try:
+        page.evaluate(
+            """async () => {
+              if (!('serviceWorker' in navigator)) return 0;
+              const regs = await navigator.serviceWorker.getRegistrations();
+              for (const r of regs) { try { await r.unregister(); } catch (e) {} }
+              return regs.length;
+            }"""
+        )
+    except Exception:
+        pass
+
+
+def _metrics_page_url(measure_key: str) -> str:
+    base = f"https://appstoreconnect.apple.com/apps/{APP_ID}"
+    q = f"chartType=singleaxis&dateSpec=d90&frequency=day&measureKey={measure_key}"
+    if measure_key in ("iap", "payingUsers", "proceeds"):
+        return (
+            f"{base}/analytics/monetization/sales/metrics?{q}"
+            "&dimensionFilters=NobwRA5mBcYA4FcBOBjAFgQwM4FMtgBowA3GYAXQF9yg"
+        )
+    if measure_key.startswith("subscription"):
+        return f"{base}/analytics/monetization/subscriptions/metrics?{q}"
+    return f"{base}/analytics/metrics?{q}"
+
+
 def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict[str, Any]:
-    """Oturumlu sayfa context’inde private measures API’ye POST."""
+    """Private measures API — önce context.request (SW bypass), sonra page fetch."""
     payload = {
         "adamId": [str(APP_ID)],
         "startTime": f"{start.isoformat()}T00:00:00Z",
@@ -394,7 +422,41 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
         "frequency": "day",
     }
     referer = f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
-    # JSON’u JS tarafında parse et — Python’a text kesilerek gelmesin
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json",
+        "X-Requested-By": "appstoreconnect.apple.com",
+        "Origin": "https://appstoreconnect.apple.com",
+        "Referer": referer,
+    }
+
+    # 1) Playwright APIRequestContext — service worker’ı atlar, cookie paylaşır
+    try:
+        api_resp = page.context.request.post(
+            ANALYTICS_MEASURES_URL,
+            headers=headers,
+            data=json.dumps(payload),
+            timeout=60_000,
+        )
+        status = api_resp.status
+        text = api_resp.text()
+        body = _parse_measures_text(text)
+        if status == 200 and isinstance(body, dict) and not str(text).lstrip().startswith("<!"):
+            return {
+                "ok": True,
+                "status": status,
+                "message": f"ok · request · results={len(body.get('results') or [])}",
+                "body": body,
+            }
+        preview = (text or "")[:200].replace("\n", " ")
+        req_msg = f"request HTTP {status} · preview={preview}"
+    except Exception as exc:  # noqa: BLE001
+        req_msg = f"request exc: {exc}"
+        status = 0
+        body = None
+
+    # 2) page.fetch (SW unregister sonrası)
+    _unregister_service_workers(page)
     result = page.evaluate(
         """async ({url, payload, referer}) => {
           try {
@@ -421,8 +483,6 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
               data,
               parseError,
               preview: text.slice(0, 400),
-              keys: data && typeof data === 'object' && !Array.isArray(data)
-                ? Object.keys(data).slice(0, 20) : null,
               resultCount: data && data.results ? data.results.length : null,
             };
           } catch (e) {
@@ -431,31 +491,79 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
         }""",
         {"url": ANALYTICS_MEASURES_URL, "payload": payload, "referer": referer},
     )
-    if not isinstance(result, dict):
-        return {"ok": False, "status": 0, "message": "evaluate boş", "body": None}
-    status = int(result.get("status") or 0)
-    body = result.get("data")
-    if body is None and result.get("preview"):
-        body = _parse_measures_text(str(result.get("preview") or ""))
-    ok = status == 200 and isinstance(body, (dict, list))
-    msg = "ok"
-    if status != 200:
-        msg = str(result.get("preview") or result.get("parseError") or f"HTTP {status}")[:240]
-    elif not ok:
-        msg = (
-            f"parse fail · {result.get('parseError') or 'no json'} · "
-            f"preview={str(result.get('preview') or '')[:180]}"
-        )
-    elif isinstance(body, dict):
-        msg = (
-            f"ok · keys={result.get('keys')} · results={result.get('resultCount')}"
-        )
-    return {
-        "ok": ok,
-        "status": status,
-        "message": msg,
-        "body": body if isinstance(body, dict) else ({"results": body} if isinstance(body, list) else None),
-    }
+    if isinstance(result, dict):
+        status2 = int(result.get("status") or 0)
+        body2 = result.get("data")
+        if body2 is None:
+            body2 = _parse_measures_text(str(result.get("preview") or ""))
+        if status2 == 200 and isinstance(body2, dict):
+            return {
+                "ok": True,
+                "status": status2,
+                "message": f"ok · fetch · results={result.get('resultCount')}",
+                "body": body2,
+            }
+        return {
+            "ok": False,
+            "status": status2 or status,
+            "message": (
+                f"{req_msg} | fetch: {result.get('parseError') or ''} "
+                f"preview={str(result.get('preview') or '')[:120]}"
+            )[:300],
+            "body": body2 if isinstance(body2, dict) else body,
+        }
+    return {"ok": False, "status": status, "message": req_msg[:300], "body": body}
+
+
+def _capture_measures_via_ui(page, measure_keys: list[str]) -> list[dict[str, Any]]:
+    """UI sayfasına gidip gerçek SPA XHR/POST yanıtlarını yakala."""
+    captured_bodies: list[Any] = []
+
+    def on_response(resp) -> None:
+        try:
+            url = (resp.url or "").lower()
+            if "analytics/api" not in url:
+                return
+            if resp.status != 200:
+                return
+            # body() binary; text JSON olabilir
+            try:
+                txt = resp.text()
+            except Exception:
+                return
+            if not txt or txt.lstrip().startswith("<!"):
+                return
+            data = _parse_measures_text(txt)
+            if data is not None:
+                captured_bodies.append(data)
+                print(f"  captured XHR · {resp.url[:80]}…", flush=True)
+        except Exception:
+            return
+
+    page.on("response", on_response)
+    try:
+        for mk in measure_keys:
+            url = _metrics_page_url(mk)
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+            except Exception as exc:
+                print(f"  UI goto fail {mk}: {exc}", flush=True)
+                continue
+            for _ in range(16):
+                time.sleep(0.5)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=2000)
+                except Exception:
+                    pass
+                if captured_bodies:
+                    break
+            time.sleep(1.2)
+    finally:
+        try:
+            page.remove_listener("response", on_response)
+        except Exception:
+            pass
+    return captured_bodies
 
 
 def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
@@ -496,6 +604,9 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "raw_network": [],
             }
 
+        _unregister_service_workers(page)
+        time.sleep(0.5)
+
         end_d = date.today() - timedelta(days=1)
         start_d = end_d - timedelta(days=89)
         for batch in MEASURE_BATCHES:
@@ -516,21 +627,6 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     f"{str(resp.get('message') or '')[:200]}",
                     flush=True,
                 )
-                # debug dump
-                try:
-                    dump = Path("/tmp/asc_measures_last.json")
-                    dump.write_text(
-                        json.dumps(
-                            {"batch": batch, "resp": {k: resp.get(k) for k in ("status", "message", "ok")}, "body": resp.get("body")},
-                            ensure_ascii=False,
-                            indent=2,
-                            default=str,
-                        )[:200000],
-                        encoding="utf-8",
-                    )
-                    print(f"  debug → {dump}", flush=True)
-                except Exception:
-                    pass
                 for mk in batch:
                     pages_meta[mk] = {
                         "ok": False,
@@ -539,7 +635,6 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                     }
                 continue
             facts_batch = _facts_from_measures_response(resp.get("body") or {})
-            # metrik bazında say
             counts: dict[str, int] = {}
             for f in facts_batch:
                 mk = str(f.get("view_id") or "")
@@ -551,6 +646,29 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 metric = MEASURE_MAP.get(mk, mk)
                 print(f"ASC scrape · {mk} → {metric}: {n} gün (measures API)", flush=True)
             time.sleep(0.6)
+
+        # API HTML/boş dönerse: UI XHR yakala
+        if not explorer_facts:
+            print("ASC measures API boş/HTML — UI network yakalama…", flush=True)
+            ui_bodies = _capture_measures_via_ui(page, list(MEASURE_MAP.keys()))
+            for body in ui_bodies:
+                if isinstance(body, dict):
+                    facts_batch = _facts_from_measures_response(body)
+                else:
+                    facts_batch = []
+                    for mk, metric in MEASURE_MAP.items():
+                        facts_batch.extend(
+                            _facts_from_payload(body, metric=metric, measure_key=mk)
+                        )
+                explorer_facts.extend(facts_batch)
+            counts: dict[str, int] = {}
+            for f in explorer_facts:
+                mk = str(f.get("view_id") or f.get("metric") or "")
+                counts[mk] = counts.get(mk, 0) + 1
+            for mk, metric in MEASURE_MAP.items():
+                n = counts.get(mk, 0) or counts.get(metric, 0)
+                pages_meta[mk] = {"ok": n > 0, "fact_count": n, "source": "ui_xhr"}
+                print(f"ASC scrape · {mk} → {metric}: {n} gün (UI XHR)", flush=True)
 
         # tekilleştir
         by_key: dict[tuple[str, str], dict[str, Any]] = {}
