@@ -37,6 +37,8 @@ def get_asc_metrics_query(
     bundle_id: str | None = Query(default=None),
     compare: str | None = Query(default=None),
     breakdown: str = Query(default="date"),
+    dim: str = Query(default="overview"),
+    segment: str = Query(default="all"),
 ) -> dict[str, Any]:
     try:
         return query_asc_metric(
@@ -46,6 +48,8 @@ def get_asc_metrics_query(
             bundle_id=bundle_id,
             compare=compare,
             breakdown=breakdown,
+            dim=dim,
+            segment=segment,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("asc-metrics query failed")

@@ -225,6 +225,27 @@
           </optgroup>
         </select>
       </label>
+      <label id="ia-breakdown-wrap" class="pa-f pa-f--sm hidden">Zaman kırılımı
+        <select id="ia-breakdown">
+          <option value="date" selected>Gün</option>
+          <option value="week">Hafta</option>
+          <option value="month">Ay</option>
+          <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
+        </select>
+      </label>
+      <label id="ia-dim-wrap" class="pa-f pa-f--sm hidden">Boyut
+        <select id="ia-dim">
+          <option value="overview" selected>Genel (tarih)</option>
+          <option value="app_version">Uygulama sürümü</option>
+          <option value="device">Cihaz</option>
+          <option value="country">Ülke</option>
+        </select>
+      </label>
+      <label id="ia-segment-wrap" class="pa-f pa-f--sm hidden">Segment
+        <select id="ia-segment">
+          <option value="all">Tümü</option>
+        </select>
+      </label>
       <div class="pa-f-actions">
         <button id="ia-run" type="button" class="pa-f-btn"><span id="ia-run-label">Uygula</span></button>
         <button id="ia-add-chart" type="button"
@@ -308,6 +329,12 @@
   var iaEnd = document.getElementById("ia-end");
   var iaPreset = document.getElementById("ia-preset");
   var iaMetric = document.getElementById("ia-metric");
+  var iaBreakdown = document.getElementById("ia-breakdown");
+  var iaDim = document.getElementById("ia-dim");
+  var iaSegment = document.getElementById("ia-segment");
+  var iaBreakdownWrap = document.getElementById("ia-breakdown-wrap");
+  var iaDimWrap = document.getElementById("ia-dim-wrap");
+  var iaSegmentWrap = document.getElementById("ia-segment-wrap");
   var iaRun = document.getElementById("ia-run");
   var iaRunLabel = document.getElementById("ia-run-label");
   var iaAddChartBtn = document.getElementById("ia-add-chart");
@@ -578,13 +605,80 @@
       source: isVirgul ? "virgul" : "ga4"
     };
   }
+  var IA_SALES_DIM_METRICS = {
+    units: 1,
+    proceeds: 1,
+    sales: 1,
+    total_downloads: 1,
+    iap: 1
+  };
+  function metricSupportsDims(key) {
+    return !!(key && IA_SALES_DIM_METRICS[key] && !isExternalMetric(key));
+  }
+  function syncIaDimFilters() {
+    var key = (iaMetric && iaMetric.value) || "";
+    var on = metricSupportsDims(key);
+    [iaBreakdownWrap, iaDimWrap, iaSegmentWrap].forEach(function (el) {
+      if (!el) return;
+      if (on) el.classList.remove("hidden");
+      else el.classList.add("hidden");
+    });
+    if (!on) {
+      if (iaDim) iaDim.value = "overview";
+      if (iaBreakdown) iaBreakdown.value = "date";
+      if (iaSegment) {
+        iaSegment.innerHTML = '<option value="all">Tümü</option>';
+        iaSegment.value = "all";
+      }
+      return;
+    }
+    syncIaDimBreakdown();
+  }
+  function syncIaDimBreakdown() {
+    if (!iaDim || !iaBreakdown) return;
+    var dim = iaDim.value || "overview";
+    var seg = (iaSegment && iaSegment.value) || "all";
+    if (dim === "overview") {
+      if (iaBreakdown.value === "segment") iaBreakdown.value = "date";
+      return;
+    }
+    if (seg === "all") {
+      if (iaBreakdown.value === "date") iaBreakdown.value = "segment";
+    } else {
+      iaBreakdown.value = "date";
+    }
+  }
+  function applyIaFacets(facets) {
+    if (!iaSegment || !facets) return;
+    var segs = Array.isArray(facets.segments) ? facets.segments : [];
+    var prev = iaSegment.value || "all";
+    var html = '<option value="all">Tümü</option>';
+    segs.forEach(function (s) {
+      var key = typeof s === "string" ? s : (s && s.key);
+      if (!key) return;
+      html += '<option value="' + esc(key) + '">' + esc(key) + "</option>";
+    });
+    iaSegment.innerHTML = html;
+    if (prev && iaSegment.querySelector('option[value="' + String(prev).replace(/"/g, "") + '"]')) {
+      iaSegment.value = prev;
+    } else {
+      iaSegment.value = "all";
+    }
+  }
   async function fetchAscSeries(metricKey, signal) {
-    var cached = packFromOverviewCache(metricKey);
-    if (cached) return cached;
+    var dim = (iaDim && iaDim.value) || "overview";
+    var useCache = dim === "overview" && (!iaBreakdown || iaBreakdown.value === "date");
+    if (useCache) {
+      var cached = packFromOverviewCache(metricKey);
+      if (cached) return cached;
+    }
     var qs = new URLSearchParams({
       start: iaStart.value,
       end: iaEnd.value,
-      metric: metricKey
+      metric: metricKey,
+      breakdown: (iaBreakdown && iaBreakdown.value) || "date",
+      dim: dim,
+      segment: (iaSegment && iaSegment.value) || "all"
     });
     var r = await fetch("/api/asc-metrics/query?" + qs.toString(), {
       credentials: "same-origin",
@@ -593,14 +687,19 @@
     });
     var data = await r.json().catch(function () { return {}; });
     if (!r.ok) throw new Error(data.message || ("HTTP " + r.status));
+    if (data.ok === false && data.message) throw new Error(data.message);
+    applyIaFacets(data.facets || {});
     return {
       metric: metricKey,
-      label: metricLabel(metricKey),
+      label: data.label || metricLabel(metricKey),
       series: data.series || [],
       total: data.total,
       total_mode: data.total_mode || "sum",
       message: data.message || "",
-      source: "asc"
+      source: data.source || "asc",
+      dim: data.dim || dim,
+      segment: data.segment || "all",
+      breakdown: data.breakdown || "date"
     };
   }
   function packFromOverviewCache(metricKey) {
@@ -1391,7 +1490,23 @@
   if (iaPreset) iaPreset.addEventListener("change", function () { applyPreset(); runAnalytics(); });
   if (iaRun) iaRun.addEventListener("click", function () { runAnalytics(); });
   if (iaRefresh) iaRefresh.addEventListener("click", function () { refreshPage(); });
-  if (iaMetric) iaMetric.addEventListener("change", function () { runAnalytics(); });
+  if (iaMetric) iaMetric.addEventListener("change", function () {
+    syncIaDimFilters();
+    runAnalytics();
+  });
+  if (iaDim) iaDim.addEventListener("change", function () {
+    if (iaSegment) {
+      iaSegment.innerHTML = '<option value="all">Tümü</option>';
+      iaSegment.value = "all";
+    }
+    syncIaDimBreakdown();
+    runAnalytics();
+  });
+  if (iaBreakdown) iaBreakdown.addEventListener("change", function () { runAnalytics(); });
+  if (iaSegment) iaSegment.addEventListener("change", function () {
+    syncIaDimBreakdown();
+    runAnalytics();
+  });
   if (iaAddChartBtn) iaAddChartBtn.addEventListener("click", function () { openOverlayPanel(); });
   if (iaOvCancel) iaOvCancel.addEventListener("click", function () { closeOverlayPanel(); });
   if (iaOvClear) iaOvClear.addEventListener("click", function () { clearOverlayAndRedraw(); });
@@ -1429,6 +1544,7 @@
   });
 
   applyPreset();
+  syncIaDimFilters();
   loadStatus();
   runAnalytics();
 

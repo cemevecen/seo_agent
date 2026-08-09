@@ -418,19 +418,23 @@ def query_asc_metric(
     bundle_cache: dict[str, Any] | None = None,
     compare: str | None = None,
     breakdown: str | None = "date",
+    dim: str | None = "overview",
+    segment: str | None = "all",
 ) -> dict[str, Any]:
     end_d = date.fromisoformat(end) if end else date.today()
     start_d = date.fromisoformat(start) if start else end_d - timedelta(days=29)
     if start_d > end_d:
         start_d = end_d - timedelta(days=29)
     metric_key = (metric or "units").strip()
+    dim_key = (dim or "overview").strip().lower() or "overview"
+    seg_key = (segment or "all").strip() or "all"
     if metric_key not in _METRIC_META:
         return {
             "ok": False,
             "message": f"Bilinmeyen metrik: {metric_key}",
             "series": [],
             "total": 0,
-            "facets": {"metrics": [m["value"] for m in metric_catalog()]},
+            "facets": _asc_facets(metric_key),
         }
     bid = (bundle_id or DEFAULT_BUNDLE).strip()
     scrape_facts_probe, _ = _cached_scrape_facts()
@@ -448,6 +452,94 @@ def query_asc_metric(
             "metric": metric_key,
             "start": start_d.isoformat(),
             "end": end_d.isoformat(),
+            "facets": _asc_facets(metric_key),
+        }
+
+    # Teknik kırılım (Sales SUMMARY: ülke / cihaz / sürüm)
+    if dim_key in ("country", "device", "app_version"):
+        if not asc_client.sales_dimension_supported(metric_key):
+            return {
+                "ok": False,
+                "configured": True,
+                "message": (
+                    f"{_METRIC_META[metric_key][2]} için Sales kırılımı yok "
+                    f"(yalnızca first downloads / proceeds / IAP)."
+                ),
+                "series": [],
+                "total": 0,
+                "metric": metric_key,
+                "dim": dim_key,
+                "segment": seg_key,
+                "start": start_d.isoformat(),
+                "end": end_d.isoformat(),
+                "facets": _asc_facets(metric_key),
+            }
+        if not api_ok:
+            return {
+                "ok": False,
+                "configured": False,
+                "message": "Sales kırılımı için ASC API anahtarı gerekli",
+                "series": [],
+                "total": 0,
+                "facets": _asc_facets(metric_key),
+            }
+        br = (breakdown or "segment").strip().lower()
+        if br not in ("segment", "date", "week", "month"):
+            br = "segment"
+        # Boyut seçili + segment=all → varsayılan segment listesi
+        if seg_key.lower() == "all" and br == "date":
+            br = "segment"
+        dim_payload = asc_client.fetch_sales_dimension_series(
+            start=start_d,
+            end=end_d,
+            metric=metric_key,
+            dim=dim_key,
+            segment=seg_key,
+            breakdown=br,
+            limit=30,
+        )
+        if not dim_payload:
+            return {
+                "ok": False,
+                "configured": True,
+                "message": "Sales kırılımı alınamadı (vendor / rapor)",
+                "series": [],
+                "total": 0,
+                "facets": _asc_facets(metric_key),
+            }
+        series = list(dim_payload.get("series") or [])
+        total = float(dim_payload.get("total") or 0)
+        mode = "sum"
+        label = _METRIC_META[metric_key][2]
+        segs = [
+            s.get("key")
+            for s in (dim_payload.get("segments") or [])
+            if isinstance(s, dict) and s.get("key")
+        ]
+        return {
+            "ok": bool(series),
+            "configured": True,
+            "source": "asc_sales_dim",
+            "app_id": DEFAULT_APP_ID,
+            "bundle_id": bid,
+            "metric": metric_key,
+            "label": label,
+            "start": start_d.isoformat(),
+            "end": end_d.isoformat(),
+            "breakdown": br,
+            "dim": dim_key,
+            "segment": seg_key,
+            "series": series,
+            "total": total,
+            "total_mode": mode,
+            "compare": None,
+            "message": (
+                f"ASC · {label} · {dim_key}"
+                + (f" · {seg_key}" if seg_key.lower() != "all" else "")
+                + f" · {len(series)} nokta · sales"
+            ),
+            "warnings": [],
+            "facets": _asc_facets(metric_key, segments=segs),
         }
 
     # Compare için önceki dönemi de kapsayan aralık yükle
@@ -516,6 +608,8 @@ def query_asc_metric(
         "start": start_d.isoformat(),
         "end": end_d.isoformat(),
         "breakdown": br if br in ("week", "month", "date") else "date",
+        "dim": "overview",
+        "segment": "all",
         "series": series,
         "total": total,
         "total_mode": mode,
@@ -525,7 +619,19 @@ def query_asc_metric(
             + (f" · {'; '.join(warnings[:2])}" if warnings and not series else "")
         ),
         "warnings": warnings,
-        "facets": {"metrics": [m["value"] for m in metric_catalog()]},
+        "facets": _asc_facets(metric_key),
+    }
+
+
+def _asc_facets(metric: str, segments: list[str] | None = None) -> dict[str, Any]:
+    dims = ["overview"]
+    if asc_client.sales_dimension_supported(metric):
+        dims.extend(["country", "device", "app_version"])
+    return {
+        "metrics": [m["value"] for m in metric_catalog()],
+        "dims": dims,
+        "breakdowns": ["date", "week", "month", "segment"],
+        "segments": list(segments or []),
     }
 
 

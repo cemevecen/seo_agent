@@ -513,6 +513,204 @@ def fetch_daily_sales_summary(
     }
 
 
+_FIRST_DL_TYPES = frozenset({"1", "1F", "1T", "1E", "1EP", "7", "7F", "7T", "2", "2F", "2T"})
+_IAP_TYPES = frozenset({"IAY", "IAYF", "IA1", "IA9", "IAC", "IA1F", "IA9F"})
+_SALES_DIM_METRICS = frozenset({"units", "proceeds", "sales", "total_downloads", "iap"})
+_SALES_DIMS = ("country", "device", "app_version")
+
+
+def sales_dimension_supported(metric: str) -> bool:
+    return (metric or "").strip() in _SALES_DIM_METRICS
+
+
+def fetch_sales_dimension_series(
+    *,
+    start: date,
+    end: date,
+    metric: str,
+    dim: str,
+    segment: str = "all",
+    breakdown: str = "segment",
+    limit: int = 30,
+) -> dict[str, Any] | None:
+    """Sales SUMMARY satırlarından ülke / cihaz / sürüm kırılımı.
+
+    breakdown=segment → dönem toplamı (key=segment)
+    breakdown=date|week|month → zaman serisi (segment=all: top segmentler ayrı
+    satır değil; segment seçiliyse o segmentin zaman serisi)
+    """
+    vendor = _env("ASC_VENDOR_NUMBER")
+    if not vendor:
+        return None
+    metric_key = (metric or "units").strip()
+    dim_key = (dim or "overview").strip().lower()
+    if metric_key not in _SALES_DIM_METRICS or dim_key not in _SALES_DIMS:
+        return None
+    if start > end:
+        return None
+
+    col_map = {
+        "country": "Country Code",
+        "device": "Device",
+        "app_version": "Version",
+    }
+    col = col_map[dim_key]
+    seg_filter = (segment or "all").strip()
+    want_all = seg_filter.lower() in ("", "all")
+    br = (breakdown or "segment").strip().lower()
+    if br not in ("segment", "date", "week", "month"):
+        br = "segment"
+
+    all_dates: list[str] = []
+    cur = start
+    while cur <= end:
+        all_dates.append(cur.isoformat())
+        cur = cur + timedelta(days=1)
+
+    def _fetch_day(ds: str):
+        return ds, _fetch_sales_report(
+            report_type="SALES",
+            report_sub_type="SUMMARY",
+            frequency="DAILY",
+            report_date=ds,
+            vendor_number=vendor,
+        )
+
+    workers = min(20, len(all_dates)) if all_dates else 1
+    date_rows: dict[str, list | None] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_fetch_day, ds): ds for ds in all_dates}
+        for fut in as_completed(futures):
+            ds, rows = fut.result()
+            date_rows[ds] = rows
+
+    # day → seg → value
+    daily_seg: dict[str, dict[str, float]] = {}
+    seg_totals: dict[str, float] = {}
+
+    def _metric_val(r: dict[str, Any]) -> float:
+        units = int(float(r.get("Units") or 0))
+        product_type_id = (r.get("Product Type Identifier") or "").strip()
+        if metric_key in ("units", "total_downloads"):
+            return float(units) if product_type_id in _FIRST_DL_TYPES else 0.0
+        if metric_key == "iap":
+            return float(units) if product_type_id in _IAP_TYPES else 0.0
+        # proceeds / sales → USD
+        developer_proceeds = float(r.get("Developer Proceeds") or 0)
+        currency = (r.get("Currency of Proceeds") or "USD").strip()
+        if not developer_proceeds:
+            return 0.0
+        return float(_to_usd(developer_proceeds * units, currency))
+
+    for ds in all_dates:
+        rows = date_rows.get(ds) or []
+        if not rows:
+            continue
+        bucket = daily_seg.setdefault(ds, {})
+        for r in rows:
+            seg_val = (r.get(col) or "").strip()
+            if dim_key == "country":
+                seg_val = seg_val.upper()
+            if not seg_val:
+                continue
+            if not want_all and seg_val != seg_filter:
+                continue
+            v = _metric_val(r)
+            if not v:
+                continue
+            bucket[seg_val] = bucket.get(seg_val, 0.0) + v
+            seg_totals[seg_val] = seg_totals.get(seg_val, 0.0) + v
+
+    if not seg_totals:
+        return {
+            "ok": True,
+            "series": [],
+            "segments": [],
+            "total": 0.0,
+            "dim": dim_key,
+            "segment": seg_filter if not want_all else "all",
+            "breakdown": br,
+        }
+
+    top_segs = sorted(seg_totals.items(), key=lambda kv: kv[1], reverse=True)[: max(1, int(limit))]
+    top_keys = [k for k, _ in top_segs]
+    facets_segments = [
+        {"key": k, "label": k, "total": round(v, 4)} for k, v in top_segs
+    ]
+
+    series: list[dict[str, Any]] = []
+    if br == "segment":
+        # Dönem toplamı — seçili segment yoksa top-N
+        keys = [seg_filter] if not want_all else top_keys
+        for k in keys:
+            if k not in seg_totals:
+                continue
+            series.append({"key": k, "value": round(seg_totals[k], 4)})
+    else:
+        # Zaman serisi
+        if want_all:
+            # Tüm segmentlerin günlük toplamı (overview benzeri)
+            for ds in all_dates:
+                day_map = daily_seg.get(ds) or {}
+                series.append({
+                    "key": ds,
+                    "value": round(sum(day_map.values()), 4),
+                })
+        else:
+            for ds in all_dates:
+                day_map = daily_seg.get(ds) or {}
+                series.append({
+                    "key": ds,
+                    "value": round(float(day_map.get(seg_filter, 0.0)), 4),
+                })
+        if br in ("week", "month"):
+            series = _aggregate_dim_series(series, br)
+
+    total = round(sum(float(r.get("value") or 0) for r in series), 4) if br == "segment" else round(
+        sum(seg_totals.get(k, 0.0) for k in ([seg_filter] if not want_all else top_keys)),
+        4,
+    )
+    if br != "segment" and not want_all:
+        total = round(seg_totals.get(seg_filter, 0.0), 4)
+    elif br != "segment" and want_all:
+        total = round(sum(seg_totals.values()), 4)
+
+    return {
+        "ok": True,
+        "series": series,
+        "segments": facets_segments,
+        "total": total,
+        "dim": dim_key,
+        "segment": seg_filter if not want_all else "all",
+        "breakdown": br,
+    }
+
+
+def _aggregate_dim_series(series: list[dict[str, Any]], breakdown: str) -> list[dict[str, Any]]:
+    if not series or breakdown not in ("week", "month"):
+        return series
+    buckets: dict[str, float] = {}
+    order: list[str] = []
+    for row in series:
+        key_src = str(row.get("key") or "")[:10]
+        if len(key_src) < 10:
+            continue
+        if breakdown == "month":
+            bkey = key_src[:7]
+        else:
+            try:
+                d = date.fromisoformat(key_src)
+            except ValueError:
+                continue
+            iso = d.isocalendar()
+            bkey = f"{iso.year}-W{iso.week:02d}"
+        if bkey not in buckets:
+            order.append(bkey)
+            buckets[bkey] = 0.0
+        buckets[bkey] += float(row.get("value") or 0)
+    return [{"key": k, "value": round(buckets[k], 4)} for k in order]
+
+
 def fetch_subscription_summary(*, days: int) -> dict[str, Any] | None:
     """En son haftalık SUBSCRIPTION raporu (aktif abonelik metrikleri).
 
