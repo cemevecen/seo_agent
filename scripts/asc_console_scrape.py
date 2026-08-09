@@ -114,11 +114,17 @@ def _launch_context(*, headed: bool):
         "viewport": {"width": 1440, "height": 1100},
         "locale": "tr-TR",
         "accept_downloads": True,
+        # ASC SW /analytics/api/* → index.html shell; Playwright request + XHR kırılıyor
+        "service_workers": "block",
         "args": ["--disable-blink-features=AutomationControlled"],
     }
     if channel and channel.lower() not in ("0", "none", "chromium"):
         launch_kwargs["channel"] = channel
-    ctx = pw.chromium.launch_persistent_context(**launch_kwargs)
+    try:
+        ctx = pw.chromium.launch_persistent_context(**launch_kwargs)
+    except TypeError:
+        launch_kwargs.pop("service_workers", None)
+        ctx = pw.chromium.launch_persistent_context(**launch_kwargs)
     return pw, ctx
 
 
@@ -392,6 +398,10 @@ def _unregister_service_workers(page) -> None:
               if (!('serviceWorker' in navigator)) return 0;
               const regs = await navigator.serviceWorker.getRegistrations();
               for (const r of regs) { try { await r.unregister(); } catch (e) {} }
+              if (window.caches && caches.keys) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((k) => caches.delete(k)));
+              }
               return regs.length;
             }"""
         )
@@ -403,17 +413,105 @@ def _metrics_page_url(measure_key: str) -> str:
     base = f"https://appstoreconnect.apple.com/apps/{APP_ID}"
     q = f"chartType=singleaxis&dateSpec=d90&frequency=day&measureKey={measure_key}"
     if measure_key in ("iap", "payingUsers", "proceeds"):
-        return (
-            f"{base}/analytics/monetization/sales/metrics?{q}"
-            "&dimensionFilters=NobwRA5mBcYA4FcBOBjAFgQwM4FMtgBowA3GYAXQF9yg"
-        )
+        return f"{base}/analytics/monetization/sales/metrics?{q}"
     if measure_key.startswith("subscription"):
         return f"{base}/analytics/monetization/subscriptions/metrics?{q}"
     return f"{base}/analytics/metrics?{q}"
 
 
-def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict[str, Any]:
-    """Private measures API — önce context.request (SW bypass), sonra page fetch."""
+def _analytics_headers(referer: str) -> dict[str, str]:
+    # Strict Accept — */* Apple CDN’de SPA HTML shell tetikleyebiliyor
+    return {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "X-Requested-By": "appstoreconnect.apple.com",
+        "Origin": "https://appstoreconnect.apple.com",
+        "Referer": referer,
+    }
+
+
+def _cookie_debug(ctx) -> dict[str, Any]:
+    try:
+        cookies = ctx.cookies(["https://appstoreconnect.apple.com", "https://apple.com"])
+    except Exception:
+        cookies = []
+    names = sorted({str(c.get("name") or "") for c in cookies if c.get("name")})
+    return {
+        "count": len(cookies),
+        "names": names,
+        "has_myacinfo": "myacinfo" in names,
+        "has_itctx": "itctx" in names,
+        "has_dqsid": "dqsid" in names,
+    }
+
+
+def _interesting_analytics_url(url: str) -> bool:
+    u = (url or "").lower()
+    if "appstoreconnect.apple.com" not in u and "itunes.apple.com" not in u:
+        return False
+    return any(
+        p in u
+        for p in (
+            "/analytics/api/",
+            "/iris/",
+            "/power/",
+            "measures",
+            "timeseries",
+            "dimension",
+            "app-info",
+            "settings/all",
+        )
+    )
+
+
+def _attach_network_bag(ctx, bag: list[dict[str, Any]], url_log: list[str]) -> None:
+    """Context-level XHR capture — page listener SPA navigasyonunda kaçırabiliyor."""
+
+    def on_response(resp) -> None:
+        try:
+            url = resp.url or ""
+            status = int(resp.status or 0)
+            if "appstoreconnect.apple.com" in url.lower() or "itunes.apple.com" in url.lower():
+                if status and status < 400:
+                    url_log.append(f"{status} {url[:220]}")
+                    if len(url_log) > 400:
+                        del url_log[:80]
+            if not _interesting_analytics_url(url):
+                return
+            if status != 200:
+                return
+            ctype = (resp.headers or {}).get("content-type", "")
+            text = ""
+            try:
+                text = resp.text()
+            except Exception:
+                return
+            if not text or text.lstrip().startswith("<!"):
+                return
+            data = _parse_measures_text(text)
+            if data is None:
+                return
+            bag.append(
+                {
+                    "url": url[:500],
+                    "status": status,
+                    "ctype": str(ctype)[:80],
+                    "body": data,
+                }
+            )
+            if len(bag) > 200:
+                del bag[:40]
+            print(f"  captured XHR · {url[:90]}", flush=True)
+        except Exception:
+            return
+
+    ctx.on("response", on_response)
+
+
+def _post_measures_via_requests(ctx, measures: list[str], *, start: date, end: date) -> dict[str, Any]:
+    """Browser cookie’leriyle doğrudan HTTP — Playwright/SW stack’ini tamamen atla."""
+    import requests
+
     payload = {
         "adamId": [str(APP_ID)],
         "startTime": f"{start.isoformat()}T00:00:00Z",
@@ -422,15 +520,65 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
         "frequency": "day",
     }
     referer = f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/json",
-        "X-Requested-By": "appstoreconnect.apple.com",
-        "Origin": "https://appstoreconnect.apple.com",
-        "Referer": referer,
-    }
+    try:
+        jar = {
+            str(c["name"]): str(c["value"])
+            for c in ctx.cookies()
+            if c.get("name") and c.get("value") is not None
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "status": 0, "message": f"cookie read: {exc}", "body": None}
+    try:
+        r = requests.post(
+            ANALYTICS_MEASURES_URL,
+            headers=_analytics_headers(referer),
+            cookies=jar,
+            json=payload,
+            timeout=60,
+            allow_redirects=False,
+        )
+        text = r.text or ""
+        body = _parse_measures_text(text)
+        ctype = (r.headers.get("content-type") or "")[:60]
+        if r.status_code == 200 and isinstance(body, dict) and not text.lstrip().startswith("<!"):
+            return {
+                "ok": True,
+                "status": r.status_code,
+                "message": f"ok · http · ctype={ctype} · results={len(body.get('results') or [])}",
+                "body": body,
+            }
+        return {
+            "ok": False,
+            "status": r.status_code,
+            "message": (
+                f"http HTTP {r.status_code} · ctype={ctype} · "
+                f"preview={text[:160].replace(chr(10), ' ')}"
+            )[:300],
+            "body": body if isinstance(body, dict) else None,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "status": 0, "message": f"http exc: {exc}", "body": None}
 
-    # 1) Playwright APIRequestContext — service worker’ı atlar, cookie paylaşır
+
+def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict[str, Any]:
+    """Private measures API — http cookies → context.request → page fetch."""
+    payload = {
+        "adamId": [str(APP_ID)],
+        "startTime": f"{start.isoformat()}T00:00:00Z",
+        "endTime": f"{end.isoformat()}T00:00:00Z",
+        "measures": measures,
+        "frequency": "day",
+    }
+    referer = f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
+    headers = _analytics_headers(referer)
+
+    # 0) requests + browser cookies (en güvenilir SW bypass)
+    http_resp = _post_measures_via_requests(page.context, measures, start=start, end=end)
+    if http_resp.get("ok"):
+        return http_resp
+    msgs = [str(http_resp.get("message") or "")]
+
+    # 1) Playwright APIRequestContext
     try:
         api_resp = page.context.request.post(
             ANALYTICS_MEASURES_URL,
@@ -441,21 +589,21 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
         status = api_resp.status
         text = api_resp.text()
         body = _parse_measures_text(text)
+        ctype = (api_resp.headers.get("content-type") or "")[:60]
         if status == 200 and isinstance(body, dict) and not str(text).lstrip().startswith("<!"):
             return {
                 "ok": True,
                 "status": status,
-                "message": f"ok · request · results={len(body.get('results') or [])}",
+                "message": f"ok · request · ctype={ctype} · results={len(body.get('results') or [])}",
                 "body": body,
             }
-        preview = (text or "")[:200].replace("\n", " ")
-        req_msg = f"request HTTP {status} · preview={preview}"
+        msgs.append(f"request HTTP {status} · ctype={ctype} · preview={(text or '')[:120].replace(chr(10), ' ')}")
     except Exception as exc:  # noqa: BLE001
-        req_msg = f"request exc: {exc}"
+        msgs.append(f"request exc: {exc}")
         status = 0
         body = None
 
-    # 2) page.fetch (SW unregister sonrası)
+    # 2) page.fetch
     _unregister_service_workers(page)
     result = page.evaluate(
         """async ({url, payload, referer}) => {
@@ -464,7 +612,7 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
               method: 'POST',
               credentials: 'include',
               headers: {
-                'Accept': 'application/json, text/plain, */*',
+                'Accept': 'application/json',
                 'Content-Type': 'application/json',
                 'X-Requested-By': 'appstoreconnect.apple.com',
                 'Origin': 'https://appstoreconnect.apple.com',
@@ -483,6 +631,7 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
               data,
               parseError,
               preview: text.slice(0, 400),
+              ctype: r.headers.get('content-type') || '',
               resultCount: data && data.results ? data.results.length : null,
             };
           } catch (e) {
@@ -496,77 +645,91 @@ def _post_measures(page, measures: list[str], *, start: date, end: date) -> dict
         body2 = result.get("data")
         if body2 is None:
             body2 = _parse_measures_text(str(result.get("preview") or ""))
-        if status2 == 200 and isinstance(body2, dict):
+        if status2 == 200 and isinstance(body2, dict) and not str(result.get("preview") or "").lstrip().startswith("<!"):
             return {
                 "ok": True,
                 "status": status2,
                 "message": f"ok · fetch · results={result.get('resultCount')}",
                 "body": body2,
             }
+        msgs.append(
+            f"fetch HTTP {status2} · {result.get('parseError') or ''} "
+            f"preview={str(result.get('preview') or '')[:100]}"
+        )
         return {
             "ok": False,
             "status": status2 or status,
-            "message": (
-                f"{req_msg} | fetch: {result.get('parseError') or ''} "
-                f"preview={str(result.get('preview') or '')[:120]}"
-            )[:300],
+            "message": " | ".join(m for m in msgs if m)[:300],
             "body": body2 if isinstance(body2, dict) else body,
         }
-    return {"ok": False, "status": status, "message": req_msg[:300], "body": body}
+    return {
+        "ok": False,
+        "status": status,
+        "message": " | ".join(m for m in msgs if m)[:300],
+        "body": body,
+    }
 
 
-def _capture_measures_via_ui(page, measure_keys: list[str]) -> list[dict[str, Any]]:
-    """UI sayfasına gidip gerçek SPA XHR/POST yanıtlarını yakala."""
-    captured_bodies: list[Any] = []
-
-    def on_response(resp) -> None:
+def _capture_measures_via_ui(
+    page,
+    measure_keys: list[str],
+    *,
+    bag: list[dict[str, Any]],
+    url_log: list[str],
+) -> list[Any]:
+    """UI sayfalarını gez — context bag’e düşen analytics JSON’ları kullan."""
+    before_total = len(bag)
+    for mk in measure_keys:
+        url = _metrics_page_url(mk)
+        before = len(bag)
         try:
-            url = (resp.url or "").lower()
-            if "analytics/api" not in url:
-                return
-            if resp.status != 200:
-                return
-            # body() binary; text JSON olabilir
-            try:
-                txt = resp.text()
-            except Exception:
-                return
-            if not txt or txt.lstrip().startswith("<!"):
-                return
-            data = _parse_measures_text(txt)
-            if data is not None:
-                captured_bodies.append(data)
-                print(f"  captured XHR · {resp.url[:80]}…", flush=True)
-        except Exception:
-            return
-
-    page.on("response", on_response)
-    try:
-        for mk in measure_keys:
-            url = _metrics_page_url(mk)
-            before = len(captured_bodies)
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-            except Exception as exc:
-                print(f"  UI goto fail {mk}: {exc}", flush=True)
-                continue
-            for _ in range(20):
-                time.sleep(0.5)
-                try:
-                    page.wait_for_load_state("networkidle", timeout=2000)
-                except Exception:
-                    pass
-                if len(captured_bodies) > before:
-                    break
-            got = len(captured_bodies) - before
-            print(f"  UI {mk}: +{got} XHR", flush=True)
-            time.sleep(0.8)
-    finally:
+            page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+        except Exception as exc:
+            print(f"  UI goto fail {mk}: {exc}", flush=True)
+            continue
+        _unregister_service_workers(page)
         try:
-            page.remove_listener("response", on_response)
+            page.evaluate(
+                """async () => {
+                  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+                  for (let y = 0; y < 2400; y += 600) {
+                    window.scrollTo(0, y);
+                    await sleep(250);
+                  }
+                  window.scrollTo(0, 0);
+                }"""
+            )
         except Exception:
             pass
-    return captured_bodies
+        for _ in range(24):
+            time.sleep(0.5)
+            try:
+                page.wait_for_load_state("networkidle", timeout=1500)
+            except Exception:
+                pass
+            if len(bag) > before:
+                break
+        got = len(bag) - before
+        print(f"  UI {mk}: +{got} JSON · last_urls={len(url_log)}", flush=True)
+        time.sleep(0.6)
+
+    bodies = [row.get("body") for row in bag[before_total:] if isinstance(row.get("body"), (dict, list))]
+    # debug dump
+    try:
+        dump = {
+            "bag_n": len(bag),
+            "new_bodies": len(bodies),
+            "url_sample": url_log[-60:],
+            "bag_urls": [r.get("url") for r in bag[-30:]],
+        }
+        Path("/tmp/asc_ui_capture.json").write_text(
+            json.dumps(dump, ensure_ascii=False, indent=2, default=str)[:200000],
+            encoding="utf-8",
+        )
+        print("  debug → /tmp/asc_ui_capture.json", flush=True)
+    except Exception:
+        pass
+    return bodies
 
 
 def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
@@ -578,8 +741,11 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
     explorer_facts: list[dict[str, Any]] = []
     pages_meta: dict[str, Any] = {}
     raw_network: list[dict[str, Any]] = []
+    net_bag: list[dict[str, Any]] = []
+    url_log: list[str] = []
 
     try:
+        _attach_network_bag(ctx, net_bag, url_log)
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(
             f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics/metrics",
@@ -587,6 +753,36 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             timeout=120_000,
         )
         time.sleep(3)
+        _unregister_service_workers(page)
+        cookie_info = _cookie_debug(ctx)
+        print(
+            f"ASC cookies · n={cookie_info.get('count')} · "
+            f"myacinfo={cookie_info.get('has_myacinfo')} · "
+            f"itctx={cookie_info.get('has_itctx')} · "
+            f"dqsid={cookie_info.get('has_dqsid')}",
+            flush=True,
+        )
+        if not cookie_info.get("has_myacinfo") and not cookie_info.get("has_itctx"):
+            print(
+                "ASC uyarı: oturum cookie’leri zayıf — --login ile yeniden giriş deneyin",
+                flush=True,
+            )
+        try:
+            warm = page.context.request.get(
+                "https://appstoreconnect.apple.com/analytics/api/v1/settings/all",
+                headers=_analytics_headers(
+                    f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics"
+                ),
+                timeout=30_000,
+            )
+            warm_prev = (warm.text() or "")[:100].replace("\n", " ")
+            print(
+                f"ASC settings/all · HTTP {warm.status} · "
+                f"ctype={(warm.headers.get('content-type') or '')[:40]} · {warm_prev}",
+                flush=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"ASC settings/all fail · {exc}", flush=True)
         url0 = page.url or ""
         title0 = ""
         try:
@@ -607,9 +803,6 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 "raw_network": [],
             }
 
-        _unregister_service_workers(page)
-        time.sleep(0.5)
-
         end_d = date.today() - timedelta(days=1)
         start_d = end_d - timedelta(days=89)
         for batch in MEASURE_BATCHES:
@@ -627,7 +820,7 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
             if not resp.get("ok"):
                 print(
                     f"ASC measures POST fail · {batch} · HTTP {resp.get('status')} · "
-                    f"{str(resp.get('message') or '')[:200]}",
+                    f"{str(resp.get('message') or '')[:220]}",
                     flush=True,
                 )
                 for mk in batch:
@@ -653,7 +846,9 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
         # API HTML/boş dönerse: UI XHR yakala
         if not explorer_facts:
             print("ASC measures API boş/HTML — UI network yakalama…", flush=True)
-            ui_bodies = _capture_measures_via_ui(page, list(MEASURE_MAP.keys()))
+            ui_bodies = _capture_measures_via_ui(
+                page, list(MEASURE_MAP.keys()), bag=net_bag, url_log=url_log
+            )
             for body in ui_bodies:
                 if isinstance(body, dict):
                     facts_batch = _facts_from_measures_response(body)
@@ -664,6 +859,11 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                             _facts_from_payload(body, metric=metric, measure_key=mk)
                         )
                 explorer_facts.extend(facts_batch)
+            # bag’de kalanları da dene
+            for row in net_bag:
+                body = row.get("body")
+                if isinstance(body, dict):
+                    explorer_facts.extend(_facts_from_measures_response(body))
             counts: dict[str, int] = {}
             for f in explorer_facts:
                 mk = str(f.get("view_id") or f.get("metric") or "")
