@@ -4717,7 +4717,9 @@
   if (btn) btn.addEventListener("click", refreshPage);
   window.addEventListener("seo-theme-change", function () {
     if (paOverviewActive && paOverviewBundles) {
-      var chartBundles = paOverviewBundles.filter(function (b) { return b.onChart; });
+      var chartBundles = visibleOverviewBundles(paOverviewBundles).filter(function (b) {
+        return b.onChart;
+      });
       drawOverviewMainChart(chartBundles);
       return;
     }
