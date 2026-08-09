@@ -408,30 +408,32 @@
     <div id="pa-overlay-panel" class="mt-3 hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
       <div class="flex flex-wrap items-end gap-3">
         <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
-          <select id="pa-ov-metric" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"></select>
+          <select id="pa-ov-metric" class="mt-1 block min-w-[12rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"></select>
         </label>
-        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
-          <select id="pa-ov-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
-            <option value="date" selected>Gün</option>
-            <option value="week">Hafta</option>
-            <option value="month">Ay</option>
-            <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
-          </select>
-        </label>
-        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Boyut
-          <select id="pa-ov-dim" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
-            <option value="overview">Genel (tarih)</option>
-            <option value="app_version">Uygulama sürümü</option>
-            <option value="device">Cihaz</option>
-            <option value="country">Ülke</option>
-            <option value="os_version">Android OS</option>
-          </select>
-        </label>
-        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Segment
-          <select id="pa-ov-segment" class="mt-1 block max-w-[10rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
-            <option value="all">Tümü</option>
-          </select>
-        </label>
+        <div id="pa-ov-play-dims" class="flex flex-wrap items-end gap-3">
+          <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
+            <select id="pa-ov-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+              <option value="date" selected>Gün</option>
+              <option value="week">Hafta</option>
+              <option value="month">Ay</option>
+              <option value="segment">Boyut (sürüm/cihaz/ülke)</option>
+            </select>
+          </label>
+          <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Boyut
+            <select id="pa-ov-dim" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+              <option value="overview">Genel (tarih)</option>
+              <option value="app_version">Uygulama sürümü</option>
+              <option value="device">Cihaz</option>
+              <option value="country">Ülke</option>
+              <option value="os_version">Android OS</option>
+            </select>
+          </label>
+          <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Segment
+            <select id="pa-ov-segment" class="mt-1 block max-w-[10rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
+              <option value="all">Tümü</option>
+            </select>
+          </label>
+        </div>
         <button id="pa-ov-run" type="button"
                 class="inline-flex items-center justify-center rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500">
           Ekle
@@ -446,7 +448,7 @@
         </button>
       </div>
       <div id="pa-overlays-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
-      <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Aynı tarih aralığında birden fazla metrik üst üste çizilir. + grafik ile 3, 4, 5… ekleyebilirsiniz.</p>
+      <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Play veya GA4 metriklerini aynı tarih aralığında üst üste ekleyin (sınırsız). GA4 seçilince ölçek kendi maksimumuna göre % olarak hizalanır.</p>
     </div>
 
     <div id="pa-results" class="relative mt-4">
@@ -1071,6 +1073,7 @@
   var paAddChartBtn = document.getElementById("pa-add-chart");
   var paOverlayPanel = document.getElementById("pa-overlay-panel");
   var paOvMetric = document.getElementById("pa-ov-metric");
+  var paOvPlayDims = document.getElementById("pa-ov-play-dims");
   var paOvBreakdown = document.getElementById("pa-ov-breakdown");
   var paOvDim = document.getElementById("pa-ov-dim");
   var paOvSegment = document.getElementById("pa-ov-segment");
@@ -1078,6 +1081,30 @@
   var paOvCancel = document.getElementById("pa-ov-cancel");
   var paOvClear = document.getElementById("pa-ov-clear");
   var paOverlaysChips = document.getElementById("pa-overlays-chips");
+  var PA_GA4_OVERLAY_METRICS = [
+    { value: "ga4:sessions", label: "GA4 · Sessions" },
+    { value: "ga4:users", label: "GA4 · Users" },
+    { value: "ga4:engaged_sessions", label: "GA4 · Engaged sessions" },
+    { value: "ga4:new_users", label: "GA4 · New users" },
+    { value: "ga4:avg_session", label: "GA4 · Avg. session" },
+    { value: "ga4:page_views", label: "GA4 · Page views" }
+  ];
+  function isGa4OverlayMetric(key) {
+    return String(key || "").indexOf("ga4:") === 0;
+  }
+  function ga4OverlayLabel(key) {
+    for (var i = 0; i < PA_GA4_OVERLAY_METRICS.length; i++) {
+      if (PA_GA4_OVERLAY_METRICS[i].value === key) return PA_GA4_OVERLAY_METRICS[i].label;
+    }
+    return key;
+  }
+  function syncOverlayPanelForMetric() {
+    var ga4 = !!(paOvMetric && isGa4OverlayMetric(paOvMetric.value));
+    if (paOvPlayDims) {
+      if (ga4) paOvPlayDims.classList.add("hidden");
+      else paOvPlayDims.classList.remove("hidden");
+    }
+  }
   var paLegendPrimaryLabel = document.getElementById("pa-legend-primary-label");
   var paLegendOverlay = document.getElementById("pa-legend-overlay");
   var paLegendOverlayLabel = document.getElementById("pa-legend-overlay-label");
@@ -1564,6 +1591,8 @@
   }
   function metricIsCountLike(metricKey) {
     var m = metricKey || (paMetric && paMetric.value) || "";
+    if (m === "ga4:avg_session") return false;
+    if (isGa4OverlayMetric(m)) return true;
     return m === "anrs" || m === "crashes" || m === "user_lost"
       || m === "ar2_acquisitions" || m === "ar2_visitors";
   }
@@ -1695,6 +1724,7 @@
   }
 
   function metricOptionLabel(value) {
+    if (isGa4OverlayMetric(value)) return ga4OverlayLabel(value);
     if (!paMetric) return value;
     var opt = paMetric.querySelector('option[value="' + value + '"]');
     return opt ? String(opt.textContent || value).trim() : value;
@@ -1713,15 +1743,33 @@
     paOverlays.forEach(function (ov) {
       if (ov && ov.metric) used[ov.metric] = true;
     });
+    var prev = paOvMetric.value || "";
     paOvMetric.innerHTML = "";
+    var ogPlay = document.createElement("optgroup");
+    ogPlay.label = "Play Console";
     Array.prototype.forEach.call(paMetric.options, function (opt) {
       if (!opt.value || opt.value === cur || used[opt.value]) return;
       var o = document.createElement("option");
       o.value = opt.value;
       o.textContent = opt.textContent;
-      paOvMetric.appendChild(o);
+      ogPlay.appendChild(o);
     });
-    if (paOvRun) paOvRun.disabled = !paOvMetric.options.length;
+    if (ogPlay.children.length) paOvMetric.appendChild(ogPlay);
+    var ogGa4 = document.createElement("optgroup");
+    ogGa4.label = "GA4 (Android)";
+    PA_GA4_OVERLAY_METRICS.forEach(function (m) {
+      if (used[m.value]) return;
+      var o = document.createElement("option");
+      o.value = m.value;
+      o.textContent = m.label;
+      ogGa4.appendChild(o);
+    });
+    if (ogGa4.children.length) paOvMetric.appendChild(ogGa4);
+    if (prev && paOvMetric.querySelector('option[value="' + prev + '"]')) {
+      paOvMetric.value = prev;
+    }
+    if (paOvRun) paOvRun.disabled = !paOvMetric.querySelector("option");
+    syncOverlayPanelForMetric();
   }
 
   function openOverlayPanel() {
@@ -1735,6 +1783,7 @@
     }
     paOverlayPanel.classList.remove("hidden");
     renderOverlayChips();
+    syncOverlayPanelForMetric();
     if (paOvClear) {
       if (hasPaOverlays()) paOvClear.classList.remove("hidden");
       else paOvClear.classList.add("hidden");
@@ -1979,9 +2028,10 @@
       var ovSeriesTip = paChartState.overlaySeries || [];
       ovSeriesTip.forEach(function (os) {
         var ovVal = os.vals && os.vals[idx] != null ? os.vals[idx] : null;
+        var asInt = os.countLike != null ? !!os.countLike : metricIsCountLike(os.metric);
         tipRows.push(tipMetricRow(
           shortMetricLabel(os.label, os.metric),
-          ovVal == null ? "—" : fmtNum(ovVal, metricIsCountLike(os.metric)),
+          ovVal == null ? "—" : fmtNum(ovVal, asInt),
           "text-slate-600 dark:text-zinc-300",
           os.color || PA_OVERLAY_COLOR
         ));
@@ -2210,43 +2260,93 @@
       var vals = aligned.map(function (r) { return r.value; });
       var color = ov.color || paOverlayColor(oi);
       ov.color = color;
+      var omax = 0;
+      vals.forEach(function (v) {
+        if (v != null && v > omax) omax = v;
+      });
+      if (omax <= 0) omax = 1;
       return {
         metric: ov.metric,
         label: ov.label,
         color: color,
+        source: ov.source || (isGa4OverlayMetric(ov.metric) ? "ga4" : "play"),
         vals: vals,
-        aligned: aligned
+        aligned: aligned,
+        max: omax,
+        countLike: metricIsCountLike(ov.metric)
       };
     });
     renderOverlayLegend();
 
     var vals = rows.map(function (r) { return r.value; });
     var pvals = rows.map(function (r) { return r.prevValue == null ? null : r.prevValue; });
-    var all = vals.slice();
-    pvals.forEach(function (v) { if (v != null) all.push(v); });
-    overlaySeriesState.forEach(function (os) {
-      os.vals.forEach(function (v) { if (v != null) all.push(v); });
+    var primaryMax = 0;
+    vals.forEach(function (v) { if (v != null && v > primaryMax) primaryMax = v; });
+    if (primaryMax <= 0) primaryMax = 1;
+    var hasGa4Ov = overlaySeriesState.some(function (os) {
+      return os.source === "ga4" || isGa4OverlayMetric(os.metric);
     });
-    var rawMax = Math.max.apply(null, all.concat([0]));
-    var max = niceMax(rawMax);
-    var min = 0;
-    var span = Math.max(max - min, 1e-9);
+    var sharedMaxCandidate = primaryMax;
+    overlaySeriesState.forEach(function (os) {
+      if (os.max > sharedMaxCandidate) sharedMaxCandidate = os.max;
+    });
+    var scaleRatio = sharedMaxCandidate / Math.max(primaryMax, 1e-9);
+    // GA4 veya ölçek uçurumu → her seri kendi max’ına göre % ölçek
+    var useNorm = hasGa4Ov || (overlaySeriesState.length > 0 && scaleRatio >= 8);
     var n = rows.length;
-    var curPts = rows.map(function (r, i) {
-      return chartXY(i, r.value, n, min, span, left, top, plotW, plotH);
-    });
-    var prevPts = rows.map(function (r, i) {
-      if (r.prevValue == null || r.prevMissing) return null;
-      return chartXY(i, r.prevValue, n, min, span, left, top, plotW, plotH);
-    });
-    overlaySeriesState.forEach(function (os) {
-      os.pts = os.aligned.map(function (r, i) {
-        if (r.value == null) return null;
+    var curPts;
+    var prevPts;
+    var max;
+    var min = 0;
+    var span;
+    if (useNorm) {
+      max = 100;
+      span = 100;
+      curPts = rows.map(function (r, i) {
+        return chartXY(i, (Number(r.value) || 0) / primaryMax * 100, n, min, span, left, top, plotW, plotH);
+      });
+      prevPts = rows.map(function (r, i) {
+        if (r.prevValue == null || r.prevMissing) return null;
+        return chartXY(i, Number(r.prevValue) / primaryMax * 100, n, min, span, left, top, plotW, plotH);
+      });
+      overlaySeriesState.forEach(function (os) {
+        os.pts = os.aligned.map(function (r, i) {
+          if (r.value == null) return null;
+          return chartXY(i, Number(r.value) / os.max * 100, n, min, span, left, top, plotW, plotH);
+        });
+      });
+      if (paCompareRange) {
+        var note = "Ölçek: kendi maks. % (GA4 / farklı birim)";
+        var curNote = String(paCompareRange.textContent || "");
+        if (curNote.indexOf("kendi maks") < 0) {
+          paCompareRange.textContent = curNote ? (curNote + " · " + note) : note;
+        }
+      }
+    } else {
+      var all = vals.slice();
+      pvals.forEach(function (v) { if (v != null) all.push(v); });
+      overlaySeriesState.forEach(function (os) {
+        os.vals.forEach(function (v) { if (v != null) all.push(v); });
+      });
+      var rawMax = Math.max.apply(null, all.concat([0]));
+      max = niceMax(rawMax);
+      span = Math.max(max - min, 1e-9);
+      curPts = rows.map(function (r, i) {
         return chartXY(i, r.value, n, min, span, left, top, plotW, plotH);
       });
-    });
+      prevPts = rows.map(function (r, i) {
+        if (r.prevValue == null || r.prevMissing) return null;
+        return chartXY(i, r.prevValue, n, min, span, left, top, plotW, plotH);
+      });
+      overlaySeriesState.forEach(function (os) {
+        os.pts = os.aligned.map(function (r, i) {
+          if (r.value == null) return null;
+          return chartXY(i, r.value, n, min, span, left, top, plotW, plotH);
+        });
+      });
+    }
     paChartState = {
-      mode: "line",
+      mode: useNorm ? "line_norm" : "line",
       rows: rows,
       curPts: curPts,
       prevPts: prevPts,
@@ -2263,19 +2363,20 @@
     for (var t = 0; t <= ticks; t++) {
       var tv = max * (1 - t / ticks);
       var ty = top + (t / ticks) * plotH;
+      var yLab = useNorm ? (Math.round(tv) + "%") : esc(fmtNum(tv));
       grid +=
         '<line class="pa-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
         '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
         '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
-        esc(fmtNum(tv)) + "</text>";
+        yLab + "</text>";
     }
 
     var hasOv = overlaySeriesState.length > 0;
     var prevLinePts = prevPts.filter(Boolean);
-    var areaD = !hasOv ? buildAreaPath(curPts) : "";
+    var areaD = !hasOv && !useNorm ? buildAreaPath(curPts) : "";
     var lineD = buildLinePath(curPts);
-    var prevD = !hasOv ? buildLinePath(prevLinePts) : "";
+    var prevD = !hasOv && !useNorm ? buildLinePath(prevLinePts) : "";
     var ovPathsHtml = overlaySeriesState.map(function (os) {
       var d = buildLinePath((os.pts || []).filter(Boolean));
       if (!d) return "";
@@ -2641,41 +2742,71 @@
     setPaLoading(true);
     try {
       var metricKey = paOvMetric.value;
-      var qs = new URLSearchParams({
-        start: paStart.value,
-        end: paEnd.value,
-        metric: metricKey,
-        breakdown: (paOvBreakdown && paOvBreakdown.value) || "date",
-        dim: (paOvDim && paOvDim.value) || "overview",
-        compare: ""
-      });
-      if (paOvSegment && paOvSegment.value && paOvSegment.value !== "all") {
-        qs.set("segment", paOvSegment.value);
+      var data = {};
+      var next;
+      if (isGa4OverlayMetric(metricKey)) {
+        var gqs = new URLSearchParams({
+          start: paStart.value,
+          end: paEnd.value,
+          metric: metricKey,
+          project: "doviz",
+          profile: "android"
+        });
+        var gr = await fetch("/api/play-analytics/ga4-series?" + gqs.toString(), {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+        data = await gr.json().catch(function () { return {}; });
+        if (!gr.ok) throw new Error(data.detail || data.message || ("HTTP " + gr.status));
+        if (!data.ok) throw new Error(data.message || "GA4 serisi yok");
+        next = {
+          metric: metricKey,
+          label: data.label || metricOptionLabel(metricKey),
+          series: data.series || [],
+          breakdown: "date",
+          dim: "overview",
+          segment: "all",
+          source: "ga4",
+          color: null
+        };
+      } else {
+        var qs = new URLSearchParams({
+          start: paStart.value,
+          end: paEnd.value,
+          metric: metricKey,
+          breakdown: (paOvBreakdown && paOvBreakdown.value) || "date",
+          dim: (paOvDim && paOvDim.value) || "overview",
+          compare: ""
+        });
+        if (paOvSegment && paOvSegment.value && paOvSegment.value !== "all") {
+          qs.set("segment", paOvSegment.value);
+        }
+        var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+        data = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+        if (data.facets && data.facets.segments && paOvSegment) {
+          var curSeg = paOvSegment.value || "all";
+          paOvSegment.innerHTML = '<option value="all">Tümü</option>' +
+            (data.facets.segments || []).filter(Boolean).map(function (s) {
+              return '<option value="' + esc(s) + '">' + esc(s) + "</option>";
+            }).join("");
+          paOvSegment.value = curSeg;
+          if (paOvSegment.value !== curSeg) paOvSegment.value = "all";
+        }
+        next = {
+          metric: metricKey,
+          label: metricOptionLabel(metricKey),
+          series: data.series || [],
+          breakdown: (paOvBreakdown && paOvBreakdown.value) || "date",
+          dim: (paOvDim && paOvDim.value) || "overview",
+          segment: (paOvSegment && paOvSegment.value) || "all",
+          source: "play",
+          color: null
+        };
       }
-      var r = await fetch("/api/play-analytics/query?" + qs.toString(), {
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-      var data = await r.json().catch(function () { return {}; });
-      if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
-      if (data.facets && data.facets.segments && paOvSegment) {
-        var curSeg = paOvSegment.value || "all";
-        paOvSegment.innerHTML = '<option value="all">Tümü</option>' +
-          (data.facets.segments || []).filter(Boolean).map(function (s) {
-            return '<option value="' + esc(s) + '">' + esc(s) + "</option>";
-          }).join("");
-        paOvSegment.value = curSeg;
-        if (paOvSegment.value !== curSeg) paOvSegment.value = "all";
-      }
-      var next = {
-        metric: metricKey,
-        label: metricOptionLabel(metricKey),
-        series: data.series || [],
-        breakdown: (paOvBreakdown && paOvBreakdown.value) || "date",
-        dim: (paOvDim && paOvDim.value) || "overview",
-        segment: (paOvSegment && paOvSegment.value) || "all",
-        color: null
-      };
       var existing = -1;
       paOverlays.forEach(function (ov, i) {
         if (ov.metric === metricKey) existing = i;
@@ -2727,6 +2858,7 @@
     });
   }
   if (paOvRun) paOvRun.addEventListener("click", runOverlayAnalytics);
+  if (paOvMetric) paOvMetric.addEventListener("change", syncOverlayPanelForMetric);
   function syncOvDimBreakdown() {
     if (!paOvDim || !paOvBreakdown) return;
     var dim = paOvDim.value || "overview";

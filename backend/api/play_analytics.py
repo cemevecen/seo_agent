@@ -7,10 +7,13 @@ yoksa GCS installs CSV warehouse.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
+from backend.database import get_db
 from backend.services.play_analytics_warehouse import play_analytics_status, query_play_analytics
 from backend.services.play_scrape_warehouse import (
     enrich_rating_series_review_splits,
@@ -21,6 +24,16 @@ from backend.services.play_scrape_warehouse import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["play-analytics"])
+
+# Android +grafik → GA4 sekmesi KPI’ları (snapshot daily_trend anahtarları)
+_GA4_OVERLAY_METRICS: dict[str, tuple[str, str]] = {
+    "sessions": ("sessions", "Sessions"),
+    "users": ("activeUsers", "Users"),
+    "engaged_sessions": ("engagedSessions", "Engaged sessions"),
+    "new_users": ("newUsers", "New users"),
+    "avg_session": ("averageSessionDuration", "Avg. session"),
+    "page_views": ("screenPageViews", "Page views"),
+}
 
 # Bu metrikler scrape kataloğundan gelir (GCS installs değil)
 _SCRAPE_FIRST = {
@@ -186,3 +199,210 @@ def get_play_analytics_query(
             return {"ok": False, "message": str(exc), "series": [], "total": 0}
 
     return scrape_res or {"ok": False, "message": "veri yok", "series": [], "total": 0}
+
+
+def _resolve_doviz_site(db: Session, project: str = "doviz"):
+    from sqlalchemy import case
+
+    from backend.models import Site
+
+    pid = (project or "doviz").strip().lower()
+    if pid == "sinemalar":
+        domain_like = "%sinemalar.com%"
+        www_rank = case((Site.domain.ilike("www.sinemalar.com%"), 0), else_=1)
+    else:
+        domain_like = "%doviz.com%"
+        www_rank = case((Site.domain.ilike("www.doviz.com%"), 0), else_=1)
+    return (
+        db.query(Site)
+        .filter(Site.is_active.is_(True))
+        .filter(Site.domain.ilike(domain_like))
+        .order_by(www_rank, Site.id.asc())
+        .first()
+    )
+
+
+def _ga4_daily_trend_payload(db: Session, *, site_id: int, profile: str) -> dict[str, Any] | None:
+    from backend.config import settings
+    from backend.services.warehouse import get_latest_ga4_report_snapshot
+
+    try:
+        pd12 = int(settings.ga4_trend_12m_period_days)
+    except Exception:  # noqa: BLE001
+        pd12 = 365
+    for period_days in (pd12, 90, 60, 30, 7):
+        snap = get_latest_ga4_report_snapshot(
+            db, site_id=site_id, profile=profile, period_days=period_days
+        )
+        if not snap:
+            continue
+        payload = snap.get("payload") if isinstance(snap.get("payload"), dict) else {}
+        dt = payload.get("daily_trend") if isinstance(payload.get("daily_trend"), dict) else {}
+        dates = dt.get("dates") or []
+        if not dates:
+            continue
+        return {
+            "profile": profile,
+            "period_days": period_days,
+            "collected_at": snap.get("collected_at"),
+            "last_start": snap.get("last_start"),
+            "last_end": snap.get("last_end"),
+            "daily_trend": dt,
+        }
+    return None
+
+
+def _slice_ga4_series(
+    daily_trend: dict[str, Any],
+    *,
+    array_key: str,
+    start: str | None,
+    end: str | None,
+) -> list[dict[str, Any]]:
+    dates = list(daily_trend.get("dates") or [])
+    raw_vals = list(daily_trend.get(array_key) or [])
+    # users fallback
+    if array_key == "activeUsers" and not any(v is not None for v in raw_vals):
+        raw_vals = list(daily_trend.get("totalUsers") or [])
+    start_s = (start or "")[:10]
+    end_s = (end or "")[:10]
+    if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", start_s):
+        start_s = ""
+    if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", end_s):
+        end_s = ""
+    out: list[dict[str, Any]] = []
+    for i, ds in enumerate(dates):
+        key = str(ds or "")[:10]
+        if not re.fullmatch(r"20\d{2}-\d{2}-\d{2}", key):
+            continue
+        if start_s and key < start_s:
+            continue
+        if end_s and key > end_s:
+            continue
+        v = raw_vals[i] if i < len(raw_vals) else None
+        try:
+            num = float(v) if v is not None and v != "" else None
+        except (TypeError, ValueError):
+            num = None
+        if num is not None and not (num == num):  # NaN
+            num = None
+        out.append({"key": key, "value": num})
+    out.sort(key=lambda r: str(r.get("key") or ""))
+    return out
+
+
+@router.get("/play-analytics/ga4-metrics")
+def list_play_ga4_overlay_metrics() -> dict[str, Any]:
+    """+grafik panelinde listelenecek GA4 metrikleri."""
+    return {
+        "ok": True,
+        "metrics": [
+            {"value": f"ga4:{key}", "label": label, "array_key": arr}
+            for key, (arr, label) in _GA4_OVERLAY_METRICS.items()
+        ],
+    }
+
+
+@router.get("/play-analytics/ga4-series")
+def get_play_ga4_overlay_series(
+    db: Session = Depends(get_db),
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    metric: str = Query(default="sessions"),
+    project: str = Query(default="doviz"),
+    profile: str = Query(default="android"),
+) -> dict[str, Any]:
+    """GA4 Android (veya seçili profil) günlük serisini Play Metrikler overlay formatında döner."""
+    raw = (metric or "sessions").strip().lower()
+    if raw.startswith("ga4:"):
+        raw = raw[4:]
+    meta = _GA4_OVERLAY_METRICS.get(raw)
+    if not meta:
+        return {
+            "ok": False,
+            "source": "ga4",
+            "message": f"Bilinmeyen GA4 metrik: {metric}",
+            "series": [],
+            "metric": f"ga4:{raw}",
+            "facets": {
+                "metrics": [f"ga4:{k}" for k in _GA4_OVERLAY_METRICS],
+            },
+        }
+    array_key, label = meta
+    prof = (profile or "android").strip().lower()
+    if prof not in ("android", "ios", "web", "mweb"):
+        prof = "android"
+
+    site = _resolve_doviz_site(db, project)
+    if site is None:
+        return {
+            "ok": False,
+            "source": "ga4",
+            "message": "GA4 sitesi bulunamadı (doviz.com)",
+            "series": [],
+            "metric": f"ga4:{raw}",
+            "label": label,
+        }
+
+    pack = _ga4_daily_trend_payload(db, site_id=int(site.id), profile=prof)
+    if not pack and prof == "android":
+        pack = _ga4_daily_trend_payload(db, site_id=int(site.id), profile="ios")
+        if pack:
+            prof = "ios"
+    if not pack:
+        return {
+            "ok": False,
+            "source": "ga4",
+            "message": (
+                f"GA4 `{prof}` daily_trend yok — /ga4 sekmesinde Android için sync gerekir."
+            ),
+            "series": [],
+            "metric": f"ga4:{raw}",
+            "label": label,
+            "site_id": site.id,
+            "profile": prof,
+        }
+
+    series = _slice_ga4_series(
+        pack["daily_trend"],
+        array_key=array_key,
+        start=start,
+        end=end,
+    )
+    vals = [float(r["value"]) for r in series if r.get("value") is not None]
+    total = round(sum(vals), 4) if vals else 0.0
+    total_mode = "sum"
+    if raw in ("avg_session",):
+        total = round(sum(vals) / len(vals), 4) if vals else 0.0
+        total_mode = "avg"
+
+    start_s = (start or "")[:10] or (series[0]["key"] if series else None)
+    end_s = (end or "")[:10] or (series[-1]["key"] if series else None)
+    return {
+        "ok": bool(series) and bool(vals),
+        "source": "ga4",
+        "configured": True,
+        "message": (
+            f"GA4 · {label} · profile={prof} · period_days={pack.get('period_days')} · "
+            f"{len(series)} gün"
+        ),
+        "start": start_s,
+        "end": end_s,
+        "metric": f"ga4:{raw}",
+        "label": f"GA4 · {label}",
+        "breakdown": "date",
+        "dim": "overview",
+        "segment": "all",
+        "total": total,
+        "total_mode": total_mode,
+        "series": series,
+        "compare": None,
+        "site_id": site.id,
+        "domain": site.domain,
+        "profile": prof,
+        "collected_at": pack.get("collected_at"),
+        "facets": {
+            "metrics": [f"ga4:{k}" for k in _GA4_OVERLAY_METRICS],
+        },
+        "row_count": len(series),
+    }
