@@ -527,7 +527,8 @@
 
     <div id="pa-overlay-panel" class="mt-3 hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
       <div class="flex flex-wrap items-end gap-3">
-        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
+        <div class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">
+          <span class="block">Metrik</span>
           <div class="pa-ov-dd relative mt-1 min-w-[12rem] max-w-[18rem]">
             <button type="button" id="pa-ov-metric-trigger"
                     class="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-left text-xs text-slate-800 shadow-sm dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
@@ -536,9 +537,9 @@
               <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
             </button>
             <div id="pa-ov-metric-list" role="listbox" aria-multiselectable="true"
-                 class="absolute left-0 z-40 mt-1 hidden max-h-64 w-[min(22rem,calc(100vw-2rem))] min-w-full overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
+                 class="fixed z-[80] hidden max-h-64 overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
           </div>
-        </label>
+        </div>
         <div id="pa-ov-play-dims" class="flex flex-wrap items-end gap-3">
           <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
             <select id="pa-ov-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
@@ -2575,9 +2576,28 @@
     }
     paOvMetricLabel.textContent = keys.length + " metrik seçili";
   }
+  function positionPaOvDropdown() {
+    if (!paOvMetricList || !paOvMetricTrigger) return;
+    var r = paOvMetricTrigger.getBoundingClientRect();
+    var maxW = Math.min(352, window.innerWidth - 16);
+    var w = Math.max(r.width, Math.min(maxW, 288));
+    var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    var spaceBelow = window.innerHeight - r.bottom - 12;
+    var spaceAbove = r.top - 12;
+    var maxH = Math.min(256, Math.max(spaceBelow, spaceAbove, 120));
+    var top = r.bottom + 4;
+    if (spaceBelow < 140 && spaceAbove > spaceBelow) {
+      top = Math.max(8, r.top - maxH - 4);
+    }
+    paOvMetricList.style.left = left + "px";
+    paOvMetricList.style.top = top + "px";
+    paOvMetricList.style.width = w + "px";
+    paOvMetricList.style.maxHeight = maxH + "px";
+  }
   function setPaOvDropdownOpen(on) {
     if (!paOvMetricList || !paOvMetricTrigger) return;
     if (on) {
+      positionPaOvDropdown();
       paOvMetricList.classList.remove("hidden");
       paOvMetricTrigger.setAttribute("aria-expanded", "true");
     } else {
@@ -2612,6 +2632,7 @@
     }
     paOvMetricList.innerHTML = html;
     paOvMetricList.scrollTop = scrollY;
+    if (!paOvMetricList.classList.contains("hidden")) positionPaOvDropdown();
     updatePaOvMetricTrigger();
     updatePaOvRunState();
     syncOverlayPanelForMetric();
@@ -3880,6 +3901,12 @@
     var root = ev.target && ev.target.closest ? ev.target.closest(".pa-ov-dd") : null;
     if (!root) setPaOvDropdownOpen(false);
   });
+  window.addEventListener("resize", function () {
+    if (paOvMetricList && !paOvMetricList.classList.contains("hidden")) positionPaOvDropdown();
+  });
+  document.addEventListener("scroll", function () {
+    if (paOvMetricList && !paOvMetricList.classList.contains("hidden")) setPaOvDropdownOpen(false);
+  }, true);
   function syncOvDimBreakdown() {
     if (!paOvDim || !paOvBreakdown) return;
     var dim = paOvDim.value || "overview";
