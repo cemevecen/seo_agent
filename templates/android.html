@@ -3916,17 +3916,39 @@
     paBusy = true;
     setPaLoading(true);
     try {
+      var softNotes = [];
       var fetched = [];
       if (toFetch.length) {
         fetched = await Promise.all(toFetch.map(function (metricKey) {
+          var src = isVirgulOverlayMetric(metricKey)
+            ? "virgul"
+            : (isGa4OverlayMetric(metricKey) ? "ga4" : "play");
           return fetchOneOverlaySeries({
             metric: metricKey,
             label: metricOptionLabel(metricKey) || metricKey,
-            source: isVirgulOverlayMetric(metricKey)
-              ? "virgul"
-              : (isGa4OverlayMetric(metricKey) ? "ga4" : "play"),
+            source: src,
             color: null,
             series: []
+          }).then(function (pack) {
+            if (!(pack.series || []).length) {
+              softNotes.push((pack.label || metricKey) + " (0 nokta)");
+            }
+            return pack;
+          }).catch(function (err) {
+            softNotes.push((metricOptionLabel(metricKey) || metricKey) + " atlandı");
+            console.warn("overlay", metricKey, err);
+            return {
+              metric: metricKey,
+              label: metricOptionLabel(metricKey) || metricKey,
+              series: [],
+              prevSeries: [],
+              compareMeta: null,
+              breakdown: (paBreakdown && paBreakdown.value) || "date",
+              dim: "overview",
+              segment: "all",
+              source: src,
+              color: null
+            };
           });
         }));
       }
@@ -3936,8 +3958,16 @@
       syncPaOvPendingFromOverlays();
       fillOverlayMetricOptions();
       openOverlayPanel();
+      var note = document.getElementById("pa-ov-note");
+      if (softNotes.length && note) {
+        note.textContent = "Ek: " + softNotes.slice(0, 3).join(" · ") +
+          (softNotes.length > 3 ? (" · +" + (softNotes.length - 3)) : "") +
+          " — boş seriler chip olarak kaldı; tarih aralığını genişletebilirsiniz.";
+      }
     } catch (err) {
-      alert((err && err.message) || "Ek grafik yüklenemedi");
+      console.warn("overlay batch", err);
+      var noteErr = document.getElementById("pa-ov-note");
+      if (noteErr) noteErr.textContent = (err && err.message) || "Ek grafik yüklenemedi";
     } finally {
       paBusy = false;
       setPaLoading(false);

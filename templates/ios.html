@@ -784,12 +784,18 @@
     });
     var data = await r.json().catch(function () { return {}; });
     if (!r.ok) throw new Error(data.message || ("HTTP " + r.status));
-    if (data.ok === false && data.message) throw new Error(data.message);
+    // Boş seri (0 nokta) hata değil — overlay / çoklu ekleme devam etsin
+    if (data.configured === false) {
+      throw new Error(data.message || "ASC yapılandırılmamış");
+    }
+    if (data.ok === false && !Array.isArray(data.series)) {
+      throw new Error(data.message || "ASC serisi yok");
+    }
     applyIaFacets(data.facets || {});
     return {
       metric: metricKey,
       label: data.label || metricLabel(metricKey),
-      series: data.series || [],
+      series: Array.isArray(data.series) ? data.series : [],
       total: data.total,
       total_mode: data.total_mode || "sum",
       message: data.message || "",
@@ -1510,6 +1516,7 @@
     iaBusy = true;
     setLoading(true);
     try {
+      var softNotes = [];
       var fetched = [];
       if (toFetch.length) {
         fetched = await Promise.all(toFetch.map(function (metricKey) {
@@ -1517,6 +1524,23 @@
             metric: metricKey,
             label: metricLabel(metricKey) || metricKey,
             series: []
+          }).then(function (pack) {
+            if (!(pack.series || []).length) {
+              softNotes.push((pack.label || metricKey) + " (0 nokta)");
+            }
+            return pack;
+          }).catch(function (err) {
+            softNotes.push((metricLabel(metricKey) || metricKey) + " atlandı");
+            console.warn("overlay", metricKey, err);
+            return {
+              metric: metricKey,
+              label: metricLabel(metricKey) || metricKey,
+              series: [],
+              source: isVirgulMetric(metricKey)
+                ? "virgul"
+                : (isGa4Metric(metricKey) ? "ga4" : "asc"),
+              color: null
+            };
           });
         }));
       }
@@ -1526,8 +1550,15 @@
       fillOverlayMetricOptions();
       renderOverlayChips();
       openOverlayPanel();
+      if (softNotes.length && iaStatus) {
+        iaStatus.textContent = "Ek metrik: " + softNotes.slice(0, 3).join(" · ") +
+          (softNotes.length > 3 ? (" · +" + (softNotes.length - 3)) : "");
+      }
     } catch (err) {
-      alert((err && err.message) || "Ek grafik yüklenemedi");
+      console.warn("overlay batch", err);
+      if (iaStatus) {
+        iaStatus.textContent = (err && err.message) || "Ek grafik yüklenemedi";
+      }
     } finally {
       iaBusy = false;
       setLoading(false);

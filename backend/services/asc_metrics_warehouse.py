@@ -517,7 +517,7 @@ def query_asc_metric(
             if isinstance(s, dict) and s.get("key")
         ]
         return {
-            "ok": bool(series),
+            "ok": True,
             "configured": True,
             "source": "asc_sales_dim",
             "app_id": DEFAULT_APP_ID,
@@ -540,6 +540,7 @@ def query_asc_metric(
             ),
             "warnings": [],
             "facets": _asc_facets(metric_key, segments=segs),
+            "empty": not bool(series),
         }
 
     # Compare için önceki dönemi de kapsayan aralık yükle
@@ -598,7 +599,7 @@ def query_asc_metric(
 
     label = _METRIC_META[metric_key][2]
     return {
-        "ok": bool(series),
+        "ok": True,
         "configured": True,
         "source": source,
         "app_id": DEFAULT_APP_ID,
@@ -620,6 +621,7 @@ def query_asc_metric(
         ),
         "warnings": warnings,
         "facets": _asc_facets(metric_key),
+        "empty": not bool(series),
     }
 
 
