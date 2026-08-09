@@ -2366,7 +2366,9 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
             snap = {}
         rs = snap.get("rating_summary") if isinstance(snap.get("rating_summary"), dict) else {}
         raw_score = rs.get("default_rating")
-        if raw_score not in (None, "", "—"):
+        users_raw = rs.get("users")
+        users_ok = users_raw not in (None, "", "—")
+        if users_ok and raw_score not in (None, "", "—"):
             score = float(str(raw_score).replace(",", "."))
             for win in intel["windows"].values():
                 if isinstance(win, dict) and isinstance(win.get("android"), dict):
