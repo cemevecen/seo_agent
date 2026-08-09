@@ -38,7 +38,14 @@ def _free_from_rate_pct(rate_pct: float | None) -> float | None:
 def _fmt_free(pct: float | None, *, digits: int = 2) -> str | None:
     if pct is None:
         return None
-    return f"{pct:.{digits}f}".replace(".", ",") + "%"
+    try:
+        v = float(pct)
+    except (TypeError, ValueError):
+        return None
+    # 99.995+ için 4 hane — aksi halde 100,00% yanıltır
+    if v >= 99.995:
+        return f"{v:.4f}".replace(".", ",") + "%"
+    return f"{v:.{digits}f}".replace(".", ",") + "%"
 
 
 def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, Any]:
