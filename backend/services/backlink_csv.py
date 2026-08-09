@@ -32,21 +32,36 @@ from backend.services.ga4_page_urls import ga4_site_host
 LOGGER = logging.getLogger(__name__)
 
 REPORT_TYPES = (
+    "external",
+    "domain",
+    "anchor_text",
+    "internal",
+    # legacy
     "latest_links",
     "top_target_pages",
+    "top_target_pages_internal",
+    "more_sample",
+    "top_linking_sites",
 )
 
 REPORT_TYPE_LABELS: dict[str, str] = {
+    "external": "External (top linked pages)",
+    "domain": "Linking sites",
+    "anchor_text": "Anchor text",
+    "internal": "Internal links",
     "latest_links": "Latest links",
     "top_target_pages": "Top external links",
-    # Eski importlar (UI sekmesi kaldırıldı)
     "more_sample": "More sample links",
     "top_linking_sites": "Top linking sites",
     "top_target_pages_internal": "Top internal links",
 }
 
 GSC_TARGET_AGG_ANCHOR_PREFIX = "gsc_agg:"
-_GSC_TARGET_AGG_REPORT_TYPES = frozenset({"top_target_pages", "top_target_pages_internal"})
+_GSC_TARGET_AGG_REPORT_TYPES = frozenset(
+    {"top_target_pages", "top_target_pages_internal", "external", "internal"}
+)
+_GSC_DOMAIN_AGG_REPORT_TYPES = frozenset({"domain", "top_linking_sites"})
+_GSC_ANCHOR_REPORT_TYPES = frozenset({"anchor_text"})
 # Dashboard JSON + UI: sınırsız domain listesi tarayıcıyı kilitleyebilir.
 _DASHBOARD_DOMAINS_PAYLOAD_CAP = 3500
 _DIFF_DOMAINS_PAYLOAD_CAP = 800
@@ -825,19 +840,19 @@ def _load_latest_gsc_target_page_stats(
     site_id: int,
     report_type: str,
     site_domain: str,
+    gsc_resource_id: str = "",
 ) -> dict[str, dict[str, Any]]:
     """Son GSC hedef sayfa importu: canonical key → {display, incoming, linking_sites}."""
     if report_type not in _GSC_TARGET_AGG_REPORT_TYPES:
         return {}
-    latest = (
-        db.query(BacklinkImport.id)
-        .filter(
-            BacklinkImport.site_id == site_id,
-            BacklinkImport.report_type == report_type,
-        )
-        .order_by(BacklinkImport.created_at.desc())
-        .first()
+    q = db.query(BacklinkImport.id).filter(
+        BacklinkImport.site_id == site_id,
+        BacklinkImport.report_type == report_type,
     )
+    rid = (gsc_resource_id or "").strip()
+    if rid:
+        q = q.filter(BacklinkImport.gsc_resource_id == rid)
+    latest = q.order_by(BacklinkImport.created_at.desc()).first()
     if not latest:
         return {}
     rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest[0]).all()
@@ -952,9 +967,9 @@ def _link_kind_matches_source(source_url: str, site_domain: str, link_kind: str)
 def _effective_link_kind_for_target(report_type: str, link_kind: str | None) -> str:
     rt = (report_type or "").strip().lower()
     lk = (link_kind or "all").strip().lower()
-    if rt == "top_target_pages" and lk == "all":
+    if rt in {"top_target_pages", "external"} and lk == "all":
         return "external"
-    if rt == "top_target_pages_internal":
+    if rt in {"top_target_pages_internal", "internal"}:
         return "internal"
     return lk or "all"
 
@@ -1068,6 +1083,7 @@ def _load_link_rows_for_target_samples(
     *,
     site_id: int,
     report_type: str,
+    gsc_resource_id: str = "",
 ) -> list[BacklinkRow]:
     import_ids = _link_row_import_ids_for_target_lookup(
         db, site_id=site_id, report_type=report_type
@@ -1138,19 +1154,29 @@ def build_top_backlink_rankings(
     *,
     site_id: int,
     limit: int = 100,
-    report_type: str = "latest_links",
+    report_type: str = "external",
+    gsc_resource_id: str = "",
 ) -> dict[str, Any]:
     """Seçili rapor türüne göre top site / hedef sayfa listeleri."""
     cap = max(1, min(int(limit), 100))
-    rt = (report_type or "latest_links").strip().lower()
+    rt = (report_type or "external").strip().lower()
+    if rt == "top_target_pages":
+        rt = "external"
+    if rt == "top_target_pages_internal":
+        rt = "internal"
     site = db.query(Site).filter(Site.id == site_id).first()
     site_domain = (site.domain if site else "") or ""
+    rid = (gsc_resource_id or "").strip()
 
     if rt in _GSC_TARGET_AGG_REPORT_TYPES:
         gsc = _load_latest_gsc_target_page_stats(
-            db, site_id=site_id, report_type=rt, site_domain=site_domain
+            db,
+            site_id=site_id,
+            report_type=rt,
+            site_domain=site_domain,
+            gsc_resource_id=rid,
         )
-        if rt == "top_target_pages":
+        if rt in {"top_target_pages", "external"}:
             top_pages, pages_total = (
                 _top_pages_from_gsc_external_stats(gsc, cap=cap) if gsc else ([], 0)
             )
@@ -1176,7 +1202,9 @@ def build_top_backlink_rankings(
                 _top_page_row_from_bucket(b, incoming_links_gsc=True) for b in page_items[:cap]
             ]
             pages_total = len(page_items)
-        sample_rows = _load_link_rows_for_target_samples(db, site_id=site_id, report_type=rt)
+        sample_rows = _load_link_rows_for_target_samples(
+            db, site_id=site_id, report_type=rt, gsc_resource_id=rid
+        )
         lk = _effective_link_kind_for_target(rt, None)
         samples = _target_page_samples_from_rows(
             sample_rows, site_domain=site_domain, link_kind=lk, per_target=10
@@ -1196,9 +1224,44 @@ def build_top_backlink_rankings(
             "sites_total": 0,
             "pages_total": pages_total,
             "pages_source": "gsc_top_target_pages" if pages_total else None,
-            "pages_has_external_gsc": rt == "top_target_pages" and pages_total > 0,
-            "pages_has_internal_gsc": rt == "top_target_pages_internal" and pages_total > 0,
+            "pages_has_external_gsc": rt in {"top_target_pages", "external"} and pages_total > 0,
+            "pages_has_internal_gsc": rt in {"top_target_pages_internal", "internal"} and pages_total > 0,
             "pages_gsc_report_type": rt if pages_total else None,
+            "ranking_report_type": rt,
+        }
+
+    if rt in _GSC_DOMAIN_AGG_REPORT_TYPES:
+        q = db.query(BacklinkImport).filter(
+            BacklinkImport.site_id == site_id,
+            BacklinkImport.report_type == rt,
+        )
+        if rid:
+            q = q.filter(BacklinkImport.gsc_resource_id == rid)
+        latest = q.order_by(BacklinkImport.created_at.desc()).first()
+        sites_out: list[dict[str, Any]] = []
+        if latest:
+            for r in db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all():
+                dom = (r.domain or "").lower()
+                if not dom:
+                    continue
+                pages, targets = _parse_gsc_agg_anchor(r.anchor_text or "")
+                sites_out.append(
+                    {
+                        "domain": dom,
+                        "link_count": int(pages or 0),
+                        "target_pages": int(targets or 0),
+                    }
+                )
+            sites_out.sort(key=lambda x: (-x["link_count"], x["domain"]))
+        return {
+            "top_linking_sites": sites_out[:cap],
+            "top_linking_pages": [],
+            "sites_total": len(sites_out),
+            "pages_total": 0,
+            "pages_source": None,
+            "pages_has_external_gsc": False,
+            "pages_has_internal_gsc": False,
+            "pages_gsc_report_type": None,
             "ranking_report_type": rt,
         }
 
@@ -1207,9 +1270,18 @@ def build_top_backlink_rankings(
         ext = _load_latest_gsc_target_page_stats(
             db,
             site_id=site_id,
-            report_type="top_target_pages",
+            report_type="external",
             site_domain=site_domain,
+            gsc_resource_id=rid,
         )
+        if not ext:
+            ext = _load_latest_gsc_target_page_stats(
+                db,
+                site_id=site_id,
+                report_type="top_target_pages",
+                site_domain=site_domain,
+                gsc_resource_id=rid,
+            )
         if ext:
             gsc_ext_latest = ext
 
@@ -1343,18 +1415,31 @@ def _gsc_target_key_display_map(rows: list[BacklinkRow], *, site_domain: str) ->
     return out
 
 
-def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_links") -> dict[str, Any]:
-    rt = (report_type or "latest_links").strip().lower()
+def build_dashboard(
+    db: Session,
+    *,
+    site_id: int,
+    report_type: str = "external",
+    gsc_resource_id: str = "",
+) -> dict[str, Any]:
+    rt = (report_type or "external").strip().lower()
+    if rt == "top_target_pages":
+        rt = "external"
+    if rt == "top_target_pages_internal":
+        rt = "internal"
     site = db.query(Site).filter(Site.id == site_id).first()
     site_domain = (site.domain if site else "") or ""
     is_target_mode = rt in _GSC_TARGET_AGG_REPORT_TYPES
+    is_anchor_mode = rt in _GSC_ANCHOR_REPORT_TYPES
+    is_domain_agg = rt in _GSC_DOMAIN_AGG_REPORT_TYPES
 
-    imports = (
-        db.query(BacklinkImport)
-        .filter(BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt)
-        .order_by(BacklinkImport.created_at.desc())
-        .all()
+    imports_q = db.query(BacklinkImport).filter(
+        BacklinkImport.site_id == site_id, BacklinkImport.report_type == rt
     )
+    rid = (gsc_resource_id or "").strip()
+    if rid:
+        imports_q = imports_q.filter(BacklinkImport.gsc_resource_id == rid)
+    imports = imports_q.order_by(BacklinkImport.created_at.desc()).all()
     actions = _domain_actions_map(db, site_id)
     latest = imports[0] if imports else None
     previous = imports[1] if len(imports) > 1 else None
@@ -1369,14 +1454,25 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "has_previous": bool(previous),
         "latest_import_label": "",
         "previous_import_label": "",
-        "diff_kind": "target_pages" if is_target_mode else "link_domains",
+        "diff_kind": (
+            "target_pages"
+            if is_target_mode
+            else ("anchors" if is_anchor_mode else "link_domains")
+        ),
     }
 
-    if latest and not is_target_mode:
+    latest_meta: dict[str, Any] = {}
+    if latest and latest.meta_json:
+        try:
+            latest_meta = json.loads(latest.meta_json or "{}")
+        except json.JSONDecodeError:
+            latest_meta = {}
+
+    if latest and not is_target_mode and not is_anchor_mode:
         latest_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all()
         for r in latest_rows:
             dom = (r.domain or "").lower()
-            if not dom:
+            if not dom or dom == "gsc-anchor":
                 continue
             bucket = domain_stats.setdefault(
                 dom,
@@ -1392,7 +1488,17 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 },
             )
             keys = url_keys_by_domain.setdefault(dom, set())
-            _merge_row_into_domain_bucket(bucket, r, url_keys=keys)
+            if is_domain_agg:
+                inc, _sites = _parse_gsc_agg_anchor(r.anchor_text or "")
+                bucket["link_count"] = int(inc or 0)
+                bucket["raw_row_count"] = 1
+                bucket["target_pages"] = int(_sites or 0)
+                risk = assess_linking_url(r.source_url or f"http://{dom}/")
+                bucket["max_risk_score"] = int(risk.get("risk_score") or 0)
+                bucket["risk_flags"] = set(risk.get("risk_flags") or [])
+                bucket["recommended_action"] = str(risk.get("recommended_action") or ACTION_MONITOR)
+            else:
+                _merge_row_into_domain_bucket(bucket, r, url_keys=keys)
 
         if previous:
             prev_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == previous.id).all()
@@ -1421,6 +1527,31 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
             diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
             diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
 
+    if is_anchor_mode and latest:
+        latest_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all()
+        anchors = []
+        for r in latest_rows:
+            text = (r.anchor_text or "").strip()
+            if not text:
+                continue
+            rank = int(r.last_crawled) if str(r.last_crawled or "").isdigit() else 0
+            anchors.append({"anchor_text": text, "rank": rank})
+        anchors.sort(key=lambda a: (a["rank"] or 999999, a["anchor_text"]))
+        if previous:
+            prev_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == previous.id).all()
+            latest_set = {(r.anchor_text or "").strip().lower() for r in latest_rows if r.anchor_text}
+            prev_set = {(r.anchor_text or "").strip().lower() for r in prev_rows if r.anchor_text}
+            new_a = sorted(latest_set - prev_set)
+            lost_a = sorted(prev_set - latest_set)
+            diff["new_domains_count"] = len(new_a)
+            diff["lost_domains_count"] = len(lost_a)
+            diff["new_domains"] = new_a[:_DIFF_DOMAINS_PAYLOAD_CAP]
+            diff["lost_domains"] = lost_a[:_DIFF_DOMAINS_PAYLOAD_CAP]
+            diff["latest_import_label"] = (latest.source_filename or f"#{latest.id}")[:120]
+            diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
+    else:
+        anchors = []
+
     if is_target_mode and latest and previous:
         latest_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all()
         prev_rows = db.query(BacklinkRow).filter(BacklinkRow.import_id == previous.id).all()
@@ -1436,7 +1567,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         diff["previous_import_label"] = (previous.source_filename or f"#{previous.id}")[:120]
 
     domains_out: list[dict[str, Any]] = []
-    if is_target_mode:
+    if is_target_mode or is_anchor_mode:
         domain_stats = {}
     for dom, b in domain_stats.items():
         finalize_domain_risk_summary(b)
@@ -1452,6 +1583,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 "domain": dom,
                 "link_count": b["link_count"],
                 "raw_row_count": int(b.get("raw_row_count") or 0),
+                "target_pages": int(b.get("target_pages") or 0),
                 "max_risk_score": b["max_risk_score"],
                 "min_risk_score": int(b.get("min_risk_score") or 0),
                 "low_risk_pct": float(b.get("low_risk_pct") or 0),
@@ -1485,19 +1617,32 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
     rows_total = sum(int(i.row_count or 0) for i in imports)
     if is_target_mode:
         gsc_stats = _load_latest_gsc_target_page_stats(
-            db, site_id=site_id, report_type=rt, site_domain=site_domain
+            db, site_id=site_id, report_type=rt, site_domain=site_domain, gsc_resource_id=rid
         )
         domain_total = len(gsc_stats)
+        action_counts = {ACTION_IGNORE: 0, ACTION_MONITOR: 0, ACTION_REVIEW: 0, ACTION_DISAVOW: 0}
+        category_counts = {"media": 0, "mostly_clean": 0, "mixed": 0, "spammy": 0, "unknown": 0}
+    elif is_anchor_mode:
+        domain_total = len(anchors)
         action_counts = {ACTION_IGNORE: 0, ACTION_MONITOR: 0, ACTION_REVIEW: 0, ACTION_DISAVOW: 0}
         category_counts = {"media": 0, "mostly_clean": 0, "mixed": 0, "spammy": 0, "unknown": 0}
     else:
         domain_total = len(domains_out)
 
+    dashboard_mode = (
+        "target_pages"
+        if is_target_mode
+        else ("anchors" if is_anchor_mode else "link_domains")
+    )
+
     return {
         "site_id": site_id,
         "report_type": rt,
         "report_type_label": REPORT_TYPE_LABELS.get(rt, rt),
-        "dashboard_mode": "target_pages" if is_target_mode else "link_domains",
+        "gsc_resource_id": rid or (latest.gsc_resource_id if latest else ""),
+        "dashboard_mode": dashboard_mode,
+        "kpis": latest_meta.get("kpis") or {},
+        "property_label": latest_meta.get("property_label") or "",
         "aggregate": {
             "import_count": len(imports),
             "rows_total": rows_total,
@@ -1514,6 +1659,7 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
                 "created_at": i.created_at.isoformat() if i.created_at else None,
                 "report_type": i.report_type,
                 "report_type_label": REPORT_TYPE_LABELS.get(i.report_type or "", i.report_type or ""),
+                "gsc_resource_id": getattr(i, "gsc_resource_id", "") or "",
             }
             for i in imports
         ],
@@ -1525,8 +1671,9 @@ def build_dashboard(db: Session, *, site_id: int, report_type: str = "latest_lin
         "domains": domains_out[:_DASHBOARD_DOMAINS_PAYLOAD_CAP],
         "domains_truncated": len(domains_out) > _DASHBOARD_DOMAINS_PAYLOAD_CAP,
         "domain_total": domain_total,
+        "anchors": anchors[:1000] if is_anchor_mode else [],
         "top_rankings": build_top_backlink_rankings(
-            db, site_id=site_id, limit=100, report_type=rt
+            db, site_id=site_id, limit=100, report_type=rt, gsc_resource_id=rid
         ),
     }
 

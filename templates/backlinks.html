@@ -631,40 +631,50 @@
       </section>
 
       <section class="bl-toolbar-col min-w-0">
+        <h2>GSC property</h2>
+        <input type="hidden" id="bl-gsc-resource" value="" />
+        <div id="bl-gsc-resource-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="GSC property">
+          <p class="text-[11px] text-slate-500">Site seçilince property listesi gelir…</p>
+        </div>
+      </section>
+
+      <section class="bl-toolbar-col min-w-0">
         <h2>Rapor türü</h2>
-        <input type="hidden" id="bl-report-type" value="latest_links" />
+        <input type="hidden" id="bl-report-type" value="external" />
         <div id="bl-report-type-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="Rapor türü">
-          <button type="button" role="tab" class="bl-report-type-chip" data-value="latest_links" aria-selected="true" title="GSC Latest links CSV">
-            Latest links
+          <button type="button" role="tab" class="bl-report-type-chip" data-value="external" aria-selected="true" title="GSC External — top linked pages">
+            External
+            <span class="bl-report-type-chip-sub">top linked pages</span>
           </button>
-          <button type="button" role="tab" class="bl-report-type-chip" data-value="top_target_pages" aria-selected="false" title="GSC Bağlantılar → Top target pages export">
-            Top external links
+          <button type="button" role="tab" class="bl-report-type-chip" data-value="domain" aria-selected="false" title="GSC Linking sites">
+            Domain
+            <span class="bl-report-type-chip-sub">linking sites</span>
+          </button>
+          <button type="button" role="tab" class="bl-report-type-chip" data-value="anchor_text" aria-selected="false" title="GSC Anchor text">
+            Anchor
+            <span class="bl-report-type-chip-sub">linking text</span>
+          </button>
+          <button type="button" role="tab" class="bl-report-type-chip" data-value="internal" aria-selected="false" title="GSC Internal links">
+            Internal
+            <span class="bl-report-type-chip-sub">top linked pages</span>
           </button>
         </div>
-        <p class="bl-toolbar-hint mt-2 hidden sm:block" title="Top external links raporu">
-          Top external: Bağlantılar → Top target pages CSV
+        <p class="bl-toolbar-hint mt-2 hidden sm:block">
+          Kaynak: Search Console Links scrape (Sheets yok) · günde 2×
         </p>
       </section>
 
       <section class="bl-toolbar-col bl-toolbar-col--import min-w-0">
-        <h2>Import</h2>
-        <p class="bl-toolbar-hint">CSV veya Google Sheets</p>
+        <h2>Scrape</h2>
+        <p class="bl-toolbar-hint">Mac bridge · GSC oturumu · 12 saatte bir</p>
         <div class="bl-import-fields">
-          <div class="min-w-0">
-            <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">CSV dosyası</label>
-            <div id="bl-file-drop" class="bl-file-drop-zone">
-              <input id="bl-file" type="file" class="w-full text-xs sm:text-sm" />
-              <p id="bl-file-picked" class="mt-0.5 hidden text-[10px] font-semibold text-indigo-700 dark:text-indigo-300"></p>
-            </div>
-          </div>
-          <div class="min-w-0">
-            <label class="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Google Sheets URL</label>
-            <input id="bl-sheets-url" type="url" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 sm:text-sm" placeholder="https://docs.google.com/spreadsheets/d/…" />
-          </div>
-          <div class="bl-import-actions">
-            <button type="button" id="bl-import-btn" class="mt-1 w-full rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 sm:py-2 sm:text-sm">Import et</button>
-            <p id="bl-import-status" class="mt-1 text-[10px] text-slate-500 dark:text-slate-400 sm:text-xs"></p>
-          </div>
+          <p id="bl-scrape-status" class="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
+            Veri yalnızca GSC Links scrape ile gelir. Google Sheets kapalı.
+          </p>
+          <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+            Elle: <code class="text-[10px]">POST :18765/sync-gsc-links</code>
+            · <code class="text-[10px]">scripts/gsc_links_scrape.py --sync --ingest</code>
+          </p>
         </div>
       </section>
     </div>
@@ -747,6 +757,19 @@
         <p id="bl-diff-hint" class="mt-3 hidden text-xs text-slate-500 dark:text-slate-400"></p>
         <p id="bl-aggregate-hint" class="mt-1 hidden text-xs text-slate-500 dark:text-slate-400"></p>
         <div id="bl-diff-panels" class="mt-4 hidden space-y-3"></div>
+
+        <div id="bl-changes-section" class="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Günlük / haftalık değişim</h3>
+            <div class="flex flex-wrap gap-1" role="tablist" aria-label="Değişim penceresi">
+              <button type="button" class="bl-change-window rounded px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200" data-window="daily">Günlük</button>
+              <button type="button" class="bl-change-window rounded px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300" data-window="weekly">Haftalık</button>
+            </div>
+          </div>
+          <div id="bl-kpi-row" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"></div>
+          <div id="bl-changes-chart" class="mt-3 h-40 w-full"></div>
+          <div id="bl-changes-tables" class="mt-3 grid gap-3 lg:grid-cols-3"></div>
+        </div>
       </div>
 
       <div id="bl-domain-list-section" class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -1298,28 +1321,92 @@
     });
   }
 
-  var BL_REPORT_TYPES_UI = ["latest_links", "top_target_pages"];
+  var BL_REPORT_TYPES_UI = ["external", "domain", "anchor_text", "internal"];
 
   function blNormalizeReportType(rt) {
-    var v = (rt || "latest_links").trim().toLowerCase();
+    var v = (rt || "external").trim().toLowerCase();
+    if (v === "top_target_pages") return "external";
+    if (v === "top_target_pages_internal") return "internal";
+    if (v === "top_linking_sites") return "domain";
     if (BL_REPORT_TYPES_UI.indexOf(v) >= 0) return v;
-    if (
-      v === "more_sample" ||
-      v === "top_linking_sites" ||
-      v === "top_target_pages_internal"
-    ) {
-      return "latest_links";
+    if (v === "more_sample" || v === "latest_links") {
+      return "external";
     }
-    return "latest_links";
+    return "external";
   }
 
   function blReportTypeHumanLabel(rt) {
     var map = {
+      external: "External",
+      domain: "Linking sites",
+      anchor_text: "Anchor text",
+      internal: "Internal",
       latest_links: "Latest links",
-      top_target_pages: "Top external links",
+      top_target_pages: "External",
     };
     var key = blNormalizeReportType(rt);
     return map[key] || key || "Rapor";
+  }
+
+  function gscResourceId() {
+    var el = document.getElementById("bl-gsc-resource");
+    return el ? (el.value || "").trim() : "";
+  }
+
+  function syncBlGscResourceChipsUi(value) {
+    var hidden = document.getElementById("bl-gsc-resource");
+    if (hidden) hidden.value = value || "";
+    document.querySelectorAll("#bl-gsc-resource-wrap .bl-gsc-resource-chip").forEach(function (btn) {
+      var on = (btn.getAttribute("data-value") || "") === String(value || "");
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  }
+
+  async function loadGscProperties() {
+    var sid = siteId();
+    var wrap = document.getElementById("bl-gsc-resource-wrap");
+    if (!wrap || !sid) return;
+    wrap.innerHTML = '<p class="text-[11px] text-slate-500">Yükleniyor…</p>';
+    try {
+      var res = await fetch("/api/gsc-links/properties?site_id=" + encodeURIComponent(sid), {
+        credentials: "same-origin",
+      });
+      var data = await res.json();
+      var props = (data && data.properties) || [];
+      if (!props.length) {
+        wrap.innerHTML = '<p class="text-[11px] text-amber-700">Bu site için GSC property tanımlı değil.</p>';
+        syncBlGscResourceChipsUi("");
+        return;
+      }
+      wrap.innerHTML = "";
+      var current = gscResourceId();
+      var pick = current;
+      var found = props.some(function (p) { return p.resource_id === current; });
+      if (!found) pick = props[0].resource_id;
+      props.forEach(function (p, idx) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.role = "tab";
+        btn.className = "bl-gsc-resource-chip bl-report-type-chip";
+        btn.setAttribute("data-value", p.resource_id);
+        btn.setAttribute("aria-selected", p.resource_id === pick ? "true" : "false");
+        btn.title = p.resource_id;
+        btn.innerHTML =
+          (p.label || p.resource_id) +
+          '<span class="bl-report-type-chip-sub">' +
+          (p.resource_id || "") +
+          "</span>";
+        btn.addEventListener("click", function () {
+          if (gscResourceId() === p.resource_id) return;
+          syncBlGscResourceChipsUi(p.resource_id);
+          loadDashboard({ preserveScroll: true });
+        });
+        wrap.appendChild(btn);
+      });
+      syncBlGscResourceChipsUi(pick);
+    } catch (e) {
+      wrap.innerHTML = '<p class="text-[11px] text-rose-700">Property listesi alınamadı.</p>';
+    }
   }
 
   function blWaitMs(ms) {
@@ -2217,15 +2304,20 @@
     }
     blChipPending(".bl-site-chip", "data-value", next);
     syncBlSiteChipsUi(next);
+    syncBlGscResourceChipsUi("");
     if (!opts || !opts.skipLoad) {
       var nameEl = document.querySelector('.bl-site-chip[data-value="' + next + '"]');
       var siteName = nameEl ? (nameEl.textContent || "").trim().split("\n")[0] : "Site";
-      loadDashboard({
-        loadingLabel: "Site değişiyor…",
-        loadingSub: siteName,
-      }).catch(function (e) {
-        showBanner(String(e.message || e));
-      });
+      loadGscProperties()
+        .then(function () {
+          return loadDashboard({
+            loadingLabel: "Site değişiyor…",
+            loadingSub: siteName,
+          });
+        })
+        .catch(function (e) {
+          showBanner(String(e.message || e));
+        });
     } else {
       syncBlSiteChipsUi(next);
     }
@@ -2263,7 +2355,7 @@
 
   function reportType() {
     var el = document.getElementById("bl-report-type");
-    return blNormalizeReportType(el ? el.value : "latest_links");
+    return blNormalizeReportType(el ? el.value : "external");
   }
 
   function syncBlReportTypeChipsUi(rt) {
@@ -2328,44 +2420,75 @@
   }
 
   function isBlTargetReportType(rt) {
-    return blNormalizeReportType(rt) === "top_target_pages";
+    var v = blNormalizeReportType(rt);
+    return v === "external" || v === "internal" || v === "top_target_pages" || v === "top_target_pages_internal";
+  }
+
+  function isBlAnchorReportType(rt) {
+    return blNormalizeReportType(rt) === "anchor_text";
   }
 
   function applyBlReportTypeView(d) {
     var rt = (d && d.report_type) || reportType();
     var isTarget = isBlTargetReportType(rt) || (d && d.dashboard_mode === "target_pages");
+    var isAnchor = isBlAnchorReportType(rt) || (d && d.dashboard_mode === "anchors");
+    var hideDomainTable = isTarget || isAnchor;
     var filtersWrap = document.getElementById("bl-domain-filters-wrap");
     var tableScroll = document.querySelector("#bl-domain-list-section .bl-table-scroll");
     var cards = document.getElementById("bl-domains-cards");
     var filterCount = document.getElementById("bl-filter-count");
     var hint = document.getElementById("bl-target-mode-hint");
     var title = document.getElementById("bl-domain-list-title");
-    if (hint) hint.classList.toggle("hidden", !isTarget);
-    if (filtersWrap) filtersWrap.classList.toggle("hidden", isTarget);
-    if (tableScroll) tableScroll.classList.toggle("hidden", isTarget);
-    if (cards) {
-      cards.classList.toggle("hidden", isTarget);
-      if (isTarget) cards.innerHTML = "";
+    if (hint) {
+      hint.classList.toggle("hidden", !hideDomainTable);
+      if (isAnchor) {
+        hint.textContent = "Anchor text listesi özet bölümünde ve aşağıdaki değişim tablolarında.";
+      } else if (isTarget) {
+        hint.innerHTML =
+          'Bu rapor türünde domain risk tablosu yok. Liste özet bölümündeki <strong>External / Internal</strong> verisinden gelir.';
+      }
     }
-    if (filterCount) filterCount.classList.toggle("hidden", isTarget);
+    if (filtersWrap) filtersWrap.classList.toggle("hidden", hideDomainTable);
+    if (tableScroll) tableScroll.classList.toggle("hidden", hideDomainTable);
+    if (cards) {
+      cards.classList.toggle("hidden", hideDomainTable);
+      if (hideDomainTable) cards.innerHTML = "";
+    }
+    if (filterCount) filterCount.classList.toggle("hidden", hideDomainTable);
     if (title) {
-      if (blNormalizeReportType(rt) === "top_target_pages") title.textContent = "Top external links";
-      else title.textContent = isTarget ? "Hedef sayfalar" : "Domain listesi";
+      var nrt = blNormalizeReportType(rt);
+      if (nrt === "external") title.textContent = "External — top linked pages";
+      else if (nrt === "internal") title.textContent = "Internal — top linked pages";
+      else if (nrt === "anchor_text") title.textContent = "Anchor text";
+      else if (nrt === "domain") title.textContent = "Linking sites";
+      else title.textContent = hideDomainTable ? "Hedef sayfalar" : "Domain listesi";
     }
 
     ["bl-st-disavow-wrap", "bl-st-review-wrap", "bl-st-media-wrap"].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el) el.classList.toggle("hidden", isTarget);
+      if (el) el.classList.toggle("hidden", hideDomainTable);
     });
     var domLabel = document.getElementById("bl-st-domains-label");
-    if (domLabel) domLabel.textContent = isTarget ? "Hedef sayfa" : "Domain";
+    if (domLabel) {
+      if (isAnchor) domLabel.textContent = "Anchor";
+      else if (isTarget) domLabel.textContent = "Hedef sayfa";
+      else domLabel.textContent = "Domain";
+    }
     var newLabel = document.getElementById("bl-st-new-label");
-    if (newLabel) newLabel.textContent = isTarget ? "Yeni hedef" : "Yeni domain";
+    if (newLabel) {
+      if (isAnchor) newLabel.textContent = "Yeni anchor";
+      else if (isTarget) newLabel.textContent = "Yeni hedef";
+      else newLabel.textContent = "Yeni domain";
+    }
     var lostLabel = document.getElementById("bl-st-lost-label");
-    if (lostLabel) lostLabel.textContent = isTarget ? "Kayıp hedef" : "Kayıp domain";
+    if (lostLabel) {
+      if (isAnchor) lostLabel.textContent = "Kayıp anchor";
+      else if (isTarget) lostLabel.textContent = "Kayıp hedef";
+      else lostLabel.textContent = "Kayıp domain";
+    }
 
     var disavowLink = document.getElementById("bl-disavow-link");
-    if (disavowLink) disavowLink.classList.toggle("hidden", isTarget);
+    if (disavowLink) disavowLink.classList.toggle("hidden", hideDomainTable);
 
     var rtBanner = document.getElementById("bl-report-type-banner");
     if (rtBanner) {
@@ -2373,11 +2496,23 @@
       var agg = (d && d.aggregate) || {};
       var impN = agg.import_count != null ? agg.import_count : 0;
       var rowN = agg.rows_total != null ? agg.rows_total : 0;
+      var prop = (d && d.property_label) || (d && d.gsc_resource_id) || "";
+      var kpi = (d && d.kpis) || {};
+      var kpiTxt = kpi.total_links ? " · toplam " + blFmtNum(kpi.total_links) : "";
       rtBanner.textContent =
-        "Görünüm: " + label + " · " + impN + " import · " + blFmtNum(rowN) + " satır (yalnızca bu rapor türü)";
+        "Görünüm: " +
+        label +
+        (prop ? " · " + prop : "") +
+        " · " +
+        impN +
+        " snapshot · " +
+        blFmtNum(rowN) +
+        " satır" +
+        kpiTxt;
       rtBanner.classList.remove("hidden");
     }
   }
+
   function disavowHref() {
     return "/api/backlinks/disavow.txt?site_id=" + siteId() + "&report_type=" + encodeURIComponent(reportType());
   }
@@ -3171,6 +3306,122 @@
     if (mySeq === blDashboardLoadSeq) blHideDashboardLoading();
   }
 
+  var blChangeWindow = "daily";
+
+  async function loadChanges(windowName) {
+    var sid = siteId();
+    var kpiRow = document.getElementById("bl-kpi-row");
+    var tables = document.getElementById("bl-changes-tables");
+    var chart = document.getElementById("bl-changes-chart");
+    if (!sid || !kpiRow) return;
+    var w = windowName || blChangeWindow || "daily";
+    try {
+      var url =
+        "/api/gsc-links/changes?site_id=" +
+        encodeURIComponent(sid) +
+        "&report_type=" +
+        encodeURIComponent(reportType()) +
+        "&gsc_resource_id=" +
+        encodeURIComponent(gscResourceId()) +
+        "&window=" +
+        encodeURIComponent(w);
+      var r = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+      var d = await r.json();
+      if (!r.ok) {
+        kpiRow.innerHTML = '<p class="text-xs text-rose-700 col-span-full">Değişim verisi yok.</p>';
+        return;
+      }
+      var diff = d.diff || {};
+      var latest = d.latest || {};
+      var kpis = (latest.kpis || {});
+      kpiRow.innerHTML =
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Snapshot satır</div><div class="text-lg font-bold">' +
+        blFmtNum(latest.row_count || 0) +
+        '</div></div>' +
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Yeni</div><div class="text-lg font-bold text-emerald-700">' +
+        blFmtNum(diff.new_count || 0) +
+        '</div></div>' +
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Kayıp</div><div class="text-lg font-bold text-slate-700">' +
+        blFmtNum(diff.lost_count || 0) +
+        '</div></div>' +
+        '<div class="rounded-lg bg-white p-2 dark:bg-slate-900"><div class="text-[10px] uppercase text-slate-500">Değişen</div><div class="text-lg font-bold text-indigo-700">' +
+        blFmtNum(diff.changed_count || 0) +
+        (kpis.total_links ? '<div class="text-[10px] text-slate-500">Toplam link ' + blFmtNum(kpis.total_links) + "</div>" : "") +
+        "</div></div>";
+
+      function listBlock(title, items, labelKey) {
+        var lis = (items || [])
+          .slice(0, 40)
+          .map(function (it) {
+            var lab = typeof it === "string" ? it : it[labelKey] || it.label || it.key || "";
+            var extra = "";
+            if (it && it.delta != null) extra = " · Δ " + it.delta;
+            if (it && it.delta_rank != null) extra = " · rank Δ " + it.delta_rank;
+            if (it && it.count != null && it.delta == null) extra = " · " + blFmtNum(it.count);
+            return "<li class=\"truncate\" title=\"" + String(lab).replace(/"/g, "&quot;") + "\">" + lab + extra + "</li>";
+          })
+          .join("");
+        return (
+          '<section class="min-w-0 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900"><h4 class="text-[10px] font-bold uppercase text-slate-600">' +
+          title +
+          '</h4><ol class="mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
+          (lis || "<li class=\"text-slate-400\">—</li>") +
+          "</ol></section>"
+        );
+      }
+      if (tables) {
+        tables.innerHTML =
+          listBlock("Yeni", diff.new || [], "label") +
+          listBlock("Kayıp", diff.lost || [], "label") +
+          listBlock("Değişen", diff.changed || [], "label");
+      }
+      if (chart) {
+        var series = d.series || [];
+        if (!series.length) {
+          chart.innerHTML = '<p class="text-xs text-slate-500">Henüz zaman serisi yok — 2. scrape sonrası dolacak.</p>';
+        } else {
+          var max = 1;
+          series.forEach(function (s) {
+            max = Math.max(max, Number(s.row_count || 0), Number(s.total_links || 0));
+          });
+          chart.innerHTML =
+            '<div class="flex h-36 items-end gap-1">' +
+            series
+              .map(function (s) {
+                var v = Number(s.row_count || 0);
+                var h = Math.max(4, Math.round((v / max) * 100));
+                var t = (s.created_at || "").slice(5, 16);
+                return (
+                  '<div class="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title="' +
+                  t +
+                  " · " +
+                  v +
+                  '"><div class="w-full rounded-t bg-indigo-500/80" style="height:' +
+                  h +
+                  '%"></div><span class="truncate text-[9px] text-slate-500">' +
+                  t +
+                  "</span></div>"
+                );
+              })
+              .join("") +
+            "</div>";
+        }
+      }
+      var st = document.getElementById("bl-scrape-status");
+      if (st && latest.created_at) {
+        st.textContent =
+          "Son scrape: " +
+          latest.created_at +
+          " · " +
+          blFmtNum(latest.row_count || 0) +
+          " satır" +
+          (d.has_baseline ? " · " + w + " baseline hazır" : " · baseline için sonraki scrape bekleniyor");
+      }
+    } catch (e) {
+      if (kpiRow) kpiRow.innerHTML = '<p class="text-xs text-rose-700">Değişim yüklenemedi.</p>';
+    }
+  }
+
   async function loadDashboard(opts) {
     var sid = siteId();
     if (!sid) return;
@@ -3186,11 +3437,14 @@
     try {
       document.getElementById("bl-disavow-link").href = disavowHref();
       var rtParam = encodeURIComponent(reportType());
+      var ridParam = encodeURIComponent(gscResourceId());
       var r = await fetch(
         "/api/backlinks/dashboard?site_id=" +
           sid +
           "&report_type=" +
           rtParam +
+          "&gsc_resource_id=" +
+          ridParam +
           "&_=" +
           Date.now(),
         { credentials: "same-origin", cache: "no-store" }
@@ -3237,7 +3491,8 @@
       blTopPageOpen = {};
       blTopSitesExpanded = false;
       blTopPagesExpanded = false;
-      if (rt === "top_target_pages") blTopPagesFilter = "external";
+      if (rt === "external" || rt === "top_target_pages") blTopPagesFilter = "external";
+      else if (rt === "internal" || rt === "top_target_pages_internal") blTopPagesFilter = "internal";
       else if (
         rt === "latest_links" &&
         (d.top_rankings || {}).pages_gsc_report_type === "top_target_pages"
@@ -3282,11 +3537,12 @@
       if (panel && !panel.classList.contains("hidden")) {
         renderBlDomainPickerList();
       }
-      if (!isBlTargetReportType(rt)) {
+      if (!isBlTargetReportType(rt) && !isBlAnchorReportType(rt)) {
         refreshDomainsView();
       } else {
         updateBlFilterCount(0, 0);
       }
+      loadChanges(blChangeWindow || "daily");
     } catch (err) {
       if (mySeq === blDashboardLoadSeq) {
         showBanner(String((err && err.message) || err || "Dashboard yüklenemedi"));
@@ -3315,16 +3571,38 @@
       refreshDomainsView();
     });
   })();
-  syncBlReportTypeChipsUi("latest_links");
+  syncBlReportTypeChipsUi("external");
   syncBlSiteChipsUi(siteId());
   blEnsureDashboardLottie();
-  loadDashboard({
-    loadingLabel: "Backlinks yükleniyor…",
-    loadingSub: "İlk özet hazırlanıyor",
-  }).catch(function () {});
+  document.querySelectorAll(".bl-change-window").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var w = btn.getAttribute("data-window") || "daily";
+      blChangeWindow = w;
+      document.querySelectorAll(".bl-change-window").forEach(function (b) {
+        var on = (b.getAttribute("data-window") || "") === w;
+        b.classList.toggle("bg-indigo-100", on);
+        b.classList.toggle("text-indigo-900", on);
+        b.classList.toggle("dark:bg-indigo-950", on);
+        b.classList.toggle("dark:text-indigo-200", on);
+        b.classList.toggle("text-slate-600", !on);
+        b.classList.toggle("dark:text-slate-300", !on);
+      });
+      loadChanges(w);
+    });
+  });
+  loadGscProperties()
+    .then(function () {
+      return loadDashboard({
+        loadingLabel: "Backlinks yükleniyor…",
+        loadingSub: "GSC scrape snapshot",
+      });
+    })
+    .catch(function () {});
   var blImportBtn = document.getElementById("bl-import-btn");
   if (blImportBtn) {
   blImportBtn.addEventListener("click", async function () {
+    showBanner("Google Sheets / manuel import kapalı. Veri GSC Links scrape ile gelir.");
+    return;
     var st = document.getElementById("bl-import-status");
     st.textContent = "";
     var sid = siteId();

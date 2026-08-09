@@ -79,6 +79,10 @@ VIRGUL_AUTO_INTERVAL_SEC = int(
 PLAY_AUTO_INTERVAL_SEC = int(
     os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
 )
+# GSC Links scrape — günde 2 kez (12 saat)
+GSC_LINKS_AUTO_INTERVAL_SEC = int(
+    os.environ.get("GSC_LINKS_BRIDGE_INTERVAL_SEC") or str(12 * 60 * 60)
+)
 # Eski ayar: her N. bildirim turunda haber (NEWS_BRIDGE_INTERVAL_SEC yoksa)
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
@@ -128,11 +132,14 @@ _nt_lock = threading.Lock()
 _virgul_lock = threading.Lock()
 _play_lock = threading.Lock()
 _asc_lock = threading.Lock()
+_gsc_links_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_play_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_asc_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_gsc_links_auto_at = 0.0
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -590,6 +597,75 @@ def run_play_bridge_once() -> dict[str, Any]:
     }
     _last_play_result = out
     print(f"Play sync · {out['message']}", flush=True)
+    return out
+
+
+def run_gsc_links_bridge_once() -> dict[str, Any]:
+    """GSC Links scrape (döviz + sinemalar) → Railway ingest."""
+    global _last_gsc_links_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_gsc_links_result = err
+        return err
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "gsc_links_scrape.py"
+        spec = importlib.util.spec_from_file_location("gsc_links_scrape", path)
+        if spec is None or spec.loader is None:
+            err = {"ok": False, "message": "gsc_links_scrape.py yüklenemedi"}
+            _last_gsc_links_result = err
+            return err
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        scrape_gsc_links = mod.scrape_gsc_links
+        ingest_scrape_result = mod.ingest_scrape_result
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "message": f"gsc_links_scrape import: {exc}"}
+        _last_gsc_links_result = err
+        return err
+
+    print("GSC Links scrape başlıyor…", flush=True)
+    env_hl = (os.environ.get("GSC_LINKS_HEADLESS") or os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    result = scrape_gsc_links(headed=headed)
+    if result.get("needs_login"):
+        out = {
+            "ok": False,
+            "kind": "gsc_links",
+            "needs_login": True,
+            "message": result.get("message") or "GSC login gerekli (--login)",
+        }
+        _last_gsc_links_result = out
+        return out
+    try:
+        os.environ.setdefault(
+            "GSC_LINKS_INGEST_URL",
+            (
+                os.environ.get("GSC_LINKS_INGEST_URL")
+                or "https://projectcontrol.up.railway.app/api/gsc-links/ingest"
+            ),
+        )
+        ing = ingest_scrape_result(result)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "gsc_links", "message": f"Ingest hata: {exc}"}
+        _last_gsc_links_result = out
+        return out
+    out = {
+        "ok": bool(ing.get("ok")) and bool(result.get("ok")),
+        "kind": "gsc_links",
+        "http_status": ing.get("http_status"),
+        "snapshot_count": len(result.get("snapshots") or []),
+        "message": result.get("message") or ing.get("message") or "GSC Links sync",
+        "needs_login": False,
+        "ingest": {
+            k: ing.get(k)
+            for k in ("ok", "message", "imported", "errors")
+            if k in ing or k == "ok"
+        },
+    }
+    _last_gsc_links_result = out
+    print(f"GSC Links sync · {out['message']}", flush=True)
     return out
 
 
@@ -1104,6 +1180,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "Play Console sync zaten çalışıyor, bekleyin.",
                 run_play_bridge_once,
             )
+        elif path in ("/sync-gsc-links", "/gsc-links", "/sync-backlinks"):
+            lock, busy, runner = (
+                _gsc_links_lock,
+                "GSC Links sync zaten çalışıyor, bekleyin.",
+                run_gsc_links_bridge_once,
+            )
         elif path in ("/sync-asc", "/asc", "/sync-ios"):
             lock, busy, runner = (
                 _asc_lock,
@@ -1152,9 +1234,16 @@ def _should_run_play_auto() -> bool:
     return (time.time() - _last_play_auto_at) >= max(300, PLAY_AUTO_INTERVAL_SEC)
 
 
+def _should_run_gsc_links_auto() -> bool:
+    global _last_gsc_links_auto_at
+    if _last_gsc_links_auto_at <= 0:
+        return True
+    return (time.time() - _last_gsc_links_auto_at) >= max(600, GSC_LINKS_AUTO_INTERVAL_SEC)
+
+
 def _auto_loop() -> None:
     """Notification/news ve Virgül ayrı kilit — hepsi ~30 dk; hata → e-posta."""
-    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at
+    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at, _last_gsc_links_auto_at
     while True:
         if _nt_lock.acquire(blocking=False):
             try:
@@ -1248,6 +1337,31 @@ def _auto_loop() -> None:
             )
             print(f"Play auto atlandı (sonraki ~{left_p}s)", flush=True)
 
+        if _should_run_gsc_links_auto():
+            if _gsc_links_lock.acquire(blocking=False):
+                try:
+                    try:
+                        gl = run_gsc_links_bridge_once()
+                        _last_gsc_links_auto_at = time.time()
+                        if gl.get("ok"):
+                            _note_auto_success("gsc_links")
+                        else:
+                            _notify_auto_failure("gsc_links", gl)
+                    except Exception as exc:
+                        traceback.print_exc()
+                        _last_gsc_links_auto_at = time.time()
+                        _notify_auto_failure("gsc_links", exc=exc)
+                finally:
+                    _gsc_links_lock.release()
+            else:
+                print("Auto GSC Links atlandı (manuel sync sürüyor)", flush=True)
+        else:
+            left_g = max(
+                0,
+                int(GSC_LINKS_AUTO_INTERVAL_SEC - (time.time() - _last_gsc_links_auto_at)),
+            )
+            print(f"GSC Links auto atlandı (sonraki ~{left_g}s)", flush=True)
+
         time.sleep(max(60, AUTO_INTERVAL_SEC))
 
 
@@ -1262,8 +1376,9 @@ def run_daemon() -> int:
     )
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
-        f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s, play={PLAY_AUTO_INTERVAL_SEC}s)",
+        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-gsc-links | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
+        f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s, play={PLAY_AUTO_INTERVAL_SEC}s, "
+        f"gsc_links={GSC_LINKS_AUTO_INTERVAL_SEC}s)",
         flush=True,
     )
     try:

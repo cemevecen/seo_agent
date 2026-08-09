@@ -450,6 +450,53 @@ def ensure_indexes() -> None:
 
         _ensure_asc_reviews_col()
 
+        def _ensure_backlink_import_cols() -> None:
+            cols: set[str] = set()
+            try:
+                if _IS_SQLITE:
+                    cols = {
+                        row[1]
+                        for row in conn.execute(_txt("PRAGMA table_info(backlink_imports)")).fetchall()
+                    }
+                else:
+                    inspector = __import__("sqlalchemy").inspect(conn)
+                    cols = {c["name"] for c in inspector.get_columns("backlink_imports")}
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("backlink_imports sütun listesi alınamadı: %s", exc)
+                return
+            wanted = {
+                "gsc_resource_id": ("VARCHAR(255) NOT NULL DEFAULT ''", "VARCHAR(255) NOT NULL DEFAULT ''"),
+                "meta_json": ("TEXT NOT NULL DEFAULT '{}'", "TEXT NOT NULL DEFAULT '{}'"),
+            }
+            for name, (sqlite_ddl, pg_ddl) in wanted.items():
+                if name in cols:
+                    continue
+                try:
+                    if _IS_SQLITE:
+                        conn.execute(_txt(f"ALTER TABLE backlink_imports ADD COLUMN {name} {sqlite_ddl}"))
+                    else:
+                        try:
+                            conn.execute(
+                                _txt(
+                                    f"ALTER TABLE backlink_imports ADD COLUMN IF NOT EXISTS {name} {pg_ddl}"
+                                )
+                            )
+                        except Exception:  # noqa: BLE001
+                            conn.execute(_txt(f"ALTER TABLE backlink_imports ADD COLUMN {name} {pg_ddl}"))
+                except Exception as exc:  # noqa: BLE001
+                    LOGGER.debug("backlink_imports ADD COLUMN %s atlandı: %s", name, exc)
+            try:
+                conn.execute(
+                    _txt(
+                        "CREATE INDEX IF NOT EXISTS ix_backlink_imports_site_type_resource_created "
+                        "ON backlink_imports(site_id, report_type, gsc_resource_id, created_at DESC)"
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.debug("backlink_imports resource index atlandı: %s", exc)
+
+        _ensure_backlink_import_cols()
+
         conn.execute(
             _txt(
                 "CREATE INDEX IF NOT EXISTS ix_doviz_asset_runs_kind_collected "

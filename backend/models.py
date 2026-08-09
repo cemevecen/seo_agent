@@ -761,7 +761,7 @@ class SupportInboxMessage(Base):
 
 
 class BacklinkImport(Base):
-    """GSC Links export snapshot (CSV / Sheets)."""
+    """GSC Links snapshot (scrape / CSV). Sheets kullanılmaz."""
 
     __tablename__ = "backlink_imports"
 
@@ -772,6 +772,8 @@ class BacklinkImport(Base):
     source_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="csv_upload")
     row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    gsc_resource_id: Mapped[str] = mapped_column(String(255), nullable=False, default="", index=True)
+    meta_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
 
     site: Mapped["Site"] = relationship("Site")
     rows: Mapped[list["BacklinkRow"]] = relationship(

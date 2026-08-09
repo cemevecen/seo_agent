@@ -37,7 +37,7 @@ class DomainActionBody(BaseModel):
 
 class BacklinkImportBody(BaseModel):
     site_id: int
-    report_type: str = "latest_links"
+    report_type: str = "external"
     csv_text: str | None = None
     sheets_url: str | None = None
     source_filename: str | None = None
@@ -56,23 +56,19 @@ def _run_backlink_import(
     _require_internal_site(db, site_id)
     paste = (csv_text or "").strip()
     url = (sheets_url or "").strip()
+    if url:
+        raise HTTPException(
+            status_code=400,
+            detail="Google Sheets import kapatıldı. Veriler GSC Links scrape ile gelir.",
+        )
     if paste:
         text = paste
         fname = (source_filename or "")[:255]
         kind = source_kind or "csv_paste"
-    elif url:
-        try:
-            text = backlink_csv.fetch_public_sheet_csv(url)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=400, detail=f"Sheets CSV alınamadı: {exc}") from exc
-        fname = "google_sheets.csv"
-        kind = "google_sheets"
     else:
         raise HTTPException(
             status_code=400,
-            detail="CSV dosyası, yapıştırılmış metin veya Sheets URL gerekli.",
+            detail="CSV metni gerekli (Sheets kapalı; asıl kaynak GSC scrape).",
         )
     try:
         return backlink_csv.import_backlink_csv(
@@ -95,8 +91,10 @@ def _run_backlink_import(
 def backlinks_report_types(request: Request) -> dict[str, Any]:
     return {
         "items": [
-            {"id": "latest_links", "label": "Latest links"},
-            {"id": "top_target_pages", "label": "Top external links"},
+            {"id": "external", "label": "External (top linked pages)"},
+            {"id": "domain", "label": "Linking sites"},
+            {"id": "anchor_text", "label": "Anchor text"},
+            {"id": "internal", "label": "Internal links"},
         ]
     }
 
@@ -106,11 +104,17 @@ def backlinks_report_types(request: Request) -> dict[str, Any]:
 def backlinks_dashboard(
     request: Request,
     site_id: int = Query(..., ge=1),
-    report_type: str = Query("latest_links"),
+    report_type: str = Query("external"),
+    gsc_resource_id: str = Query(""),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     _require_internal_site(db, site_id)
-    return backlink_csv.build_dashboard(db, site_id=site_id, report_type=report_type)
+    return backlink_csv.build_dashboard(
+        db,
+        site_id=site_id,
+        report_type=report_type,
+        gsc_resource_id=gsc_resource_id,
+    )
 
 
 @router.get("/backlinks/domain-links")
@@ -118,7 +122,7 @@ def backlinks_dashboard(
 def backlinks_domain_links(
     request: Request,
     site_id: int = Query(..., ge=1),
-    report_type: str = Query("latest_links"),
+    report_type: str = Query("external"),
     domain: str = Query(..., min_length=1),
     limit: int = Query(10000, ge=1, le=50000),
     all_link_imports: bool = Query(False, description="Tüm link importları (top target pages hariç)"),
@@ -143,7 +147,7 @@ def backlinks_domain_links(
 def backlinks_target_page_links(
     request: Request,
     site_id: int = Query(..., ge=1),
-    report_type: str = Query("latest_links"),
+    report_type: str = Query("external"),
     target_url: str = Query(..., min_length=1),
     link_kind: str = Query("all", description="all|external|internal"),
     limit: int = Query(10000, ge=1, le=50000),
@@ -170,7 +174,7 @@ def backlinks_import_json(
     body: BacklinkImportBody,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    """Büyük CSV için JSON gövdesi (multipart 1MB parça limitinden kaçınır)."""
+    """Acil CSV — Sheets kapalı; asıl kaynak GSC scrape."""
     csv_text = (body.csv_text or "").strip()
     if len(csv_text.encode("utf-8", errors="replace")) > 15_000_000:
         raise HTTPException(status_code=413, detail="CSV metni çok büyük (max ~15MB).")
@@ -178,7 +182,7 @@ def backlinks_import_json(
     return _run_backlink_import(
         db,
         site_id=body.site_id,
-        report_type=body.report_type or "latest_links",
+        report_type=body.report_type or "external",
         csv_text=csv_text,
         sheets_url=(body.sheets_url or "").strip(),
         source_filename=(body.source_filename or "")[:255],
@@ -197,7 +201,7 @@ async def backlinks_import(
         site_id = int(form.get("site_id"))
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail="site_id gerekli.") from exc
-    report_type = str(form.get("report_type") or "latest_links")
+    report_type = str(form.get("report_type") or "external")
     csv_text = str(form.get("csv_text") or "").strip()
     sheets_url = str(form.get("sheets_url") or "").strip()
 
@@ -261,7 +265,7 @@ def backlinks_delete_import(
 def backlinks_disavow_txt(
     request: Request,
     site_id: int = Query(..., ge=1),
-    report_type: str = Query("latest_links"),
+    report_type: str = Query("domain"),
     db: Session = Depends(get_db),
 ) -> PlainTextResponse:
     _require_internal_site(db, site_id)
