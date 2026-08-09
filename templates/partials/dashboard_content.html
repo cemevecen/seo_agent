@@ -77,6 +77,69 @@
   .home-readable[data-home-container],
   section.home-readable[data-home-container] {
     position: relative;
+    padding-right: 2.6rem;
+  }
+  .home-container-refresh {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.55rem;
+    z-index: 8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.92);
+    color: rgb(71 85 105);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+  }
+  .home-container-refresh:hover {
+    background: rgb(248 250 252);
+    color: rgb(15 23 42);
+    border-color: rgb(203 213 225);
+  }
+  .home-container-refresh:active { transform: scale(0.96); }
+  .home-container-refresh:focus-visible {
+    outline: 2px solid rgb(59 130 246);
+    outline-offset: 2px;
+  }
+  .home-container-refresh svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+  .home-container-refresh.is-busy {
+    pointer-events: none;
+    color: rgb(37 99 235);
+    border-color: rgb(191 219 254);
+    background: rgb(239 246 255);
+  }
+  .home-container-refresh.is-busy svg {
+    animation: home-container-refresh-spin 0.75s linear infinite;
+  }
+  @keyframes home-container-refresh-spin {
+    to { transform: rotate(360deg); }
+  }
+  html.dark .home-container-refresh,
+  html.midnight .home-container-refresh {
+    background: rgb(24 24 27 / 0.92);
+    border-color: rgb(63 63 70);
+    color: rgb(212 212 216);
+  }
+  html.dark .home-container-refresh:hover,
+  html.midnight .home-container-refresh:hover {
+    background: rgb(39 39 42);
+    color: rgb(250 250 250);
+    border-color: rgb(82 82 91);
+  }
+  html.dark .home-container-refresh.is-busy,
+  html.midnight .home-container-refresh.is-busy {
+    background: rgb(23 37 84 / 0.55);
+    border-color: rgb(30 64 175);
+    color: rgb(147 197 253);
   }
   [data-home-container-slot] {
     min-width: 0;
@@ -1258,6 +1321,9 @@
           if (typeof window.__pcHomeDriveRefreshBadges === 'function') {
             window.__pcHomeDriveRefreshBadges();
           }
+          if (typeof window.__pcHomeEnsureRefreshButtons === 'function') {
+            window.__pcHomeEnsureRefreshButtons();
+          }
         })
         .catch(function () {});
     }
@@ -1272,6 +1338,7 @@
       if (document.visibilityState === 'visible') loadHomeRealtime();
     });
     window.__pcHomeRealtimeReload = loadHomeRealtime;
+    window.__pcHomeRealtimeRefresh = loadHomeRealtime;
   })();
   </script>
 
@@ -1393,7 +1460,7 @@
 
     {# Mobil mağaza / Firebase durum — full width #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=8" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="45000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=9" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
@@ -1483,6 +1550,125 @@
   loadHomeMetrics();
   setInterval(loadHomeMetrics, 60000);
   document.addEventListener('DOMContentLoaded', loadHomeMetrics);
+
+  var HOME_REFRESH_ICON =
+    '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">' +
+      '<path fill-rule="evenodd" d="M15.312 5.312a7 7 0 00-11.373 1.21 1 1 0 01-1.78-.91A9 9 0 0117.5 8a1 1 0 01-2 0 7.002 7.002 0 00-.188-2.688zM4.688 14.688a7 7 0 0011.373-1.21 1 1 0 011.78.91A9 9 0 012.5 12a1 1 0 012 0c.05.93.29 1.84.688 2.688z" clip-rule="evenodd"/>' +
+    '</svg>';
+
+  function homeRefreshUrl(base) {
+    if (!base) return '';
+    try {
+      var u = new URL(base, window.location.origin);
+      u.searchParams.set('refresh', '1');
+      u.searchParams.set('_t', String(Date.now()));
+      return u.pathname + u.search;
+    } catch (e) {
+      var join = base.indexOf('?') >= 0 ? '&' : '?';
+      return base + join + 'refresh=1&_t=' + Date.now();
+    }
+  }
+
+  function ensureHomeContainerRefreshButtons() {
+    document.querySelectorAll('[data-home-container]').forEach(function (sec) {
+      if (sec.querySelector(':scope > [data-home-container-refresh]')) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'home-container-refresh';
+      btn.setAttribute('data-home-container-refresh', '');
+      btn.setAttribute('aria-label', 'Container verisini yenile');
+      btn.title = 'Yenile — en güncel veriyi çek';
+      btn.innerHTML = HOME_REFRESH_ICON;
+      sec.appendChild(btn);
+    });
+  }
+
+  function refreshHomeContainer(sec) {
+    if (!sec || sec.classList.contains('is-home-refreshing')) return;
+    var btn = sec.querySelector('[data-home-container-refresh]');
+    var key = sec.getAttribute('data-home-container') || '';
+    sec.classList.add('is-home-refreshing');
+    if (btn) btn.classList.add('is-busy');
+
+    function done() {
+      sec.classList.remove('is-home-refreshing');
+      if (btn) btn.classList.remove('is-busy');
+    }
+
+    // Realtime: mevcut poll fetch yolunu kullan
+    if (key === 'realtime') {
+      var rtFn = window.__pcHomeRealtimeRefresh || window.__pcHomeRealtimeReload;
+      if (typeof rtFn === 'function') {
+        Promise.resolve(rtFn(true)).finally(done);
+        return;
+      }
+    }
+
+    var base = sec.getAttribute('hx-get') || '';
+    if (!base) {
+      done();
+      return;
+    }
+    var url = homeRefreshUrl(base);
+    sec.setAttribute('hx-get', url.replace(/[?&]refresh=1/, '').replace(/[?&]_t=\d+/, '') || base);
+    // Kalıcı hx-get'te refresh=1 bırakma; sadece bu istekte force
+    var clean = base;
+    try {
+      var u0 = new URL(base, window.location.origin);
+      u0.searchParams.delete('refresh');
+      u0.searchParams.delete('_t');
+      clean = u0.pathname + u0.search;
+    } catch (e2) {}
+    sec.setAttribute('hx-get', clean);
+
+    if (!window.htmx) {
+      done();
+      return;
+    }
+    var onAfter = function (ev) {
+      if (ev && ev.detail && ev.detail.target === sec) {
+        document.body.removeEventListener('htmx:afterSwap', onAfter);
+        document.body.removeEventListener('htmx:responseError', onErr);
+        document.body.removeEventListener('htmx:sendError', onErr);
+        ensureHomeContainerRefreshButtons();
+        done();
+      }
+    };
+    var onErr = function (ev) {
+      if (ev && ev.detail && ev.detail.target === sec) {
+        document.body.removeEventListener('htmx:afterSwap', onAfter);
+        document.body.removeEventListener('htmx:responseError', onErr);
+        document.body.removeEventListener('htmx:sendError', onErr);
+        done();
+      }
+    };
+    document.body.addEventListener('htmx:afterSwap', onAfter);
+    document.body.addEventListener('htmx:responseError', onErr);
+    document.body.addEventListener('htmx:sendError', onErr);
+    window.htmx.ajax('GET', url, {
+      target: sec,
+      swap: 'innerHTML',
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+  }
+
+  document.body.addEventListener('click', function (ev) {
+    var btn = ev.target && ev.target.closest && ev.target.closest('[data-home-container-refresh]');
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var sec = btn.closest('[data-home-container]');
+    refreshHomeContainer(sec);
+  });
+
+  ensureHomeContainerRefreshButtons();
+  window.__pcHomeEnsureRefreshButtons = ensureHomeContainerRefreshButtons;
+  document.body.addEventListener('htmx:afterSwap', function (ev) {
+    var t = ev && ev.detail && ev.detail.target;
+    if (t && t.getAttribute && t.getAttribute('data-home-container')) {
+      ensureHomeContainerRefreshButtons();
+    }
+  });
 
   var HOME_PERIOD_LOTTIE = 'https://assets9.lottiefiles.com/packages/lf20_p8bfn5to.json';
 

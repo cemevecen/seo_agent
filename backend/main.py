@@ -8591,7 +8591,12 @@ def _home_sf_metric(title: str, value: str | None, *, sub: str = "", pct: float 
     }
 
 
-def _home_store_firebase_card_from_tabs(product_id: str, store_by_key: dict | None = None) -> dict:
+def _home_store_firebase_card_from_tabs(
+    product_id: str,
+    store_by_key: dict | None = None,
+    *,
+    force_refresh: bool = False,
+) -> dict:
     """Ana sayfa store & firebase — /android + /ios stability-free ile aynı payload."""
     from backend.services.play_console_store import play_console_payload
     from backend.services.stability_free import build_stability_free_payload
@@ -8625,6 +8630,7 @@ def _home_store_firebase_card_from_tabs(product_id: str, store_by_key: dict | No
             package_name=package,
             product_id=pid,
             vitals=vitals,
+            force_refresh=force_refresh,
         )
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Home store-firebase stability-free failed product=%s", pid)
@@ -11359,14 +11365,21 @@ def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, 
 
 
 @app.get("/api/home/crashlytics", response_class=HTMLResponse)
-def api_home_crashlytics(request: Request, product: str | None = None):
+def api_home_crashlytics(
+    request: Request,
+    product: str | None = None,
+    refresh: int = 0,
+):
     """Ana sayfa store & firebase — metrikler /android + /ios stability-free ile aynı kaynak."""
     pid = (product or "doviz").strip().lower()
     if pid != "doviz":
         pid = "doviz"
-    store_platforms = _home_app_release_platforms(pid)
+    force = bool(refresh)
+    store_platforms = _home_app_release_platforms(pid, force_refresh=force)
     store_by_key = {p.get("key"): p for p in store_platforms if p.get("key")}
-    card = _home_store_firebase_card_from_tabs(pid, store_by_key=store_by_key)
+    card = _home_store_firebase_card_from_tabs(
+        pid, store_by_key=store_by_key, force_refresh=force
+    )
     return templates.TemplateResponse(
         request,
         "partials/home/crashlytics.html",
@@ -11424,7 +11437,7 @@ def api_home_drive_uploads(request: Request):
         )
 
 
-def _home_app_release_platforms(product_id: str = "doviz") -> list[dict]:
+def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: bool = False) -> list[dict]:
     """Ana sayfa mağaza özeti — iOS/Android platform kartları."""
     product_id = (product_id or "doviz").strip().lower() or "doviz"
     platforms: list[dict] = []
@@ -11432,7 +11445,11 @@ def _home_app_release_platforms(product_id: str = "doviz") -> list[dict]:
 
     try:
         from backend.services.app_intel import get_raw_product_data
-        result = get_raw_product_data(product_id, force_refresh=False, cache_only=True)
+        result = get_raw_product_data(
+            product_id,
+            force_refresh=force_refresh,
+            cache_only=not force_refresh,
+        )
         if not result.get("error"):
             raw = result
     except Exception:

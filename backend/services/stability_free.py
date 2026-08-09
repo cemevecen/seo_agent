@@ -187,11 +187,24 @@ def _latest_cf_since_release(
     return _cf_block(live, version=version)
 
 
+def invalidate_stability_cache(product_id: str | None = None) -> None:
+    """Bellek içi stability-free cache temizle (manuel yenile)."""
+    with _STABILITY_CACHE_LOCK:
+        if not product_id:
+            _STABILITY_CACHE.clear()
+            return
+        pid = (product_id or "").strip().lower()
+        for k in list(_STABILITY_CACHE.keys()):
+            if k.startswith(f"{pid}:"):
+                del _STABILITY_CACHE[k]
+
+
 def build_stability_free_payload(
     *,
     package_name: str = "com.Doviz",
     product_id: str = "doviz",
     vitals: dict[str, Any] | None = None,
+    force_refresh: bool = False,
 ) -> dict[str, Any]:
     """Android/iOS crash-free kartları için birleşik payload."""
     from backend.services import crashlytics_bq as cbq
@@ -199,9 +212,12 @@ def build_stability_free_payload(
 
     vitals = vitals if isinstance(vitals, dict) else {}
     cache_key = f"{product_id}:{package_name}:sf"
-    cached = _stability_cache_get(cache_key)
-    if cached:
-        return cached
+    if force_refresh:
+        invalidate_stability_cache(product_id)
+    else:
+        cached = _stability_cache_get(cache_key)
+        if cached:
+            return cached
 
     play_overall = free_rates_from_vitals_overview(vitals)
 
@@ -252,14 +268,29 @@ def build_stability_free_payload(
 
     crashlytics: dict[str, Any] = {"ok": False, "platforms": {}}
     try:
-        payload = cbq.peek_cached_payload(product_id, days=7, platform_filter="all")
-        if not payload:
-            # Soğuk cache — senkron çekme pahalı; yalnız peek. İstersen prewarm.
+        payload = None
+        if force_refresh:
+            # Manuel yenile: BQ cache temizle + senkron rebuild
             try:
-                cbq.prewarm_cache(product_id)
+                cbq.invalidate_product_cache(product_id)
             except Exception:
-                pass
+                logger.debug("stability-free BQ cache clear failed", exc_info=True)
+            try:
+                payload = cbq.build_full_payload(
+                    product_id, days=7, platform_filter="all"
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("stability-free force BQ rebuild: %s", exc)
+                payload = cbq.peek_cached_payload(product_id, days=7, platform_filter="all")
+        else:
             payload = cbq.peek_cached_payload(product_id, days=7, platform_filter="all")
+            if not payload:
+                # Soğuk cache — senkron çekme pahalı; yalnız peek. İstersen prewarm.
+                try:
+                    cbq.prewarm_cache(product_id)
+                except Exception:
+                    pass
+                payload = cbq.peek_cached_payload(product_id, days=7, platform_filter="all")
         if payload and payload.get("ok") is not False:
             cf_by = payload.get("crash_free_by_platform") or {}
             latest_stats = payload.get("latest_version_stats_by_platform") or {}
@@ -268,15 +299,17 @@ def build_stability_free_payload(
                 overall = _cf_block(cf_by.get(plat))
                 scoped = latest_stats.get(plat) if isinstance(latest_stats.get(plat), dict) else {}
                 ver = str((scoped or {}).get("version") or "").strip() or None
-                # Önce cache’deki sürüm CF — canlı BQ since-release ilk açılışı yavaşlatır
                 latest_cf = None
                 if ver:
                     latest_cf = _cf_block((scoped or {}).get("crash_free"), version=ver)
-                if ver and not latest_cf:
+                # force veya cache boşsa since-release canlı CF
+                if ver and (force_refresh or not latest_cf):
                     try:
-                        latest_cf = _latest_cf_since_release(
+                        live_cf = _latest_cf_since_release(
                             cbq, product_id=product_id, plat=plat, version=ver
                         )
+                        if live_cf:
+                            latest_cf = live_cf
                     except Exception as exc:  # noqa: BLE001
                         logger.info(
                             "stability-free since-release CF (%s/%s): %s", plat, ver, exc

@@ -2827,6 +2827,15 @@ def peek_cached_payload(
     return _cache_get(key) or _cache_get_stale(key)
 
 
+def invalidate_product_cache(product_id: str = "doviz") -> None:
+    """Ürüne ait Crashlytics payload cache girdilerini sil (manuel yenile)."""
+    pid = (product_id or "doviz").strip().lower()
+    with _CACHE_LOCK:
+        stale = [k for k in _CACHE if k.startswith(f"{pid}:")]
+        for k in stale:
+            del _CACHE[k]
+
+
 def prewarm_cache(product_id: str = "doviz") -> None:
     """Startup veya scheduled re-warm için arka planda cache'i ısıt.
     Manuel refresh'ten farklı olarak cache/circuit breaker'ı sıfırlamaz —
