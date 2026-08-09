@@ -1060,10 +1060,20 @@ def ingest_scrape_result(result: dict[str, Any]) -> dict[str, Any]:
         json=payload,
         timeout=120,
     )
+    text = r.text or ""
+    if text.lstrip().lower().startswith("<!doctype") or text.lstrip().startswith("<html"):
+        return {
+            "ok": False,
+            "http_status": r.status_code,
+            "message": (
+                "Ingest HTML login sayfası döndü — Railway’de /api/asc-console/ingest "
+                "public allowlist + NOTIFICATION_INGEST_TOKEN kontrol et"
+            ),
+        }
     try:
         data = r.json()
     except Exception:
-        data = {"ok": False, "message": r.text[:300]}
+        data = {"ok": False, "message": text[:300]}
     data["http_status"] = r.status_code
     return data
 
