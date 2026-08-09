@@ -1396,9 +1396,33 @@
       home.appendChild(paMetricList);
     }
   }
+  function paMetricsShownOnChart() {
+    if (paLastChart && paLastChart.chartBundles && paLastChart.chartBundles.length) {
+      return paLastChart.chartBundles
+        .filter(function (b) {
+          return b && b.metric && !paOverviewHidden[b.metric];
+        })
+        .map(function (b) { return b.metric; });
+    }
+    if (paOverviewActive) {
+      return PA_OVERVIEW_CHART_METRICS.filter(function (m) {
+        return !paOverviewHidden[m];
+      });
+    }
+    if (paOverviewBundles && paSelectedMetrics.length > 1) {
+      return visibleOverviewBundles(paOverviewBundles)
+        .filter(function (b) { return b.onChart; })
+        .map(function (b) { return b.metric; });
+    }
+    return paSelectedMetrics.slice();
+  }
   function setPaMetricDropdownOpen(on) {
     if (!paMetricList || !paMetricTrigger) return;
     if (on) {
+      // Overview / boş seçimde: grafikte çizili metrikleri tick’le (dirty yok)
+      if (paOverviewActive && !paSelectedMetrics.length) {
+        paSelectedMetrics = paMetricsShownOnChart();
+      }
       fillPaMetricOptions();
       mountPaMetricListPortal(true);
       positionPaMetricDropdown();
@@ -1412,6 +1436,10 @@
       if (wasOpen && paMetricDirty) {
         paMetricDirty = false;
         applyPaMetricSelection();
+      } else if (wasOpen && paOverviewActive && !paMetricDirty) {
+        // Sadece tick önizlemesiydi — Seçiniz / overview semantiğini koru
+        paSelectedMetrics = [];
+        updatePaMetricTrigger();
       }
     }
   }

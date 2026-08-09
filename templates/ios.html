@@ -601,9 +601,26 @@
       home.appendChild(iaMetricList);
     }
   }
+  function iaMetricsShownOnChart() {
+    if (iaLastDrawBundles && iaLastDrawBundles.length) {
+      return iaLastDrawBundles
+        .filter(function (b) {
+          return b && b.metric && (b.series || []).length && !isIaMetricHidden(b.metric);
+        })
+        .map(function (b) { return b.metric; });
+    }
+    if (overviewActive) {
+      return CHART_METRICS.filter(function (m) { return !isIaMetricHidden(m); });
+    }
+    return iaSelectedMetrics.slice();
+  }
   function setIaMetricDropdownOpen(on) {
     if (!iaMetricList || !iaMetricTrigger) return;
     if (on) {
+      // Overview / boş seçimde: grafikte çizili metrikleri tick’le (dirty yok)
+      if (overviewActive && !iaSelectedMetrics.length) {
+        iaSelectedMetrics = iaMetricsShownOnChart();
+      }
       fillIaMetricOptions();
       mountIaMetricListPortal(true);
       positionIaMetricDropdown();
@@ -618,6 +635,10 @@
         iaMetricDirty = false;
         syncIaDimFilters();
         runAnalytics();
+      } else if (wasOpen && overviewActive && !iaMetricDirty) {
+        // Sadece tick önizlemesiydi — Seçiniz / overview semantiğini koru
+        iaSelectedMetrics = [];
+        updateIaMetricTrigger();
       }
     }
   }
