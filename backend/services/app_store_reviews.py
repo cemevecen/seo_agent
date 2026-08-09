@@ -59,17 +59,30 @@ def fetch_app_store_reviews(
         try:
             with httpx.Client(timeout=20.0, follow_redirects=True, headers=headers) as client:
                 for page in range(1, pages + 1):
-                    url = (
-                        f"https://itunes.apple.com/{cc}/rss/customerreviews"
-                        f"/page={page}/id={track_id}/sortby=mostrecent/json"
+                    # Hem path-country hem query cc — RSS bazı bölgelerde birini tercih eder
+                    urls = (
+                        (
+                            f"https://itunes.apple.com/{cc}/rss/customerreviews"
+                            f"/page={page}/id={track_id}/sortby=mostrecent/json",
+                            None,
+                        ),
+                        (
+                            f"https://itunes.apple.com/rss/customerreviews"
+                            f"/page={page}/id={track_id}/sortby=mostrecent/json",
+                            {"l": cc, "cc": cc},
+                        ),
                     )
-                    try:
-                        resp = client.get(url)
-                        resp.raise_for_status()
-                        entries = resp.json().get("feed", {}).get("entry", [])
-                    except Exception as exc:  # noqa: BLE001
-                        logger.debug("App Store RSS %s page=%s: %s", cc, page, exc)
-                        break
+                    entries = []
+                    for url, params in urls:
+                        try:
+                            resp = client.get(url, params=params)
+                            resp.raise_for_status()
+                            entries = resp.json().get("feed", {}).get("entry", [])
+                            if entries:
+                                break
+                        except Exception as exc:  # noqa: BLE001
+                            logger.debug("App Store RSS %s page=%s: %s", cc, page, exc)
+                            continue
                     if not entries:
                         break
                     # İlk entry bazen app meta

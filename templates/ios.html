@@ -637,7 +637,7 @@
     _iaReviewsSyncing = true;
     if (iaStatus) iaStatus.textContent = "Yorumlar senkron…";
     if (iaReviewCountEl) iaReviewCountEl.textContent = "yükleniyor…";
-    syncAppStoreReviews({ quick: true })
+    syncAppStoreReviews({ quick: false })
       .then(function (sj) {
         if (iaStatus) iaStatus.textContent = (sj && sj.message) || ("Yorumlar: " + ((sj && sj.review_count) || 0));
         return loadIaReviewsSnapshot();
