@@ -61,6 +61,7 @@ from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.asc_console import router as asc_console_router
 from backend.api.pagespeed_web import router as pagespeed_web_router
 from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
+from backend.api.gsc_cwv import router as gsc_cwv_router
 from backend.api.gsc_links import router as gsc_links_router
 from backend.api.policy_ingest import router as policy_ingest_router
 from backend.api.market_quotes import router as market_quotes_router
@@ -1050,6 +1051,7 @@ app.include_router(doviz_news_router, prefix="/api")
 app.include_router(play_console_router, prefix="/api")
 app.include_router(pagespeed_web_router, prefix="/api")
 app.include_router(seo_audit_scrape_router, prefix="/api")
+app.include_router(gsc_cwv_router, prefix="/api")
 app.include_router(gsc_links_router, prefix="/api")
 app.include_router(policy_ingest_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
@@ -1876,6 +1878,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/seo-audit/ingest",
         "/api/seo-audit/urls",
         "/api/seo-audit/progress",
+        "/api/gsc-cwv/ingest",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -14624,6 +14627,55 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
             }
         return templates.TemplateResponse(request, "partials/ai_content.html", context=ctx)
     return RedirectResponse(url="/ai", status_code=303)
+
+
+@app.get("/web-vitals")
+def web_vitals_page(request: Request, site_id: int | None = None, tab: str = "mobile"):
+    """GSC Core Web Vitals + AMP scrape paneli."""
+    from backend.models import Site
+    from backend.services import gsc_cwv_scrape_store as cwv_store
+
+    sidebar_sites = get_sidebar_sites()
+    tab = (tab or "mobile").strip().lower()
+    if tab not in ("mobile", "desktop", "amp"):
+        tab = "mobile"
+    with SessionLocal() as db:
+        external_ids = _external_site_ids(db)
+        all_sites = [
+            {"id": s.id, "domain": s.domain, "display_name": s.display_name}
+            for s in db.query(Site).order_by(Site.domain).all()
+            if s.id not in external_ids
+        ]
+        all_sites = sorted(
+            all_sites,
+            key=lambda s: _preferred_site_order_key(s.get("domain"), s.get("display_name")),
+        )
+        if not site_id and all_sites:
+            site_id = _default_internal_site_id(all_sites)
+        site_row = db.query(Site).filter(Site.id == site_id).first() if site_id else None
+        ctx = cwv_store.build_panel_context(db, site_row) if site_row else {
+            "payload": {},
+            "history": [],
+            "collected_at": "",
+            "gsc_links": {},
+            "thresholds": {
+                "good_drop_pct": cwv_store.GOOD_DROP_PCT,
+                "poor_increase_abs": cwv_store.POOR_INCREASE_ABS,
+                "ni_increase_pct": cwv_store.NI_INCREASE_PCT,
+            },
+        }
+    return templates.TemplateResponse(request, "web_vitals.html", {
+        "request": request,
+        "sites": sidebar_sites,
+        "all_sites": all_sites,
+        "selected_site_id": site_id,
+        "tab": tab,
+        "payload": ctx.get("payload") or {},
+        "history": ctx.get("history") or [],
+        "collected_at": ctx.get("collected_at") or "",
+        "gsc_links": ctx.get("gsc_links") or {},
+        "thresholds": ctx.get("thresholds") or {},
+    })
 
 
 @app.get("/seo-audit")

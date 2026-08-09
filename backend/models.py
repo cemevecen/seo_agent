@@ -632,6 +632,25 @@ class GscCwvScreenshot(Base):
     site: Mapped["Site"] = relationship("Site")
 
 
+class GscCwvReportSnapshot(Base):
+    """GSC Core Web Vitals + AMP scrape snapshot (Mac bridge → Web Vitals paneli)."""
+
+    __tablename__ = "gsc_cwv_report_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"), nullable=False, index=True)
+    resource_id: Mapped[str] = mapped_column(String(255), nullable=False, default="", index=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="gsc_cwv_scrape", index=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    poor_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ni_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    good_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    amp_url_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    collected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    site: Mapped["Site"] = relationship("Site")
+
+
 class InboxGmailCredential(Base):
     """Gelen kutusu (Gmail API) için global OAuth — tek satır (id=1)."""
 

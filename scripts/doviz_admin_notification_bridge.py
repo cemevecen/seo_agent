@@ -21,6 +21,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
   POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
   POST /sync-seo-audit → SEO meta audit scrape (02:45 + 14:45 TR, GA4 top 500)
+  POST /sync-gsc-cwv → GSC Core Web Vitals + AMP (03:00 + 15:00 TR)
   POST /open-noads  → noAds sayfasını aç, textarea'ya URL yaz (policy «Ekle»)
   POST /sync-all   → notification + news
 """
@@ -105,6 +106,9 @@ NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "15")
 # SEO audit: pagespeed/noAds sonrası — 02:45 + 14:45 TR
 SEO_AUDIT_SLOT_HOURS = (2, 14)
 SEO_AUDIT_SLOT_MINUTE = int(os.environ.get("SEO_AUDIT_BRIDGE_MINUTE") or "45")
+# GSC CWV + AMP — SEO scrape sonrası — 03:00 + 15:00 TR
+GSC_CWV_SLOT_HOURS = (3, 15)
+GSC_CWV_SLOT_MINUTE = int(os.environ.get("GSC_CWV_BRIDGE_MINUTE") or "0")
 SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "20")
 # Başarısız otomatik tur → en fazla 3 yeniden deneme, 10'ar dk arayla
 BRIDGE_RETRY_MAX = int(os.environ.get("BRIDGE_RETRY_MAX") or "3")
@@ -167,6 +171,7 @@ _policy_lock = threading.Lock()
 _noads_lock = threading.Lock()
 _pagespeed_lock = threading.Lock()
 _seo_audit_lock = threading.Lock()
+_gsc_cwv_lock = threading.Lock()
 _noads_open_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -178,6 +183,7 @@ _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışm
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_seo_audit_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_gsc_cwv_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_nt_auto_at = 0.0
 _last_news_auto_at = 0.0
 _last_virgul_auto_slot = ""
@@ -188,6 +194,7 @@ _last_policy_auto_slot = ""
 _last_noads_auto_slot = ""
 _last_pagespeed_auto_slot = ""
 _last_seo_audit_auto_slot = ""
+_last_gsc_cwv_auto_slot = ""
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -1129,6 +1136,69 @@ def run_seo_audit_bridge_once(site_id: int | None = None) -> dict[str, Any]:
     return out
 
 
+def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
+    """GSC Core Web Vitals + AMP scrape → Railway ingest."""
+    global _last_gsc_cwv_result
+    if not _ingest_token():
+        err = {"ok": False, "kind": "gsc_cwv", "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_gsc_cwv_result = err
+        return err
+
+    import subprocess
+
+    script = ROOT / "scripts" / "gsc_cwv_scrape.py"
+    if not script.is_file():
+        err = {"ok": False, "kind": "gsc_cwv", "message": "gsc_cwv_scrape.py yok"}
+        _last_gsc_cwv_result = err
+        return err
+
+    print(f"GSC CWV scrape başlıyor… site={site_key or 'all'}", flush=True)
+    cmd = [sys.executable, str(script), "--sync", "--ingest", "--headed"]
+    if site_key:
+        cmd += ["--site", str(site_key)]
+    env = os.environ.copy()
+    env.setdefault(
+        "GSC_CWV_INGEST_URL",
+        (
+            os.environ.get("GSC_CWV_INGEST_URL")
+            or "https://projectcontrol.up.railway.app/api/gsc-cwv/ingest"
+        ).strip(),
+    )
+    timeout_sec = int(os.environ.get("GSC_CWV_BRIDGE_TIMEOUT_SEC") or "7200")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            timeout=max(300, timeout_sec),
+        )
+    except subprocess.TimeoutExpired:
+        out = {
+            "ok": False,
+            "kind": "gsc_cwv",
+            "message": f"GSC CWV scrape timeout ({timeout_sec}s)",
+        }
+        _last_gsc_cwv_result = out
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "gsc_cwv", "message": f"GSC CWV subprocess: {exc}"}
+        _last_gsc_cwv_result = out
+        return out
+
+    if proc.returncode == 0:
+        out = {"ok": True, "kind": "gsc_cwv", "message": "GSC CWV scrape OK", "site": site_key}
+    else:
+        out = {
+            "ok": False,
+            "kind": "gsc_cwv",
+            "message": f"GSC CWV scrape exit {proc.returncode}",
+            "site": site_key,
+        }
+    _last_gsc_cwv_result = out
+    print(f"GSC CWV sync · {out['message']}", flush=True)
+    return out
+
+
 def run_notification_bridge_once() -> dict[str, Any]:
     """Admin notification stats → Railway ingest."""
     global _last_result
@@ -1519,6 +1589,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_asc": _last_asc_result,
                     "last_pagespeed": _last_pagespeed_result,
                     "last_seo_audit": _last_seo_audit_result,
+                    "last_gsc_cwv": _last_gsc_cwv_result,
                     "last_gsc_links": _last_gsc_links_result,
                     "last_policy": _last_policy_result,
                     "last_noads": _last_noads_result,
@@ -1536,6 +1607,9 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "seo_audit_slots_tr": [
                             f"{h:02d}:{SEO_AUDIT_SLOT_MINUTE:02d}" for h in SEO_AUDIT_SLOT_HOURS
+                        ],
+                        "gsc_cwv_slots_tr": [
+                            f"{h:02d}:{GSC_CWV_SLOT_MINUTE:02d}" for h in GSC_CWV_SLOT_HOURS
                         ],
                         "retry_max": BRIDGE_RETRY_MAX,
                         "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
@@ -1672,6 +1746,50 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "kind": "seo_audit",
                     "site_id": site_id,
                     "message": "SEO audit scrape arka planda başladı (GA4 top URL)",
+                },
+            )
+            return
+        elif path in ("/sync-gsc-cwv", "/gsc-cwv", "/sync-web-vitals", "/web-vitals"):
+            site_key = (qs.get("site") or [""])[0].strip().lower() or None
+            length = int(self.headers.get("Content-Length") or 0)
+            raw_body = self.rfile.read(length) if length > 0 else b""
+            if raw_body:
+                try:
+                    payload = json.loads(raw_body.decode("utf-8", errors="replace"))
+                    if isinstance(payload, dict):
+                        if payload.get("site"):
+                            site_key = str(payload.get("site") or "").strip().lower() or site_key
+                        # site_id 1≈doviz, 2≈sinemalar (panel varsayılanı)
+                        elif payload.get("site_id") in (1, "1"):
+                            site_key = "doviz"
+                        elif payload.get("site_id") in (2, "2"):
+                            site_key = "sinemalar"
+                except Exception:
+                    pass
+            if not _gsc_cwv_lock.acquire(blocking=False):
+                self._send(
+                    409,
+                    {"ok": False, "message": "GSC CWV scrape zaten çalışıyor, bekleyin."},
+                )
+                return
+
+            def _bg_cwv() -> None:
+                try:
+                    run_gsc_cwv_bridge_once(site_key=site_key)
+                except Exception:
+                    traceback.print_exc()
+                finally:
+                    _gsc_cwv_lock.release()
+
+            threading.Thread(target=_bg_cwv, name="gsc-cwv-bridge", daemon=True).start()
+            self._send(
+                200,
+                {
+                    "ok": True,
+                    "started": True,
+                    "kind": "gsc_cwv",
+                    "site": site_key,
+                    "message": "GSC CWV + AMP scrape arka planda başladı",
                 },
             )
             return
@@ -1839,6 +1957,11 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
             "lock": _seo_audit_lock,
             "runner": run_seo_audit_bridge_once,
         },
+        "gsc_cwv": {
+            "name": "GSC CWV",
+            "lock": _gsc_cwv_lock,
+            "runner": run_gsc_cwv_bridge_once,
+        },
         "sinemalar_noads": {
             "name": "noAds",
             "lock": _noads_lock,
@@ -1917,6 +2040,7 @@ def _auto_loop() -> None:
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
     global _last_gsc_links_auto_slot, _last_policy_auto_slot
     global _last_noads_auto_slot, _last_pagespeed_auto_slot, _last_seo_audit_auto_slot
+    global _last_gsc_cwv_auto_slot
 
     while True:
         _auto_cycle += 1
@@ -2027,6 +2151,10 @@ def _auto_loop() -> None:
             "seo_audit", "SEO Audit", _seo_audit_lock, run_seo_audit_bridge_once,
             "_last_seo_audit_auto_slot", SEO_AUDIT_SLOT_HOURS, SEO_AUDIT_SLOT_MINUTE,
         )
+        _slot_job(
+            "gsc_cwv", "GSC CWV", _gsc_cwv_lock, run_gsc_cwv_bridge_once,
+            "_last_gsc_cwv_auto_slot", GSC_CWV_SLOT_HOURS, GSC_CWV_SLOT_MINUTE,
+        )
 
         time.sleep(max(30, AUTO_POLL_SEC))
 
@@ -2043,6 +2171,7 @@ def run_daemon() -> int:
         f"asc=:{ASC_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
         f"seo={list(SEO_AUDIT_SLOT_HOURS)}:{SEO_AUDIT_SLOT_MINUTE:02d} "
+        f"cwv={list(GSC_CWV_SLOT_HOURS)}:{GSC_CWV_SLOT_MINUTE:02d} "
         f"retry={BRIDGE_RETRY_MAX}x/{BRIDGE_RETRY_GAP_SEC}s",
         flush=True,
     )
