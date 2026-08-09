@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v6">
+<style id="home-site-borders" data-home-css="v7">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -946,12 +946,12 @@
     50% { box-shadow: 0 0 0 3px rgb(255 255 255 / 0.98), 0 8px 22px rgb(15 23 42 / 0.2); }
   }
 
-  /* Focus: pair rows → expanded + rail */
+  /* Focus: rail only on project headers; data rows go full width */
   @media (min-width: 1024px) {
-    #home-board[data-home-focus="doviz"] .home-pair-row {
+    #home-board[data-home-focus="doviz"] .home-project-heads.home-pair-row {
       grid-template-columns: minmax(0, 1fr) var(--home-rail-w);
     }
-    #home-board[data-home-focus="sinemalar"] .home-pair-row {
+    #home-board[data-home-focus="sinemalar"] .home-project-heads.home-pair-row {
       grid-template-columns: var(--home-rail-w) minmax(0, 1fr);
     }
     #home-board[data-home-focus="doviz"] .home-board-divider,
@@ -959,10 +959,28 @@
       display: none;
     }
 
-    #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="sinemalar"],
-    #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="doviz"] {
+    /* Content rows: selected project full width, other hidden (no side rails) */
+    #home-board[data-home-focus="doviz"] .home-pair-row:not(.home-project-heads),
+    #home-board[data-home-focus="sinemalar"] .home-pair-row:not(.home-project-heads) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    #home-board[data-home-focus="doviz"] .home-pair-row:not(.home-project-heads) > [data-home-project="sinemalar"],
+    #home-board[data-home-focus="sinemalar"] .home-pair-row:not(.home-project-heads) > [data-home-project="doviz"] {
+      display: none !important;
+    }
+    #home-board[data-home-focus="doviz"] .home-pair-row:not(.home-project-heads) > [data-home-project="doviz"],
+    #home-board[data-home-focus="sinemalar"] .home-pair-row:not(.home-project-heads) > [data-home-project="sinemalar"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      max-width: none;
+      overflow: visible;
+    }
+
+    /* Header rail only */
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"],
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] {
       position: relative;
-      min-height: 4.75rem;
+      min-height: 3.35rem;
       border-radius: 9999px;
       overflow: hidden;
       display: flex;
@@ -971,23 +989,23 @@
       padding: 0.35rem 0.15rem;
       box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.06);
     }
-    #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="sinemalar"] {
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] {
       background: linear-gradient(180deg, #ffe4e6, #fecdd3);
     }
-    #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="doviz"] {
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] {
       background: linear-gradient(180deg, #dbeafe, #bfdbfe);
     }
-    html.dark #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="sinemalar"] {
+    html.dark #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] {
       background: linear-gradient(180deg, rgb(136 19 55 / 0.55), rgb(127 29 29 / 0.45));
       box-shadow: inset 0 0 0 1px rgb(253 164 175 / 0.2);
     }
-    html.dark #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="doviz"] {
+    html.dark #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] {
       background: linear-gradient(180deg, rgb(30 58 138 / 0.55), rgb(30 64 175 / 0.4));
       box-shadow: inset 0 0 0 1px rgb(147 197 253 / 0.2);
     }
 
-    #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="sinemalar"] > *:not(.home-project-rail-label),
-    #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="doviz"] > *:not(.home-project-rail-label) {
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] > *:not(.home-project-rail-label),
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] > *:not(.home-project-rail-label) {
       position: absolute !important;
       width: 1px !important;
       height: 1px !important;
@@ -999,8 +1017,8 @@
       border: 0 !important;
       pointer-events: none !important;
     }
-    #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="sinemalar"] .home-project-rail-label,
-    #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="doviz"] .home-project-rail-label {
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label,
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label {
       display: block;
       position: static;
       writing-mode: vertical-rl;
@@ -1012,16 +1030,16 @@
       line-height: 1;
       pointer-events: none;
     }
-    #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="sinemalar"] .home-project-rail-label {
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label {
       color: #9f1239;
     }
-    #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="doviz"] .home-project-rail-label {
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label {
       color: #1d4ed8;
     }
-    html.dark #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="sinemalar"] .home-project-rail-label {
+    html.dark #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] .home-project-rail-label {
       color: #fecdd3;
     }
-    html.dark #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="doviz"] .home-project-rail-label {
+    html.dark #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] .home-project-rail-label {
       color: #bfdbfe;
     }
 
@@ -1032,9 +1050,8 @@
       pointer-events: none;
     }
 
-    /* Expanded side: keep overflow visible so drive badges + preview stay usable */
-    #home-board[data-home-focus="doviz"] .home-pair-row > [data-home-project="doviz"],
-    #home-board[data-home-focus="sinemalar"] .home-pair-row > [data-home-project="sinemalar"] {
+    #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="doviz"],
+    #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="sinemalar"] {
       overflow: visible;
     }
   }
@@ -1226,7 +1243,6 @@
       {# Row 1 — GA4 · items-start: bir site uzayınca diğeri uzamasın #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-          <span class="home-project-rail-label" aria-hidden="true">doviz</span>
         <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -1235,7 +1251,6 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-          <span class="home-project-rail-label" aria-hidden="true">sinemalar</span>
         <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -1248,7 +1263,6 @@
       {# Row 3 — Search Console #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-          <span class="home-project-rail-label" aria-hidden="true">doviz</span>
         <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -1257,7 +1271,6 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-          <span class="home-project-rail-label" aria-hidden="true">sinemalar</span>
         <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=27" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -1270,7 +1283,6 @@
       {# Row 4 — Position Drops #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
-          <span class="home-project-rail-label" aria-hidden="true">doviz</span>
         <section hx-get="/api/home/position-drops?site=doviz&v=5" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="position-doviz"
                  hx-headers='{"Cache-Control": "no-cache"}'
@@ -1279,7 +1291,6 @@
         </section>
         </div>
         <div data-home-container-slot="position-sinemalar" data-home-project="sinemalar">
-          <span class="home-project-rail-label" aria-hidden="true">sinemalar</span>
         <section hx-get="/api/home/position-drops?site=sinemalar&v=5" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  hx-headers='{"Cache-Control": "no-cache"}'
