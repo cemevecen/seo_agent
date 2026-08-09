@@ -526,13 +526,20 @@
     </div>
 
     <div id="pa-overlay-panel" class="mt-3 hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-      <div class="flex flex-wrap items-start gap-3">
-        <div class="min-w-[14rem] flex-1">
-          <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik</p>
-          <div id="pa-ov-metric-list" role="listbox" aria-multiselectable="true"
-               class="mt-1 max-h-52 overflow-auto rounded-lg border border-slate-300 bg-white py-1 dark:border-zinc-600 dark:bg-zinc-950"></div>
-        </div>
-        <div id="pa-ov-play-dims" class="flex flex-wrap items-end gap-3 pt-5">
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
+          <div class="pa-ov-dd relative mt-1 min-w-[12rem] max-w-[18rem]">
+            <button type="button" id="pa-ov-metric-trigger"
+                    class="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-left text-xs text-slate-800 shadow-sm dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                    aria-haspopup="listbox" aria-expanded="false">
+              <span id="pa-ov-metric-label" class="min-w-0 flex-1 truncate">Seçiniz</span>
+              <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
+            </button>
+            <div id="pa-ov-metric-list" role="listbox" aria-multiselectable="true"
+                 class="absolute left-0 z-40 mt-1 hidden max-h-64 w-[min(22rem,calc(100vw-2rem))] min-w-full overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
+          </div>
+        </label>
+        <div id="pa-ov-play-dims" class="flex flex-wrap items-end gap-3">
           <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
             <select id="pa-ov-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
               <option value="date" selected>Gün</option>
@@ -556,7 +563,7 @@
             </select>
           </label>
         </div>
-        <div class="flex flex-wrap items-center gap-2 pt-5">
+        <div class="flex flex-wrap items-center gap-2">
           <button id="pa-ov-run" type="button"
                   class="inline-flex items-center justify-center rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50">
             Ekle
@@ -571,8 +578,8 @@
           </button>
         </div>
       </div>
-      <div id="pa-overlays-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
-      <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Metriklere tıklayarak ✓ ile çoklu seçin, sonra Ekle. Play / GA4 / Virgül aynı aralıkta üst üste gelir; farklı birimler kendi max % ölçeğinde hizalanır.</p>
+      <div id="pa-overlays-chips" class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4"></div>
+      <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Dropdown’dan ✓ ile çoklu seçin, sonra Ekle. Play / GA4 / Virgül aynı aralıkta üst üste gelir.</p>
     </div>
 
     <div id="pa-results" class="relative mt-4 w-full min-w-0">
@@ -1199,6 +1206,8 @@
   var paAddChartBtn = document.getElementById("pa-add-chart");
   var paOverlayPanel = document.getElementById("pa-overlay-panel");
   var paOvMetricList = document.getElementById("pa-ov-metric-list");
+  var paOvMetricTrigger = document.getElementById("pa-ov-metric-trigger");
+  var paOvMetricLabel = document.getElementById("pa-ov-metric-label");
   var paOvPlayDims = document.getElementById("pa-ov-play-dims");
   var paOvBreakdown = document.getElementById("pa-ov-breakdown");
   var paOvDim = document.getElementById("pa-ov-dim");
@@ -2553,31 +2562,57 @@
     paOvRun.disabled = !changed;
     paOvRun.textContent = changed && n ? ("Ekle (" + n + ")") : "Ekle";
   }
+  function updatePaOvMetricTrigger() {
+    if (!paOvMetricLabel) return;
+    var keys = paOvPendingKeys();
+    if (!keys.length) {
+      paOvMetricLabel.textContent = "Seçiniz";
+      return;
+    }
+    if (keys.length === 1) {
+      paOvMetricLabel.textContent = metricOptionLabel(keys[0]) || keys[0];
+      return;
+    }
+    paOvMetricLabel.textContent = keys.length + " metrik seçili";
+  }
+  function setPaOvDropdownOpen(on) {
+    if (!paOvMetricList || !paOvMetricTrigger) return;
+    if (on) {
+      paOvMetricList.classList.remove("hidden");
+      paOvMetricTrigger.setAttribute("aria-expanded", "true");
+    } else {
+      paOvMetricList.classList.add("hidden");
+      paOvMetricTrigger.setAttribute("aria-expanded", "false");
+    }
+  }
   function fillOverlayMetricOptions() {
     if (!paOvMetricList) return;
+    var scrollY = paOvMetricList.scrollTop;
     var groups = listPaOverlayChoices();
     var html = "";
     groups.forEach(function (g) {
-      html += '<div class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
+      html += '<div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
         esc(g.label) + "</div>";
       g.items.forEach(function (m) {
         var on = !!paOvPending[m.value];
         html +=
           '<button type="button" role="option" aria-selected="' + (on ? "true" : "false") + '" data-pa-ov-pick="' + esc(m.value) + '" ' +
-          'class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium transition ' +
+          'class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs ' +
           (on
-            ? "bg-blue-50 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100"
-            : "text-slate-700 hover:bg-slate-50 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
-          '<span class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[13px] font-bold text-blue-600 dark:text-blue-400" aria-hidden="true">' +
+            ? "bg-blue-50 font-semibold text-blue-800 dark:bg-blue-950/40 dark:text-blue-100"
+            : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
+          '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-blue-600 dark:text-blue-400" aria-hidden="true">' +
           (on ? "✓" : "") + "</span>" +
           '<span class="min-w-0 flex-1 truncate">' + esc(m.label) + "</span>" +
           "</button>";
       });
     });
     if (!html) {
-      html = '<p class="px-2.5 py-3 text-xs text-slate-400">Eklenecek metrik kalmadı</p>';
+      html = '<p class="px-2 py-2 text-xs text-slate-400">Eklenecek metrik kalmadı</p>';
     }
     paOvMetricList.innerHTML = html;
+    paOvMetricList.scrollTop = scrollY;
+    updatePaOvMetricTrigger();
     updatePaOvRunState();
     syncOverlayPanelForMetric();
   }
@@ -2586,6 +2621,7 @@
     if (!paOverlayPanel) return;
     syncPaOvPendingFromOverlays();
     fillOverlayMetricOptions();
+    setPaOvDropdownOpen(false);
     if (paOvBreakdown && paBreakdown) paOvBreakdown.value = paBreakdown.value || "date";
     if (paOvDim && paDim) paOvDim.value = paDim.value || "overview";
     if (paOvSegment) {
@@ -2595,9 +2631,9 @@
     var note = document.getElementById("pa-ov-note");
     if (note) {
       if (paOverviewActive) {
-        note.textContent = "Metriklere tıklayarak ✓ ile çoklu seçin, sonra Ekle. Özet çizgilerinin üzerine Play, GA4 veya Virgül eklenir — farklı birimler kendi max % ölçeğinde hizalanır.";
+        note.textContent = "Dropdown’dan ✓ ile çoklu seçin, sonra Ekle. Özet çizgilerinin üzerine Play, GA4 veya Virgül eklenir.";
       } else {
-        note.textContent = "Metriklere tıklayarak ✓ ile çoklu seçin, sonra Ekle. Play / GA4 / Virgül aynı aralıkta üst üste gelir; farklı birimler kendi max % ölçeğinde hizalanır.";
+        note.textContent = "Dropdown’dan ✓ ile çoklu seçin, sonra Ekle. Play / GA4 / Virgül aynı aralıkta üst üste gelir.";
       }
     }
     paOverlayPanel.classList.remove("hidden");
@@ -2610,6 +2646,7 @@
   }
 
   function closeOverlayPanel() {
+    setPaOvDropdownOpen(false);
     if (paOverlayPanel) paOverlayPanel.classList.add("hidden");
   }
 
@@ -3816,17 +3853,33 @@
     });
   }
   if (paOvRun) paOvRun.addEventListener("click", runOverlayAnalytics);
+  if (paOvMetricTrigger) {
+    paOvMetricTrigger.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var open = paOvMetricList && !paOvMetricList.classList.contains("hidden");
+      setPaOvDropdownOpen(!open);
+    });
+  }
   if (paOvMetricList) {
     paOvMetricList.addEventListener("click", function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-pa-ov-pick]") : null;
       if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
       var key = btn.getAttribute("data-pa-ov-pick");
       if (!key) return;
       if (paOvPending[key]) delete paOvPending[key];
       else paOvPending[key] = true;
       fillOverlayMetricOptions();
+      setPaOvDropdownOpen(true);
     });
   }
+  document.addEventListener("click", function (ev) {
+    if (!paOvMetricList || paOvMetricList.classList.contains("hidden")) return;
+    var root = ev.target && ev.target.closest ? ev.target.closest(".pa-ov-dd") : null;
+    if (!root) setPaOvDropdownOpen(false);
+  });
   function syncOvDimBreakdown() {
     if (!paOvDim || !paOvBreakdown) return;
     var dim = paOvDim.value || "overview";
