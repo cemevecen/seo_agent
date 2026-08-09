@@ -56,7 +56,7 @@ def fetch_play_store_reviews(
         from google_play_scraper import Sort
         from google_play_scraper import reviews as gp_reviews
     except ImportError as exc:
-        raise RuntimeError("google-play-scraper kurulu değil") from exc
+        raise RuntimeError("Play Store istemcisi kurulu değil") from exc
 
     days = max(28, min(400, int(days or 365)))
     cutoff = datetime.now(_UTC) - timedelta(days=days)

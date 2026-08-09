@@ -447,8 +447,8 @@ def query_asc_metric(
             "ok": False,
             "configured": False,
             "message": (
-                "ASC scrape yok ve API anahtarı tanımlı değil — "
-                "Mac’te asc_console_scrape.py --sync --ingest."
+                "ASC verisi yok ve API anahtarı tanımlı değil — "
+                "Mac’te ASC console login + sync + ingest."
             ),
             "series": [],
             "total": 0,
@@ -726,7 +726,7 @@ def query_asc_overview(
         return {
             "ok": False,
             "configured": False,
-            "message": "ASC scrape yok ve API anahtarı yok.",
+            "message": "ASC verisi yok ve API anahtarı yok.",
             "bundles": [],
             "scrape_ok": False,
         }
@@ -764,13 +764,13 @@ def query_asc_overview(
     if scrape_ok:
         warnings.insert(
             0,
-            f"Scrape · {len(scrape_facts)} fact"
+            f"Sync · {len(scrape_facts)} fact"
             + (f" · {scrape_meta.get('synced_at')}" if scrape_meta.get("synced_at") else ""),
         )
     elif not analytics_ok:
         warnings.insert(
             0,
-            "Scrape yok — Mac’te `asc_console_scrape.py --login` sonra bridge "
+            "Sync yok — Mac’te ASC console login sonra bridge "
             "`POST /sync-asc` veya `--sync --ingest`.",
         )
     return {

@@ -364,7 +364,7 @@ def _enrich_reporting(
     if not gp_client.is_configured():
         return facts, (
             "Sürüm/cihaz/OS ANR için Railway’de GP_SERVICE_ACCOUNT_JSON gerekir "
-            "(Play Reporting API). Scrape yalnızca tarih bazlı ANR sayıları tutar."
+            "(Play Reporting API). Sync yalnızca tarih bazlı ANR sayıları tutar."
         )
     try:
         if metric_key == "anrs":
@@ -386,7 +386,7 @@ def _enrich_reporting(
             "Play Console → Kullanıcılar ve izinler → service account’a "
             "«Uygulama bilgilerini görüntüleme» + Reporting erişimi ver; "
             "API’de playdeveloperreporting etkin olsun. "
-            "Mac scrape ile OS/sürüm ANR sayfaları da eklenebilir."
+            "Mac bridge ile OS/sürüm ANR sayfaları da eklenebilir."
         )
     # Aynı dim+metric eski satırları temizle (overview OVERALL kalsın)
     kept = [
@@ -554,8 +554,8 @@ def query_scrape_analytics(
             "source": "scrape",
             "configured": True,
             "message": (
-                "Scrape explorer_facts boş — Mac’te "
-                "`play_console_scrape.py --sync --ingest` çalıştır."
+                "Play Console explorer_facts boş — Mac’te "
+                "play_console sync + ingest çalıştır."
                 + (f" · {enrich_msg}" if enrich_msg else "")
             ),
             "series": [],
@@ -685,7 +685,7 @@ def query_scrape_analytics(
             if range_shifted:
                 shift_note = (
                     f"Seçili aralık boştu ({requested_start}…{requested_end}); "
-                    f"mevcut scrape verisine kaydırıldı ({start_s}…{end_s})."
+                    f"mevcut sync verisine kaydırıldı ({start_s}…{end_s})."
                 )
 
     use = dated if dated else undated
@@ -699,11 +699,11 @@ def query_scrape_analytics(
                 "configured": True,
                 "message": (
                     (
-                        "Puan için günlük scrape serisi yok — GCS stats/ratings CSV veya "
+                        "Puan için günlük sync serisi yok — GCS stats/ratings CSV veya "
                         "Play Console /user-feedback/ratings sayfası kullanılır."
                         if metric_key == "rating"
                         else (
-                            "Cihaz edinme için günlük scrape serisi yok — "
+                            "Cihaz edinme için günlük sync serisi yok — "
                             "GCS installs CSV veya Play DEVICE_ACQUISITION tarihli veri gerekir."
                         )
                     )
@@ -886,7 +886,7 @@ def query_scrape_analytics(
         }
     )
 
-    msg = f"Scrape · {len(use)} fact · metric={metric_key}"
+    msg = f"Sync · {len(use)} fact · metric={metric_key}"
     if enrich_msg:
         msg += f" · {enrich_msg}"
     if dates:
@@ -902,7 +902,7 @@ def query_scrape_analytics(
     if not series and dim in _DIM_TO_REPORTING and metric_key in ("anrs", "crashes"):
         msg = (
             f"ANR/çökme `{dim}` kırılımı boş. "
-            "Scrape yalnızca tarih bazlı sayıları tutar; sürüm/cihaz/OS/ülke "
+            "Sync yalnızca tarih bazlı sayıları tutar; sürüm/cihaz/OS/ülke "
             "Play Reporting API’den gelir. "
             + (enrich_msg or "Reporting yanıtı yok — GP_SERVICE_ACCOUNT_JSON / playdeveloperreporting yetkisini kontrol et.")
         )

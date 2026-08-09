@@ -153,7 +153,7 @@ def asc_console_payload(db: Session) -> dict[str, Any]:
             "empty": True,
             "metrics": [],
             "panels": {"version": 1, "explorer_facts": []},
-            "message": "Henüz ASC scrape yok — Mac bridge login + sync gerekli.",
+            "message": "Henüz ASC verisi yok — Mac bridge login + sync gerekli.",
         }
     metrics, panels = _unpack_metrics_blob(row.metrics_json or "[]")
     try:

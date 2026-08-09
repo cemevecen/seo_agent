@@ -1051,7 +1051,7 @@ def query_play_analytics(
     if metric == "rating" and not series:
         msg = (
             (msg + " · " if msg else "")
-            + "Puan satırı yok — GCS stats/ratings/*.csv veya Play scrape "
+            + "Puan satırı yok — GCS stats/ratings/*.csv veya Play Console "
             "(/user-feedback/ratings + statistics GOOGLE_PLAY_RATING) gerekli."
         )
 

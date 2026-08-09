@@ -168,7 +168,7 @@ def _empty_payload(pid: str, label: str, p: int, cc: str, src: str, dev: str) ->
     empty = _empty_kpi()
     return {
         "source": "empty",
-        "source_note": "ASC scrape / Sales verisi henüz yok — /ios sekmesinden scrape bekleniyor.",
+        "source_note": "ASC / Sales verisi henüz yok — /ios sekmesinden sync bekleniyor.",
         "product": pid,
         "product_label": label,
         "period_days": p,
@@ -339,7 +339,7 @@ def _overlay_asc_scrape(payload: dict[str, Any], overview: dict[str, Any]) -> di
 
     payload["source"] = "asc_scrape"
     payload["source_note"] = (
-        "Canlı scrape — /ios sekmesiyle aynı ASC facts"
+        "Canlı veri — /ios sekmesiyle aynı ASC facts"
         + (f" · {overview.get('scrape_fact_count')} fact" if overview.get("scrape_fact_count") else "")
         + "."
     )
@@ -470,7 +470,7 @@ def _overlay_live_sales(payload: dict[str, Any], live: dict[str, Any]) -> dict[s
         )
     elif payload.get("source") == "asc_scrape":
         payload["source_note"] = (
-            (payload.get("source_note") or "ASC scrape.")
+            (payload.get("source_note") or "ASC sync.")
             + " Sales raporu eksik alanları tamamladı."
         )
     return payload

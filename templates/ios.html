@@ -246,7 +246,7 @@
           <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">App Store Connect</h1>
           <span class="font-mono text-xs text-slate-500 dark:text-zinc-400">com.nokta.Finans.Takip · 465599322</span>
         </div>
-        <p id="ia-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge scrape (Play gibi) · Sales API yedek.</p>
+        <p id="ia-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge sync (Play gibi) · Sales API yedek.</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <div class="ia-stability-inline">
@@ -899,7 +899,7 @@
   function applyOverviewStatus(data) {
     if (!iaStatus || !data) return;
     if (data.scrape_ok) {
-      var parts = ["Scrape OK · " + (data.scrape_fact_count || 0) + " fact"];
+      var parts = ["Sync OK · " + (data.scrape_fact_count || 0) + " fact"];
       if (data.warnings && data.warnings[0]) parts[0] = "ASC · " + data.warnings[0];
       iaStatus.textContent = parts.join(" · ");
       return;
@@ -1259,7 +1259,7 @@
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
       iaChart.innerHTML =
         '<text x="360" y="120" text-anchor="middle" fill="#94a3b8" font-size="13">Bu aralıkta nokta yok</text>' +
-        '<text x="360" y="142" text-anchor="middle" fill="#cbd5e1" font-size="11">ASC scrape veya tarih aralığını kontrol edin</text>';
+        '<text x="360" y="142" text-anchor="middle" fill="#cbd5e1" font-size="11">ASC verisi veya tarih aralığını kontrol edin</text>';
       if (iaLegend) iaLegend.innerHTML = "";
       iaLastDrawBundles = null;
       return;
@@ -1419,7 +1419,7 @@
         iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
         iaTotalLabel.textContent = "Overview (first-time downloads)";
         iaCompareRange.textContent = dataChart.scrape_ok
-          ? ("Özet · scrape " + (dataChart.scrape_fact_count || "") + " fact (kendi ölçeği)")
+          ? ("Özet · sync " + (dataChart.scrape_fact_count || "") + " fact (kendi ölçeği)")
           : "Özet · ASC Sales/API yedek (kendi ölçeği)";
         drawMulti(chartBundles);
         renderOverviewTable(chartOnly);
@@ -1525,10 +1525,10 @@
       if (!iaStatus) return;
       var parts = [];
       if (d.scrape_ok) {
-        parts.push("Scrape OK · " + (d.scrape_fact_count || 0) + " fact");
+        parts.push("Sync OK · " + (d.scrape_fact_count || 0) + " fact");
         if (d.scrape_synced_at) parts.push(String(d.scrape_synced_at).slice(0, 19));
       } else {
-        parts.push("Scrape yok — Mac’te login + bridge POST /sync-asc");
+        parts.push("Sync yok — Mac’te login + bridge POST /sync-asc");
       }
       if (d.configured) parts.push("API yedek açık");
       iaStatus.textContent = parts.join(" · ");
@@ -1541,7 +1541,7 @@
     if (iaRefresh) iaRefresh.disabled = true;
     try {
       if (local) {
-        if (iaStatus) iaStatus.textContent = "Mac bridge ASC scrape tetikleniyor…";
+        if (iaStatus) iaStatus.textContent = "Mac bridge ASC sync tetikleniyor…";
         try {
           await fetch("http://127.0.0.1:18765/sync-asc", { method: "POST", mode: "cors" });
         } catch (_) {

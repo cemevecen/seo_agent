@@ -87,7 +87,7 @@ def _empty_payload(pid: str, label: str, p: int, cc: str, dev: str) -> dict[str,
     empty = _empty_kpi()
     return {
         "source": "empty",
-        "source_note": "Play scrape / Reporting verisi henüz yok — /android sekmesinden scrape bekleniyor.",
+        "source_note": "Play Console / Reporting verisi henüz yok — /android sekmesinden sync bekleniyor.",
         "product": pid,
         "product_label": label,
         "period_days": p,
@@ -212,7 +212,7 @@ def _overlay_live_ratings(payload: dict[str, Any], package_name: str, product_id
     }
     if payload.get("source") == "empty":
         payload["source"] = "play_scrape"
-        payload["source_note"] = "Mağaza puanı / histogram scrape — /android kaynaklarıyla uyumlu."
+        payload["source_note"] = "Mağaza puanı / histogram — /android kaynaklarıyla uyumlu."
     return payload
 
 

@@ -317,7 +317,7 @@ def get_play_analytics_overview(
                     auto_shifted = True
                     shift_message = (
                         f"Seçili aralık boştu ({requested_start}…{requested_end}); "
-                        f"mevcut scrape verisine kaydırıldı ({eff_start}…{eff_end})."
+                        f"mevcut sync verisine kaydırıldı ({eff_start}…{eff_end})."
                     )
         except ValueError:
             pass
@@ -370,8 +370,8 @@ def get_play_analytics_overview(
     message = shift_message
     if not facts:
         message = (
-            "Scrape explorer_facts boş — Mac’te "
-            "`play_console_scrape.py --sync --ingest` çalıştır."
+            "Play Console explorer_facts boş — Mac’te "
+            "play_console sync + ingest çalıştır."
         )
     elif not ok_any and not message:
         message = "Özet metrikleri için seçili aralıkta seri yok."

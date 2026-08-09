@@ -499,7 +499,7 @@
         <p id="pc-meta" class="mt-1 hidden text-xs text-slate-500 dark:text-zinc-400"></p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
-        <button id="pc-btn-scrape" type="button"
+        <button id="pc-btn-overview" type="button"
                 class="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20">
           Özet
         </button>
@@ -513,7 +513,7 @@
            class="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
           Play Console ↗
         </a>
-        <button id="pc-refresh" type="button" title="Railway snapshot yenile · Mac’te bridge açıksa scrape de tetikler"
+        <button id="pc-refresh" type="button" title="Railway snapshot yenile · Mac’te bridge açıksa sync de tetikler"
                 class="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
           Yenile
         </button>
@@ -524,7 +524,7 @@
       <div class="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Crash-free · ANR-free</p>
-          <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Play scrape · Reporting · Crashlytics (Android)</p>
+          <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Play Console · Reporting · Crashlytics (Android)</p>
         </div>
       </div>
       <div id="pc-stability-free" class="pc-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:4"></div>
@@ -539,7 +539,7 @@
     </div>
   </div>
 
-  <!-- Interaktif Play analytics (scrape statistics + GCS yedek) -->
+  <!-- Interaktif Play analytics (console statistics + GCS yedek) -->
   <section class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Metrikler</h2>
@@ -779,14 +779,14 @@
     </div>
   </section>
 
-  <section id="pc-panel-scrape" class="hidden scroll-mt-4 space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+  <section id="pc-panel-overview" class="hidden scroll-mt-4 space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Özet</h2>
       </div>
-      <button type="button" data-pc-close="scrape" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
+      <button type="button" data-pc-close="overview" class="rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/60">Kapat</button>
     </div>
-    <div class="space-y-5" id="pc-scrape-wrap">
+    <div class="space-y-5" id="pc-overview-wrap">
 
   <section class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Play puanı</h2>
@@ -967,9 +967,9 @@
   var vitalsCrashesLink = document.getElementById("pc-vitals-crashes-link");
   var vitalsOverviewLink = document.getElementById("pc-vitals-overview-link");
   var btn = document.getElementById("pc-refresh");
-  var btnScrape = document.getElementById("pc-btn-scrape");
+  var btnOverview = document.getElementById("pc-btn-overview");
   var btnReviews = document.getElementById("pc-btn-reviews");
-  var panelScrape = document.getElementById("pc-panel-scrape");
+  var panelOverview = document.getElementById("pc-panel-overview");
   var panelReviews = document.getElementById("pc-panel-reviews");
   var btnReviewCount = document.getElementById("pc-btn-review-count");
   var vitalsState = { etype: "ANR", data: null, selectedCat: "general", selectedIssue: null, selectedVersion: null };
@@ -1037,7 +1037,7 @@
     vitals = vitals || {};
     var vmap = vitals.version_name_map || {};
     var byv = vitals.by_version || {};
-    // Chip yalnızca by_version’da gerçekten scrape edilmiş sürümler için
+    // Chip yalnızca by_version’da gerçekten toplanmış sürümler için
     // (290’dan 289/288 uydurmak → boş ANR listesi üretiyordu)
     var codes = Object.keys(byv).filter(function (k) {
       return k !== "all" && /^\d+$/.test(k) && byv[k] && byv[k].crashes && vitalsCrashesHasRows(byv[k].crashes);
@@ -1161,10 +1161,10 @@
   }
 
   function openPcPanel(which) {
-    var panel = which === "reviews" ? panelReviews : panelScrape;
-    var other = which === "reviews" ? panelScrape : panelReviews;
-    var activeBtn = which === "reviews" ? btnReviews : btnScrape;
-    var otherBtn = which === "reviews" ? btnScrape : btnReviews;
+    var panel = which === "reviews" ? panelReviews : panelOverview;
+    var other = which === "reviews" ? panelOverview : panelReviews;
+    var activeBtn = which === "reviews" ? btnReviews : btnOverview;
+    var otherBtn = which === "reviews" ? btnOverview : btnReviews;
     if (!panel) return;
     if (other) other.classList.add("hidden");
     panel.classList.remove("hidden");
@@ -1176,21 +1176,21 @@
   }
 
   function closePcPanel(which) {
-    var panel = which === "reviews" ? panelReviews : panelScrape;
-    var activeBtn = which === "reviews" ? btnReviews : btnScrape;
+    var panel = which === "reviews" ? panelReviews : panelOverview;
+    var activeBtn = which === "reviews" ? btnReviews : btnOverview;
     if (panel) panel.classList.add("hidden");
     setPanelButtonActive(activeBtn, false);
   }
 
-  if (btnScrape) {
-    btnScrape.addEventListener("click", function () { openPcPanel("scrape"); });
+  if (btnOverview) {
+    btnOverview.addEventListener("click", function () { openPcPanel("overview"); });
   }
   if (btnReviews) {
     btnReviews.addEventListener("click", function () { openPcPanel("reviews"); });
   }
   document.querySelectorAll("[data-pc-close]").forEach(function (el) {
     el.addEventListener("click", function () {
-      closePcPanel(el.getAttribute("data-pc-close") || "scrape");
+      closePcPanel(el.getAttribute("data-pc-close") || "overview");
     });
   });
 
@@ -3852,7 +3852,7 @@
         var hasSeries = tableBundles.some(function (b) { return (b.series || []).length; });
         if (paCompareRange) {
           var keepNote = (paCompareRange.textContent || "").trim();
-          var looksLikeShift = /kaydırıldı|explorer_facts|Özet yüklenemedi|scrape/i.test(keepNote);
+          var looksLikeShift = /kaydırıldı|explorer_facts|Özet yüklenemedi|sync verisine/i.test(keepNote);
           if (looksLikeShift && keepNote) {
             /* fetchPaOverviewBundles / catch mesajını koru */
           } else if (!hasSeries) {
@@ -4467,8 +4467,8 @@
       else path = pageFallback[page] || "/app-dashboard";
     }
 
-    var scraped = String((m && (m.url || m.href)) || "").trim();
-    var url = scraped;
+    var hrefRaw = String((m && (m.url || m.href)) || "").trim();
+    var url = hrefRaw;
     if (!url || !/^https?:\/\//i.test(url)) {
       url = base + path;
     }
@@ -4774,13 +4774,13 @@
 
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
-      sub: "Play scrape · all · 28d",
+      sub: "Play Console · all · 28d",
       value: play.crash_free_fmt || "—",
       toneClass: stabilityToneClass(play.crash_free_pct)
     }));
     cards.push(renderStabilityFreeCard({
       title: "ANR-free",
-      sub: "Play scrape · all · 28d",
+      sub: "Play Console · all · 28d",
       value: play.anr_free_fmt || "—",
       toneClass: stabilityToneClass(play.anr_free_pct)
     }));
@@ -5157,7 +5157,7 @@
     try {
       var host = (location.hostname || "").toLowerCase();
       var isLocal = host === "localhost" || host === "127.0.0.1";
-      // Yerelde bridge açıksa ara sıra vitals sync dene (ağır scrape’i boğmamak için seyrek)
+      // Yerelde bridge açıksa ara sıra vitals sync dene (ağır sync’i boğmamak için seyrek)
       if (isLocal && Math.random() < 0.35) {
         try {
           var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;

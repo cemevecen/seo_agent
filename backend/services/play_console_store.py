@@ -251,7 +251,7 @@ def ingest_play_console_payload(
             raise ValueError(
                 "Boş explorer_facts ingest reddedildi"
                 + (f" (mevcut {existing_n} fact korunuyor)" if existing_n else "")
-                + ". Play scrape stats views başarısız — yeniden sync gerekir."
+                + ". Play Console stats views başarısız — yeniden sync gerekir."
             )
 
     if metrics is not None or panels is not None:
@@ -309,7 +309,7 @@ def play_console_payload(db: Session) -> dict[str, Any]:
             "panels": {"version": 2, "tpg": [], "breakdowns": [], "series": []},
             "reviews": [],
             "rating_summary": {},
-            "message": "Henüz Play Console scrape yok — Mac bridge login + sync gerekli.",
+            "message": "Henüz Play Console verisi yok — Mac bridge login + sync gerekli.",
         }
 
     def _loads(raw: str, default: Any) -> Any:

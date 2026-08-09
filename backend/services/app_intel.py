@@ -1567,7 +1567,7 @@ def _fetch_google_bundle(
         from google_play_scraper import Sort, app as gp_app
         from google_play_scraper import reviews as gp_reviews
     except ImportError:
-        return {}, [], "google-play-scraper kurulu değil; sunucuda: pip install -r requirements.txt"
+        return {}, [], "Play Store istemcisi kurulu değil; sunucuda: pip install -r requirements.txt"
 
     err: str | None = None
     try:

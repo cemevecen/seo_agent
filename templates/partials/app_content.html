@@ -3905,12 +3905,12 @@
       }
     }
 
-    // Mağaza geneli scrape histogramı (Play/App Store) — dönem örnek yorumlarından sentetik dağılım yok
+    // Mağaza geneli histogramı (Play/App Store) — dönem örnek yorumlarından sentetik dağılım yok
     var playStarDist = am.star_distribution_overall || am.star_distribution_period;
     var playStarTitle = document.getElementById("app-intel-play-stars-title");
     if (playStarTitle) {
       playStarTitle.textContent = am.star_distribution_overall
-        ? "Yıldız dağılımı (mağaza geneli · scrape)"
+        ? "Yıldız dağılımı (mağaza geneli)"
         : "Yıldız dağılımı (yorum örnekleri)";
     }
     plotStars(
@@ -3923,7 +3923,7 @@
       var noteEl = document.getElementById("app-intel-play-star-source-note");
       if (!noteEl) return;
       noteEl.textContent = am.star_distribution_overall
-        ? "Mağaza sayfasından scrape edilen tüm zaman yıldız dağılımı."
+        ? "Mağaza sayfasından alınan tüm zaman yıldız dağılımı."
         : "";
       noteEl.classList.toggle("hidden", !am.star_distribution_overall);
     })();
@@ -3949,12 +3949,12 @@
     renderSat(document.getElementById("app-intel-play-sat"), satFromDist(am.star_distribution_overall) || am.satisfaction);
     renderLatestReviews(document.getElementById("app-intel-play-latest"), am.latest_reviews || [], "play");
 
-    // Mağaza geneli SSR scrape histogramı — dönem örnek yorumlarından dağılım yok
+    // Mağaza geneli SSR histogramı — dönem örnek yorumlarından dağılım yok
     var iosStarDist = im.star_distribution_overall || im.star_distribution_period;
     var iosStarTitle = document.getElementById("app-intel-ios-stars-title");
     if (iosStarTitle) {
       iosStarTitle.textContent = im.star_distribution_overall
-        ? "Yıldız dağılımı (App Store · scrape)"
+        ? "Yıldız dağılımı (App Store)"
         : "Yıldız dağılımı (yorum örnekleri)";
     }
     plotStars(
@@ -3967,7 +3967,7 @@
       var noteEl = document.getElementById("app-intel-ios-star-source-note");
       if (!noteEl) return;
       noteEl.textContent = im.star_distribution_overall
-        ? "App Store sayfasından scrape edilen yıldız dağılımı."
+        ? "App Store sayfasından alınan yıldız dağılımı."
         : "";
       noteEl.classList.toggle("hidden", !im.star_distribution_overall);
     })();

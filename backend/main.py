@@ -15464,7 +15464,7 @@ def api_crash_progress(product: str = "doviz"):
         {
             "running": False,
             "pct": 100,
-            "step": "Play / ASC scrape hazır",
+            "step": "Play / ASC verisi hazır",
             "done": True,
             "error": None,
             "cache_warm": True,
@@ -15572,7 +15572,7 @@ def api_crash_issue_detail(
                 "ok": False,
                 "error": data.get("error") or "not_found",
                 "message": (
-                    "Issue detayı scrape’te yok. Android sorunları için Play Console vitals sync; "
+                    "Issue detayı yok. Android sorunları için Play Console vitals sync; "
                     "iOS için App Store / stability-free kaynakları kullanılır."
                 ),
                 "source": "android_ios_store_tabs",
@@ -15689,7 +15689,7 @@ def api_crash_refresh(product: str = "doviz"):
             "ok": True,
             "job_id": "store_tabs",
             "source": "android_ios_store_tabs",
-            "message": "Play / ASC scrape + stability-free yenilendi.",
+            "message": "Play / ASC + stability-free yenilendi.",
         }
     )
 

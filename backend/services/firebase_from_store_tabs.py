@@ -351,7 +351,7 @@ def get_vitals_issue_detail(issue_id: str) -> dict[str, Any] | None:
                         {"title": "Kullanıcı", "value": str(iss.get("affected_users") or "—")},
                         {"title": "Sürüm", "value": str(iss.get("latest_version") or "—")},
                     ],
-                    "insights": ["Kaynak: Play Console vitals scrape (/android)"],
+                    "insights": ["Kaynak: Play Console vitals (/android)"],
                     "stack_trace": "",
                     "sections": [],
                 }
