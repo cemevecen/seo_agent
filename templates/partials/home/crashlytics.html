@@ -101,6 +101,133 @@
   html.midnight .home-crash-zone-store {
     border-top-color: rgb(63 63 70 / 0.85);
   }
+  .home-store-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+  }
+  .home-store-kpi {
+    min-width: 0;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.9);
+    padding: 0.35rem 0.4rem;
+  }
+  html.dark .home-store-kpi,
+  html.midnight .home-store-kpi {
+    border-color: rgb(63 63 70);
+    background: rgb(15 23 42 / 0.55);
+  }
+  .home-store-kpi.is-accent {
+    border-color: rgb(167 243 208);
+    background: rgb(236 253 245 / 0.9);
+  }
+  html.dark .home-store-kpi.is-accent {
+    border-color: rgb(6 95 70 / 0.7);
+    background: rgb(6 78 59 / 0.35);
+  }
+  .home-store-kpi__l {
+    margin: 0;
+    font-size: 0.52rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .home-store-kpi__v {
+    margin: 0.2rem 0 0;
+    font-size: 0.85rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    line-height: 1.1;
+  }
+  html.dark .home-store-kpi__v { color: #e2e8f0; }
+  .home-store-stars {
+    display: grid;
+    gap: 0.18rem;
+    margin-top: 0.5rem;
+  }
+  .home-store-star-row {
+    display: grid;
+    grid-template-columns: 1.4rem minmax(0, 1fr) 2.1rem;
+    gap: 0.3rem;
+    align-items: center;
+  }
+  .home-store-star-row span:first-child {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+  }
+  .home-store-star-track {
+    height: 0.35rem;
+    border-radius: 999px;
+    background: rgb(226 232 240 / 0.9);
+    overflow: hidden;
+  }
+  html.dark .home-store-star-track { background: rgb(63 63 70 / 0.9); }
+  .home-store-star-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    min-width: 0;
+  }
+  .home-store-star-row span:last-child {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #475569;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .home-store-star-row span:last-child { color: #94a3b8; }
+  .home-store-rank-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.5rem;
+  }
+  .home-store-spark {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 1.65rem;
+  }
+  .home-store-spark svg { width: 100%; height: 100%; display: block; }
+  .home-store-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.45rem;
+  }
+  .home-store-theme {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    max-width: 100%;
+    border-radius: 999px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 0.12rem 0.4rem;
+    font-size: 0.55rem;
+    font-weight: 650;
+    color: #475569;
+    line-height: 1.2;
+  }
+  html.dark .home-store-theme {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.7);
+    color: #a1a1aa;
+  }
+  .home-store-theme b {
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+  }
+  html.dark .home-store-theme b { color: #e4e4e7; }
   /* /android + /ios stability — tek satır (4 kolona kadar), ikili wrap yok */
   .home-sf-metrics {
     display: grid;
@@ -199,38 +326,100 @@
 {%- endmacro %}
 
 {% macro store_zone(plat) -%}
+  {% set spark = plat.rank_spark if plat and plat.rank_spark else {} %}
+  {% set bars = plat.star_bars if plat and plat.star_bars else [] %}
+  {% set themes = plat.themes if plat and plat.themes else [] %}
   <div class="home-crash-zone-store">
     {% if plat and (plat.version or plat.score_fmt != '—' or plat.ratings_fmt != '—' or plat.rank_fmt != '—') %}
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="home-label text-slate-500 dark:text-slate-400">store</p>
+        <div class="min-w-0">
+          <p class="home-label text-slate-500 dark:text-slate-400">mağaza özeti</p>
+          {% if plat.subtitle and plat.subtitle != '—' %}
+            <p class="home-meta mt-0.5 truncate text-slate-400 dark:text-slate-500" title="{{ plat.subtitle }}">{{ plat.subtitle }}</p>
+          {% endif %}
+        </div>
         <div class="flex shrink-0 flex-wrap items-center gap-1.5">
+          {% if plat.store_url %}
+            <a href="{{ plat.store_url }}" target="_blank" rel="noopener" class="home-meta font-semibold text-sky-600 hover:underline dark:text-sky-300">mağaza ↗</a>
+          {% endif %}
           {% if plat.is_recent %}
-            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">last</span>
+            <span class="rounded-full bg-amber-50 px-1.5 py-0.5 home-label text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800/60">yeni</span>
           {% endif %}
           {% if plat.version %}
             <span class="rounded-md bg-white px-1.5 py-0.5 home-meta font-semibold tabular-nums text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">v{{ plat.version }}</span>
           {% endif %}
         </div>
       </div>
-      <div class="mt-2 grid grid-cols-3 gap-2">
-        <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">rating</p>
-          <p class="home-kpi mt-0.5 text-slate-900 dark:text-slate-100">{{ plat.score_fmt }}</p>
+
+      <div class="home-store-kpi-grid">
+        <div class="home-store-kpi" title="Mağaza skoru">
+          <p class="home-store-kpi__l">Skor</p>
+          <p class="home-store-kpi__v">{{ plat.score_fmt }}</p>
         </div>
-        <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">comment</p>
-          <p class="home-kpi mt-0.5 text-slate-900 dark:text-slate-100">{{ plat.ratings_fmt }}</p>
+        <div class="home-store-kpi" title="Kategori sırası">
+          <p class="home-store-kpi__l">Sıra</p>
+          <p class="home-store-kpi__v">{{ plat.rank_fmt }}</p>
         </div>
-        <div class="min-w-0">
-          <p class="home-label text-slate-500 dark:text-slate-400">sıra</p>
-          <p class="home-kpi mt-0.5 text-slate-900 dark:text-slate-100">{{ plat.rank_fmt }}</p>
+        <div class="home-store-kpi" title="Son 30 gün yorum">
+          <p class="home-store-kpi__l">Dönem</p>
+          <p class="home-store-kpi__v">{{ plat.period_reviews_fmt|default('—') }}</p>
+        </div>
+        <div class="home-store-kpi is-accent" title="Toplam değerlendirme">
+          <p class="home-store-kpi__l">Puan</p>
+          <p class="home-store-kpi__v">{{ plat.ratings_fmt }}</p>
         </div>
       </div>
+
+      {% if bars %}
+      <div class="home-store-stars" title="Yıldız dağılımı (mağaza geneli)">
+        {% for b in bars %}
+        <div class="home-store-star-row">
+          <span>{{ b.star }}★</span>
+          <div class="home-store-star-track">
+            <span class="home-store-star-fill"
+              style="width: {{ b.pct }}%; background: {% if b.star == 5 %}#059669{% elif b.star == 4 %}#34d399{% elif b.star == 3 %}#fbbf24{% elif b.star == 2 %}#fb923c{% else %}#f43f5e{% endif %};"></span>
+          </div>
+          <span>{{ b.count_fmt }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if spark.svg_points %}
+      <div class="home-store-rank-row" title="Kategori sırası trendi (7g)">
+        <div class="home-store-spark" aria-hidden="true">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polyline fill="none" stroke="{% if spark.tone == 'up' %}#059669{% elif spark.tone == 'down' %}#e11d48{% else %}#64748b{% endif %}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{{ spark.svg_points }}"></polyline>
+          </svg>
+        </div>
+        <div class="shrink-0 text-right">
+          <p class="home-label text-slate-500 dark:text-slate-400">sıra 7g</p>
+          <p class="home-meta font-bold tabular-nums {% if spark.tone == 'up' %}text-emerald-600 dark:text-emerald-300{% elif spark.tone == 'down' %}text-rose-600 dark:text-rose-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ spark.delta_fmt }}</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div class="min-w-0">
+          <p class="home-label text-slate-500 dark:text-slate-400">release etki</p>
+          <p class="home-meta truncate text-slate-400 dark:text-slate-500" title="{{ plat.release_note|default('') }}">{{ plat.release_note|default('—') }}</p>
+        </div>
+        <p class="shrink-0 text-sm font-extrabold tabular-nums {% if plat.release_tone == 'up' %}text-emerald-600 dark:text-emerald-300{% elif plat.release_tone == 'down' %}text-rose-600 dark:text-rose-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ plat.release_delta_fmt|default('—') }}</p>
+      </div>
+
+      {% if themes %}
+      <div class="home-store-themes" title="Dönem yorum kategorileri">
+        {% for t in themes %}
+          <span class="home-store-theme"><span class="truncate">{{ t.label }}</span> <b>×{{ t.count }}</b></span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       <p class="home-meta mt-2 text-slate-500 dark:text-slate-400">
-        last update · {% if plat.updated_label %}{{ plat.updated_label }}{% else %}—{% endif %}
+        güncelleme · {% if plat.updated_label %}{{ plat.updated_label }}{% else %}—{% endif %}
       </p>
     {% else %}
-      <p class="home-label text-slate-500 dark:text-slate-400">store</p>
+      <p class="home-label text-slate-500 dark:text-slate-400">mağaza özeti</p>
       <p class="home-meta mt-2 text-slate-400 dark:text-slate-500">Veri yok</p>
     {% endif %}
   </div>
@@ -267,6 +456,8 @@
          class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">android →</a>
       <a href="{{ app_url | default('/app') }}" hx-get="{{ app_url | default('/app') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
          class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">store →</a>
+      <a href="{{ aso_url | default('/app?product=doviz&tab=aso') }}" hx-get="{{ aso_url | default('/app?product=doviz&tab=aso') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">ASO →</a>
       <a href="{{ firebase_url }}" hx-get="{{ firebase_url }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
          class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Firebase →</a>
     </div>
@@ -369,7 +560,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=9';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=11';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;

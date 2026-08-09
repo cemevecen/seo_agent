@@ -11506,7 +11506,114 @@ def _home_app_raw_from_db(db, product_id: str) -> dict | None:
     return None
 
 
-def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, date_key: str) -> dict:
+def _home_app_period_reviews(rows: list | None, *, days: int = 30) -> list[dict]:
+    """Son N gün mağaza yorumları (raw reviews listesi)."""
+    if not rows:
+        return []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, int(days)))
+    out: list[dict] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        at = row.get("at") or row.get("date") or row.get("updated") or row.get("created")
+        if isinstance(at, datetime):
+            dt = at
+        else:
+            dt = _home_parse_iso_date(str(at) if at is not None else "")
+        if dt is None:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if dt >= cutoff:
+            out.append(row)
+    return out
+
+
+def _home_star_bars(hist: dict | None) -> list[dict]:
+    if not isinstance(hist, dict) or not hist:
+        return []
+    counts: list[tuple[int, int]] = []
+    total = 0
+    for star in range(1, 6):
+        try:
+            c = int(hist.get(str(star)) if hist.get(str(star)) is not None else hist.get(star) or 0)
+        except (TypeError, ValueError):
+            c = 0
+        counts.append((star, max(0, c)))
+        total += max(0, c)
+    if total <= 0:
+        return []
+    bars: list[dict] = []
+    for star in range(5, 0, -1):
+        c = next((n for s, n in counts if s == star), 0)
+        bars.append(
+            {
+                "star": star,
+                "count": c,
+                "count_fmt": _home_format_int(c),
+                "pct": round((100.0 * c) / total, 1),
+            }
+        )
+    return bars
+
+
+def _home_rank_spark(series: list | None) -> dict:
+    ranks: list[int] = []
+    for point in series or []:
+        if not isinstance(point, dict):
+            continue
+        try:
+            r = int(point.get("rank"))
+        except (TypeError, ValueError):
+            continue
+        if r > 0:
+            ranks.append(r)
+    if len(ranks) < 1:
+        return {
+            "ranks": [],
+            "svg_points": "",
+            "delta": None,
+            "delta_fmt": "—",
+            "tone": "mid",
+        }
+    lo, hi = min(ranks), max(ranks)
+    span = max(1, hi - lo)
+    # inverted Y: better (lower) rank sits higher on chart
+    pts: list[str] = []
+    n = len(ranks)
+    for i, r in enumerate(ranks):
+        x = 0.0 if n == 1 else (100.0 * i / (n - 1))
+        y = 4.0 + 92.0 * ((r - lo) / span)
+        pts.append(f"{x:.1f},{y:.1f}")
+    first, last = ranks[0], ranks[-1]
+    delta = first - last  # + = sıra iyileşti
+    if delta > 0:
+        tone, delta_fmt = "up", f"↑{delta}"
+    elif delta < 0:
+        tone, delta_fmt = "down", f"↓{abs(delta)}"
+    else:
+        tone, delta_fmt = "mid", "→0"
+    return {
+        "ranks": ranks,
+        "svg_points": " ".join(pts),
+        "delta": delta,
+        "delta_fmt": delta_fmt,
+        "tone": tone,
+        "first": first,
+        "last": last,
+    }
+
+
+def _home_build_app_platform(
+    raw: dict,
+    key: str,
+    label: str,
+    version_key: str,
+    date_key: str,
+    *,
+    product_id: str = "doviz",
+    release_plat: dict | None = None,
+) -> dict:
     meta = (raw.get(key) or {}).get("meta") or {}
     tz_utc = ZoneInfo("UTC")
     tz_ist = ZoneInfo("Europe/Istanbul")
@@ -11528,8 +11635,88 @@ def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, 
     score_fmt = f"{float(score):.2f}" if isinstance(score, (int, float)) else "—"
     ratings_val = meta.get("ratings") if key == "android" else meta.get("ratings_count")
     ratings_fmt = _home_format_int(ratings_val) if ratings_val else "—"
-    rank = (meta.get("category_rank") or {}).get("rank") if isinstance(meta.get("category_rank"), dict) else None
+    cr = meta.get("category_rank") if isinstance(meta.get("category_rank"), dict) else {}
+    if not (isinstance(cr, dict) and cr.get("rank") is not None):
+        try:
+            from backend.services.app_intel import _latest_stored_category_rank
+
+            fb = _latest_stored_category_rank(product_id, key)
+            if isinstance(fb, dict) and fb.get("rank") is not None:
+                cr = fb
+        except Exception:
+            pass
+    rank = cr.get("rank") if isinstance(cr, dict) else None
+    rank_total = cr.get("total") if isinstance(cr, dict) else None
     rank_fmt = f"#{rank}" if rank else "—"
+    if rank and rank_total:
+        rank_fmt = f"#{rank}/{rank_total}"
+
+    hist = meta.get("histogram") if key == "android" else meta.get("star_histogram")
+    if not isinstance(hist, dict):
+        hist = meta.get("star_distribution_overall") or meta.get("histogram")
+    star_bars = _home_star_bars(hist if isinstance(hist, dict) else None)
+
+    period_rows = _home_app_period_reviews((raw.get(key) or {}).get("reviews") or [], days=30)
+    period_reviews = len(period_rows)
+    themes: list[dict] = []
+    try:
+        from backend.services.app_intel import _category_counts
+
+        for item in (_category_counts(period_rows) or [])[:4]:
+            if not isinstance(item, dict):
+                continue
+            themes.append(
+                {
+                    "label": str(item.get("label") or "—"),
+                    "count": int(item.get("count") or 0),
+                }
+            )
+    except Exception:
+        themes = []
+
+    spark = {"ranks": [], "svg_points": "", "delta": None, "delta_fmt": "—", "tone": "mid"}
+    try:
+        from backend.services.app_intel import _rank_history_series
+
+        spark = _home_rank_spark(_rank_history_series(product_id, key, days=7))
+    except Exception:
+        pass
+
+    rel = release_plat if isinstance(release_plat, dict) else {}
+    rel_delta = rel.get("delta")
+    rel_tone = "mid"
+    rel_delta_fmt = "—"
+    try:
+        if rel_delta is not None:
+            d = float(rel_delta)
+            if d > 0.05:
+                rel_tone, rel_delta_fmt = "up", f"+{d:.2f}"
+            elif d < -0.05:
+                rel_tone, rel_delta_fmt = "down", f"{d:.2f}"
+            else:
+                rel_tone, rel_delta_fmt = "mid", f"{d:.2f}"
+    except (TypeError, ValueError):
+        pass
+    cur_rel = rel.get("recent_release") if isinstance(rel.get("recent_release"), dict) else {}
+    prev_rel = rel.get("prev_release") if isinstance(rel.get("prev_release"), dict) else {}
+    cur_ver = str(cur_rel.get("version") or ver or "").strip()
+    prev_ver = str(prev_rel.get("version") or "").strip()
+    if cur_ver and prev_ver:
+        release_note = f"v{cur_ver} vs v{prev_ver}"
+    elif rel.get("recent30_avg") is not None:
+        release_note = (
+            f"{rel.get('recent30_avg')} → önceki {rel.get('prev30_avg')}"
+            if rel.get("prev30_avg") is not None
+            else "son 30g skor"
+        )
+    else:
+        release_note = "release etki"
+
+    store_url = ""
+    urls = raw.get("urls") if isinstance(raw.get("urls"), dict) else {}
+    if isinstance(urls, dict):
+        store_url = str(urls.get(key) or "")
+
     return {
         "key": key,
         "label": label,
@@ -11540,6 +11727,16 @@ def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, 
         "score_fmt": score_fmt,
         "ratings_fmt": ratings_fmt,
         "rank_fmt": rank_fmt,
+        "rank": rank,
+        "period_reviews": period_reviews,
+        "period_reviews_fmt": _home_format_int(period_reviews),
+        "star_bars": star_bars,
+        "rank_spark": spark,
+        "themes": themes,
+        "release_delta_fmt": rel_delta_fmt,
+        "release_tone": rel_tone,
+        "release_note": release_note,
+        "store_url": store_url,
     }
 
 
@@ -11570,7 +11767,8 @@ def api_home_crashlytics(
                 "android": store_by_key.get("android"),
             },
             "firebase_url": f"/firebase?product={pid}",
-            "app_url": "/app",
+            "app_url": f"/app?product={pid}",
+            "aso_url": f"/app?product={pid}&tab=aso",
             "android_url": "/android",
             "ios_url": "/ios",
         },
@@ -11645,17 +11843,51 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
             raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=False)
         except Exception:
             LOGGER.debug("Home app-release Android sıra zenginleştirmesi atlandı", exc_info=True)
+        release_by_plat: dict[str, dict] = {}
+        try:
+            from backend.services.aso_intel import _release_impact_sections_from_raw
+
+            am = (raw.get("android") or {}).get("meta") or {}
+            im = (raw.get("ios") or {}).get("meta") or {}
+            store_block = {
+                "android": {
+                    "version": am.get("play_version"),
+                    "last_updated_at": am.get("play_last_updated_at"),
+                },
+                "ios": {
+                    "version": im.get("version"),
+                    "current_version_release_date": im.get("currentVersionReleaseDate")
+                    or im.get("current_version_release_date"),
+                },
+            }
+            release_by_plat = _release_impact_sections_from_raw(raw, store=store_block) or {}
+        except Exception:
+            LOGGER.debug("Home app-release release impact atlandı", exc_info=True)
         for key, label, version_key, date_key in [
             ("ios", "iOS", "version", "currentVersionReleaseDate"),
             ("android", "Android", "play_version", "play_last_updated_at"),
         ]:
-            platforms.append(_home_build_app_platform(raw, key, label, version_key, date_key))
+            platforms.append(
+                _home_build_app_platform(
+                    raw,
+                    key,
+                    label,
+                    version_key,
+                    date_key,
+                    product_id=product_id,
+                    release_plat=release_by_plat.get(key),
+                )
+            )
     else:
         for key, label in [("ios", "iOS"), ("android", "Android")]:
             platforms.append({
                 "key": key, "label": label, "subtitle": "Veri henüz toplanmadı",
                 "version": None, "updated_label": None, "is_recent": False,
                 "score_fmt": "—", "ratings_fmt": "—", "rank_fmt": "—",
+                "period_reviews_fmt": "—", "star_bars": [], "themes": [],
+                "rank_spark": {"svg_points": "", "delta_fmt": "—", "tone": "mid"},
+                "release_delta_fmt": "—", "release_tone": "mid", "release_note": "",
+                "store_url": "",
             })
     return platforms
 
