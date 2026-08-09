@@ -112,6 +112,15 @@
   }
   #pa-metric-list {
     min-width: 16rem;
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+  #pa-metric-list-scroll {
+    max-height: inherit;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   #pa-metric-list [data-pa-metric-pick][aria-selected="true"] {
     background: #eff6ff; color: #1e3a8a; font-weight: 600;
@@ -562,7 +571,9 @@
             <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
           </button>
           <div id="pa-metric-list" role="listbox" aria-multiselectable="true"
-               class="fixed z-[220] hidden max-h-72 overflow-auto rounded-2xl border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
+               class="fixed z-[220] hidden overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950">
+            <div id="pa-metric-list-scroll" class="py-1"></div>
+          </div>
         </div>
         <select id="pa-metric-catalog" class="hidden" aria-hidden="true" tabindex="-1">
           <option value="">Seçiniz</option>
@@ -1199,6 +1210,7 @@
   var paMetricTrigger = document.getElementById("pa-metric-trigger");
   var paMetricLabel = document.getElementById("pa-metric-label");
   var paMetricList = document.getElementById("pa-metric-list");
+  var paMetricListScroll = document.getElementById("pa-metric-list-scroll");
   var paBreakdown = document.getElementById("pa-breakdown");
   var paDim = document.getElementById("pa-dim");
   var paSegment = document.getElementById("pa-segment");
@@ -1411,8 +1423,8 @@
     return false;
   }
   function fillPaMetricOptions() {
-    if (!paMetricList || !paMetricCatalog) return;
-    var scrollY = paMetricList.scrollTop;
+    if (!paMetricList || !paMetricCatalog || !paMetricListScroll) return;
+    var scrollY = paMetricListScroll.scrollTop;
     var selected = {};
     paSelectedMetrics.forEach(function (k) { selected[k] = true; });
     var html = "";
@@ -1444,8 +1456,8 @@
         });
       }
     });
-    paMetricList.innerHTML = html;
-    paMetricList.scrollTop = scrollY;
+    paMetricListScroll.innerHTML = html;
+    paMetricListScroll.scrollTop = scrollY;
     if (!paMetricList.classList.contains("hidden")) positionPaMetricDropdown();
     updatePaMetricTrigger();
   }

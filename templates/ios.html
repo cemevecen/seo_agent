@@ -33,6 +33,15 @@
   }
   #ia-metric-list {
     min-width: 16rem;
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+  #ia-metric-list-scroll {
+    max-height: inherit;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   #ia-metric-list [data-ia-metric-pick][aria-selected="true"] {
     background: #eff6ff; color: #1e3a8a; font-weight: 600;
@@ -246,7 +255,9 @@
             <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
           </button>
           <div id="ia-metric-list" role="listbox" aria-multiselectable="true"
-               class="fixed z-[220] hidden max-h-72 overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
+               class="fixed z-[220] hidden overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-950">
+            <div id="ia-metric-list-scroll" class="py-1"></div>
+          </div>
         </div>
         <select id="ia-metric-catalog" class="hidden" aria-hidden="true" tabindex="-1">
           <option value="">Seçiniz</option>
@@ -373,6 +384,7 @@
   var iaMetricTrigger = document.getElementById("ia-metric-trigger");
   var iaMetricLabel = document.getElementById("ia-metric-label");
   var iaMetricList = document.getElementById("ia-metric-list");
+  var iaMetricListScroll = document.getElementById("ia-metric-list-scroll");
   var iaBreakdown = document.getElementById("ia-breakdown");
   var iaDim = document.getElementById("ia-dim");
   var iaSegment = document.getElementById("ia-segment");
@@ -575,8 +587,8 @@
     return false;
   }
   function fillIaMetricOptions() {
-    if (!iaMetricList || !iaMetricCatalog) return;
-    var scrollY = iaMetricList.scrollTop;
+    if (!iaMetricList || !iaMetricCatalog || !iaMetricListScroll) return;
+    var scrollY = iaMetricListScroll.scrollTop;
     var selected = {};
     iaSelectedMetrics.forEach(function (k) { selected[k] = true; });
     var html = "";
@@ -608,8 +620,8 @@
         });
       }
     });
-    iaMetricList.innerHTML = html;
-    iaMetricList.scrollTop = scrollY;
+    iaMetricListScroll.innerHTML = html;
+    iaMetricListScroll.scrollTop = scrollY;
     if (!iaMetricList.classList.contains("hidden")) positionIaMetricDropdown();
     updateIaMetricTrigger();
   }
