@@ -7,6 +7,8 @@ Sentetik / seed demo üretmez. Scrape veya API yoksa alanlar "—" kalır.
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from datetime import date, timedelta
 from functools import lru_cache
 from typing import Any
@@ -18,6 +20,10 @@ from backend.services.app_intel import APP_PRODUCTS
 logger = logging.getLogger(__name__)
 
 _PERIODS: tuple[int, ...] = (0, 1, 7, 14, 30, 90, 365)
+
+_PREVIEW_CACHE_TTL_S = 8 * 60
+_PREVIEW_CACHE_LOCK = threading.Lock()
+_PREVIEW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 _COUNTRIES: list[dict[str, str]] = [
     {"code": "all", "name": "Tüm ülkeler"},
@@ -341,9 +347,9 @@ def _overlay_asc_scrape(payload: dict[str, Any], overview: dict[str, Any]) -> di
 
 
 def _overlay_real_ratings(payload: dict[str, Any], pid: str) -> dict[str, Any]:
-    """Gerçek mağaza puanı + (varsa) gerçek yıldız histogramı — tahmin yok."""
+    """Gerçek mağaza puanı + histogram — önce app_intel cache, sonra tek ülke iTunes."""
     ios_app_id = str(APP_PRODUCTS.get(pid, {}).get("ios_app_id") or "")
-    live = _best_itunes_rating(ios_app_id) if ios_app_id else None
+    live: dict[str, Any] | None = None
     hist: dict[str, int] = {}
     try:
         from backend.services.app_intel import get_raw_product_data
@@ -355,7 +361,7 @@ def _overlay_real_ratings(payload: dict[str, Any], pid: str) -> dict[str, Any]:
             hist = {str(k): int(v or 0) for k, v in star.items()}
         elif isinstance(star, (list, tuple)) and len(star) >= 5:
             hist = {str(i + 1): int(star[i] or 0) for i in range(5)}
-        if live is None and meta.get("score") is not None:
+        if meta.get("score") is not None:
             live = {
                 "average": round(float(meta["score"]), 2),
                 "total": int(meta.get("ratings_count") or sum(hist.values()) or 0),
@@ -363,12 +369,16 @@ def _overlay_real_ratings(payload: dict[str, Any], pid: str) -> dict[str, Any]:
     except Exception:
         logger.debug("ASC ratings histogram attach failed", exc_info=True)
 
+    if live is None and ios_app_id:
+        # Tek ülke — 4 ülke sırayla ağ çağrısı yapma
+        live = _itunes_rating(ios_app_id, "tr") or _itunes_rating(ios_app_id, "us")
+
     if not live:
         return payload
     payload["ratings"] = {
         "average": live["average"],
         "total": live["total"],
-        "distribution": hist,  # boş olabilir — sentetik doldurma yok
+        "distribution": hist,
         "delta_avg": None,
         "source": "live",
     }
@@ -554,6 +564,9 @@ def build_asc_connect_preview_payload(
     source: str = "all",
     device: str = "all",
     progress_cb=None,
+    *,
+    include_live_api: bool = False,
+    force_refresh: bool = False,
 ) -> dict[str, Any]:
     pid = (product_id or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
@@ -577,10 +590,22 @@ def build_asc_connect_preview_payload(
     if dev not in {d["id"] for d in _DEVICES}:
         dev = "all"
 
+    cache_key = f"asc|{pid}|{effective_p}|{cc}|{src}|{dev}|live={int(bool(include_live_api))}"
+    if not force_refresh and not include_live_api:
+        with _PREVIEW_CACHE_LOCK:
+            hit = _PREVIEW_CACHE.get(cache_key)
+            if hit and (time.time() - hit[0]) < _PREVIEW_CACHE_TTL_S:
+                if progress_cb:
+                    try:
+                        progress_cb(1, 1)
+                    except Exception:
+                        pass
+                return hit[1]
+
     label = APP_PRODUCTS[pid]["label"]
     payload = _empty_payload(pid, label, p, cc, src, dev)
 
-    # 1) /ios ile aynı ASC scrape overview (birincil)
+    # 1) /ios ile aynı ASC scrape overview (birincil — hızlı)
     try:
         from backend.services.asc_metrics_warehouse import query_asc_overview
 
@@ -594,49 +619,57 @@ def build_asc_connect_preview_payload(
         )
         if overview and overview.get("ok"):
             payload = _overlay_asc_scrape(payload, overview)
+            if progress_cb:
+                try:
+                    progress_cb(1, 1)
+                except Exception:
+                    pass
     except Exception as exc:  # noqa: BLE001
         logger.warning("ASC scrape overview overlay başarısız: %s", exc)
 
-    # 2) Sales / Analytics API — yalnızca boş alanları doldur
-    live = None
-    try:
-        from backend.services import asc_client
+    # 2) Sales / Analytics API — yavaş; yalnızca açıkça istenirse
+    if include_live_api:
+        live = None
+        try:
+            from backend.services import asc_client
 
-        if asc_client.is_configured():
-            bundle = APP_PRODUCTS[pid].get("ios_bundle_id") or ""
-            live = asc_client.fetch_daily_sales_summary(
-                bundle_id=bundle,
-                days=effective_p,
-                country=cc,
-                device=dev,
-                progress_cb=progress_cb,
-            )
-            if live:
-                payload = _overlay_live_sales(payload, live)
-            from backend.services import asc_analytics
+            if asc_client.is_configured():
+                bundle = APP_PRODUCTS[pid].get("ios_bundle_id") or ""
+                live = asc_client.fetch_daily_sales_summary(
+                    bundle_id=bundle,
+                    days=effective_p,
+                    country=cc,
+                    device=dev,
+                    progress_cb=progress_cb,
+                )
+                if live:
+                    payload = _overlay_live_sales(payload, live)
+                from backend.services import asc_analytics
 
-            analytics = asc_analytics.fetch_analytics_summary(
-                bundle_id=bundle,
-                days=effective_p,
-                country=cc,
-                progress_cb=progress_cb,
-            )
-            if analytics and analytics.get("ok"):
-                payload = _overlay_live_analytics(payload, analytics, sales_live=live)
-            subs = asc_client.fetch_subscription_summary(days=effective_p)
-            if subs:
-                payload = _overlay_live_subscriptions(payload, subs)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("ASC live overlay başarısız: %s", exc)
+                analytics = asc_analytics.fetch_analytics_summary(
+                    bundle_id=bundle,
+                    days=effective_p,
+                    country=cc,
+                    progress_cb=progress_cb,
+                )
+                if analytics and analytics.get("ok"):
+                    payload = _overlay_live_analytics(payload, analytics, sales_live=live)
+                subs = asc_client.fetch_subscription_summary(days=effective_p)
+                if subs:
+                    payload = _overlay_live_subscriptions(payload, subs)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ASC live overlay başarısız: %s", exc)
 
     payload = _overlay_real_ratings(payload, pid)
 
-    # Crash-free (iOS) — /ios stability-free ile aynı kaynak
+    # Crash-free: yalnız bellek cache (senkron BQ yok — /app paneli hızı)
     try:
         from backend.services.stability_free import build_stability_free_payload
 
         pkg = APP_PRODUCTS[pid].get("android_package") or "com.Doviz"
-        sf = build_stability_free_payload(product_id=pid, package_name=pkg, vitals={})
+        sf = build_stability_free_payload(
+            product_id=pid, package_name=pkg, vitals={}, force_refresh=False
+        )
         ios_cf = (((sf or {}).get("crashlytics") or {}).get("platforms") or {}).get("ios") or {}
         latest = ios_cf.get("latest") or {}
         overall = ios_cf.get("overall") or {}
@@ -644,11 +677,18 @@ def build_asc_connect_preview_payload(
         if cf_pct is None:
             cf_pct = overall.get("crash_free_pct")
         if cf_pct is not None:
-            # crash_rate ≈ 100 - crash_free
             payload["engagement"]["crash_rate_pct"] = round(max(0.0, 100.0 - float(cf_pct)), 3)
             payload["engagement"]["crash_free_pct"] = round(float(cf_pct), 3)
             payload["engagement"]["crash_free_version"] = ios_cf.get("latest_version")
     except Exception:
         logger.debug("ASC preview crash-free attach failed", exc_info=True)
 
+    if not include_live_api:
+        with _PREVIEW_CACHE_LOCK:
+            _PREVIEW_CACHE[cache_key] = (time.time(), payload)
+            if len(_PREVIEW_CACHE) > 48:
+                cutoff = time.time() - _PREVIEW_CACHE_TTL_S
+                for k, (ts, _) in list(_PREVIEW_CACHE.items()):
+                    if ts < cutoff:
+                        del _PREVIEW_CACHE[k]
     return payload

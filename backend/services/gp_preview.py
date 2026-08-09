@@ -2,11 +2,15 @@
 Google Play Store özet — /android sekmesiyle aynı scrape + Reporting kaynakları.
 
 Sentetik / seed demo üretmez. Veri yoksa alanlar "—" kalır.
+Hız: bellek cache + paralel overlay; google-play-scraper yalnızca gerekirse.
 """
 
 from __future__ import annotations
 
 import logging
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from backend.services.app_intel import APP_PRODUCTS
@@ -42,6 +46,10 @@ _ANDROID_SOURCES: list[dict[str, str]] = [
     {"id": "play_store_browse", "name": "Google Play Keşfet"},
     {"id": "direct", "name": "Doğrudan"},
 ]
+
+_PREVIEW_CACHE_TTL_S = 8 * 60
+_PREVIEW_CACHE_LOCK = threading.Lock()
+_PREVIEW_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 def _fmt_compact(n: float) -> str:
@@ -124,13 +132,38 @@ def _empty_payload(pid: str, label: str, p: int, cc: str, dev: str) -> dict[str,
     }
 
 
-def _overlay_live_ratings(payload: dict[str, Any], package_name: str) -> dict[str, Any]:
-    """google-play-scraper + Play Console rating_summary (Android Özet ile aynı)."""
+def _ratings_from_app_intel(pid: str) -> tuple[float | None, int | None, dict[str, int]]:
+    try:
+        from backend.services.app_intel import get_raw_product_data
+
+        raw = get_raw_product_data(pid, cache_only=True)
+        meta = ((raw or {}).get("android") or {}).get("meta") or {}
+        score = meta.get("score")
+        total = meta.get("ratings")
+        hist = meta.get("histogram") or {}
+        dist: dict[str, int] = {}
+        if isinstance(hist, dict):
+            dist = {str(k): int(v or 0) for k, v in hist.items()}
+        elif isinstance(hist, (list, tuple)) and len(hist) >= 5:
+            dist = {str(i + 1): int(hist[i] or 0) for i in range(5)}
+        return (
+            float(score) if score is not None else None,
+            int(total) if total is not None else None,
+            dist,
+        )
+    except Exception:
+        return None, None, {}
+
+
+def _overlay_live_ratings(payload: dict[str, Any], package_name: str, product_id: str) -> dict[str, Any]:
+    """Önce cache/DB; google-play-scraper yalnızca boşsa (yavaş ağ)."""
     score = None
     total = None
     dist: dict[str, int] = {}
 
-    # Play Console scrape (Özet varsayılan puan)
+    score, total, dist = _ratings_from_app_intel(product_id)
+
+    # Play Console scrape (Özet) — users doluysa tercih
     try:
         from backend.database import SessionLocal
         from backend.services.play_console_store import play_console_payload
@@ -140,33 +173,33 @@ def _overlay_live_ratings(payload: dict[str, Any], package_name: str) -> dict[st
         rs = snap.get("rating_summary") if isinstance(snap.get("rating_summary"), dict) else {}
         raw = rs.get("default_rating")
         users_raw = rs.get("users")
-        # Özet'te Kullanıcılar doluysa default_rating güvenilir; değilse public store skorunu kullan
         users_ok = users_raw not in (None, "", "—")
         if users_ok and raw not in (None, "", "—"):
             try:
                 score = float(str(raw).replace(",", "."))
             except (TypeError, ValueError):
-                score = None
+                pass
     except Exception:
         logger.debug("GP preview play-console rating failed", exc_info=True)
 
-    try:
-        from google_play_scraper import app as gp_app
+    if score is None or not dist:
+        try:
+            from google_play_scraper import app as gp_app
 
-        meta = gp_app(package_name, lang="tr", country="tr")
-        if score is None and meta.get("score") is not None:
-            score = float(meta["score"])
-        if meta.get("ratings") is not None:
-            total = int(meta["ratings"])
-        histogram = meta.get("histogram")
-        if isinstance(histogram, (list, tuple)) and len(histogram) >= 5:
-            dist = {str(i + 1): int(histogram[i] or 0) for i in range(5)}
-        elif isinstance(histogram, dict):
-            dist = {str(k): int(v or 0) for k, v in histogram.items()}
-        if total is None and dist:
-            total = sum(dist.values())
-    except Exception as exc:
-        logger.warning("GP store meta alınamadı (%s): %s", package_name, exc)
+            meta = gp_app(package_name, lang="tr", country="tr")
+            if score is None and meta.get("score") is not None:
+                score = float(meta["score"])
+            if total is None and meta.get("ratings") is not None:
+                total = int(meta["ratings"])
+            histogram = meta.get("histogram")
+            if not dist and isinstance(histogram, (list, tuple)) and len(histogram) >= 5:
+                dist = {str(i + 1): int(histogram[i] or 0) for i in range(5)}
+            elif not dist and isinstance(histogram, dict):
+                dist = {str(k): int(v or 0) for k, v in histogram.items()}
+            if total is None and dist:
+                total = sum(dist.values())
+        except Exception as exc:
+            logger.warning("GP store meta alınamadı (%s): %s", package_name, exc)
 
     if score is None and not dist:
         return payload
@@ -243,7 +276,9 @@ def _overlay_live_vitals(payload: dict[str, Any], live: dict[str, Any]) -> dict[
 
 
 def _overlay_stability_free(payload: dict[str, Any], product_id: str, package_name: str) -> dict[str, Any]:
-    """Crash/ANR-free — /android stability-free ile aynı."""
+    """Crash/ANR-free — yalnızca vitals boşsa (Reporting zaten doldurduysa atla)."""
+    if payload["vitals"].get("crash_rate") is not None and payload["vitals"].get("anr_rate") is not None:
+        return payload
     try:
         from backend.database import SessionLocal
         from backend.services.play_console_store import play_console_payload
@@ -295,6 +330,8 @@ def build_gp_preview_payload(
     period_days: int,
     country: str = "all",
     device: str = "all",
+    *,
+    force_refresh: bool = False,
 ) -> dict[str, Any]:
     pid = (product_id or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
@@ -311,22 +348,62 @@ def build_gp_preview_payload(
     dev = (device or "all").strip().lower()
     label = APP_PRODUCTS[pid]["label"]
     pkg = APP_PRODUCTS[pid].get("android_package") or ""
+    cache_key = f"gp|{pid}|{p}|{cc}|{dev}"
+
+    if not force_refresh:
+        with _PREVIEW_CACHE_LOCK:
+            hit = _PREVIEW_CACHE.get(cache_key)
+            if hit and (time.time() - hit[0]) < _PREVIEW_CACHE_TTL_S:
+                return hit[1]
 
     payload = _empty_payload(pid, label, p, cc, dev)
 
-    # Reporting / GCS (installs + vitals rates)
-    try:
-        from backend.services import gp_client
+    def _fetch_reporting() -> dict[str, Any] | None:
+        try:
+            from backend.services import gp_client
 
-        if gp_client.is_configured() and pkg:
-            live = gp_client.build_gp_analytics_payload(pkg, days=p)
-            if live:
-                payload = _overlay_live_vitals(payload, live)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("GP live overlay başarısız: %s", exc)
+            if gp_client.is_configured() and pkg:
+                return gp_client.build_gp_analytics_payload(pkg, days=p)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("GP live overlay başarısız: %s", exc)
+        return None
+
+    def _fetch_ratings_branch() -> dict[str, Any]:
+        local = dict(payload)
+        if pkg:
+            return _overlay_live_ratings(local, pkg, pid)
+        return local
+
+    live = None
+    ratings_payload = None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_rep = pool.submit(_fetch_reporting)
+        f_rat = pool.submit(_fetch_ratings_branch)
+        for fut in as_completed((f_rep, f_rat), timeout=25):
+            try:
+                if fut is f_rep:
+                    live = fut.result()
+                else:
+                    ratings_payload = fut.result()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("GP preview parallel step: %s", exc)
+
+    if live:
+        payload = _overlay_live_vitals(payload, live)
+    if isinstance(ratings_payload, dict) and ratings_payload.get("ratings"):
+        payload["ratings"] = ratings_payload["ratings"]
+        if payload.get("source") == "empty" and ratings_payload.get("source") != "empty":
+            payload["source"] = ratings_payload.get("source") or "play_scrape"
+            payload["source_note"] = ratings_payload.get("source_note") or payload.get("source_note")
 
     if pkg:
-        payload = _overlay_live_ratings(payload, pkg)
         payload = _overlay_stability_free(payload, pid, pkg)
 
+    with _PREVIEW_CACHE_LOCK:
+        _PREVIEW_CACHE[cache_key] = (time.time(), payload)
+        if len(_PREVIEW_CACHE) > 48:
+            cutoff = time.time() - _PREVIEW_CACHE_TTL_S
+            for k, (ts, _) in list(_PREVIEW_CACHE.items()):
+                if ts < cutoff:
+                    del _PREVIEW_CACHE[k]
     return payload

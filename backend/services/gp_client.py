@@ -1266,19 +1266,35 @@ def build_gp_analytics_payload(
     if not is_configured():
         return None
 
-    crash_resp = fetch_crash_rate(package_name, days=days)
-    anr_resp = fetch_anr_rate(package_name, days=days)
+    from concurrent.futures import ThreadPoolExecutor
 
-    crash_rows = _extract_metric_rows(crash_resp, "crashRate7dUserWeighted")
-    anr_rows = _extract_metric_rows(anr_resp, "anrRate7dUserWeighted")
+    crash_resp = anr_resp = None
+    install_stats: dict[str, Any] | None = None
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_crash = pool.submit(fetch_crash_rate, package_name, days=days)
+        f_anr = pool.submit(fetch_anr_rate, package_name, days=days)
+        f_inst = pool.submit(fetch_install_stats, package_name, days=days)
+        try:
+            crash_resp = f_crash.result(timeout=20)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("GP crash rate fetch: %s", exc)
+        try:
+            anr_resp = f_anr.result(timeout=20)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("GP ANR rate fetch: %s", exc)
+        try:
+            install_stats = f_inst.result(timeout=20)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("GP install stats fetch: %s", exc)
+
+    crash_rows = _extract_metric_rows(crash_resp or {}, "crashRate7dUserWeighted")
+    anr_rows = _extract_metric_rows(anr_resp or {}, "anrRate7dUserWeighted")
 
     crash_series = [r["value"] for r in crash_rows]
     anr_series = [r["value"] for r in anr_rows]
 
     latest_crash = crash_series[-1] if crash_series else None
     latest_anr = anr_series[-1] if anr_series else None
-
-    install_stats = fetch_install_stats(package_name, days=days)
 
     return {
         "source": "live",
@@ -1287,5 +1303,5 @@ def build_gp_analytics_payload(
         "anr_rate_series": anr_series,
         "anr_rate_latest": latest_anr,
         "dates": [r["date"] for r in crash_rows],
-        "install_stats": install_stats,
+        "install_stats": install_stats or {},
     }

@@ -14868,8 +14868,10 @@ def api_app_asc_preview(
     country: str = "all",
     source: str = "all",
     device: str = "all",
+    live: int = 0,
+    refresh: int = 0,
 ):
-    """App Store Connect benzeri kazanım / satış / abonelik / etkileşim özeti."""
+    """App Store Connect özeti — varsayılan: hızlı ASC scrape (/ios). live=1 Sales API ekler."""
     from backend.services.app_asc_preview import build_asc_connect_preview_payload
     from backend.services.app_intel import APP_PRODUCTS, intel_json_safe
 
@@ -14882,7 +14884,15 @@ def api_app_asc_preview(
         p = 30
     if p not in (0, 1, 7, 14, 30, 90, 365):
         p = 30
-    payload = build_asc_connect_preview_payload(pid, p, country=country, source=source, device=device)
+    payload = build_asc_connect_preview_payload(
+        pid,
+        p,
+        country=country,
+        source=source,
+        device=device,
+        include_live_api=bool(live),
+        force_refresh=bool(refresh),
+    )
     if payload.get("error"):
         return JSONResponse(intel_json_safe(payload), status_code=400)
     return JSONResponse(intel_json_safe(payload))
@@ -14941,6 +14951,8 @@ async def api_app_asc_stream(
             payload = build_asc_connect_preview_payload(
                 pid, p, country=country, source=source, device=device,
                 progress_cb=_cb,
+                include_live_api=False,
+                force_refresh=False,
             )
             result = intel_json_safe(payload)
             asyncio.run_coroutine_threadsafe(
@@ -14977,6 +14989,7 @@ def api_app_gp_preview(
     period: int = 30,
     country: str = "all",
     device: str = "all",
+    refresh: int = 0,
 ):
     """Google Play Store Analytics özeti (indirmeler, vitals, puanlama)."""
     from backend.services.gp_preview import build_gp_preview_payload
@@ -14991,7 +15004,9 @@ def api_app_gp_preview(
         p = 30
     if p not in (1, 7, 14, 30, 90, 365):
         p = 30
-    payload = build_gp_preview_payload(pid, p, country=country, device=device)
+    payload = build_gp_preview_payload(
+        pid, p, country=country, device=device, force_refresh=bool(refresh)
+    )
     if payload.get("error"):
         return JSONResponse(intel_json_safe(payload), status_code=400)
     return JSONResponse(intel_json_safe(payload))
