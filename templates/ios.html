@@ -226,9 +226,13 @@
         <p id="ia-compare-range" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
       </div>
       <div id="ia-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div class="relative px-1 pb-1 pt-2">
+        <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
           <div id="ia-legend" class="mb-1 flex flex-wrap gap-2 px-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
-          <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrik grafiği"></svg>
+          <svg id="ia-chart" viewBox="0 0 720 260" class="block w-full touch-pan-y select-none" preserveAspectRatio="xMidYMid meet" role="img" aria-label="iOS metrik grafiği"></svg>
+          <div id="ia-tooltip" class="pointer-events-none absolute z-30 box-border hidden w-max max-w-[min(22rem,calc(100%-1rem))] rounded-xl border border-slate-200/90 bg-white/95 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-900/95" style="left:0;top:0;transform:none">
+            <p id="ia-tip-title" class="break-words text-[11px] font-bold uppercase tracking-wide tabular-nums text-slate-600 dark:text-zinc-300"></p>
+            <div id="ia-tip-body" class="mt-1.5 space-y-1"></div>
+          </div>
         </div>
       </div>
       <div id="ia-table-wrap" class="mt-4 max-h-96 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
@@ -268,6 +272,10 @@
   var iaTotalLabel = document.getElementById("ia-total-label");
   var iaCompareRange = document.getElementById("ia-compare-range");
   var iaChart = document.getElementById("ia-chart");
+  var iaChartWrap = document.getElementById("ia-chart-wrap");
+  var iaTooltip = document.getElementById("ia-tooltip");
+  var iaTipTitle = document.getElementById("ia-tip-title");
+  var iaTipBody = document.getElementById("ia-tip-body");
   var iaLegend = document.getElementById("ia-legend");
   var iaTheadRow = document.getElementById("ia-thead-row");
   var iaTable = document.getElementById("ia-table");
@@ -303,6 +311,7 @@
   };
   var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
   var STROKE = 0.68;
+  var iaChartState = null;
   var overviewActive = true;
   var runSeq = 0;
   var abortCtrl = null;
@@ -646,6 +655,113 @@
     }
     return s;
   }
+  function fmtTipDateKey(key) {
+    var s = String(key || "");
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return m[3] + "." + m[2] + "." + m[1];
+    return s;
+  }
+  function hideIaTooltip() {
+    if (iaTooltip) iaTooltip.classList.add("hidden");
+    if (!iaChart) return;
+    var guide = iaChart.querySelector("#ia-guide");
+    var dots = iaChart.querySelectorAll(".ia-hover-dot");
+    if (guide) guide.setAttribute("opacity", "0");
+    Array.prototype.forEach.call(dots, function (d) { d.setAttribute("opacity", "0"); });
+  }
+  function tipMetricRow(name, value, swatch) {
+    return (
+      '<div class="flex items-start justify-between gap-3 text-[11px] leading-snug">' +
+        '<span class="inline-flex min-w-0 items-start gap-1.5 text-slate-600 dark:text-zinc-300">' +
+          (swatch
+            ? '<span class="mt-1 inline-block h-2 w-2 shrink-0 rounded-full" style="background:' + swatch + '"></span>'
+            : "") +
+          '<span class="break-words font-medium">' + esc(name) + "</span>" +
+        "</span>" +
+        '<span class="shrink-0 tabular-nums font-bold text-slate-900 dark:text-zinc-50">' + esc(value) + "</span>" +
+      "</div>"
+    );
+  }
+  function showIaTooltip(idx, clientX, clientY) {
+    if (!iaChartState || !iaTooltip || !iaChartWrap || !iaChart) return;
+    var key = iaChartState.keys[idx];
+    if (key == null) return;
+    var seriesList = iaChartState.seriesList || [];
+    if (iaTipTitle) iaTipTitle.textContent = fmtTipDateKey(key);
+    if (iaTipBody) {
+      iaTipBody.innerHTML = seriesList.map(function (ms) {
+        var v = ms.map && Object.prototype.hasOwnProperty.call(ms.map, key) ? ms.map[key] : null;
+        return tipMetricRow(
+          ms.label || ms.metric || "Metrik",
+          v == null ? "—" : fmtNum(v, ms.countLike),
+          ms.color
+        );
+      }).join("");
+    }
+    var guide = iaChart.querySelector("#ia-guide");
+    var x = iaChartState.xs[idx];
+    if (guide && x != null) {
+      guide.setAttribute("x1", x.toFixed(1));
+      guide.setAttribute("x2", x.toFixed(1));
+      guide.setAttribute("opacity", "1");
+    }
+    seriesList.forEach(function (ms, si) {
+      var dot = iaChart.querySelector('#ia-hover-dot-' + si);
+      if (!dot) return;
+      var y = ms.ys && ms.ys[idx];
+      if (y == null || !Object.prototype.hasOwnProperty.call(ms.map || {}, key)) {
+        dot.setAttribute("opacity", "0");
+        return;
+      }
+      dot.setAttribute("cx", x.toFixed(1));
+      dot.setAttribute("cy", y.toFixed(1));
+      dot.setAttribute("opacity", "1");
+    });
+    var wrapRect = iaChartWrap.getBoundingClientRect();
+    var pad = 8;
+    var maxTipW = Math.max(160, Math.min(360, wrapRect.width - pad * 2));
+    iaTooltip.classList.remove("hidden");
+    iaTooltip.style.width = "max-content";
+    iaTooltip.style.maxWidth = maxTipW + "px";
+    iaTooltip.style.transform = "none";
+    var tipW = Math.min(maxTipW, Math.max(iaTooltip.offsetWidth || 0, 140));
+    var tipH = Math.max(iaTooltip.offsetHeight || 0, 48);
+    var lx = clientX - wrapRect.left;
+    var ly = clientY - wrapRect.top;
+    var left = lx - tipW / 2;
+    var top = ly - tipH - 14;
+    if (top < pad) top = Math.min(wrapRect.height - tipH - pad, ly + 18);
+    left = Math.max(pad, Math.min(wrapRect.width - tipW - pad, left));
+    top = Math.max(pad, Math.min(Math.max(pad, wrapRect.height - tipH - pad), top));
+    iaTooltip.style.left = left + "px";
+    iaTooltip.style.top = top + "px";
+  }
+  function bindIaChartHit(w, left, plotW, n) {
+    if (!iaChart) return;
+    var hit = iaChart.querySelector("#ia-hit");
+    if (!hit) return;
+    function idxFromEvent(ev) {
+      var rect = iaChart.getBoundingClientRect();
+      var sx = (ev.clientX - rect.left) / Math.max(rect.width, 1) * w;
+      var rel = (sx - left) / Math.max(plotW, 1);
+      var idx = Math.round(rel * Math.max(n - 1, 0));
+      return Math.max(0, Math.min(n - 1, idx));
+    }
+    hit.onmousemove = function (ev) {
+      showIaTooltip(idxFromEvent(ev), ev.clientX, ev.clientY);
+    };
+    hit.onmouseleave = hideIaTooltip;
+    hit.ontouchstart = function (ev) {
+      if (!ev.touches || !ev.touches[0]) return;
+      var t = ev.touches[0];
+      showIaTooltip(idxFromEvent(t), t.clientX, t.clientY);
+    };
+    hit.ontouchmove = function (ev) {
+      if (!ev.touches || !ev.touches[0]) return;
+      var t = ev.touches[0];
+      showIaTooltip(idxFromEvent(t), t.clientX, t.clientY);
+    };
+  }
   function buildLine(keys, map, max, color) {
     if (!keys.length || max <= 0) return "";
     var w = 720, h = 260, left = 40, right = 16, top = 16, bottom = 36;
@@ -662,6 +778,7 @@
     return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + STROKE + '" stroke-linecap="round" stroke-linejoin="round" />';
   }
   function drawMulti(bundles) {
+    hideIaTooltip();
     var list = (bundles || []).filter(function (b) { return b && (b.series || []).length; });
     var keySet = {};
     list.forEach(function (b) {
@@ -670,14 +787,18 @@
     var keys = Object.keys(keySet).sort();
     var w = 720, h = 260, left = 40, right = 16, top = 16, bottom = 36;
     var plotW = w - left - right, plotH = h - top - bottom;
+    var n = keys.length;
+    var xs = keys.map(function (_, i) {
+      return left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+    });
     var grid = "";
     for (var t = 0; t <= 4; t++) {
       var ty = top + (t / 4) * plotH;
       var pct = Math.round(100 * (1 - t / 4));
-      grid += '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) + '" stroke="#e2e8f0" stroke-width="1" />' +
+      grid += '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) + '" stroke="#e2e8f0" stroke-width="1" class="dark:stroke-zinc-800" />' +
         '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) + '" text-anchor="end" fill="#94a3b8" font-size="9">' + pct + "%</text>";
     }
-    var paths = list.map(function (b, i) {
+    var seriesList = list.map(function (b, i) {
       var map = {}, max = 0;
       (b.series || []).forEach(function (r) {
         var nv = Number(r.value);
@@ -686,16 +807,52 @@
         if (nv > max) max = nv;
       });
       if (max <= 0) max = 1;
-      return buildLine(keys, map, max, colorAt(i));
+      var color = colorAt(i);
+      var ys = keys.map(function (key) {
+        if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
+        return top + (1 - map[key] / max) * plotH;
+      });
+      return {
+        metric: b.metric,
+        label: b.label || b.metric,
+        color: color,
+        map: map,
+        max: max,
+        ys: ys,
+        countLike: isCountLike(b.metric),
+        path: buildLine(keys, map, max, color)
+      };
+    });
+    var paths = seriesList.map(function (s) { return s.path; }).join("");
+    var dots = seriesList.map(function (s, i) {
+      return '<circle id="ia-hover-dot-' + i + '" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + s.color + '" stroke="#fff" stroke-width="1.5" opacity="0" />';
     }).join("");
-    iaChart.innerHTML = '<rect width="720" height="260" fill="transparent" />' + grid + paths;
+    iaChartState = {
+      mode: "multi",
+      keys: keys,
+      xs: xs,
+      left: left,
+      plotW: plotW,
+      seriesList: seriesList
+    };
+    iaChart.innerHTML =
+      '<rect width="720" height="260" fill="transparent" />' +
+      grid +
+      paths +
+      '<line id="ia-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
+      '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
+      dots +
+      '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
+      '" fill="transparent" style="cursor:crosshair" />';
     if (iaLegend) {
       iaLegend.innerHTML = list.map(function (b, i) {
         return '<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rounded-full" style="background:' + colorAt(i) + '"></span>' + esc(b.label || b.metric) + "</span>";
       }).join("");
     }
+    bindIaChartHit(w, left, plotW, n);
   }
   function drawSingle(series, color) {
+    hideIaTooltip();
     var keys = (series || []).map(function (r) { return String(r.key); });
     var map = {}, max = 0;
     (series || []).forEach(function (r) {
@@ -707,13 +864,48 @@
     if (max <= 0) max = 1;
     var w = 720, h = 260, left = 40, right = 16, top = 16, bottom = 36;
     var plotW = w - left - right, plotH = h - top - bottom;
+    var n = keys.length;
+    var xs = keys.map(function (_, i) {
+      return left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+    });
+    var lineColor = color || COLORS[0];
+    var ys = keys.map(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
+      return top + (1 - map[key] / max) * plotH;
+    });
+    var metric = (iaLastChart && iaLastChart.metric) || (iaMetric && iaMetric.value) || "";
+    var label = (iaLastChart && iaLastChart.label) || metricLabel(metric) || "Değer";
     var grid = "";
     for (var t = 0; t <= 4; t++) {
       var ty = top + (t / 4) * plotH;
       grid += '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) + '" stroke="#e2e8f0" stroke-width="1" />';
     }
-    iaChart.innerHTML = '<rect width="720" height="260" fill="transparent" />' + grid + buildLine(keys, map, max, color || COLORS[0]);
+    iaChartState = {
+      mode: "single",
+      keys: keys,
+      xs: xs,
+      left: left,
+      plotW: plotW,
+      seriesList: [{
+        metric: metric,
+        label: label,
+        color: lineColor,
+        map: map,
+        ys: ys,
+        countLike: isCountLike(metric)
+      }]
+    };
+    iaChart.innerHTML =
+      '<rect width="720" height="260" fill="transparent" />' +
+      grid +
+      buildLine(keys, map, max, lineColor) +
+      '<line id="ia-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
+      '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
+      '<circle id="ia-hover-dot-0" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + lineColor + '" stroke="#fff" stroke-width="1.5" opacity="0" />' +
+      '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
+      '" fill="transparent" style="cursor:crosshair" />';
     if (iaLegend) iaLegend.innerHTML = "";
+    bindIaChartHit(w, left, plotW, n);
   }
   function renderOverviewTable(bundles) {
     var list = bundles || [];
