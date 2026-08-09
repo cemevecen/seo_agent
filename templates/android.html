@@ -332,6 +332,108 @@
     grid-template-columns: repeat(var(--sf-n, 4), minmax(0, 1fr));
     width: 100%;
   }
+  .pc-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--pc-n, 5), minmax(0, 1fr));
+    width: 100%;
+    gap: clamp(0.35rem, 0.9vw, 0.75rem);
+    container-type: inline-size;
+  }
+  .pc-metric-grid > * {
+    min-width: 0;
+  }
+  .pc-metric-grid .pc-mcard {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding: clamp(0.45rem, 1.2cqi, 0.75rem);
+  }
+  .pc-metric-grid .pc-mcard__title {
+    font-size: clamp(0.5625rem, 1.35cqi, 0.6875rem);
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .pc-metric-grid .pc-mcard__sub {
+    font-size: clamp(0.5rem, 1.1cqi, 0.625rem);
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    overflow: hidden;
+  }
+  .pc-metric-grid .pc-mcard__value {
+    font-size: clamp(0.95rem, 2.6cqi, 1.25rem);
+    line-height: 1.15;
+  }
+  .pc-metric-grid .pc-mcard__delta {
+    font-size: clamp(0.5625rem, 1.2cqi, 0.75rem);
+  }
+  .pc-metric-grid .pc-mcard__info {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .pc-metric-grid .pc-mcard__info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(203 213 225);
+    background: rgb(248 250 252);
+    color: rgb(100 116 139);
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+  .pc-metric-grid .pc-mcard__info-btn:hover,
+  .pc-metric-grid .pc-mcard__info-btn[aria-expanded="true"] {
+    border-color: rgb(16 185 129);
+    color: rgb(4 120 87);
+    background: rgb(236 253 245);
+  }
+  .pc-metric-grid .pc-mcard__tip {
+    position: absolute;
+    z-index: 40;
+    left: 0;
+    top: calc(100% + 0.35rem);
+    width: min(16rem, 70cqi);
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.6rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: rgb(51 65 85);
+    display: none;
+  }
+  .pc-metric-grid .pc-mcard__tip.is-open {
+    display: block;
+  }
+  html.dark .pc-metric-grid .pc-mcard__info-btn {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+    color: rgb(161 161 170);
+  }
+  html.dark .pc-metric-grid .pc-mcard__info-btn:hover,
+  html.dark .pc-metric-grid .pc-mcard__info-btn[aria-expanded="true"] {
+    border-color: rgb(16 185 129);
+    color: rgb(110 231 183);
+    background: rgba(6, 78, 59, 0.35);
+  }
+  html.dark .pc-metric-grid .pc-mcard__tip {
+    border-color: rgb(63 63 70);
+    background: rgba(24, 24, 27, 0.98);
+    color: rgb(212 212 216);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  }
   .pc-stability-grid > * {
     min-width: 0;
   }
@@ -723,16 +825,16 @@
 
   <section class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
     <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Dashboard KPI</h2>
-    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Üst bloklar · yayın / vitals / büyüme / gelir</p>
-    <div id="pc-kpi" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-kpi-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz KPI yok</p>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Top blocks · release / vitals / growth / revenue</p>
+    <div id="pc-kpi" class="pc-metric-grid mt-4" style="--pc-n:5"></div>
+    <p id="pc-kpi-empty" class="mt-4 hidden text-center text-sm text-slate-400">No KPI yet</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">TPG trendleri</h2>
-    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Son 28 gün · app-dashboard TPG kartları</p>
-    <div id="pc-tpg" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
-    <p id="pc-tpg-empty" class="mt-4 hidden text-center text-sm text-slate-400">Henüz TPG yok — sync sonrası dolacak</p>
+    <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">TPG trends</h2>
+    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Last 28 days · app-dashboard TPG cards</p>
+    <div id="pc-tpg" class="pc-metric-grid mt-4" style="--pc-n:5"></div>
+    <p id="pc-tpg-empty" class="mt-4 hidden text-center text-sm text-slate-400">No TPG yet — fills after sync</p>
   </section>
 
   <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -4011,17 +4113,111 @@
 
   var KPI_TITLES = {
     "Kilitlenme oranı": 1,
-    "ANR oranı": 1,
+    "Crash rate": 1,
     "Ortalama puan": 1,
+    "Average rating": 1,
     "Yüklemeler": 1,
+    "Installs": 1,
     "Yükleme tabanı": 1,
+    "Install base": 1,
     "Cihaz edinme sayısı": 1,
+    "Device acquisitions": 1,
     "Cihaz ilk açılışları": 1,
+    "First-time device opens": 1,
     "AEKS": 1,
+    "Daily active users": 1,
     "Gelir": 1,
+    "Revenue": 1,
     "ÖYKBOG": 1,
-    "Alıcı Sayısı": 1
+    "Average revenue per DAU": 1,
+    "Alıcı Sayısı": 1,
+    "Alıcı sayısı": 1,
+    "Buyers": 1
   };
+  var KPI_EXCLUDE_RE = /^(anr\s*oran[ıi]|anr\s*rate)$/i;
+  var TPG_EXCLUDE_RE = /^(google\s*play\s*puan[ıi]|google\s*play\s*rating)$/i;
+
+  var METRIC_EN_TITLES = {
+    "kilitlenme oranı": "Crash rate",
+    "crash rate": "Crash rate",
+    "anr oranı": "ANR rate",
+    "anr rate": "ANR rate",
+    "yüklemeler": "Installs",
+    "installs": "Installs",
+    "yükleme tabanı": "Install base",
+    "install base": "Install base",
+    "ortalama puan": "Average rating",
+    "average rating": "Average rating",
+    "cihaz edinme sayısı": "Device acquisitions",
+    "device acquisitions": "Device acquisitions",
+    "cihaz ilk açılışları": "First-time device opens",
+    "first-time device opens": "First-time device opens",
+    "aeks": "Daily active users",
+    "günlük etkin kullanıcı sayısı": "Daily active users",
+    "daily active users": "Daily active users",
+    "alıcı sayısı": "Buyers",
+    "buyers": "Buyers",
+    "gelir": "Revenue",
+    "revenue": "Revenue",
+    "öykbog": "Average revenue per DAU",
+    "average revenue per dau": "Average revenue per DAU",
+    "toplam yükleme sayısı": "Total installs",
+    "total installs": "Total installs",
+    "kullanıcı kaybı": "User loss",
+    "user loss": "User loss",
+    "etkin cihazlar": "Active devices",
+    "active devices": "Active devices",
+    "mağaza girişi ziyaretçileri": "Store listing visitors",
+    "store listing visitors": "Store listing visitors",
+    "mağaza girişi edinme sayısı": "Store listing acquisitions",
+    "store listing acquisitions": "Store listing acquisitions",
+    "mağaza girişi dönüşüm oranı": "Store listing conversion rate",
+    "store listing conversion rate": "Store listing conversion rate",
+    "google play puanı": "Google Play rating",
+    "google play rating": "Google Play rating",
+    "uygulamayı yükleyen kullanıcı sayısı": "Users who installed",
+    "users who installed": "Users who installed"
+  };
+
+  var METRIC_INFO = {
+    "Crash rate": "Share of users who experienced a crash in the selected period (user-perceived).",
+    "ANR rate": "Share of users who experienced an ANR (App Not Responding) in the selected period.",
+    "Installs": "Number of installs recorded for the app in the selected period.",
+    "Install base": "Devices that currently have the app installed (install base).",
+    "Average rating": "Average star rating across rated installs in Play Console.",
+    "Device acquisitions": "New devices that acquired the app (device acquisition events).",
+    "First-time device opens": "Devices opening the app for the first time after install.",
+    "Daily active users": "Unique users active on a typical day (DAU / AEKS).",
+    "Buyers": "Users who made at least one purchase in the selected period.",
+    "Revenue": "Estimated Play billing revenue for the selected period.",
+    "Average revenue per DAU": "Average revenue per daily active user (ARPDAU / ÖYKBOG).",
+    "Total installs": "Total install count shown on the app-dashboard TPG card.",
+    "User loss": "Users lost / churn events in the selected period.",
+    "Active devices": "Unique devices that were active in the selected period.",
+    "Store listing visitors": "Unique visitors to the Play Store listing page.",
+    "Store listing acquisitions": "Unique users who installed after visiting the store listing.",
+    "Store listing conversion rate": "Share of store listing visitors who installed the app.",
+    "Google Play rating": "Lifetime / TPG Google Play star rating for the app.",
+    "Users who installed": "Users who installed the app (acquisition metric)."
+  };
+
+  function normalizeMetricKey(title) {
+    return String(title || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLocaleLowerCase("tr-TR");
+  }
+
+  function globalMetricTitle(rawTitle) {
+    var title = String(rawTitle || "").replace(/\s+/g, " ").trim();
+    if (!title) return "—";
+    var mapped = METRIC_EN_TITLES[normalizeMetricKey(title)];
+    return mapped || title;
+  }
+
+  function metricInfoText(enTitle) {
+    return METRIC_INFO[enTitle] || ("Play Console metric: " + enTitle + ".");
+  }
 
   function fmtSync(iso) {
     if (!iso) return "—";
@@ -4166,15 +4362,16 @@
   function displayMetricTitle(m) {
     var title = String((m && m.title) || "").replace(/\s+/g, " ").trim();
     var seg = String((m && m.segment) || "").replace(/\s+/g, " ").trim();
-    var only = "Yalnızca kullanıcı tarafından algılanan";
+    var only = "User-perceived only";
     // "Kullanıcı tarafından algılanan: Yalnızca …" → sadece ikinci kısım
     var mColon = title.match(/^Kullanıcı tarafından algılanan\s*[:·\-]\s*(.+)$/i);
-    if (mColon) return mColon[1].trim() || title;
-    if (/^Kullanıcı tarafından algılanan$/i.test(title) && /yalnızca kullanıcı tarafından algılanan/i.test(seg)) {
-      return only;
+    if (mColon) title = mColon[1].trim() || title;
+    else if (/^Kullanıcı tarafından algılanan$/i.test(title) && /yalnızca kullanıcı tarafından algılanan/i.test(seg)) {
+      title = only;
+    } else if (/yalnızca kullanıcı tarafından algılanan/i.test(title)) {
+      title = only;
     }
-    if (/yalnızca kullanıcı tarafından algılanan/i.test(title)) return only;
-    return title || "—";
+    return globalMetricTitle(title);
   }
 
   function metricCard(m, opts) {
@@ -4184,40 +4381,68 @@
     sub = String(sub || "").replace(/\s+/g, " ").trim();
     // Başlık zaten segmenti taşıyorsa alt satırı tekrarlama
     if (sub && title && sub.toLowerCase() === title.toLowerCase()) sub = "";
-    if (/^yalnızca kullanıcı tarafından algılanan$/i.test(title) && /kullanıcı tarafından algılanan/i.test(sub)) {
+    if (/^user-perceived only$/i.test(title) && /kullanıcı tarafından algılanan/i.test(sub)) {
       sub = "";
     }
-    var meta = resolveMetricMeta(m);
+    if (/^ortalama$/i.test(sub)) sub = "average";
+    var meta = resolveMetricMeta(Object.assign({}, m, { title: title }));
     var delta = m.delta
-      ? '<p class="mt-1 text-xs tabular-nums ' + deltaClass(m.delta) + '">' + esc(m.delta) + "</p>"
+      ? '<p class="pc-mcard__delta mt-1 text-xs tabular-nums ' + deltaClass(m.delta) + '">' + esc(m.delta) + "</p>"
       : "";
     var link = meta.url
       ? (
           '<a href="' + esc(meta.url) + '" target="_blank" rel="noopener noreferrer" ' +
-          'title="Play Console’da aç" ' +
-          'class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200/80 hover:text-emerald-700 dark:hover:bg-zinc-800 dark:hover:text-emerald-400" ' +
+          'title="Open in Play Console" ' +
+          'class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200/80 hover:text-emerald-700 dark:hover:bg-zinc-800 dark:hover:text-emerald-400" ' +
           'onclick="event.stopPropagation()">' +
             externalLinkSvg() +
-            '<span class="sr-only">Play Console’da aç</span>' +
+            '<span class="sr-only">Open in Play Console</span>' +
           "</a>"
         )
       : "";
+    var info = "";
+    if (opts.withInfo) {
+      var tip = metricInfoText(title);
+      info =
+        '<span class="pc-mcard__info">' +
+          '<button type="button" class="pc-mcard__info-btn" data-pc-info-btn aria-expanded="false" aria-label="About ' + esc(title) + '" title="Info">' +
+            "i" +
+          "</button>" +
+          '<span class="pc-mcard__tip" role="tooltip">' + esc(tip) + "</span>" +
+        "</span>";
+    }
     return (
-      '<article class="relative rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
-        '<div class="flex items-start justify-between gap-2">' +
-          '<div class="flex min-w-0 items-start gap-2">' +
+      '<article class="pc-mcard relative rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40">' +
+        '<div class="flex items-start justify-between gap-1.5">' +
+          '<div class="flex min-w-0 items-start gap-1.5">' +
             metricIconSvg(meta.icon) +
             '<div class="min-w-0">' +
-              '<p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(title) + "</p>" +
-              (sub ? '<p class="mt-0.5 text-[10px] text-slate-400">' + esc(sub) + "</p>" : "") +
+              '<div class="flex items-start gap-1">' +
+                '<p class="pc-mcard__title min-w-0 text-[11px] font-semibold text-slate-600 dark:text-zinc-300">' + esc(title) + "</p>" +
+                info +
+              "</div>" +
+              (sub ? '<p class="pc-mcard__sub mt-0.5 text-[10px] text-slate-400">' + esc(sub) + "</p>" : "") +
             "</div>" +
           "</div>" +
           link +
         "</div>" +
-        '<p class="mt-2 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(m.value || "—") + "</p>" +
+        '<p class="pc-mcard__value mt-2 text-xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">' + esc(m.value || "—") + "</p>" +
         delta +
       "</article>"
     );
+  }
+
+  function renderMetricGrid(el, emptyEl, rows, mapFn) {
+    rows = Array.isArray(rows) ? rows : [];
+    if (!el) return;
+    el.style.setProperty("--pc-n", "5");
+    if (!rows.length) {
+      el.innerHTML = "";
+      if (emptyEl) emptyEl.classList.remove("hidden");
+      return;
+    }
+    if (emptyEl) emptyEl.classList.add("hidden");
+    el.innerHTML = rows.map(mapFn).join("");
   }
 
   function renderGrid(el, emptyEl, rows, mapFn) {
@@ -4291,15 +4516,20 @@
     var tpgOnly = [];
     tpg.forEach(function (m) {
       var title = String(m.title || "");
+      var enTitle = globalMetricTitle(title);
       var rawVal = String((m && m.value) || "").trim().replace(",", ".");
+      if (KPI_EXCLUDE_RE.test(title) || KPI_EXCLUDE_RE.test(enTitle)) return;
+      if (TPG_EXCLUDE_RE.test(title) || TPG_EXCLUDE_RE.test(enTitle)) return;
       // Sahte/parse hatası: "Ortalama puan" 1–5 dışında (ör. 26)
-      if (/^ortalama puan$/i.test(title)) {
+      if (/^(ortalama puan|average rating)$/i.test(title) || /^average rating$/i.test(enTitle)) {
         var nf = parseFloat(rawVal.replace(/[^\d.]/g, ""));
         if (!Number.isFinite(nf) || nf < 1 || nf > 5.5) return;
       }
-      if (KPI_TITLES[title] && title.indexOf("(") < 0) kpi.push(m);
+      if ((KPI_TITLES[title] || KPI_TITLES[enTitle]) && title.indexOf("(") < 0) kpi.push(m);
       else tpgOnly.push(m);
     });
+    kpi = kpi.slice(0, 10);
+    tpgOnly = tpgOnly.slice(0, 10);
     var base = {
       monetize: monetize,
       grow: grow,
@@ -4311,7 +4541,13 @@
       breakdowns: breakdowns
     };
     if (!kpi.length) {
-      return Object.assign({ kpi: tpg, tpg: [] }, base);
+      var fallback = tpg.filter(function (m) {
+        var t = String((m && m.title) || "");
+        var en = globalMetricTitle(t);
+        return !KPI_EXCLUDE_RE.test(t) && !KPI_EXCLUDE_RE.test(en) &&
+          !TPG_EXCLUDE_RE.test(t) && !TPG_EXCLUDE_RE.test(en);
+      }).slice(0, 10);
+      return Object.assign({ kpi: fallback, tpg: [] }, base);
     }
     return Object.assign({ kpi: kpi, tpg: tpgOnly }, base);
   }
@@ -4849,6 +5085,46 @@
     vitalsPollTimer = setInterval(pollVitalsSnapshot, VITALS_POLL_MS);
   }
 
+  function closeAllPcInfoTips(exceptTip) {
+    document.querySelectorAll(".pc-mcard__tip.is-open").forEach(function (tip) {
+      if (exceptTip && tip === exceptTip) return;
+      tip.classList.remove("is-open");
+      var btn = tip.parentElement && tip.parentElement.querySelector("[data-pc-info-btn]");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+      tip.style.left = "";
+      tip.style.right = "";
+    });
+  }
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target && ev.target.closest ? ev.target.closest("[data-pc-info-btn]") : null;
+    if (btn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var wrap = btn.closest(".pc-mcard__info");
+      var tip = wrap && wrap.querySelector(".pc-mcard__tip");
+      var wasOpen = tip && tip.classList.contains("is-open");
+      closeAllPcInfoTips();
+      if (!wasOpen && tip) {
+        tip.classList.add("is-open");
+        btn.setAttribute("aria-expanded", "true");
+        tip.style.left = "0";
+        tip.style.right = "auto";
+        var r = tip.getBoundingClientRect();
+        if (r.right > window.innerWidth - 8) {
+          tip.style.left = "auto";
+          tip.style.right = "0";
+        }
+      }
+      return;
+    }
+    if (!(ev.target && ev.target.closest && ev.target.closest(".pc-mcard__info"))) {
+      closeAllPcInfoTips();
+    }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") closeAllPcInfoTips();
+  });
+
   if (vitalsEtypeWrap) {
     vitalsEtypeWrap.addEventListener("click", function (ev) {
       var b = ev.target.closest(".pc-vitals-etype");
@@ -4992,8 +5268,8 @@
       setPcLine(metaEl, data.empty ? "Veri yok — bridge login + sync gerekli" : "");
       applyVitalsSnapshot(data, { force: true });
       renderRating(data.rating_summary);
-      renderGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m); });
-      renderGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m); });
+      renderMetricGrid(kpiEl, kpiEmpty, parts.kpi, function (m) { return metricCard(m, { withInfo: true }); });
+      renderMetricGrid(tpgEl, tpgEmpty, parts.tpg, function (m) { return metricCard(m, { withInfo: true }); });
       renderGrid(monEl, monEmpty, parts.monetize, function (m) { return metricCard(m); });
       renderGrid(growEl, growEmpty, parts.grow, function (m) { return metricCard(m); });
       renderGrid(monitorEl, monitorEmpty, parts.monitor, function (m) { return metricCard(m); });
