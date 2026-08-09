@@ -415,6 +415,7 @@ def _get_top_50_keywords_with_changes(db: Session, site: Site) -> dict:
 
 HOME_POSITION_DROPS_ROW_LIMIT = 17  # ana sayfa: 7 görünür + 10 scroll
 HOME_POSITION_DROPS_VISIBLE_ROWS = 7
+HOME_POSITION_TOP20_TRAFFIC = 20
 
 # Ana sayfa / uyarılar pozisyon listelerinden çıkarılacak +18 / erotik sorgular.
 _ADULT_QUERY_TOKEN_RE = re.compile(
@@ -566,6 +567,33 @@ def _sc_position_data_as_of(db: Session, site: Site) -> tuple[Any, str | None, s
     return as_of_raw, as_of_label, as_of_iso
 
 
+def _top20_traffic_position_changes(
+    ordered_rows: list[dict],
+    *,
+    min_diff: float,
+    limit: int = HOME_POSITION_TOP20_TRAFFIC,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """En çok tık alan N sorgunun 7g pozisyon düşüş / yükselişi (trafik sırası korunur)."""
+    ranked: list[dict] = []
+    for row in ordered_rows:
+        if is_adult_position_query(str(row.get("query") or "")):
+            continue
+        ranked.append(row)
+    ranked.sort(key=lambda item: float(item.get("clicks") or 0.0), reverse=True)
+    top = ranked[: max(1, int(limit))]
+
+    drops: list[dict[str, Any]] = []
+    rises: list[dict[str, Any]] = []
+    for row in top:
+        drop_item = _position_drop_from_row(row, min_diff=min_diff)
+        if drop_item:
+            drops.append(drop_item)
+        rise_item = _position_rise_from_row(row, min_diff=min_diff)
+        if rise_item:
+            rises.append(rise_item)
+    return drops, rises
+
+
 def list_sc_position_changes_7d(
     db: Session,
     site: Site,
@@ -609,14 +637,21 @@ def list_sc_position_changes_7d(
     drops = drops[:row_limit]
     rises = rises[:row_limit]
 
+    top20_drops, top20_rises = _top20_traffic_position_changes(
+        ordered_rows, min_diff=min_diff, limit=HOME_POSITION_TOP20_TRAFFIC
+    )
+
     _as_of_raw, as_of_label, as_of_iso = _sc_position_data_as_of(db, site)
 
     return {
         "drops": drops,
         "rises": rises,
+        "top20_drops": top20_drops,
+        "top20_rises": top20_rises,
         "as_of_label": as_of_label,
         "as_of_iso": as_of_iso,
         "scope_label": "Mobil+Web (gösterim ağırlıklı) · önce Top 50, sonra diğer sorgular",
+        "top20_scope_label": "En çok tık alan 20 sorgunun 7g pozisyon değişimi",
         "row_limit": row_limit,
         "period_label": "Son 7 gün vs önceki 7 gün",
         "sort_label": "",

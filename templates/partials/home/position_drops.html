@@ -1,5 +1,9 @@
 {% set block = sites[0] if sites and sites[0] else none %}
 {% set hide_nav_link = hide_nav_link | default(false) %}
+{% set _real_drops = (block.drops | rejectattr('is_pad') | list) if block and block.drops else [] %}
+{% set _real_rises = (block.rises | rejectattr('is_pad') | list) if block and block.rises else [] %}
+{% set _top20_drops = (block.top20_drops | rejectattr('is_pad') | list) if block and block.top20_drops else [] %}
+{% set _top20_rises = (block.top20_rises | rejectattr('is_pad') | list) if block and block.top20_rises else [] %}
 <style>
   .home-pos-drops {
     width: 100%;
@@ -123,9 +127,104 @@
   html.dark .home-pos-drops .home-pos-list .home-pos-row:last-child {
     border-bottom-color: rgb(39 39 42);
   }
+  .home-pos-drops .home-pos-mode-chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .home-pos-drops .home-pos-mode-chip {
+    appearance: none;
+    border: 1px solid rgb(203 213 225);
+    background: rgb(255 255 255 / 0.85);
+    color: rgb(71 85 105);
+    border-radius: 9999px;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .home-pos-drops .home-pos-mode-chip:hover {
+    border-color: rgb(148 163 184);
+    color: rgb(15 23 42);
+  }
+  .home-pos-drops .home-pos-mode-chip.is-active {
+    border-color: rgb(15 23 42);
+    background: rgb(15 23 42);
+    color: #fff;
+  }
+  html.dark .home-pos-drops .home-pos-mode-chip {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.9);
+    color: rgb(161 161 170);
+  }
+  html.dark .home-pos-drops .home-pos-mode-chip:hover {
+    border-color: rgb(113 113 122);
+    color: rgb(244 244 245);
+  }
+  html.dark .home-pos-drops .home-pos-mode-chip.is-active {
+    border-color: rgb(244 244 245);
+    background: rgb(244 244 245);
+    color: rgb(24 24 27);
+  }
+  .home-pos-drops[data-pos-mode="impact"] [data-pos-panel="top20"],
+  .home-pos-drops[data-pos-mode="top20"] [data-pos-panel="impact"] {
+    display: none !important;
+  }
 </style>
 
-<div class="home-pos-drops">
+{% macro pos_row(d, direction) %}
+  <li class="home-pos-row">
+    <span class="home-pos-query" title="{{ d.query }}">{{ d.query }}</span>
+    <span class="home-pos-meta">
+      <span class="home-pos-change whitespace-nowrap">
+        <span class="home-pos-cur">{{ d.pos_cur }}</span>
+        {% if direction == 'drop' %}
+          <span class="text-rose-600 dark:text-rose-400">+{{ d.diff_fmt }}</span>
+        {% else %}
+          <span class="text-emerald-600 dark:text-emerald-400">−{{ d.diff_fmt }}</span>
+        {% endif %}
+      </span>
+      {% if d.clicks_fmt %}
+        <span class="home-pos-clicks">{{ d.clicks_fmt }}</span>
+      {% endif %}
+    </span>
+  </li>
+{% endmacro %}
+
+{% macro pos_panels(drops, rises, empty_msg) %}
+  {% if drops or rises %}
+    <div class="home-pos-cols mt-4">
+      <div class="min-w-0">
+        <p class="home-label text-rose-700 dark:text-rose-300">down</p>
+        {% if drops %}
+          <ul class="home-pos-list">
+            {% for d in drops %}{{ pos_row(d, 'drop') }}{% endfor %}
+          </ul>
+        {% else %}
+          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı düşüş yok</p>
+        {% endif %}
+      </div>
+      <div class="min-w-0">
+        <p class="home-label text-emerald-700 dark:text-emerald-300">up</p>
+        {% if rises %}
+          <ul class="home-pos-list">
+            {% for d in rises %}{{ pos_row(d, 'rise') }}{% endfor %}
+          </ul>
+        {% else %}
+          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı yükseliş yok</p>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <p class="mt-4 text-center text-sm text-slate-400 dark:text-slate-500">{{ empty_msg }}</p>
+  {% endif %}
+{% endmacro %}
+
+<div class="home-pos-drops" data-pos-mode="impact" data-home-pos-root>
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
       {% if block and block.display_name %}
@@ -134,6 +233,10 @@
       {% if block and block.as_of_label %}
         <p class="{% if block.display_name %}mt-1 {% endif %}home-meta font-medium tabular-nums text-slate-600 dark:text-slate-300">{{ block.as_of_label }}</p>
       {% endif %}
+      <div class="home-pos-mode-chips mt-2" role="tablist" aria-label="Pozisyon görünümü">
+        <button type="button" class="home-pos-mode-chip is-active" data-pos-mode-set="impact" role="tab" aria-selected="true">değişim</button>
+        <button type="button" class="home-pos-mode-chip" data-pos-mode-set="top20" role="tab" aria-selected="false" title="{{ block.top20_scope_label if block and block.top20_scope_label else 'En çok tık alan 20 sorgu' }}">top 20</button>
+      </div>
     </div>
     {% if not hide_nav_link %}
     <a href="{{ block.alerts_href if block and block.alerts_href else '/alerts?focus=position' }}"
@@ -143,58 +246,30 @@
     {% endif %}
   </div>
 
-  {% set _real_drops = (block.drops | rejectattr('is_pad') | list) if block and block.drops else [] %}
-  {% set _real_rises = (block.rises | rejectattr('is_pad') | list) if block and block.rises else [] %}
-  {% if _real_drops or _real_rises %}
-    <div class="home-pos-cols mt-4">
-      <div class="min-w-0">
-        <p class="home-label text-rose-700 dark:text-rose-300">down</p>
-        {% if _real_drops %}
-          <ul class="home-pos-list">
-            {% for d in _real_drops %}
-              <li class="home-pos-row">
-                <span class="home-pos-query" title="{{ d.query }}">{{ d.query }}</span>
-                <span class="home-pos-meta">
-                  <span class="home-pos-change whitespace-nowrap">
-                    <span class="home-pos-cur">{{ d.pos_cur }}</span>
-                    <span class="text-rose-600 dark:text-rose-400">+{{ d.diff_fmt }}</span>
-                  </span>
-                  {% if d.clicks_fmt %}
-                    <span class="home-pos-clicks">{{ d.clicks_fmt }}</span>
-                  {% endif %}
-                </span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı düşüş yok</p>
-        {% endif %}
-      </div>
-      <div class="min-w-0">
-        <p class="home-label text-emerald-700 dark:text-emerald-300">up</p>
-        {% if _real_rises %}
-          <ul class="home-pos-list">
-            {% for d in _real_rises %}
-              <li class="home-pos-row">
-                <span class="home-pos-query" title="{{ d.query }}">{{ d.query }}</span>
-                <span class="home-pos-meta">
-                  <span class="home-pos-change whitespace-nowrap">
-                    <span class="home-pos-cur">{{ d.pos_cur }}</span>
-                    <span class="text-emerald-600 dark:text-emerald-400">−{{ d.diff_fmt }}</span>
-                  </span>
-                  {% if d.clicks_fmt %}
-                    <span class="home-pos-clicks">{{ d.clicks_fmt }}</span>
-                  {% endif %}
-                </span>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="mt-3 text-sm text-slate-400 dark:text-slate-500">Anlamlı yükseliş yok</p>
-        {% endif %}
-      </div>
-    </div>
-  {% else %}
-    <p class="mt-4 text-center text-sm text-slate-400 dark:text-slate-500">Top 50 içinde anlamlı pozisyon değişimi yok</p>
-  {% endif %}
+  <div data-pos-panel="impact">
+    {{ pos_panels(_real_drops, _real_rises, 'Top 50 içinde anlamlı pozisyon değişimi yok') }}
+  </div>
+  <div data-pos-panel="top20">
+    {{ pos_panels(_top20_drops, _top20_rises, 'Top 20 trafik sorgusunda anlamlı pozisyon değişimi yok') }}
+  </div>
 </div>
+<script>
+(function () {
+  var roots = document.querySelectorAll('[data-home-pos-root]');
+  roots.forEach(function (root) {
+    if (root.dataset.posBound) return;
+    root.dataset.posBound = '1';
+    root.querySelectorAll('[data-pos-mode-set]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var mode = btn.getAttribute('data-pos-mode-set') || 'impact';
+        root.setAttribute('data-pos-mode', mode);
+        root.querySelectorAll('[data-pos-mode-set]').forEach(function (b) {
+          var on = b === btn;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+      });
+    });
+  });
+})();
+</script>
