@@ -4482,7 +4482,7 @@ def _run_app_intel_digest_job(*, trigger_source: str, action_label: str) -> None
 
 def _run_app_intel_scheduled() -> None:
     try:
-        _run_app_intel_digest_job(trigger_source="system", action_label="Günlük App mağaza özeti")
+        _run_app_intel_digest_job(trigger_source="system", action_label="App mağaza özeti (3 saat)")
     except Exception:  # noqa: BLE001
         LOGGER.exception("Scheduled App Intel digest job failed.")
 
@@ -4599,23 +4599,21 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
         job_count += 1
 
     if settings.app_intel_scheduled_refresh_enabled:
+        from apscheduler.triggers.interval import IntervalTrigger
+
+        # App mağaza özeti — 3 saatte bir
         scheduler.add_job(
             _run_app_intel_scheduled,
-            trigger=CronTrigger(
-                hour=max(0, min(23, int(settings.app_intel_scheduled_refresh_hour))),
-                minute=max(0, min(59, int(settings.app_intel_scheduled_refresh_minute))),
-                timezone=timezone,
-            ),
-            id="daily-app-intel-digest",
+            trigger=IntervalTrigger(hours=3, timezone=timezone),
+            id="app-intel-refresh-3h",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
-            misfire_grace_time=3600,
+            misfire_grace_time=1800,
         )
         job_count += 1
 
         # Her 3 saatte bir sadece kategori sırasını güncelle
-        from apscheduler.triggers.interval import IntervalTrigger
         scheduler.add_job(
             _run_rank_refresh_job,
             trigger=IntervalTrigger(hours=3, timezone=timezone),
@@ -4915,8 +4913,8 @@ def _build_daily_refresh_scheduler() -> BackgroundScheduler | None:
     from apscheduler.triggers.interval import IntervalTrigger as _CrashIntervalTrigger
     scheduler.add_job(
         _run_crashlytics_prewarm,
-        trigger=_CrashIntervalTrigger(hours=1, timezone=timezone),
-        id="crashlytics-cache-prewarm-1h",
+        trigger=_CrashIntervalTrigger(hours=3, timezone=timezone),
+        id="crashlytics-cache-prewarm-3h",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

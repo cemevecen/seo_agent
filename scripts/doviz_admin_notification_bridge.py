@@ -11,12 +11,15 @@ Tek sefer (ikisi):
 Daemon (otomatik + Elle yenile localhost:18765):
   .venv/bin/python scripts/doviz_admin_notification_bridge.py --daemon
 
-  POST /sync       → notification (~30 dk auto)
-  POST /sync-news?days=7  → son 1 hafta (Elle yenile + ~30 dk auto)
-  POST /sync-news?full=1  → tam geçmiş (seyrek)
-  POST /sync-virgul → Virgül Excel (~30 dk auto)
-  POST /sync-play   → Play Console scrape (~2 saat auto)
-  POST /sync-asc    → App Store Connect scrape (iOS — elle / UI; auto yok)
+  POST /sync       → notification (30 dk)
+  POST /sync-news  → news (1 saat)
+  POST /sync-virgul → Virgül (00/06/12/18 TR)
+  POST /sync-play   → Play / Android (3 saatte bir, :00)
+  POST /sync-asc    → ASC / iOS (3 saatte bir, :05)
+  POST /sync-gsc-links → Backlinks (01:00 + 13:00 TR)
+  POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
+  POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
+  POST /sync-pagespeed → pagespeed.web.dev (01:10 + 13:10 TR)
   POST /sync-all   → notification + news
 """
 
@@ -65,38 +68,46 @@ _load_dotenv()
 
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = int(os.environ.get("NOTIFICATION_BRIDGE_PORT") or "18765")
-# Üçü de varsayılan 30 dk (notification / news / virgul)
-_DEFAULT_INTERVAL = 30 * 60
-_PLAY_DEFAULT_INTERVAL = 2 * 60 * 60  # Play Console: 2 saat
+# Auto-loop poll (slot kaçırmamak için kısa); iş aralıkları ayrı.
+AUTO_POLL_SEC = int(os.environ.get("BRIDGE_AUTO_POLL_SEC") or "60")
+# Interval-based
 AUTO_INTERVAL_SEC = int(
-    os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
-)
+    os.environ.get("NOTIFICATION_BRIDGE_INTERVAL_SEC") or str(30 * 60)
+)  # notification: 30 dk
 NEWS_AUTO_INTERVAL_SEC = int(
-    os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
-)
-VIRGUL_AUTO_INTERVAL_SEC = int(
-    os.environ.get("VIRGUL_BRIDGE_INTERVAL_SEC") or str(_DEFAULT_INTERVAL)
-)
+    os.environ.get("NEWS_BRIDGE_INTERVAL_SEC") or str(60 * 60)
+)  # news: 1 saat
 PLAY_AUTO_INTERVAL_SEC = int(
-    os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(_PLAY_DEFAULT_INTERVAL)
-)
-# GSC Links scrape — günde 2 kez (12 saat)
+    os.environ.get("PLAY_CONSOLE_BRIDGE_INTERVAL_SEC") or str(3 * 60 * 60)
+)  # android: 3 saat
+ASC_AUTO_INTERVAL_SEC = int(
+    os.environ.get("ASC_CONSOLE_BRIDGE_INTERVAL_SEC") or str(3 * 60 * 60)
+)  # ios: 3 saat
+VIRGUL_AUTO_INTERVAL_SEC = int(
+    os.environ.get("VIRGUL_BRIDGE_INTERVAL_SEC") or str(6 * 60 * 60)
+)  # health/docs; slot kullanılır
 GSC_LINKS_AUTO_INTERVAL_SEC = int(
     os.environ.get("GSC_LINKS_BRIDGE_INTERVAL_SEC") or str(12 * 60 * 60)
 )
-# Ad Manager Policy — günde 1 kez 02:00 Europe/Istanbul
-POLICY_AUTO_HOUR = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_HOUR") or "2")
-POLICY_AUTO_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "0")
-# Sinemalar noAds — günde 2 kez (03:00 + 15:00 Europe/Istanbul)
-NOADS_AUTO_HOURS = [
-    int(x.strip())
-    for x in (os.environ.get("SINEMALAR_NOADS_BRIDGE_HOURS") or "3,15").split(",")
-    if x.strip().isdigit()
-] or [3, 15]
-NOADS_AUTO_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "10")
-# Eski ayar: her N. bildirim turunda haber (NEWS_BRIDGE_INTERVAL_SEC yoksa)
+# Slot pencereleri Europe/Istanbul
+VIRGUL_SLOT_HOURS = (0, 6, 12, 18)  # gece 00’dan 6 saatte bir → 4 tur
+VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "0")
+PLAY_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)
+PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
+ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
+TWICE_DAILY_HOURS = (1, 13)  # 01:00 + 13:00
+GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "0")
+POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5")
+SPEED_SLOT_MINUTE = int(os.environ.get("PAGESPEED_BRIDGE_MINUTE") or "10")
+NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "15")
+SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "20")
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
+# Geriye dönük isimler
+POLICY_AUTO_HOUR = TWICE_DAILY_HOURS[0]
+POLICY_AUTO_MINUTE = POLICY_SLOT_MINUTE
+NOADS_AUTO_HOURS = list(TWICE_DAILY_HOURS)
+NOADS_AUTO_MINUTE = NOADS_SLOT_MINUTE
 BRIDGE_ALERT_TO = (
     os.environ.get("BRIDGE_ALERT_EMAIL")
     or os.environ.get("OPERATIONS_MAIL_TO")
@@ -146,17 +157,25 @@ _asc_lock = threading.Lock()
 _gsc_links_lock = threading.Lock()
 _policy_lock = threading.Lock()
 _noads_lock = threading.Lock()
+_pagespeed_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_play_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_asc_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
-_last_gsc_links_auto_at = 0.0
 _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
-_last_policy_auto_date = ""
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_pagespeed_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_nt_auto_at = 0.0
+_last_news_auto_at = 0.0
+_last_virgul_auto_slot = ""
+_last_play_auto_slot = ""
+_last_asc_auto_slot = ""
+_last_gsc_links_auto_slot = ""
+_last_policy_auto_slot = ""
 _last_noads_auto_slot = ""
+_last_pagespeed_auto_slot = ""
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -174,9 +193,6 @@ _nt_progress: dict[str, Any] = {
     "message": "",
 }
 _auto_cycle = 0
-_last_news_auto_at = 0.0
-_last_virgul_auto_at = 0.0
-_last_play_auto_at = 0.0
 _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
 
@@ -920,6 +936,70 @@ def run_asc_bridge_once() -> dict[str, Any]:
     return out
 
 
+def run_pagespeed_bridge_once() -> dict[str, Any]:
+    """pagespeed.web.dev scrape (doviz + sinemalar) → Railway ingest."""
+    global _last_pagespeed_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_pagespeed_result = err
+        return err
+
+    import subprocess
+
+    script = ROOT / "scripts" / "pagespeed_web_scrape.py"
+    if not script.is_file():
+        err = {"ok": False, "kind": "pagespeed", "message": "pagespeed_web_scrape.py yok"}
+        _last_pagespeed_result = err
+        return err
+
+    print("PageSpeed web scrape başlıyor…", flush=True)
+    cmd = [sys.executable, str(script), "--sync", "--ingest"]
+    env = os.environ.copy()
+    env.setdefault(
+        "PAGESPEED_WEB_INGEST_URL",
+        (
+            os.environ.get("PAGESPEED_WEB_INGEST_URL")
+            or "https://projectcontrol.up.railway.app/api/pagespeed-web/ingest"
+        ).strip(),
+    )
+    timeout_sec = int(os.environ.get("PAGESPEED_BRIDGE_TIMEOUT_SEC") or "900")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=max(120, timeout_sec),
+        )
+    except subprocess.TimeoutExpired:
+        out = {
+            "ok": False,
+            "kind": "pagespeed",
+            "message": f"PageSpeed scrape timeout ({timeout_sec}s)",
+        }
+        _last_pagespeed_result = out
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "pagespeed", "message": f"PageSpeed subprocess: {exc}"}
+        _last_pagespeed_result = out
+        return out
+
+    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    if combined:
+        for line in combined.splitlines()[-30:]:
+            print(line, flush=True)
+
+    if proc.returncode == 0:
+        out = {"ok": True, "kind": "pagespeed", "message": "PageSpeed sync OK"}
+    else:
+        tail = (combined[-300:] if combined else f"exit {proc.returncode}")[:300]
+        out = {"ok": False, "kind": "pagespeed", "message": tail}
+    _last_pagespeed_result = out
+    print(f"PageSpeed sync · {out['message']}", flush=True)
+    return out
+
+
 def run_notification_bridge_once() -> dict[str, Any]:
     """Admin notification stats → Railway ingest."""
     global _last_result
@@ -1308,7 +1388,23 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_virgul": _last_virgul_result,
                     "last_play": _last_play_result,
                     "last_asc": _last_asc_result,
+                    "last_pagespeed": _last_pagespeed_result,
+                    "last_gsc_links": _last_gsc_links_result,
+                    "last_policy": _last_policy_result,
+                    "last_noads": _last_noads_result,
                     "play_interval_sec": PLAY_AUTO_INTERVAL_SEC,
+                    "asc_interval_sec": ASC_AUTO_INTERVAL_SEC,
+                    "schedule": {
+                        "notification_sec": AUTO_INTERVAL_SEC,
+                        "news_sec": NEWS_AUTO_INTERVAL_SEC,
+                        "virgul_slots_tr": [f"{h:02d}:{VIRGUL_SLOT_MINUTE:02d}" for h in VIRGUL_SLOT_HOURS],
+                        "play_slots_tr": [f"{h:02d}:{PLAY_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
+                        "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
+                        "gsc_slots_tr": [f"{h:02d}:{GSC_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+                        "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+                        "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+                        "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+                    },
                     "news_progress": dict(_news_progress),
                     "nt_progress": dict(_nt_progress),
                 },
@@ -1388,6 +1484,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "ASC Console sync zaten çalışıyor, bekleyin.",
                 run_asc_bridge_once,
             )
+        elif path in ("/sync-pagespeed", "/pagespeed", "/sync-speed"):
+            lock, busy, runner = (
+                _pagespeed_lock,
+                "PageSpeed sync zaten çalışıyor, bekleyin.",
+                run_pagespeed_bridge_once,
+            )
         elif path in ("/sync-all", "/all"):
             lock, busy, runner = (_nt_lock, "Sync zaten çalışıyor, bekleyin.", run_all_once)
         else:
@@ -1406,283 +1508,200 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             lock.release()
 
 
+def _now_tr():
+    try:
+        from zoneinfo import ZoneInfo
+        from datetime import datetime
+
+        return datetime.now(ZoneInfo("Europe/Istanbul"))
+    except Exception:
+        from datetime import datetime, timezone, timedelta
+
+        return datetime.now(timezone.utc) + timedelta(hours=3)
+
+
+def _slot_due(last_slot: str, hours: tuple[int, ...] | list[int], minute: int) -> tuple[bool, str]:
+    """TR saatinde [hour:minute, hour:minute+window) içindeyse ve slot işlenmediyse True."""
+    now = _now_tr()
+    cur = now.hour * 60 + now.minute
+    window = max(5, SLOT_WINDOW_MIN)
+    for hour in hours:
+        start = int(hour) * 60 + int(minute)
+        if start <= cur < start + window:
+            slot = f"{now.strftime('%Y-%m-%d')}-{int(hour):02d}{int(minute):02d}"
+            if last_slot == slot:
+                return False, slot
+            return True, slot
+    return False, ""
+
+
+def _interval_due(last_at: float, interval_sec: int, *, min_sec: int = 60) -> bool:
+    if last_at <= 0:
+        return True
+    return (time.time() - last_at) >= max(min_sec, interval_sec)
+
+
+def _should_run_notification_auto() -> bool:
+    return _interval_due(_last_nt_auto_at, AUTO_INTERVAL_SEC, min_sec=60)
+
+
 def _should_run_news_auto() -> bool:
-    """30 dk (veya NEWS_BRIDGE_INTERVAL_SEC) / isteğe bağlı EVERY_N."""
-    global _last_news_auto_at, _auto_cycle
+    global _auto_cycle
     if NEWS_AUTO_EVERY_N > 0:
         return NEWS_AUTO_EVERY_N <= 1 or (_auto_cycle % NEWS_AUTO_EVERY_N) == 1
-    if _last_news_auto_at <= 0:
-        return True
-    return (time.time() - _last_news_auto_at) >= max(60, NEWS_AUTO_INTERVAL_SEC)
+    return _interval_due(_last_news_auto_at, NEWS_AUTO_INTERVAL_SEC, min_sec=60)
 
 
-def _should_run_virgul_auto() -> bool:
-    global _last_virgul_auto_at
-    if _last_virgul_auto_at <= 0:
-        return True
-    return (time.time() - _last_virgul_auto_at) >= max(300, VIRGUL_AUTO_INTERVAL_SEC)
-
-
-def _should_run_play_auto() -> bool:
-    global _last_play_auto_at
-    if _last_play_auto_at <= 0:
-        return True
-    return (time.time() - _last_play_auto_at) >= max(600, PLAY_AUTO_INTERVAL_SEC)
-
-
-def _should_run_gsc_links_auto() -> bool:
-    global _last_gsc_links_auto_at
-    if _last_gsc_links_auto_at <= 0:
-        return True
-    return (time.time() - _last_gsc_links_auto_at) >= max(600, GSC_LINKS_AUTO_INTERVAL_SEC)
-
-
-def _should_run_policy_auto() -> bool:
-    """Europe/Istanbul 02:00 civarı, günde bir."""
-    global _last_policy_auto_date
+def _run_locked_job(
+    *,
+    name: str,
+    lock: threading.Lock,
+    runner,
+    kind: str,
+) -> dict[str, Any] | None:
+    if not lock.acquire(blocking=False):
+        print(f"Auto {name} atlandı (manuel sync sürüyor)", flush=True)
+        return None
     try:
-        from zoneinfo import ZoneInfo
-
-        now = __import__("datetime").datetime.now(ZoneInfo("Europe/Istanbul"))
-    except Exception:
-        from datetime import datetime, timezone, timedelta
-
-        now = datetime.now(timezone.utc) + timedelta(hours=3)
-    today = now.strftime("%Y-%m-%d")
-    if _last_policy_auto_date == today:
-        return False
-    # 02:00–02:45 penceresi
-    minutes = now.hour * 60 + now.minute
-    start = POLICY_AUTO_HOUR * 60 + POLICY_AUTO_MINUTE
-    return start <= minutes <= start + 45
-
-
-def _should_run_noads_auto() -> bool:
-    """Europe/Istanbul — günde 2 slot (varsayılan 03:10 ve 15:10)."""
-    global _last_noads_auto_slot
-    try:
-        from zoneinfo import ZoneInfo
-
-        now = __import__("datetime").datetime.now(ZoneInfo("Europe/Istanbul"))
-    except Exception:
-        from datetime import datetime, timezone, timedelta
-
-        now = datetime.now(timezone.utc) + timedelta(hours=3)
-    minutes = now.hour * 60 + now.minute
-    for hour in NOADS_AUTO_HOURS:
-        start = hour * 60 + NOADS_AUTO_MINUTE
-        if start <= minutes <= start + 40:
-            slot = f"{now.strftime('%Y-%m-%d')}-{hour:02d}"
-            if _last_noads_auto_slot == slot:
-                return False
-            return True
-    return False
-
-
-def _mark_noads_auto_slot() -> None:
-    global _last_noads_auto_slot
-    try:
-        from zoneinfo import ZoneInfo
-
-        now = __import__("datetime").datetime.now(ZoneInfo("Europe/Istanbul"))
-    except Exception:
-        from datetime import datetime, timezone, timedelta
-
-        now = datetime.now(timezone.utc) + timedelta(hours=3)
-    minutes = now.hour * 60 + now.minute
-    for hour in NOADS_AUTO_HOURS:
-        start = hour * 60 + NOADS_AUTO_MINUTE
-        if start <= minutes <= start + 40:
-            _last_noads_auto_slot = f"{now.strftime('%Y-%m-%d')}-{hour:02d}"
-            return
-    _last_noads_auto_slot = now.strftime("%Y-%m-%d-%H")
+        try:
+            result = runner()
+            if result.get("ok"):
+                _note_auto_success(kind)
+            else:
+                _notify_auto_failure(kind, result)
+            return result
+        except Exception as exc:
+            traceback.print_exc()
+            _notify_auto_failure(kind, exc=exc)
+            return {"ok": False, "message": str(exc)}
+    finally:
+        lock.release()
 
 
 def _auto_loop() -> None:
-    """Notification/news ve Virgül ayrı kilit — hepsi ~30 dk; hata → e-posta."""
-    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at, _last_gsc_links_auto_at, _last_policy_auto_date, _last_noads_auto_slot
+    """Slot + interval zamanlayıcı; poll ~60s. Hata → e-posta."""
+    global _auto_cycle
+    global _last_nt_auto_at, _last_news_auto_at
+    global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
+    global _last_gsc_links_auto_slot, _last_policy_auto_slot
+    global _last_noads_auto_slot, _last_pagespeed_auto_slot
+
     while True:
-        if _nt_lock.acquire(blocking=False):
-            try:
-                _auto_cycle += 1
-                try:
-                    nt = run_notification_bridge_once()
-                    if nt.get("ok"):
-                        _note_auto_success("notification")
-                    else:
-                        _notify_auto_failure("notification", nt)
-                except Exception as exc:
-                    traceback.print_exc()
-                    _notify_auto_failure("notification", exc=exc)
+        _auto_cycle += 1
 
-                if _should_run_news_auto():
-                    try:
-                        news = run_news_bridge_once()
-                        _last_news_auto_at = time.time()
-                        if news.get("ok"):
-                            _note_auto_success("news")
-                        else:
-                            _notify_auto_failure("news", news)
-                    except Exception as exc:
-                        traceback.print_exc()
-                        _last_news_auto_at = time.time()
-                        _notify_auto_failure("news", exc=exc)
-                else:
-                    left = max(
-                        0,
-                        int(NEWS_AUTO_INTERVAL_SEC - (time.time() - _last_news_auto_at)),
-                    )
-                    print(
-                        f"News auto atlandı (cycle={_auto_cycle}, "
-                        f"sonraki ~{left}s / interval={NEWS_AUTO_INTERVAL_SEC}s)",
-                        flush=True,
-                    )
-            except Exception:
-                traceback.print_exc()
-            finally:
-                _nt_lock.release()
-        else:
-            print("Auto notification/news atlandı (manuel sync sürüyor)", flush=True)
-
-        if _should_run_virgul_auto():
-            if _virgul_lock.acquire(blocking=False):
+        # Notification 30 dk + News 1 saat (aynı admin kilidi)
+        nt_due = _should_run_notification_auto()
+        news_due = _should_run_news_auto()
+        if nt_due or news_due:
+            if _nt_lock.acquire(blocking=False):
                 try:
-                    try:
-                        vg = run_virgul_bridge_once()
-                        _last_virgul_auto_at = time.time()
-                        if vg.get("ok"):
-                            _note_auto_success("virgul")
-                        else:
-                            _notify_auto_failure("virgul", vg)
-                    except Exception as exc:
-                        traceback.print_exc()
-                        _last_virgul_auto_at = time.time()
-                        _notify_auto_failure("virgul", exc=exc)
-                finally:
-                    _virgul_lock.release()
-            else:
-                print("Auto Virgul atlandı (manuel virgul sync sürüyor)", flush=True)
-        else:
-            left_v = max(
-                0,
-                int(VIRGUL_AUTO_INTERVAL_SEC - (time.time() - _last_virgul_auto_at)),
-            )
-            print(f"Virgul auto atlandı (sonraki ~{left_v}s)", flush=True)
-
-        if _should_run_play_auto():
-            if _play_lock.acquire(blocking=False):
-                try:
-                    try:
-                        pl = run_play_bridge_once()
-                        _last_play_auto_at = time.time()
-                        if pl.get("ok"):
-                            _note_auto_success("play")
-                        else:
-                            _notify_auto_failure("play", pl)
-                    except Exception as exc:
-                        traceback.print_exc()
-                        _last_play_auto_at = time.time()
-                        _notify_auto_failure("play", exc=exc)
-                finally:
-                    _play_lock.release()
-            else:
-                print("Auto Play atlandı (manuel play sync sürüyor)", flush=True)
-        else:
-            left_p = max(
-                0,
-                int(PLAY_AUTO_INTERVAL_SEC - (time.time() - _last_play_auto_at)),
-            )
-            print(f"Play auto atlandı (sonraki ~{left_p}s)", flush=True)
-
-        if _should_run_gsc_links_auto():
-            if _gsc_links_lock.acquire(blocking=False):
-                try:
-                    try:
-                        gl = run_gsc_links_bridge_once()
-                        _last_gsc_links_auto_at = time.time()
-                        if gl.get("ok"):
-                            _note_auto_success("gsc_links")
-                        else:
-                            _notify_auto_failure("gsc_links", gl)
-                    except Exception as exc:
-                        traceback.print_exc()
-                        _last_gsc_links_auto_at = time.time()
-                        _notify_auto_failure("gsc_links", exc=exc)
-                finally:
-                    _gsc_links_lock.release()
-            else:
-                print("Auto GSC Links atlandı (manuel sync sürüyor)", flush=True)
-        else:
-            left_g = max(
-                0,
-                int(GSC_LINKS_AUTO_INTERVAL_SEC - (time.time() - _last_gsc_links_auto_at)),
-            )
-            print(f"GSC Links auto atlandı (sonraki ~{left_g}s)", flush=True)
-
-        if _should_run_policy_auto():
-            if _policy_lock.acquire(blocking=False):
-                try:
-                    try:
-                        pol = run_admanager_policy_bridge_once()
+                    if nt_due:
                         try:
-                            from zoneinfo import ZoneInfo
-
-                            _last_policy_auto_date = __import__("datetime").datetime.now(
-                                ZoneInfo("Europe/Istanbul")
-                            ).strftime("%Y-%m-%d")
-                        except Exception:
-                            from datetime import datetime, timezone, timedelta
-
-                            _last_policy_auto_date = (
-                                datetime.now(timezone.utc) + timedelta(hours=3)
-                            ).strftime("%Y-%m-%d")
-                        if pol.get("ok"):
-                            _note_auto_success("admanager_policy")
-                        else:
-                            _notify_auto_failure("admanager_policy", pol)
-                    except Exception as exc:
-                        traceback.print_exc()
-                        _notify_auto_failure("admanager_policy", exc=exc)
+                            nt = run_notification_bridge_once()
+                            _last_nt_auto_at = time.time()
+                            if nt.get("ok"):
+                                _note_auto_success("notification")
+                            else:
+                                _notify_auto_failure("notification", nt)
+                        except Exception as exc:
+                            traceback.print_exc()
+                            _last_nt_auto_at = time.time()
+                            _notify_auto_failure("notification", exc=exc)
+                    if news_due:
+                        try:
+                            news = run_news_bridge_once()
+                            _last_news_auto_at = time.time()
+                            if news.get("ok"):
+                                _note_auto_success("news")
+                            else:
+                                _notify_auto_failure("news", news)
+                        except Exception as exc:
+                            traceback.print_exc()
+                            _last_news_auto_at = time.time()
+                            _notify_auto_failure("news", exc=exc)
+                except Exception:
+                    traceback.print_exc()
                 finally:
-                    _policy_lock.release()
+                    _nt_lock.release()
             else:
-                print("Auto Policy atlandı (manuel sync sürüyor)", flush=True)
+                print("Auto notification/news atlandı (manuel sync sürüyor)", flush=True)
 
-        if _should_run_noads_auto():
-            if _noads_lock.acquire(blocking=False):
-                try:
-                    try:
-                        nad = run_sinemalar_noads_bridge_once()
-                        _mark_noads_auto_slot()
-                        if nad.get("ok"):
-                            _note_auto_success("sinemalar_noads")
-                        else:
-                            _notify_auto_failure("sinemalar_noads", nad)
-                    except Exception as exc:
-                        traceback.print_exc()
-                        _notify_auto_failure("sinemalar_noads", exc=exc)
-                finally:
-                    _noads_lock.release()
-            else:
-                print("Auto noAds atlandı (manuel sync sürüyor)", flush=True)
+        # Virgül — 00/06/12/18
+        due, slot = _slot_due(_last_virgul_auto_slot, VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE)
+        if due:
+            if _run_locked_job(name="Virgul", lock=_virgul_lock, runner=run_virgul_bridge_once, kind="virgul") is not None:
+                _last_virgul_auto_slot = slot
 
-        time.sleep(max(60, AUTO_INTERVAL_SEC))
+        # Android Play — 3 saatte bir :00
+        due, slot = _slot_due(_last_play_auto_slot, PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE)
+        if due:
+            if _run_locked_job(name="Play", lock=_play_lock, runner=run_play_bridge_once, kind="play") is not None:
+                _last_play_auto_slot = slot
+
+        # iOS ASC — aynı saatler :05
+        due, slot = _slot_due(_last_asc_auto_slot, PLAY_SLOT_HOURS, ASC_SLOT_MINUTE)
+        if due:
+            if _run_locked_job(name="ASC", lock=_asc_lock, runner=run_asc_bridge_once, kind="asc") is not None:
+                _last_asc_auto_slot = slot
+
+        # Backlinks — 01:00 + 13:00
+        due, slot = _slot_due(_last_gsc_links_auto_slot, TWICE_DAILY_HOURS, GSC_SLOT_MINUTE)
+        if due:
+            if _run_locked_job(
+                name="GSC Links",
+                lock=_gsc_links_lock,
+                runner=run_gsc_links_bridge_once,
+                kind="gsc_links",
+            ) is not None:
+                _last_gsc_links_auto_slot = slot
+
+        # Policy — 01:05 + 13:05
+        due, slot = _slot_due(_last_policy_auto_slot, TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE)
+        if due:
+            if _run_locked_job(
+                name="Policy",
+                lock=_policy_lock,
+                runner=run_admanager_policy_bridge_once,
+                kind="admanager_policy",
+            ) is not None:
+                _last_policy_auto_slot = slot
+
+        # Speed — 01:10 + 13:10
+        due, slot = _slot_due(_last_pagespeed_auto_slot, TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE)
+        if due:
+            if _run_locked_job(
+                name="PageSpeed",
+                lock=_pagespeed_lock,
+                runner=run_pagespeed_bridge_once,
+                kind="pagespeed",
+            ) is not None:
+                _last_pagespeed_auto_slot = slot
+
+        # noAds — 01:15 + 13:15
+        due, slot = _slot_due(_last_noads_auto_slot, TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE)
+        if due:
+            if _run_locked_job(
+                name="noAds",
+                lock=_noads_lock,
+                runner=run_sinemalar_noads_bridge_once,
+                kind="sinemalar_noads",
+            ) is not None:
+                _last_noads_auto_slot = slot
+
+        time.sleep(max(30, AUTO_POLL_SEC))
+
 
 
 def run_daemon() -> int:
     _load_dotenv()
     threading.Thread(target=_auto_loop, name="nt-bridge-auto", daemon=True).start()
     server = ThreadingHTTPServer((BRIDGE_HOST, BRIDGE_PORT), _BridgeHandler)
-    news_mode = (
-        f"every_n={NEWS_AUTO_EVERY_N}"
-        if NEWS_AUTO_EVERY_N > 0
-        else f"news_interval={NEWS_AUTO_INTERVAL_SEC}s"
-    )
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-gsc-links | /sync-policy | /sync-noads | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
-        f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s, play={PLAY_AUTO_INTERVAL_SEC}s, "
-        f"gsc_links={GSC_LINKS_AUTO_INTERVAL_SEC}s, policy=02:00 TR, noads={NOADS_AUTO_HOURS} TR)",
+        f"notify={AUTO_INTERVAL_SEC}s news={NEWS_AUTO_INTERVAL_SEC}s "
+        f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
+        f"asc=:{ASC_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
+        f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d}",
         flush=True,
     )
     try:
