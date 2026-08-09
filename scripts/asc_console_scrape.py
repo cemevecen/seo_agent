@@ -87,17 +87,43 @@ MEASURE_MAP: dict[str, str] = {
     "subscription-state-plans-active": "active_subscriptions",
     "subscription-state-churned": "subscription_churned",
     "subscription-events-renewals": "subscription_renewals",
+    # Free Trials ≈ ASC “Subscription Offers” state (ayrı freeTrials key 400)
+    "subscription-state-offers": "free_trials",
 }
 # Batch grupları (tek POST’ta birden fazla measure) — 365g günlük
 MEASURE_BATCHES: list[list[str]] = [
     ["units", "redownloads", "conversionRate", "impressionsTotal", "pageViewCount"],
-    ["iap", "payingUsers", "proceeds", "sales"],
-    ["activeDevices", "sessions", "installs", "crashes", "uninstalls"],
+    ["iap", "payingUsers", "proceeds"],
+    ["sales"],
+    ["activeDevices", "sessions"],
+    ["installs", "crashes", "uninstalls"],
     [
         "subscription-state-plans-active",
         "subscription-state-churned",
         "subscription-events-renewals",
     ],
+    ["subscription-state-offers"],
+]
+# Warehouse’ta istediğimiz metrikler — scrape sonrası eksikler tek tek doldurulur
+REQUIRED_WAREHOUSE_METRICS: list[str] = [
+    "units",
+    "redownloads",
+    "impressions",
+    "page_views",
+    "conversion_rate",
+    "iap",
+    "paying_users",
+    "proceeds",
+    "sales",
+    "active_devices",
+    "sessions",
+    "installs",
+    "crashes",
+    "uninstalls",
+    "active_subscriptions",
+    "subscription_churned",
+    "subscription_renewals",
+    "free_trials",
 ]
 ANALYTICS_MEASURES_URL = (
     "https://appstoreconnect.apple.com/analytics/api/v1/data/app/detail/measures"
@@ -1089,11 +1115,94 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
                 print(f"ASC scrape · {mk} → {metric}: {n} gün (measures API)", flush=True)
             time.sleep(0.6)
 
-        # API HTML/boş dönerse: UI XHR yakala
-        if not explorer_facts:
-            print("ASC measures API boş/HTML — UI network yakalama…", flush=True)
+        # Eksik warehouse metrikleri — tek tek POST (batch bazen sessizce atlar / boş döner)
+        covered = {
+            str(f.get("metric") or "")
+            for f in explorer_facts
+            if f.get("metric")
+        }
+        missing = [m for m in REQUIRED_WAREHOUSE_METRICS if m not in covered]
+        if missing:
+            print(f"ASC scrape · eksik metrikler tek tek: {missing}", flush=True)
+            # warehouse metric → tercih edilen measureKey(ler)
+            prefer: dict[str, list[str]] = {}
+            for mk, metric in MEASURE_MAP.items():
+                prefer.setdefault(metric, []).append(mk)
+            for metric in missing:
+                keys = prefer.get(metric) or [metric]
+                got_any = False
+                for mk in keys:
+                    resp = _post_measures(page, [mk], start=start_d, end=end_d)
+                    raw_network.append(
+                        {
+                            "url": ANALYTICS_MEASURES_URL,
+                            "status": resp.get("status"),
+                            "ts": datetime.now().isoformat(),
+                            "measures": [mk],
+                            "ok": resp.get("ok"),
+                            "message": str(resp.get("message") or "")[:200],
+                            "retry_for": metric,
+                        }
+                    )
+                    if not resp.get("ok"):
+                        print(
+                            f"ASC measures retry fail · {mk} ({metric}) · "
+                            f"HTTP {resp.get('status')} · {str(resp.get('message') or '')[:160]}",
+                            flush=True,
+                        )
+                        pages_meta[mk] = {
+                            "ok": False,
+                            "error": f"HTTP {resp.get('status')}",
+                            "message": str(resp.get("message") or "")[:160],
+                        }
+                        continue
+                    facts_batch = _facts_from_measures_response(resp.get("body") or {})
+                    # yalnızca hedef metriği al
+                    facts_batch = [
+                        f for f in facts_batch if str(f.get("metric") or "") == metric
+                    ]
+                    n = len(facts_batch)
+                    pages_meta[mk] = {
+                        "ok": n > 0,
+                        "fact_count": n,
+                        "source": "retry_single",
+                    }
+                    print(
+                        f"ASC scrape · retry {mk} → {metric}: {n} gün",
+                        flush=True,
+                    )
+                    if n:
+                        explorer_facts.extend(facts_batch)
+                        got_any = True
+                        break
+                    time.sleep(0.4)
+                if not got_any:
+                    print(f"ASC scrape · {metric} hâlâ boş", flush=True)
+                time.sleep(0.5)
+
+        # API HTML/boş dönerse veya hâlâ eksik varsa: UI XHR yakala
+        covered_after = {
+            str(f.get("metric") or "")
+            for f in explorer_facts
+            if f.get("metric")
+        }
+        still_missing = [m for m in REQUIRED_WAREHOUSE_METRICS if m not in covered_after]
+        if not explorer_facts or still_missing:
+            print(
+                "ASC measures API boş/eksik — UI network yakalama… "
+                f"missing={still_missing[:12]}",
+                flush=True,
+            )
+            # Önce eksik metriklerin measure key’lerini gez
+            ui_keys: list[str] = []
+            for metric in (still_missing or REQUIRED_WAREHOUSE_METRICS):
+                for mk, m in MEASURE_MAP.items():
+                    if m == metric and mk not in ui_keys:
+                        ui_keys.append(mk)
+            if not ui_keys:
+                ui_keys = list(MEASURE_MAP.keys())
             ui_bodies = _capture_measures_via_ui(
-                page, list(MEASURE_MAP.keys()), bag=net_bag, url_log=url_log
+                page, ui_keys, bag=net_bag, url_log=url_log
             )
             for body in ui_bodies:
                 if isinstance(body, dict):

@@ -265,9 +265,12 @@ def _load_bundle(
         return out
 
     need_analytics = (not scrape_facts) or bool(set(uncovered) & _ANALYTICS_METRICS)
-    # Scrape varken Analytics yavaş/boş; yalnızca scrape yoksa çağır
-    if scrape_facts:
+    # Scrape varken Analytics yavaş; yalnızca scrape’in kapsamadığı analytics metrikleri için aç
+    if scrape_facts and not (set(uncovered) & _ANALYTICS_METRICS):
         need_analytics = False
+    elif scrape_facts and (set(uncovered) & _ANALYTICS_METRICS):
+        # Engagement vb. scrape’te yoksa resmi Analytics Reports yedek dene
+        need_analytics = True
     need_sales = bool(set(uncovered) & _SALES_METRICS) and asc_client.is_configured()
     need_subs = bool(set(uncovered) & _SUBS_METRICS)
 
@@ -567,6 +570,16 @@ def query_asc_metric(
     warnings = list(a.get("warnings") or [])
     scrape_facts = bundle.get("scrape_facts") or []
     source = "asc_scrape" if scrape_facts else "asc_api"
+    # Seri scrape’ten gelmediyse kaynak etiketini netleştir
+    scraped_series = (
+        _series_from_scrape_facts(scrape_facts, metric_key, start=start_d, end=end_d)
+        if scrape_facts
+        else []
+    )
+    if scrape_facts and not scraped_series and series:
+        source = "asc_api"
+    elif scrape_facts and scraped_series:
+        source = "asc_scrape"
 
     compare_payload = None
     if want_compare:
