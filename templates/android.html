@@ -45,55 +45,50 @@
     container-type: inline-size;
     container-name: pa-filters;
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: flex-end;
-    gap: clamp(0.25rem, 0.7cqi, 0.75rem);
+    gap: 0.65rem 0.75rem;
     width: 100%;
     min-width: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: visible;
   }
   .pa-filters > label.pa-f {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    flex: 1 1 0;
-    font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
+    flex: 1 1 calc(50% - 0.5rem);
+    font-size: 0.6875rem;
     font-weight: 600;
     color: inherit;
     white-space: nowrap;
   }
-  .pa-filters > label.pa-f--metric { flex: 1.45 1 0; }
-  .pa-filters > label.pa-f--date { flex: 0.95 1 0; min-width: 6.5rem; }
-  .pa-filters > label.pa-f--sm { flex: 0.85 1 0; }
+  .pa-filters > label.pa-f--metric { flex: 1 1 100%; }
+  .pa-filters > label.pa-f--date { flex: 1 1 calc(50% - 0.5rem); min-width: 8.75rem; }
+  .pa-filters > label.pa-f--sm { flex: 1 1 calc(50% - 0.5rem); min-width: 7.5rem; }
   .pa-filters > label.pa-f--compare {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     flex-direction: row;
     align-items: center;
-    gap: 0.35rem;
-    padding-bottom: 0.35rem;
+    gap: 0.4rem;
+    padding-bottom: 0.15rem;
     white-space: nowrap;
   }
   .pa-filters > label.pa-f--compare .pa-f-compare-text {
-    font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
+    font-size: 0.6875rem;
   }
   .pa-filters input[type="date"],
   .pa-filters select {
-    margin-top: 0.2rem;
+    margin-top: 0.25rem;
     width: 100%;
     min-width: 0;
     max-width: 100%;
     border-radius: 0.5rem;
     border: 1px solid #cbd5e1;
     background: #fff;
-    padding: clamp(0.2rem, 0.45cqi, 0.35rem) clamp(0.3rem, 0.55cqi, 0.5rem);
-    font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8125rem;
     line-height: 1.25;
     text-overflow: ellipsis;
-  }
-  .pa-filters input[type="date"] {
-    min-width: 0;
-    max-width: 100%;
     box-sizing: border-box;
   }
   html.dark .pa-filters input[type="date"],
@@ -197,10 +192,10 @@
   }
   .pa-filters .pa-f-actions {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    gap: clamp(0.25rem, 0.5cqi, 0.5rem);
-    flex: 0 0 auto;
+    gap: 0.5rem;
+    flex: 1 1 100%;
     min-width: 0;
   }
   .pa-filters .pa-f-btn {
@@ -209,17 +204,59 @@
     justify-content: center;
     white-space: nowrap;
     border-radius: 0.5rem;
-    padding: clamp(0.28rem, 0.55cqi, 0.45rem) clamp(0.45rem, 0.9cqi, 0.75rem);
-    font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8125rem;
     font-weight: 700;
     line-height: 1.2;
+    flex: 1 1 auto;
+    min-width: 5.5rem;
   }
-  @container pa-filters (max-width: 920px) {
+  /* Mobil: tam kıyas metni */
+  .pa-filters > label.pa-f--compare .pa-f-compare-short { display: none; }
+  .pa-filters > label.pa-f--compare .pa-f-compare-full { display: inline; }
+
+  /* Masaüstü: tek satır, küçülerek sığdır (mobilde wrap kalsın) */
+  @media (min-width: 1024px) {
+    .pa-filters {
+      flex-wrap: nowrap;
+      gap: clamp(0.25rem, 0.7cqi, 0.75rem);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .pa-filters > label.pa-f {
+      flex: 1 1 0;
+      min-width: 0;
+      font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
+    }
+    .pa-filters > label.pa-f--metric { flex: 1.45 1 0; }
+    .pa-filters > label.pa-f--date { flex: 0.95 1 0; min-width: 6.5rem; }
+    .pa-filters > label.pa-f--sm { flex: 0.85 1 0; min-width: 0; }
+    .pa-filters > label.pa-f--compare {
+      flex: 0 1 auto;
+      padding-bottom: 0.35rem;
+    }
+    .pa-filters > label.pa-f--compare .pa-f-compare-text {
+      font-size: clamp(0.5625rem, 1.05cqi, 0.6875rem);
+    }
     .pa-filters > label.pa-f--compare .pa-f-compare-full { display: none; }
     .pa-filters > label.pa-f--compare .pa-f-compare-short { display: inline; }
-  }
-  @container pa-filters (min-width: 921px) {
-    .pa-filters > label.pa-f--compare .pa-f-compare-short { display: none; }
+    .pa-filters input[type="date"],
+    .pa-filters select {
+      margin-top: 0.2rem;
+      padding: clamp(0.2rem, 0.45cqi, 0.35rem) clamp(0.3rem, 0.55cqi, 0.5rem);
+      font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    }
+    .pa-filters .pa-f-actions {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      gap: clamp(0.25rem, 0.5cqi, 0.5rem);
+    }
+    .pa-filters .pa-f-btn {
+      flex: 0 0 auto;
+      min-width: 0;
+      padding: clamp(0.28rem, 0.55cqi, 0.45rem) clamp(0.45rem, 0.9cqi, 0.75rem);
+      font-size: clamp(0.625rem, 1.15cqi, 0.75rem);
+    }
   }
   @keyframes pa-orbit-pulse {
     0%, 100% { transform: scale(0.85); opacity: 0.75; }
