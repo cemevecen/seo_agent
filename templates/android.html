@@ -4761,7 +4761,7 @@
     if (and.latest && and.latest.crash_free_fmt) {
       cards.push(renderStabilityFreeCard({
         title: "Crashlytics · v" + (and.latest_version || and.latest.version || "—"),
-        sub: "Latest version · 7d sessions",
+        sub: "",
         value: and.latest.crash_free_fmt,
         toneClass: stabilityToneClass(and.latest.crash_free_pct),
         extra: and.overall && and.overall.crash_free_fmt
@@ -4771,7 +4771,7 @@
     } else if (and.overall && and.overall.crash_free_fmt) {
       cards.push(renderStabilityFreeCard({
         title: "Crashlytics",
-        sub: "All versions · 7d sessions",
+        sub: "",
         value: and.overall.crash_free_fmt,
         toneClass: stabilityToneClass(and.overall.crash_free_pct)
       }));

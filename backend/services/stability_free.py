@@ -97,6 +97,16 @@ def _cf_block(cf: dict[str, Any] | None, *, version: str | None = None) -> dict[
         pct_f = float(pct)
     except (TypeError, ValueError):
         return None
+    period_days = cf.get("period_days")
+    try:
+        period_days_i = int(period_days) if period_days is not None else None
+    except (TypeError, ValueError):
+        period_days_i = None
+    period = cf.get("period")
+    if not period and period_days_i:
+        period = f"{period_days_i}d"
+    if not period:
+        period = "7d"
     return {
         "version": version or cf.get("version"),
         "crash_free_pct": pct_f,
@@ -107,8 +117,47 @@ def _cf_block(cf: dict[str, Any] | None, *, version: str | None = None) -> dict[
         "total_sessions": cf.get("total_sessions"),
         "crashed_sessions": cf.get("crashed_sessions"),
         "source": "crashlytics_bq",
-        "period": "7d",
+        "period": period,
+        "period_days": period_days_i,
+        "since": cf.get("since"),
     }
+
+
+def _latest_cf_since_release(
+    cbq: Any,
+    *,
+    product_id: str,
+    plat: str,
+    version: str,
+) -> dict[str, Any] | None:
+    """Latest sürüm crash-free: yayın (ilk görülme) → bugün aralığı."""
+    from backend.services.app_intel import APP_PRODUCTS
+
+    meta = APP_PRODUCTS.get(product_id) or {}
+    bundle = (
+        (meta.get("android_package") or "")
+        if plat == "android"
+        else (meta.get("ios_bundle_id") or "")
+    )
+    tbl = None
+    for p, t in cbq._platforms_for(product_id, plat):
+        if p == plat:
+            tbl = t
+            break
+    if not tbl or not bundle or not version:
+        return None
+    age_days, since_iso = cbq.version_release_span_days(
+        plat, tbl, bundle=bundle, version=version
+    )
+    live = cbq.query_crash_free(plat, tbl, age_days, bundle=bundle, version=version)
+    if not live:
+        return None
+    live = dict(live)
+    live["period_days"] = age_days
+    live["period"] = f"{age_days}d"
+    if since_iso:
+        live["since"] = since_iso
+    return _cf_block(live, version=version)
 
 
 def build_stability_free_payload(
@@ -187,28 +236,20 @@ def build_stability_free_payload(
                 overall = _cf_block(cf_by.get(plat))
                 scoped = latest_stats.get(plat) if isinstance(latest_stats.get(plat), dict) else {}
                 ver = str((scoped or {}).get("version") or "").strip() or None
-                latest_cf = _cf_block((scoped or {}).get("crash_free"), version=ver)
-                # Cache'de sürüm CF yoksa (eski cache) — canlı tek sorgu dene
-                if ver and not latest_cf:
+                latest_cf = None
+                # Latest sürüm: sabit 7g değil — yayına girdiği andan bugüne
+                if ver:
                     try:
-                        from backend.services.app_intel import APP_PRODUCTS
-
-                        meta = APP_PRODUCTS.get(product_id) or {}
-                        bundle = (
-                            (meta.get("android_package") or "")
-                            if plat == "android"
-                            else (meta.get("ios_bundle_id") or "")
+                        latest_cf = _latest_cf_since_release(
+                            cbq, product_id=product_id, plat=plat, version=ver
                         )
-                        tbl = None
-                        for p, t in cbq._platforms_for(product_id, plat):
-                            if p == plat:
-                                tbl = t
-                                break
-                        if tbl and bundle:
-                            live = cbq.query_crash_free(plat, tbl, 7, bundle=bundle, version=ver)
-                            latest_cf = _cf_block(live, version=ver)
                     except Exception as exc:  # noqa: BLE001
-                        logger.info("stability-free version CF (%s/%s): %s", plat, ver, exc)
+                        logger.info(
+                            "stability-free since-release CF (%s/%s): %s", plat, ver, exc
+                        )
+                if ver and not latest_cf:
+                    # Yedek: cache’deki sürüm CF (eski 7g) — yalnızca boşsa
+                    latest_cf = _cf_block((scoped or {}).get("crash_free"), version=ver)
                 plats[plat] = {
                     "overall": overall,
                     "latest_version": ver,

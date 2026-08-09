@@ -1556,13 +1556,13 @@
         if (ios.latest && ios.latest.crash_free_fmt) {
           cards.push(card(
             "Crashlytics · v" + (ios.latest_version || ios.latest.version || "—"),
-            "Latest version · 7d sessions",
+            "",
             ios.latest.crash_free_fmt,
             ios.latest.crash_free_pct,
             ios.overall && ios.overall.crash_free_fmt ? ("all versions " + esc(ios.overall.crash_free_fmt)) : ""
           ));
         } else if (ios.overall && ios.overall.crash_free_fmt) {
-          cards.push(card("Crashlytics", "All versions · 7d sessions", ios.overall.crash_free_fmt, ios.overall.crash_free_pct));
+          cards.push(card("Crashlytics", "", ios.overall.crash_free_fmt, ios.overall.crash_free_pct));
         }
         setLoading(false);
         if (!cards.length) {

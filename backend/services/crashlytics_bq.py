@@ -1084,6 +1084,7 @@ def query_crash_free(
             )
             if result and result.get("crash_free_pct") is not None:
                 result["sessions_table"] = sessions_ref.strip("`")
+                result["period_days"] = int(days)
                 return result
     if version:
         # Sürüm filtreli legacy paydası güvenilmez — gizle
@@ -1094,7 +1095,82 @@ def query_crash_free(
     # Crash-only taban: neredeyse her satır crash → %0–2; Console'a gösterme
     if legacy.get("crash_free_pct", 0) < 2.0:
         return None
+    legacy["period_days"] = int(days)
     return legacy
+
+
+def version_release_span_days(
+    platform: str,
+    table: str,
+    *,
+    bundle: str = "",
+    version: str,
+    lookback_days: int = 400,
+) -> tuple[int, str | None]:
+    """Son sürümün ilk görüldüğü günden bugüne kaç gün (en az 1, en fazla lookback).
+
+    Önce firebase_sessions, yoksa crash tablosu MIN(event_timestamp).
+    """
+    from datetime import datetime, timezone
+
+    safe_ver = (version or "").strip().replace("'", "''")
+    if not safe_ver:
+        return 7, None
+    try:
+        lb = max(7, min(int(lookback_days), 730))
+    except (TypeError, ValueError):
+        lb = 400
+
+    bundle = (bundle or "").strip()
+    first_seen = None
+    sessions_ref = _sessions_table_ref(platform, bundle) if bundle else None
+    if sessions_ref:
+        sql = f"""
+SELECT MIN(event_timestamp) AS first_seen
+FROM {sessions_ref}
+WHERE application.display_version = '{safe_ver}'
+  AND event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {lb} DAY)
+"""
+        rows, err = _run_query(platform, sql, skip_budget=True)
+        if not err and rows and rows[0].get("first_seen") is not None:
+            first_seen = rows[0].get("first_seen")
+
+    if first_seen is None:
+        crash_table = table
+        if bundle:
+            batch_ref = _batch_table_ref(platform, bundle)
+            if batch_ref:
+                crash_table = batch_ref
+        sql = f"""
+SELECT MIN(event_timestamp) AS first_seen
+FROM {crash_table}
+WHERE application.display_version = '{safe_ver}'
+  AND event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {lb} DAY)
+"""
+        rows, err = _run_query(platform, sql, skip_budget=True)
+        if not err and rows and rows[0].get("first_seen") is not None:
+            first_seen = rows[0].get("first_seen")
+
+    if first_seen is None:
+        return 7, None
+
+    if hasattr(first_seen, "timestamp"):
+        fs_dt = first_seen
+        if getattr(fs_dt, "tzinfo", None) is None:
+            fs_dt = fs_dt.replace(tzinfo=timezone.utc)
+    else:
+        try:
+            fs_dt = datetime.fromisoformat(str(first_seen).replace("Z", "+00:00"))
+        except ValueError:
+            return 7, None
+        if fs_dt.tzinfo is None:
+            fs_dt = fs_dt.replace(tzinfo=timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    span = int((now - fs_dt).total_seconds() // 86400) + 1
+    span = max(1, min(span, lb))
+    since_iso = fs_dt.date().isoformat()
+    return span, since_iso
 
 
 def _query_crash_free_crashes_only(platform: str, table: str, days: int) -> dict[str, Any] | None:
