@@ -61,7 +61,7 @@ text-slate-500 dark:text-slate-400
 {% set period_last = metric.latest_period_last or '' %}
 {% set period_tooltip = '' %}
 {% if period_first and period_last %}
-  {% set period_tooltip = 'CrUX 28 günlük periyot: ' ~ period_first ~ ' → ' ~ period_last %}
+  {% set period_tooltip = '28 günlük periyot: ' ~ period_first ~ ' → ' ~ period_last %}
 {% endif %}
 {% set is_zero_inp = (normalized == 'INP' and (metric.latest is none or metric.latest == 0)) %}
 {# CWV "iyi/geliştirilebilir/kötü" verdict — Google önerilen eşiklerine göre #}
@@ -358,12 +358,6 @@ text-slate-500 dark:text-slate-400
 </style>
 
 <div id="data-explorer-shell" class="dex-mat-dark mx-auto w-full min-w-0 max-w-[1800px] space-y-4 sm:space-y-6" data-site-domain="{{ domain }}" data-site-profile="verified" data-site-title="{{ site_name|default('PageSpeed')|e }}">
-  {% if explorer_backfill_queued or psi_scores_missing %}
-  <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status">
-    <p class="font-semibold">CrUX History yenileniyor</p>
-    <p class="mt-1 text-[13px] leading-relaxed opacity-90">Grafikler CrUX History API ile güncellenir (~1 dk). Lab/KPI skorları pagespeed.web.dev scrape ile gelir (Mac bridge). İsterseniz üstteki «CrUX Yenile» ile History’yi manuel tetikleyebilirsiniz.</p>
-  </div>
-  {% endif %}
   <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
     <div>
       <p class="inline-flex items-center gap-2 text-sm uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400" lang="en"><span class="dex-motion-gauge" aria-hidden="true"></span><span>PageSpeed</span></p>
@@ -374,38 +368,21 @@ text-slate-500 dark:text-slate-400
           <span>PSI / Lighthouse:</span>
           <span class="font-medium {% if psi_scores_missing %}text-amber-800 dark:text-amber-200{% else %}text-slate-700 dark:text-slate-300{% endif %}">{{ psi_lighthouse_last_updated|e }}</span>
         </span>
-        <span class="inline-flex items-center gap-1.5">
-          <span class="inline-block h-1.5 w-1.5 rounded-full bg-violet-500" aria-hidden="true"></span>
-          <span>CrUX geçmişi:</span>
-          <span class="font-medium text-slate-700 dark:text-slate-300">{{ crux_history_last_updated|e }}</span>
-        </span>
         {% if data_explorer_schedule %}
-        <span class="inline-flex items-center gap-1.5" title="Lab/KPI: pagespeed.web.dev scrape (Mac). Grafikler: CrUX History. Bu saat yalnızca CrUX/planlı işler içindir.">
+        <span class="inline-flex items-center gap-1.5" title="Lab/KPI: pagespeed.web.dev scrape (Mac bridge).">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
           <span>Otomatik yenileme planı:</span>
           <span class="font-medium text-slate-700 dark:text-slate-300">her gün {{ data_explorer_schedule }} (TSİ)</span>
         </span>
         {% endif %}
         {% if data_explorer_last_auto_refresh %}
-        <span class="inline-flex items-center gap-1.5" title="Son başarılı günlük PSI veya CrUX collector çalışması.">
+        <span class="inline-flex items-center gap-1.5" title="Son başarılı günlük otomatik çekim.">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-teal-500" aria-hidden="true"></span>
           <span>Son otomatik çekim:</span>
           <span class="font-medium text-slate-700 dark:text-slate-300">{{ data_explorer_last_auto_refresh|e }}</span>
         </span>
         {% endif %}
       </div>
-    </div>
-    <div class="flex flex-wrap items-center gap-3">
-      <button
-        type="button"
-        id="refresh-data-explorer"
-        class="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:hover:bg-slate-600 dark:focus:ring-offset-slate-900"
-        data-refresh-url="/api/site/{{ domain }}/data-explorer/refresh"
-        title="Google PageSpeed Insights + Chrome UX Report verilerini yeniden çek"
-      >
-        <span id="refresh-data-explorer-icon" aria-hidden="true">↻</span>
-        <span id="refresh-data-explorer-label">CrUX Yenile</span>
-      </button>
     </div>
   </div>
 
@@ -414,7 +391,7 @@ text-slate-500 dark:text-slate-400
     <summary class="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5 [&::-webkit-details-marker]:hidden">
       <div class="min-w-0 flex-1">
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Otomatik yenileme kaydı</p>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Zamanlanmış çekimlerin son durumu (manuel «CrUX Yenile» burada listelenmez). Lab: pagespeed.web.dev scrape.</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Zamanlanmış çekimlerin son durumu. Lab/KPI: pagespeed.web.dev scrape (Mac bridge).</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2 text-[11px] sm:text-xs">
         <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
@@ -484,19 +461,6 @@ text-slate-500 dark:text-slate-400
   </div>
   {% endif %}
 
-  <div id="data-explorer-progress-panel" class="hidden rounded-[1.6rem] border border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-cyan-50/90 p-4 shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)] ring-1 ring-sky-200/70 backdrop-blur-sm dark:border-slate-600 dark:bg-none dark:bg-slate-900 dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.45)] dark:ring-slate-600/70">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800/80 dark:text-sky-300/90">Yaklaşık İlerleme</p>
-        <p id="data-explorer-progress-title" class="mt-2 text-base font-semibold text-slate-900 dark:text-slate-100">Hazırlanıyor</p>
-        <p id="data-explorer-progress-detail" class="mt-1 text-sm text-slate-600 dark:text-slate-300">PageSpeed Insights ve CrUX History verileri dış kaynaklardan yeniden alınacak.</p>
-      </div>
-      <p id="data-explorer-progress-percent" class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">0%</p>
-    </div>
-    <div class="mt-4 h-3 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90 ring-1 ring-sky-200/70 dark:ring-sky-900/45 shadow-inner">
-      <div id="data-explorer-progress-bar" class="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)] shadow-[0_0_26px_rgba(14,165,233,0.38)] transition-all duration-500 dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)] dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]" style="width: 0%"></div>
-    </div>
-  </div>
 
   {# ── Sağlık Özeti — Mobil/Masaüstü farkları + son 7 gün hata özeti ── #}
   {% if mobile_desktop_delta or (error_widget and (error_widget.total_404 or error_widget.total_5xx)) %}
@@ -535,13 +499,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape · Grafik: CrUX History (~40 hafta)</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_mobile_last_updated|e }}{% if crux_mobile_period_last_label %} · Son dönem: {{ crux_mobile_period_last_label|e }}{% endif %}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kartlar scrape 28g uç · çizgi CrUX History API (scrape ile karışmaz)</p>
-          {% if crux_stale or explorer_backfill_queued %}
-          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — CrUX History arka planda yenileniyor…{% else %}Veri geride — scrape/bridge veya sayfayı biraz sonra yenileyin.{% endif %}</p>
-          {% endif %}
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_mobile_last_updated|e }}</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev scrape (28g uç KPI)</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
       </div>
@@ -555,62 +516,18 @@ text-slate-500 dark:text-slate-400
         {% for metric in crux_mobile_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz mobil CrUX geçmiş kaydı yok.</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz mobil scrape KPI yok — Mac bridge: pagespeed_web_scrape.py --ingest</div>
         {% endfor %}
       </div>
-      {# İyi oran trend mini grafikleri — her metrik için ayrı sparkline #}
-      {% set has_good_trend = namespace(v=false) %}
-      {% for m in crux_mobile_series.values() %}{% if (m.chart.good_share or [])|select|list|length > 1 %}{% set has_good_trend.v = true %}{% endif %}{% endfor %}
-      {% if has_good_trend.v %}
-      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İyi oran trendi · % kullanıcı (iyi deneyim)</p>
-        <div class="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
-          {% for key, m in crux_mobile_series.items() %}
-          {% set gs = m.chart.good_share or [] %}
-          {% set gs_clean = [] %}
-          {% for v in gs %}{% if v is not none %}{% set _ = gs_clean.append(v) %}{% endif %}{% endfor %}
-          {% if gs_clean|length > 1 %}
-          {% set last_gs = gs_clean[-1] %}
-          {% set first_gs = gs_clean[0] %}
-          {% set delta_gs = last_gs - first_gs %}
-          <div class="rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-600 dark:bg-slate-900/60" title="{{ m.label }}: {{ first_gs|round(1) }}% → {{ last_gs|round(1) }}% · Δ {{ '%+.1f'|format(delta_gs) }}pp">
-            <div class="flex items-center justify-between gap-1">
-              <span class="text-[10px] font-bold text-slate-600 dark:text-slate-300">{{ m.label }}</span>
-              <span class="text-[10px] font-bold tabular-nums {% if delta_gs > 1 %}text-emerald-600 dark:text-emerald-400{% elif delta_gs < -1 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ '%+.1f'|format(delta_gs) }}pp</span>
-            </div>
-            <svg viewBox="0 0 100 16" preserveAspectRatio="none" class="mt-1 h-4 w-full" style="overflow:visible">
-              {% set n = gs|length %}
-              {% if n > 1 %}
-              {% set step = (100 / (n - 1)) %}
-              {% set pts = [] %}
-              {% for v in gs %}
-                {% set x = (loop.index0 * step)|round(1) %}
-                {% set y = (16 - ((v or 0) / 100.0 * 14))|round(1) %}
-                {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
-              {% endfor %}
-              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke" class="dex-spark-good"/>
-              {% endif %}
-            </svg>
-            <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">son: {{ last_gs|round(1) }}%</p>
-          </div>
-          {% endif %}
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      <div id="crux-mobile-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_mobile_series|tojson }}'></div>
     </section>
 
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape · Grafik: CrUX History (~40 hafta)</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_desktop_last_updated|e }}{% if crux_desktop_period_last_label %} · Son dönem: {{ crux_desktop_period_last_label|e }}{% endif %}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kartlar scrape 28g uç · çizgi CrUX History API (scrape ile karışmaz)</p>
-          {% if crux_stale or explorer_backfill_queued %}
-          <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — CrUX History arka planda yenileniyor…{% else %}Veri geride — scrape/bridge veya sayfayı biraz sonra yenileyin.{% endif %}</p>
-          {% endif %}
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_desktop_last_updated|e }}</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev scrape (28g uç KPI)</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
       </div>
@@ -624,50 +541,9 @@ text-slate-500 dark:text-slate-400
         {% for metric in crux_desktop_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz masaüstü CrUX geçmiş kaydı yok.</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz masaüstü scrape KPI yok — Mac bridge: pagespeed_web_scrape.py --ingest</div>
         {% endfor %}
       </div>
-      {# İyi oran trend mini grafikleri — masaüstü #}
-      {% set has_good_trend_d = namespace(v=false) %}
-      {% for m in crux_desktop_series.values() %}{% if (m.chart.good_share or [])|select|list|length > 1 %}{% set has_good_trend_d.v = true %}{% endif %}{% endfor %}
-      {% if has_good_trend_d.v %}
-      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">İyi oran trendi · % kullanıcı (iyi deneyim)</p>
-        <div class="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
-          {% for key, m in crux_desktop_series.items() %}
-          {% set gs = m.chart.good_share or [] %}
-          {% set gs_clean = [] %}
-          {% for v in gs %}{% if v is not none %}{% set _ = gs_clean.append(v) %}{% endif %}{% endfor %}
-          {% if gs_clean|length > 1 %}
-          {% set last_gs = gs_clean[-1] %}
-          {% set first_gs = gs_clean[0] %}
-          {% set delta_gs = last_gs - first_gs %}
-          <div class="rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-600 dark:bg-slate-900/60" title="{{ m.label }}: {{ first_gs|round(1) }}% → {{ last_gs|round(1) }}% · Δ {{ '%+.1f'|format(delta_gs) }}pp">
-            <div class="flex items-center justify-between gap-1">
-              <span class="text-[10px] font-bold text-slate-600 dark:text-slate-300">{{ m.label }}</span>
-              <span class="text-[10px] font-bold tabular-nums {% if delta_gs > 1 %}text-emerald-600 dark:text-emerald-400{% elif delta_gs < -1 %}text-rose-600 dark:text-rose-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ '%+.1f'|format(delta_gs) }}pp</span>
-            </div>
-            <svg viewBox="0 0 100 16" preserveAspectRatio="none" class="mt-1 h-4 w-full" style="overflow:visible">
-              {% set n = gs|length %}
-              {% if n > 1 %}
-              {% set step = (100 / (n - 1)) %}
-              {% set pts = [] %}
-              {% for v in gs %}
-                {% set x = (loop.index0 * step)|round(1) %}
-                {% set y = (16 - ((v or 0) / 100.0 * 14))|round(1) %}
-                {% set _ = pts.append(x|string ~ ',' ~ y|string) %}
-              {% endfor %}
-              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#10b981" stroke-width="1.5" vector-effect="non-scaling-stroke" class="dex-spark-good"/>
-              {% endif %}
-            </svg>
-            <p class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">son: {{ last_gs|round(1) }}%</p>
-          </div>
-          {% endif %}
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      <div id="crux-desktop-chart" class="mt-4 h-[clamp(260px,34vw,380px)] w-full min-w-0" data-series='{{ crux_desktop_series|tojson }}'></div>
     </section>
   </div>
 
@@ -840,12 +716,11 @@ text-slate-500 dark:text-slate-400
       </span>
     </summary>
     <div class="border-t border-slate-100 px-6 pb-6 pt-4 dark:border-slate-800">
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {{ metric_tile("Collector Çalışmaları", warehouse_summary.collector_runs, "Tüm collector çalışmaları", "Arka planda toplam kaç collector görevi koştuğunu gösterir.", "warehouse-runs-section", "Son çalışma kayıtlarına git") }}
         {{ metric_tile("PS Kayıtları", warehouse_summary.pagespeed_payload_snapshots, "Ham PageSpeed kayıt sayısı", "Kaydedilmiş ham PageSpeed yanıtlarının toplam adedidir.", "warehouse-runs-section", "Son PSI çalışmalarına git") }}
         {{ metric_tile("LH Denetimleri", warehouse_summary.lighthouse_audit_records, "Normalize Lighthouse satirlari", "Ayrıştırılıp satır bazında saklanan Lighthouse audit kayıtlarıdır.", "warehouse-runs-section", "Lighthouse audit çalışmalarına git") }}
         {{ metric_tile("SC Satırları", warehouse_summary.search_console_query_snapshots, "Search Console query satirlari", "Search Console’dan çekilen query bazlı toplam satır sayısıdır.", "warehouse-runs-section", "Search Console toplama kayıtlarına git") }}
-        {{ metric_tile("CrUX", warehouse_summary.crux_history_snapshots, "CrUX geçmiş kayıt sayısı", "Gerçek kullanıcı performans geçmişi için saklanan CrUX kayıtlarının toplamıdır.", "warehouse-runs-section", "CrUX toplama kayıtlarına git") }}
       </div>
     </div>
   </details>
@@ -1038,21 +913,6 @@ text-slate-500 dark:text-slate-400
       applyPreferredGridLayout('[data-pagespeed-metric-grid]');
     }
 
-    function resizeCruxCharts() {
-      if (typeof Plotly === 'undefined') {
-        return;
-      }
-      ['crux-mobile-chart', 'crux-desktop-chart'].forEach(function (elementId) {
-        const element = document.getElementById(elementId);
-        if (!element || element.dataset.chartReady !== '1') {
-          return;
-        }
-        window.requestAnimationFrame(function () {
-          Plotly.Plots.resize(element);
-        });
-      });
-    }
-
     function fitTextInElement(element) {
       if (!element) {
         return;
@@ -1075,327 +935,6 @@ text-slate-500 dark:text-slate-400
       });
     }
 
-    function cruxPlotlyLayoutExtras() {
-      const th = window.seoPlotlyTheme
-        ? window.seoPlotlyTheme()
-        : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)' };
-      return {
-        paper_bgcolor: th.paper,
-        plot_bgcolor: th.plot,
-        'font.color': th.tick,
-        'xaxis.showgrid': false,
-        'xaxis.tickfont.color': th.tick,
-        'yaxis.showgrid': false,
-        'yaxis.tickfont.color': th.tick,
-        'yaxis2.showgrid': false,
-        'yaxis2.tickfont.color': th.tick,
-        'legend.font.color': th.legend,
-      };
-    }
-
-    function relayoutCruxChartsTheme() {
-      if (typeof Plotly === 'undefined') {
-        return;
-      }
-      const patch = cruxPlotlyLayoutExtras();
-      ['crux-mobile-chart', 'crux-desktop-chart'].forEach(function (elementId) {
-        const el = document.getElementById(elementId);
-        if (!el || el.dataset.chartReady !== '1') {
-          return;
-        }
-        Plotly.relayout(el, patch);
-      });
-    }
-
-    function ensurePlotlyThen(callback) {
-      if (window.Plotly && typeof window.Plotly.newPlot === 'function') {
-        callback();
-        return;
-      }
-      var attempts = 0;
-      (function tick() {
-        attempts += 1;
-        if (window.Plotly && typeof window.Plotly.newPlot === 'function') {
-          callback();
-          return;
-        }
-        if (attempts > 150) {
-          callback();
-          return;
-        }
-        window.setTimeout(tick, 40);
-      })();
-    }
-
-    function plotlyLoadFailedHtml() {
-      return '<div class="flex h-full items-center justify-center rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 px-4 py-6 text-center text-xs text-amber-700 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-300">Grafik kütüphanesi (Plotly) yüklenemedi. Sayfayı yenileyin veya internet bağlantınızı kontrol edin.</div>';
-    }
-
-    function renderCruxChart(elementId) {
-      const element = document.getElementById(elementId);
-      if (!element) {
-        return;
-      }
-      if (typeof Plotly === 'undefined') {
-        ensurePlotlyThen(function () {
-          if (typeof Plotly === 'undefined') {
-            element.innerHTML = plotlyLoadFailedHtml();
-            return;
-          }
-          renderCruxChart(elementId);
-        });
-        return;
-      }
-      if (element.dataset.chartReady === '1') {
-        resizeCruxCharts();
-        return;
-      }
-      /** CrUX chart: LCP/FCP/TTFB/INP are ms; CLS is unitless (~0–1). Same Y scale squashes CLS/INP and confuses autoscale — use a secondary axis for CLS. */
-      const METRIC_ORDER = [
-        'largest_contentful_paint',
-        'interaction_to_next_paint',
-        'cumulative_layout_shift',
-        'first_contentful_paint',
-        'experimental_time_to_first_byte',
-      ];
-      const raw = JSON.parse(element.dataset.series || '{}');
-      function metricColor(label) {
-        const normalized = String(label || '').toLocaleUpperCase('en-US');
-        if (normalized === 'CLS') return '#0ea5e9';
-        if (normalized === 'TTFB') return '#f97316';
-        if (normalized === 'FCP') return '#16a34a';
-        if (normalized === 'INP') return '#e11d48';
-        if (normalized === 'LCP') return '#8b5cf6';
-        return '#475569';
-      }
-      function sanitizePoints(chart) {
-        const xs = chart.x || [];
-        const ys = chart.y || [];
-        const ox = [];
-        const oy = [];
-        const n = Math.min(xs.length, ys.length);
-        for (let i = 0; i < n; i++) {
-          const xv = xs[i];
-          if (xv === null || xv === undefined || xv === '') {
-            continue;
-          }
-          const yv = ys[i];
-          if (yv === null || yv === undefined || yv === '') {
-            ox.push(xv);
-            oy.push(null);
-            continue;
-          }
-          const num = Number(yv);
-          if (!Number.isFinite(num)) {
-            ox.push(xv);
-            oy.push(null);
-            continue;
-          }
-          ox.push(xv);
-          oy.push(num);
-        }
-        return { x: ox, y: oy };
-      }
-      /** Zaman ekseninde çizgi sırası = kronoloji (CrUX API sırası genelde doğru; yine de güvence). */
-      function sortPointsByDate(pts) {
-        if (!pts.x.length) {
-          return pts;
-        }
-        const pairs = pts.x.map(function (x, i) {
-          return { x: x, y: pts.y[i], t: Date.parse(x) };
-        });
-        const anyBad = pairs.some(function (p) {
-          return Number.isNaN(p.t);
-        });
-        if (anyBad) {
-          return pts;
-        }
-        pairs.sort(function (a, b) {
-          return a.t - b.t;
-        });
-        return {
-          x: pairs.map(function (p) {
-            return p.x;
-          }),
-          y: pairs.map(function (p) {
-            return p.y;
-          }),
-        };
-      }
-      /** yyyy-mm-dd anahtarı (CrUX tarihleri farklı biçimde gelirse eşleşsin). */
-      function normalizeDateKey(x) {
-        if (x === null || x === undefined || x === '') {
-          return '';
-        }
-        const s = String(x).trim();
-        if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) {
-          return s.slice(0, 10);
-        }
-        const t = Date.parse(s);
-        if (Number.isNaN(t)) {
-          return '';
-        }
-        const d = new Date(t);
-        const y = d.getUTCFullYear();
-        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(d.getUTCDate()).padStart(2, '0');
-        return y + '-' + m + '-' + day;
-      }
-      function parseDateOnlyUTC(iso) {
-        const s = String(iso).slice(0, 10);
-        const parts = s.split('-');
-        if (parts.length !== 3) {
-          return NaN;
-        }
-        return Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      }
-      function formatUTCDate(ts) {
-        const d = new Date(ts);
-        const y = d.getUTCFullYear();
-        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(d.getUTCDate()).padStart(2, '0');
-        return y + '-' + m + '-' + day;
-      }
-      /** Sadece veri olan günler birleşince Şub→Nisan düz çizgi oluyordu; min–max arası haftalık eksen + null ile kır. */
-      function buildWeeklyDenseAxis(sortedIsoDates) {
-        if (!sortedIsoDates.length) {
-          return [];
-        }
-        const W = 7 * 86400000;
-        const tMin = parseDateOnlyUTC(sortedIsoDates[0]);
-        const tMax = parseDateOnlyUTC(sortedIsoDates[sortedIsoDates.length - 1]);
-        if (Number.isNaN(tMin) || Number.isNaN(tMax)) {
-          return sortedIsoDates;
-        }
-        const acc = new Set(sortedIsoDates);
-        for (let t = tMin; t <= tMax; t += W) {
-          acc.add(formatUTCDate(t));
-        }
-        return Array.from(acc).sort(function (a, b) {
-          return parseDateOnlyUTC(a) - parseDateOnlyUTC(b);
-        });
-      }
-      // Tüm metriklerden ortak tarih seti + haftalık ara günler (CrUX ~haftalık koleksiyon).
-      const allDatesSet = new Set();
-      METRIC_ORDER.forEach(function (key) {
-        const chart = (raw[key] || {}).chart || {};
-        (chart.x || []).forEach(function (d) {
-          const k = normalizeDateKey(d);
-          if (k) {
-            allDatesSet.add(k);
-          }
-        });
-      });
-      const allDatesSparse = Array.from(allDatesSet).sort(function (a, b) {
-        return parseDateOnlyUTC(a) - parseDateOnlyUTC(b);
-      });
-      const allDates = buildWeeklyDenseAxis(allDatesSparse);
-
-      const traces = [];
-      METRIC_ORDER.forEach(function (key) {
-        if (!Object.prototype.hasOwnProperty.call(raw, key)) {
-          return;
-        }
-        const metric = raw[key] || {};
-        const chart = metric.chart || { x: [], y: [] };
-        const pts = sortPointsByDate(sanitizePoints(chart));
-        if (!pts.x.length) {
-          return;
-        }
-        const valByDate = {};
-        pts.x.forEach(function (d, i) {
-          const k = normalizeDateKey(d);
-          if (k) {
-            valByDate[k] = pts.y[i];
-          }
-        });
-        const alignedX = allDates;
-        const alignedY = allDates.map(function (d) {
-          return Object.prototype.hasOwnProperty.call(valByDate, d) ? valByDate[d] : null;
-        });
-        const traceColor = metricColor(metric.label || key);
-        const isCls = key === 'cumulative_layout_shift';
-        traces.push({
-          x: alignedX,
-          y: alignedY,
-          type: 'scatter',
-          mode: 'lines+markers',
-          name: metric.label || key,
-          line: { color: traceColor, width: isCls ? 2 : 2.5 },
-          marker: { color: traceColor, size: isCls ? 5 : 6 },
-          connectgaps: false,
-          yaxis: isCls ? 'y2' : 'y',
-        });
-      });
-      if (!traces.length) {
-        element.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-6 text-sm text-slate-500 dark:text-slate-400">Grafik için yeterli CrUX history verisi yok.</div>';
-        return;
-      }
-      const hasCls = traces.some(function (t) { return t.yaxis === 'y2'; });
-      const th = window.seoPlotlyTheme
-        ? window.seoPlotlyTheme()
-        : { grid: '#e2e8f0', tick: '#64748b', legend: '#475569', paper: 'rgba(0,0,0,0)', plot: 'rgba(0,0,0,0)' };
-      const layout = {
-        autosize: true,
-        margin: { t: 10, r: hasCls ? 52 : 24, b: 50, l: 52 },
-        paper_bgcolor: th.paper,
-        plot_bgcolor: th.plot,
-        font: { color: th.tick },
-        xaxis: {
-          type: 'date',
-          automargin: true,
-          showgrid: false,
-          tickfont: { color: th.tick },
-        },
-        yaxis: {
-          automargin: true,
-          showgrid: false,
-          tickfont: { color: th.tick },
-          title: { text: 'ms (LCP · FCP · TTFB · INP)', font: { size: 11, color: th.tick } },
-          rangemode: 'tozero',
-        },
-        legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 11, color: th.legend } },
-      };
-      if (hasCls) {
-        // CLS eksenini sabit 0–0.25 aralığında tut.
-        // Otomatik ölçek (0–0.01 gibi) küçük CLS değişimlerini "dev spike" gibi gösterir;
-        // sabit üst sınır (≥ Poor eşiği 0.25) eksenin tutarlı kalmasını sağlar.
-        const clsTrace = traces.find(function (t) { return t.yaxis === 'y2'; });
-        const clsMax = clsTrace ? Math.max(0.25, Math.max.apply(null, clsTrace.y) * 1.2) : 0.25;
-        layout.yaxis2 = {
-          automargin: true,
-          showgrid: false,
-          tickfont: { color: th.tick },
-          title: { text: 'CLS', font: { size: 11, color: th.tick } },
-          overlaying: 'y',
-          side: 'right',
-          range: [0, clsMax],
-          tickformat: '.2f',
-        };
-      }
-      Plotly.newPlot(element, traces, layout, { displayModeBar: false, responsive: true }).then(function () {
-        element.dataset.chartReady = '1';
-        resizeCruxCharts();
-        window.setTimeout(resizeCruxCharts, 150);
-      });
-    }
-
-    renderCruxChart('crux-mobile-chart');
-    renderCruxChart('crux-desktop-chart');
-    // bfcache (geri tuşu): Plotly bazen eski canvas’ta kalır; veriyi yeniden çiz.
-    window.addEventListener('pageshow', function (ev) {
-      if (!ev.persisted) {
-        return;
-      }
-      ['crux-mobile-chart', 'crux-desktop-chart'].forEach(function (elementId) {
-        const el = document.getElementById(elementId);
-        if (el) {
-          delete el.dataset.chartReady;
-        }
-      });
-      renderCruxChart('crux-mobile-chart');
-      renderCruxChart('crux-desktop-chart');
-    });
     applyCruxGridLayout();
     applyPagespeedMetricGridLayout();
     applyResponsiveFits();
@@ -1409,24 +948,9 @@ text-slate-500 dark:text-slate-400
           applyCruxGridLayout();
           applyPagespeedMetricGridLayout();
           applyResponsiveFits();
-          resizeCruxCharts();
         });
         observer.observe(shell);
       }
-
-      ['crux-mobile-chart', 'crux-desktop-chart'].forEach(function (elementId) {
-        const element = document.getElementById(elementId);
-        if (!element || !element.parentElement || element.dataset.resizeObserverBound === '1') {
-          return;
-        }
-        element.dataset.resizeObserverBound = '1';
-        const observer = new ResizeObserver(function () {
-          applyCruxGridLayout();
-          applyPagespeedMetricGridLayout();
-          resizeCruxCharts();
-        });
-        observer.observe(element.parentElement);
-      });
     }
 
     if (!window.__dataExplorerFitResizeBound) {
@@ -1435,197 +959,6 @@ text-slate-500 dark:text-slate-400
         applyCruxGridLayout();
         applyPagespeedMetricGridLayout();
         applyResponsiveFits();
-        resizeCruxCharts();
-      });
-    }
-
-    if (!window.__dataExplorerThemeBound) {
-      window.__dataExplorerThemeBound = true;
-      document.addEventListener('seo-theme-change', function () {
-        relayoutCruxChartsTheme();
-      });
-    }
-
-    const refreshButton = document.getElementById('refresh-data-explorer');
-    if (refreshButton && !refreshButton.dataset.bound) {
-      refreshButton.dataset.bound = '1';
-      const progressPanel = document.getElementById('data-explorer-progress-panel');
-      const progressTitle = document.getElementById('data-explorer-progress-title');
-      const progressDetail = document.getElementById('data-explorer-progress-detail');
-      const progressPercent = document.getElementById('data-explorer-progress-percent');
-      const progressBar = document.getElementById('data-explorer-progress-bar');
-      const progressSteps = [
-        { percent: 22, title: 'PageSpeed Insights çağrısı yapılıyor', detail: 'Lighthouse PSI lab ölçümleri ve audit bölümleri güncelleniyor.' },
-        { percent: 55, title: 'CrUX History çağrısı yapılıyor', detail: 'Chrome UX Report history verisi dış kaynaktan çekiliyor.' },
-        { percent: 78, title: 'Veri kayıtları yazılıyor', detail: 'Yeni veri kayıtları ve toplama kayıtları veritabanına ekleniyor.' },
-        { percent: 92, title: 'Sayfa yenileniyor', detail: 'Yeni PSI ve CrUX panelleri gösterilmek üzere hazırlanıyor.' },
-      ];
-      let progressTimer = null;
-      let progressTailTimer = null;
-
-      function renderProgress(step) {
-        progressPanel.classList.remove('hidden');
-        progressTitle.textContent = step.title;
-        progressDetail.textContent = step.detail;
-        progressPercent.textContent = String(step.percent) + '%';
-        progressBar.style.width = String(step.percent) + '%';
-      }
-
-      function resetTone() {
-        progressPanel.classList.remove(
-          'border-rose-200',
-          'bg-[linear-gradient(135deg,rgba(255,228,230,0.96),rgba(255,255,255,0.98)_52%,rgba(255,241,242,0.98))]',
-          'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
-          'dark:border-rose-900/60',
-          'dark:bg-rose-950/45',
-          'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
-          'dark:ring-rose-900/40'
-        );
-        progressPanel.classList.add(
-          'border-sky-200',
-          'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
-          'dark:border-slate-600',
-          'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.45)]',
-          'dark:ring-slate-700/80'
-        );
-        progressBar.classList.remove(
-          'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
-          'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
-          'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
-          'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
-        );
-        progressBar.classList.add(
-          'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
-          'shadow-[0_0_26px_rgba(14,165,233,0.38)]',
-          'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
-          'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
-        );
-      }
-
-      refreshButton.addEventListener('click', async function () {
-        const url = refreshButton.dataset.refreshUrl;
-        const refreshLabel = document.getElementById('refresh-data-explorer-label');
-        const refreshIcon = document.getElementById('refresh-data-explorer-icon');
-        const original = refreshLabel ? refreshLabel.textContent : refreshButton.textContent;
-        refreshButton.disabled = true;
-        if (refreshLabel) refreshLabel.textContent = 'Yenileniyor…';
-        else refreshButton.textContent = 'Yenileniyor…';
-        if (refreshIcon) refreshIcon.classList.add('inline-block', 'animate-spin');
-        resetTone();
-        renderProgress({
-          percent: 7,
-          title: 'Data Explorer yenilemesi başlatıldı',
-          detail: 'PSI ve CrUX History için yenileme isteği gönderiliyor.',
-        });
-        let stepIndex = 0;
-        progressTimer = window.setInterval(function () {
-          if (stepIndex >= progressSteps.length) {
-            window.clearInterval(progressTimer);
-            progressTimer = null;
-            progressTailTimer = window.setInterval(function () {
-              const current = parseInt(progressBar.style.width || '0', 10) || 0;
-              const next = Math.min(current + 1, 98);
-              if (next <= current) {
-                window.clearInterval(progressTailTimer);
-                progressTailTimer = null;
-                return;
-              }
-              renderProgress({
-                percent: next,
-                title: 'Son paneller hazırlanıyor',
-                detail: 'Yanıt bekleniyor; Data Explorer için son çizim adımları tamamlanıyor.',
-              });
-            }, 700);
-            return;
-          }
-          renderProgress(progressSteps[stepIndex]);
-          stepIndex += 1;
-        }, 900);
-        try {
-          const response = await fetch(url, { method: 'POST', credentials: 'same-origin' });
-          let data = {};
-          try {
-            data = await response.json();
-          } catch (eJson) {
-            /* ignore */
-          }
-          if (!response.ok) {
-            const detail =
-              (data && (data.error || data.detail)) ? String(data.error || data.detail) : 'refresh failed';
-            throw new Error(detail);
-          }
-          var psRes = data && data.results && data.results.pagespeed;
-          if (psRes && psRes.blocked) {
-            throw new Error(psRes.reason ? String(psRes.reason) : 'PageSpeed kotası nedeniyle ölçüm atlandı.');
-          }
-          if (progressTimer) {
-            window.clearInterval(progressTimer);
-          }
-          if (progressTailTimer) {
-            window.clearInterval(progressTailTimer);
-          }
-          renderProgress({
-            percent: 100,
-            title: 'Data Explorer güncellendi',
-            detail: 'Yeni PSI ve CrUX verileri yükleniyor.',
-          });
-          setTimeout(function () {
-            try {
-              var u = new URL(window.location.href);
-              u.searchParams.set('_r', String(Date.now()));
-              window.location.replace(u.toString());
-            } catch (e) {
-              window.location.reload();
-            }
-          }, 250);
-        } catch (error) {
-          if (progressTimer) {
-            window.clearInterval(progressTimer);
-          }
-          if (progressTailTimer) {
-            window.clearInterval(progressTailTimer);
-          }
-          progressPanel.classList.remove(
-            'border-sky-200',
-            'shadow-[0_22px_55px_-34px_rgba(14,165,233,0.6)]',
-            'dark:border-slate-600',
-            'dark:shadow-[0_22px_55px_-34px_rgba(0,0,0,0.45)]',
-            'dark:ring-slate-700/80'
-          );
-          progressPanel.classList.add(
-            'border-rose-200',
-            'shadow-[0_22px_55px_-34px_rgba(244,63,94,0.4)]',
-            'dark:border-rose-900/60',
-            'dark:shadow-[0_22px_55px_-34px_rgba(244,63,94,0.15)]',
-            'dark:ring-rose-900/40'
-          );
-          progressBar.classList.remove(
-            'bg-[linear-gradient(90deg,#0ea5e9_0%,#2563eb_55%,#14b8a6_100%)]',
-            'shadow-[0_0_26px_rgba(14,165,233,0.38)]',
-            'dark:bg-[linear-gradient(90deg,#22d3ee_0%,#38bdf8_50%,#2dd4bf_100%)]',
-            'dark:shadow-[0_0_22px_rgba(34,211,238,0.32)]'
-          );
-          progressBar.classList.add(
-            'bg-[linear-gradient(90deg,#fb7185_0%,#ef4444_52%,#f97316_100%)]',
-            'shadow-[0_0_26px_rgba(244,63,94,0.28)]',
-            'dark:bg-[linear-gradient(90deg,#fb7185_0%,#f43f5e_50%,#fb923c_100%)]',
-            'dark:shadow-[0_0_20px_rgba(248,113,113,0.35)]'
-          );
-          renderProgress({
-            percent: Math.max(parseInt(progressBar.style.width || '14', 10) || 14, 14),
-            title: 'Data Explorer yenilenemedi',
-            detail: (error && error.message) ? error.message : 'PSI veya CrUX akışı tamamlanamadı. Backend loglarını kontrol et.',
-          });
-          if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-          if (refreshLabel) refreshLabel.textContent = 'Yenileme başarısız';
-          else refreshButton.textContent = 'Yenileme başarısız';
-          // Hata mesajı görünür kalsın ama buton anında tekrar tıklanabilir olsun
-          refreshButton.disabled = false;
-          setTimeout(function () {
-            if (refreshLabel) refreshLabel.textContent = original;
-            else refreshButton.textContent = original;
-          }, 2500);
-        }
       });
     }
   })();
