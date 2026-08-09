@@ -204,6 +204,21 @@
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.9);
   }
+  #ia-chart {
+    transform-origin: 50% 88%;
+    transition: opacity 0.14s ease, transform 0.14s ease;
+  }
+  #ia-chart.ia-chart-motion-out {
+    opacity: 0.28;
+    transform: scaleY(0.92);
+  }
+  #ia-chart.ia-chart-motion-in {
+    animation: ia-chart-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes ia-chart-pop {
+    from { opacity: 0.3; transform: scaleY(0.94); }
+    to { opacity: 1; transform: scaleY(1); }
+  }
   html.dark .pa-chart-style {
     border-color: rgb(63 63 70);
     background: rgb(24 24 27 / 0.9);
@@ -801,7 +816,9 @@
     if (!visible.length && items.length) {
       delete iaHiddenMetrics[metric];
     }
-    if (iaLastDrawBundles && iaLastDrawBundles.length) drawMulti(iaLastDrawBundles);
+    runIaChartMotion(function () {
+      if (iaLastDrawBundles && iaLastDrawBundles.length) drawMulti(iaLastDrawBundles);
+    });
   }
   function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
   function isVirgulMetric(key) { return String(key || "").indexOf("virgul:") === 0; }
@@ -1329,6 +1346,50 @@
     var nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
     return nice * exp;
   }
+  function multiScalePlan(maxes) {
+    var vals = (maxes || []).map(Number).filter(function (m) {
+      return Number.isFinite(m) && m > 0;
+    });
+    if (!vals.length) return { mode: "pct", sharedMax: 1, shared: false };
+    var hi = Math.max.apply(null, vals);
+    if (vals.length === 1) {
+      return { mode: "value", sharedMax: niceMax(hi), shared: true };
+    }
+    var lo = Math.min.apply(null, vals);
+    if (lo > 0 && hi / lo <= 25) {
+      return { mode: "value", sharedMax: niceMax(hi), shared: true };
+    }
+    return { mode: "pct", sharedMax: 1, shared: false };
+  }
+  function yAxisLeftPad(plan, countLike) {
+    var sample = plan && plan.mode === "value"
+      ? fmtNum(plan.sharedMax, !!countLike)
+      : "100%";
+    var len = String(sample == null ? "" : sample).length;
+    return Math.max(44, Math.min(84, 16 + len * 6.4));
+  }
+  var _iaChartMotionTimer = null;
+  function runIaChartMotion(fn) {
+    if (!iaChart || typeof fn !== "function") {
+      if (typeof fn === "function") fn();
+      return;
+    }
+    if (_iaChartMotionTimer) {
+      clearTimeout(_iaChartMotionTimer);
+      _iaChartMotionTimer = null;
+    }
+    iaChart.classList.add("ia-chart-motion-out");
+    iaChart.classList.remove("ia-chart-motion-in");
+    _iaChartMotionTimer = setTimeout(function () {
+      try { fn(); } catch (err) { console.warn(err); }
+      iaChart.classList.remove("ia-chart-motion-out");
+      iaChart.classList.add("ia-chart-motion-in");
+      _iaChartMotionTimer = setTimeout(function () {
+        iaChart.classList.remove("ia-chart-motion-in");
+        _iaChartMotionTimer = null;
+      }, 420);
+    }, 130);
+  }
   function iaAxisLayout(keys, plotW) {
     var n = Math.max((keys || []).length, 1);
     var days = iaSelectedRangeDays();
@@ -1650,18 +1711,9 @@
       (b.series || []).forEach(function (r) { if (r && r.key != null) keySet[String(r.key)] = true; });
     });
     var keys = Object.keys(keySet).sort();
-    var w = 720, h = 260, left = 52, right = 16, top = 16, bottom = 36;
-    var plotW = w - left - right, plotH = h - top - bottom;
+    var w = 720, h = 260, right = 16, top = 16, bottom = 36;
     var n = keys.length;
-    var xs = keys.map(function (_, i) {
-      return left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
-    });
-    var xAxis = buildIaXAxisLabels(keys, xs, plotW, h);
-    var grid = buildIaYGrid({
-      left: left, top: top, plotW: plotW, plotH: plotH,
-      mode: "pct", yFontSize: xAxis.layout.yFontSize
-    });
-    var seriesList = list.map(function (b) {
+    var seriesMaps = list.map(function (b) {
       var map = {}, max = 0;
       (b.series || []).forEach(function (r) {
         var nv = Number(r.value);
@@ -1670,21 +1722,58 @@
         if (nv > max) max = nv;
       });
       if (max <= 0) max = 1;
-      var color = colorForIaBundle(allDaily, b.metric);
-      var ys = keys.map(function (key) {
-        if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
-        return top + (1 - map[key] / max) * plotH;
-      });
-      var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
       return {
         metric: b.metric,
         label: b.label || b.metric,
-        color: color,
         map: map,
         max: max,
+        countLike: isCountLike(b.metric),
+        color: colorForIaBundle(allDaily, b.metric)
+      };
+    });
+    var scalePlan = multiScalePlan(seriesMaps.map(function (s) { return s.max; }));
+    var countLikeAxis = seriesMaps.length === 1
+      ? !!seriesMaps[0].countLike
+      : seriesMaps.every(function (s) { return s.countLike; });
+    var left = yAxisLeftPad(scalePlan, countLikeAxis);
+    var plotW = w - left - right, plotH = h - top - bottom;
+    var xs = keys.map(function (_, i) {
+      return left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+    });
+    function yOf(v, ownMax) {
+      if (scalePlan.shared) return top + (1 - v / scalePlan.sharedMax) * plotH;
+      return top + (1 - v / ownMax) * plotH;
+    }
+    function hOf(v, ownMax) {
+      if (scalePlan.shared) return (v / scalePlan.sharedMax) * plotH;
+      return (v / ownMax) * plotH;
+    }
+    var xAxis = buildIaXAxisLabels(keys, xs, plotW, h);
+    var grid = buildIaYGrid({
+      left: left, top: top, plotW: plotW, plotH: plotH,
+      mode: scalePlan.mode === "value" ? "value" : "pct",
+      max: scalePlan.sharedMax,
+      countLike: countLikeAxis,
+      yFontSize: xAxis.layout.yFontSize
+    });
+    var seriesList = seriesMaps.map(function (s) {
+      var ys = keys.map(function (key) {
+        if (!Object.prototype.hasOwnProperty.call(s.map, key)) return null;
+        return yOf(s.map[key], s.max);
+      });
+      var pts = keys.map(function (key, i) {
+        if (!Object.prototype.hasOwnProperty.call(s.map, key)) return null;
+        return { x: xs[i], y: yOf(s.map[key], s.max) };
+      }).filter(Boolean);
+      return {
+        metric: s.metric,
+        label: s.label,
+        color: s.color,
+        map: s.map,
+        max: s.max,
         ys: ys,
         pts: pts,
-        countLike: isCountLike(b.metric)
+        countLike: s.countLike
       };
     });
     var style = iaChartStyle || "area";
@@ -1699,7 +1788,7 @@
             color: s.color,
             heights: keys.map(function (key) {
               if (!Object.prototype.hasOwnProperty.call(s.map, key)) return 0;
-              return (s.map[key] / s.max) * plotH;
+              return hOf(s.map[key], s.max);
             })
           };
         }),
@@ -1728,6 +1817,7 @@
       xs: xs,
       left: left,
       plotW: plotW,
+      scalePlan: scalePlan,
       seriesList: seriesList
     };
     iaChart.innerHTML =

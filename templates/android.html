@@ -182,6 +182,21 @@
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.9);
   }
+  #pa-chart {
+    transform-origin: 50% 88%;
+    transition: opacity 0.14s ease, transform 0.14s ease;
+  }
+  #pa-chart.pa-chart-motion-out {
+    opacity: 0.28;
+    transform: scaleY(0.92);
+  }
+  #pa-chart.pa-chart-motion-in {
+    animation: pa-chart-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes pa-chart-pop {
+    from { opacity: 0.3; transform: scaleY(0.94); }
+    to { opacity: 1; transform: scaleY(1); }
+  }
   html.dark .android-play-page .pa-chart-style,
   html.dark .ios-asc-page .pa-chart-style {
     border-color: rgb(63 63 70);
@@ -2261,7 +2276,7 @@
       if (!key) return;
       if (paOverviewHidden[key]) delete paOverviewHidden[key];
       else paOverviewHidden[key] = true;
-      refreshOverviewViewFromBundles();
+      runPaChartMotion(function () { refreshOverviewViewFromBundles(); });
       return;
     }
     if (kind === "overlay") {
@@ -2301,14 +2316,12 @@
     if (!paChart) return;
     var pal = paChartPalette();
     var bundles = (chartBundles || []).filter(function (b) {
-      return b && (b.series || []).length;
+      return b && (b.series || []).length && !(paOverviewHidden && paOverviewHidden[b.metric]);
     });
     setPaChartLegendMode("line");
     setOverviewLegend(chartBundles || []);
     var w = 720, h = 260;
-    var left = 40, right = 16, top = 16, bottom = 36;
-    var plotW = w - left - right;
-    var plotH = h - top - bottom;
+    var right = 16, top = 16, bottom = 36;
     // Ortak tarih ekseni (birleşik key sırası) — sadece ekler kaldıysa onlardan kur
     var keySet = {};
     bundles.forEach(function (b) {
@@ -2351,43 +2364,8 @@
         countLike: metricIsCountLike(b.metric)
       };
     });
-    var curPts = keys.map(function (key, i) {
-      var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
-      return { x: x, y: top + plotH / 2, key: key };
-    });
-    var baseY = top + plotH;
-    var style = paChartStyle || "area";
-    var linePaths = seriesPts.map(function (sp, si) {
-      var color = overviewMetricColor(sp.metric);
-      var pts = [];
-      keys.forEach(function (key, i) {
-        var v = Object.prototype.hasOwnProperty.call(sp.map, key) ? sp.map[key] : null;
-        if (v == null) return;
-        pts.push({
-          x: curPts[i].x,
-          y: top + (1 - v / sp.max) * plotH
-        });
-      });
-      return { pts: pts, color: color, sp: sp };
-    });
-    var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
-    var yFs = xAxis.layout.yFontSize;
-    var grid = "";
-    var ticks = 4;
-    for (var t = 0; t <= ticks; t++) {
-      var ty = top + (t / ticks) * plotH;
-      var pct = Math.round(100 * (1 - t / ticks));
-      grid +=
-        '<line class="pa-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
-        '" stroke="' + pal.grid + '" stroke-width="1" />' +
-        '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) +
-        '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
-        pct + "%</text>";
-    }
-    var barSlot = n > 1 ? plotW / (n - 1) : plotW;
-    // Özet (ANR/Crash/Kayıp) üzerine +grafik ekleri — kendi max % ölçeği
     syncPaOverlayColors();
-    var ovSeriesState = (paOverlays || []).filter(function (ov) {
+    var ovSeriesMaps = (paOverlays || []).filter(function (ov) {
       return ov && !ov.muted;
     }).map(function (ov, oi) {
       var map = {};
@@ -2402,24 +2380,93 @@
       if (max <= 0) max = 1;
       var color = ov.color || paOverlayColor(oi);
       ov.color = color;
-      var pts = [];
-      keys.forEach(function (key, i) {
-        if (!Object.prototype.hasOwnProperty.call(map, key)) return;
-        pts.push({
-          x: curPts[i].x,
-          y: top + (1 - map[key] / max) * plotH
-        });
-      });
       return {
         metric: ov.metric,
         label: ov.label,
         color: color,
         map: map,
         max: max,
-        pts: pts,
         countLike: metricIsCountLike(ov.metric)
       };
     });
+    var scalePlan = multiScalePlan(
+      seriesPts.map(function (sp) { return sp.max; }).concat(
+        ovSeriesMaps.map(function (os) { return os.max; })
+      )
+    );
+    var countLikeAxis = seriesPts.length === 1
+      ? !!seriesPts[0].countLike
+      : seriesPts.every(function (sp) { return sp.countLike; });
+    var left = yAxisLeftPad(scalePlan, countLikeAxis);
+    var plotW = w - left - right;
+    var plotH = h - top - bottom;
+    var curPts = keys.map(function (key, i) {
+      var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+      return { x: x, y: top + plotH / 2, key: key };
+    });
+    var baseY = top + plotH;
+    function yOf(v, ownMax) {
+      if (scalePlan.shared) {
+        return top + (1 - v / scalePlan.sharedMax) * plotH;
+      }
+      return top + (1 - v / ownMax) * plotH;
+    }
+    function hOf(v, ownMax) {
+      if (scalePlan.shared) {
+        return (v / scalePlan.sharedMax) * plotH;
+      }
+      return (v / ownMax) * plotH;
+    }
+    var style = paChartStyle || "area";
+    var linePaths = seriesPts.map(function (sp, si) {
+      var color = overviewMetricColor(sp.metric);
+      var pts = [];
+      keys.forEach(function (key, i) {
+        var v = Object.prototype.hasOwnProperty.call(sp.map, key) ? sp.map[key] : null;
+        if (v == null) return;
+        pts.push({
+          x: curPts[i].x,
+          y: yOf(v, sp.max)
+        });
+      });
+      return { pts: pts, color: color, sp: sp };
+    });
+    var ovSeriesState = ovSeriesMaps.map(function (os) {
+      var pts = [];
+      keys.forEach(function (key, i) {
+        if (!Object.prototype.hasOwnProperty.call(os.map, key)) return;
+        pts.push({
+          x: curPts[i].x,
+          y: yOf(os.map[key], os.max)
+        });
+      });
+      return {
+        metric: os.metric,
+        label: os.label,
+        color: os.color,
+        map: os.map,
+        max: os.max,
+        pts: pts,
+        countLike: os.countLike
+      };
+    });
+    var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
+    var yFs = xAxis.layout.yFontSize;
+    var grid = "";
+    var ticks = 4;
+    for (var t = 0; t <= ticks; t++) {
+      var ty = top + (t / ticks) * plotH;
+      var lab = scalePlan.mode === "value"
+        ? fmtNum(scalePlan.sharedMax * (1 - t / ticks), countLikeAxis)
+        : (Math.round(100 * (1 - t / ticks)) + "%");
+      grid +=
+        '<line class="pa-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
+        '" stroke="' + pal.grid + '" stroke-width="1" />' +
+        '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) +
+        '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
+        lab + "</text>";
+    }
+    var barSlot = n > 1 ? plotW / (n - 1) : plotW;
     var pathsHtml = "";
     var ovPathsHtml = "";
     if (style === "bar") {
@@ -2428,7 +2475,7 @@
           color: overviewMetricColor(sp.metric),
           heights: keys.map(function (key) {
             if (!Object.prototype.hasOwnProperty.call(sp.map, key)) return 0;
-            return (sp.map[key] / sp.max) * plotH;
+            return hOf(sp.map[key], sp.max);
           })
         };
       }).concat(ovSeriesState.map(function (os) {
@@ -2436,7 +2483,7 @@
           color: os.color,
           heights: keys.map(function (key) {
             if (!Object.prototype.hasOwnProperty.call(os.map, key)) return 0;
-            return (os.map[key] / os.max) * plotH;
+            return hOf(os.map[key], os.max);
           })
         };
       }));
@@ -2476,6 +2523,7 @@
       rows: rows,
       curPts: curPts,
       prevPts: [],
+      scalePlan: scalePlan,
       multiSeries: seriesPts.map(function (sp) {
         return {
           label: sp.label,
@@ -2915,6 +2963,51 @@
     var n = v / exp;
     var nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
     return nice * exp;
+  }
+  /** Görünür serilerin max’larına göre ortak mutlak ölçek veya % ölçek. */
+  function multiScalePlan(maxes) {
+    var vals = (maxes || []).map(Number).filter(function (m) {
+      return Number.isFinite(m) && m > 0;
+    });
+    if (!vals.length) return { mode: "pct", sharedMax: 1, shared: false };
+    var hi = Math.max.apply(null, vals);
+    if (vals.length === 1) {
+      return { mode: "value", sharedMax: niceMax(hi), shared: true };
+    }
+    var lo = Math.min.apply(null, vals);
+    if (lo > 0 && hi / lo <= 25) {
+      return { mode: "value", sharedMax: niceMax(hi), shared: true };
+    }
+    return { mode: "pct", sharedMax: 1, shared: false };
+  }
+  function yAxisLeftPad(plan, countLike) {
+    var sample = plan && plan.mode === "value"
+      ? fmtNum(plan.sharedMax, !!countLike)
+      : "100%";
+    var len = String(sample == null ? "" : sample).length;
+    return Math.max(40, Math.min(80, 14 + len * 6.4));
+  }
+  var _paChartMotionTimer = null;
+  function runPaChartMotion(fn) {
+    if (!paChart || typeof fn !== "function") {
+      if (typeof fn === "function") fn();
+      return;
+    }
+    if (_paChartMotionTimer) {
+      clearTimeout(_paChartMotionTimer);
+      _paChartMotionTimer = null;
+    }
+    paChart.classList.add("pa-chart-motion-out");
+    paChart.classList.remove("pa-chart-motion-in");
+    _paChartMotionTimer = setTimeout(function () {
+      try { fn(); } catch (err) { console.warn(err); }
+      paChart.classList.remove("pa-chart-motion-out");
+      paChart.classList.add("pa-chart-motion-in");
+      _paChartMotionTimer = setTimeout(function () {
+        paChart.classList.remove("pa-chart-motion-in");
+        _paChartMotionTimer = null;
+      }, 420);
+    }, 130);
   }
   function chartXY(i, v, n, min, span, left, top, plotW, plotH) {
     var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
