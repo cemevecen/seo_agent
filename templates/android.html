@@ -1314,6 +1314,84 @@
     var mi = parseInt(m[2], 10) - 1;
     return parseInt(m[3], 10) + " " + (months[mi] || m[2]) + " " + m[1];
   }
+  function paSelectedRangeDays() {
+    if (!paStart || !paEnd || !paStart.value || !paEnd.value) return null;
+    var a = new Date(paStart.value + "T12:00:00");
+    var b = new Date(paEnd.value + "T12:00:00");
+    if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+    return Math.round((b.getTime() - a.getTime()) / 86400000);
+  }
+  /** Eksen etiketi: tarihler DD-MM (veya kısa aralıkta sadece gün); parantezleri at. */
+  function fmtAxisKey(key, dayOnly) {
+    var s = String(key || "").trim();
+    var m = s.match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+    if (m) {
+      if (dayOnly) return String(parseInt(m[3], 10));
+      return m[3] + "-" + m[2];
+    }
+    var ym = s.match(/^(20\d{2})-(\d{2})$/);
+    if (ym) return ym[2];
+    s = s.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+    if (s.length > 14) s = s.slice(0, 13) + "…";
+    return s;
+  }
+  function paAxisLayout(rows, plotW) {
+    var n = Math.max((rows || []).length, 1);
+    var dateN = 0;
+    (rows || []).forEach(function (r) {
+      if (/^(20\d{2})-\d{2}-\d{2}$/.test(String(r && r.key))) dateN += 1;
+    });
+    var mostlyDates = dateN >= Math.max(1, Math.floor(n * 0.55));
+    var spanDays = paSelectedRangeDays();
+    var dayOnly = !!(mostlyDates && spanDays != null && spanDays < 30);
+    var labs = (rows || []).map(function (r) {
+      return fmtAxisKey(r.key, dayOnly);
+    });
+    var avgLen = labs.length
+      ? labs.reduce(function (acc, s) { return acc + String(s).length; }, 0) / labs.length
+      : 4;
+    var maxLen = labs.reduce(function (m, s) { return Math.max(m, String(s).length); }, 0);
+    // Maks ~9px; yoğun / uzun etiketlerde küçül
+    var fontSize = 9;
+    if (n > 12 || avgLen > 5 || maxLen > 8) fontSize = 8;
+    if (n > 20 || avgLen > 7 || maxLen > 10) fontSize = 7;
+    if (n > 36 || avgLen > 9) fontSize = 6.5;
+    if (n > 55 || maxLen > 12) fontSize = 6;
+    var charW = fontSize * (dayOnly ? 0.52 : 0.58);
+    var labelW = Math.max(charW * (avgLen + 0.8), fontSize * (dayOnly ? 1.6 : 2.4));
+    var gap = fontSize * (dayOnly ? 0.55 : 0.75);
+    var maxLabels = Math.max(2, Math.floor(plotW / (labelW + gap)));
+    maxLabels = Math.min(n, maxLabels);
+    var labelStep = Math.max(1, Math.ceil(n / maxLabels));
+    var yFontSize = Math.min(9, Math.max(6, fontSize));
+    return {
+      fontSize: fontSize,
+      yFontSize: yFontSize,
+      labelStep: labelStep,
+      dayOnly: dayOnly,
+      minGap: labelW * 0.85
+    };
+  }
+  function buildPaXAxisLabels(rows, curPts, plotW, h, pal) {
+    var n = (rows || []).length;
+    var layout = paAxisLayout(rows, plotW);
+    var html = "";
+    var lastX = -1e9;
+    for (var li = 0; li < n; li++) {
+      var isLast = li === n - 1;
+      if (li % layout.labelStep !== 0 && !isLast) continue;
+      var lx = curPts[li].x;
+      if (lx - lastX < layout.minGap && !isLast) continue;
+      if (isLast && lastX > -1e8 && lx - lastX < layout.minGap * 0.75) continue;
+      var lab = fmtAxisKey(rows[li].key, layout.dayOnly);
+      html +=
+        '<text x="' + lx.toFixed(1) + '" y="' + (h - 10) +
+        '" text-anchor="middle" fill="' + pal.axis + '" font-size="' + layout.fontSize +
+        '" font-family="ui-sans-serif,system-ui">' + esc(lab) + "</text>";
+      lastX = lx;
+    }
+    return { html: html, layout: layout };
+  }
   function hidePaTooltip() {
     if (paTooltip) paTooltip.classList.add("hidden");
     if (!paChart || !paChartState) return;
@@ -1495,6 +1573,8 @@
     };
 
     var pal = paChartPalette();
+    var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
+    var yFs = xAxis.layout.yFontSize;
     var grid = "";
     var ticks = 4;
     for (var t = 0; t <= ticks; t++) {
@@ -1504,20 +1584,8 @@
         '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
         '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
-        '" text-anchor="end" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
         esc(fmtNum(tv, true)) + "</text>";
-    }
-    var xLabels = "";
-    var labelStep = Math.max(1, Math.ceil(n / 6));
-    for (var li = 0; li < n; li++) {
-      if (li % labelStep !== 0 && li !== n - 1) continue;
-      var lx = curPts[li].x;
-      var lab = String(rows[li].key);
-      if (lab.length > 10 && lab.indexOf("-") === 4) lab = lab.slice(5);
-      xLabels +=
-        '<text x="' + lx.toFixed(1) + '" y="' + (h - 12) +
-        '" text-anchor="middle" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
-        esc(lab) + "</text>";
     }
     var bars = "";
     for (var i = 0; i < n; i++) {
@@ -1544,7 +1612,7 @@
       '" stroke="' + pal.guide + '" stroke-width="1" opacity="0" />' +
       '<circle id="pa-hover-dot" cx="0" cy="0" r="0" opacity="0" />' +
       '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="0" opacity="0" />' +
-      xLabels +
+      xAxis.html +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
     var hit = paChart.querySelector("#pa-hit");
@@ -1640,6 +1708,8 @@
       plotW: plotW
     };
 
+    var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
+    var yFs = xAxis.layout.yFontSize;
     var grid = "";
     var ticks = 4;
     for (var t = 0; t <= ticks; t++) {
@@ -1649,20 +1719,8 @@
         '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
         '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 8) + '" y="' + (ty + 3).toFixed(1) +
-        '" text-anchor="end" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
+        '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
         esc(fmtNum(tv)) + "</text>";
-    }
-    var xLabels = "";
-    var labelStep = Math.max(1, Math.ceil(n / 6));
-    for (var li = 0; li < n; li++) {
-      if (li % labelStep !== 0 && li !== n - 1) continue;
-      var lx = curPts[li].x;
-      var lab = String(rows[li].key);
-      if (lab.length > 10 && lab.indexOf("-") === 4) lab = lab.slice(5);
-      xLabels +=
-        '<text x="' + lx.toFixed(1) + '" y="' + (h - 12) +
-        '" text-anchor="middle" fill="' + pal.axis + '" font-size="10" font-family="ui-sans-serif,system-ui">' +
-        esc(lab) + "</text>";
     }
 
     var prevLinePts = prevPts.filter(Boolean);
@@ -1704,7 +1762,7 @@
       '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
       '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
       '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="' + PA_OVERLAY_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
-      xLabels +
+      xAxis.html +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
 
