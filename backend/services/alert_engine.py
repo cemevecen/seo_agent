@@ -574,11 +574,22 @@ def _top20_from_search_console_top_queries(
     min_diff: float,
     limit: int = HOME_POSITION_TOP20_TRAFFIC,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """/search-console Top queries tablosu ile aynı liste; pozisyon düşen/yükselenler."""
+    """/search-console varsayılan Top queries (Mobile · 7g) ile aynı builder/filtre."""
     from backend.services.sc_top_queries import build_search_console_top_queries
 
-    current_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
-    previous_rows = get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+    def _mobile(rows: list[dict]) -> list[dict]:
+        return [
+            row
+            for row in (rows or [])
+            if str(row.get("device") or "").upper().strip() == "MOBILE"
+        ]
+
+    current_rows = _mobile(
+        get_latest_search_console_rows(db, site_id=site.id, data_scope="current_7d")
+    )
+    previous_rows = _mobile(
+        get_latest_search_console_rows(db, site_id=site.id, data_scope="previous_7d")
+    )
     top = build_search_console_top_queries(
         current_rows, previous_rows, limit=max(1, int(limit))
     )
@@ -662,7 +673,7 @@ def list_sc_position_changes_7d(
         "as_of_label": as_of_label,
         "as_of_iso": as_of_iso,
         "scope_label": "Mobil+Web (gösterim ağırlıklı) · önce Top 50, sonra diğer sorgular",
-        "top20_scope_label": "Search Console Top queries (ilk 20) · 7g pozisyon değişimi",
+        "top20_scope_label": "Search Console Top queries · Mobile · Son 7 gün",
         "row_limit": row_limit,
         "period_label": "Son 7 gün vs önceki 7 gün",
         "sort_label": "",
