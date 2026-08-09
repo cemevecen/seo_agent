@@ -1431,7 +1431,7 @@
   var paOvClear = null;
   var paOverlaysChips = null;
   var paOvPending = {};
-  var paSelectedMetrics = [];
+  var paSelectedMetrics = ["anrs"];
   var paMetricDirty = false;
   var PA_GA4_OVERLAY_METRICS = [
     { value: "ga4:sessions", label: "GA4 · Sessions" },
@@ -1710,7 +1710,7 @@
   var paOverlays = [];
   var paLastPrimaryMetric = ""; // ana metrik değişince ekler temizlenir; filtrede kalır
   var paRunSeq = 0; // hızlı filtre değişiminde sadece son istek UI günceller
-  var paOverviewActive = true; // Seçiniz: çoklu grafik+tablo; metrik seçilince false
+  var paOverviewActive = false; // Varsayılan: ANR tek metrik; Seçiniz ile özet (çoklu)
   var paOverviewBundles = null;
   /** Özet tabloda × ile gizlenen metrikler (oturum içi) */
   var paOverviewHidden = {};
