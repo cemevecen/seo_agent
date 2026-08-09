@@ -1077,12 +1077,15 @@
   var paCompareNote = document.getElementById("pa-compare-note");
   var STAR_DIST_COLORS = { 5: "#c5d7f2", 4: "#8eb4e6", 3: "#5a8fd4", 2: "#3b6fbf", 1: "#1a3a6e" };
   // Saks mavisi — Metrikler çizgi/alan grafikleri
-  // Nokta yarıçapları (~%60 küçültülmüş)
+  // Nokta yarıçapları (~%60 küçültülmüş); çizgi kalınlıkları yarı inceltilmiş
   var PA_DOT_R = 1.4;
   var PA_DOT_R_OV = 1.2;
   var PA_HOVER_R = 2.2;
   var PA_HOVER_R_OV = 1.8;
   var PA_DOT_STROKE_W = 0.9;
+  var PA_STROKE_W = 0.68;
+  var PA_STROKE_W_OV = 0.75;
+  var PA_STROKE_W_PREV = 1;
   function paIsDark() {
     // Sadece tema class’ı — kart background luminance light’ta yanlış dark + siyah stroke üretiyordu
     var root = document.documentElement;
@@ -1687,7 +1690,7 @@
       if (!lp.d) return "";
       return (
         '<path d="' + lp.d + '" fill="none" stroke="' + lp.color +
-        '" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" />'
+        '" stroke-width="' + PA_STROKE_W + '" stroke-linecap="round" stroke-linejoin="round" />'
       );
     }).join("");
     // Özet (ANR/Crash/Kayıp) üzerine +grafik ekleri — kendi max % ölçeği
@@ -1731,7 +1734,7 @@
       if (!os.d) return "";
       return (
         '<path d="' + os.d + '" fill="none" stroke="' + os.color +
-        '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />'
+        '" stroke-width="' + PA_STROKE_W_OV + '" stroke-linecap="round" stroke-linejoin="round" />'
       );
     }).join("");
     var ovDotsHtml = ovSeriesState.map(function (os) {
@@ -2895,7 +2898,7 @@
       if (!d) return "";
       return (
         '<path d="' + d + '" fill="none" stroke="' + os.color +
-        '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />'
+        '" stroke-width="' + PA_STROKE_W_OV + '" stroke-linecap="round" stroke-linejoin="round" />'
       );
     }).join("");
     var dots = curPts.map(function (p, i) {
@@ -2924,8 +2927,8 @@
       '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
       grid +
       (areaD ? '<path d="' + areaD + '" fill="url(#pa-fill)" />' : "") +
-      (prevD ? '<path d="' + prevD + '" fill="none" stroke="' + pal.prev + '" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
-      (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + PA_LINE_COLOR + '" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      (prevD ? '<path d="' + prevD + '" fill="none" stroke="' + pal.prev + '" stroke-width="' + PA_STROKE_W_PREV + '" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round" />' : "") +
+      (lineD ? '<path d="' + lineD + '" fill="none" stroke="' + PA_LINE_COLOR + '" stroke-width="' + PA_STROKE_W + '" stroke-linecap="round" stroke-linejoin="round" />' : "") +
       ovPathsHtml +
       dots +
       ovDots +
