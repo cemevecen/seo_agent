@@ -1,6 +1,5 @@
-"""GSC backlink import + risk analizi API."""
+"""GSC backlink dashboard + risk analizi API (scrape ingest: /api/gsc-links)."""
 
-import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -13,7 +12,6 @@ from backend.models import ExternalSite, Site
 from backend.rate_limiter import limiter
 from backend.services import backlink_csv
 
-LOGGER = logging.getLogger(__name__)
 router = APIRouter(tags=["backlinks"])
 
 
@@ -36,54 +34,13 @@ class DomainActionBody(BaseModel):
 
 
 class BacklinkImportBody(BaseModel):
-    site_id: int
+    """Legacy body — endpoints return 410; scrape ingest uses /api/gsc-links/ingest."""
+
+    site_id: int = 0
     report_type: str = "external"
     csv_text: str | None = None
     sheets_url: str | None = None
     source_filename: str | None = None
-
-
-def _run_backlink_import(
-    db: Session,
-    *,
-    site_id: int,
-    report_type: str,
-    csv_text: str = "",
-    sheets_url: str = "",
-    source_filename: str = "",
-    source_kind: str = "csv_paste",
-) -> dict[str, Any]:
-    _require_internal_site(db, site_id)
-    paste = (csv_text or "").strip()
-    url = (sheets_url or "").strip()
-    if url:
-        raise HTTPException(
-            status_code=400,
-            detail="Google Sheets import kapatıldı. Veriler GSC Links scrape ile gelir.",
-        )
-    if paste:
-        text = paste
-        fname = (source_filename or "")[:255]
-        kind = source_kind or "csv_paste"
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="CSV metni gerekli (Sheets kapalı; asıl kaynak GSC scrape).",
-        )
-    try:
-        return backlink_csv.import_backlink_csv(
-            db,
-            site_id=site_id,
-            report_type=report_type,
-            csv_text=text,
-            source_filename=fname,
-            source_kind=kind,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.exception("backlinks import failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/backlinks/report-types")
@@ -172,21 +129,15 @@ def backlinks_target_page_links(
 def backlinks_import_json(
     request: Request,
     body: BacklinkImportBody,
-    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    """Acil CSV — Sheets kapalı; asıl kaynak GSC scrape."""
-    csv_text = (body.csv_text or "").strip()
-    if len(csv_text.encode("utf-8", errors="replace")) > 15_000_000:
-        raise HTTPException(status_code=413, detail="CSV metni çok büyük (max ~15MB).")
-    kind = "csv_upload" if (body.source_filename or "").strip() else "csv_paste"
-    return _run_backlink_import(
-        db,
-        site_id=body.site_id,
-        report_type=body.report_type or "external",
-        csv_text=csv_text,
-        sheets_url=(body.sheets_url or "").strip(),
-        source_filename=(body.source_filename or "")[:255],
-        source_kind=kind,
+    """Manuel CSV/Sheets kapatıldı — yalnızca GSC Links scrape."""
+    _ = body
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Manuel CSV / Sheets import kapatıldı. "
+            "Veri GSC Links scrape ile gelir (Mac bridge: POST :18765/sync-gsc-links)."
+        ),
     )
 
 
@@ -194,38 +145,14 @@ def backlinks_import_json(
 @limiter.limit("20/minute")
 async def backlinks_import(
     request: Request,
-    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    form = await request.form()
-    try:
-        site_id = int(form.get("site_id"))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="site_id gerekli.") from exc
-    report_type = str(form.get("report_type") or "external")
-    csv_text = str(form.get("csv_text") or "").strip()
-    sheets_url = str(form.get("sheets_url") or "").strip()
-
-    upload = form.get("file")
-    if upload is not None and getattr(upload, "filename", None):
-        raw = await upload.read()
-        if len(raw) > 15_000_000:
-            raise HTTPException(status_code=413, detail="Dosya çok büyük (max ~15MB).")
-        csv_text = raw.decode("utf-8", errors="replace")
-        return _run_backlink_import(
-            db,
-            site_id=site_id,
-            report_type=report_type,
-            csv_text=csv_text,
-            sheets_url="",
-            source_filename=str(getattr(upload, "filename", None) or "upload.csv"),
-            source_kind="csv_upload",
-        )
-    return _run_backlink_import(
-        db,
-        site_id=site_id,
-        report_type=report_type,
-        csv_text=csv_text,
-        sheets_url=sheets_url,
+    """Manuel dosya yükleme kapatıldı — yalnızca GSC Links scrape."""
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Manuel dosya yükleme kapatıldı. "
+            "Veri GSC Links scrape ile gelir (Mac bridge: POST :18765/sync-gsc-links)."
+        ),
     )
 
 

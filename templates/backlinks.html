@@ -927,8 +927,8 @@
       <div id="bl-import-progress-bar" class="bl-import-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
     </div>
     <p id="bl-import-progress-pct" class="bl-import-progress-pct">0%</p>
-    <p id="bl-import-overlay-status" class="bl-import-overlay-status">Import ediliyor…</p>
-    <p id="bl-import-overlay-sub" class="bl-import-overlay-sub">CSV hazırlanıyor</p>
+    <p id="bl-import-overlay-status" class="bl-import-overlay-status">Scrape işleniyor…</p>
+    <p id="bl-import-overlay-sub" class="bl-import-overlay-sub">GSC Links</p>
   </div>
 </div>
 
@@ -1965,15 +1965,15 @@
     if (metaEl) metaEl.textContent = "";
     if (!slice.length) {
       var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
-      var emptyMsg = "Henüz veri yok.";
+      var emptyMsg = "Henüz scrape verisi yok. Mac bridge: POST :18765/sync-gsc-links";
       if (rt === "top_target_pages") {
         emptyMsg =
-          'Henüz veri yok. GSC «Top target pages» CSV\'sini <strong>Top external links</strong> sekmesiyle import edin.';
+          "Henüz external (top linked pages) scrape verisi yok. Bridge sync çalıştırın.";
       } else if (rt === "top_target_pages_internal") {
         emptyMsg =
-          'Henüz veri yok. GSC «Top linked pages» CSV\'sini <strong>Top internal links</strong> sekmesiyle import edin.';
+          "Henüz internal links scrape verisi yok. Bridge sync çalıştırın.";
       } else if (rt === "top_linking_sites") {
-        emptyMsg = "Henüz veri yok. «Top linking sites» rapor türüyle import edin.";
+        emptyMsg = "Henüz linking sites scrape verisi yok. Bridge sync çalıştırın.";
       }
       listEl.innerHTML = '<li class="text-slate-500 leading-snug">' + emptyMsg + "</li>";
       if (btn) btn.classList.add("hidden");
@@ -2216,7 +2216,7 @@
     var ul = document.getElementById("bl-import-steps");
     if (!ul) return;
     if (!imports.length) {
-      ul.innerHTML = '<li class="text-xs text-slate-500">Henüz adım yok. Soldan import edin.</li>';
+      ul.innerHTML = '<li class="text-xs text-slate-500">Henüz scrape adımı yok. Mac bridge sync bekleniyor.</li>';
       return;
     }
     ul.innerHTML = imports
@@ -3599,69 +3599,19 @@
     .catch(function () {});
   var blImportBtn = document.getElementById("bl-import-btn");
   if (blImportBtn) {
-  blImportBtn.addEventListener("click", async function () {
-    showBanner("Google Sheets / manuel import kapalı. Veri GSC Links scrape ile gelir.");
-    return;
-    var st = document.getElementById("bl-import-status");
-    st.textContent = "";
-    var sid = siteId();
-    if (!sid || isNaN(sid)) {
-      showBanner("Önce geçerli bir site seçin.");
-      return;
-    }
-    try {
-      await runBacklinkImportWithOverlay(async function (setProgress) {
-        var f = blGetImportFile();
-        var sheets = document.getElementById("bl-sheets-url").value.trim();
-        var payload = {
-          site_id: sid,
-          report_type: reportType(),
-          csv_text: null,
-          sheets_url: null,
-          source_filename: null,
-        };
-        setProgress(4, "Import başlıyor", "Kaynak seçiliyor");
-        if (f) {
-          var fname = (f.name || "").toLowerCase();
-          if (fname && !/\.(csv|tsv|txt)$/.test(fname)) {
-            throw new Error("Lütfen GSC export (.csv) dosyası seçin.");
-          }
-          setProgress(10, "Dosya okunuyor", f.name || "CSV");
-          var fileText = await readCsvFileAsText(f);
-          if (fileText.length > 15000000) throw new Error("Dosya çok büyük (max ~15MB).");
-          if (!fileText.trim()) throw new Error("Dosya boş görünüyor.");
-          payload.csv_text = fileText;
-          payload.source_filename = f.name || "upload.csv";
-          setProgress(22, "Dosya hazır", Math.round(fileText.length / 1024) + " KB okundu");
-        } else if (sheets) {
-          payload.sheets_url = sheets;
-          setProgress(18, "Google Sheets", "Sunucu CSV indirecek");
-        } else {
-          throw new Error("CSV dosyası seçin veya Google Sheets URL girin.");
-        }
-        setProgress(26, "Sunucuya gönderiliyor", "Risk analizi ve snapshot");
-        var d = await postBacklinkImportJson(payload, function (ratio, phase) {
-          if (phase === "upload") {
-            var p = 26 + ratio * 54;
-            setProgress(p, "Yükleniyor…", "CSV sunucuya aktarılıyor");
-          } else if (phase === "server") {
-            var p2 = 82 + ratio * 10;
-            setProgress(p2, "İşleniyor…", "Satırlar parse ediliyor, domain risk skoru");
-          }
-        });
-        setProgress(96, "Özet güncelleniyor", "Dashboard yenileniyor");
-        await loadDashboard({ showLoader: false });
-        setProgress(99, "Tamamlanıyor", "");
-        var stEl = document.getElementById("bl-import-status");
-        if (stEl) stEl.textContent = "Tamam: " + blImportResultMessage(d.import || {});
-        document.getElementById("bl-banner").classList.add("hidden");
-        return d;
-      });
-    } catch (e) {
-      showBanner(String(e.message || e));
-    }
-  });
+    blImportBtn.classList.add("hidden");
+    blImportBtn.setAttribute("disabled", "disabled");
+    blImportBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      showBanner("Manuel dosya yükleme kapalı. Veri yalnızca GSC Links scrape ile gelir.");
+    });
   }
+  ["bl-file", "bl-sheets-url", "bl-file-drop", "bl-file-picked", "bl-import-status"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add("hidden");
+    if (el.tagName === "INPUT") el.setAttribute("disabled", "disabled");
+  });
   wireBlFileDrop();
   initBlDomainsTableSort();
   wireBlFilters();
