@@ -1596,15 +1596,44 @@ def _extract_rating_summary_dom(page) -> dict[str, Any]:
       const text = document.body ? (document.body.innerText || '') : '';
       const pick = (re) => {
         const m = text.match(re);
-        return m ? m[1] : null;
+        return m ? String(m[1]).trim() : null;
       };
+      // Önce etiket → sayı; Play bazen sayıyı etiketten önce koyar
+      const pickAround = (labelRe, numRe) => {
+        const m = text.match(labelRe);
+        if (!m) return null;
+        const idx = m.index || 0;
+        const window = text.slice(Math.max(0, idx - 40), idx + m[0].length + 60);
+        const n = window.match(numRe);
+        return n ? String(n[1]).trim() : null;
+      };
+      const ratingNum = /([1-5](?:[.,]\\d{1,3})?)/;
+      const countNum = /([\\d.\\s]{1,20})/;
+      let default_rating =
+        pick(/Varsayılan Google Play puanı[^\\d]{0,40}([1-5](?:[.,]\\d{1,3})?)/i)
+        || pickAround(/Varsayılan Google Play puanı/i, ratingNum)
+        || pick(/Default Google Play rating[^\\d]{0,40}([1-5](?:[.,]\\d{1,3})?)/i);
+      // Zayıf fallback: "Google Play puanı" (TPG/lifetime karışabilir) — sadece Varsayılan yoksa
+      if (!default_rating) {
+        default_rating = pick(/Google Play puanı[^\\d]{0,40}([1-5](?:[.,]\\d{1,3})?)/i);
+      }
+      let users =
+        pick(/Kullanıcılar[^\\d]{0,40}([\\d.\\s]{2,20})/i)
+        || pickAround(/Kullanıcılar/i, countNum);
+      // Kullanıcı satırına puan (4,647) yapışmasın — puan aralığını reddet
+      if (users) {
+        const uf = parseFloat(String(users).replace(',', '.').replace(/\\s/g, ''));
+        if (Number.isFinite(uf) && uf >= 1 && uf <= 5.5) users = null;
+      }
       return {
-        default_rating: pick(/Varsayılan Google Play puanı[^\\d]*([\\d,\\.]+)/i)
-          || pick(/Google Play puanı[^\\d]*([\\d,\\.]+)/i),
-        users: pick(/Kullanıcılar[^\\d]*([\\d\\.\\s]+)/i),
-        ratings_with_reviews: pick(/Yorum içeren puanlar[^\\d]*([\\d\\.\\s]+)/i),
-        lifetime_average: pick(/Yaşam boyu ortalama puan[^\\d]*([\\d,\\.]+)/i)
-          || pick(/Lifetime average rating[^\\d]*([\\d,\\.]+)/i),
+        default_rating,
+        users,
+        ratings_with_reviews:
+          pick(/Yorum içeren puanlar[^\\d]{0,40}([\\d.\\s]+)/i)
+          || pickAround(/Yorum içeren puanlar/i, countNum),
+        lifetime_average:
+          pick(/Yaşam boyu ortalama puan[^\\d]{0,40}([1-5](?:[.,]\\d{1,3})?)/i)
+          || pick(/Lifetime average rating[^\\d]{0,40}([1-5](?:[.,]\\d{1,3})?)/i),
       };
     }"""
     )

@@ -988,22 +988,74 @@ def normalize_reviews(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
 
 def normalize_rating_summary(raw: dict[str, Any] | None) -> dict[str, Any]:
     d = dict(raw) if isinstance(raw, dict) else {}
+
     def _num(s: Any) -> str:
         t = str(s or "").strip().split("\n")[0].strip()
         t = re.sub(r"[^\d,.\s]", "", t).strip()
         return t
+
+    def _as_float(s: str) -> float | None:
+        if not s or s in ("—", "-"):
+            return None
+        t = s.replace(" ", "").replace(",", ".")
+        # binlik ayırıcı nokta: 10.940 → 10940; puan: 4.647
+        if re.fullmatch(r"\d{1,3}(\.\d{3})+", t) and t.count(".") >= 1 and len(t.split(".")[-1]) == 3:
+            # Ambiguous TR: 4.647 is rating; 10.940 is thousands
+            parts = t.split(".")
+            if len(parts) == 2 and parts[0] in ("1", "2", "3", "4", "5") and len(parts[1]) <= 3:
+                try:
+                    return float(t)
+                except ValueError:
+                    return None
+            try:
+                return float(t.replace(".", ""))
+            except ValueError:
+                return None
+        try:
+            return float(t)
+        except ValueError:
+            return None
+
+    def _looks_like_rating(v: float | None) -> bool:
+        return v is not None and 1.0 <= v <= 5.5
+
     rating = _num(d.get("default_rating"))
     users = _num(d.get("users"))
     with_rev = _num(d.get("ratings_with_reviews"))
-    # "Kullanıcılar: 4" yanlış parse — tek haneliyse ve with_rev büyükse boşalt
+    lifetime = _num(d.get("lifetime_average"))
+
+    rating_f = _as_float(rating)
+    users_f = _as_float(users)
+    lifetime_f = _as_float(lifetime)
+
+    # "Kullanıcılar" asla 1–5.5 puan aralığında olamaz → yanlış parse (Varsayılan puan buraya düşmüş)
+    if _looks_like_rating(users_f):
+        # Varsayılan boşsa veya zayıf fallback (ör. 4.604 lifetime/chart) ise Kullanıcılar’daki puanı al
+        if not _looks_like_rating(rating_f):
+            rating = users
+            rating_f = users_f
+        elif lifetime_f is not None and abs(rating_f - lifetime_f) < 0.02:
+            # default ≈ lifetime → muhtemelen yanlış alan; users’daki 4.647 doğru varsayılan
+            rating = users
+            rating_f = users_f
+        elif abs(users_f - rating_f) > 0.005:
+            # İkisi de puan: kullanıcı kanıtı / Reviews sayfası 4,647 → users adayı tercih
+            # (public store ~4.65 ile uyumlu olanı seç)
+            prefer_users = abs(users_f - 4.65) <= abs(rating_f - 4.65)
+            if prefer_users:
+                rating = users
+                rating_f = users_f
+        users = ""
+        users_f = None
+
+    # Tek haneli sahte users + büyük with_rev
     try:
-        if users and with_rev and float(users.replace(".", "").replace(",", ".").split()[0]) < 20:
+        if users and with_rev and float(str(users_f or 0)) < 20:
             if float(re.sub(r"[^\d]", "", with_rev) or "0") > 100:
-                users = with_rev  # sık hata: yanlış alan; UI'da yorum içereni kullanıcılara yazma
-                # aslında users alanı bozuk — boş bırak
                 users = ""
     except Exception:
         pass
+
     return {
         "default_rating": rating or d.get("default_rating") or "—",
         "users": users or "—",

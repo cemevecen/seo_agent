@@ -1017,8 +1017,8 @@
   function setPanelButtonActive(btnEl, on) {
     if (!btnEl) return;
     btnEl.className = on
-      ? "rounded-xl border border-emerald-500 bg-emerald-50 px-3 py-2.5 text-left transition dark:border-emerald-500/70 dark:bg-emerald-950/30"
-      : "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-zinc-700 dark:bg-zinc-950/40 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20";
+      ? "inline-flex h-9 items-center rounded-lg border border-emerald-500 bg-emerald-50 px-3 text-xs font-bold text-emerald-900 transition dark:border-emerald-500/70 dark:bg-emerald-950/30 dark:text-emerald-200"
+      : "inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20";
   }
 
   function openPcPanel(which) {
@@ -4062,6 +4062,12 @@
     var tpgOnly = [];
     tpg.forEach(function (m) {
       var title = String(m.title || "");
+      var rawVal = String((m && m.value) || "").trim().replace(",", ".");
+      // Sahte/parse hatası: "Ortalama puan" 1–5 dışında (ör. 26)
+      if (/^ortalama puan$/i.test(title)) {
+        var nf = parseFloat(rawVal.replace(/[^\d.]/g, ""));
+        if (!Number.isFinite(nf) || nf < 1 || nf > 5.5) return;
+      }
       if (KPI_TITLES[title] && title.indexOf("(") < 0) kpi.push(m);
       else tpgOnly.push(m);
     });
