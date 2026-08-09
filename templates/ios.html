@@ -348,7 +348,7 @@
           </optgroup>
         </select>
       </label>
-      <label id="ia-breakdown-wrap" class="pa-f pa-f--sm hidden">Zaman kırılımı
+      <label id="ia-breakdown-wrap" class="pa-f pa-f--sm">Zaman kırılımı
         <select id="ia-breakdown">
           <option value="date" selected>Gün</option>
           <option value="week">Hafta</option>
@@ -797,14 +797,23 @@
   function syncIaDimFilters() {
     var key = iaSelectedMetrics.length === 1 ? iaSelectedMetrics[0] : "";
     var on = metricSupportsDims(key);
-    [iaBreakdownWrap, iaDimWrap, iaSegmentWrap].forEach(function (el) {
+    // Zaman kırılımı her zaman (Gün/Hafta/Ay)
+    if (iaBreakdownWrap) iaBreakdownWrap.classList.remove("hidden");
+    [iaDimWrap, iaSegmentWrap].forEach(function (el) {
       if (!el) return;
       if (on) el.classList.remove("hidden");
       else el.classList.add("hidden");
     });
+    if (iaBreakdown) {
+      var segOpt = iaBreakdown.querySelector('option[value="segment"]');
+      if (segOpt) {
+        segOpt.disabled = !on;
+        segOpt.hidden = !on;
+      }
+      if (!on && iaBreakdown.value === "segment") iaBreakdown.value = "date";
+    }
     if (!on) {
       if (iaDim) iaDim.value = "overview";
-      if (iaBreakdown) iaBreakdown.value = "date";
       if (iaSegment) {
         iaSegment.innerHTML = '<option value="all">Tümü</option>';
         iaSegment.value = "all";
@@ -965,6 +974,68 @@
     drawMulti(list);
     renderOverviewTable(list);
   }
+  function isoWeekBucketKey(isoDate) {
+    var m = String(isoDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+    if (!m) return String(isoDate || "");
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    var week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    var yy = d.getUTCFullYear();
+    return yy + "-W" + (week < 10 ? "0" : "") + week;
+  }
+  function iaActiveTimeBreakdown() {
+    var br = (iaBreakdown && iaBreakdown.value) || "date";
+    return (br === "week" || br === "month") ? br : "date";
+  }
+  function aggregateIaSeries(series, breakdown, asAvg) {
+    if (!series || !series.length) return [];
+    if (breakdown !== "week" && breakdown !== "month") return series.slice();
+    var buckets = {};
+    var order = [];
+    series.forEach(function (r) {
+      if (!r || r.key == null) return;
+      var src = String(r.key);
+      if (!/^(20\d{2})-\d{2}-\d{2}/.test(src)) {
+        // Zaten hafta/ay anahtarı
+        if (!buckets[src]) {
+          buckets[src] = { key: src, sum: 0, n: 0 };
+          order.push(src);
+        }
+        if (r.value == null || isNaN(Number(r.value))) return;
+        buckets[src].sum += Number(r.value);
+        buckets[src].n += 1;
+        return;
+      }
+      var key = breakdown === "month"
+        ? src.slice(0, 7)
+        : isoWeekBucketKey(src.slice(0, 10));
+      if (!buckets[key]) {
+        buckets[key] = { key: key, sum: 0, n: 0 };
+        order.push(key);
+      }
+      if (r.value == null || isNaN(Number(r.value))) return;
+      buckets[key].sum += Number(r.value);
+      buckets[key].n += 1;
+    });
+    return order.map(function (k) {
+      var b = buckets[k];
+      var v = b.n ? (asAvg ? b.sum / b.n : b.sum) : null;
+      return { key: k, value: v == null ? null : Math.round(v * 10000) / 10000 };
+    });
+  }
+  function applyIaTimeBreakdown(bundles, breakdown) {
+    var br = breakdown || iaActiveTimeBreakdown();
+    if (br !== "week" && br !== "month") return bundles || [];
+    return (bundles || []).map(function (b) {
+      if (!b) return b;
+      var asAvg = b.total_mode === "avg" || b.metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[b.metric]
+        || b.metric === "conversion_rate";
+      return Object.assign({}, b, {
+        series: aggregateIaSeries(b.series || [], br, asAvg)
+      });
+    });
+  }
   function fmtAxisKey(key) {
     var s = String(key || "");
     var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -972,6 +1043,10 @@
       // Tablo kırılımı: gün.ay (1 aydan uzun aralıkta yalnız gün numarası sıra gibi görünmesin)
       return String(parseInt(m[3], 10)) + "." + m[2];
     }
+    var yw = s.match(/^(20\d{2})-W(\d{2})$/i);
+    if (yw) return "W" + yw[2];
+    var ym = s.match(/^(20\d{2})-(\d{2})$/);
+    if (ym) return ym[2] + "/" + ym[1].slice(2);
     return s;
   }
   function iaSelectedRangeDays() {
@@ -989,8 +1064,10 @@
       if (days != null && days < 30) return String(parseInt(m[3], 10));
       return String(parseInt(m[3], 10)) + "." + m[2];
     }
+    var yw = s.match(/^(20\d{2})-W(\d{2})$/i);
+    if (yw) return "W" + yw[2];
     var ym = s.match(/^(20\d{2})-(\d{2})$/);
-    if (ym) return ym[2];
+    if (ym) return ym[2] + "/" + ym[1].slice(2);
     if (s.length > 14) return s.slice(0, 13) + "…";
     return s;
   }
@@ -1197,11 +1274,15 @@
   }
   function drawMulti(bundles) {
     hideIaTooltip();
-    var allList = (bundles || []).filter(function (b) { return b && (b.series || []).length; });
-    iaLastDrawBundles = allList.slice();
-    pruneIaHiddenMetrics(allList);
+    var allDaily = (bundles || []).filter(function (b) { return b && (b.series || []).length; });
+    iaLastDrawBundles = allDaily.slice();
+    pruneIaHiddenMetrics(allDaily);
+    var br = iaActiveTimeBreakdown();
+    var allList = applyIaTimeBreakdown(allDaily, br).filter(function (b) {
+      return b && (b.series || []).length;
+    });
     var list = allList.filter(function (b) { return !isIaMetricHidden(b.metric); });
-    renderIaLegend(allList);
+    renderIaLegend(allDaily);
     if (!list.length) {
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
       iaChart.innerHTML =
@@ -1233,7 +1314,7 @@
         if (nv > max) max = nv;
       });
       if (max <= 0) max = 1;
-      var color = colorForIaBundle(allList, b.metric);
+      var color = colorForIaBundle(allDaily, b.metric);
       var ys = keys.map(function (key) {
         if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
         return top + (1 - map[key] / max) * plotH;
@@ -1275,7 +1356,13 @@
   }
   function drawSingle(series, color) {
     hideIaTooltip();
+    var br = iaActiveTimeBreakdown();
+    var metric = (iaLastChart && iaLastChart.metric) || iaPrimaryMetric() || "";
     var rows = Array.isArray(series) ? series : [];
+    if (br === "week" || br === "month") {
+      var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate";
+      rows = aggregateIaSeries(rows, br, asAvg);
+    }
     if (!rows.length) {
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
       iaChart.innerHTML =
@@ -1305,7 +1392,6 @@
       if (!Object.prototype.hasOwnProperty.call(map, key)) return null;
       return top + (1 - map[key] / max) * plotH;
     });
-    var metric = (iaLastChart && iaLastChart.metric) || iaPrimaryMetric() || "";
     var label = (iaLastChart && iaLastChart.label) || metricLabel(metric) || "Değer";
     var countLike = isCountLike(metric);
     var xAxis = buildIaXAxisLabels(keys, xs, plotW, h);
@@ -1344,7 +1430,7 @@
     bindIaChartHit(w, left, plotW, n);
   }
   function renderOverviewTable(bundles) {
-    var list = bundles || [];
+    var list = applyIaTimeBreakdown(bundles || [], iaActiveTimeBreakdown());
     var keySet = {};
     list.forEach(function (b) {
       (b.series || []).forEach(function (r) { if (r && r.key != null) keySet[String(r.key)] = true; });
@@ -1394,7 +1480,12 @@
   function renderSingleTable(series, metric) {
     iaTheadRow.innerHTML =
       '<th class="px-3 py-2 font-bold">Kırılım</th><th class="px-3 py-2 font-bold">Değer</th>';
+    var br = iaActiveTimeBreakdown();
     var rows = series || [];
+    if (br === "week" || br === "month") {
+      var asAvg = metric === "ga4:avg_session" || !!IA_VIRGUL_AVG[metric] || metric === "conversion_rate";
+      rows = aggregateIaSeries(rows, br, asAvg);
+    }
     if (!rows.length) {
       iaTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       return;
@@ -1440,8 +1531,8 @@
         iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
         iaTotalLabel.textContent = "Overview (first-time downloads)";
         iaCompareRange.textContent = dataChart.scrape_ok
-          ? ("Özet · sync " + (dataChart.scrape_fact_count || "") + " fact (kendi ölçeği)")
-          : "Özet · ASC Sales/API yedek (kendi ölçeği)";
+          ? ("Özet · sync " + (dataChart.scrape_fact_count || "") + " fact (" + (iaActiveTimeBreakdown() === "week" ? "haftalık" : (iaActiveTimeBreakdown() === "month" ? "aylık" : "kendi ölçeği")) + ")")
+          : ("Özet · ASC Sales/API yedek (" + (iaActiveTimeBreakdown() === "week" ? "haftalık" : (iaActiveTimeBreakdown() === "month" ? "aylık" : "kendi ölçeği")) + ")");
         drawMulti(chartBundles);
         renderOverviewTable(chartOnly);
         setLoading(false);

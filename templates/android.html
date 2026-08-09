@@ -1518,14 +1518,25 @@
   function syncPaDimFilters() {
     var key = paSelectedMetrics.length === 1 ? paSelectedMetrics[0] : "";
     var on = !!(key && !isExternalOverlayMetric(key));
-    [paBreakdown, paDim, paSegment].forEach(function (el) {
+    // Boyut / Segment: yalnız tek Play metriğinde
+    [paDim, paSegment].forEach(function (el) {
       if (!el || !el.closest) return;
       var lab = el.closest("label");
       if (lab) lab.classList.toggle("hidden", !on);
     });
+    // Zaman kırılımı (Gün/Hafta/Ay) her zaman görünür
+    if (paBreakdown && paBreakdown.closest) {
+      var brLab = paBreakdown.closest("label");
+      if (brLab) brLab.classList.remove("hidden");
+      var segOpt = paBreakdown.querySelector('option[value="segment"]');
+      if (segOpt) {
+        segOpt.disabled = !on;
+        segOpt.hidden = !on;
+      }
+      if (!on && paBreakdown.value === "segment") paBreakdown.value = "date";
+    }
     if (!on) {
       if (paDim) paDim.value = "overview";
-      if (paBreakdown) paBreakdown.value = "date";
       if (paSegment) {
         paSegment.innerHTML = '<option value="all">Tümü</option>';
         paSegment.value = "all";
@@ -1689,6 +1700,34 @@
       var b = buckets[k];
       var v = b.n ? (asAvg ? b.sum / b.n : b.sum) : null;
       return { key: k, value: v == null ? null : Math.round(v * 10000) / 10000 };
+    });
+  }
+  function paActiveTimeBreakdown() {
+    var br = (paBreakdown && paBreakdown.value) || "date";
+    return (br === "week" || br === "month") ? br : "date";
+  }
+  function metricSeriesAsAvg(metricKey) {
+    var m = metricKey || "";
+    if (m === "rating" || m === "ga4:avg_session") return true;
+    if (PA_VIRGUL_AVG_METRICS && PA_VIRGUL_AVG_METRICS[m]) return true;
+    return false;
+  }
+  function seriesLooksDaily(series) {
+    return (series || []).some(function (r) {
+      return /^(20\d{2})-\d{2}-\d{2}/.test(String(r && r.key || ""));
+    });
+  }
+  /** Günlük seriyi Hafta/Ay kırılımına çevir (özet / çoklu çizim). */
+  function applyTimeBreakdownToBundles(bundles, breakdown) {
+    var br = breakdown || paActiveTimeBreakdown();
+    if (br !== "week" && br !== "month") return bundles || [];
+    return (bundles || []).map(function (b) {
+      if (!b) return b;
+      if (!seriesLooksDaily(b.series)) return b;
+      var asAvg = b.total_mode === "avg" || metricSeriesAsAvg(b.metric);
+      return Object.assign({}, b, {
+        series: aggregateOverlaySeries(b.series || [], br, asAvg)
+      });
     });
   }
   /** Seçili aralıkla aynı uzunlukta bir önceki dönem [start, end]. */
@@ -1884,13 +1923,14 @@
   function refreshOverviewViewFromBundles() {
     if (!paOverviewBundles) return;
     if (!paOverviewActive && paSelectedMetrics.length < 2) return;
-    var visible = visibleOverviewBundles(paOverviewBundles);
+    var br = paActiveTimeBreakdown();
+    var visible = applyTimeBreakdownToBundles(visibleOverviewBundles(paOverviewBundles), br);
     var chartBundles = visible.filter(function (b) { return b.onChart; });
     var anr = visible.find(function (b) { return b.metric === "anrs"; }) || chartBundles[0] || visible[0];
     paLastChart = {
       series: (anr && anr.series) || [],
       prevSeries: [],
-      breakdown: (paBreakdown && paBreakdown.value) || "date",
+      breakdown: br,
       compareMeta: null,
       overview: true,
       chartBundles: chartBundles
@@ -3084,8 +3124,10 @@
       if (dayOnly) return String(parseInt(m[3], 10));
       return m[3] + "-" + m[2];
     }
+    var yw = s.match(/^(20\d{2})-W(\d{2})$/i);
+    if (yw) return "W" + yw[2];
     var ym = s.match(/^(20\d{2})-(\d{2})$/);
-    if (ym) return ym[2];
+    if (ym) return ym[2] + "/" + ym[1].slice(2);
     s = s.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
     if (s.length > 14) s = s.slice(0, 13) + "…";
     return s;
@@ -3870,7 +3912,8 @@
         }
         if (mySeq !== paRunSeq) return;
         paOverviewBundles = bundles;
-        var tableBundles = visibleOverviewBundles(bundles);
+        var brOv = paActiveTimeBreakdown();
+        var tableBundles = applyTimeBreakdownToBundles(visibleOverviewBundles(bundles), brOv);
         var chartBundles = tableBundles.filter(function (b) { return b.onChart; });
         var anr = tableBundles.find(function (b) { return b.metric === "anrs"; }) || chartBundles[0] || tableBundles[0];
         if (paTotal) paTotal.textContent = anr ? fmtNum(anr.total, metricIsCountLike(anr.metric)) : "—";
@@ -3886,13 +3929,14 @@
           } else if (!hasSeries) {
             paCompareRange.textContent = keepNote || "Özet · seçili aralıkta veri yok";
           } else {
-            paCompareRange.textContent = "Özet · çoklu metrik (kendi ölçeği)";
+            var brNote = brOv === "week" ? "haftalık" : (brOv === "month" ? "aylık" : "çoklu metrik");
+            paCompareRange.textContent = "Özet · " + brNote + " (kendi ölçeği)";
           }
         }
         paLastChart = {
           series: (anr && anr.series) || [],
           prevSeries: [],
-          breakdown: "date",
+          breakdown: brOv,
           compareMeta: null,
           overview: true,
           chartBundles: chartBundles
@@ -3955,6 +3999,8 @@
         }));
         if (mySeq !== paRunSeq) return;
         paOverviewBundles = packs;
+        var brMulti = paActiveTimeBreakdown();
+        // fetchOneOverlaySeries hafta/ay'ı zaten uyguladı; çizimde tekrar agregasyon yok
         var multiVisible = visibleOverviewBundles(packs);
         var multiChart = multiVisible.filter(function (b) { return b.onChart; });
         if (paTotal) paTotal.textContent = String(packs.length);
@@ -3962,14 +4008,15 @@
         if (paPrev) paPrev.textContent = "—";
         if (paDelta) paDelta.textContent = "—";
         if (paCompareRange) {
+          var brLabel = brMulti === "week" ? "haftalık" : (brMulti === "month" ? "aylık" : "kendi ölçeği");
           paCompareRange.textContent = softNotes.length
             ? (softNotes.slice(0, 2).join(" · ") + (softNotes.length > 2 ? (" · +" + (softNotes.length - 2)) : ""))
-            : (packs.length + " metrik · kendi ölçeği");
+            : (packs.length + " metrik · " + brLabel);
         }
         paLastChart = {
           series: (multiChart[0] && multiChart[0].series) || [],
           prevSeries: [],
-          breakdown: (paBreakdown && paBreakdown.value) || "date",
+          breakdown: brMulti,
           compareMeta: null,
           overview: false,
           chartBundles: multiChart
