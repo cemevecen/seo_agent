@@ -1394,27 +1394,36 @@
       var seriesCount = Math.max(1, opts.seriesCount || 1);
       var seriesIndex = opts.seriesIndex != null ? opts.seriesIndex : 0;
       var slot = opts.slotWidth;
-      if (!(slot > 0) && list.length > 1) {
-        var minGap = Infinity;
-        for (var gi = 1; gi < list.length; gi++) {
-          var g = Math.abs(list[gi].x - list[gi - 1].x);
-          if (g > 0 && g < minGap) minGap = g;
-        }
-        if (Number.isFinite(minGap)) slot = minGap;
+      if (!(slot > 0)) {
+        slot = list.length > 1 ? Math.abs(list[list.length - 1].x - list[0].x) / (list.length - 1) : 16;
       }
       if (!(slot > 0)) slot = 16;
-      var groupW = Math.min(slot * 0.72, seriesCount > 1 ? 22 : 14);
-      var barW = Math.max(2.2, (groupW / seriesCount) - (seriesCount > 1 ? 0.8 : 0));
+      var groupW = Math.min(slot * 0.68, seriesCount > 1 ? 18 : 12);
+      if (list.length > 45) groupW = Math.min(groupW, seriesCount > 1 ? 10 : 6);
+      else if (list.length > 28) groupW = Math.min(groupW, seriesCount > 1 ? 14 : 9);
+      var colW = groupW / seriesCount;
+      var barW = Math.max(1.6, colW - (seriesCount > 1 ? 0.6 : 0));
       var barOp = opts.barOpacity != null ? opts.barOpacity : 0.82;
-      list.forEach(function (p) {
-        var x0 = p.x - groupW / 2 + seriesIndex * (groupW / seriesCount);
-        var h = Math.max(0.5, Number(baseY) - p.y);
-        html +=
-          '<rect x="' + x0.toFixed(1) + '" y="' + p.y.toFixed(1) +
-          '" width="' + barW.toFixed(1) + '" height="' + h.toFixed(1) +
-          '" rx="1.1" fill="' + color + '" fill-opacity="' + barOp + '" />';
-      });
-      return html;
+      var by = Number(baseY);
+      var xOff = -groupW / 2 + seriesIndex * colW;
+      var parts = [];
+      for (var bi = 0; bi < list.length; bi++) {
+        var p = list[bi];
+        var h = by - p.y;
+        if (!(h > 0.4)) continue;
+        var x0 = p.x + xOff;
+        parts.push(
+          "M" + x0.toFixed(1) + " " + p.y.toFixed(1) +
+          "h" + barW.toFixed(1) +
+          "V" + by.toFixed(1) +
+          "h" + (-barW).toFixed(1) + "Z"
+        );
+      }
+      if (!parts.length) return "";
+      return (
+        '<path d="' + parts.join("") + '" fill="' + color +
+        '" fill-opacity="' + barOp + '" shape-rendering="optimizeSpeed" />'
+      );
     }
     if (style === "area") {
       var areaD = buildIaAreaPath(list, baseY);
@@ -1490,12 +1499,14 @@
     var style = iaChartStyle || "line";
     var baseY = top + plotH;
     var fillOp = list.length > 1 ? 0.12 : 0.22;
+    var barSlot = n > 1 ? plotW / (n - 1) : plotW;
     var paths = seriesList.map(function (s, si) {
       return buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
         strokeW: STROKE,
         fillOpacity: fillOp,
         seriesIndex: si,
-        seriesCount: seriesList.length
+        seriesCount: seriesList.length,
+        slotWidth: barSlot
       });
     }).join("");
     var dots = seriesList.map(function (s, i) {
@@ -1587,7 +1598,10 @@
     var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
     var seriesHtml = buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
       strokeW: STROKE,
-      fillOpacity: 0.26
+      fillOpacity: 0.26,
+      seriesIndex: 0,
+      seriesCount: 1,
+      slotWidth: n > 1 ? plotW / (n - 1) : plotW
     });
     iaChart.innerHTML =
       '<rect width="720" height="260" fill="transparent" />' +
