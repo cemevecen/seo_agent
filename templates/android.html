@@ -513,7 +513,14 @@
         </div>
       </div>
       <div id="pc-stability-free" class="pc-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:4"></div>
-      <p id="pc-stability-free-empty" class="mt-2 hidden text-center text-sm text-slate-400">Crash-free verisi yükleniyor…</p>
+      <div id="pc-stability-free-empty" class="mt-2 flex items-center justify-center py-2" aria-busy="true" aria-label="Loading">
+        <div class="pa-orbit" style="width:1.75rem;height:1.75rem" aria-hidden="true">
+          <span class="pa-orbit__ring" style="border-width:2px"></span>
+          <span class="pa-orbit__ring pa-orbit__ring--mid" style="inset:0.28rem"></span>
+          <span class="pa-orbit__ring pa-orbit__ring--inner" style="inset:0.52rem;border-width:1.5px"></span>
+          <span class="pa-orbit__core" style="inset:0.72rem"></span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4524,7 +4531,7 @@
         var nf = parseFloat(rawVal.replace(/[^\d.]/g, ""));
         if (!Number.isFinite(nf) || nf < 1 || nf > 5.5) return;
       }
-      if ((KPI_TITLES[title] || KPI_TITLES[enTitle]) && title.indexOf("(") < 0) kpi.push(m);
+      if ((KPI_TITLES[title]) && title.indexOf("(") < 0) kpi.push(m);
       else tpgOnly.push(m);
     });
     kpi = kpi.slice(0, 10);
@@ -4712,14 +4719,15 @@
       stabilityFreeEl.innerHTML = "";
       applyStabilityGridCols(4);
       if (stabilityFreeEmpty) {
-        stabilityFreeEmpty.textContent = data.play_error
-          ? ("Crash-free yok — " + data.play_error)
-          : "Crash-free verisi henüz yok";
-        stabilityFreeEmpty.classList.remove("hidden");
+        stabilityFreeEmpty.classList.add("hidden");
+        stabilityFreeEmpty.setAttribute("aria-busy", "false");
       }
       return;
     }
-    if (stabilityFreeEmpty) stabilityFreeEmpty.classList.add("hidden");
+    if (stabilityFreeEmpty) {
+      stabilityFreeEmpty.classList.add("hidden");
+      stabilityFreeEmpty.setAttribute("aria-busy", "false");
+    }
     // Her daim tek satır: 4 kart → 4 sütun; 4'ten az → kart sayısı kadar eşit sütun
     applyStabilityGridCols(cards.length >= 4 ? 4 : cards.length);
     stabilityFreeEl.innerHTML = cards.join("");
@@ -4728,6 +4736,11 @@
   var stabilityFreePromise = null;
   function loadStabilityFree() {
     if (stabilityFreePromise) return stabilityFreePromise;
+    if (stabilityFreeEmpty) {
+      stabilityFreeEmpty.classList.remove("hidden");
+      stabilityFreeEmpty.setAttribute("aria-busy", "true");
+    }
+    if (stabilityFreeEl) stabilityFreeEl.innerHTML = "";
     stabilityFreePromise = fetch("/api/play-console/stability-free", {
       credentials: "same-origin",
       cache: "no-store"
@@ -4739,8 +4752,8 @@
       })
       .catch(function (err) {
         if (stabilityFreeEmpty) {
-          stabilityFreeEmpty.textContent = "Crash-free yüklenemedi";
-          stabilityFreeEmpty.classList.remove("hidden");
+          stabilityFreeEmpty.classList.add("hidden");
+          stabilityFreeEmpty.setAttribute("aria-busy", "false");
         }
         console.warn("stability-free", err);
       })

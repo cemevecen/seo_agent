@@ -76,6 +76,45 @@
     0%, 100% { transform: scale(0.85); opacity: 0.75; }
     50% { transform: scale(1); opacity: 1; }
   }
+  .ia-orbit--sm {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .ia-orbit--sm .ia-orbit__ring { border-width: 2px; }
+  .ia-orbit--sm .ia-orbit__ring--mid { inset: 0.28rem; }
+  .ia-orbit--sm .ia-orbit__ring--inner { inset: 0.52rem; border-width: 1.5px; }
+  .ia-orbit--sm .ia-orbit__core { inset: 0.72rem; }
+  .ia-stability-inline {
+    min-width: 0;
+    max-width: min(22rem, calc(100vw - 10rem));
+  }
+  .ia-stability-inline .ia-stability-grid {
+    width: 100%;
+  }
+  .ia-stability-inline .sf-card {
+    padding: 0.4rem 0.55rem;
+  }
+  .ia-stability-inline .sf-card__title {
+    font-size: 0.5625rem;
+  }
+  .ia-stability-inline .sf-card__value {
+    font-size: clamp(0.85rem, 2.2vw, 1.05rem);
+    margin-top: 0.15rem;
+  }
+  .ia-stability-inline .sf-card__sub,
+  .ia-stability-inline .sf-card__extra {
+    display: none;
+  }
+  .ia-stability-free-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    min-width: 2.75rem;
+  }
+  .ia-stability-free-loading.hidden {
+    display: none;
+  }
   html.dark .ia-orbit__ring { border-top-color: #38bdf8; border-right-color: rgba(56, 189, 248, 0.35); }
   html.dark .ia-orbit__ring--mid { border-top-color: #7dd3fc; }
   html.dark .ia-orbit__ring--inner { border-top-color: #bae6fd; }
@@ -138,6 +177,17 @@
         <p id="ia-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge scrape (Play gibi) · Sales API yedek.</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <div class="ia-stability-inline">
+          <div id="ia-stability-free" class="ia-stability-grid grid gap-1.5" style="--sf-n:1"></div>
+          <div id="ia-stability-free-empty" class="ia-stability-free-loading" aria-busy="true" aria-label="Loading">
+            <div class="ia-orbit ia-orbit--sm" aria-hidden="true">
+              <span class="ia-orbit__ring"></span>
+              <span class="ia-orbit__ring ia-orbit__ring--mid"></span>
+              <span class="ia-orbit__ring ia-orbit__ring--inner"></span>
+              <span class="ia-orbit__core"></span>
+            </div>
+          </div>
+        </div>
         <a href="https://appstoreconnect.apple.com/apps/465599322/analytics/metrics" target="_blank" rel="noopener"
            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
           App Store Connect ↗
@@ -147,17 +197,6 @@
           Yenile
         </button>
       </div>
-    </div>
-    <div class="mt-4 border-t border-slate-100 pt-3 dark:border-zinc-800">
-      <div class="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Crash-free</p>
-          <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Crashlytics · 7d sessions · latest + all versions</p>
-        </div>
-        <a href="/firebase" class="text-[11px] font-semibold text-sky-700 hover:underline dark:text-sky-400">Firebase ↗</a>
-      </div>
-      <div id="ia-stability-free" class="ia-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:4"></div>
-      <p id="ia-stability-free-empty" class="mt-2 text-center text-sm text-slate-400">Crash-free yükleniyor…</p>
     </div>
   </div>
 
@@ -1632,6 +1671,16 @@
     var el = document.getElementById("ia-stability-free");
     var empty = document.getElementById("ia-stability-free-empty");
     if (!el) return;
+    function setLoading(on) {
+      if (!empty) return;
+      if (on) {
+        empty.classList.remove("hidden");
+        empty.setAttribute("aria-busy", "true");
+      } else {
+        empty.classList.add("hidden");
+        empty.setAttribute("aria-busy", "false");
+      }
+    }
     function esc(s) {
       return String(s == null ? "" : s)
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -1645,14 +1694,15 @@
     }
     function card(title, sub, value, pct, extra) {
       return (
-        '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
-          '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
+        '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40" title="' + esc([title, sub, extra].filter(Boolean).join(" · ")) + '">' +
+          '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' + esc(title) + "</p>" +
           (sub ? '<p class="sf-card__sub mt-0.5 text-slate-400">' + esc(sub) + "</p>" : "") +
           '<p class="sf-card__value font-extrabold tabular-nums ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
           (extra ? '<p class="sf-card__extra mt-1 text-slate-500">' + extra + "</p>" : "") +
         "</div>"
       );
     }
+    setLoading(true);
     fetch("/api/play-console/stability-free", { credentials: "same-origin", cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -1670,17 +1720,19 @@
         } else if (ios.overall && ios.overall.crash_free_fmt) {
           cards.push(card("Crashlytics", "All versions · 7d sessions", ios.overall.crash_free_fmt, ios.overall.crash_free_pct));
         }
+        setLoading(false);
         if (!cards.length) {
-          if (empty) empty.textContent = "Crash-free verisi yok (Crashlytics cache ısınana kadar bekleyin)";
+          el.innerHTML = "";
+          el.style.setProperty("--sf-n", "1");
           return;
         }
-        if (empty) empty.classList.add("hidden");
         var n = cards.length >= 4 ? 4 : Math.max(cards.length, 1);
         el.style.setProperty("--sf-n", String(n));
         el.innerHTML = cards.join("");
       })
       .catch(function () {
-        if (empty) empty.textContent = "Crash-free yüklenemedi";
+        setLoading(false);
+        el.innerHTML = "";
       });
   })();
 })();
