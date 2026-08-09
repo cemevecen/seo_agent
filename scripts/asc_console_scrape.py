@@ -90,10 +90,71 @@ def _need_login(page_url: str, title: str, body_sample: str) -> bool:
     b = (body_sample or "").lower()
     if "idmsa.apple.com" in u or "appleid.apple.com" in u:
         return True
-    if "sign in" in t or "oturum aç" in t or "sign-in" in u:
+    if "/login" in u or "authresult=failed" in u or "sign-in" in u:
         return True
-    if "account name" in b or "apple id" in b and "password" in b:
+    if "sign in" in t or "oturum aç" in t:
         return True
+    if "e-posta veya telefon" in b or "email or phone" in b:
+        return True
+    if "geçiş anahtarı ile giriş" in b or "sign in with passkey" in b:
+        return True
+    if ("account name" in b or "apple id" in b) and "password" in b:
+        return True
+    return False
+
+
+def _page_needs_login(page) -> bool:
+    url = ""
+    title = ""
+    body = ""
+    try:
+        url = page.url or ""
+    except Exception:
+        pass
+    try:
+        title = page.title() or ""
+    except Exception:
+        pass
+    try:
+        body = page.locator("body").inner_text(timeout=2500)[:1200]
+    except Exception:
+        pass
+    return _need_login(url, title, body)
+
+
+def _wait_for_asc_session(page, ctx, *, timeout_sec: int = 600) -> bool:
+    """Kullanıcı Playwright Chrome penceresinde giriş yapana kadar bekle."""
+    print(
+        "ASC oturumu yok / düşmüş — bu pencerede Apple ID ile giriş yapın "
+        "(normal Chrome’daki oturum buraya taşınmaz).",
+        flush=True,
+    )
+    deadline = time.time() + max(60, timeout_sec)
+    while time.time() < deadline:
+        if not _page_needs_login(page):
+            # Analytics’e sabitle + cookie yazılsın
+            try:
+                page.goto(
+                    f"https://appstoreconnect.apple.com/apps/{APP_ID}/analytics/metrics",
+                    wait_until="domcontentloaded",
+                    timeout=90_000,
+                )
+            except Exception:
+                pass
+            time.sleep(3)
+            if _page_needs_login(page):
+                time.sleep(2)
+                continue
+            info = _cookie_debug(ctx)
+            print(
+                f"ASC oturumu OK · myacinfo={info.get('has_myacinfo')} · "
+                f"itctx={info.get('has_itctx')} — profil kaydedildi.",
+                flush=True,
+            )
+            time.sleep(2)
+            return True
+        time.sleep(2)
+    print("Login zaman aşımı — tekrar --login deneyin.", flush=True)
     return False
 
 
@@ -129,7 +190,11 @@ def _launch_context(*, headed: bool):
 
 
 def run_login_interactive() -> None:
-    print("ASC login — tarayıcıda Apple ID ile giriş yapın…", flush=True)
+    print(
+        "ASC login — açılan Chrome penceresinde giriş yapın "
+        f"(profil: {PROFILE_DIR}).",
+        flush=True,
+    )
     pw, ctx = _launch_context(headed=True)
     try:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
@@ -138,25 +203,9 @@ def run_login_interactive() -> None:
             wait_until="domcontentloaded",
             timeout=120_000,
         )
-        deadline = time.time() + 600
-        while time.time() < deadline:
-            url = page.url or ""
-            title = ""
-            try:
-                title = page.title()
-            except Exception:
-                pass
-            body = ""
-            try:
-                body = page.locator("body").inner_text(timeout=2000)[:800]
-            except Exception:
-                pass
-            if "appstoreconnect.apple.com" in url and not _need_login(url, title, body):
-                print("ASC oturumu OK — profil kaydedildi.", flush=True)
-                time.sleep(2)
-                return
-            time.sleep(2)
-        print("Login zaman aşımı — tekrar --login deneyin.", flush=True)
+        ok = _wait_for_asc_session(page, ctx, timeout_sec=600)
+        if not ok:
+            return
     finally:
         try:
             ctx.close()
@@ -398,10 +447,6 @@ def _unregister_service_workers(page) -> None:
               if (!('serviceWorker' in navigator)) return 0;
               const regs = await navigator.serviceWorker.getRegistrations();
               for (const r of regs) { try { await r.unregister(); } catch (e) {} }
-              if (window.caches && caches.keys) {
-                const keys = await caches.keys();
-                await Promise.all(keys.map((k) => caches.delete(k)));
-              }
               return regs.length;
             }"""
         )
@@ -687,6 +732,12 @@ def _capture_measures_via_ui(
         except Exception as exc:
             print(f"  UI goto fail {mk}: {exc}", flush=True)
             continue
+        if _page_needs_login(page):
+            print(
+                f"  UI {mk}: login ekranı (auth düşmüş) — scrape durdu",
+                flush=True,
+            )
+            break
         _unregister_service_workers(page)
         try:
             page.evaluate(
@@ -795,13 +846,31 @@ def scrape_asc_console(*, headed: bool | None = None) -> dict[str, Any]:
         except Exception:
             pass
         if _need_login(url0, title0, body0):
-            return {
-                "ok": False,
-                "needs_login": True,
-                "message": "ASC login gerekli — scripts/asc_console_scrape.py --login",
-                "panels": {"explorer_facts": []},
-                "raw_network": [],
-            }
+            if headed:
+                if not _wait_for_asc_session(page, ctx, timeout_sec=600):
+                    return {
+                        "ok": False,
+                        "needs_login": True,
+                        "message": "ASC login gerekli — scripts/asc_console_scrape.py --login",
+                        "panels": {"explorer_facts": []},
+                        "raw_network": [],
+                    }
+                # login sonrası cookie / warm tekrar
+                cookie_info = _cookie_debug(ctx)
+                print(
+                    f"ASC cookies · n={cookie_info.get('count')} · "
+                    f"myacinfo={cookie_info.get('has_myacinfo')} · "
+                    f"itctx={cookie_info.get('has_itctx')}",
+                    flush=True,
+                )
+            else:
+                return {
+                    "ok": False,
+                    "needs_login": True,
+                    "message": "ASC login gerekli — scripts/asc_console_scrape.py --login",
+                    "panels": {"explorer_facts": []},
+                    "raw_network": [],
+                }
 
         end_d = date.today() - timedelta(days=1)
         start_d = end_d - timedelta(days=89)
