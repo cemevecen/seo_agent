@@ -341,7 +341,8 @@
       </label>
       <label class="pa-f pa-f--metric">Metrik
         <select id="pa-metric">
-          <option value="anrs" selected>ANR</option>
+          <option value="" selected>Seçiniz</option>
+          <option value="anrs">ANR</option>
           <option value="crashes">Crash</option>
           <option value="device_acquisition">Cihaz edinme</option>
           <option value="user_lost">Kullanıcı kaybı</option>
@@ -468,9 +469,10 @@
       <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950 dark:from-slate-900 dark:to-slate-900">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
           <div id="pa-legend-line" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
-            <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span><span id="pa-legend-primary-label">Seçili dönem</span></span>
+            <span id="pa-legend-primary" class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span><span id="pa-legend-primary-label">Seçili dönem</span></span>
             <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
             <span id="pa-legend-overlay" class="hidden inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-amber-500 ring-2 ring-amber-500/30"></span><span id="pa-legend-overlay-label">Ek grafik</span></span>
+            <span id="pa-legend-multi" class="hidden flex flex-wrap items-center gap-3"></span>
           </div>
           <div id="pa-legend-stars" class="hidden flex flex-wrap items-center gap-2.5 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
             <span class="mr-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Puan dağılımı</span>
@@ -493,8 +495,6 @@
         </div>
         <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
       </div>
-
-      <div id="pa-overview-charts" class="mt-3 hidden grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"></div>
 
       <div class="mt-4 max-h-96 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
         <table class="min-w-full text-left text-xs">
@@ -1045,11 +1045,12 @@
   var paLegendOverlayLabel = document.getElementById("pa-legend-overlay-label");
   var paLastChart = null; // { series, prevSeries, breakdown, compareMeta }
   var paOverlay = null;   // { metric, label, series, breakdown, dim, segment }
-  var paOverviewActive = true; // ilk açılış: tüm metrikler; ilk filtre sonrası false
+  var paOverviewActive = true; // Seçiniz: çoklu grafik+tablo; metrik seçilince false
   var paOverviewBundles = null;
   var paTheadRow = document.getElementById("pa-thead-row");
   var paDefaultTheadHtml = paTheadRow ? paTheadRow.innerHTML : "";
-  var paOverviewCharts = document.getElementById("pa-overview-charts");
+  var paLegendMulti = document.getElementById("pa-legend-multi");
+  var paLegendPrimary = document.getElementById("pa-legend-primary");
   var paThValue = document.getElementById("pa-th-value");
   var paThOverlay = document.getElementById("pa-th-overlay");
   var paThPrev = document.getElementById("pa-th-prev");
@@ -1061,6 +1062,13 @@
   });
   var paTable = document.getElementById("pa-table");
   var paChartState = null;
+  /** Ana grafikte üst üste çizilecek metrikler */
+  var PA_OVERVIEW_CHART_METRICS = [
+    "anrs", "crashes", "device_acquisition", "user_lost",
+    "ar2_acquisitions", "ar2_visitors", "revenue"
+  ];
+  /** Grafikte yok; yalnızca liste tabloda */
+  var PA_OVERVIEW_TABLE_EXTRA = ["active_devices", "active_users", "rating"];
   var PA_METRIC_COLORS = [
     "#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6",
     "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"
@@ -1086,15 +1094,21 @@
     paTheadRow.innerHTML = paDefaultTheadHtml;
     rebindPaTheadRefs();
   }
-  function listPaMetricOptions() {
-    if (!paMetric) return [];
-    return Array.prototype.map.call(paMetric.options, function (opt) {
-      return { value: opt.value, label: String(opt.textContent || opt.value).trim() };
-    }).filter(function (o) { return !!o.value; });
-  }
   function paMetricColor(i) {
     var pal = paIsDark() ? PA_METRIC_COLORS_DARK : PA_METRIC_COLORS;
     return pal[i % pal.length];
+  }
+  function paOverviewMetricDefs() {
+    var chartSet = {};
+    PA_OVERVIEW_CHART_METRICS.forEach(function (m) { chartSet[m] = true; });
+    var order = PA_OVERVIEW_CHART_METRICS.concat(PA_OVERVIEW_TABLE_EXTRA);
+    return order.map(function (value) {
+      return {
+        value: value,
+        label: metricOptionLabel(value) || value,
+        onChart: !!chartSet[value]
+      };
+    });
   }
   async function fetchPaMetricBundle(metric, signal) {
     var qs = new URLSearchParams({
@@ -1120,81 +1134,162 @@
       total_mode: data.total_mode || "sum"
     };
   }
-  function hideOverviewCharts() {
-    if (!paOverviewCharts) return;
-    paOverviewCharts.classList.add("hidden");
-    paOverviewCharts.innerHTML = "";
-  }
-  function drawMiniMetricChart(svgEl, series, color) {
-    if (!svgEl) return;
-    var rows = series || [];
-    var w = 320, h = 96;
-    var left = 6, right = 6, top = 8, bottom = 6;
-    var plotW = w - left - right;
-    var plotH = h - top - bottom;
-    if (!rows.length) {
-      svgEl.innerHTML =
-        '<text x="160" y="52" text-anchor="middle" fill="#94a3b8" font-size="10">Veri yok</text>';
-      return;
-    }
-    var vals = rows.map(function (r) {
-      var nv = Number(r.value);
-      return Number.isFinite(nv) ? nv : null;
-    });
-    var nums = vals.filter(function (v) { return v != null; });
-    var max = nums.length ? Math.max.apply(null, nums.concat([0])) : 1;
-    if (max <= 0) max = 1;
-    var n = rows.length;
-    var pts = rows.map(function (r, i) {
-      var v = vals[i];
-      if (v == null) return null;
-      var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
-      var y = top + (1 - v / max) * plotH;
-      return { x: x, y: y };
-    });
-    var d = "";
-    pts.forEach(function (p) {
-      if (!p) return;
-      d += (d ? " L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1);
-    });
-    var area = "";
-    var solid = pts.filter(Boolean);
-    if (solid.length) {
-      area =
-        "M " + solid[0].x.toFixed(1) + " " + (top + plotH).toFixed(1) +
-        " L " + solid.map(function (p) { return p.x.toFixed(1) + " " + p.y.toFixed(1); }).join(" L ") +
-        " L " + solid[solid.length - 1].x.toFixed(1) + " " + (top + plotH).toFixed(1) + " Z";
-    }
-    svgEl.setAttribute("viewBox", "0 0 " + w + " " + h);
-    svgEl.innerHTML =
-      (area
-        ? '<path d="' + area + '" fill="' + color + '" fill-opacity="0.12" />'
-        : "") +
-      (d
-        ? '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />'
-        : "");
-  }
-  function renderOverviewCharts(bundles) {
-    if (!paOverviewCharts) return;
-    paOverviewCharts.classList.remove("hidden");
-    paOverviewCharts.innerHTML = (bundles || []).map(function (b, i) {
+  function setOverviewLegend(chartBundles) {
+    if (paLegendPrimary) paLegendPrimary.classList.add("hidden");
+    if (paLegendPrev) paLegendPrev.classList.add("hidden");
+    if (paLegendOverlay) paLegendOverlay.classList.add("hidden");
+    if (!paLegendMulti) return;
+    paLegendMulti.classList.remove("hidden");
+    paLegendMulti.innerHTML = (chartBundles || []).map(function (b, i) {
       var color = paMetricColor(i);
-      var tot = fmtNum(b.total, metricIsCountLike(b.metric));
       return (
-        '<article class="rounded-xl border border-slate-200 bg-slate-50/60 p-2.5 dark:border-zinc-800 dark:bg-zinc-950/50">' +
-          '<div class="flex items-baseline justify-between gap-2 px-0.5">' +
-            '<p class="truncate text-[11px] font-bold text-slate-700 dark:text-zinc-300">' + esc(b.label) + "</p>" +
-            '<p class="shrink-0 text-sm font-extrabold tabular-nums text-slate-900 dark:text-zinc-200">' + esc(tot) + "</p>" +
-          "</div>" +
-          '<svg class="pa-mini-chart mt-1 block h-20 w-full" data-mi="' + i + '" preserveAspectRatio="none" role="img" aria-label="' + esc(b.label) + '"></svg>' +
-        "</article>"
+        '<span class="inline-flex items-center gap-1.5">' +
+          '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
+          esc(shortMetricLabel(b.label, b.metric)) +
+        "</span>"
       );
     }).join("");
-    Array.prototype.forEach.call(paOverviewCharts.querySelectorAll(".pa-mini-chart"), function (svg) {
-      var i = parseInt(svg.getAttribute("data-mi"), 10);
-      var b = bundles[i];
-      if (b) drawMiniMetricChart(svg, b.series, paMetricColor(i));
+  }
+  function clearOverviewLegend() {
+    if (paLegendMulti) {
+      paLegendMulti.classList.add("hidden");
+      paLegendMulti.innerHTML = "";
+    }
+    if (paLegendPrimary) paLegendPrimary.classList.remove("hidden");
+  }
+  function drawOverviewMainChart(chartBundles) {
+    if (!paChart) return;
+    var pal = paChartPalette();
+    var bundles = (chartBundles || []).filter(function (b) {
+      return b && (b.series || []).length;
     });
+    setPaChartLegendMode("line");
+    setOverviewLegend(chartBundles || []);
+    var w = 720, h = 260;
+    var left = 40, right = 16, top = 16, bottom = 36;
+    var plotW = w - left - right;
+    var plotH = h - top - bottom;
+    if (!bundles.length) {
+      paChartState = null;
+      paChart.innerHTML =
+        '<text x="360" y="130" text-anchor="middle" fill="' + pal.axis + '" font-size="13" font-family="ui-sans-serif,system-ui">Grafik için veri yok</text>';
+      hidePaTooltip();
+      return;
+    }
+    // Ortak tarih ekseni (birleşik key sırası)
+    var keySet = {};
+    bundles.forEach(function (b) {
+      (b.series || []).forEach(function (r) {
+        if (r && r.key != null) keySet[String(r.key)] = true;
+      });
+    });
+    var keys = Object.keys(keySet).sort();
+    var n = keys.length;
+    var rows = keys.map(function (k) { return { key: k, value: null }; });
+    var seriesPts = bundles.map(function (b) {
+      var map = {};
+      var max = 0;
+      (b.series || []).forEach(function (r) {
+        if (!r) return;
+        var nv = Number(r.value);
+        if (!Number.isFinite(nv)) return;
+        map[String(r.key)] = nv;
+        if (nv > max) max = nv;
+      });
+      if (max <= 0) max = 1;
+      return {
+        metric: b.metric,
+        label: b.label,
+        map: map,
+        max: max,
+        countLike: metricIsCountLike(b.metric)
+      };
+    });
+    var curPts = keys.map(function (key, i) {
+      var x = left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+      return { x: x, y: top + plotH / 2, key: key };
+    });
+    var linePaths = seriesPts.map(function (sp, si) {
+      var color = paMetricColor(si);
+      var d = "";
+      keys.forEach(function (key, i) {
+        var v = Object.prototype.hasOwnProperty.call(sp.map, key) ? sp.map[key] : null;
+        if (v == null) return;
+        var x = curPts[i].x;
+        var y = top + (1 - v / sp.max) * plotH;
+        d += (d ? " L " : "M ") + x.toFixed(1) + " " + y.toFixed(1);
+      });
+      return { d: d, color: color, sp: sp };
+    });
+    var xAxis = buildPaXAxisLabels(rows, curPts, plotW, h, pal);
+    var yFs = xAxis.layout.yFontSize;
+    var grid = "";
+    var ticks = 4;
+    for (var t = 0; t <= ticks; t++) {
+      var ty = top + (t / ticks) * plotH;
+      var pct = Math.round(100 * (1 - t / ticks));
+      grid +=
+        '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
+        '" stroke="' + pal.grid + '" stroke-width="1" />' +
+        '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) +
+        '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs + '" font-family="ui-sans-serif,system-ui">' +
+        pct + "%</text>";
+    }
+    var pathsHtml = linePaths.map(function (lp) {
+      if (!lp.d) return "";
+      return (
+        '<path d="' + lp.d + '" fill="none" stroke="' + lp.color +
+        '" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" />'
+      );
+    }).join("");
+    paChartState = {
+      mode: "multi",
+      rows: rows,
+      curPts: curPts,
+      prevPts: [],
+      multiSeries: seriesPts.map(function (sp, si) {
+        return {
+          label: sp.label,
+          metric: sp.metric,
+          color: paMetricColor(si),
+          map: sp.map,
+          countLike: sp.countLike
+        };
+      }),
+      baseY: top + plotH,
+      left: left,
+      plotW: plotW
+    };
+    paChart.innerHTML =
+      '<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="transparent" />' +
+      grid +
+      pathsHtml +
+      '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
+      '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
+      '<circle id="pa-hover-dot" cx="0" cy="0" r="4" fill="' + pal.line + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
+      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="0" opacity="0" />' +
+      xAxis.html +
+      '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
+      '" fill="transparent" style="cursor:crosshair" />';
+    var hit = paChart.querySelector("#pa-hit");
+    function idxFromEvent(ev) {
+      var rect = paChart.getBoundingClientRect();
+      var sx = (ev.clientX - rect.left) / Math.max(rect.width, 1) * w;
+      var rel = (sx - left) / Math.max(plotW, 1);
+      var idx = Math.round(rel * (n - 1));
+      return Math.max(0, Math.min(n - 1, idx));
+    }
+    if (hit) {
+      hit.onmousemove = function (ev) {
+        showPaTooltip(idxFromEvent(ev), ev.clientX, ev.clientY);
+      };
+      hit.onmouseleave = hidePaTooltip;
+      hit.ontouchstart = function (ev) {
+        if (!ev.touches || !ev.touches[0]) return;
+        var tch = ev.touches[0];
+        showPaTooltip(idxFromEvent(tch), tch.clientX, tch.clientY);
+      };
+    }
   }
   function renderOverviewTable(bundles) {
     restoreDefaultPaThead();
@@ -1653,7 +1748,12 @@
         "</div>"
       );
     }
-    if (paTipTitle) paTipTitle.textContent = isStars ? fmtTipDateKey(row.key) : String(row.key);
+    var isMulti = paChartState.mode === "multi";
+    if (paTipTitle) {
+      paTipTitle.textContent = isStars
+        ? fmtTipDateKey(row.key)
+        : (isMulti ? fmtAxisKey(row.key, paSelectedRangeDays() != null && paSelectedRangeDays() < 30) : String(row.key));
+    }
     if (paTipStars) {
       if (isStars) {
         paTipStars.classList.remove("hidden");
@@ -1669,7 +1769,22 @@
         paTipStars.innerHTML = "";
       }
     }
-    if (!isStars) {
+    if (isMulti) {
+      var key = String(row.key);
+      if (paTipCur) {
+        paTipCur.classList.remove("hidden");
+        paTipCur.innerHTML = (paChartState.multiSeries || []).map(function (ms) {
+          var v = ms.map && Object.prototype.hasOwnProperty.call(ms.map, key) ? ms.map[key] : null;
+          return tipMetricRow(
+            shortMetricLabel(ms.label, ms.metric),
+            v == null ? "—" : fmtNum(v, ms.countLike),
+            "text-slate-600 dark:text-zinc-300",
+            ms.color
+          );
+        }).join("");
+      }
+      if (paTipPrev) { paTipPrev.classList.add("hidden"); paTipPrev.innerHTML = ""; }
+    } else if (!isStars) {
       var primaryName = (paLegendPrimaryLabel && paLegendPrimaryLabel.textContent) || "Seçili";
       if (paTipCur) {
         paTipCur.classList.remove("hidden");
@@ -1868,6 +1983,7 @@
 
   function drawChart(series, prevSeries, breakdown, compareMeta) {
     if (!paChart) return;
+    clearOverviewLegend();
     var pal = paChartPalette();
     PA_LINE_COLOR = pal.line;
     PA_OVERLAY_COLOR = pal.overlay;
@@ -2154,7 +2270,9 @@
   async function runPlayAnalytics(opts) {
     opts = opts || {};
     if (paBusy) return;
-    if (opts.fromUser) paOverviewActive = false;
+    var metricSelected = !!(paMetric && paMetric.value);
+    if (opts.fromUser && metricSelected) paOverviewActive = false;
+    if (!metricSelected) paOverviewActive = true;
     paBusy = true;
     setPaLoading(true);
     if (paAbort) {
@@ -2163,7 +2281,7 @@
     paAbort = typeof AbortController !== "undefined" ? new AbortController() : null;
     var timer = paAbort ? setTimeout(function () { try { paAbort.abort(); } catch (_) {} }, 90000) : null;
     try {
-      // İlk açılış: tüm metrikleri tablo + mini grafik olarak yükle
+      // Seçiniz / ilk açılış: seçili metrikler ana grafikte üst üste + geniş tablo
       if (paOverviewActive) {
         setCompareKpisVisible(false);
         setCompareNote("");
@@ -2172,35 +2290,40 @@
         setOverlayColVisible(false);
         paOverlay = null;
         closeOverlayPanel(false);
-        var metricOpts = listPaMetricOptions();
-        var bundles = await Promise.all(metricOpts.map(function (m) {
+        var defs = paOverviewMetricDefs();
+        var bundles = await Promise.all(defs.map(function (m) {
           return fetchPaMetricBundle(m.value, paAbort ? paAbort.signal : undefined).catch(function () {
-            return { metric: m.value, label: m.label, series: [], total: null, total_mode: "sum" };
+            return { metric: m.value, label: m.label, series: [], total: null, total_mode: "sum", onChart: m.onChart };
+          }).then(function (b) {
+            b.onChart = m.onChart;
+            b.label = m.label || b.label;
+            return b;
           });
         }));
         paOverviewBundles = bundles;
-        var primary = bundles.find(function (b) {
-          return b.metric === ((paMetric && paMetric.value) || "anrs");
-        }) || bundles[0];
-        if (paTotal) paTotal.textContent = primary ? fmtNum(primary.total, metricIsCountLike(primary.metric)) : "—";
-        if (paTotalLabel) paTotalLabel.textContent = "Toplam / seçili";
+        var chartBundles = bundles.filter(function (b) { return b.onChart; });
+        var tableBundles = bundles;
+        var anr = bundles.find(function (b) { return b.metric === "anrs"; }) || chartBundles[0];
+        if (paTotal) paTotal.textContent = anr ? fmtNum(anr.total, metricIsCountLike(anr.metric)) : "—";
+        if (paTotalLabel) paTotalLabel.textContent = "Özet (ANR toplam)";
         if (paPrev) paPrev.textContent = "—";
         if (paDelta) paDelta.textContent = "—";
-        if (paCompareRange) paCompareRange.textContent = "Özet · tüm metrikler";
+        if (paCompareRange) paCompareRange.textContent = "Özet · çoklu metrik (kendi ölçeği)";
         paLastChart = {
-          series: (primary && primary.series) || [],
+          series: (anr && anr.series) || [],
           prevSeries: [],
           breakdown: "date",
-          compareMeta: null
+          compareMeta: null,
+          overview: true,
+          chartBundles: chartBundles
         };
-        drawChart(paLastChart.series, [], "date", null);
-        renderOverviewCharts(bundles);
-        renderOverviewTable(bundles);
+        drawOverviewMainChart(chartBundles);
+        renderOverviewTable(tableBundles);
         setAddChartVisible(false);
         return;
       }
 
-      hideOverviewCharts();
+      clearOverviewLegend();
       paOverviewBundles = null;
       var qs = new URLSearchParams({
         start: paStart.value,
@@ -2283,7 +2406,7 @@
       if (paTable) paTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       if (paChart) paChart.innerHTML = "";
       if (paCompareRange) paCompareRange.textContent = "";
-      hideOverviewCharts();
+      clearOverviewLegend();
       setCompareNote("");
       setCompareColsVisible(false);
       setReviewSplitColsVisible(false);
@@ -2428,6 +2551,11 @@
   }
   if (paMetric) {
     paMetric.addEventListener("change", function () {
+      if (!paMetric.value) {
+        paOverviewActive = true;
+        runPlayAnalytics();
+        return;
+      }
       resetPaFiltersForMetricChange();
       runPlayAnalytics({ fromUser: true });
     });
@@ -3253,6 +3381,11 @@
 
   if (btn) btn.addEventListener("click", refreshPage);
   window.addEventListener("seo-theme-change", function () {
+    if (paOverviewActive && paOverviewBundles) {
+      var chartBundles = paOverviewBundles.filter(function (b) { return b.onChart; });
+      drawOverviewMainChart(chartBundles);
+      return;
+    }
     if (paLastChart) {
       drawChart(
         paLastChart.series,
@@ -3260,9 +3393,6 @@
         paLastChart.breakdown,
         paLastChart.compareMeta
       );
-    }
-    if (paOverviewActive && paOverviewBundles) {
-      renderOverviewCharts(paOverviewBundles);
     }
   });
   // İlk açılışta snapshot + (yorum azsa) store senkronu
