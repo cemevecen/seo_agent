@@ -544,20 +544,23 @@ def _capture_measures_via_ui(page, measure_keys: list[str]) -> list[dict[str, An
     try:
         for mk in measure_keys:
             url = _metrics_page_url(mk)
+            before = len(captured_bodies)
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=90_000)
             except Exception as exc:
                 print(f"  UI goto fail {mk}: {exc}", flush=True)
                 continue
-            for _ in range(16):
+            for _ in range(20):
                 time.sleep(0.5)
                 try:
                     page.wait_for_load_state("networkidle", timeout=2000)
                 except Exception:
                     pass
-                if captured_bodies:
+                if len(captured_bodies) > before:
                     break
-            time.sleep(1.2)
+            got = len(captured_bodies) - before
+            print(f"  UI {mk}: +{got} XHR", flush=True)
+            time.sleep(0.8)
     finally:
         try:
             page.remove_listener("response", on_response)
