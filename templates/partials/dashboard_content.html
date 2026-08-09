@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v12">
+<style id="home-site-borders" data-home-css="v13">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -1140,6 +1140,12 @@
     #home-board[data-home-focus="sinemalar"] .home-project-head--sinemalar .home-focus-chev {
       opacity: 0.35;
       pointer-events: none;
+    }
+
+    /* Genişletilen markanın başlık logosu gizlensin (rail + split madalyon kalır) */
+    #home-board[data-home-focus="doviz"] .home-project-head--doviz .home-project-head-main > .home-project-logo,
+    #home-board[data-home-focus="sinemalar"] .home-project-head--sinemalar .home-project-head-main > .home-project-logo {
+      display: none;
     }
 
     #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="doviz"],
