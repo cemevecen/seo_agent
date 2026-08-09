@@ -1341,6 +1341,32 @@
     if (n == null || isNaN(n)) return "—";
     return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: d == null ? 0 : d });
   }
+  /** ISO/UTC → Europe/Istanbul görüntü (TSİ). */
+  function fmtTsTR(raw) {
+    if (raw == null || raw === "" || raw === "—") return "—";
+    var s = String(raw).trim();
+    if (!s || s === "—") return "—";
+    var normalized = s;
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(s) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
+      normalized = s.replace(" ", "T") + "Z";
+    }
+    var d = new Date(normalized);
+    if (isNaN(d.getTime())) return s;
+    try {
+      return d.toLocaleString("tr-TR", {
+        timeZone: "Europe/Istanbul",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }) + " TSİ";
+    } catch (_) {
+      return s;
+    }
+  }
   function isDark() {
     return document.documentElement.classList.contains("dark")
       || document.documentElement.classList.contains("midnight");
@@ -2556,7 +2582,7 @@
           ? "admin"
           : (src || "—");
       meta.textContent =
-        "son senkron: " + (data.fetched_at || data.background_synced_at || "—") +
+        "son senkron: " + fmtTsTR(data.fetched_at || data.background_synced_at || "—") +
         " · " + fmt(s.total) + " kayıt" +
         " · " + srcLabel +
         (data.min_id ? " · id≥" + data.min_id : "") +
@@ -2566,7 +2592,7 @@
     var bg = $("dn-bg-sync");
     if (bg && DN_SHOW_BG_SYNC) {
       var health = data.sync_health || (data.sync_ok === false ? "error" : (data.sync_stale ? "stale" : "ok"));
-      var bgAt = data.background_synced_at || data.fetched_at || "—";
+      var bgAt = fmtTsTR(data.background_synced_at || data.fetched_at || "—");
       var mode = data.sync_mode ? (" · " + data.sync_mode) : "";
       var age = data.sync_age_sec != null
         ? (" · " + Math.max(0, Math.round(data.sync_age_sec / 60)) + " dk önce")
