@@ -83,6 +83,9 @@ PLAY_AUTO_INTERVAL_SEC = int(
 GSC_LINKS_AUTO_INTERVAL_SEC = int(
     os.environ.get("GSC_LINKS_BRIDGE_INTERVAL_SEC") or str(12 * 60 * 60)
 )
+# Ad Manager Policy — günde 1 kez 02:00 Europe/Istanbul
+POLICY_AUTO_HOUR = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_HOUR") or "2")
+POLICY_AUTO_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "0")
 # Eski ayar: her N. bildirim turunda haber (NEWS_BRIDGE_INTERVAL_SEC yoksa)
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
@@ -133,6 +136,7 @@ _virgul_lock = threading.Lock()
 _play_lock = threading.Lock()
 _asc_lock = threading.Lock()
 _gsc_links_lock = threading.Lock()
+_policy_lock = threading.Lock()
 _last_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -140,6 +144,8 @@ _last_play_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmad
 _last_asc_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_links_auto_at = 0.0
+_last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_policy_auto_date = ""
 _news_progress: dict[str, Any] = {
     "running": False,
     "phase": "idle",
@@ -669,6 +675,74 @@ def run_gsc_links_bridge_once() -> dict[str, Any]:
     return out
 
 
+def run_admanager_policy_bridge_once() -> dict[str, Any]:
+    """Ad Manager Policy Center scrape → Railway /api/policy/ingest."""
+    global _last_policy_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_policy_result = err
+        return err
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "admanager_policy_scrape.py"
+        spec = importlib.util.spec_from_file_location("admanager_policy_scrape", path)
+        if spec is None or spec.loader is None:
+            err = {"ok": False, "message": "admanager_policy_scrape.py yüklenemedi"}
+            _last_policy_result = err
+            return err
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        scrape_fn = mod.scrape_admanager_policy
+        ingest_fn = mod.ingest_scrape_result
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "message": f"admanager_policy_scrape import: {exc}"}
+        _last_policy_result = err
+        return err
+
+    print("Ad Manager Policy scrape başlıyor…", flush=True)
+    env_hl = (os.environ.get("ADMANAGER_POLICY_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    result = scrape_fn(headed=headed)
+    if result.get("needs_login"):
+        out = {
+            "ok": False,
+            "kind": "admanager_policy",
+            "needs_login": True,
+            "message": result.get("message") or "Ad Manager login gerekli (--login)",
+        }
+        _last_policy_result = out
+        return out
+    try:
+        os.environ.setdefault(
+            "ADMANAGER_POLICY_INGEST_URL",
+            "https://projectcontrol.up.railway.app/api/policy/ingest",
+        )
+        if hasattr(mod, "INGEST_URL"):
+            mod.INGEST_URL = os.environ["ADMANAGER_POLICY_INGEST_URL"]
+        ing = ingest_fn(result)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "admanager_policy", "message": f"Ingest hata: {exc}"}
+        _last_policy_result = out
+        return out
+    out = {
+        "ok": bool(ing.get("ok")) and bool(result.get("ok")),
+        "kind": "admanager_policy",
+        "http_status": ing.get("http_status"),
+        "row_count": len(result.get("rows") or []),
+        "message": result.get("message") or ing.get("message") or "Policy sync",
+        "needs_login": False,
+        "ingest": {
+            k: ing.get(k)
+            for k in ("ok", "message", "imported", "new_count", "updated_count")
+            if k in ing or k == "ok"
+        },
+    }
+    _last_policy_result = out
+    print(f"Ad Manager Policy sync · {out['message']}", flush=True)
+    return out
+
+
 def run_asc_bridge_once() -> dict[str, Any]:
     """App Store Connect analytics scrape → Railway ingest."""
     global _last_asc_result
@@ -1186,6 +1260,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 "GSC Links sync zaten çalışıyor, bekleyin.",
                 run_gsc_links_bridge_once,
             )
+        elif path in ("/sync-policy", "/policy", "/sync-admanager-policy"):
+            lock, busy, runner = (
+                _policy_lock,
+                "Ad Manager Policy sync zaten çalışıyor, bekleyin.",
+                run_admanager_policy_bridge_once,
+            )
         elif path in ("/sync-asc", "/asc", "/sync-ios"):
             lock, busy, runner = (
                 _asc_lock,
@@ -1241,9 +1321,29 @@ def _should_run_gsc_links_auto() -> bool:
     return (time.time() - _last_gsc_links_auto_at) >= max(600, GSC_LINKS_AUTO_INTERVAL_SEC)
 
 
+def _should_run_policy_auto() -> bool:
+    """Europe/Istanbul 02:00 civarı, günde bir."""
+    global _last_policy_auto_date
+    try:
+        from zoneinfo import ZoneInfo
+
+        now = __import__("datetime").datetime.now(ZoneInfo("Europe/Istanbul"))
+    except Exception:
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc) + timedelta(hours=3)
+    today = now.strftime("%Y-%m-%d")
+    if _last_policy_auto_date == today:
+        return False
+    # 02:00–02:45 penceresi (daemon sleep ~30 dk olabilir)
+    minutes = now.hour * 60 + now.minute
+    target = POLICY_AUTO_HOUR * 60 + POLICY_AUTO_MINUTE
+    return target <= minutes <= target + 45
+
+
 def _auto_loop() -> None:
     """Notification/news ve Virgül ayrı kilit — hepsi ~30 dk; hata → e-posta."""
-    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at, _last_gsc_links_auto_at
+    global _auto_cycle, _last_news_auto_at, _last_virgul_auto_at, _last_play_auto_at, _last_gsc_links_auto_at, _last_policy_auto_date
     while True:
         if _nt_lock.acquire(blocking=False):
             try:
@@ -1362,6 +1462,35 @@ def _auto_loop() -> None:
             )
             print(f"GSC Links auto atlandı (sonraki ~{left_g}s)", flush=True)
 
+        if _should_run_policy_auto():
+            if _policy_lock.acquire(blocking=False):
+                try:
+                    try:
+                        pol = run_admanager_policy_bridge_once()
+                        try:
+                            from zoneinfo import ZoneInfo
+
+                            _last_policy_auto_date = __import__("datetime").datetime.now(
+                                ZoneInfo("Europe/Istanbul")
+                            ).strftime("%Y-%m-%d")
+                        except Exception:
+                            from datetime import datetime, timezone, timedelta
+
+                            _last_policy_auto_date = (
+                                datetime.now(timezone.utc) + timedelta(hours=3)
+                            ).strftime("%Y-%m-%d")
+                        if pol.get("ok"):
+                            _note_auto_success("admanager_policy")
+                        else:
+                            _notify_auto_failure("admanager_policy", pol)
+                    except Exception as exc:
+                        traceback.print_exc()
+                        _notify_auto_failure("admanager_policy", exc=exc)
+                finally:
+                    _policy_lock.release()
+            else:
+                print("Auto Policy atlandı (manuel sync sürüyor)", flush=True)
+
         time.sleep(max(60, AUTO_INTERVAL_SEC))
 
 
@@ -1376,9 +1505,9 @@ def run_daemon() -> int:
     )
     print(
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
-        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-gsc-links | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
+        f"(POST /sync | /sync-news | /sync-virgul | /sync-play | /sync-gsc-links | /sync-policy | /sync-all, notify={AUTO_INTERVAL_SEC}s, "
         f"{news_mode}, virgul={VIRGUL_AUTO_INTERVAL_SEC}s, play={PLAY_AUTO_INTERVAL_SEC}s, "
-        f"gsc_links={GSC_LINKS_AUTO_INTERVAL_SEC}s)",
+        f"gsc_links={GSC_LINKS_AUTO_INTERVAL_SEC}s, policy=02:00 TR)",
         flush=True,
     )
     try:

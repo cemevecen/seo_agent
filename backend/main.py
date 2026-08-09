@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Localhost development için insecure OAuth transport'u allow et
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Request, Response, UploadFile, Depends
+from fastapi import BackgroundTasks, FastAPI, File, Form, Query, Request, Response, UploadFile, Depends
 from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
@@ -61,6 +61,7 @@ from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.asc_console import router as asc_console_router
 from backend.api.pagespeed_web import router as pagespeed_web_router
 from backend.api.gsc_links import router as gsc_links_router
+from backend.api.policy_ingest import router as policy_ingest_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -1039,6 +1040,7 @@ app.include_router(doviz_news_router, prefix="/api")
 app.include_router(play_console_router, prefix="/api")
 app.include_router(pagespeed_web_router, prefix="/api")
 app.include_router(gsc_links_router, prefix="/api")
+app.include_router(policy_ingest_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
 app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(asc_console_router, prefix="/api")
@@ -20469,27 +20471,43 @@ async def api_boards_move(request: Request):
 @app.get("/policy", response_class=HTMLResponse)
 def policy_page(
     request: Request,
+    host: str = Query(default="all"),
     db: Session = Depends(get_db),
 ):
     from backend.services import policy_csv as pcsv
 
+    host_key = (host or "all").strip().lower()
+    if host_key not in ("all", "sinemalar.com", "m.sinemalar.com"):
+        host_key = "all"
+
     try:
         stats = pcsv.get_stats(db)
         last_upload = pcsv.get_latest_upload(db)
-        # Son CSV upload'ından önce eklenmiş satırları belirlemek için 60 sn tolerans
-        # (import_rows save_csv_blob'dan birkaç ms önce çalışır).
         new_threshold = None
         if last_upload and last_upload.uploaded_at:
             new_threshold = last_upload.uploaded_at - timedelta(seconds=60)
         violations = pcsv.get_violations(
-            db, status="all", category="all", order_by="ad_requests",
+            db,
+            status="all",
+            category="all",
+            order_by="ad_requests",
             new_threshold=new_threshold,
+            host=host_key,
         )
         title_job = pcsv.get_title_job_state()
     except Exception as _e:
         LOGGER.exception("policy_page hata: %s", _e)
-        stats = {"total": 0, "new": 0, "with_title": 0, "without_title": 0,
-                 "total_ad_requests_7d": 0, "last_fetch": None, "by_category": {}, "by_status": {}}
+        stats = {
+            "total": 0,
+            "new": 0,
+            "with_title": 0,
+            "without_title": 0,
+            "total_ad_requests_7d": 0,
+            "last_fetch": None,
+            "by_category": {},
+            "by_status": {},
+            "by_host": {},
+        }
         violations = []
         last_upload = None
         title_job = {"running": False, "done": 0, "total": 0}
@@ -20503,9 +20521,10 @@ def policy_page(
             "new_count": last_upload.new_count,
             "updated_count": last_upload.updated_count,
             "uploaded_at": last_upload.uploaded_at.strftime("%Y-%m-%d %H:%M") if last_upload.uploaded_at else "",
+            "is_scrape": "scrape" in (last_upload.filename or "").lower()
+            or (last_upload.filename or "").endswith(".json"),
         }
         if last_upload.uploaded_at:
-            # Yeni satırları işaretlemek için ISO timestamp (template karşılaştırmasında kullanılır)
             last_upload_iso = last_upload.uploaded_at.isoformat()
 
     ctx = {
@@ -20515,6 +20534,7 @@ def policy_page(
         "last_upload": last_upload_info,
         "last_upload_iso": last_upload_iso,
         "title_job": title_job,
+        "host_filter": host_key,
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/policy_content.html", ctx)
@@ -20523,37 +20543,18 @@ def policy_page(
 
 @app.post("/api/policy/upload")
 async def api_policy_upload(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """CSV yükle → DB'ye UPSERT et → arka planda sayfa başlıklarını çek."""
-    from backend.services import policy_csv as pcsv
-
-    content = await file.read()
-    if not content:
-        return JSONResponse({"ok": False, "error": "Boş dosya."}, status_code=400)
-    if len(content) > 20 * 1024 * 1024:
-        return JSONResponse({"ok": False, "error": "Dosya 20MB'dan büyük."}, status_code=400)
-
-    rows, headers, err = pcsv.parse_csv(content)
-    if err:
-        return JSONResponse({"ok": False, "error": err, "headers": headers}, status_code=400)
-    if not rows:
-        return JSONResponse({"ok": False, "error": "CSV'de işlenebilir satır yok."}, status_code=400)
-
-    new_count, upd_count = pcsv.import_rows(db, rows)
-    pcsv.save_csv_blob(
-        db, filename=file.filename or "policy.csv", content=content,
-        row_count=len(rows), new_count=new_count, updated_count=upd_count,
+    """CSV yükleme kaldırıldı — yalnızca Ad Manager scrape ingest."""
+    return JSONResponse(
+        {
+            "ok": False,
+            "error": (
+                "CSV yükleme kapatıldı. Veri Mac bridge scrape ile gelir: "
+                "scripts/admanager_policy_scrape.py --sync --ingest "
+                "(günde 02:00 otomatik)."
+            ),
+        },
+        status_code=410,
     )
-
-    # Arka planda eksik sayfa başlıklarını çek
-    pcsv.start_title_job(SessionLocal, only_missing=True)
-
-    return JSONResponse({
-        "ok": True,
-        "row_count": len(rows),
-        "new_count": new_count,
-        "updated_count": upd_count,
-        "title_job_started": True,
-    })
 
 
 @app.post("/api/policy/fetch-titles")
