@@ -139,7 +139,10 @@ def _overlay_live_ratings(payload: dict[str, Any], package_name: str) -> dict[st
             snap = play_console_payload(db) or {}
         rs = snap.get("rating_summary") if isinstance(snap.get("rating_summary"), dict) else {}
         raw = rs.get("default_rating")
-        if raw not in (None, "", "—"):
+        users_raw = rs.get("users")
+        # Özet'te Kullanıcılar doluysa default_rating güvenilir; değilse public store skorunu kullan
+        users_ok = users_raw not in (None, "", "—")
+        if users_ok and raw not in (None, "", "—"):
             try:
                 score = float(str(raw).replace(",", "."))
             except (TypeError, ValueError):
