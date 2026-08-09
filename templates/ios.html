@@ -656,8 +656,15 @@
     setIaPanelButtonActive(iaBtnReviews, false);
     setIaPanelButtonActive(iaBtnOverview, true);
   }
-  var CHART_METRICS = ["units", "redownloads", "impressions"];
-  var TABLE_EXTRA = ["page_views", "conversion_rate", "iap", "paying_users", "proceeds", "active_subscriptions"];
+  var CHART_METRICS = [
+    "crashes",
+    "ga4:sessions",
+    "ga4:users",
+    "ga4:page_views",
+    "virgul:net_revenue",
+    "virgul:matched_request"
+  ];
+  var TABLE_EXTRA = [];
   var IA_GA4_METRICS = [
     { value: "ga4:sessions", label: "GA4 · Sessions" },
     { value: "ga4:users", label: "GA4 · Users" },
@@ -723,7 +730,14 @@
   var overviewActive = false;
   var runSeq = 0;
   var abortCtrl = null;
-  var iaSelectedMetrics = ["crashes"];
+  var iaSelectedMetrics = [
+    "crashes",
+    "ga4:sessions",
+    "ga4:users",
+    "ga4:page_views",
+    "virgul:net_revenue",
+    "virgul:matched_request"
+  ];
   var iaMetricDirty = false;
   var iaLastPrimaryMetric = "";
   var iaLastChart = null;
@@ -1902,34 +1916,70 @@
       if (overviewActive) {
         iaLastPrimaryMetric = "";
         iaLastChart = null;
-        var chartPromise = fetchOverviewMetrics(CHART_METRICS, signal);
-        var tablePromise = fetchOverviewMetrics(TABLE_EXTRA, signal);
-        var dataChart = await chartPromise;
-        if (my !== runSeq) return;
-        applyOverviewStatus(dataChart);
-        var chartOnly = mapOverviewBundles(dataChart.bundles);
-        iaOverviewBundles = chartOnly;
-        iaOverviewCacheKey = iaStart.value + "|" + iaEnd.value;
-        var chartBundles = chartOnly.filter(function (b) { return b.onChart; });
-        var units = chartOnly.find(function (b) { return b.metric === "units"; }) || chartBundles[0];
-        iaTotal.textContent = units ? fmtNum(units.total, true) : "—";
-        iaTotalLabel.textContent = "Overview (first-time downloads)";
-        iaCompareRange.textContent = "";
-        drawMulti(chartBundles);
-        renderOverviewTable(chartOnly);
-        setLoading(false);
-
-        var dataTable = await tablePromise;
-        if (my !== runSeq) return;
-        var extra = mapOverviewBundles(dataTable.bundles);
+        var allMetrics = CHART_METRICS.concat(TABLE_EXTRA);
+        var ascList = allMetrics.filter(function (m) { return !isExternalMetric(m); });
+        var extList = allMetrics.filter(isExternalMetric);
         var byMetric = {};
-        chartOnly.concat(extra).forEach(function (b) { byMetric[b.metric] = b; });
-        var bundles = CHART_METRICS.concat(TABLE_EXTRA).map(function (m) {
-          return byMetric[m] || { metric: m, label: metricLabel(m), series: [], total: null, onChart: CHART_METRICS.indexOf(m) >= 0 };
+        if (ascList.length) {
+          var dataAsc = await fetchOverviewMetrics(ascList, signal);
+          if (my !== runSeq) return;
+          applyOverviewStatus(dataAsc);
+          mapOverviewBundles(dataAsc.bundles).forEach(function (b) {
+            if (b && b.metric) byMetric[b.metric] = b;
+          });
+        }
+        if (extList.length) {
+          var extPacks = await Promise.all(extList.map(function (metricKey) {
+            return fetchExternalSeries(metricKey, signal).then(function (pack) {
+              return {
+                metric: metricKey,
+                label: pack.label || metricLabel(metricKey),
+                series: pack.series || [],
+                total: pack.total,
+                total_mode: pack.total_mode || "sum",
+                onChart: CHART_METRICS.indexOf(metricKey) >= 0,
+                source: pack.source || (isVirgulMetric(metricKey) ? "virgul" : "ga4")
+              };
+            }).catch(function (err) {
+              console.warn("overview ext", metricKey, err);
+              return {
+                metric: metricKey,
+                label: metricLabel(metricKey),
+                series: [],
+                total: null,
+                total_mode: "sum",
+                onChart: CHART_METRICS.indexOf(metricKey) >= 0,
+                source: isVirgulMetric(metricKey) ? "virgul" : "ga4"
+              };
+            });
+          }));
+          if (my !== runSeq) return;
+          extPacks.forEach(function (b) {
+            if (b && b.metric) byMetric[b.metric] = b;
+          });
+        }
+        var bundles = allMetrics.map(function (m) {
+          var b = byMetric[m];
+          if (b) {
+            b.onChart = CHART_METRICS.indexOf(m) >= 0;
+            return b;
+          }
+          return {
+            metric: m,
+            label: metricLabel(m),
+            series: [],
+            total: null,
+            onChart: CHART_METRICS.indexOf(m) >= 0
+          };
         });
         iaOverviewBundles = bundles;
         iaOverviewCacheKey = iaStart.value + "|" + iaEnd.value;
-        drawMulti(bundles.filter(function (b) { return b.onChart; }));
+        var chartBundles = bundles.filter(function (b) { return b.onChart; });
+        var head = bundles.find(function (b) { return b.metric === "crashes"; }) || chartBundles[0] || bundles[0];
+        iaTotal.textContent = head ? fmtNum(head.total, isCountLike(head.metric)) : "—";
+        iaTotalLabel.textContent = "Overview";
+        iaCompareRange.textContent = "";
+        drawMulti(chartBundles);
         renderOverviewTable(bundles);
         return;
       }
