@@ -405,12 +405,12 @@ def ingest_scrape_payload(db, payload: dict[str, Any]) -> dict[str, Any]:
             return {"ok": False, "message": f"csv_base64 decode: {exc}"}
 
     if not rows:
-        return {"ok": False, "message": "Sinemalar satırı yok — filtre/scrape kontrol et"}
+        return {"ok": False, "message": "Sinemalar satırı yok — filtre veya tarama kaynağını kontrol et"}
 
     new_count, upd_count = import_rows(db, rows)
     pruned = prune_non_sinemalar(db)
 
-    filename = f"admanager-policy-scrape-{datetime.utcnow().strftime('%Y%m%d-%H%M')}.json"
+    filename = f"admanager-policy-{datetime.utcnow().strftime('%Y%m%d-%H%M')}.json"
     blob = json.dumps(
         {
             "source": payload.get("source"),

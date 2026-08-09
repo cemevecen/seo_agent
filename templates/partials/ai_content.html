@@ -392,7 +392,7 @@ html.midnight .ab-section-hd { border-bottom-color: #1c1c1c; }
     <span class="ab-signal-num">{{ _pol_total }}</span>
     <span class="ab-signal-sub">
       {% set _pol_cats = _pol_by_cat.keys() | list %}
-      {% if _pol_cats %}{{ _pol_cats[:3] | join(' · ') }}{% else %}Ad Manager Policy scrape{% endif %}
+      {% if _pol_cats %}{{ _pol_cats[:3] | join(' · ') }}{% else %}Ad Manager Policy{% endif %}
     </span>
   </a>
 

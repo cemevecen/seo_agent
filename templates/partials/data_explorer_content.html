@@ -369,7 +369,7 @@ text-slate-500 dark:text-slate-400
           <span class="font-medium {% if psi_scores_missing %}text-amber-800 dark:text-amber-200{% else %}text-slate-700 dark:text-slate-300{% endif %}">{{ psi_lighthouse_last_updated|e }}</span>
         </span>
         {% if data_explorer_schedule %}
-        <span class="inline-flex items-center gap-1.5" title="Lab/KPI: pagespeed.web.dev scrape (Mac bridge).">
+        <span class="inline-flex items-center gap-1.5" title="Lab/KPI: pagespeed.web.dev (Mac bridge).">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
           <span>Otomatik yenileme planı:</span>
           <span class="font-medium text-slate-700 dark:text-slate-300">her gün {{ data_explorer_schedule }} (TSİ)</span>
@@ -391,7 +391,7 @@ text-slate-500 dark:text-slate-400
     <summary class="flex cursor-pointer list-none flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5 [&::-webkit-details-marker]:hidden">
       <div class="min-w-0 flex-1">
         <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Otomatik yenileme kaydı</p>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Zamanlanmış çekimlerin son durumu. Lab/KPI: pagespeed.web.dev scrape (Mac bridge).</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Zamanlanmış çekimlerin son durumu. Lab/KPI: pagespeed.web.dev (Mac bridge).</p>
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-2 text-[11px] sm:text-xs">
         <span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 {% if sched.scheduler_running %}border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200{% else %}border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200{% endif %}">
@@ -499,10 +499,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_mobile_last_updated|e }}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev scrape (28g uç KPI)</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev (28g uç KPI)</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_mobile_status.badge_class }}">{{ crux_mobile_status.label }}</span>
       </div>
@@ -516,7 +516,7 @@ text-slate-500 dark:text-slate-400
         {% for metric in crux_mobile_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz mobil scrape KPI yok — Mac bridge: pagespeed_web_scrape.py --ingest</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz mobil KPI yok — otomatik tarama sonrası dolacak</div>
         {% endfor %}
       </div>
     </section>
@@ -524,10 +524,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_desktop_last_updated|e }}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev scrape (28g uç KPI)</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kaynak: pagespeed.web.dev (28g uç KPI)</p>
         </div>
         <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ crux_desktop_status.badge_class }}">{{ crux_desktop_status.label }}</span>
       </div>
@@ -541,7 +541,7 @@ text-slate-500 dark:text-slate-400
         {% for metric in crux_desktop_series.values() %}
         {{ crux_metric_card(metric) }}
         {% else %}
-        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz masaüstü scrape KPI yok — Mac bridge: pagespeed_web_scrape.py --ingest</div>
+        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 p-4 text-sm text-slate-500 dark:text-slate-400">Henüz masaüstü KPI yok — otomatik tarama sonrası dolacak</div>
         {% endfor %}
       </div>
     </section>

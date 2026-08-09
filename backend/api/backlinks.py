@@ -130,13 +130,13 @@ def backlinks_import_json(
     request: Request,
     body: BacklinkImportBody,
 ) -> dict[str, Any]:
-    """Manuel CSV/Sheets kapatıldı — yalnızca GSC Links scrape."""
+    """Manuel CSV/Sheets kapatıldı — yalnızca GSC Links tarama."""
     _ = body
     raise HTTPException(
         status_code=410,
         detail=(
             "Manuel CSV / Sheets import kapatıldı. "
-            "Veri GSC Links scrape ile gelir (Mac bridge: POST :18765/sync-gsc-links)."
+            "Veri Search Console Links taraması ile gelir."
         ),
     )
 
@@ -146,12 +146,12 @@ def backlinks_import_json(
 async def backlinks_import(
     request: Request,
 ) -> dict[str, Any]:
-    """Manuel dosya yükleme kapatıldı — yalnızca GSC Links scrape."""
+    """Manuel dosya yükleme kapatıldı — yalnızca GSC Links tarama."""
     raise HTTPException(
         status_code=410,
         detail=(
             "Manuel dosya yükleme kapatıldı. "
-            "Veri GSC Links scrape ile gelir (Mac bridge: POST :18765/sync-gsc-links)."
+            "Veri Search Console Links taraması ile gelir."
         ),
     )
 

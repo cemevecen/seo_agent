@@ -508,7 +508,7 @@ def import_backlink_csv(
     """Manuel yazma kapalı — veri yalnızca GSC Links scrape (/api/gsc-links/ingest)."""
     raise ValueError(
         "Manuel CSV/Sheets import kapatıldı. "
-        "Veri yalnızca GSC Links scrape ile gelir (/api/gsc-links/ingest)."
+        "Veri Search Console Links taraması ile gelir."
     )
 
 

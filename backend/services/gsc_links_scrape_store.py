@@ -221,7 +221,7 @@ def ingest_snapshot(
     imp = BacklinkImport(
         site_id=site.id,
         report_type=report_type,
-        source_filename=f"gsc_scrape|{resource_id}|{lt}"[:255],
+        source_filename=f"gsc_links|{resource_id}|{lt}"[:255],
         source_kind="gsc_scrape",
         row_count=0,
         created_at=datetime.utcnow(),

@@ -5201,8 +5201,7 @@ def _refresh_site_detail_measurements(
         results["pagespeed"] = {
             "state": "skipped",
             "reason": (
-                "pagespeed.web.dev scrape birincil kaynak; PSI API atlandı. "
-                "Mac: scripts/pagespeed_web_scrape.py --sync --ingest"
+                "pagespeed.web.dev birincil kaynak; PSI API atlandı."
             ),
             "source": "pagespeed_web_scrape",
         }
@@ -6628,9 +6627,9 @@ def _build_pagespeed_report_panel(db, site_id: int, strategy: str, analysis: dic
         "data_source": "pagespeed_web_scrape" if scrape_source else "pagespeed_api",
         "analysis_url": analysis_url,
         "source_note": (
-            "Kaynak: pagespeed.web.dev scrape (field CWV + lab). Eski API/mock döşeme kullanılmaz."
+            "Kaynak: pagespeed.web.dev (field CWV + lab)."
             if scrape_source
-            else "Kaynak: PageSpeed API snapshot (scrape yoksa)."
+            else "Kaynak: PageSpeed API snapshot."
         ),
         "url_scope_metrics": _latest_pagespeed_field_metrics(db, site_id, strategy),
         "has_origin_field": bool(origin_loading_experience.get("metrics")),
@@ -12309,9 +12308,8 @@ def api_refresh_data_explorer(request: Request, domain: str):
             results["pagespeed"] = {
                 "state": "skipped",
                 "reason": (
-                    "Lab/KPI: pagespeed.web.dev scrape. "
-                    "Bu düğme yalnızca CrUX History yeniler. "
-                    "Scrape: scripts/pagespeed_web_scrape.py --sync --ingest"
+                    "Lab/KPI: pagespeed.web.dev. "
+                    "Bu düğme yalnızca CrUX History yeniler."
                 ),
                 "source": "pagespeed_web_scrape",
             }
@@ -20581,9 +20579,8 @@ async def api_policy_upload():
         {
             "ok": False,
             "error": (
-                "CSV yükleme kapatıldı. Veri Mac bridge scrape ile gelir: "
-                "scripts/admanager_policy_scrape.py --sync --ingest "
-                "(günde 02:00 otomatik)."
+                "CSV yükleme kapatıldı. Veri otomatik tarama ile gelir "
+                "(günde 02:00)."
             ),
         },
         status_code=410,
@@ -20634,7 +20631,7 @@ def api_policy_last_csv():
     return JSONResponse(
         {
             "ok": False,
-            "error": "Manuel CSV indirme kapatıldı. Kaynak: Ad Manager Policy Center scrape.",
+            "error": "Manuel CSV indirme kapatıldı. Kaynak: Ad Manager Policy Center.",
         },
         status_code=410,
     )

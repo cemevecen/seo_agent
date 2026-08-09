@@ -777,20 +777,16 @@
           </div>
         </div>
         <p class="bl-toolbar-hint mt-2 hidden sm:block">
-          Kaynak: Search Console Links scrape (Sheets yok) · günde 2×
+          Kaynak: Search Console Links (Sheets yok) · günde 2×
         </p>
       </section>
 
       <section class="bl-toolbar-col bl-toolbar-col--import min-w-0">
-        <h2>Scrape</h2>
+        <h2>Tarama</h2>
         <p class="bl-toolbar-hint">Mac bridge · GSC oturumu · 12 saatte bir</p>
         <div class="bl-import-fields">
-          <p id="bl-scrape-status" class="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
-            Veri yalnızca GSC Links scrape ile gelir. Google Sheets kapalı.
-          </p>
-          <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-            Elle: <code class="text-[10px]">POST :18765/sync-gsc-links</code>
-            · <code class="text-[10px]">scripts/gsc_links_scrape.py --sync --ingest</code>
+          <p id="bl-scan-status" class="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
+            Veri Search Console Links üzerinden otomatik gelir. Google Sheets kapalı.
           </p>
         </div>
       </section>
@@ -834,11 +830,11 @@
             <div class="text-[10px] uppercase text-amber-800 dark:text-amber-200">Review</div>
             <div id="bl-st-review" class="text-lg font-bold">—</div>
           </button>
-          <button type="button" class="bl-summary-card rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/40" data-bl-summary="new" title="Son scrape’e göre yeni domainleri göster" aria-pressed="false">
+          <button type="button" class="bl-summary-card rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/40" data-bl-summary="new" title="Son taramaya göre yeni domainleri göster" aria-pressed="false">
             <div id="bl-st-new-label" class="text-[10px] uppercase text-emerald-800 dark:text-emerald-200">Yeni domain</div>
             <div id="bl-st-new" class="text-lg font-bold">—</div>
           </button>
-          <button type="button" class="bl-summary-card rounded-lg bg-slate-100 p-2 dark:bg-slate-800/80" data-bl-summary="lost" title="Önceki scrape’e göre kayıp domainleri göster" aria-pressed="false">
+          <button type="button" class="bl-summary-card rounded-lg bg-slate-100 p-2 dark:bg-slate-800/80" data-bl-summary="lost" title="Önceki taramaya göre kayıp domainleri göster" aria-pressed="false">
             <div id="bl-st-lost-label" class="text-[10px] uppercase text-slate-600 dark:text-slate-300">Kayıp domain</div>
             <div id="bl-st-lost" class="text-lg font-bold">—</div>
           </button>
@@ -903,7 +899,7 @@
               <option value="media_summary">Medya + temiz (özet kartı)</option>
               <option value="helpful">Yararlı / temiz (çoğunluk düşük risk)</option>
               <option value="risky">Riskli (review·disavow veya risk ≥55)</option>
-              <option value="new_domains">Yeni domainler (son scrape)</option>
+              <option value="new_domains">Yeni domainler (son tarama)</option>
               <option value="new_links_only">Yeni link içeren domainler</option>
             </select>
           </label>
@@ -1010,9 +1006,9 @@
       </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-6">
-    <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Scrape adımları</h2>
+    <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Tarama adımları</h2>
     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-      Seçili <strong>rapor türü + GSC property</strong> scrape snapshot’ları. Sheets kapalı; yanlış adımı kaldırınca o snapshot satırları silinir.
+      Seçili <strong>rapor türü + GSC property</strong> tarama kayıtları. Sheets kapalı; yanlış adımı kaldırınca o kayıt satırları silinir.
     </p>
     <ul id="bl-import-steps" class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-200">
       <li class="text-xs text-slate-500">Henüz adım yok.</li>
@@ -1044,7 +1040,7 @@
       <div id="bl-import-progress-bar" class="bl-import-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
     </div>
     <p id="bl-import-progress-pct" class="bl-import-progress-pct">0%</p>
-    <p id="bl-import-overlay-status" class="bl-import-overlay-status">Scrape işleniyor…</p>
+    <p id="bl-import-overlay-status" class="bl-import-overlay-status">Tarama işleniyor…</p>
     <p id="bl-import-overlay-sub" class="bl-import-overlay-sub">GSC Links</p>
   </div>
 </div>
@@ -1753,7 +1749,7 @@
   }
 
   var SOURCE_KIND_LABELS = {
-    gsc_scrape: "GSC scrape",
+    gsc_scrape: "GSC tarama",
     csv_upload: "CSV (eski)",
     csv_paste: "CSV (eski)",
     google_sheets: "Sheets (kapalı)",
@@ -2083,20 +2079,20 @@
     if (metaEl) metaEl.textContent = "";
     if (!slice.length) {
       var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
-      var emptyMsg = "Henüz scrape verisi yok. Mac bridge: POST :18765/sync-gsc-links";
+      var emptyMsg = "Henüz tarama verisi yok. Otomatik tarama tamamlanınca burada görünür.";
       if (rt === "top_target_pages" || rt === "external") {
         emptyMsg =
-          "Henüz external (top linked pages) scrape verisi yok. Bridge sync çalıştırın.";
+          "Henüz external (top linked pages) verisi yok. Otomatik tarama sonrası dolacak.";
       } else if (rt === "top_target_pages_internal" || rt === "internal") {
         emptyMsg =
-          "Henüz internal links scrape verisi yok. Bridge sync çalıştırın.";
+          "Henüz internal links verisi yok. Otomatik tarama sonrası dolacak.";
       } else if (rt === "domain" || rt === "top_linking_sites") {
         emptyMsg =
           "Bu property için External top linked pages henüz yok. External sekmesine geçin veya bridge sync çalıştırın.";
       } else if (rt === "anchor_text") {
         emptyMsg = "Anchor text listesi alt bölümde; hedef sayfalar External / Internal sekmelerinde.";
       } else if (rt === "top_linking_sites") {
-        emptyMsg = "Henüz linking sites scrape verisi yok. Bridge sync çalıştırın.";
+        emptyMsg = "Henüz linking sites verisi yok. Otomatik tarama sonrası dolacak.";
       }
       listEl.innerHTML = '<li class="text-slate-500 leading-snug">' + emptyMsg + "</li>";
       if (btn) btn.classList.add("hidden");
@@ -2340,14 +2336,17 @@
     var ul = document.getElementById("bl-import-steps");
     if (!ul) return;
     if (!imports.length) {
-      ul.innerHTML = '<li class="text-xs text-slate-500">Henüz scrape adımı yok. Mac bridge sync bekleniyor.</li>';
+      ul.innerHTML = '<li class="text-xs text-slate-500">Henüz tarama adımı yok. Otomatik tarama bekleniyor.</li>';
       return;
     }
     ul.innerHTML = imports
       .map(function (i) {
         var when = (i.created_at || "").replace("T", " ").slice(0, 16);
         var fname = (i.source_filename || "").trim() || "—";
+        fname = fname.replace(/^gsc_scrape\|/i, "").replace(/^gsc_links\|/i, "");
+        fname = fname.replace(/scrape/gi, "tarama");
         var kind = SOURCE_KIND_LABELS[i.source_kind] || i.source_kind || "import";
+        if (String(kind).toLowerCase().indexOf("scrape") >= 0) kind = "GSC tarama";
         return (
           '<li class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50">' +
           '<div class="min-w-0 flex-1">' +
@@ -3001,7 +3000,7 @@
     if ((diff.new_links || []).length) {
       parts.push(
         renderDiffLinkBlock(
-          "Yeni linkler · " + (diff.latest_import_label || "son scrape"),
+          "Yeni linkler · " + (diff.latest_import_label || "son tarama"),
           diff.new_links,
           "new"
         )
@@ -3069,7 +3068,7 @@
 
   function blOpenDiffTonePanel(tone) {
     if (!blLastDiff || !blLastDiff.has_previous) {
-      showBanner("Karşılaştırma için en az iki scrape snapshot gerekir.");
+      showBanner("Karşılaştırma için en az iki tarama kaydı gerekir.");
       return false;
     }
     renderDiffPanels(blLastDiff);
@@ -3462,7 +3461,7 @@
     if (!domains.length) {
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Bu filtre için domain yok. Filtreleri gevşetin veya bridge scrape çalıştırın.</td></tr>';
+          '<tr><td colspan="6" class="px-2 py-4 text-slate-500">Bu filtre için domain yok. Filtreleri gevşetin veya sonraki otomatik taramayı bekleyin.</td></tr>';
       }
       if (cards) cards.innerHTML = '<p class="text-sm text-slate-500">Bu filtre için domain yok.</p>';
       if (moreWrap) moreWrap.classList.add("hidden");
@@ -3571,7 +3570,7 @@
         var series = d.series || [];
         if (!series.length) {
           chart.innerHTML =
-            '<p class="text-xs text-slate-500">Henüz zaman serisi yok — 2. scrape sonrası dolacak.</p>';
+            '<p class="text-xs text-slate-500">Henüz zaman serisi yok — 2. tarama sonrası dolacak.</p>';
         } else {
           var max = 1;
           series.forEach(function (s) {
@@ -3600,15 +3599,15 @@
             "</div>";
         }
       }
-      var st = document.getElementById("bl-scrape-status");
+      var st = document.getElementById("bl-scan-status");
       if (st && latest.created_at) {
         st.textContent =
-          "Son scrape: " +
+          "Son tarama: " +
           latest.created_at +
           " · " +
           blFmtNum(latest.row_count || 0) +
           " satır" +
-          (d.has_baseline ? " · " + w + " baseline hazır" : " · baseline için sonraki scrape bekleniyor");
+          (d.has_baseline ? " · " + w + " baseline hazır" : " · baseline için sonraki tarama bekleniyor");
       }
     } catch (e) {
       if (kpiRow) kpiRow.innerHTML = '<p class="text-xs text-rose-700">Değişim yüklenemedi.</p>';
@@ -3792,7 +3791,7 @@
     .then(function () {
       return loadDashboard({
         loadingLabel: "Backlinks yükleniyor…",
-        loadingSub: "GSC scrape snapshot",
+        loadingSub: "GSC tarama kaydı",
       });
     })
     .catch(function () {});
@@ -3802,7 +3801,7 @@
     blImportBtn.setAttribute("disabled", "disabled");
     blImportBtn.addEventListener("click", function (e) {
       e.preventDefault();
-      showBanner("Manuel dosya yükleme kapalı. Veri yalnızca GSC Links scrape ile gelir.");
+      showBanner("Manuel dosya yükleme kapalı. Veri Search Console Links taraması ile gelir.");
     });
   }
   ["bl-file", "bl-sheets-url", "bl-file-drop", "bl-file-picked", "bl-import-status"].forEach(function (id) {

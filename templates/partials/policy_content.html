@@ -13,14 +13,14 @@
         <span>Yeni <b class="text-emerald-600 dark:text-emerald-400">{{ _new_import }}</b></span>
         {% if last_upload %}
           <span class="px-1">·</span>
-          <span>Son scrape: <b class="text-slate-600 dark:text-slate-300">{{ last_upload.uploaded_at }} UTC</b></span>
+          <span>Son tarama: <b class="text-slate-600 dark:text-slate-300">{{ last_upload.uploaded_at }} UTC</b></span>
         {% elif stats and stats.get("last_fetch") %}
           <span class="px-1">·</span>
           <span>Son çekim: <b class="text-slate-600 dark:text-slate-300">{{ stats.last_fetch[:16] }} UTC</b></span>
         {% endif %}
       </p>
       <p class="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-        Kaynak: Ad Manager Policy Center scrape (sinemalar.com) · günde 02:00 · CSV/Sheets yok
+        Kaynak: Ad Manager Policy Center (sinemalar.com) · günde 02:00 · CSV/Sheets yok
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -64,10 +64,9 @@
 
   {% if not stats or stats.get("total", 0) == 0 %}
   <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
-    <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">Henüz scrape verisi yok</h4>
+    <h4 class="mb-1 font-semibold text-slate-700 dark:text-slate-300">Henüz tarama verisi yok</h4>
     <p class="text-sm text-slate-500 dark:text-slate-400">
-      Mac’te: <code class="text-[11px]">.venv/bin/python scripts/admanager_policy_scrape.py --login</code>
-      sonra <code class="text-[11px]">--sync --ingest</code>. Bridge her gece 02:00’de otomatik çeker.
+      Otomatik tarama henüz kayıt getirmemiş. Bridge her gece 02:00’de çalışır.
     </p>
   </div>
   {% else %}

@@ -1096,7 +1096,7 @@ def _fetch_pagespeed(
     if not api_key or api_key.startswith("local-"):
         raise RuntimeError(
             "GOOGLE_API_KEY yok — sentetik PageSpeed verisi üretilmez. "
-            "pagespeed.web.dev scrape (scripts/pagespeed_web_scrape.py --ingest) kullanın."
+            "pagespeed.web.dev taraması veya geçerli GOOGLE_API_KEY kullanın."
         )
 
     query = urlencode(

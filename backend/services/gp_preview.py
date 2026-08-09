@@ -88,7 +88,7 @@ def _empty_payload(pid: str, label: str, p: int, cc: str, dev: str) -> dict[str,
     empty = _empty_kpi()
     return {
         "source": "empty",
-        "source_note": "Play Console scrape verisi henüz yok — /android sync bekleniyor.",
+        "source_note": "Play Console verisi henüz yok — /android sync bekleniyor.",
         "product": pid,
         "product_label": label,
         "period_days": p,
@@ -298,7 +298,7 @@ def _overlay_live_ratings(payload: dict[str, Any], package_name: str, product_id
     }
     if payload.get("source") == "empty":
         payload["source"] = "play_scrape"
-        payload["source_note"] = "Mağaza puanı / histogram — /android scrape + public store."
+        payload["source_note"] = "Mağaza puanı / histogram — /android + public store."
     return payload
 
 
@@ -357,7 +357,7 @@ def _overlay_scrape_vitals(payload: dict[str, Any], live: dict[str, Any]) -> dic
     if has_vitals or has_installs:
         payload["source"] = "play_scrape"
         payload["source_note"] = (
-            "Play Console scrape — /android explorer_facts + vitals overview. "
+            "Play Console — /android explorer_facts + vitals overview. "
             "Sentetik veri yok."
         )
     return payload
@@ -407,7 +407,7 @@ def _overlay_stability_free(payload: dict[str, Any], product_id: str, package_na
                 payload["vitals"]["anr_rate_label"] = f"{rate:.2f}%"
         if payload.get("source") == "empty" and (cf is not None or af is not None):
             payload["source"] = "play_scrape"
-            payload["source_note"] = "Vitals crash/ANR-free — /android scrape."
+            payload["source_note"] = "Vitals crash/ANR-free — /android."
     except Exception:
         logger.debug("GP preview stability-free overlay failed", exc_info=True)
     return payload
@@ -525,7 +525,7 @@ def build_gp_preview_payload(
                         payload["trend_daily_is_demo"] = False
                     payload["source"] = "api_fallback"
                     payload["source_note"] = (
-                        "Scrape boştu — Play Reporting/GCS yedek (sentetik değil)."
+                        "Konsol verisi yoktu — Play Reporting/GCS yedek (sentetik değil)."
                     )
         except Exception as exc:  # noqa: BLE001
             logger.warning("GP API fallback başarısız: %s", exc)
