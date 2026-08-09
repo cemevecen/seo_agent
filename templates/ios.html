@@ -450,14 +450,14 @@
           <div class="mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
             <div id="ia-legend" class="flex min-w-0 flex-1 flex-wrap gap-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
             <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Grafik çizim tarzı">
-              <button type="button" data-ia-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="true" class="is-active">
+              <button type="button" data-ia-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <button type="button" data-ia-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-ia-chart-style="bar" title="Çubuk" aria-label="Çubuk grafik" aria-pressed="false">
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="7" width="2.8" height="5" rx="0.6" fill="currentColor"/><rect x="6.6" y="4" width="2.8" height="8" rx="0.6" fill="currentColor"/><rect x="10.7" y="6" width="2.8" height="6" rx="0.6" fill="currentColor"/></svg>
+              <button type="button" data-ia-chart-style="bar" title="Yığınlı" aria-label="Yığınlı çubuk grafik" aria-pressed="true" class="is-active">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="9" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="3" y="5.5" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="3" y="3" width="3.2" height="2.5" rx="0.4" fill="currentColor"/><rect x="9.5" y="10" width="3.2" height="2.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="9.5" y="7" width="3.2" height="3" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="9.5" y="4" width="3.2" height="3" rx="0.4" fill="currentColor"/></svg>
               </button>
             </div>
           </div>
@@ -547,7 +547,7 @@
   };
   var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
   var STROKE = 0.68;
-  var iaChartStyle = "line";
+  var iaChartStyle = "bar";
   try {
     var _ics = localStorage.getItem("iaChartStyle");
     if (_ics === "lollipop") _ics = "bar";
@@ -1383,6 +1383,46 @@
     });
     return pts;
   }
+  function buildIaStackedBarsHtml(seriesList, xs, baseY, plotH, slotWidth) {
+    var n = xs.length;
+    if (!n || !(seriesList || []).length) return "";
+    var maxSum = 0;
+    for (var i = 0; i < n; i++) {
+      var sum = 0;
+      for (var s = 0; s < seriesList.length; s++) sum += seriesList[s].heights[i] || 0;
+      if (sum > maxSum) maxSum = sum;
+    }
+    var scale = maxSum > 0 ? (plotH / maxSum) : 1;
+    var slot = slotWidth > 0 ? slotWidth : 16;
+    var barW = Math.min(slot * 0.62, n > 45 ? 5.5 : (n > 28 ? 8 : 11));
+    barW = Math.max(1.6, barW);
+    var cum = [];
+    for (var c = 0; c < n; c++) cum[c] = 0;
+    var html = "";
+    for (var si = 0; si < seriesList.length; si++) {
+      var ser = seriesList[si];
+      var parts = [];
+      for (var j = 0; j < n; j++) {
+        var h = (ser.heights[j] || 0) * scale;
+        if (!(h > 0.4)) continue;
+        var y1 = baseY - cum[j] - h;
+        var x0 = xs[j] - barW / 2;
+        parts.push(
+          "M" + x0.toFixed(1) + " " + y1.toFixed(1) +
+          "h" + barW.toFixed(1) +
+          "v" + h.toFixed(1) +
+          "h" + (-barW).toFixed(1) + "Z"
+        );
+        cum[j] += h;
+      }
+      if (parts.length) {
+        html +=
+          '<path d="' + parts.join("") + '" fill="' + ser.color +
+          '" fill-opacity="0.88" shape-rendering="optimizeSpeed" />';
+      }
+    }
+    return html;
+  }
   function buildIaSeriesStyleHtml(style, pts, color, baseY, opts) {
     opts = opts || {};
     var list = (pts || []).filter(Boolean);
@@ -1496,19 +1536,38 @@
         countLike: isCountLike(b.metric)
       };
     });
-    var style = iaChartStyle || "line";
+    var style = iaChartStyle || "bar";
     var baseY = top + plotH;
     var fillOp = list.length > 1 ? 0.12 : 0.22;
     var barSlot = n > 1 ? plotW / (n - 1) : plotW;
-    var paths = seriesList.map(function (s, si) {
-      return buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
-        strokeW: STROKE,
-        fillOpacity: fillOp,
-        seriesIndex: si,
-        seriesCount: seriesList.length,
-        slotWidth: barSlot
-      });
-    }).join("");
+    var paths = "";
+    if (style === "bar") {
+      paths = buildIaStackedBarsHtml(
+        seriesList.map(function (s) {
+          return {
+            color: s.color,
+            heights: keys.map(function (key) {
+              if (!Object.prototype.hasOwnProperty.call(s.map, key)) return 0;
+              return (s.map[key] / s.max) * plotH;
+            })
+          };
+        }),
+        xs,
+        baseY,
+        plotH,
+        barSlot
+      );
+    } else {
+      paths = seriesList.map(function (s, si) {
+        return buildIaSeriesStyleHtml(style, s.pts, s.color, baseY, {
+          strokeW: STROKE,
+          fillOpacity: fillOp,
+          seriesIndex: si,
+          seriesCount: seriesList.length,
+          slotWidth: barSlot
+        });
+      }).join("");
+    }
     var dots = seriesList.map(function (s, i) {
       return '<circle id="ia-hover-dot-' + i + '" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + s.color + '" stroke="#fff" stroke-width="1.5" opacity="0" />';
     }).join("");
@@ -1593,7 +1652,7 @@
         countLike: countLike
       }]
     };
-    var style = iaChartStyle || "line";
+    var style = iaChartStyle || "bar";
     var baseY = top + plotH;
     var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
     var seriesHtml = buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
@@ -1942,7 +2001,7 @@
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-ia-chart-style]") : null;
       if (!btn) return;
       ev.preventDefault();
-      setIaChartStyle(btn.getAttribute("data-ia-chart-style") || "line");
+      setIaChartStyle(btn.getAttribute("data-ia-chart-style") || "bar");
     });
   }
   loadStatus();
