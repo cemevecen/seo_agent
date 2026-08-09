@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v9">
+<style id="home-site-borders" data-home-css="v10">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -770,27 +770,40 @@
 
   /* ── Home project focus (GitLab-style expand / split) ── */
   #home-board {
-    --home-rail-w: 2.85rem;
+    --home-rail-w: 2.55rem;
+    /* Çiftli görünüm yüksekliği −%10; tekli de aynı sabit */
+    --home-head-h: 2.65rem;
   }
   .home-pair-row {
     transition: grid-template-columns 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .home-project-heads {
     position: relative;
+    align-items: stretch;
   }
   .home-project-head {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.45rem;
     min-width: 0;
     position: relative;
+    height: var(--home-head-h);
+    min-height: var(--home-head-h);
+    max-height: var(--home-head-h);
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    box-sizing: border-box;
   }
   .home-project-head-main {
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
     align-items: center;
-    gap: 0.65rem;
+    gap: 0.5rem;
+  }
+  .home-project-head-main h2 {
+    font-size: 0.95rem !important;
+    line-height: 1.15 !important;
   }
   .home-project-rail-label {
     display: none;
@@ -800,8 +813,8 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 2rem;
-    height: 2rem;
+    width: 1.8rem;
+    height: 1.8rem;
     border-radius: 9999px;
     border: 1px solid transparent;
     background: rgb(255 255 255 / 0.72);
@@ -858,8 +871,8 @@
     background: rgb(136 19 55 / 0.35);
   }
   .home-focus-chev svg {
-    width: 0.95rem;
-    height: 0.95rem;
+    width: 0.85rem;
+    height: 0.85rem;
     display: block;
   }
   .home-focus-split {
@@ -869,8 +882,8 @@
     z-index: 8;
     display: inline-flex;
     align-items: stretch;
-    width: 3.35rem;
-    height: 2.15rem;
+    width: 3rem;
+    height: 1.9rem;
     padding: 0;
     border: 0;
     border-radius: 9999px;
@@ -928,8 +941,8 @@
   .home-focus-split--bar {
     position: static;
     transform: none;
-    width: 2.9rem;
-    height: 1.9rem;
+    width: 2.7rem;
+    height: 1.75rem;
   }
   .home-focus-split--bar:hover {
     transform: scale(1.06);
@@ -976,18 +989,21 @@
       overflow: visible;
     }
 
-    /* Header rail only */
+    /* Header rail only — aynı yükseklik (çiftli ile birebir) */
     #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"],
     #home-board[data-home-focus="sinemalar"] .home-project-heads > [data-home-project="doviz"] {
       position: relative;
-      min-height: 3.35rem;
+      height: var(--home-head-h);
+      min-height: var(--home-head-h);
+      max-height: var(--home-head-h);
       border-radius: 9999px;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 0.35rem 0.15rem;
+      padding: 0 0.1rem;
       box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.06);
+      box-sizing: border-box;
     }
     #home-board[data-home-focus="doviz"] .home-project-heads > [data-home-project="sinemalar"] {
       background: linear-gradient(180deg, #ffe4e6, #fecdd3);
@@ -1023,9 +1039,13 @@
       position: static;
       writing-mode: vertical-rl;
       transform: rotate(180deg);
-      font-size: 0.62rem;
+      max-height: calc(var(--home-head-h) - 0.35rem);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.52rem;
       font-weight: 800;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       line-height: 1;
       pointer-events: none;
@@ -1259,7 +1279,7 @@
   <div class="mt-5 space-y-5">
     {# Sütun başlıkları + split madalyon #}
     <div class="home-project-heads home-pair-row grid grid-cols-1 gap-5 lg:grid-cols-2">
-      <div class="home-project-head home-project-head--doviz flex items-center gap-2 rounded-2xl bg-blue-50/60 px-3 py-3 ring-1 ring-blue-200/70 dark:bg-blue-950/30 dark:ring-blue-900/50 sm:px-4"
+      <div class="home-project-head home-project-head--doviz flex items-center gap-2 rounded-2xl bg-blue-50/60 px-3 ring-1 ring-blue-200/70 dark:bg-blue-950/30 dark:ring-blue-900/50 sm:px-4"
            data-home-project="doviz">
         <button type="button" class="home-focus-chev" data-home-focus-set="doviz" title="doviz.com genişlet" aria-label="doviz.com genişlet">
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 11-1.06-1.06L15.94 10l-5.47-5.47a.75.75 0 010-1.06z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M4.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 01-1.06-1.06L10.94 10 4.47 4.53a.75.75 0 010-1.06z" clip-rule="evenodd"/></svg>
@@ -1277,7 +1297,7 @@
         <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">D</span>
         <span class="home-focus-split-face home-focus-split-face--s" aria-hidden="true">S</span>
       </button>
-      <div class="home-project-head home-project-head--sinemalar flex items-center gap-2 rounded-2xl bg-rose-50/60 px-3 py-3 ring-1 ring-rose-300/70 dark:bg-rose-950/30 dark:ring-rose-800/60 sm:px-4"
+      <div class="home-project-head home-project-head--sinemalar flex items-center gap-2 rounded-2xl bg-rose-50/60 px-3 ring-1 ring-rose-300/70 dark:bg-rose-950/30 dark:ring-rose-800/60 sm:px-4"
            data-home-project="sinemalar">
         <button type="button" class="home-focus-chev" data-home-focus-set="sinemalar" title="sinemalar.com genişlet" aria-label="sinemalar.com genişlet (sağ)">
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 11-1.06-1.06L15.94 10l-5.47-5.47a.75.75 0 010-1.06z" clip-rule="evenodd"/><path fill-rule="evenodd" d="M4.47 3.22a.75.75 0 011.06 0l6 6a.75.75 0 010 1.06l-6 6a.75.75 0 01-1.06-1.06L10.94 10 4.47 4.53a.75.75 0 010-1.06z" clip-rule="evenodd"/></svg>
