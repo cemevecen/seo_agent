@@ -1136,6 +1136,14 @@
       total_mode: data.total_mode || "sum"
     };
   }
+  function selectOverviewMetric(metric) {
+    if (!metric || !paMetric) return;
+    var opt = paMetric.querySelector('option[value="' + metric + '"]');
+    if (!opt) return;
+    paMetric.value = metric;
+    resetPaFiltersForMetricChange();
+    runPlayAnalytics({ fromUser: true });
+  }
   function setOverviewLegend(chartBundles) {
     if (paLegendPrimary) paLegendPrimary.classList.add("hidden");
     if (paLegendPrev) paLegendPrev.classList.add("hidden");
@@ -1145,10 +1153,12 @@
     paLegendMulti.innerHTML = (chartBundles || []).map(function (b, i) {
       var color = paMetricColor(i);
       return (
-        '<span class="inline-flex items-center gap-1.5">' +
+        '<button type="button" data-pa-legend-metric="' + esc(b.metric) + '" ' +
+          'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-zinc-800 dark:focus-visible:ring-zinc-600" ' +
+          'title="' + esc(b.label) + ' — yalnızca bu metrik">' +
           '<span class="h-2 w-2 rounded-full" style="background:' + color + '"></span>' +
-          esc(shortMetricLabel(b.label, b.metric)) +
-        "</span>"
+          '<span>' + esc(shortMetricLabel(b.label, b.metric)) + "</span>" +
+        "</button>"
       );
     }).join("");
   }
@@ -1158,6 +1168,16 @@
       paLegendMulti.innerHTML = "";
     }
     if (paLegendPrimary) paLegendPrimary.classList.remove("hidden");
+  }
+  if (paLegendMulti) {
+    paLegendMulti.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest
+        ? ev.target.closest("[data-pa-legend-metric]")
+        : null;
+      if (!btn || !paOverviewActive) return;
+      var metric = btn.getAttribute("data-pa-legend-metric");
+      if (metric) selectOverviewMetric(metric);
+    });
   }
   function drawOverviewMainChart(chartBundles) {
     if (!paChart) return;
