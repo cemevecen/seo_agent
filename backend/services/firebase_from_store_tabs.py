@@ -85,6 +85,133 @@ def _parse_count(raw: Any) -> int:
         return 0
 
 
+def _sum_reporting_segments(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Reporting günlük satırlarını segment → toplam olay sayısına indirger."""
+    out: dict[str, int] = {}
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        seg = str(r.get("segment") or "").strip()
+        if not seg or seg.upper() in ("OVERALL", "ALL", "UNKNOWN", "TOTAL"):
+            continue
+        try:
+            val = int(round(float(r.get("value") or 0)))
+        except (TypeError, ValueError):
+            val = 0
+        if val <= 0:
+            continue
+        out[seg] = out.get(seg, 0) + val
+    return out
+
+
+def _split_device_segment(seg: str) -> tuple[str, str]:
+    """Play deviceModel segment → (manufacturer, model)."""
+    s = (seg or "").strip()
+    if not s:
+        return "", "bilinmiyor"
+    for sep in (":", "/", "|"):
+        if sep in s:
+            left, right = s.split(sep, 1)
+            left, right = left.strip(), right.strip()
+            if left and right:
+                return left, right
+    return "", s
+
+
+_API_LEVEL_NAMES: dict[int, str] = {
+    28: "9",
+    29: "10",
+    30: "11",
+    31: "12",
+    32: "12L",
+    33: "13",
+    34: "14",
+    35: "15",
+    36: "16",
+}
+
+
+def _os_label_from_api_level(seg: str) -> str:
+    s = (seg or "").strip()
+    m = re.search(r"(\d{2,3})", s)
+    if not m:
+        return s or "bilinmiyor"
+    try:
+        api = int(m.group(1))
+    except ValueError:
+        return s
+    name = _API_LEVEL_NAMES.get(api)
+    if name:
+        return f"Android {name} (API {api})"
+    return f"API {api}"
+
+
+def _android_breakdowns_from_reporting(
+    package_name: str,
+    *,
+    days: int = 28,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Play Reporting API — Android cihaz + OS (API) kırılımı."""
+    from datetime import date, timedelta
+
+    from backend.services import gp_client
+    from backend.services.android_device_names import enrich_device_row
+    from backend.services.crashlytics_detail import merge_breakdown_rows
+
+    if not gp_client.is_configured():
+        return [], []
+
+    end = date.today() - timedelta(days=2)
+    start = end - timedelta(days=max(int(days or 28), 7) - 1)
+
+    device_counts: dict[str, int] = {}
+    os_counts: dict[str, int] = {}
+    for fetch in (gp_client.fetch_crash_by_dimension, gp_client.fetch_anr_by_dimension):
+        try:
+            rows = fetch(package_name, dimension="deviceModel", start=start, end=end) or []
+            for seg, n in _sum_reporting_segments(rows).items():
+                device_counts[seg] = device_counts.get(seg, 0) + n
+        except Exception:
+            logger.debug("firebase android device reporting failed", exc_info=True)
+        try:
+            rows = fetch(package_name, dimension="apiLevel", start=start, end=end) or []
+            for seg, n in _sum_reporting_segments(rows).items():
+                os_counts[seg] = os_counts.get(seg, 0) + n
+        except Exception:
+            logger.debug("firebase android os reporting failed", exc_info=True)
+
+    device_labeled: list[dict[str, Any]] = []
+    device_raw: dict[str, str | None] = {}
+    for seg, n in device_counts.items():
+        man, mod = _split_device_segment(seg)
+        er = enrich_device_row(
+            {"manufacturer": man, "model": mod, "event_count": n},
+            platform="android",
+        )
+        device_labeled.append(
+            {
+                "label": er["label"],
+                "manufacturer": er.get("manufacturer") or man,
+                "model": er.get("model") or mod,
+                "event_count": n,
+            }
+        )
+        if er.get("label_raw"):
+            device_raw[er["label"]] = er["label_raw"]
+
+    android_devices = merge_breakdown_rows([device_labeled], "label", limit=20)
+    for row in android_devices:
+        if device_raw.get(row["label"]):
+            row["label_raw"] = device_raw[row["label"]]
+
+    os_rows = [
+        {"os_version": _os_label_from_api_level(seg), "event_count": n}
+        for seg, n in os_counts.items()
+    ]
+    android_os = merge_breakdown_rows([os_rows], "os_version", limit=20)
+    return android_devices, android_os
+
+
 def _flatten_vitals_issues(
     crashes: dict[str, Any] | None,
     error_type: str,
@@ -377,7 +504,7 @@ def build_firebase_tab_payload(
     if pid not in APP_PRODUCTS:
         return {"ok": False, "error": "unknown_product", "configured": False}
 
-    cache_key = f"{pid}:{int(days)}:store_tabs:v2"
+    cache_key = f"{pid}:{int(days)}:store_tabs:v3"
     if force_refresh:
         invalidate_firebase_store_cache(pid)
         try:
@@ -487,9 +614,18 @@ def build_firebase_tab_payload(
     ios_os: list[dict[str, Any]] = []
     ios_process: list[dict[str, Any]] = []
     ios_trend: list[dict[str, Any]] = []
+    android_device: list[dict[str, Any]] = []
+    android_os: list[dict[str, Any]] = []
     ios_fatal = int(ios_cf.get("fatal") or 0) if isinstance(ios_cf.get("fatal"), (int, float)) else 0
     ios_anr_n = int(ios_cf.get("anr") or 0) if isinstance(ios_cf.get("anr"), (int, float)) else 0
     ios_affected = 0
+
+    try:
+        android_device, android_os = _android_breakdowns_from_reporting(
+            package, days=max(int(period_days or 28), int(days or 7))
+        )
+    except Exception:
+        logger.debug("firebase android reporting breakdown failed", exc_info=True)
 
     for v in (ios_cf.get("versions") or [])[:3]:
         if not isinstance(v, dict) or not v.get("version"):
@@ -551,6 +687,11 @@ def build_firebase_tab_payload(
             ios_os = (bq.get("os_breakdown_by_platform") or {}).get("ios") or []
             ios_process = (bq.get("process_state_breakdown_by_platform") or {}).get("ios") or []
             ios_trend = (bq.get("trend_by_platform") or {}).get("ios") or []
+            # Android cihaz/OS: Reporting boşsa BQ peek yedek (yalnızca kırılım)
+            if not android_device:
+                android_device = (bq.get("device_breakdown_by_platform") or {}).get("android") or []
+            if not android_os:
+                android_os = (bq.get("os_breakdown_by_platform") or {}).get("android") or []
             if not ios_affected and ios_issues:
                 ios_affected = sum(int(r.get("affected_users") or 0) for r in ios_issues)
             if not ios_fatal and ios_issues:
@@ -674,10 +815,10 @@ def build_firebase_tab_payload(
         "trend_by_platform": {"android": [], "ios": ios_trend},
         "version_trend": [],
         "version_trend_by_platform": {},
-        "device_breakdown": ios_device,
-        "device_breakdown_by_platform": {"android": [], "ios": ios_device},
-        "os_breakdown": ios_os,
-        "os_breakdown_by_platform": {"android": [], "ios": ios_os},
+        "device_breakdown": android_device or ios_device,
+        "device_breakdown_by_platform": {"android": android_device, "ios": ios_device},
+        "os_breakdown": android_os or ios_os,
+        "os_breakdown_by_platform": {"android": android_os, "ios": ios_os},
         "process_state_breakdown": ios_process,
         "process_state_breakdown_by_platform": {"android": [], "ios": ios_process},
         "storage_mb": {},

@@ -7,7 +7,7 @@
 {% set st_by_plat = data.process_state_breakdown_by_platform or {} %}
 {% set global_plat = (params.platform or 'all')|lower %}
 {% set show_plat_filter = global_plat == 'all' and (dev_by_plat or os_by_plat or st_by_plat) %}
-{% set default_plat = 'ios' if dev_by_plat.get('ios') or os_by_plat.get('ios') or st_by_plat.get('ios') else 'android' %}
+{% set default_plat = 'android' if (dev_by_plat.get('android') or os_by_plat.get('android') or st_by_plat.get('android')) else ('ios' if (dev_by_plat.get('ios') or os_by_plat.get('ios') or st_by_plat.get('ios')) else 'android') %}
 
 {% macro bar_row(label, count, pct, color, raw) %}
       <div class="bd-bar-row space-y-1">
