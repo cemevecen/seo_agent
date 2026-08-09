@@ -120,14 +120,15 @@ def _rows_from_internal(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not tgt:
             continue
         inc = int(r.get("incoming_links") or 0)
+        sites = int(r.get("linking_sites") or 0)
         out.append(
             {
                 "source_url": tgt,
                 "target_url": tgt,
-                "anchor_text": f"{backlink_csv.GSC_TARGET_AGG_ANCHOR_PREFIX}{inc}:0",
+                "anchor_text": f"{backlink_csv.GSC_TARGET_AGG_ANCHOR_PREFIX}{inc}:{sites}",
                 "last_crawled": "",
                 "incoming_links": inc,
-                "linking_sites": 0,
+                "linking_sites": sites,
                 "is_top_target_aggregate": True,
             }
         )

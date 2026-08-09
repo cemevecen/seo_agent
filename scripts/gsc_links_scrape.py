@@ -166,11 +166,13 @@ def _normalize_rows(link_type: str, headers: list[str], rows: list[list[str]]) -
             if not target:
                 continue
             incoming = _parse_tr_int(row[1] if len(row) > 1 else "0")
+            # GSC Internal çoğu zaman 2 kolon; 3. kolon varsa kaynak site sayısı
+            sites = _parse_tr_int(row[2] if len(row) > 2 else "0")
             out.append(
                 {
                     "target_url": target,
                     "incoming_links": incoming,
-                    "linking_sites": 0,
+                    "linking_sites": sites,
                 }
             )
         elif lt == "DOMAIN":

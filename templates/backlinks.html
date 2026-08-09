@@ -1657,11 +1657,16 @@
     var intInc = row.internal_incoming || 0;
     var intS = row.internal_linking_sites || 0;
     var parts = [];
+    function pair(label, n, sites) {
+      var s = Number(sites || 0);
+      if (s > 0) return label + " " + blFmtNum(n) + "/" + blFmtNum(s);
+      return label + " " + blFmtNum(n);
+    }
     if ((ext || 0) > 0 || row.incoming_links_gsc) {
-      parts.push("dış " + blFmtNum(ext) + "/" + blFmtNum(extS));
+      parts.push(pair("dış", ext, extS));
     }
     if (intInc > 0) {
-      parts.push("iç " + blFmtNum(intInc) + "/" + blFmtNum(intS));
+      parts.push(pair("iç", intInc, intS));
     }
     if (parts.length) return parts.join(" · ");
     return String(row.link_count != null ? row.link_count : "0");
@@ -1784,23 +1789,23 @@
     var parts = [];
     if (kind === "external" || kind === "all") {
       if ((row.external_incoming || 0) > 0) {
+        var extSites = Number(row.external_linking_sites || 0);
         parts.push(
           "<strong>GSC (dış):</strong> " +
             blFmtNum(row.external_incoming) +
-            " gelen bağlantı · " +
-            blFmtNum(row.external_linking_sites) +
-            " site"
+            " gelen bağlantı" +
+            (extSites > 0 ? " · " + blFmtNum(extSites) + " site" : "")
         );
       }
     }
     if (kind === "internal" || kind === "all") {
       if ((row.internal_incoming || 0) > 0) {
+        var intSites = Number(row.internal_linking_sites || 0);
         parts.push(
           "<strong>GSC (iç):</strong> " +
             blFmtNum(row.internal_incoming) +
-            " gelen bağlantı · " +
-            blFmtNum(row.internal_linking_sites) +
-            " kaynak site"
+            " gelen bağlantı" +
+            (intSites > 0 ? " · " + blFmtNum(intSites) + " kaynak site" : "")
         );
       }
     }
@@ -1962,12 +1967,17 @@
     if (!slice.length) {
       var rt = (blTopRankingsCache.ranking_report_type || reportType() || "").toLowerCase();
       var emptyMsg = "Henüz scrape verisi yok. Mac bridge: POST :18765/sync-gsc-links";
-      if (rt === "top_target_pages") {
+      if (rt === "top_target_pages" || rt === "external") {
         emptyMsg =
           "Henüz external (top linked pages) scrape verisi yok. Bridge sync çalıştırın.";
-      } else if (rt === "top_target_pages_internal") {
+      } else if (rt === "top_target_pages_internal" || rt === "internal") {
         emptyMsg =
           "Henüz internal links scrape verisi yok. Bridge sync çalıştırın.";
+      } else if (rt === "domain" || rt === "top_linking_sites") {
+        emptyMsg =
+          "Bu property için External top linked pages henüz yok. External sekmesine geçin veya bridge sync çalıştırın.";
+      } else if (rt === "anchor_text") {
+        emptyMsg = "Anchor text listesi alt bölümde; hedef sayfalar External / Internal sekmelerinde.";
       } else if (rt === "top_linking_sites") {
         emptyMsg = "Henüz linking sites scrape verisi yok. Bridge sync çalıştırın.";
       }
@@ -2183,12 +2193,18 @@
     };
     var rt = (blTopRankingsCache.ranking_report_type || reportTypeCtx || reportType() || "").toLowerCase();
     var isTarget = isBlTargetReportType(rt);
+    var isAnchor = isBlAnchorReportType(rt);
+    // Anchor text: üst ranking paneli yanıltıcı (gsc-anchor); liste alt bölümde
+    if (isAnchor) {
+      wrap.classList.add("hidden");
+      return;
+    }
     var sitesSec = document.getElementById("bl-top-sites-section");
     if (sitesSec) sitesSec.classList.toggle("hidden", isTarget);
     wrap.classList.toggle("lg:grid-cols-2", !isTarget);
     wrap.classList.toggle("lg:grid-cols-1", isTarget);
 
-    var hasSites = (blTopRankingsCache.top_linking_sites || []).length > 0;
+    var hasSites = !isTarget && (blTopRankingsCache.top_linking_sites || []).length > 0;
     var hasPages = (blTopRankingsCache.top_linking_pages || []).length > 0;
     var has = hasSites || hasPages;
     if (!has) {
@@ -2440,6 +2456,8 @@
     }
     if (filtersWrap) filtersWrap.classList.toggle("hidden", hideDomainTable);
     if (tableScroll) tableScroll.classList.toggle("hidden", hideDomainTable);
+    var moreWrap = document.getElementById("bl-domains-more-wrap");
+    if (moreWrap) moreWrap.classList.toggle("hidden", hideDomainTable);
     if (cards) {
       cards.classList.toggle("hidden", hideDomainTable);
       if (hideDomainTable) cards.innerHTML = "";
@@ -3358,7 +3376,8 @@
           '<section class="min-w-0 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900"><h4 class="text-[10px] font-bold uppercase text-slate-600">' +
           title +
           '</h4><ol class="mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">' +
-          (lis || "<li class=\"text-slate-400\">—</li>") +
+          (lis ||
+            '<li class="text-slate-400">Bu pencerede kayıt yok.</li>') +
           "</ol></section>"
         );
       }
@@ -3371,27 +3390,28 @@
       if (chart) {
         var series = d.series || [];
         if (!series.length) {
-          chart.innerHTML = '<p class="text-xs text-slate-500">Henüz zaman serisi yok — 2. scrape sonrası dolacak.</p>';
+          chart.innerHTML =
+            '<p class="text-xs text-slate-500">Henüz zaman serisi yok — 2. scrape sonrası dolacak.</p>';
         } else {
           var max = 1;
           series.forEach(function (s) {
-            max = Math.max(max, Number(s.row_count || 0), Number(s.total_links || 0));
+            max = Math.max(max, Number(s.row_count || 0), Number(s.total_links || 0) || 0);
           });
           chart.innerHTML =
-            '<div class="flex h-36 items-end gap-1">' +
+            '<div class="flex h-36 items-end gap-1.5 px-1">' +
             series
               .map(function (s) {
                 var v = Number(s.row_count || 0);
-                var h = Math.max(4, Math.round((v / max) * 100));
+                var barH = Math.max(8, Math.round((v / max) * 120));
                 var t = (s.created_at || "").slice(5, 16);
                 return (
                   '<div class="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title="' +
                   t +
                   " · " +
-                  v +
-                  '"><div class="w-full rounded-t bg-indigo-500/80" style="height:' +
-                  h +
-                  '%"></div><span class="truncate text-[9px] text-slate-500">' +
+                  blFmtNum(v) +
+                  ' satır"><div class="w-full max-w-[2.5rem] rounded-t bg-indigo-500/85 dark:bg-indigo-400/80" style="height:' +
+                  barH +
+                  'px"></div><span class="w-full truncate text-center text-[9px] text-slate-500">' +
                   t +
                   "</span></div>"
                 );

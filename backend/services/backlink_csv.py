@@ -1169,7 +1169,7 @@ def build_top_backlink_rankings(
         if latest:
             for r in db.query(BacklinkRow).filter(BacklinkRow.import_id == latest.id).all():
                 dom = (r.domain or "").lower()
-                if not dom:
+                if not dom or dom == "gsc-anchor":
                     continue
                 pages, targets = _parse_gsc_agg_anchor(r.anchor_text or "")
                 sites_out.append(
@@ -1180,17 +1180,49 @@ def build_top_backlink_rankings(
                     }
                 )
             sites_out.sort(key=lambda x: (-x["link_count"], x["domain"]))
+
+        # Aynı property’nin External top linked pages scrape’ini yan yana göster
+        ext = _load_latest_gsc_target_page_stats(
+            db,
+            site_id=site_id,
+            report_type="external",
+            site_domain=site_domain,
+            gsc_resource_id=rid,
+        )
+        top_pages: list[dict[str, Any]] = []
+        pages_total = 0
+        if ext:
+            top_pages, pages_total = _top_pages_from_gsc_external_stats(ext, cap=cap)
+            sample_rows = _load_link_rows_for_target_samples(
+                db, site_id=site_id, report_type="external", gsc_resource_id=rid
+            )
+            samples = _target_page_samples_from_rows(
+                sample_rows, site_domain=site_domain, link_kind="external", per_target=10
+            )
+            ext_c = _target_page_referrer_counts(
+                sample_rows, site_domain=site_domain, link_kind="external"
+            )
+            int_c = _target_page_referrer_counts(
+                sample_rows, site_domain=site_domain, link_kind="internal"
+            )
+            _attach_samples_to_top_page_rows(
+                top_pages, samples, site_domain=site_domain, ext_counts=ext_c, int_counts=int_c
+            )
+
         return {
-            "top_linking_sites": sites_out[:cap],
-            "top_linking_pages": [],
+            "top_linking_sites": sites_out[:cap] if cap < 10**9 else sites_out,
+            "top_linking_pages": top_pages,
             "sites_total": len(sites_out),
-            "pages_total": 0,
-            "pages_source": None,
-            "pages_has_external_gsc": False,
+            "pages_total": pages_total,
+            "pages_source": "gsc_top_target_pages" if pages_total else None,
+            "pages_has_external_gsc": pages_total > 0,
             "pages_has_internal_gsc": False,
-            "pages_gsc_report_type": None,
+            "pages_gsc_report_type": "external" if pages_total else None,
             "ranking_report_type": rt,
         }
+
+    if rt in _GSC_ANCHOR_REPORT_TYPES:
+        return _empty_top_rankings(ranking_report_type=rt)
 
     gsc_ext_latest: dict[str, dict[str, Any]] | None = None
     if rt == "latest_links":
