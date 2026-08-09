@@ -35,10 +35,17 @@ def get_asc_metrics_query(
     end: str | None = Query(default=None),
     metric: str = Query(default="units"),
     bundle_id: str | None = Query(default=None),
+    compare: str | None = Query(default=None),
+    breakdown: str = Query(default="date"),
 ) -> dict[str, Any]:
     try:
         return query_asc_metric(
-            start=start, end=end, metric=metric, bundle_id=bundle_id
+            start=start,
+            end=end,
+            metric=metric,
+            bundle_id=bundle_id,
+            compare=compare,
+            breakdown=breakdown,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("asc-metrics query failed")

@@ -405,19 +405,43 @@ def _resolve_doviz_site(db: Session, project: str = "doviz"):
 
 def _ga4_daily_trend_payload(db: Session, *, site_id: int, profile: str) -> dict[str, Any] | None:
     from backend.config import settings
-    from backend.services.warehouse import get_latest_ga4_report_snapshot
+    from backend.models import Ga4ReportSnapshot
 
     try:
         pd12 = int(settings.ga4_trend_12m_period_days)
     except Exception:  # noqa: BLE001
         pd12 = 365
-    for period_days in (pd12, 90, 60, 30, 7):
-        snap = get_latest_ga4_report_snapshot(
-            db, site_id=site_id, profile=profile, period_days=period_days
+    preferred = [pd12, 90, 60, 30, 7]
+    # Tek sorgu: tercih edilen period_days’lerden en güncel satırları al, önce uzun aralığı seç
+    rows = (
+        db.query(Ga4ReportSnapshot)
+        .filter(
+            Ga4ReportSnapshot.site_id == site_id,
+            Ga4ReportSnapshot.profile == str(profile).strip().lower(),
+            Ga4ReportSnapshot.period_days.in_(preferred),
         )
-        if not snap:
+        .order_by(Ga4ReportSnapshot.collected_at.desc(), Ga4ReportSnapshot.id.desc())
+        .limit(12)
+        .all()
+    )
+    best_by_period: dict[int, Any] = {}
+    for row in rows:
+        pd = int(row.period_days or 0)
+        if pd in best_by_period:
             continue
-        payload = snap.get("payload") if isinstance(snap.get("payload"), dict) else {}
+        best_by_period[pd] = row
+    for period_days in preferred:
+        row = best_by_period.get(int(period_days))
+        if row is None:
+            continue
+        try:
+            import json as _json
+
+            payload = _json.loads(row.payload_json or "{}")
+        except Exception:  # noqa: BLE001
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
         dt = payload.get("daily_trend") if isinstance(payload.get("daily_trend"), dict) else {}
         dates = dt.get("dates") or []
         if not dates:
@@ -425,9 +449,9 @@ def _ga4_daily_trend_payload(db: Session, *, site_id: int, profile: str) -> dict
         return {
             "profile": profile,
             "period_days": period_days,
-            "collected_at": snap.get("collected_at"),
-            "last_start": snap.get("last_start"),
-            "last_end": snap.get("last_end"),
+            "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+            "last_start": row.last_start,
+            "last_end": row.last_end,
             "daily_trend": dt,
         }
     return None
@@ -650,7 +674,7 @@ def get_play_virgul_overlay_series(
     branch: str = Query(default="android"),
 ) -> dict[str, Any]:
     """Virgül /ad-virgul Android günlük serisini Play Metrikler overlay formatında döner."""
-    from backend.services.ad_analytics_store import query_summary
+    from backend.services.ad_analytics_store import query_by_date_for_overlay
 
     raw = (metric or "net_revenue").strip().lower()
     if raw.startswith("virgul:"):
@@ -675,7 +699,7 @@ def get_play_virgul_overlay_series(
         br = "android"
 
     try:
-        payload = query_summary(
+        payload = query_by_date_for_overlay(
             db,
             start=start,
             end=end,

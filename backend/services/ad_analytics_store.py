@@ -2603,6 +2603,84 @@ def scan_stream_kpis(db: Session, project: str, branch: str) -> list[str]:
     )
 
 
+def query_by_date_for_overlay(
+    db: Session,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+    project: str | None = None,
+    branch: str | None = None,
+    warehouse: str | None = "virgul",
+) -> dict[str, Any]:
+    """Play/iOS Metrikler overlay için yalnızca günlük seri — tam query_summary’den çok daha hafif."""
+    base = select(AdReportRow)
+    base = _apply_filters(
+        base,
+        start=start,
+        end=end,
+        income_types=None,
+        ad_units=None,
+        platforms=None,
+        channels=None,
+        surfaces=None,
+        sources=None,
+        search=None,
+        project=project,
+        branch=branch,
+        warehouse=warehouse,
+    )
+    sub = base.subquery()
+    norm_view = _norm_ratio_sql(sub.c.viewability)
+    norm_cov = _norm_ratio_sql(sub.c.coverage)
+    by_date = db.execute(
+        select(
+            sub.c.report_date,
+            func.sum(sub.c.net_revenue),
+            func.sum(sub.c.impression),
+            func.sum(sub.c.click),
+            func.sum(sub.c.ad_request),
+            func.sum(sub.c.matched_request),
+            _sum_extra_multi(sub, "empower_pageview"),
+            _sum_extra_multi(sub, "empower_unique_visitor"),
+            func.sum(norm_view * sub.c.impression),
+            func.sum(norm_cov * sub.c.ad_request),
+            _weighted_extra_ratio(sub, "above_the_fold_ratio", sub.c.impression),
+        )
+        .group_by(sub.c.report_date)
+        .order_by(sub.c.report_date)
+    ).all()
+
+    out_days: list[dict[str, Any]] = []
+    for row in by_date:
+        d_rev = float(row[1] or 0)
+        d_impr = float(row[2] or 0)
+        d_clk = float(row[3] or 0)
+        d_req = float(row[4] or 0)
+        d_match = float(row[5] or 0)
+        d_epv = float(row[6] or 0)
+        d_euv = float(row[7] or 0)
+        d_view_w = float(row[8] or 0)
+        d_cov_w = float(row[9] or 0)
+        out_days.append(
+            {
+                "date": row[0].isoformat(),
+                "net_revenue": round(d_rev, 2),
+                "impression": int(d_impr),
+                "click": int(d_clk),
+                "ad_request": int(d_req),
+                "matched_request": int(d_match),
+                "empower_pageview": int(d_epv),
+                "empower_unique_visitor": int(d_euv),
+                "ad_request_ecpm": round((d_rev / d_req * 1000.0) if d_req > 0 else 0.0, 3),
+                "ad_ecpm": round((d_rev / d_impr * 1000.0) if d_impr > 0 else 0.0, 3),
+                "ctr_pct": _round_ctr_pct((d_clk / d_impr * 100.0) if d_impr > 0 else 0.0),
+                "coverage_pct": round((d_cov_w / d_req * 100.0) if d_req > 0 else 0.0, 3),
+                "viewability_pct": round((d_view_w / d_impr * 100.0) if d_impr > 0 else 0.0, 3),
+            }
+        )
+    return {"by_date": out_days, "range": {"start": start, "end": end}}
+
+
 def query_summary(
     db: Session,
     *,
