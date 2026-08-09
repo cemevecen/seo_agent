@@ -378,13 +378,16 @@ def get_play_ga4_overlay_series(
 
     start_s = (start or "")[:10] or (series[0]["key"] if series else None)
     end_s = (end or "")[:10] or (series[-1]["key"] if series else None)
+    # ok=True: snapshot bulundu ve aralık dilimlendi (boş seri de geçerli — tarih değişiminde overlay kalır)
     return {
-        "ok": bool(series) and bool(vals),
+        "ok": True,
+        "has_data": bool(vals),
         "source": "ga4",
         "configured": True,
         "message": (
             f"GA4 · {label} · profile={prof} · period_days={pack.get('period_days')} · "
             f"{len(series)} gün"
+            + ("" if vals else " · seçili aralıkta veri yok")
         ),
         "start": start_s,
         "end": end_s,

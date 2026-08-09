@@ -1236,10 +1236,14 @@
         signal: signal
       });
       var gdata = await gr.json().catch(function () { return {}; });
-      if (!gr.ok || !gdata.ok) {
+      if (!gr.ok) {
         throw new Error(gdata.message || gdata.detail || ("GA4 HTTP " + gr.status));
       }
-      var gSeries = gdata.series || [];
+      // Snapshot yok / yapılandırılmamış → hata; boş seri (aralık dışı) → overlay kalsın
+      if (gdata.configured === false || (gdata.ok === false && !Array.isArray(gdata.series))) {
+        throw new Error(gdata.message || "GA4 serisi yok");
+      }
+      var gSeries = Array.isArray(gdata.series) ? gdata.series : [];
       if (brMain === "week" || brMain === "month") {
         gSeries = aggregateOverlaySeries(gSeries, brMain, metricKey === "ga4:avg_session");
       }
@@ -1287,11 +1291,20 @@
     var src = Array.isArray(list) ? list.slice() : [];
     if (!src.length) return;
     var results = await Promise.all(src.map(function (ov) {
-      return fetchOneOverlaySeries(ov, signal).catch(function () {
-        // başarısız olanı eski seriyle tut (kaybolmasın)
-        return Object.assign({}, ov, {
-          breakdown: (paBreakdown && paBreakdown.value) || ov.breakdown
-        });
+      return fetchOneOverlaySeries(ov, signal).catch(function (err) {
+        if (signal && signal.aborted) throw err;
+        // Tarih değişiminde eski seriyi tutma (eksen kayar, çizgi kaybolur gibi görünür).
+        // Chip/metrik kalsın; yeni aralık için boş seri.
+        return {
+          metric: ov.metric,
+          label: ov.label,
+          series: [],
+          breakdown: (paBreakdown && paBreakdown.value) || ov.breakdown || "date",
+          dim: ov.dim || "overview",
+          segment: ov.segment || "all",
+          source: ov.source || (isGa4OverlayMetric(ov.metric) ? "ga4" : "play"),
+          color: ov.color || null
+        };
       });
     }));
     if (signal && signal.aborted) return;
@@ -1709,13 +1722,18 @@
     var day = String(d.getDate()).padStart(2, "0");
     return y + "-" + m + "-" + day;
   }
-  function applyPreset() {
+  function applyPreset(opts) {
+    opts = opts || {};
     var end = new Date();
     var start = new Date();
     var days = parseInt((paPreset && paPreset.value) || "14", 10) || 14;
     start.setDate(end.getDate() - (days - 1));
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
+    // Preset / tarih değişince ana + ek (GA4 dahil) grafikleri yeni aralığa çek
+    if (opts.run && paMetric && paMetric.value && !paOverviewActive) {
+      runPlayAnalytics({ fromUser: true });
+    }
   }
   function fmtNum(n, asInt) {
     if (n == null || isNaN(n)) return "—";
@@ -2928,7 +2946,16 @@
     }
   }
 
-  if (paPreset) paPreset.addEventListener("change", function () { applyPreset(); });
+  if (paPreset) paPreset.addEventListener("change", function () {
+    applyPreset({ run: true });
+  });
+  function onPaDateRangeChange() {
+    if (paMetric && paMetric.value && !paOverviewActive) {
+      runPlayAnalytics({ fromUser: true });
+    }
+  }
+  if (paStart) paStart.addEventListener("change", onPaDateRangeChange);
+  if (paEnd) paEnd.addEventListener("change", onPaDateRangeChange);
   if (paRun) paRun.addEventListener("click", function () {
     runPlayAnalytics({ fromUser: true });
   });
