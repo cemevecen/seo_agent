@@ -1162,6 +1162,8 @@
   var paRunSeq = 0; // hızlı filtre değişiminde sadece son istek UI günceller
   var paOverviewActive = true; // Seçiniz: çoklu grafik+tablo; metrik seçilince false
   var paOverviewBundles = null;
+  /** Özet tabloda × ile gizlenen metrikler (oturum içi) */
+  var paOverviewHidden = {};
   var paTheadRow = document.getElementById("pa-thead-row");
   var paDefaultTheadHtml = paTheadRow ? paTheadRow.innerHTML : "";
   var paLegendMulti = document.getElementById("pa-legend-multi");
@@ -1356,6 +1358,37 @@
     var pal = paIsDark() ? PA_METRIC_COLORS_DARK : PA_METRIC_COLORS;
     return pal[i % pal.length];
   }
+  function overviewMetricColor(metric) {
+    var order = PA_OVERVIEW_CHART_METRICS.concat(PA_OVERVIEW_TABLE_EXTRA);
+    var idx = order.indexOf(metric);
+    return paMetricColor(idx >= 0 ? idx : 0);
+  }
+  function visibleOverviewBundles(bundles) {
+    return (bundles || []).filter(function (b) {
+      return b && b.metric && !paOverviewHidden[b.metric];
+    });
+  }
+  function refreshOverviewViewFromBundles() {
+    if (!paOverviewActive || !paOverviewBundles) return;
+    var visible = visibleOverviewBundles(paOverviewBundles);
+    var chartBundles = visible.filter(function (b) { return b.onChart; });
+    var anr = visible.find(function (b) { return b.metric === "anrs"; }) || chartBundles[0] || visible[0];
+    paLastChart = {
+      series: (anr && anr.series) || [],
+      prevSeries: [],
+      breakdown: (paBreakdown && paBreakdown.value) || "date",
+      compareMeta: null,
+      overview: true,
+      chartBundles: chartBundles
+    };
+    drawOverviewMainChart(chartBundles);
+    renderOverviewTable(visible);
+  }
+  function removeOverviewColumn(metric) {
+    if (!metric || !paOverviewActive) return;
+    paOverviewHidden[metric] = true;
+    refreshOverviewViewFromBundles();
+  }
   function paOverviewMetricDefs() {
     var chartSet = {};
     PA_OVERVIEW_CHART_METRICS.forEach(function (m) { chartSet[m] = true; });
@@ -1410,8 +1443,8 @@
     }
     if (!paLegendMulti) return;
     paLegendMulti.classList.remove("hidden");
-    paLegendMulti.innerHTML = (chartBundles || []).map(function (b, i) {
-      var color = paMetricColor(i);
+    paLegendMulti.innerHTML = (chartBundles || []).map(function (b) {
+      var color = overviewMetricColor(b.metric);
       return (
         '<button type="button" data-pa-legend-metric="' + esc(b.metric) + '" ' +
           'class="inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:hover:bg-zinc-800 dark:focus-visible:ring-zinc-600" ' +
@@ -1494,7 +1527,7 @@
     });
     var baseY = top + plotH;
     var linePaths = seriesPts.map(function (sp, si) {
-      var color = paMetricColor(si);
+      var color = overviewMetricColor(sp.metric);
       var pts = [];
       keys.forEach(function (key, i) {
         var v = Object.prototype.hasOwnProperty.call(sp.map, key) ? sp.map[key] : null;
@@ -1555,11 +1588,11 @@
       rows: rows,
       curPts: curPts,
       prevPts: [],
-      multiSeries: seriesPts.map(function (sp, si) {
+      multiSeries: seriesPts.map(function (sp) {
         return {
           label: sp.label,
           metric: sp.metric,
-          color: paMetricColor(si),
+          color: overviewMetricColor(sp.metric),
           map: sp.map,
           countLike: sp.countLike
         };
@@ -1604,9 +1637,10 @@
   function renderOverviewTable(bundles) {
     restoreDefaultPaThead();
     if (!paTheadRow || !paTable) return;
+    var list = bundles || [];
     var dayOnly = (paSelectedRangeDays() != null && paSelectedRangeDays() < 30);
     var keySet = {};
-    (bundles || []).forEach(function (b) {
+    list.forEach(function (b) {
       (b.series || []).forEach(function (r) {
         if (r && r.key != null) keySet[String(r.key)] = true;
       });
@@ -1614,21 +1648,32 @@
     var keys = Object.keys(keySet).sort();
     paTheadRow.innerHTML =
       '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold sm:px-3 dark:bg-zinc-900">Kırılım</th>' +
-      (bundles || []).map(function (b, i) {
-        var color = paMetricColor(i);
+      list.map(function (b) {
+        var color = overviewMetricColor(b.metric);
+        var short = shortMetricLabel(b.label, b.metric);
         return (
-          '<th class="px-1.5 py-2 font-bold tabular-nums sm:px-2" style="color:' + color + '" title="' + esc(b.label) + '">' +
-            esc(shortMetricLabel(b.label, b.metric)) +
+          '<th class="px-1 py-2 font-bold tabular-nums sm:px-1.5" style="color:' + color + '" title="' + esc(b.label) + '">' +
+            '<span class="inline-flex w-full items-center justify-end gap-0.5">' +
+              '<span class="min-w-0 truncate">' + esc(short) + "</span>" +
+              '<button type="button" data-pa-ov-col-remove="' + esc(b.metric) + '" ' +
+                'class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px] leading-none text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:text-zinc-500 dark:hover:bg-rose-950/50 dark:hover:text-rose-300" ' +
+                'title="Sütunu kaldır" aria-label="' + esc(short) + ' sütununu kaldır">×</button>' +
+            "</span>" +
           "</th>"
         );
       }).join("");
+    if (!list.length) {
+      paTable.innerHTML =
+        '<tr><td class="px-3 py-4 text-center text-slate-400">Tüm sütunlar kaldırıldı — Metrik’ten Seçiniz ile yenileyin</td></tr>';
+      return;
+    }
     if (!keys.length) {
       paTable.innerHTML =
-        '<tr><td colspan="' + (1 + (bundles || []).length) +
+        '<tr><td colspan="' + (1 + list.length) +
         '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
       return;
     }
-    var maps = (bundles || []).map(function (b) {
+    var maps = list.map(function (b) {
       var m = {};
       (b.series || []).forEach(function (r) {
         if (!r) return;
@@ -1642,7 +1687,7 @@
         '<td class="sticky left-0 z-[1] bg-white px-2 py-1.5 font-medium tabular-nums text-slate-700 sm:px-3 dark:bg-zinc-950 dark:text-zinc-200">' +
           esc(fmtAxisKey(key, dayOnly)) +
         "</td>";
-      (bundles || []).forEach(function (b, i) {
+      list.forEach(function (b, i) {
         var v = maps[i][key];
         cells +=
           '<td class="px-1.5 py-1.5 tabular-nums font-semibold text-slate-900 sm:px-2 dark:text-zinc-100" title="' +
@@ -2809,9 +2854,9 @@
           });
         }));
         paOverviewBundles = bundles;
-        var chartBundles = bundles.filter(function (b) { return b.onChart; });
-        var tableBundles = bundles;
-        var anr = bundles.find(function (b) { return b.metric === "anrs"; }) || chartBundles[0];
+        var tableBundles = visibleOverviewBundles(bundles);
+        var chartBundles = tableBundles.filter(function (b) { return b.onChart; });
+        var anr = tableBundles.find(function (b) { return b.metric === "anrs"; }) || chartBundles[0] || tableBundles[0];
         if (paTotal) paTotal.textContent = anr ? fmtNum(anr.total, metricIsCountLike(anr.metric)) : "—";
         if (paTotalLabel) paTotalLabel.textContent = "Özet (ANR toplam)";
         if (paPrev) paPrev.textContent = "—";
@@ -3099,11 +3144,25 @@
     paMetric.addEventListener("change", function () {
       if (!paMetric.value) {
         paOverviewActive = true;
+        paOverviewHidden = {};
         runPlayAnalytics();
         return;
       }
       resetPaFiltersForMetricChange();
       runPlayAnalytics({ fromUser: true });
+    });
+  }
+  var paTableWrap = document.getElementById("pa-table-wrap");
+  if (paTableWrap) {
+    paTableWrap.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest
+        ? ev.target.closest("[data-pa-ov-col-remove]")
+        : null;
+      if (!btn || !paOverviewActive) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var metric = btn.getAttribute("data-pa-ov-col-remove");
+      if (metric) removeOverviewColumn(metric);
     });
   }
   ["pa-breakdown", "pa-dim", "pa-segment", "pa-compare"].forEach(function (id) {
