@@ -53,8 +53,9 @@
     text-decoration: underline;
   }
   .rt-list-title {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 500;
+    line-height: 1.25;
     color: rgb(51 65 85);
   }
   html.dark .rt-list-title {
@@ -70,12 +71,15 @@
   }
   .rt-list-nums {
     color: rgb(71 85 105);
+    font-size: 0.8125rem;
+    line-height: 1.2;
   }
   html.dark .rt-list-nums {
     color: rgb(212 212 216);
   }
   .rt-list-meta {
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
+    line-height: 1.2;
     color: rgb(100 116 139);
   }
   html.dark .rt-list-meta {
@@ -84,13 +88,15 @@
   /* Top Sayfalar / Haberler: dar ekranda başlık sağdaki rakamların üstüne taşmasın */
   .rt-top-list-row {
     display: grid;
-    grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+    grid-template-columns: 1.35rem minmax(0, 1fr) auto;
     align-items: start;
-    column-gap: 0.5rem;
+    column-gap: 0.4rem;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
   }
   .rt-top-list-mid {
     min-width: 0;
@@ -5586,38 +5592,30 @@
       listEl.innerHTML = '<p class="rt-empty text-sm leading-snug">Bu pencerede haber trafiği yok (makale URL’si veya uygulama ekran başlığı).</p>';
       return;
     }
-    var cmp = showComparison !== false;
     var sortKey = 'activeUsers';
     var maxVal = pages[0][sortKey] || 1;
     listEl.innerHTML = pages.map(function (p, i) {
       var titleRaw = p.page || '(başlıksız)';
       var titleDisp = _esc(titleRaw);
       var subRaw = (p.page_path || '').trim() || (p.link_url || '');
-      var subEsc = _esc(subRaw);
       var tipParts = [titleRaw];
       if (subRaw) tipParts.push(subRaw);
       var tipAttr = _attr(tipParts.join(' — '));
       var hrefAttr = _rtPageHref(domain, p, profile);
-      var usersPrev = p.activeUsers_previous;
-      var viewsPrev = p.screenPageViews_previous;
-      var usersComp = cmp ? _renderComparison(p.activeUsers, usersPrev) : '';
-      var viewsComp = cmp ? _renderComparison(p.screenPageViews, viewsPrev) : '';
-
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
       var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
-      var linkHtml = _rtLinkedTitleHtml(titleDisp, hrefAttr, tipAttr, 'rt-news-link text-sm hover:underline');
-      return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
-        + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
+      var linkHtml = _rtLinkedTitleHtml(titleDisp, hrefAttr, tipAttr, 'rt-news-link text-[13px] leading-snug hover:underline');
+      return '<div class="rt-top-list-row rounded-md px-1.5 py-0.5' + zebra + '">'
+        + '<span class="rt-rank w-4 shrink-0 pt-px text-right text-[10px] font-bold leading-tight">' + (i + 1) + '</span>'
         + '<div class="rt-top-list-mid">'
         + linkHtml
-        + '<div class="rt-list-sub mt-0.5" title="' + _attr(subRaw) + '">' + subEsc + '</div>'
-        + '<div class="rt-bar-track"><div class="rt-bar-fill-amber" style="width:' + barW + '%"></div></div>'
+        + '<div class="rt-bar-track mt-0.5"><div class="rt-bar-fill-amber" style="width:' + barW + '%"></div></div>'
         + '</div>'
-        + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
-        + '<span class="rt-list-nums tabular-nums"><strong class="text-sm">' + users + '</strong>' + usersComp + ' <span class="rt-list-meta">kul.</span></span>'
-        + '<span class="rt-list-meta">' + views + viewsComp + ' gör.</span>'
+        + '<div class="rt-top-list-nums-col flex flex-col items-end leading-tight">'
+        + '<span class="rt-list-nums tabular-nums"><strong class="text-[13px]">' + users + '</strong></span>'
+        + '<span class="rt-list-meta tabular-nums">' + views + '</span>'
         + '</div>'
         + '</div>';
     }).join('');
@@ -6340,11 +6338,6 @@
     listEl.innerHTML = pages.map(function (p, i) {
       var pathRaw = p.page || '(bilinmiyor)';
       var path = _esc(pathRaw);
-      var usersPrev = p.activeUsers_previous;
-      var viewsPrev = p.screenPageViews_previous;
-      var usersComp = _renderComparison(p.activeUsers, usersPrev);
-      var viewsComp = _renderComparison(p.screenPageViews, viewsPrev);
-
       var users = _fmt(p.activeUsers);
       var views = _fmt(p.screenPageViews);
       var barW = Math.max(4, Math.round(((p[sortKey] || 0) / maxVal) * 100));
@@ -6352,23 +6345,23 @@
 
       var hrefAttr = _rtPageHref(domain, p, profile);
       var titleTip = _attr(pathRaw + (hrefAttr ? '\n' + hrefAttr : ''));
-      var titleHtml = _rtLinkedTitleHtml(path, hrefAttr, titleTip, 'rt-list-title rt-news-link text-sm');
+      var titleHtml = _rtLinkedTitleHtml(path, hrefAttr, titleTip, 'rt-list-title rt-news-link text-[13px] leading-snug');
 
       var primary = viewsMode
-        ? '<strong class="text-sm">' + views + '</strong>' + viewsComp + ' <span class="rt-list-meta">gör.</span>'
-        : '<strong class="text-sm">' + users + '</strong>' + usersComp + ' <span class="rt-list-meta">kul.</span>';
+        ? '<strong class="text-[13px]">' + views + '</strong>'
+        : '<strong class="text-[13px]">' + users + '</strong>';
       var secondary = viewsMode
-        ? '<span class="rt-list-meta">' + users + usersComp + ' kul.</span>'
-        : '<span class="rt-list-meta">' + views + viewsComp + ' gör.</span>';
+        ? '<span class="rt-list-meta tabular-nums">' + users + '</span>'
+        : '<span class="rt-list-meta tabular-nums">' + views + '</span>';
 
       var zebra = i % 2 === 0 ? ' rt-list-row--even' : '';
-      return '<div class="rt-top-list-row rounded-md px-2 py-1.5' + zebra + '">'
-        + '<span class="rt-rank w-5 shrink-0 pt-0.5 text-right text-xs font-bold">' + (i + 1) + '</span>'
+      return '<div class="rt-top-list-row rounded-md px-1.5 py-0.5' + zebra + '">'
+        + '<span class="rt-rank w-4 shrink-0 pt-px text-right text-[10px] font-bold leading-tight">' + (i + 1) + '</span>'
         + '<div class="rt-top-list-mid">'
         + titleHtml
-        + '<div class="rt-bar-track"><div class="' + barColor + '" style="width:' + barW + '%"></div></div>'
+        + '<div class="rt-bar-track mt-0.5"><div class="' + barColor + '" style="width:' + barW + '%"></div></div>'
         + '</div>'
-        + '<div class="rt-top-list-nums-col flex flex-col items-end gap-0.5">'
+        + '<div class="rt-top-list-nums-col flex flex-col items-end leading-tight">'
         + '<span class="rt-list-nums tabular-nums">' + primary + '</span>'
         + secondary
         + '</div>'
