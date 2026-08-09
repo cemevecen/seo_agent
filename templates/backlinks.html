@@ -462,6 +462,12 @@
     flex-wrap: wrap;
     gap: 0.4rem;
   }
+  .bl-rt-item {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    max-width: 100%;
+  }
   .bl-report-type-chip {
     cursor: pointer;
     border-radius: 9999px;
@@ -473,6 +479,12 @@
     line-height: 1.25;
     color: rgb(51 65 85);
     transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  }
+  .bl-rt-item .bl-report-type-chip {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right-width: 1px;
+    padding-right: 0.55rem;
   }
   .bl-report-type-chip:hover:not(:disabled) {
     border-color: rgb(129 140 248);
@@ -510,6 +522,87 @@
   }
   .bl-report-type-chip[aria-selected="true"] .bl-report-type-chip-sub {
     opacity: 0.92;
+  }
+  .bl-rt-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.55rem;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 2px solid rgb(203 213 225);
+    border-left-width: 1px;
+    border-radius: 0 9999px 9999px 0;
+    background: rgb(248 250 252);
+    color: rgb(100 116 139);
+    font-size: 0.65rem;
+    font-weight: 800;
+    font-style: italic;
+    font-family: Georgia, "Times New Roman", serif;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s, color 0.12s;
+  }
+  .bl-rt-item:hover .bl-rt-info-btn,
+  .bl-rt-info-btn:hover,
+  .bl-rt-info-btn[aria-expanded="true"] {
+    border-color: rgb(129 140 248);
+    color: rgb(67 56 202);
+    background: rgb(238 242 255);
+  }
+  .bl-rt-item:has(.bl-report-type-chip[aria-selected="true"]) .bl-rt-info-btn {
+    border-color: rgb(79 70 229);
+    background: rgb(67 56 202);
+    color: #fff;
+  }
+  .bl-rt-item:has(.bl-report-type-chip[aria-selected="true"]) .bl-rt-info-btn:hover,
+  .bl-rt-item:has(.bl-report-type-chip[aria-selected="true"]) .bl-rt-info-btn[aria-expanded="true"] {
+    background: rgb(55 48 163);
+    color: #fff;
+  }
+  html.dark .bl-rt-info-btn {
+    border-color: rgb(71 85 105);
+    background: rgb(15 23 42);
+    color: rgb(148 163 184);
+  }
+  html.dark .bl-rt-item:hover .bl-rt-info-btn,
+  html.dark .bl-rt-info-btn:hover,
+  html.dark .bl-rt-info-btn[aria-expanded="true"] {
+    border-color: rgb(129 140 248);
+    background: rgb(30 27 75);
+    color: rgb(199 210 254);
+  }
+  html.dark .bl-rt-item:has(.bl-report-type-chip[aria-selected="true"]) .bl-rt-info-btn {
+    border-color: rgb(129 140 248);
+    background: rgb(79 70 229);
+    color: #fff;
+  }
+  .bl-rt-info-tip {
+    position: absolute;
+    z-index: 50;
+    left: 0;
+    top: calc(100% + 0.4rem);
+    width: min(17.5rem, calc(100vw - 2rem));
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.65rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: rgb(51 65 85);
+    display: none;
+  }
+  .bl-rt-info-tip.is-open {
+    display: block;
+  }
+  html.dark .bl-rt-info-tip {
+    border-color: rgb(63 63 70);
+    background: rgba(24, 24, 27, 0.98);
+    color: rgb(212 212 216);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
   }
   .bl-toolbar-card {
     padding: 0.85rem 1rem;
@@ -642,22 +735,46 @@
         <h2>Rapor türü</h2>
         <input type="hidden" id="bl-report-type" value="external" />
         <div id="bl-report-type-wrap" class="bl-report-type-chips mt-2" role="tablist" aria-label="Rapor türü">
-          <button type="button" role="tab" class="bl-report-type-chip" data-value="external" aria-selected="true" title="GSC External — top linked pages">
-            External
-            <span class="bl-report-type-chip-sub">top linked pages</span>
-          </button>
-          <button type="button" role="tab" class="bl-report-type-chip" data-value="domain" aria-selected="false" title="GSC Linking sites">
-            Domain
-            <span class="bl-report-type-chip-sub">linking sites</span>
-          </button>
-          <button type="button" role="tab" class="bl-report-type-chip" data-value="anchor_text" aria-selected="false" title="GSC Anchor text">
-            Anchor
-            <span class="bl-report-type-chip-sub">linking text</span>
-          </button>
-          <button type="button" role="tab" class="bl-report-type-chip" data-value="internal" aria-selected="false" title="GSC Internal links">
-            Internal
-            <span class="bl-report-type-chip-sub">top linked pages</span>
-          </button>
+          <div class="bl-rt-item">
+            <button type="button" role="tab" class="bl-report-type-chip" data-value="external" aria-selected="true" title="GSC External — top linked pages">
+              External
+              <span class="bl-report-type-chip-sub">top linked pages</span>
+            </button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="External açıklaması" title="Bilgi">i</button>
+            <div class="bl-rt-info-tip" role="tooltip">
+              Dış sitelerden en çok backlink alan sayfalarınızı listeler. Hangi URL’lerin dışarıdan bağlantı çektiğini gösterir.
+            </div>
+          </div>
+          <div class="bl-rt-item">
+            <button type="button" role="tab" class="bl-report-type-chip" data-value="domain" aria-selected="false" title="GSC Linking sites">
+              Domain
+              <span class="bl-report-type-chip-sub">linking sites</span>
+            </button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Domain açıklaması" title="Bilgi">i</button>
+            <div class="bl-rt-info-tip" role="tooltip">
+              Size link veren benzersiz dış domainleri listeler. Hangi sitelerden bağlantı geldiğini domain bazında görürsünüz.
+            </div>
+          </div>
+          <div class="bl-rt-item">
+            <button type="button" role="tab" class="bl-report-type-chip" data-value="anchor_text" aria-selected="false" title="GSC Anchor text">
+              Anchor
+              <span class="bl-report-type-chip-sub">linking text</span>
+            </button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Anchor açıklaması" title="Bilgi">i</button>
+            <div class="bl-rt-info-tip" role="tooltip">
+              Size gelen bağlantılarda kullanılan anchor (bağlantı metni) ifadelerini listeler. Hangi kelime veya ifadelerle link verildiğini gösterir.
+            </div>
+          </div>
+          <div class="bl-rt-item">
+            <button type="button" role="tab" class="bl-report-type-chip" data-value="internal" aria-selected="false" title="GSC Internal links">
+              Internal
+              <span class="bl-report-type-chip-sub">top linked pages</span>
+            </button>
+            <button type="button" class="bl-rt-info-btn" data-bl-rt-info aria-expanded="false" aria-label="Internal açıklaması" title="Bilgi">i</button>
+            <div class="bl-rt-info-tip" role="tooltip">
+              Aynı site içinden en çok link alan sayfaları listeler. İç link mimarisinde öne çıkan URL’leri gösterir.
+            </div>
+          </div>
         </div>
         <p class="bl-toolbar-hint mt-2 hidden sm:block">
           Kaynak: Search Console Links scrape (Sheets yok) · günde 2×
@@ -2399,14 +2516,77 @@
     var wrap = document.getElementById("bl-report-type-wrap");
     if (!wrap || wrap.dataset.wired === "1") return;
     wrap.dataset.wired = "1";
+
+    function closeAllBlRtInfoTips(exceptTip) {
+      wrap.querySelectorAll(".bl-rt-info-tip.is-open").forEach(function (tip) {
+        if (exceptTip && tip === exceptTip) return;
+        tip.classList.remove("is-open");
+        var item = tip.closest(".bl-rt-item");
+        var btn = item && item.querySelector("[data-bl-rt-info]");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+        tip.style.left = "";
+        tip.style.right = "";
+      });
+    }
+
     wrap.addEventListener("click", function (ev) {
+      var infoBtn = ev.target.closest("[data-bl-rt-info]");
+      if (infoBtn && wrap.contains(infoBtn)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var item = infoBtn.closest(".bl-rt-item");
+        var tip = item && item.querySelector(".bl-rt-info-tip");
+        var wasOpen = tip && tip.classList.contains("is-open");
+        closeAllBlRtInfoTips();
+        if (!wasOpen && tip) {
+          tip.classList.add("is-open");
+          infoBtn.setAttribute("aria-expanded", "true");
+          tip.style.left = "0";
+          tip.style.right = "auto";
+          var r = tip.getBoundingClientRect();
+          if (r.right > window.innerWidth - 8) {
+            tip.style.left = "auto";
+            tip.style.right = "0";
+          }
+        }
+        return;
+      }
       var btn = ev.target.closest(".bl-report-type-chip");
-      if (!btn || btn.disabled) return;
+      if (!btn || btn.disabled || !wrap.contains(btn)) return;
+      closeAllBlRtInfoTips();
       var rt = btn.getAttribute("data-value");
       if (rt) setBlReportType(rt);
     });
+
+    if (!window.__blRtInfoDocClose) {
+      window.__blRtInfoDocClose = true;
+      document.addEventListener("click", function (ev) {
+        if (ev.target && ev.target.closest && ev.target.closest(".bl-rt-item")) return;
+        var root = document.getElementById("bl-report-type-wrap");
+        if (!root) return;
+        root.querySelectorAll(".bl-rt-info-tip.is-open").forEach(function (tip) {
+          tip.classList.remove("is-open");
+          var item = tip.closest(".bl-rt-item");
+          var btn = item && item.querySelector("[data-bl-rt-info]");
+          if (btn) btn.setAttribute("aria-expanded", "false");
+        });
+      });
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Escape") return;
+        var root = document.getElementById("bl-report-type-wrap");
+        if (!root) return;
+        root.querySelectorAll(".bl-rt-info-tip.is-open").forEach(function (tip) {
+          tip.classList.remove("is-open");
+          var item = tip.closest(".bl-rt-item");
+          var btn = item && item.querySelector("[data-bl-rt-info]");
+          if (btn) btn.setAttribute("aria-expanded", "false");
+        });
+      });
+    }
+
     wrap.addEventListener("keydown", function (ev) {
       if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+      if (ev.target && ev.target.closest && ev.target.closest("[data-bl-rt-info]")) return;
       var chips = Array.prototype.slice.call(wrap.querySelectorAll(".bl-report-type-chip:not(:disabled)"));
       if (!chips.length) return;
       var idx = chips.findIndex(function (c) {
