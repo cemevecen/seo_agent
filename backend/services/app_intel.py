@@ -2352,6 +2352,31 @@ def build_intel_payload(product_id: str, period_days: int, *, force_refresh: boo
         }
 
     intel["active_window"] = intel["windows"][str(period_days)]
+
+    # Android puanı: Play Console Özet (default_rating) varsa onu tercih et (/android ile aynı)
+    try:
+        from backend.database import SessionLocal
+        from backend.services.play_console_store import play_console_payload
+
+        with SessionLocal() as db:
+            snap = play_console_payload(db) or {}
+        pkg = (snap.get("package_name") or "").strip()
+        expected = (APP_PRODUCTS.get(product_id) or {}).get("android_package") or ""
+        if pkg and expected and pkg != expected:
+            snap = {}
+        rs = snap.get("rating_summary") if isinstance(snap.get("rating_summary"), dict) else {}
+        raw_score = rs.get("default_rating")
+        if raw_score not in (None, "", "—"):
+            score = float(str(raw_score).replace(",", "."))
+            for win in intel["windows"].values():
+                if isinstance(win, dict) and isinstance(win.get("android"), dict):
+                    win["android"]["store_score"] = score
+                    win["android"]["store_score_source"] = "play_console_scrape"
+            if isinstance(intel.get("meta"), dict) and isinstance(intel["meta"].get("android"), dict):
+                intel["meta"]["android"]["score"] = score
+    except Exception:
+        logger.debug("intel play-console rating enrich failed", exc_info=True)
+
     try:
         from backend.services.store_version_releases import fetch_version_releases_for_product
 
