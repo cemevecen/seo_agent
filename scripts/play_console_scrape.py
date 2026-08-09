@@ -626,16 +626,72 @@ def _need_login(page_url: str, title: str, body_sample: str) -> bool:
     return False
 
 
+def _kill_stale_profile_browsers(profile_dir: Path) -> int:
+    """Kill Chromium/Chrome still holding this persistent profile (SingletonLock)."""
+    import signal
+    import subprocess
+
+    marker = str(profile_dir.resolve())
+    killed = 0
+    try:
+        out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
+    except Exception:
+        out = ""
+    for line in out.splitlines():
+        if marker not in line:
+            continue
+        if "Chromium" not in line and "Google Chrome" not in line and "chrome" not in line.lower():
+            continue
+        try:
+            pid = int(line.split(None, 1)[0])
+        except Exception:
+            continue
+        if pid <= 1 or pid == os.getpid():
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed += 1
+        except ProcessLookupError:
+            pass
+        except Exception:
+            pass
+    if killed:
+        time.sleep(0.8)
+        # Force leftover parents
+        try:
+            out2 = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
+        except Exception:
+            out2 = ""
+        for line in out2.splitlines():
+            if marker not in line:
+                continue
+            try:
+                pid = int(line.split(None, 1)[0])
+                os.kill(pid, signal.SIGKILL)
+            except Exception:
+                pass
+        time.sleep(0.3)
+    return killed
+
+
+def _clear_profile_singleton_locks(profile_dir: Path) -> None:
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        try:
+            (profile_dir / name).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def _launch_context(*, headed: bool):
     from playwright.sync_api import sync_playwright
 
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    # Stale Singleton* locks from crashed Chromium block relaunch.
-    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
-        try:
-            (PROFILE_DIR / name).unlink(missing_ok=True)
-        except Exception:
-            pass
+    # Alive Chromium on the same user-data-dir blocks relaunch and can leave the
+    # bridge thread stuck with a running asyncio loop → Sync API errors on retry.
+    killed = _kill_stale_profile_browsers(PROFILE_DIR)
+    if killed:
+        print(f"Play profile: {killed} stale browser process sonlandırıldı", flush=True)
+    _clear_profile_singleton_locks(PROFILE_DIR)
     pw = sync_playwright().start()
     channel = (os.environ.get("PLAY_CONSOLE_BROWSER_CHANNEL") or "chrome").strip()
     launch_kwargs: dict[str, Any] = {

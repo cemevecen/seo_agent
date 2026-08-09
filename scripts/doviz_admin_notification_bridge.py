@@ -540,77 +540,107 @@ def run_virgul_bridge_once() -> dict[str, Any]:
 
 
 def run_play_bridge_once() -> dict[str, Any]:
-    """Play Console dashboard + reviews scrape → Railway ingest."""
+    """Play Console dashboard + reviews scrape → Railway ingest.
+
+    Subprocess ile çalışır: sync Playwright'ın asyncio/greenlet state'i
+    bridge auto thread'ini kirletmesin (Sync API inside asyncio loop).
+    """
     global _last_play_result
     if not _ingest_token():
         err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
         _last_play_result = err
         return err
-    try:
-        import importlib.util
 
-        path = ROOT / "scripts" / "play_console_scrape.py"
-        spec = importlib.util.spec_from_file_location("play_console_scrape", path)
-        if spec is None or spec.loader is None:
-            err = {"ok": False, "message": "play_console_scrape.py yüklenemedi"}
-            _last_play_result = err
-            return err
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        scrape_play_console = mod.scrape_play_console
-        ingest_scrape_result = mod.ingest_scrape_result
-    except Exception as exc:  # noqa: BLE001
-        err = {"ok": False, "message": f"play_console_scrape import: {exc}"}
+    import subprocess
+
+    script = ROOT / "scripts" / "play_console_scrape.py"
+    if not script.is_file():
+        err = {"ok": False, "kind": "play", "message": "play_console_scrape.py yok"}
         _last_play_result = err
         return err
 
     print("Play Console scrape başlıyor…", flush=True)
-    # Google headless’ta oturumu düşürüyor; bridge da headed (DISPLAY/Mac GUI).
     env_hl = (os.environ.get("PLAY_CONSOLE_HEADLESS") or "").strip().lower()
     headed = env_hl not in ("1", "true", "yes")
-    result = scrape_play_console(headed=headed)
-    if result.get("needs_login"):
+    cmd = [sys.executable, str(script), "--sync", "--ingest"]
+    if not headed:
+        cmd.append("--headless")
+    env = os.environ.copy()
+    env.setdefault("PLAY_CONSOLE_INGEST_URL", _play_console_ingest_url())
+    timeout_sec = int(os.environ.get("PLAY_BRIDGE_TIMEOUT_SEC") or "1200")
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=max(120, timeout_sec),
+        )
+    except subprocess.TimeoutExpired as exc:
+        out = {
+            "ok": False,
+            "kind": "play",
+            "message": f"Play scrape timeout ({timeout_sec}s) — stuck Chromium olabilir",
+        }
+        _last_play_result = out
+        # Best-effort: leave cleanup to next launch's stale-browser kill
+        print(str(exc)[:300], flush=True)
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "play", "message": f"Play subprocess: {exc}"}
+        _last_play_result = out
+        return out
+
+    combined = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    # Propagate child logs (last chunk) for debugging
+    if combined:
+        for line in combined.splitlines()[-40:]:
+            print(line, flush=True)
+
+    if proc.returncode == 2 or "needs_login" in combined.lower():
         out = {
             "ok": False,
             "kind": "play",
             "needs_login": True,
-            "message": result.get("message") or "Play login gerekli (--login)",
+            "message": "Play login gerekli (--login)",
         }
         _last_play_result = out
         return out
-    try:
-        # URL override for ingest if bridge has custom env
-        os.environ.setdefault(
-            "PLAY_CONSOLE_INGEST_URL",
-            _play_console_ingest_url(),
-        )
-        ing = ingest_scrape_result(result)
-    except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "kind": "play", "message": f"Ingest hata: {exc}"}
+
+    if proc.returncode == 0:
+        # Prefer a concise success line from child stdout
+        msg = "Play sync OK"
+        for line in reversed((proc.stdout or "").splitlines()):
+            s = line.strip()
+            if s.startswith("Play scrape") or s.startswith("INGEST"):
+                msg = s[:400]
+                break
+        out = {"ok": True, "kind": "play", "message": msg, "needs_login": False}
         _last_play_result = out
+        print(f"Play sync · {out['message']}", flush=True)
         return out
-    out = {
-        "ok": bool(ing.get("ok")) and bool(result.get("ok")),
-        "kind": "play",
-        "http_status": ing.get("http_status"),
-        "metric_count": len(result.get("metrics") or []),
-        "review_count": len(result.get("reviews") or []),
-        "message": result.get("message") or ing.get("message") or "Play sync",
-        "needs_login": False,
-        "ingest": {
-            k: ing.get(k)
-            for k in (
-                "ok",
-                "updated_at",
-                "metric_count",
-                "tpg_count",
-                "breakdown_count",
-                "review_count",
-                "message",
+
+    err_msg = ""
+    for line in reversed(combined.splitlines()):
+        s = line.strip()
+        if not s:
+            continue
+        if "Sync API inside the asyncio loop" in s:
+            err_msg = (
+                "Playwright Sync API / asyncio conflict "
+                "(önceki Chromium kapanmamış olabilir)"
             )
-            if k in ing or k == "ok"
-        },
-    }
+            break
+        if "SingletonLock" in s or "ProcessSingleton" in s:
+            err_msg = "Play profile SingletonLock — başka Chromium oturumu açık"
+            break
+        if "Error:" in s or "error:" in s or s.startswith("playwright."):
+            err_msg = s[:400]
+            break
+    if not err_msg:
+        err_msg = (combined[-400:] if combined else f"exit {proc.returncode}")[:400]
+    out = {"ok": False, "kind": "play", "message": err_msg, "needs_login": False}
     _last_play_result = out
     print(f"Play sync · {out['message']}", flush=True)
     return out
