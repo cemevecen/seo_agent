@@ -14812,13 +14812,21 @@ def app_intel_page(request: Request):
 
 @app.get("/firebase")
 def firebase_page(request: Request):
-    """Firebase Crashlytics izleme sayfası."""
-    from backend.services import crashlytics_bq as cbq
+    """Firebase Crashlytics izleme — /android + /ios scrape kaynakları."""
+    from backend.services.app_intel import APP_PRODUCTS
+
+    crash_products = [
+        {"id": k, "label": v.get("label") or k}
+        for k, v in APP_PRODUCTS.items()
+        if (v.get("android_package") or v.get("ios_bundle_id"))
+    ]
+    if not crash_products and "doviz" in APP_PRODUCTS:
+        crash_products = [{"id": "doviz", "label": APP_PRODUCTS["doviz"].get("label") or "Döviz"}]
 
     payload = {
         "site_name": "Firebase",
         "sites": get_sidebar_sites(),
-        "crash_products": cbq.list_crashlytics_products(),
+        "crash_products": crash_products,
     }
     template_name = "partials/firebase_content.html" if request.headers.get("HX-Request") == "true" else "firebase.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
@@ -15311,17 +15319,22 @@ def _crash_fetch(params: dict) -> dict:
 
 
 def _crash_fetch_impl(params: dict) -> dict:
+    """Firebase /app Crashlytics HTMX — /android + /ios scrape & stability-free."""
     from backend.services import crashlytics_bq as cbq
-    data = cbq.build_full_payload(
+    from backend.services.firebase_from_store_tabs import build_firebase_tab_payload
+
+    ver_list = _version_list_from_params(params)
+    error_type = (params.get("error_type") or "").strip().upper() or None
+    force = bool(params.get("force_refresh"))
+    data = build_firebase_tab_payload(
         params["product"],
         days=params["days"],
-        platform_filter="all",
+        force_refresh=force,
+        versions=ver_list or None,
+        error_type=error_type,
     )
     if not data or not data.get("ok"):
         return data
-
-    if _version_list_from_params(params) or (params.get("error_type") or "").strip():
-        data = _refetch_filtered_payload(data, params)
 
     plat = (params.get("platform") or "all").strip().lower()
     if plat in ("ios", "android"):
@@ -15445,20 +15458,20 @@ def api_crash_platform_analysis(product: str = "doviz", days: int = 7):
 
 @app.get("/api/app/crashlytics/progress")
 def api_crash_progress(product: str = "doviz"):
-    from backend.services import crashlytics_bq as cbq
-    pid = product.strip().lower()
-    warm = cbq.is_cache_warm(pid)
-    state = cbq.get_job_state(pid)
-    if state is None:
-        return JSONResponse({"running": False, "pct": 0, "step": "", "done": True, "error": None, "cache_warm": warm})
-    return JSONResponse({
-        "running": not state["done"],
-        "pct": state.get("pct", 0),
-        "step": state.get("step", ""),
-        "done": state.get("done", False),
-        "error": state.get("error"),
-        "cache_warm": warm,
-    })
+    """Store-tabs kaynağı anlık — BigQuery job beklemesi yok."""
+    pid = (product or "doviz").strip().lower()
+    return JSONResponse(
+        {
+            "running": False,
+            "pct": 100,
+            "step": "Play / ASC scrape hazır",
+            "done": True,
+            "error": None,
+            "cache_warm": True,
+            "source": "android_ios_store_tabs",
+            "product": pid,
+        }
+    )
 
 
 @app.get("/api/app/crashlytics/issue-detail")
@@ -15492,6 +15505,59 @@ def api_crash_issue_detail(
 
     fp = _crash_params(request)
     ver_list = _version_list_from_params(fp)
+
+    # Önce Play vitals scrape detayı (/android ile aynı)
+    from backend.services.firebase_from_store_tabs import get_vitals_issue_detail
+
+    vitals_det = get_vitals_issue_detail(iid) if plat == "android" else None
+    if vitals_det:
+        cards = vitals_det.get("summary_cards") or []
+        events = 0
+        users = 0
+        for c in cards:
+            t = str((c or {}).get("title") or "").lower()
+            v = (c or {}).get("value")
+            if "olay" in t or "event" in t:
+                try:
+                    from backend.services.firebase_from_store_tabs import _parse_count
+
+                    events = _parse_count(v)
+                except Exception:
+                    pass
+            if "kullan" in t or "user" in t:
+                try:
+                    from backend.services.firebase_from_store_tabs import _parse_count
+
+                    users = _parse_count(v)
+                except Exception:
+                    pass
+        return JSONResponse(
+            {
+                "ok": True,
+                "platform": plat,
+                "issue_id": iid,
+                "source": "play_vitals_scrape",
+                "summary": {
+                    "issue_title": vitals_det.get("title") or "",
+                    "error_type": vitals_det.get("error_type") or "FATAL",
+                    "total_events": events,
+                    "affected_users": users,
+                    "first_seen": None,
+                    "last_seen": None,
+                },
+                "trend": [],
+                "versions": [],
+                "os": [],
+                "devices": [],
+                "blame": [],
+                "stack_trace": vitals_det.get("stack_trace") or "",
+                "insights": vitals_det.get("insights") or [],
+                "sections": vitals_det.get("sections") or [],
+                "detail_url": vitals_det.get("url") or None,
+                "filter_versions": ver_list or None,
+            }
+        )
+
     data = cbq.get_issue_detail_for_product(
         product,
         plat,
@@ -15500,6 +15566,18 @@ def api_crash_issue_detail(
         versions=ver_list or None,
         version=fp.get("version"),
     )
+    if not data.get("ok"):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": data.get("error") or "not_found",
+                "message": (
+                    "Issue detayı scrape’te yok. Android sorunları için Play Console vitals sync; "
+                    "iOS için App Store / stability-free kaynakları kullanılır."
+                ),
+                "source": "android_ios_store_tabs",
+            }
+        )
     if ver_list and data.get("ok"):
         total = int((data.get("summary") or {}).get("total_events") or 0)
         if total == 0:
@@ -15584,18 +15662,36 @@ async def api_crash_issue_ai_summary(request: Request):
 
 @app.post("/api/app/crashlytics/refresh")
 def api_crash_refresh(product: str = "doviz"):
-    from backend.services import crashlytics_bq as cbq
+    """Manuel yenile — stability-free + store-tabs cache temizle (BQ job yok)."""
     from backend.services.app_intel import APP_PRODUCTS
+    from backend.services.firebase_from_store_tabs import (
+        build_firebase_tab_payload,
+        invalidate_firebase_store_cache,
+    )
+    from backend.services.stability_free import invalidate_stability_cache
+
     pid = (product or "doviz").strip().lower()
     if pid not in APP_PRODUCTS:
         return JSONResponse({"ok": False, "error": "unknown_product"}, status_code=400)
-    if not cbq.any_platform_ready():
-        return JSONResponse({"ok": False, "error": "credential_missing"}, status_code=400)
-    jid = cbq.run_daily_refresh(pid)
     clear_crash_fetch_filter_cache(pid)
-    if jid == "already_running":
-        return JSONResponse({"ok": True, "already_running": True})
-    return JSONResponse({"ok": True, "job_id": jid})
+    invalidate_firebase_store_cache(pid)
+    try:
+        invalidate_stability_cache(pid)
+    except Exception:
+        pass
+    try:
+        build_firebase_tab_payload(pid, days=7, force_refresh=True)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("crashlytics store-tabs refresh build: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)[:200]}, status_code=500)
+    return JSONResponse(
+        {
+            "ok": True,
+            "job_id": "store_tabs",
+            "source": "android_ios_store_tabs",
+            "message": "Play / ASC scrape + stability-free yenilendi.",
+        }
+    )
 
 
 @app.post("/app/intel/refresh")

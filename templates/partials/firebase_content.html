@@ -228,6 +228,7 @@
           <span class="crash-motion-pulse" aria-hidden="true"></span>
           <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Crashlytics</h2>
         </div>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Kaynak: /android Play vitals scrape · /ios stability-free</p>
       </div>
       <div class="flex flex-wrap items-stretch gap-2 sm:items-center">
         {% if crash_products|length > 1 %}
@@ -296,7 +297,7 @@
     {# 30g/90g geçmiş veri uyarısı #}
     <div id="crash-limited-data-notice" class="hidden items-center gap-2.5 border-b border-amber-200/70 bg-amber-50/80 px-4 py-2.5 dark:border-amber-700/40 dark:bg-amber-900/20 sm:px-5">
       <svg class="h-3.5 w-3.5 flex-shrink-0 text-amber-500 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-      <span class="text-[11px] text-amber-700 dark:text-amber-300">Bu dönem için BigQuery'de yeterli geçmiş veri olmayabilir — streaming export yakın zamanda etkinleştirildiğinden veriler eksik görünebilir.</span>
+      <span class="text-[11px] text-amber-700 dark:text-amber-300">Play vitals scrape genelde 28 günlük penceredir — seçilen gün filtresi scrape döneminden farklı olabilir. Güncel veri için /android sync kullanın.</span>
     </div>
 
     {# Versiyon filtresi — sütun içine taşındı (split) #}
@@ -816,7 +817,7 @@
     var done = _load.done;
 
     if (_load.phase === "bq" && (_load.bq.running || (_load.bq.pct > 0 && _load.bq.pct < 100))) {
-      setProgress(_load.bq.pct || 0, _load.bq.step || "BigQuery sorgulanıyor…");
+      setProgress(_load.bq.pct || 0, _load.bq.step || "Play / ASC scrape yenileniyor…");
     } else if (done >= total) {
       setProgress(100, "Tamamlandı · " + total + "/" + total);
     } else {
@@ -1662,16 +1663,13 @@
     var btn = document.getElementById("crash-refresh-btn");
     var icon = document.getElementById("crash-refresh-icon");
     if (btn) btn.disabled = true;
+    if (icon) icon.textContent = "…";
     clearHtmlCache();
     fetch("/api/app/crashlytics/refresh?product=" + encodeURIComponent(crashState.product),
       { method: "POST", cache: "no-store", headers: { "HX-Request": "true" } })
       .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j.already_running) {
-          bootstrapSplitLoad({ force: true });
-          return;
-        }
-        startPoll(function () { bootstrapSplitLoad({ force: true, skipBeginCycle: true }); });
+      .then(function () {
+        bootstrapSplitLoad({ force: true });
       })
       .catch(function () { bootstrapSplitLoad({ force: true }); })
       .finally(function () { if (btn) btn.disabled = false; if (icon) icon.textContent = "↺"; });
