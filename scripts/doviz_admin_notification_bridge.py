@@ -102,6 +102,9 @@ POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5"
 SPEED_SLOT_MINUTE = int(os.environ.get("PAGESPEED_BRIDGE_MINUTE") or "10")
 NOADS_SLOT_MINUTE = int(os.environ.get("SINEMALAR_NOADS_BRIDGE_MINUTE") or "15")
 SLOT_WINDOW_MIN = int(os.environ.get("BRIDGE_SLOT_WINDOW_MIN") or "20")
+# Başarısız otomatik tur → en fazla 3 yeniden deneme, 10'ar dk arayla
+BRIDGE_RETRY_MAX = int(os.environ.get("BRIDGE_RETRY_MAX") or "3")
+BRIDGE_RETRY_GAP_SEC = int(os.environ.get("BRIDGE_RETRY_GAP_SEC") or str(10 * 60))
 _NEWS_EVERY_N_RAW = (os.environ.get("NEWS_BRIDGE_EVERY_N") or "").strip()
 NEWS_AUTO_EVERY_N = int(_NEWS_EVERY_N_RAW) if _NEWS_EVERY_N_RAW.isdigit() else 0
 # Geriye dönük isimler
@@ -197,6 +200,8 @@ _nt_progress: dict[str, Any] = {
 _auto_cycle = 0
 _last_fail_email_at: dict[str, float] = {}
 _fail_streak: dict[str, int] = {}
+# kind → {attempt: 1..MAX, next_at: float, name: str}
+_job_retries: dict[str, dict[str, Any]] = {}
 
 
 def _failure_message(result: dict[str, Any] | None = None, exc: BaseException | None = None) -> str:
@@ -1448,6 +1453,16 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "noads_slots_tr": [f"{h:02d}:{NOADS_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
+                        "retry_max": BRIDGE_RETRY_MAX,
+                        "retry_gap_sec": BRIDGE_RETRY_GAP_SEC,
+                    },
+                    "pending_retries": {
+                        k: {
+                            "attempt": v.get("attempt"),
+                            "name": v.get("name"),
+                            "next_in_sec": max(0, int(float(v.get("next_at") or 0) - time.time())),
+                        }
+                        for k, v in _job_retries.items()
                     },
                     "news_progress": dict(_news_progress),
                     "nt_progress": dict(_nt_progress),
@@ -1610,12 +1625,42 @@ def _should_run_news_auto() -> bool:
     return _interval_due(_last_news_auto_at, NEWS_AUTO_INTERVAL_SEC, min_sec=60)
 
 
+def _clear_job_retry(kind: str) -> None:
+    _job_retries.pop(kind, None)
+
+
+def _arm_job_retry(kind: str, *, name: str) -> None:
+    """Başarısız tur sonrası bir sonraki yeniden denemeyi planla (max 3, 10 dk arayla)."""
+    st = _job_retries.get(kind) or {"attempt": 0, "name": name}
+    attempt = int(st.get("attempt") or 0)
+    if attempt >= BRIDGE_RETRY_MAX:
+        print(
+            f"Auto {name}: {BRIDGE_RETRY_MAX} yeniden deneme tükendi — "
+            "sonraki planlı slota kadar bekleniyor",
+            flush=True,
+        )
+        _clear_job_retry(kind)
+        return
+    attempt += 1
+    gap = max(60, BRIDGE_RETRY_GAP_SEC)
+    _job_retries[kind] = {
+        "attempt": attempt,
+        "next_at": time.time() + gap,
+        "name": name,
+    }
+    print(
+        f"Auto {name}: yeniden deneme planlandı {attempt}/{BRIDGE_RETRY_MAX} · ~{gap // 60} dk sonra",
+        flush=True,
+    )
+
+
 def _run_locked_job(
     *,
     name: str,
     lock: threading.Lock,
     runner,
     kind: str,
+    notify: bool = True,
 ) -> dict[str, Any] | None:
     if not lock.acquire(blocking=False):
         print(f"Auto {name} atlandı (manuel sync sürüyor)", flush=True)
@@ -1625,19 +1670,117 @@ def _run_locked_job(
             result = runner()
             if result.get("ok"):
                 _note_auto_success(kind)
-            else:
+            elif notify:
                 _notify_auto_failure(kind, result)
             return result
         except Exception as exc:
             traceback.print_exc()
-            _notify_auto_failure(kind, exc=exc)
+            if notify:
+                _notify_auto_failure(kind, exc=exc)
             return {"ok": False, "message": str(exc)}
     finally:
         lock.release()
 
 
+def _auto_job_registry() -> dict[str, dict[str, Any]]:
+    return {
+        "notification": {
+            "name": "Notification",
+            "lock": _nt_lock,
+            "runner": run_notification_bridge_once,
+        },
+        "news": {"name": "News", "lock": _nt_lock, "runner": run_news_bridge_once},
+        "virgul": {"name": "Virgul", "lock": _virgul_lock, "runner": run_virgul_bridge_once},
+        "play": {"name": "Play", "lock": _play_lock, "runner": run_play_bridge_once},
+        "asc": {"name": "ASC", "lock": _asc_lock, "runner": run_asc_bridge_once},
+        "gsc_links": {
+            "name": "GSC Links",
+            "lock": _gsc_links_lock,
+            "runner": run_gsc_links_bridge_once,
+        },
+        "admanager_policy": {
+            "name": "Policy",
+            "lock": _policy_lock,
+            "runner": run_admanager_policy_bridge_once,
+        },
+        "pagespeed": {
+            "name": "PageSpeed",
+            "lock": _pagespeed_lock,
+            "runner": run_pagespeed_bridge_once,
+        },
+        "sinemalar_noads": {
+            "name": "noAds",
+            "lock": _noads_lock,
+            "runner": run_sinemalar_noads_bridge_once,
+        },
+    }
+
+
+def _process_due_retries() -> None:
+    """Zamanı gelen yeniden denemeleri çalıştır; başarıda kuyruğu temizle."""
+    global _last_nt_auto_at, _last_news_auto_at
+    now = time.time()
+    registry = _auto_job_registry()
+    for kind, st in list(_job_retries.items()):
+        next_at = float(st.get("next_at") or 0)
+        if next_at > now:
+            continue
+        meta = registry.get(kind)
+        if not meta:
+            _clear_job_retry(kind)
+            continue
+        name = str(st.get("name") or meta["name"])
+        attempt = int(st.get("attempt") or 1)
+        # Çalışırken çift tetiklemeyi engelle
+        st["next_at"] = now + 86400
+        _job_retries[kind] = st
+        print(
+            f"Auto {name}: yeniden deneme çalışıyor {attempt}/{BRIDGE_RETRY_MAX}",
+            flush=True,
+        )
+        # Ara denemelerde mail spam olmasın; son denemede bildir
+        is_last = attempt >= BRIDGE_RETRY_MAX
+        result = _run_locked_job(
+            name=name,
+            lock=meta["lock"],
+            runner=meta["runner"],
+            kind=kind,
+            notify=is_last,
+        )
+        if result is None:
+            # Kilit meşgul — 1 dk sonra tekrar dene (attempt sayacı artmaz)
+            st["next_at"] = now + 60
+            _job_retries[kind] = st
+            continue
+        if result.get("ok"):
+            print(f"Auto {name}: retry #{attempt} başarılı — kalan denemeler iptal", flush=True)
+            _clear_job_retry(kind)
+            # Interval işlerde sonraki planlı tur bu andan sayılsın
+            if kind == "notification":
+                _last_nt_auto_at = time.time()
+            elif kind == "news":
+                _last_news_auto_at = time.time()
+            continue
+        if is_last:
+            print(
+                f"Auto {name}: {BRIDGE_RETRY_MAX} yeniden deneme de başarısız — "
+                "sonraki planlı slota bırakıldı",
+                flush=True,
+            )
+            _clear_job_retry(kind)
+            continue
+        # Bir sonraki retry
+        nxt = attempt + 1
+        gap = max(60, BRIDGE_RETRY_GAP_SEC)
+        _job_retries[kind] = {"attempt": nxt, "next_at": now + gap, "name": name}
+        print(
+            f"Auto {name}: retry #{attempt} başarısız → #{nxt}/{BRIDGE_RETRY_MAX} · ~{gap // 60} dk sonra",
+            flush=True,
+        )
+
+
 def _auto_loop() -> None:
-    """Slot + interval zamanlayıcı; poll ~60s. Hata → e-posta."""
+    """Slot + interval zamanlayıcı; poll ~60s. Hata → 3×10 dk retry, sonra sonraki slot."""
     global _auto_cycle
     global _last_nt_auto_at, _last_news_auto_at
     global _last_virgul_auto_slot, _last_play_auto_slot, _last_asc_auto_slot
@@ -1646,10 +1789,12 @@ def _auto_loop() -> None:
 
     while True:
         _auto_cycle += 1
+        _process_due_retries()
 
         # Notification 30 dk + News 1 saat (aynı admin kilidi)
-        nt_due = _should_run_notification_auto()
-        news_due = _should_run_news_auto()
+        # Pending retry varken planlı tur atlanır (retry bitene / başarılı olana kadar)
+        nt_due = _should_run_notification_auto() and "notification" not in _job_retries
+        news_due = _should_run_news_auto() and "news" not in _job_retries
         if nt_due or news_due:
             if _nt_lock.acquire(blocking=False):
                 try:
@@ -1659,24 +1804,30 @@ def _auto_loop() -> None:
                             _last_nt_auto_at = time.time()
                             if nt.get("ok"):
                                 _note_auto_success("notification")
+                                _clear_job_retry("notification")
                             else:
                                 _notify_auto_failure("notification", nt)
+                                _arm_job_retry("notification", name="Notification")
                         except Exception as exc:
                             traceback.print_exc()
                             _last_nt_auto_at = time.time()
                             _notify_auto_failure("notification", exc=exc)
+                            _arm_job_retry("notification", name="Notification")
                     if news_due:
                         try:
                             news = run_news_bridge_once()
                             _last_news_auto_at = time.time()
                             if news.get("ok"):
                                 _note_auto_success("news")
+                                _clear_job_retry("news")
                             else:
                                 _notify_auto_failure("news", news)
+                                _arm_job_retry("news", name="News")
                         except Exception as exc:
                             traceback.print_exc()
                             _last_news_auto_at = time.time()
                             _notify_auto_failure("news", exc=exc)
+                            _arm_job_retry("news", name="News")
                 except Exception:
                     traceback.print_exc()
                 finally:
@@ -1684,67 +1835,63 @@ def _auto_loop() -> None:
             else:
                 print("Auto notification/news atlandı (manuel sync sürüyor)", flush=True)
 
-        # Virgül — 00/06/12/18
-        due, slot = _slot_due(_last_virgul_auto_slot, VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE)
-        if due:
-            if _run_locked_job(name="Virgul", lock=_virgul_lock, runner=run_virgul_bridge_once, kind="virgul") is not None:
-                _last_virgul_auto_slot = slot
+        def _slot_job(
+            kind: str,
+            name: str,
+            lock: threading.Lock,
+            runner,
+            last_attr: str,
+            hours: tuple[int, ...] | list[int],
+            minute: int,
+        ) -> None:
+            nonlocal_last = globals()[last_attr]
+            # Retry beklerken aynı slot penceresinde tekrar tetikleme
+            if kind in _job_retries:
+                return
+            due, slot = _slot_due(nonlocal_last, hours, minute)
+            if not due:
+                return
+            _clear_job_retry(kind)
+            result = _run_locked_job(
+                name=name, lock=lock, runner=runner, kind=kind, notify=False
+            )
+            if result is None:
+                return
+            globals()[last_attr] = slot
+            if result.get("ok"):
+                _clear_job_retry(kind)
+            else:
+                _notify_auto_failure(kind, result)
+                _arm_job_retry(kind, name=name)
 
-        # Android Play — 3 saatte bir :00
-        due, slot = _slot_due(_last_play_auto_slot, PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE)
-        if due:
-            if _run_locked_job(name="Play", lock=_play_lock, runner=run_play_bridge_once, kind="play") is not None:
-                _last_play_auto_slot = slot
-
-        # iOS ASC — aynı saatler :05
-        due, slot = _slot_due(_last_asc_auto_slot, PLAY_SLOT_HOURS, ASC_SLOT_MINUTE)
-        if due:
-            if _run_locked_job(name="ASC", lock=_asc_lock, runner=run_asc_bridge_once, kind="asc") is not None:
-                _last_asc_auto_slot = slot
-
-        # Backlinks — 01:00 + 13:00
-        due, slot = _slot_due(_last_gsc_links_auto_slot, TWICE_DAILY_HOURS, GSC_SLOT_MINUTE)
-        if due:
-            if _run_locked_job(
-                name="GSC Links",
-                lock=_gsc_links_lock,
-                runner=run_gsc_links_bridge_once,
-                kind="gsc_links",
-            ) is not None:
-                _last_gsc_links_auto_slot = slot
-
-        # Policy — 01:05 + 13:05
-        due, slot = _slot_due(_last_policy_auto_slot, TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE)
-        if due:
-            if _run_locked_job(
-                name="Policy",
-                lock=_policy_lock,
-                runner=run_admanager_policy_bridge_once,
-                kind="admanager_policy",
-            ) is not None:
-                _last_policy_auto_slot = slot
-
-        # Speed — 01:10 + 13:10
-        due, slot = _slot_due(_last_pagespeed_auto_slot, TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE)
-        if due:
-            if _run_locked_job(
-                name="PageSpeed",
-                lock=_pagespeed_lock,
-                runner=run_pagespeed_bridge_once,
-                kind="pagespeed",
-            ) is not None:
-                _last_pagespeed_auto_slot = slot
-
-        # noAds — 01:15 + 13:15
-        due, slot = _slot_due(_last_noads_auto_slot, TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE)
-        if due:
-            if _run_locked_job(
-                name="noAds",
-                lock=_noads_lock,
-                runner=run_sinemalar_noads_bridge_once,
-                kind="sinemalar_noads",
-            ) is not None:
-                _last_noads_auto_slot = slot
+        _slot_job(
+            "virgul", "Virgul", _virgul_lock, run_virgul_bridge_once,
+            "_last_virgul_auto_slot", VIRGUL_SLOT_HOURS, VIRGUL_SLOT_MINUTE,
+        )
+        _slot_job(
+            "play", "Play", _play_lock, run_play_bridge_once,
+            "_last_play_auto_slot", PLAY_SLOT_HOURS, PLAY_SLOT_MINUTE,
+        )
+        _slot_job(
+            "asc", "ASC", _asc_lock, run_asc_bridge_once,
+            "_last_asc_auto_slot", PLAY_SLOT_HOURS, ASC_SLOT_MINUTE,
+        )
+        _slot_job(
+            "gsc_links", "GSC Links", _gsc_links_lock, run_gsc_links_bridge_once,
+            "_last_gsc_links_auto_slot", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE,
+        )
+        _slot_job(
+            "admanager_policy", "Policy", _policy_lock, run_admanager_policy_bridge_once,
+            "_last_policy_auto_slot", TWICE_DAILY_HOURS, POLICY_SLOT_MINUTE,
+        )
+        _slot_job(
+            "pagespeed", "PageSpeed", _pagespeed_lock, run_pagespeed_bridge_once,
+            "_last_pagespeed_auto_slot", TWICE_DAILY_HOURS, SPEED_SLOT_MINUTE,
+        )
+        _slot_job(
+            "sinemalar_noads", "noAds", _noads_lock, run_sinemalar_noads_bridge_once,
+            "_last_noads_auto_slot", TWICE_DAILY_HOURS, NOADS_SLOT_MINUTE,
+        )
 
         time.sleep(max(30, AUTO_POLL_SEC))
 
@@ -1759,7 +1906,8 @@ def run_daemon() -> int:
         f"notify={AUTO_INTERVAL_SEC}s news={NEWS_AUTO_INTERVAL_SEC}s "
         f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
         f"asc=:{ASC_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
-        f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d}",
+        f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
+        f"retry={BRIDGE_RETRY_MAX}x/{BRIDGE_RETRY_GAP_SEC}s",
         flush=True,
     )
     try:
