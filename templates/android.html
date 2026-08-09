@@ -484,11 +484,13 @@
     </div>
 
     <div id="pa-overlay-panel" class="mt-3 hidden rounded-xl border border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-      <div class="flex flex-wrap items-end gap-3">
-        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
-          <select id="pa-ov-metric" class="mt-1 block min-w-[12rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"></select>
-        </label>
-        <div id="pa-ov-play-dims" class="flex flex-wrap items-end gap-3">
+      <div class="flex flex-wrap items-start gap-3">
+        <div class="min-w-[14rem] flex-1">
+          <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik</p>
+          <div id="pa-ov-metric-list" role="listbox" aria-multiselectable="true"
+               class="mt-1 max-h-52 overflow-auto rounded-lg border border-slate-300 bg-white py-1 dark:border-zinc-600 dark:bg-zinc-950"></div>
+        </div>
+        <div id="pa-ov-play-dims" class="flex flex-wrap items-end gap-3 pt-5">
           <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Zaman kırılımı
             <select id="pa-ov-breakdown" class="mt-1 block rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100">
               <option value="date" selected>Gün</option>
@@ -512,21 +514,23 @@
             </select>
           </label>
         </div>
-        <button id="pa-ov-run" type="button"
-                class="inline-flex items-center justify-center rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500">
-          Ekle
-        </button>
-        <button id="pa-ov-cancel" type="button"
-                class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-          Kapat
-        </button>
-        <button id="pa-ov-clear" type="button"
-                class="hidden inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-900 dark:text-rose-300">
-          Tüm ekleri kaldır
-        </button>
+        <div class="flex flex-wrap items-center gap-2 pt-5">
+          <button id="pa-ov-run" type="button"
+                  class="inline-flex items-center justify-center rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50">
+            Ekle
+          </button>
+          <button id="pa-ov-cancel" type="button"
+                  class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+            Kapat
+          </button>
+          <button id="pa-ov-clear" type="button"
+                  class="hidden inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-900 dark:text-rose-300">
+            Tüm ekleri kaldır
+          </button>
+        </div>
       </div>
       <div id="pa-overlays-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
-      <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Play veya GA4 metriklerini aynı tarih aralığında üst üste ekleyin (sınırsız). GA4 seçilince ölçek kendi maksimumuna göre % olarak hizalanır.</p>
+      <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Metriklere tıklayarak ✓ ile çoklu seçin, sonra Ekle. Play / GA4 / Virgül aynı aralıkta üst üste gelir; farklı birimler kendi max % ölçeğinde hizalanır.</p>
     </div>
 
     <div id="pa-results" class="relative mt-4 w-full min-w-0">
@@ -1152,7 +1156,7 @@
   var PA_OVERLAY_COLOR = "#F59E0B";
   var paAddChartBtn = document.getElementById("pa-add-chart");
   var paOverlayPanel = document.getElementById("pa-overlay-panel");
-  var paOvMetric = document.getElementById("pa-ov-metric");
+  var paOvMetricList = document.getElementById("pa-ov-metric-list");
   var paOvPlayDims = document.getElementById("pa-ov-play-dims");
   var paOvBreakdown = document.getElementById("pa-ov-breakdown");
   var paOvDim = document.getElementById("pa-ov-dim");
@@ -1161,6 +1165,7 @@
   var paOvCancel = document.getElementById("pa-ov-cancel");
   var paOvClear = document.getElementById("pa-ov-clear");
   var paOverlaysChips = document.getElementById("pa-overlays-chips");
+  var paOvPending = {};
   var PA_GA4_OVERLAY_METRICS = [
     { value: "ga4:sessions", label: "GA4 · Sessions" },
     { value: "ga4:users", label: "GA4 · Users" },
@@ -1210,10 +1215,15 @@
     return key;
   }
   function syncOverlayPanelForMetric() {
-    var external = !!(paOvMetric && isExternalOverlayMetric(paOvMetric.value));
+    var keys = Object.keys(paOvPending).filter(function (k) { return paOvPending[k]; });
+    var hasPlay = keys.some(function (k) { return !isExternalOverlayMetric(k); });
+    if (!keys.length) {
+      // Henüz seçim yoksa Play boyutlarını göster (varsayılan)
+      hasPlay = true;
+    }
     if (paOvPlayDims) {
-      if (external) paOvPlayDims.classList.add("hidden");
-      else paOvPlayDims.classList.remove("hidden");
+      if (hasPlay) paOvPlayDims.classList.remove("hidden");
+      else paOvPlayDims.classList.add("hidden");
     }
   }
   function syncPrimaryFiltersForMetric() {
@@ -1343,6 +1353,7 @@
   }
   function clearPaOverlaysState() {
     paOverlays = [];
+    paOvPending = {};
   }
   function isoWeekBucketKey(isoDate) {
     var m = String(isoDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
@@ -2446,60 +2457,92 @@
     else paAddChartBtn.classList.add("hidden");
   }
 
-  function fillOverlayMetricOptions() {
-    if (!paOvMetric || !paMetric) return;
-    var cur = paMetric.value;
-    var used = {};
-    paOverlays.forEach(function (ov) {
-      if (ov && ov.metric) used[ov.metric] = true;
-    });
-    // Özet grafikte zaten duran çizgileri tekrar ekleme listesine koyma
+  function paBlockedOverlayMetrics() {
+    var blocked = {};
+    var cur = paMetric && paMetric.value;
+    if (cur) blocked[cur] = true;
     if (paOverviewActive && paOverviewBundles) {
       visibleOverviewBundles(paOverviewBundles).forEach(function (b) {
-        if (b && b.onChart && b.metric) used[b.metric] = true;
+        if (b && b.onChart && b.metric) blocked[b.metric] = true;
       });
     }
-    var prev = paOvMetric.value || "";
-    paOvMetric.innerHTML = "";
-    var ogPlay = document.createElement("optgroup");
-    ogPlay.label = "Play Console";
-    Array.prototype.forEach.call(paMetric.options, function (opt) {
-      if (!opt.value || opt.value === cur || used[opt.value] || isExternalOverlayMetric(opt.value)) return;
-      var o = document.createElement("option");
-      o.value = opt.value;
-      o.textContent = opt.textContent;
-      ogPlay.appendChild(o);
-    });
-    if (ogPlay.children.length) paOvMetric.appendChild(ogPlay);
-    var ogGa4 = document.createElement("optgroup");
-    ogGa4.label = "GA4 (Android)";
-    PA_GA4_OVERLAY_METRICS.forEach(function (m) {
-      if (used[m.value] || m.value === cur) return;
-      var o = document.createElement("option");
-      o.value = m.value;
-      o.textContent = m.label;
-      ogGa4.appendChild(o);
-    });
-    if (ogGa4.children.length) paOvMetric.appendChild(ogGa4);
-    var ogVirgul = document.createElement("optgroup");
-    ogVirgul.label = "Virgül (Android)";
-    PA_VIRGUL_OVERLAY_METRICS.forEach(function (m) {
-      if (used[m.value] || m.value === cur) return;
-      var o = document.createElement("option");
-      o.value = m.value;
-      o.textContent = m.label;
-      ogVirgul.appendChild(o);
-    });
-    if (ogVirgul.children.length) paOvMetric.appendChild(ogVirgul);
-    if (prev && paOvMetric.querySelector('option[value="' + prev + '"]')) {
-      paOvMetric.value = prev;
+    return blocked;
+  }
+  function listPaOverlayChoices() {
+    var blocked = paBlockedOverlayMetrics();
+    var groups = [];
+    var play = [];
+    if (paMetric) {
+      Array.prototype.forEach.call(paMetric.options, function (opt) {
+        if (!opt.value || blocked[opt.value] || isExternalOverlayMetric(opt.value)) return;
+        play.push({ value: opt.value, label: opt.textContent });
+      });
     }
-    if (paOvRun) paOvRun.disabled = !paOvMetric.querySelector("option");
+    if (play.length) groups.push({ label: "Play Console", items: play });
+    var ga4 = PA_GA4_OVERLAY_METRICS.filter(function (m) { return !blocked[m.value]; });
+    if (ga4.length) groups.push({ label: "GA4 (Android)", items: ga4 });
+    var virgul = PA_VIRGUL_OVERLAY_METRICS.filter(function (m) { return !blocked[m.value]; });
+    if (virgul.length) groups.push({ label: "Virgül (Android)", items: virgul });
+    return groups;
+  }
+  function syncPaOvPendingFromOverlays() {
+    paOvPending = {};
+    (paOverlays || []).forEach(function (ov) {
+      if (ov && ov.metric) paOvPending[ov.metric] = true;
+    });
+  }
+  function paOvPendingKeys() {
+    return Object.keys(paOvPending).filter(function (k) { return paOvPending[k]; });
+  }
+  function updatePaOvRunState() {
+    if (!paOvRun) return;
+    var n = paOvPendingKeys().length;
+    var onChart = {};
+    (paOverlays || []).forEach(function (ov) {
+      if (ov && ov.metric) onChart[ov.metric] = true;
+    });
+    var changed = false;
+    paOvPendingKeys().forEach(function (k) {
+      if (!onChart[k]) changed = true;
+    });
+    Object.keys(onChart).forEach(function (k) {
+      if (!paOvPending[k]) changed = true;
+    });
+    paOvRun.disabled = !changed;
+    paOvRun.textContent = changed && n ? ("Ekle (" + n + ")") : "Ekle";
+  }
+  function fillOverlayMetricOptions() {
+    if (!paOvMetricList) return;
+    var groups = listPaOverlayChoices();
+    var html = "";
+    groups.forEach(function (g) {
+      html += '<div class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
+        esc(g.label) + "</div>";
+      g.items.forEach(function (m) {
+        var on = !!paOvPending[m.value];
+        html +=
+          '<button type="button" role="option" aria-selected="' + (on ? "true" : "false") + '" data-pa-ov-pick="' + esc(m.value) + '" ' +
+          'class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium transition ' +
+          (on
+            ? "bg-blue-50 text-blue-900 dark:bg-blue-950/50 dark:text-blue-100"
+            : "text-slate-700 hover:bg-slate-50 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
+          '<span class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[13px] font-bold text-blue-600 dark:text-blue-400" aria-hidden="true">' +
+          (on ? "✓" : "") + "</span>" +
+          '<span class="min-w-0 flex-1 truncate">' + esc(m.label) + "</span>" +
+          "</button>";
+      });
+    });
+    if (!html) {
+      html = '<p class="px-2.5 py-3 text-xs text-slate-400">Eklenecek metrik kalmadı</p>';
+    }
+    paOvMetricList.innerHTML = html;
+    updatePaOvRunState();
     syncOverlayPanelForMetric();
   }
 
   function openOverlayPanel() {
     if (!paOverlayPanel) return;
+    syncPaOvPendingFromOverlays();
     fillOverlayMetricOptions();
     if (paOvBreakdown && paBreakdown) paOvBreakdown.value = paBreakdown.value || "date";
     if (paOvDim && paDim) paOvDim.value = paDim.value || "overview";
@@ -2510,9 +2553,9 @@
     var note = document.getElementById("pa-ov-note");
     if (note) {
       if (paOverviewActive) {
-        note.textContent = "Özet çizgilerinin üzerine Play, GA4 veya Virgül (Android) ekleyin — farklı birimler kendi max % ölçeğinde hizalanır.";
+        note.textContent = "Metriklere tıklayarak ✓ ile çoklu seçin, sonra Ekle. Özet çizgilerinin üzerine Play, GA4 veya Virgül eklenir — farklı birimler kendi max % ölçeğinde hizalanır.";
       } else {
-        note.textContent = "Play, GA4 veya Virgül (Android) metriklerini aynı tarih aralığında üst üste ekleyin. GA4/Virgül seçilince ölçek kendi maksimumuna göre % olarak hizalanır.";
+        note.textContent = "Metriklere tıklayarak ✓ ile çoklu seçin, sonra Ekle. Play / GA4 / Virgül aynı aralıkta üst üste gelir; farklı birimler kendi max % ölçeğinde hizalanır.";
       }
     }
     paOverlayPanel.classList.remove("hidden");
@@ -2574,6 +2617,7 @@
     if (!hasPaOverlays() || idx < 0 || idx >= paOverlays.length) return;
     paOverlays.splice(idx, 1);
     syncPaOverlayColors();
+    syncPaOvPendingFromOverlays();
     fillOverlayMetricOptions();
     redrawWithOverlays();
   }
@@ -3645,32 +3689,42 @@
   }
 
   async function runOverlayAnalytics() {
-    if (!paOvMetric || !paOvMetric.value) return;
     if (paBusy) return;
     // Özet: ANR/Crash/Kayıp baz alınır; seçilen metrik üzerine ek çizgi olur (uyarı yok)
     if (!paOverviewActive && (!paLastChart || !paMetric || !paMetric.value)) return;
     if (paOverviewActive && !paOverviewBundles) return;
+    var want = paOvPendingKeys();
+    var existingByMetric = {};
+    (paOverlays || []).forEach(function (ov) {
+      if (ov && ov.metric) existingByMetric[ov.metric] = ov;
+    });
+    var keep = [];
+    var toFetch = [];
+    want.forEach(function (metricKey) {
+      if (existingByMetric[metricKey]) keep.push(existingByMetric[metricKey]);
+      else toFetch.push(metricKey);
+    });
     paBusy = true;
     setPaLoading(true);
     try {
-      var metricKey = paOvMetric.value;
-      var next = await fetchOneOverlaySeries({
-        metric: metricKey,
-        label: metricOptionLabel(metricKey) || metricKey,
-        source: isVirgulOverlayMetric(metricKey)
-          ? "virgul"
-          : (isGa4OverlayMetric(metricKey) ? "ga4" : "play"),
-        color: null,
-        series: []
-      });
-      var existing = -1;
-      paOverlays.forEach(function (ov, i) {
-        if (ov.metric === metricKey) existing = i;
-      });
-      if (existing >= 0) paOverlays[existing] = next;
-      else paOverlays.push(next);
+      var fetched = [];
+      if (toFetch.length) {
+        fetched = await Promise.all(toFetch.map(function (metricKey) {
+          return fetchOneOverlaySeries({
+            metric: metricKey,
+            label: metricOptionLabel(metricKey) || metricKey,
+            source: isVirgulOverlayMetric(metricKey)
+              ? "virgul"
+              : (isGa4OverlayMetric(metricKey) ? "ga4" : "play"),
+            color: null,
+            series: []
+          });
+        }));
+      }
+      paOverlays = keep.concat(fetched);
       syncPaOverlayColors();
       redrawWithOverlays();
+      syncPaOvPendingFromOverlays();
       fillOverlayMetricOptions();
       openOverlayPanel();
     } catch (err) {
@@ -3720,7 +3774,17 @@
     });
   }
   if (paOvRun) paOvRun.addEventListener("click", runOverlayAnalytics);
-  if (paOvMetric) paOvMetric.addEventListener("change", syncOverlayPanelForMetric);
+  if (paOvMetricList) {
+    paOvMetricList.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-pa-ov-pick]") : null;
+      if (!btn) return;
+      var key = btn.getAttribute("data-pa-ov-pick");
+      if (!key) return;
+      if (paOvPending[key]) delete paOvPending[key];
+      else paOvPending[key] = true;
+      fillOverlayMetricOptions();
+    });
+  }
   function syncOvDimBreakdown() {
     if (!paOvDim || !paOvBreakdown) return;
     var dim = paOvDim.value || "overview";

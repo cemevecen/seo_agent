@@ -192,25 +192,29 @@
     </div>
 
     <div id="ia-overlay-panel" class="mt-3 hidden rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
-      <div class="flex flex-wrap items-end gap-3">
-        <label class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik
-          <select id="ia-ov-metric" class="mt-1 block min-w-[12rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"></select>
-        </label>
-        <button id="ia-ov-run" type="button"
-                class="inline-flex items-center justify-center rounded-lg border border-sky-600 bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-500">
-          Ekle
-        </button>
-        <button id="ia-ov-cancel" type="button"
-                class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-          Kapat
-        </button>
-        <button id="ia-ov-clear" type="button"
-                class="hidden inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-900 dark:text-rose-300">
-          Tüm ekleri kaldır
-        </button>
+      <div class="flex flex-wrap items-start gap-3">
+        <div class="min-w-[14rem] flex-1">
+          <p class="text-[11px] font-semibold text-slate-600 dark:text-zinc-300">Metrik</p>
+          <div id="ia-ov-metric-list" role="listbox" aria-multiselectable="true"
+               class="mt-1 max-h-52 overflow-auto rounded-lg border border-slate-300 bg-white py-1 dark:border-zinc-600 dark:bg-zinc-950"></div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 pt-5">
+          <button id="ia-ov-run" type="button"
+                  class="inline-flex items-center justify-center rounded-lg border border-sky-600 bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-500 disabled:opacity-50">
+            Ekle
+          </button>
+          <button id="ia-ov-cancel" type="button"
+                  class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+            Kapat
+          </button>
+          <button id="ia-ov-clear" type="button"
+                  class="hidden inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:bg-zinc-900 dark:text-rose-300">
+            Tüm ekleri kaldır
+          </button>
+        </div>
       </div>
       <div id="ia-overlays-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
-      <p id="ia-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">ASC, GA4 veya Virgül (iOS) metriklerini aynı tarih aralığında üst üste ekleyin. Farklı birimler kendi max % ölçeğinde hizalanır.</p>
+      <p id="ia-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Metriklere tıklayarak ✓ ile çoklu seçin, sonra Ekle. ASC / GA4 / Virgül aynı aralıkta üst üste gelir; farklı birimler kendi max % ölçeğinde hizalanır.</p>
     </div>
 
     <div id="ia-results" class="relative mt-4">
@@ -266,11 +270,12 @@
   var iaRunLabel = document.getElementById("ia-run-label");
   var iaAddChartBtn = document.getElementById("ia-add-chart");
   var iaOverlayPanel = document.getElementById("ia-overlay-panel");
-  var iaOvMetric = document.getElementById("ia-ov-metric");
+  var iaOvMetricList = document.getElementById("ia-ov-metric-list");
   var iaOvRun = document.getElementById("ia-ov-run");
   var iaOvCancel = document.getElementById("ia-ov-cancel");
   var iaOvClear = document.getElementById("ia-ov-clear");
   var iaOverlaysChips = document.getElementById("ia-overlays-chips");
+  var iaOvPending = {};
   var iaRefresh = document.getElementById("ia-refresh");
   var iaStatus = document.getElementById("ia-status");
   var iaResults = document.getElementById("ia-results");
@@ -340,6 +345,7 @@
   }
   function clearIaOverlaysState() {
     iaOverlays = [];
+    iaOvPending = {};
     if (iaOverlaysChips) iaOverlaysChips.innerHTML = "";
     if (iaOvClear) iaOvClear.classList.add("hidden");
   }
@@ -359,57 +365,90 @@
       else iaOvClear.classList.add("hidden");
     }
   }
-  function fillOverlayMetricOptions() {
-    if (!iaOvMetric || !iaMetric) return;
-    var cur = iaMetric.value;
-    var used = {};
-    iaOverlays.forEach(function (ov) {
-      if (ov && ov.metric) used[ov.metric] = true;
-    });
+  function iaBlockedOverlayMetrics() {
+    var blocked = {};
+    var cur = iaMetric && iaMetric.value;
+    if (cur) blocked[cur] = true;
     if (overviewActive && iaOverviewBundles) {
       iaOverviewBundles.forEach(function (b) {
-        if (b && b.onChart && b.metric) used[b.metric] = true;
+        if (b && b.onChart && b.metric) blocked[b.metric] = true;
       });
     }
-    var prev = iaOvMetric.value || "";
-    iaOvMetric.innerHTML = "";
-    var ogAsc = document.createElement("optgroup");
-    ogAsc.label = "App Store Connect";
-    Array.prototype.forEach.call(iaMetric.options, function (opt) {
-      if (!opt.value || isExternalMetric(opt.value) || opt.value === cur || used[opt.value]) return;
-      var o = document.createElement("option");
-      o.value = opt.value;
-      o.textContent = opt.textContent;
-      ogAsc.appendChild(o);
-    });
-    if (ogAsc.children.length) iaOvMetric.appendChild(ogAsc);
-    var ogGa4 = document.createElement("optgroup");
-    ogGa4.label = "GA4 (iOS)";
-    IA_GA4_METRICS.forEach(function (m) {
-      if (m.value === cur || used[m.value]) return;
-      var o = document.createElement("option");
-      o.value = m.value;
-      o.textContent = m.label;
-      ogGa4.appendChild(o);
-    });
-    if (ogGa4.children.length) iaOvMetric.appendChild(ogGa4);
-    var ogVirgul = document.createElement("optgroup");
-    ogVirgul.label = "Virgül (iOS)";
-    IA_VIRGUL_METRICS.forEach(function (m) {
-      if (m.value === cur || used[m.value]) return;
-      var o = document.createElement("option");
-      o.value = m.value;
-      o.textContent = m.label;
-      ogVirgul.appendChild(o);
-    });
-    if (ogVirgul.children.length) iaOvMetric.appendChild(ogVirgul);
-    if (prev && iaOvMetric.querySelector('option[value="' + prev + '"]')) {
-      iaOvMetric.value = prev;
+    return blocked;
+  }
+  function listIaOverlayChoices() {
+    var blocked = iaBlockedOverlayMetrics();
+    var groups = [];
+    var asc = [];
+    if (iaMetric) {
+      Array.prototype.forEach.call(iaMetric.options, function (opt) {
+        if (!opt.value || isExternalMetric(opt.value) || blocked[opt.value]) return;
+        asc.push({ value: opt.value, label: opt.textContent });
+      });
     }
-    if (iaOvRun) iaOvRun.disabled = !iaOvMetric.querySelector("option");
+    if (asc.length) groups.push({ label: "App Store Connect", items: asc });
+    var ga4 = IA_GA4_METRICS.filter(function (m) { return !blocked[m.value]; });
+    if (ga4.length) groups.push({ label: "GA4 (iOS)", items: ga4 });
+    var virgul = IA_VIRGUL_METRICS.filter(function (m) { return !blocked[m.value]; });
+    if (virgul.length) groups.push({ label: "Virgül (iOS)", items: virgul });
+    return groups;
+  }
+  function syncIaOvPendingFromOverlays() {
+    iaOvPending = {};
+    iaOverlays.forEach(function (ov) {
+      if (ov && ov.metric) iaOvPending[ov.metric] = true;
+    });
+  }
+  function iaOvPendingKeys() {
+    return Object.keys(iaOvPending).filter(function (k) { return iaOvPending[k]; });
+  }
+  function updateIaOvRunState() {
+    if (!iaOvRun) return;
+    var n = iaOvPendingKeys().length;
+    var onChart = {};
+    iaOverlays.forEach(function (ov) {
+      if (ov && ov.metric) onChart[ov.metric] = true;
+    });
+    var changed = false;
+    iaOvPendingKeys().forEach(function (k) {
+      if (!onChart[k]) changed = true;
+    });
+    Object.keys(onChart).forEach(function (k) {
+      if (!iaOvPending[k]) changed = true;
+    });
+    iaOvRun.disabled = !changed;
+    iaOvRun.textContent = changed && n ? ("Ekle (" + n + ")") : "Ekle";
+  }
+  function fillOverlayMetricOptions() {
+    if (!iaOvMetricList) return;
+    var groups = listIaOverlayChoices();
+    var html = "";
+    groups.forEach(function (g) {
+      html += '<div class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">' +
+        esc(g.label) + "</div>";
+      g.items.forEach(function (m) {
+        var on = !!iaOvPending[m.value];
+        html +=
+          '<button type="button" role="option" aria-selected="' + (on ? "true" : "false") + '" data-ia-ov-pick="' + esc(m.value) + '" ' +
+          'class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium transition ' +
+          (on
+            ? "bg-sky-50 text-sky-900 dark:bg-sky-950/50 dark:text-sky-100"
+            : "text-slate-700 hover:bg-slate-50 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
+          '<span class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[13px] font-bold text-sky-600 dark:text-sky-400" aria-hidden="true">' +
+          (on ? "✓" : "") + "</span>" +
+          '<span class="min-w-0 flex-1 truncate">' + esc(m.label) + "</span>" +
+          "</button>";
+      });
+    });
+    if (!html) {
+      html = '<p class="px-2.5 py-3 text-xs text-slate-400">Eklenecek metrik kalmadı</p>';
+    }
+    iaOvMetricList.innerHTML = html;
+    updateIaOvRunState();
   }
   function openOverlayPanel() {
     if (!iaOverlayPanel) return;
+    syncIaOvPendingFromOverlays();
     fillOverlayMetricOptions();
     renderOverlayChips();
     iaOverlayPanel.classList.remove("hidden");
@@ -1216,27 +1255,38 @@
   }
 
   async function runOverlayAnalytics() {
-    if (!iaOvMetric || !iaOvMetric.value) return;
     if (iaBusy) return;
     if (!overviewActive && !iaLastChart) return;
     if (overviewActive && !iaOverviewBundles) return;
+    var want = iaOvPendingKeys();
+    var existingByMetric = {};
+    iaOverlays.forEach(function (ov) {
+      if (ov && ov.metric) existingByMetric[ov.metric] = ov;
+    });
+    var keep = [];
+    var toFetch = [];
+    want.forEach(function (metricKey) {
+      if (existingByMetric[metricKey]) keep.push(existingByMetric[metricKey]);
+      else toFetch.push(metricKey);
+    });
     iaBusy = true;
     setLoading(true);
     try {
-      var metricKey = iaOvMetric.value;
-      var next = await fetchOneOverlaySeries({
-        metric: metricKey,
-        label: metricLabel(metricKey) || metricKey,
-        series: []
-      });
-      var existing = -1;
-      iaOverlays.forEach(function (ov, i) {
-        if (ov.metric === metricKey) existing = i;
-      });
-      if (existing >= 0) iaOverlays[existing] = next;
-      else iaOverlays.push(next);
+      var fetched = [];
+      if (toFetch.length) {
+        fetched = await Promise.all(toFetch.map(function (metricKey) {
+          return fetchOneOverlaySeries({
+            metric: metricKey,
+            label: metricLabel(metricKey) || metricKey,
+            series: []
+          });
+        }));
+      }
+      iaOverlays = keep.concat(fetched);
       redrawWithOverlays();
+      syncIaOvPendingFromOverlays();
       fillOverlayMetricOptions();
+      renderOverlayChips();
       openOverlayPanel();
     } catch (err) {
       alert((err && err.message) || "Ek grafik yüklenemedi");
@@ -1304,6 +1354,17 @@
   if (iaOvCancel) iaOvCancel.addEventListener("click", function () { closeOverlayPanel(); });
   if (iaOvClear) iaOvClear.addEventListener("click", function () { clearOverlayAndRedraw(); });
   if (iaOvRun) iaOvRun.addEventListener("click", function () { runOverlayAnalytics(); });
+  if (iaOvMetricList) {
+    iaOvMetricList.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-ia-ov-pick]") : null;
+      if (!btn) return;
+      var key = btn.getAttribute("data-ia-ov-pick");
+      if (!key) return;
+      if (iaOvPending[key]) delete iaOvPending[key];
+      else iaOvPending[key] = true;
+      fillOverlayMetricOptions();
+    });
+  }
   if (iaOverlaysChips) {
     iaOverlaysChips.addEventListener("click", function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-ia-ov-rm]") : null;
@@ -1311,6 +1372,7 @@
       var idx = parseInt(btn.getAttribute("data-ia-ov-rm"), 10);
       if (!Number.isFinite(idx)) return;
       iaOverlays.splice(idx, 1);
+      syncIaOvPendingFromOverlays();
       redrawWithOverlays();
       renderOverlayChips();
       fillOverlayMetricOptions();
