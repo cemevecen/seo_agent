@@ -53,13 +53,13 @@
     .home-crash-pair {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 0.75rem 1.25rem;
-      /* head · metrics · rank · store — subgrid satır hizası */
-      grid-template-rows: auto auto auto auto;
+      /* head · metrics · store */
+      grid-template-rows: auto auto auto;
     }
     .home-crash-plat {
       display: grid;
       grid-template-rows: subgrid;
-      grid-row: span 4;
+      grid-row: span 3;
       align-content: start;
     }
   }
@@ -101,7 +101,102 @@
   html.midnight .home-crash-zone-store {
     border-top-color: rgb(63 63 70 / 0.85);
   }
+  /* /android + /ios stability — tek satır (4 kolona kadar), ikili wrap yok */
+  .home-sf-metrics {
+    display: grid;
+    grid-template-columns: repeat(var(--sf-n, 4), minmax(0, 1fr));
+    gap: 0.45rem;
+    width: 100%;
+    margin-top: 0.75rem;
+  }
+  .home-sf-metrics > * { min-width: 0; }
+  .home-sf-metric {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252 / 0.85);
+    padding: 0.5rem 0.55rem;
+  }
+  html.dark .home-sf-metric,
+  html.midnight .home-sf-metric {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.55);
+  }
+  .home-sf-metric__title {
+    margin: 0;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home-sf-metric__sub {
+    margin: 0.15rem 0 0;
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: #94a3b8;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home-sf-metric__value {
+    margin: 0.35rem 0 0;
+    font-size: clamp(0.95rem, 2.2cqi, 1.2rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    color: #0f172a;
+  }
+  .home-sf-metric__value.is-up { color: #059669; }
+  .home-sf-metric__value.is-mid { color: #d97706; }
+  .home-sf-metric__value.is-down { color: #e11d48; }
+  html.dark .home-sf-metric__value { color: #e2e8f0; }
+  html.dark .home-sf-metric__value.is-up { color: #34d399; }
+  html.dark .home-sf-metric__value.is-mid { color: #fbbf24; }
+  html.dark .home-sf-metric__value.is-down { color: #fb7185; }
+  .home-sf-metric__extra {
+    margin: 0.25rem 0 0;
+    font-size: 0.55rem;
+    color: #94a3b8;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  @media (max-width: 640px) {
+    .home-sf-metrics {
+      grid-template-columns: repeat(var(--sf-n, 4), minmax(4.75rem, 1fr));
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
 </style>
+
+{% macro sf_metrics(side, cols) -%}
+  {% set items = (side.metrics if side and side.metrics else []) %}
+  {% set n = cols if cols else (items|length if items|length > 0 else 1) %}
+  <div class="home-sf-metrics" style="--sf-n: {{ n }}">
+    {% if items %}
+      {% for m in items %}
+        <div class="home-sf-metric" title="{{ m.title }}{% if m.sub %} · {{ m.sub }}{% endif %}">
+          <p class="home-sf-metric__title">{{ m.title }}</p>
+          {% if m.sub %}<p class="home-sf-metric__sub">{{ m.sub }}</p>{% endif %}
+          <p class="home-sf-metric__value{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
+          {% if m.extra %}<p class="home-sf-metric__extra">{{ m.extra }}</p>{% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="home-meta text-slate-400 dark:text-slate-500">Veri yok</p>
+    {% endif %}
+  </div>
+{%- endmacro %}
 
 {% macro store_zone(plat) -%}
   <div class="home-crash-zone-store">
@@ -138,40 +233,9 @@
 {%- endmacro %}
 
 {% macro rank_zone(title, rows) -%}
-  {% if rows %}
-    <div class="home-crash-zone-rank">
-      <p class="home-label text-slate-500 dark:text-slate-400">{{ title }}</p>
-      <ul class="mt-1.5 space-y-1.5">
-        {% for d in rows %}
-          <li class="home-row home-row-wide gap-1">
-            <span class="home-body min-w-0 text-slate-600 dark:text-slate-300" title="{{ d.label }}">{{ loop.index }}. {{ d.label }}</span>
-            <span class="home-row-meta home-meta shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{{ d.events_fmt }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% else %}
-    <div class="home-crash-zone-rank is-empty" aria-hidden="true">
-      <p class="home-label text-slate-400 dark:text-zinc-600">En çok hata · cihaz</p>
-      <p class="home-meta mt-1.5 text-slate-300 dark:text-zinc-700">—</p>
-    </div>
-  {% endif %}
 {%- endmacro %}
 
 {% macro plat_rank(side) -%}
-  {% if side and side.has_data %}
-    {% if side.top_devices %}
-      {{ rank_zone("En çok hata · cihaz" ~ ((" · v" ~ side.latest_version) if side.latest_version else ""), side.top_devices) }}
-    {% elif side.top_issues %}
-      {{ rank_zone("En çok crash · issue" ~ ((" · v" ~ side.latest_version) if side.latest_version else ""), side.top_issues) }}
-    {% elif side.top_os %}
-      {{ rank_zone("En çok hata · OS", side.top_os) }}
-    {% else %}
-      {{ rank_zone("", []) }}
-    {% endif %}
-  {% else %}
-    {{ rank_zone("", []) }}
-  {% endif %}
 {%- endmacro %}
 
 <div class="home-crash-shell home-readable{% if card.warming %} is-warming{% endif %}" data-home-crash-root{% if card.warming %} data-home-crash-warming="1"{% endif %}>
@@ -185,9 +249,7 @@
         <span class="home-motion-crash-pulse" aria-hidden="true"></span>
         <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
         <h3 class="font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
-        {% if card and card.days %}
-          <span class="home-meta font-medium tabular-nums text-slate-500 dark:text-slate-400">· {{ card.days }}g</span>
-        {% endif %}
+        <span class="home-meta font-medium text-slate-500 dark:text-slate-400">· /android · /ios</span>
       </div>
     </div>
     <span class="home-crash-shell-chevron" aria-hidden="true"></span>
@@ -195,6 +257,10 @@
 
   <div id="home-crash-shell-body" class="home-crash-shell-body" data-home-crash-shell-body hidden>
     <div class="flex flex-wrap items-center justify-end gap-3">
+      <a href="{{ ios_url | default('/ios') }}" hx-get="{{ ios_url | default('/ios') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">ios →</a>
+      <a href="{{ android_url | default('/android') }}" hx-get="{{ android_url | default('/android') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">android →</a>
       <a href="{{ app_url | default('/app') }}" hx-get="{{ app_url | default('/app') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
          class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">store →</a>
       <a href="{{ firebase_url }}" hx-get="{{ firebase_url }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
@@ -204,19 +270,15 @@
 {% if card.warming %}
   <div class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-5 text-center dark:border-slate-700 dark:bg-slate-800/40">
     <p class="home-body text-slate-500 dark:text-slate-400">{{ card.message or "Veri yükleniyor…" }}</p>
-    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">Arka planda hazırlanıyor — birkaç saniye içinde otomatik yenilenecek.</p>
+    <p class="home-meta mt-1 text-slate-400 dark:text-slate-500">/android ve /ios stability kaynağı hazırlanıyor — otomatik yenilenecek.</p>
     {% if store_ios or store_android %}
       <div class="home-crash-pair text-left">
         <div class="home-crash-plat">
           <div class="home-crash-zone-head"><p class="home-label text-slate-700 dark:text-slate-200">iOS</p></div>
-          <div class="home-crash-zone-metrics"></div>
-          <div class="home-crash-zone-rank is-empty" aria-hidden="true"></div>
           {{ store_zone(store_ios) }}
         </div>
         <div class="home-crash-plat">
           <div class="home-crash-zone-head"><p class="home-label text-slate-700 dark:text-slate-200">Android</p></div>
-          <div class="home-crash-zone-metrics"></div>
-          <div class="home-crash-zone-rank is-empty" aria-hidden="true"></div>
           {{ store_zone(store_android) }}
         </div>
       </div>
@@ -224,19 +286,15 @@
   </div>
 {% elif not card.ok %}
   <div class="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-    <p class="home-body font-medium text-amber-800 dark:text-amber-300">{{ card.message or "Crashlytics verisi gösterilemiyor" }}</p>
+    <p class="home-body font-medium text-amber-800 dark:text-amber-300">{{ card.message or "Crash / ANR verisi gösterilemiyor" }}</p>
     {% if store_ios or store_android %}
       <div class="home-crash-pair">
         <div class="home-crash-plat">
           <div class="home-crash-zone-head"><p class="home-label text-slate-700 dark:text-slate-200">iOS</p></div>
-          <div class="home-crash-zone-metrics"></div>
-          <div class="home-crash-zone-rank is-empty" aria-hidden="true"></div>
           {{ store_zone(store_ios) }}
         </div>
         <div class="home-crash-plat">
           <div class="home-crash-zone-head"><p class="home-label text-slate-700 dark:text-slate-200">Android</p></div>
-          <div class="home-crash-zone-metrics"></div>
-          <div class="home-crash-zone-rank is-empty" aria-hidden="true"></div>
           {{ store_zone(store_android) }}
         </div>
       </div>
@@ -246,7 +304,7 @@
   {% set ios = card.ios %}
   {% set android = card.android %}
   <div class="home-crash-pair">
-    {# ── Sol: iOS ── #}
+    {# ── Sol: iOS — /ios stability ── #}
     <div class="home-crash-plat">
       <div class="home-crash-zone-head flex flex-wrap items-center justify-between gap-2">
         <div class="flex min-w-0 items-center gap-2">
@@ -261,29 +319,11 @@
           <span class="home-meta shrink-0 text-slate-400">—</span>
         {% endif %}
       </div>
-
-      <div class="home-crash-zone-metrics">
-        {% if ios and ios.has_data %}
-          <div class="grid grid-cols-2 gap-3">
-            <div class="min-w-0">
-              <p class="home-label text-slate-500 dark:text-slate-400" title="Tüm sürümler · 7g (sessions)">Crash-free</p>
-              <p class="home-kpi mt-1 text-emerald-600 dark:text-emerald-400">{{ ios.crash_free_fmt }}</p>
-            </div>
-            <div class="min-w-0">
-              <p class="home-label text-slate-500 dark:text-slate-400" title="{% if ios.latest_version %}v{{ ios.latest_version }} · 7g{% else %}7g{% endif %}">Fatal{% if ios.latest_version %} · v{{ ios.latest_version }}{% endif %}</p>
-              <p class="home-kpi mt-1 text-rose-600 dark:text-rose-400">{{ ios.fatal_fmt }}</p>
-            </div>
-          </div>
-        {% else %}
-          <p class="home-meta text-slate-400 dark:text-slate-500">Crashlytics veri yok</p>
-        {% endif %}
-      </div>
-
-      {{ plat_rank(ios) }}
+      {{ sf_metrics(ios, 2) }}
       {{ store_zone(store_ios) }}
     </div>
 
-    {# ── Sağ: Android ── #}
+    {# ── Sağ: Android — /android 4'lü tek satır ── #}
     <div class="home-crash-plat">
       <div class="home-crash-zone-head flex flex-wrap items-center justify-between gap-2">
         <div class="flex min-w-0 items-center gap-2">
@@ -298,25 +338,7 @@
           <span class="home-meta shrink-0 text-slate-400">—</span>
         {% endif %}
       </div>
-
-      <div class="home-crash-zone-metrics">
-        {% if android and android.has_data %}
-          <div class="grid grid-cols-2 gap-3">
-            <div class="min-w-0">
-              <p class="home-label text-slate-500 dark:text-slate-400" title="Tüm sürümler · 7g (sessions)">Crash-free</p>
-              <p class="home-kpi mt-1 text-emerald-600 dark:text-emerald-400">{{ android.crash_free_fmt }}</p>
-            </div>
-            <div class="min-w-0">
-              <p class="home-label text-slate-500 dark:text-slate-400" title="{% if android.latest_version %}v{{ android.latest_version }} · 7g{% else %}7g{% endif %}">ANR{% if android.latest_version %} · v{{ android.latest_version }}{% endif %}</p>
-              <p class="home-kpi mt-1 text-amber-600 dark:text-amber-400">{{ android.anr_fmt }}</p>
-            </div>
-          </div>
-        {% else %}
-          <p class="home-meta text-slate-400 dark:text-slate-500">Crashlytics veri yok</p>
-        {% endif %}
-      </div>
-
-      {{ plat_rank(android) }}
+      {{ sf_metrics(android, 4) }}
       {{ store_zone(store_android) }}
     </div>
   </div>
@@ -343,7 +365,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=7';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=8';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;

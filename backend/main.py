@@ -8576,6 +8576,207 @@ def _home_crash_version_counts(payload: dict, plat: str, version: str | None) ->
     return 0, 0
 
 
+def _home_sf_metric(title: str, value: str | None, *, sub: str = "", pct: float | None = None, extra: str = "") -> dict:
+    return {
+        "title": title,
+        "sub": sub,
+        "value": value or "—",
+        "pct": pct,
+        "extra": extra,
+        "tone": (
+            "up"
+            if pct is not None and pct >= 99
+            else ("mid" if pct is not None and pct >= 95 else ("down" if pct is not None else "flat"))
+        ),
+    }
+
+
+def _home_store_firebase_card_from_tabs(product_id: str, store_by_key: dict | None = None) -> dict:
+    """Ana sayfa store & firebase — /android + /ios stability-free ile aynı payload."""
+    from backend.services.play_console_store import play_console_payload
+    from backend.services.stability_free import build_stability_free_payload
+    from backend.services.app_intel import APP_PRODUCTS
+
+    pid = (product_id or "doviz").strip().lower()
+    label = APP_PRODUCTS.get(pid, {}).get("label") or pid
+    store_by_key = store_by_key or {}
+    out: dict = {
+        "product_id": pid,
+        "product_label": label,
+        "ok": False,
+        "warming": False,
+        "days": 28,
+        "source": "android_ios_tabs",
+    }
+
+    package = "com.Doviz"
+    vitals: dict = {}
+    try:
+        with SessionLocal() as db:
+            snap = play_console_payload(db) or {}
+        package = (snap.get("package_name") or package).strip() or package
+        panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
+        vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
+    except Exception:
+        LOGGER.debug("Home store-firebase snapshot read failed", exc_info=True)
+
+    try:
+        sf = build_stability_free_payload(
+            package_name=package,
+            product_id=pid,
+            vitals=vitals,
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.exception("Home store-firebase stability-free failed product=%s", pid)
+        out["message"] = f"Veri alınamadı: {str(exc)[:120]}"
+        return out
+
+    if not sf or not sf.get("ok"):
+        out["warming"] = True
+        out["message"] = "Crash / ANR verisi hazırlanıyor…"
+        return out
+
+    play = sf.get("play_overall") if isinstance(sf.get("play_overall"), dict) else {}
+    play_latest = sf.get("play_latest") if isinstance(sf.get("play_latest"), dict) else {}
+    cf_plats = ((sf.get("crashlytics") or {}).get("platforms") or {}) if isinstance(sf.get("crashlytics"), dict) else {}
+    and_cf = cf_plats.get("android") if isinstance(cf_plats.get("android"), dict) else {}
+    ios_cf = cf_plats.get("ios") if isinstance(cf_plats.get("ios"), dict) else {}
+
+    lv_name = (
+        play_latest.get("version_name")
+        or and_cf.get("latest_version")
+        or (store_by_key.get("android") or {}).get("version")
+        or "—"
+    )
+    lv_label = f"v{lv_name}" if lv_name and lv_name != "—" else "latest"
+
+    # Android: /android sekmesindeki 4'lü — tek satır
+    android_metrics = [
+        _home_sf_metric(
+            "Crash-free",
+            play.get("crash_free_fmt"),
+            sub="Play · all · 28d",
+            pct=play.get("crash_free_pct"),
+        ),
+        _home_sf_metric(
+            "ANR-free",
+            play.get("anr_free_fmt"),
+            sub="Play · all · 28d",
+            pct=play.get("anr_free_pct"),
+        ),
+        _home_sf_metric(
+            "Crash-free",
+            play_latest.get("crash_free_fmt"),
+            sub=f"Play · {lv_label}",
+            pct=play_latest.get("crash_free_pct"),
+        ),
+        _home_sf_metric(
+            "ANR-free",
+            play_latest.get("anr_free_fmt"),
+            sub=f"Play · {lv_label}",
+            pct=play_latest.get("anr_free_pct"),
+        ),
+    ]
+    # Reporting boşsa Crashlytics ile doldur (aynı /android kaynağı)
+    if android_metrics[2]["value"] == "—" and (and_cf.get("latest") or {}).get("crash_free_fmt"):
+        latest = and_cf.get("latest") or {}
+        android_metrics[2] = _home_sf_metric(
+            "Crash-free",
+            latest.get("crash_free_fmt"),
+            sub=f"Crashlytics · v{and_cf.get('latest_version') or lv_name}",
+            pct=latest.get("crash_free_pct"),
+            extra=(and_cf.get("overall") or {}).get("crash_free_fmt")
+            and f"all {(and_cf.get('overall') or {}).get('crash_free_fmt')}"
+            or "",
+        )
+    if android_metrics[3]["value"] == "—" and (and_cf.get("latest") or {}).get("anr_free_fmt"):
+        latest = and_cf.get("latest") or {}
+        android_metrics[3] = _home_sf_metric(
+            "ANR-free",
+            latest.get("anr_free_fmt"),
+            sub=f"Crashlytics · v{and_cf.get('latest_version') or lv_name}",
+            pct=latest.get("anr_free_pct"),
+        )
+
+    ios_ver = (
+        ios_cf.get("latest_version")
+        or (store_by_key.get("ios") or {}).get("version")
+        or "—"
+    )
+    ios_metrics: list[dict] = []
+    if (ios_cf.get("latest") or {}).get("crash_free_fmt"):
+        latest = ios_cf.get("latest") or {}
+        ios_metrics.append(
+            _home_sf_metric(
+                "Crash-free",
+                latest.get("crash_free_fmt"),
+                sub=f"Crashlytics · v{ios_ver}",
+                pct=latest.get("crash_free_pct"),
+                extra=(ios_cf.get("overall") or {}).get("crash_free_fmt")
+                and f"all {(ios_cf.get('overall') or {}).get('crash_free_fmt')}"
+                or "",
+            )
+        )
+    elif (ios_cf.get("overall") or {}).get("crash_free_fmt"):
+        overall = ios_cf.get("overall") or {}
+        ios_metrics.append(
+            _home_sf_metric(
+                "Crash-free",
+                overall.get("crash_free_fmt"),
+                sub="Crashlytics · all · 7d",
+                pct=overall.get("crash_free_pct"),
+            )
+        )
+    if (ios_cf.get("overall") or {}).get("crash_free_fmt") and len(ios_metrics) == 1:
+        # latest + all yan yana (ios sekmesiyle uyumlu)
+        if ios_metrics[0]["sub"].startswith("Crashlytics · v"):
+            overall = ios_cf.get("overall") or {}
+            ios_metrics.append(
+                _home_sf_metric(
+                    "Crash-free",
+                    overall.get("crash_free_fmt"),
+                    sub="Crashlytics · all · 7d",
+                    pct=overall.get("crash_free_pct"),
+                )
+            )
+
+    android_has = any(m["value"] != "—" for m in android_metrics)
+    ios_has = any(m["value"] != "—" for m in ios_metrics)
+
+    out.update(
+        {
+            "ok": True,
+            "days": 28,
+            "android": {
+                "key": "android",
+                "label": "Android",
+                "latest_version": str(
+                    play_latest.get("version_name")
+                    or and_cf.get("latest_version")
+                    or (store_by_key.get("android") or {}).get("version")
+                    or ""
+                ).strip()
+                or None,
+                "metrics": android_metrics,
+                "has_data": android_has,
+            },
+            "ios": {
+                "key": "ios",
+                "label": "iOS",
+                "latest_version": str(ios_ver).strip() if ios_ver and ios_ver != "—" else None,
+                "metrics": ios_metrics,
+                "has_data": ios_has,
+            },
+            "play_error": sf.get("play_error"),
+        }
+    )
+    if not android_has and not ios_has:
+        out["warming"] = True
+        out["ok"] = False
+        out["message"] = "Crash / ANR verisi henüz yok — /android veya /ios açıldığında ısınır."
+    return out
+
+
 def _home_crashlytics_card(product_id: str, store_by_key: dict | None = None) -> dict:
     """Ana sayfa Firebase/Crashlytics mini kart — cache varsa anında; yoksa arka planda ısıt.
 
@@ -11159,13 +11360,13 @@ def _home_build_app_platform(raw: dict, key: str, label: str, version_key: str, 
 
 @app.get("/api/home/crashlytics", response_class=HTMLResponse)
 def api_home_crashlytics(request: Request, product: str | None = None):
-    """Ana sayfa Firebase Crashlytics + mağaza özeti — yalnızca doviz (Sinemalar BQ yok)."""
+    """Ana sayfa store & firebase — metrikler /android + /ios stability-free ile aynı kaynak."""
     pid = (product or "doviz").strip().lower()
     if pid != "doviz":
         pid = "doviz"
     store_platforms = _home_app_release_platforms(pid)
     store_by_key = {p.get("key"): p for p in store_platforms if p.get("key")}
-    card = _home_crashlytics_card(pid, store_by_key=store_by_key)
+    card = _home_store_firebase_card_from_tabs(pid, store_by_key=store_by_key)
     return templates.TemplateResponse(
         request,
         "partials/home/crashlytics.html",
@@ -11178,6 +11379,8 @@ def api_home_crashlytics(request: Request, product: str | None = None):
             },
             "firebase_url": f"/firebase?product={pid}",
             "app_url": "/app",
+            "android_url": "/android",
+            "ios_url": "/ios",
         },
     )
 

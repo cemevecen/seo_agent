@@ -4756,8 +4756,8 @@
 
   function applyStabilityGridCols(n) {
     if (!stabilityFreeEl) return;
-    var cols = n >= 4 ? 4 : Math.max(n | 0, 1);
-    stabilityFreeEl.style.setProperty("--sf-n", String(cols));
+    // Tek satır — her zaman 4 kolon (ikili wrap yok)
+    stabilityFreeEl.style.setProperty("--sf-n", "4");
   }
 
   function renderStabilityFree(data) {
@@ -4768,78 +4768,55 @@
     var playLatest = data.play_latest || null;
     var cf = (data.crashlytics && data.crashlytics.platforms) || {};
     var and = cf.android || {};
+    var lvLabel = playLatest && playLatest.version_name
+      ? ("v" + playLatest.version_name)
+      : (playLatest && playLatest.version_code ? ("code " + playLatest.version_code) : "latest");
 
-    if (play.crash_free_fmt) {
-      cards.push(renderStabilityFreeCard({
-        title: "Crash-free",
-        sub: "Play scrape · all versions · 28d",
-        value: play.crash_free_fmt,
-        toneClass: stabilityToneClass(play.crash_free_pct),
-        extra: play.crash_rate_pct != null
-          ? "rate %" + String(play.crash_rate_pct).replace(".", ",") + (play.crash_metric ? " · " + esc(play.crash_metric) : "")
-          : ""
-      }));
-    }
-    if (play.anr_free_fmt) {
-      cards.push(renderStabilityFreeCard({
-        title: "ANR-free",
-        sub: "Play scrape · all versions · 28d",
-        value: play.anr_free_fmt,
-        toneClass: stabilityToneClass(play.anr_free_pct),
-        extra: play.anr_rate_pct != null
-          ? "rate %" + String(play.anr_rate_pct).replace(".", ",")
-          : ""
-      }));
-    }
-    if (playLatest && (playLatest.crash_free_fmt || playLatest.anr_free_fmt)) {
-      var lvLabel = playLatest.version_name
-        ? ("v" + playLatest.version_name)
-        : (playLatest.version_code ? ("code " + playLatest.version_code) : "latest");
-      cards.push(renderStabilityFreeCard({
-        title: lvLabel,
-        sub: "Play Reporting · latest · user-perceived",
-        value: playLatest.crash_free_fmt || "—",
-        toneClass: stabilityToneClass(playLatest.crash_free_pct),
-        extra: [
-          playLatest.crash_free_fmt ? ("Crash-free " + esc(playLatest.crash_free_fmt)) : "",
-          playLatest.anr_free_fmt ? ("ANR-free " + esc(playLatest.anr_free_fmt)) : ""
-        ].filter(Boolean).join(" · ")
-      }));
-    }
-    if (and.latest && and.latest.crash_free_fmt) {
-      cards.push(renderStabilityFreeCard({
-        title: "Crashlytics · v" + (and.latest_version || and.latest.version || "—"),
-        sub: "",
-        value: and.latest.crash_free_fmt,
-        toneClass: stabilityToneClass(and.latest.crash_free_pct),
-        extra: and.overall && and.overall.crash_free_fmt
-          ? ("all versions " + esc(and.overall.crash_free_fmt))
-          : ""
-      }));
-    } else if (and.overall && and.overall.crash_free_fmt) {
-      cards.push(renderStabilityFreeCard({
-        title: "Crashlytics",
-        sub: "",
-        value: and.overall.crash_free_fmt,
-        toneClass: stabilityToneClass(and.overall.crash_free_pct)
-      }));
-    }
+    cards.push(renderStabilityFreeCard({
+      title: "Crash-free",
+      sub: "Play scrape · all · 28d",
+      value: play.crash_free_fmt || "—",
+      toneClass: stabilityToneClass(play.crash_free_pct)
+    }));
+    cards.push(renderStabilityFreeCard({
+      title: "ANR-free",
+      sub: "Play scrape · all · 28d",
+      value: play.anr_free_fmt || "—",
+      toneClass: stabilityToneClass(play.anr_free_pct)
+    }));
+    var latestCrash = (playLatest && playLatest.crash_free_fmt)
+      || (and.latest && and.latest.crash_free_fmt)
+      || null;
+    var latestAnr = (playLatest && playLatest.anr_free_fmt)
+      || (and.latest && and.latest.anr_free_fmt)
+      || null;
+    var latestCrashPct = (playLatest && playLatest.crash_free_pct != null)
+      ? playLatest.crash_free_pct
+      : (and.latest && and.latest.crash_free_pct);
+    var latestAnrPct = (playLatest && playLatest.anr_free_pct != null)
+      ? playLatest.anr_free_pct
+      : (and.latest && and.latest.anr_free_pct);
+    var latestSub = (playLatest && (playLatest.crash_free_fmt || playLatest.anr_free_fmt))
+      ? ("Play Reporting · " + lvLabel)
+      : ("Crashlytics · v" + (and.latest_version || (and.latest && and.latest.version) || "—"));
+    cards.push(renderStabilityFreeCard({
+      title: "Crash-free",
+      sub: latestSub,
+      value: latestCrash || "—",
+      toneClass: stabilityToneClass(latestCrashPct)
+    }));
+    cards.push(renderStabilityFreeCard({
+      title: "ANR-free",
+      sub: latestSub,
+      value: latestAnr || "—",
+      toneClass: stabilityToneClass(latestAnrPct)
+    }));
 
-    if (!cards.length) {
-      stabilityFreeEl.innerHTML = "";
-      applyStabilityGridCols(4);
-      if (stabilityFreeEmpty) {
-        stabilityFreeEmpty.classList.add("hidden");
-        stabilityFreeEmpty.setAttribute("aria-busy", "false");
-      }
-      return;
-    }
     if (stabilityFreeEmpty) {
       stabilityFreeEmpty.classList.add("hidden");
       stabilityFreeEmpty.setAttribute("aria-busy", "false");
     }
-    // Her daim tek satır: 4 kart → 4 sütun; 4'ten az → kart sayısı kadar eşit sütun
-    applyStabilityGridCols(cards.length >= 4 ? 4 : cards.length);
+    applyStabilityGridCols(4);
     stabilityFreeEl.innerHTML = cards.join("");
   }
 
