@@ -1136,6 +1136,29 @@
       <div id="mz-kpi-grid" class="mz-kpi-grid">
         <p id="mz-kpi-placeholder" class="col-span-full text-xs text-slate-400 dark:text-zinc-500">KPI kartları hazırlanıyor…</p>
       </div>
+      <details id="mz-kpi-data-list" class="rdl-dropdown min-w-0 rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 midnight:border-zinc-800 midnight:bg-black">
+        <summary class="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-left sm:px-4">
+          <span class="min-w-0 text-xs font-bold text-slate-700 dark:text-zinc-200">
+            <span class="rdl-chevron mr-1.5 text-slate-400" aria-hidden="true">▸</span>
+            KPI verileri (tablo)
+          </span>
+          <span id="mz-kpi-data-meta" class="text-[10px] font-medium tabular-nums text-slate-500 dark:text-zinc-400">Seçili dönem · kapalı</span>
+        </summary>
+        <div class="border-t border-slate-100 px-2 pb-2 pt-1 sm:px-3 dark:border-zinc-800">
+          <p class="mb-1.5 px-1 text-[10px] leading-snug text-slate-500 dark:text-zinc-400">
+            Seçili zaman dilimindeki günlük KPI satırları. İlk 20 satır görünür; fazlası kaydırılır. Alt kenardan sürükleyerek yüksekliği değiştirin (çift tık: otomatik).
+          </p>
+          <div id="mz-kpi-data-shell" class="rdl-shell rounded-xl border border-slate-200/90 dark:border-zinc-800" data-rdl-max-rows="20" data-rdl-storage-key="mz-kpi-data-h">
+            <div id="mz-kpi-data-scroll" class="rdl-scroll">
+              <table class="mz-data-table min-w-full text-left text-xs">
+                <thead id="mz-kpi-data-head" class="sticky top-0 z-[1] bg-slate-50 dark:bg-zinc-950"></thead>
+                <tbody id="mz-kpi-data-body"></tbody>
+              </table>
+            </div>
+            <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Sürükleyerek yüksekliği ayarla"></div>
+          </div>
+        </div>
+      </details>
       <div id="mz-peer-toggle-kpi" class="hidden flex flex-wrap justify-end"></div>
 
       <div id="mz-overlay-controls" class="flex flex-wrap items-center gap-2" data-mz-hide-single-day>
@@ -1393,11 +1416,14 @@
             <button id="mz-table-csv" type="button" class="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200">CSV indir</button>
           </div>
         </div>
-        <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
-          <table class="mz-data-table min-w-full text-left text-xs">
-            <thead id="mz-table-head"></thead>
-            <tbody id="mz-table-body"></tbody>
-          </table>
+        <div id="mz-table-shell" class="rdl-shell rounded-xl border border-slate-200/80 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black" data-rdl-max-rows="20" data-rdl-storage-key="mz-detail-table-h">
+          <div id="mz-table-scroll" class="rdl-scroll overflow-x-auto">
+            <table class="mz-data-table min-w-full text-left text-xs">
+              <thead id="mz-table-head" class="sticky top-0 z-[1] bg-white dark:bg-zinc-950"></thead>
+              <tbody id="mz-table-body"></tbody>
+            </table>
+          </div>
+          <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Sürükleyerek yüksekliği ayarla"></div>
         </div>
         <div id="mz-table-expand-wrap" class="mt-2 hidden border-t border-slate-100 pt-2 text-center dark:border-zinc-800">
           <button id="mz-table-expand" type="button" class="rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40">
@@ -1462,11 +1488,14 @@
         <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
           <span id="mz-summary-meta" class="text-xs text-slate-500 dark:text-zinc-500"></span>
         </div>
-        <div class="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black">
-          <table class="mz-data-table min-w-full text-left text-xs">
-            <thead id="mz-summary-head"></thead>
-            <tbody id="mz-summary-body"></tbody>
-          </table>
+        <div id="mz-summary-shell" class="rdl-shell rounded-xl border border-slate-200/80 dark:border-zinc-800 dark:bg-black midnight:border-zinc-800 midnight:bg-black" data-rdl-max-rows="20" data-rdl-storage-key="mz-summary-table-h">
+          <div id="mz-summary-scroll" class="rdl-scroll overflow-x-auto">
+            <table class="mz-data-table min-w-full text-left text-xs">
+              <thead id="mz-summary-head" class="sticky top-0 z-[1] bg-white dark:bg-zinc-950"></thead>
+              <tbody id="mz-summary-body"></tbody>
+            </table>
+          </div>
+          <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Sürükleyerek yüksekliği ayarla"></div>
         </div>
         <div id="mz-summary-expand-wrap" class="mt-2 hidden border-t border-slate-100 pt-2 text-center dark:border-zinc-800">
           <button id="mz-summary-expand" type="button" class="rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40">
@@ -1732,6 +1761,7 @@
 
 <script src="/static/js/mz_mean_split_traces.js?v=3"></script>
 <script src="/static/js/app_release_markers.js?v=4"></script>
+<script src="/static/js/resizable_data_list.js?v=1"></script>
 <script>
   window.MZ_AD_MODE = {{ (ad_mode or 'sheets')|tojson }};
   window.MZ_VIRGUL_SOURCES = {{ (virgul_sources or [])|tojson }};
@@ -9543,11 +9573,83 @@
     }
   }
 
+  function renderKpiDataList(sum) {
+    var head = document.getElementById("mz-kpi-data-head");
+    var body = document.getElementById("mz-kpi-data-body");
+    var meta = document.getElementById("mz-kpi-data-meta");
+    var shell = document.getElementById("mz-kpi-data-shell");
+    var details = document.getElementById("mz-kpi-data-list");
+    if (!head || !body) return;
+    var rows = filterSeriesBySelectedRange((sum && sum.by_date) || state.lastByDate || [], "date");
+    var defs = activeKpiDefs(sum || state.lastSummary);
+    var cols = [{ key: "date", label: "Tarih", dec: null }].concat(
+      defs.map(function (d) { return { key: d.key, label: d.label, dec: d.dec }; })
+    );
+    head.innerHTML = "<tr>" + cols.map(function (c) {
+      return "<th class=\"whitespace-nowrap px-2 py-1.5 font-bold text-slate-500 dark:text-zinc-400\">" +
+        (c.key === "date" ? c.label : enCaps(c.label)) + "</th>";
+    }).join("") + "</tr>";
+    if (!rows.length) {
+      body.innerHTML = "<tr><td colspan=\"" + cols.length +
+        "\" class=\"px-2 py-4 text-center text-slate-400 dark:text-zinc-500\">Seçili dönemde satır yok</td></tr>";
+    } else {
+      body.innerHTML = rows.map(function (r) {
+        return "<tr class=\"border-t border-slate-50 dark:border-zinc-800/60\">" + cols.map(function (c) {
+          var v = r[c.key];
+          if (c.key === "date") {
+            v = fmtDateShortTr(String(v || ""), true) || v || "—";
+          } else if (typeof v === "number") {
+            v = fmt(v, c.dec);
+          } else if (v == null || v === "") {
+            v = "—";
+          }
+          var cls = c.key === "date"
+            ? "whitespace-nowrap px-2 py-1 font-medium tabular-nums text-slate-700 dark:text-zinc-200"
+            : "whitespace-nowrap px-2 py-1 tabular-nums text-slate-800 dark:text-zinc-100";
+          return "<td class=\"" + cls + "\">" + v + "</td>";
+        }).join("") + "</tr>";
+      }).join("");
+    }
+    if (meta) {
+      var startEl = document.getElementById("mz-start");
+      var endEl = document.getElementById("mz-end");
+      var presetEl = document.getElementById("mz-preset");
+      var start = (startEl && startEl.value) || "";
+      var end = (endEl && endEl.value) || "";
+      var preset = (presetEl && presetEl.value) || "";
+      meta.textContent =
+        rows.length + " gün · " + cols.length + " sütun" +
+        (start && end ? " · " + start + " → " + end : "") +
+        (preset ? " · " + preset : "") +
+        (details && details.open ? "" : " · kapalı");
+    }
+    if (window.SeoResizableDataList && shell) {
+      window.SeoResizableDataList.bind(shell);
+      shell._rdlRowCount = rows.length;
+      if (details && details.open) {
+        requestAnimationFrame(function () {
+          window.SeoResizableDataList.fit(shell, rows.length);
+        });
+      }
+    }
+    if (window.seoEnCapsScan) window.seoEnCapsScan(head);
+  }
+
+  function mzFitTableShell(shellId, rowCount) {
+    var shell = document.getElementById(shellId);
+    if (!shell || !window.SeoResizableDataList) return;
+    window.SeoResizableDataList.bind(shell);
+    requestAnimationFrame(function () {
+      window.SeoResizableDataList.fit(shell, rowCount || 0);
+    });
+  }
+
   function renderCharts(sum) {
-    if (!window.Plotly) return;
     applyMzRangeSensitiveUi();
     mountAllPeerBranchToggles();
     state.lastByDate = filterSeriesBySelectedRange(sum.by_date || [], "date");
+    renderKpiDataList(sum);
+    if (!window.Plotly) return;
     syncSurfacePieChartVisibility();
     var cmp = compareBlock(sum);
     var surf = (cmp && cmp.by_surface && cmp.by_surface.length) ? cmp.by_surface : (sum.by_surface || []);
@@ -10639,6 +10741,8 @@
         else if (tableScope === "detail") applyTableRowFilter(row);
       });
     });
+    if (tableScope === "detail") mzFitTableShell("mz-table-shell", visibleRows.length);
+    else if (tableScope === "summary") mzFitTableShell("mz-summary-shell", visibleRows.length);
   }
 
   function renderTable(data) {
@@ -11174,24 +11278,51 @@
     runQuery({ resetTableDrills: true });
     debouncedSyncUrl();
   });
+  function mzResetRdlHeightsOnRangeChange() {
+    if (!window.SeoResizableDataList) return;
+    ["mz-kpi-data-shell", "mz-table-shell", "mz-summary-shell"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) window.SeoResizableDataList.clearManual(el);
+    });
+  }
+
   on("mz-preset", "change", function () {
     applyPreset();
     syncMzPresetCustomLabel();
+    mzResetRdlHeightsOnRangeChange();
     debouncedRun();
     debouncedSyncUrl();
   });
   on("mz-start", "change", function () {
     setMzPreset("custom");
     syncMzPresetCustomLabel();
+    mzResetRdlHeightsOnRangeChange();
     debouncedRun();
     debouncedSyncUrl();
   });
   on("mz-end", "change", function () {
     setMzPreset("custom");
     syncMzPresetCustomLabel();
+    mzResetRdlHeightsOnRangeChange();
     debouncedRun();
     debouncedSyncUrl();
   });
+
+  (function initMzRdlLists() {
+    if (!window.SeoResizableDataList) return;
+    window.SeoResizableDataList.injectStyles();
+    ["mz-kpi-data-shell", "mz-table-shell", "mz-summary-shell"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) window.SeoResizableDataList.bind(el);
+    });
+    var kpiDetails = document.getElementById("mz-kpi-data-list");
+    if (kpiDetails) {
+      kpiDetails.addEventListener("toggle", function () {
+        renderKpiDataList(state.lastSummary);
+      });
+    }
+  })();
+
   on("mz-search", "input", function () {
     debouncedRun();
     debouncedSyncUrl(300);

@@ -55,7 +55,8 @@
     padding: 0.45rem 0.9rem; font-size: 0.75rem; font-weight: 700; cursor: pointer;
   }
   .pa-filters .pa-f-btn:disabled { opacity: 0.6; cursor: wait; }
-  #ia-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #ia-table-shell { width: 100%; min-width: 0; }
+  #ia-table-wrap { width: 100%; overflow: auto; -webkit-overflow-scrolling: touch; }
   #ia-table-wrap > table { width: max-content; max-width: none; border-collapse: collapse; font-size: 0.75rem; }
   #ia-table-wrap th, #ia-table-wrap td { white-space: nowrap; text-align: right; }
   #ia-table-wrap th:first-child, #ia-table-wrap td:first-child { text-align: left; }
@@ -506,20 +507,24 @@
           </div>
         </div>
       </div>
-      <div id="ia-table-wrap" class="mt-4 max-h-96 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
-        <table class="pa-data-table text-left">
-          <thead class="sticky top-0 z-10 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-600 dark:bg-zinc-900 dark:text-zinc-300">
-            <tr id="ia-thead-row">
-              <th class="px-3 py-2 font-bold">Kırılım</th>
-              <th class="px-3 py-2 font-bold">Değer</th>
-            </tr>
-          </thead>
-          <tbody id="ia-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
-        </table>
+      <div id="ia-table-shell" class="rdl-shell mt-4 min-w-0 rounded-xl border border-slate-200 dark:border-zinc-700" data-rdl-max-rows="20" data-rdl-storage-key="ia-table-h">
+        <div id="ia-table-wrap" class="rdl-scroll overflow-auto">
+          <table class="pa-data-table text-left">
+            <thead class="sticky top-0 z-10 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-600 dark:bg-zinc-900 dark:text-zinc-300">
+              <tr id="ia-thead-row">
+                <th class="px-3 py-2 font-bold">Kırılım</th>
+                <th class="px-3 py-2 font-bold">Değer</th>
+              </tr>
+            </thead>
+            <tbody id="ia-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+          </table>
+        </div>
+        <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Sürükleyerek yüksekliği ayarla"></div>
       </div>
     </div>
   </section>
 </div>
+<script src="/static/js/resizable_data_list.js?v=1"></script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -986,6 +991,16 @@
     start.setDate(end.getDate() - (days - 1));
     iaEnd.value = isoDate(end);
     iaStart.value = isoDate(start);
+    var shell = document.getElementById("ia-table-shell");
+    if (shell && window.SeoResizableDataList) window.SeoResizableDataList.clearManual(shell);
+  }
+  function iaFitDataList(rowCount) {
+    var shell = document.getElementById("ia-table-shell");
+    if (!shell || !window.SeoResizableDataList) return;
+    window.SeoResizableDataList.bind(shell);
+    requestAnimationFrame(function () {
+      window.SeoResizableDataList.fit(shell, rowCount || 0);
+    });
   }
   function fmtNum(n, asInt) {
     if (n == null || isNaN(n)) return "—";
@@ -1930,6 +1945,7 @@
       }).join("");
     if (!keys.length) {
       iaTable.innerHTML = '<tr><td class="px-3 py-4 text-center text-slate-400" colspan="' + (1 + list.length) + '">Satır yok</td></tr>';
+      iaFitDataList(0);
       return;
     }
     var maps = list.map(function (b) {
@@ -1963,6 +1979,7 @@
       avg += '<td class="px-1.5 py-1.5 tabular-nums font-bold">' + (a == null ? "—" : esc(fmtNum(a, false))) + "</td>";
     });
     iaTable.innerHTML = body + '<tr class="sticky bottom-0 border-t border-slate-200 bg-slate-100/95 dark:border-zinc-700 dark:bg-zinc-900/95">' + avg + "</tr>";
+    iaFitDataList(keys.length + 1);
   }
   function renderSingleTable(series, metric) {
     iaTheadRow.innerHTML =
@@ -1975,6 +1992,7 @@
     }
     if (!rows.length) {
       iaTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      iaFitDataList(0);
       return;
     }
     var sum = 0, n = 0;
@@ -1990,6 +2008,7 @@
       '<tr class="sticky bottom-0 border-t border-slate-200 bg-slate-100/95 dark:bg-zinc-900/95">' +
       '<td class="px-3 py-1.5 font-bold">Ortalama</td><td class="px-3 py-1.5 font-bold tabular-nums">' +
       (avg == null ? "—" : esc(fmtNum(avg, false))) + "</td></tr>";
+    iaFitDataList(rows.length + 1);
   }
 
   async function runAnalytics() {

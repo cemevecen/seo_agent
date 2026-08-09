@@ -142,11 +142,12 @@
     max-width: none;
   }
   /* Liste tablosu: sola yaslı, sütunlar içeriğe göre (az sütunda dağılmasın) */
+  #pa-table-shell { width: 100%; max-width: 100%; min-width: 0; }
   #pa-table-wrap {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: auto;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
   }
   #pa-table-wrap > table.pa-data-table {
@@ -800,26 +801,29 @@
         <p id="pa-compare-note" class="hidden px-3 pb-2 pt-0.5 text-[10px] leading-snug text-slate-400 dark:text-zinc-500"></p>
       </div>
 
-      <div id="pa-table-wrap" class="mt-4 max-h-96 w-full min-w-0 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
-        <table class="pa-data-table text-left text-xs">
-          <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
-            <tr id="pa-thead-row">
-              <th class="px-2 py-2 font-bold sm:px-3">Kırılım</th>
-              <th id="pa-th-value" class="px-2 py-2 font-bold tabular-nums sm:px-3">Değer</th>
-              <!-- ek grafik sütunları JS ile pa-th-value sonrasına eklenir -->
-              <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumlu</th>
-              <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumsuz</th>
-              <th id="pa-th-star-5" class="hidden px-3 py-2 font-bold tabular-nums">5★</th>
-              <th id="pa-th-star-4" class="hidden px-3 py-2 font-bold tabular-nums">4★</th>
-              <th id="pa-th-star-3" class="hidden px-3 py-2 font-bold tabular-nums">3★</th>
-              <th id="pa-th-star-2" class="hidden px-3 py-2 font-bold tabular-nums">2★</th>
-              <th id="pa-th-star-1" class="hidden px-3 py-2 font-bold tabular-nums">1★</th>
-              <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
-              <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
-            </tr>
-          </thead>
-          <tbody id="pa-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
-        </table>
+      <div id="pa-table-shell" class="rdl-shell mt-4 w-full min-w-0 rounded-xl border border-slate-200 dark:border-zinc-700" data-rdl-max-rows="20" data-rdl-storage-key="pa-table-h">
+        <div id="pa-table-wrap" class="rdl-scroll w-full min-w-0">
+          <table class="pa-data-table text-left text-xs">
+            <thead class="sticky top-0 z-[1] bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
+              <tr id="pa-thead-row">
+                <th class="px-2 py-2 font-bold sm:px-3">Kırılım</th>
+                <th id="pa-th-value" class="px-2 py-2 font-bold tabular-nums sm:px-3">Değer</th>
+                <!-- ek grafik sütunları JS ile pa-th-value sonrasına eklenir -->
+                <th id="pa-th-with-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumlu</th>
+                <th id="pa-th-without-rev" class="hidden px-3 py-2 font-bold tabular-nums">Yorumsuz</th>
+                <th id="pa-th-star-5" class="hidden px-3 py-2 font-bold tabular-nums">5★</th>
+                <th id="pa-th-star-4" class="hidden px-3 py-2 font-bold tabular-nums">4★</th>
+                <th id="pa-th-star-3" class="hidden px-3 py-2 font-bold tabular-nums">3★</th>
+                <th id="pa-th-star-2" class="hidden px-3 py-2 font-bold tabular-nums">2★</th>
+                <th id="pa-th-star-1" class="hidden px-3 py-2 font-bold tabular-nums">1★</th>
+                <th id="pa-th-prev" class="hidden px-3 py-2 font-bold tabular-nums">Önceki</th>
+                <th id="pa-th-delta" class="hidden px-3 py-2 font-bold tabular-nums">Δ %</th>
+              </tr>
+            </thead>
+            <tbody id="pa-table" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+          </table>
+        </div>
+        <div class="rdl-handle" data-rdl-handle role="separator" aria-orientation="horizontal" title="Sürükleyerek yüksekliği ayarla"></div>
       </div>
     </div>
   </section>
@@ -1023,6 +1027,7 @@
   </section>
 </div>
 
+<script src="/static/js/resizable_data_list.js?v=1"></script>
 <script>
 (function () {
   var statusEl = document.getElementById("pc-status");
@@ -2652,12 +2657,14 @@
     if (!list.length && !ovs.length) {
       paTable.innerHTML =
         '<tr><td class="px-3 py-4 text-center text-slate-400">Tüm sütunlar kaldırıldı — Metrik’ten Seçiniz ile yenileyin</td></tr>';
+      paFitDataList(0);
       return;
     }
     if (!keys.length) {
       paTable.innerHTML =
         '<tr><td colspan="' + colCount +
         '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      paFitDataList(0);
       return;
     }
     var maps = list.map(function (b) {
@@ -2737,6 +2744,7 @@
         avgCells +
       "</tr>";
     paTable.innerHTML = bodyRows + avgRow;
+    paFitDataList(keys.length + 1);
   }
 
   function setCompareNote(text) {
@@ -2908,10 +2916,20 @@
     start.setDate(end.getDate() - (days - 1));
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
+    var shell = document.getElementById("pa-table-shell");
+    if (shell && window.SeoResizableDataList) window.SeoResizableDataList.clearManual(shell);
     // Preset / tarih değişince ana + ek (GA4 dahil) grafikleri yeni aralığa çek
     if (opts.run && (paOverviewActive || paSelectedMetrics.length)) {
       runPlayAnalytics({ fromUser: true });
     }
+  }
+  function paFitDataList(rowCount) {
+    var shell = document.getElementById("pa-table-shell");
+    if (!shell || !window.SeoResizableDataList) return;
+    window.SeoResizableDataList.bind(shell);
+    requestAnimationFrame(function () {
+      window.SeoResizableDataList.fit(shell, rowCount || 0);
+    });
   }
   function fmtNum(n, asInt) {
     if (n == null || isNaN(n)) return "—";
@@ -4282,6 +4300,7 @@
       paTable.innerHTML =
         '<tr><td colspan="' + colCount +
         '" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      paFitDataList(0);
       return;
     }
     paTable.innerHTML = rows.map(function (r, i) {
@@ -4341,6 +4360,7 @@
       }
       return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
     }).join("");
+    paFitDataList(rows.length);
   }
   function fillSegments(list) {
     var cur = paSegment.value || "all";
@@ -4654,7 +4674,10 @@
       if (paTotal) paTotal.textContent = "—";
       if (paPrev) paPrev.textContent = "—";
       if (paDelta) paDelta.textContent = "—";
-      if (paTable) paTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+      if (paTable) {
+        paTable.innerHTML = '<tr><td colspan="2" class="px-3 py-4 text-center text-slate-400">Satır yok</td></tr>';
+        paFitDataList(0);
+      }
       if (paChart) paChart.innerHTML = "";
       if (paCompareRange) paCompareRange.textContent = "";
       clearOverviewLegend();
