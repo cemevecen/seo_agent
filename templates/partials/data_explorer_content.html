@@ -535,10 +535,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · pagespeed.web.dev / CrUX 28 gün</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape · Grafik: CrUX History (~40 hafta)</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Mobil</h4>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_mobile_last_updated|e }}{% if crux_mobile_period_last_label %} · Son dönem: {{ crux_mobile_period_last_label|e }}{% endif %}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Tercih: pagespeed.web.dev scrape · eski mock/API döşeme karıştırılmaz</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kartlar scrape 28g uç · çizgi CrUX History API (scrape ile karışmaz)</p>
           {% if crux_stale or explorer_backfill_queued %}
           <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}
@@ -604,10 +604,10 @@ text-slate-500 dark:text-slate-400
     <section class="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · pagespeed.web.dev / CrUX 28 gün</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">Saha · KPI: pagespeed.web.dev scrape · Grafik: CrUX History (~40 hafta)</p>
           <h4 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Masaüstü</h4>
           <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 sm:text-xs">Son çekim: {{ crux_desktop_last_updated|e }}{% if crux_desktop_period_last_label %} · Son dönem: {{ crux_desktop_period_last_label|e }}{% endif %}</p>
-          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Tercih: pagespeed.web.dev scrape · eski mock/API döşeme karıştırılmaz</p>
+          <p class="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">Kartlar scrape 28g uç · çizgi CrUX History API (scrape ile karışmaz)</p>
           {% if crux_stale or explorer_backfill_queued %}
           <p class="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{% if explorer_backfill_queued or crux_refresh_queued %}Veri geride — PSI + CrUX arka planda yenileniyor (2–4 dk)…{% else %}Veri geride — sayfayı biraz sonra yenileyin.{% endif %}</p>
           {% endif %}

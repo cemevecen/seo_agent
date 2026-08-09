@@ -148,6 +148,7 @@ from backend.services.sc_top_queries import (
 )
 from backend.services.timezone_utils import format_datetime_like, format_local_datetime
 from backend.services.warehouse import (
+    get_latest_crux_history_snapshot,
     get_latest_crux_snapshot,
     get_latest_ga4_report_snapshot,
     get_latest_search_console_rows,
@@ -6966,8 +6967,16 @@ def _data_explorer_context(domain: str) -> dict:
 
         warehouse = get_site_warehouse_summary(db, site_id=site.id)
         crawler_link_audit = _latest_crawler_link_audit_summary(db, site_id=site.id)
+        # KPI uç değer: scrape tercih (get_latest_crux_snapshot)
         mobile_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="mobile")
         desktop_crux = get_latest_crux_snapshot(db, site_id=site.id, form_factor="desktop")
+        # Grafik: çok haftalık CrUX History (scrape tek nokta atlanır)
+        mobile_crux_history = get_latest_crux_history_snapshot(
+            db, site_id=site.id, form_factor="mobile"
+        )
+        desktop_crux_history = get_latest_crux_history_snapshot(
+            db, site_id=site.id, form_factor="desktop"
+        )
         mobile_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "mobile")
         desktop_pagespeed_current = _latest_pagespeed_field_metrics(db, site.id, "desktop")
         mobile_lighthouse_analysis = get_latest_pagespeed_audit_snapshot(db, site.id, "mobile")
@@ -6976,30 +6985,26 @@ def _data_explorer_context(domain: str) -> dict:
         psi_scores_missing = _psi_performance_scores_missing(db, site.id)
         crux_collected = _crux_history_latest_collected_at(db, site.id)
         today_tsi = _crux_today_tsi()
-        mobile_stale = _crux_snapshot_is_stale(mobile_crux, today=today_tsi)
-        desktop_stale = _crux_snapshot_is_stale(desktop_crux, today=today_tsi)
+        mobile_stale = _crux_snapshot_is_stale(mobile_crux_history, today=today_tsi)
+        desktop_stale = _crux_snapshot_is_stale(desktop_crux_history, today=today_tsi)
         crux_stale = mobile_stale or desktop_stale
         crux_refresh_queued = False
         explorer_backfill_queued = False
         if psi_scores_missing or crux_stale:
-            # Scrape birincil kaynak — API backfill scrape’i ezmesin
+            # Lab skorları scrape birincil — PSI API backfill scrape’i ezmesin
             if _site_has_pagespeed_web_scrape(db, site.id):
                 psi_scores_missing = False
-                # Scrape CrUX compat tek nokta; stale history API ile karışmasın
-                if (mobile_crux or {}).get("payload", {}).get("source") == "pagespeed_web_scrape" or (
-                    (mobile_crux or {}).get("summary") or {}
-                ).get("source") == "pagespeed_web_scrape":
-                    crux_stale = False
+            # CrUX History grafiği scrape’ten bağımsız; eksik/stale ise History API çek
             if psi_scores_missing or crux_stale:
                 explorer_backfill_queued = _schedule_data_explorer_backfill_if_needed(
                     site.id,
                     site.domain,
                     need_pagespeed=psi_scores_missing,
-                    need_crux=crux_stale or psi_scores_missing,
+                    need_crux=crux_stale,
                 )
                 crux_refresh_queued = explorer_backfill_queued and crux_stale
-        mobile_period = _crux_latest_period_date(mobile_crux)
-        desktop_period = _crux_latest_period_date(desktop_crux)
+        mobile_period = _crux_latest_period_date(mobile_crux_history or mobile_crux)
+        desktop_period = _crux_latest_period_date(desktop_crux_history or desktop_crux)
         def _snap_collected_dt(snap: dict | None) -> datetime | None:
             if not snap:
                 return None
@@ -7015,21 +7020,21 @@ def _data_explorer_context(domain: str) -> dict:
             return None
 
         mobile_state = _data_state_badge(
-            "stale" if mobile_stale else ("live" if mobile_crux else "failed"),
+            "stale" if mobile_stale else ("live" if (mobile_crux_history or mobile_crux) else "failed"),
             "CrUX güncel kaydı ve history serisi mevcut",
             "CrUX dönemi geride — arka planda yenileniyor" if mobile_stale else "Son başarılı CrUX kaydı gösteriliyor",
             "CrUX geçmiş verisi henüz yok",
-            stale_collected_at=_snap_collected_dt(mobile_crux),
+            stale_collected_at=_snap_collected_dt(mobile_crux_history or mobile_crux),
         )
         desktop_state = _data_state_badge(
-            "stale" if desktop_stale else ("live" if desktop_crux else "failed"),
+            "stale" if desktop_stale else ("live" if (desktop_crux_history or desktop_crux) else "failed"),
             "CrUX güncel kaydı ve history serisi mevcut",
             "CrUX dönemi geride — arka planda yenileniyor" if desktop_stale else "Son başarılı CrUX kaydı gösteriliyor",
             "CrUX geçmiş verisi henüz yok",
-            stale_collected_at=_snap_collected_dt(desktop_crux),
+            stale_collected_at=_snap_collected_dt(desktop_crux_history or desktop_crux),
         )
-        mobile_cwv  = _build_crux_cwv_chart(mobile_crux.get("payload") or {})  if mobile_crux  else None
-        desktop_cwv = _build_crux_cwv_chart(desktop_crux.get("payload") or {}) if desktop_crux else None
+        mobile_cwv  = _build_crux_cwv_chart((mobile_crux_history or mobile_crux or {}).get("payload") or {})  if (mobile_crux_history or mobile_crux)  else None
+        desktop_cwv = _build_crux_cwv_chart((desktop_crux_history or desktop_crux or {}).get("payload") or {}) if (desktop_crux_history or desktop_crux) else None
         mobile_panel = _build_pagespeed_report_panel(db, site.id, "mobile", mobile_lighthouse_analysis)
         desktop_panel = _build_pagespeed_report_panel(db, site.id, "desktop", desktop_lighthouse_analysis)
         mobile_desktop_delta = _pagespeed_mobile_desktop_delta(mobile_panel, desktop_panel)
@@ -7045,8 +7050,12 @@ def _data_explorer_context(domain: str) -> dict:
             "crawler_link_audit": crawler_link_audit,
             "crux_mobile": mobile_crux,
             "crux_desktop": desktop_crux,
-            "crux_mobile_series": _format_crux_series(mobile_crux, mobile_pagespeed_current),
-            "crux_desktop_series": _format_crux_series(desktop_crux, desktop_pagespeed_current),
+            "crux_mobile_series": _format_crux_series(
+                mobile_crux_history or mobile_crux, mobile_pagespeed_current
+            ),
+            "crux_desktop_series": _format_crux_series(
+                desktop_crux_history or desktop_crux, desktop_pagespeed_current
+            ),
             "cwv_mobile": mobile_cwv,
             "cwv_desktop": desktop_cwv,
             "pagespeed_report_mobile": mobile_panel,
@@ -7091,6 +7100,7 @@ def _data_explorer_context(domain: str) -> dict:
             "crux_refresh_queued": crux_refresh_queued,
             "crux_mobile_status": mobile_state,
             "crux_desktop_status": desktop_state,
+            "crux_history_chart": bool(mobile_crux_history or desktop_crux_history),
         }
 
 

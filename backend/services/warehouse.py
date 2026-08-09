@@ -769,6 +769,91 @@ def get_latest_crux_snapshot(db: Session, *, site_id: int, form_factor: str) -> 
     return _as_dict(rows[0])
 
 
+def _crux_payload_is_scrape(payload: dict | None, summary: dict | None = None) -> bool:
+    if isinstance(payload, dict) and payload.get("source") == "pagespeed_web_scrape":
+        return True
+    if isinstance(summary, dict) and summary.get("source") == "pagespeed_web_scrape":
+        return True
+    return False
+
+
+def _crux_history_period_count(payload: dict | None, summary: dict | None = None) -> int:
+    """Kaç haftalık CrUX history noktası var (scrape tek nokta → 1)."""
+    payload = payload if isinstance(payload, dict) else {}
+    summary = summary if isinstance(summary, dict) else {}
+    hist = payload.get("history") if isinstance(payload.get("history"), dict) else {}
+    record = hist.get("record") if isinstance(hist.get("record"), dict) else {}
+    periods = record.get("collectionPeriods") or []
+    if isinstance(periods, list) and periods:
+        return len(periods)
+    series = summary.get("series") if isinstance(summary.get("series"), dict) else {}
+    best = 0
+    for item in series.values():
+        if not isinstance(item, dict):
+            continue
+        pts = item.get("points") or []
+        if isinstance(pts, list):
+            best = max(best, len(pts))
+    return best
+
+
+def get_latest_crux_history_snapshot(
+    db: Session, *, site_id: int, form_factor: str
+) -> dict | None:
+    """Çok haftalık CrUX History API kaydı — pagespeed.web.dev scrape tek nokta atlanır.
+
+    Grafik (~6–10 ay) için; KPI kartları scrape/field override ile ayrı kalır.
+    """
+    rows = (
+        db.query(CruxHistorySnapshot)
+        .filter(CruxHistorySnapshot.site_id == site_id, CruxHistorySnapshot.form_factor == form_factor)
+        .order_by(CruxHistorySnapshot.collected_at.desc(), CruxHistorySnapshot.id.desc())
+        .limit(24)
+        .all()
+    )
+    if not rows:
+        return None
+
+    def _as_dict(row) -> dict:
+        return {
+            "form_factor": row.form_factor,
+            "target_url": row.target_url,
+            "summary": json.loads(row.summary_json or "{}"),
+            "payload": json.loads(row.payload_json or "{}"),
+            "collected_at": row.collected_at.isoformat() if row.collected_at else None,
+        }
+
+    best: dict | None = None
+    best_n = 0
+    for row in rows:
+        try:
+            payload = json.loads(row.payload_json or "{}")
+            summary = json.loads(row.summary_json or "{}")
+        except Exception:
+            continue
+        if _crux_payload_is_scrape(payload, summary):
+            continue
+        n = _crux_history_period_count(payload, summary)
+        if n >= 2 and n > best_n:
+            best = _as_dict(row)
+            best_n = n
+            if n >= 20:
+                break
+    if best is not None:
+        return best
+    # Çok noktalı yoksa en yeni non-scrape satır (yeniden çekim beklerken)
+    for row in rows:
+        try:
+            payload = json.loads(row.payload_json or "{}")
+            summary = json.loads(row.summary_json or "{}")
+        except Exception:
+            continue
+        if _crux_payload_is_scrape(payload, summary):
+            continue
+        return _as_dict(row)
+    return None
+
+
 def get_latest_url_inspection_snapshot(db: Session, *, site_id: int) -> dict | None:
     row = (
         db.query(UrlInspectionSnapshot)

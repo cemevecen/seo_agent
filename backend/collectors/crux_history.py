@@ -355,7 +355,13 @@ def _fetch_crux_history(
         if max_identifier_attempts and idx >= max_identifier_attempts:
             break
         attempted_identifiers.append(identifier["value"])
-        body_payload = {identifier["type"]: identifier["value"], "formFactor": form_factor, "metrics": list(METRIC_LABELS.keys())}
+        body_payload = {
+            identifier["type"]: identifier["value"],
+            "formFactor": form_factor,
+            "metrics": list(METRIC_LABELS.keys()),
+            # Max 40 hafta ≈ 10 ay (≥6 ay); API varsayılanı 25 (~6 ay)
+            "collectionPeriodCount": 40,
+        }
         try:
             payload = _request_crux_record(CRUX_HISTORY_ENDPOINT, body_payload, request_timeout=request_timeout)
             record = payload.get("record") or {}
