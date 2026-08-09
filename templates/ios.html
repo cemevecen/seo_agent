@@ -305,7 +305,7 @@
               <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
             </button>
             <div id="ia-ov-metric-list" role="listbox" aria-multiselectable="true"
-                 class="fixed z-[80] hidden max-h-64 overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
+                 class="fixed z-[220] hidden max-h-64 overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -497,21 +497,46 @@
     if (spaceBelow < 140 && spaceAbove > spaceBelow) {
       top = Math.max(8, r.top - maxH - 4);
     }
+    iaOvMetricList.style.position = "fixed";
     iaOvMetricList.style.left = left + "px";
     iaOvMetricList.style.top = top + "px";
     iaOvMetricList.style.width = w + "px";
     iaOvMetricList.style.maxHeight = maxH + "px";
+    iaOvMetricList.style.zIndex = "220";
+  }
+  function iaOvListHome() {
+    return iaOvMetricTrigger ? iaOvMetricTrigger.parentElement : null;
+  }
+  function mountIaOvListPortal(on) {
+    if (!iaOvMetricList) return;
+    var home = iaOvListHome();
+    if (on) {
+      if (iaOvMetricList.parentElement !== document.body) {
+        document.body.appendChild(iaOvMetricList);
+      }
+    } else if (home && iaOvMetricList.parentElement !== home) {
+      home.appendChild(iaOvMetricList);
+    }
   }
   function setIaOvDropdownOpen(on) {
     if (!iaOvMetricList || !iaOvMetricTrigger) return;
     if (on) {
+      mountIaOvListPortal(true);
       positionIaOvDropdown();
       iaOvMetricList.classList.remove("hidden");
       iaOvMetricTrigger.setAttribute("aria-expanded", "true");
     } else {
       iaOvMetricList.classList.add("hidden");
       iaOvMetricTrigger.setAttribute("aria-expanded", "false");
+      mountIaOvListPortal(false);
     }
+  }
+  function iaOvEventInsideDropdown(ev) {
+    var t = ev && ev.target;
+    if (!t) return false;
+    if (iaOvMetricList && (t === iaOvMetricList || (iaOvMetricList.contains && iaOvMetricList.contains(t)))) return true;
+    if (iaOvMetricTrigger && (t === iaOvMetricTrigger || (iaOvMetricTrigger.contains && iaOvMetricTrigger.contains(t)))) return true;
+    return false;
   }
   function renderOverlayChips() {
     if (!iaOverlaysChips) return;
@@ -1677,17 +1702,27 @@
       fillOverlayMetricOptions();
       setIaOvDropdownOpen(true);
     });
+    iaOvMetricList.addEventListener("mousedown", function (ev) {
+      // Portal list body’de; dışarı tık kapanmasını seçimde engelle
+      ev.stopPropagation();
+    });
   }
-  document.addEventListener("click", function (ev) {
+  document.addEventListener("mousedown", function (ev) {
     if (!iaOvMetricList || iaOvMetricList.classList.contains("hidden")) return;
-    var root = ev.target && ev.target.closest ? ev.target.closest(".ia-ov-dd") : null;
-    if (!root) setIaOvDropdownOpen(false);
+    if (iaOvEventInsideDropdown(ev)) return;
+    setIaOvDropdownOpen(false);
   });
   window.addEventListener("resize", function () {
     if (iaOvMetricList && !iaOvMetricList.classList.contains("hidden")) positionIaOvDropdown();
   });
-  document.addEventListener("scroll", function () {
-    if (iaOvMetricList && !iaOvMetricList.classList.contains("hidden")) setIaOvDropdownOpen(false);
+  document.addEventListener("scroll", function (ev) {
+    if (!iaOvMetricList || iaOvMetricList.classList.contains("hidden")) return;
+    // Liste kendi scroll’u — kapatma
+    if (ev && ev.target && (ev.target === iaOvMetricList || (iaOvMetricList.contains && iaOvMetricList.contains(ev.target)))) {
+      return;
+    }
+    // Sayfa / overflow container scroll: kapatmak yerine yeniden konumla
+    positionIaOvDropdown();
   }, true);
   if (iaOverlaysChips) {
     iaOverlaysChips.addEventListener("click", function (ev) {

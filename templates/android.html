@@ -646,7 +646,7 @@
               <svg class="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"/></svg>
             </button>
             <div id="pa-ov-metric-list" role="listbox" aria-multiselectable="true"
-                 class="fixed z-[80] hidden max-h-64 overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
+                 class="fixed z-[220] hidden max-h-64 overflow-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-950"></div>
           </div>
         </div>
         <div id="pa-ov-play-dims" class="flex flex-wrap items-end gap-3">
@@ -2698,21 +2698,46 @@
     if (spaceBelow < 140 && spaceAbove > spaceBelow) {
       top = Math.max(8, r.top - maxH - 4);
     }
+    paOvMetricList.style.position = "fixed";
     paOvMetricList.style.left = left + "px";
     paOvMetricList.style.top = top + "px";
     paOvMetricList.style.width = w + "px";
     paOvMetricList.style.maxHeight = maxH + "px";
+    paOvMetricList.style.zIndex = "220";
+  }
+  function paOvListHome() {
+    return paOvMetricTrigger ? paOvMetricTrigger.parentElement : null;
+  }
+  function mountPaOvListPortal(on) {
+    if (!paOvMetricList) return;
+    var home = paOvListHome();
+    if (on) {
+      if (paOvMetricList.parentElement !== document.body) {
+        document.body.appendChild(paOvMetricList);
+      }
+    } else if (home && paOvMetricList.parentElement !== home) {
+      home.appendChild(paOvMetricList);
+    }
   }
   function setPaOvDropdownOpen(on) {
     if (!paOvMetricList || !paOvMetricTrigger) return;
     if (on) {
+      mountPaOvListPortal(true);
       positionPaOvDropdown();
       paOvMetricList.classList.remove("hidden");
       paOvMetricTrigger.setAttribute("aria-expanded", "true");
     } else {
       paOvMetricList.classList.add("hidden");
       paOvMetricTrigger.setAttribute("aria-expanded", "false");
+      mountPaOvListPortal(false);
     }
+  }
+  function paOvEventInsideDropdown(ev) {
+    var t = ev && ev.target;
+    if (!t) return false;
+    if (paOvMetricList && (t === paOvMetricList || (paOvMetricList.contains && paOvMetricList.contains(t)))) return true;
+    if (paOvMetricTrigger && (t === paOvMetricTrigger || (paOvMetricTrigger.contains && paOvMetricTrigger.contains(t)))) return true;
+    return false;
   }
   function fillOverlayMetricOptions() {
     if (!paOvMetricList) return;
@@ -4034,17 +4059,24 @@
       fillOverlayMetricOptions();
       setPaOvDropdownOpen(true);
     });
+    paOvMetricList.addEventListener("mousedown", function (ev) {
+      ev.stopPropagation();
+    });
   }
-  document.addEventListener("click", function (ev) {
+  document.addEventListener("mousedown", function (ev) {
     if (!paOvMetricList || paOvMetricList.classList.contains("hidden")) return;
-    var root = ev.target && ev.target.closest ? ev.target.closest(".pa-ov-dd") : null;
-    if (!root) setPaOvDropdownOpen(false);
+    if (paOvEventInsideDropdown(ev)) return;
+    setPaOvDropdownOpen(false);
   });
   window.addEventListener("resize", function () {
     if (paOvMetricList && !paOvMetricList.classList.contains("hidden")) positionPaOvDropdown();
   });
-  document.addEventListener("scroll", function () {
-    if (paOvMetricList && !paOvMetricList.classList.contains("hidden")) setPaOvDropdownOpen(false);
+  document.addEventListener("scroll", function (ev) {
+    if (!paOvMetricList || paOvMetricList.classList.contains("hidden")) return;
+    if (ev && ev.target && (ev.target === paOvMetricList || (paOvMetricList.contains && paOvMetricList.contains(ev.target)))) {
+      return;
+    }
+    positionPaOvDropdown();
   }, true);
   function syncOvDimBreakdown() {
     if (!paOvDim || !paOvBreakdown) return;
