@@ -759,10 +759,10 @@
               <button type="button" data-pa-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-pa-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="false">
+              <button type="button" data-pa-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="true" class="is-active">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-pa-chart-style="bar" title="Yığınlı" aria-label="Yığınlı çubuk grafik" aria-pressed="true" class="is-active">
+              <button type="button" data-pa-chart-style="bar" title="Yığınlı" aria-label="Yığınlı çubuk grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="9" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="3" y="5.5" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="3" y="3" width="3.2" height="2.5" rx="0.4" fill="currentColor"/><rect x="9.5" y="10" width="3.2" height="2.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="9.5" y="7" width="3.2" height="3" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="9.5" y="4" width="3.2" height="3" rx="0.4" fill="currentColor"/></svg>
               </button>
             </div>
@@ -1347,9 +1347,9 @@
   var PA_STROKE_W = 0.68;
   var PA_STROKE_W_OV = 0.75;
   var PA_STROKE_W_PREV = 1;
-  /* Açılış her zaman yığınlı çubuk; kullanıcı oturumda değiştirebilir. */
-  var paChartStyle = "bar";
-  try { localStorage.setItem("paChartStyle", "bar"); } catch (_) {}
+  /* Açılış her zaman alan dolgulu; kullanıcı oturumda değiştirebilir. */
+  var paChartStyle = "area";
+  try { localStorage.setItem("paChartStyle", "area"); } catch (_) {}
   function syncPaChartStyleUi() {
     var root = document.getElementById("pa-chart-style");
     if (!root) return;
@@ -2356,7 +2356,7 @@
       return { x: x, y: top + plotH / 2, key: key };
     });
     var baseY = top + plotH;
-    var style = paChartStyle || "bar";
+    var style = paChartStyle || "area";
     var linePaths = seriesPts.map(function (sp, si) {
       var color = overviewMetricColor(sp.metric);
       var pts = [];
@@ -3961,7 +3961,7 @@
 
     var hasOv = overlaySeriesState.length > 0;
     var prevLinePts = prevPts.filter(Boolean);
-    var style = paChartStyle || "bar";
+    var style = paChartStyle || "area";
     var baseYDraw = top + plotH;
     var primaryHtml = "";
     var prevHtml = "";
@@ -4690,7 +4690,7 @@
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-pa-chart-style]") : null;
       if (!btn) return;
       ev.preventDefault();
-      setPaChartStyle(btn.getAttribute("data-pa-chart-style") || "bar");
+      setPaChartStyle(btn.getAttribute("data-pa-chart-style") || "area");
     });
   }
   applyPreset();

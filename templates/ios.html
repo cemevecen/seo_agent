@@ -476,10 +476,10 @@
               <button type="button" data-ia-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11.5 L5.5 7.5 L8.5 9.5 L14 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-ia-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="false">
+              <button type="button" data-ia-chart-style="area" title="Alan dolgulu" aria-label="Alan dolgulu grafik" aria-pressed="true" class="is-active">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 12 V8.5 L5.5 5.5 L8.5 7.2 L14 3.5 V12 Z" fill="currentColor" fill-opacity="0.28"/><path d="M2 8.5 L5.5 5.5 L8.5 7.2 L14 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <button type="button" data-ia-chart-style="bar" title="Yığınlı" aria-label="Yığınlı çubuk grafik" aria-pressed="true" class="is-active">
+              <button type="button" data-ia-chart-style="bar" title="Yığınlı" aria-label="Yığınlı çubuk grafik" aria-pressed="false">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="9" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="3" y="5.5" width="3.2" height="3.5" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="3" y="3" width="3.2" height="2.5" rx="0.4" fill="currentColor"/><rect x="9.5" y="10" width="3.2" height="2.5" rx="0.4" fill="currentColor" fill-opacity="0.45"/><rect x="9.5" y="7" width="3.2" height="3" rx="0.4" fill="currentColor" fill-opacity="0.7"/><rect x="9.5" y="4" width="3.2" height="3" rx="0.4" fill="currentColor"/></svg>
               </button>
             </div>
@@ -694,9 +694,9 @@
   };
   var COLORS = ["#2563EB", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#06B6D4", "#F97316", "#84CC16", "#EC4899", "#64748B"];
   var STROKE = 0.68;
-  /* Açılış her zaman yığınlı çubuk; kullanıcı oturumda değiştirebilir. */
-  var iaChartStyle = "bar";
-  try { localStorage.setItem("iaChartStyle", "bar"); } catch (_) {}
+  /* Açılış her zaman alan dolgulu; kullanıcı oturumda değiştirebilir. */
+  var iaChartStyle = "area";
+  try { localStorage.setItem("iaChartStyle", "area"); } catch (_) {}
   function syncIaChartStyleUi() {
     var root = document.getElementById("ia-chart-style");
     if (!root) return;
@@ -1687,7 +1687,7 @@
         countLike: isCountLike(b.metric)
       };
     });
-    var style = iaChartStyle || "bar";
+    var style = iaChartStyle || "area";
     var baseY = top + plotH;
     var fillOp = list.length > 1 ? 0.12 : 0.22;
     var barSlot = n > 1 ? plotW / (n - 1) : plotW;
@@ -1803,7 +1803,7 @@
         countLike: countLike
       }]
     };
-    var style = iaChartStyle || "bar";
+    var style = iaChartStyle || "area";
     var baseY = top + plotH;
     var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
     var seriesHtml = buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
@@ -2199,7 +2199,7 @@
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-ia-chart-style]") : null;
       if (!btn) return;
       ev.preventDefault();
-      setIaChartStyle(btn.getAttribute("data-ia-chart-style") || "bar");
+      setIaChartStyle(btn.getAttribute("data-ia-chart-style") || "area");
     });
   }
   loadStatus();
