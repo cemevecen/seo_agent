@@ -490,6 +490,11 @@ def _densify_date_series(
     return out
 
 
+def load_scrape_facts() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Public: explorer_facts + meta (batch overview için bir kez yükle)."""
+    return _load_facts()
+
+
 def query_scrape_analytics(
     *,
     start: str | None = None,
@@ -499,6 +504,8 @@ def query_scrape_analytics(
     dim: str = "overview",
     segment: str | None = None,
     compare: str | None = "previous_period",
+    facts: list[dict[str, Any]] | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     end_d = date.fromisoformat(end) if end else date.today()
     # Varsayılan: 2025-01-01
@@ -519,7 +526,10 @@ def query_scrape_analytics(
     ):
         breakdown = "segment"
 
-    facts, meta = _load_facts()
+    if facts is None:
+        facts, meta = _load_facts()
+    else:
+        meta = meta or {}
     if metric_key == "revenue":
         facts = _normalize_revenue_facts(facts)
     pkg = str(meta.get("package_name") or "com.Doviz")

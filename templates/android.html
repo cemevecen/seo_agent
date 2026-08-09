@@ -561,7 +561,7 @@
       </div>
 
       <div id="pa-table-wrap" class="mt-4 max-h-96 w-full min-w-0 overflow-auto rounded-xl border border-slate-200 dark:border-zinc-700">
-        <table class="pa-data-table w-full min-w-full table-fixed text-left text-xs">
+        <table class="pa-data-table text-left text-xs">
           <thead class="sticky top-0 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-zinc-900 dark:text-zinc-400">
             <tr id="pa-thead-row">
               <th class="px-2 py-2 font-bold sm:px-3">Kırılım</th>
@@ -1462,6 +1462,37 @@
       total: data.total,
       total_mode: data.total_mode || "sum"
     };
+  }
+  /** Özet: tek istek — facts sunucuda bir kez yüklenir (10× query yerine). */
+  async function fetchPaOverviewBundles(defs, signal) {
+    var metrics = (defs || []).map(function (m) { return m.value; }).filter(Boolean);
+    var qs = new URLSearchParams({
+      start: paStart.value,
+      end: paEnd.value,
+      metrics: metrics.join(",")
+    });
+    var r = await fetch("/api/play-analytics/overview?" + qs.toString(), {
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: signal
+    });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(data.detail || data.message || ("HTTP " + r.status));
+    var byMetric = {};
+    (data.bundles || []).forEach(function (b) {
+      if (b && b.metric) byMetric[b.metric] = b;
+    });
+    return (defs || []).map(function (m) {
+      var b = byMetric[m.value] || {};
+      return {
+        metric: m.value,
+        label: m.label || metricOptionLabel(m.value) || m.value,
+        series: b.series || [],
+        total: b.total,
+        total_mode: b.total_mode || "sum",
+        onChart: !!m.onChart
+      };
+    });
   }
   function selectOverviewMetric(metric) {
     if (!metric || !paMetric) return;
@@ -3053,15 +3084,22 @@
         paLastPrimaryMetric = "";
         var keptOverviewOverlays = hasPaOverlays() ? paOverlays.slice() : [];
         var defs = paOverviewMetricDefs();
-        var bundles = await Promise.all(defs.map(function (m) {
-          return fetchPaMetricBundle(m.value, paAbort ? paAbort.signal : undefined).catch(function () {
-            return { metric: m.value, label: m.label, series: [], total: null, total_mode: "sum", onChart: m.onChart };
-          }).then(function (b) {
-            b.onChart = m.onChart;
-            b.label = m.label || b.label;
-            return b;
+        var bundles;
+        try {
+          bundles = await fetchPaOverviewBundles(defs, paAbort ? paAbort.signal : undefined);
+        } catch (_) {
+          bundles = defs.map(function (m) {
+            return {
+              metric: m.value,
+              label: m.label,
+              series: [],
+              total: null,
+              total_mode: "sum",
+              onChart: !!m.onChart
+            };
           });
-        }));
+        }
+        if (mySeq !== paRunSeq) return;
         paOverviewBundles = bundles;
         var tableBundles = visibleOverviewBundles(bundles);
         var chartBundles = tableBundles.filter(function (b) { return b.onChart; });
@@ -3392,8 +3430,8 @@
   });
   if (paCompare) paCompare.checked = false;
   applyPreset();
-  // İlk açılış: 2 hafta · tüm metrik özeti (tablo + mini grafikler)
-  setTimeout(function () { runPlayAnalytics({ overview: true }); }, 200);
+  // İlk açılış: 2 hafta · özet (gecikmesiz; grafik önce, tablo sonra)
+  runPlayAnalytics({ overview: true });
 
   var KPI_TITLES = {
     "Kilitlenme oranı": 1,

@@ -17,6 +17,7 @@ from backend.database import get_db
 from backend.services.play_analytics_warehouse import play_analytics_status, query_play_analytics
 from backend.services.play_scrape_warehouse import (
     enrich_rating_series_review_splits,
+    load_scrape_facts,
     query_scrape_analytics,
     scrape_metric_keys,
 )
@@ -106,16 +107,18 @@ def get_play_analytics_status() -> dict[str, Any]:
     }
 
 
-@router.get("/play-analytics/query")
-def get_play_analytics_query(
-    start: str | None = Query(default=None),
-    end: str | None = Query(default=None),
-    metric: str = Query(default="anrs"),
-    breakdown: str = Query(default="date"),
-    dim: str = Query(default="overview"),
-    segment: str | None = Query(default=None),
-    compare: str | None = Query(default="previous_period"),
-    source: str | None = Query(default=None, description="scrape|gcs|auto"),
+def resolve_play_analytics_query(
+    *,
+    start: str | None = None,
+    end: str | None = None,
+    metric: str = "anrs",
+    breakdown: str = "date",
+    dim: str = "overview",
+    segment: str | None = None,
+    compare: str | None = "previous_period",
+    source: str | None = None,
+    facts: list[dict[str, Any]] | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     prefer = (source or "auto").strip().lower()
     try_scrape = prefer in ("scrape", "auto") and (
@@ -130,8 +133,9 @@ def get_play_analytics_query(
             return enrich_rating_series_review_splits(payload)
         return payload
 
-    # Puan: önce GCS stats/ratings CSV (günlük ort.), sonra scrape
-    if prefer == "auto" and metric == "rating":
+    # Puan: önce GCS stats/ratings CSV (günlük ort.), sonra scrape.
+    # Batch overview (facts önceden yüklü) GCS’i atlar — ilk açılış hızı.
+    if prefer == "auto" and metric == "rating" and facts is None:
         try:
             gcs = query_play_analytics(
                 start=start,
@@ -159,6 +163,8 @@ def get_play_analytics_query(
                 dim=dim,
                 segment=segment,
                 compare=compare,
+                facts=facts,
+                meta=meta,
             )
             if scrape_res.get("ok") and scrape_res.get("series"):
                 # Puan: tarihsiz OVERALL kartı (tek nokta "5") GCS’i engellemesin
@@ -220,6 +226,87 @@ def get_play_analytics_query(
             return {"ok": False, "message": str(exc), "series": [], "total": 0}
 
     return scrape_res or {"ok": False, "message": "veri yok", "series": [], "total": 0}
+
+
+@router.get("/play-analytics/query")
+def get_play_analytics_query(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    metric: str = Query(default="anrs"),
+    breakdown: str = Query(default="date"),
+    dim: str = Query(default="overview"),
+    segment: str | None = Query(default=None),
+    compare: str | None = Query(default="previous_period"),
+    source: str | None = Query(default=None, description="scrape|gcs|auto"),
+) -> dict[str, Any]:
+    return resolve_play_analytics_query(
+        start=start,
+        end=end,
+        metric=metric,
+        breakdown=breakdown,
+        dim=dim,
+        segment=segment,
+        compare=compare,
+        source=source,
+    )
+
+
+@router.get("/play-analytics/overview")
+def get_play_analytics_overview(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    metrics: str = Query(
+        default="anrs,crashes,user_lost,device_acquisition,revenue,ar2_acquisitions,ar2_visitors,active_devices,active_users,rating",
+        description="Virgülle ayrılmış metrik listesi (özet ekranı)",
+    ),
+) -> dict[str, Any]:
+    """İlk açılış özeti: explorer_facts bir kez yüklenir, tüm metrikler aynı bellekten kesilir."""
+    metric_list = [m.strip() for m in (metrics or "").split(",") if m.strip()]
+    # Tekrarları koru ama sırayı bozma
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for m in metric_list:
+        if m in seen:
+            continue
+        seen.add(m)
+        ordered.append(m)
+    if not ordered:
+        return {"ok": False, "message": "metrics boş", "bundles": []}
+
+    facts, meta = load_scrape_facts()
+    bundles: list[dict[str, Any]] = []
+    for metric in ordered:
+        data = resolve_play_analytics_query(
+            start=start,
+            end=end,
+            metric=metric,
+            breakdown="date",
+            dim="overview",
+            segment=None,
+            compare="",
+            source="auto",
+            facts=facts,
+            meta=meta,
+        )
+        bundles.append(
+            {
+                "metric": metric,
+                "series": data.get("series") or [],
+                "total": data.get("total"),
+                "total_mode": data.get("total_mode") or "sum",
+                "ok": bool(data.get("ok")),
+                "message": data.get("message"),
+                "source": data.get("source"),
+            }
+        )
+    return {
+        "ok": True,
+        "start": start,
+        "end": end,
+        "fact_count": meta.get("explorer_fact_count") or len(facts),
+        "synced_at": meta.get("synced_at"),
+        "bundles": bundles,
+    }
 
 
 def _resolve_doviz_site(db: Session, project: str = "doviz"):
