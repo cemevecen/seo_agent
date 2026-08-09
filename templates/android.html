@@ -1243,8 +1243,42 @@
     return Array.isArray(paOverlays) && paOverlays.length > 0;
   }
   function paOverlayColor(i) {
-    // 0 = ana metrik (mavi); ekler 1'den başlar
+    // Geriye dönük: ana metrik 0; ekler 1'den — syncPaOverlayColors tercih edilir
     return paMetricColor(i + 1);
+  }
+  /** Grafikte zaten duran ana/özet serilerinin renkleri (ekler bunlardan kaçınır). */
+  function reservedPaChartColors() {
+    var reserved = [];
+    if (paOverviewActive) {
+      PA_OVERVIEW_CHART_METRICS.forEach(function (m) {
+        if (paOverviewHidden && paOverviewHidden[m]) return;
+        reserved.push(overviewMetricColor(m));
+      });
+    } else {
+      reserved.push(paMetricColor(0));
+    }
+    return reserved;
+  }
+  /** Overlay renklerini paletten seç; ana serilerle ve birbirleriyle aynı rengi kullanma. */
+  function syncPaOverlayColors() {
+    var pal = paIsDark() ? PA_METRIC_COLORS_DARK : PA_METRIC_COLORS;
+    var used = {};
+    reservedPaChartColors().forEach(function (c) {
+      if (c) used[String(c).toLowerCase()] = true;
+    });
+    (paOverlays || []).forEach(function (ov, i) {
+      var color = null;
+      for (var k = 0; k < pal.length; k++) {
+        var cand = pal[(i + 1 + k) % pal.length];
+        if (!used[String(cand).toLowerCase()]) {
+          color = cand;
+          break;
+        }
+      }
+      if (!color) color = pal[(i + reservedPaChartColors().length) % pal.length];
+      ov.color = color;
+      used[String(color).toLowerCase()] = true;
+    });
   }
   function clearPaOverlaysState() {
     paOverlays = [];
@@ -1381,9 +1415,7 @@
     }));
     if (signal && signal.aborted) return;
     paOverlays = results;
-    paOverlays.forEach(function (ov, i) {
-      ov.color = paOverlayColor(i);
-    });
+    syncPaOverlayColors();
     redrawWithOverlays();
     fillOverlayMetricOptions();
   }
@@ -1659,6 +1691,7 @@
       );
     }).join("");
     // Özet (ANR/Crash/Kayıp) üzerine +grafik ekleri — kendi max % ölçeği
+    syncPaOverlayColors();
     var ovSeriesState = (paOverlays || []).map(function (ov, oi) {
       var map = {};
       var max = 0;
@@ -2287,9 +2320,7 @@
   function removeOverlayAt(idx) {
     if (!hasPaOverlays() || idx < 0 || idx >= paOverlays.length) return;
     paOverlays.splice(idx, 1);
-    paOverlays.forEach(function (ov, i) {
-      ov.color = paOverlayColor(i);
-    });
+    syncPaOverlayColors();
     fillOverlayMetricOptions();
     redrawWithOverlays();
   }
@@ -2734,6 +2765,7 @@
     } else if (paLegendPrimaryLabel) {
       paLegendPrimaryLabel.textContent = primaryLegend || "Seçili dönem";
     }
+    syncPaOverlayColors();
     var overlaySeriesState = paOverlays.map(function (ov, oi) {
       var aligned = alignOverlayValues(rows, ov.series);
       var vals = aligned.map(function (r) { return r.value; });
@@ -3279,9 +3311,7 @@
       });
       if (existing >= 0) paOverlays[existing] = next;
       else paOverlays.push(next);
-      paOverlays.forEach(function (ov, i) {
-        ov.color = paOverlayColor(i);
-      });
+      syncPaOverlayColors();
       redrawWithOverlays();
       fillOverlayMetricOptions();
       openOverlayPanel();
