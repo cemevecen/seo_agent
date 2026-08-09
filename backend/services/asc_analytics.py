@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 _ASC_BASE = "https://api.appstoreconnect.apple.com"
 _CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _CACHE_TTL = 6 * 3600
-_MAX_INSTANCES_PER_REPORT = 1
+# Tek instance çoğu zaman yalnızca son işleme dilimini tutar; aralık için birden fazla lazım
+_MAX_INSTANCES_PER_REPORT = 14
 
 
 def _cache_get(key: str) -> dict[str, Any] | None:
@@ -157,6 +158,7 @@ def _reports_for_request(request_id: str) -> list[dict]:
 
 
 def _select_report_id(reports: list[dict], *keywords: str) -> str | None:
+    """Özet metrikler için STANDARD tercih (DETAILED kırılımlı ve boş/timeout riskli)."""
     matches: list[dict] = []
     for r in reports:
         name = ((r.get("attributes") or {}).get("name") or "").lower()
@@ -164,8 +166,12 @@ def _select_report_id(reports: list[dict], *keywords: str) -> str | None:
             matches.append(r)
     if not matches:
         return None
-    detailed = [m for m in matches if "detailed" in ((m.get("attributes") or {}).get("name") or "").lower()]
-    pick = (detailed or matches)[0]
+    standard = [
+        m
+        for m in matches
+        if "detailed" not in ((m.get("attributes") or {}).get("name") or "").lower()
+    ]
+    pick = (standard or matches)[0]
     return pick.get("id")
 
 
@@ -175,6 +181,9 @@ def _latest_instance_ids(report_id: str, *, max_instances: int) -> list[str]:
         {"filter[granularity]": "DAILY"},
     )
     if not inst:
+        # Granularity filtresi boş dönerse filtresiz dene
+        inst = _paginate_first_path(f"/v1/analyticsReports/{report_id}/instances")
+    if not inst:
         return []
     inst.sort(
         key=lambda x: (x.get("attributes") or {}).get("processingDate") or "",
@@ -183,38 +192,69 @@ def _latest_instance_ids(report_id: str, *, max_instances: int) -> list[str]:
     return [i["id"] for i in inst[:max_instances] if i.get("id")]
 
 
+def _parse_segment_bytes(raw: bytes) -> list[dict[str, str]]:
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+    text = raw.decode("utf-8", errors="replace")
+    if not text.strip():
+        return []
+    first = text.splitlines()[0]
+    delim = "\t" if "\t" in first else ","
+    return list(csv.DictReader(io.StringIO(text), delimiter=delim))
+
+
 def _download_segment_rows(instance_id: str) -> list[dict[str, str]]:
+    """Instance altındaki tüm segmentleri birleştir (ülke/dil dilimleri)."""
     segs = _paginate_first_path(f"/v1/analyticsReportInstances/{instance_id}/segments")
     if not segs:
         return []
-    url = (segs[0].get("attributes") or {}).get("url")
-    if not url:
-        return []
+    out: list[dict[str, str]] = []
     try:
         with httpx.Client(timeout=120, follow_redirects=True) as cli:
-            resp = cli.get(url)
-        if resp.status_code != 200:
-            logger.warning("ASC segment download %s → %d", instance_id, resp.status_code)
-            return []
-        raw = resp.content
-        if raw[:2] == b"\x1f\x8b":
-            raw = gzip.decompress(raw)
-        text = raw.decode("utf-8", errors="replace")
-        if not text.strip():
-            return []
-        delim = "\t" if "\t" in text.splitlines()[0] else ","
-        return list(csv.DictReader(io.StringIO(text), delimiter=delim))
+            for seg in segs:
+                url = (seg.get("attributes") or {}).get("url")
+                if not url:
+                    continue
+                resp = cli.get(url)
+                if resp.status_code != 200:
+                    logger.warning(
+                        "ASC segment download %s → %d", instance_id, resp.status_code
+                    )
+                    continue
+                out.extend(_parse_segment_bytes(resp.content))
     except Exception as exc:
         logger.error("ASC segment parse %s: %s", instance_id, exc)
-        return []
+        return out
+    return out
+
+
+def _normalize_date_str(v: str) -> str | None:
+    s = (v or "").strip()
+    if not s:
+        return None
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", s)
+    if m:
+        mm, dd, yy = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return date(yy, mm, dd).isoformat()
+        except ValueError:
+            try:
+                return date(yy, dd, mm).isoformat()
+            except ValueError:
+                return None
+    m2 = re.match(r"^(\d{4})(\d{2})(\d{2})$", s)
+    if m2:
+        return f"{m2.group(1)}-{m2.group(2)}-{m2.group(3)}"
+    return s[:10] if len(s) >= 10 else None
 
 
 def _row_date(row: dict[str, str], headers: list[str]) -> str | None:
     col = _pick_column(headers, "Date", "Report Date", "Day")
     if not col:
         return None
-    v = (row.get(col) or "").strip()
-    return v[:10] if v else None
+    return _normalize_date_str(row.get(col) or "")
 
 
 def _country_ok(row: dict[str, str], headers: list[str], country: str) -> bool:
@@ -316,9 +356,25 @@ def fetch_analytics_summary(
             "message": "Analytics raporları henüz üretilmedi (ONGOING istek sonrası 1–2 gün bekleyin).",
         }
 
-    rid_discovery = _select_report_id(reports, "discovery", "engagement")
-    rid_downloads = _select_report_id(reports, "download")
-    rid_commerce = _select_report_id(reports, "commerce") or _select_report_id(reports, "purchase")
+    report_names = [
+        ((r.get("attributes") or {}).get("name") or "") for r in reports
+    ]
+    logger.info("ASC analytics reports (%d): %s", len(report_names), ", ".join(report_names[:12]))
+
+    rid_discovery = (
+        _select_report_id(reports, "discovery", "engagement")
+        or _select_report_id(reports, "engagement")
+        or _select_report_id(reports, "impression")
+    )
+    rid_downloads = (
+        _select_report_id(reports, "app downloads")
+        or _select_report_id(reports, "download")
+    )
+    rid_commerce = (
+        _select_report_id(reports, "commerce")
+        or _select_report_id(reports, "purchase")
+        or _select_report_id(reports, "in-app")
+    )
 
     end = date.today() - timedelta(days=1)
     start = end - timedelta(days=effective_days - 1)

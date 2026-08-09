@@ -293,6 +293,15 @@ def query_asc_overview(
                 "message": data.get("message"),
             }
         )
+    analytics = bundle.get("analytics") or {}
+    analytics_ok = bool(analytics.get("ok"))
+    warnings = list(analytics.get("warnings") or [])
+    if not analytics_ok:
+        warnings.insert(
+            0,
+            analytics.get("message")
+            or "Analytics Reports boş — gösterim/yeniden indirme/IAP bu kaynaktan gelir.",
+        )
     return {
         "ok": True,
         "configured": True,
@@ -301,6 +310,8 @@ def query_asc_overview(
         "bundle_id": bid,
         "start": start_d.isoformat(),
         "end": end_d.isoformat(),
+        "analytics_ok": analytics_ok,
+        "warnings": warnings,
         "bundles": out_bundles,
     }
 

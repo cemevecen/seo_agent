@@ -205,7 +205,7 @@
     if (iaRunLabel) iaRunLabel.textContent = on ? "Yükleniyor" : "Uygula";
   }
   function fmtAxisKey(key) {
-    var m = String(key || "").match(/^\d{4}-(\d{2})-(\d{2})$/);
+    var m = String(key || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? String(parseInt(m[3], 10)) : String(key || "");
   }
   function buildLine(keys, map, max, color) {
@@ -365,6 +365,13 @@
         var data = await r.json().catch(function () { return {}; });
         if (my !== runSeq) return;
         if (!r.ok) throw new Error(data.message || ("HTTP " + r.status));
+        if (iaStatus && data.analytics_ok === false) {
+          iaStatus.textContent = (data.warnings && data.warnings[0])
+            ? ("Analytics: " + data.warnings[0])
+            : "Analytics Reports boş — Sales (indirme/gelir/abonelik) geliyor; gösterim vb. ASC Analytics ONGOING rapor ister.";
+        } else if (iaStatus && data.warnings && data.warnings.length) {
+          iaStatus.textContent = "ASC · " + data.warnings.slice(0, 2).join(" · ");
+        }
         var bundles = (data.bundles || []).map(function (b) {
           return {
             metric: b.metric,
