@@ -75,6 +75,7 @@ _SCRAPE_FIRST = {
 
 # GCS installs CSV’de olmayan metrikler — installs “kolon yok” mesajına düşmesin
 # rating artık stats/ratings/*.csv’den gelir → GCS fallback açık
+# device_acquisition: tarihsiz scrape OVERALL kartı GCS installs CSV’yi engellemesin
 _NO_GCS_FALLBACK = {
     "dau",
     "revenue",
@@ -82,9 +83,10 @@ _NO_GCS_FALLBACK = {
     "ar2_acquisitions",
     "active_users",
     "active_devices",
-    "device_acquisition",
     "user_lost",
 }
+# Günlük/haftalık/aylık: scrape ancak ISO tarihli seriyle “başarılı” sayılsın
+_NEED_DATED_SCRAPE = frozenset({"rating", "device_acquisition"})
 # ANR/çökme: scrape+Reporting önce; boşsa GCS crashes_* CSV denenebilir
 _ANR_CRASH = {"anrs", "crashes"}
 
@@ -167,8 +169,8 @@ def resolve_play_analytics_query(
                 meta=meta,
             )
             if scrape_res.get("ok") and scrape_res.get("series"):
-                # Puan: tarihsiz OVERALL kartı (tek nokta "5") GCS’i engellemesin
-                if metric == "rating" and breakdown in ("date", "week", "month"):
+                # Puan / cihaz edinme: tarihsiz OVERALL kartı GCS’i engellemesin
+                if metric in _NEED_DATED_SCRAPE and breakdown in ("date", "week", "month"):
                     keys = [str(r.get("key") or "") for r in (scrape_res.get("series") or [])]
                     dated_ok = any(
                         len(k) >= 8 and k[0:4].isdigit() and k[4] in "-/"
@@ -194,7 +196,9 @@ def resolve_play_analytics_query(
     if try_gcs:
         try:
             gcs_metric = metric
-            if metric not in ("installs", "uninstalls", "active", "net", "crashes", "anrs", "rating"):
+            if metric == "device_acquisition":
+                gcs_metric = "installs"
+            elif metric not in ("installs", "uninstalls", "active", "net", "crashes", "anrs", "rating"):
                 gcs_metric = "installs"
             gcs = query_play_analytics(
                 start=start,
@@ -206,6 +210,9 @@ def resolve_play_analytics_query(
                 compare=compare,
             )
             gcs["source"] = "gcs"
+            if metric == "device_acquisition":
+                gcs["metric"] = "device_acquisition"
+                gcs["label"] = gcs.get("label") or "Cihaz edinme"
             if scrape_res and not scrape_res.get("ok"):
                 gcs["scrape_message"] = scrape_res.get("message")
             if gcs.get("ok") and (gcs.get("series") or gcs.get("total")):

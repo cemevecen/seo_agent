@@ -598,6 +598,24 @@ def query_scrape_analytics(
         # Ülke satırlarını genel toplama ekleme — 4–5× şişirme yapardı
         if not dim_facts:
             dim_facts = []
+        # Tarihli breakdown: overview’daki tarihsiz kartlar OVERALL tarihli protobuf’u ezmesin
+        if breakdown in ("date", "week", "month"):
+
+            def _fact_has_iso_date(f: dict[str, Any]) -> bool:
+                ds = f.get("date")
+                if not (isinstance(ds, str) and len(ds) >= 8 and not ds.startswith("i")):
+                    return False
+                return ds[4:5] in "-/" or (len(ds) >= 8 and ds[:4].isdigit())
+
+            if not any(_fact_has_iso_date(f) for f in dim_facts):
+                dated_overall = [
+                    f
+                    for f in cur
+                    if _fact_has_iso_date(f)
+                    and str(f.get("segment") or "") in ("OVERALL", "", "all")
+                ]
+                if dated_overall:
+                    dim_facts = dated_overall
     else:
         dim_facts = [f for f in cur if str(f.get("dim") or "") == dim]
         if not dim_facts and dim in _DIM_TO_REPORTING:
@@ -671,8 +689,8 @@ def query_scrape_analytics(
                 )
 
     use = dated if dated else undated
-    # Puan günlük/haftalık/aylık: tarihsiz OVERALL kartını (tek "5") seri yapma
-    if metric_key == "rating" and breakdown in ("date", "week", "month"):
+    # Puan / cihaz edinme günlük: tarihsiz OVERALL kartını (tek nokta) seri yapma
+    if metric_key in ("rating", "device_acquisition") and breakdown in ("date", "week", "month"):
         use = dated
         if not use:
             return {
@@ -680,14 +698,21 @@ def query_scrape_analytics(
                 "source": "scrape",
                 "configured": True,
                 "message": (
-                    "Puan için günlük scrape serisi yok — GCS stats/ratings CSV veya "
-                    "Play Console /user-feedback/ratings sayfası kullanılır."
+                    (
+                        "Puan için günlük scrape serisi yok — GCS stats/ratings CSV veya "
+                        "Play Console /user-feedback/ratings sayfası kullanılır."
+                        if metric_key == "rating"
+                        else (
+                            "Cihaz edinme için günlük scrape serisi yok — "
+                            "GCS installs CSV veya Play DEVICE_ACQUISITION tarihli veri gerekir."
+                        )
+                    )
                     + (f" · {enrich_msg}" if enrich_msg else "")
                     + (f" · {shift_note}" if shift_note else "")
                 ),
                 "series": [],
                 "total": 0,
-                "total_mode": "avg",
+                "total_mode": "avg" if metric_key == "rating" else "sum",
                 "row_count": len(dim_facts),
                 "start": start_s,
                 "end": end_s,
@@ -753,20 +778,29 @@ def query_scrape_analytics(
     if breakdown == "date" and dated:
         series = _densify_date_series(series, start=start_d, end=effective_end, clip_to_data=True)
     if metric_key in _CUMULATIVE and breakdown == "date" and series:
-        seed = None
-        try:
-            first_d = date.fromisoformat(str(series[0]["key"])[:10])
-            seed_day = (first_d - timedelta(days=1)).isoformat()
-            for f in dim_facts:
-                if (
-                    str(f.get("date") or "")[:10] == seed_day
-                    and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
-                ):
-                    seed = float(f.get("value") or 0)
-                    break
-        except (TypeError, ValueError, KeyError, IndexError):
+        # Yalnızca ISO tarih anahtarlarında decumulate (OVERALL kartını 0 yapma)
+        date_keys = [
+            str(r.get("key") or "")
+            for r in series
+            if len(str(r.get("key") or "")) >= 8
+            and str(r.get("key") or "")[0:4].isdigit()
+            and str(r.get("key") or "")[4] in "-/"
+        ]
+        if len(date_keys) == len(series) and series:
             seed = None
-        series = _decumulate_series(series, seed_value=seed)
+            try:
+                first_d = date.fromisoformat(str(series[0]["key"])[:10])
+                seed_day = (first_d - timedelta(days=1)).isoformat()
+                for f in dim_facts:
+                    if (
+                        str(f.get("date") or "")[:10] == seed_day
+                        and str(f.get("segment") or "OVERALL") in ("OVERALL", "", "all")
+                    ):
+                        seed = float(f.get("value") or 0)
+                        break
+            except (TypeError, ValueError, KeyError, IndexError):
+                seed = None
+            series = _decumulate_series(series, seed_value=seed)
     total, total_mode = _series_total(series, metric_key, breakdown)
 
     compare_payload = None
