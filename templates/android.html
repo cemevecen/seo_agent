@@ -495,7 +495,7 @@
       <p id="pa-ov-note" class="mt-2 text-[10px] text-slate-500 dark:text-zinc-400">Play veya GA4 metriklerini aynı tarih aralığında üst üste ekleyin (sınırsız). GA4 seçilince ölçek kendi maksimumuna göre % olarak hizalanır.</p>
     </div>
 
-    <div id="pa-results" class="relative mt-4">
+    <div id="pa-results" class="relative mt-4 w-full min-w-0">
       <div id="pa-loading" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-xl bg-white/55 backdrop-blur-[2px] dark:bg-zinc-950/50" aria-live="polite" aria-busy="false">
         <div class="flex flex-col items-center gap-3">
           <div class="pa-orbit" aria-hidden="true">
@@ -1071,22 +1071,17 @@
   var paCompareNote = document.getElementById("pa-compare-note");
   var STAR_DIST_COLORS = { 5: "#c5d7f2", 4: "#8eb4e6", 3: "#5a8fd4", 2: "#3b6fbf", 1: "#1a3a6e" };
   // Saks mavisi — Metrikler çizgi/alan grafikleri
+  // Nokta yarıçapları (~%60 küçültülmüş)
+  var PA_DOT_R = 1.4;
+  var PA_DOT_R_OV = 1.2;
+  var PA_HOVER_R = 2.2;
+  var PA_HOVER_R_OV = 1.8;
+  var PA_DOT_STROKE_W = 0.9;
   function paIsDark() {
+    // Sadece tema class’ı — kart background luminance light’ta yanlış dark + siyah stroke üretiyordu
     var root = document.documentElement;
     if (root && root.classList.contains("dark")) return true;
     if (document.body && document.body.classList.contains("dark")) return true;
-    // Chart kartı dark yüzeydeyse (class gecikmeli uygulanmış olsa bile)
-    try {
-      var card = document.getElementById("pa-chart-card");
-      if (card) {
-        var bg = window.getComputedStyle(card).backgroundColor || "";
-        var m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-        if (m) {
-          var r = +m[1], g = +m[2], b = +m[3];
-          if ((r + g + b) / 3 < 60) return true;
-        }
-      }
-    } catch (_) {}
     return false;
   }
   function paChartPalette() {
@@ -1099,7 +1094,8 @@
         axis: "#71717a",
         prev: "#71717a",
         guide: "#52525b",
-        dotStroke: "#18181b"
+        // Kart zemini — siyah halka yerine yumuşak halo
+        dotStroke: "#141416"
       };
     }
     return {
@@ -1109,6 +1105,7 @@
       axis: "#94a3b8",
       prev: "#94a3b8",
       guide: "#64748b",
+      // Light: kart rengi; siyah stroke yok
       dotStroke: "#ffffff"
     };
   }
@@ -1574,7 +1571,7 @@
       pathsHtml +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
       '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
-      '<circle id="pa-hover-dot" cx="0" cy="0" r="4" fill="' + pal.line + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
+      '<circle id="pa-hover-dot" cx="0" cy="0" r="' + PA_HOVER_R + '" fill="' + pal.line + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="0" />' +
       '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="0" opacity="0" />' +
       xAxis.html +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
@@ -2572,7 +2569,7 @@
     var dots = curPts.map(function (p, i) {
       return (
         '<circle class="pa-pt" data-i="' + i + '" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-        '" r="3.5" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
+        '" r="' + PA_DOT_R + '" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="' + (n > 40 ? "0" : "1") + '" />'
       );
     }).join("");
     var ovDots = overlaySeriesState.map(function (os) {
@@ -2580,7 +2577,7 @@
         if (!p) return "";
         return (
           '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) +
-          '" r="3" fill="' + os.color + '" stroke="' + pal.dotStroke + '" stroke-width="1.5" opacity="' + (n > 40 ? "0" : "1") + '" />'
+          '" r="' + PA_DOT_R_OV + '" fill="' + os.color + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="' + (n > 40 ? "0" : "1") + '" />'
         );
       }).join("");
     }).join("");
@@ -2602,8 +2599,8 @@
       ovDots +
       '<line id="pa-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
       '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
-      '<circle id="pa-hover-dot" cx="0" cy="0" r="5" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
-      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="4" fill="' + PA_OVERLAY_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="2" opacity="0" />' +
+      '<circle id="pa-hover-dot" cx="0" cy="0" r="' + PA_HOVER_R + '" fill="' + PA_LINE_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="0" />' +
+      '<circle id="pa-hover-dot-prev" cx="0" cy="0" r="' + PA_HOVER_R_OV + '" fill="' + PA_OVERLAY_COLOR + '" stroke="' + pal.dotStroke + '" stroke-width="' + PA_DOT_STROKE_W + '" opacity="0" />' +
       xAxis.html +
       '<rect id="pa-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
