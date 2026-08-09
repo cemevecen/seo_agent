@@ -572,8 +572,13 @@
     }
   }
   function fmtAxisKey(key) {
-    var m = String(key || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return m ? String(parseInt(m[3], 10)) : String(key || "");
+    var s = String(key || "");
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      // Tablo kırılımı: gün.ay (1 aydan uzun aralıkta yalnız gün numarası sıra gibi görünmesin)
+      return String(parseInt(m[3], 10)) + "." + m[2];
+    }
+    return s;
   }
   function buildLine(keys, map, max, color) {
     if (!keys.length || max <= 0) return "";
