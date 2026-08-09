@@ -71,7 +71,7 @@ def seo_audit_urls(
     db: Session = Depends(get_db),
     site_id: int | None = Query(default=None),
     domain: str = Query(default=""),
-    limit: int = Query(default=500, ge=50, le=2000),
+    limit: int = Query(default=500, ge=1, le=2000),
     authorization: str | None = Header(default=None),
     x_notification_ingest_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
