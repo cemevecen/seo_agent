@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v29-theme-chips">
+<style id="home-site-borders" data-home-css="v30-period-chips">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -647,6 +647,20 @@
   }
   #home-board .home-readable .home-store-theme b {
     font-weight: 700;
+  }
+  /* Dönem chip’leri (7g/60g/90g) — SC + GA4: %20 küçült */
+  #home-board .home-readable .home-period-chips {
+    padding: 0.1rem;
+    border-radius: 0.4rem;
+  }
+  #home-board .home-readable .home-period-chip {
+    font-size: calc(var(--home-text) * 0.8) !important;
+    line-height: 1.25 !important;
+    font-weight: 650;
+    letter-spacing: normal;
+    text-transform: none;
+    padding: 0.1rem 0.4rem !important;
+    border-radius: 0.3rem;
   }
   #home-board .home-readable .home-body {
     font-weight: 600;
@@ -1807,7 +1821,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=28" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=29" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
@@ -1815,7 +1829,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=28" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=29" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
