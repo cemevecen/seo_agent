@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v50-title-chips">
+<style id="home-site-borders" data-home-css="v51-no-title-lottie">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -1166,72 +1166,6 @@
   html.dark .home-rt-spark-bar.is-empty {
     background: rgba(161, 161, 170, 0.45);
   }
-  .home-motion-crash-pulse {
-    position: relative;
-    width: 1.15rem;
-    height: 1.15rem;
-    border-radius: 9999px;
-    background: radial-gradient(circle, #fb7185 0 28%, rgba(244,63,94,0.22) 29% 54%, transparent 55%);
-  }
-  .home-motion-crash-pulse::before,
-  .home-motion-crash-pulse::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    border: 1px solid rgba(244, 63, 94, 0.55);
-    animation: home-motion-crash-ring 2.2s ease-out infinite;
-  }
-  .home-motion-crash-pulse::after { animation-delay: .7s; }
-  .home-motion-ga4-wave {
-    display: inline-flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 1rem;
-  }
-  .home-motion-ga4-wave span {
-    width: 3px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, #34d399, #0ea5e9);
-    animation: home-motion-wave 1.45s ease-in-out infinite;
-  }
-  .home-motion-ga4-wave span:nth-child(1) { height: .35rem; animation-delay: 0s; }
-  .home-motion-ga4-wave span:nth-child(2) { height: .7rem; animation-delay: .12s; }
-  .home-motion-ga4-wave span:nth-child(3) { height: 1rem; animation-delay: .24s; }
-  .home-motion-ga4-wave span:nth-child(4) { height: .55rem; animation-delay: .36s; }
-  .home-motion-gauge {
-    position: relative;
-    width: 1.25rem;
-    height: .78rem;
-    overflow: hidden;
-    border-radius: 1.25rem 1.25rem 0 0;
-    background: conic-gradient(from 230deg at 50% 100%, #ef4444 0 32deg, #f59e0b 32deg 64deg, #10b981 64deg 100deg, transparent 100deg);
-  }
-  .home-motion-gauge::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: 0;
-    width: 1px;
-    height: .68rem;
-    background: #0f172a;
-    transform-origin: bottom;
-    transform: rotate(-42deg);
-    animation: home-motion-gauge-needle 2.4s ease-in-out infinite;
-  }
-  html.dark .home-motion-gauge::after { background: #e5e7eb; }
-  @keyframes home-motion-crash-ring {
-    0% { transform: scale(.55); opacity: .95; }
-    100% { transform: scale(1.9); opacity: 0; }
-  }
-  @keyframes home-motion-wave {
-    0%, 100% { transform: scaleY(.55); opacity: .55; }
-    50% { transform: scaleY(1.08); opacity: 1; }
-  }
-  @keyframes home-motion-gauge-needle {
-    0%, 100% { transform: rotate(-42deg); }
-    50% { transform: rotate(42deg); }
-  }
   .home-rt-pill {
     display: inline-flex;
     align-items: center;
@@ -2064,7 +1998,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=35" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=36" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2075,7 +2009,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=35" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=36" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2090,7 +2024,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=40" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=41" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2101,7 +2035,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=40" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=41" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2171,7 +2105,7 @@
 
     {# Mobil mağaza / Firebase — odak projesine göre (doviz | sinemalar) #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=22" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=23" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              data-home-app-product="doviz"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
@@ -2245,7 +2179,7 @@
     var product = mode === 'sinemalar' ? 'sinemalar' : 'doviz';
     var sec = board.querySelector('[data-home-container="crashlytics"]');
     if (!sec) return;
-    var url = '/api/home/crashlytics?product=' + product + '&v=22';
+    var url = '/api/home/crashlytics?product=' + product + '&v=23';
     var root = null;
     try { root = sec.querySelector('[data-home-crash-root]'); } catch (e) {}
     var loaded = (root && root.getAttribute('data-home-app-product')) || '';
