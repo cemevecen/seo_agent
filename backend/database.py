@@ -142,6 +142,8 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_backlink_rows_import_domain ON backlink_rows(import_id, domain)",
         "CREATE INDEX IF NOT EXISTS ix_ad_report_date_income ON ad_report_rows(report_date, income_type)",
         "CREATE INDEX IF NOT EXISTS ix_ad_report_unit_date ON ad_report_rows(ad_unit, report_date)",
+        "CREATE INDEX IF NOT EXISTS ix_scrape_ingest_source_received ON scrape_ingest_logs(source, received_at)",
+        "CREATE INDEX IF NOT EXISTS ix_scrape_ingest_received ON scrape_ingest_logs(received_at)",
     ]
     with engine.connect() as conn:
         for ddl in index_ddl:

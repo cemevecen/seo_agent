@@ -58,6 +58,26 @@ def gsc_cwv_ingest(
             "snapshots": body.snapshots,
         },
     )
+    try:
+        from backend.services.scrape_telemetry import record_scrape_ingest
+
+        snaps = body.snapshots or []
+        targets = sorted({str(s.get("domain") or s.get("site") or "").strip() for s in snaps if isinstance(s, dict)})
+        targets = [t for t in targets if t] or ["gsc_cwv"]
+        vol = int(result.get("row_count") or result.get("saved") or len(snaps) or 0)
+        record_scrape_ingest(
+            db,
+            source="gsc_cwv",
+            target=", ".join(targets)[:128],
+            status="success" if result.get("ok") else "error",
+            row_count=vol,
+            message=str(result.get("message") or ""),
+            scraped_at=body.scraped_at or None,
+            detail={"snapshots": len(snaps)},
+            commit=True,
+        )
+    except Exception:
+        pass
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "ingest failed")
     return result

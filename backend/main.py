@@ -64,6 +64,7 @@ from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
 from backend.api.gsc_cwv import router as gsc_cwv_router
 from backend.api.gsc_links import router as gsc_links_router
 from backend.api.policy_ingest import router as policy_ingest_router
+from backend.api.scrape_telemetry import router as scrape_telemetry_router
 from backend.api.market_quotes import router as market_quotes_router
 from backend.api.member_auth import router as member_auth_router
 from backend.collectors.crawler import collect_crawler_metrics
@@ -1054,6 +1055,7 @@ app.include_router(seo_audit_scrape_router, prefix="/api")
 app.include_router(gsc_cwv_router, prefix="/api")
 app.include_router(gsc_links_router, prefix="/api")
 app.include_router(policy_ingest_router, prefix="/api")
+app.include_router(scrape_telemetry_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
 app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(asc_console_router, prefix="/api")
@@ -1879,6 +1881,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/seo-audit/urls",
         "/api/seo-audit/progress",
         "/api/gsc-cwv/ingest",
+        "/api/scrape-runs/report",
     )
     if any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
@@ -13287,6 +13290,20 @@ def settings_site_list(request: Request):
             "partials/site_list.html",
             context={"request": request, "sites": sites, "oauth_ready": oauth_is_configured()},
         )
+
+
+@app.get("/settings/scrape-status", response_class=HTMLResponse)
+def settings_scrape_status(request: Request, hours: int = 48):
+    """Settings scrape paneli — saatlik başarı / hacim / program."""
+    from backend.services import scrape_telemetry as st
+
+    with SessionLocal() as db:
+        ctx = st.build_scrape_settings_context(db, hours=hours)
+    return templates.TemplateResponse(
+        request,
+        "partials/settings_scrape.html",
+        context={"request": request, **ctx},
+    )
 
 
 @app.get("/admin/login")

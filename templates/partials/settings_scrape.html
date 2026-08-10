@@ -1,0 +1,187 @@
+{# Settings — Scrape telemetri paneli #}
+{% set hours = hours | default(48) %}
+<div class="space-y-4" data-scrape-panel data-hours="{{ hours }}">
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <p class="text-xs text-slate-500 dark:text-slate-400 max-w-3xl">{{ note }}</p>
+    <p class="home-meta text-xs tabular-nums text-slate-400 dark:text-slate-500">TR · {{ generated_at_tr }} · {{ event_count }} olay / {{ hours }}s</p>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Pencere:</span>
+    {% for h in [24, 48, 72, 168] %}
+      <button type="button"
+              class="rounded-md border px-2.5 py-1 text-xs font-semibold transition
+                {% if hours == h %}border-slate-900 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900{% else %}border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800{% endif %}"
+              data-scrape-hours="{{ h }}">{{ h }}s</button>
+    {% endfor %}
+  </div>
+
+  {# Kaynak özeti #}
+  <div>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kaynaklar · son {{ hours }}s</h4>
+    <div class="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 [scrollbar-width:thin]">
+      <table class="w-full min-w-[880px] text-left text-xs sm:text-sm">
+        <thead class="bg-slate-50 text-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
+          <tr>
+            <th class="px-2 py-2 font-medium sm:px-3">Kaynak</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Hedef</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Program (TR)</th>
+            <th class="px-2 py-2 font-medium sm:px-3">✅</th>
+            <th class="px-2 py-2 font-medium sm:px-3">❌</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Hacim</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Son ingest</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sources %}
+            <tr class="border-b border-slate-100 dark:border-slate-800 {% if s.error and not s.success %}bg-rose-50/60 dark:bg-rose-950/20{% elif s.success %}{% else %}opacity-80{% endif %}">
+              <td class="px-2 py-2 font-medium text-slate-900 dark:text-slate-100 sm:px-3">
+                <div>{{ s.label }}</div>
+                <div class="mt-0.5 text-[10px] font-normal text-slate-400 dark:text-slate-500">{{ s.method }}</div>
+              </td>
+              <td class="max-w-[12rem] break-words px-2 py-2 text-slate-700 dark:text-slate-200 sm:px-3">{{ s.targets or '—' }}</td>
+              <td class="whitespace-nowrap px-2 py-2 text-slate-600 dark:text-slate-300 sm:px-3">
+                <div>{{ s.cadence }}</div>
+                <div class="text-[10px] text-slate-400">{{ s.hours_tr }}</div>
+              </td>
+              <td class="px-2 py-2 tabular-nums text-emerald-700 dark:text-emerald-400 sm:px-3">{{ s.success }}</td>
+              <td class="px-2 py-2 tabular-nums {% if s.error %}text-rose-600 dark:text-rose-400 font-semibold{% else %}text-slate-500{% endif %} sm:px-3">{{ s.error }}</td>
+              <td class="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-200 sm:px-3">{{ s.volume }} <span class="text-[10px] text-slate-400">{{ s.volume_unit }}</span></td>
+              <td class="whitespace-nowrap px-2 py-2 tabular-nums text-slate-600 dark:text-slate-300 sm:px-3">{{ s.last_at_tr }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Kaynak yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# Son workspace sync (latest-only) #}
+  {% if workspaces %}
+  <div>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Son sync (workspace)</h4>
+    <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {% for w in workspaces %}
+        <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-semibold text-slate-800 dark:text-slate-100">{{ w.label }}</p>
+            {% if w.ok is sameas true %}
+              <span class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800">OK</span>
+            {% elif w.ok is sameas false %}
+              <span class="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800">HATA</span>
+            {% else %}
+              <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400">—</span>
+            {% endif %}
+          </div>
+          <p class="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{{ w.target }}</p>
+          <p class="mt-1 text-[11px] tabular-nums text-slate-600 dark:text-slate-300">{{ w.updated_at_tr }}</p>
+          {% if w.message %}
+            <p class="mt-0.5 line-clamp-2 text-[10px] text-slate-400 dark:text-slate-500">{{ w.message }}</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Saatlik #}
+  <div>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Saatlik (TR)</h4>
+    <div class="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 [scrollbar-width:thin]">
+      <table class="w-full min-w-[720px] text-left text-xs sm:text-sm">
+        <thead class="bg-slate-50 text-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
+          <tr>
+            <th class="px-2 py-2 font-medium sm:px-3">Saat</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Kaynak</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Hedef</th>
+            <th class="px-2 py-2 font-medium sm:px-3">✅</th>
+            <th class="px-2 py-2 font-medium sm:px-3">❌</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Hacim</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Not</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in hourly %}
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="whitespace-nowrap px-2 py-2 tabular-nums text-slate-700 dark:text-slate-200 sm:px-3">{{ h.hour }}</td>
+              <td class="px-2 py-2 text-slate-800 dark:text-slate-100 sm:px-3">{{ h.label }}</td>
+              <td class="max-w-[14rem] break-words px-2 py-2 text-slate-600 dark:text-slate-300 sm:px-3">{{ h.target }}</td>
+              <td class="px-2 py-2 tabular-nums text-emerald-700 dark:text-emerald-400 sm:px-3">{{ h.success }}</td>
+              <td class="px-2 py-2 tabular-nums {% if h.error %}text-rose-600 font-semibold dark:text-rose-400{% else %}text-slate-500{% endif %} sm:px-3">{{ h.error }}</td>
+              <td class="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-200 sm:px-3">{{ h.volume }}</td>
+              <td class="max-w-[12rem] truncate px-2 py-2 text-[11px] text-slate-400 sm:px-3" title="{{ h.last_message }}">{{ h.last_message or '—' }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
+                Bu pencerede saatlik olay yok. Yeni ingest’ler loglanmaya başlayınca burada görünecek;
+                PageSpeed / GSC CWV / SEO audit / GSC Links için mevcut geçmiş zaten dahil edilir.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# Son olaylar #}
+  <div>
+    <h4 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Son olaylar</h4>
+    <div class="min-w-0 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700 [scrollbar-width:thin]">
+      <table class="w-full min-w-[760px] text-left text-xs sm:text-sm">
+        <thead class="bg-slate-50 text-slate-600 dark:bg-slate-900/50 dark:text-slate-300">
+          <tr>
+            <th class="px-2 py-2 font-medium sm:px-3">Zaman (TR)</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Kaynak</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Hedef</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Durum</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Hacim</th>
+            <th class="px-2 py-2 font-medium sm:px-3">Mesaj</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in recent %}
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="whitespace-nowrap px-2 py-2 tabular-nums text-slate-600 dark:text-slate-300 sm:px-3">{{ e.at_tr }}</td>
+              <td class="px-2 py-2 text-slate-800 dark:text-slate-100 sm:px-3">{{ e.label }}</td>
+              <td class="max-w-[12rem] break-words px-2 py-2 text-slate-600 dark:text-slate-300 sm:px-3">{{ e.target }}</td>
+              <td class="px-2 py-2 sm:px-3">
+                {% if e.status == 'success' %}
+                  <span class="font-semibold text-emerald-600 dark:text-emerald-400">success</span>
+                {% else %}
+                  <span class="font-semibold text-rose-600 dark:text-rose-400">{{ e.status }}</span>
+                {% endif %}
+              </td>
+              <td class="px-2 py-2 tabular-nums text-slate-700 dark:text-slate-200 sm:px-3">{{ e.row_count }}</td>
+              <td class="max-w-[16rem] truncate px-2 py-2 text-[11px] text-slate-400 sm:px-3" title="{{ e.message }}">{{ e.message or '—' }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">Olay yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.currentScript && document.currentScript.closest
+    ? document.currentScript.closest('[data-scrape-panel]')
+    : document.querySelector('[data-scrape-panel]');
+  if (!root || root.getAttribute('data-scrape-wired') === '1') return;
+  root.setAttribute('data-scrape-wired', '1');
+  root.querySelectorAll('[data-scrape-hours]').forEach(function (btn) {
+    btn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var h = btn.getAttribute('data-scrape-hours') || '48';
+      if (!window.htmx) return;
+      window.htmx.ajax('GET', '/settings/scrape-status?hours=' + encodeURIComponent(h), {
+        target: '#scrape-monitor',
+        swap: 'innerHTML'
+      });
+    });
+  });
+})();
+</script>

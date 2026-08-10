@@ -126,6 +126,22 @@ def seo_audit_ingest(
         collected_at=body.collected_at,
         trigger_source=body.trigger_source,
     )
+    try:
+        from backend.services.scrape_telemetry import record_scrape_ingest
+
+        record_scrape_ingest(
+            db,
+            source="seo_audit",
+            target=(body.domain or str(body.site_id) or "seo_audit")[:128],
+            status="success" if result.get("ok") else "error",
+            row_count=int(result.get("row_count") or len(body.rows or []) or 0),
+            message=str(result.get("message") or ""),
+            site_id=body.site_id,
+            scraped_at=body.collected_at or None,
+            commit=True,
+        )
+    except Exception:
+        pass
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "ingest failed")
     return result

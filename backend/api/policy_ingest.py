@@ -77,6 +77,21 @@ def policy_ingest(
             "csv_base64": body.csv_base64,
         },
     )
+    try:
+        from backend.services.scrape_telemetry import record_scrape_ingest
+
+        record_scrape_ingest(
+            db,
+            source="admanager_policy",
+            target=body.site_filter or "sinemalar.com",
+            status="success" if result.get("ok") else "error",
+            row_count=int(result.get("row_count") or len(body.rows or []) or 0),
+            message=str(result.get("message") or body.message or ""),
+            scraped_at=body.scraped_at or None,
+            commit=True,
+        )
+    except Exception:
+        pass
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "ingest failed")
     # Arka planda eksik başlıkları çek
@@ -112,6 +127,21 @@ def policy_noads_ingest(
             "entries": entries,
         },
     )
+    try:
+        from backend.services.scrape_telemetry import record_scrape_ingest
+
+        record_scrape_ingest(
+            db,
+            source="sinemalar_noads",
+            target="sinemalar",
+            status="success" if result.get("ok") else "error",
+            row_count=int(result.get("entry_count") or len(entries) or 0),
+            message=str(result.get("message") or body.message or ""),
+            scraped_at=body.scraped_at or None,
+            commit=True,
+        )
+    except Exception:
+        pass
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "noads ingest failed")
     return result

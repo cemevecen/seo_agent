@@ -95,6 +95,25 @@ def post_doviz_news_ingest(
 ):
     """VPN köprüsü: admin aktif haber satırlarını yazar."""
     _check_ingest_token(authorization, x_notification_ingest_token)
+
+    def _log(status: str, row_count: int = 0, message: str = "") -> None:
+        try:
+            from backend.database import SessionLocal
+            from backend.services.scrape_telemetry import record_scrape_ingest
+
+            with SessionLocal() as db:
+                record_scrape_ingest(
+                    db,
+                    source="doviz_news",
+                    target="doviz",
+                    status=status,
+                    row_count=row_count,
+                    message=message,
+                    commit=True,
+                )
+        except Exception:
+            pass
+
     try:
         if body.sync_ok is False:
             from backend.services.doviz_news_sheet import record_doviz_news_sync_failure
@@ -104,6 +123,7 @@ def post_doviz_news_ingest(
                 sync_mode=(body.sync_mode or "recent_7d"),
                 source=(body.source or "doviz_admin_news_bridge") or "doviz_admin_news_bridge",
             )
+            _log("error", 0, body.sync_message or "Bridge sync başarısız")
             return {
                 "ok": False,
                 "synced": False,
@@ -117,6 +137,12 @@ def post_doviz_news_ingest(
             merge=bool(body.merge),
             sync_mode=(body.sync_mode or ("recent_7d" if body.merge else "full")).strip()
             or "recent_7d",
+        )
+        ok = not (result.get("ok") is False and not result.get("synced"))
+        _log(
+            "success" if ok else "error",
+            int(result.get("row_count") or len(body.rows or []) or 0),
+            str(result.get("message") or ""),
         )
         if result.get("ok") is False and not result.get("synced"):
             raise HTTPException(status_code=422, detail=result.get("message") or "Ingest başarısız.")

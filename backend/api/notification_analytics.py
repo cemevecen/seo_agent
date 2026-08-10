@@ -150,6 +150,21 @@ def post_notification_analytics_ingest(
             body.rows or [],
             source=(body.source or "doviz_admin_bridge").strip() or "doviz_admin_bridge",
         )
+        try:
+            from backend.services.scrape_telemetry import record_scrape_ingest
+
+            ok = not (result.get("ok") is False and not result.get("synced"))
+            record_scrape_ingest(
+                db,
+                source="notification_analytics",
+                target="doviz",
+                status="success" if ok else "error",
+                row_count=int(result.get("inserted") or result.get("row_count") or len(body.rows or []) or 0),
+                message=str(result.get("message") or ""),
+                commit=True,
+            )
+        except Exception:
+            pass
         if result.get("ok") is False and not result.get("synced"):
             raise HTTPException(status_code=422, detail=result.get("message") or "Ingest başarısız.")
         return result

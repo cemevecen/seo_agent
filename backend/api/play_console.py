@@ -137,7 +137,36 @@ def post_play_console_ingest(
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("play-console ingest failed")
+        try:
+            from backend.services.scrape_telemetry import record_scrape_ingest
+
+            record_scrape_ingest(
+                db,
+                source="play_console",
+                target=body.package_name or "com.Doviz",
+                status="error",
+                message=str(exc)[:500],
+                commit=True,
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    try:
+        from backend.services.scrape_telemetry import record_scrape_ingest
+
+        vol = len(body.metrics or []) + len(body.reviews or [])
+        record_scrape_ingest(
+            db,
+            source="play_console",
+            target=body.package_name or "com.Doviz",
+            status="success" if body.sync_ok else "error",
+            row_count=vol,
+            message=body.sync_message or "",
+            detail={"sync_mode": body.sync_mode, "merge_vitals": body.merge_vitals},
+            commit=True,
+        )
+    except Exception:
+        pass
     try:
         from backend.services.app_intel import schedule_android_category_rank_refresh
 

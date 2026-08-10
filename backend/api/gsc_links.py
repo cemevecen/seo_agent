@@ -61,6 +61,28 @@ def gsc_links_ingest(
             "snapshots": body.snapshots,
         },
     )
+    try:
+        from backend.services.scrape_telemetry import record_scrape_ingest
+
+        snaps = body.snapshots or []
+        vol = int(result.get("row_count") or result.get("saved") or 0)
+        if not vol:
+            for s in snaps:
+                if isinstance(s, dict):
+                    vol += len(s.get("rows") or s.get("links") or [])
+        targets = sorted({str(s.get("domain") or "").strip() for s in snaps if isinstance(s, dict)})
+        record_scrape_ingest(
+            db,
+            source="gsc_links",
+            target=", ".join([t for t in targets if t])[:128] or "gsc_links",
+            status="success" if result.get("ok") else "error",
+            row_count=vol,
+            message=str(result.get("message") or body.message or ""),
+            scraped_at=body.scraped_at or None,
+            commit=True,
+        )
+    except Exception:
+        pass
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("message") or "ingest failed")
     return result

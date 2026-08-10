@@ -209,9 +209,38 @@ def post_virgul_ingest(
             }
         )
     try:
-        return ingest_virgul_bridge_payload(db, files=files, replace=body.replace)
+        result = ingest_virgul_bridge_payload(db, files=files, replace=body.replace)
+        try:
+            from backend.services.scrape_telemetry import record_scrape_ingest
+
+            keys = [f.get("stream_key") for f in files if f.get("stream_key")]
+            record_scrape_ingest(
+                db,
+                source="virgul_analytics",
+                target=", ".join(str(k) for k in keys)[:128] or "virgul",
+                status="success",
+                row_count=int(result.get("row_count") or result.get("inserted") or len(files) or 0),
+                message=str(result.get("message") or ""),
+                commit=True,
+            )
+        except Exception:
+            pass
+        return result
     except Exception as exc:  # noqa: BLE001
         logger.exception("virgul ingest failed")
+        try:
+            from backend.services.scrape_telemetry import record_scrape_ingest
+
+            record_scrape_ingest(
+                db,
+                source="virgul_analytics",
+                target="virgul",
+                status="error",
+                message=str(exc)[:500],
+                commit=True,
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 

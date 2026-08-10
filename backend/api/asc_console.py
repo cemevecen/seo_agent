@@ -88,7 +88,7 @@ def post_asc_console_ingest(
 ):
     _check_ingest_token(authorization, x_notification_ingest_token)
     try:
-        return ingest_asc_console_payload(
+        result = ingest_asc_console_payload(
             db,
             metrics=body.metrics,
             panels=body.panels,
@@ -103,4 +103,33 @@ def post_asc_console_ingest(
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("asc-console ingest failed")
+        try:
+            from backend.services.scrape_telemetry import record_scrape_ingest
+
+            record_scrape_ingest(
+                db,
+                source="asc_console",
+                target=body.bundle_id or "ASC",
+                status="error",
+                message=str(exc)[:500],
+                commit=True,
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    try:
+        from backend.services.scrape_telemetry import record_scrape_ingest
+
+        record_scrape_ingest(
+            db,
+            source="asc_console",
+            target=body.bundle_id or "ASC",
+            status="success" if body.sync_ok else "error",
+            row_count=len(body.metrics or []),
+            message=body.sync_message or "",
+            detail={"sync_mode": body.sync_mode},
+            commit=True,
+        )
+    except Exception:
+        pass
+    return result

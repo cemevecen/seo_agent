@@ -1261,3 +1261,26 @@ class AiTalkAlert(Base):
     detail: Mapped[str] = mapped_column(Text, nullable=False, default="{}")  # JSON
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
+
+class ScrapeIngestLog(Base):
+    """Mac-bridge / scrape ingest olayları — saatlik başarı-hacim paneli için append-only log."""
+
+    __tablename__ = "scrape_ingest_logs"
+    __table_args__ = (
+        Index("ix_scrape_ingest_source_received", "source", "received_at"),
+        Index("ix_scrape_ingest_received", "received_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    target: Mapped[str] = mapped_column(String(128), nullable=False, default="")  # domain / product / package
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="success", index=True)  # success | error
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    detail_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    site_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    scraped_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
