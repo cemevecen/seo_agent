@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v27-sf-title">
+<style id="home-site-borders" data-home-css="v29-theme-chips">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -631,6 +631,22 @@
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+  }
+  /* Yorum tema chip’leri (Diğer ×3 …): yarı boyut */
+  #home-board .home-readable .home-store-theme,
+  #home-board .home-readable .home-store-theme :where(*) {
+    font-size: calc(var(--home-text) / 2) !important;
+    line-height: 1.2 !important;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  #home-board .home-readable .home-store-theme {
+    font-weight: 650;
+    padding: 0.06rem 0.2rem;
+    gap: 0.1rem;
+  }
+  #home-board .home-readable .home-store-theme b {
+    font-weight: 700;
   }
   #home-board .home-readable .home-body {
     font-weight: 600;
@@ -1880,7 +1896,7 @@
 
     {# Mobil mağaza / Firebase durum — full width #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=16" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=17" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>

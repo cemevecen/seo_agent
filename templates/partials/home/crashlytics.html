@@ -208,19 +208,18 @@
   .home-store-themes {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-top: 0.45rem;
+    gap: 0.125rem;
+    margin-top: 0.35rem;
   }
   .home-store-theme {
     display: inline-flex;
     align-items: center;
-    gap: 0.2rem;
+    gap: 0.1rem;
     max-width: 100%;
     border-radius: 999px;
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252);
-    padding: 0.12rem 0.4rem;
-    font-size: 0.55rem;
+    padding: 0.06rem 0.2rem;
     font-weight: 650;
     color: #475569;
     line-height: 1.2;
@@ -570,7 +569,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=16';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=17';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
