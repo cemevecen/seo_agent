@@ -3235,16 +3235,33 @@
       }
       var _onlinePresenceOtherKeys = null;
       var _onlineToastTimer = null;
+      var _onlineToastHideTimer = null;
       var _lastPresenceData = null;
-      function hideOnlinePresenceToast() {
-        var el = document.getElementById("header-online-toast");
-        if (!el) return;
-        el.classList.remove("is-visible");
-        el.setAttribute("hidden", "hidden");
+      function clearOnlineToastTimers() {
         if (_onlineToastTimer) {
           clearTimeout(_onlineToastTimer);
           _onlineToastTimer = null;
         }
+        if (_onlineToastHideTimer) {
+          clearTimeout(_onlineToastHideTimer);
+          _onlineToastHideTimer = null;
+        }
+      }
+      function hideOnlinePresenceToast() {
+        var el = document.getElementById("header-online-toast");
+        clearOnlineToastTimers();
+        if (!el) return;
+        el.classList.remove("is-visible");
+        el.classList.remove("is-fading-out");
+        el.setAttribute("hidden", "hidden");
+      }
+      function startOnlinePresenceToastFade() {
+        var el = document.getElementById("header-online-toast");
+        if (!el || el.hasAttribute("hidden")) return;
+        el.classList.remove("is-visible");
+        el.classList.add("is-fading-out");
+        if (_onlineToastHideTimer) clearTimeout(_onlineToastHideTimer);
+        _onlineToastHideTimer = setTimeout(hideOnlinePresenceToast, 1000);
       }
       function showOnlinePresenceToast(user) {
         var el = document.getElementById("header-online-toast");
@@ -3263,14 +3280,13 @@
           el.removeAttribute("aria-label");
           el.removeAttribute("title");
         }
+        clearOnlineToastTimers();
+        el.classList.remove("is-fading-out");
         el.removeAttribute("hidden");
+        void el.offsetWidth;
         el.classList.add("is-visible");
-        if (_onlineToastTimer) clearTimeout(_onlineToastTimer);
-        if (privacy) {
-          _onlineToastTimer = setTimeout(hideOnlinePresenceToast, 2800);
-        } else {
-          _onlineToastTimer = null;
-        }
+        /* 2s görünür → 1s fade-out → 3s’te tamamen kapalı */
+        _onlineToastTimer = setTimeout(startOnlinePresenceToastFade, 2000);
       }
       function noteOnlinePresenceArrivals(visitors) {
         var others = visitors || [];
