@@ -1271,7 +1271,7 @@
       var kpiPacks = (iaLastDrawBundles || []).filter(function (b) {
         return b && b.metric && !isIaMetricHidden(b.metric);
       });
-      if (kpiPacks.length) renderIaMetricKpis(kpiPacks);
+      renderIaMetricKpis(kpiPacks);
     });
   }
   function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
@@ -1620,10 +1620,23 @@
     }
     if (iaKpiSimple) iaKpiSimple.classList.remove("hidden");
   }
+  function hideIaMetricKpiStrip() {
+    if (iaMetricKpis) {
+      iaMetricKpis.classList.add("hidden");
+      iaMetricKpis.innerHTML = "";
+      iaMetricKpis.style.removeProperty("grid-template-columns");
+      iaMetricKpis.className = "hidden grid grid-cols-1 gap-3";
+    }
+    if (iaKpiSimple) iaKpiSimple.classList.add("hidden");
+  }
   function renderIaMetricKpis(packs, opts) {
     opts = opts || {};
     if (!iaMetricKpis) return;
     var list = Array.isArray(packs) ? packs.filter(function (p) { return p && p.metric; }) : [];
+    if (iaSelectedMetrics.length >= 2 && list.length < 2) {
+      hideIaMetricKpiStrip();
+      return;
+    }
     if (!list.length) {
       showIaSimpleKpi();
       return;

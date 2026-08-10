@@ -2606,9 +2606,9 @@
     };
     drawOverviewMainChart(chartBundles);
     renderOverviewTable(visible);
-    // Legend gizle/göster → KPI kartları da aynı görünür sete insin/çıksın
+    // Legend gizle/göster → KPI kartları grafikteki görünür metriklere uysun
     if (paSelectedMetrics.length >= 2) {
-      renderPaMetricKpis(visible);
+      renderPaMetricKpis(chartBundles);
     }
   }
   function removeOverviewColumn(metric) {
@@ -3508,9 +3508,23 @@
     }
     if (paKpiGrid) paKpiGrid.classList.remove("hidden");
   }
+  function hidePaMetricKpiStrip() {
+    if (paMetricKpis) {
+      paMetricKpis.classList.add("hidden");
+      paMetricKpis.innerHTML = "";
+      paMetricKpis.style.removeProperty("grid-template-columns");
+      paMetricKpis.className = "hidden grid grid-cols-1 gap-3";
+    }
+    if (paKpiGrid) paKpiGrid.classList.add("hidden");
+  }
   function renderPaMetricKpis(packs, compareInfo) {
     if (!paMetricKpis) return;
     var list = Array.isArray(packs) ? packs.filter(function (p) { return p && p.metric; }) : [];
+    // Çoklu metrik + legend’da tek (veya sıfır) kaldıysa mini spark kart alanını gizle
+    if (paSelectedMetrics.length >= 2 && list.length < 2) {
+      hidePaMetricKpiStrip();
+      return;
+    }
     if (!list.length) {
       showPaSimpleKpis();
       return;
