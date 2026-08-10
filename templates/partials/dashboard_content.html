@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v43-ga4-quad-row">
+<style id="home-site-borders" data-home-css="v44-nt-7days">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -738,6 +738,13 @@
     line-height: 1.35 !important;
     letter-spacing: normal;
     text-transform: none;
+  }
+  /* Notification «7 days» başlığı: %40 küçült */
+  #home-board .home-readable .home-nt-heading {
+    font-size: calc(var(--home-title) * 0.6) !important;
+    font-weight: 400 !important;
+    line-height: 1.3 !important;
+    letter-spacing: -0.01em;
   }
   /* KPI kartları: kutuya göre fluid, tek satır (taşma yok) */
   #home-board .home-readable .home-ga4-spark-cell .home-kpi,
@@ -1986,7 +1993,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=33" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=34" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
