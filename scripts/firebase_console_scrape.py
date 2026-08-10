@@ -194,74 +194,248 @@ def _fmt_pct(v: float | None) -> str | None:
     return f"{v:.2f}".replace(".", ",") + "%"
 
 
+def _rpc_name(url: str) -> str:
+    return (url or "").rstrip("/").rsplit("/", 1)[-1]
+
+
+def _safe_json(body: str) -> Any:
+    try:
+        return json.loads(body)
+    except Exception:
+        return None
+
+
+def _ratio_to_pct(ratio: float | None) -> float | None:
+    if ratio is None:
+        return None
+    try:
+        r = float(ratio)
+    except (TypeError, ValueError):
+        return None
+    if 0 <= r <= 1.0001:
+        return min(r, 1.0) * 100.0
+    if 1 < r <= 100:
+        return r
+    return None
+
+
+def _parse_cf_timeline(body: str) -> tuple[float | None, list[dict[str, Any]]]:
+    """ReleaseMon GetCrashFreeUsers/SessionsTimeline → overall % + günlük seri."""
+    data = _safe_json(body)
+    if not isinstance(data, list) or not data:
+        return None, []
+    buckets = data[0] if isinstance(data[0], list) else data
+    if not isinstance(buckets, list):
+        return None, []
+    by_day: dict[str, list[tuple[float, float]]] = {}
+    w_sum = 0.0
+    u_sum = 0.0
+    for b in buckets:
+        if not isinstance(b, list) or len(b) < 3:
+            continue
+        try:
+            users = float(str(b[1]).replace(",", "").replace(" ", "") or "0")
+        except ValueError:
+            users = 0.0
+        ratio = None
+        for x in b[2:]:
+            if isinstance(x, bool) or x is None:
+                continue
+            if isinstance(x, (int, float)):
+                if 0 < float(x) <= 1.0001:
+                    ratio = float(x)
+                    break
+                if float(x) == 0:
+                    continue
+        if ratio is None:
+            continue
+        pct = _ratio_to_pct(ratio)
+        if pct is None:
+            continue
+        day = None
+        try:
+            ts = int(b[0][0][0])
+            day = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+        except Exception:
+            day = None
+        if day:
+            by_day.setdefault(day, []).append((users, pct))
+        w_sum += users * (ratio if ratio <= 1 else ratio / 100.0)
+        u_sum += users
+    overall = (w_sum / u_sum * 100.0) if u_sum > 0 else None
+    series: list[dict[str, Any]] = []
+    for day in sorted(by_day):
+        parts = by_day[day]
+        tw = sum(u for u, _ in parts)
+        if tw > 0:
+            avg = sum(u * p for u, p in parts) / tw
+        else:
+            avg = sum(p for _, p in parts) / len(parts)
+        series.append(
+            {
+                "date": day,
+                "crash_free_pct": round(avg, 6),
+                "crash_free_fmt": _fmt_pct(avg),
+                "users": int(tw) if tw else None,
+            }
+        )
+    return overall, series
+
+
+def _parse_list_app_versions(body: str, *, plat: str) -> list[dict[str, Any]]:
+    data = _safe_json(body)
+    if not isinstance(data, list) or len(data) < 2 or not isinstance(data[1], list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in data[1]:
+        if not isinstance(row, list) or not row:
+            continue
+        ver_pair = row[0]
+        if not isinstance(ver_pair, list) or not ver_pair:
+            continue
+        ver = str(ver_pair[0] or "").strip()
+        code = str(ver_pair[1] or "").strip() if len(ver_pair) > 1 else ""
+        if not ver or not re.match(r"^\d+\.\d+", ver):
+            continue
+        label = f"{ver} ({code})" if code else ver
+        out.append({"version": ver, "build": code or None, "label": label, "platform": plat})
+        if len(out) >= 40:
+            break
+    return out
+
+
+def _parse_list_top_issues(body: str, *, plat: str) -> list[dict[str, Any]]:
+    data = _safe_json(body)
+    if not isinstance(data, list) or len(data) < 2 or not isinstance(data[1], list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in data[1]:
+        if not isinstance(row, list) or len(row) < 2:
+            continue
+        issue_id = str(row[0] or "")
+        meta = row[1] if isinstance(row[1], list) else []
+        title = str(meta[0] or "")[:200] if meta else ""
+        detail = str(meta[1] or "")[:300] if len(meta) > 1 else ""
+        events = 0
+        if len(meta) > 3 and meta[3] is not None:
+            try:
+                events = int(re.sub(r"[^\d]", "", str(meta[3])) or "0")
+            except ValueError:
+                events = 0
+        # timeline event sum fallback
+        if events <= 0 and len(row) > 4 and isinstance(row[4], list):
+            total = 0
+            for b in row[4]:
+                if isinstance(b, list) and len(b) >= 2:
+                    try:
+                        total += int(re.sub(r"[^\d]", "", str(b[1])) or "0")
+                    except ValueError:
+                        pass
+            events = total
+        if not title:
+            continue
+        out.append(
+            {
+                "id": issue_id,
+                "title": title,
+                "detail": detail,
+                "event_count": events,
+                "exception": str(meta[8] or meta[1] or "")[:120] if len(meta) > 1 else "",
+                "platform": plat,
+                "page": "releasemonitoring",
+            }
+        )
+        if len(out) >= 50:
+            break
+    return out
+
+
+def _parse_releasemon_network(captured: list[dict[str, Any]], *, plat: str) -> dict[str, Any]:
+    """Release Monitoring RPC gövdelerinden yapılandırılmış metrikler."""
+    by_version: list[dict[str, Any]] = []
+    issues: list[dict[str, Any]] = []
+    users_cf: float | None = None
+    sessions_cf: float | None = None
+    series: list[dict[str, Any]] = []
+    sessions_series: list[dict[str, Any]] = []
+    for hit in captured:
+        name = _rpc_name(hit.get("url") or "")
+        body = hit.get("body") or ""
+        if not body:
+            continue
+        if name == "ListAppVersions" and not by_version:
+            by_version = _parse_list_app_versions(body, plat=plat)
+        elif name == "ListTopIssues":
+            parsed = _parse_list_top_issues(body, plat=plat)
+            if len(parsed) > len(issues):
+                issues = parsed
+        elif name.startswith("GetCrashFreeUsers"):
+            overall, ser = _parse_cf_timeline(body)
+            if overall is not None:
+                users_cf = overall
+            if ser:
+                series = ser
+        elif name.startswith("GetCrashFreeSessions"):
+            overall, ser = _parse_cf_timeline(body)
+            if overall is not None:
+                sessions_cf = overall
+            if ser:
+                sessions_series = ser
+    if series:
+        for s in series:
+            s["platform"] = plat
+            s["metric"] = "crash_free_users"
+    if sessions_series:
+        for s in sessions_series:
+            s["platform"] = plat
+            s["metric"] = "crash_free_sessions"
+    return {
+        "by_version": by_version,
+        "issues": issues,
+        "crash_free_users_pct": users_cf,
+        "crash_free_sessions_pct": sessions_cf,
+        "series": series,
+        "sessions_series": sessions_series,
+    }
+
+
 def _parse_dom_metrics(page, *, plat: str, page_kind: str) -> dict[str, Any]:
-    """DOM metininden crash-free / event sayıları çıkar (best-effort)."""
+    """DOM yedek — yalnızca network parse boşsa kullanılır."""
     try:
         text = page.inner_text("body") or ""
     except Exception:
         text = ""
-    pcts = _extract_pcts(text)
-    # Yüksek oranlar genelde crash-free
     crash_free = None
-    for p in sorted(pcts, reverse=True):
-        if p >= 90:
-            crash_free = p
-            break
-    if crash_free is None and pcts:
-        crash_free = max(pcts)
-
-    issues: list[dict[str, Any]] = []
-    # Satır benzeri: başlık + event sayısı
-    for line in text.splitlines():
-        s = line.strip()
-        if len(s) < 8 or len(s) > 180:
-            continue
-        m = re.search(r"(\d[\d.\s]*)\s*(events?|olay|users?|kullanıcı)", s, re.I)
-        if not m:
-            continue
-        title = s[:120]
-        if any(k in title.lower() for k in ("crash-free", "anr-free", "overview", "firebase")):
-            continue
-        try:
-            ev = int(re.sub(r"[^\d]", "", m.group(1)) or "0")
-        except ValueError:
-            ev = 0
-        if ev <= 0:
-            continue
-        issues.append(
-            {
-                "title": title,
-                "event_count": ev,
-                "platform": plat,
-                "page": page_kind,
-            }
-        )
-        if len(issues) >= 40:
-            break
-
-    versions: list[dict[str, Any]] = []
-    for m in re.finditer(r"\bv?(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)\s*(?:\((\d+)\))?", text):
-        ver = m.group(1)
-        code = m.group(2)
-        label = f"{ver} ({code})" if code else ver
-        if not any(v.get("version") == ver for v in versions):
-            versions.append({"version": ver, "label": label, "platform": plat})
-        if len(versions) >= 12:
-            break
-
-    devices: list[dict[str, Any]] = []
-    for brand in ("Samsung", "Xiaomi", "Huawei", "Oppo", "Pixel", "iPhone", "iPad"):
-        if brand.lower() in text.lower():
-            devices.append({"device": brand, "label": brand, "platform": plat})
-
+    # "Crash-free users" / "Çökme yaşamayan" yakınındaki %
+    for pat in (
+        r"crash-free users[^0-9%]{0,40}(\d{1,3}(?:[.,]\d{1,4})?)\s*%",
+        r"crash-free sessions[^0-9%]{0,40}(\d{1,3}(?:[.,]\d{1,4})?)\s*%",
+        r"çökme yaşamayan[^0-9%]{0,40}(\d{1,3}(?:[.,]\d{1,4})?)\s*%",
+    ):
+        m = re.search(pat, text, re.I)
+        if m:
+            try:
+                crash_free = float(m.group(1).replace(",", "."))
+                break
+            except ValueError:
+                pass
     return {
         "crash_free_pct": crash_free,
         "crash_free_fmt": _fmt_pct(crash_free),
-        "issues": issues,
-        "by_version": versions,
-        "by_device": devices,
+        "issues": [],
+        "by_version": [],
+        "by_device": [],
         "text_len": len(text),
     }
+
+
+_INTERESTING_RPC = (
+    "ListAppVersions",
+    "ListTopIssues",
+    "GetCrashFreeUsers",
+    "GetCrashFreeSessions",
+    "GetAdoptionTimeline",
+)
 
 
 def _capture_network(page) -> list[dict[str, Any]]:
@@ -270,25 +444,34 @@ def _capture_network(page) -> list[dict[str, Any]]:
     def on_response(resp) -> None:
         try:
             url = resp.url or ""
-            if "firebase" not in url and "crashlytics" not in url.lower():
-                return
-            ct = (resp.headers or {}).get("content-type", "")
-            if "json" not in ct and "javascript" not in ct:
+            low = url.lower()
+            interesting = (
+                "firebasereleasemon" in low
+                or "crashlytics" in low
+                or any(k.lower() in url for k in _INTERESTING_RPC)
+            )
+            if not interesting and "firebase" not in low:
                 return
             if resp.status != 200:
+                return
+            ct = (resp.headers or {}).get("content-type", "").lower()
+            name = _rpc_name(url)
+            keep_body = any(name.startswith(k) for k in _INTERESTING_RPC)
+            if not keep_body and "json" not in ct and "javascript" not in ct and "text/plain" not in ct:
                 return
             body = resp.text()
             if not body or len(body) > 2_000_000:
                 return
-            captured.append(
-                {
-                    "url": url[:400],
-                    "status": resp.status,
-                    "len": len(body),
-                    "snippet": body[:400],
-                }
-            )
-            if len(captured) > 80:
+            entry: dict[str, Any] = {
+                "url": url[:400],
+                "status": resp.status,
+                "len": len(body),
+                "snippet": body[:240],
+            }
+            if keep_body:
+                entry["body"] = body[:500_000]
+            captured.append(entry)
+            if len(captured) > 120:
                 captured.pop(0)
         except Exception:
             return
@@ -302,11 +485,14 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
     meta = PLATFORMS[plat]
     captured = _capture_network(page)
     blocks: dict[str, Any] = {}
-    for kind, url in urls.items():
+    # Release monitoring first — en zengin RPC (CF + issues + versions)
+    order = ("release", "crashlytics", "overview")
+    for kind in order:
+        url = urls[kind]
         print(f"  · {plat}/{kind} …", flush=True)
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-            page.wait_for_timeout(4500)
+            page.wait_for_timeout(5500)
             if _page_needs_login(page):
                 return {
                     "ok": False,
@@ -314,37 +500,43 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
                     "project": meta["project"],
                     "package": meta["package"],
                 }
-            # soft wait for SPA
             page.wait_for_timeout(2500)
             blocks[kind] = _parse_dom_metrics(page, plat=plat, page_kind=kind)
             blocks[kind]["url"] = url
         except Exception as exc:  # noqa: BLE001
             blocks[kind] = {"ok": False, "error": str(exc)[:160], "url": url}
 
+    net = _parse_releasemon_network(captured, plat=plat)
     overview = blocks.get("overview") or {}
     crash = blocks.get("crashlytics") or {}
     release = blocks.get("release") or {}
 
     crash_free = (
-        release.get("crash_free_pct")
+        net.get("crash_free_users_pct")
+        or release.get("crash_free_pct")
         or crash.get("crash_free_pct")
         or overview.get("crash_free_pct")
     )
-    issues = (crash.get("issues") or [])[:40]
-    by_version = release.get("by_version") or crash.get("by_version") or overview.get("by_version") or []
+    sessions_cf = net.get("crash_free_sessions_pct")
+    issues = (net.get("issues") or crash.get("issues") or [])[:50]
+    by_version = net.get("by_version") or []
     by_device = crash.get("by_device") or overview.get("by_device") or []
-
-    # series placeholder — günlük noktalar scrape derinleşince doldurulur
-    series: list[dict[str, Any]] = []
-    if crash_free is not None:
-        series.append(
+    series = net.get("series") or []
+    if not series and crash_free is not None:
+        series = [
             {
                 "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "crash_free_pct": crash_free,
                 "crash_free_fmt": _fmt_pct(crash_free),
                 "platform": plat,
+                "metric": "crash_free_users",
             }
-        )
+        ]
+
+    # ingest için body'leri düşür (snippet kalsın)
+    raw_hints = []
+    for h in captured[-20:]:
+        raw_hints.append({k: v for k, v in h.items() if k != "body"})
 
     return {
         "ok": True,
@@ -354,16 +546,22 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
         "latest_version": meta["latest_version"],
         "crash_free_pct": crash_free,
         "crash_free_fmt": _fmt_pct(crash_free) if crash_free is not None else None,
+        "crash_free_sessions_pct": sessions_cf,
+        "crash_free_sessions_fmt": _fmt_pct(sessions_cf) if sessions_cf is not None else None,
         "issues": issues,
-        "by_version": by_version[:20],
+        "by_version": by_version[:40],
         "by_device": by_device[:20],
         "series": series,
+        "sessions_series": net.get("sessions_series") or [],
         "release_monitoring": {
             "version": meta["latest_version"],
-            "crash_free_pct": release.get("crash_free_pct") or crash_free,
-            "crash_free_fmt": _fmt_pct(release.get("crash_free_pct") or crash_free),
+            "crash_free_pct": crash_free,
+            "crash_free_fmt": _fmt_pct(crash_free) if crash_free is not None else None,
+            "crash_free_sessions_pct": sessions_cf,
+            "crash_free_sessions_fmt": _fmt_pct(sessions_cf) if sessions_cf is not None else None,
             "url": (release.get("url") or urls["release"]),
             "source_page": "releasemonitoring",
+            "source": "releasemon_rpc",
         },
         "pages": {
             "overview": overview.get("url") or urls["overview"],
@@ -371,7 +569,7 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
             "release": release.get("url") or urls["release"],
         },
         "network_hits": len(captured),
-        "raw_hints": captured[-12:],
+        "raw_hints": raw_hints,
     }
 
 
