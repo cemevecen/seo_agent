@@ -12,7 +12,8 @@
     headH: 34,
     pad: 4,
     minH: 72,
-    maxH: 720,
+    /* Manuel sürüklemede tavan; tablo daha uzunsa contentHeight ile yükselir */
+    maxH: 2400,
     storageKey: "",
   };
 
@@ -49,6 +50,10 @@
     if (shell && shell.dataset) {
       if (shell.dataset.rdlMaxRows) o.maxRows = parseInt(shell.dataset.rdlMaxRows, 10) || o.maxRows;
       if (shell.dataset.rdlStorageKey) o.storageKey = shell.dataset.rdlStorageKey;
+      if (shell.dataset.rdlMaxH) {
+        var mh = parseInt(shell.dataset.rdlMaxH, 10);
+        if (mh > 0) o.maxH = mh;
+      }
     }
     return o;
   }
@@ -59,6 +64,11 @@
     var table = scroll.querySelector("table");
     if (!table) return opts.minH;
     return Math.max(opts.minH, Math.ceil(table.getBoundingClientRect().height) + opts.pad);
+  }
+
+  /** Sürükleme tavanı: yapılandırılan maxH veya tablonun tam yüksekliği (hangisi büyükse). */
+  function dragCeiling(shell, opts) {
+    return Math.max(opts.maxH, contentHeight(shell, opts));
   }
 
   function autoHeight(shell, rowCount, opts) {
@@ -116,8 +126,9 @@
     shell._rdlAutoH = auto;
     shell._rdlRowCount = rowCount;
     var manual = readManual(shell, opts);
+    var ceiling = dragCeiling(shell, opts);
     // Manuel yükseklik yalnızca auto'dan büyükse (kullanıcı genişletti); dar dönemde küçülmeye izin ver
-    var h = manual != null && manual > auto ? Math.min(opts.maxH, manual) : auto;
+    var h = manual != null && manual > auto ? Math.min(ceiling, manual) : auto;
     applyScrollHeight(shell, h);
     shell.setAttribute("data-rdl-fitted", "1");
   }
@@ -152,7 +163,8 @@
       if (!dragging) return;
       var optsNow = optsOf(shell, overrides);
       var dy = clientY - startY;
-      var next = Math.max(optsNow.minH, Math.min(optsNow.maxH, startH + dy));
+      var ceiling = dragCeiling(shell, optsNow);
+      var next = Math.max(optsNow.minH, Math.min(ceiling, startH + dy));
       applyScrollHeight(shell, next);
       writeManual(shell, optsNow, next);
     }
