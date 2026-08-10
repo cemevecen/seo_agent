@@ -16,6 +16,7 @@ from backend.models import (
     BacklinkImport,
     CollectorRun,
     DovizNewsWorkspace,
+    FirebaseConsoleWorkspace,
     NotificationAnalyticsWorkspace,
     PlayConsoleWorkspace,
     ScrapeIngestLog,
@@ -63,6 +64,15 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
         "hours_tr": "00/03/06/09/12/15/18/21:05",
         "method": "Playwright → /api/asc-console/ingest",
         "volume_unit": "metrik",
+    },
+    {
+        "source": "firebase_console",
+        "label": "Firebase Console (Crashlytics)",
+        "targets": ["doviz-android", "doviz-ios"],
+        "cadence": "3 saatte bir",
+        "hours_tr": "00/03/06/09/12/15/18/21:10",
+        "method": "Playwright → /api/firebase-console/ingest",
+        "volume_unit": "crash-free+issues",
     },
     {
         "source": "virgul_analytics",
@@ -263,6 +273,20 @@ def _workspace_last_syncs(db: Session) -> list[dict[str, Any]]:
             )
     except Exception:
         LOGGER.debug("asc workspace read failed", exc_info=True)
+
+    try:
+        fb = db.query(FirebaseConsoleWorkspace).order_by(FirebaseConsoleWorkspace.id.asc()).first()
+        if fb:
+            _push(
+                "firebase_console",
+                "doviz-android + doviz-ios",
+                bool(fb.sync_ok) if fb.sync_ok is not None else None,
+                fb.sync_message or "",
+                fb.updated_at or fb.background_synced_at,
+                {"mode": fb.sync_mode or "", "days": fb.scrape_days},
+            )
+    except Exception:
+        LOGGER.debug("firebase workspace read failed", exc_info=True)
 
     try:
         nt = db.query(NotificationAnalyticsWorkspace).order_by(NotificationAnalyticsWorkspace.id.asc()).first()

@@ -16,6 +16,7 @@ Daemon (otomatik + Elle yenile localhost:18765):
   POST /sync-virgul → Virgül (00/06/12/18 TR)
   POST /sync-play   → Play / Android (3 saatte bir, :00)
   POST /sync-asc    → ASC / iOS (3 saatte bir, :05)
+  POST /sync-firebase → Firebase Console Crashlytics (3 saatte bir, :10)
   POST /sync-gsc-links → Backlinks (01:00 + 13:00 TR)
   POST /sync-policy → Ad Manager Policy (01:05 + 13:05 TR)
   POST /sync-noads  → Sinemalar noAds (01:15 + 13:15 TR)
@@ -98,6 +99,7 @@ VIRGUL_SLOT_MINUTE = int(os.environ.get("VIRGUL_BRIDGE_MINUTE") or "0")
 PLAY_SLOT_HOURS = (0, 3, 6, 9, 12, 15, 18, 21)
 PLAY_SLOT_MINUTE = int(os.environ.get("PLAY_CONSOLE_BRIDGE_MINUTE") or "0")
 ASC_SLOT_MINUTE = int(os.environ.get("ASC_CONSOLE_BRIDGE_MINUTE") or "5")
+FIREBASE_SLOT_MINUTE = int(os.environ.get("FIREBASE_CONSOLE_BRIDGE_MINUTE") or "10")
 TWICE_DAILY_HOURS = (1, 13)  # 01:00 + 13:00
 GSC_SLOT_MINUTE = int(os.environ.get("GSC_LINKS_BRIDGE_MINUTE") or "0")
 POLICY_SLOT_MINUTE = int(os.environ.get("ADMANAGER_POLICY_BRIDGE_MINUTE") or "5")
@@ -166,6 +168,7 @@ _nt_lock = threading.Lock()
 _virgul_lock = threading.Lock()
 _play_lock = threading.Lock()
 _asc_lock = threading.Lock()
+_firebase_lock = threading.Lock()
 _gsc_links_lock = threading.Lock()
 _policy_lock = threading.Lock()
 _noads_lock = threading.Lock()
@@ -178,6 +181,7 @@ _last_news_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmad
 _last_virgul_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_play_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_asc_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
+_last_firebase_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_gsc_links_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_policy_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
 _last_noads_result: dict[str, Any] = {"ok": False, "message": "henüz çalışmadı"}
@@ -189,6 +193,7 @@ _last_news_auto_at = 0.0
 _last_virgul_auto_slot = ""
 _last_play_auto_slot = ""
 _last_asc_auto_slot = ""
+_last_firebase_auto_slot = ""
 _last_gsc_links_auto_slot = ""
 _last_policy_auto_slot = ""
 _last_noads_auto_slot = ""
@@ -410,6 +415,13 @@ def _asc_console_ingest_url() -> str:
     return (
         os.environ.get("ASC_CONSOLE_INGEST_URL")
         or "https://projectcontrol.up.railway.app/api/asc-console/ingest"
+    ).strip()
+
+
+def _firebase_console_ingest_url() -> str:
+    return (
+        os.environ.get("FIREBASE_CONSOLE_INGEST_URL")
+        or "https://projectcontrol.up.railway.app/api/firebase-console/ingest"
     ).strip()
 
 
@@ -1004,6 +1016,68 @@ def run_asc_bridge_once() -> dict[str, Any]:
     }
     _last_asc_result = out
     print(f"ASC sync · {out['message']}", flush=True)
+    return out
+
+
+def run_firebase_bridge_once() -> dict[str, Any]:
+    """Firebase Console Crashlytics scrape → Railway ingest."""
+    global _last_firebase_result
+    if not _ingest_token():
+        err = {"ok": False, "message": "NOTIFICATION_INGEST_TOKEN gerekli"}
+        _last_firebase_result = err
+        return err
+    try:
+        import importlib.util
+
+        path = ROOT / "scripts" / "firebase_console_scrape.py"
+        spec = importlib.util.spec_from_file_location("firebase_console_scrape", path)
+        if spec is None or spec.loader is None:
+            err = {"ok": False, "message": "firebase_console_scrape.py yüklenemedi"}
+            _last_firebase_result = err
+            return err
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        scrape_firebase_console = mod.scrape_firebase_console
+        ingest_scrape_result = mod.ingest_scrape_result
+    except Exception as exc:  # noqa: BLE001
+        err = {"ok": False, "message": f"firebase_console_scrape import: {exc}"}
+        _last_firebase_result = err
+        return err
+
+    print("Firebase Console scrape başlıyor…", flush=True)
+    env_hl = (os.environ.get("FIREBASE_CONSOLE_HEADLESS") or "").strip().lower()
+    headed = env_hl not in ("1", "true", "yes")
+    result = scrape_firebase_console(headed=headed)
+    if not result.get("sync_ok") and "login" in str(result.get("sync_message") or "").lower():
+        out = {
+            "ok": False,
+            "kind": "firebase",
+            "needs_login": True,
+            "message": result.get("sync_message") or "Firebase login gerekli (--login)",
+        }
+        _last_firebase_result = out
+        return out
+    try:
+        os.environ.setdefault("FIREBASE_CONSOLE_INGEST_URL", _firebase_console_ingest_url())
+        if hasattr(mod, "INGEST_URL"):
+            mod.INGEST_URL = _firebase_console_ingest_url()
+        ing = ingest_scrape_result(result)
+    except Exception as exc:  # noqa: BLE001
+        out = {"ok": False, "kind": "firebase", "message": f"Ingest hata: {exc}"}
+        _last_firebase_result = out
+        return out
+    plats = ((result.get("panels") or {}).get("platforms") or {})
+    out = {
+        "ok": bool(ing.get("ok")) and bool(result.get("sync_ok")),
+        "kind": "firebase",
+        "platforms": list(plats.keys()) if isinstance(plats, dict) else [],
+        "metric_count": len(result.get("metrics") or []),
+        "message": result.get("sync_message") or ing.get("message") or "Firebase sync",
+        "needs_login": False,
+        "ingest": ing,
+    }
+    _last_firebase_result = out
+    print(f"Firebase sync · {out['message']}", flush=True)
     return out
 
 
@@ -1657,6 +1731,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                     "last_virgul": _last_virgul_result,
                     "last_play": _last_play_result,
                     "last_asc": _last_asc_result,
+                    "last_firebase": _last_firebase_result,
                     "last_pagespeed": _last_pagespeed_result,
                     "last_seo_audit": _last_seo_audit_result,
                     "last_gsc_cwv": _last_gsc_cwv_result,
@@ -1672,6 +1747,7 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                         "virgul_slots_tr": [f"{h:02d}:{VIRGUL_SLOT_MINUTE:02d}" for h in VIRGUL_SLOT_HOURS],
                         "play_slots_tr": [f"{h:02d}:{PLAY_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
                         "asc_slots_tr": [f"{h:02d}:{ASC_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
+                        "firebase_slots_tr": [f"{h:02d}:{FIREBASE_SLOT_MINUTE:02d}" for h in PLAY_SLOT_HOURS],
                         "gsc_slots_tr": [f"{h:02d}:{GSC_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "policy_slots_tr": [f"{h:02d}:{POLICY_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
                         "pagespeed_slots_tr": [f"{h:02d}:{SPEED_SLOT_MINUTE:02d}" for h in TWICE_DAILY_HOURS],
@@ -1771,6 +1847,12 @@ class _BridgeHandler(BaseHTTPRequestHandler):
                 _asc_lock,
                 "ASC Console sync zaten çalışıyor, bekleyin.",
                 run_asc_bridge_once,
+            )
+        elif path in ("/sync-firebase", "/firebase", "/sync-s-firebase"):
+            lock, busy, runner = (
+                _firebase_lock,
+                "Firebase Console sync zaten çalışıyor, bekleyin.",
+                run_firebase_bridge_once,
             )
         elif path in ("/sync-pagespeed", "/pagespeed", "/sync-speed"):
             lock, busy, runner = (
@@ -2034,6 +2116,7 @@ def _auto_job_registry() -> dict[str, dict[str, Any]]:
         "virgul": {"name": "Virgul", "lock": _virgul_lock, "runner": run_virgul_bridge_once},
         "play": {"name": "Play", "lock": _play_lock, "runner": run_play_bridge_once},
         "asc": {"name": "ASC", "lock": _asc_lock, "runner": run_asc_bridge_once},
+        "firebase": {"name": "Firebase", "lock": _firebase_lock, "runner": run_firebase_bridge_once},
         "gsc_links": {
             "name": "GSC Links",
             "lock": _gsc_links_lock,
@@ -2229,6 +2312,10 @@ def _auto_loop() -> None:
             "_last_asc_auto_slot", PLAY_SLOT_HOURS, ASC_SLOT_MINUTE,
         )
         _slot_job(
+            "firebase", "Firebase", _firebase_lock, run_firebase_bridge_once,
+            "_last_firebase_auto_slot", PLAY_SLOT_HOURS, FIREBASE_SLOT_MINUTE,
+        )
+        _slot_job(
             "gsc_links", "GSC Links", _gsc_links_lock, run_gsc_links_bridge_once,
             "_last_gsc_links_auto_slot", TWICE_DAILY_HOURS, GSC_SLOT_MINUTE,
         )
@@ -2265,7 +2352,7 @@ def run_daemon() -> int:
         f"Bridge daemon dinliyor http://{BRIDGE_HOST}:{BRIDGE_PORT} "
         f"notify={AUTO_INTERVAL_SEC}s news={NEWS_AUTO_INTERVAL_SEC}s "
         f"virgul={list(VIRGUL_SLOT_HOURS)}:00 play={list(PLAY_SLOT_HOURS)}:{PLAY_SLOT_MINUTE:02d} "
-        f"asc=:{ASC_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
+        f"asc=:{ASC_SLOT_MINUTE:02d} firebase=:{FIREBASE_SLOT_MINUTE:02d} twice@01/13 gsc=:{GSC_SLOT_MINUTE:02d} "
         f"policy=:{POLICY_SLOT_MINUTE:02d} speed=:{SPEED_SLOT_MINUTE:02d} noads=:{NOADS_SLOT_MINUTE:02d} "
         f"seo={list(SEO_AUDIT_SLOT_HOURS)}:{SEO_AUDIT_SLOT_MINUTE:02d} "
         f"cwv={list(GSC_CWV_SLOT_HOURS)}:{GSC_CWV_SLOT_MINUTE:02d} "

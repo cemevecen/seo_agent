@@ -59,6 +59,7 @@ from backend.api.play_console import router as play_console_router
 from backend.api.play_analytics import router as play_analytics_router
 from backend.api.asc_metrics import router as asc_metrics_router
 from backend.api.asc_console import router as asc_console_router
+from backend.api.firebase_console import router as firebase_console_router
 from backend.api.pagespeed_web import router as pagespeed_web_router
 from backend.api.seo_audit_scrape import router as seo_audit_scrape_router
 from backend.api.gsc_cwv import router as gsc_cwv_router
@@ -1059,6 +1060,7 @@ app.include_router(scrape_telemetry_router, prefix="/api")
 app.include_router(play_analytics_router, prefix="/api")
 app.include_router(asc_metrics_router, prefix="/api")
 app.include_router(asc_console_router, prefix="/api")
+app.include_router(firebase_console_router, prefix="/api")
 app.include_router(market_quotes_router, prefix="/api")
 
 from backend.karma.router import router as karma_router
@@ -1873,6 +1875,7 @@ async def ip_allowlist_middleware(request: Request, call_next):
         "/api/virgul-analytics/ingest",
         "/api/play-console/ingest",
         "/api/asc-console/ingest",
+        "/api/firebase-console/ingest",
         "/api/pagespeed-web/ingest",
         "/api/gsc-links/ingest",
         "/api/policy/ingest",
@@ -15534,6 +15537,21 @@ def firebase_page(request: Request):
     }
     template_name = "partials/firebase_content.html" if request.headers.get("HX-Request") == "true" else "firebase.html"
     return templates.TemplateResponse(request, template_name, context={"request": request, **payload})
+
+
+@app.get("/s-firebase")
+def s_firebase_page(request: Request):
+    """S-Firebase — Firebase Console Crashlytics scrape (Android + iOS)."""
+    return templates.TemplateResponse(
+        request,
+        "s_firebase.html",
+        context={
+            "request": request,
+            "site_name": "S-Firebase",
+            "sites": get_sidebar_sites(),
+        },
+        headers=_SC_HTML_NO_CACHE_HEADERS,
+    )
 
 
 @app.get("/api/app/intel")

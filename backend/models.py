@@ -1176,6 +1176,24 @@ class AscConsoleWorkspace(Base):
     background_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class FirebaseConsoleWorkspace(Base):
+    """Firebase Console Crashlytics scrape — tek paylaşımlı (id=1, Döviz Android+iOS)."""
+
+    __tablename__ = "firebase_console_workspace"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    raw_network_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    source: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    source_url: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    sync_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sync_message: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    sync_mode: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    scrape_days: Mapped[int] = mapped_column(Integer, nullable=False, default=365)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    background_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class DovizAssetMonitorUrl(Base):
     """CSV manifest — saatlik taranan Döviz URL listesi."""
 

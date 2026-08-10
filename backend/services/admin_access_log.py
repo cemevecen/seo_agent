@@ -136,6 +136,7 @@ _ADMIN_PATH_LABELS: list[tuple[str, str]] = [
     ("/public-sites", "Public Sites"),
     ("/realtime", "Realtime"),
     ("/firebase", "Firebase"),
+    ("/s-firebase", "S-Firebase"),
     ("/notification", "Notification"),
     ("/backlinks", "Backlinks"),
     ("/settings", "Settings"),
