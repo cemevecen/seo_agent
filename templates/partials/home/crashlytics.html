@@ -308,23 +308,24 @@
   }
   .home-sf-metric__body {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 0.35rem 0.4rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.45rem;
     align-items: center;
     margin-top: 0.4rem;
     min-width: 0;
   }
   .home-sf-metric__side {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(3.4rem, 1fr));
-    gap: 0.28rem;
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
     align-items: stretch;
     justify-items: stretch;
     flex: none;
-    max-width: none;
-    width: 100%;
-    min-width: 0;
-    font-size: clamp(0.625rem, 2.1cqi, 0.72rem);
+    width: max-content;
+    max-width: 100%;
+    min-width: 4.75rem;
+    justify-self: end;
+    font-size: clamp(0.6rem, 2cqi, 0.7rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
@@ -338,7 +339,7 @@
     gap: 0.2rem;
     width: 100%;
     min-width: 0;
-    padding: 0.26rem 0.28rem;
+    padding: 0.2rem 0.32rem;
     border-radius: 0.45rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.85);
@@ -350,8 +351,6 @@
   }
   .home-sf-metric__side-val {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
   .home-sf-metric__side-info {
@@ -378,7 +377,9 @@
       gap: 0.35rem;
     }
     .home-sf-metric__side {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      width: 100%;
+      min-width: 0;
+      justify-self: stretch;
     }
   }
   .home-sf-metric__side-info:hover,
@@ -452,9 +453,9 @@
   }
 </style>
 
-{% macro sf_side_tip(part, title='', period='') -%}
+{% macro sf_side_tip(part, title='', tip_context='') -%}
 {%- set p = (part or '')|trim -%}
-{%- set when = (' · ' ~ period) if period else '' -%}
+{%- set when = (' · ' ~ tip_context) if tip_context else '' -%}
 {%- if p.startswith('s ') -%}
 Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı){{ when }}.
 {%- elif p.startswith('Δ') -%}
@@ -485,7 +486,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
               <div class="home-sf-metric__side">
                 {% for part in m.extra.split(' · ') %}
                   {% if part %}
-                    {% set tip = sf_side_tip(part, m.title, m.period_label or '') %}
+                    {% set tip = sf_side_tip(part, m.title, m.tip_context or m.period_label or '') %}
                     <div class="home-sf-metric__side-row">
                       <span class="home-sf-metric__side-val">{{ part }}</span>
                       <button type="button" class="home-sf-metric__side-info" aria-label="{{ tip }}" data-sf-side-info>

@@ -1026,8 +1026,8 @@
   }
   .pc-stability-grid .sf-card__body {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 0.4rem 0.45rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.4rem 0.5rem;
     align-items: center;
     margin-top: 0.4rem;
     min-width: 0;
@@ -1047,15 +1047,16 @@
   }
   .pc-stability-grid .sf-card__side {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
-    gap: 0.3rem;
+    grid-template-columns: 1fr;
+    gap: 0.22rem;
     align-items: stretch;
     justify-items: stretch;
     flex: none;
-    max-width: none;
-    width: 100%;
-    min-width: 0;
-    font-size: clamp(0.625rem, 2.15cqi, 0.75rem);
+    width: max-content;
+    max-width: 100%;
+    min-width: 4.75rem;
+    justify-self: end;
+    font-size: clamp(0.6rem, 2cqi, 0.72rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
@@ -1072,7 +1073,7 @@
     gap: 0.22rem;
     width: 100%;
     min-width: 0;
-    padding: 0.28rem 0.3rem;
+    padding: 0.22rem 0.35rem;
     border-radius: 0.45rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(255 255 255 / 0.85);
@@ -1083,8 +1084,6 @@
   }
   .pc-stability-grid .sf-card__side-val {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
   .pc-stability-grid .sf-card__side-info {
@@ -1111,7 +1110,9 @@
       gap: 0.4rem;
     }
     .pc-stability-grid .sf-card__side {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      width: 100%;
+      min-width: 0;
+      justify-self: stretch;
     }
   }
   .pc-stability-grid .sf-card__side-info:hover,
@@ -6320,11 +6321,11 @@
     return String(raw || "").trim();
   }
 
-  function paSfSideTip(part, cardTitle, periodLabel) {
+  function paSfSideTip(part, cardTitle, tipContext) {
     var p = String(part || "").trim();
     var title = String(cardTitle || "");
-    var period = String(periodLabel || "").trim();
-    var when = period ? (" · " + period) : "";
+    var ctx = String(tipContext || "").trim();
+    var when = ctx ? (" · " + ctx) : "";
     if (/^s\s/i.test(p)) {
       return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
     }
@@ -6346,7 +6347,7 @@
     return "Ek metrik — kaynak konsoldan gelen veri" + when + ".";
   }
 
-  function paSfSideHtml(extra, cardTitle, periodLabel) {
+  function paSfSideHtml(extra, cardTitle, tipContext) {
     if (!extra) return "";
     var parts = String(extra).split(/\s*·\s*/).map(function (p) {
       return String(p || "").trim();
@@ -6355,7 +6356,7 @@
     return (
       '<div class="sf-card__side">' +
         parts.map(function (p) {
-          var tip = paSfSideTip(p, cardTitle, periodLabel);
+          var tip = paSfSideTip(p, cardTitle, tipContext);
           return (
             '<div class="sf-card__side-row">' +
               '<span class="sf-card__side-val">' + esc(p) + "</span>" +
@@ -6378,12 +6379,12 @@
     var value = opts.value || "—";
     var tone = opts.toneClass || "text-slate-800 dark:text-zinc-100";
     var extra = opts.extra || "";
-    var periodLabel = opts.periodLabel || "";
+    var tipContext = opts.tipContext || opts.periodLabel || "";
     var refresh = opts.showRefresh
       ? '<button type="button" data-pa-sf-refresh class="mt-1 inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:border-sky-400 hover:text-sky-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">Yenile</button>'
       : "";
     var subOut = subHtml || (sub ? esc(sub) : "");
-    var side = paSfSideHtml(extra, title, periodLabel);
+    var side = paSfSideHtml(extra, title, tipContext);
     return (
       '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
         '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
@@ -6496,13 +6497,11 @@
       : "";
 
     var playCode = playLatest && playLatest.version_code ? String(playLatest.version_code) : "";
-    function fbSubHtml(timeLabel, timeParam) {
+    function fbSubHtml(timeParam) {
       var parts = [
         paSfLink("Firebase", "/s-firebase", {
           title: "S-Firebase · Crashlytics / Release Monitoring"
-        }),
-        "son sürüm",
-        esc(timeLabel)
+        })
       ];
       if (fbVer) {
         parts.push(paSfLink(fbVer, paFbReleaseUrl(timeParam, fbVer), {
@@ -6512,10 +6511,15 @@
       }
       return parts.join(" · ");
     }
+    function fbTipContext(periodKey) {
+      var bits = ["son sürüm", paSfPeriodLabel(periodKey)];
+      if (fbVer) bits.push(fbVer);
+      return bits.join(" · ");
+    }
     var playAllSubHtml =
       paSfLink("Play Console", "#pc-vitals", {
         title: "Android · Vitals paneli (site içi)"
-      }) + " · all · 28d";
+      });
     var latestAnr = (playLatest && playLatest.anr_free_fmt) || null;
     var latestAnrPct = playLatest && playLatest.anr_free_pct != null ? playLatest.anr_free_pct : null;
     var playRepSubHtml;
@@ -6544,20 +6548,20 @@
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
       sub: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? staleSub : "",
-      subHtml: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? "" : fbSubHtml("24s", "24h"),
+      subHtml: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? "" : fbSubHtml("24h"),
       value: (fb24 && fb24.crash_free_fmt) || "—",
       extra: (fb24 && fb24.extra) || "",
-      periodLabel: paSfPeriodLabel("24h"),
+      tipContext: fbTipContext("24h"),
       toneClass: stabilityToneClass(fb24 && fb24.crash_free_pct),
       showRefresh: !paSfHas(fb24 && fb24.crash_free_fmt)
     }));
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
       sub: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? staleSub : "",
-      subHtml: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? "" : fbSubHtml("7g", "7d"),
+      subHtml: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? "" : fbSubHtml("7d"),
       value: (fb7 && fb7.crash_free_fmt) || "—",
       extra: (fb7 && fb7.extra) || "",
-      periodLabel: paSfPeriodLabel("7d"),
+      tipContext: fbTipContext("7d"),
       toneClass: stabilityToneClass(fb7 && fb7.crash_free_pct),
       showRefresh: !paSfHas(fb7 && fb7.crash_free_fmt)
     }));
@@ -6567,7 +6571,7 @@
       subHtml: staleSub ? "" : playAllSubHtml,
       value: play.anr_free_fmt || "—",
       extra: play.extra || "",
-      periodLabel: paSfPeriodLabel("28d"),
+      tipContext: "all · " + paSfPeriodLabel("28d"),
       toneClass: stabilityToneClass(play.anr_free_pct),
       showRefresh: !paSfHas(play.anr_free_fmt)
     }));
@@ -6577,7 +6581,7 @@
       subHtml: staleSub && !paSfHas(latestAnr) ? "" : playRepSubHtml,
       value: latestAnr || "—",
       extra: (playLatest && playLatest.extra) || "",
-      periodLabel: paSfPeriodLabel("28d"),
+      tipContext: paSfPeriodLabel("28d") + (lvLabel ? (" · " + lvLabel) : ""),
       toneClass: stabilityToneClass(latestAnrPct),
       showRefresh: !paSfHas(latestAnr)
     }));
