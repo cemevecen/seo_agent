@@ -58,10 +58,10 @@
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
             <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Mobil</h4>
             {% if gsc.mobile_summary %}
-            <a class="home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
             {% endif %}
           </div>
-          <div class="home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
+          <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> kötü</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> iyileştir</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> iyi</span>
@@ -73,10 +73,10 @@
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
             <h4 class="home-label font-bold text-slate-800 dark:text-zinc-100">Masaüstü</h4>
             {% if gsc.desktop_summary %}
-            <a class="home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+            <a class="home-wv-report-link home-meta font-semibold text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
             {% endif %}
           </div>
-          <div class="home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
+          <div class="home-wv-kpis home-meta mb-2 flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-zinc-400">
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> kötü</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> iyileştir</span>
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> iyi</span>

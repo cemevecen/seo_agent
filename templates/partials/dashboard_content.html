@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v25-pos-chip">
+<style id="home-site-borders" data-home-css="v26-wv-kpis">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -572,6 +572,19 @@
     font-weight: 500;
     letter-spacing: normal;
     text-transform: none;
+  }
+  /* Web Vitals: Raporu aç %30 küçült; kötü/iyileştir/iyi satırı %10 küçült */
+  #home-board .home-readable .home-wv-report-link {
+    font-size: calc(var(--home-text) * 0.7) !important;
+    line-height: 1.3 !important;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  #home-board .home-readable .home-wv-kpis,
+  #home-board .home-readable .home-wv-kpis :where(*) {
+    font-size: calc(var(--home-text) * 0.9) !important;
+    line-height: 1.35 !important;
   }
   /* Position drops: tek satır + yan yana sığdır */
   #home-board .home-readable .home-pos-query {
@@ -1825,7 +1838,7 @@
         </section>
         </div>
         <div data-home-container-slot="position-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=10" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=11" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
@@ -1836,7 +1849,7 @@
       {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="wv-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/web-vitals?site=doviz&v=5" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=doviz&v=6" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
