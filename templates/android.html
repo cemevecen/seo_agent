@@ -1026,8 +1026,8 @@
   }
   .pc-stability-grid .sf-card__body {
     display: grid;
-    grid-template-columns: minmax(4.25rem, 0.85fr) minmax(0, 1.4fr);
-    gap: 0.45rem 0.55rem;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 0.4rem 0.45rem;
     align-items: center;
     margin-top: 0.4rem;
     min-width: 0;
@@ -1035,8 +1035,15 @@
   .pc-stability-grid .sf-card__value {
     margin: 0;
     min-width: 0;
-    font-size: clamp(1rem, 2.4vw, 1.5rem);
-    line-height: 1.1;
+    width: 100%;
+    max-width: 100%;
+    font-size: clamp(0.72rem, 12.5cqi, 1.45rem);
+    font-weight: 800;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    letter-spacing: -0.02em;
   }
   .pc-stability-grid .sf-card__side {
     display: grid;
@@ -1644,7 +1651,7 @@
 </div>
 
 <script src="/static/js/resizable_data_list.js?v=5"></script>
-<script src="/static/js/metric_table_ux.js?v=5"></script>
+<script src="/static/js/metric_table_ux.js?v=6"></script>
 <script>
 (function () {
   var statusEl = document.getElementById("pc-status");
@@ -6390,6 +6397,11 @@
     );
   }
 
+  function fitStabilityFreeValues() {
+    var ux = window.SeoMetricTableUx;
+    if (!ux || !ux.fitTextToWidth || !stabilityFreeEl) return;
+    ux.fitTextToWidth(stabilityFreeEl, ".sf-card__value", { minPx: 9 });
+  }
   function applyStabilityGridCols(n) {
     if (!stabilityFreeEl) return;
     stabilityFreeEl.style.setProperty("--sf-n", String(n || 4));
@@ -6576,6 +6588,9 @@
     }
     applyStabilityGridCols(4);
     stabilityFreeEl.innerHTML = cards.join("");
+    requestAnimationFrame(function () {
+      fitStabilityFreeValues();
+    });
   }
 
   var stabilityFreePromise = null;
@@ -6618,6 +6633,14 @@
     return stabilityFreePromise;
   }
   if (stabilityFreeEl) {
+    if (typeof ResizeObserver !== "undefined") {
+      var paSfResizeTimer = null;
+      var paSfRo = new ResizeObserver(function () {
+        if (paSfResizeTimer) clearTimeout(paSfResizeTimer);
+        paSfResizeTimer = setTimeout(fitStabilityFreeValues, 60);
+      });
+      paSfRo.observe(stabilityFreeEl);
+    }
     stabilityFreeEl.addEventListener("click", function (ev) {
       var info = ev.target && ev.target.closest && ev.target.closest("[data-sf-side-info]");
       if (info) {

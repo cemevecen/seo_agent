@@ -373,6 +373,36 @@
     });
   }
 
+  function fitTextToWidth(root, selector, opts) {
+    opts = opts || {};
+    if (!root) return;
+    var minPx = opts.minPx != null ? opts.minPx : 9;
+    var sel = selector || ".sf-card__value, .home-sf-metric__value";
+    root.querySelectorAll(sel).forEach(function (el) {
+      el.style.whiteSpace = "nowrap";
+      el.style.fontSize = "";
+      var maxPx = parseFloat(window.getComputedStyle(el).fontSize) || 22;
+      if (!(maxPx > minPx)) {
+        el.style.fontSize = minPx + "px";
+        return;
+      }
+      var lo = minPx;
+      var hi = maxPx;
+      var best = minPx;
+      for (var i = 0; i < 16; i++) {
+        var mid = (lo + hi) / 2;
+        el.style.fontSize = mid + "px";
+        if (el.scrollWidth <= el.clientWidth + 1) {
+          best = mid;
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      el.style.fontSize = Math.max(minPx, best) + "px";
+    });
+  }
+
   global.SeoMetricTableUx = {
     injectStyles: injectStyles,
     heatBackground: heatBackground,
@@ -386,5 +416,6 @@
     ensureLegend: ensureLegend,
     bindInteractive: bindInteractive,
     applyWidths: applyWidths,
+    fitTextToWidth: fitTextToWidth,
   };
 })(typeof window !== "undefined" ? window : this);

@@ -296,18 +296,20 @@
     margin: 0;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    line-height: 1.1;
+    line-height: 1.05;
     color: #0f172a;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
     min-width: 0;
-    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    font-size: clamp(0.72rem, 12.5cqi, 1.45rem);
+    letter-spacing: -0.02em;
   }
   .home-sf-metric__body {
     display: grid;
-    grid-template-columns: minmax(4.25rem, 0.85fr) minmax(0, 1.4fr);
-    gap: 0.4rem 0.5rem;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 0.35rem 0.4rem;
     align-items: center;
     margin-top: 0.4rem;
     min-width: 0;
@@ -730,6 +732,41 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
     if (!root) root = document.querySelector('[data-home-crash-root]');
     if (!root || root.getAttribute('data-crash-shell-wired') === '1') return;
     root.setAttribute('data-crash-shell-wired', '1');
+    function fitHomeSfValues() {
+      root.querySelectorAll('.home-sf-metric__value').forEach(function (el) {
+        el.style.whiteSpace = 'nowrap';
+        el.style.fontSize = '';
+        var minPx = 9;
+        var maxPx = parseFloat(window.getComputedStyle(el).fontSize) || 22;
+        if (!(maxPx > minPx)) {
+          el.style.fontSize = minPx + 'px';
+          return;
+        }
+        var lo = minPx, hi = maxPx, best = minPx;
+        for (var i = 0; i < 16; i++) {
+          var mid = (lo + hi) / 2;
+          el.style.fontSize = mid + 'px';
+          if (el.scrollWidth <= el.clientWidth + 1) {
+            best = mid;
+            lo = mid;
+          } else {
+            hi = mid;
+          }
+        }
+        el.style.fontSize = Math.max(minPx, best) + 'px';
+      });
+    }
+    requestAnimationFrame(fitHomeSfValues);
+    if (typeof ResizeObserver !== 'undefined') {
+      var homeSfTimer = null;
+      var homeSfRo = new ResizeObserver(function () {
+        if (homeSfTimer) clearTimeout(homeSfTimer);
+        homeSfTimer = setTimeout(fitHomeSfValues, 60);
+      });
+      root.querySelectorAll('[data-home-sf-metrics], .home-sf-metric').forEach(function (node) {
+        homeSfRo.observe(node);
+      });
+    }
     root.addEventListener('click', function (ev) {
       var info = ev.target && ev.target.closest && ev.target.closest('[data-sf-side-info]');
       if (!info || !root.contains(info)) return;
