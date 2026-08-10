@@ -137,17 +137,14 @@
     color: #e4e4e7;
   }
 
-  #ia-metric-kpis.metric-kpi-grid--ss1 {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    width: 100%;
-  }
+  /* Metric KPI · always ss2 neon cards in one row */
   #ia-metric-kpis.metric-kpi-grid--ss2 {
     display: grid;
     width: 100%;
     min-width: 0;
     gap: 0.65rem;
+    grid-auto-flow: column;
+    align-items: start;
   }
   .metric-kpi-ss1 {
     position: relative;
@@ -1539,13 +1536,8 @@
     if (vals.length < 2 || !vals[0]) return null;
     return Math.round(((vals[vals.length - 1] - vals[0]) / Math.abs(vals[0])) * 1000) / 10;
   }
-  function applyIaMetricKpiLayout(el, n, mode) {
+  function applyIaMetricKpiLayout(el, n) {
     if (!el) return;
-    el.style.removeProperty("grid-template-columns");
-    if (mode === "ss1") {
-      el.className = "metric-kpi-grid metric-kpi-grid--ss1";
-      return;
-    }
     el.className = "metric-kpi-grid metric-kpi-grid--ss2";
     el.style.gridTemplateColumns = "repeat(" + Math.max(n, 1) + ", minmax(0, 1fr))";
   }
@@ -1568,8 +1560,7 @@
     }
     if (iaKpiSimple) iaKpiSimple.classList.add("hidden");
     iaMetricKpis.classList.remove("hidden");
-    var mode = list.length < 3 ? "ss1" : (list.length > 3 ? "ss2" : "ss1");
-    applyIaMetricKpiLayout(iaMetricKpis, list.length, mode);
+    applyIaMetricKpiLayout(iaMetricKpis, list.length);
     iaMetricKpis.innerHTML = list.map(function (pack, idx) {
       var color = colorAt(idx);
       var st = seriesStats(pack.series);
@@ -1581,45 +1572,10 @@
         : fmtNum(st.sum, countLike);
       var label = pack.label || pack.metric || "";
       var tip = typeof iaMetricHelp === "function" ? iaMetricHelp(pack.metric) : "";
-      var sub = tip ? String(tip).split(".")[0] + "." : "";
       var spark = seriesSparkSvg(pack.series, color, 220, 56);
       var infoBtn =
         '<button type="button" class="metric-kpi-info" data-ia-metric-info aria-label="' + esc(label) + ' bilgisi">' +
           "i<span class=\"metric-kpi-tip\" role=\"tooltip\">" + esc(tip) + "</span></button>";
-
-      if (mode === "ss1") {
-        return (
-          '<article class="metric-kpi-ss1" style="--kpi-color:' + color + '">' +
-            '<div class="metric-kpi-ss1-top">' +
-              '<div class="metric-kpi-ss1-id">' +
-                '<span class="metric-kpi-ss1-icon" aria-hidden="true">' +
-                  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 10.5 L5.5 7 L8.2 9.2 L14 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-                "</span>" +
-                '<div class="min-w-0">' +
-                  '<div class="flex items-center gap-1.5"><span class="metric-kpi-chip">' + esc(label) + "</span></div>" +
-                  (sub ? '<p class="metric-kpi-ss1-sub truncate" title="' + esc(sub) + '">' + esc(sub) + "</p>" : "") +
-                "</div>" +
-              "</div>" +
-              infoBtn +
-            "</div>" +
-            '<div class="metric-kpi-ss1-body">' +
-              '<div>' +
-                '<p class="metric-kpi-kicker">Ortalama</p>' +
-                '<p class="metric-kpi-ss1-value">' + esc(fmtNum(avg, false)) + "</p>" +
-              "</div>" +
-              '<div class="min-w-0">' +
-                spark +
-                '<div class="metric-kpi-ss1-stats">' +
-                  '<div><p class="metric-kpi-kicker">Toplam</p><strong>' + esc(totalVal) + "</strong></div>" +
-                  '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min, countLike)) + "</strong></div>" +
-                  '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max, countLike)) + "</strong></div>" +
-                "</div>" +
-              "</div>" +
-            "</div>" +
-          "</article>"
-        );
-      }
-
       var dlt = seriesDeltaPct(pack.series);
       var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
       var dltTxt = dlt == null ? "—" : ((dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%");
