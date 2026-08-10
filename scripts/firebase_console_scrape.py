@@ -120,18 +120,57 @@ def _urls(plat: str, days: int) -> dict[str, str]:
 
 
 def _page_needs_login(page) -> bool:
+    """True only on Google Accounts / explicit login form — not Firebase dashboard HTML."""
     try:
         url = (page.url or "").lower()
     except Exception:
         url = ""
     if "accounts.google.com" in url:
         return True
+    # Firebase overview/crashlytics already loaded → session OK
+    if "console.firebase.google.com" in url and "/project/" in url:
+        return False
     try:
-        body = page.content() or ""
+        title = (page.title() or "").lower()
+    except Exception:
+        title = ""
+    if "sign in" in title or "oturum aç" in title:
+        return True
+    try:
+        # Prefer visible text; full HTML has many false "Sign in" strings in scripts.
+        body = (page.inner_text("body") or "")[:1200].lower()
     except Exception:
         body = ""
-    low = body.lower()
-    return ("sign in" in low and "google account" in low) or ("email or phone" in low)
+    if "email or phone" in body or "e-posta veya telefon" in body:
+        return True
+    if "use your google account" in body or "google hesabınızı kullanın" in body:
+        return True
+    return False
+
+
+def _wait_until_firebase(page, *, timeout_sec: int = 600) -> bool:
+    """Oturum yoksa kullanıcı girene kadar poll et; Enter gerekmez."""
+    deadline = time.time() + max(60, timeout_sec)
+    printed = False
+    while time.time() < deadline:
+        try:
+            url = (page.url or "").lower()
+        except Exception:
+            url = ""
+        if not _page_needs_login(page) and "console.firebase.google.com" in url and "/project/" in url:
+            page.wait_for_timeout(1500)
+            return True
+        if not printed:
+            print(
+                "Firebase oturumu yok — açılan Chromium’da Google ile giriş yapın. "
+                f"Overview gelince otomatik devam ({timeout_sec}s). Enter’a basmaya gerek yok.",
+                flush=True,
+            )
+            printed = True
+        else:
+            print(f"  … bekleniyor ({url[:80] or '—'})", flush=True)
+        page.wait_for_timeout(2500)
+    return False
 
 
 def _extract_pcts(text: str) -> list[float]:
@@ -358,18 +397,25 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
         )
         page = context.pages[0] if context.pages else context.new_page()
         try:
-            # login probe
+            # login probe — dashboard açıksa Enter beklemeden devam
             probe = _urls("android", days)["overview"]
             page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
             page.wait_for_timeout(2000)
-            if _page_needs_login(page):
-                print("Google login gerekli — tarayıcıda oturum açın, sonra Enter…", flush=True)
+            if _page_needs_login(page) or "console.firebase.google.com" not in (page.url or "").lower():
+                if not _wait_until_firebase(page, timeout_sec=600):
+                    context.close()
+                    return {
+                        "sync_ok": False,
+                        "sync_message": "Firebase Console login zaman aşımı (--login)",
+                        "metrics": [],
+                        "panels": {},
+                        "scrape_days": days,
+                    }
                 try:
-                    input()
-                except EOFError:
+                    page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
+                    page.wait_for_timeout(2000)
+                except Exception:
                     pass
-                page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
-                page.wait_for_timeout(3000)
                 if _page_needs_login(page):
                     context.close()
                     return {
