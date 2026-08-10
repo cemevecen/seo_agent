@@ -305,42 +305,46 @@
     flex: 1 1 auto;
   }
   .home-sf-metric__body {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(4.25rem, 0.85fr) minmax(0, 1.4fr);
+    gap: 0.4rem 0.5rem;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-top: 0.35rem;
+    margin-top: 0.4rem;
     min-width: 0;
   }
   .home-sf-metric__side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    flex: 0 0 auto;
-    max-width: 48%;
-    font-size: 0.625rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(3.4rem, 1fr));
+    gap: 0.28rem;
+    align-items: stretch;
+    justify-items: stretch;
+    flex: none;
+    max-width: none;
+    width: 100%;
+    min-width: 0;
+    font-size: clamp(0.625rem, 2.1cqi, 0.72rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
-    color: #94a3b8;
-    text-align: right;
+    color: #64748b;
+    text-align: center;
   }
   .home-sf-metric__side-row {
     display: inline-flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 0.2rem;
-    max-width: 100%;
+    width: 100%;
+    min-width: 0;
+    padding: 0.26rem 0.28rem;
+    border-radius: 0.45rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.85);
   }
-  .home-sf-metric__side-row + .home-sf-metric__side-row {
-    margin-top: 0.18rem;
-    padding-top: 0.18rem;
-    border-top: 1px solid rgb(226 232 240);
-  }
-  html.dark .home-sf-metric__side-row + .home-sf-metric__side-row,
-  html.midnight .home-sf-metric__side-row + .home-sf-metric__side-row {
-    border-top-color: rgb(63 63 70);
+  html.dark .home-sf-metric__side-row,
+  html.midnight .home-sf-metric__side-row {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.55);
   }
   .home-sf-metric__side-val {
     min-width: 0;
@@ -353,18 +357,27 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 0.7rem;
-    height: 0.7rem;
+    width: 0.78rem;
+    height: 0.78rem;
     flex: 0 0 auto;
     border-radius: 9999px;
     border: 1px solid rgba(148, 163, 184, 0.55);
     background: transparent;
     color: #94a3b8;
-    font-size: 0.45rem;
+    font-size: 0.48rem;
     font-weight: 800;
     line-height: 1;
     cursor: help;
     padding: 0;
+  }
+  @container home-sf-metric (max-width: 12.5rem) {
+    .home-sf-metric__body {
+      grid-template-columns: 1fr;
+      gap: 0.35rem;
+    }
+    .home-sf-metric__side {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
   .home-sf-metric__side-info:hover,
   .home-sf-metric__side-info:focus-visible {

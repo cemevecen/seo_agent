@@ -823,53 +823,56 @@
     color: #34d399;
   }
   .ia-stability-grid .sf-card__body {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(4.25rem, 0.85fr) minmax(0, 1.4fr);
+    gap: 0.45rem 0.55rem;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.55rem;
-    margin-top: 0.35rem;
+    margin-top: 0.4rem;
     min-width: 0;
   }
   .ia-stability-grid .sf-card__value {
     margin: 0;
     min-width: 0;
-    flex: 1 1 auto;
     font-size: clamp(1rem, 2.4vw, 1.5rem);
     font-weight: 800;
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
   }
   .ia-stability-grid .sf-card__side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    flex: 0 0 auto;
-    max-width: 48%;
-    font-size: clamp(0.5625rem, 1vw, 0.6875rem);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+    gap: 0.3rem;
+    align-items: stretch;
+    justify-items: stretch;
+    flex: none;
+    max-width: none;
+    width: 100%;
+    min-width: 0;
+    font-size: clamp(0.625rem, 2.15cqi, 0.75rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
-    color: #64748b;
-    text-align: right;
+    color: #475569;
+    text-align: center;
   }
   html.dark .ia-stability-grid .sf-card__side {
-    color: #a1a1aa;
+    color: #d4d4d8;
   }
   .ia-stability-grid .sf-card__side-row {
     display: inline-flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 0.2rem;
-    max-width: 100%;
+    justify-content: center;
+    gap: 0.22rem;
+    width: 100%;
+    min-width: 0;
+    padding: 0.28rem 0.3rem;
+    border-radius: 0.45rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255 / 0.85);
   }
-  .ia-stability-grid .sf-card__side-row + .sf-card__side-row {
-    margin-top: 0.2rem;
-    padding-top: 0.2rem;
-    border-top: 1px solid rgb(226 232 240);
-  }
-  html.dark .ia-stability-grid .sf-card__side-row + .sf-card__side-row {
-    border-top-color: rgb(63 63 70);
+  html.dark .ia-stability-grid .sf-card__side-row {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.55);
   }
   .ia-stability-grid .sf-card__side-val {
     min-width: 0;
@@ -882,18 +885,27 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 0.7rem;
-    height: 0.7rem;
+    width: 0.78rem;
+    height: 0.78rem;
     flex: 0 0 auto;
     border-radius: 9999px;
     border: 1px solid rgba(148, 163, 184, 0.55);
     background: transparent;
     color: #94a3b8;
-    font-size: 0.45rem;
+    font-size: 0.48rem;
     font-weight: 800;
     line-height: 1;
     cursor: help;
     padding: 0;
+  }
+  @container sf-card (max-width: 12.5rem) {
+    .ia-stability-grid .sf-card__body {
+      grid-template-columns: 1fr;
+      gap: 0.4rem;
+    }
+    .ia-stability-grid .sf-card__side {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
   .ia-stability-grid .sf-card__side-info:hover,
   .ia-stability-grid .sf-card__side-info:focus-visible {
