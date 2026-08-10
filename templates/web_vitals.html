@@ -78,10 +78,47 @@
     </div>
   </div>
 
-  <div class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
-    <p class="mb-3 text-xs font-semibold text-slate-600 dark:text-zinc-300">Durum trendi (son scrape’ler)</p>
-    <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-history-chart"></canvas></div>
+  <div class="grid min-w-0 gap-3 lg:grid-cols-2">
+    <section class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Mobil</h3>
+        {% if gsc_links.mobile_summary %}
+        <a class="text-[11px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.mobile_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+        {% endif %}
+      </div>
+      <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-zinc-400">
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> kötü URL</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> iyileştirme</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> iyi URL</span>
+      </div>
+      <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-chart-mobile"></canvas></div>
+      <p id="wv-chart-mobile-note" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
+    </section>
+    <section class="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4 dark:bg-zinc-900 dark:ring-0">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Masaüstü</h3>
+        {% if gsc_links.desktop_summary %}
+        <a class="text-[11px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.desktop_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+        {% endif %}
+      </div>
+      <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-zinc-400">
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> kötü URL</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> iyileştirme</span>
+        <span class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> iyi URL</span>
+      </div>
+      <div class="relative h-48 min-w-0 w-full sm:h-56"><canvas id="wv-chart-desktop"></canvas></div>
+      <p id="wv-chart-desktop-note" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
+    </section>
   </div>
+
+  <details id="wv-history-drop" class="min-w-0 rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+    <summary class="cursor-pointer list-none px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-zinc-200 sm:px-4 [&::-webkit-details-marker]:hidden">
+      <span class="mr-1.5 text-slate-400">▸</span> Scrape geçmişi (panel) · {{ history|length }} nokta
+    </summary>
+    <div class="border-t border-slate-100 px-3 pb-3 pt-2 dark:border-zinc-800">
+      <div class="relative h-40 min-w-0 w-full"><canvas id="wv-history-chart"></canvas></div>
+    </div>
+  </details>
 
   <div class="min-w-0 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-zinc-900 dark:ring-0">
     <div class="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-3 sm:px-4 dark:border-zinc-800" style="-webkit-overflow-scrolling:touch">
@@ -270,6 +307,7 @@ var _siteId = {{ selected_site_id if selected_site_id else 'null' }};
 var _siteDomain = {{ (selected_site_domain or '')|tojson }};
 var _tab = {{ tab|tojson }};
 var _history = {{ history|tojson }};
+var _chartSeries = {{ (payload.chart_series or {})|tojson }};
 var _bridgeUrl = 'http://127.0.0.1:18765/sync-gsc-cwv';
 var _healthUrl = 'http://127.0.0.1:18765/health';
 var _pollTimer = null;
@@ -289,6 +327,100 @@ function _siteKeyFromDomain(dom) {
   if (dom.indexOf('doviz') >= 0) return 'doviz';
   if (dom.indexOf('sinemalar') >= 0) return 'sinemalar';
   return '';
+}
+
+function _fmtChartLabel(iso) {
+  if (!iso) return '—';
+  var s = String(iso);
+  if (s.length >= 10 && s.indexOf('-') > 0) {
+    var p = s.slice(0, 10).split('-');
+    return parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + '/' + String(p[0]).slice(2);
+  }
+  return s.slice(5, 16).replace('T', ' ');
+}
+
+function _deviceSeriesFromHistory(deviceKey) {
+  var dates = [], poor = [], ni = [], good = [];
+  (_history || []).forEach(function(h) {
+    var d = (h && h[deviceKey]) || {};
+    dates.push(_fmtChartLabel(h.collected_at));
+    poor.push(d.poor || 0);
+    ni.push(d.needs_improvement || 0);
+    good.push(d.good || 0);
+  });
+  return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'scrape_history' };
+}
+
+function _resolveDeviceSeries(deviceKey) {
+  var ser = (_chartSeries && _chartSeries[deviceKey]) || null;
+  if (ser && ser.dates && ser.dates.length >= 3) {
+    return {
+      dates: (ser.dates || []).map(_fmtChartLabel),
+      poor: ser.poor || [],
+      needs_improvement: ser.needs_improvement || [],
+      good: ser.good || [],
+      source: 'gsc'
+    };
+  }
+  return _deviceSeriesFromHistory(deviceKey);
+}
+
+function _renderGscTrend(canvasId, noteId, deviceKey) {
+  var canvas = document.getElementById(canvasId);
+  var note = document.getElementById(noteId);
+  if (!canvas || !window.Chart) return;
+  var ser = _resolveDeviceSeries(deviceKey);
+  var labels = ser.dates && ser.dates.length ? ser.dates : ['—'];
+  var hasData = labels.length > 1 || (ser.poor || []).some(function(v){return v;}) || (ser.needs_improvement || []).some(function(v){return v;}) || (ser.good || []).some(function(v){return v;});
+  if (note) {
+    note.textContent = ser.source === 'gsc'
+      ? ('GSC trend · ' + labels.length + ' nokta')
+      : (hasData ? ('Scrape geçmişi · ' + labels.length + ' nokta — tam GSC grafik için Tara') : 'Grafik verisi yok — Mac bridge ile Tara');
+  }
+  new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', backgroundColor: 'rgba(197,57,41,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0.25, fill: false },
+        { label: 'İyileştirme gerekli', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', backgroundColor: 'rgba(240,147,0,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0.25, fill: false },
+        { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', backgroundColor: 'rgba(11,128,67,.08)', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 2, pointHoverRadius: 4, tension: 0.25, fill: false }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              var n = ctx.parsed.y;
+              return ctx.dataset.label + ': ' + (n == null ? '—' : Number(n).toLocaleString('tr-TR'));
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            maxTicksLimit: 5,
+            callback: function(v) {
+              if (v >= 1000) return (v / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + 'K';
+              return v;
+            }
+          },
+          grid: { color: 'rgba(148,163,184,.25)' }
+        },
+        x: {
+          ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8, font: { size: 10 } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
 }
 
 function _setRunUi(running, msg) {
@@ -329,7 +461,7 @@ function _pollBridge() {
           alert('Web Vitals: ' + (p.message || last.message || 'hata'));
         }
       })
-      .catch(function(){ /* bridge kapalı olabilir */ });
+      .catch(function(){});
   }, 4000);
 }
 
@@ -367,6 +499,9 @@ function runWebVitals() {
 }
 
 (function(){
+  _renderGscTrend('wv-chart-mobile', 'wv-chart-mobile-note', 'mobile');
+  _renderGscTrend('wv-chart-desktop', 'wv-chart-desktop-note', 'desktop');
+
   var labels = (_history || []).map(function(h){ return (h.collected_at || '').slice(5,16).replace('T',' '); });
   var ctx = document.getElementById('wv-history-chart');
   if (ctx && window.Chart) {
@@ -375,9 +510,9 @@ function runWebVitals() {
       data: {
         labels: labels.length ? labels : ['—'],
         datasets: [
-          { label: 'Kötü', data: (_history||[]).map(function(h){return h.poor||0;}), borderColor:'#e11d48', backgroundColor:'rgba(225,29,72,.15)', tension:.3, fill:true },
-          { label: 'İyileştirme gerekli', data: (_history||[]).map(function(h){return h.needs_improvement||0;}), borderColor:'#d97706', backgroundColor:'rgba(217,119,6,.12)', tension:.3, fill:true },
-          { label: 'İyi', data: (_history||[]).map(function(h){return h.good||0;}), borderColor:'#059669', backgroundColor:'rgba(5,150,105,.12)', tension:.3, fill:true }
+          { label: 'Kötü', data: (_history||[]).map(function(h){return h.poor||0;}), borderColor:'#C53929', backgroundColor:'rgba(197,57,41,.12)', tension:.3, fill:true },
+          { label: 'İyileştirme gerekli', data: (_history||[]).map(function(h){return h.needs_improvement||0;}), borderColor:'#F09300', backgroundColor:'rgba(240,147,0,.12)', tension:.3, fill:true },
+          { label: 'İyi', data: (_history||[]).map(function(h){return h.good||0;}), borderColor:'#0B8043', backgroundColor:'rgba(11,128,67,.12)', tension:.3, fill:true }
         ]
       },
       options: {
@@ -416,7 +551,7 @@ function runWebVitals() {
           labels: ['Kötü', 'İyileştirme gerekli', 'İyi'],
           datasets: [{
             data: [(_kpis&&_kpis.poor)||0, (_kpis&&_kpis.needs_improvement)||0, (_kpis&&_kpis.good)||0],
-            backgroundColor: ['#e11d48','#d97706','#059669']
+            backgroundColor: ['#C53929','#F09300','#0B8043']
           }]
         },
         options: {
@@ -427,7 +562,6 @@ function runWebVitals() {
       });
     }
   }
-  // Sayfa açılışında bridge hâlâ çalışıyorsa banner göster
   fetch(_healthUrl, { mode: 'cors', cache: 'no-store' })
     .then(function(r){ return r.json(); })
     .then(function(j){

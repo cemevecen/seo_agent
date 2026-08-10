@@ -99,6 +99,16 @@ PROPERTIES: list[dict[str, str]] = [
 _PUA_RE = re.compile(r"[\ue000-\uf8ff\u0000-\u001f]")
 _NUM_RE = re.compile(r"([\d\.\,]+)\s*(?:B|K|M)?", re.I)
 
+# GSC overview çizgi grafiği renkleri (aplos chart)
+_GSC_CHART_COLORS = {
+    "#c53929": "poor",
+    "#db4437": "poor",
+    "#f09300": "needs_improvement",
+    "#f4b400": "needs_improvement",
+    "#0b8043": "good",
+    "#0f9d58": "good",
+}
+
 
 def _ingest_token() -> str:
     return (
@@ -418,6 +428,13 @@ def _parse_overview_counts(body: str) -> dict[str, dict[str, int]]:
             low,
             re.I | re.S,
         )
+    if not mob:
+        # EN GSC overview
+        mob = re.search(
+            r"Mobile.{0,120}?Poor\s*([\d\.,]+K?).*?Need improvement\s*([\d\.,]+K?).*?Good\s*([\d\.,]+K?)",
+            low,
+            re.I | re.S,
+        )
     desk = re.search(
         r"Masaüstü.{0,80}?(\d[\d\.\\,]*)\s*kötü.{0,40}?([\d\.\\,]+(?:\s*B)?)\s*URL.{0,40}?iyileştir.{0,40}?([\d\.\\,]+(?:\s*B)?)\s*iyi",
         low,
@@ -426,6 +443,12 @@ def _parse_overview_counts(body: str) -> dict[str, dict[str, int]]:
     if not desk:
         desk = re.search(
             r"Masaüstü.*?(\d[\d\.\\,]*)\s*kötü URL.*?([\d\.\\,]+)\s*URL'nin iyileştirilmesi.*?([\d\.\\,]+)\s*iyi URL",
+            low,
+            re.I | re.S,
+        )
+    if not desk:
+        desk = re.search(
+            r"Desktop.{0,120}?Poor\s*([\d\.,]+K?).*?Need improvement\s*([\d\.,]+K?).*?Good\s*([\d\.,]+K?)",
             low,
             re.I | re.S,
         )
@@ -442,6 +465,228 @@ def _parse_overview_counts(body: str) -> dict[str, dict[str, int]]:
             "good": _parse_count(desk.group(3)),
         }
     return out
+
+
+def _mdy_to_iso(label: str) -> str:
+    """GSC eksen etiketi M/D/YY → YYYY-MM-DD."""
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2})$", (label or "").strip())
+    if not m:
+        return ""
+    month, day, yy = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    year = 2000 + yy if yy < 100 else yy
+    try:
+        return f"{year:04d}-{month:02d}-{day:02d}"
+    except Exception:
+        return ""
+
+
+def _axis_max_from_labels(labels: list[str]) -> float:
+    best = 0.0
+    for lab in labels or []:
+        s = str(lab or "").strip().upper().replace(",", "")
+        m = re.match(r"^([\d\.]+)\s*([KMB])?$", s)
+        if not m:
+            continue
+        n = float(m.group(1))
+        suf = m.group(2) or ""
+        if suf == "K":
+            n *= 1_000
+        elif suf == "M":
+            n *= 1_000_000
+        elif suf == "B":
+            n *= 1_000_000_000
+        if n > best:
+            best = n
+    return best
+
+
+def _status_from_hex(color: str) -> str | None:
+    c = (color or "").strip().lower()
+    if not c.startswith("#") or len(c) < 7:
+        return None
+    return _GSC_CHART_COLORS.get(c[:7])
+
+
+def _extract_overview_chart_series(page) -> dict[str, Any]:
+    """GSC overview Mobil/Masaüstü çizgi grafiklerini SVG path noktalarından çıkarır."""
+    raw = page.evaluate(
+        r"""() => {
+          const COLOR = {
+            '#c53929': 'poor', '#db4437': 'poor',
+            '#f09300': 'needs_improvement', '#f4b400': 'needs_improvement',
+            '#0b8043': 'good', '#0f9d58': 'good'
+          };
+          function statusFrom(stroke) {
+            if (!stroke) return null;
+            const s = String(stroke).trim().toLowerCase();
+            if (COLOR[s]) return COLOR[s];
+            if (s.startsWith('#') && s.length >= 7) return COLOR[s.slice(0,7)] || null;
+            return null;
+          }
+          function parsePathPoints(d) {
+            const tokens = String(d || '').match(/[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d*\.\d+|\d+)(?:e[-+]?\d+)?/g) || [];
+            const pts = [];
+            let i = 0, cmd = null, x = 0, y = 0;
+            const num = () => parseFloat(tokens[i++]);
+            while (i < tokens.length) {
+              const t = tokens[i];
+              if (/^[A-Za-z]$/.test(t)) { cmd = t; i++; continue; }
+              if (!cmd) { i++; continue; }
+              try {
+                if (cmd === 'M' || cmd === 'L') { x = num(); y = num(); pts.push([x,y]); if (cmd === 'M') cmd = 'L'; }
+                else if (cmd === 'm' || cmd === 'l') { x += num(); y += num(); pts.push([x,y]); if (cmd === 'm') cmd = 'l'; }
+                else if (cmd === 'H') { x = num(); pts.push([x,y]); }
+                else if (cmd === 'h') { x += num(); pts.push([x,y]); }
+                else if (cmd === 'V') { y = num(); pts.push([x,y]); }
+                else if (cmd === 'v') { y += num(); pts.push([x,y]); }
+                else if (cmd === 'C') { num();num();num();num(); x=num(); y=num(); pts.push([x,y]); }
+                else if (cmd === 'c') { num();num();num();num(); x+=num(); y+=num(); pts.push([x,y]); }
+                else if (cmd === 'S' || cmd === 'Q') { num();num(); x=num(); y=num(); pts.push([x,y]); }
+                else if (cmd === 's' || cmd === 'q') { num();num(); x+=num(); y+=num(); pts.push([x,y]); }
+                else if (cmd === 'T') { x=num(); y=num(); pts.push([x,y]); }
+                else if (cmd === 't') { x+=num(); y+=num(); pts.push([x,y]); }
+                else if (cmd === 'A') { num();num();num();num();num(); x=num(); y=num(); pts.push([x,y]); }
+                else if (cmd === 'a') { num();num();num();num();num(); x+=num(); y+=num(); pts.push([x,y]); }
+                else if (cmd === 'Z' || cmd === 'z') { /* close */ }
+                else { i++; }
+              } catch (e) { break; }
+            }
+            return pts;
+          }
+          const svgs = [...document.querySelectorAll('svg')].filter(svg => {
+            const bb = svg.getBoundingClientRect();
+            return bb.width >= 320 && bb.height >= 120;
+          });
+          const charts = [];
+          for (const svg of svgs) {
+            const bb = svg.getBoundingClientRect();
+            const texts = [...svg.querySelectorAll('text')].map(t => (t.textContent || '').trim()).filter(Boolean);
+            const dateLabels = texts.filter(t => /^\d{1,2}\/\d{1,2}\/\d{2}$/.test(t));
+            const axisNums = texts.filter(t => /^[\d\.,]+\s*[KMB]?$/i.test(t) && !/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(t));
+            const series = {};
+            for (const path of svg.querySelectorAll('path')) {
+              const stroke = path.getAttribute('stroke') || '';
+              if (!stroke || stroke === 'none' || stroke === 'transparent') continue;
+              const st = statusFrom(stroke);
+              if (!st) continue;
+              const d = path.getAttribute('d') || '';
+              if (d.length < 40) continue;
+              const pts = parsePathPoints(d);
+              if (pts.length < 8) continue;
+              // Tercihen daha uzun seri
+              if (!series[st] || pts.length > series[st].length) series[st] = pts;
+            }
+            if (Object.keys(series).length) {
+              charts.push({
+                width: bb.width, height: bb.height,
+                dateLabels, axisNums, series
+              });
+            }
+          }
+          return charts;
+        }"""
+    )
+    charts: list[dict[str, Any]] = []
+    for ch in raw or []:
+        if not isinstance(ch, dict):
+            continue
+        date_labels = [str(x) for x in (ch.get("dateLabels") or [])]
+        iso_dates = [_mdy_to_iso(x) for x in date_labels]
+        iso_dates = [d for d in iso_dates if d]
+        y_max = _axis_max_from_labels([str(x) for x in (ch.get("axisNums") or [])])
+        if y_max <= 0:
+            y_max = 1.0
+        series_pts = ch.get("series") or {}
+        # Plot alanı: path x/y SVG user units — tipik baseline ~166, top ~0..20
+        all_xy: list[tuple[float, float]] = []
+        for pts in series_pts.values():
+            for p in pts or []:
+                if isinstance(p, (list, tuple)) and len(p) >= 2:
+                    all_xy.append((float(p[0]), float(p[1])))
+        if not all_xy:
+            continue
+        xs = [p[0] for p in all_xy]
+        ys = [p[1] for p in all_xy]
+        x_min, x_max = min(xs), max(xs)
+        y_bottom, y_top = max(ys), min(ys)  # SVG: büyük y = alt
+        if x_max <= x_min:
+            continue
+        # Tarih ekseni: ilk/son etiket arası lineer
+        if len(iso_dates) >= 2:
+            t0 = datetime.strptime(iso_dates[0], "%Y-%m-%d")
+            t1 = datetime.strptime(iso_dates[-1], "%Y-%m-%d")
+        else:
+            t0 = t1 = datetime.utcnow()
+
+        def x_to_date(x: float) -> str:
+            if t1 == t0:
+                return t0.strftime("%Y-%m-%d")
+            ratio = (x - x_min) / (x_max - x_min)
+            ratio = max(0.0, min(1.0, ratio))
+            dt = t0 + (t1 - t0) * ratio
+            return dt.strftime("%Y-%m-%d")
+
+        def y_to_val(y: float) -> float:
+            if y_bottom <= y_top:
+                return 0.0
+            ratio = (y_bottom - y) / (y_bottom - y_top)
+            ratio = max(0.0, min(1.2, ratio))
+            return round(max(0.0, ratio * y_max), 2)
+
+        # Ortak tarih ızgarası: en uzun serinin x noktaları
+        primary = max(series_pts.values(), key=lambda p: len(p or []))
+        dates = [x_to_date(float(p[0])) for p in primary if isinstance(p, (list, tuple)) and len(p) >= 2]
+
+        out_series: dict[str, list[float]] = {
+            "poor": [],
+            "needs_improvement": [],
+            "good": [],
+        }
+        for status in out_series:
+            pts = series_pts.get(status) or []
+            by_x = {
+                float(p[0]): y_to_val(float(p[1]))
+                for p in pts
+                if isinstance(p, (list, tuple)) and len(p) >= 2
+            }
+            if not by_x:
+                out_series[status] = [0.0] * len(dates)
+                continue
+            xs_sorted = sorted(by_x.keys())
+            vals: list[float] = []
+            for p in primary:
+                if not isinstance(p, (list, tuple)) or len(p) < 2:
+                    continue
+                x = float(p[0])
+                if x in by_x:
+                    vals.append(by_x[x])
+                    continue
+                # en yakın x
+                nearest = min(xs_sorted, key=lambda z: abs(z - x))
+                vals.append(by_x[nearest])
+            out_series[status] = vals
+
+        charts.append(
+            {
+                "dates": dates,
+                "poor": out_series["poor"],
+                "needs_improvement": out_series["needs_improvement"],
+                "good": out_series["good"],
+                "y_max": y_max,
+                "date_labels": date_labels,
+                "point_count": len(dates),
+            }
+        )
+
+    result: dict[str, Any] = {"mobile": None, "desktop": None, "source": "gsc_overview_svg"}
+    if len(charts) >= 1:
+        result["mobile"] = charts[0]
+    if len(charts) >= 2:
+        result["desktop"] = charts[1]
+    elif len(charts) == 1:
+        # tek grafik varsa mobil kabul
+        pass
+    return result
 
 
 def _wait_table(page, timeout_ms: int = 20000) -> None:
@@ -740,20 +985,63 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
     }
 
 
-def scrape_property(page, prop: dict[str, str]) -> dict[str, Any]:
+def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) -> dict[str, Any]:
     rid = prop["resource_id"]
     print(f"CWV scrape · {prop.get('label') or rid}", flush=True)
     page.goto(_cwv_url(rid), wait_until="domcontentloaded", timeout=120_000)
-    time.sleep(4)
+    time.sleep(5)
     if not _looks_signed_in(page):
         raise RuntimeError("GSC oturumu yok — scripts/gsc_cwv_scrape.py --login")
     meta = _extract_page_meta(page)
     body = page.inner_text("body")
     overview = _parse_overview_counts(body)
     last_upd = ""
-    m = re.search(r"Son güncelleme:\s*([0-9\./]+)", body, re.I)
+    m = re.search(r"(?:Son güncelleme|Last update):\s*([0-9\./]+)", body, re.I)
     if m:
         last_upd = m.group(1)
+
+    print("  · overview chart series…", flush=True)
+    chart_series: dict[str, Any] = {"mobile": None, "desktop": None}
+    try:
+        chart_series = _extract_overview_chart_series(page)
+        mob_n = int(((chart_series.get("mobile") or {}).get("point_count")) or 0)
+        desk_n = int(((chart_series.get("desktop") or {}).get("point_count")) or 0)
+        print(f"    charts mobile={mob_n} desktop={desk_n} pts", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  · chart series skip: {exc}", flush=True)
+        chart_series = {"mobile": None, "desktop": None, "error": str(exc)[:200]}
+
+    if charts_only:
+        # KPI’ları overview + chart son noktasından doldur
+        mobile_k = dict(overview.get("mobile") or {})
+        desktop_k = dict(overview.get("desktop") or {})
+        for key, bucket in (("mobile", mobile_k), ("desktop", desktop_k)):
+            ser = chart_series.get(key) or {}
+            if not isinstance(ser, dict):
+                continue
+            for metric in ("poor", "needs_improvement", "good"):
+                arr = ser.get(metric) or []
+                if arr and not bucket.get(metric):
+                    bucket[metric] = int(round(float(arr[-1] or 0)))
+        poor = int(mobile_k.get("poor") or 0) + int(desktop_k.get("poor") or 0)
+        ni = int(mobile_k.get("needs_improvement") or 0) + int(desktop_k.get("needs_improvement") or 0)
+        good = int(mobile_k.get("good") or 0) + int(desktop_k.get("good") or 0)
+        return {
+            "site_key": prop.get("site_key") or "",
+            "site_domain": prop.get("site_domain") or "",
+            "resource_id": rid,
+            "label": prop.get("label") or rid,
+            "scraped_at": datetime.now(timezone.utc).isoformat(),
+            "last_updated": last_upd,
+            "overview": overview,
+            "chart_series": chart_series,
+            "mobile": {"kpis": mobile_k, "last_updated": last_upd, "issues": [], "issue_drilldowns": [], "good_urls": []},
+            "desktop": {"kpis": desktop_k, "last_updated": last_upd, "issues": [], "issue_drilldowns": [], "good_urls": []},
+            "amp": {"issues": [], "url_row_count": 0, "skipped": True},
+            "totals": {"poor": poor, "needs_improvement": ni, "good": good},
+            "source": "gsc_cwv_scrape",
+            "charts_only": True,
+        }
 
     mobile = _scrape_device(page, resource_id=rid, device=DEVICE_MOBILE, label="Mobil")
     desktop = _scrape_device(page, resource_id=rid, device=DEVICE_DESKTOP, label="Masaüstü")
@@ -783,6 +1071,7 @@ def scrape_property(page, prop: dict[str, str]) -> dict[str, Any]:
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "last_updated": last_upd,
         "overview": overview,
+        "chart_series": chart_series,
         "mobile": mobile,
         "desktop": desktop,
         "amp": amp,
@@ -816,7 +1105,13 @@ def _post_ingest(payload: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError(f"HTTP {exc.code}: {err}") from exc
 
 
-def run_sync(*, site_filter: str = "", ingest: bool = True, headed: bool | None = None) -> dict[str, Any]:
+def run_sync(
+    *,
+    site_filter: str = "",
+    ingest: bool = True,
+    headed: bool | None = None,
+    charts_only: bool = False,
+) -> dict[str, Any]:
     if headed is None:
         env_h = (os.environ.get("GSC_CWV_HEADLESS") or os.environ.get("GSC_LINKS_HEADLESS") or "").strip().lower()
         # Google oturumu için varsayılan headed
@@ -834,12 +1129,13 @@ def run_sync(*, site_filter: str = "", ingest: bool = True, headed: bool | None 
         page = context.pages[0] if context.pages else context.new_page()
         for prop in props:
             try:
-                snap = scrape_property(page, prop)
+                snap = scrape_property(page, prop, charts_only=charts_only)
                 snapshots.append(snap)
                 print(
                     f"OK {prop['label']} · poor={snap['totals']['poor']} "
                     f"ni={snap['totals']['needs_improvement']} good={snap['totals']['good']} "
-                    f"amp_rows={snap['amp'].get('url_row_count')}",
+                    f"amp_rows={snap['amp'].get('url_row_count')}"
+                    + (" · charts_only" if charts_only else ""),
                     flush=True,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -901,6 +1197,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--site", default="", help="doviz | sinemalar")
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument(
+        "--charts-only",
+        action="store_true",
+        help="Sadece overview KPI + GSC trend grafikleri (hızlı)",
+    )
     args = parser.parse_args(argv)
     if args.login:
         out = run_login_interactive()
@@ -910,7 +1211,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 2
     headed = True if args.headed else (False if args.headless else None)
-    out = run_sync(site_filter=args.site, ingest=bool(args.ingest or args.sync), headed=headed)
+    out = run_sync(
+        site_filter=args.site,
+        ingest=bool(args.ingest or args.sync),
+        headed=headed,
+        charts_only=bool(args.charts_only),
+    )
     print(json.dumps({k: v for k, v in out.items() if k != "snapshots"}, ensure_ascii=False), flush=True)
     return 0 if out.get("ok") else 1
 

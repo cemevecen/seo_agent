@@ -231,6 +231,15 @@ def history_points(db: Session, site_id: int, *, limit: int = 60) -> list[dict[s
     rows = list(reversed(rows))
     out = []
     for r in rows:
+        mob: dict[str, Any] = {}
+        desk: dict[str, Any] = {}
+        if r.payload_json:
+            try:
+                payload = json.loads(r.payload_json)
+                mob = ((payload.get("mobile") or {}).get("kpis") or (payload.get("overview") or {}).get("mobile") or {})
+                desk = ((payload.get("desktop") or {}).get("kpis") or (payload.get("overview") or {}).get("desktop") or {})
+            except Exception:
+                mob, desk = {}, {}
         out.append(
             {
                 "collected_at": r.collected_at.isoformat() if r.collected_at else "",
@@ -238,6 +247,16 @@ def history_points(db: Session, site_id: int, *, limit: int = 60) -> list[dict[s
                 "needs_improvement": int(r.ni_count or 0),
                 "good": int(r.good_count or 0),
                 "amp_url_count": int(r.amp_url_count or 0),
+                "mobile": {
+                    "poor": int(mob.get("poor") or 0),
+                    "needs_improvement": int(mob.get("needs_improvement") or 0),
+                    "good": int(mob.get("good") or 0),
+                },
+                "desktop": {
+                    "poor": int(desk.get("poor") or 0),
+                    "needs_improvement": int(desk.get("needs_improvement") or 0),
+                    "good": int(desk.get("good") or 0),
+                },
             }
         )
     return out
@@ -306,6 +325,25 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
                 prev_payload = None
 
         snap = _dedupe_drilldowns(dict(snap))
+        # Hızlı charts-only: önceki drilldown/AMP verisini koru, sadece grafik+KPI güncelle
+        if snap.get("charts_only") and isinstance(prev_payload, dict):
+            merged = dict(prev_payload)
+            for k in ("overview", "chart_series", "totals", "last_updated", "scraped_at"):
+                if snap.get(k) is not None:
+                    merged[k] = snap.get(k)
+            for dev in ("mobile", "desktop"):
+                cur = snap.get(dev) if isinstance(snap.get(dev), dict) else {}
+                old = merged.get(dev) if isinstance(merged.get(dev), dict) else {}
+                merged[dev] = {
+                    **old,
+                    "kpis": (cur or {}).get("kpis") or old.get("kpis") or {},
+                    "last_updated": (cur or {}).get("last_updated") or old.get("last_updated") or "",
+                }
+            # AMP charts_only'de atlanır — eskiyi tut
+            if not (snap.get("amp") or {}).get("skipped"):
+                merged["amp"] = snap.get("amp")
+            snap = merged
+
         totals = snap.get("totals") or {}
         poor = int(totals.get("poor") or 0)
         ni = int(totals.get("needs_improvement") or 0)
