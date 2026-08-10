@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v14">
+<style id="home-site-borders" data-home-css="v15-type3">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -60,7 +60,7 @@
   }
   .home-period-wait-label {
     margin: 0;
-    font-size: 0.72rem;
+    font-size: var(--home-text, 0.8125rem);
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -393,27 +393,114 @@
   html.midnight .home-drive-container-badge .home-drive-badge-count {
     box-shadow: 0 0 0 1.5px rgb(24 24 27);
   }
-  .home-readable {
-    --home-title: clamp(1rem, 0.88rem + 0.55cqi, 1.1875rem);
-    --home-body: clamp(0.9375rem, 0.82rem + 0.55cqi, 1.0625rem);
-    --home-label: clamp(0.75rem, 0.66rem + 0.4cqi, 0.875rem);
-    --home-meta: clamp(0.8125rem, 0.72rem + 0.4cqi, 0.9375rem);
-    --home-kpi: clamp(1.25rem, 1.05rem + 1.1cqi, 1.65rem);
-    --home-link: clamp(0.875rem, 0.78rem + 0.4cqi, 1rem);
+  /* ── Home tipografi: yalnız 3 boyut ──
+     1) ana başlık  → h2 / h3 (container + proje)
+     2) alt başlık  → h4 / .home-label / .home-sub
+     3) metin+istatistik → geri kalan her şey
+  */
+  #home-board {
+    --home-title: 1.125rem;   /* ana başlık */
+    --home-sub: 0.875rem;     /* alt başlık */
+    --home-text: 0.8125rem;   /* iç istatistik + metin */
   }
-  .home-readable h3 {
+  .home-readable {
+    --home-title: 1.125rem;
+    --home-sub: 0.875rem;
+    --home-text: 0.8125rem;
+    /* eski sınıflar → 3 tipe alias */
+    --home-body: var(--home-text);
+    --home-meta: var(--home-text);
+    --home-kpi: var(--home-text);
+    --home-link: var(--home-text);
+    --home-label: var(--home-sub);
+    font-size: var(--home-text);
+    line-height: 1.35;
+  }
+  /* Varsayılan: tüm metin = tip 3 */
+  #home-board .home-readable :where(*),
+  #home-board .home-project-head :where(*) {
+    font-size: inherit !important;
+    line-height: inherit;
+  }
+  /* Tip 1 — ana başlık */
+  #home-board > .flex h2,
+  #home-board .home-project-head h2,
+  #home-board .home-readable :where(h2, h3) {
     font-size: var(--home-title) !important;
     font-weight: 650 !important;
     letter-spacing: -0.015em;
-    line-height: 1.3;
+    line-height: 1.3 !important;
   }
-  .home-readable a[hx-get],
-  .home-readable a[href].shrink-0,
-  .home-readable .home-card-link {
-    font-size: var(--home-link) !important;
+  #home-board > .flex a {
+    font-size: var(--home-text) !important;
+  }
+  #home-board .home-readable :where(h2, h3) :where(*) {
+    font-size: var(--home-text) !important;
+    font-weight: inherit;
+    letter-spacing: normal;
+    line-height: 1.35 !important;
+  }
+  /* Tip 2 — alt başlık */
+  #home-board .home-readable :where(h4, .home-label, .home-sub) {
+    font-size: var(--home-sub) !important;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.35 !important;
+  }
+  #home-board .home-readable :where(h4, .home-label, .home-sub) :where(*) {
+    font-size: var(--home-sub) !important;
+  }
+  #home-board .home-readable .home-label.home-label-plain,
+  #home-board .home-readable .home-label.normal-case {
+    text-transform: none;
+    letter-spacing: 0.01em;
+    font-weight: 650;
+  }
+  /* Tip 3 — sınıflar (eski isimler korunur, boyut tek) */
+  #home-board .home-readable :where(.home-body, .home-meta, .home-kpi, .home-card-link, a[hx-get], a.shrink-0) {
+    font-size: var(--home-text) !important;
+    line-height: 1.35 !important;
+  }
+  #home-board .home-readable .home-body {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  #home-board .home-readable .home-kpi {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.2 !important;
+  }
+  #home-board .home-readable .home-card-link,
+  #home-board .home-readable a[hx-get] {
+    font-weight: 500;
+  }
+  /* Eski Tailwind / rastgele boyut sınıflarını tip 3’e çek */
+  #home-board .home-readable [class*="text-["],
+  #home-board .home-readable .text-xs,
+  #home-board .home-readable .text-sm,
+  #home-board .home-readable .text-base,
+  #home-board .home-readable .text-lg,
+  #home-board .home-readable .text-xl,
+  #home-board .home-readable .sm\:text-xs,
+  #home-board .home-readable .sm\:text-sm,
+  #home-board .home-readable .sm\:text-xl {
+    font-size: inherit !important;
+  }
+  #home-board .home-readable :where(h2, h3).text-base,
+  #home-board .home-readable :where(h2, h3).text-lg,
+  #home-board .home-readable :where(h2, h3).text-xl,
+  #home-board .home-readable :where(h2, h3).text-sm {
+    font-size: var(--home-title) !important;
+  }
+  #home-board .home-readable :where(h4, .home-label, .home-sub).text-xs,
+  #home-board .home-readable :where(h4, .home-label, .home-sub).text-sm {
+    font-size: var(--home-sub) !important;
   }
   .home-readable .home-label {
-    font-size: var(--home-label);
+    font-size: var(--home-sub);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -426,22 +513,33 @@
     font-weight: 650;
   }
   .home-readable .home-body {
-    font-size: var(--home-body);
+    font-size: var(--home-text);
     font-weight: 600;
     line-height: 1.35;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
   .home-readable .home-meta {
-    font-size: var(--home-meta);
+    font-size: var(--home-text);
     line-height: 1.35;
   }
   .home-readable .home-kpi {
-    font-size: var(--home-kpi);
+    font-size: var(--home-text);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
-    line-height: 1.15;
+    line-height: 1.2;
+  }
+  .home-readable h3 {
+    font-size: var(--home-title) !important;
+    font-weight: 650 !important;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+  }
+  .home-readable a[hx-get],
+  .home-readable a[href].shrink-0,
+  .home-readable .home-card-link {
+    font-size: var(--home-text) !important;
   }
   /* Delta: belirgin mint / mercan — pastel değil, siyah-emerald de değil */
   .home-readable .home-delta {
@@ -825,7 +923,7 @@
     min-width: 1.6rem;
     text-align: center;
     font-variant-numeric: tabular-nums;
-    font-size: 0.875rem;
+    font-size: var(--home-text, 0.8125rem);
     font-weight: 800;
     color: #15803d;
   }
@@ -1352,7 +1450,7 @@
 
 <div class="mx-auto w-full min-w-0 max-w-[1600px]" id="home-board" data-home-focus="split">
   <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:px-6 sm:py-4">
-    <h2 class="min-w-0 shrink-0 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">Günün Özeti</h2>
+    <h2 class="min-w-0 shrink-0 font-semibold tracking-tight text-slate-900 dark:text-slate-100">Günün Özeti</h2>
     <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
       <button type="button" class="home-focus-split home-focus-split--bar lg:hidden" data-home-focus-set="split"
               title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
@@ -1364,9 +1462,9 @@
         </span>
       </button>
       <a href="/alerts" hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-         class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:px-4 sm:py-2 sm:text-xs">Uyarılar</a>
+         class="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white sm:px-4 sm:py-2">Uyarılar</a>
       <a href="/realtime" hx-get="/realtime" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition hover:border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 sm:px-4 sm:py-2 sm:text-xs">Realtime</a>
+         class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 transition hover:border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500 sm:px-4 sm:py-2">Realtime</a>
     </div>
   </div>
 
@@ -1461,7 +1559,7 @@
         <img class="home-project-logo home-project-logo--out" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
         <div class="home-project-head home-project-head--doviz flex items-center gap-2 rounded-2xl bg-blue-50/60 px-3 ring-1 ring-blue-200/70 dark:bg-blue-950/30 dark:ring-blue-900/50 sm:px-4">
           <div class="home-project-head-main min-w-0 flex-1">
-            <h2 class="truncate text-lg font-bold tracking-tight text-blue-900 dark:text-blue-200 sm:text-xl">doviz.com</h2>
+            <h2 class="truncate font-bold tracking-tight text-blue-900 dark:text-blue-200">doviz.com</h2>
           </div>
           <button type="button" class="home-focus-chev" data-home-focus-set="doviz" title="doviz.com genişlet" aria-label="doviz.com genişlet">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.25V3.5H7.25"/><path d="M12.75 3.5H16.5V7.25"/><path d="M16.5 12.75V16.5H12.75"/><path d="M7.25 16.5H3.5V12.75"/></svg>
@@ -1490,7 +1588,7 @@
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.25V3.5H7.25"/><path d="M12.75 3.5H16.5V7.25"/><path d="M16.5 12.75V16.5H12.75"/><path d="M7.25 16.5H3.5V12.75"/></svg>
           </button>
           <div class="home-project-head-main home-project-head-main--end min-w-0 flex-1">
-            <h2 class="truncate text-lg font-bold tracking-tight text-rose-900 dark:text-rose-200 sm:text-xl">sinemalar.com</h2>
+            <h2 class="truncate font-bold tracking-tight text-rose-900 dark:text-rose-200">sinemalar.com</h2>
           </div>
         </div>
         <img class="home-project-logo home-project-logo--out" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
@@ -1564,7 +1662,7 @@
       {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="wv-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/web-vitals?site=doviz&v=3" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=doviz&v=4" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
@@ -1572,7 +1670,7 @@
         </section>
         </div>
         <div data-home-container-slot="wv-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/web-vitals?site=sinemalar&v=3" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=sinemalar&v=4" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
