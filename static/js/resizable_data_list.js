@@ -1,6 +1,9 @@
 /**
  * Kapalı/açık tablo listeleri: max N satır yüksekliği, kısa dönemde küçülür,
  * alttan sürükleyerek büyütülebilir. Virgül / Android / iOS ortak.
+ *
+ * Sayfa sonunda (iOS gibi altta başka blok yokken) sürükleme: viewport
+ * kenarında otomatik büyüt + window scroll — handle ekran dışına kaçmaz.
  */
 (function (global) {
   "use strict";
@@ -38,6 +41,7 @@
       "html.dark .rdl-handle::after{background:rgba(161,161,170,.55);}" +
       ".rdl-handle:hover::after,.rdl-handle.is-dragging::after{background:rgba(14,165,233,.85);}" +
       ".rdl-shell.is-dragging{user-select:none;}" +
+      ".rdl-drag-room{flex:0 0 auto;width:100%;height:min(42vh,22rem);pointer-events:none;}" +
       "details.rdl-dropdown>summary{list-style:none;cursor:pointer;}" +
       "details.rdl-dropdown>summary::-webkit-details-marker{display:none;}" +
       "details.rdl-dropdown>summary .rdl-chevron{display:inline-block;transition:transform .15s ease;}" +
@@ -118,9 +122,31 @@
     scroll.style.maxHeight = h + "px";
   }
 
+  /** Sayfa sonunda sürüklemek için boşluk — handle viewport dibine yapışmasın. */
+  function ensureDragRoom(shell) {
+    if (!shell || !shell.parentNode) return;
+    var next = shell.nextElementSibling;
+    if (next && next.classList && next.classList.contains("rdl-drag-room")) return;
+    var room = document.createElement("div");
+    room.className = "rdl-drag-room";
+    room.setAttribute("aria-hidden", "true");
+    shell.parentNode.insertBefore(room, shell.nextSibling);
+  }
+
+  function keepHandleInView(handle) {
+    if (!handle) return;
+    var hr = handle.getBoundingClientRect();
+    var pad = 36;
+    var overflow = hr.bottom - (window.innerHeight - pad);
+    if (overflow > 0) {
+      window.scrollBy(0, Math.ceil(overflow));
+    }
+  }
+
   function fit(shell, rowCount, overrides) {
     if (!shell) return;
     injectStyles();
+    ensureDragRoom(shell);
     var opts = optsOf(shell, overrides);
     var auto = autoHeight(shell, rowCount, opts);
     shell._rdlAutoH = auto;
@@ -136,6 +162,7 @@
   function bind(shell, overrides) {
     if (!shell || shell._rdlBound) return shell;
     injectStyles();
+    ensureDragRoom(shell);
     var opts = optsOf(shell, overrides);
     shell._rdlBound = true;
     shell.classList.add("rdl-shell");
@@ -158,20 +185,56 @@
     var dragging = false;
     var startY = 0;
     var startH = 0;
+    var edgeExtra = 0;
+    var lastClientY = 0;
+    var edgeRaf = 0;
 
-    function onMove(clientY) {
-      if (!dragging) return;
+    function applyFromPointer(clientY) {
       var optsNow = optsOf(shell, overrides);
       var dy = clientY - startY;
       var ceiling = dragCeiling(shell, optsNow);
-      var next = Math.max(optsNow.minH, Math.min(ceiling, startH + dy));
+      var next = Math.max(optsNow.minH, Math.min(ceiling, startH + dy + edgeExtra));
       applyScrollHeight(shell, next);
       writeManual(shell, optsNow, next);
+      keepHandleInView(handle);
+    }
+
+    function edgeTick() {
+      edgeRaf = 0;
+      if (!dragging) return;
+      var edge = 72;
+      var room = window.innerHeight - lastClientY;
+      if (room < edge) {
+        var step = Math.max(8, Math.round((edge - room) * 0.9));
+        var optsNow = optsOf(shell, overrides);
+        var ceiling = dragCeiling(shell, optsNow);
+        var scrollEl = shell.querySelector(".rdl-scroll");
+        var cur = scrollEl ? scrollEl.getBoundingClientRect().height : startH;
+        if (cur + step <= ceiling || cur < ceiling) {
+          edgeExtra += step;
+          applyFromPointer(lastClientY);
+          window.scrollBy(0, step);
+        }
+      } else {
+        keepHandleInView(handle);
+      }
+      edgeRaf = requestAnimationFrame(edgeTick);
+    }
+
+    function onMove(clientY) {
+      if (!dragging) return;
+      lastClientY = clientY;
+      applyFromPointer(clientY);
     }
 
     function onUp() {
       if (!dragging) return;
       dragging = false;
+      edgeExtra = 0;
+      if (edgeRaf) {
+        cancelAnimationFrame(edgeRaf);
+        edgeRaf = 0;
+      }
       shell.classList.remove("is-dragging");
       handle.classList.remove("is-dragging");
       document.removeEventListener("pointermove", onPointerMove);
@@ -189,7 +252,9 @@
       var scrollEl = shell.querySelector(".rdl-scroll");
       if (!scrollEl) return;
       dragging = true;
+      edgeExtra = 0;
       startY = ev.clientY;
+      lastClientY = ev.clientY;
       startH = scrollEl.getBoundingClientRect().height || shell._rdlAutoH || DEFAULTS.minH;
       shell.classList.add("is-dragging");
       handle.classList.add("is-dragging");
@@ -199,6 +264,8 @@
       document.addEventListener("pointermove", onPointerMove, { passive: false });
       document.addEventListener("pointerup", onUp);
       document.addEventListener("pointercancel", onUp);
+      if (edgeRaf) cancelAnimationFrame(edgeRaf);
+      edgeRaf = requestAnimationFrame(edgeTick);
       ev.preventDefault();
     });
 
