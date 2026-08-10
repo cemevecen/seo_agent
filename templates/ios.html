@@ -413,15 +413,11 @@
     width: 100%;
     align-items: center;
     justify-content: center;
-    gap: 0.3rem;
     margin-top: 0.45rem;
-    padding-top: 0.35rem;
+    padding: 0.28rem 0 0.1rem;
     border-top: 1px solid rgba(148, 163, 184, 0.28);
     background: transparent;
     color: #64748b;
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
     cursor: pointer;
   }
   .metric-kpi-ss2-expand:hover { color: #0f172a; }
@@ -1916,9 +1912,8 @@
             "</div>" +
             '<div class="metric-kpi-ss2-spark">' + spark + "</div>" +
           "</div>" +
-          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand>' +
-            '<span>Click to expand</span>' +
-            '<svg class="metric-kpi-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand aria-expanded="false" aria-label="Detayları aç">' +
+            '<svg class="metric-kpi-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
           "</button>" +
           '<div class="metric-kpi-ss2-panel">' +
             '<div><p class="metric-kpi-kicker">Toplam</p><strong>' + esc(totalVal) + "</strong></div>" +
@@ -3280,8 +3275,8 @@
       if (!card || !iaMetricKpis.contains(card)) return;
       // Yalnızca tıklanan kart — kardeşler etkilenmez
       var open = card.classList.toggle("is-open");
-      var label = expand.querySelector("span");
-      if (label) label.textContent = open ? "Click to collapse" : "Click to expand";
+      expand.setAttribute("aria-expanded", open ? "true" : "false");
+      expand.setAttribute("aria-label", open ? "Detayları kapat" : "Detayları aç");
     });
   }
   document.addEventListener("mousedown", function (ev) {
