@@ -24,7 +24,7 @@
 </style>
 
 <div class="home-readable home-wv" data-home-wv-site="{{ block.site_key if block else '' }}">
-  <details class="home-wv-drop group">
+  <details class="home-wv-drop group" open>
     <summary class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl px-0.5 py-0.5">
       <div class="flex min-w-0 items-center gap-2">
         <span class="home-wv-chevron text-sm leading-none" aria-hidden="true">▸</span>
@@ -207,7 +207,7 @@
           drop.addEventListener('toggle', function() {
             if (drop.open) paint();
           });
-          // Kapalı başlar — grafik ilk açılışta çizilir
+          if (drop.open) paint();
         } else {
           paint();
         }
