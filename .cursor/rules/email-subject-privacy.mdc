@@ -16,9 +16,9 @@ Toplantıda ekran yansıtılırken gelen kutusu ve panel toast’ları görünü
 
 ## Panel (on-screen)
 
-- Bağlantı toast’ında isim/e-posta **yok** → sabit: «Bir ekip üyesi panele bağlandı.»
+- Bağlantı toast’ında isim/e-posta **yok**. Toplantı modunda toast **yalnızca simge** (metin/Kapat yok); normal modda «Bir ekip üyesi panele bağlandı.»
 - Header **Toplantı modu** (`#header-meeting-mode`, `localStorage seo-meeting-mode`): açıkken çevrimiçi listesinde de kimlik gizlenir.
-- Zoom/Meet ekran paylaşımını tarayıcı **güvenilir algılayamaz**; otomatik algıya güvenme — toplantı modu veya anonim toast kullan.
+- Zoom/Meet ekran paylaşımını tarayıcı **güvenilir algılayamaz**; otomatik algıya güvenme — toplantı modu kullan.
 
 ## Yapma
 

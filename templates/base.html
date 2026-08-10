@@ -1790,6 +1790,18 @@
       transform: translateX(-50%) translateY(0);
       pointer-events: auto;
     }
+    #header-online-toast-icon {
+      display: none;
+      flex-shrink: 0;
+      width: 1.15rem;
+      height: 1.15rem;
+      color: inherit;
+    }
+    #header-online-toast-icon svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
     #header-online-toast-msg {
       flex: 1;
       min-width: 0;
@@ -1809,6 +1821,31 @@
     html.dark #header-online-toast-close {
       background: rgb(52 211 153);
       color: rgb(6 78 59);
+    }
+    /* Toplantı modu: metin yok — sadece küçük yeşil simge */
+    #header-online-toast.is-icon-only {
+      left: auto;
+      right: 1rem;
+      bottom: auto;
+      top: 4.25rem;
+      transform: translateY(-6px);
+      max-width: none;
+      padding: 0.45rem;
+      border-radius: 9999px;
+      gap: 0;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgb(15 23 42 / 0.12);
+    }
+    #header-online-toast.is-icon-only.is-visible {
+      transform: translateY(0);
+    }
+    #header-online-toast.is-icon-only #header-online-toast-icon {
+      display: block;
+    }
+    #header-online-toast.is-icon-only #header-online-toast-msg,
+    #header-online-toast.is-icon-only #header-online-toast-close {
+      display: none;
     }
     #header-meeting-mode {
       display: inline-flex;
@@ -2200,7 +2237,15 @@
     aria-live="polite"
   >Yenilemek için bırakın</div>
   {% if online_presence_visible(request) %}
-  <div id="header-online-toast" role="dialog" aria-live="polite" aria-modal="false" hidden>
+  <div id="header-online-toast" role="status" aria-live="polite" aria-modal="false" hidden>
+    <span id="header-online-toast-icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    </span>
     <div id="header-online-toast-msg"></div>
     <button type="button" id="header-online-toast-close">Kapat</button>
   </div>
@@ -3183,12 +3228,27 @@
         var el = document.getElementById("header-online-toast");
         var msg = document.getElementById("header-online-toast-msg");
         if (!el || !msg) return;
-        /* Toast ekranda görünür — isim/e-posta yok (toplantı / ekran paylaşımı). */
-        msg.textContent = "Bir ekip üyesi panele bağlandı.";
+        var privacy = isMeetingMode();
+        if (privacy) {
+          /* Toplantı: metin yok — sadece simge (ekran paylaşımı). */
+          el.classList.add("is-icon-only");
+          msg.textContent = "";
+          el.setAttribute("aria-label", "Bildirim");
+          el.title = "";
+        } else {
+          el.classList.remove("is-icon-only");
+          msg.textContent = "Bir ekip üyesi panele bağlandı.";
+          el.removeAttribute("aria-label");
+          el.removeAttribute("title");
+        }
         el.removeAttribute("hidden");
         el.classList.add("is-visible");
         if (_onlineToastTimer) clearTimeout(_onlineToastTimer);
-        _onlineToastTimer = null;
+        if (privacy) {
+          _onlineToastTimer = setTimeout(hideOnlinePresenceToast, 2800);
+        } else {
+          _onlineToastTimer = null;
+        }
       }
       function noteOnlinePresenceArrivals(visitors) {
         var others = visitors || [];
