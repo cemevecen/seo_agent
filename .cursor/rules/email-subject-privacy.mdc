@@ -1,0 +1,24 @@
+---
+description: Güvenlik/giriş e-posta konularında kişisel kimlik yok (ekran paylaşımı)
+alwaysApply: true
+---
+
+# E-posta konusu — mahremiyet (panel giriş / güvenlik)
+
+Toplantıda ekran yansıtılırken gelen kutusu görünür; **konu satırında** kullanıcı e-postası, ad-soyad veya benzeri kişisel kimlik **olmaz**.
+
+## Uygula
+
+- Panel giriş / kayıt / başarısız giriş / gezinti özeti / admin erişim uyarıları (`admin_access_log`, `send_admin_security_email` ve benzeri).
+- Konu: olay tipi + tarayıcı/cihaz + IP (ör. `panel girişi - 'Chrome' - '176.x.x.x'`).
+- Kimlik (e-posta, ad) **yalnızca gövdede** kalır.
+
+## Yapma
+
+- `panel girişi - 'kisi@email.com' - '…'` gibi konu satırları.
+- Yeni güvenlik/üyelik bildirimi eklerken konuya e-posta veya isim koyma.
+
+## Kod
+
+- Ana yer: `backend/services/admin_access_log.py` (`_deliver_unknown_login_alert` subject).
+- Testler konu satırında e-posta olmadığını doğrular (`backend/tests/test_admin_access_log.py`).

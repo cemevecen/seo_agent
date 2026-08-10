@@ -94,8 +94,9 @@ def test_member_login_alert_includes_email():
     assert ok is True
     subject = mock_send.call_args[0][0]
     body = mock_send.call_args[0][1]
-    assert subject == "panel girişi - 'user@nokta.com' - '78.187.20.15'"
+    assert subject == "panel girişi - 'Chrome' - '78.187.20.15'"
     assert "user@nokta.com" in body
+    assert "user@nokta.com" not in subject
     assert "78.187.20.15" in body
 
 
@@ -137,7 +138,9 @@ def test_member_login_fail_alert_subject():
                             actor_email="outsider@gmail.com",
                         )
     assert ok is True
-    assert mock_send.call_args[0][0] == "panel girişi başarısız - 'outsider@gmail.com' - '78.187.20.15'"
+    assert mock_send.call_args[0][0] == "panel girişi başarısız - 'Chrome' - '78.187.20.15'"
+    assert "outsider@gmail.com" in mock_send.call_args[0][1]
+    assert "outsider@gmail.com" not in mock_send.call_args[0][0]
 
 
 def test_member_login_record_triggers_alert():
@@ -201,7 +204,9 @@ def test_nav_followup_alert_subject():
     assert ok is True
     subject = mock_send.call_args[0][0]
     body = mock_send.call_args[0][1]
-    assert subject == "panel gezinti - 'user@nokta.com' - '78.187.20.15'"
+    assert subject == "panel gezinti - 'Chrome' - '78.187.20.15'"
+    assert "user@nokta.com" in body
+    assert "user@nokta.com" not in subject
     assert "Menü gezintisi özeti" in body
     assert "GA4" in body
     assert "User-Agent" not in body
@@ -228,7 +233,7 @@ def test_unknown_login_alert_subject_format():
     mock_send.assert_called_once()
     subject = mock_send.call_args[0][0]
     body = mock_send.call_args[0][1]
-    assert subject == "admin girişi - 'Firefox' - '78.187.20.15'"
+    assert subject == "panel girişi - 'Firefox' - '78.187.20.15'"
     assert "Menü / sayfa gezintisi" in body
     assert "Home" in body
 

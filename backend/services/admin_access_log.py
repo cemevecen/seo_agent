@@ -569,25 +569,18 @@ def _deliver_unknown_login_alert(
         )
         browser = parse_browser_short(user_agent)
         ip_disp = (ip or "?").strip() or "?"
+        # Konu satırında e-posta / isim YOK (ekran paylaşımında mahremiyet).
+        # Kimlik bilgisi yalnızca gövdede (actor_line).
         if is_nav_followup:
-            if em:
-                subject = f"panel gezinti - '{em}' - '{ip_disp}'"
-            else:
-                subject = f"panel gezinti - '{browser}' - '{ip_disp}'"
+            subject = f"panel gezinti - '{browser}' - '{ip_disp}'"
         elif event_type == "member_login_fail":
-            if em:
-                subject = f"panel girişi başarısız - '{em}' - '{ip_disp}'"
-            else:
-                subject = f"panel girişi başarısız - '{browser}' - '{ip_disp}'"
+            subject = f"panel girişi başarısız - '{browser}' - '{ip_disp}'"
         elif event_type == "member_register_ok":
-            if em:
-                subject = f"panel kayıt - '{em}' - '{ip_disp}'"
-            else:
-                subject = f"panel kayıt - '{browser}' - '{ip_disp}'"
-        elif event_type in ("member_login_ok", "login_ok", "settings_ok") and em:
-            subject = f"panel girişi - '{em}' - '{ip_disp}'"
+            subject = f"panel kayıt - '{browser}' - '{ip_disp}'"
+        elif event_type in ("member_login_ok", "login_ok", "settings_ok"):
+            subject = f"panel girişi - '{browser}' - '{ip_disp}'"
         elif em:
-            subject = f"panel girişi - '{em}' - '{ip_disp}'"
+            subject = f"panel girişi - '{browser}' - '{ip_disp}'"
         else:
             subject = f"admin girişi - '{browser}' - '{ip_disp}'"
         return send_admin_security_email(subject, body, recipients)
