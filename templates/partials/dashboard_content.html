@@ -519,16 +519,22 @@
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  .home-readable .home-meta {
-    font-size: var(--home-text);
-    line-height: 1.35;
-  }
   .home-readable .home-kpi {
     font-size: var(--home-text);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
     line-height: 1.2;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  .home-readable .home-meta {
+    font-size: var(--home-text);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
   }
   .home-readable h3 {
     font-size: var(--home-title) !important;
@@ -540,6 +546,14 @@
   .home-readable a[href].shrink-0,
   .home-readable .home-card-link {
     font-size: var(--home-text) !important;
+  }
+  /* Taşmayı önle — dar kartlarda uzun sayılar */
+  #home-board .home-readable {
+    overflow-x: clip;
+  }
+  #home-board section.home-readable,
+  #home-board .home-readable.home-readable {
+    min-width: 0;
   }
   /* Delta: belirgin mint / mercan — pastel değil, siyah-emerald de değil */
   .home-readable .home-delta {

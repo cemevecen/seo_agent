@@ -126,8 +126,9 @@
   html.midnight .home-sc-metric-kicker { color: #71717a; }
   .home-sc-cell-body {
     display: flex;
+    flex-direction: column;
     align-items: stretch;
-    gap: 0.4rem;
+    gap: 0.45rem;
     flex: 1 1 auto;
     min-width: 0;
   }
@@ -137,14 +138,17 @@
   }
   .home-sc-top50 {
     flex: 0 0 auto;
-    align-self: center;
-    max-width: 5.75rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     border-radius: 0.5rem;
-    padding: 0.3rem 0.4rem;
+    padding: 0.35rem 0.5rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(241 245 249);
-    text-align: right;
-    line-height: 1.2;
+    text-align: left;
+    line-height: 1.25;
+    overflow: hidden;
   }
   html.dark .home-sc-top50 {
     border-color: rgb(71 85 105 / 0.85);
@@ -156,7 +160,6 @@
   }
   .home-sc-top50-label {
     margin: 0;
-    font-size: 0.55rem;
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -168,15 +171,23 @@
   }
   .home-sc-top50-vals {
     margin: 0.15rem 0 0;
-    font-size: 0.62rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: rgb(71 85 105);
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   html.dark .home-sc-top50-vals,
   html.midnight .home-sc-top50-vals {
     color: rgb(203 213 225);
+  }
+  .home-sc-spark-cell .home-meta,
+  .home-sc-spark-cell .home-kpi {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 </style>
 
@@ -208,7 +219,7 @@
         <div class="home-sc-device-head">
           <div class="home-sc-device-head-left">
             <span class="home-sc-device-dot" aria-hidden="true"></span>
-            <p class="home-sc-device-title">{{ want }}</p>
+            <p class="home-label home-sc-device-title">{{ want }}</p>
           </div>
           {{ home_detail_kpis_trigger(_kpi_id, aria_label=want ~ ' KPI detay') }}
         </div>
@@ -216,7 +227,7 @@
           <div class="home-sc-spark-cell">
             <div class="home-sc-cell-body">
               <div class="home-sc-cell-main">
-                <p class="home-sc-metric-kicker">Clicks</p>
+                <p class="home-label home-sc-metric-kicker">Clicks</p>
                 {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
                   <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
                     <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
@@ -229,8 +240,8 @@
               </div>
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki {{ period_days | default(7) }}g)">
-                <p class="home-sc-top50-label">top 50</p>
-                <p class="home-sc-top50-vals">{{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}</p>
+                <p class="home-label home-sc-top50-label">top 50</p>
+                <p class="home-meta home-sc-top50-vals">{{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}</p>
               </div>
               {% endif %}
             </div>
@@ -238,7 +249,7 @@
           <div class="home-sc-spark-cell">
             <div class="home-sc-cell-body">
               <div class="home-sc-cell-main">
-                <p class="home-sc-metric-kicker">Position</p>
+                <p class="home-label home-sc-metric-kicker">Position</p>
                 {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
                   <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
                     <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
@@ -251,8 +262,8 @@
               </div>
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">
-                <p class="home-sc-top50-label">top 50</p>
-                <p class="home-sc-top50-vals">{{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}</p>
+                <p class="home-label home-sc-top50-label">top 50</p>
+                <p class="home-meta home-sc-top50-vals">{{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}</p>
               </div>
               {% endif %}
             </div>
