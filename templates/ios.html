@@ -1268,6 +1268,10 @@
     }
     runIaChartMotion(function () {
       if (iaLastDrawBundles && iaLastDrawBundles.length) drawMulti(iaLastDrawBundles);
+      var kpiPacks = (iaLastDrawBundles || []).filter(function (b) {
+        return b && b.metric && !isIaMetricHidden(b.metric);
+      });
+      if (kpiPacks.length) renderIaMetricKpis(kpiPacks);
     });
   }
   function isGa4Metric(key) { return String(key || "").indexOf("ga4:") === 0; }
@@ -1628,7 +1632,7 @@
     iaMetricKpis.classList.remove("hidden");
     applyIaMetricKpiLayout(iaMetricKpis, list.length);
     iaMetricKpis.innerHTML = list.map(function (pack, idx) {
-      var color = colorAt(idx);
+      var color = colorForIaBundle(iaLastDrawBundles || list, pack.metric) || colorAt(idx);
       var st = seriesStats(pack.series);
       var avg = packAverage(pack);
       var countLike = isCountLike(pack.metric);
@@ -2849,7 +2853,10 @@
         series: primary.series || []
       } : null;
 
-      renderIaMetricKpis(packs);
+      var kpiPacks = packs.filter(function (b) {
+        return b && b.metric && !isIaMetricHidden(b.metric);
+      });
+      renderIaMetricKpis(kpiPacks.length ? kpiPacks : packs);
       if (iaCompareRange) {
         iaCompareRange.textContent = packs.length === 1 ? (primary && primary.message || "") : "";
       }

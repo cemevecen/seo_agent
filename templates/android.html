@@ -2606,6 +2606,10 @@
     };
     drawOverviewMainChart(chartBundles);
     renderOverviewTable(visible);
+    // Legend gizle/göster → KPI kartları da aynı görünür sete insin/çıksın
+    if (paSelectedMetrics.length >= 2) {
+      renderPaMetricKpis(visible);
+    }
   }
   function removeOverviewColumn(metric) {
     if (!metric) return;
@@ -5213,7 +5217,7 @@
         // fetchOneOverlaySeries hafta/ay'ı zaten uyguladı; çizimde tekrar agregasyon yok
         var multiVisible = visibleOverviewBundles(packs);
         var multiChart = multiVisible.filter(function (b) { return b.onChart; });
-        renderPaMetricKpis(packs);
+        renderPaMetricKpis(multiVisible);
         if (paCompareRange) {
           paCompareRange.textContent = softNotes.length
             ? (softNotes.slice(0, 2).join(" · ") + (softNotes.length > 2 ? (" · +" + (softNotes.length - 2)) : ""))
