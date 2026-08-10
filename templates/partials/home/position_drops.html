@@ -1,6 +1,6 @@
 {% set block = sites[0] if sites and sites[0] else none %}
 {% set hide_nav_link = hide_nav_link | default(false) %}
-{% from "partials/home/_brand_icon.html" import brand_icon %}
+{% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 {% set _real_drops = (block.drops | rejectattr('is_pad') | list) if block and block.drops else [] %}
 {% set _real_rises = (block.rises | rejectattr('is_pad') | list) if block and block.rises else [] %}
 {% set _top20_drops = (block.top20_drops | rejectattr('is_pad') | list) if block and block.top20_drops else [] %}
@@ -225,7 +225,7 @@
     <div class="min-w-0">
       <div class="flex items-center gap-2">
         {{ brand_icon(block.site_key if block and block.site_key else ('doviz' if block and block.site_id == 1 else 'sinemalar')) }}
-        <h3 class="font-semibold text-slate-900 dark:text-slate-100">position</h3>
+        {{ container_chip('position') }}
       </div>
       {% if block and block.as_of_label %}
         <p class="mt-1 home-pos-asof home-meta tabular-nums text-slate-600 dark:text-slate-300">{{ block.as_of_label }}</p>

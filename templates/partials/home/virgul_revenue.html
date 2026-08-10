@@ -1,5 +1,5 @@
 {# Home — Virgül reklam: 6 alan · son hafta vs 3 ay günlük ort. gelir #}
-{% from "partials/home/_brand_icon.html" import brand_icon %}
+{% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 <style>
   .home-vg-rev {
     width: 100%;
@@ -103,7 +103,7 @@
 <div class="home-vg-rev home-readable">
   <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
     <div class="min-w-0">
-      <h3 class="font-semibold text-slate-900 dark:text-slate-100">virgül</h3>
+      {{ container_chip('virgül') }}
       <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">
         Son hafta (bugün hariç) vs son 3 ay — Virgül
         {% if week_start and week_end %}

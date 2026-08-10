@@ -1,7 +1,7 @@
 {# Mini spark — cihaz bantları (Web / Mobil Web); clicks + position yan yana #}
 {% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
 {% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
-{% from "partials/home/_brand_icon.html" import brand_icon %}
+{% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 {{ home_top_pages_styles() }}
 {{ home_detail_kpis_styles() }}
 <style>
@@ -223,7 +223,7 @@
   <div class="flex min-w-0 flex-wrap items-center gap-2">
     {{ brand_icon(site_key | default('doviz')) }}
     <span class="home-motion-ga4-wave" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
-    <h3 class="font-semibold text-slate-900 dark:text-slate-100">search console</h3>
+    {{ container_chip('search console') }}
     <div class="home-period-chips inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Dönem">
       {% for dv, dl in [(7,'7g'),(60,'60g'),(90,'90g')] %}
         <button type="button" data-home-period="{{ dv }}"

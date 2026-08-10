@@ -1,9 +1,9 @@
-{% from "partials/home/_brand_icon.html" import brand_icon %}
+{% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 <div class="home-readable flex flex-wrap items-center justify-between gap-3">
   <div class="min-w-0">
     <div class="flex flex-wrap items-center gap-2">
       {{ brand_icon('doviz') }}
-      <h3 class="font-semibold text-slate-900 dark:text-slate-100">store & firebase</h3>
+      {{ container_chip('store & firebase') }}
     </div>
     <p class="home-meta mt-0.5 text-slate-500 dark:text-slate-400">App Store · Play Store sürüm ve puan özeti</p>
   </div>

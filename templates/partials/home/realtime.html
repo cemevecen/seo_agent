@@ -1,8 +1,8 @@
-{% from "partials/home/_brand_icon.html" import brand_icon %}
+{% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 <div class="home-readable flex flex-wrap items-center justify-between gap-3">
   <div class="flex items-center gap-2">
     <span class="home-rt-live-dot" aria-hidden="true"></span>
-    <h3 class="font-semibold text-slate-900 dark:text-slate-100">active users</h3>
+    {{ container_chip('active users') }}
   </div>
   <div class="flex flex-wrap items-center justify-end gap-2">
     {% if sites %}

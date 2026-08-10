@@ -1,5 +1,6 @@
+{% from "partials/home/_brand_icon.html" import container_chip %}
 <div class="home-readable flex items-center justify-between gap-3">
-  <h3 class="font-semibold text-slate-900 dark:text-slate-100">SEO · Kritik Hatalar</h3>
+  {{ container_chip('SEO · Kritik Hatalar') }}
   <a href="/seo-audit" hx-get="/seo-audit" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
      class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
 </div>

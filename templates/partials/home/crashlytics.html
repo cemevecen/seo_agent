@@ -1,7 +1,7 @@
 {% set store = store | default({}) %}
 {% set store_ios = store.ios if store else none %}
 {% set store_android = store.android if store else none %}
-{% from "partials/home/_brand_icon.html" import brand_icon %}
+{% from "partials/home/_brand_icon.html" import brand_icon, container_chip %}
 <style>
   .home-crash-shell {
     width: 100%;
@@ -453,7 +453,7 @@
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         {{ brand_icon(_pid) }}
         <span class="home-motion-crash-pulse" aria-hidden="true"></span>
-        <h3 class="font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
+        {{ container_chip('store & firebase') }}
         <span class="home-meta font-medium text-slate-500 dark:text-slate-400">· /android · /ios</span>
       </div>
     </div>

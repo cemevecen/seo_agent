@@ -1,4 +1,32 @@
-<style id="home-site-borders" data-home-css="v49-vg-plat">
+<style id="home-site-borders" data-home-css="v50-title-chips">
+  /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
+  .home-container-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    background: #f1f5f9;
+    padding: 0.25rem 0.625rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #475569;
+    line-height: 1.25;
+    box-shadow: inset 0 0 0 1px #e2e8f0;
+    white-space: nowrap;
+  }
+  html.dark .home-container-chip,
+  html.midnight .home-container-chip {
+    background: #27272a;
+    color: #d4d4d8;
+    box-shadow: inset 0 0 0 1px #3f3f46;
+  }
+  #home-board .home-readable .home-container-chip {
+    font-size: var(--home-sub) !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    line-height: 1.25 !important;
+  }
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -1913,7 +1941,7 @@
            class="home-readable mt-5 rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
     <div class="flex items-center gap-2">
       <span class="home-rt-live-dot" aria-hidden="true"></span>
-      <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">active users</h3>
+      <span class="home-container-chip">active users</span>
     </div>
     {{ _placeholder_short | safe }}
   </section>
@@ -2041,7 +2069,7 @@
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
             <img class="home-brand-icon" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
+            <span class="home-container-chip">ga4</span>
           </div>
           {{ _placeholder_mid | safe }}
         </section>
@@ -2052,7 +2080,7 @@
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
             <img class="home-brand-icon" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
+            <span class="home-container-chip">ga4</span>
           </div>
           {{ _placeholder_mid | safe }}
         </section>
@@ -2067,7 +2095,7 @@
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
             <img class="home-brand-icon" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
+            <span class="home-container-chip">search console</span>
           </div>
           {{ _placeholder_mid | safe }}
         </section>
@@ -2078,7 +2106,7 @@
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
             <img class="home-brand-icon" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
+            <span class="home-container-chip">search console</span>
           </div>
           {{ _placeholder_mid | safe }}
         </section>
@@ -2111,7 +2139,7 @@
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
             <img class="home-brand-icon" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+            <span class="home-container-chip">Web Vitals</span>
           </div>
           {{ _placeholder_tall | safe }}
         </section>
@@ -2122,7 +2150,7 @@
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
             <img class="home-brand-icon" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+            <span class="home-container-chip">Web Vitals</span>
           </div>
           {{ _placeholder_tall | safe }}
         </section>
@@ -2136,7 +2164,7 @@
              data-home-container="notification-week"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
-      <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Notification · 7g vs önceki 7g</h3>
+      <span class="home-container-chip">Notification</span>
       {{ _placeholder_tall | safe }}
     </section>
     </div>
@@ -2147,7 +2175,7 @@
              data-home-container="crashlytics"
              data-home-app-product="doviz"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
+      <span class="home-container-chip">store &amp; firebase</span>
       {{ _placeholder_mid | safe }}
     </section>
     </div>
@@ -2158,7 +2186,7 @@
              data-home-container="priority-board"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
-      <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">git.nokta</h3>
+      <span class="home-container-chip">git.nokta</span>
       {{ _placeholder_tall | safe }}
     </section>
     </div>
@@ -2169,7 +2197,7 @@
              data-home-container="virgul-revenue"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
-      <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">virgül</h3>
+      <span class="home-container-chip">virgül</span>
       {{ _placeholder_mid | safe }}
     </section>
     </div>
@@ -2178,7 +2206,7 @@
              data-home-container="drive-uploads"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
-      <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Drive · upload</h3>
+      <span class="home-container-chip">Drive · upload</span>
       {{ _placeholder_mid | safe }}
     </section>
   </div>
