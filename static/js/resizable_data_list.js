@@ -70,9 +70,9 @@
     return Math.max(opts.minH, Math.ceil(table.getBoundingClientRect().height) + opts.pad);
   }
 
-  /** Sürükleme tavanı: yapılandırılan maxH veya tablonun tam yüksekliği (hangisi büyükse). */
+  /** Sürükleme tavanı: tablonun gerçek yüksekliği — boş beyaz alan bırakılmaz. */
   function dragCeiling(shell, opts) {
-    return Math.max(opts.maxH, contentHeight(shell, opts));
+    return Math.max(opts.minH, contentHeight(shell, opts));
   }
 
   function autoHeight(shell, rowCount, opts) {
@@ -84,7 +84,9 @@
     // 1–2 hafta gibi kısa dilim: içeriğe göre küçül; uzun dilim: max 20 satır viewport
     var h = n <= opts.maxRows
       ? Math.min(byContent || byRows, byRows + 12)
-      : opts.headH + opts.maxRows * opts.rowH + opts.pad;
+      : Math.min(byContent, opts.headH + opts.maxRows * opts.rowH + opts.pad);
+    // Asla tablo içeriğinden uzun olma (container esnek kalsın)
+    h = Math.min(h, byContent);
     return Math.max(opts.minH, Math.min(opts.maxH, Math.round(h)));
   }
 
@@ -148,14 +150,22 @@
     injectStyles();
     ensureDragRoom(shell);
     var opts = optsOf(shell, overrides);
+    var content = contentHeight(shell, opts);
     var auto = autoHeight(shell, rowCount, opts);
     shell._rdlAutoH = auto;
     shell._rdlRowCount = rowCount;
     var manual = readManual(shell, opts);
-    var ceiling = dragCeiling(shell, opts);
-    // Manuel yükseklik yalnızca auto'dan büyükse (kullanıcı genişletti); dar dönemde küçülmeye izin ver
+    var ceiling = Math.max(opts.minH, content);
+    // Manuel yalnızca auto'dan büyükse (kullanıcı genişletti); içerikten taşmasın
     var h = manual != null && manual > auto ? Math.min(ceiling, manual) : auto;
+    h = Math.min(h, content);
+    h = Math.max(opts.minH, Math.round(h));
     applyScrollHeight(shell, h);
+    // Kayıtlı yükseklik artık içerikten büyükse düzelt / tam sığınca sıfırla
+    if (manual != null) {
+      if (content <= auto + 1) clearManual(shell, opts);
+      else if (manual > content) writeManual(shell, opts, content);
+    }
     shell.setAttribute("data-rdl-fitted", "1");
   }
 
@@ -194,6 +204,8 @@
       var dy = clientY - startY;
       var ceiling = dragCeiling(shell, optsNow);
       var next = Math.max(optsNow.minH, Math.min(ceiling, startH + dy + edgeExtra));
+      // Tablo kısaldıysa sürüklerken de boş alan bırakma
+      next = Math.min(next, contentHeight(shell, optsNow));
       applyScrollHeight(shell, next);
       writeManual(shell, optsNow, next);
       keepHandleInView(handle);

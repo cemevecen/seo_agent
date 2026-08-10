@@ -915,7 +915,7 @@
     </div>
   </section>
 </div>
-<script src="/static/js/resizable_data_list.js?v=3"></script>
+<script src="/static/js/resizable_data_list.js?v=4"></script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -1439,7 +1439,9 @@
     if (!shell || !window.SeoResizableDataList) return;
     window.SeoResizableDataList.bind(shell);
     requestAnimationFrame(function () {
-      window.SeoResizableDataList.fit(shell, rowCount || 0);
+      requestAnimationFrame(function () {
+        window.SeoResizableDataList.fit(shell, rowCount || 0);
+      });
     });
   }
   function fmtNum(n, asInt) {
