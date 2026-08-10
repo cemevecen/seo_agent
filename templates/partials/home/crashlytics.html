@@ -154,18 +154,17 @@
   }
   .home-store-star-row {
     display: grid;
-    grid-template-columns: 1.4rem minmax(0, 1fr) 2.1rem;
-    gap: 0.3rem;
+    grid-template-columns: 1.12rem minmax(0, 1fr) 1.7rem;
+    gap: 0.24rem;
     align-items: center;
   }
   .home-store-star-row span:first-child {
-    font-size: 0.58rem;
-    font-weight: 700;
+    font-weight: 400;
     color: #64748b;
     font-variant-numeric: tabular-nums;
   }
   .home-store-star-track {
-    height: 0.35rem;
+    height: 0.28rem;
     border-radius: 999px;
     background: rgb(226 232 240 / 0.9);
     overflow: hidden;
@@ -178,8 +177,7 @@
     min-width: 0;
   }
   .home-store-star-row span:last-child {
-    font-size: 0.58rem;
-    font-weight: 700;
+    font-weight: 400;
     color: #475569;
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -408,12 +406,12 @@
       </div>
       {% endif %}
 
-      <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+      <div class="home-store-release mt-2 flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
           <p class="home-label text-slate-500 dark:text-slate-400">release etki</p>
           <p class="home-meta truncate text-slate-400 dark:text-slate-500" title="{{ plat.release_note|default('') }}">{{ plat.release_note|default('—') }}</p>
         </div>
-        <p class="shrink-0 text-sm font-extrabold tabular-nums {% if plat.release_tone == 'up' %}text-emerald-600 dark:text-emerald-300{% elif plat.release_tone == 'down' %}text-rose-600 dark:text-rose-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ plat.release_delta_fmt|default('—') }}</p>
+        <p class="home-store-release-delta shrink-0 tabular-nums {% if plat.release_tone == 'up' %}text-emerald-600 dark:text-emerald-300{% elif plat.release_tone == 'down' %}text-rose-600 dark:text-rose-300{% else %}text-slate-600 dark:text-slate-300{% endif %}">{{ plat.release_delta_fmt|default('—') }}</p>
       </div>
 
       {% if themes %}
@@ -424,7 +422,7 @@
       </div>
       {% endif %}
 
-      <p class="home-meta mt-2 text-slate-500 dark:text-slate-400">
+      <p class="home-store-updated home-meta mt-2 text-slate-500 dark:text-slate-400">
         güncelleme · {% if plat.updated_label %}{{ plat.updated_label }}{% else %}—{% endif %}
       </p>
     {% else %}
@@ -569,7 +567,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=17';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=18';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
