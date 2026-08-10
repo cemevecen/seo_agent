@@ -60,8 +60,20 @@
     align-items: stretch;
   }
   /* Tekli görünüm: Web/Mobil × Clicks/Position — 4 yan yana */
-  .home-sc-spark-grid--quad {
+  .home-sc-spark-wrap {
+    width: 100%;
+    min-width: 0;
     margin-top: 0.85rem;
+    container-type: inline-size;
+    container-name: home-sc-grid;
+  }
+  .home-sc-spark-grid--quad {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @container home-sc-grid (min-width: 640px) {
+    .home-sc-spark-grid--quad {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
   @container home-card (max-width: 360px) {
     .home-sc-spark-grid {
@@ -226,6 +238,7 @@
   {% set device_order = ['Web', 'Mobil Web'] %}
   <div class="home-top-pages-root" data-home-top-pages-root>
     {# GA4 gibi 4 KPI kartı: Web/Mobil × Clicks/Position; TOP 25 kart içinde #}
+    <div class="home-sc-spark-wrap">
     <div class="home-sc-spark-grid home-sc-spark-grid--quad">
       {% for want in device_order %}
         {% for dev in site.devices if (dev.label or '') == want %}
@@ -284,6 +297,7 @@
           </div>
         {% endfor %}
       {% endfor %}
+    </div>
     </div>
     {% for want in device_order %}
       {% for dev in site.devices if (dev.label or '') == want %}

@@ -1,13 +1,24 @@
-{# Mini spark + sayı (#5) — platform hücreleri, auto-fit #}
+{# Mini spark + sayı — yalnız 2+2 veya 4 yan yana (3+1 yok) #}
 {% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
 {% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
 {{ home_top_pages_styles() }}
 {{ home_detail_kpis_styles() }}
 <style>
+  .home-ga4-spark-wrap {
+    width: 100%;
+    min-width: 0;
+    container-type: inline-size;
+    container-name: home-ga4-grid;
+  }
   .home-ga4-spark-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
+  }
+  @container home-ga4-grid (min-width: 640px) {
+    .home-ga4-spark-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
   .home-ga4-spark-cell {
     min-width: 0;
@@ -78,6 +89,7 @@
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
   <div class="home-top-pages-root" data-home-top-pages-root>
+    <div class="home-ga4-spark-wrap">
     <div class="home-ga4-spark-grid">
       {% for prof in site.profiles %}
         {% set _tone = prof.tone | default('flat') %}
@@ -102,6 +114,7 @@
           {% endif %}
         </div>
       {% endfor %}
+    </div>
     </div>
     {% for prof in site.profiles %}
       {% set _kpi_id = 'ga4-kpi-' ~ site.site_id ~ '-' ~ prof.key %}
