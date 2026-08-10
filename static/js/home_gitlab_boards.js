@@ -86,7 +86,21 @@
         var p = this.configProjects.find(function (x) {
           return x.path === this.activeProject;
         }.bind(this));
-        return (p && p.platform) || '';
+        return this.chipPlatformLabel(p);
+      },
+
+      chipPlatformLabel(project) {
+        if (!project) return '';
+        var plat = String(project.platform || '').toLowerCase();
+        if (plat === 'web') return 'Web';
+        if (plat === 'mweb' || plat === 'mobil' || plat === 'mobile') return 'MWEB';
+        if (plat === 'ios') return 'iOS';
+        if (plat === 'android') return 'Android';
+        var name = String(project.name || '');
+        return name
+          .replace(/^Döviz\s+/i, '')
+          .replace(/^Sinemalar\s+/i, '')
+          .trim() || name;
       },
 
       listColor(index, isClosed) {
