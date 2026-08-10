@@ -3,21 +3,25 @@
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
   section[hx-get="/api/home/notification-week"],
-  section[hx-get*="crashlytics?product=doviz"] {
+  section[hx-get*="crashlytics?product=doviz"],
+  section[hx-get*="web-vitals?site=doviz"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(59, 130, 246, 0.55) !important;   /* blue-500 @ 55% */
   }
-  section[hx-get*="site=sinemalar"] {
+  section[hx-get*="site=sinemalar"],
+  section[hx-get*="web-vitals?site=sinemalar"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(159, 18, 57, 0.60) !important;    /* rose-800 (bordo) @ 60% */
   }
   html.dark section[hx-get*="site=doviz"],
   html.dark section[hx-get="/api/home/notification-week"],
-  html.dark section[hx-get*="crashlytics?product=doviz"] {
+  html.dark section[hx-get*="crashlytics?product=doviz"],
+  html.dark section[hx-get*="web-vitals?site=doviz"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(96, 165, 250, 0.40) !important;   /* blue-400 @ 40% */
   }
-  html.dark section[hx-get*="site=sinemalar"] {
+  html.dark section[hx-get*="site=sinemalar"],
+  html.dark section[hx-get*="web-vitals?site=sinemalar"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(190, 18, 60, 0.45) !important;    /* rose-700 @ 45% */
   }
@@ -1552,6 +1556,26 @@
         <section hx-get="/api/home/position-drops?site=sinemalar&v=9" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          {{ _placeholder_tall | safe }}
+        </section>
+        </div>
+      </div>
+
+      {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
+      <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <div data-home-container-slot="wv-doviz" data-home-project="doviz">
+        <section hx-get="/api/home/web-vitals?site=doviz&v=1" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+                 data-home-container="wv-doviz"
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+          {{ _placeholder_tall | safe }}
+        </section>
+        </div>
+        <div data-home-container-slot="wv-sinemalar" data-home-project="sinemalar">
+        <section hx-get="/api/home/web-vitals?site=sinemalar&v=1" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+                 data-home-container="wv-sinemalar"
+                 class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
           {{ _placeholder_tall | safe }}
         </section>
         </div>

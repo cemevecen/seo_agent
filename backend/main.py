@@ -10935,6 +10935,62 @@ def api_home_position_drops(request: Request, site: str | None = None):
     )
 
 
+@app.get("/api/home/web-vitals", response_class=HTMLResponse)
+def api_home_web_vitals(request: Request, site: str | None = None):
+    """Ana sayfa — Döviz / Sinemalar Web Vitals (GSC CWV) trend kartları."""
+    from backend.services import gsc_cwv_scrape_store as cwv_store
+
+    sites_out: list[dict] = []
+    _site_filter = _home_site_filter_ids(site)
+    site_key_by_id = {1: "doviz", 2: "sinemalar"}
+    with SessionLocal() as db:
+        for site_id in (1, 2):
+            if _site_filter is not None and site_id not in _site_filter:
+                continue
+            site_obj = _home_get_site(db, site_id)
+            if site_obj is None:
+                continue
+            ctx = cwv_store.build_panel_context(db, site_obj)
+            payload = ctx.get("payload") or {}
+            ov = payload.get("overview") or {}
+            mob = payload.get("mobile") or {}
+            desk = payload.get("desktop") or {}
+            mk = mob.get("kpis") or ov.get("mobile") or {}
+            dk = desk.get("kpis") or ov.get("desktop") or {}
+            chart = payload.get("chart_series") or {}
+            hist = ctx.get("history") or []
+            has_chart = any(
+                isinstance(chart.get(k), dict) and (chart.get(k) or {}).get("dates")
+                for k in ("mobile", "desktop")
+            )
+            has_kpi = any(int((mk or {}).get(x) or 0) or int((dk or {}).get(x) or 0) for x in ("poor", "needs_improvement", "good"))
+            sites_out.append({
+                "site_id": site_id,
+                "site_key": site_key_by_id.get(site_id, ""),
+                "domain": site_obj.domain,
+                "display_name": site_obj.display_name,
+                "collected_at": ctx.get("collected_at") or "",
+                "gsc_links": ctx.get("gsc_links") or {},
+                "mobile_kpis": {
+                    "poor": int((mk or {}).get("poor") or 0),
+                    "needs_improvement": int((mk or {}).get("needs_improvement") or 0),
+                    "good": int((mk or {}).get("good") or 0),
+                },
+                "desktop_kpis": {
+                    "poor": int((dk or {}).get("poor") or 0),
+                    "needs_improvement": int((dk or {}).get("needs_improvement") or 0),
+                    "good": int((dk or {}).get("good") or 0),
+                },
+                "chart_series": chart,
+                "history": hist,
+                "has_data": bool(has_chart or has_kpi or hist),
+            })
+    return templates.TemplateResponse(
+        request, "partials/home/web_vitals.html",
+        context={"request": request, "sites": sites_out},
+    )
+
+
 def _home_fmt_day_range(start_iso: str, end_iso: str) -> str:
     try:
         s = date.fromisoformat(str(start_iso)[:10])

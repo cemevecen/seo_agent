@@ -26,6 +26,8 @@ HOME_DRIVE_CONTAINERS: tuple[dict[str, str], ...] = (
     {"key": "sc-sinemalar", "label": "sinemalar · search console"},
     {"key": "position-doviz", "label": "doviz · position drops"},
     {"key": "position-sinemalar", "label": "sinemalar · position drops"},
+    {"key": "wv-doviz", "label": "doviz · web vitals"},
+    {"key": "wv-sinemalar", "label": "sinemalar · web vitals"},
     {"key": "notification-week", "label": "Notification · 7g"},
     {"key": "crashlytics", "label": "Mobil mağaza / Firebase"},
     {"key": "priority-board", "label": "git.nokta"},

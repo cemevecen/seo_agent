@@ -1197,6 +1197,8 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
             cwd=str(ROOT),
             env=env,
             timeout=max(300, timeout_sec),
+            capture_output=True,
+            text=True,
         )
     except subprocess.TimeoutExpired:
         out = {
@@ -1217,17 +1219,47 @@ def run_gsc_cwv_bridge_once(site_key: str | None = None) -> dict[str, Any]:
         )
         return out
 
+    combined = "\n".join(
+        x for x in ((proc.stdout or ""), (proc.stderr or "")) if x
+    ).strip()
+    if combined:
+        for line in combined.splitlines()[-40:]:
+            print(line, flush=True)
+    detail = ""
+    for line in reversed(combined.splitlines() if combined else []):
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("{") and s.endswith("}"):
+            try:
+                j = json.loads(s)
+                if isinstance(j, dict) and j.get("message"):
+                    detail = str(j.get("message"))[:240]
+                    break
+            except Exception:
+                pass
+        low = s.lower()
+        if "oturumu yok" in low or s.startswith("FAIL ") or "login" in low:
+            detail = s[:240]
+            break
+    if not detail and combined:
+        detail = combined.splitlines()[-1].strip()[:240]
+
     if proc.returncode == 0:
         out = {"ok": True, "kind": "gsc_cwv", "message": "GSC CWV scrape OK", "site": site_key}
         _set_gsc_cwv_progress(
             running=False, phase="done", message=out["message"], finished_at=time.time()
         )
     else:
+        msg = f"GSC CWV scrape exit {proc.returncode}"
+        if detail:
+            msg = f"{msg}: {detail}"
         out = {
             "ok": False,
             "kind": "gsc_cwv",
-            "message": f"GSC CWV scrape exit {proc.returncode}",
+            "message": msg,
             "site": site_key,
+            "detail": detail or None,
         }
         _set_gsc_cwv_progress(
             running=False, phase="error", message=out["message"], finished_at=time.time()

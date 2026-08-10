@@ -458,7 +458,11 @@ function _pollBridge() {
         }
         _setRunUi(false, '');
         if (p.phase === 'error' || (last && last.ok === false && last.message)) {
-          alert('Web Vitals: ' + (p.message || last.message || 'hata'));
+          var msg = p.message || last.message || 'hata';
+          if (/oturumu yok|login/i.test(msg)) {
+            msg += '\n\nÇözüm: Mac’te scripts/gsc_cwv_scrape.py --login ile GSC oturumunu yenileyin, sonra tekrar Tara.';
+          }
+          alert('Web Vitals: ' + msg);
         }
       })
       .catch(function(){});
