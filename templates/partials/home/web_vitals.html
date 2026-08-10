@@ -30,7 +30,7 @@
         <span class="home-wv-chevron leading-none" aria-hidden="true">▸</span>
         <h3 class="font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
         {% if has_data %}
-        <span class="home-meta hidden truncate tabular-nums text-slate-400 sm:inline dark:text-zinc-500">
+        <span class="home-wv-micro home-meta hidden truncate tabular-nums text-slate-400 sm:inline dark:text-zinc-500">
           K {{ fmt_int(poor_tot) }} · İ {{ fmt_int(ni_tot) }} · İyi {{ fmt_int(good_tot) }}
         </span>
         {% else %}
@@ -45,7 +45,7 @@
 
     <div class="home-wv-body mt-3">
       {% if block and block.collected_at %}
-      <p class="home-meta mb-2 text-slate-400 dark:text-zinc-500">Son scrape · {{ block.collected_at[:16].replace('T', ' ') }}</p>
+      <p class="home-wv-micro home-meta mb-2 text-slate-400 dark:text-zinc-500">Son tarama · {{ block.collected_at[:16].replace('T', ' ') }}</p>
       {% endif %}
 
       {% if not has_data %}
@@ -67,7 +67,7 @@
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> iyi</span>
           </div>
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
-          <p id="home-wv-m-note-{{ sid }}" class="home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
+          <p id="home-wv-m-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
         </section>
         <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
           <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
@@ -82,7 +82,7 @@
             <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> iyi</span>
           </div>
           <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
-          <p id="home-wv-d-note-{{ sid }}" class="home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
+          <p id="home-wv-d-note-{{ sid }}" class="home-wv-micro home-meta mt-1 text-slate-400 dark:text-zinc-500"></p>
         </section>
       </div>
       <script type="application/json" id="home-wv-data-{{ sid }}">{{ {
@@ -163,7 +163,7 @@
           if (note) {
             note.textContent = ser.source === 'gsc'
               ? ('GSC trend · ' + labels.length + ' nokta')
-              : (has ? ('Scrape geçmişi · ' + labels.length + ' nokta') : 'Grafik verisi yok');
+              : (has ? ('Tarama geçmişi · ' + labels.length + ' nokta') : 'Grafik verisi yok');
           }
           canvas.__homeWvChart = new Chart(canvas, {
             type: 'line',
