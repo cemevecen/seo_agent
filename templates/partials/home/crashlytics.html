@@ -797,7 +797,7 @@ Oran — kaynak konsoldaki ham yüzde{{ when }}.
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=23';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=24';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
