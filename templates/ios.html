@@ -1198,7 +1198,7 @@
   </section>
 </div>
 <script src="/static/js/resizable_data_list.js?v=5"></script>
-<script src="/static/js/metric_table_ux.js?v=4"></script>
+<script src="/static/js/metric_table_ux.js?v=5"></script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -2976,14 +2976,19 @@
     if (ux && shell && tableEl) {
       ux.ensureLegend(shell, {
         onHeatToggle: function () {
-          renderOverviewTable(bundles);
+          // Güncel grafik metrikleri — ilk açılış closure’ına dönüp eklenen sütunları silme
+          renderOverviewTable(
+            (iaLastDrawBundles && iaLastDrawBundles.length) ? iaLastDrawBundles : bundles
+          );
         },
       });
       ux.bindInteractive(tableEl, {
         widthsKey: "ia-table-col-widths",
         orderKey: "ia-table-col-order",
         onOrderChange: function () {
-          renderOverviewTable(bundles);
+          renderOverviewTable(
+            (iaLastDrawBundles && iaLastDrawBundles.length) ? iaLastDrawBundles : bundles
+          );
         },
       });
     }

@@ -170,7 +170,9 @@
     var existing = shell.querySelector(".mtux-legend");
     if (existing) {
       placeLegendAtTop(shell, existing);
-      if (onToggle && !existing._mtuxHeatBound) {
+      // Her render’da güncel callback — aksi halde ilk açılıştaki stale bundles ile tablo eski metrik setine döner
+      existing._mtuxOnHeatToggle = onToggle;
+      if (!existing._mtuxHeatBound) {
         existing._mtuxHeatBound = true;
         existing.addEventListener("click", function (ev) {
           var btn = ev.target && ev.target.closest ? ev.target.closest(".mtux-heat-toggle") : null;
@@ -178,7 +180,9 @@
           ev.preventDefault();
           setHeatEnabled(!isHeatEnabled());
           syncLegendState(existing);
-          onToggle(isHeatEnabled());
+          if (typeof existing._mtuxOnHeatToggle === "function") {
+            existing._mtuxOnHeatToggle(isHeatEnabled());
+          }
         });
       }
       syncLegendState(existing);
@@ -198,6 +202,7 @@
       "</span>" +
       '<button type="button" class="mtux-heat-toggle">Renkleri kaldır</button>';
     placeLegendAtTop(shell, legend);
+    legend._mtuxOnHeatToggle = onToggle;
     legend._mtuxHeatBound = true;
     legend.addEventListener("click", function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest(".mtux-heat-toggle") : null;
@@ -205,7 +210,9 @@
       ev.preventDefault();
       setHeatEnabled(!isHeatEnabled());
       syncLegendState(legend);
-      if (onToggle) onToggle(isHeatEnabled());
+      if (typeof legend._mtuxOnHeatToggle === "function") {
+        legend._mtuxOnHeatToggle(isHeatEnabled());
+      }
     });
     syncLegendState(legend);
     return legend;
