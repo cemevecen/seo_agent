@@ -843,6 +843,22 @@
     font-size: clamp(0.5625rem, 1vw, 0.625rem);
     line-height: 1.25;
   }
+  .ia-stability-grid .sf-card__sub a,
+  .ia-stability-inline .ia-stability-grid .sf-card__sub a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 2px;
+  }
+  .ia-stability-grid .sf-card__sub a:hover,
+  .ia-stability-inline .ia-stability-grid .sf-card__sub a:hover {
+    color: #047857;
+    text-decoration-color: currentColor;
+  }
+  html.dark .ia-stability-grid .sf-card__sub a:hover,
+  html.dark .ia-stability-inline .ia-stability-grid .sf-card__sub a:hover {
+    color: #34d399;
+  }
   .ia-stability-grid .sf-card__value {
     margin-top: 0.35rem;
     font-size: clamp(1rem, 2.4vw, 1.5rem);
@@ -3342,15 +3358,31 @@
       var cls = "sf-card";
       if (opts.pending) cls += " is-pending";
       if (opts.stale) cls += " is-stale";
-      var tip = [title, sub, extra].filter(Boolean).join(" · ");
+      var tip = [title, (opts.subPlain || sub), extra].filter(Boolean).join(" · ");
+      var subOut = opts.subHtml || (sub ? esc(sub) : "");
       return (
         '<div class="' + cls + '" title="' + esc(tip) + '">' +
           '<p class="sf-card__title">' + esc(title) + "</p>" +
-          (sub ? '<p class="sf-card__sub">' + esc(sub) + "</p>" : "") +
+          (subOut ? '<p class="sf-card__sub">' + subOut + "</p>" : "") +
           '<p class="sf-card__value ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
           refreshBtnHtml(!!state.loading) +
         "</div>"
       );
+    }
+    function iaSfLink(label, href, linkOpts) {
+      linkOpts = linkOpts || {};
+      if (!label || !href) return esc(label || "");
+      var attrs = 'href="' + esc(href) + '"';
+      if (linkOpts.external) attrs += ' target="_blank" rel="noopener noreferrer"';
+      if (linkOpts.title) attrs += ' title="' + esc(linkOpts.title) + '"';
+      return "<a " + attrs + ">" + esc(label) + "</a>";
+    }
+    function iaFbReleaseUrl(timeParam, version) {
+      var u =
+        "https://console.firebase.google.com/u/0/project/doviz-ios/releasemonitoring/app/ios:com.nokta.Finans-Takip/latest" +
+        "?time=" + encodeURIComponent(timeParam || "24h");
+      if (version) u += "&version=" + encodeURIComponent(version);
+      return u;
     }
     function selectedVersionRow() {
       var sel = String(state.selected || "");
@@ -3381,22 +3413,45 @@
       var fb24 = fb.latest_24h || null;
       var fb7 = fb.latest_7d || null;
       var fbVer = fb.latest_version || (fb24 && fb24.version) || (fb7 && fb7.version) || "";
+      function fbSubHtml(timeLabel, timeParam) {
+        var parts = [
+          iaSfLink("Firebase", "/s-firebase", {
+            title: "S-Firebase · Crashlytics / Release Monitoring scrape"
+          }),
+          esc(timeLabel)
+        ];
+        if (fbVer) {
+          parts.push(iaSfLink(fbVer, iaFbReleaseUrl(timeParam, fbVer), {
+            external: true,
+            title: "Firebase Console · Release Monitoring · " + fbVer
+          }));
+        }
+        return parts.join(" · ");
+      }
       var pills = [];
       pills.push(card(
         "Crash-free · son sürüm",
-        "Firebase · 24s" + (fbVer ? (" · " + fbVer) : ""),
+        "",
         (fb24 && fb24.crash_free_fmt) || "—",
         fb24 && fb24.crash_free_pct,
         "",
-        { pending: !(fb24 && hasScore(fb24)) }
+        {
+          pending: !(fb24 && hasScore(fb24)),
+          subHtml: fbSubHtml("24s", "24h"),
+          subPlain: "Firebase · 24s" + (fbVer ? (" · " + fbVer) : "")
+        }
       ));
       pills.push(card(
         "Crash-free · son sürüm",
-        "Firebase · 7g" + (fbVer ? (" · " + fbVer) : ""),
+        "",
         (fb7 && fb7.crash_free_fmt) || "—",
         fb7 && fb7.crash_free_pct,
         "",
-        { pending: !(fb7 && hasScore(fb7)) }
+        {
+          pending: !(fb7 && hasScore(fb7)),
+          subHtml: fbSubHtml("7g", "7d"),
+          subPlain: "Firebase · 7g" + (fbVer ? (" · " + fbVer) : "")
+        }
       ));
       el.style.setProperty("--sf-n", String(pills.length));
       el.innerHTML = pills.join("");

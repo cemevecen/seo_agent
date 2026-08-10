@@ -279,6 +279,19 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .home-sf-metric__sub a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 2px;
+  }
+  .home-sf-metric__sub a:hover {
+    color: #047857;
+    text-decoration-color: currentColor;
+  }
+  html.dark .home-sf-metric__sub a:hover {
+    color: #34d399;
+  }
   .home-sf-metric__value {
     margin: 0.35rem 0 0;
     font-weight: 800;
@@ -320,9 +333,9 @@
   <div class="home-sf-metrics" style="--sf-n: {{ n }}">
     {% if items %}
       {% for m in items %}
-        <div class="home-sf-metric" title="{{ m.title }}{% if m.sub %} · {{ m.sub }}{% endif %}">
+        <div class="home-sf-metric" title="{{ m.title }}{% if m.sub %} · {{ m.sub|striptags }}{% endif %}">
           <p class="home-sf-metric__title">{{ m.title }}</p>
-          {% if m.sub %}<p class="home-sf-metric__sub">{{ m.sub }}</p>{% endif %}
+          {% if m.sub %}<p class="home-sf-metric__sub">{{ m.sub|safe }}</p>{% endif %}
           <p class="home-sf-metric__value{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
           {% if m.extra %}<p class="home-sf-metric__extra">{{ m.extra }}</p>{% endif %}
         </div>

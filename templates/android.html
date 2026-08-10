@@ -999,6 +999,19 @@
     font-size: clamp(0.5625rem, 1vw, 0.625rem);
     line-height: 1.25;
   }
+  .pc-stability-grid .sf-card__sub a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 2px;
+  }
+  .pc-stability-grid .sf-card__sub a:hover {
+    color: #047857;
+    text-decoration-color: currentColor;
+  }
+  html.dark .pc-stability-grid .sf-card__sub a:hover {
+    color: #34d399;
+  }
   .pc-stability-grid .sf-card__value {
     margin-top: 0.35rem;
     font-size: clamp(1rem, 2.4vw, 1.5rem);
@@ -1286,7 +1299,7 @@
     </div>
   </section>
 
-  <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+  <section id="pc-vitals" class="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-800 dark:text-zinc-100">Android Vitals</h2>
@@ -6092,20 +6105,54 @@
     return "text-rose-600 dark:text-rose-400";
   }
 
+  var PA_PLAY_APP =
+    "https://play.google.com/console/u/0/developers/7587799419591090593/app/4974102243818231576";
+  var PA_FB_ANDROID_RELEASE =
+    "https://console.firebase.google.com/u/0/project/doviz-android/releasemonitoring/app/android:com.Doviz/latest";
+
+  function paSfLink(label, href, opts) {
+    opts = opts || {};
+    if (!label || !href) return esc(label || "");
+    var attrs = 'href="' + esc(href) + '"';
+    if (opts.external) {
+      attrs += ' target="_blank" rel="noopener noreferrer"';
+    }
+    if (opts.title) attrs += ' title="' + esc(opts.title) + '"';
+    return "<a " + attrs + ">" + esc(label) + "</a>";
+  }
+
+  function paFbReleaseUrl(timeParam, version) {
+    var u = PA_FB_ANDROID_RELEASE + "?time=" + encodeURIComponent(timeParam || "24h");
+    if (version) u += "&version=" + encodeURIComponent(version);
+    return u;
+  }
+
+  function paPlayVitalsOverviewUrl() {
+    return PA_PLAY_APP + "/vitals/metrics/overview";
+  }
+
+  function paPlayAnrUrl(versionCode) {
+    var u = PA_PLAY_APP + "/vitals/crashes?errorType=ANR&isUserPerceived=true&days=28";
+    if (versionCode) u += "&versionCode=" + encodeURIComponent(String(versionCode));
+    return u;
+  }
+
   function renderStabilityFreeCard(opts) {
     opts = opts || {};
     var title = opts.title || "—";
     var sub = opts.sub || "";
+    var subHtml = opts.subHtml || "";
     var value = opts.value || "—";
     var tone = opts.toneClass || "text-slate-800 dark:text-zinc-100";
     var extra = opts.extra || "";
     var refresh = opts.showRefresh
       ? '<button type="button" data-pa-sf-refresh class="mt-1 inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:border-sky-400 hover:text-sky-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">Yenile</button>'
       : "";
+    var subOut = subHtml || (sub ? esc(sub) : "");
     return (
       '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
         '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
-        (sub ? '<p class="sf-card__sub mt-0.5 text-slate-400 dark:text-zinc-500">' + esc(sub) + "</p>" : "") +
+        (subOut ? '<p class="sf-card__sub mt-0.5 text-slate-400 dark:text-zinc-500">' + subOut + "</p>" : "") +
         '<p class="sf-card__value font-extrabold tabular-nums ' + tone + '">' + esc(value) + "</p>" +
         (extra ? '<p class="sf-card__extra mt-1 text-slate-500 dark:text-zinc-400">' + extra + "</p>" : "") +
         refresh +
@@ -6206,36 +6253,80 @@
       ? ("Son sağlıklı" + (data._healthy_at ? (" · " + data._healthy_at) : ""))
       : "";
 
-    var fb24Sub = "Firebase · son sürüm · 24s" + (fbVer ? (" · " + fbVer) : "");
-    var fb7Sub = "Firebase · son sürüm · 7g" + (fbVer ? (" · " + fbVer) : "");
+    var playCode = playLatest && playLatest.version_code ? String(playLatest.version_code) : "";
+    function fbSubHtml(timeLabel, timeParam) {
+      var parts = [
+        paSfLink("Firebase", "/s-firebase", {
+          title: "S-Firebase · Crashlytics / Release Monitoring scrape"
+        }),
+        "son sürüm",
+        esc(timeLabel)
+      ];
+      if (fbVer) {
+        parts.push(paSfLink(fbVer, paFbReleaseUrl(timeParam, fbVer), {
+          external: true,
+          title: "Firebase Console · Release Monitoring · " + fbVer
+        }));
+      }
+      return parts.join(" · ");
+    }
+    var playAllSubHtml =
+      paSfLink("Play Console", "#pc-vitals", {
+        title: "Android · Vitals paneli (site içi)"
+      }) + " · all · 28d";
+    var latestAnr = (playLatest && playLatest.anr_free_fmt) || null;
+    var latestAnrPct = playLatest && playLatest.anr_free_pct != null ? playLatest.anr_free_pct : null;
+    var playRepSubHtml;
+    if (latestAnr) {
+      playRepSubHtml =
+        paSfLink("Play Reporting", paPlayAnrUrl(playCode), {
+          external: true,
+          title: "Play Console · Reporting / ANR vitals"
+        }) +
+        " · " +
+        paSfLink(lvLabel, paPlayAnrUrl(playCode), {
+          external: true,
+          title: "Play Console · ANR · " + lvLabel
+        });
+    } else {
+      playRepSubHtml =
+        "ANR · " +
+        (fbVer
+          ? paSfLink(fbVer, paFbReleaseUrl("28d", fbVer), {
+              external: true,
+              title: "Firebase Console · " + fbVer
+            })
+          : "latest");
+    }
+
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
-      sub: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? staleSub : fb24Sub,
+      sub: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? staleSub : "",
+      subHtml: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? "" : fbSubHtml("24s", "24h"),
       value: (fb24 && fb24.crash_free_fmt) || "—",
       toneClass: stabilityToneClass(fb24 && fb24.crash_free_pct),
       showRefresh: !paSfHas(fb24 && fb24.crash_free_fmt)
     }));
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
-      sub: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? staleSub : fb7Sub,
+      sub: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? staleSub : "",
+      subHtml: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? "" : fbSubHtml("7g", "7d"),
       value: (fb7 && fb7.crash_free_fmt) || "—",
       toneClass: stabilityToneClass(fb7 && fb7.crash_free_pct),
       showRefresh: !paSfHas(fb7 && fb7.crash_free_fmt)
     }));
     cards.push(renderStabilityFreeCard({
       title: "ANR-free",
-      sub: staleSub || "Play Console · all · 28d",
+      sub: staleSub || "",
+      subHtml: staleSub ? "" : playAllSubHtml,
       value: play.anr_free_fmt || "—",
       toneClass: stabilityToneClass(play.anr_free_pct),
       showRefresh: !paSfHas(play.anr_free_fmt)
     }));
-    var latestAnr = (playLatest && playLatest.anr_free_fmt) || null;
-    var latestAnrPct = playLatest && playLatest.anr_free_pct != null ? playLatest.anr_free_pct : null;
-    var anrSub = latestAnr ? ("Play Reporting · " + lvLabel) : ("ANR · " + (fbVer || "latest"));
-    if (staleSub && !paSfHas(latestAnr)) anrSub = staleSub;
     cards.push(renderStabilityFreeCard({
       title: "ANR-free",
-      sub: anrSub,
+      sub: staleSub && !paSfHas(latestAnr) ? staleSub : "",
+      subHtml: staleSub && !paSfHas(latestAnr) ? "" : playRepSubHtml,
       value: latestAnr || "—",
       toneClass: stabilityToneClass(latestAnrPct),
       showRefresh: !paSfHas(latestAnr)

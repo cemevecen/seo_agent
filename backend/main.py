@@ -8798,6 +8798,95 @@ def _home_sf_metric(title: str, value: str | None, *, sub: str = "", pct: float 
     }
 
 
+_PLAY_CONSOLE_APP = (
+    "https://play.google.com/console/u/0/developers/7587799419591090593"
+    "/app/4974102243818231576"
+)
+_FB_ANDROID_RELEASE = (
+    "https://console.firebase.google.com/u/0/project/doviz-android"
+    "/releasemonitoring/app/android:com.Doviz/latest"
+)
+_FB_IOS_RELEASE = (
+    "https://console.firebase.google.com/u/0/project/doviz-ios"
+    "/releasemonitoring/app/ios:com.nokta.Finans-Takip/latest"
+)
+
+
+def _home_sf_a(label: str, href: str, *, external: bool = False, title: str | None = None) -> str:
+    from html import escape
+
+    attrs = f'href="{escape(href, quote=True)}"'
+    if external:
+        attrs += ' target="_blank" rel="noopener noreferrer"'
+    if title:
+        attrs += f' title="{escape(title)}"'
+    return f"<a {attrs}>{escape(label)}</a>"
+
+
+def _home_sf_fb_sub(*, plat: str, time_label: str, time_param: str, version: str) -> str:
+    from urllib.parse import quote
+
+    release = _FB_ANDROID_RELEASE if plat == "android" else _FB_IOS_RELEASE
+    parts = [
+        _home_sf_a(
+            "Firebase",
+            "/s-firebase",
+            title="S-Firebase · Crashlytics / Release Monitoring scrape",
+        ),
+        "son sürüm",
+        time_label,
+    ]
+    ver = (version or "").strip()
+    if ver and ver != "—":
+        href = f"{release}?time={quote(time_param)}&version={quote(ver)}"
+        parts.append(
+            _home_sf_a(
+                ver if plat == "android" else f"v{ver.lstrip('v')}",
+                href,
+                external=True,
+                title=f"Firebase Console · Release Monitoring · {ver}",
+            )
+        )
+    return " · ".join(parts)
+
+
+def _home_sf_play_all_sub() -> str:
+    return (
+        _home_sf_a(
+            "Play Console",
+            "/android#pc-vitals",
+            title="Android · Vitals paneli (site içi)",
+        )
+        + " · all · 28d"
+    )
+
+
+def _home_sf_play_latest_sub(*, version_label: str, version_code: str | None) -> str:
+    from urllib.parse import quote
+
+    href = (
+        f"{_PLAY_CONSOLE_APP}/vitals/crashes"
+        f"?errorType=ANR&isUserPerceived=true&days=28"
+    )
+    if version_code:
+        href += f"&versionCode={quote(str(version_code))}"
+    return (
+        _home_sf_a(
+            "Play Reporting",
+            href,
+            external=True,
+            title="Play Console · Reporting / ANR vitals",
+        )
+        + " · "
+        + _home_sf_a(
+            version_label,
+            href,
+            external=True,
+            title=f"Play Console · ANR · {version_label}",
+        )
+    )
+
+
 def _home_store_firebase_card_from_tabs(
     product_id: str,
     store_by_key: dict | None = None,
@@ -8871,6 +8960,8 @@ def _home_store_firebase_card_from_tabs(
         or "—"
     )
     lv_label = f"v{lv_name}" if lv_name and lv_name != "—" else "latest"
+    fb_ver = str(fb_and.get("latest_version") or lv_name or "").strip()
+    play_code = str(play_latest.get("version_code") or "").strip() or None
     fb24 = fb_and.get("latest_24h") if isinstance(fb_and.get("latest_24h"), dict) else {}
     fb7 = fb_and.get("latest_7d") if isinstance(fb_and.get("latest_7d"), dict) else {}
 
@@ -8879,34 +8970,48 @@ def _home_store_firebase_card_from_tabs(
         _home_sf_metric(
             "Crash-free",
             fb24.get("crash_free_fmt"),
-            sub=f"Firebase · son sürüm · 24s · {lv_label}",
+            sub=_home_sf_fb_sub(plat="android", time_label="24s", time_param="24h", version=fb_ver),
             pct=fb24.get("crash_free_pct"),
         ),
         _home_sf_metric(
             "Crash-free",
             fb7.get("crash_free_fmt"),
-            sub=f"Firebase · son sürüm · 7g · {lv_label}",
+            sub=_home_sf_fb_sub(plat="android", time_label="7g", time_param="7d", version=fb_ver),
             pct=fb7.get("crash_free_pct"),
         ),
         _home_sf_metric(
             "ANR-free",
             play.get("anr_free_fmt"),
-            sub="Play · all · 28d",
+            sub=_home_sf_play_all_sub(),
             pct=play.get("anr_free_pct"),
         ),
         _home_sf_metric(
             "ANR-free",
             play_latest.get("anr_free_fmt"),
-            sub=f"Play · {lv_label}",
+            sub=_home_sf_play_latest_sub(version_label=lv_label, version_code=play_code),
             pct=play_latest.get("anr_free_pct"),
         ),
     ]
     if android_metrics[3]["value"] == "—" and (and_cf.get("latest") or {}).get("anr_free_fmt"):
         latest = and_cf.get("latest") or {}
+        fall_ver = str(and_cf.get("latest_version") or lv_name or "").strip()
+        fall_label = f"v{fall_ver}" if fall_ver and fall_ver != "—" else "latest"
         android_metrics[3] = _home_sf_metric(
             "ANR-free",
             latest.get("anr_free_fmt"),
-            sub=f"ANR · v{and_cf.get('latest_version') or lv_name}",
+            sub=(
+                "ANR · "
+                + (
+                    _home_sf_a(
+                        fall_label,
+                        f"{_FB_ANDROID_RELEASE}?time=28d&version={fall_ver}",
+                        external=True,
+                        title=f"Firebase Console · {fall_label}",
+                    )
+                    if fall_ver and fall_ver != "—"
+                    else fall_label
+                )
+            ),
             pct=latest.get("anr_free_pct"),
         )
 
@@ -8922,13 +9027,13 @@ def _home_store_firebase_card_from_tabs(
         _home_sf_metric(
             "Crash-free",
             ios24.get("crash_free_fmt"),
-            sub=f"Firebase · son sürüm · 24s · v{ios_ver}",
+            sub=_home_sf_fb_sub(plat="ios", time_label="24s", time_param="24h", version=str(ios_ver)),
             pct=ios24.get("crash_free_pct"),
         ),
         _home_sf_metric(
             "Crash-free",
             ios7.get("crash_free_fmt"),
-            sub=f"Firebase · son sürüm · 7g · v{ios_ver}",
+            sub=_home_sf_fb_sub(plat="ios", time_label="7g", time_param="7d", version=str(ios_ver)),
             pct=ios7.get("crash_free_pct"),
         ),
     ]
