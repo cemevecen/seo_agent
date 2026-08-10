@@ -477,13 +477,14 @@
           <p class="text-[11px] font-semibold tracking-wide text-sky-800 dark:text-sky-300">Veriler yükleniyor…</p>
         </div>
       </div>
-      <div class="flex flex-wrap items-end justify-between gap-2">
+      <div id="ia-kpi-simple" class="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p id="ia-total-label" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Toplam / seçili</p>
           <p id="ia-total" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
         </div>
         <p id="ia-compare-range" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
       </div>
+      <div id="ia-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Seçili metrik KPI kartları"></div>
       <div id="ia-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950">
         <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
           <div class="mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
@@ -550,6 +551,8 @@
   var iaTotal = document.getElementById("ia-total");
   var iaTotalLabel = document.getElementById("ia-total-label");
   var iaCompareRange = document.getElementById("ia-compare-range");
+  var iaKpiSimple = document.getElementById("ia-kpi-simple");
+  var iaMetricKpis = document.getElementById("ia-metric-kpis");
   var iaChart = document.getElementById("ia-chart");
   var iaChartWrap = document.getElementById("ia-chart-wrap");
   var iaTooltip = document.getElementById("ia-tooltip");
@@ -1021,6 +1024,110 @@
     return true;
   }
   function colorAt(i) { return COLORS[i % COLORS.length]; }
+  function seriesStats(series) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      if (!r || r.value == null) return;
+      var n = Number(r.value);
+      if (!Number.isFinite(n)) return;
+      vals.push(n);
+    });
+    if (!vals.length) {
+      return { n: 0, avg: null, sum: null, min: null, max: null, last: null };
+    }
+    var sum = 0;
+    var min = vals[0];
+    var max = vals[0];
+    for (var i = 0; i < vals.length; i++) {
+      sum += vals[i];
+      if (vals[i] < min) min = vals[i];
+      if (vals[i] > max) max = vals[i];
+    }
+    return {
+      n: vals.length,
+      avg: sum / vals.length,
+      sum: sum,
+      min: min,
+      max: max,
+      last: vals[vals.length - 1]
+    };
+  }
+  function packAverage(pack) {
+    if (!pack) return null;
+    if (pack.total_mode === "avg" && pack.total != null && Number.isFinite(Number(pack.total))) {
+      return Number(pack.total);
+    }
+    return seriesStats(pack.series).avg;
+  }
+  function iaMetricKpiGridClass(n) {
+    if (n <= 1) return "grid grid-cols-1 gap-3";
+    if (n === 2) return "grid grid-cols-1 gap-3 sm:grid-cols-2";
+    if (n === 3) return "grid grid-cols-1 gap-3 sm:grid-cols-3";
+    return "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+  }
+  function showIaSimpleKpi() {
+    if (iaKpiSimple) iaKpiSimple.classList.remove("hidden");
+    if (iaMetricKpis) {
+      iaMetricKpis.classList.add("hidden");
+      iaMetricKpis.innerHTML = "";
+    }
+  }
+  function renderIaMetricKpis(packs, opts) {
+    opts = opts || {};
+    if (!iaMetricKpis) return;
+    var list = Array.isArray(packs) ? packs.filter(function (p) { return p && p.metric; }) : [];
+    if (!list.length) {
+      showIaSimpleKpi();
+      return;
+    }
+    if (iaKpiSimple) iaKpiSimple.classList.add("hidden");
+    iaMetricKpis.classList.remove("hidden");
+    iaMetricKpis.className = iaMetricKpiGridClass(list.length);
+    var rich = list.length <= 3;
+    iaMetricKpis.innerHTML = list.map(function (pack, idx) {
+      var color = colorAt(idx);
+      var st = seriesStats(pack.series);
+      var avg = packAverage(pack);
+      var countLike = isCountLike(pack.metric);
+      var mode = pack.total_mode || "sum";
+      var totalLabel = mode === "last" ? "Son gün" : (mode === "avg" ? "API ort." : "Toplam");
+      var totalVal = pack.total != null && Number.isFinite(Number(pack.total))
+        ? fmtNum(pack.total, countLike && mode !== "avg")
+        : "—";
+      var extras = "";
+      if (rich) {
+        extras =
+          '<div class="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200/80 pt-2 dark:border-zinc-700/80">' +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">' + esc(totalLabel) + "</p>" +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(totalVal) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Min</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.min, countLike)) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Max</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.max, countLike)) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Son</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.last, countLike)) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Nokta</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(String(st.n || 0)) + "</p></div>" +
+          "</div>";
+      }
+      return (
+        '<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40" style="border-left:3px solid ' + color + '">' +
+          '<div class="flex min-w-0 items-center gap-1.5">' +
+            '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + color + '" aria-hidden="true"></span>' +
+            '<p class="truncate text-[10px] font-bold uppercase tracking-wide" style="color:' + color + '" title="' + esc(pack.label || pack.metric) + '">' +
+              esc(pack.label || pack.metric) +
+            "</p>" +
+          "</div>" +
+          '<p class="mt-1 text-2xl font-extrabold tabular-nums" style="color:' + color + '">' + esc(fmtNum(avg, false)) + "</p>" +
+          '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Ortalama</p>' +
+          extras +
+        "</div>"
+      );
+    }).join("");
+    if (opts.note && iaCompareRange) {
+      /* note stays on simple block; keep empty when metric kpis shown */
+    }
+  }
   function setLoading(on) {
     if (iaResults) iaResults.classList.toggle("is-loading", !!on);
     if (iaLoading) {
@@ -2102,6 +2209,7 @@
         iaOverviewCacheKey = iaStart.value + "|" + iaEnd.value;
         var chartBundles = bundles.filter(function (b) { return b.onChart; });
         var head = bundles.find(function (b) { return b.metric === "crashes"; }) || chartBundles[0] || bundles[0];
+        showIaSimpleKpi();
         iaTotal.textContent = head ? fmtNum(head.total, isCountLike(head.metric)) : "—";
         iaTotalLabel.textContent = "Overview";
         iaCompareRange.textContent = "";
@@ -2150,21 +2258,9 @@
         series: primary.series || []
       } : null;
 
-      if (packs.length === 1) {
-        var mode = primary.total_mode || "sum";
-        var seriesRows = primary.series || [];
-        if (!seriesRows.length) {
-          iaTotal.textContent = "—";
-          iaTotalLabel.textContent = "Toplam / seçili";
-        } else {
-          iaTotal.textContent = fmtNum(primary.total, isCountLike(primary.metric));
-          iaTotalLabel.textContent = mode === "last" ? "Son gün" : (mode === "avg" ? "Ortalama" : "Toplam / seçili");
-        }
-        iaCompareRange.textContent = primary.message || "";
-      } else {
-        iaTotal.textContent = String(packs.length);
-        iaTotalLabel.textContent = "Seçili metrik";
-        iaCompareRange.textContent = "";
+      renderIaMetricKpis(packs);
+      if (iaCompareRange) {
+        iaCompareRange.textContent = packs.length === 1 ? (primary && primary.message || "") : "";
       }
       if (softNotes.length && iaStatus) {
         iaStatus.textContent = softNotes.slice(0, 3).join(" · ") +
@@ -2176,6 +2272,7 @@
       if (my !== runSeq) return;
       if (iaStatus) iaStatus.textContent = (err && err.message) || "Yükleme hatası";
       iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13">Veri yüklenemedi</text>';
+      showIaSimpleKpi();
       if (iaTotal) iaTotal.textContent = "—";
       if (iaCompareRange) iaCompareRange.textContent = "";
       iaLastChart = null;

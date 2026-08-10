@@ -756,6 +756,7 @@
           <p id="pa-delta" class="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50">—</p>
         </div>
       </div>
+      <div id="pa-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Seçili metrik KPI kartları"></div>
 
       <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950 dark:from-slate-900 dark:to-slate-900">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
@@ -1366,6 +1367,7 @@
   var paKpiGrid = document.getElementById("pa-kpi-grid");
   var paKpiPrev = document.getElementById("pa-kpi-prev");
   var paKpiDelta = document.getElementById("pa-kpi-delta");
+  var paMetricKpis = document.getElementById("pa-metric-kpis");
   var paLegendPrev = document.getElementById("pa-legend-prev");
   var paLegendLine = document.getElementById("pa-legend-line");
   var paLegendStars = document.getElementById("pa-legend-stars");
@@ -2908,7 +2910,120 @@
         : "mt-4 grid grid-cols-1 gap-3";
     }
   }
-
+  function seriesStats(series) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      if (!r || r.value == null) return;
+      var n = Number(r.value);
+      if (!Number.isFinite(n)) return;
+      vals.push(n);
+    });
+    if (!vals.length) {
+      return { n: 0, avg: null, sum: null, min: null, max: null, last: null };
+    }
+    var sum = 0;
+    var min = vals[0];
+    var max = vals[0];
+    for (var i = 0; i < vals.length; i++) {
+      sum += vals[i];
+      if (vals[i] < min) min = vals[i];
+      if (vals[i] > max) max = vals[i];
+    }
+    return {
+      n: vals.length,
+      avg: sum / vals.length,
+      sum: sum,
+      min: min,
+      max: max,
+      last: vals[vals.length - 1]
+    };
+  }
+  function packAverage(pack) {
+    if (!pack) return null;
+    if (pack.total_mode === "avg" && pack.total != null && Number.isFinite(Number(pack.total))) {
+      return Number(pack.total);
+    }
+    return seriesStats(pack.series).avg;
+  }
+  function paMetricKpiGridClass(n) {
+    if (n <= 1) return "grid grid-cols-1 gap-3";
+    if (n === 2) return "grid grid-cols-1 gap-3 sm:grid-cols-2";
+    if (n === 3) return "grid grid-cols-1 gap-3 sm:grid-cols-3";
+    return "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+  }
+  function showPaSimpleKpis() {
+    if (paKpiGrid) paKpiGrid.classList.remove("hidden");
+    if (paMetricKpis) {
+      paMetricKpis.classList.add("hidden");
+      paMetricKpis.innerHTML = "";
+    }
+  }
+  function renderPaMetricKpis(packs, compareInfo) {
+    if (!paMetricKpis) return;
+    var list = Array.isArray(packs) ? packs.filter(function (p) { return p && p.metric; }) : [];
+    if (!list.length) {
+      showPaSimpleKpis();
+      return;
+    }
+    if (paKpiGrid) paKpiGrid.classList.add("hidden");
+    setCompareKpisVisible(false);
+    paMetricKpis.classList.remove("hidden");
+    paMetricKpis.className = paMetricKpiGridClass(list.length);
+    var rich = list.length <= 3;
+    var cmp = compareInfo || null;
+    paMetricKpis.innerHTML = list.map(function (pack, idx) {
+      var color = overviewMetricColor(pack.metric) || paMetricColor(idx);
+      var st = seriesStats(pack.series);
+      var avg = packAverage(pack);
+      var countLike = metricIsCountLike(pack.metric);
+      var mode = pack.total_mode || "sum";
+      var totalLabel = mode === "last" ? "Son gün" : (mode === "avg" ? "API ort." : "Toplam");
+      var totalVal = pack.total != null && Number.isFinite(Number(pack.total))
+        ? fmtNum(pack.total, countLike && mode !== "avg")
+        : "—";
+      var extras = "";
+      if (rich) {
+        var cmpHtml = "";
+        if (list.length === 1 && cmp && cmp.hasPrev) {
+          cmpHtml =
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Önceki</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(cmp.prevTotal, countLike && mode !== "avg")) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Değişim</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums ' +
+                (cmp.deltaPct == null ? "text-slate-800 dark:text-zinc-100" : (cmp.deltaPct >= 0 ? "text-emerald-700" : "text-rose-600")) + '">' +
+                (cmp.deltaPct == null ? "—" : esc((cmp.deltaPct >= 0 ? "+" : "") + cmp.deltaPct + "%")) +
+              "</p></div>";
+        }
+        extras =
+          '<div class="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200/80 pt-2 dark:border-zinc-700/80">' +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">' + esc(totalLabel) + "</p>" +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(totalVal) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Min</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.min, countLike)) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Max</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.max, countLike)) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Son</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.last, countLike)) + "</p></div>" +
+            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Nokta</p>' +
+              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(String(st.n || 0)) + "</p></div>" +
+            cmpHtml +
+          "</div>";
+      }
+      return (
+        '<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40" style="border-left:3px solid ' + color + '">' +
+          '<div class="flex min-w-0 items-center gap-1.5">' +
+            '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + color + '" aria-hidden="true"></span>' +
+            '<p class="truncate text-[10px] font-bold uppercase tracking-wide" style="color:' + color + '" title="' + esc(pack.label || pack.metric) + '">' +
+              esc(pack.label || pack.metric) +
+            "</p>" +
+          "</div>" +
+          '<p class="mt-1 text-2xl font-extrabold tabular-nums" style="color:' + color + '">' + esc(fmtNum(avg, false)) + "</p>" +
+          '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Ortalama</p>' +
+          extras +
+        "</div>"
+      );
+    }).join("");
+  }
   function isoDate(d) {
     var y = d.getFullYear();
     var m = String(d.getMonth() + 1).padStart(2, "0");
@@ -4435,6 +4550,7 @@
         setOverlayColVisible(false);
         clearPaOverlaysState();
         paLastPrimaryMetric = "";
+        showPaSimpleKpis();
         var defs = paOverviewMetricDefs();
         var bundles;
         try {
@@ -4545,10 +4661,7 @@
         // fetchOneOverlaySeries hafta/ay'ı zaten uyguladı; çizimde tekrar agregasyon yok
         var multiVisible = visibleOverviewBundles(packs);
         var multiChart = multiVisible.filter(function (b) { return b.onChart; });
-        if (paTotal) paTotal.textContent = String(packs.length);
-        if (paTotalLabel) paTotalLabel.textContent = "Seçili metrik";
-        if (paPrev) paPrev.textContent = "—";
-        if (paDelta) paDelta.textContent = "—";
+        renderPaMetricKpis(packs);
         if (paCompareRange) {
           paCompareRange.textContent = softNotes.length
             ? (softNotes.slice(0, 2).join(" · ") + (softNotes.length > 2 ? (" · +" + (softNotes.length - 2)) : ""))
@@ -4637,38 +4750,35 @@
       }
       if (mySeq !== paRunSeq) return;
       fillSegments((data.facets && data.facets.segments) || []);
-      paTotal.textContent = fmtNum(data.total, metricIsCountLike());
       var mode = data.total_mode || ((data.compare && data.compare.total_mode) || "sum");
-      if (paTotalLabel) {
-        paTotalLabel.textContent = mode === "last" ? "Son gün" : (mode === "avg" ? "Ortalama" : "Toplam / seçili");
-      }
-      if (paPrevLabel) {
-        paPrevLabel.textContent = mode === "last" ? "Önceki son gün" : (mode === "avg" ? "Önceki ort." : "Önceki dönem");
-      }
       var cmp = data.compare;
       var cmpMeta = cmp || null;
       var hasPrev = !!(cmp && cmp.available !== false && cmp.total != null);
-      setCompareKpisVisible(hasPrev);
+      var singlePack = {
+        metric: primaryMetric,
+        label: metricOptionLabel(primaryMetric) || data.message || primaryMetric,
+        series: data.series || [],
+        total: data.total,
+        total_mode: mode,
+        onChart: true
+      };
+      renderPaMetricKpis([singlePack], {
+        hasPrev: hasPrev,
+        prevTotal: hasPrev ? cmp.total : null,
+        deltaPct: hasPrev && cmp.delta_pct != null ? cmp.delta_pct : null
+      });
       if (hasPrev) {
-        paPrev.textContent = fmtNum(cmp.total, metricIsCountLike());
-        paPrev.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
-        paPrev.title = "";
         setCompareNote("");
       } else {
-        if (paPrev) paPrev.textContent = "—";
         setCompareNote(
           cmp && cmp.available === false
             ? (cmp.missing_reason || PREV_MISSING_LONG)
             : ""
         );
       }
-      if (hasPrev && cmp.delta_pct != null) {
-        var d = cmp.delta_pct;
-        paDelta.textContent = (d >= 0 ? "+" : "") + d + "%";
-        paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums " + (d >= 0 ? "text-emerald-700" : "text-rose-600");
-      } else if (paDelta) {
-        paDelta.textContent = "—";
-        paDelta.className = "mt-1 text-2xl font-extrabold tabular-nums text-slate-900 dark:text-zinc-50";
+      if (paLegendPrev) {
+        if (hasPrev) paLegendPrev.classList.remove("hidden");
+        else paLegendPrev.classList.add("hidden");
       }
       if (mySeq !== paRunSeq) return;
       paLastChart = {
@@ -4695,6 +4805,7 @@
       if (mySeq !== paRunSeq) return;
       var aborted = !!(err && (err.name === "AbortError" || err.code === 20));
       if (aborted) return;
+      showPaSimpleKpis();
       if (paTotal) paTotal.textContent = "—";
       if (paPrev) paPrev.textContent = "—";
       if (paDelta) paDelta.textContent = "—";
