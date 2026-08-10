@@ -2,7 +2,8 @@
 
 Konuşmalarda kaybolmasın diye sabit referans.
 
-- Tek çizim: [`docs/assets/table-10-interactive-designs.png`](assets/table-10-interactive-designs.png)
+- Canvas: `table-design-options` — her seçenekte **mini mockup çizimi** (sadece isim değil)
+- Tek çizim PNG: [`docs/assets/table-10-interactive-designs.png`](assets/table-10-interactive-designs.png)
 - Cursor kuralı: `.cursor/rules/table-design-options.mdc` (alwaysApply)
 
 Metrik KPI kartları ayrı konu; bu liste **veri tablosu** (`#pa-table-shell` / `#ia-table-shell`) görünümü içindir.
