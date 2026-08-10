@@ -11,6 +11,8 @@ def test_dedupe_online_users_merges_tabs():
         {
             "email": "onurtorun@nokta.com",
             "label": "Onur",
+            "first_seen": t1,
+            "first_seen_tr": "24.06.2026 13:00",
             "last_seen": t1,
             "last_seen_tr": "10:00",
             "is_current": False,
@@ -18,6 +20,8 @@ def test_dedupe_online_users_merges_tabs():
         {
             "email": "onurtorun@nokta.com",
             "label": "Onur Torun",
+            "first_seen": t2,
+            "first_seen_tr": "24.06.2026 13:05",
             "last_seen": t2,
             "last_seen_tr": "10:05",
             "is_current": True,
@@ -25,6 +29,8 @@ def test_dedupe_online_users_merges_tabs():
         {
             "email": "other@nokta.com",
             "label": "Other",
+            "first_seen": t1,
+            "first_seen_tr": "24.06.2026 13:00",
             "last_seen": t1,
             "last_seen_tr": "10:00",
             "is_current": False,
@@ -35,6 +41,33 @@ def test_dedupe_online_users_merges_tabs():
     onur = next(r for r in out if r["email"] == "onurtorun@nokta.com")
     assert onur["is_current"] is True
     assert onur["last_seen_tr"] == "10:05"
+    # En erken sekme girişi korunur
+    assert onur["first_seen_tr"] == "24.06.2026 13:00"
+
+
+def test_visitor_payload_includes_first_seen_tr():
+    sessions = [
+        {
+            "email": "cemevecen@nokta.com",
+            "label": "Cem",
+            "first_seen": datetime(2026, 6, 24, 9, 0, 0),
+            "first_seen_tr": "24.06.2026 12:00",
+            "last_seen": datetime(2026, 6, 24, 10, 0, 0),
+            "is_current": True,
+        },
+        {
+            "email": "mertkaradeniz@nokta.com",
+            "label": "Mert Karadeniz",
+            "first_seen": datetime(2026, 6, 24, 10, 2, 0),
+            "first_seen_tr": "24.06.2026 13:02",
+            "last_seen": datetime(2026, 6, 24, 10, 5, 0),
+            "is_current": False,
+        },
+    ]
+    out = build_online_presence_api_payload(sessions, owner_emails=ADMIN_MEMBER_EMAILS)
+    visitor = out["visitors"][0]
+    assert visitor["email"] == "mertkaradeniz@nokta.com"
+    assert visitor["first_seen_tr"] == "24.06.2026 13:02"
 
 
 def test_dot_green_only_for_non_owner_visitors():

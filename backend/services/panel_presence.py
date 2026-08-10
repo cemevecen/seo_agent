@@ -30,18 +30,39 @@ def dedupe_online_users(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         last = s.get("last_seen")
         if not isinstance(last, datetime):
             last = None
+        first = s.get("first_seen")
+        if not isinstance(first, datetime):
+            first = None
         prev = best.get(key)
         prev_last = prev.get("_last_seen") if prev else None
+        prev_first = prev.get("_first_seen") if prev else None
         if prev is None or (last is not None and (prev_last is None or last > prev_last)):
+            # last_seen en yeni sekmeden; first_seen en erken giriş
+            keep_first = first
+            keep_first_tr = str(s.get("first_seen_tr") or "")
+            if prev is not None and prev_first is not None and (
+                keep_first is None or prev_first <= keep_first
+            ):
+                keep_first = prev_first
+                keep_first_tr = str(prev.get("first_seen_tr") or keep_first_tr)
             best[key] = {
                 "email": em,
                 "display_name": str(s.get("label") or s.get("display_name") or em).strip() or em,
                 "last_seen_tr": str(s.get("last_seen_tr") or ""),
+                "first_seen_tr": keep_first_tr,
                 "is_current": bool(s.get("is_current")),
                 "_last_seen": last,
+                "_first_seen": keep_first,
             }
+        elif prev is not None and first is not None and (
+            prev_first is None or first < prev_first
+        ):
+            prev["_first_seen"] = first
+            prev["first_seen_tr"] = str(s.get("first_seen_tr") or prev.get("first_seen_tr") or "")
+            if s.get("is_current"):
+                prev["is_current"] = True
     out = [
-        {k: v for k, v in row.items() if k != "_last_seen"}
+        {k: v for k, v in row.items() if not str(k).startswith("_")}
         for row in best.values()
     ]
     out.sort(key=lambda r: str(r.get("email") or "").lower())

@@ -1755,8 +1755,20 @@
       list-style: none;
     }
     #header-online-popover li {
-      padding: 0.2rem 0;
-      white-space: nowrap;
+      padding: 0.25rem 0;
+      white-space: normal;
+      line-height: 1.35;
+    }
+    #header-online-popover .online-login-time {
+      display: block;
+      margin-top: 0.1rem;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: #64748b;
+    }
+    html.dark #header-online-popover .online-login-time {
+      color: #a1a1aa;
     }
     #header-online-toast {
       position: fixed;
@@ -3322,7 +3334,10 @@
               var tag = u.is_visitor
                 ? ' <span class="text-emerald-700 dark:text-emerald-300">(ziyaretçi)</span>'
                 : "";
-              return "<li>Ekip üyesi " + nOther + tag + "</li>";
+              var when = u.is_visitor && u.first_seen_tr
+                ? '<span class="online-login-time">Giriş ' + esc(u.first_seen_tr) + "</span>"
+                : "";
+              return "<li>Ekip üyesi " + nOther + tag + when + "</li>";
             })
             .join("");
         } else {
@@ -3336,6 +3351,9 @@
                 line = line + ' <span class="text-slate-500 dark:text-zinc-400">(sen)</span>';
               } else if (u.is_visitor) {
                 line = line + ' <span class="text-emerald-700 dark:text-emerald-300">(ziyaretçi)</span>';
+              }
+              if (u.is_visitor && u.first_seen_tr) {
+                line = line + '<span class="online-login-time">Giriş ' + esc(u.first_seen_tr) + "</span>";
               }
               return "<li>" + line + "</li>";
             })
