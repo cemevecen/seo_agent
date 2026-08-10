@@ -244,7 +244,7 @@
     border-radius: 0.75rem;
     border: 1px solid rgb(226 232 240);
     background: rgb(248 250 252 / 0.85);
-    padding: 0.5rem 0.55rem;
+    padding: 0.55rem 0.6rem 0.65rem;
   }
   html.dark .home-sf-metric,
   html.midnight .home-sf-metric {
@@ -253,7 +253,6 @@
   }
   .home-sf-metric__title {
     margin: 0;
-    font-size: 0.58rem;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -265,7 +264,6 @@
   }
   .home-sf-metric__sub {
     margin: 0.15rem 0 0;
-    font-size: 0.55rem;
     font-weight: 600;
     color: #94a3b8;
     line-height: 1.2;
@@ -275,7 +273,6 @@
   }
   .home-sf-metric__value {
     margin: 0.35rem 0 0;
-    font-size: clamp(0.95rem, 2.2cqi, 1.2rem);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
@@ -290,7 +287,6 @@
   html.dark .home-sf-metric__value.is-down { color: #fb7185; }
   .home-sf-metric__extra {
     margin: 0.25rem 0 0;
-    font-size: 0.55rem;
     color: #94a3b8;
     line-height: 1.25;
     overflow: hidden;
@@ -560,7 +556,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=11';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=12';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;

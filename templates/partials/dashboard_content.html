@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v16-type3">
+<style id="home-site-borders" data-home-css="v17-sf-type">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -489,12 +489,40 @@
     .home-detail-kpi-cur,
     .home-detail-kpi-prev,
     .home-top-pages-val,
-    .home-top-pages-delta-slot
+    .home-top-pages-delta-slot,
+    .home-sf-metric__value
   ) {
     font-size: var(--home-text) !important;
     line-height: 1.35 !important;
     text-transform: none;
     letter-spacing: normal;
+  }
+  /* Store & firebase metrik kartları: alt başlık x2 küçült, veri x2 büyüt */
+  #home-board .home-readable :where(
+    .home-sf-metric__title,
+    .home-sf-metric__sub,
+    .home-sf-metric__extra
+  ) {
+    font-size: calc(var(--home-text) / 2) !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0.02em;
+  }
+  #home-board .home-readable .home-sf-metric__title {
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  #home-board .home-readable .home-sf-metric__sub,
+  #home-board .home-readable .home-sf-metric__extra {
+    text-transform: none;
+    font-weight: 600;
+  }
+  #home-board .home-readable .home-sf-metric__value {
+    font-size: calc(var(--home-text) * 2) !important;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1 !important;
+    letter-spacing: -0.02em;
   }
   #home-board .home-readable .home-body {
     font-weight: 600;
