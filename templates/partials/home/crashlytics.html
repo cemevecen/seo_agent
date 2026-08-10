@@ -431,11 +431,11 @@
 {% macro plat_rank(side) -%}
 {%- endmacro %}
 
-<div class="home-crash-shell home-readable{% if card.warming %} is-warming{% endif %}" data-home-crash-root{% if card.warming %} data-home-crash-warming="1"{% endif %}>
+<div class="home-crash-shell home-readable is-open{% if card.warming %} is-warming{% endif %}" data-home-crash-root{% if card.warming %} data-home-crash-warming="1"{% endif %}>
   <button type="button"
           class="home-crash-shell-toggle"
           data-home-crash-shell-toggle
-          aria-expanded="false"
+          aria-expanded="true"
           aria-controls="home-crash-shell-body">
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 flex-wrap items-center gap-2">
@@ -448,7 +448,7 @@
     <span class="home-crash-shell-chevron" aria-hidden="true"></span>
   </button>
 
-  <div id="home-crash-shell-body" class="home-crash-shell-body" data-home-crash-shell-body hidden>
+  <div id="home-crash-shell-body" class="home-crash-shell-body" data-home-crash-shell-body>
     <div class="flex flex-wrap items-center justify-end gap-3">
       <a href="{{ ios_url | default('/ios') }}" hx-get="{{ ios_url | default('/ios') }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
          class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">ios →</a>
