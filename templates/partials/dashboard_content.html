@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v45-brand-icons">
+<style id="home-site-borders" data-home-css="v46-app-focus">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -9,6 +9,7 @@
     --tw-ring-color: rgba(59, 130, 246, 0.55) !important;   /* blue-500 @ 55% */
   }
   section[hx-get*="site=sinemalar"],
+  section[hx-get*="crashlytics?product=sinemalar"],
   section[hx-get*="web-vitals?site=sinemalar"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(159, 18, 57, 0.60) !important;    /* rose-800 (bordo) @ 60% */
@@ -21,6 +22,7 @@
     --tw-ring-color: rgba(96, 165, 250, 0.40) !important;   /* blue-400 @ 40% */
   }
   html.dark section[hx-get*="site=sinemalar"],
+  html.dark section[hx-get*="crashlytics?product=sinemalar"],
   html.dark section[hx-get*="web-vitals?site=sinemalar"] {
     --tw-ring-width: 2px;
     --tw-ring-color: rgba(190, 18, 60, 0.45) !important;    /* rose-700 @ 45% */
@@ -1795,6 +1797,10 @@
   #home-board[data-home-focus="sinemalar"] .home-vg-rev-card.is-doviz {
     display: none !important;
   }
+  /* Notification yalnızca Döviz — sinemalar odağında gizle */
+  #home-board[data-home-focus="sinemalar"] [data-home-container-slot="notification-week"] {
+    display: none !important;
+  }
   #home-board:not([data-home-focus="split"]) .home-vg-rev-grid {
     width: 100%;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr)) !important;
@@ -2105,10 +2111,11 @@
     </section>
     </div>
 
-    {# Mobil mağaza / Firebase durum — full width #}
+    {# Mobil mağaza / Firebase — odak projesine göre (doviz | sinemalar) #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=21" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=22" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
+             data-home-app-product="doviz"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
       {{ _placeholder_mid | safe }}
@@ -2167,9 +2174,30 @@
     if (persist !== false) {
       try { localStorage.setItem(HOME_FOCUS_KEY, mode); } catch (e) {}
     }
+    var deferLoad = persist === false && !board.querySelector('[data-home-crash-root]');
+    syncHomeAppSection(mode, { deferLoad: deferLoad });
     try {
       document.dispatchEvent(new CustomEvent('pc-home-focus', { detail: { mode: mode } }));
     } catch (e) {}
+  }
+  /** store & firebase — tekli/split odağında ürün (doviz varsayılan, sinemalar odağında sinemalar) */
+  function syncHomeAppSection(mode, opts) {
+    if (!board) return;
+    opts = opts || {};
+    var product = mode === 'sinemalar' ? 'sinemalar' : 'doviz';
+    var sec = board.querySelector('[data-home-container="crashlytics"]');
+    if (!sec) return;
+    var url = '/api/home/crashlytics?product=' + product + '&v=22';
+    var root = null;
+    try { root = sec.querySelector('[data-home-crash-root]'); } catch (e) {}
+    var loaded = (root && root.getAttribute('data-home-app-product')) || '';
+    sec.setAttribute('hx-get', url);
+    sec.setAttribute('data-home-app-product', product);
+    if (loaded === product) return;
+    // İlk boyama: hx-trigger="load" güncel hx-get ile çeksin (çift istek yok)
+    if (opts.deferLoad && !root) return;
+    if (!window.htmx) return;
+    window.htmx.ajax('GET', url, { target: sec, swap: 'innerHTML' });
   }
   function initHomeFocus() {
     if (!board) return;

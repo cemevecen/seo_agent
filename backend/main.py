@@ -8804,6 +8804,8 @@ def _home_store_firebase_card_from_tabs(
     from backend.services.app_intel import APP_PRODUCTS
 
     pid = (product_id or "doviz").strip().lower()
+    if pid not in APP_PRODUCTS:
+        pid = "doviz"
     label = APP_PRODUCTS.get(pid, {}).get("label") or pid
     store_by_key = store_by_key or {}
     out: dict = {
@@ -8815,16 +8817,18 @@ def _home_store_firebase_card_from_tabs(
         "source": "android_ios_tabs",
     }
 
-    package = "com.Doviz"
+    package = str(APP_PRODUCTS.get(pid, {}).get("android_package") or "com.Doviz").strip() or "com.Doviz"
     vitals: dict = {}
-    try:
-        with SessionLocal() as db:
-            snap = play_console_payload(db) or {}
-        package = (snap.get("package_name") or package).strip() or package
-        panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
-        vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
-    except Exception:
-        LOGGER.debug("Home store-firebase snapshot read failed", exc_info=True)
+    # Play Console vitals scrape şu an yalnızca Döviz Android; diğer ürünlerde Crashlytics/store.
+    if pid == "doviz":
+        try:
+            with SessionLocal() as db:
+                snap = play_console_payload(db) or {}
+            package = (snap.get("package_name") or package).strip() or package
+            panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
+            vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
+        except Exception:
+            LOGGER.debug("Home store-firebase snapshot read failed", exc_info=True)
 
     try:
         sf = build_stability_free_payload(
@@ -11921,8 +11925,10 @@ def api_home_crashlytics(
     refresh: int = 0,
 ):
     """Ana sayfa store & firebase — metrikler /android + /ios stability-free ile aynı kaynak."""
+    from backend.services.app_intel import APP_PRODUCTS
+
     pid = (product or "doviz").strip().lower()
-    if pid != "doviz":
+    if pid not in APP_PRODUCTS:
         pid = "doviz"
     force = bool(refresh)
     store_platforms = _home_app_release_platforms(pid, force_refresh=force)
@@ -11930,12 +11936,20 @@ def api_home_crashlytics(
     card = _home_store_firebase_card_from_tabs(
         pid, store_by_key=store_by_key, force_refresh=force
     )
+    # /android ve /ios konsol sayfaları şu an Döviz; diğer ürünlerde /app.
+    if pid == "doviz":
+        android_url, ios_url = "/android", "/ios"
+    else:
+        android_url = f"/app?product={pid}"
+        ios_url = f"/app?product={pid}"
     return templates.TemplateResponse(
         request,
         "partials/home/crashlytics.html",
         context={
             "request": request,
             "card": card,
+            "product_id": pid,
+            "product_label": card.get("product_label") or APP_PRODUCTS.get(pid, {}).get("label") or pid,
             "store": {
                 "ios": store_by_key.get("ios"),
                 "android": store_by_key.get("android"),
@@ -11943,8 +11957,8 @@ def api_home_crashlytics(
             "firebase_url": f"/firebase?product={pid}",
             "app_url": f"/app?product={pid}",
             "aso_url": f"/app?product={pid}&tab=aso",
-            "android_url": "/android",
-            "ios_url": "/ios",
+            "android_url": android_url,
+            "ios_url": ios_url,
         },
     )
 
