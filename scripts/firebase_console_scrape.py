@@ -68,12 +68,14 @@ PLATFORMS: dict[str, dict[str, str]] = {
         "app": "android:com.Doviz",
         "package": "com.Doviz",
         "latest_version": "9.5.10 (290)",
+        "fpn": "408735554583",
     },
     "ios": {
         "project": "doviz-ios",
         "app": "ios:com.nokta.Finans-Takip",
         "package": "com.nokta.Finans.Takip",
         "latest_version": "9.0.2 (316)",
+        "fpn": "741318187155",
     },
 }
 
@@ -119,8 +121,16 @@ def _urls(
     ver = quote(version or meta["latest_version"], safe="")
     t = time_param or "90d"
     base = f"https://console.firebase.google.com/u/0/project/{project}"
+    fpn = meta.get("fpn") or ""
+    analytics = (
+        f"{base}/analytics/app/{app}/overview/"
+        f"reports~2Fdashboard%3Fr%3Dfirebase-overview"
+    )
+    if fpn:
+        analytics = f"{analytics}&fpn%3D{fpn}"
     return {
         "overview": f"{base}/overview",
+        "analytics": analytics,
         "crashlytics": (
             f"{base}/crashlytics/app/{app}/issues"
             f"?state=open&time={t}&types={issue_types}&tag=all&sort=eventCount"
@@ -456,6 +466,165 @@ _INTERESTING_RPC = (
 )
 
 
+def _strip_xssi_json(body: str) -> Any:
+    s = (body or "").lstrip()
+    if s.startswith(")]}'"):
+        s = s.split("\n", 1)[-1] if "\n" in s else s[4:]
+    return _safe_json(s)
+
+
+def _fmt_int(n: float | int | None) -> str | None:
+    if n is None:
+        return None
+    try:
+        v = float(n)
+    except (TypeError, ValueError):
+        return None
+    if abs(v) >= 1000:
+        return f"{v:,.0f}".replace(",", ".")
+    if abs(v - round(v)) < 1e-6:
+        return str(int(round(v)))
+    return f"{v:.2f}".replace(".", ",")
+
+
+def _metric_values(row: dict[str, Any]) -> list[float]:
+    out: list[float] = []
+    for x in row.get("metricCompoundValues") or row.get("metricValues") or []:
+        if isinstance(x, dict) and "value" in x:
+            try:
+                out.append(float(x["value"]))
+            except (TypeError, ValueError):
+                continue
+        elif isinstance(x, (int, float)):
+            out.append(float(x))
+    return out
+
+
+def _latest_metric_map(card: dict[str, Any]) -> dict[str, float]:
+    """dashboard_card Venus cevabından son satır metric_id → value."""
+    if not isinstance(card, dict):
+        return {}
+    responses = ((card.get("default") or {}).get("responses") or [])
+    if not responses:
+        return {}
+    resp0 = responses[0] if isinstance(responses[0], dict) else {}
+    metric_ids = [m.get("id") for m in (resp0.get("metrics") or []) if isinstance(m, dict)]
+    rows = resp0.get("responseRows") or []
+    if not rows or not metric_ids:
+        return {}
+    # son dolu satırı al
+    vals: list[float] = []
+    for row in reversed(rows):
+        if not isinstance(row, dict):
+            continue
+        vals = _metric_values(row)
+        if vals:
+            break
+    out: dict[str, float] = {}
+    for i, mid in enumerate(metric_ids):
+        if mid and i < len(vals):
+            # aynı id birden fazla olabilir (card_5) — ilkini koru, sonrakini _2
+            key = str(mid)
+            if key in out:
+                key = f"{key}_{i}"
+            out[key] = vals[i]
+    return out
+
+
+def _parse_analytics_cards(captured: list[dict[str, Any]], *, plat: str) -> dict[str, Any]:
+    cards: dict[str, Any] = {}
+    for hit in captured:
+        url = hit.get("url") or ""
+        if "data/v2/venus" not in url or "dashboard_card_" not in url:
+            continue
+        m = re.search(r"reportId=(dashboard_card_\d+)", url)
+        if not m:
+            continue
+        rid = m.group(1)
+        body = hit.get("body") or ""
+        if not body:
+            continue
+        parsed = _strip_xssi_json(body)
+        if isinstance(parsed, dict):
+            cards[rid] = parsed
+
+    c1 = _latest_metric_map(cards.get("dashboard_card_1") or {})
+    c4 = _latest_metric_map(cards.get("dashboard_card_4") or {})
+    c5 = _latest_metric_map(cards.get("dashboard_card_5") or {})
+    c6 = _latest_metric_map(cards.get("dashboard_card_6") or {})
+    c13 = _latest_metric_map(cards.get("dashboard_card_13") or {})
+
+    dau = c1.get("active_users_1")
+    wau = c1.get("active_users_7")
+    mau = c1.get("active_users_30")
+    active = c4.get("active_users") or mau
+    total_users = c5.get("total_users")
+    crash_affected = c5.get("crash_affected_users")
+    crash_free_users_pct = None
+    if total_users and total_users > 0 and crash_affected is not None:
+        crash_free_users_pct = max(0.0, min(100.0, (1.0 - crash_affected / total_users) * 100.0))
+
+    eng_per_user = c6.get("userEngagementDurationPerUser")  # seconds
+    eng_sessions = c6.get("engagedSessionsPerUser")
+    revenue = c13.get("combinedRevenue")
+    ad_revenue = c13.get("total_ad_revenue")
+
+    kpis = [
+        {"key": "dau", "label": "Daily active users", "value": dau, "fmt": _fmt_int(dau)},
+        {"key": "wau", "label": "Weekly active users", "value": wau, "fmt": _fmt_int(wau)},
+        {"key": "mau", "label": "Monthly active users", "value": mau, "fmt": _fmt_int(mau)},
+        {"key": "active_users", "label": "Active users", "value": active, "fmt": _fmt_int(active)},
+        {
+            "key": "crash_free_users",
+            "label": "Crash-free users (Analytics)",
+            "value": crash_free_users_pct,
+            "fmt": _fmt_pct(crash_free_users_pct) if crash_free_users_pct is not None else None,
+        },
+        {
+            "key": "engagement_sec",
+            "label": "Engagement / user (s)",
+            "value": eng_per_user,
+            "fmt": _fmt_int(eng_per_user) if eng_per_user is not None else None,
+        },
+        {
+            "key": "engaged_sessions",
+            "label": "Engaged sessions / user",
+            "value": eng_sessions,
+            "fmt": f"{eng_sessions:.2f}".replace(".", ",") if isinstance(eng_sessions, float) else _fmt_int(eng_sessions),
+        },
+        {"key": "revenue", "label": "Revenue", "value": revenue, "fmt": _fmt_int(revenue)},
+        {"key": "ad_revenue", "label": "Ad revenue", "value": ad_revenue, "fmt": _fmt_int(ad_revenue)},
+    ]
+    kpis = [k for k in kpis if k.get("fmt")]
+
+    return {
+        "ok": bool(kpis),
+        "platform": plat,
+        "source": "analytics_dashboard_venus",
+        "cards_seen": sorted(cards.keys()),
+        "dau": dau,
+        "wau": wau,
+        "mau": mau,
+        "active_users": active,
+        "crash_affected_users": crash_affected,
+        "total_users": total_users,
+        "crash_free_users_pct": crash_free_users_pct,
+        "crash_free_users_fmt": _fmt_pct(crash_free_users_pct) if crash_free_users_pct is not None else None,
+        "engagement_sec_per_user": eng_per_user,
+        "engaged_sessions_per_user": eng_sessions,
+        "revenue": revenue,
+        "ad_revenue": ad_revenue,
+        "kpis": kpis,
+        "raw_metrics": {
+            "card_1": c1,
+            "card_4": c4,
+            "card_5": c5,
+            "card_6": c6,
+            "card_13": c13,
+        },
+    }
+
+
 def _capture_network(page) -> list[dict[str, Any]]:
     captured: list[dict[str, Any]] = []
 
@@ -463,8 +632,10 @@ def _capture_network(page) -> list[dict[str, Any]]:
         try:
             url = resp.url or ""
             low = url.lower()
+            is_analytics = "analytics.google.com/analytics/app/data/v2/venus" in low
             interesting = (
-                "firebasereleasemon" in low
+                is_analytics
+                or "firebasereleasemon" in low
                 or "crashlytics" in low
                 or any(k.lower() in url for k in _INTERESTING_RPC)
             )
@@ -474,14 +645,17 @@ def _capture_network(page) -> list[dict[str, Any]]:
                 return
             ct = (resp.headers or {}).get("content-type", "").lower()
             name = _rpc_name(url)
-            keep_body = any(name.startswith(k) for k in _INTERESTING_RPC)
+            keep_body = (
+                is_analytics
+                or any(name.startswith(k) for k in _INTERESTING_RPC)
+            )
             if not keep_body and "json" not in ct and "javascript" not in ct and "text/plain" not in ct:
                 return
             body = resp.text()
             if not body or len(body) > 2_000_000:
                 return
             entry: dict[str, Any] = {
-                "url": url[:400],
+                "url": url[:500],
                 "status": resp.status,
                 "len": len(body),
                 "snippet": body[:240],
@@ -489,12 +663,16 @@ def _capture_network(page) -> list[dict[str, Any]]:
             if keep_body:
                 entry["body"] = body[:500_000]
             captured.append(entry)
-            if len(captured) > 120:
+            if len(captured) > 260:
                 captured.pop(0)
         except Exception:
             return
 
-    page.on("response", on_response)
+    # iframe Analytics istekleri için context dinleyicisi
+    try:
+        page.context.on("response", on_response)
+    except Exception:
+        page.on("response", on_response)
     return captured
 
 
@@ -606,8 +784,27 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
         anr_net = _parse_releasemon_network(captured[before:], plat=plat)
         anr_issues = anr_net.get("issues") or []
 
-    print(f"  · {plat}/overview …", flush=True)
+    print(f"  · {plat}/analytics …", flush=True)
     ov_urls = _urls(plat, time_param="90d", version=version)
+    before_analytics = len(captured)
+    _goto_collect(page, ov_urls["analytics"], captured, wait_ms=20000)
+    # iframe kartları geç gelebilir
+    try:
+        page.wait_for_timeout(4000)
+    except Exception:
+        pass
+    analytics = _parse_analytics_cards(captured[before_analytics:], plat=plat)
+    if not analytics.get("ok"):
+        # tüm buffer'da ara (listener çift kayıt / gecikme)
+        analytics = _parse_analytics_cards(captured, plat=plat)
+    print(
+        f"    → analytics ok={analytics.get('ok')} "
+        f"dau={analytics.get('dau')} mau={analytics.get('mau')} "
+        f"cards={len(analytics.get('cards_seen') or [])}",
+        flush=True,
+    )
+
+    print(f"  · {plat}/overview …", flush=True)
     _goto_collect(page, ov_urls["overview"], captured, wait_ms=5000)
 
     issues = _merge_issues(
@@ -670,8 +867,10 @@ def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
             "source_page": "releasemonitoring",
             "source": "releasemon_rpc",
         },
+        "analytics": analytics,
         "pages": {
             "overview": ov_urls["overview"],
+            "analytics": ov_urls["analytics"],
             "crashlytics": crash_urls["crashlytics"],
             "release": urls90["release"],
             "release_all": urls90["release_all"],
@@ -767,6 +966,19 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
                                 "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                             }
                         )
+                    an = block.get("analytics") if isinstance(block.get("analytics"), dict) else {}
+                    for k in ("dau", "wau", "mau"):
+                        if an.get(k) is not None:
+                            metrics.append(
+                                {
+                                    "metric": f"{plat}_{k}",
+                                    "platform": plat,
+                                    "value": an.get(k),
+                                    "fmt": _fmt_int(an.get(k)),
+                                    "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                                    "source": "analytics_dashboard",
+                                }
+                            )
                     if not block.get("ok"):
                         errors.append(f"{plat}:{block.get('error')}")
                 except Exception as exc:  # noqa: BLE001
