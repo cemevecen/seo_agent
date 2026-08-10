@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v31-nt-dates">
+<style id="home-site-borders" data-home-css="v32-pos-nobold">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -590,7 +590,7 @@
   #home-board .home-readable .home-pos-query {
     font-size: calc(var(--home-text) * 0.8125) !important;
     line-height: 1.25 !important;
-    font-weight: 650;
+    font-weight: 400 !important;
     letter-spacing: -0.01em;
     text-transform: none;
     overflow: hidden !important;
@@ -1869,7 +1869,7 @@
       {# Row 4 — Position Drops #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/position-drops?site=doviz&v=11" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=12" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
@@ -1907,7 +1907,7 @@
 
     {# Full-width — divider yok (Crashlytics ile aynı birleşik kart hissi) #}
     <div data-home-container-slot="notification-week">
-    <section hx-get="/api/home/notification-week?v=25" hx-trigger="load" hx-swap="innerHTML"
+    <section hx-get="/api/home/notification-week?v=26" hx-trigger="load" hx-swap="innerHTML"
              data-home-container="notification-week"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
