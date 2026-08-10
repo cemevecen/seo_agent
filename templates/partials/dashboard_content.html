@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v34-sc-quad">
+<style id="home-site-borders" data-home-css="v35-pos-nobold">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -616,7 +616,18 @@
     padding: 0.14rem 0.455rem;
     letter-spacing: 0.02em;
     text-transform: none;
-    font-weight: 650;
+    font-weight: 400 !important;
+  }
+  /* Position alerts: tarih yarı boyut; hiçbir yazı/veri bold değil */
+  #home-board .home-readable .home-pos-asof,
+  #home-board .home-readable .home-pos-asof :where(*) {
+    font-size: calc(var(--home-text) / 2) !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+  }
+  #home-board .home-readable .home-pos-drops,
+  #home-board .home-readable .home-pos-drops :where(*) {
+    font-weight: 400 !important;
   }
   /* Store KPI başlıkları (Skor/Sıra/Dönem/Puan): x2 küçült */
   #home-board .home-readable .home-store-kpi__l {
@@ -1899,14 +1910,14 @@
       {# Row 4 — Position Drops #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/position-drops?site=doviz&v=12" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=13" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
         </div>
         <div data-home-container-slot="position-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=12" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=13" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
