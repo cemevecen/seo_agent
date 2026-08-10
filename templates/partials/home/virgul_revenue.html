@@ -1,4 +1,5 @@
 {# Home — Virgül reklam: 6 alan · son hafta vs 3 ay günlük ort. gelir #}
+{% from "partials/home/_brand_icon.html" import brand_icon %}
 <style>
   .home-vg-rev {
     width: 100%;
@@ -44,6 +45,9 @@
   }
   .home-vg-rev-label {
     margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font-weight: 400;
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -119,7 +123,10 @@
     <article class="home-vg-rev-card is-{{ c.brand }}" role="listitem"
              data-stream="{{ c.key }}" data-home-vg-brand="{{ c.brand }}"
              title="{% if c.has_data %}son hafta {{ c.week_days_present|default('?') }}/{{ week_days|default(7) }} gün veri · 3 ay {{ c.month3_days_present|default('?') }}/{{ month3_days|default(90) }} gün veri{% endif %}">
-      <p class="home-vg-rev-label">{{ c.label }}</p>
+      <p class="home-vg-rev-label">
+        {{ brand_icon(c.brand, 'sm') }}
+        <span>{{ c.label }}</span>
+      </p>
       {% if c.has_data %}
         <p class="home-vg-rev-delta {% if c.tone and c.tone != 'flat' %}is-{{ c.tone }}{% endif %}">{{ c.delta_fmt }}</p>
         <div class="home-vg-rev-meta">

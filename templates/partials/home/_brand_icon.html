@@ -1,0 +1,8 @@
+{# Site brand icons for home containers (doviz / sinemalar). #}
+{% macro brand_icon(key, size='') -%}
+{%- set k = 'sinemalar' if (key|string|lower) in ('sinemalar', '2') else 'doviz' -%}
+<img class="home-brand-icon{% if size %} home-brand-icon--{{ size }}{% endif %}"
+     src="/static/brand/{{ k }}-app-icon.png?v=2"
+     width="140" height="140"
+     alt="" decoding="async" aria-hidden="true">
+{%- endmacro %}

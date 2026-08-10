@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v44-nt-7days">
+<style id="home-site-borders" data-home-css="v45-brand-icons">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -1410,6 +1410,21 @@
     object-fit: cover;
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
   }
+  /* Container başlıklarında site ikonu (doviz / sinemalar) */
+  .home-brand-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 0.38rem;
+    object-fit: cover;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+  }
+  .home-brand-icon--sm {
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 0.3rem;
+  }
   .home-project-rail-label {
     display: none;
   }
@@ -1836,10 +1851,10 @@
       <button type="button" class="home-focus-split home-focus-split--bar lg:hidden" data-home-focus-set="split"
               title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
         <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">
-          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
+          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </span>
         <span class="home-focus-split-face home-focus-split-face--s" aria-hidden="true">
-          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
+          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </span>
       </button>
       <a href="/alerts" hx-get="/alerts" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
@@ -1937,7 +1952,7 @@
     {# Sütun başlıkları + split madalyon #}
     <div class="home-project-heads home-pair-row grid grid-cols-1 gap-5 lg:grid-cols-2">
       <div class="home-project-head-cluster" data-home-project="doviz">
-        <img class="home-project-logo home-project-logo--out" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
+        <img class="home-project-logo home-project-logo--out" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         <div class="home-project-head home-project-head--doviz flex items-center gap-2 rounded-2xl bg-blue-50/60 px-3 ring-1 ring-blue-200/70 dark:bg-blue-950/30 dark:ring-blue-900/50 sm:px-4">
           <div class="home-project-head-main min-w-0 flex-1">
             <h2 class="truncate font-bold tracking-tight text-blue-900 dark:text-blue-200">doviz.com</h2>
@@ -1948,21 +1963,21 @@
         </div>
         <button type="button" class="home-project-rail-label" data-home-focus-set="doviz"
                 title="doviz.com tam ekran" aria-label="doviz.com tam ekran">
-          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
+          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </button>
       </div>
       <button type="button" class="home-focus-split" data-home-focus-set="split" title="Split görünüm (iki proje yan yana)" aria-label="Split görünüme dön">
         <span class="home-focus-split-face home-focus-split-face--d" aria-hidden="true">
-          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png" width="140" height="140" alt="" decoding="async">
+          <img class="home-project-logo" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </span>
         <span class="home-focus-split-face home-focus-split-face--s" aria-hidden="true">
-          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
+          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </span>
       </button>
       <div class="home-project-head-cluster" data-home-project="sinemalar">
         <button type="button" class="home-project-rail-label" data-home-focus-set="sinemalar"
                 title="sinemalar.com tam ekran" aria-label="sinemalar.com tam ekran">
-          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
+          <img class="home-project-logo" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
         </button>
         <div class="home-project-head home-project-head--sinemalar flex items-center gap-2 rounded-2xl bg-rose-50/60 px-3 ring-1 ring-rose-300/70 dark:bg-rose-950/30 dark:ring-rose-800/60 sm:px-4">
           <button type="button" class="home-focus-chev" data-home-focus-set="sinemalar" title="sinemalar.com genişlet" aria-label="sinemalar.com genişlet">
@@ -1972,7 +1987,7 @@
             <h2 class="truncate font-bold tracking-tight text-rose-900 dark:text-rose-200">sinemalar.com</h2>
           </div>
         </div>
-        <img class="home-project-logo home-project-logo--out" src="/static/brand/sinemalar-app-icon.png" width="140" height="140" alt="" decoding="async">
+        <img class="home-project-logo home-project-logo--out" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async">
       </div>
     </div>
 
@@ -1985,18 +2000,24 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=34" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=35" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
+          <div class="flex items-center gap-2">
+            <img class="home-brand-icon" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
+          </div>
           {{ _placeholder_mid | safe }}
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=34" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=35" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
+          <div class="flex items-center gap-2">
+            <img class="home-brand-icon" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
+          </div>
           {{ _placeholder_mid | safe }}
         </section>
         </div>
@@ -2005,18 +2026,24 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=39" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=40" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
+          <div class="flex items-center gap-2">
+            <img class="home-brand-icon" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
+          </div>
           {{ _placeholder_mid | safe }}
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=39" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=40" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
+          <div class="flex items-center gap-2">
+            <img class="home-brand-icon" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
+          </div>
           {{ _placeholder_mid | safe }}
         </section>
         </div>
@@ -2025,14 +2052,14 @@
       {# Row 4 — Position Drops #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/position-drops?site=doviz&v=13" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=14" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
         </section>
         </div>
         <div data-home-container-slot="position-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=13" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=14" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
@@ -2043,18 +2070,24 @@
       {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="wv-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/web-vitals?site=doviz&v=7" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=doviz&v=8" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+          <div class="flex items-center gap-2">
+            <img class="home-brand-icon" src="/static/brand/doviz-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+          </div>
           {{ _placeholder_tall | safe }}
         </section>
         </div>
         <div data-home-container-slot="wv-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/web-vitals?site=sinemalar&v=7" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=sinemalar&v=8" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+          <div class="flex items-center gap-2">
+            <img class="home-brand-icon" src="/static/brand/sinemalar-app-icon.png?v=2" width="140" height="140" alt="" decoding="async" aria-hidden="true">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+          </div>
           {{ _placeholder_tall | safe }}
         </section>
         </div>
@@ -2063,7 +2096,7 @@
 
     {# Full-width — divider yok (Crashlytics ile aynı birleşik kart hissi) #}
     <div data-home-container-slot="notification-week">
-    <section hx-get="/api/home/notification-week?v=28" hx-trigger="load" hx-swap="innerHTML"
+    <section hx-get="/api/home/notification-week?v=29" hx-trigger="load" hx-swap="innerHTML"
              data-home-container="notification-week"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
@@ -2074,7 +2107,7 @@
 
     {# Mobil mağaza / Firebase durum — full width #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=20" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=21" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
@@ -2084,7 +2117,7 @@
 
     {# git.nokta — boards ile aynı GitLab/VPN kaynağı #}
     <div data-home-container-slot="priority-board">
-    <section hx-get="/api/home/priority-board?v=10" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/priority-board?v=11" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="priority-board"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">
@@ -2095,7 +2128,7 @@
 
     {# Virgül reklam — 6 alan: 1 hafta vs 3 ay günlük ort. gelir #}
     <div data-home-container-slot="virgul-revenue">
-    <section hx-get="/api/home/virgul-revenue?v=6" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
+    <section hx-get="/api/home/virgul-revenue?v=7" hx-trigger="load" hx-swap="innerHTML" hx-timeout="60000"
              data-home-container="virgul-revenue"
              hx-headers='{"Cache-Control": "no-cache"}'
              class="home-readable rounded-2xl bg-white p-4 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:p-5">

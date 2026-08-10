@@ -1,6 +1,7 @@
 {% set store = store | default({}) %}
 {% set store_ios = store.ios if store else none %}
 {% set store_android = store.android if store else none %}
+{% from "partials/home/_brand_icon.html" import brand_icon %}
 <style>
   .home-crash-shell {
     width: 100%;
@@ -446,6 +447,7 @@
           aria-controls="home-crash-shell-body">
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 flex-wrap items-center gap-2">
+        {{ brand_icon('doviz') }}
         <span class="home-motion-crash-pulse" aria-hidden="true"></span>
         <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
         <h3 class="font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>

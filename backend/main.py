@@ -10764,6 +10764,7 @@ def _live_position_drop_sites(db, domain: str | None = None) -> list[dict]:
         out.append(
             {
                 "site_id": site_id,
+                "site_key": "doviz" if site_id == 1 else "sinemalar",
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name or site_obj.domain,
                 "drops": drop_payload.get("drops") or [],
@@ -10930,6 +10931,7 @@ def api_home_position_drops(request: Request, site: str | None = None):
             drop_payload = _home_position_drops_for_site(db, site_id)
             sites_out.append({
                 "site_id": site_id,
+                "site_key": "doviz" if site_id == 1 else "sinemalar",
                 "domain": site_obj.domain,
                 "display_name": site_obj.display_name,
                 "drops": drop_payload.get("drops") or [],

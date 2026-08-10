@@ -1,4 +1,5 @@
 {# Home — Notification 7g vs önceki hafta · kapalı dropdown #}
+{% from "partials/home/_brand_icon.html" import brand_icon %}
 {% macro tone_text(pct) -%}
 {%- set p = pct | default(0) | float -%}
 {%- if p > 0.5 -%}text-emerald-600 dark:text-emerald-400
@@ -755,6 +756,7 @@
           aria-controls="home-nt-shell-body">
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-2">
+        {{ brand_icon('doviz') }}
         <span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 home-label text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800">Döviz</span>
         <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 home-label normal-case tracking-normal text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">Notification</span>
         <h3 class="home-nt-heading text-slate-900 dark:text-slate-100">7 days</h3>

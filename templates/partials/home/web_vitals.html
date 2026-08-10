@@ -1,4 +1,5 @@
 {% macro fmt_int(n) -%}{{ '{:,}'.format((n or 0)|int).replace(',', '.') }}{%- endmacro %}
+{% from "partials/home/_brand_icon.html" import brand_icon %}
 {% set block = sites[0] if sites and sites[0] else none %}
 {% set sid = block.site_id if block else 0 %}
 {% set mk = block.mobile_kpis if block else {} %}
@@ -27,6 +28,7 @@
   <details class="home-wv-drop group" open>
     <summary class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl px-0.5 py-0.5">
       <div class="flex min-w-0 items-center gap-2">
+        {{ brand_icon(block.site_key if block and block.site_key else 'doviz') }}
         <span class="home-wv-chevron leading-none" aria-hidden="true">▸</span>
         <h3 class="font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
         {% if has_data %}

@@ -1,3 +1,4 @@
+{% from "partials/home/_brand_icon.html" import brand_icon %}
 <div class="home-readable flex flex-wrap items-center justify-between gap-3">
   <div class="flex items-center gap-2">
     <span class="home-rt-live-dot" aria-hidden="true"></span>
@@ -9,6 +10,7 @@
       <div class="home-rt-pill {% if site.site_id == 1 %}home-rt-pill--doviz{% else %}home-rt-pill--sinemalar{% endif %}"
            data-home-rt-project="{% if site.site_id == 1 %}doviz{% else %}sinemalar{% endif %}"
            title="{{ site.display_name or site.domain }} — tüm profiller toplamı">
+        {{ brand_icon('doviz' if site.site_id == 1 else 'sinemalar', 'sm') }}
         <span class="home-label {% if site.site_id == 1 %}text-blue-700 dark:text-blue-200{% else %}text-red-600 dark:text-red-300{% endif %}">{{ site.display_name or site.domain }}</span>
         <span class="home-body tabular-nums text-slate-900 dark:text-slate-50" data-home-rt-total="{{ site.site_id }}" data-rt-slot-value>{{ site.total_active_fmt }} aktif</span>
         <span class="home-meta tabular-nums text-slate-600 dark:text-slate-300">· {{ site.total_pageviews_fmt }} gör.</span>
@@ -35,7 +37,10 @@
                data-home-rt-key="{{ site.site_id }}-{{ prof.key }}"
                data-home-rt-project="{% if site.site_id == 1 %}doviz{% else %}sinemalar{% endif %}">
             <div class="relative z-[1] min-w-0">
-              <p class="home-label {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">{{ site.display_name or site.domain }}</p>
+              <p class="home-label flex items-center gap-1.5 {% if site.site_id == 1 %}text-blue-600 dark:text-blue-300{% else %}text-red-600 dark:text-red-400{% endif %}">
+                {{ brand_icon('doviz' if site.site_id == 1 else 'sinemalar', 'sm') }}
+                <span>{{ site.display_name or site.domain }}</span>
+              </p>
               <p class="home-label mt-0.5 text-slate-500 dark:text-slate-400">{{ prof.label }}</p>
               <p class="home-kpi mt-1.5 text-slate-900 dark:text-slate-100" data-rt-slot-value>{{ prof.value_fmt }}</p>
             </div>
