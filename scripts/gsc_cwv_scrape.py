@@ -8,6 +8,9 @@ Satır limiti yok — tablo sonuna kadar kaydırılır.
   .venv/bin/python scripts/gsc_cwv_scrape.py --sync --ingest
   .venv/bin/python scripts/gsc_cwv_scrape.py --sync --ingest --site doviz
 
+Not: --login aynı play-console-profile’ı kullanan eski Chrome süreçlerini kapatır
+(profil uyarısı / şifre ekranında ani kapanmayı önlemek için).
+
 Env:
   GSC_CWV_PROFILE_DIR / GSC_LINKS_PROFILE_DIR / PLAY_CONSOLE_PROFILE_DIR
   GSC_CWV_INGEST_URL
@@ -182,29 +185,110 @@ def _amp_url(resource_id: str, path: str = "", **params: Any) -> str:
 def _looks_signed_in(page) -> bool:
     try:
         url = (page.url or "").lower()
-        if "accounts.google.com" in url or "signin" in url:
+        if "accounts.google.com" in url or "signin" in url or "challenge" in url:
             return False
         body = ""
         try:
-            body = (page.inner_text("body") or "")[:800].lower()
+            body = (page.inner_text("body") or "")[:1200].lower()
         except Exception:
             pass
-        if "email or phone" in body or "e-posta veya telefon" in body:
+        # Google şifre / 2FA / hesap seçimi — asla “giriş OK” sayma
+        login_markers = (
+            "email or phone",
+            "e-posta veya telefon",
+            "enter your password",
+            "şifrenizi girin",
+            "sifrenizi girin",
+            "verify it’s you",
+            "verify it's you",
+            "2-step",
+            "iki adımlı",
+            "forgot password",
+            "şifr",
+        )
+        if any(m in body for m in login_markers):
             return False
         return "search.google.com/search-console" in url or "search.google.com/u/" in url
     except Exception:
         return False
 
 
+def _kill_stale_profile_browsers(profile_dir: Path) -> int:
+    """Aynı user-data-dir’i tutan Chrome/Chromium süreçlerini kapat (profil çakışması)."""
+    import signal
+    import subprocess
+
+    marker = str(profile_dir.resolve())
+    killed = 0
+    try:
+        out = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
+    except Exception:
+        out = ""
+    for line in out.splitlines():
+        if marker not in line:
+            continue
+        low = line.lower()
+        if "chrome" not in low and "chromium" not in low:
+            continue
+        try:
+            pid = int(line.split(None, 1)[0])
+        except Exception:
+            continue
+        if pid <= 1 or pid == os.getpid():
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed += 1
+        except ProcessLookupError:
+            pass
+        except Exception:
+            pass
+    if killed:
+        time.sleep(1.0)
+        try:
+            out2 = subprocess.check_output(["ps", "ax", "-o", "pid=,command="], text=True)
+        except Exception:
+            out2 = ""
+        for line in out2.splitlines():
+            if marker not in line:
+                continue
+            low = line.lower()
+            if "chrome" not in low and "chromium" not in low:
+                continue
+            try:
+                pid = int(line.split(None, 1)[0])
+                os.kill(pid, signal.SIGKILL)
+            except Exception:
+                pass
+        time.sleep(0.4)
+    return killed
+
+
+def _clear_profile_locks(profile_dir: Path) -> None:
+    for name in (
+        "SingletonLock",
+        "SingletonCookie",
+        "SingletonSocket",
+        "DevToolsActivePort",
+        "RunningChromeVersion",
+        "lockfile",
+    ):
+        p = profile_dir / name
+        try:
+            if p.is_symlink() or p.is_file():
+                p.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def _launch_context(*, headed: bool):
     from playwright.sync_api import sync_playwright
 
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
-        try:
-            (PROFILE_DIR / name).unlink(missing_ok=True)
-        except Exception:
-            pass
+    killed = _kill_stale_profile_browsers(PROFILE_DIR)
+    if killed:
+        print(f"GSC CWV profil: {killed} eski Chrome süreci kapatıldı ({PROFILE_DIR})", flush=True)
+    _clear_profile_locks(PROFILE_DIR)
     pw = sync_playwright().start()
     channel = (
         os.environ.get("GSC_CWV_BROWSER_CHANNEL")
@@ -218,35 +302,96 @@ def _launch_context(*, headed: bool):
         "viewport": {"width": 1440, "height": 1100},
         "locale": "en-US",
         "accept_downloads": True,
-        "args": ["--disable-blink-features=AutomationControlled"],
+        "ignore_default_args": ["--enable-automation"],
+        "args": [
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--password-store=basic",
+            "--use-mock-keychain",
+        ],
     }
     if channel and channel.lower() not in ("0", "none", "chromium"):
         kwargs["channel"] = channel
     try:
         context = pw.chromium.launch_persistent_context(**kwargs)
-    except Exception:
+    except Exception as exc:
+        print(f"channel={channel!r} launch fail → bundled chromium: {exc}", flush=True)
         kwargs.pop("channel", None)
+        _clear_profile_locks(PROFILE_DIR)
         context = pw.chromium.launch_persistent_context(**kwargs)
     return pw, context
 
 
-def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
+def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
+    """Headed login — şifre/2FA sırasında tarayıcıyı kapatma; profil kilidini önce temizle."""
     url = _cwv_url("sc-domain:doviz.com")
+    print(f"Profil: {PROFILE_DIR}", flush=True)
+    print(
+        "Not: Aynı profilde başka Chrome açıksa kapatılır (profil uyarısı / ani kapanma önlemi).",
+        flush=True,
+    )
     pw, context = _launch_context(headed=True)
+    ok_streak = 0
     try:
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+        except Exception as exc:
+            print(f"İlk goto uyarısı (devam): {exc}", flush=True)
         print(
-            f"Tarayıcıda GSC giriş yap. CWV sayfası açılınca {timeout_sec}s içinde otomatik kapanır.",
+            f"Tarayıcıda Google ile GSC girişi yapın (şifre/2FA). "
+            f"CWV sayfası açılınca {timeout_sec}s içinde otomatik kaydedilir.",
             flush=True,
         )
-        deadline = time.time() + max(60, timeout_sec)
+        deadline = time.time() + max(120, timeout_sec)
         while time.time() < deadline:
-            if _looks_signed_in(page) and "core-web-vitals" in (page.url or ""):
-                time.sleep(2)
-                return {"ok": True, "url": page.url, "profile": str(PROFILE_DIR)}
+            try:
+                # Context düştüyse (Chrome çöktü) hemen bildir
+                if not context.pages:
+                    return {
+                        "ok": False,
+                        "message": (
+                            "Tarayıcı kapandı (profil çakışması veya Chrome çökmesi). "
+                            "Tüm seo-agent Chrome pencerelerini kapatıp tekrar: "
+                            "scripts/gsc_cwv_scrape.py --login"
+                        ),
+                        "profile": str(PROFILE_DIR),
+                    }
+                page = context.pages[0]
+                cur = (page.url or "").lower()
+                if "accounts.google.com" in cur or "signin" in cur:
+                    ok_streak = 0
+                    time.sleep(2)
+                    continue
+                if _looks_signed_in(page) and "core-web-vitals" in cur:
+                    ok_streak += 1
+                    if ok_streak >= 2:
+                        # Cookie’lerin diske yazılması
+                        time.sleep(4)
+                        return {"ok": True, "url": page.url, "profile": str(PROFILE_DIR)}
+                else:
+                    ok_streak = 0
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "has been closed" in msg or "target closed" in msg or "crashed" in msg:
+                    return {
+                        "ok": False,
+                        "message": (
+                            "Tarayıcı oturumu kapandı. Profil kilidi için tekrar --login; "
+                            "hâlâ olursa Chrome’daki tüm seo-agent pencerelerini kapatın."
+                        ),
+                        "profile": str(PROFILE_DIR),
+                        "error": str(exc)[:200],
+                    }
+                ok_streak = 0
             time.sleep(2)
-        return {"ok": False, "message": "Login zaman aşımı", "url": page.url, "profile": str(PROFILE_DIR)}
+        return {
+            "ok": False,
+            "message": "Login zaman aşımı — şifre/2FA bitmeden süre doldu; tekrar --login",
+            "url": (context.pages[0].url if context.pages else ""),
+            "profile": str(PROFILE_DIR),
+        }
     finally:
         try:
             context.close()
@@ -256,6 +401,7 @@ def run_login_interactive(timeout_sec: int = 600) -> dict[str, Any]:
             pw.stop()
         except Exception:
             pass
+        _clear_profile_locks(PROFILE_DIR)
 
 
 def _scroll_table_fully(page, *, max_rounds: int = 800) -> int:
