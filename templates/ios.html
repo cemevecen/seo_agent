@@ -570,23 +570,13 @@
   .ia-orbit--sm .ia-orbit__ring--mid { inset: 0.28rem; }
   .ia-orbit--sm .ia-orbit__ring--inner { inset: 0.52rem; border-width: 1.5px; }
   .ia-orbit--sm .ia-orbit__core { inset: 0.72rem; }
-  .ia-stability-inline {
-    min-width: 0;
-    max-width: none;
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.35rem;
-  }
   .ia-stability-versions {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
     gap: 0.25rem;
     flex: 0 0 auto;
-    max-width: none;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -623,116 +613,53 @@
   html.dark .ia-stability-version:not(.is-on):hover {
     background: #3f3f46;
   }
-  .ia-stability-inline .ia-stability-grid {
-    width: auto;
-    min-width: 0;
-    flex: 0 0 auto;
-    display: flex !important;
-    grid-template-columns: none !important;
-    gap: 0;
-    align-items: center;
-  }
-  .ia-stability-inline .ia-stability-grid .sf-card {
-    display: inline-flex !important;
-    flex-direction: row !important;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.55rem;
-    min-width: 7.5rem;
-    width: 8.75rem;
-    min-height: 1.75rem !important;
-    height: auto;
-    padding: 0.28rem 0.4rem 0.28rem 0.75rem !important;
-    border-radius: 9999px;
-    border: 1px solid rgb(226 232 240);
-    background: rgb(248 250 252 / 0.95);
-  }
-  html.dark .ia-stability-inline .ia-stability-grid .sf-card {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27 / 0.65);
-  }
-  .ia-stability-inline .ia-stability-grid .sf-card__title,
-  .ia-stability-inline .ia-stability-grid .sf-card__sub,
-  .ia-stability-inline .ia-stability-grid .sf-card__side,
-  .ia-stability-inline .ia-stability-grid .sf-card__extra {
-    display: none !important;
-  }
-  .ia-stability-inline .ia-stability-grid .sf-card__body {
-    display: contents;
-  }
-  .ia-stability-inline .ia-stability-grid .sf-card__value {
-    margin: 0 !important;
-    margin-top: 0 !important;
-    flex: 1 1 auto;
-    text-align: left;
-    font-size: 0.875rem !important;
-    font-weight: 800;
-    line-height: 1 !important;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
   .ia-sf-refresh {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 1.4rem;
-    height: 1.4rem;
-    margin: 0;
-    padding: 0;
+    margin-top: 0.25rem;
     border-radius: 9999px;
-    border: 1px solid transparent;
-    background: transparent;
-    color: #64748b;
+    border: 1px solid rgb(203 213 225);
+    background: #fff;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #475569;
     cursor: pointer;
-    flex: 0 0 auto;
   }
   .ia-sf-refresh:hover {
     border-color: #0ea5e9;
     color: #0284c7;
-    background: rgb(224 242 254 / 0.7);
   }
   .ia-sf-refresh:disabled {
     opacity: 0.5;
     cursor: wait;
   }
-  .ia-sf-refresh svg {
-    width: 0.85rem;
-    height: 0.85rem;
-  }
+  .ia-sf-refresh svg { display: none; }
   html.dark .ia-sf-refresh {
-    color: #a1a1aa;
-    background: transparent;
+    border-color: #52525b;
+    background: #18181b;
+    color: #d4d4d8;
   }
   html.dark .ia-sf-refresh:hover {
+    border-color: #38bdf8;
     color: #7dd3fc;
-    background: rgb(12 74 110 / 0.35);
   }
   .ia-stability-free-loading {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 1.35rem;
-    min-width: 1.35rem;
-    flex: 0 0 auto;
+    padding: 0.5rem 0;
   }
   .ia-stability-free-loading.hidden {
     display: none;
   }
-  .ia-stability-free-loading .ia-orbit--sm {
-    width: 1.1rem;
-    height: 1.1rem;
+  .ia-stability-grid .sf-card.is-pending .sf-card__value {
+    opacity: 0.55;
   }
-  @media (max-width: 720px) {
-    .ia-stability-inline {
-      max-width: 100%;
-      justify-content: flex-start;
-      width: 100%;
-      overflow-x: auto;
-    }
-    .ia-stability-inline .sf-card {
-      min-width: 6.75rem;
-      width: 7.75rem;
-    }
+  .ia-stability-grid .sf-card.is-stale .sf-card__value {
+    opacity: 0.85;
   }
   html.dark .ia-orbit__ring { border-top-color: #38bdf8; border-right-color: rgba(56, 189, 248, 0.35); }
   html.dark .ia-orbit__ring--mid { border-top-color: #7dd3fc; }
@@ -845,35 +772,51 @@
     padding: 0.55rem 0.65rem;
     container-type: inline-size;
     container-name: sf-card;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252 / 0.7);
+  }
+  html.dark .ia-stability-grid .sf-card {
+    border-color: rgb(63 63 70);
+    background: rgb(9 9 11 / 0.4);
   }
   .ia-stability-grid .sf-card__title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: clamp(0.5625rem, 1.1vw, 0.625rem);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  html.dark .ia-stability-grid .sf-card__title {
+    color: #a1a1aa;
   }
   .ia-stability-grid .sf-card__sub {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
+    margin-top: 0.125rem;
     font-size: clamp(0.5625rem, 1vw, 0.625rem);
     line-height: 1.25;
+    color: #94a3b8;
   }
-  .ia-stability-grid .sf-card__sub a,
-  .ia-stability-inline .ia-stability-grid .sf-card__sub a {
+  html.dark .ia-stability-grid .sf-card__sub {
+    color: #71717a;
+  }
+  .ia-stability-grid .sf-card__sub a {
     color: inherit;
     text-decoration: underline;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
     text-underline-offset: 2px;
   }
-  .ia-stability-grid .sf-card__sub a:hover,
-  .ia-stability-inline .ia-stability-grid .sf-card__sub a:hover {
+  .ia-stability-grid .sf-card__sub a:hover {
     color: #047857;
     text-decoration-color: currentColor;
   }
-  html.dark .ia-stability-grid .sf-card__sub a:hover,
-  html.dark .ia-stability-inline .ia-stability-grid .sf-card__sub a:hover {
+  html.dark .ia-stability-grid .sf-card__sub a:hover {
     color: #34d399;
   }
   .ia-stability-grid .sf-card__body {
@@ -889,7 +832,9 @@
     min-width: 0;
     flex: 1 1 auto;
     font-size: clamp(1rem, 2.4vw, 1.5rem);
+    font-weight: 800;
     line-height: 1.1;
+    font-variant-numeric: tabular-nums;
   }
   .ia-stability-grid .sf-card__side {
     display: flex;
@@ -1023,18 +968,6 @@
         <p id="ia-status" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Mac bridge sync (Play gibi) · Sales API yedek.</p>
       </div>
       <div class="flex min-w-0 shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
-        <div class="ia-stability-inline">
-          <div id="ia-stability-versions" class="ia-stability-versions" aria-label="Son iOS sürümleri"></div>
-          <div id="ia-stability-free" class="ia-stability-grid grid gap-1.5" style="--sf-n:1"></div>
-          <div id="ia-stability-free-empty" class="ia-stability-free-loading" aria-busy="true" aria-label="Loading">
-            <div class="ia-orbit ia-orbit--sm" aria-hidden="true">
-              <span class="ia-orbit__ring"></span>
-              <span class="ia-orbit__ring ia-orbit__ring--mid"></span>
-              <span class="ia-orbit__ring ia-orbit__ring--inner"></span>
-              <span class="ia-orbit__core"></span>
-            </div>
-          </div>
-        </div>
         <a href="https://appstoreconnect.apple.com/apps/465599322/analytics/metrics" target="_blank" rel="noopener"
            class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
           App Store Connect ↗
@@ -1051,6 +984,24 @@
                 class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-2.5 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
           Yenile
         </button>
+      </div>
+    </div>
+    <div class="mt-3 border-t border-slate-100 pt-3 dark:border-zinc-800">
+      <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Crash-free</p>
+          <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Firebase · Crashlytics (iOS)</p>
+        </div>
+        <div id="ia-stability-versions" class="ia-stability-versions" aria-label="Son iOS sürümleri"></div>
+      </div>
+      <div id="ia-stability-free" class="ia-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:2"></div>
+      <div id="ia-stability-free-empty" class="ia-stability-free-loading mt-2" aria-busy="true" aria-label="Loading">
+        <div class="ia-orbit ia-orbit--sm" aria-hidden="true">
+          <span class="ia-orbit__ring"></span>
+          <span class="ia-orbit__ring ia-orbit__ring--mid"></span>
+          <span class="ia-orbit__ring ia-orbit__ring--inner"></span>
+          <span class="ia-orbit__core"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -3480,15 +3431,11 @@
       return null;
     }
     function refreshBtnHtml(busy) {
+      if (!busy && !arguments[1]) return "";
       return (
         '<button type="button" data-ia-sf-refresh class="ia-sf-refresh" ' +
           (busy ? "disabled " : "") +
-          'aria-label="Crashlytics skorunu yenile" title="Yenile">' +
-          '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-            '<path d="M21 12a9 9 0 1 1-2.6-6.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-            '<path d="M21 4v5h-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-          "</svg>" +
-        "</button>"
+          'aria-label="Crashlytics skorunu yenile">Yenile</button>'
       );
     }
     function iaSfSideTip(part, cardTitle) {
@@ -3536,6 +3483,9 @@
             }).join("") +
           "</div>")
         : "";
+      var refresh = opts.pending || state.loading
+        ? refreshBtnHtml(!!state.loading, true)
+        : "";
       return (
         '<div class="' + cls + '" title="' + esc(tip) + '">' +
           '<p class="sf-card__title">' + esc(title) + "</p>" +
@@ -3544,7 +3494,7 @@
             '<p class="sf-card__value ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
             side +
           "</div>" +
-          refreshBtnHtml(!!state.loading) +
+          refresh +
         "</div>"
       );
     }
@@ -3597,6 +3547,7 @@
           iaSfLink("Firebase", "/s-firebase", {
             title: "S-Firebase · Crashlytics / Release Monitoring scrape"
           }),
+          "son sürüm",
           esc(timeLabel)
         ];
         if (fbVer) {
@@ -3609,7 +3560,7 @@
       }
       var pills = [];
       pills.push(card(
-        "Crash-free · son sürüm",
+        "Crash-free",
         "",
         (fb24 && fb24.crash_free_fmt) || "—",
         fb24 && fb24.crash_free_pct,
@@ -3617,11 +3568,11 @@
         {
           pending: !(fb24 && hasScore(fb24)),
           subHtml: fbSubHtml("24s", "24h"),
-          subPlain: "Firebase · 24s" + (fbVer ? (" · " + fbVer) : "")
+          subPlain: "Firebase · son sürüm · 24s" + (fbVer ? (" · " + fbVer) : "")
         }
       ));
       pills.push(card(
-        "Crash-free · son sürüm",
+        "Crash-free",
         "",
         (fb7 && fb7.crash_free_fmt) || "—",
         fb7 && fb7.crash_free_pct,
@@ -3629,7 +3580,7 @@
         {
           pending: !(fb7 && hasScore(fb7)),
           subHtml: fbSubHtml("7g", "7d"),
-          subPlain: "Firebase · 7g" + (fbVer ? (" · " + fbVer) : "")
+          subPlain: "Firebase · son sürüm · 7g" + (fbVer ? (" · " + fbVer) : "")
         }
       ));
       el.style.setProperty("--sf-n", String(pills.length));
