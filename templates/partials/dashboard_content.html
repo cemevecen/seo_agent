@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v48-split-logos">
+<style id="home-site-borders" data-home-css="v49-vg-plat">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -540,7 +540,6 @@
     letter-spacing: -0.02em;
   }
   #home-board .home-readable :where(
-    .home-vg-rev-label,
     .home-vg-rev-meta,
     .home-vg-rev-meta strong
   ) {
@@ -548,6 +547,8 @@
     line-height: 1.3 !important;
   }
   #home-board .home-readable .home-vg-rev-label {
+    font-size: calc(var(--home-text) / 2 * 1.3) !important;
+    line-height: 1.3 !important;
     text-transform: uppercase;
     font-weight: 400;
     letter-spacing: 0.02em;

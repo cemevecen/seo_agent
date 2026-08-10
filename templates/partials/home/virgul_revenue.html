@@ -125,7 +125,13 @@
              title="{% if c.has_data %}son hafta {{ c.week_days_present|default('?') }}/{{ week_days|default(7) }} gün veri · 3 ay {{ c.month3_days_present|default('?') }}/{{ month3_days|default(90) }} gün veri{% endif %}">
       <p class="home-vg-rev-label">
         {{ brand_icon(c.brand, 'sm') }}
-        <span>{{ c.label }}</span>
+        {% set _plat = (c.label or '')
+          | replace('Döviz · ', '')
+          | replace('Sinemalar · ', '')
+          | replace('Döviz ·', '')
+          | replace('Sinemalar ·', '')
+          | trim %}
+        <span>{{ _plat or c.label }}</span>
       </p>
       {% if c.has_data %}
         <p class="home-vg-rev-delta {% if c.tone and c.tone != 'flat' %}is-{{ c.tone }}{% endif %}">{{ c.delta_fmt }}</p>
