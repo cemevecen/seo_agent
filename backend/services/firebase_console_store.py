@@ -155,6 +155,7 @@ def query_firebase_console(
     ver = (version or "").strip()
     dev = (device or "").strip().lower()
     cutoff = datetime.utcnow() - timedelta(days=days_i)
+    win_key = "24h" if days_i <= 1 else "7d" if days_i <= 7 else "30d" if days_i <= 30 else "90d"
 
     platforms = snap.get("platforms") if isinstance(snap.get("platforms"), dict) else {}
     selected = {}
@@ -182,10 +183,22 @@ def query_firebase_console(
     for key, block in selected.items():
         if not isinstance(block, dict):
             continue
-        issues = [i for i in (block.get("issues") or []) if isinstance(i, dict) and _keep_fact(i)]
-        series = [s for s in (block.get("series") or []) if isinstance(s, dict) and _keep_fact(s)]
+        windows = block.get("windows") if isinstance(block.get("windows"), dict) else {}
+        win = windows.get(win_key) if isinstance(windows.get(win_key), dict) else {}
+        # Filtre penceresi varsa CF/issue/series oradan
+        base_issues = win.get("issues") if win.get("issues") else (block.get("issues") or [])
+        base_series = win.get("series") if win.get("series") else (block.get("series") or [])
+        issues = [i for i in base_issues if isinstance(i, dict) and _keep_fact(i)]
+        series = [s for s in base_series if isinstance(s, dict) and _keep_fact(s)]
         by_version = [
-            r for r in (block.get("by_version") or []) if isinstance(r, dict) and (not ver or str(r.get("version") or "") == ver or str(r.get("version") or "").startswith(ver))
+            r
+            for r in (block.get("by_version") or [])
+            if isinstance(r, dict)
+            and (
+                not ver
+                or str(r.get("version") or "") == ver
+                or str(r.get("version") or "").startswith(ver)
+            )
         ]
         by_device = [
             r
@@ -193,17 +206,47 @@ def query_firebase_console(
             if isinstance(r, dict)
             and (not dev or dev in str(r.get("device") or r.get("label") or "").lower())
         ]
+        anr_issues = [
+            i for i in (block.get("anr_issues") or []) if isinstance(i, dict) and _keep_fact(i)
+        ]
         release = block.get("release_monitoring") if isinstance(block.get("release_monitoring"), dict) else {}
         if ver and release.get("version") and str(release.get("version")) != ver:
-            # sürüm uyuşmuyorsa release bloğunu yine göster ama işaretle
             release = {**release, "filter_mismatch": True}
+        cf_pct = win.get("crash_free_pct") if win else block.get("crash_free_pct")
+        cf_fmt = win.get("crash_free_fmt") if win else block.get("crash_free_fmt")
+        sess_pct = win.get("crash_free_sessions_pct") if win else block.get("crash_free_sessions_pct")
+        sess_fmt = win.get("crash_free_sessions_fmt") if win else block.get("crash_free_sessions_fmt")
         out_platforms[key] = {
-            **{k: v for k, v in block.items() if k not in ("issues", "series", "by_version", "by_device")},
+            **{
+                k: v
+                for k, v in block.items()
+                if k
+                not in (
+                    "issues",
+                    "series",
+                    "by_version",
+                    "by_device",
+                    "anr_issues",
+                    "crash_free_pct",
+                    "crash_free_fmt",
+                    "crash_free_sessions_pct",
+                    "crash_free_sessions_fmt",
+                )
+            },
+            "crash_free_pct": cf_pct,
+            "crash_free_fmt": cf_fmt,
+            "crash_free_sessions_pct": sess_pct,
+            "crash_free_sessions_fmt": sess_fmt,
+            "active_window": win_key,
+            "window": win or None,
             "issues": issues[:200],
+            "anr_issues": anr_issues[:80],
             "series": series[-days_i:] if series else [],
             "by_version": by_version[:50],
             "by_device": by_device[:50],
             "release_monitoring": release,
+            "latest_24h": block.get("latest_24h") or windows.get("24h"),
+            "latest_7d": block.get("latest_7d") or windows.get("7d"),
         }
 
     versions = sorted(

@@ -1040,7 +1040,7 @@
           <p class="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">Play Console · Reporting · Crashlytics (Android)</p>
         </div>
       </div>
-      <div id="pc-stability-free" class="pc-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:4"></div>
+      <div id="pc-stability-free" class="pc-stability-grid mt-2 grid gap-1.5 sm:gap-2" style="--sf-n:5"></div>
       <div id="pc-stability-free-empty" class="mt-2 flex items-center justify-center py-2" aria-busy="true" aria-label="Loading">
         <div class="pa-orbit" style="width:1.75rem;height:1.75rem" aria-hidden="true">
           <span class="pa-orbit__ring" style="border-width:2px"></span>
@@ -6104,8 +6104,7 @@
 
   function applyStabilityGridCols(n) {
     if (!stabilityFreeEl) return;
-    // Tek satır — her zaman 4 kolon (ikili wrap yok)
-    stabilityFreeEl.style.setProperty("--sf-n", "4");
+    stabilityFreeEl.style.setProperty("--sf-n", String(n || 5));
   }
 
   var PA_SF_HEALTHY_KEY = "pa-stability-healthy-v1";
@@ -6137,7 +6136,9 @@
     var and = ((data.crashlytics || {}).platforms || {}).android || {};
     var healthyEnough = paSfHas(play.crash_free_fmt) || paSfHas(play.anr_free_fmt)
       || paSfHas(playLatest && playLatest.crash_free_fmt)
-      || paSfHas(and.latest && and.latest.crash_free_fmt);
+      || paSfHas(and.latest && and.latest.crash_free_fmt)
+      || paSfHas(((((data.firebase_console || {}).platforms || {}).android || {}).latest_24h || {}).crash_free_fmt)
+      || paSfHas(((((data.firebase_console || {}).platforms || {}).android || {}).latest_7d || {}).crash_free_fmt);
     if (healthyEnough) {
       paSfWriteHealthy(data);
       paSfHealthy = { data: data, saved_at_tr: new Date().toLocaleString("tr-TR") };
@@ -6178,6 +6179,10 @@
     var playLatest = data.play_latest || null;
     var cf = (data.crashlytics && data.crashlytics.platforms) || {};
     var and = cf.android || {};
+    var fb = ((data.firebase_console || {}).platforms || {}).android || {};
+    var fb24 = fb.latest_24h || null;
+    var fb7 = fb.latest_7d || null;
+    var fbVer = fb.latest_version || (fb24 && fb24.version) || (fb7 && fb7.version) || "";
     var lvLabel = playLatest && playLatest.version_name
       ? ("v" + playLatest.version_name)
       : (playLatest && playLatest.version_code ? ("code " + playLatest.version_code) : "latest");
@@ -6199,32 +6204,40 @@
       toneClass: stabilityToneClass(play.anr_free_pct),
       showRefresh: !paSfHas(play.anr_free_fmt)
     }));
-    var latestCrash = (playLatest && playLatest.crash_free_fmt)
-      || (and.latest && and.latest.crash_free_fmt)
-      || null;
+
+    var fb24Sub = "Firebase · son sürüm · 24s" + (fbVer ? (" · " + fbVer) : "");
+    var fb7Sub = "Firebase · son sürüm · 7g" + (fbVer ? (" · " + fbVer) : "");
+    if (staleSub && (!paSfHas(fb24 && fb24.crash_free_fmt) || !paSfHas(fb7 && fb7.crash_free_fmt))) {
+      /* keep firebase labels unless fully stale */
+    }
+    cards.push(renderStabilityFreeCard({
+      title: "Crash-free",
+      sub: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? staleSub : fb24Sub,
+      value: (fb24 && fb24.crash_free_fmt) || "—",
+      toneClass: stabilityToneClass(fb24 && fb24.crash_free_pct),
+      showRefresh: !paSfHas(fb24 && fb24.crash_free_fmt)
+    }));
+    cards.push(renderStabilityFreeCard({
+      title: "Crash-free",
+      sub: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? staleSub : fb7Sub,
+      value: (fb7 && fb7.crash_free_fmt) || "—",
+      toneClass: stabilityToneClass(fb7 && fb7.crash_free_pct),
+      showRefresh: !paSfHas(fb7 && fb7.crash_free_fmt)
+    }));
+
     var latestAnr = (playLatest && playLatest.anr_free_fmt)
       || (and.latest && and.latest.anr_free_fmt)
       || null;
-    var latestCrashPct = (playLatest && playLatest.crash_free_pct != null)
-      ? playLatest.crash_free_pct
-      : (and.latest && and.latest.crash_free_pct);
     var latestAnrPct = (playLatest && playLatest.anr_free_pct != null)
       ? playLatest.anr_free_pct
       : (and.latest && and.latest.anr_free_pct);
-    var latestSub = (playLatest && (playLatest.crash_free_fmt || playLatest.anr_free_fmt))
+    var anrSub = (playLatest && playLatest.anr_free_fmt)
       ? ("Play Reporting · " + lvLabel)
-      : ("Crashlytics · v" + (and.latest_version || (and.latest && and.latest.version) || "—"));
-    if (staleSub && (!paSfHas(latestCrash) || !paSfHas(latestAnr))) latestSub = staleSub;
-    cards.push(renderStabilityFreeCard({
-      title: "Crash-free",
-      sub: latestSub,
-      value: latestCrash || "—",
-      toneClass: stabilityToneClass(latestCrashPct),
-      showRefresh: !paSfHas(latestCrash)
-    }));
+      : ("ANR · " + (and.latest_version || "latest"));
+    if (staleSub && !paSfHas(latestAnr)) anrSub = staleSub;
     cards.push(renderStabilityFreeCard({
       title: "ANR-free",
-      sub: latestSub,
+      sub: anrSub,
       value: latestAnr || "—",
       toneClass: stabilityToneClass(latestAnrPct),
       showRefresh: !paSfHas(latestAnr)
@@ -6234,7 +6247,7 @@
       stabilityFreeEmpty.classList.add("hidden");
       stabilityFreeEmpty.setAttribute("aria-busy", "false");
     }
-    applyStabilityGridCols(4);
+    applyStabilityGridCols(5);
     stabilityFreeEl.innerHTML = cards.join("");
   }
 

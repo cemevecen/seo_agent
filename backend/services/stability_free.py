@@ -1,8 +1,8 @@
 """Crash-free / ANR-free özet.
 
 Android: Play vitals scrape öncelikli; Reporting sürüm kırılımı.
-iOS: ASC scrape sürüm listesi öncelikli; crash-free skor BQ (sessions) yedek —
-Firebase Console scrape henüz yok.
+iOS: ASC scrape sürüm listesi; crash-free için Firebase Console scrape
+(son sürüm 24h/7d) öncelikli, BQ yedek.
 """
 
 from __future__ import annotations
@@ -89,6 +89,64 @@ def _fmt_free(pct: float | None, *, digits: int = 2) -> str | None:
     if v >= 99.995:
         return f"{v:.4f}".replace(".", ",") + "%"
     return f"{v:.{digits}f}".replace(".", ",") + "%"
+
+
+def _fb_window_kpi(win: dict[str, Any] | None, *, period: str, version: str | None = None) -> dict[str, Any] | None:
+    if not isinstance(win, dict):
+        return None
+    pct = win.get("crash_free_pct")
+    fmt = win.get("crash_free_fmt") or _fmt_free(pct if isinstance(pct, (int, float)) else None)
+    if fmt is None and pct is None:
+        return None
+    ver = version or win.get("version")
+    return {
+        "crash_free_pct": pct,
+        "crash_free_fmt": fmt,
+        "crash_free_sessions_pct": win.get("crash_free_sessions_pct"),
+        "crash_free_sessions_fmt": win.get("crash_free_sessions_fmt"),
+        "period": period,
+        "version": ver,
+        "label": f"v{ver}" if ver and not str(ver).startswith("v") else ver,
+        "source": "firebase_console_scrape",
+    }
+
+
+def firebase_console_stability_kpis() -> dict[str, Any]:
+    """S-Firebase scrape → son sürüm 24h / 7d crash-free KPI'ları."""
+    try:
+        from backend.database import SessionLocal
+        from backend.services.firebase_console_store import firebase_console_payload
+
+        with SessionLocal() as db:
+            snap = firebase_console_payload(db)
+    except Exception:
+        logger.debug("firebase console stability read failed", exc_info=True)
+        return {"ok": False, "platforms": {}}
+
+    platforms_in = snap.get("platforms") if isinstance(snap.get("platforms"), dict) else {}
+    out_plats: dict[str, Any] = {}
+    for plat in ("android", "ios"):
+        block = platforms_in.get(plat) if isinstance(platforms_in.get(plat), dict) else {}
+        if not block:
+            continue
+        windows = block.get("windows") if isinstance(block.get("windows"), dict) else {}
+        ver = str(block.get("latest_version") or "").strip() or None
+        w24 = block.get("latest_24h") if isinstance(block.get("latest_24h"), dict) else windows.get("24h")
+        w7 = block.get("latest_7d") if isinstance(block.get("latest_7d"), dict) else windows.get("7d")
+        out_plats[plat] = {
+            "latest_version": ver,
+            "latest_24h": _fb_window_kpi(w24 if isinstance(w24, dict) else None, period="24h", version=ver),
+            "latest_7d": _fb_window_kpi(w7 if isinstance(w7, dict) else None, period="7d", version=ver),
+            "anr_issues_count": len(block.get("anr_issues") or []) if plat == "android" else None,
+            "issues_count": len(block.get("issues") or []),
+        }
+    return {
+        "ok": bool(out_plats) and not snap.get("empty"),
+        "updated_at": snap.get("updated_at") or snap.get("background_synced_at"),
+        "sync_ok": snap.get("sync_ok"),
+        "source": "firebase_console_scrape",
+        "platforms": out_plats,
+    }
 
 
 def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, Any]:
@@ -750,6 +808,7 @@ def _build_stability_free_payload_locked(
         "play_versions": play_versions[:8],
         "play_error": play_err,
         "crashlytics": crashlytics,
+        "firebase_console": firebase_console_stability_kpis(),
     }
     # Vitals’lı Android çağrıları da cache’e yazılsın (sonraki iOS/tekrar açılış)
     try:

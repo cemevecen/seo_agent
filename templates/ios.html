@@ -3165,6 +3165,7 @@
       versions: [],
       selected: null,
       overall: null,
+      firebase: null,
       loading: false,
       fromCache: false
     };
@@ -3312,50 +3313,72 @@
     function renderCards() {
       var row = selectedVersionRow();
       var overall = state.overall;
+      var fb = state.firebase || {};
+      var fb24 = fb.latest_24h || null;
+      var fb7 = fb.latest_7d || null;
+      var fbVer = fb.latest_version || (fb24 && fb24.version) || (fb7 && fb7.version) || "";
       var staleNote = lastHealthy && lastHealthy.saved_at_tr
         ? ("son sağlıklı · " + lastHealthy.saved_at_tr)
         : "son sağlıklı skor";
-      var pill;
+      var pills = [];
 
       if (row && hasScore(row)) {
-        pill = card(
+        pills.push(card(
           "Crash-free · " + (row.label || ("v" + row.version)),
           row.period ? ("since release · " + row.period) : "Crashlytics",
           row.crash_free_fmt,
           row.crash_free_pct,
           overall && hasScore(overall) ? ("all " + overall.crash_free_fmt) : ""
-        );
+        ));
       } else {
         var stale = healthyRowForVersion(row && row.version);
         if (stale && hasScore(stale)) {
-          pill = card(
+          pills.push(card(
             "Crashlytics · " + ((row && row.label) || stale.label || "sürüm"),
             staleNote,
             stale.crash_free_fmt,
             stale.crash_free_pct,
             "",
             { stale: true }
-          );
+          ));
         } else if (overall && hasScore(overall)) {
-          pill = card(
+          pills.push(card(
             "Crashlytics · all",
             "genel 7g",
             overall.crash_free_fmt,
             overall.crash_free_pct
-          );
+          ));
         } else {
-          pill = card(
+          pills.push(card(
             "Crashlytics · " + ((row && row.label) || "sürüm"),
             "Veri bekleniyor",
             "—",
             null,
             "",
             { pending: true }
-          );
+          ));
         }
       }
-      el.style.setProperty("--sf-n", "1");
-      el.innerHTML = pill;
+
+      pills.push(card(
+        "Crash-free · son sürüm",
+        "Firebase · 24s" + (fbVer ? (" · " + fbVer) : ""),
+        (fb24 && fb24.crash_free_fmt) || "—",
+        fb24 && fb24.crash_free_pct,
+        "",
+        { pending: !(fb24 && hasScore(fb24)) }
+      ));
+      pills.push(card(
+        "Crash-free · son sürüm",
+        "Firebase · 7g" + (fbVer ? (" · " + fbVer) : ""),
+        (fb7 && fb7.crash_free_fmt) || "—",
+        fb7 && fb7.crash_free_pct,
+        "",
+        { pending: !(fb7 && hasScore(fb7)) }
+      ));
+
+      el.style.setProperty("--sf-n", String(pills.length));
+      el.innerHTML = pills.join("");
     }
     function renderAll() {
       renderChips();
@@ -3365,6 +3388,7 @@
       data = data || {};
       var plats = (data.crashlytics && data.crashlytics.platforms) || {};
       var ios = plats.ios || {};
+      state.firebase = ((data.firebase_console || {}).platforms || {}).ios || null;
       state.overall = ios.overall || null;
       var versions = Array.isArray(ios.versions) ? ios.versions.slice(0, 3) : [];
       if (!versions.length && ios.latest_version) {

@@ -78,6 +78,9 @@ PLATFORMS: dict[str, dict[str, str]] = {
 }
 
 
+SCRAPE_WINDOWS: tuple[str, ...] = ("24h", "7d", "30d", "90d")
+
+
 def _scrape_days() -> int:
     raw = (os.environ.get("FIREBASE_CONSOLE_SCRAPE_DAYS") or "365").strip()
     try:
@@ -96,25 +99,40 @@ def _time_param(days: int) -> str:
         return "30d"
     if days <= 90:
         return "90d"
-    return "90d"  # Console UI üst sınır; 365g panel filtre + BQ yedek
+    return "90d"  # Console UI üst sınır; panel 180/365 filtre biriken seriden
 
 
-def _urls(plat: str, days: int) -> dict[str, str]:
+def _window_from_days(days: int) -> str:
+    return _time_param(days)
+
+
+def _urls(
+    plat: str,
+    *,
+    time_param: str = "90d",
+    version: str | None = None,
+    issue_types: str = "crash",
+) -> dict[str, str]:
     meta = PLATFORMS[plat]
     project = meta["project"]
     app = quote(meta["app"], safe=":")
-    ver = quote(meta["latest_version"], safe="")
-    t = _time_param(days)
+    ver = quote(version or meta["latest_version"], safe="")
+    t = time_param or "90d"
     base = f"https://console.firebase.google.com/u/0/project/{project}"
     return {
         "overview": f"{base}/overview",
         "crashlytics": (
             f"{base}/crashlytics/app/{app}/issues"
-            f"?state=open&time={t}&types=crash&tag=all&sort=eventCount"
+            f"?state=open&time={t}&types={issue_types}&tag=all&sort=eventCount"
         ),
         "release": (
             f"{base}/releasemonitoring/app/{app}/latest"
             f"?time={t}&version={ver}"
+        ),
+        # Tüm sürümler — daha uzun CF / adoption serisi
+        "release_all": (
+            f"{base}/releasemonitoring/app/{app}"
+            f"?time={t}"
         ),
     }
 
@@ -480,97 +498,189 @@ def _capture_network(page) -> list[dict[str, Any]]:
     return captured
 
 
+def _goto_collect(page, url: str, captured: list[dict[str, Any]], *, wait_ms: int = 7000) -> dict[str, Any]:
+    """Sayfaya git; network capture zaten bağlı — DOM yedek döner."""
+    before = len(captured)
+    page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+    page.wait_for_timeout(wait_ms)
+    if _page_needs_login(page):
+        return {"ok": False, "error": "login_required", "url": url}
+    page.wait_for_timeout(1500)
+    return {
+        "ok": True,
+        "url": url,
+        "hits_delta": len(captured) - before,
+    }
+
+
+def _window_summary(net: dict[str, Any], *, version: str, time_param: str, plat: str) -> dict[str, Any]:
+    users = net.get("crash_free_users_pct")
+    sess = net.get("crash_free_sessions_pct")
+    return {
+        "time": time_param,
+        "version": version,
+        "platform": plat,
+        "crash_free_pct": users,
+        "crash_free_fmt": _fmt_pct(users) if users is not None else None,
+        "crash_free_sessions_pct": sess,
+        "crash_free_sessions_fmt": _fmt_pct(sess) if sess is not None else None,
+        "issues": (net.get("issues") or [])[:40],
+        "by_version": (net.get("by_version") or [])[:40],
+        "series": net.get("series") or [],
+        "sessions_series": net.get("sessions_series") or [],
+        "source": "releasemon_rpc",
+    }
+
+
+def _merge_issues(*lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for lst in lists:
+        for iss in lst or []:
+            if not isinstance(iss, dict):
+                continue
+            key = str(iss.get("id") or iss.get("title") or "")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(iss)
+            if len(out) >= 80:
+                return out
+    return out
+
+
 def _scrape_platform(page, plat: str, days: int) -> dict[str, Any]:
-    urls = _urls(plat, days)
-    meta = PLATFORMS[plat]
-    captured = _capture_network(page)
-    blocks: dict[str, Any] = {}
-    # Release monitoring first — en zengin RPC (CF + issues + versions)
-    order = ("release", "crashlytics", "overview")
-    for kind in order:
-        url = urls[kind]
-        print(f"  · {plat}/{kind} …", flush=True)
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-            page.wait_for_timeout(5500)
-            if _page_needs_login(page):
-                return {
-                    "ok": False,
-                    "error": "login_required",
-                    "project": meta["project"],
-                    "package": meta["package"],
-                }
-            page.wait_for_timeout(2500)
-            blocks[kind] = _parse_dom_metrics(page, plat=plat, page_kind=kind)
-            blocks[kind]["url"] = url
-        except Exception as exc:  # noqa: BLE001
-            blocks[kind] = {"ok": False, "error": str(exc)[:160], "url": url}
+    meta = dict(PLATFORMS[plat])
+    captured: list[dict[str, Any]] = _capture_network(page)
+    version = meta["latest_version"]
+    windows: dict[str, Any] = {}
 
-    net = _parse_releasemon_network(captured, plat=plat)
-    overview = blocks.get("overview") or {}
-    crash = blocks.get("crashlytics") or {}
-    release = blocks.get("release") or {}
+    urls90 = _urls(plat, time_param="90d", version=version)
+    print(f"  · {plat}/release@90d …", flush=True)
+    go = _goto_collect(page, urls90["release"], captured)
+    if go.get("error") == "login_required":
+        return {
+            "ok": False,
+            "error": "login_required",
+            "project": meta["project"],
+            "package": meta["package"],
+        }
+    net90 = _parse_releasemon_network(captured, plat=plat)
+    if net90.get("by_version"):
+        top = net90["by_version"][0]
+        label = str(top.get("label") or "").strip()
+        if label:
+            version = label
+            meta["latest_version"] = label
+    windows["90d"] = _window_summary(net90, version=version, time_param="90d", plat=plat)
 
-    crash_free = (
-        net.get("crash_free_users_pct")
-        or release.get("crash_free_pct")
-        or crash.get("crash_free_pct")
-        or overview.get("crash_free_pct")
+    for t in ("24h", "7d", "30d"):
+        urls = _urls(plat, time_param=t, version=version)
+        print(f"  · {plat}/release@{t} …", flush=True)
+        before = len(captured)
+        _goto_collect(page, urls["release"], captured, wait_ms=6500)
+        slice_hits = captured[before:]
+        net_t = _parse_releasemon_network(slice_hits, plat=plat)
+        if not net_t.get("by_version"):
+            net_t["by_version"] = net90.get("by_version") or []
+        windows[t] = _window_summary(net_t, version=version, time_param=t, plat=plat)
+
+    print(f"  · {plat}/release_all@90d …", flush=True)
+    before = len(captured)
+    _goto_collect(page, urls90["release_all"], captured, wait_ms=6500)
+    net_all = _parse_releasemon_network(captured[before:], plat=plat)
+    release_all = _window_summary(net_all, version="all", time_param="90d", plat=plat)
+
+    print(f"  · {plat}/crashlytics@90d …", flush=True)
+    before = len(captured)
+    crash_urls = _urls(plat, time_param="90d", version=version, issue_types="crash")
+    _goto_collect(page, crash_urls["crashlytics"], captured, wait_ms=7000)
+    crash_net = _parse_releasemon_network(captured[before:], plat=plat)
+
+    anr_issues: list[dict[str, Any]] = []
+    if plat == "android":
+        print(f"  · {plat}/crashlytics_anr@90d …", flush=True)
+        before = len(captured)
+        anr_urls = _urls(plat, time_param="90d", version=version, issue_types="anr")
+        _goto_collect(page, anr_urls["crashlytics"], captured, wait_ms=7000)
+        anr_net = _parse_releasemon_network(captured[before:], plat=plat)
+        anr_issues = anr_net.get("issues") or []
+
+    print(f"  · {plat}/overview …", flush=True)
+    ov_urls = _urls(plat, time_param="90d", version=version)
+    _goto_collect(page, ov_urls["overview"], captured, wait_ms=5000)
+
+    issues = _merge_issues(
+        windows.get("90d", {}).get("issues") or [],
+        windows.get("7d", {}).get("issues") or [],
+        windows.get("30d", {}).get("issues") or [],
+        crash_net.get("issues") or [],
+        anr_issues,
     )
-    sessions_cf = net.get("crash_free_sessions_pct")
-    issues = (net.get("issues") or crash.get("issues") or [])[:50]
-    by_version = net.get("by_version") or []
-    by_device = crash.get("by_device") or overview.get("by_device") or []
-    series = net.get("series") or []
-    if not series and crash_free is not None:
-        series = [
-            {
-                "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-                "crash_free_pct": crash_free,
-                "crash_free_fmt": _fmt_pct(crash_free),
-                "platform": plat,
-                "metric": "crash_free_users",
-            }
-        ]
+    by_version = windows.get("90d", {}).get("by_version") or net90.get("by_version") or []
+    series = windows.get("90d", {}).get("series") or []
+    if len(release_all.get("series") or []) > len(series):
+        series = release_all.get("series") or []
+    sessions_series = windows.get("90d", {}).get("sessions_series") or []
 
-    # ingest için body'leri düşür (snippet kalsın)
-    raw_hints = []
-    for h in captured[-20:]:
-        raw_hints.append({k: v for k, v in h.items() if k != "body"})
+    w24 = windows.get("24h") or {}
+    w7 = windows.get("7d") or {}
+    crash_free = (
+        w7.get("crash_free_pct")
+        or windows.get("90d", {}).get("crash_free_pct")
+        or w24.get("crash_free_pct")
+    )
+    sessions_cf = (
+        w7.get("crash_free_sessions_pct")
+        or windows.get("90d", {}).get("crash_free_sessions_pct")
+        or w24.get("crash_free_sessions_pct")
+    )
+
+    raw_hints = [{k: v for k, v in h.items() if k != "body"} for h in captured[-30:]]
 
     return {
         "ok": True,
         "project": meta["project"],
         "package": meta["package"],
         "app": meta["app"],
-        "latest_version": meta["latest_version"],
+        "latest_version": version,
         "crash_free_pct": crash_free,
         "crash_free_fmt": _fmt_pct(crash_free) if crash_free is not None else None,
         "crash_free_sessions_pct": sessions_cf,
         "crash_free_sessions_fmt": _fmt_pct(sessions_cf) if sessions_cf is not None else None,
+        "latest_24h": w24,
+        "latest_7d": w7,
+        "windows": windows,
+        "release_all": release_all,
         "issues": issues,
+        "anr_issues": anr_issues[:40],
         "by_version": by_version[:40],
-        "by_device": by_device[:20],
+        "by_device": [],
         "series": series,
-        "sessions_series": net.get("sessions_series") or [],
+        "sessions_series": sessions_series,
         "release_monitoring": {
-            "version": meta["latest_version"],
+            "version": version,
             "crash_free_pct": crash_free,
             "crash_free_fmt": _fmt_pct(crash_free) if crash_free is not None else None,
             "crash_free_sessions_pct": sessions_cf,
             "crash_free_sessions_fmt": _fmt_pct(sessions_cf) if sessions_cf is not None else None,
-            "url": (release.get("url") or urls["release"]),
+            "latest_24h": w24,
+            "latest_7d": w7,
+            "url": urls90["release"],
             "source_page": "releasemonitoring",
             "source": "releasemon_rpc",
         },
         "pages": {
-            "overview": overview.get("url") or urls["overview"],
-            "crashlytics": crash.get("url") or urls["crashlytics"],
-            "release": release.get("url") or urls["release"],
+            "overview": ov_urls["overview"],
+            "crashlytics": crash_urls["crashlytics"],
+            "release": urls90["release"],
+            "release_all": urls90["release_all"],
         },
         "network_hits": len(captured),
         "raw_hints": raw_hints,
+        "scrape_windows": list(windows.keys()),
     }
+
 
 
 def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
@@ -596,7 +706,7 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
         page = context.pages[0] if context.pages else context.new_page()
         try:
             # login probe — dashboard açıksa Enter beklemeden devam
-            probe = _urls("android", days)["overview"]
+            probe = _urls("android", time_param="90d")["overview"]
             page.goto(probe, wait_until="domcontentloaded", timeout=90_000)
             page.wait_for_timeout(2000)
             if _page_needs_login(page) or "console.firebase.google.com" not in (page.url or "").lower():
@@ -630,6 +740,23 @@ def scrape_firebase_console(*, headed: bool | None = None) -> dict[str, Any]:
                     platforms_out[plat] = block
                     if block.get("raw_hints"):
                         raw_network.extend(block.get("raw_hints") or [])
+                    for win_key, metric_name in (
+                        ("latest_24h", f"{plat}_crash_free_24h"),
+                        ("latest_7d", f"{plat}_crash_free_7d"),
+                    ):
+                        w = block.get(win_key) if isinstance(block.get(win_key), dict) else {}
+                        if w.get("crash_free_fmt"):
+                            metrics.append(
+                                {
+                                    "metric": metric_name,
+                                    "platform": plat,
+                                    "value": w.get("crash_free_pct"),
+                                    "fmt": w.get("crash_free_fmt"),
+                                    "period": w.get("time"),
+                                    "version": w.get("version") or block.get("latest_version"),
+                                    "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                                }
+                            )
                     if block.get("crash_free_fmt"):
                         metrics.append(
                             {
