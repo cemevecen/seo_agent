@@ -10352,8 +10352,11 @@ def _home_sc_top50_device_position(db, site_id: int, device: str, *, period_days
         "top50_pos_prev_fmt": "—",
         "top50_pos_delta": 0.0,
         "top50_pos_tone": "flat",
+        "top50_pos_pct_fmt": "—",
         "top50_clicks_last_fmt": "—",
         "top50_clicks_prev_fmt": "—",
+        "top50_clicks_pct_fmt": "—",
+        "top50_clicks_tone": "flat",
         "top50_has_data": False,
     }
     try:
@@ -10426,13 +10429,24 @@ def _home_sc_top50_device_position(db, site_id: int, device: str, *, period_days
         p_clicks = sum(float(r.get("clicks") or 0.0) for r in prev_top)
 
         pos_diff = _sc_position_delta(c_pos, p_pos)
+        clicks_pct_fmt, clicks_tone, _clicks_pct = _home_pct_delta(c_clicks, p_clicks)
+        # Pozisyon: düşük sayı daha iyi → iyileşme yüzdesi (prev−cur)/prev
+        if p_pos > 0:
+            pos_pct = (p_pos - c_pos) / p_pos * 100.0
+            pos_pct_sign = "+" if pos_pct > 0 else ""
+            pos_pct_fmt = f"{pos_pct_sign}{pos_pct:.1f}%"
+        else:
+            pos_pct_fmt = "—"
         return {
             "top50_pos_last_fmt": _format_max_two_decimals(c_pos),
             "top50_pos_prev_fmt": _format_max_two_decimals(p_pos),
             "top50_pos_delta": pos_diff,
             "top50_pos_tone": _home_pos_tone(pos_diff),
+            "top50_pos_pct_fmt": pos_pct_fmt,
             "top50_clicks_last_fmt": _home_format_int(c_clicks),
             "top50_clicks_prev_fmt": _home_format_int(p_clicks),
+            "top50_clicks_pct_fmt": clicks_pct_fmt,
+            "top50_clicks_tone": clicks_tone,
             "top50_has_data": True,
         }
     except Exception:  # noqa: BLE001

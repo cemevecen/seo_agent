@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v21-pos-row">
+<style id="home-site-borders" data-home-css="v22-top50-pct">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -590,6 +590,12 @@
   }
   #home-board .home-readable .home-pos-meta {
     white-space: nowrap !important;
+  }
+  /* Top 50 değerleri: x2 küçült */
+  #home-board .home-readable .home-sc-top50-vals,
+  #home-board .home-readable .home-sc-top50-vals :where(*) {
+    font-size: calc(var(--home-text) / 2) !important;
+    line-height: 1.3 !important;
   }
   #home-board .home-readable .home-body {
     font-weight: 600;
@@ -1770,7 +1776,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=29" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=30" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
@@ -1778,7 +1784,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=29" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=30" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
@@ -1797,7 +1803,7 @@
         </section>
         </div>
         <div data-home-container-slot="position-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/position-drops?site=sinemalar&v=9" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=sinemalar&v=10" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}

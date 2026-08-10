@@ -174,13 +174,17 @@
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: rgb(71 85 105);
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   html.dark .home-sc-top50-vals,
   html.midnight .home-sc-top50-vals {
     color: rgb(203 213 225);
+  }
+  .home-sc-top50-pct {
+    margin-left: 0.35rem;
+    font-weight: 700;
   }
   .home-sc-spark-cell .home-meta,
   .home-sc-spark-cell .home-kpi {
@@ -241,7 +245,10 @@
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki {{ period_days | default(7) }}g)">
                 <p class="home-label home-sc-top50-label">top 50</p>
-                <p class="home-meta home-sc-top50-vals">{{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}</p>
+                <p class="home-meta home-sc-top50-vals">
+                  {{ dev.top50_clicks_last_fmt }} ← {{ dev.top50_clicks_prev_fmt }}
+                  <span class="home-sc-top50-pct home-delta is-{{ dev.top50_clicks_tone | default('flat') }}">{{ dev.top50_clicks_pct_fmt | default('—') }}</span>
+                </p>
               </div>
               {% endif %}
             </div>
@@ -263,7 +270,10 @@
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">
                 <p class="home-label home-sc-top50-label">top 50</p>
-                <p class="home-meta home-sc-top50-vals">{{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}</p>
+                <p class="home-meta home-sc-top50-vals">
+                  {{ dev.top50_pos_last_fmt }} ← {{ dev.top50_pos_prev_fmt }}
+                  <span class="home-sc-top50-pct home-delta is-{{ dev.top50_pos_tone | default('flat') }}">{{ dev.top50_pos_pct_fmt | default('—') }}</span>
+                </p>
               </div>
               {% endif %}
             </div>
