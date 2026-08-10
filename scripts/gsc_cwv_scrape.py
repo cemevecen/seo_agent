@@ -201,14 +201,20 @@ def _looks_signed_in(page) -> bool:
             "sifrenizi girin",
             "verify it’s you",
             "verify it's you",
-            "2-step",
-            "iki adımlı",
+            "2-step verification",
+            "iki adımlı doğrulama",
             "forgot password",
-            "şifr",
+            "şifrenizi unuttunuz",
         )
         if any(m in body for m in login_markers):
             return False
-        return "search.google.com/search-console" in url or "search.google.com/u/" in url
+        if "search.google.com/search-console" in url or "search.google.com/u/" in url:
+            return True
+        # Property seçici / welcome
+        if "search.google.com" in url and "accounts.google.com" not in url:
+            if "search console" in body or "core web vitals" in body or "experience" in body:
+                return True
+        return False
     except Exception:
         return False
 
@@ -333,6 +339,8 @@ def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
     )
     pw, context = _launch_context(headed=True)
     ok_streak = 0
+    cwv_nav_tried = False
+    last_status = 0.0
     try:
         page = context.pages[0] if context.pages else context.new_page()
         try:
@@ -340,14 +348,14 @@ def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
         except Exception as exc:
             print(f"İlk goto uyarısı (devam): {exc}", flush=True)
         print(
-            f"Tarayıcıda Google ile GSC girişi yapın (şifre/2FA). "
-            f"CWV sayfası açılınca {timeout_sec}s içinde otomatik kaydedilir.",
+            f"Tarayıcıda Google ile GSC girişi yapın (şifre/2FA).\n"
+            f"Search Console açılınca oturum otomatik kaydedilir (en fazla {timeout_sec}s).\n"
+            f"Takılırsa Ctrl+C ile çıkıp: .venv/bin/python scripts/gsc_cwv_scrape.py --sync --ingest --charts-only",
             flush=True,
         )
         deadline = time.time() + max(120, timeout_sec)
         while time.time() < deadline:
             try:
-                # Context düştüyse (Chrome çöktü) hemen bildir
                 if not context.pages:
                     return {
                         "ok": False,
@@ -360,18 +368,34 @@ def run_login_interactive(timeout_sec: int = 900) -> dict[str, Any]:
                     }
                 page = context.pages[0]
                 cur = (page.url or "").lower()
-                if "accounts.google.com" in cur or "signin" in cur:
+                now = time.time()
+                if now - last_status >= 15:
+                    print(f"  · bekleniyor · url={ (page.url or '')[:120] }", flush=True)
+                    last_status = now
+                if "accounts.google.com" in cur or "signin" in cur or "challenge" in cur:
+                    ok_streak = 0
+                    cwv_nav_tried = False
+                    time.sleep(2)
+                    continue
+                if not _looks_signed_in(page):
                     ok_streak = 0
                     time.sleep(2)
                     continue
-                if _looks_signed_in(page) and "core-web-vitals" in cur:
-                    ok_streak += 1
-                    if ok_streak >= 2:
-                        # Cookie’lerin diske yazılması
-                        time.sleep(4)
-                        return {"ok": True, "url": page.url, "profile": str(PROFILE_DIR)}
-                else:
-                    ok_streak = 0
+                # GSC’ye girdik — CWV URL’sine yönlendir (zorunlu değil ama doğrular)
+                if "core-web-vitals" not in cur and not cwv_nav_tried:
+                    cwv_nav_tried = True
+                    print("  · oturum görüldü → CWV sayfasına gidiliyor…", flush=True)
+                    try:
+                        page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+                        time.sleep(2)
+                    except Exception as exc:
+                        print(f"  · CWV goto uyarısı: {exc}", flush=True)
+                    continue
+                ok_streak += 1
+                if ok_streak >= 2:
+                    time.sleep(4)
+                    print(f"Login OK · {page.url}", flush=True)
+                    return {"ok": True, "url": page.url, "profile": str(PROFILE_DIR)}
             except Exception as exc:
                 msg = str(exc).lower()
                 if "has been closed" in msg or "target closed" in msg or "crashed" in msg:

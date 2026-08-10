@@ -5,159 +5,215 @@
 {% set dk = block.desktop_kpis if block else {} %}
 {% set gsc = block.gsc_links if block else {} %}
 {% set has_data = block and block.has_data %}
+{% set poor_tot = (mk.poor or 0)|int + (dk.poor or 0)|int %}
+{% set ni_tot = (mk.needs_improvement or 0)|int + (dk.needs_improvement or 0)|int %}
+{% set good_tot = (mk.good or 0)|int + (dk.good or 0)|int %}
+
+<style>
+  .home-wv details > summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  .home-wv details > summary::-webkit-details-marker { display: none; }
+  .home-wv details > summary .home-wv-chevron {
+    display: inline-block;
+    transition: transform .15s ease;
+    color: #94a3b8;
+  }
+  .home-wv details[open] > summary .home-wv-chevron { transform: rotate(90deg); }
+</style>
 
 <div class="home-readable home-wv" data-home-wv-site="{{ block.site_key if block else '' }}">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
-    <a href="/web-vitals?site_id={{ sid }}"
-       hx-get="/web-vitals?site_id={{ sid }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-       class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
-  </div>
-  {% if block and block.collected_at %}
-  <p class="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">Son scrape · {{ block.collected_at[:16].replace('T', ' ') }}</p>
-  {% endif %}
+  <details class="home-wv-drop group">
+    <summary class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl px-0.5 py-0.5">
+      <div class="flex min-w-0 items-center gap-2">
+        <span class="home-wv-chevron text-sm leading-none" aria-hidden="true">▸</span>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
+        {% if has_data %}
+        <span class="hidden truncate text-[11px] tabular-nums text-slate-400 sm:inline dark:text-zinc-500">
+          K {{ fmt_int(poor_tot) }} · İ {{ fmt_int(ni_tot) }} · İyi {{ fmt_int(good_tot) }}
+        </span>
+        {% else %}
+        <span class="text-[11px] text-amber-600 dark:text-amber-300">veri yok</span>
+        {% endif %}
+      </div>
+      <a href="/web-vitals?site_id={{ sid }}"
+         hx-get="/web-vitals?site_id={{ sid }}" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+         onclick="event.stopPropagation()"
+         class="home-card-link shrink-0 font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">detail →</a>
+    </summary>
 
-  {% if not has_data %}
-  <p class="mt-4 rounded-xl border border-dashed border-amber-200/80 bg-amber-50/50 px-3 py-4 text-center text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-    GSC CWV verisi yok — Web Vitals’ta Tara (Mac bridge + GSC login gerekir).
-  </p>
-  {% else %}
-  <div class="mt-3 grid min-w-0 gap-3">
-    <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
-      <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-        <h4 class="text-xs font-bold text-slate-800 dark:text-zinc-100">Mobil</h4>
-        {% if gsc.mobile_summary %}
-        <a class="text-[10px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
-        {% endif %}
+    <div class="home-wv-body mt-3">
+      {% if block and block.collected_at %}
+      <p class="mb-2 text-[11px] text-slate-400 dark:text-zinc-500">Son scrape · {{ block.collected_at[:16].replace('T', ' ') }}</p>
+      {% endif %}
+
+      {% if not has_data %}
+      <p class="rounded-xl border border-dashed border-amber-200/80 bg-amber-50/50 px-3 py-4 text-center text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+        GSC CWV verisi yok — Web Vitals’ta Tara (Mac bridge + GSC login gerekir).
+      </p>
+      {% else %}
+      <div class="grid min-w-0 gap-3">
+        <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <h4 class="text-xs font-bold text-slate-800 dark:text-zinc-100">Mobil</h4>
+            {% if gsc.mobile_summary %}
+            <a class="text-[10px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.mobile_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+            {% endif %}
+          </div>
+          <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600 dark:text-zinc-400">
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> kötü</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> iyileştir</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> iyi</span>
+          </div>
+          <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
+          <p id="home-wv-m-note-{{ sid }}" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
+        </section>
+        <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <h4 class="text-xs font-bold text-slate-800 dark:text-zinc-100">Masaüstü</h4>
+            {% if gsc.desktop_summary %}
+            <a class="text-[10px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
+            {% endif %}
+          </div>
+          <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600 dark:text-zinc-400">
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> kötü</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> iyileştir</span>
+            <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> iyi</span>
+          </div>
+          <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
+          <p id="home-wv-d-note-{{ sid }}" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
+        </section>
       </div>
-      <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600 dark:text-zinc-400">
-        <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(mk.poor) }}</span> kötü</span>
-        <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(mk.needs_improvement) }}</span> iyileştir</span>
-        <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(mk.good) }}</span> iyi</span>
-      </div>
-      <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-m-{{ sid }}"></canvas></div>
-      <p id="home-wv-m-note-{{ sid }}" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
-    </section>
-    <section class="min-w-0 rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
-      <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-        <h4 class="text-xs font-bold text-slate-800 dark:text-zinc-100">Masaüstü</h4>
-        {% if gsc.desktop_summary %}
-        <a class="text-[10px] font-semibold uppercase tracking-wide text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc.desktop_summary }}" target="_blank" rel="noopener">Raporu aç ›</a>
-        {% endif %}
-      </div>
-      <div class="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600 dark:text-zinc-400">
-        <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-rose-500"></span><span class="tabular-nums text-rose-600">{{ fmt_int(dk.poor) }}</span> kötü</span>
-        <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-amber-500"></span><span class="tabular-nums text-amber-600">{{ fmt_int(dk.needs_improvement) }}</span> iyileştir</span>
-        <span class="inline-flex items-center gap-1"><span class="h-0.5 w-2.5 rounded bg-emerald-600"></span><span class="tabular-nums text-emerald-600">{{ fmt_int(dk.good) }}</span> iyi</span>
-      </div>
-      <div class="relative h-36 min-w-0 w-full sm:h-40"><canvas id="home-wv-d-{{ sid }}"></canvas></div>
-      <p id="home-wv-d-note-{{ sid }}" class="mt-1 text-[10px] text-slate-400 dark:text-zinc-500"></p>
-    </section>
-  </div>
-  <script type="application/json" id="home-wv-data-{{ sid }}">{{ {
-    "site_id": sid,
-    "chart_series": block.chart_series or {},
-    "history": block.history or []
-  }|tojson }}</script>
-  <script>
-  (function(){
-    var sid = {{ sid|tojson }};
-    var rawEl = document.getElementById('home-wv-data-' + sid);
-    if (!rawEl) return;
-    var payload;
-    try { payload = JSON.parse(rawEl.textContent || '{}'); } catch (e) { return; }
-    function ensureChartJs(cb) {
-      if (window.Chart) { cb(); return; }
-      if (window.__homeWvChartLoading) {
-        window.__homeWvChartLoading.push(cb);
-        return;
-      }
-      window.__homeWvChartLoading = [cb];
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-      s.onload = function() {
-        var q = window.__homeWvChartLoading || [];
-        window.__homeWvChartLoading = null;
-        q.forEach(function(fn){ try { fn(); } catch (err) { console.warn(err); } });
-      };
-      document.head.appendChild(s);
-    }
-    function fmtLabel(iso) {
-      if (!iso) return '—';
-      var s = String(iso);
-      if (s.length >= 10 && s.indexOf('-') > 0) {
-        var p = s.slice(0, 10).split('-');
-        return parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + '/' + String(p[0]).slice(2);
-      }
-      return s.slice(5, 16).replace('T', ' ');
-    }
-    function fromHistory(deviceKey) {
-      var dates = [], poor = [], ni = [], good = [];
-      (payload.history || []).forEach(function(h) {
-        var d = (h && h[deviceKey]) || {};
-        dates.push(fmtLabel(h.collected_at));
-        poor.push(d.poor || 0);
-        ni.push(d.needs_improvement || 0);
-        good.push(d.good || 0);
-      });
-      return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'scrape_history' };
-    }
-    function resolve(deviceKey) {
-      var ser = (payload.chart_series && payload.chart_series[deviceKey]) || null;
-      if (ser && ser.dates && ser.dates.length >= 3) {
-        return {
-          dates: (ser.dates || []).map(fmtLabel),
-          poor: ser.poor || [],
-          needs_improvement: ser.needs_improvement || [],
-          good: ser.good || [],
-          source: 'gsc'
-        };
-      }
-      return fromHistory(deviceKey);
-    }
-    function render(canvasId, noteId, deviceKey) {
-      var canvas = document.getElementById(canvasId);
-      var note = document.getElementById(noteId);
-      if (!canvas || !window.Chart) return;
-      if (canvas.__homeWvChart) {
-        try { canvas.__homeWvChart.destroy(); } catch (e) {}
-        canvas.__homeWvChart = null;
-      }
-      var ser = resolve(deviceKey);
-      var labels = ser.dates && ser.dates.length ? ser.dates : ['—'];
-      var has = labels.length > 1 || (ser.poor || []).some(function(v){return v;}) || (ser.needs_improvement || []).some(function(v){return v;}) || (ser.good || []).some(function(v){return v;});
-      if (note) {
-        note.textContent = ser.source === 'gsc'
-          ? ('GSC trend · ' + labels.length + ' nokta')
-          : (has ? ('Scrape geçmişi · ' + labels.length + ' nokta') : 'Grafik verisi yok');
-      }
-      canvas.__homeWvChart = new Chart(canvas, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false },
-            { label: 'İyileştirme', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false },
-            { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { maxTicksLimit: 5, font: { size: 9 }, color: '#94a3b8' }, grid: { display: false } },
-            y: { beginAtZero: true, ticks: { maxTicksLimit: 4, font: { size: 9 }, color: '#94a3b8', callback: function(v){ return v >= 1000 ? (Math.round(v/1000)+'K') : v; } }, grid: { color: 'rgba(148,163,184,.18)' } }
+      <script type="application/json" id="home-wv-data-{{ sid }}">{{ {
+        "site_id": sid,
+        "chart_series": block.chart_series or {},
+        "history": block.history or []
+      }|tojson }}</script>
+      <script>
+      (function(){
+        var sid = {{ sid|tojson }};
+        var root = (document.currentScript && document.currentScript.closest('.home-wv')) || document.getElementById('home-wv-data-' + sid) && document.getElementById('home-wv-data-' + sid).closest('.home-wv');
+        var drop = root && root.querySelector('details.home-wv-drop');
+        var rawEl = document.getElementById('home-wv-data-' + sid);
+        if (!rawEl) return;
+        var payload;
+        try { payload = JSON.parse(rawEl.textContent || '{}'); } catch (e) { return; }
+        var rendered = false;
+        function ensureChartJs(cb) {
+          if (window.Chart) { cb(); return; }
+          if (window.__homeWvChartLoading) {
+            window.__homeWvChartLoading.push(cb);
+            return;
           }
+          window.__homeWvChartLoading = [cb];
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+          s.onload = function() {
+            var q = window.__homeWvChartLoading || [];
+            window.__homeWvChartLoading = null;
+            q.forEach(function(fn){ try { fn(); } catch (err) { console.warn(err); } });
+          };
+          document.head.appendChild(s);
         }
-      });
-    }
-    ensureChartJs(function(){
-      render('home-wv-m-' + sid, 'home-wv-m-note-' + sid, 'mobile');
-      render('home-wv-d-' + sid, 'home-wv-d-note-' + sid, 'desktop');
-    });
-  })();
-  </script>
-  {% endif %}
+        function fmtLabel(iso) {
+          if (!iso) return '—';
+          var s = String(iso);
+          if (s.length >= 10 && s.indexOf('-') > 0) {
+            var p = s.slice(0, 10).split('-');
+            return parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + '/' + String(p[0]).slice(2);
+          }
+          return s.slice(5, 16).replace('T', ' ');
+        }
+        function fromHistory(deviceKey) {
+          var dates = [], poor = [], ni = [], good = [];
+          (payload.history || []).forEach(function(h) {
+            var d = (h && h[deviceKey]) || {};
+            dates.push(fmtLabel(h.collected_at));
+            poor.push(d.poor || 0);
+            ni.push(d.needs_improvement || 0);
+            good.push(d.good || 0);
+          });
+          return { dates: dates, poor: poor, needs_improvement: ni, good: good, source: 'scrape_history' };
+        }
+        function resolve(deviceKey) {
+          var ser = (payload.chart_series && payload.chart_series[deviceKey]) || null;
+          if (ser && ser.dates && ser.dates.length >= 3) {
+            return {
+              dates: (ser.dates || []).map(fmtLabel),
+              poor: ser.poor || [],
+              needs_improvement: ser.needs_improvement || [],
+              good: ser.good || [],
+              source: 'gsc'
+            };
+          }
+          return fromHistory(deviceKey);
+        }
+        function render(canvasId, noteId, deviceKey) {
+          var canvas = document.getElementById(canvasId);
+          var note = document.getElementById(noteId);
+          if (!canvas || !window.Chart) return;
+          if (canvas.__homeWvChart) {
+            try { canvas.__homeWvChart.destroy(); } catch (e) {}
+            canvas.__homeWvChart = null;
+          }
+          var ser = resolve(deviceKey);
+          var labels = ser.dates && ser.dates.length ? ser.dates : ['—'];
+          var has = labels.length > 1 || (ser.poor || []).some(function(v){return v;}) || (ser.needs_improvement || []).some(function(v){return v;}) || (ser.good || []).some(function(v){return v;});
+          if (note) {
+            note.textContent = ser.source === 'gsc'
+              ? ('GSC trend · ' + labels.length + ' nokta')
+              : (has ? ('Scrape geçmişi · ' + labels.length + ' nokta') : 'Grafik verisi yok');
+          }
+          canvas.__homeWvChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+              labels: labels,
+              datasets: [
+                { label: 'Kötü', data: ser.poor && ser.poor.length ? ser.poor : [0], borderColor: '#C53929', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false },
+                { label: 'İyileştirme', data: ser.needs_improvement && ser.needs_improvement.length ? ser.needs_improvement : [0], borderColor: '#F09300', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false },
+                { label: 'İyi', data: ser.good && ser.good.length ? ser.good : [0], borderColor: '#0B8043', borderWidth: 2, pointRadius: labels.length > 40 ? 0 : 1.5, tension: 0.25, fill: false }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { maxTicksLimit: 5, font: { size: 9 }, color: '#94a3b8' }, grid: { display: false } },
+                y: { beginAtZero: true, ticks: { maxTicksLimit: 4, font: { size: 9 }, color: '#94a3b8', callback: function(v){ return v >= 1000 ? (Math.round(v/1000)+'K') : v; } }, grid: { color: 'rgba(148,163,184,.18)' } }
+              }
+            }
+          });
+        }
+        function paint() {
+          if (rendered) {
+            ['home-wv-m-' + sid, 'home-wv-d-' + sid].forEach(function(id) {
+              var c = document.getElementById(id);
+              if (c && c.__homeWvChart) {
+                try { c.__homeWvChart.resize(); } catch (e) {}
+              }
+            });
+            return;
+          }
+          rendered = true;
+          ensureChartJs(function(){
+            render('home-wv-m-' + sid, 'home-wv-m-note-' + sid, 'mobile');
+            render('home-wv-d-' + sid, 'home-wv-d-note-' + sid, 'desktop');
+          });
+        }
+        if (drop) {
+          drop.addEventListener('toggle', function() {
+            if (drop.open) paint();
+          });
+          // Kapalı başlar — grafik ilk açılışta çizilir
+        } else {
+          paint();
+        }
+      })();
+      </script>
+      {% endif %}
+    </div>
+  </details>
 </div>
