@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v38-top25">
+<style id="home-site-borders" data-home-css="v39-top25-panel">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -682,6 +682,39 @@
   #home-board .home-readable .home-top-pages-trigger:not(.home-top-pages-trigger--icon),
   #home-board .home-readable .home-top-pages-trigger:not(.home-top-pages-trigger--icon) :where(*) {
     font-size: calc(var(--home-sub) * 0.85) !important;
+    line-height: 1.3 !important;
+  }
+  /* TOP 25 panel içeriği: %20 küçült */
+  #home-board .home-readable .home-top-pages-panel :where(
+    .home-top-pages-rank,
+    .home-top-pages-link,
+    .home-top-pages-link-text,
+    .home-top-pages-val,
+    .home-top-pages-delta-slot,
+    .home-top-pages-metric,
+    .home-top-pages-pos,
+    .home-top-pages-empty,
+    .home-top-pages-stats-mobile,
+    .home-delta
+  ),
+  #home-board .home-readable .home-top-pages-panel :where(
+    .home-top-pages-rank,
+    .home-top-pages-link,
+    .home-top-pages-metric,
+    .home-top-pages-pos,
+    .home-top-pages-delta-slot,
+    .home-top-pages-stats-mobile
+  ) :where(*) {
+    font-size: calc(var(--home-text) * 0.8) !important;
+    line-height: 1.3 !important;
+  }
+  #home-board .home-readable .home-top-pages-panel :where(
+    .home-top-pages-panel-title,
+    .home-top-pages-panel-close,
+    .home-top-pages-cols
+  ),
+  #home-board .home-readable .home-top-pages-panel .home-top-pages-cols :where(*) {
+    font-size: calc(var(--home-sub) * 0.8) !important;
     line-height: 1.3 !important;
   }
   /* Dönem chip’leri (7g/60g/90g) — SC + GA4: %20 küçült */
@@ -1901,7 +1934,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=31" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=32" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
@@ -1909,7 +1942,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=30" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=32" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>
@@ -1921,7 +1954,7 @@
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=34" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=35" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
@@ -1929,7 +1962,7 @@
         </section>
         </div>
         <div data-home-container-slot="sc-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=34" hx-trigger="load delay:120ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/sc-summary?site=sinemalar&period_days=7&v=35" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">search console</h3>
