@@ -128,6 +128,93 @@
   html.dark #pa-metric-list [data-pa-metric-pick][aria-selected="true"] {
     background: rgba(30, 58, 138, 0.35); color: #dbeafe;
   }
+  .pa-metric-row {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    gap: 0;
+  }
+  .pa-metric-row.is-on {
+    background: #eff6ff;
+  }
+  html.dark .pa-metric-row.is-on {
+    background: rgba(30, 58, 138, 0.35);
+  }
+  .pa-metric-row .pa-metric-info-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding-right: 0.35rem;
+  }
+  .pa-metric-row .pa-metric-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 9999px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    flex-shrink: 0;
+  }
+  .pa-metric-row .pa-metric-info:hover,
+  .pa-metric-row .pa-metric-info:focus-visible {
+    color: #0f172a;
+    border-color: #94a3b8;
+    background: #f8fafc;
+    outline: none;
+  }
+  html.dark .pa-metric-row .pa-metric-info {
+    border-color: #3f3f46;
+    background: #18181b;
+    color: #a1a1aa;
+  }
+  html.dark .pa-metric-row .pa-metric-info:hover,
+  html.dark .pa-metric-row .pa-metric-info:focus-visible {
+    color: #f4f4f5;
+    border-color: #71717a;
+    background: #27272a;
+  }
+  .pa-metric-row .pa-metric-tip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.35rem);
+    z-index: 80;
+    width: max-content;
+    max-width: min(18rem, 70vw);
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.65rem;
+    border: 1px solid #e2e8f0;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 0.22);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(2px);
+    transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  }
+  .pa-metric-row .pa-metric-info-wrap:hover .pa-metric-tip,
+  .pa-metric-row .pa-metric-info-wrap:focus-within .pa-metric-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  html.dark .pa-metric-row .pa-metric-tip {
+    border-color: #3f3f46;
+    background: #18181b;
+    color: #e4e4e7;
+  }
   /* Dark mode: patlayan beyaz yüzeyler + mat metin/çerçeve */
   html.dark .android-play-page {
     color: #b8b8bf;
@@ -1654,15 +1741,22 @@
         Array.prototype.forEach.call(node.children, function (opt) {
           if (!opt.value) return;
           var on = !!selected[opt.value];
+          var tip = paMetricHelp(opt.value);
           html +=
+            '<div class="pa-metric-row' + (on ? " is-on" : "") + '">' +
             '<button type="button" role="option" aria-selected="' + (on ? "true" : "false") + '" data-pa-metric-pick="' + esc(opt.value) + '" ' +
-            'class="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs ' +
+            'class="flex min-w-0 flex-1 items-center gap-2 px-2.5 py-1.5 text-left text-xs ' +
             (on
-              ? "bg-sky-50 font-semibold text-sky-800 dark:bg-sky-950/40 dark:text-sky-100"
-              : "font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
+              ? "bg-transparent font-semibold text-sky-800 dark:text-sky-100"
+              : "bg-transparent font-medium text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-900") + '">' +
             '<span class="inline-flex w-3.5 shrink-0 justify-center text-[12px] text-sky-600 dark:text-sky-400" aria-hidden="true">' +
             (on ? "✓" : "") + "</span>" +
-            '<span class="min-w-0 flex-1 truncate">' + esc(opt.textContent || opt.value) + "</span></button>";
+            '<span class="min-w-0 flex-1 truncate">' + esc(opt.textContent || opt.value) + "</span></button>" +
+            '<span class="pa-metric-info-wrap">' +
+              '<button type="button" class="pa-metric-info" data-pa-metric-info tabindex="0" aria-label="' +
+                esc((opt.textContent || opt.value) + " bilgisi") + '">i</button>' +
+              '<span class="pa-metric-tip" role="tooltip">' + esc(tip) + "</span>" +
+            "</span></div>";
         });
       }
     });
@@ -1670,6 +1764,41 @@
     paMetricListScroll.scrollTop = scrollY;
     if (!paMetricList.classList.contains("hidden")) positionPaMetricDropdown();
     updatePaMetricTrigger();
+  }
+  var PA_METRIC_HELP = {
+    anrs: "ANR (Application Not Responding): uygulama ana thread’i ~5 sn yanıt vermediğinde Play’e düşen donma olayları. Düşük olması iyidir.",
+    crashes: "Crash: uygulamanın beklenmedik şekilde kapanma sayısı. Stabilite için düşük tutulmalıdır.",
+    device_acquisition: "Device acquisition: uygulamayı ilk kez edinen cihaz sayısı (Play Console büyüme metriği).",
+    user_acquisition: "User acquisition: uygulamayı ilk kez edinen kullanıcı sayısı.",
+    user_lost: "User lost: uygulamayı kaldıran veya kaybedilen kullanıcı sayısı; churn sinyali verir.",
+    active_devices: "Active devices: seçilen aralıkta uygulamayı açmış aktif cihaz sayısı.",
+    active_users: "Active users: seçilen aralıkta uygulamayı kullanan aktif kullanıcı sayısı.",
+    dau: "DAU: günlük aktif kullanıcı (Daily Active Users). Günün içinde en az bir kez açan kullanıcılar.",
+    dau_mau: "DAU/MAU: günlük aktif / aylık aktif oranı. Yapışkanlık (stickiness) göstergesidir; yüksek oran daha sık dönüş demektir.",
+    ar2_visitors: "Store visitors: Play Store liste sayfasını ziyaret eden kullanıcı sayısı.",
+    ar2_acquisitions: "Store acquisitions: store listesinden gelen kurulum / edinme sayısı.",
+    store_listing_conversion: "Store listing conversion: ziyaretçilerin kurulum / edinmeye dönüşüm oranı.",
+    revenue: "Revenue: Play üzerinden kaydedilen tahmini gelir (abonelik/IAP vb.).",
+    rating: "Google Play rating: ortalama puan ve yıldız dağılımı; mağaza algısını gösterir.",
+    "ga4:sessions": "GA4 Sessions: oturum sayısı. Kullanıcının uygulamada veya sitede başlattığı ziyaretler.",
+    "ga4:users": "GA4 Users: seçilen dönemde en az bir oturum açan aktif kullanıcı sayısı.",
+    "ga4:engaged_sessions": "GA4 Engaged sessions: anlamlı etkileşim içeren oturumlar (süre / sayfa / dönüşüm eşiği).",
+    "ga4:new_users": "GA4 New users: ilk kez görülen yeni kullanıcı sayısı.",
+    "ga4:avg_session": "GA4 Avg. session: ortalama oturum süresi; etkileşim derinliğini gösterir.",
+    "ga4:page_views": "GA4 Page views: görüntülenen ekran / sayfa sayısı.",
+    "virgul:net_revenue": "Virgül net revenue: reklam ağından gelen net gelir (TL).",
+    "virgul:ad_request": "Ad request: reklam talebi sayısı; envanter talebini gösterir.",
+    "virgul:matched_request": "Matched request: taleple eşleşen (doldurulan) reklam istekleri.",
+    "virgul:impression": "Impression: gösterilen reklam adedi.",
+    "virgul:click": "Click: reklama tıklama sayısı.",
+    "virgul:ad_request_ecpm": "Ad request eCPM: her 1000 reklam talebi başına ortalama gelir (TL).",
+    "virgul:ad_ecpm": "Ad impression eCPM: her 1000 gösterim başına ortalama gelir (TL).",
+    "virgul:viewability_pct": "Viewability: görünür sayılan gösterimlerin oranı (%).",
+    "virgul:ctr_pct": "CTR: tıklama / gösterim oranı (%).",
+    "virgul:coverage_pct": "Coverage: taleplerin ne kadarının reklamla doldurulduğu (%)."
+  };
+  function paMetricHelp(key) {
+    return PA_METRIC_HELP[key] || "Bu metrik seçilen dönem için Play / GA4 / Virgül kaynağından gelir; grafik ve tabloda günlük (veya kırılım) serisi olarak gösterilir.";
   }
   function togglePaMetric(key) {
     if (!key) {
@@ -4881,6 +5010,11 @@
   }
   if (paMetricList) {
     paMetricList.addEventListener("click", function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest("[data-pa-metric-info]")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
       var clearBtn = ev.target && ev.target.closest ? ev.target.closest("[data-pa-metric-clear]") : null;
       if (clearBtn) {
         ev.preventDefault();
