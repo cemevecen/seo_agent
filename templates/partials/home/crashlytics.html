@@ -196,7 +196,15 @@
     min-width: 0;
     height: 1.65rem;
   }
-  .home-store-spark svg { width: 100%; height: 100%; display: block; }
+  .home-store-spark svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .home-store-spark polyline,
+  .home-store-spark path {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+    stroke-width: 1.75px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .home-store-themes {
     display: flex;
     flex-wrap: wrap;
@@ -391,7 +399,7 @@
       <div class="home-store-rank-row" title="Kategori sırası trendi (7g)">
         <div class="home-store-spark" aria-hidden="true">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polyline fill="none" stroke="{% if spark.tone == 'up' %}#059669{% elif spark.tone == 'down' %}#e11d48{% else %}#64748b{% endif %}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" points="{{ spark.svg_points }}"></polyline>
+            <polyline vector-effect="non-scaling-stroke" fill="none" stroke="{% if spark.tone == 'up' %}#059669{% elif spark.tone == 'down' %}#e11d48{% else %}#64748b{% endif %}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" points="{{ spark.svg_points }}"></polyline>
           </svg>
         </div>
         <div class="shrink-0 text-right">
@@ -562,7 +570,7 @@
     // Soğuk cache: arka plan prewarm bitince kartı yeniden çek
     if (root.getAttribute('data-home-crash-warming') === '1') {
       var sec = root.closest('[data-home-container="crashlytics"]') || root.closest('section');
-      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=15';
+      var url = (sec && sec.getAttribute('hx-get')) || '/api/home/crashlytics?product=doviz&v=16';
       var tries = 0;
       var timer = window.setInterval(function () {
         tries += 1;
