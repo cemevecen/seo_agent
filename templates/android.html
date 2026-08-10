@@ -2919,7 +2919,7 @@
     opts = opts || {};
     var end = new Date();
     var start = new Date();
-    var days = parseInt((paPreset && paPreset.value) || "365", 10) || 365;
+    var days = parseInt((paPreset && paPreset.value) || "30", 10) || 30;
     start.setDate(end.getDate() - (days - 1));
     paEnd.value = isoDate(end);
     paStart.value = isoDate(start);
