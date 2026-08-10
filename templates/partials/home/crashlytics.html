@@ -440,7 +440,6 @@
 {%- endmacro %}
 
 {% set _pid = (card.product_id if card and card.product_id else none) or (product_id | default('doviz')) %}
-{% set _plabel = (card.product_label if card and card.product_label else none) or (product_label | default('Döviz')) %}
 <div class="home-crash-shell home-readable is-open{% if card.warming %} is-warming{% endif %}"
      data-home-crash-root
      data-home-app-product="{{ _pid }}"
