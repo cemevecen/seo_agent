@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v51-no-title-lottie">
+<style id="home-site-borders" data-home-css="v52-pair-align">
   /* Ana sayfa container başlık chip’i (Notification stili, uppercase) */
   .home-container-chip {
     display: inline-flex;
@@ -1290,8 +1290,44 @@
   }
   .home-project-heads {
     position: relative;
-    align-items: stretch;
+    align-items: center;
+    min-height: var(--home-head-h);
     transition: background-color 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+  }
+  /* Split madalyon grid hücresi kaplamasın — iki başlık aynı satırda hizalı kalsın */
+  @media (min-width: 1024px) {
+    .home-project-heads.home-pair-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: center;
+    }
+    .home-project-heads > [data-home-project="doviz"] {
+      grid-column: 1;
+      grid-row: 1;
+      align-self: center;
+    }
+    .home-project-heads > [data-home-project="sinemalar"] {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
+    }
+    .home-project-heads > .home-focus-split:not(.home-focus-split--bar) {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      justify-self: center;
+      align-self: center;
+    }
+  }
+  /* Çift sütun kartları: üst kenar + yükseklik hizası */
+  .home-pair-row > [data-home-project],
+  .home-pair-row > [data-home-container-slot] {
+    min-width: 0;
+    height: 100%;
+  }
+  .home-pair-row > [data-home-container-slot] > [data-home-container],
+  .home-pair-row > [data-home-container-slot] > section.home-readable {
+    flex: 1 1 auto;
+    height: 100%;
+    box-sizing: border-box;
   }
   /* Tekli focus: başlık çubuğu marka rengi @ %30 opaklık */
   #home-board[data-home-focus="doviz"] .home-project-heads {
@@ -1996,9 +2032,9 @@
       </div>
 
       {# Row 1 — GA4 (above the fold) #}
-      <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+      <div class="home-pair-row grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=36" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=37" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2009,7 +2045,7 @@
         </section>
         </div>
         <div data-home-container-slot="ga4-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=36" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=sinemalar&period_days=7&v=37" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <div class="flex items-center gap-2">
@@ -2022,7 +2058,7 @@
       </div>
 
       {# Row 3 — Search Console (kısa gecikme: realtime + GA4’e yol ver) #}
-      <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+      <div class="home-pair-row grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
         <div data-home-container-slot="sc-doviz" data-home-project="doviz">
         <section hx-get="/api/home/sc-summary?site=doviz&period_days=7&v=41" hx-trigger="load delay:120ms" hx-swap="innerHTML"
                  data-home-container="sc-doviz"
@@ -2048,7 +2084,7 @@
       </div>
 
       {# Row 4 — Position Drops #}
-      <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+      <div class="home-pair-row grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
         <section hx-get="/api/home/position-drops?site=doviz&v=14" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-doviz"
@@ -2066,7 +2102,7 @@
       </div>
 
       {# Row 5 — Web Vitals (GSC CWV Mobil/Masaüstü) · alert/position altında #}
-      <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+      <div class="home-pair-row grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
         <div data-home-container-slot="wv-doviz" data-home-project="doviz">
         <section hx-get="/api/home/web-vitals?site=doviz&v=8" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-doviz"
