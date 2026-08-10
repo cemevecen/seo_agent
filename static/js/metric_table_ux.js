@@ -13,12 +13,21 @@
     style.id = STYLE_ID;
     style.textContent =
       ".mtux-heat-cell{border-radius:0.35rem;}" +
-      ".mtux-legend{display:flex;align-items:center;gap:0.5rem;padding:0.45rem 0.75rem 0.55rem;" +
+      ".mtux-legend{display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem 0.75rem;padding:0.45rem 0.75rem 0.55rem;" +
       "font-size:0.62rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#94a3b8;}" +
       "html.dark .mtux-legend{color:#71717a;}" +
       ".mtux-legend-bar{display:flex;height:0.4rem;width:7.5rem;border-radius:9999px;overflow:hidden;" +
       "border:1px solid rgba(148,163,184,0.35);}" +
       ".mtux-legend-bar>span{flex:1;}" +
+      ".mtux-legend.is-off .mtux-legend-bar{opacity:0.25;filter:grayscale(1);}" +
+      ".mtux-heat-toggle{margin-left:auto;display:inline-flex;align-items:center;gap:0.35rem;" +
+      "padding:0.2rem 0.55rem;border-radius:9999px;border:1px solid rgba(148,163,184,0.45);" +
+      "background:transparent;color:#64748b;font-size:0.62rem;font-weight:700;letter-spacing:0.03em;" +
+      "text-transform:uppercase;cursor:pointer;}" +
+      ".mtux-heat-toggle:hover{border-color:#0ea5e9;color:#0ea5e9;}" +
+      ".mtux-heat-toggle[aria-pressed='true']{border-color:#94a3b8;background:rgba(148,163,184,0.12);color:#475569;}" +
+      "html.dark .mtux-heat-toggle{color:#a1a1aa;border-color:rgba(113,113,122,0.55);}" +
+      "html.dark .mtux-heat-toggle[aria-pressed='true']{background:rgba(63,63,70,0.55);color:#e4e4e7;}" +
       "th.mtux-th{position:relative;user-select:none;}" +
       "th.mtux-th.is-dragging{opacity:0.55;}" +
       "th.mtux-th.is-drag-over{box-shadow:inset 2px 0 0 #0ea5e9;}" +
@@ -106,27 +115,79 @@
     return out;
   }
 
-  function ensureLegend(shell) {
+  var HEAT_PREF_KEY = "mtux-heat-enabled";
+
+  function isHeatEnabled() {
+    var v = readJson(HEAT_PREF_KEY, true);
+    return v !== false;
+  }
+
+  function setHeatEnabled(on) {
+    writeJson(HEAT_PREF_KEY, !!on);
+  }
+
+  function syncLegendState(legend) {
+    if (!legend) return;
+    var on = isHeatEnabled();
+    legend.classList.toggle("is-off", !on);
+    var btn = legend.querySelector(".mtux-heat-toggle");
+    if (btn) {
+      btn.setAttribute("aria-pressed", on ? "false" : "true");
+      btn.textContent = on ? "Renkleri kaldır" : "Renkleri aç";
+    }
+    var scale = legend.querySelector(".mtux-legend-scale");
+    if (scale) scale.style.visibility = on ? "visible" : "hidden";
+  }
+
+  function ensureLegend(shell, opts) {
+    opts = opts || {};
     if (!shell) return;
+    var onToggle = typeof opts.onHeatToggle === "function" ? opts.onHeatToggle : null;
     var existing = shell.querySelector(".mtux-legend");
-    if (existing) return existing;
+    if (existing) {
+      if (onToggle && !existing._mtuxHeatBound) {
+        existing._mtuxHeatBound = true;
+        existing.addEventListener("click", function (ev) {
+          var btn = ev.target && ev.target.closest ? ev.target.closest(".mtux-heat-toggle") : null;
+          if (!btn) return;
+          ev.preventDefault();
+          setHeatEnabled(!isHeatEnabled());
+          syncLegendState(existing);
+          onToggle(isHeatEnabled());
+        });
+      }
+      syncLegendState(existing);
+      return existing;
+    }
     var scroll = shell.querySelector(".rdl-scroll") || shell.querySelector("[id$='-table-wrap']");
     var legend = document.createElement("div");
     legend.className = "mtux-legend";
-    legend.setAttribute("aria-hidden", "true");
     legend.innerHTML =
-      '<span class="mtux-legend-bar">' +
-        '<span style="background:rgba(37,99,235,0.12)"></span>' +
-        '<span style="background:rgba(37,99,235,0.28)"></span>' +
-        '<span style="background:rgba(37,99,235,0.42)"></span>' +
-        '<span style="background:rgba(37,99,235,0.55)"></span>' +
+      '<span class="mtux-legend-scale" style="display:inline-flex;align-items:center;gap:0.5rem;">' +
+        '<span class="mtux-legend-bar">' +
+          '<span style="background:rgba(37,99,235,0.12)"></span>' +
+          '<span style="background:rgba(37,99,235,0.28)"></span>' +
+          '<span style="background:rgba(37,99,235,0.42)"></span>' +
+          '<span style="background:rgba(37,99,235,0.55)"></span>' +
+        "</span>" +
+        "<span>düşük → yüksek</span>" +
       "</span>" +
-      "<span>düşük → yüksek</span>";
+      '<button type="button" class="mtux-heat-toggle">Renkleri kaldır</button>';
     if (scroll && scroll.parentNode === shell) {
       shell.insertBefore(legend, scroll.nextSibling);
     } else {
       shell.appendChild(legend);
     }
+    legend._mtuxHeatBound = true;
+    legend.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest(".mtux-heat-toggle") : null;
+      if (!btn) return;
+      ev.preventDefault();
+      setHeatEnabled(!isHeatEnabled());
+      syncLegendState(legend);
+      if (onToggle) onToggle(isHeatEnabled());
+    });
+    syncLegendState(legend);
     return legend;
   }
 
@@ -262,6 +323,8 @@
     heatBackground: heatBackground,
     colMinMax: colMinMax,
     heatT: heatT,
+    isHeatEnabled: isHeatEnabled,
+    setHeatEnabled: setHeatEnabled,
     orderKeys: orderKeys,
     readJson: readJson,
     writeJson: writeJson,

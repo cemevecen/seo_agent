@@ -2608,7 +2608,8 @@
       colItems.forEach(function (col, i) {
         var v = maps[i][key];
         var st = stats[i];
-        var t = ux ? ux.heatT(v, st.min, st.max) : null;
+        var heatOn = ux && ux.isHeatEnabled();
+        var t = heatOn && ux ? ux.heatT(v, st.min, st.max) : null;
         var bg = t == null ? "" : "background:" + ux.heatBackground(col.color, t) + ";";
         cells +=
           '<td class="mtux-heat-cell px-1.5 py-1.5 tabular-nums font-semibold" style="' + bg + '">' +
@@ -2626,7 +2627,11 @@
     var shell = document.getElementById("ia-table-shell");
     var tableEl = iaTable.closest("table");
     if (ux && shell && tableEl) {
-      ux.ensureLegend(shell);
+      ux.ensureLegend(shell, {
+        onHeatToggle: function () {
+          renderOverviewTable(bundles);
+        },
+      });
       ux.bindInteractive(tableEl, {
         widthsKey: "ia-table-col-widths",
         orderKey: "ia-table-col-order",
