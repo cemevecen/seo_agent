@@ -3452,24 +3452,33 @@
           'aria-label="Crashlytics skorunu yenile">Yenile</button>'
       );
     }
-    function iaSfSideTip(part, cardTitle) {
+    function iaSfPeriodLabel(raw) {
+      var p = String(raw || "").trim().toLowerCase();
+      if (p === "24h" || p === "24s") return "son 24 saat";
+      if (p === "7d" || p === "7g") return "son 7 gün";
+      if (p === "28d" || p === "28g") return "son 28 gün";
+      if (p === "30d" || p === "30g") return "son 30 gün";
+      return String(raw || "").trim();
+    }
+    function iaSfSideTip(part, cardTitle, periodLabel) {
       var p = String(part || "").trim();
       var t = String(cardTitle || "");
+      var when = String(periodLabel || "").trim() ? (" · " + String(periodLabel).trim()) : "";
       if (/^s\s/i.test(p)) {
-        return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı).";
+        return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
       }
       if (/^Δ/i.test(p) || p.indexOf("Δ") === 0) {
-        return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free.";
+        return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free" + when + ".";
       }
       if (/%$/.test(p) && !/^s\s/i.test(p)) {
         return /anr/i.test(t)
-          ? "ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi)."
-          : "Oran — kaynak konsoldaki ham yüzde.";
+          ? ("ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi)" + when + ".")
+          : ("Oran — kaynak konsoldaki ham yüzde" + when + ".");
       }
       if (/[kKmM]$/.test(p) || /^\d/.test(p)) {
-        return "Örneklem — dönemdeki kullanıcı/oturum hacmi (scrape serisi).";
+        return "Örneklem — dönemdeki kullanıcı/oturum hacmi" + when + ".";
       }
-      return "Ek metrik — kaynak konsoldan gelen veri.";
+      return "Ek metrik — kaynak konsoldan gelen veri" + when + ".";
     }
     function card(title, sub, value, pct, extra, opts) {
       opts = opts || {};
@@ -3478,13 +3487,14 @@
       if (opts.stale) cls += " is-stale";
       var tip = [title, (opts.subPlain || sub), extra].filter(Boolean).join(" · ");
       var subOut = opts.subHtml || (sub ? esc(sub) : "");
+      var periodLabel = opts.periodLabel || "";
       var parts = String(extra || "").split(/\s*·\s*/).map(function (p) {
         return String(p || "").trim();
       }).filter(Boolean);
       var side = parts.length
         ? ('<div class="sf-card__side">' +
             parts.map(function (p) {
-              var sideTip = iaSfSideTip(p, title);
+              var sideTip = iaSfSideTip(p, title, periodLabel);
               return (
                 '<div class="sf-card__side-row">' +
                   '<span class="sf-card__side-val">' + esc(p) + "</span>" +
@@ -3559,7 +3569,7 @@
       function fbSubHtml(timeLabel, timeParam) {
         var parts = [
           iaSfLink("Firebase", "/s-firebase", {
-            title: "S-Firebase · Crashlytics / Release Monitoring scrape"
+            title: "S-Firebase · Crashlytics / Release Monitoring"
           }),
           "son sürüm",
           esc(timeLabel)
@@ -3582,7 +3592,8 @@
         {
           pending: !(fb24 && hasScore(fb24)),
           subHtml: fbSubHtml("24s", "24h"),
-          subPlain: "Firebase · son sürüm · 24s" + (fbVer ? (" · " + fbVer) : "")
+          subPlain: "Firebase · son sürüm · 24s" + (fbVer ? (" · " + fbVer) : ""),
+          periodLabel: iaSfPeriodLabel("24h")
         }
       ));
       pills.push(card(
@@ -3594,7 +3605,8 @@
         {
           pending: !(fb7 && hasScore(fb7)),
           subHtml: fbSubHtml("7g", "7d"),
-          subPlain: "Firebase · son sürüm · 7g" + (fbVer ? (" · " + fbVer) : "")
+          subPlain: "Firebase · son sürüm · 7g" + (fbVer ? (" · " + fbVer) : ""),
+          periodLabel: iaSfPeriodLabel("7d")
         }
       ));
       el.style.setProperty("--sf-n", String(pills.length));

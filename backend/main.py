@@ -8783,13 +8783,22 @@ def _home_crash_version_counts(payload: dict, plat: str, version: str | None) ->
     return 0, 0
 
 
-def _home_sf_metric(title: str, value: str | None, *, sub: str = "", pct: float | None = None, extra: str = "") -> dict:
+def _home_sf_metric(
+    title: str,
+    value: str | None,
+    *,
+    sub: str = "",
+    pct: float | None = None,
+    extra: str = "",
+    period_label: str = "",
+) -> dict:
     return {
         "title": title,
         "sub": sub,
         "value": value or "—",
         "pct": pct,
         "extra": extra,
+        "period_label": period_label,
         "tone": (
             "up"
             if pct is not None and pct >= 99
@@ -8831,7 +8840,7 @@ def _home_sf_fb_sub(*, plat: str, time_label: str, time_param: str, version: str
         _home_sf_a(
             "Firebase",
             "/s-firebase",
-            title="S-Firebase · Crashlytics / Release Monitoring scrape",
+            title="S-Firebase · Crashlytics / Release Monitoring",
         ),
         "son sürüm",
         time_label,
@@ -8973,6 +8982,7 @@ def _home_store_firebase_card_from_tabs(
             sub=_home_sf_fb_sub(plat="android", time_label="24s", time_param="24h", version=fb_ver),
             pct=fb24.get("crash_free_pct"),
             extra=str(fb24.get("extra") or ""),
+            period_label="son 24 saat",
         ),
         _home_sf_metric(
             "Crash-free",
@@ -8980,6 +8990,7 @@ def _home_store_firebase_card_from_tabs(
             sub=_home_sf_fb_sub(plat="android", time_label="7g", time_param="7d", version=fb_ver),
             pct=fb7.get("crash_free_pct"),
             extra=str(fb7.get("extra") or ""),
+            period_label="son 7 gün",
         ),
         _home_sf_metric(
             "ANR-free",
@@ -8987,6 +8998,7 @@ def _home_store_firebase_card_from_tabs(
             sub=_home_sf_play_all_sub(),
             pct=play.get("anr_free_pct"),
             extra=str(play.get("extra") or ""),
+            period_label="son 28 gün",
         ),
         _home_sf_metric(
             "ANR-free",
@@ -8994,6 +9006,7 @@ def _home_store_firebase_card_from_tabs(
             sub=_home_sf_play_latest_sub(version_label=lv_label, version_code=play_code),
             pct=play_latest.get("anr_free_pct"),
             extra=str(play_latest.get("extra") or ""),
+            period_label="son 28 gün",
         ),
     ]
     if android_metrics[3]["value"] == "—" and (and_cf.get("latest") or {}).get("anr_free_fmt"):
@@ -9019,6 +9032,7 @@ def _home_store_firebase_card_from_tabs(
                 )
             ),
             pct=latest.get("anr_free_pct"),
+            period_label="son 28 gün",
         )
 
     ios_ver = (
@@ -9036,6 +9050,7 @@ def _home_store_firebase_card_from_tabs(
             sub=_home_sf_fb_sub(plat="ios", time_label="24s", time_param="24h", version=str(ios_ver)),
             pct=ios24.get("crash_free_pct"),
             extra=str(ios24.get("extra") or ""),
+            period_label="son 24 saat",
         ),
         _home_sf_metric(
             "Crash-free",
@@ -9043,6 +9058,7 @@ def _home_store_firebase_card_from_tabs(
             sub=_home_sf_fb_sub(plat="ios", time_label="7g", time_param="7d", version=str(ios_ver)),
             pct=ios7.get("crash_free_pct"),
             extra=str(ios7.get("extra") or ""),
+            period_label="son 7 gün",
         ),
     ]
 

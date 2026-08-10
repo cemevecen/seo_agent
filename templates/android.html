@@ -6285,31 +6285,43 @@
     return u;
   }
 
-  function paSfSideTip(part, cardTitle) {
+  function paSfPeriodLabel(raw) {
+    var p = String(raw || "").trim().toLowerCase();
+    if (p === "24h" || p === "24s") return "son 24 saat";
+    if (p === "7d" || p === "7g") return "son 7 gün";
+    if (p === "28d" || p === "28g") return "son 28 gün";
+    if (p === "30d" || p === "30g") return "son 30 gün";
+    if (p === "90d" || p === "90g") return "son 90 gün";
+    return String(raw || "").trim();
+  }
+
+  function paSfSideTip(part, cardTitle, periodLabel) {
     var p = String(part || "").trim();
     var title = String(cardTitle || "");
+    var period = String(periodLabel || "").trim();
+    var when = period ? (" · " + period) : "";
     if (/^s\s/i.test(p)) {
-      return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı).";
+      return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı)" + when + ".";
     }
     if (/^Δ/i.test(p) || p.indexOf("Δ") === 0) {
-      return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free.";
+      return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free" + when + ".";
     }
     if (/%$/.test(p) && !/^s\s/i.test(p)) {
       if (/anr/i.test(title)) {
-        return "ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi).";
+        return "ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi)" + when + ".";
       }
-      return "Oran — kaynak konsoldaki ham yüzde.";
+      return "Oran — kaynak konsoldaki ham yüzde" + when + ".";
     }
     if (/[kKmM]$/.test(p) || /^\d/.test(p)) {
       if (/anr/i.test(title)) {
-        return "Örneklem — Reporting’deki distinct kullanıcı hacmi.";
+        return "Örneklem — Reporting’deki distinct kullanıcı hacmi" + when + ".";
       }
-      return "Örneklem — dönemdeki kullanıcı/oturum hacmi (scrape serisi).";
+      return "Örneklem — dönemdeki kullanıcı/oturum hacmi" + when + ".";
     }
-    return "Ek metrik — kaynak konsoldan gelen veri.";
+    return "Ek metrik — kaynak konsoldan gelen veri" + when + ".";
   }
 
-  function paSfSideHtml(extra, cardTitle) {
+  function paSfSideHtml(extra, cardTitle, periodLabel) {
     if (!extra) return "";
     var parts = String(extra).split(/\s*·\s*/).map(function (p) {
       return String(p || "").trim();
@@ -6318,7 +6330,7 @@
     return (
       '<div class="sf-card__side">' +
         parts.map(function (p) {
-          var tip = paSfSideTip(p, cardTitle);
+          var tip = paSfSideTip(p, cardTitle, periodLabel);
           return (
             '<div class="sf-card__side-row">' +
               '<span class="sf-card__side-val">' + esc(p) + "</span>" +
@@ -6341,11 +6353,12 @@
     var value = opts.value || "—";
     var tone = opts.toneClass || "text-slate-800 dark:text-zinc-100";
     var extra = opts.extra || "";
+    var periodLabel = opts.periodLabel || "";
     var refresh = opts.showRefresh
       ? '<button type="button" data-pa-sf-refresh class="mt-1 inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:border-sky-400 hover:text-sky-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">Yenile</button>'
       : "";
     var subOut = subHtml || (sub ? esc(sub) : "");
-    var side = paSfSideHtml(extra, title);
+    var side = paSfSideHtml(extra, title, periodLabel);
     return (
       '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
         '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
@@ -6456,7 +6469,7 @@
     function fbSubHtml(timeLabel, timeParam) {
       var parts = [
         paSfLink("Firebase", "/s-firebase", {
-          title: "S-Firebase · Crashlytics / Release Monitoring scrape"
+          title: "S-Firebase · Crashlytics / Release Monitoring"
         }),
         "son sürüm",
         esc(timeLabel)
@@ -6504,6 +6517,7 @@
       subHtml: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? "" : fbSubHtml("24s", "24h"),
       value: (fb24 && fb24.crash_free_fmt) || "—",
       extra: (fb24 && fb24.extra) || "",
+      periodLabel: paSfPeriodLabel("24h"),
       toneClass: stabilityToneClass(fb24 && fb24.crash_free_pct),
       showRefresh: !paSfHas(fb24 && fb24.crash_free_fmt)
     }));
@@ -6513,6 +6527,7 @@
       subHtml: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? "" : fbSubHtml("7g", "7d"),
       value: (fb7 && fb7.crash_free_fmt) || "—",
       extra: (fb7 && fb7.extra) || "",
+      periodLabel: paSfPeriodLabel("7d"),
       toneClass: stabilityToneClass(fb7 && fb7.crash_free_pct),
       showRefresh: !paSfHas(fb7 && fb7.crash_free_fmt)
     }));
@@ -6522,6 +6537,7 @@
       subHtml: staleSub ? "" : playAllSubHtml,
       value: play.anr_free_fmt || "—",
       extra: play.extra || "",
+      periodLabel: paSfPeriodLabel("28d"),
       toneClass: stabilityToneClass(play.anr_free_pct),
       showRefresh: !paSfHas(play.anr_free_fmt)
     }));
@@ -6531,6 +6547,7 @@
       subHtml: staleSub && !paSfHas(latestAnr) ? "" : playRepSubHtml,
       value: latestAnr || "—",
       extra: (playLatest && playLatest.extra) || "",
+      periodLabel: paSfPeriodLabel("28d"),
       toneClass: stabilityToneClass(latestAnrPct),
       showRefresh: !paSfHas(latestAnr)
     }));

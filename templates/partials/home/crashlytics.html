@@ -437,20 +437,21 @@
   }
 </style>
 
-{% macro sf_side_tip(part, title='') -%}
+{% macro sf_side_tip(part, title='', period='') -%}
 {%- set p = (part or '')|trim -%}
+{%- set when = (' · ' ~ period) if period else '' -%}
 {%- if p.startswith('s ') -%}
-Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı).
+Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı){{ when }}.
 {%- elif p.startswith('Δ') -%}
-Δ — dönem içi fark (pp): son gün − ilk gün crash-free.
+Δ — dönem içi fark (pp): son gün − ilk gün crash-free{{ when }}.
 {%- elif '%' in p -%}
 {%- if 'ANR' in (title or '') -%}
-ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi).
+ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi){{ when }}.
 {%- else -%}
-Oran — kaynak konsoldaki ham yüzde.
+Oran — kaynak konsoldaki ham yüzde{{ when }}.
 {%- endif -%}
 {%- else -%}
-Örneklem — dönemdeki kullanıcı/oturum hacmi (scrape serisi).
+Örneklem — dönemdeki kullanıcı/oturum hacmi{{ when }}.
 {%- endif -%}
 {%- endmacro %}
 
@@ -469,7 +470,7 @@ Oran — kaynak konsoldaki ham yüzde.
               <div class="home-sf-metric__side">
                 {% for part in m.extra.split(' · ') %}
                   {% if part %}
-                    {% set tip = sf_side_tip(part, m.title) %}
+                    {% set tip = sf_side_tip(part, m.title, m.period_label or '') %}
                     <div class="home-sf-metric__side-row">
                       <span class="home-sf-metric__side-val">{{ part }}</span>
                       <button type="button" class="home-sf-metric__side-info" aria-label="{{ tip }}" data-sf-side-info>
