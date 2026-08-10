@@ -63,22 +63,42 @@ def get_play_console_snapshot(db: Session = Depends(get_db)):
 
 
 @router.get("/play-console/stability-free")
-def get_play_console_stability_free(db: Session = Depends(get_db)):
-    """Crash-free / ANR-free — Play scrape oranları + Reporting sürüm + Crashlytics."""
+def get_play_console_stability_free(
+    db: Session = Depends(get_db),
+    refresh: int = 0,
+):
+    """Crash-free / ANR-free — Play scrape oranları + Reporting sürüm + Crashlytics.
+
+    refresh=1 → bellek cache temizlenir, BQ/peek yeniden denenir.
+    """
     from backend.services.stability_free import build_stability_free_payload
 
     snap = play_console_payload(db) or {}
     panels = snap.get("panels") if isinstance(snap.get("panels"), dict) else {}
     vitals = panels.get("vitals") if isinstance(panels.get("vitals"), dict) else {}
     package = (snap.get("package_name") or "com.Doviz").strip() or "com.Doviz"
+    force = bool(refresh)
     try:
         return build_stability_free_payload(
             package_name=package,
             product_id="doviz",
             vitals=vitals,
+            force_refresh=force,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("stability-free failed")
+        # Tam çöküşte boş iskelet dön — UI son sağlıklı skoru basabilsin
+        if force:
+            return {
+                "ok": False,
+                "error": str(exc)[:200],
+                "package_name": package,
+                "product_id": "doviz",
+                "play_overall": {},
+                "play_latest": None,
+                "play_versions": [],
+                "crashlytics": {"ok": False, "error": str(exc)[:160], "platforms": {}},
+            }
         raise HTTPException(status_code=500, detail=str(exc)[:200]) from exc
 
 

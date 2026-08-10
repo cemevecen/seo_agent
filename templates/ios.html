@@ -620,6 +620,39 @@
   .ia-stability-inline .sf-card__extra {
     display: none;
   }
+  .ia-stability-inline .sf-card.is-pending .sf-card__sub,
+  .ia-stability-inline .sf-card.is-stale .sf-card__sub {
+    display: block;
+  }
+  .ia-sf-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(148 163 184 / 0.55);
+    background: rgb(255 255 255 / 0.9);
+    color: #334155;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .ia-sf-refresh:hover {
+    border-color: #0ea5e9;
+    color: #0284c7;
+  }
+  .ia-sf-refresh:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+  html.dark .ia-sf-refresh {
+    background: rgb(24 24 27 / 0.85);
+    border-color: rgb(113 113 122 / 0.55);
+    color: #e4e4e7;
+  }
   .ia-stability-free-loading {
     display: flex;
     align-items: center;
@@ -3072,7 +3105,15 @@
     var empty = document.getElementById("ia-stability-free-empty");
     var chipsEl = document.getElementById("ia-stability-versions");
     if (!el) return;
-    var state = { versions: [], selected: null, overall: null };
+    var HEALTHY_KEY = "ia-stability-healthy-v1";
+    var state = {
+      versions: [],
+      selected: null,
+      overall: null,
+      loading: false,
+      fromCache: false
+    };
+    var lastHealthy = null;
 
     function setLoading(on) {
       if (!empty) return;
@@ -3095,13 +3136,94 @@
       if (pct >= 95) return "text-amber-600 dark:text-amber-400";
       return "text-rose-600 dark:text-rose-400";
     }
-    function card(title, sub, value, pct, extra) {
+    function readHealthy() {
+      try {
+        var raw = localStorage.getItem(HEALTHY_KEY);
+        if (!raw) return null;
+        var v = JSON.parse(raw);
+        return v && typeof v === "object" ? v : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    function writeHealthy(snap) {
+      try {
+        localStorage.setItem(HEALTHY_KEY, JSON.stringify(snap));
+      } catch (e) {}
+    }
+    function hasScore(row) {
+      return !!(row && row.crash_free_fmt && String(row.crash_free_fmt).trim() && row.crash_free_fmt !== "—");
+    }
+    function captureHealthy() {
+      var scored = (state.versions || []).filter(hasScore);
+      if (!scored.length && !hasScore(state.overall)) return;
+      var snap = {
+        saved_at: Date.now(),
+        saved_at_tr: new Date().toLocaleString("tr-TR", {
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit"
+        }),
+        overall: state.overall || null,
+        versions: (state.versions || []).map(function (v) {
+          return {
+            version: v.version,
+            label: v.label,
+            crash_free_fmt: v.crash_free_fmt || null,
+            crash_free_pct: v.crash_free_pct,
+            period: v.period || null,
+            fatal: v.fatal,
+            anr: v.anr
+          };
+        }),
+        selected: state.selected
+      };
+      lastHealthy = snap;
+      writeHealthy(snap);
+    }
+    function healthyRowForVersion(ver) {
+      if (!lastHealthy) return null;
+      var key = String(ver || "");
+      var list = lastHealthy.versions || [];
+      for (var i = 0; i < list.length; i++) {
+        if (String(list[i].version || "") === key && hasScore(list[i])) return list[i];
+      }
+      if (hasScore(lastHealthy.overall)) {
+        return {
+          version: ver,
+          label: ver ? ("v" + ver) : "all",
+          crash_free_fmt: lastHealthy.overall.crash_free_fmt,
+          crash_free_pct: lastHealthy.overall.crash_free_pct,
+          period: null,
+          _overallFallback: true
+        };
+      }
+      // Herhangi bir sağlıklı sürüm skoru
+      for (var j = 0; j < list.length; j++) {
+        if (hasScore(list[j])) return list[j];
+      }
+      return null;
+    }
+    function refreshBtnHtml(busy) {
       return (
-        '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40" title="' + esc([title, sub, extra].filter(Boolean).join(" · ")) + '">' +
+        '<button type="button" data-ia-sf-refresh class="ia-sf-refresh" ' +
+          (busy ? "disabled " : "") +
+          'title="Crashlytics skorunu yeniden çek">' +
+          (busy ? "Çekiliyor…" : "Yenile") +
+        "</button>"
+      );
+    }
+    function card(title, sub, value, pct, extra, opts) {
+      opts = opts || {};
+      var cls = "sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40";
+      if (opts.pending) cls += " is-pending";
+      if (opts.stale) cls += " is-stale";
+      return (
+        '<div class="' + cls + '" title="' + esc([title, sub, extra].filter(Boolean).join(" · ")) + '">' +
           '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' + esc(title) + "</p>" +
           (sub ? '<p class="sf-card__sub mt-0.5 text-slate-400">' + esc(sub) + "</p>" : "") +
           '<p class="sf-card__value font-extrabold tabular-nums ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
           (extra ? '<p class="sf-card__extra mt-1 text-slate-500">' + extra + "</p>" : "") +
+          (opts.showRefresh ? refreshBtnHtml(!!state.loading) : "") +
         "</div>"
       );
     }
@@ -3133,9 +3255,13 @@
       var cards = [];
       var row = selectedVersionRow();
       var overall = state.overall;
-      if (row && row.crash_free_fmt) {
+      var staleNote = lastHealthy && lastHealthy.saved_at_tr
+        ? ("son sağlıklı · " + lastHealthy.saved_at_tr)
+        : "son sağlıklı skor";
+
+      if (row && hasScore(row)) {
         var extraBits = [];
-        if (overall && overall.crash_free_fmt) extraBits.push("all " + esc(overall.crash_free_fmt));
+        if (overall && hasScore(overall)) extraBits.push("all " + esc(overall.crash_free_fmt));
         if (row.fatal != null) extraBits.push("fatal " + esc(String(row.fatal)));
         cards.push(card(
           "Crash-free · " + (row.label || ("v" + row.version)),
@@ -3144,28 +3270,43 @@
           row.crash_free_pct,
           extraBits.join(" · ")
         ));
-      } else if (overall && overall.crash_free_fmt) {
-        cards.push(card(
-          "Crashlytics · all",
-          "",
-          overall.crash_free_fmt,
-          overall.crash_free_pct
-        ));
+      } else {
+        var stale = healthyRowForVersion(row && row.version);
+        if (stale && hasScore(stale)) {
+          cards.push(card(
+            "Crashlytics · " + ((row && row.label) || stale.label || "sürüm"),
+            staleNote,
+            stale.crash_free_fmt,
+            stale.crash_free_pct,
+            state.fromCache ? "önbellek" : "",
+            { stale: true, showRefresh: true }
+          ));
+        } else if (overall && hasScore(overall)) {
+          cards.push(card(
+            "Crashlytics · all",
+            "Canlı sürüm skoru yok · genel 7g",
+            overall.crash_free_fmt,
+            overall.crash_free_pct,
+            "",
+            { showRefresh: true }
+          ));
+        } else {
+          cards.push(card(
+            "Crashlytics · " + ((row && row.label) || "sürüm"),
+            "Veri bekleniyor",
+            "—",
+            null,
+            "",
+            { pending: true, showRefresh: true }
+          ));
+        }
       }
-      if (overall && overall.crash_free_fmt && row && row.crash_free_fmt) {
+      if (overall && hasScore(overall) && row && hasScore(row)) {
         cards.push(card(
           "Crash-free · all",
           "Crashlytics · 7d",
           overall.crash_free_fmt,
           overall.crash_free_pct
-        ));
-      }
-      if (!cards.length && state.versions.length) {
-        cards.push(card(
-          "Crashlytics · " + ((row && row.label) || "sürüm"),
-          "Veri bekleniyor",
-          "—",
-          null
         ));
       }
       var n = cards.length >= 4 ? 4 : Math.max(cards.length, 1);
@@ -3176,7 +3317,111 @@
       renderChips();
       renderCards();
     }
+    function applyPayload(data) {
+      data = data || {};
+      var plats = (data.crashlytics && data.crashlytics.platforms) || {};
+      var ios = plats.ios || {};
+      state.overall = ios.overall || null;
+      var versions = Array.isArray(ios.versions) ? ios.versions.slice(0, 3) : [];
+      if (!versions.length && ios.latest_version) {
+        versions = [{
+          version: ios.latest_version,
+          label: "v" + ios.latest_version,
+          crash_free_fmt: ios.latest && ios.latest.crash_free_fmt,
+          crash_free_pct: ios.latest && ios.latest.crash_free_pct,
+          period: ios.latest && ios.latest.period,
+          fatal: ios.fatal,
+          anr: ios.anr
+        }];
+      }
+      // Chip listesi geldi ama skor yoksa sağlıklı önbellekle zenginleştir
+      if (versions.length && lastHealthy && lastHealthy.versions) {
+        versions = versions.map(function (v) {
+          if (hasScore(v)) return v;
+          var h = null;
+          for (var i = 0; i < lastHealthy.versions.length; i++) {
+            if (String(lastHealthy.versions[i].version || "") === String(v.version || "")
+              && hasScore(lastHealthy.versions[i])) {
+              h = lastHealthy.versions[i];
+              break;
+            }
+          }
+          if (!h) return v;
+          return {
+            version: v.version,
+            label: v.label || h.label,
+            crash_free_fmt: h.crash_free_fmt,
+            crash_free_pct: h.crash_free_pct,
+            period: v.period || h.period,
+            fatal: v.fatal != null ? v.fatal : h.fatal,
+            anr: v.anr != null ? v.anr : h.anr,
+            _stale: true
+          };
+        });
+      }
+      if (!hasScore(state.overall) && lastHealthy && hasScore(lastHealthy.overall)) {
+        state.overall = lastHealthy.overall;
+        state.fromCache = true;
+      }
+      state.versions = versions;
+      var keepSel = state.selected && versions.some(function (v) {
+        return String(v.version || "") === String(state.selected || "");
+      });
+      state.selected = keepSel
+        ? state.selected
+        : (versions.length ? String(versions[0].version || "") : null);
+      if (versions.some(hasScore) || hasScore(state.overall)) {
+        var liveOk = (Array.isArray(ios.versions) ? ios.versions : []).some(hasScore)
+          || hasScore(ios.overall)
+          || (ios.latest && hasScore(ios.latest));
+        if (liveOk) {
+          state.fromCache = false;
+          captureHealthy();
+        }
+      }
+    }
+    function restoreFromHealthy() {
+      if (!lastHealthy) return false;
+      state.fromCache = true;
+      state.overall = lastHealthy.overall || null;
+      state.versions = (lastHealthy.versions || []).slice(0, 3);
+      state.selected = state.versions.length
+        ? String(state.versions[0].version || "")
+        : null;
+      return state.versions.length > 0 || hasScore(state.overall);
+    }
+    function fetchStability(force) {
+      if (state.loading) return;
+      state.loading = true;
+      setLoading(true);
+      renderCards();
+      var url = "/api/play-console/stability-free" + (force ? "?refresh=1" : "");
+      fetch(url, { credentials: "same-origin", cache: "no-store" })
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          applyPayload(data);
+          // Hâlâ skor yoksa önbelleği bas
+          if (!state.versions.some(hasScore) && !hasScore(state.overall)) {
+            restoreFromHealthy();
+          }
+          setLoading(false);
+          state.loading = false;
+          renderAll();
+        })
+        .catch(function () {
+          if (!restoreFromHealthy()) {
+            state.versions = state.versions || [];
+          }
+          setLoading(false);
+          state.loading = false;
+          renderAll();
+        });
+    }
 
+    lastHealthy = readHealthy();
     if (chipsEl) {
       chipsEl.addEventListener("click", function (ev) {
         var btn = ev.target && ev.target.closest && ev.target.closest("[data-ia-version]");
@@ -3187,36 +3432,21 @@
         renderAll();
       });
     }
+    el.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("[data-ia-sf-refresh]");
+      if (!btn) return;
+      ev.preventDefault();
+      fetchStability(true);
+    });
 
-    setLoading(true);
-    fetch("/api/play-console/stability-free", { credentials: "same-origin", cache: "no-store" })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var plats = (data.crashlytics && data.crashlytics.platforms) || {};
-        var ios = plats.ios || {};
-        state.overall = ios.overall || null;
-        var versions = Array.isArray(ios.versions) ? ios.versions.slice(0, 3) : [];
-        if (!versions.length && ios.latest_version) {
-          versions = [{
-            version: ios.latest_version,
-            label: "v" + ios.latest_version,
-            crash_free_fmt: ios.latest && ios.latest.crash_free_fmt,
-            crash_free_pct: ios.latest && ios.latest.crash_free_pct,
-            period: ios.latest && ios.latest.period,
-            fatal: ios.fatal,
-            anr: ios.anr
-          }];
-        }
-        state.versions = versions;
-        state.selected = versions.length ? String(versions[0].version || "") : null;
-        setLoading(false);
-        renderAll();
-      })
-      .catch(function () {
-        setLoading(false);
-        el.innerHTML = "";
-        if (chipsEl) chipsEl.innerHTML = "";
-      });
+    // Önce son sağlıklı skoru göster, sonra canlı çek
+    if (restoreFromHealthy()) {
+      setLoading(false);
+      renderAll();
+    } else {
+      setLoading(true);
+    }
+    fetchStability(false);
   })();
 })();
 </script>

@@ -6088,12 +6088,16 @@
     var value = opts.value || "—";
     var tone = opts.toneClass || "text-slate-800 dark:text-zinc-100";
     var extra = opts.extra || "";
+    var refresh = opts.showRefresh
+      ? '<button type="button" data-pa-sf-refresh class="mt-1 inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:border-sky-400 hover:text-sky-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">Yenile</button>'
+      : "";
     return (
       '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
         '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
         (sub ? '<p class="sf-card__sub mt-0.5 text-slate-400 dark:text-zinc-500">' + esc(sub) + "</p>" : "") +
         '<p class="sf-card__value font-extrabold tabular-nums ' + tone + '">' + esc(value) + "</p>" +
         (extra ? '<p class="sf-card__extra mt-1 text-slate-500 dark:text-zinc-400">' + extra + "</p>" : "") +
+        refresh +
       "</div>"
     );
   }
@@ -6104,9 +6108,71 @@
     stabilityFreeEl.style.setProperty("--sf-n", "4");
   }
 
+  var PA_SF_HEALTHY_KEY = "pa-stability-healthy-v1";
+  var paSfHealthy = null;
+  function paSfHas(v) {
+    return !!(v && String(v).trim() && String(v) !== "—");
+  }
+  function paSfReadHealthy() {
+    try {
+      var raw = localStorage.getItem(PA_SF_HEALTHY_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function paSfWriteHealthy(data) {
+    try {
+      localStorage.setItem(PA_SF_HEALTHY_KEY, JSON.stringify({
+        saved_at: Date.now(),
+        saved_at_tr: new Date().toLocaleString("tr-TR", {
+          day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
+        }),
+        data: data
+      }));
+    } catch (e) {}
+  }
+  function paSfMergeHealthy(data) {
+    data = data || {};
+    var play = data.play_overall || {};
+    var playLatest = data.play_latest || null;
+    var and = ((data.crashlytics || {}).platforms || {}).android || {};
+    var healthyEnough = paSfHas(play.crash_free_fmt) || paSfHas(play.anr_free_fmt)
+      || paSfHas(playLatest && playLatest.crash_free_fmt)
+      || paSfHas(and.latest && and.latest.crash_free_fmt);
+    if (healthyEnough) {
+      paSfWriteHealthy(data);
+      paSfHealthy = { data: data, saved_at_tr: new Date().toLocaleString("tr-TR") };
+      return data;
+    }
+    if (!paSfHealthy) paSfHealthy = paSfReadHealthy();
+    if (paSfHealthy && paSfHealthy.data) {
+      var h = paSfHealthy.data;
+      var hp = h.play_overall || {};
+      var hl = h.play_latest || null;
+      var ha = ((h.crashlytics || {}).platforms || {}).android || {};
+      if (!paSfHas(play.crash_free_fmt) && paSfHas(hp.crash_free_fmt)) data.play_overall = hp;
+      if (!playLatest && hl) data.play_latest = hl;
+      else if (playLatest && !paSfHas(playLatest.crash_free_fmt) && hl && paSfHas(hl.crash_free_fmt)) {
+        data.play_latest = Object.assign({}, playLatest, {
+          crash_free_fmt: playLatest.crash_free_fmt || hl.crash_free_fmt,
+          crash_free_pct: playLatest.crash_free_pct != null ? playLatest.crash_free_pct : hl.crash_free_pct,
+          anr_free_fmt: playLatest.anr_free_fmt || hl.anr_free_fmt,
+          anr_free_pct: playLatest.anr_free_pct != null ? playLatest.anr_free_pct : hl.anr_free_pct
+        });
+      }
+      if (!and.latest && ha.latest) {
+        data.crashlytics = data.crashlytics || { platforms: {} };
+        data.crashlytics.platforms = data.crashlytics.platforms || {};
+        data.crashlytics.platforms.android = Object.assign({}, and, { latest: ha.latest, latest_version: and.latest_version || ha.latest_version });
+      }
+      data._from_healthy = true;
+      data._healthy_at = paSfHealthy.saved_at_tr || "";
+    }
+    return data;
+  }
+
   function renderStabilityFree(data) {
     if (!stabilityFreeEl) return;
-    data = data || {};
+    data = paSfMergeHealthy(data || {});
     var cards = [];
     var play = data.play_overall || {};
     var playLatest = data.play_latest || null;
@@ -6115,18 +6181,23 @@
     var lvLabel = playLatest && playLatest.version_name
       ? ("v" + playLatest.version_name)
       : (playLatest && playLatest.version_code ? ("code " + playLatest.version_code) : "latest");
+    var staleSub = data._from_healthy
+      ? ("Son sağlıklı" + (data._healthy_at ? (" · " + data._healthy_at) : ""))
+      : "";
 
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
-      sub: "Play Console · all · 28d",
+      sub: staleSub || "Play Console · all · 28d",
       value: play.crash_free_fmt || "—",
-      toneClass: stabilityToneClass(play.crash_free_pct)
+      toneClass: stabilityToneClass(play.crash_free_pct),
+      showRefresh: !paSfHas(play.crash_free_fmt)
     }));
     cards.push(renderStabilityFreeCard({
       title: "ANR-free",
-      sub: "Play Console · all · 28d",
+      sub: staleSub || "Play Console · all · 28d",
       value: play.anr_free_fmt || "—",
-      toneClass: stabilityToneClass(play.anr_free_pct)
+      toneClass: stabilityToneClass(play.anr_free_pct),
+      showRefresh: !paSfHas(play.anr_free_fmt)
     }));
     var latestCrash = (playLatest && playLatest.crash_free_fmt)
       || (and.latest && and.latest.crash_free_fmt)
@@ -6143,17 +6214,20 @@
     var latestSub = (playLatest && (playLatest.crash_free_fmt || playLatest.anr_free_fmt))
       ? ("Play Reporting · " + lvLabel)
       : ("Crashlytics · v" + (and.latest_version || (and.latest && and.latest.version) || "—"));
+    if (staleSub && (!paSfHas(latestCrash) || !paSfHas(latestAnr))) latestSub = staleSub;
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
       sub: latestSub,
       value: latestCrash || "—",
-      toneClass: stabilityToneClass(latestCrashPct)
+      toneClass: stabilityToneClass(latestCrashPct),
+      showRefresh: !paSfHas(latestCrash)
     }));
     cards.push(renderStabilityFreeCard({
       title: "ANR-free",
       sub: latestSub,
       value: latestAnr || "—",
-      toneClass: stabilityToneClass(latestAnrPct)
+      toneClass: stabilityToneClass(latestAnrPct),
+      showRefresh: !paSfHas(latestAnr)
     }));
 
     if (stabilityFreeEmpty) {
@@ -6165,24 +6239,34 @@
   }
 
   var stabilityFreePromise = null;
-  function loadStabilityFree() {
+  function loadStabilityFree(force) {
     if (stabilityFreePromise) return stabilityFreePromise;
+    if (!paSfHealthy) paSfHealthy = paSfReadHealthy();
     if (stabilityFreeEmpty) {
       stabilityFreeEmpty.classList.remove("hidden");
       stabilityFreeEmpty.setAttribute("aria-busy", "true");
     }
-    if (stabilityFreeEl) stabilityFreeEl.innerHTML = "";
-    stabilityFreePromise = fetch("/api/play-console/stability-free", {
+    if (stabilityFreeEl && !force) stabilityFreeEl.innerHTML = "";
+    var url = "/api/play-console/stability-free" + (force ? "?refresh=1" : "");
+    stabilityFreePromise = fetch(url, {
       credentials: "same-origin",
       cache: "no-store"
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
       .then(function (data) {
         renderStabilityFree(data);
         return data;
       })
       .catch(function (err) {
-        if (stabilityFreeEmpty) {
+        if (paSfHealthy && paSfHealthy.data) {
+          renderStabilityFree(Object.assign({}, paSfHealthy.data, {
+            _from_healthy: true,
+            _healthy_at: paSfHealthy.saved_at_tr || ""
+          }));
+        } else if (stabilityFreeEmpty) {
           stabilityFreeEmpty.classList.add("hidden");
           stabilityFreeEmpty.setAttribute("aria-busy", "false");
         }
@@ -6192,6 +6276,14 @@
         stabilityFreePromise = null;
       });
     return stabilityFreePromise;
+  }
+  if (stabilityFreeEl) {
+    stabilityFreeEl.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest("[data-pa-sf-refresh]");
+      if (!btn) return;
+      ev.preventDefault();
+      loadStabilityFree(true);
+    });
   }
 
   function renderVitalsCategories(opts) {
