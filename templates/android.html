@@ -2905,9 +2905,12 @@
       else paLegendPrev.classList.add("hidden");
     }
     if (paKpiGrid) {
+      var keepHidden = paKpiGrid.classList.contains("hidden")
+        || (paMetricKpis && !paMetricKpis.classList.contains("hidden"));
       paKpiGrid.className = show
-        ? "mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
-        : "mt-4 grid grid-cols-1 gap-3";
+        ? "grid grid-cols-1 gap-3 sm:grid-cols-3"
+        : "grid grid-cols-1 gap-3";
+      if (keepHidden) paKpiGrid.classList.add("hidden");
     }
   }
   function seriesStats(series) {
@@ -2946,17 +2949,28 @@
     return seriesStats(pack.series).avg;
   }
   function paMetricKpiGridClass(n) {
-    if (n <= 1) return "grid grid-cols-1 gap-3";
-    if (n === 2) return "grid grid-cols-1 gap-3 sm:grid-cols-2";
-    if (n === 3) return "grid grid-cols-1 gap-3 sm:grid-cols-3";
-    return "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+    return "grid w-full min-w-0 gap-2 sm:gap-3";
+  }
+  function applyPaMetricKpiLayout(el, n, rich) {
+    if (!el) return;
+    el.className = paMetricKpiGridClass(n);
+    el.style.removeProperty("grid-template-columns");
+    if (rich) {
+      if (n <= 1) el.style.gridTemplateColumns = "minmax(0, 1fr)";
+      else if (n === 2) el.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+      else el.style.gridTemplateColumns = "repeat(3, minmax(0, 1fr))";
+    } else {
+      /* 4+: tek satırda container genişliğine sığdır */
+      el.style.gridTemplateColumns = "repeat(" + Math.max(n, 1) + ", minmax(0, 1fr))";
+    }
   }
   function showPaSimpleKpis() {
-    if (paKpiGrid) paKpiGrid.classList.remove("hidden");
     if (paMetricKpis) {
       paMetricKpis.classList.add("hidden");
       paMetricKpis.innerHTML = "";
+      paMetricKpis.style.removeProperty("grid-template-columns");
     }
+    if (paKpiGrid) paKpiGrid.classList.remove("hidden");
   }
   function renderPaMetricKpis(packs, compareInfo) {
     if (!paMetricKpis) return;
@@ -2967,9 +2981,10 @@
     }
     if (paKpiGrid) paKpiGrid.classList.add("hidden");
     setCompareKpisVisible(false);
+    if (paKpiGrid) paKpiGrid.classList.add("hidden");
     paMetricKpis.classList.remove("hidden");
-    paMetricKpis.className = paMetricKpiGridClass(list.length);
     var rich = list.length <= 3;
+    applyPaMetricKpiLayout(paMetricKpis, list.length, rich);
     var cmp = compareInfo || null;
     paMetricKpis.innerHTML = list.map(function (pack, idx) {
       var color = overviewMetricColor(pack.metric) || paMetricColor(idx);
@@ -2982,6 +2997,8 @@
         ? fmtNum(pack.total, countLike && mode !== "avg")
         : "—";
       var extras = "";
+      var pad = rich ? "p-3" : "p-2.5 sm:p-3";
+      var numCls = rich ? "text-2xl" : (list.length >= 6 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl");
       if (rich) {
         var cmpHtml = "";
         if (list.length === 1 && cmp && cmp.hasPrev) {
@@ -3010,14 +3027,14 @@
           "</div>";
       }
       return (
-        '<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40" style="border-left:3px solid ' + color + '">' +
+        '<div class="min-w-0 rounded-xl border border-slate-200 bg-slate-50/80 ' + pad + ' dark:border-zinc-700 dark:bg-zinc-950/40" style="border-left:3px solid ' + color + '">' +
           '<div class="flex min-w-0 items-center gap-1.5">' +
             '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + color + '" aria-hidden="true"></span>' +
             '<p class="truncate text-[10px] font-bold uppercase tracking-wide" style="color:' + color + '" title="' + esc(pack.label || pack.metric) + '">' +
               esc(pack.label || pack.metric) +
             "</p>" +
           "</div>" +
-          '<p class="mt-1 text-2xl font-extrabold tabular-nums" style="color:' + color + '">' + esc(fmtNum(avg, false)) + "</p>" +
+          '<p class="mt-1 ' + numCls + ' font-extrabold tabular-nums leading-tight" style="color:' + color + '">' + esc(fmtNum(avg, false)) + "</p>" +
           '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Ortalama</p>' +
           extras +
         "</div>"

@@ -1060,17 +1060,27 @@
     return seriesStats(pack.series).avg;
   }
   function iaMetricKpiGridClass(n) {
-    if (n <= 1) return "grid grid-cols-1 gap-3";
-    if (n === 2) return "grid grid-cols-1 gap-3 sm:grid-cols-2";
-    if (n === 3) return "grid grid-cols-1 gap-3 sm:grid-cols-3";
-    return "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+    return "grid w-full min-w-0 gap-2 sm:gap-3";
+  }
+  function applyIaMetricKpiLayout(el, n, rich) {
+    if (!el) return;
+    el.className = iaMetricKpiGridClass(n);
+    el.style.removeProperty("grid-template-columns");
+    if (rich) {
+      if (n <= 1) el.style.gridTemplateColumns = "minmax(0, 1fr)";
+      else if (n === 2) el.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
+      else el.style.gridTemplateColumns = "repeat(3, minmax(0, 1fr))";
+    } else {
+      el.style.gridTemplateColumns = "repeat(" + Math.max(n, 1) + ", minmax(0, 1fr))";
+    }
   }
   function showIaSimpleKpi() {
-    if (iaKpiSimple) iaKpiSimple.classList.remove("hidden");
     if (iaMetricKpis) {
       iaMetricKpis.classList.add("hidden");
       iaMetricKpis.innerHTML = "";
+      iaMetricKpis.style.removeProperty("grid-template-columns");
     }
+    if (iaKpiSimple) iaKpiSimple.classList.remove("hidden");
   }
   function renderIaMetricKpis(packs, opts) {
     opts = opts || {};
@@ -1082,8 +1092,8 @@
     }
     if (iaKpiSimple) iaKpiSimple.classList.add("hidden");
     iaMetricKpis.classList.remove("hidden");
-    iaMetricKpis.className = iaMetricKpiGridClass(list.length);
     var rich = list.length <= 3;
+    applyIaMetricKpiLayout(iaMetricKpis, list.length, rich);
     iaMetricKpis.innerHTML = list.map(function (pack, idx) {
       var color = colorAt(idx);
       var st = seriesStats(pack.series);
@@ -1095,6 +1105,8 @@
         ? fmtNum(pack.total, countLike && mode !== "avg")
         : "—";
       var extras = "";
+      var pad = rich ? "p-3" : "p-2.5 sm:p-3";
+      var numCls = rich ? "text-2xl" : (list.length >= 6 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl");
       if (rich) {
         extras =
           '<div class="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200/80 pt-2 dark:border-zinc-700/80">' +
@@ -1111,22 +1123,19 @@
           "</div>";
       }
       return (
-        '<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/40" style="border-left:3px solid ' + color + '">' +
+        '<div class="min-w-0 rounded-xl border border-slate-200 bg-slate-50/80 ' + pad + ' dark:border-zinc-700 dark:bg-zinc-950/40" style="border-left:3px solid ' + color + '">' +
           '<div class="flex min-w-0 items-center gap-1.5">' +
             '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + color + '" aria-hidden="true"></span>' +
             '<p class="truncate text-[10px] font-bold uppercase tracking-wide" style="color:' + color + '" title="' + esc(pack.label || pack.metric) + '">' +
               esc(pack.label || pack.metric) +
             "</p>" +
           "</div>" +
-          '<p class="mt-1 text-2xl font-extrabold tabular-nums" style="color:' + color + '">' + esc(fmtNum(avg, false)) + "</p>" +
+          '<p class="mt-1 ' + numCls + ' font-extrabold tabular-nums leading-tight" style="color:' + color + '">' + esc(fmtNum(avg, false)) + "</p>" +
           '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Ortalama</p>' +
           extras +
         "</div>"
       );
     }).join("");
-    if (opts.note && iaCompareRange) {
-      /* note stays on simple block; keep empty when metric kpis shown */
-    }
   }
   function setLoading(on) {
     if (iaResults) iaResults.classList.toggle("is-loading", !!on);
