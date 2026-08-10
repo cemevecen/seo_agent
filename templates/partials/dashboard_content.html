@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v24-sf-fluid">
+<style id="home-site-borders" data-home-css="v25-pos-chip">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -595,6 +595,15 @@
   }
   #home-board .home-readable .home-pos-meta {
     white-space: nowrap !important;
+  }
+  /* Position mode chips (değişim / top 20): %30 küçült */
+  #home-board .home-readable .home-pos-mode-chip {
+    font-size: calc(var(--home-text) * 0.7) !important;
+    line-height: 1.25 !important;
+    padding: 0.14rem 0.455rem;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    font-weight: 650;
   }
   /* Top 50 değerleri: x2 küçült */
   #home-board .home-readable .home-sc-top50-vals,
@@ -1809,7 +1818,7 @@
       {# Row 4 — Position Drops #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="position-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/position-drops?site=doviz&v=10" hx-trigger="load delay:280ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/position-drops?site=doviz&v=11" hx-trigger="load delay:280ms" hx-swap="innerHTML"
                  data-home-container="position-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {{ _placeholder_tall | safe }}
