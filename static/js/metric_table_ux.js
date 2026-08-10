@@ -8,9 +8,12 @@
   var STYLE_ID = "seo-mtux-style";
 
   function injectStyles() {
-    if (document.getElementById(STYLE_ID)) return;
-    var style = document.createElement("style");
-    style.id = STYLE_ID;
+    var style = document.getElementById(STYLE_ID);
+    if (!style) {
+      style = document.createElement("style");
+      style.id = STYLE_ID;
+      document.head.appendChild(style);
+    }
     style.textContent =
       ".mtux-heat-cell{border-radius:0.35rem;}" +
       ".mtux-legend{display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem 0.75rem;padding:0.45rem 0.75rem 0.55rem;" +
@@ -34,12 +37,21 @@
       ".mtux-col-resizer{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;" +
       "z-index:3;}" +
       ".mtux-col-resizer:hover,.mtux-col-resizer.is-active{background:rgba(14,165,233,0.35);}" +
-      ".mtux-drag-hint{opacity:0.45;font-size:0.65rem;margin-right:0.15rem;cursor:grab;}" +
+      ".mtux-drag-hint{opacity:0.45;font-size:0.65rem;margin-right:0.2rem;cursor:grab;flex:0 0 auto;}" +
       "th.mtux-th:active .mtux-drag-hint{cursor:grabbing;}" +
-      "table.mtux-interactive{table-layout:fixed;}" +
-      "table.mtux-interactive th,table.mtux-interactive td{overflow:hidden;text-overflow:ellipsis;}";
-    document.head.appendChild(style);
+      "table.mtux-interactive{table-layout:fixed;width:max-content;min-width:100%;}" +
+      "table.mtux-interactive th.mtux-th{overflow:visible;text-overflow:clip;white-space:nowrap;" +
+      "vertical-align:middle;}" +
+      "table.mtux-interactive th.mtux-th:not([data-mtux-fixed='1']){min-width:8.5rem;}" +
+      "table.mtux-interactive th[data-mtux-fixed='1']{min-width:5.5rem;}" +
+      "table.mtux-interactive td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
+      ".mtux-th-label{display:inline-flex;align-items:center;justify-content:flex-end;gap:0.25rem;" +
+      "max-width:100%;min-width:0;vertical-align:middle;}" +
+      ".mtux-th-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:11rem;}";
   }
+
+  var MIN_COL_WIDTH = 110;
+  var MAX_COL_WIDTH = 420;
 
   function parseColor(color) {
     var c = String(color || "#2563eb").trim();
@@ -196,11 +208,24 @@
     var ths = table.querySelectorAll("thead th[data-mtux-key]");
     ths.forEach(function (th) {
       var key = th.getAttribute("data-mtux-key");
-      var w = widths[key];
-      if (w && w > 40) {
-        th.style.width = w + "px";
-        th.style.minWidth = w + "px";
-        th.style.maxWidth = w + "px";
+      var w = Number(widths[key]);
+      // Eski dar kayıtlarda başlık "..." oluyordu — yok say
+      if (!Number.isFinite(w) || w < MIN_COL_WIDTH) return;
+      w = Math.min(MAX_COL_WIDTH, Math.round(w));
+      th.style.width = w + "px";
+      th.style.minWidth = w + "px";
+      th.style.maxWidth = w + "px";
+    });
+  }
+
+  function ensureHeaderMinWidths(table) {
+    if (!table) return;
+    var ths = table.querySelectorAll("thead th[data-mtux-key]:not([data-mtux-fixed='1'])");
+    ths.forEach(function (th) {
+      var cur = parseFloat(th.style.minWidth) || th.getBoundingClientRect().width || 0;
+      if (cur < MIN_COL_WIDTH) {
+        th.style.minWidth = MIN_COL_WIDTH + "px";
+        if (!th.style.width) th.style.width = MIN_COL_WIDTH + "px";
       }
     });
   }
@@ -214,7 +239,22 @@
     var orderKey = opts.orderKey || "";
     var onOrder = typeof opts.onOrderChange === "function" ? opts.onOrderChange : null;
     var widths = widthsKey ? readJson(widthsKey, {}) : {};
+    // Dar geçmiş kayıtları temizle
+    if (widthsKey && widths && typeof widths === "object") {
+      var cleaned = {};
+      var dirty = false;
+      Object.keys(widths).forEach(function (k) {
+        var w = Number(widths[k]);
+        if (Number.isFinite(w) && w >= MIN_COL_WIDTH) cleaned[k] = w;
+        else dirty = true;
+      });
+      if (dirty) {
+        widths = cleaned;
+        writeJson(widthsKey, cleaned);
+      }
+    }
     applyWidths(table, widths);
+    ensureHeaderMinWidths(table);
 
     var ths = Array.prototype.slice.call(table.querySelectorAll("thead th[data-mtux-key]"));
     ths.forEach(function (th) {
@@ -233,7 +273,7 @@
           var startW = th.getBoundingClientRect().width;
           resizer.classList.add("is-active");
           function onMove(e) {
-            var next = Math.max(56, Math.min(420, Math.round(startW + (e.clientX - startX))));
+            var next = Math.max(MIN_COL_WIDTH, Math.min(MAX_COL_WIDTH, Math.round(startW + (e.clientX - startX))));
             th.style.width = next + "px";
             th.style.minWidth = next + "px";
             th.style.maxWidth = next + "px";

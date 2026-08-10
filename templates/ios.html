@@ -968,7 +968,7 @@
   </section>
 </div>
 <script src="/static/js/resizable_data_list.js?v=5"></script>
-<script src="/static/js/metric_table_ux.js?v=2"></script>
+<script src="/static/js/metric_table_ux.js?v=3"></script>
 <script>
 (function () {
   var iaStart = document.getElementById("ia-start");
@@ -2632,8 +2632,8 @@
       '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Kırılım</th>' +
       colItems.map(function (col) {
         return (
-          '<th class="mtux-th px-1.5 py-2 font-bold tabular-nums" data-mtux-key="' + esc(col.key) + '" style="color:' + col.color + '">' +
-            '<span class="mtux-th-label">' + esc(col.bundle.label || col.bundle.metric) + "</span>" +
+          '<th class="mtux-th px-1.5 py-2 font-bold tabular-nums" data-mtux-key="' + esc(col.key) + '" style="color:' + col.color + '" title="' + esc(col.bundle.label || col.bundle.metric || "") + '">' +
+            '<span class="mtux-th-label"><span class="mtux-th-text">' + esc(col.bundle.label || col.bundle.metric) + "</span></span>" +
           "</th>"
         );
       }).join("");
