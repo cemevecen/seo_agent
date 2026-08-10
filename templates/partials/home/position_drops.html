@@ -6,11 +6,57 @@
 {% set _top20_drops = (block.top20_drops | rejectattr('is_pad') | list) if block and block.top20_drops else [] %}
 {% set _top20_rises = (block.top20_rises | rejectattr('is_pad') | list) if block and block.top20_rises else [] %}
 <style>
+  /* Alerts / home ortak — brand ikon + chip (dashboard CSS yokken de geçerli) */
+  .home-brand-icon {
+    display: block;
+    flex-shrink: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    max-width: 1.35rem;
+    max-height: 1.35rem;
+    border-radius: 0.38rem;
+    object-fit: cover;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+  }
+  .home-brand-icon--sm {
+    width: 1.1rem;
+    height: 1.1rem;
+    max-width: 1.1rem;
+    max-height: 1.1rem;
+    border-radius: 0.3rem;
+  }
+  .home-container-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    background: #f1f5f9;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #475569;
+    line-height: 1.25;
+    box-shadow: inset 0 0 0 1px #e2e8f0;
+    white-space: nowrap;
+  }
+  html.dark .home-container-chip,
+  html.midnight .home-container-chip {
+    background: #27272a;
+    color: #d4d4d8;
+    box-shadow: inset 0 0 0 1px #3f3f46;
+  }
   .home-pos-drops {
     width: 100%;
     min-width: 0;
     container-type: inline-size;
     container-name: home-pos;
+  }
+  .home-pos-drops .home-pos-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
   }
   .home-pos-drops .home-pos-cols {
     display: grid;
@@ -223,7 +269,7 @@
 <div class="home-pos-drops" data-pos-mode="impact" data-home-pos-root>
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
-      <div class="flex items-center gap-2">
+      <div class="home-pos-head">
         {{ brand_icon(block.site_key if block and block.site_key else ('doviz' if block and block.site_id == 1 else 'sinemalar')) }}
         {{ container_chip('position') }}
       </div>
