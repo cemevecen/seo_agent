@@ -1802,6 +1802,15 @@
       transform: translateX(-50%) translateY(0);
       pointer-events: auto;
     }
+    #header-online-toast.is-fading-out {
+      transition: opacity 1s ease, transform 1s ease;
+      opacity: 0;
+      transform: translateX(-50%) translateY(8px);
+      pointer-events: none;
+    }
+    #header-online-toast.is-icon-only.is-fading-out {
+      transform: translateY(-4px);
+    }
     #header-online-toast-icon {
       display: none;
       flex-shrink: 0;
