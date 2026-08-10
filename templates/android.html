@@ -6154,7 +6154,7 @@
         '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
         (subOut ? '<p class="sf-card__sub mt-0.5 text-slate-400 dark:text-zinc-500">' + subOut + "</p>" : "") +
         '<p class="sf-card__value font-extrabold tabular-nums ' + tone + '">' + esc(value) + "</p>" +
-        (extra ? '<p class="sf-card__extra mt-1 text-slate-500 dark:text-zinc-400">' + extra + "</p>" : "") +
+        (extra ? '<p class="sf-card__extra mt-1 text-slate-500 dark:text-zinc-400">' + esc(extra) + "</p>" : "") +
         refresh +
       "</div>"
     );
@@ -6304,6 +6304,7 @@
       sub: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? staleSub : "",
       subHtml: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? "" : fbSubHtml("24s", "24h"),
       value: (fb24 && fb24.crash_free_fmt) || "—",
+      extra: (fb24 && fb24.extra) || "",
       toneClass: stabilityToneClass(fb24 && fb24.crash_free_pct),
       showRefresh: !paSfHas(fb24 && fb24.crash_free_fmt)
     }));
@@ -6312,6 +6313,7 @@
       sub: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? staleSub : "",
       subHtml: staleSub && !paSfHas(fb7 && fb7.crash_free_fmt) ? "" : fbSubHtml("7g", "7d"),
       value: (fb7 && fb7.crash_free_fmt) || "—",
+      extra: (fb7 && fb7.extra) || "",
       toneClass: stabilityToneClass(fb7 && fb7.crash_free_pct),
       showRefresh: !paSfHas(fb7 && fb7.crash_free_fmt)
     }));
@@ -6320,6 +6322,7 @@
       sub: staleSub || "",
       subHtml: staleSub ? "" : playAllSubHtml,
       value: play.anr_free_fmt || "—",
+      extra: play.extra || "",
       toneClass: stabilityToneClass(play.anr_free_pct),
       showRefresh: !paSfHas(play.anr_free_fmt)
     }));
@@ -6328,6 +6331,7 @@
       sub: staleSub && !paSfHas(latestAnr) ? staleSub : "",
       subHtml: staleSub && !paSfHas(latestAnr) ? "" : playRepSubHtml,
       value: latestAnr || "—",
+      extra: (playLatest && playLatest.extra) || "",
       toneClass: stabilityToneClass(latestAnrPct),
       showRefresh: !paSfHas(latestAnr)
     }));

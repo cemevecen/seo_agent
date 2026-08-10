@@ -102,6 +102,83 @@ def _fmt_free(pct: float | None, *, digits: int = 2) -> str | None:
     return f"{v:.{digits}f}".replace(".", ",") + "%"
 
 
+def _fmt_rate_pct(rate: float | None) -> str | None:
+    if rate is None:
+        return None
+    try:
+        v = float(rate)
+    except (TypeError, ValueError):
+        return None
+    if abs(v) < 0.1:
+        return f"{v:.3f}".replace(".", ",") + "%"
+    return f"{v:.2f}".replace(".", ",") + "%"
+
+
+def _fmt_compact_n(n: Any) -> str | None:
+    try:
+        v = float(n)
+    except (TypeError, ValueError):
+        return None
+    if v < 0:
+        return None
+    if v >= 1_000_000:
+        s = f"{v / 1_000_000:.1f}".replace(".", ",").rstrip("0").rstrip(",")
+        return f"{s}M"
+    if v >= 1_000:
+        s = f"{v / 1_000:.1f}".replace(".", ",").rstrip("0").rstrip(",")
+        return f"{s}k"
+    return str(int(round(v)))
+
+
+def _fmt_delta_pp(delta: float | None) -> str | None:
+    if delta is None:
+        return None
+    try:
+        v = float(delta)
+    except (TypeError, ValueError):
+        return None
+    if abs(v) < 1e-9:
+        return "Δ0"
+    sign = "+" if v > 0 else ""
+    if abs(v) < 0.01:
+        return f"Δ{sign}{v:.3f}".replace(".", ",")
+    if abs(v) < 1:
+        return f"Δ{sign}{v:.2f}".replace(".", ",")
+    return f"Δ{sign}{v:.1f}".replace(".", ",")
+
+
+def _compact_extra(*bits: str | None) -> str:
+    return " · ".join(b for b in bits if b)
+
+
+def _series_users_and_delta(series: Any) -> tuple[int | None, float | None]:
+    """Günlük seriden örneklem (users toplamı) + dönem Δ (son − ilk gün, pp)."""
+    if not isinstance(series, list) or not series:
+        return None, None
+    rows: list[tuple[str, float, float]] = []
+    for row in series:
+        if not isinstance(row, dict):
+            continue
+        pct = row.get("crash_free_pct")
+        if not isinstance(pct, (int, float)):
+            continue
+        day = str(row.get("date") or "")
+        users = row.get("users")
+        try:
+            u = float(users) if users is not None else 0.0
+        except (TypeError, ValueError):
+            u = 0.0
+        rows.append((day, float(pct), u))
+    if not rows:
+        return None, None
+    rows.sort(key=lambda x: x[0])
+    users_sum = int(round(sum(u for _, _, u in rows))) or None
+    delta = None
+    if len(rows) >= 2:
+        delta = round(rows[-1][1] - rows[0][1], 4)
+    return users_sum, delta
+
+
 def _fb_window_kpi(
     win: dict[str, Any] | None, *, period: str, version: str | None = None
 ) -> dict[str, Any] | None:
@@ -114,12 +191,36 @@ def _fb_window_kpi(
     if fmt is None and pct is None:
         return None
     ver = version or win.get("version")
+    sess_pct = win.get("crash_free_sessions_pct")
+    sess_fmt = win.get("crash_free_sessions_fmt") or _fmt_free(
+        sess_pct if isinstance(sess_pct, (int, float)) else None
+    )
+    users_sum, delta = _series_users_and_delta(win.get("series"))
+    if users_sum is None:
+        users_sum, _ = _series_users_and_delta(win.get("sessions_series"))
+    sess_bit = None
+    if sess_fmt and (
+        not isinstance(pct, (int, float))
+        or not isinstance(sess_pct, (int, float))
+        or abs(float(sess_pct) - float(pct)) >= 0.00005
+    ):
+        sess_bit = f"s {sess_fmt}"
+    extra = _compact_extra(
+        sess_bit,
+        _fmt_delta_pp(delta),
+        _fmt_compact_n(users_sum),
+    )
     return {
         "version": ver,
         "crash_free_pct": pct,
         "crash_free_fmt": fmt,
-        "crash_free_sessions_pct": win.get("crash_free_sessions_pct"),
-        "crash_free_sessions_fmt": win.get("crash_free_sessions_fmt"),
+        "crash_free_sessions_pct": sess_pct,
+        "crash_free_sessions_fmt": sess_fmt,
+        "users": users_sum,
+        "users_fmt": _fmt_compact_n(users_sum),
+        "delta_pp": delta,
+        "delta_fmt": _fmt_delta_pp(delta),
+        "extra": extra or None,
         "period": period,
         "label": f"v{ver}" if ver and not str(ver).startswith("v") else ver,
         "source": "firebase_console_scrape",
@@ -202,17 +303,20 @@ def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, 
             anr_label = metric or "ANR oranı"
     crash_free = _free_from_rate_pct(crash_rate)
     anr_free = _free_from_rate_pct(anr_rate)
+    anr_rate_fmt = _fmt_rate_pct(anr_rate)
     return {
         "source": "play_vitals_overview",
         "period": "28d",
         "crash_rate_pct": crash_rate,
         "anr_rate_pct": anr_rate,
+        "anr_rate_fmt": anr_rate_fmt,
         "crash_free_pct": crash_free,
         "anr_free_pct": anr_free,
         "crash_free_fmt": _fmt_free(crash_free),
         "anr_free_fmt": _fmt_free(anr_free),
         "crash_metric": crash_label,
         "anr_metric": anr_label,
+        "extra": _compact_extra(anr_rate_fmt) or None,
     }
 
 
@@ -255,7 +359,7 @@ def build_stability_free_payload(
 ) -> dict[str, Any]:
     """Android/iOS stability kartları — CF: S-Firebase; ANR: Play."""
     vitals = vitals if isinstance(vitals, dict) else {}
-    cache_key = f"{product_id}:{package_name}:sf:v3-firebase-cf"
+    cache_key = f"{product_id}:{package_name}:sf:v4-firebase-cf-extra"
     if force_refresh:
         invalidate_stability_cache(product_id)
     else:
@@ -330,12 +434,21 @@ def _build_stability_free_payload_locked(
                     continue
                 code = str(row.get("version_code") or "")
                 vname = row.get("version_name") or name_map.get(code) or latest_name
+                anr_rate = row.get("anr_rate_pct")
+                anr_users = row.get("anr_users")
+                anr_rate_fmt = _fmt_rate_pct(
+                    anr_rate if isinstance(anr_rate, (int, float)) else None
+                )
+                users_fmt = _fmt_compact_n(anr_users)
                 item = {
                     **row,
                     "version_name": vname,
                     "crash_free_pct": None,
                     "crash_free_fmt": None,
                     "anr_free_fmt": _fmt_free(row.get("anr_free_pct")),
+                    "anr_rate_fmt": anr_rate_fmt,
+                    "users_fmt": users_fmt,
+                    "extra": _compact_extra(anr_rate_fmt, users_fmt) or None,
                     "label": f"v{vname}" if vname else f"code {code}",
                 }
                 play_versions.append(item)

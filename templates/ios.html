@@ -3360,11 +3360,13 @@
       if (opts.stale) cls += " is-stale";
       var tip = [title, (opts.subPlain || sub), extra].filter(Boolean).join(" · ");
       var subOut = opts.subHtml || (sub ? esc(sub) : "");
+      var extraOut = extra ? '<p class="sf-card__extra">' + esc(extra) + "</p>" : "";
       return (
         '<div class="' + cls + '" title="' + esc(tip) + '">' +
           '<p class="sf-card__title">' + esc(title) + "</p>" +
           (subOut ? '<p class="sf-card__sub">' + subOut + "</p>" : "") +
           '<p class="sf-card__value ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
+          extraOut +
           refreshBtnHtml(!!state.loading) +
         "</div>"
       );
@@ -3434,7 +3436,7 @@
         "",
         (fb24 && fb24.crash_free_fmt) || "—",
         fb24 && fb24.crash_free_pct,
-        "",
+        (fb24 && fb24.extra) || "",
         {
           pending: !(fb24 && hasScore(fb24)),
           subHtml: fbSubHtml("24s", "24h"),
@@ -3446,7 +3448,7 @@
         "",
         (fb7 && fb7.crash_free_fmt) || "—",
         fb7 && fb7.crash_free_pct,
-        "",
+        (fb7 && fb7.extra) || "",
         {
           pending: !(fb7 && hasScore(fb7)),
           subHtml: fbSubHtml("7g", "7d"),

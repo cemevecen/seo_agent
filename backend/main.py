@@ -8972,24 +8972,28 @@ def _home_store_firebase_card_from_tabs(
             fb24.get("crash_free_fmt"),
             sub=_home_sf_fb_sub(plat="android", time_label="24s", time_param="24h", version=fb_ver),
             pct=fb24.get("crash_free_pct"),
+            extra=str(fb24.get("extra") or ""),
         ),
         _home_sf_metric(
             "Crash-free",
             fb7.get("crash_free_fmt"),
             sub=_home_sf_fb_sub(plat="android", time_label="7g", time_param="7d", version=fb_ver),
             pct=fb7.get("crash_free_pct"),
+            extra=str(fb7.get("extra") or ""),
         ),
         _home_sf_metric(
             "ANR-free",
             play.get("anr_free_fmt"),
             sub=_home_sf_play_all_sub(),
             pct=play.get("anr_free_pct"),
+            extra=str(play.get("extra") or ""),
         ),
         _home_sf_metric(
             "ANR-free",
             play_latest.get("anr_free_fmt"),
             sub=_home_sf_play_latest_sub(version_label=lv_label, version_code=play_code),
             pct=play_latest.get("anr_free_pct"),
+            extra=str(play_latest.get("extra") or ""),
         ),
     ]
     if android_metrics[3]["value"] == "—" and (and_cf.get("latest") or {}).get("anr_free_fmt"):
@@ -9031,12 +9035,14 @@ def _home_store_firebase_card_from_tabs(
             ios24.get("crash_free_fmt"),
             sub=_home_sf_fb_sub(plat="ios", time_label="24s", time_param="24h", version=str(ios_ver)),
             pct=ios24.get("crash_free_pct"),
+            extra=str(ios24.get("extra") or ""),
         ),
         _home_sf_metric(
             "Crash-free",
             ios7.get("crash_free_fmt"),
             sub=_home_sf_fb_sub(plat="ios", time_label="7g", time_param="7d", version=str(ios_ver)),
             pct=ios7.get("crash_free_pct"),
+            extra=str(ios7.get("extra") or ""),
         ),
     ]
 
