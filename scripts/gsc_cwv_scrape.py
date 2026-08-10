@@ -1159,8 +1159,14 @@ def scrape_property(page, prop: dict[str, str], *, charts_only: bool = False) ->
     rid = prop["resource_id"]
     print(f"CWV scrape · {prop.get('label') or rid}", flush=True)
     page.goto(_cwv_url(rid), wait_until="domcontentloaded", timeout=120_000)
-    time.sleep(5)
-    if not _looks_signed_in(page):
+    # İlk yüklemede GSC shell geç gelebilir — flaky “oturum yok” önlemi
+    signed = False
+    for _ in range(8):
+        time.sleep(2)
+        if _looks_signed_in(page):
+            signed = True
+            break
+    if not signed:
         raise RuntimeError("GSC oturumu yok — scripts/gsc_cwv_scrape.py --login")
     meta = _extract_page_meta(page)
     body = page.inner_text("body")
