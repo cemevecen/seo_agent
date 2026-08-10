@@ -100,6 +100,44 @@ def test_member_login_alert_includes_email():
     assert "78.187.20.15" in body
 
 
+def test_owner_member_login_skips_alert():
+    """cemevecen kendi girişinde panel maili gitmez."""
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
+        with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+            with patch.object(aal, "_trim_old_events"):
+                row = aal.record_access_event(
+                    db,
+                    event_type="member_login_ok",
+                    ip="77.2.169.91",
+                    user_agent="Chrome",
+                    actor_email="cemevecen@nokta.com",
+                )
+    mock_alert.assert_not_called()
+    mock_nav.assert_not_called()
+    assert row.alert_sent is False
+
+
+def test_owner_gmail_login_skips_alert():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    with patch.object(aal, "schedule_unknown_login_alert", return_value=True) as mock_alert:
+        with patch.object(aal, "schedule_login_nav_summary", return_value=True) as mock_nav:
+            with patch.object(aal, "_trim_old_events"):
+                aal.record_access_event(
+                    db,
+                    event_type="member_login_ok",
+                    ip="1.1.1.1",
+                    user_agent="Safari",
+                    actor_email="cemevecen@gmail.com",
+                )
+    mock_alert.assert_not_called()
+    mock_nav.assert_not_called()
+
+
 def test_member_login_fail_record_triggers_alert():
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = None

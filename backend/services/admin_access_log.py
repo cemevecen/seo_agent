@@ -400,13 +400,28 @@ def _deliver_unknown_login_alert(
     recipients = normalize_outbound_recipients([(settings.admin_login_alert_email or "").strip()])
     if not recipients or not settings.admin_login_alert_enabled:
         return False
+    em_early = (actor_email or "").strip()
+    # Owner kendi başarılı giriş / gezinti özeti maili almasın
+    if em_early and event_type in (
+        "member_login_ok",
+        "member_register_ok",
+        "login_ok",
+        "settings_ok",
+    ):
+        try:
+            from backend.services.panel_visitor_alerts import is_owner_email
+
+            if is_owner_email(em_early):
+                return False
+        except Exception:  # noqa: BLE001
+            pass
     try:
         from backend.database import SessionLocal
 
         when = format_tr(datetime.utcnow())
         et = _event_label(event_type)
         actor_line = ""
-        em = (actor_email or "").strip()
+        em = em_early
         if em:
             actor_line = (
                 f"<p style=\"margin:0 0 8px;\"><strong>Kullanıcı e-posta:</strong> "
@@ -752,6 +767,27 @@ def record_access_event(
         "settings_ok",
     )
     if event_type in panel_login_events:
+        # Owner (cemevecen) kendi başarılı girişlerinde mail yok — yalnızca diğer kullanıcılar
+        skip_owner_success = False
+        if em and event_type in (
+            "member_login_ok",
+            "member_register_ok",
+            "login_ok",
+            "settings_ok",
+        ):
+            try:
+                from backend.services.panel_visitor_alerts import is_owner_email
+
+                skip_owner_success = is_owner_email(em)
+            except Exception:  # noqa: BLE001
+                skip_owner_success = False
+
+        if skip_owner_success:
+            row.alert_sent = False
+            db.commit()
+            _trim_old_events(db)
+            return row
+
         if event_type in ("login_ok", "settings_ok") and not trusted:
             has_any_trusted = db.query(AdminTrustedDevice.id).first() is not None
             if not has_any_trusted:

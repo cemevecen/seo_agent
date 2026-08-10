@@ -23,8 +23,22 @@ def _norm(email: str) -> str:
     return str(email or "").strip().lower()
 
 
-def is_owner_email(email: str, owner_emails: frozenset[str] | set[str]) -> bool:
-    return _norm(email) in {_norm(e) for e in owner_emails}
+def is_owner_email(email: str, owner_emails: frozenset[str] | set[str] | None = None) -> bool:
+    em = _norm(email)
+    if not em or "@" not in em:
+        return False
+    # Yerel kısım cemevecen → her zaman owner (gmail/nokta vb.)
+    local = em.split("@", 1)[0]
+    if local == "cemevecen":
+        return True
+    if owner_emails is None:
+        try:
+            from backend.services.app_member_auth import ADMIN_MEMBER_EMAILS
+
+            owner_emails = ADMIN_MEMBER_EMAILS
+        except Exception:  # noqa: BLE001
+            owner_emails = frozenset()
+    return em in {_norm(e) for e in owner_emails}
 
 
 def _fmt_tr(dt: datetime | None) -> str:

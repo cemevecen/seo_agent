@@ -82,3 +82,26 @@ def test_usage_summary_subject_fixed():
         body = send.call_args[0][1]
         assert "onur@nokta.com" in body
         assert "/realtime" in body
+
+
+def test_cemevecen_local_part_is_owner():
+    assert pva.is_owner_email("cemevecen@nokta.com", set()) is True
+    assert pva.is_owner_email("cemevecen@gmail.com", set()) is True
+    assert pva.is_owner_email("mert@nokta.com", ADMIN_MEMBER_EMAILS) is False
+
+
+def test_owner_join_never_alerts():
+    pva._last_visitor_alert_at.clear()
+    now = datetime.utcnow()
+    sessions = {
+        "o1": {"email": "cemevecen@nokta.com", "last_seen": now, "first_seen": now},
+    }
+    with patch("backend.services.mailer.send_admin_security_email", return_value=True) as send:
+        ok = pva.maybe_alert_visitor_joined(
+            sessions,
+            email="cemevecen@gmail.com",
+            session={"email": "cemevecen@gmail.com", "label": "Cem", "ip": "1.1.1.1"},
+            owner_emails=ADMIN_MEMBER_EMAILS,
+        )
+        assert ok is False
+        send.assert_not_called()
