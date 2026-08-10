@@ -24,6 +24,114 @@ POOR_INCREASE_ABS = 10       # poor mutlak artış
 NI_INCREASE_PCT = 8.0        # needs improvement % artış
 EXAMPLE_REGRESSION = True    # good örnek URL poor/NI'ye düşerse mail
 
+# GSC shell / Material ikon / nav chrome — scrape body_head kirlenmesi
+_GSC_CHROME_MARKERS = (
+    "breadcrumbs",
+    "keyboard_arrow",
+    "manual actions",
+    "submit feedback",
+    "about search console",
+    "privacyterms",
+    "privacy terms",
+    "achievements",
+    "link_2",
+    "trophy",
+    "layers ",
+)
+_AMP_TITLE_EXTRACT = (
+    r"(Custom JavaScript is not allowed)",
+    r"(Görüntü boyutu önerilen boyuttan daha küçük[^.\n]*)",
+    r"(Image is smaller than recommended[^.!\n]*)",
+    r"(Disallowed HTML tag[^.\n]*)",
+    r"(Disallowed attribute[^.\n]*)",
+    r"(The tag '[^']+' is disallowed)",
+    r"(Missing mandatory attribute[^.\n]*)",
+)
+
+
+def _looks_like_gsc_chrome(text: str) -> bool:
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    hits = sum(1 for m in _GSC_CHROME_MARKERS if m in t)
+    if hits >= 2:
+        return True
+    if len(t) > 140 and ("search console" in t or "settings" in t) and hits >= 1:
+        return True
+    if "breadcrumb" in t and ("settings" in t or "feedback" in t):
+        return True
+    return False
+
+
+def clean_issue_title(raw: str, *, fallback: str = "") -> str:
+    """AMP/CWV başlığından GSC chrome metnini ayıkla."""
+    import re
+
+    s = re.sub(r"\s+", " ", (raw or "").replace("\u00a0", " ")).strip(" .")
+    if not s:
+        return (fallback or "").strip()
+    if not _looks_like_gsc_chrome(s) and len(s) <= 160:
+        return s
+    for pat in _AMP_TITLE_EXTRACT:
+        m = re.search(pat, s, re.I)
+        if m:
+            return m.group(1).strip(" .")
+    # "… AMP <issue>" sondaki kısa parça
+    m = re.search(r"\bAMP\s+(.{8,100})$", s, re.I)
+    if m and not _looks_like_gsc_chrome(m.group(1)):
+        return m.group(1).strip(" .")
+    return (fallback or "AMP sorunu").strip()
+
+
+def clean_issue_causes(causes: list | None, *, title: str = "") -> list[str]:
+    out: list[str] = []
+    for c in causes or []:
+        s = str(c or "").strip()
+        if not s or _looks_like_gsc_chrome(s):
+            continue
+        if s.lower().startswith("gsc sorunu:") and _looks_like_gsc_chrome(s[11:]):
+            continue
+        if len(s) > 280:
+            s = s[:277] + "…"
+        out.append(s)
+    return out
+
+
+def sanitize_cwv_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Panel/ingest öncesi AMP+drilldown başlık ve nedenlerini temizle."""
+    if not isinstance(payload, dict):
+        return {}
+    for key in ("mobile", "desktop"):
+        dev = payload.get(key)
+        if not isinstance(dev, dict):
+            continue
+        for bucket in ("issues", "issue_drilldowns"):
+            rows = dev.get(bucket)
+            if not isinstance(rows, list):
+                continue
+            for d in rows:
+                if not isinstance(d, dict):
+                    continue
+                d["title"] = clean_issue_title(str(d.get("title") or ""), fallback=str(d.get("metric") or "CWV sorunu"))
+                d["causes"] = clean_issue_causes(d.get("causes"), title=str(d.get("title") or ""))
+    amp = payload.get("amp")
+    if isinstance(amp, dict):
+        clean_issues: list[dict[str, Any]] = []
+        for d in amp.get("issues") or []:
+            if not isinstance(d, dict):
+                continue
+            title = clean_issue_title(
+                str(d.get("title") or ""),
+                fallback="AMP sorunu",
+            )
+            d = {**d, "title": title, "causes": clean_issue_causes(d.get("causes"), title=title)}
+            # overview_body gibi chrome metni panoda gösterme
+            clean_issues.append(d)
+        amp["issues"] = clean_issues
+        amp.pop("overview_body", None)
+        amp["url_row_count"] = sum(int(i.get("url_row_count") or 0) for i in clean_issues)
+    return payload
+
 
 def resolve_site(db: Session, site_domain: str) -> Site | None:
     want = (site_domain or "").strip().lower()
@@ -325,6 +433,7 @@ def ingest_gsc_cwv_payload(db: Session, payload: dict[str, Any]) -> dict[str, An
                 prev_payload = None
 
         snap = _dedupe_drilldowns(dict(snap))
+        snap = sanitize_cwv_payload(snap)
         # Hızlı charts-only: önceki drilldown/AMP verisini koru, sadece grafik+KPI güncelle
         if snap.get("charts_only") and isinstance(prev_payload, dict):
             merged = dict(prev_payload)
@@ -403,6 +512,7 @@ def build_panel_context(db: Session, site: Site) -> dict[str, Any]:
             payload = json.loads(row.payload_json)
         except Exception:
             payload = {}
+    payload = sanitize_cwv_payload(payload if isinstance(payload, dict) else {})
     hist = history_points(db, site.id)
     rid = payload.get("resource_id") or (
         "sc-domain:doviz.com" if "doviz" in (site.domain or "") else f"https://{site.domain}/"

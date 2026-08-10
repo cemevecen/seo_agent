@@ -532,8 +532,11 @@ def _metric_from_issue(title: str) -> str:
     for m in ("LCP", "INP", "CLS", "FID", "FCP", "TTFB"):
         if m in t:
             return m
-    if "görüntü" in (title or "").lower() or "image" in (title or "").lower():
+    low = (title or "").lower()
+    if "görüntü" in low or "image" in low:
         return "AMP_IMAGE"
+    if "javascript" in low or "custom js" in low:
+        return "AMP_JS"
     return "OTHER"
 
 
@@ -568,11 +571,19 @@ def explain_causes(metric: str, status: str, title: str = "") -> list[str]:
             "srcset / width-height eksikliği.",
             "CDN dönüşümlerinde düşük çözünürlük üretimi.",
         ]
+    elif m == "AMP_JS" or (m == "OTHER" and "javascript" in (title or "").lower()):
+        causes = [
+            "AMP sayfasında özel (custom) JavaScript kullanılmış — AMP spec buna izin vermez.",
+            "İlgili script’i kaldırın veya AMP-uyumlu bileşenle değiştirin (amp-script sınırlıdır).",
+            "Canonical HTML sürümünde JS kalabilir; AMP kopyası sade kalmalıdır.",
+        ]
     else:
         causes = [
             "CrUX alan verisinde eşik aşımı — sayfa şablonunu ve üçüncü tarafları gözden geçirin.",
-            f"GSC sorunu: {title or metric}",
         ]
+        short = (title or "").strip()
+        if short and len(short) <= 120 and "breadcrumb" not in short.lower():
+            causes.append(f"GSC sorunu: {short}")
     if status == "poor":
         causes.insert(0, "Durum: Poor — kullanıcı deneyimi eşiğinin altında; öncelikli düzeltme.")
     elif status == "needs_improvement":
@@ -1073,11 +1084,41 @@ def _scrape_device(page, *, resource_id: str, device: int, label: str) -> dict[s
     }
 
 
+def _extract_amp_issue_title(body: str, h1: str = "") -> str:
+    """Drilldown body/h1 içinden gerçek AMP sorun başlığını çıkar (GSC chrome değil)."""
+    for cand in ((h1 or "").strip(),):
+        if cand and len(cand) <= 160 and "breadcrumb" not in cand.lower() and "search console" not in cand.lower():
+            return _clean(cand)
+    body_c = _clean(body or "")
+    # Bilinen AMP validation başlıkları
+    known = [
+        (r"Custom JavaScript is not allowed", "Custom JavaScript is not allowed"),
+        (r"Görüntü boyutu önerilen boyuttan daha küçük", "Görüntü boyutu önerilen boyuttan daha küçük"),
+        (r"Image is smaller than recommended[^.!\n]*", None),
+        (r"Disallowed HTML tag[^.!\n]*", None),
+        (r"Disallowed attribute[^.!\n]*", None),
+    ]
+    for pat, fixed in known:
+        m = re.search(pat, body_c, re.I)
+        if m:
+            return fixed or _clean(m.group(0))
+    title_m = re.search(
+        r"AMP\s+([A-Za-zÇĞİÖŞÜçğıöşü][^|]{6,90}?)(?:\s+(?:İHRACAT|EXPORT|PAYLAŞ|DIŞA|URL|Örnek)|$)",
+        body_c,
+        re.I,
+    )
+    if title_m:
+        t = _clean(title_m.group(1))
+        if t and "breadcrumb" not in t.lower() and "settings" not in t.lower():
+            return t
+    return "AMP sorunu"
+
+
 def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
     print("  · AMP overview…", flush=True)
     page.goto(_amp_url(resource_id), wait_until="domcontentloaded", timeout=120_000)
     time.sleep(4)
-    meta = _extract_page_meta(page)
+    _extract_page_meta(page)
     issues_table = _extract_table(page)
     amp_issues: list[dict[str, Any]] = []
     # Prefer known drilldown + click rows
@@ -1119,17 +1160,9 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
         _wait_table(page)
         dmeta = _extract_page_meta(page)
         body = dmeta.get("body_head") or ""
-        title_m = re.search(
-            r"AMP\s+(.+?)\s+(?:İHRACAT|EXPORT|PAYLAŞ|DIŞA)",
-            body,
-            re.I,
-        )
-        title = (title_m.group(1).strip() if title_m else "") or "AMP sorunu"
-        # refine from known pattern
-        if "Görüntü boyutu" in body or "Image" in body:
-            title = "Görüntü boyutu önerilen boyuttan daha küçük"
+        title = _extract_amp_issue_title(body, str(dmeta.get("title") or ""))
         status = "needs_improvement"
-        if "error" in body.lower() or "kritik" in body.lower():
+        if "error" in body.lower() or "kritik" in body.lower() or "not allowed" in body.lower():
             status = "poor"
         urls = _scrape_url_table(page)
         metric = _metric_from_issue(title)
@@ -1149,7 +1182,6 @@ def _scrape_amp(page, *, resource_id: str) -> dict[str, Any]:
     total_amp = sum(int(i.get("url_row_count") or 0) for i in amp_issues)
     return {
         "overview_url": _amp_url(resource_id),
-        "overview_body": (meta.get("body_head") or "")[:1200],
         "issues": amp_issues,
         "url_row_count": total_amp,
     }

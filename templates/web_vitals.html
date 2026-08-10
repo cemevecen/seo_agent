@@ -43,7 +43,53 @@
       <span class="font-semibold">Taranıyor</span>
       <span id="wv-progress-msg" class="ml-1 opacity-90">Bridge scrape çalışıyor…</span>
     </div>
-  </div>
+    </div>
+
+  {# Dipnotlar — kapalı dropdown; CWV + AMP #}
+  <details class="group wv-notes min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+      <div class="flex min-w-0 items-center gap-2">
+        <span class="text-slate-400 transition group-open:rotate-90" aria-hidden="true">▸</span>
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-800 dark:text-zinc-100">Vital &amp; AMP · önemli dipnotlar</p>
+          <p class="text-[11px] text-slate-500 dark:text-zinc-400">Kısa çıkarımlar — açınca madde madde</p>
+        </div>
+      </div>
+      <span class="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-zinc-800 dark:text-zinc-400">kapalı</span>
+    </summary>
+    <div class="relative border-t border-slate-100 px-4 pb-4 pt-3 dark:border-zinc-800 sm:px-5">
+      <a href="https://developers.google.com/search/docs/appearance/core-web-vitals"
+         target="_blank" rel="noopener noreferrer"
+         class="absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-sky-700 shadow-sm hover:bg-sky-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-sky-400 dark:hover:bg-zinc-800 sm:right-4 sm:top-3"
+         title="Google dokümantasyonu">
+        Daha fazla
+        <span aria-hidden="true">↗</span>
+      </a>
+      <ul class="max-w-[52rem] space-y-2.5 pr-24 text-[13px] leading-snug text-slate-700 dark:text-zinc-300 sm:pr-28">
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">CrUX = gerçek kullanıcı.</strong> Bu paneldeki mobil/masaüstü sayılar lab testi değil; son ~28 günlük alan verisidir. Anlık deploy etkisi hemen görünmez.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">URL sayısı ≠ trafik.</strong> “Kötü URL” çok olabilir ama tıklamasız sayfalar sıralamayı az etkiler. Önce yüksek trafikli şablonları düzelt.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">LCP / INP / CLS ayrı iş.</strong> LCP çoğunlukla görsel+TTFB; INP JS ağırlığı; CLS boyutsuz medya/reklam. Aynı “Poor” satırı farklı kök neden demektir.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">AMP ≠ hız garantisi.</strong> AMP sekmesi validation/uyumluluk sorunlarını listeler. Bir URL AMP’te “iyi” olsa bile canonical’da CWV kötü olabilir (ve tersi).</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Custom JS AMP’te yasak.</strong> “Custom JavaScript is not allowed” → AMP kopyasından script’i kaldır veya AMP bileşenine taşı. Canonical HTML’de JS kalabilir.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Küçük görsel uyarısı.</strong> “Görüntü boyutu önerilen boyuttan küçük” genelde uyarı bandıdır; kırık AMP değildir ama LCP/kalite için width-height/srcset düzelt.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Scrape gecikmesi.</strong> “Tara” Mac bridge ile GSC’yi çeker; GSC’nin kendi güncelleme gecikmesi + köprü süresi üst üste binebilir. Grafik boşsa önce son scrape zamanına bak.</span></li>
+        <li class="flex gap-2"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span><span><strong class="font-semibold text-slate-900 dark:text-zinc-100">Öncelik sırası.</strong> 1) Yüksek tıklamalı Poor LCP/INP şablonları · 2) AMP validation (index kaybı riski) · 3) Needs improvement toplu temizlik · 4) kozmetik AMP görsel uyarıları.</span></li>
+      </ul>
+      <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
+        <a class="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+           href="https://developers.google.com/search/docs/appearance/core-web-vitals" target="_blank" rel="noopener">CWV rehberi ↗</a>
+        <a class="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+           href="https://amp.dev/documentation/guides-and-tutorials/learn/validation-workflow/validate_amp/" target="_blank" rel="noopener">AMP validation ↗</a>
+        {% if gsc_links and gsc_links.amp %}
+        <a class="rounded-md border border-violet-200 px-2 py-1 font-medium text-violet-700 hover:bg-violet-50 dark:border-violet-900 dark:text-violet-300 dark:hover:bg-violet-950/40"
+           href="{{ gsc_links.amp }}" target="_blank" rel="noopener">GSC AMP ↗</a>
+        {% endif %}
+      </div>
+    </div>
+  </details>
+  <style>
+    details.wv-notes[open] > summary span.rounded-full { display: none; }
+  </style>
 
   {% set ov = payload.overview or {} %}
   {% set mob = payload.mobile or {} %}
@@ -136,7 +182,7 @@
           <div class="relative h-48 min-w-0 sm:h-52"><canvas id="wv-device-chart"></canvas></div>
           <div class="min-w-0 text-sm text-slate-600 dark:text-zinc-300">
             <p class="mb-2 font-semibold">AMP sorun grupları</p>
-            <p class="mb-3 text-xs text-slate-500 dark:text-zinc-400">GSC AMP drilldown — satır limiti yok; tablolar kaydırılır.</p>
+            <p class="mb-3 text-xs text-slate-500 dark:text-zinc-400">GSC AMP validation — URL listeleri kaydırılabilir.</p>
             {% if gsc_links and gsc_links.amp %}
             <a class="text-xs text-sky-600 hover:underline dark:text-sky-400" href="{{ gsc_links.amp }}" target="_blank" rel="noopener">GSC AMP aç</a>
             {% endif %}
