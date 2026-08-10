@@ -364,7 +364,7 @@ def _overlay_scrape_vitals(payload: dict[str, Any], live: dict[str, Any]) -> dic
 
 
 def _overlay_stability_free(payload: dict[str, Any], product_id: str, package_name: str) -> dict[str, Any]:
-    """Crash/ANR-free — scrape vitals boşsa stability-free (scrape öncelikli)."""
+    """Crash/ANR-free — CF: S-Firebase; ANR: Play (scrape vitals boşsa)."""
     if payload["vitals"].get("crash_rate") is not None and payload["vitals"].get("anr_rate") is not None:
         return payload
     try:
@@ -389,11 +389,17 @@ def _overlay_stability_free(payload: dict[str, Any], product_id: str, package_na
         if not sf or not sf.get("ok"):
             return payload
         play = sf.get("play_overall") if isinstance(sf.get("play_overall"), dict) else {}
-        cf = play.get("crash_free_pct")
+        fb_and = (
+            ((sf.get("firebase_console") or {}).get("platforms") or {}).get("android")
+            if isinstance(sf.get("firebase_console"), dict)
+            else {}
+        ) or {}
+        fb_kpi = fb_and.get("latest_7d") or fb_and.get("latest_24h") or {}
+        cf = fb_kpi.get("crash_free_pct") if isinstance(fb_kpi, dict) else None
         af = play.get("anr_free_pct")
         if cf is not None:
             payload["vitals"]["crash_free_pct"] = float(cf)
-            payload["vitals"]["crash_free_label"] = play.get("crash_free_fmt") or f"{cf:.2f}%"
+            payload["vitals"]["crash_free_label"] = fb_kpi.get("crash_free_fmt") or f"{cf:.2f}%"
             if payload["vitals"].get("crash_rate") is None:
                 rate = max(0.0, 100.0 - float(cf))
                 payload["vitals"]["crash_rate"] = round(rate, 3)
@@ -407,7 +413,7 @@ def _overlay_stability_free(payload: dict[str, Any], product_id: str, package_na
                 payload["vitals"]["anr_rate_label"] = f"{rate:.2f}%"
         if payload.get("source") == "empty" and (cf is not None or af is not None):
             payload["source"] = "play_scrape"
-            payload["source_note"] = "Vitals crash/ANR-free — /android."
+            payload["source_note"] = "CF S-Firebase · ANR Play /android."
     except Exception:
         logger.debug("GP preview stability-free overlay failed", exc_info=True)
     return payload

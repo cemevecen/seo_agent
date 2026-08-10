@@ -8855,25 +8855,38 @@ def _home_store_firebase_card_from_tabs(
 
     play = sf.get("play_overall") if isinstance(sf.get("play_overall"), dict) else {}
     play_latest = sf.get("play_latest") if isinstance(sf.get("play_latest"), dict) else {}
+    fb = sf.get("firebase_console") if isinstance(sf.get("firebase_console"), dict) else {}
+    fb_plats = fb.get("platforms") if isinstance(fb.get("platforms"), dict) else {}
+    fb_and = fb_plats.get("android") if isinstance(fb_plats.get("android"), dict) else {}
+    fb_ios = fb_plats.get("ios") if isinstance(fb_plats.get("ios"), dict) else {}
     cf_plats = ((sf.get("crashlytics") or {}).get("platforms") or {}) if isinstance(sf.get("crashlytics"), dict) else {}
     and_cf = cf_plats.get("android") if isinstance(cf_plats.get("android"), dict) else {}
     ios_cf = cf_plats.get("ios") if isinstance(cf_plats.get("ios"), dict) else {}
 
     lv_name = (
-        play_latest.get("version_name")
+        fb_and.get("latest_version")
+        or play_latest.get("version_name")
         or and_cf.get("latest_version")
         or (store_by_key.get("android") or {}).get("version")
         or "—"
     )
     lv_label = f"v{lv_name}" if lv_name and lv_name != "—" else "latest"
+    fb24 = fb_and.get("latest_24h") if isinstance(fb_and.get("latest_24h"), dict) else {}
+    fb7 = fb_and.get("latest_7d") if isinstance(fb_and.get("latest_7d"), dict) else {}
 
-    # Android: /android sekmesindeki 4'lü — tek satır
+    # Android: CF yalnızca S-Firebase (24s/7g) · ANR Play
     android_metrics = [
         _home_sf_metric(
             "Crash-free",
-            play.get("crash_free_fmt"),
-            sub="Play · all · 28d",
-            pct=play.get("crash_free_pct"),
+            fb24.get("crash_free_fmt"),
+            sub=f"S-Firebase · son sürüm · 24s · {lv_label}",
+            pct=fb24.get("crash_free_pct"),
+        ),
+        _home_sf_metric(
+            "Crash-free",
+            fb7.get("crash_free_fmt"),
+            sub=f"S-Firebase · son sürüm · 7g · {lv_label}",
+            pct=fb7.get("crash_free_pct"),
         ),
         _home_sf_metric(
             "ANR-free",
@@ -8882,80 +8895,43 @@ def _home_store_firebase_card_from_tabs(
             pct=play.get("anr_free_pct"),
         ),
         _home_sf_metric(
-            "Crash-free",
-            play_latest.get("crash_free_fmt"),
-            sub=f"Play · {lv_label}",
-            pct=play_latest.get("crash_free_pct"),
-        ),
-        _home_sf_metric(
             "ANR-free",
             play_latest.get("anr_free_fmt"),
             sub=f"Play · {lv_label}",
             pct=play_latest.get("anr_free_pct"),
         ),
     ]
-    # Reporting boşsa Crashlytics ile doldur (aynı /android kaynağı)
-    if android_metrics[2]["value"] == "—" and (and_cf.get("latest") or {}).get("crash_free_fmt"):
-        latest = and_cf.get("latest") or {}
-        android_metrics[2] = _home_sf_metric(
-            "Crash-free",
-            latest.get("crash_free_fmt"),
-            sub=f"Crashlytics · v{and_cf.get('latest_version') or lv_name}",
-            pct=latest.get("crash_free_pct"),
-            extra=(and_cf.get("overall") or {}).get("crash_free_fmt")
-            and f"all {(and_cf.get('overall') or {}).get('crash_free_fmt')}"
-            or "",
-        )
     if android_metrics[3]["value"] == "—" and (and_cf.get("latest") or {}).get("anr_free_fmt"):
         latest = and_cf.get("latest") or {}
         android_metrics[3] = _home_sf_metric(
             "ANR-free",
             latest.get("anr_free_fmt"),
-            sub=f"Crashlytics · v{and_cf.get('latest_version') or lv_name}",
+            sub=f"ANR · v{and_cf.get('latest_version') or lv_name}",
             pct=latest.get("anr_free_pct"),
         )
 
     ios_ver = (
-        ios_cf.get("latest_version")
+        fb_ios.get("latest_version")
+        or ios_cf.get("latest_version")
         or (store_by_key.get("ios") or {}).get("version")
         or "—"
     )
-    ios_metrics: list[dict] = []
-    if (ios_cf.get("latest") or {}).get("crash_free_fmt"):
-        latest = ios_cf.get("latest") or {}
-        ios_metrics.append(
-            _home_sf_metric(
-                "Crash-free",
-                latest.get("crash_free_fmt"),
-                sub=f"Crashlytics · v{ios_ver}",
-                pct=latest.get("crash_free_pct"),
-                extra=(ios_cf.get("overall") or {}).get("crash_free_fmt")
-                and f"all {(ios_cf.get('overall') or {}).get('crash_free_fmt')}"
-                or "",
-            )
-        )
-    elif (ios_cf.get("overall") or {}).get("crash_free_fmt"):
-        overall = ios_cf.get("overall") or {}
-        ios_metrics.append(
-            _home_sf_metric(
-                "Crash-free",
-                overall.get("crash_free_fmt"),
-                sub="Crashlytics · all · 7d",
-                pct=overall.get("crash_free_pct"),
-            )
-        )
-    if (ios_cf.get("overall") or {}).get("crash_free_fmt") and len(ios_metrics) == 1:
-        # latest + all yan yana (ios sekmesiyle uyumlu)
-        if ios_metrics[0]["sub"].startswith("Crashlytics · v"):
-            overall = ios_cf.get("overall") or {}
-            ios_metrics.append(
-                _home_sf_metric(
-                    "Crash-free",
-                    overall.get("crash_free_fmt"),
-                    sub="Crashlytics · all · 7d",
-                    pct=overall.get("crash_free_pct"),
-                )
-            )
+    ios24 = fb_ios.get("latest_24h") if isinstance(fb_ios.get("latest_24h"), dict) else {}
+    ios7 = fb_ios.get("latest_7d") if isinstance(fb_ios.get("latest_7d"), dict) else {}
+    ios_metrics: list[dict] = [
+        _home_sf_metric(
+            "Crash-free",
+            ios24.get("crash_free_fmt"),
+            sub=f"S-Firebase · son sürüm · 24s · v{ios_ver}",
+            pct=ios24.get("crash_free_pct"),
+        ),
+        _home_sf_metric(
+            "Crash-free",
+            ios7.get("crash_free_fmt"),
+            sub=f"S-Firebase · son sürüm · 7g · v{ios_ver}",
+            pct=ios7.get("crash_free_pct"),
+        ),
+    ]
 
     android_has = any(m["value"] != "—" for m in android_metrics)
     ios_has = any(m["value"] != "—" for m in ios_metrics)
@@ -8968,7 +8944,8 @@ def _home_store_firebase_card_from_tabs(
                 "key": "android",
                 "label": "Android",
                 "latest_version": str(
-                    play_latest.get("version_name")
+                    fb_and.get("latest_version")
+                    or play_latest.get("version_name")
                     or and_cf.get("latest_version")
                     or (store_by_key.get("android") or {}).get("version")
                     or ""

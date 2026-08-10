@@ -3311,58 +3311,14 @@
       }).join("");
     }
     function renderCards() {
-      var row = selectedVersionRow();
-      var overall = state.overall;
       var fb = state.firebase || {};
       var fb24 = fb.latest_24h || null;
       var fb7 = fb.latest_7d || null;
       var fbVer = fb.latest_version || (fb24 && fb24.version) || (fb7 && fb7.version) || "";
-      var staleNote = lastHealthy && lastHealthy.saved_at_tr
-        ? ("son sağlıklı · " + lastHealthy.saved_at_tr)
-        : "son sağlıklı skor";
       var pills = [];
-
-      if (row && hasScore(row)) {
-        pills.push(card(
-          "Crash-free · " + (row.label || ("v" + row.version)),
-          row.period ? ("since release · " + row.period) : "Crashlytics",
-          row.crash_free_fmt,
-          row.crash_free_pct,
-          overall && hasScore(overall) ? ("all " + overall.crash_free_fmt) : ""
-        ));
-      } else {
-        var stale = healthyRowForVersion(row && row.version);
-        if (stale && hasScore(stale)) {
-          pills.push(card(
-            "Crashlytics · " + ((row && row.label) || stale.label || "sürüm"),
-            staleNote,
-            stale.crash_free_fmt,
-            stale.crash_free_pct,
-            "",
-            { stale: true }
-          ));
-        } else if (overall && hasScore(overall)) {
-          pills.push(card(
-            "Crashlytics · all",
-            "genel 7g",
-            overall.crash_free_fmt,
-            overall.crash_free_pct
-          ));
-        } else {
-          pills.push(card(
-            "Crashlytics · " + ((row && row.label) || "sürüm"),
-            "Veri bekleniyor",
-            "—",
-            null,
-            "",
-            { pending: true }
-          ));
-        }
-      }
-
       pills.push(card(
         "Crash-free · son sürüm",
-        "Firebase · 24s" + (fbVer ? (" · " + fbVer) : ""),
+        "S-Firebase · 24s" + (fbVer ? (" · " + fbVer) : ""),
         (fb24 && fb24.crash_free_fmt) || "—",
         fb24 && fb24.crash_free_pct,
         "",
@@ -3370,13 +3326,12 @@
       ));
       pills.push(card(
         "Crash-free · son sürüm",
-        "Firebase · 7g" + (fbVer ? (" · " + fbVer) : ""),
+        "S-Firebase · 7g" + (fbVer ? (" · " + fbVer) : ""),
         (fb7 && fb7.crash_free_fmt) || "—",
         fb7 && fb7.crash_free_pct,
         "",
         { pending: !(fb7 && hasScore(fb7)) }
       ));
-
       el.style.setProperty("--sf-n", String(pills.length));
       el.innerHTML = pills.join("");
     }
