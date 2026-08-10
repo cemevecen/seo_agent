@@ -1,9 +1,9 @@
 /**
- * Kapalı/açık tablo listeleri: max N satır yüksekliği, kısa dönemde küçülür,
- * alttan sürükleyerek büyütülebilir. Virgül / Android / iOS ortak.
+ * Kapalı/açık tablo listeleri: max N satır yüksekliği, kısa dönemde içeriğe yapışır,
+ * alttan sürükleyerek (uzun listelerde) büyütülebilir. Virgül / Android / iOS ortak.
  *
- * Sayfa sonunda (iOS gibi altta başka blok yokken) sürükleme: viewport
- * kenarında otomatik büyüt + window scroll — handle ekran dışına kaçmaz.
+ * Kısa liste: height:auto — liste bitimi ile container arasında boşluk yok.
+ * Uzun liste: maxRows viewport + isteğe bağlı manuel genişletme (tavan = tablo yüksekliği).
  */
 (function (global) {
   "use strict";
@@ -15,7 +15,6 @@
     headH: 34,
     pad: 4,
     minH: 72,
-    /* Manuel sürüklemede tavan; tablo daha uzunsa contentHeight ile yükselir */
     maxH: 2400,
     storageKey: "",
   };
@@ -26,9 +25,9 @@
     style.id = STYLE_ID;
     style.textContent =
       ".rdl-shell{position:relative;display:flex;flex-direction:column;min-width:0;width:100%;" +
-      "border-radius:0.75rem;overflow:hidden;}" +
+      "height:auto;border-radius:0.75rem;overflow:hidden;}" +
       ".rdl-scroll{min-width:0;width:100%;overflow:auto;-webkit-overflow-scrolling:touch;" +
-      "overscroll-behavior:contain;flex:1 1 auto;}" +
+      "overscroll-behavior:contain;flex:0 0 auto;height:auto;max-height:none;}" +
       ".rdl-scroll>table{width:max-content;max-width:none;min-width:100%;border-collapse:collapse;}" +
       ".rdl-handle{flex:0 0 auto;height:14px;cursor:ns-resize;touch-action:none;" +
       "display:flex;align-items:center;justify-content:center;" +
@@ -36,12 +35,15 @@
       "border-top:1px solid rgba(148,163,184,.35);user-select:none;}" +
       ".rdl-handle::after{content:'';width:2.25rem;height:3px;border-radius:9999px;" +
       "background:rgba(100,116,139,.55);}" +
+      ".rdl-shell[data-rdl-hug='1'] .rdl-handle{opacity:.55;}" +
       "html.dark .rdl-handle{background:linear-gradient(to bottom,transparent,rgba(63,63,70,.45));" +
       "border-top-color:rgba(63,63,70,.8);}" +
       "html.dark .rdl-handle::after{background:rgba(161,161,170,.55);}" +
       ".rdl-handle:hover::after,.rdl-handle.is-dragging::after{background:rgba(14,165,233,.85);}" +
       ".rdl-shell.is-dragging{user-select:none;}" +
-      ".rdl-drag-room{flex:0 0 auto;width:100%;height:min(42vh,22rem);pointer-events:none;}" +
+      /* Sürükleme payı yalnızca aktif drag sırasında; aksi halde 0 — sayfada boşluk bırakma */
+      ".rdl-drag-room{flex:0 0 auto;width:100%;height:0;pointer-events:none;overflow:hidden;}" +
+      ".rdl-shell.is-dragging + .rdl-drag-room{height:min(28vh,12rem);}" +
       "details.rdl-dropdown>summary{list-style:none;cursor:pointer;}" +
       "details.rdl-dropdown>summary::-webkit-details-marker{display:none;}" +
       "details.rdl-dropdown>summary .rdl-chevron{display:inline-block;transition:transform .15s ease;}" +
@@ -62,32 +64,43 @@
     return o;
   }
 
+  /** Tablonun doğal yüksekliği — ölçüm sırasında viewport kilidini geçici kaldır. */
   function contentHeight(shell, opts) {
     var scroll = shell.querySelector(".rdl-scroll");
     if (!scroll) return opts.minH;
     var table = scroll.querySelector("table");
     if (!table) return opts.minH;
-    return Math.max(opts.minH, Math.ceil(table.getBoundingClientRect().height) + opts.pad);
+    var prevH = scroll.style.height;
+    var prevMax = scroll.style.maxHeight;
+    scroll.style.height = "auto";
+    scroll.style.maxHeight = "none";
+    var raw = Math.max(
+      table.scrollHeight || 0,
+      table.offsetHeight || 0,
+      Math.ceil(table.getBoundingClientRect().height) || 0
+    );
+    scroll.style.height = prevH;
+    scroll.style.maxHeight = prevMax;
+    return Math.max(opts.minH, Math.ceil(raw) + opts.pad);
   }
 
-  /** Sürükleme tavanı: tablonun gerçek yüksekliği — boş beyaz alan bırakılmaz. */
   function dragCeiling(shell, opts) {
     return Math.max(opts.minH, contentHeight(shell, opts));
+  }
+
+  function viewportForMaxRows(opts) {
+    return opts.headH + opts.maxRows * opts.rowH + opts.pad;
   }
 
   function autoHeight(shell, rowCount, opts) {
     var n = Math.max(0, Number(rowCount) || 0);
     if (n <= 0) return opts.minH;
-    var visible = Math.min(n, opts.maxRows);
-    var byRows = opts.headH + visible * opts.rowH + opts.pad;
     var byContent = contentHeight(shell, opts);
-    // 1–2 hafta gibi kısa dilim: içeriğe göre küçül; uzun dilim: max 20 satır viewport
-    var h = n <= opts.maxRows
-      ? Math.min(byContent || byRows, byRows + 12)
-      : Math.min(byContent, opts.headH + opts.maxRows * opts.rowH + opts.pad);
-    // Asla tablo içeriğinden uzun olma (container esnek kalsın)
-    h = Math.min(h, byContent);
-    return Math.max(opts.minH, Math.min(opts.maxH, Math.round(h)));
+    if (n <= opts.maxRows) {
+      return Math.max(opts.minH, Math.min(byContent, opts.maxH));
+    }
+    var capped = Math.min(byContent, viewportForMaxRows(opts));
+    return Math.max(opts.minH, Math.min(opts.maxH, Math.round(capped)));
   }
 
   function readManual(shell, opts) {
@@ -117,14 +130,21 @@
     } catch (e) {}
   }
 
-  function applyScrollHeight(shell, h) {
+  /** hug=true → height auto (boşluk yok). hug=false → sabit px viewport. */
+  function applyScrollHeight(shell, h, hug) {
     var scroll = shell.querySelector(".rdl-scroll");
     if (!scroll) return;
-    scroll.style.height = h + "px";
-    scroll.style.maxHeight = h + "px";
+    if (hug) {
+      scroll.style.height = "auto";
+      scroll.style.maxHeight = "none";
+      shell.setAttribute("data-rdl-hug", "1");
+    } else {
+      scroll.style.height = h + "px";
+      scroll.style.maxHeight = h + "px";
+      shell.setAttribute("data-rdl-hug", "0");
+    }
   }
 
-  /** Sayfa sonunda sürüklemek için boşluk — handle viewport dibine yapışmasın. */
   function ensureDragRoom(shell) {
     if (!shell || !shell.parentNode) return;
     var next = shell.nextElementSibling;
@@ -150,21 +170,33 @@
     injectStyles();
     ensureDragRoom(shell);
     var opts = optsOf(shell, overrides);
+    var n = Math.max(0, Number(rowCount) || 0);
+    shell._rdlRowCount = n;
+
     var content = contentHeight(shell, opts);
-    var auto = autoHeight(shell, rowCount, opts);
+    var auto = autoHeight(shell, n, opts);
     shell._rdlAutoH = auto;
-    shell._rdlRowCount = rowCount;
+
+    // Kısa liste / içerik sığıyor → her zaman hug; eski manuel yüksekliği at
+    if (n <= opts.maxRows || content <= auto + 1) {
+      clearManual(shell, opts);
+      applyScrollHeight(shell, content, true);
+      shell.setAttribute("data-rdl-fitted", "1");
+      return;
+    }
+
     var manual = readManual(shell, opts);
     var ceiling = Math.max(opts.minH, content);
-    // Manuel yalnızca auto'dan büyükse (kullanıcı genişletti); içerikten taşmasın
     var h = manual != null && manual > auto ? Math.min(ceiling, manual) : auto;
     h = Math.min(h, content);
     h = Math.max(opts.minH, Math.round(h));
-    applyScrollHeight(shell, h);
-    // Kayıtlı yükseklik artık içerikten büyükse düzelt / tam sığınca sıfırla
-    if (manual != null) {
-      if (content <= auto + 1) clearManual(shell, opts);
-      else if (manual > content) writeManual(shell, opts, content);
+    if (manual != null && manual > content) writeManual(shell, opts, content);
+    // Tamamı görünüyorsa yine hug
+    if (h >= content - 1) {
+      clearManual(shell, opts);
+      applyScrollHeight(shell, content, true);
+    } else {
+      applyScrollHeight(shell, h, false);
     }
     shell.setAttribute("data-rdl-fitted", "1");
   }
@@ -173,7 +205,6 @@
     if (!shell || shell._rdlBound) return shell;
     injectStyles();
     ensureDragRoom(shell);
-    var opts = optsOf(shell, overrides);
     shell._rdlBound = true;
     shell.classList.add("rdl-shell");
     var scroll = shell.querySelector(".rdl-scroll");
@@ -201,13 +232,16 @@
 
     function applyFromPointer(clientY) {
       var optsNow = optsOf(shell, overrides);
+      var content = contentHeight(shell, optsNow);
       var dy = clientY - startY;
-      var ceiling = dragCeiling(shell, optsNow);
-      var next = Math.max(optsNow.minH, Math.min(ceiling, startH + dy + edgeExtra));
-      // Tablo kısaldıysa sürüklerken de boş alan bırakma
-      next = Math.min(next, contentHeight(shell, optsNow));
-      applyScrollHeight(shell, next);
-      writeManual(shell, optsNow, next);
+      var next = Math.max(optsNow.minH, Math.min(content, startH + dy + edgeExtra));
+      if (next >= content - 1) {
+        clearManual(shell, optsNow);
+        applyScrollHeight(shell, content, true);
+      } else {
+        applyScrollHeight(shell, next, false);
+        writeManual(shell, optsNow, next);
+      }
       keepHandleInView(handle);
     }
 
@@ -252,6 +286,8 @@
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onUp);
+      // Drag bitince hug durumunu satır sayısına göre yenile
+      fit(shell, shell._rdlRowCount != null ? shell._rdlRowCount : 0, overrides);
     }
 
     function onPointerMove(ev) {
@@ -263,6 +299,14 @@
       if (ev.button != null && ev.button !== 0) return;
       var scrollEl = shell.querySelector(".rdl-scroll");
       if (!scrollEl) return;
+      var optsNow = optsOf(shell, overrides);
+      var n = shell._rdlRowCount != null ? shell._rdlRowCount : 0;
+      // Kısa listede sürükleme anlamsız boşluk açmasın
+      if (n > 0 && n <= optsNow.maxRows) {
+        clearManual(shell, optsNow);
+        applyScrollHeight(shell, contentHeight(shell, optsNow), true);
+        return;
+      }
       dragging = true;
       edgeExtra = 0;
       startY = ev.clientY;
@@ -281,7 +325,6 @@
       ev.preventDefault();
     });
 
-    // Çift tık: kullanıcı boyutunu sıfırla → otomatik yüksekliğe dön
     handle.addEventListener("dblclick", function () {
       clearManual(shell, optsOf(shell, overrides));
       fit(shell, shell._rdlRowCount != null ? shell._rdlRowCount : 0, overrides);
