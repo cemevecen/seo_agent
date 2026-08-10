@@ -754,6 +754,28 @@
     border-color: rgb(63 63 70);
     background: rgb(24 24 27 / 0.9);
   }
+  /* Dark / midnight: grafik kartı açık kalmasın */
+  html.dark .ios-asc-page #ia-chart-card,
+  html.midnight .ios-asc-page #ia-chart-card,
+  html.dark .ios-asc-page .pa-chart-card,
+  html.midnight .ios-asc-page .pa-chart-card {
+    background: #141416 !important;
+    background-image: none !important;
+    border-color: #2e2e33 !important;
+  }
+  html.dark .ios-asc-page .pa-chart-card__toolbar,
+  html.midnight .ios-asc-page .pa-chart-card__toolbar {
+    border-color: #27272a !important;
+    background: transparent !important;
+  }
+  html.dark .ios-asc-page #ia-chart-wrap,
+  html.midnight .ios-asc-page #ia-chart-wrap {
+    background: transparent !important;
+  }
+  html.dark .ios-asc-page #ia-chart line.ia-grid,
+  html.midnight .ios-asc-page #ia-chart line.ia-grid {
+    stroke: rgba(255, 255, 255, 0.07) !important;
+  }
   .pa-chart-style button {
     appearance: none;
     display: inline-flex;
@@ -835,7 +857,7 @@
     }
   }
 </style>
-<div class="w-full max-w-none space-y-5" data-header-title="iOS · App Store Connect">
+<div class="w-full max-w-none space-y-5 ios-asc-page" data-header-title="iOS · App Store Connect">
   <div class="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:px-4">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div class="min-w-0">
@@ -1015,9 +1037,9 @@
         <p id="ia-compare-range" class="text-[11px] text-slate-500 dark:text-zinc-400"></p>
       </div>
       <div id="ia-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Seçili metrik KPI kartları"></div>
-      <div id="ia-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div id="ia-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800">
         <div id="ia-chart-wrap" class="relative overflow-visible px-1 pb-1 pt-2">
-          <div class="mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
+          <div class="pa-chart-card__toolbar mb-1 flex flex-wrap items-start justify-between gap-2 px-2">
             <div id="ia-legend" class="flex min-w-0 flex-1 flex-wrap gap-2 text-[11px] text-slate-600 dark:text-zinc-300"></div>
             <div id="ia-chart-style" class="pa-chart-style shrink-0" role="group" aria-label="Grafik çizim tarzı">
               <button type="button" data-ia-chart-style="line" title="Çizgi" aria-label="Çizgi grafik" aria-pressed="false">
@@ -2003,7 +2025,7 @@
   function renderSelectedBundles(bundles) {
     var list = Array.isArray(bundles) ? bundles : [];
     if (!list.length) {
-      if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13">Metrik seçin</text>';
+      if (iaChart) iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Metrik seçin</text>';
       if (iaLegend) iaLegend.innerHTML = "";
       return;
     }
@@ -2201,7 +2223,36 @@
       minGap: labelW * 0.85
     };
   }
+  function iaIsDark() {
+    var root = document.documentElement;
+    if (root && (root.classList.contains("dark") || root.classList.contains("midnight"))) return true;
+    if (document.body && (document.body.classList.contains("dark") || document.body.classList.contains("midnight"))) return true;
+    return false;
+  }
+  function iaChartPalette() {
+    if (iaIsDark()) {
+      return {
+        grid: "rgba(255,255,255,0.07)",
+        axis: "#a1a1aa",
+        guide: "#71717a",
+        empty: "#a1a1aa",
+        dotStroke: "#141416",
+        areaFill: 0.14,
+        areaFillMulti: 0.1
+      };
+    }
+    return {
+      grid: "#e2e8f0",
+      axis: "#64748b",
+      guide: "#94a3b8",
+      empty: "#94a3b8",
+      dotStroke: "#ffffff",
+      areaFill: 0.26,
+      areaFillMulti: 0.12
+    };
+  }
   function buildIaXAxisLabels(keys, xs, plotW, h) {
+    var pal = iaChartPalette();
     var n = (keys || []).length;
     var layout = iaAxisLayout(keys, plotW);
     var html = "";
@@ -2214,7 +2265,7 @@
       if (isLast && lastX > -1e8 && lx - lastX < layout.minGap * 0.75) continue;
       html +=
         '<text x="' + lx.toFixed(1) + '" y="' + (h - 10) +
-        '" text-anchor="middle" fill="#94a3b8" font-size="' + layout.fontSize +
+        '" text-anchor="middle" fill="' + pal.axis + '" font-size="' + layout.fontSize +
         '" font-family="ui-sans-serif,system-ui">' + esc(fmtChartAxisKey(keys[li])) + "</text>";
       lastX = lx;
     }
@@ -2222,6 +2273,7 @@
   }
   function buildIaYGrid(opts) {
     opts = opts || {};
+    var pal = iaChartPalette();
     var left = opts.left;
     var top = opts.top;
     var plotW = opts.plotW;
@@ -2238,10 +2290,10 @@
         ? fmtNum(max * (1 - t / ticks), countLike)
         : (Math.round(100 * (1 - t / ticks)) + "%");
       html +=
-        '<line x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
-        '" stroke="#e2e8f0" stroke-width="1" class="dark:stroke-zinc-800" />' +
+        '<line class="ia-grid" x1="' + left + '" y1="' + ty.toFixed(1) + '" x2="' + (left + plotW) + '" y2="' + ty.toFixed(1) +
+        '" stroke="' + pal.grid + '" stroke-width="1" />' +
         '<text x="' + (left - 6) + '" y="' + (ty + 3).toFixed(1) +
-        '" text-anchor="end" fill="#94a3b8" font-size="' + yFs +
+        '" text-anchor="end" fill="' + pal.axis + '" font-size="' + yFs +
         '" font-family="ui-sans-serif,system-ui">' + esc(label) + "</text>";
     }
     return html;
@@ -2487,7 +2539,7 @@
     if (!list.length) {
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
       iaChart.innerHTML =
-        '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13">Legend’dan en az bir metrik açın</text>';
+        '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Legend’dan en az bir metrik açın</text>';
       return;
     }
     var keySet = {};
@@ -2569,7 +2621,10 @@
     });
     var style = iaChartStyle || "area";
     var baseY = top + plotH;
-    var fillOp = list.length > 1 ? 0.12 : 0.22;
+    var pal = iaChartPalette();
+    var fillOp = list.length > 1
+      ? (pal.areaFillMulti != null ? pal.areaFillMulti : 0.12)
+      : (pal.areaFill != null ? pal.areaFill : 0.22);
     var barSlot = n > 1 ? plotW / (n - 1) : plotW;
     var paths = "";
     if (style === "bar") {
@@ -2600,7 +2655,7 @@
       }).join("");
     }
     var dots = seriesList.map(function (s, i) {
-      return '<circle id="ia-hover-dot-' + i + '" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + s.color + '" stroke="#fff" stroke-width="1.5" opacity="0" />';
+      return '<circle id="ia-hover-dot-' + i + '" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + s.color + '" stroke="' + pal.dotStroke + '" stroke-width="1.5" opacity="0" />';
     }).join("");
     iaChartState = {
       mode: "multi",
@@ -2616,7 +2671,7 @@
       grid +
       paths +
       '<line id="ia-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
-      '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
+      '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
       dots +
       xAxis.html +
       '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
@@ -2635,7 +2690,7 @@
     if (!rows.length) {
       iaChartState = { mode: "empty", keys: [], xs: [], left: 0, plotW: 0, seriesList: [] };
       iaChart.innerHTML =
-        '<text x="360" y="120" text-anchor="middle" fill="#94a3b8" font-size="13">Bu aralıkta nokta yok</text>' +
+        '<text x="360" y="120" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Bu aralıkta nokta yok</text>' +
         '<text x="360" y="142" text-anchor="middle" fill="#cbd5e1" font-size="11">ASC verisi veya tarih aralığını kontrol edin</text>';
       if (iaLegend) iaLegend.innerHTML = "";
       iaLastDrawBundles = null;
@@ -2686,10 +2741,11 @@
     };
     var style = iaChartStyle || "area";
     var baseY = top + plotH;
+    var pal = iaChartPalette();
     var pts = buildIaSeriesPts(keys, map, max, xs, top, plotH);
     var seriesHtml = buildIaSeriesStyleHtml(style, pts, lineColor, baseY, {
       strokeW: STROKE,
-      fillOpacity: 0.26,
+      fillOpacity: pal.areaFill != null ? pal.areaFill : 0.26,
       seriesIndex: 0,
       seriesCount: 1,
       slotWidth: n > 1 ? plotW / (n - 1) : plotW
@@ -2699,8 +2755,8 @@
       grid +
       seriesHtml +
       '<line id="ia-guide" x1="0" y1="' + top + '" x2="0" y2="' + (top + plotH) +
-      '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
-      '<circle id="ia-hover-dot-0" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + lineColor + '" stroke="#fff" stroke-width="1.5" opacity="0" />' +
+      '" stroke="' + pal.guide + '" stroke-width="1" stroke-dasharray="3 3" opacity="0" />' +
+      '<circle id="ia-hover-dot-0" class="ia-hover-dot" cx="0" cy="0" r="3.5" fill="' + lineColor + '" stroke="' + pal.dotStroke + '" stroke-width="1.5" opacity="0" />' +
       xAxis.html +
       '<rect id="ia-hit" x="' + left + '" y="' + top + '" width="' + plotW + '" height="' + plotH +
       '" fill="transparent" style="cursor:crosshair" />';
@@ -2970,7 +3026,7 @@
       if (err && err.name === "AbortError") return;
       if (my !== runSeq) return;
       if (iaStatus) iaStatus.textContent = (err && err.message) || "Yükleme hatası";
-      iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="#94a3b8" font-size="13">Veri yüklenemedi</text>';
+      iaChart.innerHTML = '<text x="360" y="130" text-anchor="middle" fill="' + iaChartPalette().empty + '" font-size="13">Veri yüklenemedi</text>';
       showIaSimpleKpi();
       if (iaTotal) iaTotal.textContent = "—";
       if (iaCompareRange) iaCompareRange.textContent = "";
@@ -3099,6 +3155,16 @@
   });
   window.addEventListener("resize", function () {
     if (iaMetricList && !iaMetricList.classList.contains("hidden")) positionIaMetricDropdown();
+  });
+  window.addEventListener("seo-theme-change", function () {
+    if (iaLastDrawBundles && iaLastDrawBundles.length) {
+      drawMulti(iaLastDrawBundles);
+      return;
+    }
+    if (iaLastChart && Array.isArray(iaLastChart.series)) {
+      var c = (iaChartState && iaChartState.seriesList && iaChartState.seriesList[0] && iaChartState.seriesList[0].color) || "#2563EB";
+      drawSingle(iaLastChart.series, c);
+    }
   });
   document.addEventListener("scroll", function (ev) {
     if (!iaMetricList || iaMetricList.classList.contains("hidden")) return;

@@ -571,10 +571,23 @@
   html.dark .android-play-page {
     color: #b8b8bf;
   }
-  html.dark .android-play-page #pa-chart-card {
+  /* Dark / midnight: grafik kartı — açık gradient kalmasın (mobil web) */
+  html.dark .android-play-page #pa-chart-card,
+  html.midnight .android-play-page #pa-chart-card,
+  html.dark .android-play-page .pa-chart-card,
+  html.midnight .android-play-page .pa-chart-card {
     background: #141416 !important;
     background-image: none !important;
     border-color: #2e2e33 !important;
+  }
+  html.dark .android-play-page .pa-chart-card__toolbar,
+  html.midnight .android-play-page .pa-chart-card__toolbar {
+    border-color: #27272a !important;
+    background: transparent !important;
+  }
+  html.dark .android-play-page #pa-chart-wrap,
+  html.midnight .android-play-page #pa-chart-wrap {
+    background: transparent !important;
   }
   #pa-chart-wrap {
     width: 100%;
@@ -1202,8 +1215,8 @@
       </div>
       <div id="pa-metric-kpis" class="hidden grid grid-cols-1 gap-3" aria-label="Seçili metrik KPI kartları"></div>
 
-      <div id="pa-chart-card" class="mt-4 overflow-visible rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50/80 to-white dark:border-zinc-800 dark:bg-zinc-950 dark:from-slate-900 dark:to-slate-900">
-        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
+      <div id="pa-chart-card" class="pa-chart-card mt-4 overflow-visible rounded-xl border border-slate-200 bg-slate-50 dark:border-zinc-800">
+        <div class="pa-chart-card__toolbar flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 dark:border-zinc-800">
           <div id="pa-legend-line" class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-slate-500 dark:text-zinc-400">
             <span id="pa-legend-primary" class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-600/30"></span><span id="pa-legend-primary-label">Seçili dönem</span></span>
             <span id="pa-legend-prev" class="inline-flex items-center gap-1.5"><span class="h-0.5 w-3 rounded bg-slate-400" style="border-top:2px dashed #94a3b8;height:0;width:12px;display:inline-block"></span>Önceki dönem</span>
@@ -1870,10 +1883,9 @@
     }
   }
   function paIsDark() {
-    // Sadece tema class’ı — kart background luminance light’ta yanlış dark + siyah stroke üretiyordu
     var root = document.documentElement;
-    if (root && root.classList.contains("dark")) return true;
-    if (document.body && document.body.classList.contains("dark")) return true;
+    if (root && (root.classList.contains("dark") || root.classList.contains("midnight"))) return true;
+    if (document.body && (document.body.classList.contains("dark") || document.body.classList.contains("midnight"))) return true;
     return false;
   }
   function paChartPalette() {
@@ -1881,24 +1893,23 @@
       return {
         line: "#6b8aad",
         overlay: "#b87333",
-        // ~%90 silik beyaz kılavuz
-        grid: "rgba(255,255,255,0.06)",
-        axis: "#71717a",
+        grid: "rgba(255,255,255,0.07)",
+        axis: "#a1a1aa",
         prev: "#71717a",
-        guide: "#52525b",
-        // Kart zemini — siyah halka yerine yumuşak halo
-        dotStroke: "#141416"
+        guide: "#71717a",
+        dotStroke: "#141416",
+        areaFill: 0.14
       };
     }
     return {
       line: "#2563EB",
       overlay: "#F59E0B",
       grid: "#e2e8f0",
-      axis: "#94a3b8",
+      axis: "#64748b",
       prev: "#94a3b8",
       guide: "#64748b",
-      // Light: kart rengi; siyah stroke yok
-      dotStroke: "#ffffff"
+      dotStroke: "#ffffff",
+      areaFill: 0.22
     };
   }
   var PA_LINE_COLOR = "#2563EB";
@@ -3022,7 +3033,7 @@
       pathsHtml = linePaths.map(function (lp, li) {
         return buildSeriesStyleHtml(style, lp.pts, lp.color, baseY, {
           strokeW: PA_STROKE_W,
-          fillOpacity: 0.16,
+          fillOpacity: pal.areaFill != null ? pal.areaFill : 0.16,
           showDots: false,
           seriesIndex: li,
           seriesCount: linePaths.length,
@@ -3032,7 +3043,7 @@
       ovPathsHtml = ovSeriesState.map(function (os, oi) {
         return buildSeriesStyleHtml(style, os.pts, os.color, baseY, {
           strokeW: PA_STROKE_W_OV,
-          fillOpacity: 0.12,
+          fillOpacity: paIsDark() ? 0.1 : 0.12,
           showDots: false,
           dotR: PA_DOT_R_OV,
           seriesIndex: linePaths.length + oi,
@@ -4836,7 +4847,7 @@
     } else if (style === "area") {
       primaryHtml = buildSeriesStyleHtml("area", curPts, PA_LINE_COLOR, baseYDraw, {
         strokeW: PA_STROKE_W,
-        fillOpacity: 0.26
+        fillOpacity: pal.areaFill != null ? pal.areaFill : 0.26
       });
       if (!hasOv && !useNorm) {
         var prevD = buildLinePath(prevLinePts);
@@ -4849,7 +4860,7 @@
       ovPathsHtml = overlaySeriesState.map(function (os) {
         return buildSeriesStyleHtml("area", (os.pts || []).filter(Boolean), os.color, baseYDraw, {
           strokeW: PA_STROKE_W_OV,
-          fillOpacity: 0.12
+          fillOpacity: paIsDark() ? 0.1 : 0.12
         });
       }).join("");
       if (n <= 40) {
