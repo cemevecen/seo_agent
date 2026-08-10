@@ -73,6 +73,8 @@
     border: 1px solid rgb(226 232 240 / 0.9);
     background: rgb(248 250 252);
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+    container-type: inline-size;
+    container-name: home-kpi-cell;
   }
   html.dark .home-sc-spark-cell {
     border-color: rgb(71 85 105 / 0.8);
@@ -177,6 +179,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
   }
   html.dark .home-sc-top50-vals,
   html.midnight .home-sc-top50-vals {
@@ -190,8 +193,6 @@
   .home-sc-spark-cell .home-kpi {
     min-width: 0;
     max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
   }
 </style>
 
@@ -240,7 +241,7 @@
                   <div class="home-sc-spark-empty" aria-hidden="true"></div>
                 {% endif %}
                 <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
-                <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
+                <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
               </div>
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki {{ period_days | default(7) }}g)">
@@ -265,7 +266,7 @@
                   <div class="home-sc-spark-empty" aria-hidden="true"></div>
                 {% endif %}
                 <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
-                <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
+                <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
               </div>
               {% if dev.top50_has_data %}
               <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">

@@ -16,6 +16,8 @@
     background: rgb(248 250 252);
     padding: 0.625rem 0.7rem 0.55rem;
     box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+    container-type: inline-size;
+    container-name: home-kpi-cell;
   }
   html.dark .home-ga4-spark-cell {
     border-color: rgb(71 85 105 / 0.8);
@@ -94,7 +96,7 @@
             <div class="home-ga4-spark-empty" aria-hidden="true"></div>
           {% endif %}
           <p class="home-kpi home-delta mt-1 is-{{ _tone }}">{{ prof.delta_fmt }}</p>
-          <p class="home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
+          <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ prof.last_fmt }} ← {{ prof.prev_fmt }}</p>
           {% if prof.key in ('web', 'mweb') %}
             {{ home_top_pages_trigger(_pages_id) }}
           {% endif %}
