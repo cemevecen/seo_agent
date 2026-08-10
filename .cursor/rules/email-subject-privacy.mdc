@@ -1,24 +1,25 @@
 ---
-description: Güvenlik/giriş e-posta konularında kişisel kimlik yok (ekran paylaşımı)
+description: Ekran paylaşımı mahremiyeti — e-posta konusu ve panelde isim/e-posta
 alwaysApply: true
 ---
 
-# E-posta konusu — mahremiyet (panel giriş / güvenlik)
+# Mahremiyet — toplantı / ekran yansıtma
 
-Toplantıda ekran yansıtılırken gelen kutusu görünür; **konu satırında** kullanıcı e-postası, ad-soyad veya benzeri kişisel kimlik **olmaz**.
+Toplantıda ekran yansıtılırken gelen kutusu ve panel toast’ları görünür. **Kimlik (e-posta, ad-soyad) istemeden ekranda kalmamalı.**
 
-## Uygula
+## E-posta konusu
 
-- Panel giriş / kayıt / başarısız giriş / gezinti özeti / admin erişim uyarıları (`admin_access_log`, `send_admin_security_email` ve benzeri).
-- Konu: olay tipi + tarayıcı/cihaz + IP (ör. `panel girişi - 'Chrome' - '176.x.x.x'`).
-- Kimlik (e-posta, ad) **yalnızca gövdede** kalır.
+- Panel giriş / kayıt / başarısız giriş / gezinti / güvenlik uyarıları.
+- Konuda e-posta veya isim **yok**; gövdede olabilir.
+- Örnek konu: `panel girişi - 'Chrome' - '176.x.x.x'`.
+- Kod: `backend/services/admin_access_log.py`.
+
+## Panel (on-screen)
+
+- Bağlantı toast’ında isim/e-posta **yok** → sabit: «Bir ekip üyesi panele bağlandı.»
+- Header **Toplantı modu** (`#header-meeting-mode`, `localStorage seo-meeting-mode`): açıkken çevrimiçi listesinde de kimlik gizlenir.
+- Zoom/Meet ekran paylaşımını tarayıcı **güvenilir algılayamaz**; otomatik algıya güvenme — toplantı modu veya anonim toast kullan.
 
 ## Yapma
 
-- `panel girişi - 'kisi@email.com' - '…'` gibi konu satırları.
-- Yeni güvenlik/üyelik bildirimi eklerken konuya e-posta veya isim koyma.
-
-## Kod
-
-- Ana yer: `backend/services/admin_access_log.py` (`_deliver_unknown_login_alert` subject).
-- Testler konu satırında e-posta olmadığını doğrular (`backend/tests/test_admin_access_log.py`).
+- Yeni toast / banner / konu satırına kullanıcı e-postası veya ad koyma (özellikle anlık, ekranın ortasında görünen UI).

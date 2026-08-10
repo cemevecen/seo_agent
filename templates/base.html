@@ -1810,6 +1810,44 @@
       background: rgb(52 211 153);
       color: rgb(6 78 59);
     }
+    #header-meeting-mode {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+      color: rgb(100 116 139);
+    }
+    #header-meeting-mode:hover {
+      border-color: rgb(203 213 225);
+      background: rgb(255 255 255 / 0.85);
+      color: rgb(51 65 85);
+    }
+    html.dark #header-meeting-mode:hover {
+      border-color: rgb(63 63 70);
+      background: rgb(24 24 27 / 0.9);
+      color: rgb(212 212 216);
+    }
+    #header-meeting-mode[aria-pressed="true"] {
+      border-color: rgb(251 191 36 / 0.95);
+      background: rgb(254 243 199);
+      color: rgb(146 64 14);
+    }
+    html.dark #header-meeting-mode[aria-pressed="true"] {
+      border-color: rgb(180 83 9 / 0.85);
+      background: rgb(69 26 3 / 0.65);
+      color: rgb(253 230 138);
+    }
+    #header-meeting-mode svg {
+      width: 1rem;
+      height: 1rem;
+      display: block;
+    }
     #header-online-dot-wrap {
       position: relative;
       display: inline-flex;
@@ -2185,6 +2223,19 @@
                 <span id="header-site-title-text" class="sr-only">{{ site_name or "SEO Agent" }}</span>
               </h2>
               <div class="header-top-actions flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                id="header-meeting-mode"
+                aria-pressed="false"
+                title="Toplantı modu — isim/e-posta gizle (ekran paylaşımı)"
+                aria-label="Toplantı modu: isim ve e-posta gizle"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <path d="M8 21h8M12 17v4"/>
+                  <path d="M7 8h.01M12 8h.01M17 8h.01"/>
+                </svg>
+              </button>
               {% if online_presence_visible(request) %}
               <div id="header-online-presence" class="hidden" aria-live="polite">
                 <button type="button" id="header-online-trigger" aria-label="Çevrimiçi kullanıcılar" aria-describedby="header-online-popover">
@@ -3054,12 +3105,33 @@
   </script>
   <script>
     (function () {
+      var MEETING_KEY = "seo-meeting-mode";
       function esc(s) {
         return String(s || "")
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;");
+      }
+      function isMeetingMode() {
+        try {
+          return localStorage.getItem(MEETING_KEY) === "1";
+        } catch (e) {
+          return false;
+        }
+      }
+      function setMeetingMode(on) {
+        try {
+          localStorage.setItem(MEETING_KEY, on ? "1" : "0");
+        } catch (e) {}
+        document.documentElement.setAttribute("data-meeting-mode", on ? "1" : "0");
+        var btn = document.getElementById("header-meeting-mode");
+        if (btn) {
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+          btn.title = on
+            ? "Toplantı modu açık — isim/e-posta gizli (kapatmak için tıkla)"
+            : "Toplantı modu — isim/e-posta gizle (ekran paylaşımı)";
+        }
       }
       function placeOnlinePopover() {
         var btn = document.getElementById("header-online-trigger");
@@ -3096,6 +3168,7 @@
       }
       var _onlinePresenceOtherKeys = null;
       var _onlineToastTimer = null;
+      var _lastPresenceData = null;
       function hideOnlinePresenceToast() {
         var el = document.getElementById("header-online-toast");
         if (!el) return;
@@ -3110,11 +3183,8 @@
         var el = document.getElementById("header-online-toast");
         var msg = document.getElementById("header-online-toast-msg");
         if (!el || !msg) return;
-        var name = (user && user.display_name) || (user && user.email) || "Üye";
-        var mail = (user && user.email) || "";
-        msg.innerHTML =
-          "<strong>" + esc(name) + "</strong> panele bağlandı." +
-          (mail && mail !== name ? "<br><span style=\"opacity:.85\">" + esc(mail) + "</span>" : "");
+        /* Toast ekranda görünür — isim/e-posta yok (toplantı / ekran paylaşımı). */
+        msg.textContent = "Bir ekip üyesi panele bağlandı.";
         el.removeAttribute("hidden");
         el.classList.add("is-visible");
         if (_onlineToastTimer) clearTimeout(_onlineToastTimer);
@@ -3147,6 +3217,8 @@
       function renderOnlinePresence(data) {
         var root = document.getElementById("header-online-presence");
         if (!root) return;
+        if (data) _lastPresenceData = data;
+        data = data || _lastPresenceData;
         if (!data || data.show === false) {
           root.classList.add("hidden");
           setPopoverOpen(false);
@@ -3161,21 +3233,38 @@
           return u.is_visitor === true;
         });
         var green = data.dot_green === true || (visitors && visitors.length > 0);
+        var privacy = isMeetingMode();
         root.classList.remove("hidden");
         if (!list || !title || !dot) return;
         if (green) {
           if (ping) ping.classList.remove("hidden");
           dot.className = "relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500";
-          title.textContent = "Çevrimiçi (" + visitors.length + ")";
+          title.textContent = privacy
+            ? "Çevrimiçi (" + visitors.length + ") · toplantı"
+            : "Çevrimiçi (" + visitors.length + ")";
           noteOnlinePresenceArrivals(visitors);
         } else {
           if (ping) ping.classList.add("hidden");
           dot.className = "relative inline-flex h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-zinc-600";
-          title.textContent = "Çevrimiçi";
+          title.textContent = privacy ? "Çevrimiçi · toplantı" : "Çevrimiçi";
           _onlinePresenceOtherKeys = "";
         }
         if (!users.length) {
           list.innerHTML = '<li class="text-slate-500 dark:text-zinc-400">Şu an başka üye yok</li>';
+        } else if (privacy) {
+          var nOther = 0;
+          list.innerHTML = users
+            .map(function (u) {
+              if (u.is_current) {
+                return '<li>Sen <span class="text-slate-500 dark:text-zinc-400">(bu oturum)</span></li>';
+              }
+              nOther += 1;
+              var tag = u.is_visitor
+                ? ' <span class="text-emerald-700 dark:text-emerald-300">(ziyaretçi)</span>'
+                : "";
+              return "<li>Ekip üyesi " + nOther + tag + "</li>";
+            })
+            .join("");
         } else {
           list.innerHTML = users
             .map(function (u) {
@@ -3206,6 +3295,14 @@
           .catch(function () {});
       }
       document.addEventListener("DOMContentLoaded", function () {
+        setMeetingMode(isMeetingMode());
+        var meetBtn = document.getElementById("header-meeting-mode");
+        if (meetBtn) {
+          meetBtn.addEventListener("click", function () {
+            setMeetingMode(!isMeetingMode());
+            if (_lastPresenceData) renderOnlinePresence(_lastPresenceData);
+          });
+        }
         var root = document.getElementById("header-online-presence");
         if (!root) return;
         var pop = document.getElementById("header-online-popover");
