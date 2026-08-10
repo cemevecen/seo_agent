@@ -1687,11 +1687,11 @@
     if (changed) {
       resetPaFiltersForMetricChange();
       clearPaOverlaysState();
+      paOverviewHidden = {};
     }
     syncPaDimFilters();
     if (!paSelectedMetrics.length) {
       paOverviewActive = true;
-      if (changed) paOverviewHidden = {};
     }
     runPlayAnalytics({ fromUser: true });
   }
@@ -2413,10 +2413,17 @@
         countLike: metricIsCountLike(ov.metric)
       };
     });
+    var allScaleSeries = seriesPts.concat(ovSeriesMaps);
+    var famSet = {};
+    var countKinds = {};
+    allScaleSeries.forEach(function (sp) {
+      famSet[metricScaleFamily(sp.metric)] = true;
+      countKinds[sp.countLike ? "c" : "r"] = true;
+    });
+    var forcePct = Object.keys(famSet).length > 1 || Object.keys(countKinds).length > 1;
     var scalePlan = multiScalePlan(
-      seriesPts.map(function (sp) { return sp.max; }).concat(
-        ovSeriesMaps.map(function (os) { return os.max; })
-      )
+      allScaleSeries.map(function (sp) { return sp.max; }),
+      { forcePct: forcePct, ratioLimit: 8 }
     );
     var countLikeAxis = seriesPts.length === 1
       ? !!seriesPts[0].countLike
@@ -3002,8 +3009,22 @@
     var nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
     return nice * exp;
   }
-  /** Görünür serilerin max’larına göre ortak mutlak ölçek veya % ölçek. */
-  function multiScalePlan(maxes) {
+  /** Metrik ailesi: farklı aileler aynı mutlak eksende karşılaştırılamaz. */
+  function metricScaleFamily(metricKey) {
+    var m = metricKey || "";
+    if (isGa4OverlayMetric(m) || String(m).indexOf("ga4:") === 0) return "ga4";
+    if (isVirgulOverlayMetric(m) || String(m).indexOf("virgul:") === 0) return "virgul";
+    return "play";
+  }
+  /**
+   * Görünür serilerin max’larına göre ortak mutlak ölçek veya % ölçek.
+   * Metrik ekle/çıkar / legend gizle sonrası yalnız görünür serilerle yeniden hesaplanır.
+   * Farklı aile veya ölçek oranı > 8 → her seri kendi max’ına göre % (ince çizgi olmaz).
+   */
+  function multiScalePlan(maxes, opts) {
+    opts = opts || {};
+    var ratioLimit = opts.ratioLimit != null ? Number(opts.ratioLimit) : 8;
+    if (!(ratioLimit > 0)) ratioLimit = 8;
     var vals = (maxes || []).map(Number).filter(function (m) {
       return Number.isFinite(m) && m > 0;
     });
@@ -3012,8 +3033,11 @@
     if (vals.length === 1) {
       return { mode: "value", sharedMax: niceMax(hi), shared: true };
     }
+    if (opts.forcePct) {
+      return { mode: "pct", sharedMax: 1, shared: false };
+    }
     var lo = Math.min.apply(null, vals);
-    if (lo > 0 && hi / lo <= 25) {
+    if (lo > 0 && hi / lo <= ratioLimit) {
       return { mode: "value", sharedMax: niceMax(hi), shared: true };
     }
     return { mode: "pct", sharedMax: 1, shared: false };

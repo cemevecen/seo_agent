@@ -1360,7 +1360,15 @@
     var nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
     return nice * exp;
   }
-  function multiScalePlan(maxes) {
+  /**
+   * Görünür serilerin max’larına göre ortak mutlak ölçek veya % ölçek.
+   * Metrik ekle/çıkar sonrası yalnız görünür serilerle yeniden hesaplanır.
+   * Ölçek oranı > 8 → her seri kendi max’ına göre % (ince çizgi olmaz).
+   */
+  function multiScalePlan(maxes, opts) {
+    opts = opts || {};
+    var ratioLimit = opts.ratioLimit != null ? Number(opts.ratioLimit) : 8;
+    if (!(ratioLimit > 0)) ratioLimit = 8;
     var vals = (maxes || []).map(Number).filter(function (m) {
       return Number.isFinite(m) && m > 0;
     });
@@ -1369,8 +1377,11 @@
     if (vals.length === 1) {
       return { mode: "value", sharedMax: niceMax(hi), shared: true };
     }
+    if (opts.forcePct) {
+      return { mode: "pct", sharedMax: 1, shared: false };
+    }
     var lo = Math.min.apply(null, vals);
-    if (lo > 0 && hi / lo <= 25) {
+    if (lo > 0 && hi / lo <= ratioLimit) {
       return { mode: "value", sharedMax: niceMax(hi), shared: true };
     }
     return { mode: "pct", sharedMax: 1, shared: false };
@@ -1745,7 +1756,14 @@
         color: colorForIaBundle(allDaily, b.metric)
       };
     });
-    var scalePlan = multiScalePlan(seriesMaps.map(function (s) { return s.max; }));
+    var countKinds = {};
+    seriesMaps.forEach(function (s) {
+      countKinds[s.countLike ? "c" : "r"] = true;
+    });
+    var scalePlan = multiScalePlan(
+      seriesMaps.map(function (s) { return s.max; }),
+      { forcePct: Object.keys(countKinds).length > 1, ratioLimit: 8 }
+    );
     var countLikeAxis = seriesMaps.length === 1
       ? !!seriesMaps[0].countLike
       : seriesMaps.every(function (s) { return s.countLike; });
