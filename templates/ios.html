@@ -560,26 +560,33 @@
   .ia-orbit--sm .ia-orbit__core { inset: 0.72rem; }
   .ia-stability-inline {
     min-width: 0;
-    max-width: min(28rem, calc(100vw - 8rem));
+    max-width: min(22rem, 100%);
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.4rem;
-  }
-  .ia-stability-versions {
-    display: flex;
+    flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.25rem;
+    gap: 0.35rem 0.5rem;
   }
+  .ia-stability-versions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.2rem;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ia-stability-versions::-webkit-scrollbar { display: none; }
   .ia-stability-version {
     border-radius: 9999px;
-    padding: 0.2rem 0.55rem;
-    font-size: 0.6875rem;
+    padding: 0.12rem 0.45rem;
+    font-size: 0.625rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
+    white-space: nowrap;
     transition: background 0.15s ease, color 0.15s ease;
   }
   .ia-stability-version.is-on {
@@ -604,64 +611,96 @@
     background: #3f3f46;
   }
   .ia-stability-inline .ia-stability-grid {
-    width: 100%;
+    width: auto;
+    min-width: 0;
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 0.35rem;
+    align-items: center;
   }
   .ia-stability-inline .sf-card {
-    padding: 0.4rem 0.55rem;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 0;
+    padding: 0.18rem 0.35rem 0.18rem 0.5rem;
+    border-radius: 9999px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252 / 0.9);
   }
-  .ia-stability-inline .sf-card__title {
-    font-size: 0.5625rem;
+  html.dark .ia-stability-inline .sf-card {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.65);
   }
-  .ia-stability-inline .sf-card__value {
-    font-size: clamp(0.85rem, 2.2vw, 1.05rem);
-    margin-top: 0.15rem;
-  }
+  .ia-stability-inline .sf-card__title,
   .ia-stability-inline .sf-card__sub,
   .ia-stability-inline .sf-card__extra {
-    display: none;
+    display: none !important;
   }
-  .ia-stability-inline .sf-card.is-pending .sf-card__sub,
-  .ia-stability-inline .sf-card.is-stale .sf-card__sub {
-    display: block;
+  .ia-stability-inline .sf-card__value {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
   .ia-sf-refresh {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    margin-top: 0.35rem;
-    padding: 0.2rem 0.55rem;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    margin: 0;
+    padding: 0;
     border-radius: 9999px;
-    border: 1px solid rgb(148 163 184 / 0.55);
-    background: rgb(255 255 255 / 0.9);
-    color: #334155;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #64748b;
     cursor: pointer;
+    flex: 0 0 auto;
   }
   .ia-sf-refresh:hover {
     border-color: #0ea5e9;
     color: #0284c7;
+    background: rgb(224 242 254 / 0.7);
   }
   .ia-sf-refresh:disabled {
-    opacity: 0.55;
+    opacity: 0.5;
     cursor: wait;
   }
+  .ia-sf-refresh svg {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
   html.dark .ia-sf-refresh {
-    background: rgb(24 24 27 / 0.85);
-    border-color: rgb(113 113 122 / 0.55);
-    color: #e4e4e7;
+    color: #a1a1aa;
+    background: transparent;
+  }
+  html.dark .ia-sf-refresh:hover {
+    color: #7dd3fc;
+    background: rgb(12 74 110 / 0.35);
   }
   .ia-stability-free-loading {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.5rem;
-    min-width: 2.75rem;
+    min-height: 1.35rem;
+    min-width: 1.35rem;
   }
   .ia-stability-free-loading.hidden {
     display: none;
+  }
+  .ia-stability-free-loading .ia-orbit--sm {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+  @media (max-width: 720px) {
+    .ia-stability-inline {
+      max-width: 100%;
+      justify-content: flex-start;
+      width: 100%;
+    }
   }
   html.dark .ia-orbit__ring { border-top-color: #38bdf8; border-right-color: rgba(56, 189, 248, 0.35); }
   html.dark .ia-orbit__ring--mid { border-top-color: #7dd3fc; }
@@ -781,17 +820,17 @@
   }
 </style>
 <div class="w-full max-w-none space-y-5" data-header-title="iOS · App Store Connect">
-  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+  <div class="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:px-4">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-800 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-200 dark:ring-sky-800">iOS</span>
-          <h1 class="text-xl font-extrabold text-slate-900 dark:text-slate-100">App Store Connect</h1>
-          <span class="font-mono text-xs text-slate-500 dark:text-zinc-400">com.nokta.Finans.Takip · 465599322</span>
+          <span class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-800 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-200 dark:ring-sky-800">iOS</span>
+          <h1 class="text-lg font-extrabold text-slate-900 dark:text-slate-100 sm:text-xl">App Store Connect</h1>
+          <span class="font-mono text-[11px] text-slate-500 dark:text-zinc-400">com.nokta.Finans.Takip · 465599322</span>
         </div>
-        <p id="ia-status" class="mt-1 text-xs text-slate-500 dark:text-zinc-400">Mac bridge sync (Play gibi) · Sales API yedek.</p>
+        <p id="ia-status" class="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">Mac bridge sync (Play gibi) · Sales API yedek.</p>
       </div>
-      <div class="flex shrink-0 flex-wrap items-center gap-2">
+      <div class="flex min-w-0 shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
         <div class="ia-stability-inline">
           <div id="ia-stability-versions" class="ia-stability-versions" aria-label="Son iOS sürümleri"></div>
           <div id="ia-stability-free" class="ia-stability-grid grid gap-1.5" style="--sf-n:1"></div>
@@ -805,19 +844,19 @@
           </div>
         </div>
         <a href="https://appstoreconnect.apple.com/apps/465599322/analytics/metrics" target="_blank" rel="noopener"
-           class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+           class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
           App Store Connect ↗
         </a>
         <button id="ia-btn-overview" type="button"
-                class="inline-flex h-9 items-center rounded-lg border border-sky-500 bg-sky-50 px-3 text-xs font-bold text-sky-900 transition dark:border-sky-500/70 dark:bg-sky-950/30 dark:text-sky-200">
+                class="inline-flex h-8 items-center rounded-lg border border-sky-500 bg-sky-50 px-2.5 text-[11px] font-bold text-sky-900 transition dark:border-sky-500/70 dark:bg-sky-950/30 dark:text-sky-200">
           Özet
         </button>
         <button id="ia-btn-reviews" type="button"
-                class="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-600 dark:hover:bg-sky-950/20">
+                class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-600 dark:hover:bg-sky-950/20">
           Yorumlar
         </button>
         <button id="ia-refresh" type="button"
-                class="inline-flex items-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
+                class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-2.5 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
           Yenile
         </button>
       </div>
@@ -3207,23 +3246,26 @@
       return (
         '<button type="button" data-ia-sf-refresh class="ia-sf-refresh" ' +
           (busy ? "disabled " : "") +
-          'title="Crashlytics skorunu yeniden çek">' +
-          (busy ? "Çekiliyor…" : "Yenile") +
+          'aria-label="Crashlytics skorunu yenile" title="Yenile">' +
+          '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+            '<path d="M21 12a9 9 0 1 1-2.6-6.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+            '<path d="M21 4v5h-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+          "</svg>" +
         "</button>"
       );
     }
     function card(title, sub, value, pct, extra, opts) {
       opts = opts || {};
-      var cls = "sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40";
+      var cls = "sf-card";
       if (opts.pending) cls += " is-pending";
       if (opts.stale) cls += " is-stale";
+      var tip = [title, sub, extra].filter(Boolean).join(" · ");
       return (
-        '<div class="' + cls + '" title="' + esc([title, sub, extra].filter(Boolean).join(" · ")) + '">' +
-          '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">' + esc(title) + "</p>" +
-          (sub ? '<p class="sf-card__sub mt-0.5 text-slate-400">' + esc(sub) + "</p>" : "") +
-          '<p class="sf-card__value font-extrabold tabular-nums ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
-          (extra ? '<p class="sf-card__extra mt-1 text-slate-500">' + extra + "</p>" : "") +
-          (opts.showRefresh ? refreshBtnHtml(!!state.loading) : "") +
+        '<div class="' + cls + '" title="' + esc(tip) + '">' +
+          '<p class="sf-card__title">' + esc(title) + "</p>" +
+          (sub ? '<p class="sf-card__sub">' + esc(sub) + "</p>" : "") +
+          '<p class="sf-card__value ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
+          refreshBtnHtml(!!state.loading) +
         "</div>"
       );
     }
@@ -3252,66 +3294,52 @@
       }).join("");
     }
     function renderCards() {
-      var cards = [];
       var row = selectedVersionRow();
       var overall = state.overall;
       var staleNote = lastHealthy && lastHealthy.saved_at_tr
         ? ("son sağlıklı · " + lastHealthy.saved_at_tr)
         : "son sağlıklı skor";
+      var pill;
 
       if (row && hasScore(row)) {
-        var extraBits = [];
-        if (overall && hasScore(overall)) extraBits.push("all " + esc(overall.crash_free_fmt));
-        if (row.fatal != null) extraBits.push("fatal " + esc(String(row.fatal)));
-        cards.push(card(
+        pill = card(
           "Crash-free · " + (row.label || ("v" + row.version)),
           row.period ? ("since release · " + row.period) : "Crashlytics",
           row.crash_free_fmt,
           row.crash_free_pct,
-          extraBits.join(" · ")
-        ));
+          overall && hasScore(overall) ? ("all " + overall.crash_free_fmt) : ""
+        );
       } else {
         var stale = healthyRowForVersion(row && row.version);
         if (stale && hasScore(stale)) {
-          cards.push(card(
+          pill = card(
             "Crashlytics · " + ((row && row.label) || stale.label || "sürüm"),
             staleNote,
             stale.crash_free_fmt,
             stale.crash_free_pct,
-            state.fromCache ? "önbellek" : "",
-            { stale: true, showRefresh: true }
-          ));
-        } else if (overall && hasScore(overall)) {
-          cards.push(card(
-            "Crashlytics · all",
-            "Canlı sürüm skoru yok · genel 7g",
-            overall.crash_free_fmt,
-            overall.crash_free_pct,
             "",
-            { showRefresh: true }
-          ));
+            { stale: true }
+          );
+        } else if (overall && hasScore(overall)) {
+          pill = card(
+            "Crashlytics · all",
+            "genel 7g",
+            overall.crash_free_fmt,
+            overall.crash_free_pct
+          );
         } else {
-          cards.push(card(
+          pill = card(
             "Crashlytics · " + ((row && row.label) || "sürüm"),
             "Veri bekleniyor",
             "—",
             null,
             "",
-            { pending: true, showRefresh: true }
-          ));
+            { pending: true }
+          );
         }
       }
-      if (overall && hasScore(overall) && row && hasScore(row)) {
-        cards.push(card(
-          "Crash-free · all",
-          "Crashlytics · 7d",
-          overall.crash_free_fmt,
-          overall.crash_free_pct
-        ));
-      }
-      var n = cards.length >= 4 ? 4 : Math.max(cards.length, 1);
-      el.style.setProperty("--sf-n", String(n));
-      el.innerHTML = cards.join("");
+      el.style.setProperty("--sf-n", "1");
+      el.innerHTML = pill;
     }
     function renderAll() {
       renderChips();

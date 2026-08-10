@@ -1,4 +1,9 @@
-"""Crash-free / ANR-free özet — Play vitals scrape öncelikli; Reporting yalnızca sürüm kırılımı için."""
+"""Crash-free / ANR-free özet.
+
+Android: Play vitals scrape öncelikli; Reporting sürüm kırılımı.
+iOS: ASC scrape sürüm listesi öncelikli; crash-free skor BQ (sessions) yedek —
+Firebase Console scrape henüz yok.
+"""
 
 from __future__ import annotations
 
@@ -196,6 +201,129 @@ def _latest_cf_since_release(
     if since_iso:
         live["since"] = since_iso
     return _cf_block(live, version=version)
+
+
+def _overall_cf_live(
+    cbq: Any,
+    *,
+    product_id: str,
+    plat: str,
+    days: int = 7,
+) -> dict[str, Any] | None:
+    """Platform geneli crash-free — canlı BQ (scrape yoksa yedek)."""
+    from backend.services.app_intel import APP_PRODUCTS
+
+    meta = APP_PRODUCTS.get(product_id) or {}
+    bundle = (
+        (meta.get("android_package") or "")
+        if plat == "android"
+        else (meta.get("ios_bundle_id") or "")
+    )
+    tbl = None
+    for p, t in cbq._platforms_for(product_id, plat):
+        if p == plat:
+            tbl = t
+            break
+    if not tbl or not bundle:
+        return None
+    try:
+        live = cbq.query_crash_free(plat, tbl, int(days), bundle=bundle, version=None)
+    except Exception as exc:  # noqa: BLE001
+        logger.info("overall CF live (%s): %s", plat, exc)
+        return None
+    return _cf_block(live)
+
+
+def _ios_versions_from_asc_scrape(product_id: str) -> list[dict[str, Any]]:
+    """ASC scrape workspace — sürüm adayları / crash adedi (crash-free değil).
+
+    Firebase Console scrape yok; ASC Analytics 'crashes' scrape öncelikli sinyal.
+    crash_free_fmt burada üretilmez — yalnızca chip listesi / ek bilgi.
+    """
+    out: list[dict[str, Any]] = []
+    try:
+        from backend.services.asc_console_store import load_asc_scrape_facts
+
+        facts, _meta = load_asc_scrape_facts()
+    except Exception:
+        logger.debug("ios ASC scrape read failed", exc_info=True)
+        facts = []
+
+    crash_total = None
+    for f in facts:
+        if not isinstance(f, dict):
+            continue
+        m = str(f.get("metric") or "").lower()
+        if m != "crashes":
+            continue
+        try:
+            crash_total = float(f.get("value"))
+        except (TypeError, ValueError):
+            continue
+    try:
+        from backend.services.store_version_releases import fetch_version_releases_for_product
+
+        rel = fetch_version_releases_for_product(product_id) or {}
+        ios_rels = list(rel.get("ios") or [])
+        ios_rels.sort(key=lambda x: str((x or {}).get("released_at") or ""), reverse=True)
+        for row in ios_rels[:3]:
+            ver = str((row or {}).get("version") or "").strip()
+            if not ver:
+                continue
+            item: dict[str, Any] = {
+                "version": ver,
+                "label": f"v{ver}",
+                "source": "asc_scrape",
+            }
+            if crash_total is not None and not out:
+                item["asc_crashes"] = int(crash_total)
+            out.append(item)
+    except Exception:
+        logger.debug("ios ASC version candidates failed", exc_info=True)
+    return out
+
+
+def _merge_ios_scrape_then_bq(
+    scrape_rows: list[dict[str, Any]],
+    bq_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Scrape sürüm sırasını koru; BQ'dan gelen crash_free_* alanlarını birleştir."""
+    by_ver: dict[str, dict[str, Any]] = {}
+    for r in bq_rows or []:
+        if isinstance(r, dict) and r.get("version"):
+            by_ver[str(r["version"])] = dict(r)
+    if not scrape_rows:
+        return list(bq_rows or [])
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for s in scrape_rows:
+        ver = str(s.get("version") or "").strip()
+        if not ver or ver in seen:
+            continue
+        seen.add(ver)
+        row = dict(s)
+        bq = by_ver.get(ver) or {}
+        for k, v in bq.items():
+            if v is None or v == "":
+                continue
+            if k.startswith("crash_free") or k in (
+                "period",
+                "period_days",
+                "since",
+                "method",
+                "fatal",
+                "anr",
+                "total_events",
+                "affected_users",
+            ):
+                row[k] = v
+        if row.get("crash_free_fmt"):
+            row["source"] = row.get("method") or bq.get("source") or "crashlytics_bq"
+        merged.append(row)
+    for ver, bq in by_ver.items():
+        if ver not in seen:
+            merged.append(bq)
+    return merged[:3]
 
 
 def _ios_version_candidates(payload: dict[str, Any], product_id: str) -> list[str]:
@@ -492,19 +620,46 @@ def _build_stability_free_payload_locked(
                 }
                 if plat == "ios":
                     try:
+                        scrape_rows = _ios_versions_from_asc_scrape(product_id)
                         candidates = _ios_version_candidates(payload, product_id)
+                        if not candidates and scrape_rows:
+                            candidates = [
+                                str(r.get("version"))
+                                for r in scrape_rows
+                                if r.get("version")
+                            ][:3]
                         # latest yoksa listedeki ilkini latest yap
                         if not ver and candidates:
                             ver = candidates[0]
                             plats[plat]["latest_version"] = ver
+                        # Skor yoksa canlı BQ zorunlu (soğuk peek yalnızca isim döndürüyordu)
+                        need_live = force_refresh or not latest_cf
                         ios_versions = _build_ios_version_rows(
                             cbq,
                             product_id=product_id,
                             payload=payload,
                             versions=candidates,
-                            force_refresh=force_refresh,
+                            force_refresh=need_live,
                         )
+                        if not any(
+                            isinstance(r, dict) and r.get("crash_free_fmt")
+                            for r in ios_versions
+                        ):
+                            ios_versions = _build_ios_version_rows(
+                                cbq,
+                                product_id=product_id,
+                                payload=payload or {},
+                                versions=candidates,
+                                force_refresh=True,
+                            )
+                        ios_versions = _merge_ios_scrape_then_bq(scrape_rows, ios_versions)
                         plats[plat]["versions"] = ios_versions
+                        if not overall:
+                            overall = _overall_cf_live(
+                                cbq, product_id=product_id, plat="ios", days=7
+                            )
+                            if overall:
+                                plats[plat]["overall"] = overall
                         # latest CF: chip listesindeki ilk sürümle hizala
                         if ios_versions:
                             top = ios_versions[0]
@@ -517,7 +672,9 @@ def _build_stability_free_payload_locked(
                                 if str(plats[plat].get("latest_version") or "") == str(
                                     top.get("version") or ""
                                 ) or not latest_cf:
-                                    plats[plat]["latest"] = _cf_block(top, version=top.get("version"))
+                                    plats[plat]["latest"] = _cf_block(
+                                        top, version=top.get("version")
+                                    )
                                     if top.get("fatal") is not None:
                                         plats[plat]["fatal"] = top.get("fatal")
                                     if top.get("anr") is not None:
@@ -532,20 +689,48 @@ def _build_stability_free_payload_locked(
                 "platforms": plats,
             }
         else:
-            # BQ soğuk — en azından son 3 iOS sürüm adını mağazadan ver (chip listesi)
+            # BQ soğuk — scrape sürümleri + canlı CF sorgusu (yalnızca isim bırakma)
             try:
-                candidates = _ios_version_candidates({}, product_id)
+                scrape_rows = _ios_versions_from_asc_scrape(product_id)
+                candidates = [str(r.get("version")) for r in scrape_rows if r.get("version")]
+                if not candidates:
+                    candidates = _ios_version_candidates({}, product_id)
+                ios_versions: list[dict[str, Any]] = []
+                overall = None
                 if candidates:
+                    ios_versions = _build_ios_version_rows(
+                        cbq,
+                        product_id=product_id,
+                        payload={},
+                        versions=candidates,
+                        force_refresh=True,
+                    )
+                    ios_versions = _merge_ios_scrape_then_bq(scrape_rows, ios_versions)
+                try:
+                    overall = _overall_cf_live(
+                        cbq, product_id=product_id, plat="ios", days=7
+                    )
+                except Exception:
+                    overall = None
+                latest = None
+                if ios_versions and ios_versions[0].get("crash_free_fmt"):
+                    latest = _cf_block(
+                        ios_versions[0], version=ios_versions[0].get("version")
+                    )
+                if candidates or overall:
                     crashlytics = {
                         "ok": True,
                         "days": 7,
+                        "source": "scrape_then_bq_live",
                         "platforms": {
                             "ios": {
-                                "overall": None,
-                                "latest_version": candidates[0],
-                                "latest": None,
-                                "versions": [
-                                    {"version": v, "label": f"v{v}"} for v in candidates
+                                "overall": overall,
+                                "latest_version": candidates[0] if candidates else None,
+                                "latest": latest,
+                                "versions": ios_versions
+                                or [
+                                    {"version": v, "label": f"v{v}", "source": "asc_scrape"}
+                                    for v in candidates
                                 ],
                             }
                         },
