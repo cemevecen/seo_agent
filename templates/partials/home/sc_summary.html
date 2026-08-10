@@ -80,6 +80,12 @@
     container-type: inline-size;
     container-name: home-kpi-cell;
   }
+  .home-sc-spark-cell .home-sc-top50 {
+    margin-top: 0.45rem;
+  }
+  .home-sc-spark-cell .home-top-pages-trigger {
+    margin-top: auto;
+  }
   html.dark .home-sc-spark-cell {
     border-color: rgb(71 85 105 / 0.8);
     background: rgb(30 41 59 / 0.85);
@@ -218,27 +224,29 @@
 {% if sites and sites[0] %}
   {% set site = sites[0] %}
   {% set device_order = ['Web', 'Mobil Web'] %}
-
-  {# 4 kart: Web clicks/pos + Mobil clicks/pos #}
-  <div class="home-sc-spark-grid home-sc-spark-grid--quad">
-    {% for want in device_order %}
-      {% for dev in site.devices if (dev.label or '') == want %}
-        {% set _ctone = dev.clicks_tone | default('flat') %}
-        {% set _ptone = dev.pos_tone | default('flat') %}
-        <div class="home-sc-spark-cell">
-          <div class="home-sc-cell-body">
-            <div class="home-sc-cell-main">
+  <div class="home-top-pages-root" data-home-top-pages-root>
+    {# GA4 gibi 4 KPI kartı: Web/Mobil × Clicks/Position; TOP 25 kart içinde #}
+    <div class="home-sc-spark-grid home-sc-spark-grid--quad">
+      {% for want in device_order %}
+        {% for dev in site.devices if (dev.label or '') == want %}
+          {% set _pages_id = 'sc-pages-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
+          {% set _kpi_id = 'sc-kpi-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
+          {% set _ctone = dev.clicks_tone | default('flat') %}
+          {% set _ptone = dev.pos_tone | default('flat') %}
+          <div class="home-sc-spark-cell">
+            <div class="home-kpi-head">
               <p class="home-label home-sc-metric-kicker">{{ want }} · Clicks</p>
-              {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
-                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                  <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
-                </svg>
-              {% else %}
-                <div class="home-sc-spark-empty" aria-hidden="true"></div>
-              {% endif %}
-              <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
-              <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
+              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want ~ ' KPI detay') }}
             </div>
+            {% if dev.clicks_spark and dev.clicks_spark.has_points and dev.clicks_spark.path_d %}
+              <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-sc-spark-line" d="{{ dev.clicks_spark.path_d }}"></path>
+              </svg>
+            {% else %}
+              <div class="home-sc-spark-empty" aria-hidden="true"></div>
+            {% endif %}
+            <p class="home-kpi home-delta mt-1 is-{{ _ctone }}">{{ dev.clicks_delta_fmt }}</p>
+            <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.clicks_last_fmt }} ← {{ dev.clicks_prev_fmt }}</p>
             {% if dev.top50_has_data %}
             <div class="home-sc-top50" title="Top 50 trafik sorgusu — toplam tıklama (aynı set, önceki {{ period_days | default(7) }}g)">
               <p class="home-label home-sc-top50-label">top 50</p>
@@ -248,22 +256,22 @@
               </p>
             </div>
             {% endif %}
+            {{ home_top_pages_trigger(_pages_id) }}
           </div>
-        </div>
-        <div class="home-sc-spark-cell">
-          <div class="home-sc-cell-body">
-            <div class="home-sc-cell-main">
+          <div class="home-sc-spark-cell">
+            <div class="home-kpi-head">
               <p class="home-label home-sc-metric-kicker">{{ want }} · Position</p>
-              {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
-                <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
-                  <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
-                </svg>
-              {% else %}
-                <div class="home-sc-spark-empty" aria-hidden="true"></div>
-              {% endif %}
-              <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
-              <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
+              {{ home_detail_kpis_trigger(_kpi_id, aria_label=want ~ ' KPI detay') }}
             </div>
+            {% if dev.pos_spark and dev.pos_spark.has_points and dev.pos_spark.path_d %}
+              <svg class="home-sc-spark-svg" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                <path class="home-sc-spark-line" d="{{ dev.pos_spark.path_d }}"></path>
+              </svg>
+            {% else %}
+              <div class="home-sc-spark-empty" aria-hidden="true"></div>
+            {% endif %}
+            <p class="home-kpi home-delta mt-1 is-{{ _ptone }}">{{ dev.pos_delta_fmt }}</p>
+            <p class="home-kpi-compare home-meta mt-0.5 tabular-nums text-slate-500 dark:text-slate-400">{{ dev.pos_last_fmt }} ← {{ dev.pos_prev_fmt }}</p>
             {% if dev.top50_has_data %}
             <div class="home-sc-top50" title="Top 50 trafik sorgusu — gösterim ağırlıklı ort. pozisyon">
               <p class="home-label home-sc-top50-label">top 50</p>
@@ -274,29 +282,18 @@
             </div>
             {% endif %}
           </div>
-        </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+    {% for want in device_order %}
+      {% for dev in site.devices if (dev.label or '') == want %}
+        {% set _pages_id = 'sc-pages-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
+        {% set _kpi_id = 'sc-kpi-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
+        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay', cur_label=cur_period_label | default('Son dönem'), prev_label=prev_period_label | default('Önceki dönem')) }}
+        {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=want ~ ' · top 25 sayfa') }}
       {% endfor %}
     {% endfor %}
   </div>
-
-  {% for want in device_order %}
-    {% for dev in site.devices if (dev.label or '') == want %}
-      {% set _pages_id = 'sc-pages-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
-      {% set _kpi_id = 'sc-kpi-' ~ site.site_id ~ '-' ~ want | replace(' ', '-') | lower %}
-      <div class="home-sc-device-band home-top-pages-root" data-device="{{ want }}" data-home-top-pages-root>
-        <div class="home-sc-device-head">
-          <div class="home-sc-device-head-left">
-            <span class="home-sc-device-dot" aria-hidden="true"></span>
-            <p class="home-label home-sc-device-title">{{ want }}</p>
-          </div>
-          {{ home_detail_kpis_trigger(_kpi_id, aria_label=want ~ ' KPI detay') }}
-        </div>
-        {{ home_top_pages_trigger(_pages_id) }}
-        {{ home_detail_kpis_panel(_kpi_id, dev.detail_kpis | default([]), title=want ~ ' · KPI detay', cur_label=cur_period_label | default('Son dönem'), prev_label=prev_period_label | default('Önceki dönem')) }}
-        {{ home_top_pages_panel(_pages_id, dev.top_pages | default([]), metric_label='clicks', metric_header='Clicks', title=want ~ ' · top 25 sayfa') }}
-      </div>
-    {% endfor %}
-  {% endfor %}
 {% else %}
   <p class="home-meta mt-4 text-center text-slate-400 dark:text-slate-500">Veri yok</p>
 {% endif %}
