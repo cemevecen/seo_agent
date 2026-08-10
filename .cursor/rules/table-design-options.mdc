@@ -1,0 +1,23 @@
+---
+description: Android/iOS tablo tasarım önerileri — konuşmalarda kaybolmasın
+alwaysApply: true
+---
+
+# Tablo tasarım önerileri (kalıcı)
+
+Android/iOS **veri tablosu** görünümü konuşulurken (liste, `#pa-table-shell`, `#ia-table-shell`, zebra/pin/heat vb.) kullanıcıya şu **10 seçeneği unutturma**; özet/truncation sonrası da hatırlat:
+
+Kaynak: `docs/table-design-options.md` · çizim: `docs/assets/table-10-interactive-designs.png`
+
+1. **Zebra** — sticky renkli header + satır şeritleri  
+2. **Yoğunluk** — Kompakt / Rahat fiziksel toggle  
+3. **Pin** — KIRILIM sabit, diğerleri yatay kayar  
+4. **Hover** — satır lift + sol accent  
+5. **Spark** — hücre içinde mini sparkline  
+6. **Heat** — değere göre hücre boyası + legend  
+7. **Expand** — güne özel bağımsız açılır satır  
+8. **Sürükle** — kolon header’dan yeniden sıralama  
+9. **Karşılaştır** — dönem / önceki + Δ pill  
+10. **Fit** — kart içeriğe yapışır, altta resize handle  
+
+Seçim gelince `docs/table-design-options.md` içindeki **Durum** satırını güncelle.
