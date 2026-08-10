@@ -3207,7 +3207,7 @@
         var st = stats[i];
         var heatOn = ux && ux.isHeatEnabled();
         var t = heatOn && ux ? ux.heatT(v, st.min, st.max) : null;
-        var bg = t == null ? "" : ' background:' + ux.heatBackground(col.color, t) + ";';
+        var bg = t == null ? "" : "background:" + ux.heatBackground(col.color, t) + ";";
         var countLike = metricIsCountLike(col.bundle.metric);
         cells +=
           '<td class="mtux-heat-cell px-1.5 py-1.5 tabular-nums font-semibold text-slate-900 sm:px-2 dark:text-zinc-100" style="' + bg + '" title="' +
