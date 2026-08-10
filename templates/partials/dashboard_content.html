@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v47-rt-cols">
+<style id="home-site-borders" data-home-css="v48-split-logos">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -1574,6 +1574,10 @@
     box-shadow:
       0 0 0 2px rgb(24 24 27 / 0.95),
       0 6px 18px rgb(0 0 0 / 0.4);
+  }
+  /* Split: dış kenar doviz/sinemalar logoları gizlensin (ortadaki madalyon kalsın) */
+  #home-board[data-home-focus="split"] .home-project-logo--out {
+    display: none !important;
   }
   /* Split: madalyon tam opak (siliklik yalnızca tekli focus’ta idle markaya) */
   #home-board[data-home-focus="split"] .home-focus-split {
