@@ -2219,7 +2219,7 @@
     var product = mode === 'sinemalar' ? 'sinemalar' : 'doviz';
     var sec = board.querySelector('[data-home-container="crashlytics"]');
     if (!sec) return;
-    var url = '/api/home/crashlytics?product=' + product + '&v=23';
+    var url = '/api/home/crashlytics?product=' + product + '&v=24';
     var root = null;
     try { root = sec.querySelector('[data-home-crash-root]'); } catch (e) {}
     var loaded = (root && root.getAttribute('data-home-app-product')) || '';
