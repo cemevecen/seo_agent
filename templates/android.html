@@ -3157,7 +3157,8 @@
       colItems.forEach(function (col, i) {
         var v = maps[i][key];
         var st = stats[i];
-        var t = ux ? ux.heatT(v, st.min, st.max) : null;
+        var heatOn = ux && ux.isHeatEnabled();
+        var t = heatOn && ux ? ux.heatT(v, st.min, st.max) : null;
         var bg = t == null ? "" : ' background:' + ux.heatBackground(col.color, t) + ";';
         var countLike = metricIsCountLike(col.bundle.metric);
         cells +=
