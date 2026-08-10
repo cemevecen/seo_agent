@@ -215,6 +215,273 @@
     background: #18181b;
     color: #e4e4e7;
   }
+
+  /* Metric KPI · ss1 glass (<3 / ≤3) · ss2 neon (>3) */
+  #pa-metric-kpis.metric-kpi-grid--ss1 {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+  }
+  #pa-metric-kpis.metric-kpi-grid--ss2 {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: 0.65rem;
+  }
+  .metric-kpi-ss1 {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 252, 0.55));
+    box-shadow:
+      0 10px 28px rgb(15 23 42 / 0.08),
+      inset 0 1px 0 rgb(255 255 255 / 0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 0.95rem 1rem 0.9rem;
+  }
+  .metric-kpi-ss1::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    bottom: 0.55rem;
+    width: 3px;
+    border-radius: 9999px;
+    background: var(--kpi-color, #2563eb);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--kpi-color, #2563eb) 55%, transparent);
+  }
+  html.dark .metric-kpi-ss1,
+  html.midnight .metric-kpi-ss1 {
+    border-color: rgba(63, 63, 70, 0.85);
+    background: linear-gradient(135deg, rgba(24, 24, 27, 0.88), rgba(39, 39, 42, 0.72));
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.35);
+  }
+  .metric-kpi-ss1-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .metric-kpi-ss1-id {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.55rem;
+  }
+  .metric-kpi-ss1-icon {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.65rem;
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 16%, white);
+    color: var(--kpi-color, #2563eb);
+    flex-shrink: 0;
+  }
+  html.dark .metric-kpi-ss1-icon {
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 22%, #18181b);
+  }
+  .metric-kpi-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--kpi-color, #2563eb);
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 12%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #2563eb) 28%, transparent);
+  }
+  html.dark .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #2563eb) 18%, #18181b);
+  }
+  .metric-kpi-ss1-sub {
+    margin-top: 0.2rem;
+    font-size: 0.68rem;
+    color: #64748b;
+    line-height: 1.3;
+  }
+  html.dark .metric-kpi-ss1-sub { color: #a1a1aa; }
+  .metric-kpi-ss1-body {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 0.85rem;
+    margin-top: 0.75rem;
+    align-items: end;
+  }
+  @media (max-width: 640px) {
+    .metric-kpi-ss1-body { grid-template-columns: 1fr; }
+  }
+  .metric-kpi-kicker {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .metric-kpi-ss1-value {
+    margin-top: 0.2rem;
+    font-size: clamp(1.55rem, 2.4vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+  }
+  html.dark .metric-kpi-ss1-value { color: #f8fafc; }
+  .metric-kpi-spark {
+    display: block;
+    width: 100%;
+    height: 3.1rem;
+  }
+  .metric-kpi-ss1-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.45rem;
+  }
+  .metric-kpi-ss1-stats strong {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  html.dark .metric-kpi-ss1-stats strong { color: #f4f4f5; }
+
+  .metric-kpi-ss2 {
+    position: relative;
+    min-width: 0;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--kpi-color, #38bdf8) 35%, #1e293b);
+    background: linear-gradient(160deg, #0b1220 0%, #111827 100%);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--kpi-color, #38bdf8) 18%, transparent),
+      0 0 22px color-mix(in srgb, var(--kpi-color, #38bdf8) 16%, transparent);
+    padding: 0.8rem 0.75rem 0.55rem;
+    color: #e2e8f0;
+  }
+  .metric-kpi-ss2-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .metric-kpi-ss2-head .metric-kpi-chip {
+    background: color-mix(in srgb, var(--kpi-color, #38bdf8) 16%, #0b1220);
+    color: #f8fafc;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-color, #38bdf8) 35%, transparent);
+  }
+  .metric-kpi-ss2-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(3.5rem, 0.85fr);
+    gap: 0.45rem;
+    align-items: end;
+    margin-top: 0.55rem;
+  }
+  .metric-kpi-ss2-value {
+    font-size: clamp(1.15rem, 1.8vw, 1.55rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+  }
+  .metric-kpi-ss2-delta {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .metric-kpi-ss2-delta.is-up { color: #34d399; }
+  .metric-kpi-ss2-delta.is-down { color: #fb7185; }
+  .metric-kpi-ss2-delta.is-flat { color: #94a3b8; }
+  .metric-kpi-ss2 .metric-kpi-spark { height: 2.4rem; }
+  .metric-kpi-ss2-expand {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    margin-top: 0.45rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+  }
+  .metric-kpi-ss2-expand:hover { color: #e2e8f0; }
+  .metric-kpi-ss2-panel {
+    display: none;
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.65rem;
+  }
+  .metric-kpi-ss2.is-open .metric-kpi-ss2-panel { display: grid; }
+  .metric-kpi-ss2.is-open .metric-kpi-ss2-expand .metric-kpi-chev { transform: rotate(180deg); }
+  .metric-kpi-ss2-panel .metric-kpi-kicker { color: #64748b; }
+  .metric-kpi-ss2-panel strong {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #f8fafc;
+    font-variant-numeric: tabular-nums;
+  }
+  .metric-kpi-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin-left: auto;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    color: #94a3b8;
+    font-size: 0.58rem;
+    font-weight: 700;
+    cursor: help;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .metric-kpi-info .metric-kpi-tip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.35rem);
+    z-index: 40;
+    width: max-content;
+    max-width: min(16rem, 70vw);
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.55rem;
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    font-size: 0.65rem;
+    font-weight: 500;
+    line-height: 1.35;
+    text-transform: none;
+    letter-spacing: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .metric-kpi-info:hover .metric-kpi-tip,
+  .metric-kpi-info:focus-visible .metric-kpi-tip {
+    opacity: 1;
+    visibility: visible;
+  }
   /* Dark mode: patlayan beyaz yüzeyler + mat metin/çerçeve */
   html.dark .android-play-page {
     color: #b8b8bf;
@@ -3080,24 +3347,60 @@
   function paMetricKpiGridClass(n) {
     return "grid w-full min-w-0 gap-2 sm:gap-3";
   }
-  function applyPaMetricKpiLayout(el, n, rich) {
-    if (!el) return;
-    el.className = paMetricKpiGridClass(n);
-    el.style.removeProperty("grid-template-columns");
-    if (rich) {
-      if (n <= 1) el.style.gridTemplateColumns = "minmax(0, 1fr)";
-      else if (n === 2) el.style.gridTemplateColumns = "repeat(2, minmax(0, 1fr))";
-      else el.style.gridTemplateColumns = "repeat(3, minmax(0, 1fr))";
-    } else {
-      /* 4+: tek satırda container genişliğine sığdır */
-      el.style.gridTemplateColumns = "repeat(" + Math.max(n, 1) + ", minmax(0, 1fr))";
+  function seriesSparkSvg(series, color, w, h) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      var n = Number(r && r.value);
+      if (Number.isFinite(n)) vals.push(n);
+    });
+    if (vals.length < 2) {
+      return '<div class="metric-kpi-spark" style="opacity:.35" aria-hidden="true"></div>';
     }
+    var min = Math.min.apply(null, vals);
+    var max = Math.max.apply(null, vals);
+    var span = (max - min) || 1;
+    var pts = vals.map(function (v, i) {
+      var x = (i / (vals.length - 1)) * w;
+      var y = h - ((v - min) / span) * (h - 4) - 2;
+      return [x, y];
+    });
+    var line = pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var area =
+      "M" + pts[0][0].toFixed(1) + " " + h.toFixed(1) +
+      " L" + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L") +
+      " L" + pts[pts.length - 1][0].toFixed(1) + " " + h.toFixed(1) + " Z";
+    return (
+      '<svg class="metric-kpi-spark" viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path d="' + area + '" fill="' + color + '" fill-opacity="0.16"></path>' +
+        '<polyline points="' + line + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline>' +
+      "</svg>"
+    );
+  }
+  function seriesDeltaPct(series) {
+    var vals = [];
+    (series || []).forEach(function (r) {
+      var n = Number(r && r.value);
+      if (Number.isFinite(n)) vals.push(n);
+    });
+    if (vals.length < 2 || !vals[0]) return null;
+    return Math.round(((vals[vals.length - 1] - vals[0]) / Math.abs(vals[0])) * 1000) / 10;
+  }
+  function applyPaMetricKpiLayout(el, n, mode) {
+    if (!el) return;
+    el.style.removeProperty("grid-template-columns");
+    if (mode === "ss1") {
+      el.className = "metric-kpi-grid metric-kpi-grid--ss1";
+      return;
+    }
+    el.className = "metric-kpi-grid metric-kpi-grid--ss2";
+    el.style.gridTemplateColumns = "repeat(" + Math.max(n, 1) + ", minmax(0, 1fr))";
   }
   function showPaSimpleKpis() {
     if (paMetricKpis) {
       paMetricKpis.classList.add("hidden");
       paMetricKpis.innerHTML = "";
       paMetricKpis.style.removeProperty("grid-template-columns");
+      paMetricKpis.className = "hidden grid grid-cols-1 gap-3";
     }
     if (paKpiGrid) paKpiGrid.classList.remove("hidden");
   }
@@ -3112,61 +3415,98 @@
     setCompareKpisVisible(false);
     if (paKpiGrid) paKpiGrid.classList.add("hidden");
     paMetricKpis.classList.remove("hidden");
-    var rich = list.length <= 3;
-    applyPaMetricKpiLayout(paMetricKpis, list.length, rich);
+    /* ≤3 → ss1 glass; ≥4 → ss2 neon (3'ten az / üçten çok) */
+    var mode = list.length < 3 ? "ss1" : (list.length > 3 ? "ss2" : "ss1");
+    applyPaMetricKpiLayout(paMetricKpis, list.length, mode);
     var cmp = compareInfo || null;
     paMetricKpis.innerHTML = list.map(function (pack, idx) {
       var color = overviewMetricColor(pack.metric) || paMetricColor(idx);
       var st = seriesStats(pack.series);
       var avg = packAverage(pack);
       var countLike = metricIsCountLike(pack.metric);
-      var mode = pack.total_mode || "sum";
-      var totalLabel = mode === "last" ? "Son gün" : (mode === "avg" ? "API ort." : "Toplam");
+      var modeTotal = pack.total_mode || "sum";
       var totalVal = pack.total != null && Number.isFinite(Number(pack.total))
-        ? fmtNum(pack.total, countLike && mode !== "avg")
-        : "—";
-      var extras = "";
-      var pad = rich ? "p-3" : "p-2.5 sm:p-3";
-      var numCls = rich ? "text-2xl" : (list.length >= 6 ? "text-lg sm:text-xl" : "text-xl sm:text-2xl");
-      if (rich) {
-        var cmpHtml = "";
+        ? fmtNum(pack.total, countLike && modeTotal !== "avg")
+        : fmtNum(st.sum, countLike);
+      var label = pack.label || pack.metric || "";
+      var tip = typeof paMetricHelp === "function" ? paMetricHelp(pack.metric) : "";
+      var sub = tip ? String(tip).split(".")[0] + "." : "";
+      var spark = seriesSparkSvg(pack.series, color, 220, 56);
+      var infoBtn =
+        '<button type="button" class="metric-kpi-info" data-pa-metric-info aria-label="' + esc(label) + ' bilgisi">' +
+          "i<span class=\"metric-kpi-tip\" role=\"tooltip\">" + esc(tip) + "</span></button>";
+
+      if (mode === "ss1") {
+        var cmpBits = "";
         if (list.length === 1 && cmp && cmp.hasPrev) {
-          cmpHtml =
-            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Önceki</p>' +
-              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(cmp.prevTotal, countLike && mode !== "avg")) + "</p></div>" +
-            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Değişim</p>' +
-              '<p class="mt-0.5 text-sm font-bold tabular-nums ' +
-                (cmp.deltaPct == null ? "text-slate-800 dark:text-zinc-100" : (cmp.deltaPct >= 0 ? "text-emerald-700" : "text-rose-600")) + '">' +
-                (cmp.deltaPct == null ? "—" : esc((cmp.deltaPct >= 0 ? "+" : "") + cmp.deltaPct + "%")) +
-              "</p></div>";
+          cmpBits =
+            '<div><p class="metric-kpi-kicker">Önceki</p><strong>' + esc(fmtNum(cmp.prevTotal, countLike && modeTotal !== "avg")) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Değişim</p><strong>' +
+              (cmp.deltaPct == null ? "—" : esc((cmp.deltaPct >= 0 ? "+" : "") + cmp.deltaPct + "%")) +
+            "</strong></div>";
         }
-        extras =
-          '<div class="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-200/80 pt-2 dark:border-zinc-700/80">' +
-            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">' + esc(totalLabel) + "</p>" +
-              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(totalVal) + "</p></div>" +
-            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Min</p>' +
-              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.min, countLike)) + "</p></div>" +
-            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Max</p>' +
-              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.max, countLike)) + "</p></div>" +
-            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Son</p>' +
-              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(fmtNum(st.last, countLike)) + "</p></div>" +
-            '<div><p class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Nokta</p>' +
-              '<p class="mt-0.5 text-sm font-bold tabular-nums text-slate-800 dark:text-zinc-100">' + esc(String(st.n || 0)) + "</p></div>" +
-            cmpHtml +
-          "</div>";
+        return (
+          '<article class="metric-kpi-ss1" style="--kpi-color:' + color + '">' +
+            '<div class="metric-kpi-ss1-top">' +
+              '<div class="metric-kpi-ss1-id">' +
+                '<span class="metric-kpi-ss1-icon" aria-hidden="true">' +
+                  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 10.5 L5.5 7 L8.2 9.2 L14 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                "</span>" +
+                '<div class="min-w-0">' +
+                  '<div class="flex items-center gap-1.5"><span class="metric-kpi-chip">' + esc(label) + "</span></div>" +
+                  (sub ? '<p class="metric-kpi-ss1-sub truncate" title="' + esc(sub) + '">' + esc(sub) + "</p>" : "") +
+                "</div>" +
+              "</div>" +
+              infoBtn +
+            "</div>" +
+            '<div class="metric-kpi-ss1-body">' +
+              '<div>' +
+                '<p class="metric-kpi-kicker">Ortalama</p>' +
+                '<p class="metric-kpi-ss1-value">' + esc(fmtNum(avg, false)) + "</p>" +
+              "</div>" +
+              '<div class="min-w-0">' +
+                spark +
+                '<div class="metric-kpi-ss1-stats">' +
+                  '<div><p class="metric-kpi-kicker">Toplam</p><strong>' + esc(totalVal) + "</strong></div>" +
+                  '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min, countLike)) + "</strong></div>" +
+                  '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max, countLike)) + "</strong></div>" +
+                  cmpBits +
+                "</div>" +
+              "</div>" +
+            "</div>" +
+          "</article>"
+        );
       }
+
+      var dlt = seriesDeltaPct(pack.series);
+      var dltCls = dlt == null ? "is-flat" : (dlt >= 0 ? "is-up" : "is-down");
+      var dltTxt = dlt == null ? "—" : ((dlt >= 0 ? "↑ " : "↓ ") + Math.abs(dlt).toFixed(1) + "%");
       return (
-        '<div class="min-w-0 rounded-xl border border-slate-200 bg-slate-50/80 ' + pad + ' dark:border-zinc-700 dark:bg-zinc-950/40" style="border-left:3px solid ' + color + '">' +
-          '<div class="flex min-w-0 items-center gap-1.5">' +
-            '<span class="h-2 w-2 shrink-0 rounded-full" style="background:' + color + '" aria-hidden="true"></span>' +
-            '<p class="truncate text-[10px] font-bold uppercase tracking-wide" style="color:' + color + '" title="' + esc(pack.label || pack.metric) + '">' +
-              esc(pack.label || pack.metric) +
-            "</p>" +
+        '<article class="metric-kpi-ss2" style="--kpi-color:' + color + '" data-metric-kpi-card>' +
+          '<div class="metric-kpi-ss2-head">' +
+            '<span class="metric-kpi-chip truncate">' + esc(label) + "</span>" +
+            infoBtn +
           "</div>" +
-          '<p class="mt-1 ' + numCls + ' font-extrabold tabular-nums leading-tight" style="color:' + color + '">' + esc(fmtNum(avg, false)) + "</p>" +
-          '<p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Ortalama</p>' +
-          extras +
-        "</div>"
+          '<div class="metric-kpi-ss2-main">' +
+            '<div class="min-w-0">' +
+              '<p class="metric-kpi-ss2-value">' + esc(fmtNum(avg, false)) + "</p>" +
+              '<p class="metric-kpi-ss2-delta ' + dltCls + '">' + esc(dltTxt) + "</p>" +
+            "</div>" +
+            '<div class="min-w-0">' + spark + "</div>" +
+          "</div>" +
+          '<div class="metric-kpi-ss2-panel">' +
+            '<div><p class="metric-kpi-kicker">Toplam</p><strong>' + esc(totalVal) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Ortalama</p><strong>' + esc(fmtNum(avg, false)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Min</p><strong>' + esc(fmtNum(st.min, countLike)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Max</p><strong>' + esc(fmtNum(st.max, countLike)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Son</p><strong>' + esc(fmtNum(st.last, countLike)) + "</strong></div>" +
+            '<div><p class="metric-kpi-kicker">Nokta</p><strong>' + esc(String(st.n || 0)) + "</strong></div>" +
+          "</div>" +
+          '<button type="button" class="metric-kpi-ss2-expand" data-metric-kpi-expand>' +
+            '<span>Click to expand</span>' +
+            '<svg class="metric-kpi-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 4.5 L6 7.5 L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          "</button>" +
+        "</article>"
       );
     }).join("");
   }
@@ -5031,6 +5371,23 @@
       togglePaMetric(key);
     });
     paMetricList.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
+  }
+  if (paMetricKpis) {
+    paMetricKpis.addEventListener("click", function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest("[data-pa-metric-info]")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      var expand = ev.target && ev.target.closest ? ev.target.closest("[data-metric-kpi-expand]") : null;
+      if (!expand) return;
+      ev.preventDefault();
+      var card = expand.closest("[data-metric-kpi-card]");
+      if (!card) return;
+      var open = card.classList.toggle("is-open");
+      var label = expand.querySelector("span");
+      if (label) label.textContent = open ? "Click to collapse" : "Click to expand";
+    });
   }
   document.addEventListener("mousedown", function (ev) {
     if (!paMetricList || paMetricList.classList.contains("hidden")) return;
