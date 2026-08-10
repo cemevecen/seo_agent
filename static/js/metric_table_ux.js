@@ -16,14 +16,16 @@
     }
     style.textContent =
       ".mtux-heat-cell{border-radius:0.35rem;}" +
-      ".mtux-legend{display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem 0.75rem;padding:0.45rem 0.75rem 0.55rem;" +
+      ".mtux-legend{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:0.5rem 0.75rem;" +
+      "padding:0.4rem 0.75rem 0.45rem;border-bottom:1px solid rgba(148,163,184,0.28);" +
       "font-size:0.62rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#94a3b8;}" +
-      "html.dark .mtux-legend{color:#71717a;}" +
+      "html.dark .mtux-legend{color:#71717a;border-bottom-color:rgba(113,113,122,0.45);}" +
       ".mtux-legend-bar{display:flex;height:0.4rem;width:7.5rem;border-radius:9999px;overflow:hidden;" +
       "border:1px solid rgba(148,163,184,0.35);}" +
       ".mtux-legend-bar>span{flex:1;}" +
       ".mtux-legend.is-off .mtux-legend-bar{opacity:0.25;filter:grayscale(1);}" +
-      ".mtux-heat-toggle{margin-left:auto;display:inline-flex;align-items:center;gap:0.35rem;" +
+      ".mtux-legend-scale{margin-right:auto;}" +
+      ".mtux-heat-toggle{display:inline-flex;align-items:center;gap:0.35rem;" +
       "padding:0.2rem 0.55rem;border-radius:9999px;border:1px solid rgba(148,163,184,0.45);" +
       "background:transparent;color:#64748b;font-size:0.62rem;font-weight:700;letter-spacing:0.03em;" +
       "text-transform:uppercase;cursor:pointer;}" +
@@ -151,12 +153,23 @@
     if (scale) scale.style.visibility = on ? "visible" : "hidden";
   }
 
+  function placeLegendAtTop(shell, legend) {
+    if (!shell || !legend) return;
+    var scroll = shell.querySelector(".rdl-scroll") || shell.querySelector("[id$='-table-wrap']");
+    if (scroll && scroll.parentNode === shell) {
+      if (legend.nextSibling !== scroll) shell.insertBefore(legend, scroll);
+    } else if (shell.firstChild !== legend) {
+      shell.insertBefore(legend, shell.firstChild);
+    }
+  }
+
   function ensureLegend(shell, opts) {
     opts = opts || {};
     if (!shell) return;
     var onToggle = typeof opts.onHeatToggle === "function" ? opts.onHeatToggle : null;
     var existing = shell.querySelector(".mtux-legend");
     if (existing) {
+      placeLegendAtTop(shell, existing);
       if (onToggle && !existing._mtuxHeatBound) {
         existing._mtuxHeatBound = true;
         existing.addEventListener("click", function (ev) {
@@ -171,7 +184,6 @@
       syncLegendState(existing);
       return existing;
     }
-    var scroll = shell.querySelector(".rdl-scroll") || shell.querySelector("[id$='-table-wrap']");
     var legend = document.createElement("div");
     legend.className = "mtux-legend";
     legend.innerHTML =
@@ -185,11 +197,7 @@
         "<span>düşük → yüksek</span>" +
       "</span>" +
       '<button type="button" class="mtux-heat-toggle">Renkleri kaldır</button>';
-    if (scroll && scroll.parentNode === shell) {
-      shell.insertBefore(legend, scroll.nextSibling);
-    } else {
-      shell.appendChild(legend);
-    }
+    placeLegendAtTop(shell, legend);
     legend._mtuxHeatBound = true;
     legend.addEventListener("click", function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest(".mtux-heat-toggle") : null;
