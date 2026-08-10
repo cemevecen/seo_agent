@@ -8879,13 +8879,13 @@ def _home_store_firebase_card_from_tabs(
         _home_sf_metric(
             "Crash-free",
             fb24.get("crash_free_fmt"),
-            sub=f"S-Firebase · son sürüm · 24s · {lv_label}",
+            sub=f"Firebase · son sürüm · 24s · {lv_label}",
             pct=fb24.get("crash_free_pct"),
         ),
         _home_sf_metric(
             "Crash-free",
             fb7.get("crash_free_fmt"),
-            sub=f"S-Firebase · son sürüm · 7g · {lv_label}",
+            sub=f"Firebase · son sürüm · 7g · {lv_label}",
             pct=fb7.get("crash_free_pct"),
         ),
         _home_sf_metric(
@@ -8922,13 +8922,13 @@ def _home_store_firebase_card_from_tabs(
         _home_sf_metric(
             "Crash-free",
             ios24.get("crash_free_fmt"),
-            sub=f"S-Firebase · son sürüm · 24s · v{ios_ver}",
+            sub=f"Firebase · son sürüm · 24s · v{ios_ver}",
             pct=ios24.get("crash_free_pct"),
         ),
         _home_sf_metric(
             "Crash-free",
             ios7.get("crash_free_fmt"),
-            sub=f"S-Firebase · son sürüm · 7g · v{ios_ver}",
+            sub=f"Firebase · son sürüm · 7g · v{ios_ver}",
             pct=ios7.get("crash_free_pct"),
         ),
     ]

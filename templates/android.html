@@ -6195,8 +6195,8 @@
       ? ("Son sağlıklı" + (data._healthy_at ? (" · " + data._healthy_at) : ""))
       : "";
 
-    var fb24Sub = "S-Firebase · son sürüm · 24s" + (fbVer ? (" · " + fbVer) : "");
-    var fb7Sub = "S-Firebase · son sürüm · 7g" + (fbVer ? (" · " + fbVer) : "");
+    var fb24Sub = "Firebase · son sürüm · 24s" + (fbVer ? (" · " + fbVer) : "");
+    var fb7Sub = "Firebase · son sürüm · 7g" + (fbVer ? (" · " + fbVer) : "");
     cards.push(renderStabilityFreeCard({
       title: "Crash-free",
       sub: staleSub && !paSfHas(fb24 && fb24.crash_free_fmt) ? staleSub : fb24Sub,
