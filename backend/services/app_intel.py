@@ -2265,12 +2265,25 @@ def get_raw_product_data(product_id: str, *, force_refresh: bool = False, cache_
         i_snap = {**(i_snap or {}), **{k: v for k, v in i_lookup.items() if v is not None}}
     # SSR JSON ile çekilen ülkeye özgü gerçek dağılım — öncelikli kaynak
     if i_ssr_ratings:
-        i_snap = {**(i_snap or {}), "star_histogram": i_ssr_ratings.get("star_histogram")}
+        hist = i_ssr_ratings.get("star_histogram")
+        # Boş/None histogram ile mevcut dağılımı silme (SSR kısmi veya timeout artefaktı)
+        if isinstance(hist, dict) and any(int(v or 0) > 0 for v in hist.values()):
+            i_snap = {**(i_snap or {}), "star_histogram": hist}
         # SSR'dan gelen score/count, iTunes lookup'tan gelmiyorsa kullan
         if i_ssr_ratings.get("score") is not None and not (i_snap or {}).get("score"):
             i_snap = {**(i_snap or {}), "score": i_ssr_ratings["score"]}
         if i_ssr_ratings.get("ratings_count") is not None and not (i_snap or {}).get("ratings_count"):
             i_snap = {**(i_snap or {}), "ratings_count": i_ssr_ratings["ratings_count"]}
+    # Önceki disk cache'te yıldız dağılımı varsa ve yeni snap'te yoksa koru
+    prev_disk = _load_disk_raw(product_id)
+    prev_hist = None
+    if isinstance(prev_disk, dict):
+        prev_hist = ((prev_disk.get("ios") or {}).get("meta") or {}).get("star_histogram")
+    cur_hist = (i_snap or {}).get("star_histogram")
+    cur_ok = isinstance(cur_hist, dict) and any(int(v or 0) > 0 for v in cur_hist.values())
+    prev_ok = isinstance(prev_hist, dict) and any(int(v or 0) > 0 for v in prev_hist.values())
+    if prev_ok and not cur_ok:
+        i_snap = {**(i_snap or {}), "star_histogram": prev_hist}
     # iOS kategori sırası birden fazla HTTP turu yapabilir; üst süre ile sınırla (Railway ~60s proxy).
     def _ios_rank_job() -> dict[str, Any] | None:
         return _fetch_ios_category_rank(

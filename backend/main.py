@@ -11655,6 +11655,82 @@ def _home_star_bars(hist: dict | None) -> list[dict]:
     return bars
 
 
+def _home_coerce_star_hist(meta: dict | None, *, key: str) -> dict | None:
+    """Android/iOS meta’dan yıldız dağılımını bul (liste veya dict)."""
+    if not isinstance(meta, dict):
+        return None
+
+    def _dict_ok(d: dict) -> bool:
+        try:
+            return any(
+                int(d.get(str(s)) if d.get(str(s)) is not None else d.get(s) or 0) > 0
+                for s in range(1, 6)
+            )
+        except (TypeError, ValueError):
+            return False
+
+    candidates = (
+        [meta.get("histogram"), meta.get("star_histogram"), meta.get("star_distribution_overall")]
+        if key == "android"
+        else [meta.get("star_histogram"), meta.get("star_distribution_overall"), meta.get("histogram")]
+    )
+    for raw in candidates:
+        if isinstance(raw, dict) and _dict_ok(raw):
+            return raw
+        if isinstance(raw, (list, tuple)) and len(raw) >= 5:
+            try:
+                nums = [int(x or 0) for x in raw[:5]]
+            except (TypeError, ValueError):
+                continue
+            if sum(nums) <= 0:
+                continue
+            # App Store SSR sırası genelde 5→1
+            if nums[0] >= nums[-1]:
+                return {"5": nums[0], "4": nums[1], "3": nums[2], "2": nums[3], "1": nums[4]}
+            return {"1": nums[0], "2": nums[1], "3": nums[2], "4": nums[3], "5": nums[4]}
+    return None
+
+
+def _home_ensure_ios_star_hist(raw: dict, product_id: str) -> dict:
+    """Cache’te iOS yıldız yoksa SSR’dan bir kez doldur (ana sayfa boş kart engeli)."""
+    if not isinstance(raw, dict):
+        return raw
+    ios = raw.get("ios") if isinstance(raw.get("ios"), dict) else {}
+    meta = ios.get("meta") if isinstance(ios.get("meta"), dict) else {}
+    if _home_coerce_star_hist(meta, key="ios"):
+        return raw
+    try:
+        from backend.services.app_intel import APP_PRODUCTS, _fetch_ios_ssr_ratings
+
+        spec = APP_PRODUCTS.get((product_id or "doviz").strip().lower()) or {}
+        app_id = str(spec.get("ios_app_id") or "").strip()
+        slug = str(spec.get("ios_slug") or "").strip()
+        if not app_id or not slug:
+            return raw
+        got = _fetch_ios_ssr_ratings(app_id, slug, country="tr") or {}
+        hist = got.get("star_histogram")
+        if not (isinstance(hist, dict) and any(int(v or 0) > 0 for v in hist.values())):
+            return raw
+        new_meta = {**meta, "star_histogram": hist}
+        if got.get("score") is not None and not new_meta.get("score"):
+            new_meta["score"] = got["score"]
+        if got.get("ratings_count") is not None and not new_meta.get("ratings_count"):
+            new_meta["ratings_count"] = got["ratings_count"]
+        raw = {
+            **raw,
+            "ios": {**ios, "meta": new_meta},
+        }
+        try:
+            from backend.services.app_intel import _write_disk_raw
+
+            _write_disk_raw(product_id, raw)
+        except Exception:
+            pass
+    except Exception:
+        LOGGER.debug("Home iOS star histogram hydrate failed", exc_info=True)
+    return raw
+
+
 def _home_rank_spark(series: list | None) -> dict:
     ranks: list[int] = []
     for point in series or []:
@@ -11749,9 +11825,7 @@ def _home_build_app_platform(
     if rank and rank_total:
         rank_fmt = f"#{rank}/{rank_total}"
 
-    hist = meta.get("histogram") if key == "android" else meta.get("star_histogram")
-    if not isinstance(hist, dict):
-        hist = meta.get("star_distribution_overall") or meta.get("histogram")
+    hist = _home_coerce_star_hist(meta if isinstance(meta, dict) else None, key=key)
     star_bars = _home_star_bars(hist if isinstance(hist, dict) else None)
 
     period_rows = _home_app_period_reviews((raw.get(key) or {}).get("reviews") or [], days=30)
@@ -11808,7 +11882,7 @@ def _home_build_app_platform(
             else "son 30g skor"
         )
     else:
-        release_note = "release etki"
+        release_note = "—"
 
     store_url = ""
     urls = raw.get("urls") if isinstance(raw.get("urls"), dict) else {}
@@ -11941,6 +12015,10 @@ def _home_app_release_platforms(product_id: str = "doviz", *, force_refresh: boo
             raw = ensure_android_category_rank_on_raw(product_id, raw, allow_live_fetch=False)
         except Exception:
             LOGGER.debug("Home app-release Android sıra zenginleştirmesi atlandı", exc_info=True)
+        try:
+            raw = _home_ensure_ios_star_hist(raw, product_id)
+        except Exception:
+            LOGGER.debug("Home iOS yıldız zenginleştirmesi atlandı", exc_info=True)
         release_by_plat: dict[str, dict] = {}
         try:
             from backend.services.aso_intel import _release_impact_sections_from_raw
