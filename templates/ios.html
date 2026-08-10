@@ -641,8 +641,12 @@
   }
   .ia-stability-inline .ia-stability-grid .sf-card__title,
   .ia-stability-inline .ia-stability-grid .sf-card__sub,
+  .ia-stability-inline .ia-stability-grid .sf-card__side,
   .ia-stability-inline .ia-stability-grid .sf-card__extra {
     display: none !important;
+  }
+  .ia-stability-inline .ia-stability-grid .sf-card__body {
+    display: contents;
   }
   .ia-stability-inline .ia-stability-grid .sf-card__value {
     margin: 0 !important;
@@ -834,8 +838,7 @@
     white-space: nowrap;
     font-size: clamp(0.5625rem, 1.1vw, 0.625rem);
   }
-  .ia-stability-grid .sf-card__sub,
-  .ia-stability-grid .sf-card__extra {
+  .ia-stability-grid .sf-card__sub {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -859,10 +862,45 @@
   html.dark .ia-stability-inline .ia-stability-grid .sf-card__sub a:hover {
     color: #34d399;
   }
-  .ia-stability-grid .sf-card__value {
+  .ia-stability-grid .sf-card__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
     margin-top: 0.35rem;
+    min-width: 0;
+  }
+  .ia-stability-grid .sf-card__value {
+    margin: 0;
+    min-width: 0;
+    flex: 1 1 auto;
     font-size: clamp(1rem, 2.4vw, 1.5rem);
     line-height: 1.1;
+  }
+  .ia-stability-grid .sf-card__side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    flex: 0 0 auto;
+    max-width: 42%;
+    font-size: clamp(0.5625rem, 1vw, 0.6875rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    color: #64748b;
+    text-align: right;
+  }
+  html.dark .ia-stability-grid .sf-card__side {
+    color: #a1a1aa;
+  }
+  .ia-stability-grid .sf-card__side > span + span {
+    margin-top: 0.2rem;
+    padding-top: 0.2rem;
+    border-top: 1px solid rgb(226 232 240);
+  }
+  html.dark .ia-stability-grid .sf-card__side > span + span {
+    border-top-color: rgb(63 63 70);
   }
   @media (max-width: 640px) {
     .ia-stability-grid {
@@ -3360,13 +3398,22 @@
       if (opts.stale) cls += " is-stale";
       var tip = [title, (opts.subPlain || sub), extra].filter(Boolean).join(" · ");
       var subOut = opts.subHtml || (sub ? esc(sub) : "");
-      var extraOut = extra ? '<p class="sf-card__extra">' + esc(extra) + "</p>" : "";
+      var parts = String(extra || "").split(/\s*·\s*/).map(function (p) {
+        return String(p || "").trim();
+      }).filter(Boolean);
+      var side = parts.length
+        ? ('<div class="sf-card__side">' +
+            parts.map(function (p) { return "<span>" + esc(p) + "</span>"; }).join("") +
+          "</div>")
+        : "";
       return (
         '<div class="' + cls + '" title="' + esc(tip) + '">' +
           '<p class="sf-card__title">' + esc(title) + "</p>" +
           (subOut ? '<p class="sf-card__sub">' + subOut + "</p>" : "") +
-          '<p class="sf-card__value ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
-          extraOut +
+          '<div class="sf-card__body">' +
+            '<p class="sf-card__value ' + tone(pct) + '">' + esc(value || "—") + "</p>" +
+            side +
+          "</div>" +
           refreshBtnHtml(!!state.loading) +
         "</div>"
       );

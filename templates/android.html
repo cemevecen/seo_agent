@@ -990,8 +990,7 @@
     white-space: nowrap;
     font-size: clamp(0.5625rem, 1.1vw, 0.625rem);
   }
-  .pc-stability-grid .sf-card__sub,
-  .pc-stability-grid .sf-card__extra {
+  .pc-stability-grid .sf-card__sub {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -1012,10 +1011,45 @@
   html.dark .pc-stability-grid .sf-card__sub a:hover {
     color: #34d399;
   }
-  .pc-stability-grid .sf-card__value {
+  .pc-stability-grid .sf-card__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
     margin-top: 0.35rem;
+    min-width: 0;
+  }
+  .pc-stability-grid .sf-card__value {
+    margin: 0;
+    min-width: 0;
+    flex: 1 1 auto;
     font-size: clamp(1rem, 2.4vw, 1.5rem);
     line-height: 1.1;
+  }
+  .pc-stability-grid .sf-card__side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    flex: 0 0 auto;
+    max-width: 42%;
+    font-size: clamp(0.5625rem, 1vw, 0.6875rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    color: #64748b;
+    text-align: right;
+  }
+  html.dark .pc-stability-grid .sf-card__side {
+    color: #a1a1aa;
+  }
+  .pc-stability-grid .sf-card__side > span + span {
+    margin-top: 0.2rem;
+    padding-top: 0.2rem;
+    border-top: 1px solid rgb(226 232 240);
+  }
+  html.dark .pc-stability-grid .sf-card__side > span + span {
+    border-top-color: rgb(63 63 70);
   }
   @media (max-width: 640px) {
     .pc-stability-grid {
@@ -6137,6 +6171,19 @@
     return u;
   }
 
+  function paSfSideHtml(extra) {
+    if (!extra) return "";
+    var parts = String(extra).split(/\s*·\s*/).map(function (p) {
+      return String(p || "").trim();
+    }).filter(Boolean);
+    if (!parts.length) return "";
+    return (
+      '<div class="sf-card__side">' +
+        parts.map(function (p) { return "<span>" + esc(p) + "</span>"; }).join("") +
+      "</div>"
+    );
+  }
+
   function renderStabilityFreeCard(opts) {
     opts = opts || {};
     var title = opts.title || "—";
@@ -6149,12 +6196,15 @@
       ? '<button type="button" data-pa-sf-refresh class="mt-1 inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:border-sky-400 hover:text-sky-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">Yenile</button>'
       : "";
     var subOut = subHtml || (sub ? esc(sub) : "");
+    var side = paSfSideHtml(extra);
     return (
       '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
         '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
         (subOut ? '<p class="sf-card__sub mt-0.5 text-slate-400 dark:text-zinc-500">' + subOut + "</p>" : "") +
-        '<p class="sf-card__value font-extrabold tabular-nums ' + tone + '">' + esc(value) + "</p>" +
-        (extra ? '<p class="sf-card__extra mt-1 text-slate-500 dark:text-zinc-400">' + esc(extra) + "</p>" : "") +
+        '<div class="sf-card__body">' +
+          '<p class="sf-card__value font-extrabold tabular-nums ' + tone + '">' + esc(value) + "</p>" +
+          side +
+        "</div>" +
         refresh +
       "</div>"
     );

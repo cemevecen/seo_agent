@@ -293,7 +293,7 @@
     color: #34d399;
   }
   .home-sf-metric__value {
-    margin: 0.35rem 0 0;
+    margin: 0;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
@@ -301,7 +301,39 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .home-sf-metric__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    min-width: 0;
+  }
+  .home-sf-metric__side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    flex: 0 0 auto;
+    max-width: 42%;
+    font-size: 0.625rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    color: #94a3b8;
+    text-align: right;
+  }
+  .home-sf-metric__side > span + span {
+    margin-top: 0.18rem;
+    padding-top: 0.18rem;
+    border-top: 1px solid rgb(226 232 240);
+  }
+  html.dark .home-sf-metric__side > span + span,
+  html.midnight .home-sf-metric__side > span + span {
+    border-top-color: rgb(63 63 70);
   }
   .home-sf-metric__value.is-up { color: #059669; }
   .home-sf-metric__value.is-mid { color: #d97706; }
@@ -310,14 +342,6 @@
   html.dark .home-sf-metric__value.is-up { color: #34d399; }
   html.dark .home-sf-metric__value.is-mid { color: #fbbf24; }
   html.dark .home-sf-metric__value.is-down { color: #fb7185; }
-  .home-sf-metric__extra {
-    margin: 0.25rem 0 0;
-    color: #94a3b8;
-    line-height: 1.25;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   @media (max-width: 640px) {
     .home-sf-metrics {
       grid-template-columns: repeat(var(--sf-n, 4), minmax(4.75rem, 1fr));
@@ -333,11 +357,19 @@
   <div class="home-sf-metrics" style="--sf-n: {{ n }}">
     {% if items %}
       {% for m in items %}
-        <div class="home-sf-metric" title="{{ m.title }}{% if m.sub %} · {{ m.sub|striptags }}{% endif %}">
+        <div class="home-sf-metric" title="{{ m.title }}{% if m.sub %} · {{ m.sub|striptags }}{% endif %}{% if m.extra %} · {{ m.extra }}{% endif %}">
           <p class="home-sf-metric__title">{{ m.title }}</p>
           {% if m.sub %}<p class="home-sf-metric__sub">{{ m.sub|safe }}</p>{% endif %}
-          <p class="home-sf-metric__value{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
-          {% if m.extra %}<p class="home-sf-metric__extra">{{ m.extra }}</p>{% endif %}
+          <div class="home-sf-metric__body">
+            <p class="home-sf-metric__value{% if m.tone == 'up' %} is-up{% elif m.tone == 'mid' %} is-mid{% elif m.tone == 'down' %} is-down{% endif %}">{{ m.value }}</p>
+            {% if m.extra %}
+              <div class="home-sf-metric__side">
+                {% for part in m.extra.split(' · ') %}
+                  {% if part %}<span>{{ part }}</span>{% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
         </div>
       {% endfor %}
     {% else %}
