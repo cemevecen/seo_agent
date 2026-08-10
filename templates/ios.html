@@ -843,6 +843,8 @@
     flex-direction: column;
     min-height: 100%;
     padding: 0.55rem 0.65rem;
+    container-type: inline-size;
+    container-name: sf-card;
   }
   .ia-stability-grid .sf-card__title {
     overflow: hidden;
@@ -895,7 +897,7 @@
     align-items: flex-end;
     justify-content: center;
     flex: 0 0 auto;
-    max-width: 42%;
+    max-width: 48%;
     font-size: clamp(0.5625rem, 1vw, 0.6875rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -906,13 +908,99 @@
   html.dark .ia-stability-grid .sf-card__side {
     color: #a1a1aa;
   }
-  .ia-stability-grid .sf-card__side > span + span {
+  .ia-stability-grid .sf-card__side-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.2rem;
+    max-width: 100%;
+  }
+  .ia-stability-grid .sf-card__side-row + .sf-card__side-row {
     margin-top: 0.2rem;
     padding-top: 0.2rem;
     border-top: 1px solid rgb(226 232 240);
   }
-  html.dark .ia-stability-grid .sf-card__side > span + span {
+  html.dark .ia-stability-grid .sf-card__side-row + .sf-card__side-row {
     border-top-color: rgb(63 63 70);
+  }
+  .ia-stability-grid .sf-card__side-val {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ia-stability-grid .sf-card__side-info {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.7rem;
+    height: 0.7rem;
+    flex: 0 0 auto;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.45rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: help;
+    padding: 0;
+  }
+  .ia-stability-grid .sf-card__side-info:hover,
+  .ia-stability-grid .sf-card__side-info:focus-visible {
+    color: #0f172a;
+    border-color: #94a3b8;
+  }
+  html.dark .ia-stability-grid .sf-card__side-info:hover,
+  html.dark .ia-stability-grid .sf-card__side-info:focus-visible {
+    color: #f4f4f5;
+    border-color: #a1a1aa;
+  }
+  .ia-stability-grid .sf-card__side-tip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.3rem);
+    z-index: 50;
+    width: max-content;
+    max-width: min(13.5rem, 72vw);
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.5rem;
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    font-size: clamp(0.58rem, 2.8cqi, 0.68rem);
+    font-weight: 500;
+    line-height: 1.35;
+    text-align: left;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(2px);
+    transition: opacity 0.12s ease, visibility 0.12s ease, transform 0.12s ease;
+  }
+  .ia-stability-grid .sf-card__side-info:hover .sf-card__side-tip,
+  .ia-stability-grid .sf-card__side-info:focus-visible .sf-card__side-tip,
+  .ia-stability-grid .sf-card__side-info.is-open .sf-card__side-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  @container sf-card (max-width: 11rem) {
+    .ia-stability-grid .sf-card__side-tip {
+      right: auto;
+      left: 50%;
+      transform: translate(-50%, 2px);
+      max-width: min(11rem, 78vw);
+    }
+    .ia-stability-grid .sf-card__side-info:hover .sf-card__side-tip,
+    .ia-stability-grid .sf-card__side-info:focus-visible .sf-card__side-tip,
+    .ia-stability-grid .sf-card__side-info.is-open .sf-card__side-tip {
+      transform: translate(-50%, 0);
+    }
   }
   @media (max-width: 640px) {
     .ia-stability-grid {
@@ -3403,6 +3491,25 @@
         "</button>"
       );
     }
+    function iaSfSideTip(part, cardTitle) {
+      var p = String(part || "").trim();
+      var t = String(cardTitle || "");
+      if (/^s\s/i.test(p)) {
+        return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı).";
+      }
+      if (/^Δ/i.test(p) || p.indexOf("Δ") === 0) {
+        return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free.";
+      }
+      if (/%$/.test(p) && !/^s\s/i.test(p)) {
+        return /anr/i.test(t)
+          ? "ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi)."
+          : "Oran — kaynak konsoldaki ham yüzde.";
+      }
+      if (/[kKmM]$/.test(p) || /^\d/.test(p)) {
+        return "Örneklem — dönemdeki kullanıcı/oturum hacmi (scrape serisi).";
+      }
+      return "Ek metrik — kaynak konsoldan gelen veri.";
+    }
     function card(title, sub, value, pct, extra, opts) {
       opts = opts || {};
       var cls = "sf-card";
@@ -3415,7 +3522,18 @@
       }).filter(Boolean);
       var side = parts.length
         ? ('<div class="sf-card__side">' +
-            parts.map(function (p) { return "<span>" + esc(p) + "</span>"; }).join("") +
+            parts.map(function (p) {
+              var sideTip = iaSfSideTip(p, title);
+              return (
+                '<div class="sf-card__side-row">' +
+                  '<span class="sf-card__side-val">' + esc(p) + "</span>" +
+                  '<button type="button" class="sf-card__side-info" aria-label="' + esc(sideTip) + '" data-sf-side-info>' +
+                    "i" +
+                    '<span class="sf-card__side-tip" role="tooltip">' + esc(sideTip) + "</span>" +
+                  "</button>" +
+                "</div>"
+              );
+            }).join("") +
           "</div>")
         : "";
       return (
@@ -3638,10 +3756,27 @@
       });
     }
     el.addEventListener("click", function (ev) {
+      var info = ev.target && ev.target.closest && ev.target.closest("[data-sf-side-info]");
+      if (info) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var open = info.classList.contains("is-open");
+        el.querySelectorAll("[data-sf-side-info].is-open").forEach(function (node) {
+          node.classList.remove("is-open");
+        });
+        if (!open) info.classList.add("is-open");
+        return;
+      }
       var btn = ev.target && ev.target.closest && ev.target.closest("[data-ia-sf-refresh]");
       if (!btn) return;
       ev.preventDefault();
       fetchStability(true);
+    });
+    document.addEventListener("click", function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest("[data-sf-side-info]")) return;
+      el.querySelectorAll("[data-sf-side-info].is-open").forEach(function (node) {
+        node.classList.remove("is-open");
+      });
     });
 
     // Önce son sağlıklı skoru göster, sonra canlı çek

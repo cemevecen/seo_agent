@@ -318,7 +318,7 @@
     align-items: flex-end;
     justify-content: center;
     flex: 0 0 auto;
-    max-width: 42%;
+    max-width: 48%;
     font-size: 0.625rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -326,14 +326,100 @@
     color: #94a3b8;
     text-align: right;
   }
-  .home-sf-metric__side > span + span {
+  .home-sf-metric__side-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.2rem;
+    max-width: 100%;
+  }
+  .home-sf-metric__side-row + .home-sf-metric__side-row {
     margin-top: 0.18rem;
     padding-top: 0.18rem;
     border-top: 1px solid rgb(226 232 240);
   }
-  html.dark .home-sf-metric__side > span + span,
-  html.midnight .home-sf-metric__side > span + span {
+  html.dark .home-sf-metric__side-row + .home-sf-metric__side-row,
+  html.midnight .home-sf-metric__side-row + .home-sf-metric__side-row {
     border-top-color: rgb(63 63 70);
+  }
+  .home-sf-metric__side-val {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home-sf-metric__side-info {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.7rem;
+    height: 0.7rem;
+    flex: 0 0 auto;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.45rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: help;
+    padding: 0;
+  }
+  .home-sf-metric__side-info:hover,
+  .home-sf-metric__side-info:focus-visible {
+    color: #0f172a;
+    border-color: #94a3b8;
+  }
+  html.dark .home-sf-metric__side-info:hover,
+  html.dark .home-sf-metric__side-info:focus-visible,
+  html.midnight .home-sf-metric__side-info:hover,
+  html.midnight .home-sf-metric__side-info:focus-visible {
+    color: #f4f4f5;
+    border-color: #a1a1aa;
+  }
+  .home-sf-metric__side-tip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.3rem);
+    z-index: 50;
+    width: max-content;
+    max-width: min(13.5rem, 72vw);
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.5rem;
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    font-size: clamp(0.58rem, 2.6cqi, 0.68rem);
+    font-weight: 500;
+    line-height: 1.35;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(2px);
+    transition: opacity 0.12s ease, visibility 0.12s ease, transform 0.12s ease;
+  }
+  .home-sf-metric__side-info:hover .home-sf-metric__side-tip,
+  .home-sf-metric__side-info:focus-visible .home-sf-metric__side-tip,
+  .home-sf-metric__side-info.is-open .home-sf-metric__side-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  @container home-sf-metric (max-width: 11rem) {
+    .home-sf-metric__side-tip {
+      right: auto;
+      left: 50%;
+      transform: translate(-50%, 2px);
+      max-width: min(11rem, 78vw);
+    }
+    .home-sf-metric__side-info:hover .home-sf-metric__side-tip,
+    .home-sf-metric__side-info:focus-visible .home-sf-metric__side-tip,
+    .home-sf-metric__side-info.is-open .home-sf-metric__side-tip {
+      transform: translate(-50%, 0);
+    }
   }
   .home-sf-metric__value.is-up { color: #059669; }
   .home-sf-metric__value.is-mid { color: #d97706; }
@@ -351,13 +437,30 @@
   }
 </style>
 
+{% macro sf_side_tip(part, title='') -%}
+{%- set p = (part or '')|trim -%}
+{%- if p.startswith('s ') -%}
+Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı).
+{%- elif p.startswith('Δ') -%}
+Δ — dönem içi fark (pp): son gün − ilk gün crash-free.
+{%- elif '%' in p -%}
+{%- if 'ANR' in (title or '') -%}
+ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi).
+{%- else -%}
+Oran — kaynak konsoldaki ham yüzde.
+{%- endif -%}
+{%- else -%}
+Örneklem — dönemdeki kullanıcı/oturum hacmi (scrape serisi).
+{%- endif -%}
+{%- endmacro %}
+
 {% macro sf_metrics(side, cols) -%}
   {% set items = (side.metrics if side and side.metrics else []) %}
   {% set n = cols if cols else (items|length if items|length > 0 else 1) %}
-  <div class="home-sf-metrics" style="--sf-n: {{ n }}">
+  <div class="home-sf-metrics" style="--sf-n: {{ n }}" data-home-sf-metrics>
     {% if items %}
       {% for m in items %}
-        <div class="home-sf-metric" title="{{ m.title }}{% if m.sub %} · {{ m.sub|striptags }}{% endif %}{% if m.extra %} · {{ m.extra }}{% endif %}">
+        <div class="home-sf-metric" title="{{ m.title }}{% if m.sub %} · {{ m.sub|striptags }}{% endif %}">
           <p class="home-sf-metric__title">{{ m.title }}</p>
           {% if m.sub %}<p class="home-sf-metric__sub">{{ m.sub|safe }}</p>{% endif %}
           <div class="home-sf-metric__body">
@@ -365,7 +468,16 @@
             {% if m.extra %}
               <div class="home-sf-metric__side">
                 {% for part in m.extra.split(' · ') %}
-                  {% if part %}<span>{{ part }}</span>{% endif %}
+                  {% if part %}
+                    {% set tip = sf_side_tip(part, m.title) %}
+                    <div class="home-sf-metric__side-row">
+                      <span class="home-sf-metric__side-val">{{ part }}</span>
+                      <button type="button" class="home-sf-metric__side-info" aria-label="{{ tip }}" data-sf-side-info>
+                        i
+                        <span class="home-sf-metric__side-tip" role="tooltip">{{ tip }}</span>
+                      </button>
+                    </div>
+                  {% endif %}
                 {% endfor %}
               </div>
             {% endif %}
@@ -604,6 +716,23 @@
     if (!root) root = document.querySelector('[data-home-crash-root]');
     if (!root || root.getAttribute('data-crash-shell-wired') === '1') return;
     root.setAttribute('data-crash-shell-wired', '1');
+    root.addEventListener('click', function (ev) {
+      var info = ev.target && ev.target.closest && ev.target.closest('[data-sf-side-info]');
+      if (!info || !root.contains(info)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var open = info.classList.contains('is-open');
+      root.querySelectorAll('[data-sf-side-info].is-open').forEach(function (node) {
+        node.classList.remove('is-open');
+      });
+      if (!open) info.classList.add('is-open');
+    });
+    document.addEventListener('click', function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest('[data-sf-side-info]')) return;
+      root.querySelectorAll('[data-sf-side-info].is-open').forEach(function (node) {
+        node.classList.remove('is-open');
+      });
+    });
     var shellToggle = root.querySelector('[data-home-crash-shell-toggle]');
     var shellBody = root.querySelector('[data-home-crash-shell-body]');
     if (shellToggle && shellBody) {

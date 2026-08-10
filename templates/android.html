@@ -995,6 +995,8 @@
     flex-direction: column;
     min-height: 100%;
     padding: 0.55rem 0.65rem;
+    container-type: inline-size;
+    container-name: sf-card;
   }
   .pc-stability-grid .sf-card__title {
     overflow: hidden;
@@ -1044,7 +1046,7 @@
     align-items: flex-end;
     justify-content: center;
     flex: 0 0 auto;
-    max-width: 42%;
+    max-width: 48%;
     font-size: clamp(0.5625rem, 1vw, 0.6875rem);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -1055,13 +1057,99 @@
   html.dark .pc-stability-grid .sf-card__side {
     color: #a1a1aa;
   }
-  .pc-stability-grid .sf-card__side > span + span {
+  .pc-stability-grid .sf-card__side-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.2rem;
+    max-width: 100%;
+  }
+  .pc-stability-grid .sf-card__side-row + .sf-card__side-row {
     margin-top: 0.2rem;
     padding-top: 0.2rem;
     border-top: 1px solid rgb(226 232 240);
   }
-  html.dark .pc-stability-grid .sf-card__side > span + span {
+  html.dark .pc-stability-grid .sf-card__side-row + .sf-card__side-row {
     border-top-color: rgb(63 63 70);
+  }
+  .pc-stability-grid .sf-card__side-val {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pc-stability-grid .sf-card__side-info {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.7rem;
+    height: 0.7rem;
+    flex: 0 0 auto;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.45rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: help;
+    padding: 0;
+  }
+  .pc-stability-grid .sf-card__side-info:hover,
+  .pc-stability-grid .sf-card__side-info:focus-visible {
+    color: #0f172a;
+    border-color: #94a3b8;
+  }
+  html.dark .pc-stability-grid .sf-card__side-info:hover,
+  html.dark .pc-stability-grid .sf-card__side-info:focus-visible {
+    color: #f4f4f5;
+    border-color: #a1a1aa;
+  }
+  .pc-stability-grid .sf-card__side-tip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.3rem);
+    z-index: 50;
+    width: max-content;
+    max-width: min(13.5rem, 72vw);
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.5rem;
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    font-size: clamp(0.58rem, 2.8cqi, 0.68rem);
+    font-weight: 500;
+    line-height: 1.35;
+    text-align: left;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(2px);
+    transition: opacity 0.12s ease, visibility 0.12s ease, transform 0.12s ease;
+  }
+  .pc-stability-grid .sf-card__side-info:hover .sf-card__side-tip,
+  .pc-stability-grid .sf-card__side-info:focus-visible .sf-card__side-tip,
+  .pc-stability-grid .sf-card__side-info.is-open .sf-card__side-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  @container sf-card (max-width: 11rem) {
+    .pc-stability-grid .sf-card__side-tip {
+      right: auto;
+      left: 50%;
+      transform: translate(-50%, 2px);
+      max-width: min(11rem, 78vw);
+    }
+    .pc-stability-grid .sf-card__side-info:hover .sf-card__side-tip,
+    .pc-stability-grid .sf-card__side-info:focus-visible .sf-card__side-tip,
+    .pc-stability-grid .sf-card__side-info.is-open .sf-card__side-tip {
+      transform: translate(-50%, 0);
+    }
   }
   @media (max-width: 640px) {
     .pc-stability-grid {
@@ -6183,7 +6271,31 @@
     return u;
   }
 
-  function paSfSideHtml(extra) {
+  function paSfSideTip(part, cardTitle) {
+    var p = String(part || "").trim();
+    var title = String(cardTitle || "");
+    if (/^s\s/i.test(p)) {
+      return "Crash-free sessions — oturum bazlı çökme yaşamayan oran (users CF’den ayrı).";
+    }
+    if (/^Δ/i.test(p) || p.indexOf("Δ") === 0) {
+      return "Δ — dönem içi fark (pp): son gün − ilk gün crash-free.";
+    }
+    if (/%$/.test(p) && !/^s\s/i.test(p)) {
+      if (/anr/i.test(title)) {
+        return "ANR rate — kullanıcı algılanan ANR oranı (ANR-free’nin tersi).";
+      }
+      return "Oran — kaynak konsoldaki ham yüzde.";
+    }
+    if (/[kKmM]$/.test(p) || /^\d/.test(p)) {
+      if (/anr/i.test(title)) {
+        return "Örneklem — Reporting’deki distinct kullanıcı hacmi.";
+      }
+      return "Örneklem — dönemdeki kullanıcı/oturum hacmi (scrape serisi).";
+    }
+    return "Ek metrik — kaynak konsoldan gelen veri.";
+  }
+
+  function paSfSideHtml(extra, cardTitle) {
     if (!extra) return "";
     var parts = String(extra).split(/\s*·\s*/).map(function (p) {
       return String(p || "").trim();
@@ -6191,7 +6303,18 @@
     if (!parts.length) return "";
     return (
       '<div class="sf-card__side">' +
-        parts.map(function (p) { return "<span>" + esc(p) + "</span>"; }).join("") +
+        parts.map(function (p) {
+          var tip = paSfSideTip(p, cardTitle);
+          return (
+            '<div class="sf-card__side-row">' +
+              '<span class="sf-card__side-val">' + esc(p) + "</span>" +
+              '<button type="button" class="sf-card__side-info" aria-label="' + esc(tip) + '" data-sf-side-info>' +
+                "i" +
+                '<span class="sf-card__side-tip" role="tooltip">' + esc(tip) + "</span>" +
+              "</button>" +
+            "</div>"
+          );
+        }).join("") +
       "</div>"
     );
   }
@@ -6208,7 +6331,7 @@
       ? '<button type="button" data-pa-sf-refresh class="mt-1 inline-flex items-center rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 hover:border-sky-400 hover:text-sky-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">Yenile</button>'
       : "";
     var subOut = subHtml || (sub ? esc(sub) : "");
-    var side = paSfSideHtml(extra);
+    var side = paSfSideHtml(extra, title);
     return (
       '<div class="sf-card rounded-xl border border-slate-200 bg-slate-50/70 dark:border-zinc-700 dark:bg-zinc-950/40">' +
         '<p class="sf-card__title font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400" title="' + esc(title) + '">' + esc(title) + "</p>" +
@@ -6447,10 +6570,27 @@
   }
   if (stabilityFreeEl) {
     stabilityFreeEl.addEventListener("click", function (ev) {
+      var info = ev.target && ev.target.closest && ev.target.closest("[data-sf-side-info]");
+      if (info) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        var open = info.classList.contains("is-open");
+        stabilityFreeEl.querySelectorAll("[data-sf-side-info].is-open").forEach(function (el) {
+          el.classList.remove("is-open");
+        });
+        if (!open) info.classList.add("is-open");
+        return;
+      }
       var btn = ev.target && ev.target.closest && ev.target.closest("[data-pa-sf-refresh]");
       if (!btn) return;
       ev.preventDefault();
       loadStabilityFree(true);
+    });
+    document.addEventListener("click", function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest("[data-sf-side-info]")) return;
+      stabilityFreeEl.querySelectorAll("[data-sf-side-info].is-open").forEach(function (el) {
+        el.classList.remove("is-open");
+      });
     });
   }
 
