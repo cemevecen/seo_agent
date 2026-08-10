@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v15-type3">
+<style id="home-site-borders" data-home-css="v16-type3">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -393,30 +393,29 @@
   html.midnight .home-drive-container-badge .home-drive-badge-count {
     box-shadow: 0 0 0 1.5px rgb(24 24 27);
   }
-  /* ── Home tipografi: yalnız 3 boyut ──
-     1) ana başlık  → h2 / h3 (container + proje)
-     2) alt başlık  → h4 / .home-label / .home-sub
-     3) metin+istatistik → geri kalan her şey
+  /* ── Home tipografi: yalnız 3 boyut (önem sırası) ──
+     1) ana başlık     → h2 / h3
+     2) veriler        → KPI / sayılar / karşılaştırma (.home-kpi, .home-meta)
+     3) bilgilendirme  → etiket / buton (TOP 25, TOP 50, .home-label, trigger)
   */
   #home-board {
-    --home-title: 1.125rem;   /* ana başlık */
-    --home-sub: 0.875rem;     /* alt başlık */
-    --home-text: 0.8125rem;   /* iç istatistik + metin */
+    --home-title: 1.125rem; /* ana başlık */
+    --home-text: 1rem;      /* veriler — en önemli içerik */
+    --home-sub: 0.75rem;    /* bilgilendirme buton / etiket */
   }
   .home-readable {
     --home-title: 1.125rem;
-    --home-sub: 0.875rem;
-    --home-text: 0.8125rem;
-    /* eski sınıflar → 3 tipe alias */
+    --home-text: 1rem;
+    --home-sub: 0.75rem;
     --home-body: var(--home-text);
     --home-meta: var(--home-text);
     --home-kpi: var(--home-text);
-    --home-link: var(--home-text);
+    --home-link: var(--home-sub);
     --home-label: var(--home-sub);
     font-size: var(--home-text);
     line-height: 1.35;
   }
-  /* Varsayılan: tüm metin = tip 3 */
+  /* Varsayılan: tüm metin = veriler (tip 2) */
   #home-board .home-readable :where(*),
   #home-board .home-project-head :where(*) {
     font-size: inherit !important;
@@ -432,49 +431,87 @@
     line-height: 1.3 !important;
   }
   #home-board > .flex a {
-    font-size: var(--home-text) !important;
+    font-size: var(--home-sub) !important;
   }
   #home-board .home-readable :where(h2, h3) :where(*) {
-    font-size: var(--home-text) !important;
+    font-size: var(--home-sub) !important;
     font-weight: inherit;
     letter-spacing: normal;
     line-height: 1.35 !important;
   }
-  /* Tip 2 — alt başlık */
-  #home-board .home-readable :where(h4, .home-label, .home-sub) {
+  /* Tip 3 — bilgilendirme (etiket / buton) — verilerden KÜÇÜK */
+  #home-board .home-readable :where(
+    h4,
+    .home-label,
+    .home-sub,
+    .home-card-link,
+    .home-top-pages-trigger,
+    .home-sc-top50-label,
+    .home-sc-metric-kicker,
+    .home-sc-device-title,
+    .home-detail-kpi-label,
+    .home-detail-kpi-cur-label,
+    .home-detail-kpi-prev-label,
+    .home-top-pages-panel-title,
+    .home-top-pages-panel-close,
+    .home-period-wait-label
+  ) {
     font-size: var(--home-sub) !important;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     line-height: 1.35 !important;
   }
-  #home-board .home-readable :where(h4, .home-label, .home-sub) :where(*) {
+  #home-board .home-readable :where(
+    h4, .home-label, .home-sub, .home-top-pages-trigger, .home-sc-top50-label
+  ) :where(*) {
     font-size: var(--home-sub) !important;
   }
   #home-board .home-readable .home-label.home-label-plain,
-  #home-board .home-readable .home-label.normal-case {
+  #home-board .home-readable .home-label.normal-case,
+  #home-board .home-readable .home-card-link,
+  #home-board .home-readable a[hx-get] {
     text-transform: none;
     letter-spacing: 0.01em;
+    font-weight: 500;
+  }
+  #home-board .home-readable .home-label.home-label-plain,
+  #home-board .home-readable .home-label.normal-case {
     font-weight: 650;
   }
-  /* Tip 3 — sınıflar (eski isimler korunur, boyut tek) */
-  #home-board .home-readable :where(.home-body, .home-meta, .home-kpi, .home-card-link, a[hx-get], a.shrink-0) {
+  /* Tip 2 — veriler (KPI / sayılar) — bilgilendirmeden BÜYÜK */
+  #home-board .home-readable :where(
+    .home-body,
+    .home-meta,
+    .home-kpi,
+    .home-sc-top50-vals,
+    .home-detail-kpi-delta,
+    .home-detail-kpi-cur,
+    .home-detail-kpi-prev,
+    .home-top-pages-val,
+    .home-top-pages-delta-slot
+  ) {
     font-size: var(--home-text) !important;
     line-height: 1.35 !important;
+    text-transform: none;
+    letter-spacing: normal;
   }
   #home-board .home-readable .home-body {
     font-weight: 600;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  #home-board .home-readable .home-kpi {
+  #home-board .home-readable .home-kpi,
+  #home-board .home-readable .home-detail-kpi-delta,
+  #home-board .home-readable .home-detail-kpi-cur {
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
     line-height: 1.2 !important;
   }
-  #home-board .home-readable .home-card-link,
-  #home-board .home-readable a[hx-get] {
+  #home-board .home-readable a[hx-get],
+  #home-board .home-readable .home-card-link {
+    font-size: var(--home-sub) !important;
     font-weight: 500;
   }
   /* Eski Tailwind / rastgele boyut sınıflarını tip 3’e çek */
@@ -545,7 +582,7 @@
   .home-readable a[hx-get],
   .home-readable a[href].shrink-0,
   .home-readable .home-card-link {
-    font-size: var(--home-text) !important;
+    font-size: var(--home-sub) !important;
   }
   /* Taşmayı önle — dar kartlarda uzun sayılar */
   #home-board .home-readable {
