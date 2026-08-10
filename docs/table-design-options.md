@@ -23,5 +23,6 @@ Metrik KPI kartları ayrı konu; bu liste **veri tablosu** (`#pa-table-shell` / 
 
 ## Durum
 
-- Hangisi seçildi: _(henüz seçilmedi)_
-- Not: Kullanıcı bir veya birkaç numarayı söyleyince uygulama buraya işlenir.
+- Hangisi seçildi: **#6 Heat** (varsayılan) + **sütun genişletme** + **#8 Sürükle** (kolon sırası)
+- Uygulandı: `static/js/metric_table_ux.js` · Android/iOS overview tabloları
+- Not: Heat hücre boyası + legend; header’dan sürükle sırala; sağ kenardan resize.

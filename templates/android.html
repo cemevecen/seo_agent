@@ -1429,6 +1429,7 @@
 </div>
 
 <script src="/static/js/resizable_data_list.js?v=5"></script>
+<script src="/static/js/metric_table_ux.js?v=1"></script>
 <script>
 (function () {
   var statusEl = document.getElementById("pc-status");
@@ -3057,8 +3058,10 @@
   function renderOverviewTable(bundles) {
     restoreDefaultPaThead();
     if (!paTheadRow || !paTable) return;
-    var list = bundles || [];
-    var ovs = paOverlays || [];
+    var ux = window.SeoMetricTableUx;
+    if (ux) ux.injectStyles();
+    var list = (bundles || []).slice();
+    var ovs = (paOverlays || []).slice();
     var dayOnly = (paSelectedRangeDays() != null && paSelectedRangeDays() < 30);
     var keySet = {};
     list.forEach(function (b) {
@@ -3072,40 +3075,45 @@
       });
     });
     var keys = Object.keys(keySet).sort();
+
+    // Sütun sırası (sürükle-bırak) — metrik + overlay
+    var colItems = list.map(function (b) {
+      return { kind: "metric", key: "m:" + b.metric, bundle: b, color: overviewMetricColor(b.metric) };
+    }).concat(ovs.map(function (ov, oi) {
+      return { kind: "overlay", key: "o:" + oi, bundle: ov, color: ov.color || paOverlayColor(oi), oi: oi };
+    }));
+    if (ux) {
+      var preferred = ux.readJson("pa-table-col-order", []);
+      var orderedKeys = ux.orderKeys(preferred, colItems.map(function (c) { return c.key; }));
+      var byKey = {};
+      colItems.forEach(function (c) { byKey[c.key] = c; });
+      colItems = orderedKeys.map(function (k) { return byKey[k]; }).filter(Boolean);
+    }
+
     var thRemoveCls =
       'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px] leading-none text-slate-400 hover:bg-rose-100 hover:text-rose-600 dark:text-zinc-500 dark:hover:bg-rose-950/50 dark:hover:text-rose-300';
     paTheadRow.innerHTML =
-      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold sm:px-3 dark:bg-zinc-900">Kırılım</th>' +
-      list.map(function (b) {
-        var color = overviewMetricColor(b.metric);
+      '<th class="sticky left-0 z-10 bg-slate-100 px-2 py-2 font-bold sm:px-3 dark:bg-zinc-900" data-mtux-key="kirilim" data-mtux-fixed="1">Kırılım</th>' +
+      colItems.map(function (col) {
+        var b = col.bundle;
+        var color = col.color;
         var short = shortMetricLabel(b.label, b.metric);
+        var removeAttr = col.kind === "metric"
+          ? 'data-pa-ov-col-remove="' + esc(b.metric) + '"'
+          : 'data-pa-ov-line-remove="' + col.oi + '"';
         return (
-          '<th class="px-1 py-2 font-bold tabular-nums sm:px-1.5" style="color:' + color + '" title="' + esc(b.label) + '">' +
-            '<span class="inline-flex w-full items-center justify-end gap-0.5">' +
+          '<th class="mtux-th px-1 py-2 font-bold tabular-nums sm:px-1.5" data-mtux-key="' + esc(col.key) + '" style="color:' + color + '" title="' + esc(b.label || "") + '">' +
+            '<span class="mtux-th-label inline-flex w-full items-center justify-end gap-0.5">' +
               '<span class="min-w-0 truncate">' + esc(short) + "</span>" +
-              '<button type="button" data-pa-ov-col-remove="' + esc(b.metric) + '" ' +
+              '<button type="button" ' + removeAttr + ' ' +
                 'class="' + thRemoveCls + '" ' +
                 'title="Sütunu kaldır" aria-label="' + esc(short) + ' sütununu kaldır">×</button>' +
             "</span>" +
           "</th>"
         );
-      }).join("") +
-      ovs.map(function (ov, oi) {
-        var color = ov.color || paOverlayColor(oi);
-        var short = shortMetricLabel(ov.label, ov.metric);
-        return (
-          '<th class="px-1 py-2 font-bold tabular-nums sm:px-1.5" style="color:' + color + '" title="' + esc(ov.label || "") + '">' +
-            '<span class="inline-flex w-full items-center justify-end gap-0.5">' +
-              '<span class="min-w-0 truncate">' + esc(short) + "</span>" +
-              '<button type="button" data-pa-ov-line-remove="' + oi + '" ' +
-                'class="' + thRemoveCls + '" ' +
-                'title="Ek grafiği kaldır" aria-label="' + esc(short) + ' ekini kaldır">×</button>' +
-            "</span>" +
-          "</th>"
-        );
       }).join("");
-    var colCount = 1 + list.length + ovs.length;
-    if (!list.length && !ovs.length) {
+    var colCount = 1 + colItems.length;
+    if (!colItems.length) {
       paTable.innerHTML =
         '<tr><td class="px-3 py-4 text-center text-slate-400">Tüm sütunlar kaldırıldı — Metrik’ten Seçiniz ile yenileyin</td></tr>';
       paFitDataList(0);
@@ -3118,23 +3126,17 @@
       paFitDataList(0);
       return;
     }
-    var maps = list.map(function (b) {
+    var maps = colItems.map(function (col) {
       var m = {};
-      (b.series || []).forEach(function (r) {
+      (col.bundle.series || []).forEach(function (r) {
         if (!r) return;
         var nv = Number(r.value);
         m[String(r.key)] = Number.isFinite(nv) ? nv : null;
       });
       return m;
     });
-    var ovMaps = ovs.map(function (ov) {
-      var m = {};
-      (ov.series || []).forEach(function (r) {
-        if (!r) return;
-        var nv = Number(r.value);
-        m[String(r.key)] = Number.isFinite(nv) ? nv : null;
-      });
-      return m;
+    var stats = maps.map(function (m) {
+      return ux ? ux.colMinMax(keys.map(function (k) { return m[k]; })) : { min: 0, max: 0 };
     });
     function overviewColAverage(map) {
       var sum = 0;
@@ -3152,40 +3154,26 @@
         '<td class="sticky left-0 z-[1] bg-white px-2 py-1.5 font-medium tabular-nums text-slate-700 sm:px-3 dark:bg-zinc-950 dark:text-zinc-200">' +
           esc(fmtAxisKey(key, dayOnly)) +
         "</td>";
-      list.forEach(function (b, i) {
+      colItems.forEach(function (col, i) {
         var v = maps[i][key];
+        var st = stats[i];
+        var t = ux ? ux.heatT(v, st.min, st.max) : null;
+        var bg = t == null ? "" : ' background:' + ux.heatBackground(col.color, t) + ";';
+        var countLike = metricIsCountLike(col.bundle.metric);
         cells +=
-          '<td class="px-1.5 py-1.5 tabular-nums font-semibold text-slate-900 sm:px-2 dark:text-zinc-100" title="' +
-            (v == null ? "" : esc(fmtNum(v, metricIsCountLike(b.metric)))) + '">' +
-            (v == null ? "—" : esc(fmtNum(v, metricIsCountLike(b.metric)))) +
-          "</td>";
-      });
-      ovs.forEach(function (ov, oi) {
-        var v = ovMaps[oi][key];
-        var color = ov.color || paOverlayColor(oi);
-        cells +=
-          '<td class="px-1.5 py-1.5 tabular-nums font-semibold sm:px-2" style="color:' + color + '" title="' +
-            (v == null ? "" : esc(fmtNum(v, metricIsCountLike(ov.metric)))) + '">' +
-            (v == null ? "—" : esc(fmtNum(v, metricIsCountLike(ov.metric)))) +
+          '<td class="mtux-heat-cell px-1.5 py-1.5 tabular-nums font-semibold text-slate-900 sm:px-2 dark:text-zinc-100" style="' + bg + '" title="' +
+            (v == null ? "" : esc(fmtNum(v, countLike))) + '">' +
+            (v == null ? "—" : esc(fmtNum(v, countLike))) +
           "</td>";
       });
       return '<tr class="hover:bg-slate-50/80 dark:hover:bg-zinc-800">' + cells + "</tr>";
     }).join("");
     var avgCells =
       '<td class="sticky left-0 z-[2] bg-slate-100 px-2 py-1.5 font-bold tabular-nums text-slate-800 sm:px-3 dark:bg-zinc-900 dark:text-zinc-100" title="Verisi olan günlerin ortalaması">Ortalama</td>';
-    list.forEach(function (b, i) {
+    colItems.forEach(function (col, i) {
       var avg = overviewColAverage(maps[i]);
       avgCells +=
         '<td class="px-1.5 py-1.5 tabular-nums font-bold text-slate-900 sm:px-2 dark:text-zinc-50" title="' +
-          (avg == null ? "" : esc(fmtNum(avg, false))) + '">' +
-          (avg == null ? "—" : esc(fmtNum(avg, false))) +
-        "</td>";
-    });
-    ovs.forEach(function (ov, oi) {
-      var avg = overviewColAverage(ovMaps[oi]);
-      var color = ov.color || paOverlayColor(oi);
-      avgCells +=
-        '<td class="px-1.5 py-1.5 tabular-nums font-bold sm:px-2" style="color:' + color + '" title="' +
           (avg == null ? "" : esc(fmtNum(avg, false))) + '">' +
           (avg == null ? "—" : esc(fmtNum(avg, false))) +
         "</td>";
@@ -3195,6 +3183,18 @@
         avgCells +
       "</tr>";
     paTable.innerHTML = bodyRows + avgRow;
+    var shell = document.getElementById("pa-table-shell");
+    var tableEl = paTable.closest("table");
+    if (ux && shell && tableEl) {
+      ux.ensureLegend(shell);
+      ux.bindInteractive(tableEl, {
+        widthsKey: "pa-table-col-widths",
+        orderKey: "pa-table-col-order",
+        onOrderChange: function () {
+          renderOverviewTable(bundles);
+        },
+      });
+    }
     paFitDataList(keys.length + 1);
   }
 
