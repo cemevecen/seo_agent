@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v42-no-bold-copy">
+<style id="home-site-borders" data-home-css="v43-ga4-quad-row">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -1782,15 +1782,15 @@
     width: 100%;
     min-width: 0;
   }
-  /* GA4 + SC KPI: yalnız 2+2 veya 4; 3+1 yok (container query) */
-  #home-board .home-readable .home-ga4-spark-grid,
-  #home-board .home-readable .home-sc-spark-grid--quad {
+  /* GA4: 2 kart → 2 kolon; 4 kart (döviz) → hep 4 yan yana. SC quad: 2+2 / 4 */
+  #home-board .home-readable .home-ga4-spark-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
-  @container home-ga4-grid (min-width: 640px) {
-    #home-board .home-readable .home-ga4-spark-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    }
+  #home-board .home-readable .home-ga4-spark-grid:has(> :nth-child(4)) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  #home-board .home-readable .home-sc-spark-grid--quad {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
   @container home-sc-grid (min-width: 640px) {
     #home-board .home-readable .home-sc-spark-grid--quad {
@@ -1978,7 +1978,7 @@
       {# Row 1 — GA4 (above the fold) #}
       <div class="home-pair-row grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div data-home-container-slot="ga4-doviz" data-home-project="doviz">
-        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=33" hx-trigger="load" hx-swap="innerHTML"
+        <section hx-get="/api/home/ga4-sessions?site=doviz&period_days=7&v=34" hx-trigger="load" hx-swap="innerHTML"
                  data-home-container="ga4-doviz"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">ga4</h3>

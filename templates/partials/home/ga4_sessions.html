@@ -1,4 +1,4 @@
-{# Mini spark + sayı — yalnız 2+2 veya 4 yan yana (3+1 yok) #}
+{# Mini spark + sayı — 4 kart hep yan yana; 2 kart yan yana (3+1 yok) #}
 {% from "partials/home/top_pages_dropdown.html" import home_top_pages_styles, home_top_pages_trigger, home_top_pages_panel %}
 {% from "partials/home/detail_kpis_dropdown.html" import home_detail_kpis_styles, home_detail_kpis_trigger, home_detail_kpis_panel %}
 {{ home_top_pages_styles() }}
@@ -15,10 +15,9 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
-  @container home-ga4-grid (min-width: 640px) {
-    .home-ga4-spark-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
+  /* Döviz (4 profil): her zaman tek satır — split’te sinemalar yüksekliğiyle eşit */
+  .home-ga4-spark-grid:has(> :nth-child(4)) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .home-ga4-spark-cell {
     min-width: 0;
