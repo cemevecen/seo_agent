@@ -8993,6 +8993,8 @@ def _home_store_firebase_card_from_tabs(
         ),
     ]
     if android_metrics[3]["value"] == "—" and (and_cf.get("latest") or {}).get("anr_free_fmt"):
+        from urllib.parse import quote
+
         latest = and_cf.get("latest") or {}
         fall_ver = str(and_cf.get("latest_version") or lv_name or "").strip()
         fall_label = f"v{fall_ver}" if fall_ver and fall_ver != "—" else "latest"
@@ -9004,7 +9006,7 @@ def _home_store_firebase_card_from_tabs(
                 + (
                     _home_sf_a(
                         fall_label,
-                        f"{_FB_ANDROID_RELEASE}?time=28d&version={fall_ver}",
+                        f"{_FB_ANDROID_RELEASE}?time=28d&version={quote(fall_ver)}",
                         external=True,
                         title=f"Firebase Console · {fall_label}",
                     )
