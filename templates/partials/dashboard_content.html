@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v26-wv-kpis">
+<style id="home-site-borders" data-home-css="v27-sf-title">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -503,7 +503,7 @@
     .home-sf-metric__sub,
     .home-sf-metric__extra
   ) {
-    font-size: clamp(0.32rem, 6.5cqi, calc(var(--home-text) / 2)) !important;
+    font-size: clamp(0.37rem, 7.5cqi, calc(var(--home-text) * 0.575)) !important;
     line-height: 1.25 !important;
     letter-spacing: 0.02em;
   }
@@ -1857,7 +1857,7 @@
         </section>
         </div>
         <div data-home-container-slot="wv-sinemalar" data-home-project="sinemalar">
-        <section hx-get="/api/home/web-vitals?site=sinemalar&v=5" hx-trigger="load delay:360ms" hx-swap="innerHTML"
+        <section hx-get="/api/home/web-vitals?site=sinemalar&v=6" hx-trigger="load delay:360ms" hx-swap="innerHTML"
                  data-home-container="wv-sinemalar"
                  class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Web Vitals</h3>
@@ -1880,7 +1880,7 @@
 
     {# Mobil mağaza / Firebase durum — full width #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=14" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=15" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
