@@ -1,4 +1,4 @@
-<style id="home-site-borders" data-home-css="v22-top50-pct">
+<style id="home-site-borders" data-home-css="v23-store-kpi-l">
   /* Ana sayfa container'ları — sol doviz (mavi) / sağ sinemalar (bordo).
      ring-1 = 1px; site çerçevelerini X2 (2px) yapıyoruz. */
   section[hx-get*="site=doviz"],
@@ -596,6 +596,14 @@
   #home-board .home-readable .home-sc-top50-vals :where(*) {
     font-size: calc(var(--home-text) / 2) !important;
     line-height: 1.3 !important;
+  }
+  /* Store KPI başlıkları (Skor/Sıra/Dönem/Puan): x2 küçült */
+  #home-board .home-readable .home-store-kpi__l {
+    font-size: calc(var(--home-text) / 2) !important;
+    line-height: 1.15 !important;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
   #home-board .home-readable .home-body {
     font-weight: 600;
@@ -1845,7 +1853,7 @@
 
     {# Mobil mağaza / Firebase durum — full width #}
     <div data-home-container-slot="crashlytics">
-    <section hx-get="/api/home/crashlytics?product=doviz&v=12" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
+    <section hx-get="/api/home/crashlytics?product=doviz&v=13" hx-trigger="load delay:400ms" hx-swap="innerHTML" hx-timeout="90000"
              data-home-container="crashlytics"
              class="home-readable rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">store &amp; firebase</h3>
