@@ -78,8 +78,6 @@ ASSETS = (
     {"id": "bist100", "label": "BIST 100"},
     {"id": "eur", "label": "Euro"},
     {"id": "gram_altin", "label": "Gram Altın"},
-    {"id": "harem_gram_altin", "label": "Harem Gram Altın"},
-    {"id": "kapalicarsi_gram_altin", "label": "Kapalıçarşı Gram Altın"},
     {"id": "gram_gumus", "label": "Gram Gümüş"},
     {"id": "ons_altin", "label": "Ons Altın"},
     {"id": "brent", "label": "Brent Petrol"},
@@ -120,6 +118,8 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
         "https://bigpara.hurriyet.com.tr/doviz/",
         "https://bigpara.hurriyet.com.tr/altin/",
         "https://bigpara.hurriyet.com.tr/borsa/",
+        "https://bigpara.hurriyet.com.tr/borsa/endeksler/",
+        "https://bigpara.hurriyet.com.tr/emtia/",
     ),
     "tradingview": (
         "https://www.tradingview.com/markets/turkey/",
@@ -129,6 +129,7 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
         "https://www.cnbce.com/piyasalar",
         "https://www.cnbce.com/doviz",
         "https://www.cnbce.com/altin",
+        "https://www.cnbce.com/emtia",
     ),
     "cnnturk": (
         "https://finans.cnnturk.com/canli-borsa",
@@ -140,6 +141,8 @@ SITE_LIST_URLS: dict[str, tuple[str, ...]] = {
     "bloomberght": (
         "https://www.bloomberght.com/piyasalar",
         "https://www.bloomberght.com/doviz",
+        "https://www.bloomberght.com/emtia",
+        "https://www.bloomberght.com/altin",
     ),
 }
 
@@ -157,8 +160,6 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "usd": "https://kur.doviz.com/serbest-piyasa/amerikan-dolari",
         "eur": "https://kur.doviz.com/serbest-piyasa/euro",
         "gram_altin": "https://altin.doviz.com/gram-altin",
-        "kapalicarsi_gram_altin": "https://altin.doviz.com/gram-altin",
-        "harem_gram_altin": "https://altin.doviz.com/harem/gram-altin",
         "gram_gumus": "https://altin.doviz.com/gumus",
         "ons_altin": "https://altin.doviz.com/ons",
         "ceyrek_altin": "https://altin.doviz.com/ceyrek-altin",
@@ -198,9 +199,9 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "usd": "https://www.investing.com/currencies/usd-try",
         "eur": "https://www.investing.com/currencies/eur-try",
         "bist100": "https://www.investing.com/indices/ise-100",
-        "ons_altin": "https://www.investing.com/commodities/gold",
+        "ons_altin": "https://www.investing.com/currencies/xau-usd",
         "brent": "https://www.investing.com/commodities/brent-oil",
-        "gram_gumus": "https://www.investing.com/commodities/silver",
+        "gram_gumus": "https://www.investing.com/currencies/xag-try",
         "gram_altin": "https://www.investing.com/currencies/xau-try",
         "ceyrek_altin": "https://tr.investing.com/commodities/turkey-gold-quarter",
     },
@@ -210,9 +211,9 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "gram_altin": "https://bigpara.hurriyet.com.tr/altin/gram-altin-fiyati/",
         "ceyrek_altin": "https://bigpara.hurriyet.com.tr/altin/ceyrek-altin-fiyati/",
         "ons_altin": "https://bigpara.hurriyet.com.tr/altin/altin-ons-fiyati/",
-        "bist100": "https://bigpara.hurriyet.com.tr/borsa/endeks/xu100/",
+        "bist100": "https://bigpara.hurriyet.com.tr/borsa/endeksler/",
         "gram_gumus": "https://bigpara.hurriyet.com.tr/altin/",
-        "brent": "https://bigpara.hurriyet.com.tr/",
+        "brent": "https://bigpara.hurriyet.com.tr/emtia/",
     },
     "uzmanpara": {
         "usd": "https://uzmanpara.milliyet.com.tr/doviz/",
@@ -230,8 +231,9 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "gram_altin": "https://www.bloomberght.com/piyasalar",
         "bist100": "https://www.bloomberght.com/piyasalar",
         "ons_altin": "https://www.bloomberght.com/piyasalar",
-        "brent": "https://www.bloomberght.com/piyasalar",
-        "ceyrek_altin": "https://www.bloomberght.com/piyasalar",
+        "brent": "https://www.bloomberght.com/emtia",
+        "ceyrek_altin": "https://www.bloomberght.com/altin",
+        "gram_gumus": "https://www.bloomberght.com/altin",
     },
     "cnbce": {
         "usd": "https://www.cnbce.com/doviz",
@@ -239,8 +241,9 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "bist100": "https://www.cnbce.com/piyasalar",
         "ons_altin": "https://www.cnbce.com/altin",
         "gram_altin": "https://www.cnbce.com/altin",
-        "brent": "https://www.cnbce.com/piyasalar",
+        "brent": "https://www.cnbce.com/emtia",
         "ceyrek_altin": "https://www.cnbce.com/altin",
+        "gram_gumus": "https://www.cnbce.com/emtia",
     },
     "cnnturk": {
         "usd": "https://finans.cnnturk.com/",
@@ -249,6 +252,8 @@ ASSET_URLS: dict[str, dict[str, str]] = {
         "bist100": "https://finans.cnnturk.com/",
         "ons_altin": "https://finans.cnnturk.com/",
         "ceyrek_altin": "https://finans.cnnturk.com/",
+        "gram_gumus": "https://finans.cnnturk.com/altin",
+        "brent": "https://finans.cnnturk.com/",
     },
     "enuygun": {
         "usd": "https://www.enuygunfinans.com/doviz-fiyatlari/",
@@ -277,17 +282,13 @@ ASSET_LABELS: dict[str, tuple[str, ...]] = {
     "eur": ("eurtry", "eur/try", "eur try", "eur to try", "euro", "avro"),
     "bist100": ("bist 100", "bist100", "xu100", "bist-100"),
     "gram_altin": ("gram altin", "ga altin", "xautry", "altin (tl/gr)", "spot altin", "gldgr", "altin"),
-    "harem_gram_altin": ("harem gram altin", "harem gram"),
-    "kapalicarsi_gram_altin": ("kapalicarsi gram", "kapali carsi gram"),
-    "gram_gumus": ("gram gumus", "gumus gram", "ga gumus", "gumus (tl/gr)", "sxaggr"),
-    "ons_altin": ("ons altin", "altin/ons", "altin ons", "xauusd", "gold ounce", "altin ($/ons)"),
+    "gram_gumus": ("gram gumus", "gumus gram", "ga gumus", "gumus (tl/gr)", "sxaggr", "gumus"),
+    "ons_altin": ("ons altin", "altin/ons", "altin ons", "altin (ons)", "xauusd", "gold ounce", "altin ($/ons)"),
     "brent": ("brent petrol", "brent", "ukoil", "petrol"),
     "ceyrek_altin": ("ceyrek altin", "ceyrek", "sgldc"),
 }
 
 _ASSET_MATCH_ORDER = (
-    "harem_gram_altin",
-    "kapalicarsi_gram_altin",
     "ceyrek_altin",
     "gram_gumus",
     "gram_altin",
@@ -303,8 +304,6 @@ ASSET_RANGES: dict[str, tuple[float, float]] = {
     "eur": (30.0, 110.0),
     "bist100": (5000.0, 30000.0),
     "gram_altin": (4000.0, 9000.0),
-    "harem_gram_altin": (4000.0, 9000.0),
-    "kapalicarsi_gram_altin": (4000.0, 9000.0),
     "gram_gumus": (80.0, 160.0),
     "ons_altin": (1500.0, 10000.0),
     "brent": (30.0, 250.0),
@@ -531,7 +530,10 @@ def _to_float(raw: str) -> float | None:
     if re.match(r"^0+\d", s):
         return None
     if s.count(",") == 1 and s.count(".") >= 1:
-        s = s.replace(".", "").replace(",", ".")
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
     elif s.count(",") == 1 and s.count(".") == 0:
         s = s.replace(",", ".")
     elif s.count(".") > 1:
@@ -611,10 +613,20 @@ def _line_has_label(folded: str, aid: str) -> bool:
     return _label_span(folded, aid) is not None
 
 
+_FOREIGN_SKIP = {
+    "ons_altin": {"usd", "eur"},
+    "gram_altin": {"usd", "eur"},
+    "ceyrek_altin": {"usd", "eur"},
+    "brent": {"usd", "eur"},
+    "gram_gumus": {"usd", "eur"},
+}
+
+
 def _foreign_cut(folded_window: str, aid: str) -> int:
     cut = len(folded_window)
+    skip = _FOREIGN_SKIP.get(aid) or set()
     for other in _ASSET_MATCH_ORDER:
-        if other == aid:
+        if other == aid or other in skip:
             continue
         for start, _end in _iter_label_spans(folded_window, other):
             if 0 <= start < cut:
@@ -840,7 +852,7 @@ def _http_fill_site(sid: str, home: str) -> dict[str, dict[str, str]]:
         _merge_found(found, _http_tradingview_quotes())
     for url in _site_urls(sid, home):
         _merge_found(found, _http_parse_url(url))
-        if len(found) >= len(ASSETS):
+        if set(_CORE_ASSETS) <= found.keys():
             break
     return found
 
@@ -1001,8 +1013,6 @@ _CORE_ASSETS = {
 
 def _browser_fill_gaps(page: Any, sid: str, home: str, found: dict[str, dict[str, str]]) -> None:
     wanted = set(_CORE_ASSETS)
-    if sid == "doviz":
-        wanted.update({"harem_gram_altin", "kapalicarsi_gram_altin"})
     if wanted <= found.keys():
         return
     seen_urls: set[str] = set()

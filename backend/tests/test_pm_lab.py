@@ -263,7 +263,6 @@ GRAM GÜMÜŞ 99,60  %-1,25  (-1,26)
 BRENT $88,28  %0,64  ($0,56)
 ÇEYREK ALTIN 11.104,62 %0,24
 ONS ALTIN 4.397,56 %0,18
-HAREM GRAM ALTIN 6.736,38
 """
     found = mod._parse_assets_from_text(text)
     assert found["usd"]["value"] == "47,7396"
@@ -274,7 +273,8 @@ HAREM GRAM ALTIN 6.736,38
     assert found["brent"]["value"] == "88,28"
     assert found["ceyrek_altin"]["value"] == "11.104,62"
     assert found["ons_altin"]["value"] == "4.397,56"
-    assert found["harem_gram_altin"]["value"] == "6.736,38"
+    assert "harem_gram_altin" not in found
+    assert "kapalicarsi_gram_altin" not in {a["id"] for a in mod.ASSETS}
     assert len({v["value"] for v in found.values()}) == len(found)
     mixed = mod._parse_assets_from_text("GRAM GÜMÜŞ\nDOLAR 47,7396  %0,08\nGRAM GÜMÜŞ 99,60")
     assert mixed["usd"]["value"] == "47,7396"
@@ -334,6 +334,14 @@ SXAGGR Gümüş (TL/GR) 99,4365 %-1,41
     assert "https://bigpara.hurriyet.com.tr/doviz/" in lists["bigpara"]
     assert "https://bigpara.hurriyet.com.tr/altin/" in lists["bigpara"]
     assert "https://bigpara.hurriyet.com.tr/borsa/" in lists["bigpara"]
+    assert "https://bigpara.hurriyet.com.tr/borsa/endeksler/" in lists["bigpara"]
+    assert "https://bigpara.hurriyet.com.tr/emtia/" in lists["bigpara"]
+    assert "https://www.bloomberght.com/emtia" in lists["bloomberght"]
+    assert "https://www.cnbce.com/emtia" in lists["cnbce"]
+    ons = mod._parse_assets_from_text("XAUUSD Altın (ONS) Altın / Dolar 4.369,28 4.369,87 %-0,45")
+    assert ons["ons_altin"]["value"] == "4.369,28"
+    assert mod._to_float("4,431.09") == 4431.09
+    assert mod._to_float("4.369,28") == 4369.28
     assert "https://www.tradingview.com/markets/turkey/" in lists["tradingview"]
     assert "https://www.tradingview.com/markets/currencies/rates-middle-east/" in lists["tradingview"]
     assert "https://www.cnbce.com/doviz" in lists["cnbce"]
