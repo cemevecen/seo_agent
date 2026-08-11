@@ -17,6 +17,12 @@
       projectData: {},
       boardOrders: {},
       statusMsg: '',
+      panelOpen: true,
+      vpnProbing: false,
+      vpnRemain: 15,
+      vpnOffline: false,
+      vpnOk: null,
+      _vpnTimer: null,
       _wired: false,
 
       init() {
@@ -36,6 +42,8 @@
           'nokta/doviz';
         this.activeProject = def;
         this.ensureProject(def);
+        this.startVpnProbe();
+        this.checkVpn();
         this.fetchProject(def, false);
         this._onHomeFocus = this.applyHomeFocus.bind(this);
         document.addEventListener('pc-home-focus', this._onHomeFocus);
@@ -43,6 +51,79 @@
         var board = document.getElementById('home-board');
         var mode = board ? board.getAttribute('data-home-focus') : 'split';
         this.applyHomeFocus({ detail: { mode: mode || 'split' } });
+      },
+
+      onDropToggle(ev) {
+        this.panelOpen = !!(ev && ev.target && ev.target.open);
+      },
+
+      collapsePanel() {
+        this.panelOpen = false;
+        var el = this.$refs && this.$refs.glDrop;
+        if (el) el.open = false;
+      },
+
+      expandPanel() {
+        this.panelOpen = true;
+        this.vpnOffline = false;
+        var el = this.$refs && this.$refs.glDrop;
+        if (el) el.open = true;
+      },
+
+      _clearVpnTimer() {
+        if (this._vpnTimer) {
+          clearInterval(this._vpnTimer);
+          this._vpnTimer = null;
+        }
+      },
+
+      startVpnProbe() {
+        this._clearVpnTimer();
+        this.vpnRemain = 15;
+        this.vpnProbing = true;
+        this.vpnOffline = false;
+        this.vpnOk = null;
+        this.expandPanel();
+        var self = this;
+        this._vpnTimer = setInterval(function () {
+          self.vpnRemain -= 1;
+          if (self.vpnRemain > 0) return;
+          self.finishVpnProbe();
+        }, 1000);
+      },
+
+      async checkVpn() {
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = setTimeout(function () {
+          if (ctrl) ctrl.abort();
+        }, 2500);
+        try {
+          var opts = { headers: { 'PRIVATE-TOKEN': this.token } };
+          if (ctrl) opts.signal = ctrl.signal;
+          var res = await fetch(this.baseUrl + '/version', opts);
+          clearTimeout(timer);
+          this.vpnOk = !!(res && (res.ok || res.status === 401));
+        } catch (e) {
+          clearTimeout(timer);
+          this.vpnOk = false;
+        }
+      },
+
+      finishVpnProbe() {
+        this._clearVpnTimer();
+        this.vpnProbing = false;
+        if (this.vpnRemain < 0) this.vpnRemain = 0;
+        var pd = this.pd();
+        if (pd && pd.loaded) {
+          this.vpnOffline = false;
+          this.expandPanel();
+          return;
+        }
+        var unreachable = this.vpnOk === false || (pd && pd.error);
+        if (unreachable) {
+          this.vpnOffline = true;
+          this.collapsePanel();
+        }
       },
 
       applyHomeFocus(ev) {
@@ -79,7 +160,11 @@
         this.activeProject = path;
         this.ensureProject(path);
         var pd = this.projectData[path];
-        if (!pd.loaded && !pd.loading) this.fetchProject(path, false);
+        if (!pd.loaded && !pd.loading) {
+          this.startVpnProbe();
+          this.checkVpn();
+          this.fetchProject(path, false);
+        }
       },
 
       platformLabel() {
@@ -316,6 +401,10 @@
           pd.lists = actualLists;
           pd.issues = openedIssues.concat(closedIssues);
           pd.loaded = true;
+          this.vpnOffline = false;
+          this._clearVpnTimer();
+          this.vpnProbing = false;
+          this.expandPanel();
           if (force) this.statusMsg = 'Güncellendi · ' + pd.issues.length + ' madde';
         } catch (err) {
           console.error(err);
@@ -325,9 +414,14 @@
             (err && err.name === 'TypeError')
           ) {
             msg = 'GitLab’e ulaşılamadı — VPN açık mı? (boards ile aynı bağlantı)';
+            this.vpnOk = false;
           }
           pd.error = msg;
           this.statusMsg = msg;
+          if (!this.vpnProbing) {
+            this.vpnOffline = true;
+            this.collapsePanel();
+          }
         } finally {
           pd.loading = false;
         }
@@ -336,6 +430,8 @@
       refreshActive() {
         if (!this.activeProject) return;
         this.projectData[this.activeProject].loaded = false;
+        this.startVpnProbe();
+        this.checkVpn();
         this.fetchProject(this.activeProject, true);
       },
 

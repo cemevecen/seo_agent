@@ -283,31 +283,98 @@
     @container home-gl-shell (max-width: 720px) {
       .home-gl-board .home-gl-lists { gap: 0.35rem; }
     }
+    .home-gl-board details.home-gl-drop > summary {
+      list-style: none;
+      cursor: pointer;
+    }
+    .home-gl-board details.home-gl-drop > summary::-webkit-details-marker { display: none; }
+    .home-gl-board details.home-gl-drop > summary .home-gl-chevron {
+      display: inline-block;
+      transition: transform .15s ease;
+      color: #94a3b8;
+    }
+    .home-gl-board details.home-gl-drop[open] > summary .home-gl-chevron { transform: rotate(90deg); }
+    .home-gl-orbit {
+      position: relative;
+      width: 4.35rem;
+      height: 4.35rem;
+      margin: 0 auto;
+    }
+    .home-gl-orbit__ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      border: 2.5px solid transparent;
+      border-top-color: #0284c7;
+      border-right-color: rgba(14, 165, 233, 0.38);
+      animation: home-gl-orbit-spin 0.9s linear infinite;
+    }
+    .home-gl-orbit__ring--mid {
+      inset: 0.52rem;
+      border-top-color: #38bdf8;
+      border-right-color: rgba(56, 189, 248, 0.32);
+      animation-duration: 1.25s;
+      animation-direction: reverse;
+    }
+    .home-gl-orbit__ring--inner {
+      inset: 1.05rem;
+      border-width: 2px;
+      border-top-color: #7dd3fc;
+      border-left-color: rgba(125, 211, 252, 0.4);
+      border-right-color: transparent;
+      animation-duration: 0.7s;
+    }
+    .home-gl-orbit__count {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #0369a1;
+      letter-spacing: -0.02em;
+    }
+    html.dark .home-gl-orbit__ring,
+    html.midnight .home-gl-orbit__ring { border-top-color: #38bdf8; }
+    html.dark .home-gl-orbit__ring--mid,
+    html.midnight .home-gl-orbit__ring--mid { border-top-color: #7dd3fc; }
+    html.dark .home-gl-orbit__ring--inner,
+    html.midnight .home-gl-orbit__ring--inner { border-top-color: #bae6fd; }
+    html.dark .home-gl-orbit__count,
+    html.midnight .home-gl-orbit__count { color: #7dd3fc; }
+    @keyframes home-gl-orbit-spin {
+      to { transform: rotate(360deg); }
+    }
     [x-cloak] { display: none !important; }
   </style>
 
-  <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-    <div class="min-w-0">
-      <div class="flex flex-wrap items-center gap-2">
+  <details class="home-gl-drop group" x-ref="glDrop" open @toggle="onDropToggle($event)">
+    <summary class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl px-0.5 py-0.5">
+      <div class="flex min-w-0 items-center gap-2">
+        <span class="home-gl-chevron leading-none" aria-hidden="true">▸</span>
         <span class="home-container-chip">git.nokta</span>
+        <span x-show="vpnOffline && !panelOpen" class="home-meta text-amber-600 dark:text-amber-300" x-cloak>VPN yok</span>
       </div>
-      <p class="home-meta mt-1 text-slate-500 dark:text-slate-400" x-show="statusMsg" x-text="statusMsg" x-cloak></p>
-    </div>
-    <div class="flex shrink-0 flex-wrap items-center gap-2">
-      <button type="button"
-              @click="refreshActive()"
-              :disabled="!activeProject || (pd() && pd().loading)"
-              class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-              title="Refresh"
-              aria-label="Refresh">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" :class="(pd() && pd().loading) ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      </button>
-      <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
-         class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
-    </div>
-  </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <button type="button"
+                @click.stop="refreshActive()"
+                :disabled="!activeProject || (pd() && pd().loading) || vpnProbing"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                title="Refresh"
+                aria-label="Refresh">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" :class="((pd() && pd().loading) || vpnProbing) ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+        <a href="/boards" hx-get="/boards" hx-target="#content" hx-swap="innerHTML" hx-push-url="true"
+           @click.stop
+           class="home-card-link font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Boards →</a>
+      </div>
+    </summary>
+
+    <p class="home-meta mt-1 text-slate-500 dark:text-slate-400" x-show="statusMsg && !vpnProbing" x-text="statusMsg" x-cloak></p>
 
   <div class="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
     <template x-for="project in configProjects" :key="project.path">
@@ -334,10 +401,15 @@
   <div class="home-gl-board-shell mt-4 min-h-[22rem] rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-950/50 sm:p-4">
     <template x-if="activeProject && pd()">
       <div class="min-w-0 w-full">
-        <div x-show="pd().error" class="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300" x-text="pd().error"></div>
-        <div x-show="pd().loading && !pd().loaded && !pd().error" class="py-16 text-center">
-          <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-900 border-r-transparent dark:border-zinc-400 dark:border-r-transparent"></div>
-          <p class="mt-3 text-sm text-slate-500 dark:text-zinc-400">GitLab board yükleniyor…</p>
+        <div x-show="pd().error && !vpnProbing" class="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300" x-text="pd().error"></div>
+        <div x-show="vpnProbing && !(pd() && pd().loaded)" class="py-14 text-center" x-cloak>
+          <div class="home-gl-orbit" aria-hidden="true">
+            <span class="home-gl-orbit__ring"></span>
+            <span class="home-gl-orbit__ring home-gl-orbit__ring--mid"></span>
+            <span class="home-gl-orbit__ring home-gl-orbit__ring--inner"></span>
+            <span class="home-gl-orbit__count" x-text="vpnRemain"></span>
+          </div>
+          <p class="mt-3 text-sm font-medium text-slate-600 dark:text-zinc-300">vpn durumu sorgulanıyor</p>
         </div>
         <div x-show="pd().loaded && !pd().error" class="home-gl-lists">
           <template x-for="(lst, index) in pd().lists" :key="lst.id">
@@ -401,4 +473,5 @@
       </div>
     </template>
   </div>
+  </details>
 </div>
