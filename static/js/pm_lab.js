@@ -364,78 +364,127 @@
   }
 
   function renderSikayet(root, data) {
-    var brands = (data.brands || []).slice();
+    var brands = (data.brands || []).slice().filter(function (b) {
+      return b.brand !== "x.com";
+    });
     if (!brands.length && data.sikayetvar) {
-      brands = [{ brand: "doviz.com", sikayetvar: data.sikayetvar, eksi: data.eksi }];
+      brands = [{ brand: "doviz.com", sikayetvar: data.sikayetvar, eksi: data.eksi, x: data.x }];
     }
     if (!brands.length) {
       root.textContent = "Kayıt yok.";
       return;
     }
-    brands.sort(function (a, b) {
-      var da = a.brand === "x.com" ? 0 : 1;
-      var db = b.brand === "x.com" ? 0 : 1;
-      return da - db;
-    });
+    var sourceStage = document.createElement("div");
     var stage = document.createElement("div");
-    function paint(i) {
-      stage.innerHTML = "";
-      var b = brands[i];
-      var sv = b.sikayetvar || {};
-      var ek = b.eksi || {};
-      var items = (sv.items || []).slice(0, 10);
-      var entries = (ek.entries || []).slice();
+    var currentBrand = 0;
+    var currentSrc = 0;
+    var srcDefs = [
+      { id: "x", label: "X" },
+      { id: "eksi", label: "Ekşi" },
+      { id: "sikayetvar", label: "Şikayetvar" },
+    ];
+
+    function uniqText(rows, textKey) {
       var seen = {};
-      entries = entries
-        .map(function (en) {
-          if (typeof en === "string") return { text: en, url: ek.url, date: "", author: "" };
-          return en;
-        })
-        .filter(function (en) {
-          var key = String(en.text || "").replace(/\s+/g, " ").slice(0, 80);
-          if (seen[key]) return false;
-          seen[key] = 1;
-          return String(en.text || "").length > 12;
-        })
-        .sort(function (a, b) {
-          return parseTrDate(b.date) - parseTrDate(a.date);
-        })
-        .slice(0, 10);
-      var h = document.createElement("div");
-      h.className = "flex flex-wrap gap-1.5 mb-2";
-      h.innerHTML = chip("şikayetvar " + items.length) + chip("ekşi son " + entries.length);
-      stage.appendChild(h);
-      items.forEach(function (it) {
-        var card = document.createElement("article");
-        card.className = "rounded-xl bg-slate-50 p-3 mb-2 dark:bg-zinc-950/40";
-        card.innerHTML =
-          "<p class=\"text-sm font-semibold\">" +
-          (it.url ? '<a class="hover:underline" href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.title || "") + "</a>" : esc(it.title || "")) +
-          "</p>" +
-          '<p class="text-[11px] text-slate-500">' + esc(it.meta || sv.url || "") + "</p>" +
-          '<p class="mt-1 text-xs text-slate-600 dark:text-zinc-400">' + esc(it.excerpt || "") + "</p>";
-        stage.appendChild(card);
-      });
-      entries.forEach(function (en) {
-        var text = en.text || "";
-        var url = en.url || ek.url;
-        var meta = [en.author, en.date].filter(Boolean).join(" · ");
-        var card = document.createElement("article");
-        card.className = "rounded-xl ring-1 ring-slate-200 p-3 mb-2 dark:ring-zinc-800";
-        card.innerHTML =
-          '<p class="text-[10px] uppercase tracking-wide text-slate-400">Ekşi' +
-          (meta ? " · " + esc(meta) : "") +
-          "</p>" +
-          '<p class="text-xs whitespace-pre-wrap">' +
-          esc(text) +
-          "</p>" +
-          (url ? '<p class="mt-1 text-[11px]"><a class="hover:underline" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + "</a></p>" : "");
-        stage.appendChild(card);
+      return rows.filter(function (row) {
+        var key = String(row[textKey] || row.text || row.title || "").replace(/\s+/g, " ").slice(0, 80);
+        if (!key || seen[key]) return false;
+        seen[key] = 1;
+        return true;
       });
     }
-    root.appendChild(tabs(brands.map(function (b) { return b.brand; }), paint));
+
+    function cardMeta(label, meta, text, url) {
+      var card = document.createElement("article");
+      card.className = "rounded-xl ring-1 ring-slate-200 p-3 mb-2 dark:ring-zinc-800";
+      card.innerHTML =
+        '<p class="text-[10px] uppercase tracking-wide text-slate-400">' +
+        esc(label) +
+        (meta ? " · " + esc(meta) : "") +
+        "</p>" +
+        '<p class="mt-1 text-xs whitespace-pre-wrap">' +
+        esc(text) +
+        "</p>" +
+        (url ? '<p class="mt-1 text-[11px]"><a class="hover:underline" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + "</a></p>" : "");
+      return card;
+    }
+
+    function paintSource() {
+      stage.innerHTML = "";
+      var b = brands[currentBrand];
+      var src = srcDefs[currentSrc];
+      if (src.id === "x") {
+        var items = uniqText((b.x || {}).items || [], "text").slice(0, 10);
+        if (!items.length) {
+          stage.textContent = "X’te bu arama için kayıt yok (giriş duvarı olabilir).";
+          return;
+        }
+        items.forEach(function (it) {
+          stage.appendChild(cardMeta("X", [it.author, it.date].filter(Boolean).join(" · "), it.text || it.title || "", it.url));
+        });
+        return;
+      }
+      if (src.id === "eksi") {
+        var ek = b.eksi || {};
+        var entries = uniqText(
+          (ek.entries || []).map(function (en) {
+            return typeof en === "string" ? { text: en, url: ek.url } : en;
+          }),
+          "text"
+        )
+          .sort(function (a, b) {
+            return parseTrDate(b.date) - parseTrDate(a.date);
+          })
+          .slice(0, 10);
+        if (!entries.length) {
+          stage.textContent = "Ekşi kaydı yok.";
+          return;
+        }
+        entries.forEach(function (en) {
+          stage.appendChild(cardMeta("Ekşi", [en.author, en.date].filter(Boolean).join(" · "), en.text || "", en.url || ek.url));
+        });
+        return;
+      }
+      var sv = b.sikayetvar || {};
+      var complaints = uniqText(sv.items || [], "title").slice(0, 10);
+      if (!complaints.length) {
+        stage.textContent = "Şikayetvar kaydı yok.";
+        return;
+      }
+      complaints.forEach(function (it) {
+        var text = [it.title, it.excerpt].filter(Boolean).join("\n");
+        stage.appendChild(cardMeta("Şikayetvar", it.meta || "", text, it.url));
+      });
+    }
+
+    function sourceLabels() {
+      var b = brands[currentBrand];
+      return srcDefs.map(function (s) {
+        var n = 0;
+        if (s.id === "x") n = ((b.x || {}).items || []).length;
+        else if (s.id === "eksi") n = ((b.eksi || {}).entries || []).length;
+        else n = ((b.sikayetvar || {}).items || []).length;
+        return s.label + " " + n;
+      });
+    }
+
+    function paintBrand(i) {
+      currentBrand = i;
+      currentSrc = 0;
+      sourceStage.innerHTML = "";
+      sourceStage.appendChild(
+        tabs(sourceLabels(), function (si) {
+          currentSrc = si;
+          paintSource();
+        })
+      );
+      paintSource();
+    }
+
+    root.appendChild(tabs(brands.map(function (b) { return b.brand; }), paintBrand));
+    root.appendChild(sourceStage);
     root.appendChild(stage);
-    paint(0);
+    paintBrand(0);
   }
 
   function rankDeltaHtml(a) {

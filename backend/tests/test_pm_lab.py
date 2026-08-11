@@ -123,8 +123,9 @@ def test_template_has_no_photos_and_js_shell():
     assert "renderCompetitors" in js
     assert 'concat(["Toplam"])' in js
     assert "missRank" in js
-    assert 'brand === "x.com"' in js
+    assert 'label: "X"' in js
     assert "rankDeltaHtml" in js
+    assert any(s["title"] == "x - ekşi - şikayetvar" for s in SECTION_DEFS)
 
 
 def test_store_chart_rank_deltas():

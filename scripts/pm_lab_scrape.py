@@ -732,41 +732,143 @@ def _sikayet_extract(page: Any, *, limit: int = 10) -> list[dict[str, Any]]:
         return []
 
 
+def _x_extract_tweets(page: Any) -> list[dict[str, Any]]:
+    try:
+        rows = page.evaluate(
+            """() => {
+              const out = [];
+              const seen = new Set();
+              document.querySelectorAll('article[data-testid="tweet"], article').forEach((art) => {
+                const textEl = art.querySelector('[data-testid="tweetText"]');
+                const text = ((textEl && textEl.innerText) || '').trim();
+                if (text.length < 12) return;
+                const status = art.querySelector('a[href*="/status/"]');
+                const url = (status && status.href) || '';
+                if (url && seen.has(url)) return;
+                if (url) seen.add(url);
+                else {
+                  const fp = text.slice(0, 80);
+                  if (seen.has(fp)) return;
+                  seen.add(fp);
+                }
+                const timeEl = art.querySelector('time');
+                const nameEl = art.querySelector('[data-testid="User-Name"]');
+                const author = ((nameEl && nameEl.innerText) || '').split('\\n').filter(Boolean)[0] || '';
+                out.push({
+                  text: text.slice(0, 700),
+                  author: author.slice(0, 80),
+                  date: ((timeEl && (timeEl.getAttribute('datetime') || timeEl.innerText)) || '').slice(0, 48),
+                  url: url || window.location.href
+                });
+              });
+              return out.slice(0, 10);
+            }"""
+        )
+        return rows if isinstance(rows, list) else []
+    except Exception:
+        return []
+
+
+def _x_from_google(page: Any, query: str, *, limit: int = 10) -> list[dict[str, Any]]:
+    q = f'site:x.com OR site:twitter.com "{query}"'
+    url = f"https://www.google.com/search?q={quote(q)}&hl=tr&num=10&tbs=qdr:y"
+    _goto(page, url, timeout=70_000)
+    page.wait_for_timeout(1100)
+    parsed = _extract_serp(page)
+    out: list[dict[str, Any]] = []
+    for row in parsed.get("organic") or []:
+        host = str(row.get("domain") or "").lower()
+        href = str(row.get("url") or "")
+        if "x.com" not in host and "twitter.com" not in host and "x.com" not in href and "twitter.com" not in href:
+            continue
+        out.append(
+            {
+                "text": (row.get("snippet") or row.get("title") or "")[:700],
+                "author": (row.get("title") or "")[:80],
+                "date": "",
+                "url": href,
+                "title": row.get("title") or "",
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
+    search = f"https://x.com/search?q={quote(query)}&src=typed_query&f=live"
+    items: list[dict[str, Any]] = []
+    final = search
+    try:
+        _goto(page, search, timeout=70_000)
+        page.wait_for_timeout(1800)
+        final = page.url
+        items = _x_extract_tweets(page)
+    except Exception:
+        items = []
+    if len(items) < 3:
+        extra = _x_from_google(page, query, limit=limit)
+        seen = {str(x.get("url") or x.get("text") or "")[:80] for x in items}
+        for row in extra:
+            key = str(row.get("url") or row.get("text") or "")[:80]
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(row)
+            if len(items) >= limit:
+                break
+        final = page.url or final
+    return final, items[:limit]
+
+
+def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
+    slug = query.replace(".com", "").replace(".", "")
+    urls = [
+        f"https://www.sikayetvar.com/{slug}",
+        f"https://www.sikayetvar.com/search?q={quote(query)}",
+        f"https://www.sikayetvar.com/sikayetler?search={quote(query)}",
+    ]
+    final = urls[0]
+    items: list[dict[str, Any]] = []
+    for url in urls:
+        try:
+            _goto(page, url, timeout=70_000)
+            page.wait_for_timeout(1200)
+            final = page.url
+            items = _sikayet_extract(page, limit=limit)
+            if items:
+                break
+        except Exception:
+            continue
+    return final, items[:limit]
+
+
 def job_sikayet(page: Any) -> dict[str, Any]:
-    brands = (
-        {
-            "id": "x.com",
-            "sikayet": "https://www.sikayetvar.com/twitter",
-            "eksi": "https://eksisozluk.com/?q=x.com",
-        },
-        {
-            "id": "doviz.com",
-            "sikayet": "https://www.sikayetvar.com/search?q=doviz.com",
-            "eksi": "https://eksisozluk.com/?q=doviz.com",
-        },
-        {
-            "id": "sinemalar.com",
-            "sikayet": "https://www.sikayetvar.com/search?q=sinemalar.com",
-            "eksi": "https://eksisozluk.com/?q=sinemalar.com",
-        },
-    )
+    brands = ("doviz.com", "sinemalar.com")
     out: list[dict[str, Any]] = []
     for brand in brands:
         rec: dict[str, Any] = {
-            "brand": brand["id"],
-            "sikayetvar": {"url": brand["sikayet"], "items": []},
-            "eksi": {"url": brand["eksi"], "entries": []},
+            "brand": brand,
+            "x": {"url": "", "items": []},
+            "eksi": {"url": "", "entries": []},
+            "sikayetvar": {"url": "", "items": []},
         }
         try:
-            _goto(page, brand["sikayet"], timeout=70_000)
-            page.wait_for_timeout(1200)
-            rec["sikayetvar"]["url"] = page.url
+            x_url, x_items = _x_newest(page, brand, limit=10)
+            rec["x"]["url"] = x_url
+            rec["x"]["items"] = x_items
+        except Exception as exc:
+            rec["x"]["message"] = str(exc)[:200]
+        try:
+            sv_url, sv_items = _sikayet_newest(page, brand, limit=10)
+            rec["sikayetvar"]["url"] = sv_url
             rec["sikayetvar"]["title"] = (page.title() or "")[:160]
-            rec["sikayetvar"]["items"] = _sikayet_extract(page, limit=10)
+            rec["sikayetvar"]["items"] = sv_items
         except Exception as exc:
             rec["sikayetvar"]["message"] = str(exc)[:200]
         try:
-            final_url, entries = _eksi_newest(page, brand["eksi"], limit=10)
+            eksi_q = f"https://eksisozluk.com/?q={quote(brand)}"
+            final_url, entries = _eksi_newest(page, eksi_q, limit=10)
             rec["eksi"]["url"] = final_url
             rec["eksi"]["title"] = (page.title() or "")[:160]
             rec["eksi"]["entries"] = entries
@@ -775,17 +877,18 @@ def job_sikayet(page: Any) -> dict[str, Any]:
         out.append(rec)
         time.sleep(0.4)
     n = sum(
-        len((b.get("sikayetvar") or {}).get("items") or [])
+        len((b.get("x") or {}).get("items") or [])
+        + len((b.get("sikayetvar") or {}).get("items") or [])
         + len((b.get("eksi") or {}).get("entries") or [])
         for b in out
     )
     return {
         "ok": n > 0,
         "scraped_at": _now(),
-        "summary": f"{n} kayıt · {len(out)} marka · son 10",
+        "summary": f"{n} kayıt · {len(out)} marka · X/Ekşi/Şikayetvar son 10",
         "message": "",
         "brands": out,
-        "default_brand": "x.com",
+        "sources": ["x", "eksi", "sikayetvar"],
     }
 
 

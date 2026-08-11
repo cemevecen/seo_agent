@@ -33,8 +33,8 @@ SECTION_DEFS: list[dict[str, Any]] = [
     {
         "id": "sikayet",
         "no": 9,
-        "title": "Şikayetvar / Ekşi",
-        "hint": "x.com · doviz.com · sinemalar.com · son 10",
+        "title": "x - ekşi - şikayetvar",
+        "hint": "doviz.com · sinemalar.com · her kaynaktan son 10",
     },
     {
         "id": "store_charts",
