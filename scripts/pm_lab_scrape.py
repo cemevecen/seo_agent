@@ -701,7 +701,118 @@ def _eksi_newest(page: Any, start_url: str, *, limit: int = 10) -> tuple[str, li
     return final_url, collected[:limit]
 
 
-def _sikayet_extract(page: Any, *, limit: int = 10) -> list[dict[str, Any]]:
+def _matches_query(blob: str, query: str) -> bool:
+    """True when the writing was entered as the brand string (e.g. doviz.com)."""
+    blob_l = (blob or "").lower().replace("www.", "")
+    q = (query or "").strip().lower().replace("www.", "")
+    if not q:
+        return True
+    if q in blob_l:
+        return True
+    return q.replace(".", " ") in blob_l
+
+
+def _filter_query_rows(rows: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        blob = " ".join(
+            str(row.get(k) or "")
+            for k in ("title", "text", "excerpt", "url", "author", "meta")
+        )
+        if _matches_query(blob, query):
+            out.append(row)
+    return out
+
+
+def _harvest_host_results(page: Any, *, hosts: tuple[str, ...], limit: int = 10) -> list[dict[str, Any]]:
+    try:
+        rows = page.evaluate(
+            """([hosts, limit]) => {
+              const out = [];
+              const seen = new Set();
+              const skip = ['google.com', 'bing.com', 'duckduckgo.com', 'microsoft.com'];
+              document.querySelectorAll('a[href]').forEach((a) => {
+                const href = (a.href || '').split('#')[0];
+                if (!href.startsWith('http')) return;
+                const low = href.toLowerCase();
+                if (!hosts.some((h) => low.includes(h))) return;
+                if (skip.some((h) => low.includes(h))) return;
+                const key = href.split('?')[0];
+                if (seen.has(key)) return;
+                seen.add(key);
+                const title = (a.innerText || '').trim().replace(/\\s+/g, ' ');
+                const block = a.closest('li, article, .b_algo, div.g') || a.parentElement;
+                const snippet = ((block && block.innerText) || title).trim().replace(/\\s+/g, ' ');
+                out.push({
+                  title: title.slice(0, 180),
+                  text: snippet.slice(0, 700),
+                  excerpt: snippet.slice(0, 420),
+                  author: '',
+                  date: '',
+                  url: key
+                });
+              });
+              return out.slice(0, limit);
+            }""",
+            [list(hosts), limit],
+        )
+        return rows if isinstance(rows, list) else []
+    except Exception:
+        return []
+
+
+def _web_search_mentions(
+    page: Any,
+    query: str,
+    *,
+    hosts: tuple[str, ...],
+    site_query: str,
+    limit: int = 10,
+) -> tuple[str, list[dict[str, Any]]]:
+    q = f'{site_query} "{query}"'
+    engines = [
+        f"https://www.google.com/search?q={quote(q)}&hl=tr&num=10",
+        f"https://www.bing.com/search?q={quote(q)}&setlang=tr-TR",
+        f"https://duckduckgo.com/?q={quote(q)}&ia=web",
+    ]
+    final = engines[0]
+    collected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for url in engines:
+        try:
+            _goto(page, url, timeout=70_000)
+            page.wait_for_timeout(1400)
+            final = page.url or url
+            if "sorry" in (final or "").lower():
+                continue
+            rows = _harvest_host_results(page, hosts=hosts, limit=limit * 2)
+            if "google." in (final or "") and not rows:
+                parsed = _extract_serp(page)
+                for org in parsed.get("organic") or []:
+                    rows.append(
+                        {
+                            "title": org.get("title") or "",
+                            "text": org.get("snippet") or org.get("title") or "",
+                            "excerpt": org.get("snippet") or "",
+                            "url": org.get("url") or "",
+                            "author": "",
+                            "date": "",
+                        }
+                    )
+            for row in _filter_query_rows(rows, query):
+                key = str(row.get("url") or row.get("text") or "")[:120]
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                collected.append(row)
+                if len(collected) >= limit:
+                    return final, collected[:limit]
+        except Exception:
+            continue
+    return final, collected[:limit]
+
+
+def _sikayet_extract(page: Any, *, query: str = "", limit: int = 10) -> list[dict[str, Any]]:
     try:
         rows = page.evaluate(
             """(limit) => {
@@ -730,11 +841,12 @@ def _sikayet_extract(page: Any, *, limit: int = 10) -> list[dict[str, Any]]:
                   excerpt: lines.slice(1, 8).join(' ').slice(0, 420)
                 });
               });
-              return out.slice(0, limit);
+              return out.slice(0, Math.max(limit, 40));
             }""",
             limit,
         )
-        return rows if isinstance(rows, list) else []
+        rows = rows if isinstance(rows, list) else []
+        return _filter_query_rows(rows, query)[:limit]
     except Exception:
         return []
 
@@ -776,66 +888,6 @@ def _x_extract_tweets(page: Any) -> list[dict[str, Any]]:
         return []
 
 
-def _x_from_google(page: Any, query: str, *, limit: int = 10) -> list[dict[str, Any]]:
-    q = f'site:x.com OR site:twitter.com "{query}"'
-    url = f"https://www.google.com/search?q={quote(q)}&hl=tr&num=10&tbs=qdr:y"
-    _goto(page, url, timeout=70_000)
-    page.wait_for_timeout(1100)
-    if "sorry" in (page.url or "").lower():
-        return []
-    parsed = _extract_serp(page)
-    out: list[dict[str, Any]] = []
-    for row in parsed.get("organic") or []:
-        host = str(row.get("domain") or "").lower()
-        href = str(row.get("url") or "")
-        if "x.com" not in host and "twitter.com" not in host and "x.com" not in href and "twitter.com" not in href:
-            continue
-        out.append(
-            {
-                "text": (row.get("snippet") or row.get("title") or "")[:700],
-                "author": (row.get("title") or "")[:80],
-                "date": "",
-                "url": href,
-                "title": row.get("title") or "",
-            }
-        )
-        if len(out) >= limit:
-            break
-    return out
-
-
-def _x_from_bing(page: Any, query: str, *, limit: int = 10) -> list[dict[str, Any]]:
-    q = f"site:x.com OR site:twitter.com {query}"
-    url = f"https://www.bing.com/search?q={quote(q)}&setlang=tr-TR"
-    _goto(page, url, timeout=70_000)
-    page.wait_for_timeout(1200)
-    try:
-        rows = page.evaluate(
-            """(limit) => {
-              const out = [];
-              document.querySelectorAll('li.b_algo').forEach((li) => {
-                const a = li.querySelector('h2 a');
-                if (!a || !a.href) return;
-                const href = a.href;
-                if (!href.includes('x.com') && !href.includes('twitter.com')) return;
-                const text = ((li.querySelector('p') || {}).innerText || '').trim();
-                out.push({
-                  title: (a.innerText || '').trim().slice(0, 180),
-                  text: (text || (a.innerText || '')).slice(0, 700),
-                  author: '',
-                  date: '',
-                  url: href
-                });
-              });
-              return out.slice(0, limit);
-            }""",
-            limit,
-        )
-        return rows if isinstance(rows, list) else []
-    except Exception:
-        return []
-
-
 def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
     search = f"https://x.com/search?q={quote(query)}&src=typed_query&f=live"
     items: list[dict[str, Any]] = []
@@ -844,41 +896,37 @@ def _x_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict
         _goto(page, search, timeout=70_000)
         page.wait_for_timeout(1800)
         final = page.url
-        items = _x_extract_tweets(page)
+        items = _filter_query_rows(_x_extract_tweets(page), query)
     except Exception:
         items = []
     if len(items) < 3:
-        extra: list[dict[str, Any]] = []
-        try:
-            extra = _x_from_google(page, query, limit=limit)
-        except Exception:
-            extra = []
-        if len(extra) < 3:
-            try:
-                extra = extra + _x_from_bing(page, query, limit=limit)
-            except Exception:
-                pass
+        web_url, extra = _web_search_mentions(
+            page,
+            query,
+            hosts=("x.com/", "twitter.com/"),
+            site_query="site:x.com OR site:twitter.com",
+            limit=limit,
+        )
         seen = {str(x.get("url") or x.get("text") or "")[:80] for x in items}
         for row in extra:
             key = str(row.get("url") or row.get("text") or "")[:80]
             if key in seen:
                 continue
             seen.add(key)
+            if not row.get("text"):
+                row["text"] = row.get("excerpt") or row.get("title") or ""
             items.append(row)
             if len(items) >= limit:
                 break
-        final = page.url or final
+        final = web_url or final
     return final, items[:limit]
 
 
 def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
-    slug = query.replace(".com", "").replace(".", "")
     urls = [
         f"https://www.sikayetvar.com/search?q={quote(query)}",
         f"https://www.sikayetvar.com/sikayetler?search={quote(query)}",
     ]
-    if slug and slug not in {"doviz"}:
-        urls.insert(0, f"https://www.sikayetvar.com/{slug}")
     final = urls[0]
     items: list[dict[str, Any]] = []
     for url in urls:
@@ -890,11 +938,30 @@ def _sikayet_newest(page: Any, query: str, *, limit: int = 10) -> tuple[str, lis
             except Exception:
                 pass
             final = page.url
-            items = _sikayet_extract(page, limit=limit)
+            items = _sikayet_extract(page, query=query, limit=limit)
             if items:
                 break
         except Exception:
             continue
+    if len(items) < 3:
+        web_url, extra = _web_search_mentions(
+            page,
+            query,
+            hosts=("sikayetvar.com/",),
+            site_query="site:sikayetvar.com",
+            limit=limit,
+        )
+        seen = {str(x.get("url") or "")[:80] for x in items}
+        for row in extra:
+            key = str(row.get("url") or "")[:80]
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            items.append(row)
+            if len(items) >= limit:
+                break
+        if extra:
+            final = web_url or final
     return final, items[:limit]
 
 
@@ -1317,8 +1384,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from playwright.sync_api import sync_playwright
 
-    public = [j for j in wanted if j in ("competitors", "sikayet", "store_charts", "google_news")]
-    google_jobs = [j for j in wanted if j == "serp"]
+    public = [j for j in wanted if j in ("competitors", "store_charts", "google_news")]
+    google_jobs = [j for j in wanted if j in ("serp", "sikayet")]
     fns = {
         "serp": job_serp,
         "competitors": job_competitors,

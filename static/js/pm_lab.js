@@ -126,13 +126,14 @@
     return row;
   }
 
-  function tabs(labels, onPick) {
+  function tabs(labels, onPick, active) {
     var bar = document.createElement("div");
     bar.className = "pml-tabs";
+    var on = active == null ? 0 : active;
     labels.forEach(function (lab, i) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "pml-tab" + (i === 0 ? " is-on" : "") + (lab === "Toplam" ? " pml-tab-total" : "");
+      b.className = "pml-tab" + (i === on ? " is-on" : "") + (lab === "Toplam" ? " pml-tab-total" : "");
       b.textContent = lab;
       b.addEventListener("click", function () {
         Array.prototype.forEach.call(bar.children, function (x) {
@@ -470,13 +471,20 @@
 
     function paintBrand(i) {
       currentBrand = i;
+      var labels = sourceLabels();
       currentSrc = 0;
+      for (var si = 0; si < srcDefs.length; si++) {
+        if (/\s[1-9]\d*$/.test(labels[si] || "")) {
+          currentSrc = si;
+          break;
+        }
+      }
       sourceStage.innerHTML = "";
       sourceStage.appendChild(
-        tabs(sourceLabels(), function (si) {
+        tabs(labels, function (si) {
           currentSrc = si;
           paintSource();
-        })
+        }, currentSrc)
       );
       paintSource();
     }

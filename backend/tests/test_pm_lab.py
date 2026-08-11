@@ -124,8 +124,26 @@ def test_template_has_no_photos_and_js_shell():
     assert 'concat(["Toplam"])' in js
     assert "missRank" in js
     assert 'label: "X"' in js
+    assert "function tabs(labels, onPick, active)" in js
     assert "rankDeltaHtml" in js
     assert any(s["title"] == "x - ekşi - şikayetvar" for s in SECTION_DEFS)
+    assert "doviz.com · sinemalar.com · her kaynaktan son 10" in next(
+        s["hint"] for s in SECTION_DEFS if s["id"] == "sikayet"
+    )
+
+
+def test_mention_query_match_requires_brand_string():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pm_lab_scrape", Path("scripts/pm_lab_scrape.py"))
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    assert mod._matches_query("doviz.com uygulaması donuyor", "doviz.com")
+    assert mod._matches_query("https://x.com/i/status/1 doviz com", "doviz.com")
+    assert not mod._matches_query("ziraat döviz hesabım bloke", "doviz.com")
+    assert not mod._matches_query("sinema bileti kampanyası", "sinemalar.com")
+    assert mod._matches_query("sinemalar.com giriş yapamıyorum", "sinemalar.com")
 
 
 def test_store_chart_rank_deltas():
