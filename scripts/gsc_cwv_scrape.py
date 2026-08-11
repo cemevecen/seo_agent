@@ -851,31 +851,32 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
     """Grafik üzerinde gezerek GSC tooltip'inden günlük tam sayıları oku."""
     charts: list[dict[str, Any]] = []
     try:
-        handles = page.query_selector_all("svg")
+        boxes = page.evaluate(
+            """() => [...document.querySelectorAll('svg')]
+              .map(svg => svg.getBoundingClientRect())
+              .filter(bb => bb.width >= 320 && bb.height >= 120)
+              .slice(0, 2)
+              .map(bb => ({x: bb.x, y: bb.y, width: bb.width, height: bb.height}))"""
+        )
     except Exception:
         return charts
-    for svg in handles:
-        try:
-            svg.scroll_into_view_if_needed()
-            time.sleep(0.2)
-        except Exception:
-            pass
-        try:
-            box = svg.bounding_box()
-        except Exception:
+    for box in boxes or []:
+        if not isinstance(box, dict):
             continue
-        if not box or box["width"] < 320 or box["height"] < 120:
+        w = float(box.get("width") or 0)
+        h = float(box.get("height") or 0)
+        if w < 320 or h < 120:
             continue
         samples: dict[str, dict[str, Any]] = {}
-        n = 100
+        n = 72
         for i in range(n):
-            x = box["x"] + 20 + (box["width"] - 32) * i / max(n - 1, 1)
-            y = box["y"] + box["height"] * 0.42
+            x = float(box["x"]) + 20 + (w - 32) * i / max(n - 1, 1)
+            y = float(box["y"]) + h * 0.42
             try:
                 page.mouse.move(x, y)
             except Exception:
                 continue
-            time.sleep(0.03)
+            time.sleep(0.025)
             try:
                 text = page.evaluate(_TIP_TEXT_JS)
             except Exception:
