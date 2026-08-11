@@ -761,6 +761,96 @@ def _daily_iso_range(t0: datetime, t1: datetime) -> list[str]:
     return [(t0 + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(n + 1)]
 
 
+def _fold_tr(s: str) -> str:
+    table = str.maketrans(
+        {
+            "İ": "i",
+            "I": "i",
+            "ı": "i",
+            "Ş": "s",
+            "ş": "s",
+            "Ğ": "g",
+            "ğ": "g",
+            "Ü": "u",
+            "ü": "u",
+            "Ö": "o",
+            "ö": "o",
+            "Ç": "c",
+            "ç": "c",
+        }
+    )
+    return (s or "").translate(table).lower()
+
+
+def _series_from_tooltip_samples(
+    samples: dict[str, dict[str, Any]],
+    *,
+    start_iso: str = "",
+    end_iso: str = "",
+) -> dict[str, Any] | None:
+    """GSC tooltip noktaları → günlük seri. Eksik günler komşu gerçek değerler arasında doğrusal."""
+    clean: dict[str, dict[str, int]] = {}
+    for raw_d, row in (samples or {}).items():
+        d = str(raw_d or "")[:10]
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", d) or not isinstance(row, dict):
+            continue
+        clean[d] = {
+            "poor": int(row.get("poor") or 0),
+            "needs_improvement": int(row.get("needs_improvement") or 0),
+            "good": int(row.get("good") or 0),
+        }
+    if len(clean) < 5:
+        return None
+    tip_dates = sorted(clean)
+    t0 = start_iso[:10] if start_iso and re.match(r"^\d{4}-\d{2}-\d{2}$", start_iso[:10]) else tip_dates[0]
+    t1 = end_iso[:10] if end_iso and re.match(r"^\d{4}-\d{2}-\d{2}$", end_iso[:10]) else tip_dates[-1]
+    if t0 > tip_dates[0]:
+        t0 = tip_dates[0]
+    if t1 < tip_dates[-1]:
+        t1 = tip_dates[-1]
+    try:
+        dates = _daily_iso_range(
+            datetime.strptime(t0, "%Y-%m-%d"),
+            datetime.strptime(t1, "%Y-%m-%d"),
+        )
+    except ValueError:
+        dates = tip_dates
+    if not dates:
+        return None
+
+    def _metric(name: str) -> list[int]:
+        by = {d: clean[d][name] for d in tip_dates}
+        out: list[int] = []
+        for d in dates:
+            if d in by:
+                out.append(by[d])
+                continue
+            prev = [x for x in tip_dates if x < d]
+            nxt = [x for x in tip_dates if x > d]
+            if prev and nxt:
+                d0, d1 = prev[-1], nxt[0]
+                span = (datetime.strptime(d1, "%Y-%m-%d") - datetime.strptime(d0, "%Y-%m-%d")).days or 1
+                t = (datetime.strptime(d, "%Y-%m-%d") - datetime.strptime(d0, "%Y-%m-%d")).days / span
+                out.append(int(round(by[d0] + t * (by[d1] - by[d0]))))
+            elif prev:
+                out.append(by[prev[-1]])
+            elif nxt:
+                out.append(by[nxt[0]])
+            else:
+                out.append(0)
+        return out
+
+    return {
+        "dates": dates,
+        "poor": _metric("poor"),
+        "needs_improvement": _metric("needs_improvement"),
+        "good": _metric("good"),
+        "point_count": len(dates),
+        "source": "gsc_tooltip",
+        "tooltip_points": len(tip_dates),
+    }
+
+
 def _interp_y(by_x: dict[float, float], x: float) -> float:
     if not by_x:
         return 0.0
@@ -782,23 +872,24 @@ def _interp_y(by_x: dict[float, float], x: float) -> float:
 
 
 def _parse_gsc_chart_tooltip(text: str) -> dict[str, Any] | None:
-    t = _clean(text)
-    if not t or len(t) < 8:
+    raw = _clean(text)
+    if not raw or len(raw) < 8:
         return None
+    t = _fold_tr(raw)
     date = ""
-    for line in t.splitlines():
+    for line in raw.splitlines():
         iso = _gsc_label_to_iso(line)
         if iso:
             date = iso
             break
     if not date:
-        m = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{2,4})", t)
+        m = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{2,4})", raw)
         if m:
             date = _gsc_label_to_iso(m.group(1))
     if not date:
         m = re.search(
             r"(\d{1,2}\s+[A-Za-zçğıöşüÇĞİÖŞÜ]{3,}(?:\s+\d{2,4})?|[A-Za-z]{3,}\s+\d{1,2}(?:,?\s+\d{2,4})?)",
-            t,
+            raw,
         )
         if m:
             date = _gsc_label_to_iso(m.group(0))
@@ -813,18 +904,19 @@ def _parse_gsc_chart_tooltip(text: str) -> dict[str, Any] | None:
         return 0
 
     poor = grab(
-        r"(?:yetersiz|kötü|poor)[^\d]{0,28}([\d\.,]+)",
-        r"([\d\.,]+)[^\d]{0,12}(?:yetersiz|kötü|poor)",
+        r"(?:yetersiz|kotu|kötü|poor)[^\d]{0,28}([\d\.,]+)",
+        r"([\d\.,]+)[^\d]{0,12}(?:yetersiz|kotu|kötü|poor)",
     )
     ni = grab(
+        r"iyilestir[^\d]{0,40}([\d\.,]+)",
         r"iyileştir[^\d]{0,40}([\d\.,]+)",
         r"(?:need improvement|needs improvement)[^\d]{0,20}([\d\.,]+)",
-        r"([\d\.,]+)[^\d]{0,24}iyileştir",
+        r"([\d\.,]+)[^\d]{0,24}iyilestir",
         r"([\d\.,]+)[^\d]{0,20}(?:need improvement|needs improvement)",
     )
     good = grab(
-        r"(?:iyi\s+URL|good(?:\s+URL)?)[^\d]{0,28}([\d\.,]+)",
-        r"([\d\.,]+)[^\d]{0,12}(?:iyi\s+URL|good(?:\s+URL)?)",
+        r"(?:iyi\s+url'?l?e?r?|good(?:\s+url)?)[^\d]{0,28}([\d\.,]+)",
+        r"([\d\.,]+)[^\d]{0,12}(?:iyi\s+url|good(?:\s+url)?)",
     )
     return {"date": date, "poor": poor, "needs_improvement": ni, "good": good}
 
@@ -889,15 +981,15 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
             continue
         time.sleep(0.2)
         samples: dict[str, dict[str, Any]] = {}
-        n = 80
+        n = 110
         for i in range(n):
-            x = float(box["x"]) + 6 + (w - 12) * i / max(n - 1, 1)
-            y = float(box["y"]) + h * 0.42
+            x = float(box["x"]) + 8 + (w - 16) * i / max(n - 1, 1)
+            y = float(box["y"]) + h * 0.38
             try:
                 page.mouse.move(x, y)
             except Exception:
                 continue
-            time.sleep(0.025)
+            time.sleep(0.04)
             try:
                 text = page.evaluate(_TIP_TEXT_JS)
             except Exception:
@@ -905,9 +997,9 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
             parsed = _parse_gsc_chart_tooltip(str(text or ""))
             if parsed and parsed.get("date"):
                 samples[str(parsed["date"])] = parsed
-            if i == 14 and not samples:
+            if i == 24 and not samples:
                 break
-        if len(samples) < 12:
+        if len(samples) < 8:
             continue
         dates = sorted(samples)
         charts.append(
@@ -1017,13 +1109,15 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
             for (const path of svg.querySelectorAll('path')) {
               const stroke = path.getAttribute('stroke') || '';
               if (!stroke || stroke === 'none' || stroke === 'transparent') continue;
+              const fill = (path.getAttribute('fill') || '').trim().toLowerCase();
+              // Alan dolgusu (baseline'a inen path) EKG/halı deseni üretir — yalnız çizgi.
+              if (fill && fill !== 'none' && fill !== 'transparent') continue;
               const st = statusFrom(stroke);
               if (!st) continue;
               const d = path.getAttribute('d') || '';
               if (d.length < 40) continue;
               const pts = parsePathPoints(d);
               if (pts.length < 8) continue;
-              // Tercihen daha uzun seri
               if (!series[st] || pts.length > series[st].length) series[st] = pts;
             }
             if (Object.keys(series).length) {
@@ -1129,24 +1223,30 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
         )
 
     def _merge(svg_ch: dict[str, Any] | None, tip_ch: dict[str, Any] | None) -> dict[str, Any] | None:
-        if svg_ch and tip_ch:
-            by_date = {
-                str(d): i
-                for i, d in enumerate(tip_ch.get("dates") or [])
-            }
-            out = dict(svg_ch)
-            for metric in ("poor", "needs_improvement", "good"):
-                arr = list(svg_ch.get(metric) or [])
-                tip_arr = list(tip_ch.get(metric) or [])
-                for i, d in enumerate(svg_ch.get("dates") or []):
-                    j = by_date.get(str(d))
-                    if j is None or j >= len(tip_arr):
-                        continue
-                    arr[i] = int(tip_arr[j])
-                out[metric] = arr
-            out["source"] = "gsc_tooltip+svg"
-            out["point_count"] = len(out.get("dates") or [])
-            return out
+        # Tooltip asıl kaynak: SVG Y (alan dolgusu) halı/EKG üretir, sayıları sapıtır.
+        samples: dict[str, dict[str, Any]] = {}
+        if tip_ch:
+            t_dates = list(tip_ch.get("dates") or [])
+            poor = list(tip_ch.get("poor") or [])
+            ni = list(tip_ch.get("needs_improvement") or [])
+            good = list(tip_ch.get("good") or [])
+            for i, d in enumerate(t_dates):
+                samples[str(d)[:10]] = {
+                    "poor": int(poor[i]) if i < len(poor) else 0,
+                    "needs_improvement": int(ni[i]) if i < len(ni) else 0,
+                    "good": int(good[i]) if i < len(good) else 0,
+                }
+        start_iso = ""
+        end_iso_use = end_iso or ""
+        if svg_ch and (svg_ch.get("dates") or []):
+            start_iso = str(svg_ch["dates"][0])[:10]
+            if not end_iso_use:
+                end_iso_use = str(svg_ch["dates"][-1])[:10]
+        from_tip = _series_from_tooltip_samples(
+            samples, start_iso=start_iso, end_iso=end_iso_use
+        )
+        if from_tip:
+            return from_tip
         return svg_ch or tip_ch
 
     merged_m = _merge(
