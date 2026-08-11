@@ -851,26 +851,47 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
     """Grafik üzerinde gezerek GSC tooltip'inden günlük tam sayıları oku."""
     charts: list[dict[str, Any]] = []
     try:
-        boxes = page.evaluate(
-            """() => [...document.querySelectorAll('svg')]
-              .map(svg => svg.getBoundingClientRect())
-              .filter(bb => bb.width >= 320 && bb.height >= 120)
-              .slice(0, 2)
-              .map(bb => ({x: bb.x, y: bb.y, width: bb.width, height: bb.height}))"""
+        n_charts = int(
+            page.evaluate(
+                """() => [...document.querySelectorAll('svg')].filter(svg => {
+                  const bb = svg.getBoundingClientRect();
+                  return bb.width >= 320 && bb.height >= 120;
+                }).length"""
+            )
+            or 0
         )
     except Exception:
-        return charts
-    for box in boxes or []:
+        n_charts = 0
+    n_charts = max(0, min(n_charts, 2))
+    for idx in range(n_charts):
+        try:
+            box = page.evaluate(
+                """(i) => {
+                  const svgs = [...document.querySelectorAll('svg')].filter(svg => {
+                    const bb = svg.getBoundingClientRect();
+                    return bb.width >= 320 && bb.height >= 120;
+                  });
+                  const svg = svgs[i];
+                  if (!svg) return null;
+                  svg.scrollIntoView({block: 'center', inline: 'nearest'});
+                  const bb = svg.getBoundingClientRect();
+                  return {x: bb.x, y: bb.y, width: bb.width, height: bb.height};
+                }""",
+                idx,
+            )
+        except Exception:
+            continue
         if not isinstance(box, dict):
             continue
         w = float(box.get("width") or 0)
         h = float(box.get("height") or 0)
         if w < 320 or h < 120:
             continue
+        time.sleep(0.2)
         samples: dict[str, dict[str, Any]] = {}
-        n = 72
+        n = 80
         for i in range(n):
-            x = float(box["x"]) + 20 + (w - 32) * i / max(n - 1, 1)
+            x = float(box["x"]) + 6 + (w - 12) * i / max(n - 1, 1)
             y = float(box["y"]) + h * 0.42
             try:
                 page.mouse.move(x, y)
@@ -884,6 +905,8 @@ def _harvest_overview_tooltips(page) -> list[dict[str, Any]]:
             parsed = _parse_gsc_chart_tooltip(str(text or ""))
             if parsed and parsed.get("date"):
                 samples[str(parsed["date"])] = parsed
+            if i == 14 and not samples:
+                break
         if len(samples) < 12:
             continue
         dates = sorted(samples)
@@ -919,7 +942,13 @@ def _snap_series_to_kpis(chart_series: dict[str, Any], overview: dict[str, Any])
             kpi_v = kpis.get(metric)
             if kpi_v is None:
                 continue
-            arr[-1] = int(kpi_v)
+            kpi_v = int(kpi_v)
+            last = int(arr[-1] or 0)
+            if last > 50 and kpi_v > 50:
+                ratio = kpi_v / last if last else 0
+                if ratio < 0.45 or ratio > 2.2:
+                    continue
+            arr[-1] = kpi_v
             ser[metric] = arr
 
 
@@ -1092,22 +1121,46 @@ def _extract_overview_chart_series(page, *, last_updated: str = "") -> dict[str,
         tip_charts = _harvest_overview_tooltips(page)
     except Exception as exc:  # noqa: BLE001
         print(f"    tooltip harvest skip: {exc}", flush=True)
-    if len(tip_charts) >= 1:
+    if tip_charts:
         print(
             f"    tooltip charts={len(tip_charts)} "
             f"pts={[c.get('point_count') for c in tip_charts]}",
             flush=True,
         )
-        charts = tip_charts
 
-    result: dict[str, Any] = {"mobile": None, "desktop": None, "source": "gsc_overview_svg"}
-    if charts and charts[0].get("source") == "gsc_tooltip":
-        result["source"] = "gsc_tooltip"
-    if len(charts) >= 1:
-        result["mobile"] = charts[0]
-    if len(charts) >= 2:
-        result["desktop"] = charts[1]
-    return result
+    def _merge(svg_ch: dict[str, Any] | None, tip_ch: dict[str, Any] | None) -> dict[str, Any] | None:
+        if svg_ch and tip_ch:
+            by_date = {
+                str(d): i
+                for i, d in enumerate(tip_ch.get("dates") or [])
+            }
+            out = dict(svg_ch)
+            for metric in ("poor", "needs_improvement", "good"):
+                arr = list(svg_ch.get(metric) or [])
+                tip_arr = list(tip_ch.get(metric) or [])
+                for i, d in enumerate(svg_ch.get("dates") or []):
+                    j = by_date.get(str(d))
+                    if j is None or j >= len(tip_arr):
+                        continue
+                    arr[i] = int(tip_arr[j])
+                out[metric] = arr
+            out["source"] = "gsc_tooltip+svg"
+            out["point_count"] = len(out.get("dates") or [])
+            return out
+        return svg_ch or tip_ch
+
+    merged_m = _merge(
+        charts[0] if len(charts) >= 1 else None,
+        tip_charts[0] if len(tip_charts) >= 1 else None,
+    )
+    merged_d = _merge(
+        charts[1] if len(charts) >= 2 else None,
+        tip_charts[1] if len(tip_charts) >= 2 else None,
+    )
+    src = "gsc_overview_svg"
+    if merged_m and merged_m.get("source"):
+        src = str(merged_m.get("source"))
+    return {"mobile": merged_m, "desktop": merged_d, "source": src}
 
 
 def _wait_table(page, timeout_ms: int = 20000) -> None:
