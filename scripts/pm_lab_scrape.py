@@ -192,16 +192,51 @@ ASSET_URLS: dict[str, dict[str, str]] = {
 }
 
 ASSET_LABELS: dict[str, tuple[str, ...]] = {
-    "usd": ("usd/try", "usd try", "amerikan doları", "abd doları", "dolar kuru", " dolar ", "usd "),
+    "usd": ("usd/try", "usd try", "amerikan dolari", "abd dolari", "dolar kuru", "dolar", "usd"),
     "eur": ("eur/try", "euro", "avro"),
     "bist100": ("bist 100", "bist100", "xu100", "bist-100"),
-    "gram_altin": ("gram altın", "gram altin", "ga altın"),
-    "harem_gram_altin": ("harem gram", "harem altın"),
-    "kapalicarsi_gram_altin": ("kapalıçarşı gram", "kapalicarsi gram", "kapalı çarşı"),
-    "gram_gumus": ("gram gümüş", "gram gumus", "gümüş gram", "gumus gram"),
-    "ons_altin": ("ons altın", "ons altin", "xauusd", "altın/ons", "gold ounce"),
-    "brent": ("brent", "brent petrol", "ham petrol"),
-    "ceyrek_altin": ("çeyrek altın", "ceyrek altin", "çeyrek"),
+    "gram_altin": ("gram altin", "ga altin"),
+    "harem_gram_altin": ("harem gram altin", "harem gram"),
+    "kapalicarsi_gram_altin": ("kapalicarsi gram", "kapali carsi gram", "kapali carsi"),
+    "gram_gumus": ("gram gumus", "gumus gram", "ga gumus"),
+    "ons_altin": ("ons altin", "altin/ons", "xauusd", "gold ounce", "altin ons"),
+    "brent": ("brent petrol", "brent", "ham petrol"),
+    "ceyrek_altin": ("ceyrek altin", "ceyrek"),
+}
+
+_ASSET_MATCH_ORDER = (
+    "harem_gram_altin",
+    "kapalicarsi_gram_altin",
+    "ceyrek_altin",
+    "gram_gumus",
+    "gram_altin",
+    "ons_altin",
+    "bist100",
+    "brent",
+    "eur",
+    "usd",
+)
+
+ASSET_RANGES: dict[str, tuple[float, float]] = {
+    "usd": (25.0, 90.0),
+    "eur": (30.0, 110.0),
+    "bist100": (5000.0, 30000.0),
+    "gram_altin": (2500.0, 20000.0),
+    "harem_gram_altin": (2500.0, 20000.0),
+    "kapalicarsi_gram_altin": (2500.0, 20000.0),
+    "gram_gumus": (20.0, 400.0),
+    "ons_altin": (1500.0, 10000.0),
+    "brent": (30.0, 250.0),
+    "ceyrek_altin": (3000.0, 40000.0),
+}
+
+ASSET_LINE_EXCLUDE: dict[str, tuple[str, ...]] = {
+    "gram_altin": ("harem", "kapalicarsi", "kapali carsi"),
+    "usd": ("harem",),
+    "eur": ("harem",),
+    "ceyrek_altin": ("harem",),
+    "gram_gumus": ("harem",),
+    "ons_altin": ("gram",),
 }
 
 PLAY_PACKAGE = "com.Doviz"
@@ -211,9 +246,16 @@ OUR_HOSTS = ("doviz.com",)
 
 JOB_IDS = ("serp", "competitors", "sikayet", "store_charts", "google_news")
 
-_PRICE_RE = re.compile(
-    r"([+-]?%?\s*\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{1,4})|\d+[.,]\d{2,4})"
+_NUM_RE = re.compile(
+    r"\$?\s*("
+    r"\d{1,3}(?:\.\d{3})+,\d{1,4}"
+    r"|\d{1,3}(?:,\d{3})+\.\d{1,4}"
+    r"|\d+[.,]\d{2,6}"
+    r"|\d{1,3}(?:\.\d{3})+"
+    r")"
 )
+_CHANGE_RE = re.compile(r"%\s*-?\d+[.,]?\d*")
+_FOLD_TABLE = str.maketrans("ıİşŞğĞüÜöÖçÇ", "iissgguuoooc")
 
 
 def _now() -> str:
@@ -395,31 +437,134 @@ def job_serp(page: Any) -> dict[str, Any]:
     }
 
 
-def _pick_price(text: str, labels: tuple[str, ...]) -> dict[str, str] | None:
-    low = (text or "").lower().replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c")
-    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
-    for i, ln in enumerate(lines):
-        ln_n = ln.lower().replace("ı", "i").replace("ş", "s").replace("ğ", "g").replace("ü", "u").replace("ö", "o").replace("ç", "c")
-        if not any(lab.strip() in ln_n or lab.strip() in low[max(0, text.lower().find(ln.lower()) - 40):] for lab in labels):
-            if not any(lab in ln_n for lab in labels):
-                continue
-        window = " ".join(lines[i : i + 4])
-        prices = _PRICE_RE.findall(window)
-        nums = [p.strip() for p in prices if re.search(r"\d", p) and "%" not in p]
-        if not nums:
+def _fold(s: str) -> str:
+    return (s or "").translate(_FOLD_TABLE).lower()
+
+
+def _to_float(raw: str) -> float | None:
+    s = (raw or "").strip().replace(" ", "").replace("$", "")
+    if not s:
+        return None
+    if s.count(",") == 1 and s.count(".") >= 1:
+        s = s.replace(".", "").replace(",", ".")
+    elif s.count(",") == 1 and s.count(".") == 0:
+        s = s.replace(",", ".")
+    elif s.count(".") > 1:
+        s = s.replace(".", "")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _in_range(aid: str, val: float) -> bool:
+    bounds = ASSET_RANGES.get(aid)
+    if not bounds:
+        return True
+    lo, hi = bounds
+    return lo <= val <= hi
+
+
+def _numbers_on_line(line: str) -> list[tuple[str, float]]:
+    out: list[tuple[str, float]] = []
+    for m in _NUM_RE.finditer(line):
+        ctx = line[max(0, m.start() - 2) : m.end() + 1]
+        if "%" in ctx:
             continue
-        change = next((p.strip() for p in prices if "%" in p), "")
-        return {"value": nums[0], "change": change}
+        raw = m.group(1).strip()
+        val = _to_float(raw)
+        if val is None:
+            continue
+        out.append((raw, val))
+    return out
+
+
+def _line_has_label(folded: str, aid: str) -> bool:
+    labels = tuple(_fold(x) for x in (ASSET_LABELS.get(aid) or ()))
+    if not any(lab and lab in folded for lab in labels):
+        return False
+    for bad in ASSET_LINE_EXCLUDE.get(aid) or ():
+        if _fold(bad) in folded:
+            return False
+    return True
+
+
+def _extract_from_line(line: str, aid: str) -> dict[str, str] | None:
+    nums = _numbers_on_line(line)
+    for raw, val in nums:
+        if _in_range(aid, val):
+            ch = _CHANGE_RE.search(line)
+            return {"value": raw, "change": (ch.group(0).replace(" ", "") if ch else "")}
     return None
 
 
 def _parse_assets_from_text(text: str) -> dict[str, dict[str, str]]:
     found: dict[str, dict[str, str]] = {}
-    for asset in ASSETS:
-        hit = _pick_price(text, ASSET_LABELS.get(asset["id"]) or (asset["label"].lower(),))
-        if hit:
-            found[asset["id"]] = hit
+    raw_lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    lines: list[str] = []
+    for ln in raw_lines:
+        compact = " ".join(ln.split())
+        if 6 <= len(compact) <= 180:
+            lines.append(compact)
+    for i, ln in enumerate(lines):
+        folded = _fold(ln)
+        window = ln
+        if not _numbers_on_line(ln) and i + 1 < len(lines):
+            window = ln + " " + lines[i + 1]
+            folded = _fold(window)
+        for aid in _ASSET_MATCH_ORDER:
+            if aid in found:
+                continue
+            if not _line_has_label(folded, aid):
+                continue
+            hit = _extract_from_line(window, aid)
+            if hit:
+                found[aid] = hit
     return found
+
+
+def _parse_one_asset(text: str, aid: str) -> dict[str, str] | None:
+    parsed = _parse_assets_from_text(text)
+    if parsed.get(aid):
+        return parsed[aid]
+    for ln in (text or "").splitlines():
+        compact = " ".join(ln.split())
+        if not (6 <= len(compact) <= 180):
+            continue
+        hit = _extract_from_line(compact, aid)
+        if hit:
+            return hit
+    return None
+
+
+def _ticker_text(page: Any) -> str:
+    try:
+        blocks = page.evaluate(
+            """() => {
+              const out = [];
+              const seen = new Set();
+              const add = (t) => {
+                t = (t || '').replace(/\\s+/g, ' ').trim();
+                if (t.length < 6 || t.length > 160) return;
+                if (seen.has(t)) return;
+                seen.add(t);
+                out.push(t);
+              };
+              document.querySelectorAll(
+                'tr, li, [class*="ticker"], [class*="parity"], [class*="market"], [class*="price"], [class*="symbol"]'
+              ).forEach((el) => add(el.innerText));
+              return out.slice(0, 140);
+            }"""
+        )
+        if isinstance(blocks, list) and blocks:
+            return "\n".join(str(x) for x in blocks)
+    except Exception:
+        pass
+    return ""
+
+
+def _page_blob(page: Any, *, limit: int = 16000) -> str:
+    return (_ticker_text(page) + "\n" + _text(page, limit)).strip()
 
 
 def job_competitors(page: Any) -> dict[str, Any]:
@@ -428,30 +573,27 @@ def job_competitors(page: Any) -> dict[str, Any]:
     notes: dict[str, str] = {}
     for site in SITES:
         sid = site["id"]
+        home = str(site["home"]).rstrip("/")
         try:
             _goto(page, site["home"], timeout=70_000)
             page.wait_for_timeout(1200)
-            found = _parse_assets_from_text(_text(page, 16000))
+            found = _parse_assets_from_text(_page_blob(page, limit=16000))
             extra = ASSET_URLS.get(sid) or {}
             for aid, url in extra.items():
-                if found.get(aid) and aid not in ("harem_gram_altin", "kapalicarsi_gram_altin"):
+                if not url or url.rstrip("/") == home:
                     continue
                 try:
                     _goto(page, url, timeout=55_000)
                     page.wait_for_timeout(900)
-                    more = _parse_assets_from_text(_text(page, 9000))
-                    if aid in more:
-                        found[aid] = more[aid]
-                    elif more.get("gram_altin") and aid in ("kapalicarsi_gram_altin", "gram_altin"):
-                        found[aid] = more["gram_altin"]
-                    elif more.get("usd") and aid == "usd":
-                        found[aid] = more["usd"]
+                    hit = _parse_one_asset(_page_blob(page, limit=9000), aid)
+                    if hit:
+                        found[aid] = hit
                 except Exception:
                     continue
             for aid, rec in found.items():
                 values.setdefault(aid, {})[sid] = rec
             notes[sid] = f"{len(found)} varlık"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             notes[sid] = str(exc)[:160]
         time.sleep(0.4)
 

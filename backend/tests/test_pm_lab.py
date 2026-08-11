@@ -123,3 +123,34 @@ def test_template_has_no_photos_and_js_shell():
     assert "renderCompetitors" in js
     assert 'concat(["Toplam"])' in js
     assert "missRank" in js
+
+
+def test_competitor_parser_keeps_distinct_asset_prices():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pm_lab_scrape", Path("scripts/pm_lab_scrape.py"))
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    text = """
+GRAM ALTIN 6.734,49  %0,04  (2,69)
+DOLAR 47,7396  %0,08  (0,0382)
+EURO 55,1249  %0,03  (0,0165)
+BIST 100 13.704,52  %-0,78  (-107,74)
+GRAM GÜMÜŞ 99,60  %-1,25  (-1,26)
+BRENT $88,28  %0,64  ($0,56)
+ÇEYREK ALTIN 11.104,62 %0,24
+ONS ALTIN 4.397,56 %0,18
+HAREM GRAM ALTIN 6.736,38
+"""
+    found = mod._parse_assets_from_text(text)
+    assert found["usd"]["value"] == "47,7396"
+    assert found["eur"]["value"] == "55,1249"
+    assert found["gram_altin"]["value"] == "6.734,49"
+    assert found["bist100"]["value"] == "13.704,52"
+    assert found["gram_gumus"]["value"] == "99,60"
+    assert found["brent"]["value"] == "88,28"
+    assert found["ceyrek_altin"]["value"] == "11.104,62"
+    assert found["ons_altin"]["value"] == "4.397,56"
+    assert found["harem_gram_altin"]["value"] == "6.736,38"
+    assert len({v["value"] for v in found.values()}) == len(found)
