@@ -8875,10 +8875,10 @@ def _home_sf_play_latest_sub(*, version_label: str, version_code: str | None) ->
         href += f"&versionCode={quote(str(version_code))}"
     return (
         _home_sf_a(
-            "Play Reporting",
+            "Play Console",
             href,
             external=True,
-            title="Play Console · Reporting / ANR vitals",
+            title="Play Console · ANR vitals",
         )
         + " · "
         + _home_sf_a(

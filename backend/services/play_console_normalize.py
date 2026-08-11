@@ -439,12 +439,14 @@ def _normalize_vitals_crashes_map(crashes_in: dict[str, Any]) -> tuple[dict[str,
             if key:
                 details_out[key] = norm_d
         issue_detail_total += len(details_out)
+        summary_rate = str(block.get("summary_rate") or "").strip()[:48] or None
         crashes_out[et] = {
             "error_type": et,
             "url": str(block.get("url") or "")[:512],
             "days": int(block.get("days") or 28),
             "version_code": str(block.get("version_code") or "")[:32] or None,
             "is_user_perceived": bool(block.get("is_user_perceived", True)),
+            "summary_rate": summary_rate,
             "categories": cats_out,
             "category_count": len(cats_out),
             "issue_details": details_out,
@@ -479,10 +481,12 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
             return False
         for et in ("CRASH", "ANR"):
             block = crashes.get(et) if isinstance(crashes.get(et), dict) else {}
+            if block.get("summary_rate"):
+                return True
             for cat in block.get("categories") or []:
                 if not isinstance(cat, dict):
                     continue
-                if cat.get("issues"):
+                if cat.get("issues") or cat.get("cards"):
                     return True
                 raw_n = cat.get("issue_count") or cat.get("issue_row_count")
                 try:
@@ -517,44 +521,65 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
             )[:3]
         ]
 
+    def _normalize_overview_rows(ov: dict[str, Any]) -> list[dict[str, Any]]:
+        rows_raw: list[dict[str, Any]] = []
+        for row in ov.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            metric = str(row.get("metric") or "").strip()
+            if not metric:
+                continue
+            key = str(row.get("key") or "").strip().lower()
+            if key not in ("crash", "anr", "lmk", "other"):
+                if re.search(r"kilitlenme|crash", metric, re.I):
+                    key = "crash"
+                elif re.search(r"\banr\b", metric, re.I):
+                    key = "anr"
+                elif re.search(r"\blmk\b", metric, re.I):
+                    key = "lmk"
+                else:
+                    key = "other"
+            rows_raw.append(
+                {
+                    "key": key,
+                    "metric": metric[:200],
+                    "value_28d": str(row.get("value_28d") or "")[:48],
+                    "vs_previous_28d": str(row.get("vs_previous_28d") or "")[:48],
+                    "vs_peers_median": str(row.get("vs_peers_median") or "")[:48],
+                }
+            )
+        by_key: dict[str, dict[str, Any]] = {}
+        for row in rows_raw:
+            key = row["key"]
+            prev = by_key.get(key)
+            if prev is None or (
+                not str(prev.get("vs_peers_median") or "").strip()
+                and str(row.get("vs_peers_median") or "").strip()
+            ):
+                by_key[key] = row
+        rows = [by_key[k] for k in ("crash", "anr", "lmk") if k in by_key]
+        rows.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
+        return rows
+
     ov_in = d.get("metrics_overview") if isinstance(d.get("metrics_overview"), dict) else {}
-    rows_raw: list[dict[str, Any]] = []
-    for row in ov_in.get("rows") or []:
-        if not isinstance(row, dict):
+    rows_out = _normalize_overview_rows(ov_in)
+    ov_by_out: dict[str, Any] = {}
+    raw_ov_by = (
+        d.get("metrics_overview_by_version")
+        if isinstance(d.get("metrics_overview_by_version"), dict)
+        else {}
+    )
+    for vc_key, ov_v in raw_ov_by.items():
+        code = str(vc_key or "").strip()[:32]
+        if not code or not isinstance(ov_v, dict):
             continue
-        metric = str(row.get("metric") or "").strip()
-        if not metric:
-            continue
-        key = str(row.get("key") or "").strip().lower()
-        if key not in ("crash", "anr", "lmk", "other"):
-            if re.search(r"kilitlenme|crash", metric, re.I):
-                key = "crash"
-            elif re.search(r"\banr\b", metric, re.I):
-                key = "anr"
-            elif re.search(r"\blmk\b", metric, re.I):
-                key = "lmk"
-            else:
-                key = "other"
-        rows_raw.append(
-            {
-                "key": key,
-                "metric": metric[:200],
-                "value_28d": str(row.get("value_28d") or "")[:48],
-                "vs_previous_28d": str(row.get("vs_previous_28d") or "")[:48],
-                "vs_peers_median": str(row.get("vs_peers_median") or "")[:48],
-            }
-        )
-    by_key: dict[str, dict[str, Any]] = {}
-    for row in rows_raw:
-        key = row["key"]
-        prev = by_key.get(key)
-        if prev is None or (
-            not str(prev.get("vs_peers_median") or "").strip()
-            and str(row.get("vs_peers_median") or "").strip()
-        ):
-            by_key[key] = row
-    rows_out = [by_key[k] for k in ("crash", "anr", "lmk") if k in by_key]
-    rows_out.extend(by_key[k] for k in by_key if k not in ("crash", "anr", "lmk"))
+        v_rows = _normalize_overview_rows(ov_v)
+        ov_by_out[code] = {
+            "url": str(ov_v.get("url") or "")[:512],
+            "rows": v_rows,
+            "row_count": len(v_rows),
+            "version_code": code,
+        }
 
     anr_drill = ov_in.get("anr_drilldown") if isinstance(ov_in.get("anr_drilldown"), dict) else {}
     vmap = {}
@@ -590,6 +615,7 @@ def _normalize_vitals(raw: dict[str, Any] | None) -> dict[str, Any]:
             if anr_drill
             else {},
         },
+        "metrics_overview_by_version": ov_by_out,
         "version_name_map": vmap,
         "category_count": category_count,
         "overview_row_count": len(rows_out),

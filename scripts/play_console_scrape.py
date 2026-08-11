@@ -3130,6 +3130,21 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
         if (cards.length >= 8) break;
       }
 
+      let summaryRate = null;
+      const rateTitleRe = /kullanıcı tarafından algılanan\\s+(kilitlenme|anr|lmk)\\s+oranı|user[- ]perceived\\s+(crash|anr|lmk)\\s+rate/i;
+      for (let i = 0; i < lines.length; i++) {
+        if (!rateTitleRe.test(lines[i])) continue;
+        for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+          const l = lines[j];
+          if (rateTitleRe.test(l)) break;
+          if (/%/.test(l) && /\\d/.test(l) && l.length < 24 && !/^[+\\-−]/.test(l)) {
+            summaryRate = l;
+            break;
+          }
+        }
+        if (summaryRate) break;
+      }
+
       const typeRe = /^(Kilitlenme|ANR|Crash|Application Not Responding)$/i;
       const trackRe = /^(Üretimde|In production|Internal testing|Closed testing|Open testing|Önceki sürüm|Previous)/i;
       const agoRe = /(\\d+[\\d.,]*)\\s*(saat|gün|dakika|hafta|ay|yıl|hour|hours|day|days|minute|minutes|week|weeks|month|months|year|years)\\s*(önce|ago)/i;
@@ -3326,6 +3341,7 @@ def _extract_vitals_issue_snapshot(page) -> dict[str, Any]:
         selected_category: selected,
         issue_count: issueCount,
         cards,
+        summary_rate: summaryRate,
         issues,
         body_len: body.length,
         page_url: location.href,
@@ -3688,6 +3704,7 @@ def _scrape_vitals_crashes_error_type(
     categories_out: list[dict[str, Any]] = []
     all_issues_for_details: list[dict[str, Any]] = []
     seen_detail_ids: set[str] = set()
+    summary_rate: str | None = None
     for cat in VITALS_ISSUE_CATEGORIES:
         cat_id = str(cat["id"])
         labels = tuple(cat["labels"])
@@ -3710,6 +3727,17 @@ def _scrape_vitals_crashes_error_type(
         snap = _extract_vitals_issue_snapshot(page) or {}
         issues = snap.get("issues") if isinstance(snap.get("issues"), list) else []
         cards = snap.get("cards") if isinstance(snap.get("cards"), list) else []
+        if not summary_rate and snap.get("summary_rate"):
+            summary_rate = str(snap.get("summary_rate") or "").strip() or None
+        if not summary_rate:
+            for c in cards:
+                if not isinstance(c, dict):
+                    continue
+                title = str(c.get("title") or "")
+                value = str(c.get("value") or "").strip()
+                if "%" in value and re.search(r"oran|rate", title, re.I):
+                    summary_rate = value
+                    break
         count_raw = snap.get("issue_count")
         if count_raw is None:
             count_raw = str(len(issues)) if issues else None
@@ -3803,6 +3831,7 @@ def _scrape_vitals_crashes_error_type(
         "days": days,
         "version_code": vc or None,
         "is_user_perceived": True,
+        "summary_rate": summary_rate,
         "categories": categories_out,
         "category_count": len(categories_out),
         "issue_details": issue_details,
@@ -3875,8 +3904,14 @@ def _extract_vitals_metrics_overview(page) -> dict[str, Any]:
     )
 
 
-def _scrape_vitals_metrics_overview(page, *, headed: bool = True) -> dict[str, Any]:
+def _scrape_vitals_metrics_overview(
+    page, *, headed: bool = True, version_code: str | None = None
+) -> dict[str, Any]:
     url = VITALS_METRICS_OVERVIEW_URL
+    vc = str(version_code or "").strip()
+    if vc:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}versionCode={vc}"
     page.goto(url, wait_until="domcontentloaded", timeout=120_000)
     _settle(page, seconds=5.0)
     need, _, _ = _page_needs_login(page)
@@ -4046,6 +4081,16 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
     version_name_map = _merge_version_name_maps(
         version_name_map, _extract_version_name_map(page)
     )
+    overview_by_version: dict[str, Any] = {}
+    if primary_vc:
+        print(f"  · vitals metrics overview versionCode={primary_vc} …", flush=True)
+        ov_v = _scrape_vitals_metrics_overview(
+            page, headed=headed, version_code=str(primary_vc)
+        )
+        overview_by_version[str(primary_vc)] = ov_v
+        version_name_map = _merge_version_name_maps(
+            version_name_map, _extract_version_name_map(page)
+        )
 
     versions: list[dict[str, str]] = []
     for c in pass_codes:
@@ -4116,6 +4161,7 @@ def _scrape_vitals_bundle(page, *, headed: bool = True, days: int = 28) -> dict[
         "is_user_perceived": True,
         "crashes": {"CRASH": primary_crash, "ANR": primary_anr},
         "metrics_overview": overview,
+        "metrics_overview_by_version": overview_by_version,
         "version_name_map": version_name_map,
         "scraped_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }

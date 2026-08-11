@@ -67,9 +67,9 @@ def get_play_console_stability_free(
     db: Session = Depends(get_db),
     refresh: int = 0,
 ):
-    """Crash-free / ANR-free — Play scrape oranları + Reporting sürüm + Crashlytics.
+    """Crash-free / ANR-free — Play vitals tarama + S-Firebase.
 
-    refresh=1 → bellek cache temizlenir, BQ/peek yeniden denenir.
+    refresh=1 → bellek cache temizlenir.
     """
     from backend.services.stability_free import build_stability_free_payload
 

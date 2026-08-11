@@ -1,8 +1,8 @@
 """Crash-free / ANR-free özet.
 
-Android ANR: Play vitals / Reporting.
-Crash-free (son sürüm 24h + 7d): yalnızca S-Firebase Console scrape —
-Play Reporting API ve BigQuery crash-free çekimi yok.
+Android ANR: Play Console vitals tarama (overview + sürüm ANR sayfası).
+Crash-free (son sürüm 24h + 7d): yalnızca S-Firebase Console tarama —
+Play Reporting API ve BigQuery yok.
 """
 
 from __future__ import annotations
@@ -280,6 +280,263 @@ def firebase_console_stability_kpis() -> dict[str, Any]:
     }
 
 
+def _anr_rate_from_cards(cards: Any) -> tuple[float | None, str | None]:
+    """KPI kartlarından kullanıcı-algılanan ANR oranı (yüzde puanı)."""
+    scored: list[tuple[int, float, str]] = []
+    for card in cards or []:
+        if not isinstance(card, dict):
+            continue
+        title = str(card.get("title") or "")
+        value = str(card.get("value") or "").strip()
+        if not value:
+            continue
+        if re.search(r"kilitlenme|crash", title, re.I) and not re.search(r"\banr\b", title, re.I):
+            continue
+        parsed = _parse_tr_pct(value)
+        if parsed is None:
+            continue
+        has_pct = "%" in value
+        has_rate_word = bool(re.search(r"oran|rate", title, re.I))
+        has_anr = bool(re.search(r"\banr\b", title, re.I))
+        if not has_pct and parsed >= 1:
+            continue
+        if not has_rate_word and not has_pct:
+            continue
+        score = 0
+        if has_anr:
+            score += 2
+        if has_rate_word:
+            score += 3
+        if has_pct:
+            score += 2
+        if re.search(r"algılanan|perceived", title, re.I):
+            score += 1
+        scored.append((score, parsed, value))
+    if not scored:
+        return None, None
+    scored.sort(key=lambda x: -x[0])
+    return scored[0][1], scored[0][2]
+
+
+def _anr_rate_from_crash_block(block: Any) -> tuple[float | None, str | None]:
+    if not isinstance(block, dict):
+        return None, None
+    raw = block.get("summary_rate") or block.get("anr_rate")
+    parsed = _parse_tr_pct(raw)
+    if parsed is not None:
+        return parsed, str(raw).strip()
+    cards: list[Any] = []
+    if isinstance(block.get("cards"), list):
+        cards.extend(block["cards"])
+    for cat in block.get("categories") or []:
+        if isinstance(cat, dict) and isinstance(cat.get("cards"), list):
+            cards.extend(cat["cards"])
+    return _anr_rate_from_cards(cards)
+
+
+def _anr_rate_from_overview_rows(rows: Any) -> tuple[float | None, str | None]:
+    anr_rate = None
+    anr_label = None
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("key") or "").lower()
+        metric = str(row.get("metric") or "")
+        if key != "anr" and not re.search(r"\banr\b", metric, re.I):
+            continue
+        val = _parse_tr_pct(row.get("value_28d"))
+        if val is None:
+            continue
+        anr_rate = val
+        anr_label = metric or "ANR oranı"
+    return anr_rate, anr_label
+
+
+def _latest_version_from_vitals(vitals: dict[str, Any]) -> tuple[str | None, str | None]:
+    """(version_code, version_name) — en yeni tarama sürümü."""
+    versions = vitals.get("versions") if isinstance(vitals.get("versions"), list) else []
+    name_map = (
+        vitals.get("version_name_map")
+        if isinstance(vitals.get("version_name_map"), dict)
+        else {}
+    )
+    code = None
+    name = None
+    if versions and isinstance(versions[0], dict):
+        code = str(versions[0].get("code") or "").strip() or None
+        name = str(versions[0].get("name") or "").strip() or None
+    if not code:
+        code = str(vitals.get("version_code") or "").strip() or None
+    by_version = vitals.get("by_version") if isinstance(vitals.get("by_version"), dict) else {}
+    if not code and by_version:
+        numeric = [k for k in by_version if str(k).isdigit()]
+        if numeric:
+            code = str(max(numeric, key=lambda x: int(x)))
+    if code and not name:
+        raw_name = name_map.get(code) or name_map.get(str(code))
+        name = str(raw_name).strip() if raw_name else None
+        if name:
+            m = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", name)
+            if m:
+                name = m.group(2).strip() or name
+    return code, name
+
+
+def _anr_item_from_rate(
+    *,
+    code: str | None,
+    name: str | None,
+    anr_rate: float,
+    source: str,
+) -> dict[str, Any]:
+    anr_free = _free_from_rate_pct(anr_rate)
+    anr_rate_fmt = _fmt_rate_pct(anr_rate)
+    return {
+        "version_code": code,
+        "version_name": name,
+        "anr_rate_pct": anr_rate,
+        "anr_free_pct": anr_free,
+        "anr_free_fmt": _fmt_free(anr_free),
+        "anr_rate_fmt": anr_rate_fmt,
+        "extra": _compact_extra(anr_rate_fmt) or None,
+        "label": f"v{name}" if name else (f"code {code}" if code else "latest"),
+        "period": "28d",
+        "source": source,
+        "crash_free_pct": None,
+        "crash_free_fmt": None,
+        "crash_free_source": "disabled_use_firebase_console",
+    }
+
+
+def play_versions_anr_from_vitals(vitals: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Sürüm bazlı ANR-free — Play vitals tarama (Reporting API yok)."""
+    vitals = vitals if isinstance(vitals, dict) else {}
+    name_map = (
+        vitals.get("version_name_map")
+        if isinstance(vitals.get("version_name_map"), dict)
+        else {}
+    )
+    by_version = vitals.get("by_version") if isinstance(vitals.get("by_version"), dict) else {}
+    ov_by = (
+        vitals.get("metrics_overview_by_version")
+        if isinstance(vitals.get("metrics_overview_by_version"), dict)
+        else {}
+    )
+    versions_meta = vitals.get("versions") if isinstance(vitals.get("versions"), list) else []
+    name_by_code = {
+        str(v.get("code")): str(v.get("name") or "").strip()
+        for v in versions_meta
+        if isinstance(v, dict) and v.get("code")
+    }
+
+    def _name_for(code: str) -> str | None:
+        raw = name_by_code.get(code) or name_map.get(code) or name_map.get(str(code))
+        if not raw:
+            return None
+        s = str(raw).strip()
+        m = re.fullmatch(r"(\d{1,10})\s*\(([^)]+)\)", s)
+        return (m.group(2).strip() if m else s) or None
+
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    codes: list[str] = []
+    for v in versions_meta:
+        if isinstance(v, dict) and v.get("code"):
+            c = str(v["code"]).strip()
+            if c and c not in seen:
+                seen.add(c)
+                codes.append(c)
+    for k in by_version:
+        c = str(k).strip()
+        if c and c != "all" and c not in seen:
+            seen.add(c)
+            codes.append(c)
+    for k in ov_by:
+        c = str(k).strip()
+        if c and c != "all" and c not in seen:
+            seen.add(c)
+            codes.append(c)
+
+    codes.sort(key=lambda x: int(x) if x.isdigit() else -1, reverse=True)
+    for code in codes:
+        rate = None
+        source = "play_vitals_scrape"
+        ov = ov_by.get(code) if isinstance(ov_by.get(code), dict) else {}
+        if ov:
+            rate, _ = _anr_rate_from_overview_rows(ov.get("rows"))
+            if rate is not None:
+                source = "play_vitals_overview"
+        payload = by_version.get(code) if isinstance(by_version.get(code), dict) else {}
+        crashes = payload.get("crashes") if isinstance(payload.get("crashes"), dict) else payload
+        anr_block = crashes.get("ANR") if isinstance(crashes, dict) else None
+        if rate is None:
+            rate, _ = _anr_rate_from_crash_block(anr_block)
+        if rate is None:
+            continue
+        items.append(
+            _anr_item_from_rate(
+                code=code,
+                name=_name_for(code),
+                anr_rate=rate,
+                source=source,
+            )
+        )
+    return items
+
+
+def play_latest_anr_from_vitals(vitals: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Son sürüm ANR-free — vitals tarama (overview-by-version, ANR kartları)."""
+    vitals = vitals if isinstance(vitals, dict) else {}
+    items = play_versions_anr_from_vitals(vitals)
+    code, name = _latest_version_from_vitals(vitals)
+    if code:
+        for item in items:
+            if str(item.get("version_code") or "") == str(code):
+                if name and not item.get("version_name"):
+                    item = dict(item)
+                    item["version_name"] = name
+                    item["label"] = f"v{name}"
+                return item
+        # En yeni kod belli ama oranı yok — eski sürüme düşme
+        top_anr = (
+            (vitals.get("crashes") or {}).get("ANR")
+            if isinstance(vitals.get("crashes"), dict)
+            else None
+        )
+        top_code = (
+            str(top_anr.get("version_code") or "").strip()
+            if isinstance(top_anr, dict)
+            else ""
+        )
+        if top_code == str(code) or not top_code:
+            rate, _ = _anr_rate_from_crash_block(top_anr)
+            if rate is not None:
+                return _anr_item_from_rate(
+                    code=code,
+                    name=name,
+                    anr_rate=rate,
+                    source="play_vitals_scrape",
+                )
+        return None
+    if items:
+        return items[0]
+
+    # Sürüm listesi yoksa birincil ANR bloğu (tarama en yeni sürümden başlar)
+    top_anr = (vitals.get("crashes") or {}).get("ANR") if isinstance(vitals.get("crashes"), dict) else None
+    rate, _ = _anr_rate_from_crash_block(top_anr)
+    if rate is None:
+        return None
+    top_code = None
+    if isinstance(top_anr, dict):
+        top_code = str(top_anr.get("version_code") or "").strip() or None
+    return _anr_item_from_rate(
+        code=top_code or code,
+        name=name,
+        anr_rate=rate,
+        source="play_vitals_scrape",
+    )
+
+
 def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, Any]:
     """Play vitals overview — ANR-free birincil; CF alanı yedek/debug (UI S-Firebase)."""
     vitals = vitals if isinstance(vitals, dict) else {}
@@ -301,6 +558,13 @@ def free_rates_from_vitals_overview(vitals: dict[str, Any] | None) -> dict[str, 
         elif key == "anr" or re.search(r"\banr\b", metric, re.I):
             anr_rate = val
             anr_label = metric or "ANR oranı"
+    if anr_rate is None:
+        all_block = (vitals.get("by_version") or {}).get("all") if isinstance(vitals.get("by_version"), dict) else None
+        if isinstance(all_block, dict):
+            crashes = all_block.get("crashes") if isinstance(all_block.get("crashes"), dict) else {}
+            anr_rate, _ = _anr_rate_from_crash_block(crashes.get("ANR") if isinstance(crashes, dict) else None)
+            if anr_rate is not None:
+                anr_label = anr_label or "ANR oranı"
     crash_free = _free_from_rate_pct(crash_rate)
     anr_free = _free_from_rate_pct(anr_rate)
     anr_rate_fmt = _fmt_rate_pct(anr_rate)
@@ -359,7 +623,7 @@ def build_stability_free_payload(
 ) -> dict[str, Any]:
     """Android/iOS stability kartları — CF: S-Firebase; ANR: Play."""
     vitals = vitals if isinstance(vitals, dict) else {}
-    cache_key = f"{product_id}:{package_name}:sf:v4-firebase-cf-extra"
+    cache_key = f"{product_id}:{package_name}:sf:v5-play-anr-vitals"
     if force_refresh:
         invalidate_stability_cache(product_id)
     else:
@@ -399,9 +663,13 @@ def _build_stability_free_payload_locked(
         "crash_free_source": "disabled_use_firebase_console",
     }
 
-    play_latest = None
-    play_versions: list[dict[str, Any]] = []
+    play_versions = play_versions_anr_from_vitals(vitals)
+    play_latest = play_latest_anr_from_vitals(vitals)
+    if play_latest:
+        play_latest = _strip_play_latest_crash_free(play_latest)
     play_err = None
+    if not play_latest or not play_latest.get("anr_free_fmt"):
+        play_err = "Son sürüm ANR oranı vitals taramasında yok"
 
     fb = firebase_console_stability_kpis()
     fb_plats = fb.get("platforms") if isinstance(fb.get("platforms"), dict) else {}
