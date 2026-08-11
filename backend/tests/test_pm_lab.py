@@ -509,6 +509,17 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert '"ceyrek_altin"' in js and "ASSET_ROW_ORDER" in js
 
 
+def test_news_keywords_include_fuel_and_bitcoin():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pm_lab_scrape", Path("scripts/pm_lab_scrape.py"))
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    for kw in ("bitcoin", "benzin", "motorin", "akaryakıt"):
+        assert kw in mod.NEWS_KEYWORDS
+
+
 def test_competitor_sapma_vs_peer_average():
     import importlib.util
 

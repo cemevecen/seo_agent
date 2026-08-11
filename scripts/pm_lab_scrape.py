@@ -71,6 +71,10 @@ NEWS_KEYWORDS = (
     "çeyrek altın",
     "kripto para",
     "ons altın",
+    "bitcoin",
+    "benzin",
+    "motorin",
+    "akaryakıt",
 )
 
 ASSETS = (
