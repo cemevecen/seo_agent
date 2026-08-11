@@ -986,6 +986,14 @@
     return normalizeId(row && row.id);
   }
   function dayKey(iso) { return String(iso || "").slice(0, 10); }
+  function dateTimeLabel(iso) {
+    var s = String(iso || "").trim();
+    if (!s) return "";
+    var day = s.slice(0, 10);
+    var m = s.match(/(?:T|\s)(\d{2}):(\d{2})/);
+    if (m) return day + " " + m[1] + ":" + m[2];
+    return day;
+  }
   /** Yerel YYYY-MM-DD — toISOString UTC kayması yapmasın (TR gece/gündüz). */
   function ymdLocal(d) {
     var y = d.getFullYear();
@@ -2524,6 +2532,7 @@
   }
   function rawDisplayValue(row, key, type) {
     if (key === "id") return idString(row);
+    if (key === "date") return dateTimeLabel(row.date);
     var val = rawValue(row, key);
     if (key === "android_ctr") return n(val).toFixed(2);
     if (type === "number") {

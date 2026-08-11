@@ -53,6 +53,12 @@ def test_notification_boot_loads_db_without_blocking_sync():
     assert "syncSheetFromServer" not in boot
 
 
+def test_raw_list_date_shows_hour_and_minute():
+    html = (ROOT / "templates/notification.html").read_text(encoding="utf-8")
+    assert "function dateTimeLabel(iso)" in html
+    assert 'if (key === "date") return dateTimeLabel(row.date);' in html
+
+
 def test_extras_redraw_is_not_bound_twice():
     js = (ROOT / "static/js/notification_extras.js").read_text(encoding="utf-8")
     assert 'addEventListener("nt-redraw", onRedraw)' in js
