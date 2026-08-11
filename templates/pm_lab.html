@@ -203,9 +203,9 @@
         ("Çözüm", d.sikayetvar.solved or "—"),
         ("URL", d.sikayetvar.url or "—"),
       ]) }}
-      {% if d.sikayetvar.items %}
+      {% if d.sikayetvar.get('items') %}
       <ul class="mt-2 space-y-2 text-xs">
-        {% for it in d.sikayetvar.items %}
+        {% for it in d.sikayetvar.get('items') %}
         <li class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-zinc-950/40">
           <p class="font-medium text-slate-800 dark:text-zinc-300">{{ it.title }}</p>
           <p class="text-slate-500">{{ it.meta }}</p>

@@ -72,3 +72,37 @@ def test_template_dropdowns_start_closed():
     assert html.count("<details") >= 1
     assert "<details open" not in html
     assert "pm_lab_visible" not in html  # nav is in base; page itself is gated
+    assert "sikayetvar.items" not in html  # dict.items method shadows JSON key
+
+
+def test_pm_lab_template_renders_sikayet_items():
+    from jinja2 import Environment
+
+    src = Path("templates/pm_lab.html").read_text(encoding="utf-8")
+    src = src.replace('{% extends "base.html" %}', "")
+    src = src.replace("{% block content %}", "").replace("{% endblock %}", "")
+    tmpl = Environment().from_string(src)
+    cards = [
+        {
+            "id": "sikayet",
+            "no": 9,
+            "title": "Şikayetvar",
+            "hint": "",
+            "ok": True,
+            "message": "",
+            "summary": "",
+            "shot_names": [],
+            "data": {
+                "sikayetvar": {
+                    "score": "3.2",
+                    "count": "12",
+                    "solved": "%40",
+                    "url": "https://www.sikayetvar.com/doviz",
+                    "items": [{"title": "Test", "meta": "bugün", "excerpt": "x"}],
+                }
+            },
+        }
+    ]
+    html = tmpl.render(cards=cards, scraped_at="", updated_at="", sync_message="")
+    assert "Test" in html
+    assert "3.2" in html
