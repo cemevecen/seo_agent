@@ -652,6 +652,7 @@
       function delta(cur, prevVal) {
         return compareDelta(cur, prevVal);
       }
+      var rowsD = delta(curStats.rows, prevStats.rows);
       var clickD = delta(curStats.clicks, prevStats.clicks);
       var imprD = delta(curStats.impressions, prevStats.impressions);
       var platHtml = ["desktop", "mobileweb", "android", "ios"].map(function (k) {
@@ -664,9 +665,12 @@
       }).join("");
       el.innerHTML = '<p class="mb-2 text-xs text-slate-500 dark:text-slate-400">'
         + range.start + " – " + range.end + " vs " + prev.start + " – " + prev.end + "</p>"
-        + '<div class="nt-cmp-grid">'
+        + '<div class="nt-cmp-grid nt-cmp-grid-totals">'
+        + periodKpiCard("nt-spark-rows", "Toplam sayı", curStats.rows, prevStats.rows, rowsD, { spark: sparkForKey(curDaily, prevDaily, "rows") })
         + periodKpiCard("nt-spark-clicks", "Toplam click", curStats.clicks, prevStats.clicks, clickD, { spark: sparkForKey(curDaily, prevDaily, "clicks") })
         + periodKpiCard("nt-spark-impressions", "Toplam impression", curStats.impressions, prevStats.impressions, imprD, { spark: sparkForKey(curDaily, prevDaily, "impressions") })
+        + "</div>"
+        + '<div class="nt-cmp-grid nt-cmp-grid-plats">'
         + platHtml
         + "</div>"
         + '<div class="nt-cmp-charts">'

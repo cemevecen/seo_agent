@@ -280,7 +280,13 @@
     .notification-page .nt-cmp-grid {
       display: grid;
       gap: 0.65rem;
-      grid-template-columns: 1fr;
+    }
+    .notification-page .nt-cmp-grid-totals {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .notification-page .nt-cmp-grid-plats {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 0.65rem;
     }
     .notification-page .nt-cmp-charts {
       display: grid;
@@ -295,36 +301,30 @@
     @media (min-width: 640px) {
       .notification-page .nt-cmp-chart-plot { height: 12.5rem; }
     }
-    @media (min-width: 520px) {
-      .notification-page .nt-cmp-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
     @media (min-width: 960px) {
-      .notification-page .nt-cmp-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
       .notification-page .nt-cmp-charts {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
-    @media (max-width: 519px) {
+    @media (max-width: 720px) {
+      .notification-page .nt-cmp-grid {
+        gap: 0.4rem;
+      }
+      .notification-page .nt-kpi-ss2 {
+        padding: 0.45rem 0.42rem 0.38rem;
+      }
+    }
+    @container nt-kpi (max-width: 9.5rem) {
       .notification-page .nt-kpi-ss2-main {
         flex-direction: column;
         align-items: stretch;
       }
-      .notification-page .nt-kpi-ss2-metrics {
-        max-width: none;
-      }
+      .notification-page .nt-kpi-ss2-metrics { max-width: none; }
       .notification-page .nt-kpi-ss2-spark {
         width: 100%;
         min-width: 0;
-        height: 2.35rem;
+        height: 2.1rem;
       }
-    }
-    @container nt-kpi (max-width: 9.5rem) {
-      .notification-page .nt-kpi-ss2-metrics { max-width: min(48%, 7rem); }
-      .notification-page .nt-kpi-ss2-spark { min-width: 2.1rem; }
     }
     /* Dark mode: bg-white / bg-slate-50 — Tailwind zinc sınıfları build'de yoktu; slate + base override */
     html.dark .notification-page .rounded-2xl.border.bg-white,
@@ -2829,6 +2829,6 @@
 })();
 </script>
 <script src="https://unpkg.com/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js" async></script>
-<script src="/static/js/notification_extras.js?v=5"></script>
+<script src="/static/js/notification_extras.js?v=6"></script>
 <script src="/static/js/notification_lab.js?v=6"></script>
 {% endblock %}
