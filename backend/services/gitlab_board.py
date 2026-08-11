@@ -44,13 +44,13 @@ MAX_OPENED_ISSUE_PAGES = 25
 MAX_CLOSED_ISSUE_PAGES = 8
 
 BOARD_SORT_MODES: dict[str, dict[str, str]] = {
-    "manual": {"label": "Manuel (sürükle-bırak)", "gitlab_order_by": "relative_position"},
-    "relative_position": {"label": "GitLab board sırası", "gitlab_order_by": "relative_position"},
-    "updated_at_desc": {"label": "Son güncelleme (yeni üstte)", "gitlab_order_by": "updated_at"},
-    "updated_at_asc": {"label": "Son güncelleme (eski üstte)", "gitlab_order_by": "updated_at"},
-    "created_at_desc": {"label": "Oluşturulma (yeni üstte)", "gitlab_order_by": "created_at"},
-    "created_at_asc": {"label": "Oluşturulma (eski üstte)", "gitlab_order_by": "created_at"},
-    "weight_desc": {"label": "Ağırlık / öncelik (yüksek üstte)", "gitlab_order_by": "weight"},
+    "manual": {"label": "Manual (drag and drop)", "gitlab_order_by": "relative_position"},
+    "relative_position": {"label": "GitLab board order", "gitlab_order_by": "relative_position"},
+    "updated_at_desc": {"label": "Last updated (newest first)", "gitlab_order_by": "updated_at"},
+    "updated_at_asc": {"label": "Last updated (oldest first)", "gitlab_order_by": "updated_at"},
+    "created_at_desc": {"label": "Created (newest first)", "gitlab_order_by": "created_at"},
+    "created_at_asc": {"label": "Created (oldest first)", "gitlab_order_by": "created_at"},
+    "weight_desc": {"label": "Weight / priority (highest first)", "gitlab_order_by": "weight"},
 }
 
 DEFAULT_BOARD_SORT_MODE = "manual"

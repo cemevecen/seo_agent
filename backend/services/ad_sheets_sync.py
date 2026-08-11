@@ -737,8 +737,8 @@ def start_sync_job(
             _set_job(
                 running=False,
                 phase="done",
-                detail=result.get("message") or "Tamamlandı",
-                message=result.get("message") or "Tamamlandı",
+                detail=result.get("message") or "Done",
+                message=result.get("message") or "Done",
                 ok_count=int(result.get("ok_count") or 0),
                 fail_count=int(result.get("fail_count") or 0),
                 total_parsed=int(result.get("total_parsed") or 0),

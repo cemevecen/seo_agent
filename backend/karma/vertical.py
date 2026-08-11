@@ -223,9 +223,9 @@ def brief_internal_links_hint(vertical: ContentVertical | None) -> str:
 def brief_deadline_label(urgency: str, age_m: float, vertical: ContentVertical | None) -> str:
     mins = max(15, int(90 - age_m))
     if vertical == ContentVertical.ENTERTAINMENT:
-        if urgency == "ACİL":
-            return f"{mins} dk içinde vizyon/fragman sayfası"
-        return f"{mins} dk içinde liste veya inceleme güncellemesi"
-    if urgency == "ACİL":
-        return f"{mins} dk içinde yayın hedefi"
-    return f"{mins} dk içinde haber güncellemesi"
+        if urgency == "URGENT":
+            return f"theatrical/trailer page within {mins} min"
+        return f"list or review update within {mins} min"
+    if urgency == "URGENT":
+        return f"publish target within {mins} min"
+    return f"news update within {mins} min"

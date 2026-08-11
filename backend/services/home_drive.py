@@ -29,7 +29,7 @@ HOME_DRIVE_CONTAINERS: tuple[dict[str, str], ...] = (
     {"key": "wv-doviz", "label": "doviz · web vitals"},
     {"key": "wv-sinemalar", "label": "sinemalar · web vitals"},
     {"key": "notification-week", "label": "Notification · 7g"},
-    {"key": "crashlytics", "label": "Mobil mağaza / Firebase"},
+    {"key": "crashlytics", "label": "Mobile store / Firebase"},
     {"key": "priority-board", "label": "git.nokta"},
 )
 _HOME_DRIVE_CONTAINER_BY_KEY = {c["key"]: c["label"] for c in HOME_DRIVE_CONTAINERS}

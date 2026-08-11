@@ -140,16 +140,16 @@ def get_ga4_connection_status(db: Session, site_id: int) -> dict[str, str | bool
     record = get_ga4_credentials_record(db, site_id)
     properties = load_ga4_properties(record)
     if not properties:
-        return {"connected": False, "method": "none", "label": "Property yok", "properties": {}}
+        return {"connected": False, "method": "none", "label": "No property", "properties": {}}
     if not ga4_is_configured():
         return {
             "connected": False,
             "method": "service_account",
-            "label": "Service account dosyası yok/okunamadı",
+            "label": "Service account file missing/unreadable",
             "properties": properties,
             "diagnostic": ga4_service_account_diagnostic(),
         }
-    return {"connected": True, "method": "service_account", "label": "GA4 bağlı", "properties": properties}
+    return {"connected": True, "method": "service_account", "label": "GA4 connected", "properties": properties}
 
 
 def load_ga4_service_account_info() -> dict:

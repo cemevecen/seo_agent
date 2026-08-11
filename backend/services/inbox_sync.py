@@ -894,12 +894,12 @@ def iter_sync_inbox_threads(
     yield {
         "type": "phase",
         "phase": "auth",
-        "message": "Gmail oturumu doğrulanıyor…",
+        "message": "Verifying Gmail session…",
         "pct": 2,
     }
     creds = inbox_gmail_auth.load_inbox_credentials(db)
     if creds is None:
-        raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+        raise RuntimeError("Gmail inbox is not connected.")
     creds = _ensure_fresh_creds(db, creds)
     row = inbox_gmail_auth.get_inbox_credential_row(db)
     account_lower = (row.account_email if row else "").strip().lower()
@@ -907,7 +907,7 @@ def iter_sync_inbox_threads(
     yield {
         "type": "phase",
         "phase": "connect",
-        "message": "Gmail API bağlantısı kuruluyor…",
+        "message": "Connecting to the Gmail API…",
         "pct": 5,
     }
     service = _gmail_service(creds)
@@ -924,7 +924,7 @@ def iter_sync_inbox_threads(
     yield {
         "type": "phase",
         "phase": "listing",
-        "message": "Konuşma listesi Gmail’den isteniyor…",
+        "message": "Requesting the conversation list from Gmail…",
         "query": q,
         "pct": 8,
     }
@@ -945,23 +945,23 @@ def iter_sync_inbox_threads(
             st = 0
         if st == 401:
             raise RuntimeError(
-                "Gmail oturumu geçersiz veya süresi doldu. «Bağlantıyı kes» deyip yeniden Google ile bağlanın."
+                "Gmail session is invalid or expired. Disconnect and sign in with Google again."
             ) from exc
         if st == 403:
-            raise RuntimeError(f"Gmail erişim reddedildi: {msg}") from exc
+            raise RuntimeError(f"Gmail access denied: {msg}") from exc
         if st == 429:
             raise RuntimeError(
-                f"Gmail API hız sınırı; birkaç dakika sonra tekrar deneyin. ({msg})"
+                f"Gmail API rate limit; try again in a few minutes. ({msg})"
             ) from exc
         LOGGER.error("Inbox Sync: Gmail listeleme hatası (HTTP %s): %s (query=%s)", st, msg, q)
-        raise RuntimeError(f"Gmail ileti listesi alınamadı (HTTP {st}): {msg}") from exc
+        raise RuntimeError(f"Could not fetch Gmail message list (HTTP {st}): {msg}") from exc
     thread_list = lst.get("threads") or []
     n = len(thread_list)
     yield {
         "type": "listed",
         "total": n,
         "query": q,
-        "message": f"{n} konuşma bulundu; tek tek çekiliyor…",
+        "message": f"{n} conversations found; fetching one by one…",
         "pct": 12,
     }
     synced = 0
@@ -975,7 +975,7 @@ def iter_sync_inbox_threads(
             "current": i + 1,
             "total": n,
             "gmail_thread_id": tid,
-            "message": f"{i + 1}/{n} — konuşma Gmail’den indiriliyor…",
+            "message": f"{i + 1}/{n} — downloading conversation from Gmail…",
             "pct": max(12, _sync_pct_saved(synced, n)),
         }
         try:
@@ -988,7 +988,7 @@ def iter_sync_inbox_threads(
                 "current": i + 1,
                 "total": n,
                 "gmail_thread_id": tid,
-                "message": f"{i + 1}/{n} — atlandı (Gmail hatası)",
+                "message": f"{i + 1}/{n} — skipped (Gmail error)",
                 "error": str(exc)[:200],
                 "pct": max(12, _sync_pct_saved(synced, n)),
             }
@@ -1004,7 +1004,7 @@ def iter_sync_inbox_threads(
                 "total": n,
                 "gmail_thread_id": tid,
                 "subject": subj,
-                "message": f"{i + 1}/{n} — sosyal özet (Instagram); inbox dışı",
+                "message": f"{i + 1}/{n} — social digest (Instagram); not inbox",
                 "pct": max(12, _sync_pct_saved(synced, n)),
             }
             continue
@@ -1019,7 +1019,7 @@ def iter_sync_inbox_threads(
             "snippet": snip,
             "messages_written": nmsg,
             "synced_so_far": synced,
-            "message": f"{i + 1}/{n} kaydedildi: {subj[:80]}{'…' if len(subj) > 80 else ''}",
+            "message": f"{i + 1}/{n} saved: {subj[:80]}{'…' if len(subj) > 80 else ''}",
             "pct": _sync_pct_saved(synced, n),
         }
     db.commit()
@@ -1031,7 +1031,7 @@ def iter_sync_inbox_threads(
         "query": q,
         "repaired_route_tags": repair.get("repaired", 0),
         "purged_excluded_threads": purged.get("deleted", 0),
-        "message": f"Tamamlandı — {synced} konuşma veritabanına yazıldı.",
+        "message": f"Done — {synced} conversations written to the database.",
         "pct": 100,
     }
 
@@ -1047,23 +1047,23 @@ def iter_sync_inbox_all_routes(
     yield {
         "type": "phase",
         "phase": "auth",
-        "message": "Gmail oturumu doğrulanıyor…",
+        "message": "Verifying Gmail session…",
         "pct": 2,
     }
     creds = inbox_gmail_auth.load_inbox_credentials(db)
     if creds is None:
-        raise RuntimeError("Gmail gelen kutusu bağlı değil.")
+        raise RuntimeError("Gmail inbox is not connected.")
     yield {
         "type": "phase",
         "phase": "auth_refresh",
-        "message": "Gmail token yenileniyor…",
+        "message": "Refreshing Gmail token…",
         "pct": 3,
     }
     creds = _ensure_fresh_creds(db, creds)
     yield {
         "type": "phase",
         "phase": "auth_ready",
-        "message": "Gmail bağlantısı hazır…",
+        "message": "Gmail connection ready…",
         "pct": 4,
     }
     row = inbox_gmail_auth.get_inbox_credential_row(db)
@@ -1083,7 +1083,7 @@ def iter_sync_inbox_all_routes(
         yield {
             "type": "phase",
             "phase": "listing",
-            "message": f"{route} sekmesi taranıyor…",
+            "message": f"Scanning {route} tab…",
             "query": q,
             "route": route,
             "pct": 5 + int((ri / max(len(routes), 1)) * 7),
@@ -1116,7 +1116,7 @@ def iter_sync_inbox_all_routes(
         "type": "listed",
         "total": n,
         "route_counts": route_counts,
-        "message": f"{n} konuşma bulundu ({len(routes)} sekme); indiriliyor…",
+        "message": f"{n} conversations found ({len(routes)} tabs); downloading…",
         "pct": 12,
     }
     synced = 0
@@ -1131,7 +1131,7 @@ def iter_sync_inbox_all_routes(
             "total": n,
             "route": route,
             "gmail_thread_id": tid,
-            "message": f"{i + 1}/{n} [{route}] — konuşma indiriliyor…",
+            "message": f"{i + 1}/{n} [{route}] — downloading conversation…",
             "pct": max(12, _sync_pct_saved(synced, n)),
         }
         try:
@@ -1145,7 +1145,7 @@ def iter_sync_inbox_all_routes(
                 "total": n,
                 "route": route,
                 "gmail_thread_id": tid,
-                "message": f"{i + 1}/{n} [{route}] — atlandı (Gmail hatası)",
+                "message": f"{i + 1}/{n} [{route}] — skipped (Gmail error)",
                 "error": str(exc)[:200],
                 "pct": max(12, _sync_pct_saved(synced, n)),
             }
@@ -1164,7 +1164,7 @@ def iter_sync_inbox_all_routes(
                 "route": route,
                 "gmail_thread_id": tid,
                 "subject": subj,
-                "message": f"{i + 1}/{n} [{route}] — sosyal özet; inbox dışı",
+                "message": f"{i + 1}/{n} [{route}] — social digest; not inbox",
                 "pct": max(12, _sync_pct_saved(synced, n)),
             }
             continue
@@ -1180,14 +1180,14 @@ def iter_sync_inbox_all_routes(
             "snippet": snip,
             "messages_written": nmsg,
             "synced_so_far": synced,
-            "message": f"{i + 1}/{n} [{route}] kaydedildi: {subj[:70]}{'…' if len(subj) > 70 else ''}",
+            "message": f"{i + 1}/{n} [{route}] saved: {subj[:70]}{'…' if len(subj) > 70 else ''}",
             "pct": _sync_pct_saved(synced, n),
         }
     db.commit()
     yield {
         "type": "phase",
         "phase": "finalize",
-        "message": "Kayıtlar düzeltiliyor…",
+        "message": "Fixing records…",
         "pct": 98,
     }
     repair = repair_misrouted_inbox_threads(db)
@@ -1199,7 +1199,7 @@ def iter_sync_inbox_all_routes(
         "route_counts": route_counts,
         "repaired_route_tags": repair.get("repaired", 0),
         "purged_excluded_threads": purged.get("deleted", 0),
-        "message": f"Tamamlandı — {synced} konuşma ({len(routes)} sekme) veritabanına yazıldı.",
+        "message": f"Done — {synced} conversations ({len(routes)} tabs) written to the database.",
         "pct": 100,
     }
 

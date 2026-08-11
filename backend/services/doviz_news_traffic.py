@@ -63,7 +63,7 @@ def _resolve_traffic_window(
     note = None
     if (period_key or "") == "all":
         start = end - timedelta(days=27)
-        note = "Tümü: trafik son 28 gün (GA4 kota)"
+        note = "All: traffic last 28 days (GA4 quota)"
     elif span >= _MAX_GA4_SPAN_DAYS:
         start = end - timedelta(days=_MAX_GA4_SPAN_DAYS - 1)
         note = f"Trafik penceresi {_MAX_GA4_SPAN_DAYS} güne kısaltıldı"
@@ -172,7 +172,7 @@ def enrich_doviz_news_traffic(
     properties = (ga4_status.get("properties") or {}) if isinstance(ga4_status, dict) else {}
     if not ga4_status.get("connected"):
         out = _empty_traffic(
-            error=str(ga4_status.get("label") or "GA4 bağlı değil"),
+            error=str(ga4_status.get("label") or "GA4 not connected"),
             window=window,
         )
         # GSC yine de denenebilir
@@ -218,7 +218,7 @@ def enrich_doviz_news_traffic(
 
     profiles = [pf for pf in ("web", "mweb") if str(properties.get(pf) or "").strip()]
     if not profiles:
-        out = _empty_traffic(error="GA4 web/mweb property yok", window=window)
+        out = _empty_traffic(error="GA4 web/mweb property missing", window=window)
         _CACHE[cache_key] = (time.time(), out)
         return out
 
@@ -227,7 +227,7 @@ def enrich_doviz_news_traffic(
             results = list(pool.map(_fetch_profile, profiles))
     except Exception as exc:
         LOGGER.exception("Doviz news GA4 batch başarısız")
-        out = _empty_traffic(error=str(exc) or "GA4 çekimi başarısız", window=window)
+        out = _empty_traffic(error=str(exc) or "GA4 fetch failed", window=window)
         _CACHE[cache_key] = (time.time(), out)
         return out
 
@@ -273,9 +273,9 @@ def enrich_doviz_news_traffic(
     if include_day_phases and daily_rows:
         # Makale bazlı günlükleri yayın tarihine göre birleştir
         phase_acc = {
-            "send_day": {"key": "send_day", "label": "Yayın günü", "sessions": 0.0, "views": 0.0},
-            "day_1_3": {"key": "day_1_3", "label": "Gün 1–3", "sessions": 0.0, "views": 0.0},
-            "day_4_plus": {"key": "day_4_plus", "label": "Gün 4+", "sessions": 0.0, "views": 0.0},
+            "send_day": {"key": "send_day", "label": "Publish day", "sessions": 0.0, "views": 0.0},
+            "day_1_3": {"key": "day_1_3", "label": "Days 1–3", "sessions": 0.0, "views": 0.0},
+            "day_4_plus": {"key": "day_4_plus", "label": "Day 4+", "sessions": 0.0, "views": 0.0},
         }
         for drow in daily_rows:
             aid = extract_article_id_from_path(str(drow.get("page") or ""))
@@ -295,7 +295,7 @@ def enrich_doviz_news_traffic(
                     phase_acc[key]["views"] += float(p.get("views") or 0)
                     # Etiketi yayın diline çek
                     if key == "send_day":
-                        phase_acc[key]["label"] = "Yayın günü"
+                        phase_acc[key]["label"] = "Publish day"
         day_phases = [
             {
                 **p,

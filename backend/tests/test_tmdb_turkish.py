@@ -18,12 +18,12 @@ def test_is_turkish_origin_false():
 def test_tv_keep_old_ended_out():
     assert not _tv_keep_after_on_air_filter({
         "first_air_date": "2005-01-01",
-        "status": "Bitti",
+        "status": "Ended",
     })
 
 
 def test_tv_keep_returning_old_format():
     assert _tv_keep_after_on_air_filter({
         "first_air_date": "2010-01-01",
-        "status": "Devam Ediyor",
+        "status": "Returning Series",
     })

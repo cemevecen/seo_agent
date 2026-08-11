@@ -40,7 +40,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
     },
     {
         "source": "doviz_news",
-        "label": "Döviz haber admin",
+        "label": "Döviz news admin",
         "targets": ["doviz"],
         "cadence": "Saatlik",
         "hours_tr": "Her saat",
@@ -76,7 +76,7 @@ SCRAPE_CATALOG: list[dict[str, Any]] = [
     },
     {
         "source": "virgul_analytics",
-        "label": "Virgül reklam",
+        "label": "Virgül ads",
         "targets": ["doviz", "sinemalar"],
         "cadence": "6 saatte bir",
         "hours_tr": "00/06/12/18:00",

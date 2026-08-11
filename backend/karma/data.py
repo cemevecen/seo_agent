@@ -71,7 +71,7 @@ def _base_payload(slug: str, site: Site) -> dict[str, Any]:
 
 def _alarm_item(a: RealtimeAlarmLog) -> dict[str, Any]:
     return {
-        "title": (a.message or a.rule_id or "Alarm")[:120],
+        "title": (a.message or a.rule_id or "Alert")[:120],
         "subtitle": f"{a.metric or ''} · {fmt_local_time(a.triggered_at, '%d.%m %H:%M')}",
         "badge": a.severity or "alarm",
         "href": "/realtime",
@@ -118,12 +118,12 @@ def _entertainment_vizyon_sections(*, horizon_days: int = 21, limit: int = 10) -
     if theatrical:
         sections.append(
             {
-                "title": "🎬 Sinema vizyon takvimi",
+                "title": "🎬 Theatrical calendar",
                 "items": [
                     {
                         "title": m.get("title") or "Film",
                         "subtitle": f"{(m.get('release_date') or '')[:10]} · pop {m.get('popularity', 0)}",
-                        "badge": "vizyon",
+                        "badge": "theatrical",
                         "href": m.get("tmdb_url") or "",
                     }
                     for m in theatrical[:limit]
@@ -134,10 +134,10 @@ def _entertainment_vizyon_sections(*, horizon_days: int = 21, limit: int = 10) -
     if streaming:
         sections.append(
             {
-                "title": "📺 Platform yayınları (film & dizi)",
+                "title": "📺 Platform releases (film & TV)",
                 "items": [
                     {
-                        "title": m.get("title") or "İçerik",
+                        "title": m.get("title") or "Title",
                         "subtitle": (
                             f"{(m.get('release_date') or '')[:10]}"
                             f" · {', '.join((m.get('providers') or [])[:3]) or 'platform'}"
@@ -153,12 +153,12 @@ def _entertainment_vizyon_sections(*, horizon_days: int = 21, limit: int = 10) -
     if tv:
         sections.append(
             {
-                "title": "📡 Dizi takvimi",
+                "title": "📡 TV calendar",
                 "items": [
                     {
-                        "title": m.get("title") or "Dizi",
+                        "title": m.get("title") or "Series",
                         "subtitle": f"{(m.get('release_date') or '')[:10]} · pop {m.get('popularity', 0)}",
-                        "badge": "dizi",
+                        "badge": "tv",
                         "href": m.get("tmdb_url") or "",
                     }
                     for m in tv[:limit]
@@ -198,8 +198,8 @@ def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
             critical.append(
                 {
                     "title": row.headline,
-                    "subtitle": f"{age_m:.0f} dk · {row.source_name} · skor {score:.1f}",
-                    "badge": "KRİTİK" if age_m <= 30 and not row.is_in_our_site else "gap" if not row.is_in_our_site else "trend",
+                    "subtitle": f"{age_m:.0f} min · {row.source_name} · score {score:.1f}",
+                    "badge": "CRITICAL" if age_m <= 30 and not row.is_in_our_site else "gap" if not row.is_in_our_site else "trend",
                     "href": row.url,
                 }
             )
@@ -209,8 +209,8 @@ def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
     trend_items = [
         {
             "title": row.headline,
-            "subtitle": f"{row.source_name} · {age_minutes(row.published_at, now=now):.0f} dk önce",
-            "badge": f"skor {score:.1f}",
+            "subtitle": f"{row.source_name} · {age_minutes(row.published_at, now=now):.0f} min ago",
+            "badge": f"score {score:.1f}",
             "href": row.url,
         }
         for score, row in scored[:20]
@@ -220,11 +220,11 @@ def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
     for prof, data in drivers.items():
         for d in (data.get("drivers_increase") or [])[:5]:
             driver_items.append(
-                {"title": f"[{prof}] ↑ {fmt_driver(d)}", "subtitle": f"kaynak: {data.get('driver_source', 'live')}", "badge": "trafik+"}
+                {"title": f"[{prof}] ↑ {fmt_driver(d)}", "subtitle": f"source: {data.get('driver_source', 'live')}", "badge": "trafik+"}
             )
         for d in (data.get("drivers_decrease") or [])[:3]:
             driver_items.append(
-                {"title": f"[{prof}] ↓ {fmt_driver(d)}", "subtitle": "düşüş driver", "badge": "trafik-"}
+                {"title": f"[{prof}] ↓ {fmt_driver(d)}", "subtitle": "drop driver", "badge": "trafik-"}
             )
 
     web = pulse.get("web") or {}
@@ -233,23 +233,23 @@ def trend_trend_radar(db: Session, site_id: int) -> dict[str, Any]:
 
     out["summary"] = (
         f"{out.get('vertical_label') or 'Trend'} · "
-        f"Anlık {pulse.get('total_current', 0):.0f} aktif kullanıcı (Δ {pulse.get('total_delta', 0):+.0f}). "
-        f"Son 30 dk: {len(intel_30m)} haber, {gaps_30m} gap. {len(alarms)} alarm (3s)."
+        f"Live {pulse.get('total_current', 0):.0f} active users (Δ {pulse.get('total_delta', 0):+.0f}). "
+        f"Last 30 min: {len(intel_30m)} news, {gaps_30m} gaps. {len(alarms)} alerts (3h)."
     )
     out["metrics"] = [
-        {"label": "Aktif (web)", "value": f"{web.get('current', 0):.0f}"},
+        {"label": "Active (web)", "value": f"{web.get('current', 0):.0f}"},
         {"label": "Δ web", "value": f"{web.get('delta', 0):+.0f}"},
-        {"label": "Gap 30dk", "value": str(gaps_30m)},
-        {"label": "Alarm 3s", "value": str(len(alarms))},
+        {"label": "Gap 30m", "value": str(gaps_30m)},
+        {"label": "Alerts 3h", "value": str(len(alarms))},
     ]
     out["sections"] = [
-        {"title": "🔴 Kritik — son 90 dk", "items": critical or [{"title": "Kritik gap yok", "subtitle": "Feed güncel", "badge": "ok"}]},
-        {"title": "Trend fusion skoru", "items": trend_items},
-        {"title": "Trafik driver (web/mweb)", "items": driver_items or [{"title": "Driver verisi yok", "subtitle": "Realtime kontrol edin", "badge": "—"}]},
-        {"title": "Son alarmlar", "items": [_alarm_item(a) for a in alarms[:8]]},
+        {"title": "🔴 Critical — last 90 min", "items": critical or [{"title": "No critical gap", "subtitle": "Feed is current", "badge": "ok"}]},
+        {"title": "Trend fusion score", "items": trend_items},
+        {"title": "Traffic drivers (web/mweb)", "items": driver_items or [{"title": "No driver data", "subtitle": "Check Realtime", "badge": "—"}]},
+        {"title": "Recent alerts", "items": [_alarm_item(a) for a in alarms[:8]]},
         {
-            "title": "Topic patlaması (6s)",
-            "items": [{"title": t, "subtitle": f"{c} sinyal", "badge": "hot" if c >= 4 else "topic"} for t, c in topic_counter.most_common(10)],
+            "title": "Topic spike (6h)",
+            "items": [{"title": t, "subtitle": f"{c} signals", "badge": "hot" if c >= 4 else "topic"} for t, c in topic_counter.most_common(10)],
         },
     ]
     if vertical == ContentVertical.ENTERTAINMENT:
@@ -279,11 +279,11 @@ def trend_query_haber(db: Session, site_id: int) -> dict[str, Any]:
         pos = float(q.get("position") or 0)
         age_str = ""
         if best and best.published_at:
-            age_str = f" · haber {age_minutes(best.published_at):.0f} dk önce"
+            age_str = f" · news {age_minutes(best.published_at):.0f} min ago"
         row = {
             "title": query,
-            "subtitle": f"↑ Δpos {delta:.1f} · poz {pos:.1f} · {imp} imp{age_str}",
-            "badge": "KRİTİK gap" if not hit else ("bizde var" if in_site else "haber var"),
+            "subtitle": f"↑ Δpos {delta:.1f} · pos {pos:.1f} · {imp} imp{age_str}",
+            "badge": "CRITICAL gap" if not hit else ("on our site" if in_site else "news exists"),
             "meta": {"delta": delta, "clicks": q.get("clicks")},
         }
         if not hit or not in_site:
@@ -294,20 +294,20 @@ def trend_query_haber(db: Session, site_id: int) -> dict[str, Any]:
     items_gap.sort(key=lambda x: -float(x["meta"].get("delta") or 0))
     rt_pages = top_pages_rt(db, site_id, "web", 8)
     page_items = [
-        {"title": p["path"], "subtitle": f"{p['users']} aktif · canlı sayfa", "badge": "RT"}
+        {"title": p["path"], "subtitle": f"{p['users']} active · live page", "badge": "RT"}
         for p in rt_pages[:8]
     ]
 
-    out["summary"] = f"{out.get('vertical_label') or ''} · {len(items_gap)} yükselen sorguda haber gap; {len(items_ok)} kapsanan."
+    out["summary"] = f"{out.get('vertical_label') or ''} · {len(items_gap)} rising queries with news gap; {len(items_ok)} covered."
     out["metrics"] = [
-        {"label": "Yükselen", "value": str(len(rising))},
+        {"label": "Rising", "value": str(len(rising))},
         {"label": "Gap", "value": str(len(items_gap))},
-        {"label": "Kapsanan", "value": str(len(items_ok))},
+        {"label": "Covered", "value": str(len(items_ok))},
     ]
     out["sections"] = [
-        {"title": "Yükselen sorgu — haber gap (öncelik)", "items": items_gap[:25]},
-        {"title": "Kapsanan yükselen sorgular", "items": items_ok[:12]},
-        {"title": "Anlık top sayfalar (içerik fırsatı)", "items": page_items},
+        {"title": "Rising queries — news gap (priority)", "items": items_gap[:25]},
+        {"title": "Covered rising queries", "items": items_ok[:12]},
+        {"title": "Live top pages (content opportunity)", "items": page_items},
     ]
     out["actions"] = [{"label": "Search Console", "href": "/search-console"}, {"label": "News", "href": "/intelligence"}]
     return out
@@ -324,20 +324,22 @@ def trend_seasonality(db: Session, site_id: int) -> dict[str, Any]:
 
     cal_items = [{"title": p, "subtitle": trig, "badge": act} for p, trig, act in events]
     hour_items = [
-        {"title": f"Saat {h:02d}:00", "subtitle": f"{c} alarm (30g)", "badge": "spike saati"}
+        {"title": f"{h:02d}:00", "subtitle": f"{c} alerts (30d)", "badge": "spike hour"}
         for h, c in patterns.get("top_hours") or []
     ]
     day_items = [
-        {"title": day, "subtitle": f"{c} alarm (30g)", "badge": "yoğun gün"}
+        {"title": day, "subtitle": f"{c} alerts (30d)", "badge": "busy day"}
         for day, c in patterns.get("top_days") or []
     ]
 
     upcoming = []
     month = now.month
-    month_names = ["", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağu", "Eylül", "Ekim", "Kasım", "Aralık"]
-    cur_month = month_names[month]
+    month_names_en = ["", "January", "February", "March", "April", "May", "June", "July", "Aug", "September", "October", "November", "December"]
+    month_names_tr = ["", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağu", "Eylül", "Ekim", "Kasım", "Aralık"]
+    cur_month = month_names_en[month]
+    cur_month_tr = month_names_tr[month]
     for period, trig, act in events:
-        if cur_month in period or period.startswith("Her") or "Ay" in period:
+        if cur_month_tr in period or period.startswith("Her") or "Ay" in period:
             upcoming.append({"title": period, "subtitle": trig, "badge": act})
 
     recent_alarms = alarms_recent(db, site_id, hours=48, limit=10)
@@ -351,10 +353,10 @@ def trend_seasonality(db: Session, site_id: int) -> dict[str, Any]:
         weekly = vakif.get("weekly") or {}
         week_items = weekly.get("items") or []
         vakif_event_count = len(week_items)
-        week_label = weekly.get("week_range") or weekly.get("published_label") or "Bu hafta"
-        week_title = f"Ekonomik takvim — {week_label}"
+        week_label = weekly.get("week_range") or weekly.get("published_label") or "This week"
+        week_title = f"Economic calendar — {week_label}"
         if weekly.get("published_label"):
-            week_title += f" · yayımlanma {weekly['published_label']}"
+            week_title += f" · published {weekly['published_label']}"
 
         sections.append(
             {
@@ -362,8 +364,8 @@ def trend_seasonality(db: Session, site_id: int) -> dict[str, Any]:
                 "items": week_items
                 or [
                     {
-                        "title": "Takvim verisi alınamadı",
-                        "subtitle": vakif.get("error") or "Vakıf Yatırım kaynağı geçici olarak yanıt vermiyor",
+                        "title": "Could not load calendar",
+                        "subtitle": vakif.get("error") or "Vakıf Yatırım source is temporarily unavailable",
                         "badge": "—",
                         "href": vakif.get("source_url"),
                     }
@@ -376,22 +378,22 @@ def trend_seasonality(db: Session, site_id: int) -> dict[str, Any]:
             subtitle_parts = [p for p in (b.get("date_label"), b.get("excerpt")) if p]
             bulletin_items.append(
                 {
-                    "title": b.get("label") or b.get("title") or "Bülten",
-                    "subtitle": " · ".join(subtitle_parts)[:220] if subtitle_parts else "Güncel strateji notu",
-                    "badge": "bülten",
+                    "title": b.get("label") or b.get("title") or "Bulletin",
+                    "subtitle": " · ".join(subtitle_parts)[:220] if subtitle_parts else "Latest strategy note",
+                    "badge": "bulletin",
                     "href": b.get("pdf_url") or b.get("detail_url") or b.get("page_url"),
                 }
             )
         if bulletin_items:
-            sections.append({"title": "Strateji bültenleri (Vakıf Yatırım)", "items": bulletin_items})
+            sections.append({"title": "Strategy bulletins (Vakıf Yatırım)", "items": bulletin_items})
 
     sections.extend(
         [
-            {"title": "Yakın editoryal hazırlık", "items": upcoming or cal_items[:3]},
-            {"title": "Spike saatleri (alarm geçmişi)", "items": hour_items or [{"title": "Veri birikiyor", "subtitle": "30g alarm yok", "badge": "—"}]},
-            {"title": "Yoğun günler", "items": day_items},
-            {"title": "Mevsimsel takvim", "items": cal_items},
-            {"title": "Son 48s alarmlar (pattern doğrulama)", "items": [_alarm_item(a) for a in recent_alarms]},
+            {"title": "Upcoming editorial prep", "items": upcoming or cal_items[:3]},
+            {"title": "Spike hours (alert history)", "items": hour_items or [{"title": "Collecting data", "subtitle": "No alerts in 30d", "badge": "—"}]},
+            {"title": "Busy days", "items": day_items},
+            {"title": "Seasonal calendar", "items": cal_items},
+            {"title": "Last 48h alerts (pattern check)", "items": [_alarm_item(a) for a in recent_alarms]},
         ]
     )
 
@@ -399,18 +401,18 @@ def trend_seasonality(db: Session, site_id: int) -> dict[str, Any]:
     if out.get("vertical_label"):
         summary_parts.append(str(out["vertical_label"]))
     if vertical == ContentVertical.FINANCE and vakif_event_count:
-        summary_parts.append(f"Vakıf takvim: {vakif_event_count} gündem maddesi")
-    summary_parts.append(f"30g alarm pattern ({patterns.get('total', 0)} olay)")
+        summary_parts.append(f"Vakıf calendar: {vakif_event_count} agenda items")
+    summary_parts.append(f"30d alert pattern ({patterns.get('total', 0)} events)")
     out["summary"] = " · ".join(summary_parts)
     out["metrics"] = [
-        {"label": "Takvim", "value": str(vakif_event_count) if vertical == ContentVertical.FINANCE else "—"},
-        {"label": "30g alarm", "value": str(patterns.get("total", 0))},
-        {"label": "Ay", "value": cur_month},
+        {"label": "Calendar", "value": str(vakif_event_count) if vertical == ContentVertical.FINANCE else "—"},
+        {"label": "30d alerts", "value": str(patterns.get("total", 0))},
+        {"label": "Month", "value": cur_month},
     ]
     out["sections"] = sections
     actions = [{"label": "Alerts", "href": "/alerts"}, {"label": "Realtime", "href": "/realtime"}]
     if vertical == ContentVertical.FINANCE:
-        actions.insert(0, {"label": "VakıfBank raporları", "href": "https://www.vakifbank.com.tr/tr/bireysel/yatirim/arastirmalar-ve-raporlar/piyasa-raporlari"})
+        actions.insert(0, {"label": "VakıfBank reports", "href": "https://www.vakifbank.com.tr/tr/bireysel/yatirim/arastirmalar-ve-raporlar/piyasa-raporlari"})
     out["actions"] = actions
     return out
 
@@ -425,9 +427,9 @@ def trend_anomaly_tree(db: Session, site_id: int) -> dict[str, Any]:
     tree_items: list[dict[str, Any]] = []
     tree_items.append(
         {
-            "title": f"Site nabzı · {pulse.get('total_current', 0):.0f} aktif (Δ {pulse.get('total_delta', 0):+.0f})",
-            "subtitle": "web + mweb toplam",
-            "badge": "kök",
+            "title": f"Site pulse · {pulse.get('total_current', 0):.0f} active (Δ {pulse.get('total_delta', 0):+.0f})",
+            "subtitle": "web + mweb total",
+            "badge": "root",
         }
     )
 
@@ -435,7 +437,7 @@ def trend_anomaly_tree(db: Session, site_id: int) -> dict[str, Any]:
         prof = (a.metric or "web:").split(":")[0] or "web"
         tree_items.append(
             {
-                "title": f"⚡ {(a.message or a.rule_id or 'Alarm')[:100]}",
+                "title": f"⚡ {(a.message or a.rule_id or 'Alert')[:100]}",
                 "subtitle": f"{prof} · {fmt_local_time(a.triggered_at)}",
                 "badge": a.severity or "alarm",
                 "href": "/realtime",
@@ -451,15 +453,15 @@ def trend_anomaly_tree(db: Session, site_id: int) -> dict[str, Any]:
         for prof in ("web", "mweb"):
             pd = drivers.get(prof) or {}
             for d in (pd.get("drivers_increase") or [])[:5]:
-                tree_items.append({"title": f"[{prof}] ↑ {fmt_driver(d)}", "subtitle": "canlı driver", "badge": "live"})
+                tree_items.append({"title": f"[{prof}] ↑ {fmt_driver(d)}", "subtitle": "live driver", "badge": "live"})
 
-    out["summary"] = f"{len(alarms)} alarm (12s) + web/mweb driver ağacı. Anlık Δ {pulse.get('total_delta', 0):+.0f}."
+    out["summary"] = f"{len(alarms)} alerts (12h) + web/mweb driver tree. Live Δ {pulse.get('total_delta', 0):+.0f}."
     out["metrics"] = [
-        {"label": "Alarm", "value": str(len(alarms))},
-        {"label": "Aktif", "value": f"{pulse.get('total_current', 0):.0f}"},
+        {"label": "Alerts", "value": str(len(alarms))},
+        {"label": "Active", "value": f"{pulse.get('total_current', 0):.0f}"},
         {"label": "Δ", "value": f"{pulse.get('total_delta', 0):+.0f}"},
     ]
-    out["sections"] = [{"title": "Alarm → driver ağacı (live)", "items": tree_items[:50]}]
+    out["sections"] = [{"title": "Alert → driver tree (live)", "items": tree_items[:50]}]
     out["actions"] = [{"label": "Realtime", "href": "/realtime"}]
     return out
 
@@ -492,13 +494,13 @@ def trend_brief_generator(db: Session, site_id: int) -> dict[str, Any]:
         gsc_hint = ""
         for kw in kws:
             if kw in " ".join(query_map.keys()):
-                gsc_hint = f"GSC yükselen: {kw}"
+                gsc_hint = f"GSC rising: {kw}"
                 break
-        urgency = "ACİL" if age_m <= 30 else "yüksek" if age_m <= 90 else "normal"
+        urgency = "URGENT" if age_m <= 30 else "high" if age_m <= 90 else "normal"
         brief = {
             "h1": r.headline[:95],
             "keywords": ", ".join(kws[:6]),
-            "angle": r.topic or r.category or ("Vizyon" if vertical else "Genel"),
+            "angle": r.topic or r.category or ("Theatrical" if vertical else "General"),
             "urgency": urgency,
             "deadline": brief_deadline_label(urgency, age_m, vertical),
             "internal_links": brief_internal_links_hint(vertical),
@@ -507,19 +509,19 @@ def trend_brief_generator(db: Session, site_id: int) -> dict[str, Any]:
         items.append(
             {
                 "title": r.headline,
-                "subtitle": f"{urgency} · {age_m:.0f} dk · H1: {brief['h1'][:60]}…",
+                "subtitle": f"{urgency} · {age_m:.0f} min · H1: {brief['h1'][:60]}…",
                 "badge": brief["angle"],
                 "href": r.url,
                 "meta": brief,
             }
         )
 
-    out["summary"] = f"{out.get('vertical_label') or ''} · {len(items)} acil brief — gap + GSC fırsat (4s)."
+    out["summary"] = f"{out.get('vertical_label') or ''} · {len(items)} urgent briefs — gap + GSC opportunity (4h)."
     out["metrics"] = [
         {"label": "Brief", "value": str(len(items))},
-        {"label": "Acil", "value": str(sum(1 for i in items if i.get("meta", {}).get("urgency") == "ACİL"))},
+        {"label": "Urgent", "value": str(sum(1 for i in items if i.get("meta", {}).get("urgency") == "URGENT"))},
     ]
-    out["sections"] = [{"title": "Editoryal brief taslakları", "items": items}]
+    out["sections"] = [{"title": "Editorial brief drafts", "items": items}]
     out["actions"] = [{"label": "AI Talk", "href": "/ai"}, {"label": "News", "href": "/intelligence"}]
     return out
 
@@ -549,14 +551,14 @@ def trend_headline_lab(db: Session, site_id: int) -> dict[str, Any]:
             items.append(
                 {
                     "title": v[:120],
-                    "subtitle": f"Kaynak: {r.source_name} · varyant {i + 1}",
-                    "badge": f"skor {score}",
+                    "subtitle": f"Source: {r.source_name} · variant {i + 1}",
+                    "badge": f"score {score}",
                     "href": r.url if i == 0 else None,
                 }
             )
 
-    out["summary"] = f"{out.get('vertical_label') or ''} · Son 3 saatin top {len(top_rows)} haberinden {len(items)} başlık varyantı."
-    out["sections"] = [{"title": "Headline varyantları (CTR heuristic)", "items": items}]
+    out["summary"] = f"{out.get('vertical_label') or ''} · Top {len(top_rows)} stories from last 3h → {len(items)} headline variants."
+    out["sections"] = [{"title": "Headline variants (CTR heuristic)", "items": items}]
     return out
 
 
@@ -575,7 +577,7 @@ def trend_ic_link(db: Session, site_id: int) -> dict[str, Any]:
         sources.append(
             {
                 "title": p["path"],
-                "subtitle": f"{p['users']} aktif · link KAYNAĞI",
+                "subtitle": f"{p['users']} active · link SOURCE",
                 "badge": f"#{i + 1}",
             }
         )
@@ -583,7 +585,7 @@ def trend_ic_link(db: Session, site_id: int) -> dict[str, Any]:
         sources.append(
             {
                 "title": p["path"],
-                "subtitle": f"{p['users']} aktif mweb · kaynak",
+                "subtitle": f"{p['users']} active mweb · source",
                 "badge": "mweb",
             }
         )
@@ -593,9 +595,9 @@ def trend_ic_link(db: Session, site_id: int) -> dict[str, Any]:
         qstr = str(q.get("query") or "")
         targets.append(
             {
-                "title": f"Hedef içerik: «{qstr}»",
-                "subtitle": f"↑ Δpos {float(q.get('delta', 0)):.1f} · yükselen sorgu",
-                "badge": "hedef",
+                "title": f"Target content: «{qstr}»",
+                "subtitle": f"↑ Δpos {float(q.get('delta', 0)):.1f} · rising query",
+                "badge": "target",
             }
         )
     gaps = [r for r in intel_recent(db, hours=2, limit=30, site=site) if not r.is_in_our_site]
@@ -603,7 +605,7 @@ def trend_ic_link(db: Session, site_id: int) -> dict[str, Any]:
         targets.append(
             {
                 "title": (r.headline or "")[:90],
-                "subtitle": "Gap haber → yeni URL hedefi",
+                "subtitle": "Gap story → new URL target",
                 "badge": "gap",
                 "href": r.url,
             }
@@ -617,20 +619,20 @@ def trend_ic_link(db: Session, site_id: int) -> dict[str, Any]:
                 {
                     "title": f"{src['title'][:50]} → {tgt['title'][:50]}",
                     "subtitle": f"{src['subtitle']} → {tgt['subtitle'][:60]}",
-                    "badge": "öneri",
+                    "badge": "suggest",
                 }
             )
 
-    out["summary"] = f"{len(sources)} kaynak sayfa (RT) + {len(targets)} hedef (GSC/gap). {len(pairs)} eşleme önerisi."
+    out["summary"] = f"{len(sources)} source pages (RT) + {len(targets)} targets (GSC/gap). {len(pairs)} match suggestions."
     out["metrics"] = [
-        {"label": "Kaynak", "value": str(len(sources))},
-        {"label": "Hedef", "value": str(len(targets))},
-        {"label": "Eşleme", "value": str(len(pairs))},
+        {"label": "Source", "value": str(len(sources))},
+        {"label": "Target", "value": str(len(targets))},
+        {"label": "Matches", "value": str(len(pairs))},
     ]
     out["sections"] = [
-        {"title": "Link kaynakları (anlık trafik)", "items": sources},
-        {"title": "Link hedefleri (GSC + gap)", "items": targets},
-        {"title": "Kaynak → hedef önerileri", "items": pairs},
+        {"title": "Link sources (live traffic)", "items": sources},
+        {"title": "Link targets (GSC + gap)", "items": targets},
+        {"title": "Source → target suggestions", "items": pairs},
     ]
     out["actions"] = [{"label": "Realtime", "href": "/realtime"}, {"label": "Backlinks", "href": "/backlinks"}]
     return out
@@ -655,33 +657,33 @@ def trend_content_decay(db: Session, site_id: int) -> dict[str, Any]:
         delta = float(q.get("delta") or 0)
         imp = int(q.get("impressions") or 0)
         rt_hit = any(query.lower() in p.lower() for p in declining_pages if p)
-        severity = "KRİTİK" if delta < -3 and imp > 500 else "yüksek" if delta < -2 else "izle"
+        severity = "CRITICAL" if delta < -3 and imp > 500 else "high" if delta < -2 else "watch"
         if rt_hit:
-            severity = "KRİTİK+RT"
+            severity = "CRITICAL+RT"
         items.append(
             {
                 "title": query,
-                "subtitle": f"Δpos {delta:.1f} · {imp} imp · {'RT düşüş var' if rt_hit else 'GSC only'}",
+                "subtitle": f"Δpos {delta:.1f} · {imp} imp · {'RT drop' if rt_hit else 'GSC only'}",
                 "badge": severity,
                 "meta": {"action": "refresh" if delta > -4 else "merge|301"},
             }
         )
 
     rt_decay_items = [
-        {"title": p, "subtitle": "Anlık trafik düşüş driver", "badge": "RT decay"}
+        {"title": p, "subtitle": "Live traffic drop driver", "badge": "RT decay"}
         for p in list(declining_pages)[:10]
         if p
     ]
 
-    out["summary"] = f"{len(decay)} sorguda pozisyon kaybı; {len(rt_decay_items)} sayfa RT düşüşte. Birleşik decay skoru."
+    out["summary"] = f"{len(decay)} queries lost position; {len(rt_decay_items)} pages in RT drop. Combined decay score."
     out["metrics"] = [
         {"label": "GSC decay", "value": str(len(decay))},
-        {"label": "RT düşüş", "value": str(len(rt_decay_items))},
-        {"label": "Kritik", "value": str(sum(1 for i in items if "KRİTİK" in str(i.get("badge"))))},
+        {"label": "RT drop", "value": str(len(rt_decay_items))},
+        {"label": "Critical", "value": str(sum(1 for i in items if "CRITICAL" in str(i.get("badge"))))},
     ]
     out["sections"] = [
-        {"title": "Pozisyon düşen sorgular (GSC + RT)", "items": items},
-        {"title": "Anlık trafik düşen sayfalar", "items": rt_decay_items},
+        {"title": "Queries losing position (GSC + RT)", "items": items},
+        {"title": "Pages with live traffic drop", "items": rt_decay_items},
     ]
     out["actions"] = [{"label": "Alerts", "href": "/alerts"}, {"label": "Search Console", "href": "/search-console"}]
     return out
@@ -699,7 +701,7 @@ def trend_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
     intel_clusters: dict[str, int] = defaultdict(int)
     gap_clusters: dict[str, int] = defaultdict(int)
     for r in rows:
-        key = r.topic or r.category or "Genel"
+        key = r.topic or r.category or "General"
         intel_clusters[key] += 1
         if not r.is_in_our_site:
             gap_clusters[key] += 1
@@ -707,7 +709,7 @@ def trend_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
     gsc_clusters: dict[str, float] = defaultdict(float)
     for q in queries:
         tokens = tokenize(str(q.get("query") or ""))[:2]
-        key = tokens[0] if tokens else "diğer"
+        key = tokens[0] if tokens else "other"
         gsc_clusters[key] += float(q.get("impressions") or 0)
 
     path_clusters: Counter[str] = Counter()
@@ -719,34 +721,34 @@ def trend_topic_cluster(db: Session, site_id: int) -> dict[str, Any]:
     intel_items = [
         {
             "title": k,
-            "subtitle": f"{v} haber · gap {gap_clusters.get(k, 0)}",
-            "badge": "güçlü" if v >= 6 else "zayıf" if v >= 2 else "boşluk",
+            "subtitle": f"{v} news · gap {gap_clusters.get(k, 0)}",
+            "badge": "strong" if v >= 6 else "weak" if v >= 2 else "empty",
         }
         for k, v in sorted(intel_clusters.items(), key=lambda x: -x[1])[:15]
     ]
     gsc_items = [
-        {"title": k, "subtitle": f"{int(v)} toplam imp", "badge": "GSC"}
+        {"title": k, "subtitle": f"{int(v)} total imp", "badge": "GSC"}
         for k, v in sorted(gsc_clusters.items(), key=lambda x: -x[1])[:12]
-        if k != "diğer"
+        if k != "other"
     ]
     rt_items = [
-        {"title": f"/{k}" if k != "home" else "/", "subtitle": f"{v} aktif kullanıcı", "badge": "RT"}
+        {"title": f"/{k}" if k != "home" else "/", "subtitle": f"{v} active users", "badge": "RT"}
         for k, v in path_clusters.most_common(12)
     ]
 
-    weak = [i for i in intel_items if i["badge"] == "boşluk" or "gap" in i["subtitle"] and int(i["subtitle"].split("gap ")[-1]) > 2]
+    weak = [i for i in intel_items if i["badge"] == "empty" or "gap" in i["subtitle"] and int(i["subtitle"].split("gap ")[-1]) > 2]
 
     out["summary"] = f"{out.get('vertical_label') or ''} · 12s cluster: {len(intel_clusters)} topic, {len(gsc_clusters)} GSC token."
     out["metrics"] = [
         {"label": "Topic", "value": str(len(intel_clusters))},
-        {"label": "Zayıf/gap", "value": str(len(weak))},
+        {"label": "Weak/gap", "value": str(len(weak))},
         {"label": "RT segment", "value": str(len(path_clusters))},
     ]
     out["sections"] = [
-        {"title": "Haber topic cluster", "items": intel_items},
+        {"title": "News topic cluster", "items": intel_items},
         {"title": "GSC query cluster (imp)", "items": gsc_items},
         {"title": "Realtime path cluster", "items": rt_items},
-        {"title": "Otorite boşlukları", "items": weak[:10] or [{"title": "Belirgin boşluk yok", "subtitle": "Cluster dengeli", "badge": "ok"}]},
+        {"title": "Authority gaps", "items": weak[:10] or [{"title": "No clear gap", "subtitle": "Cluster is balanced", "badge": "ok"}]},
     ]
     return out
 

@@ -44,17 +44,17 @@ def filter_news_rows_in_scope(rows: list[dict[str, Any]] | None) -> list[dict[st
     return out
 
 PERIOD_TABS = (
-    {"key": "today", "label": "Bugün"},
-    {"key": "yesterday", "label": "Dün"},
-    {"key": "last_7d", "label": "Son 1 hafta"},
-    {"key": "prev_week", "label": "Geçen hafta"},
-    {"key": "this_month", "label": "Bu ay"},
-    {"key": "last_month", "label": "Geçen ay"},
-    {"key": "all", "label": "Tümü"},
+    {"key": "today", "label": "Today"},
+    {"key": "yesterday", "label": "Yesterday"},
+    {"key": "last_7d", "label": "Last 7 days"},
+    {"key": "prev_week", "label": "Previous week"},
+    {"key": "this_month", "label": "This month"},
+    {"key": "last_month", "label": "Last month"},
+    {"key": "all", "label": "All"},
 )
 _PERIOD_KEYS = frozenset(p["key"] for p in PERIOD_TABS)
 
-_WD_TR = ("Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar")
+_WD_TR = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 _DATE_FMTS = ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%d.%m.%Y")
 _ISO_WEEK_RE = re.compile(r"^(\d{4})-W(\d{2})$")
 _WORD_RE = re.compile(r"[a-zA-ZçğıöşüÇĞİÖŞÜ0-9]{3,}", re.UNICODE)
@@ -252,7 +252,7 @@ def parse_doviz_news_csv(csv_text: str) -> list[dict[str, Any]]:
         if not news_id and not title:
             continue
         source_raw = str(row.get("Source") or row.get("Kaynak") or "").strip()
-        category = str(row.get("Category") or row.get("Kategori") or "").strip() or "Diğer"
+        category = str(row.get("Category") or row.get("Kategori") or "").strip() or "Other"
         active_raw = str(row.get("Active") or row.get("Aktif") or "").strip()
         active = active_raw in ("✅", "1", "true", "True", "yes", "YES", "aktif", "Aktif")
         dt = _parse_dt(row.get("Date") or row.get("Tarih"))
@@ -632,7 +632,7 @@ def ingest_doviz_news_rows(
         source_raw = str(r.get("source") or "").strip()
         if source_raw in ("Kendi içeriği", "-"):
             source_raw = ""
-        category = str(r.get("category") or "Diğer").strip() or "Diğer"
+        category = str(r.get("category") or "Other").strip() or "Other"
         active = bool(r.get("active", True))
         dt = _parse_dt(str(r.get("date") or ""))
         if dt is None and r.get("date_day"):
@@ -806,15 +806,15 @@ def resolve_period(
         cmp_start = cmp_end - timedelta(days=span_days - 1)
         if cs == ce:
             range_label = cs.isoformat()
-            cmp_label = "Önceki gün"
-            kpi_label = "Gün vs önceki"
+            cmp_label = "Previous day"
+            kpi_label = "Day vs previous"
         else:
             range_label = f"{cs.isoformat()} → {ce.isoformat()}"
-            cmp_label = f"Önceki {span_days} gün"
-            kpi_label = "Aralık vs önceki"
+            cmp_label = f"Previous {span_days} days"
+            kpi_label = "Range vs previous"
         return {
             "key": "custom",
-            "label": "Tarih aralığı",
+            "label": "Date range",
             "start": cs,
             "end": ce,
             "cmp_start": cmp_start,
@@ -854,14 +854,14 @@ def resolve_period(
     if key == "all":
         return {
             "key": "all",
-            "label": "Tümü",
+            "label": "All",
             "start": None,
             "end": None,
             "cmp_start": None,
             "cmp_end": None,
-            "cmp_label": "Önceki 7 gün",
-            "kpi_label": "Son 7 vs önceki",
-            "range_label": "Tüm veri",
+            "cmp_label": "Previous 7 days",
+            "kpi_label": "Last 7 vs previous",
+            "range_label": "All data",
             "cmp_range_label": None,
         }
 
@@ -869,29 +869,29 @@ def resolve_period(
         # Bugün vs geçen haftanın aynı günü
         start = end = today
         cmp_start = cmp_end = today - timedelta(days=7)
-        kpi_label = "Bugün vs geçen hf"
-        cmp_label = "Geçen hafta aynı gün"
+        kpi_label = "Today vs last week"
+        cmp_label = "Same day last week"
     elif key == "yesterday":
         # Önceki haftanın aynı günü (örn. cuma → geçen cuma)
         start = end = today - timedelta(days=1)
         cmp_start = cmp_end = start - timedelta(days=7)
-        kpi_label = "Dün vs geçen hf"
-        cmp_label = "Geçen hafta aynı gün"
+        kpi_label = "Yesterday vs last week"
+        cmp_label = "Same day last week"
     elif key == "last_7d":
         end = today
         start = today - timedelta(days=6)
         cmp_end = start - timedelta(days=1)
         cmp_start = cmp_end - timedelta(days=6)
-        kpi_label = "Hafta vs önceki"
-        cmp_label = "Önceki 7 gün"
+        kpi_label = "Week vs previous"
+        cmp_label = "Previous 7 days"
     elif key == "prev_week":
         this_week = _iso_week_start(today)
         end = this_week - timedelta(days=1)
         start = end - timedelta(days=6)
         cmp_end = start - timedelta(days=1)
         cmp_start = cmp_end - timedelta(days=6)
-        kpi_label = "Geçen hf vs önceki"
-        cmp_label = "Önceki hafta"
+        kpi_label = "Last week vs previous"
+        cmp_label = "Previous week"
     elif key == "this_month":
         start = today.replace(day=1)
         end = today
@@ -899,16 +899,16 @@ def resolve_period(
         prev_month_start = _shift_month(start, -1)
         cmp_start = prev_month_start
         cmp_end = min(prev_month_start + timedelta(days=span), _month_end(prev_month_start))
-        kpi_label = "Ay vs önceki"
-        cmp_label = "Geçen ay (aynı gün)"
+        kpi_label = "Month vs previous"
+        cmp_label = "Last month (same day)"
     else:  # last_month
         this_month_start = today.replace(day=1)
         end = this_month_start - timedelta(days=1)
         start = end.replace(day=1)
         cmp_end = start - timedelta(days=1)
         cmp_start = cmp_end.replace(day=1)
-        kpi_label = "Geçen ay vs önceki"
-        cmp_label = "Önceki ay"
+        kpi_label = "Last month vs previous"
+        cmp_label = "Previous month"
 
     label = next((p["label"] for p in PERIOD_TABS if p["key"] == key), key)
     return {
@@ -1048,7 +1048,7 @@ def _build_analytics(rows: list[dict[str, Any]], *, keyword_limit: int = 15) -> 
     own = sum(1 for r in rows if r.get("is_own"))
     sourced = total - own
 
-    by_cat = Counter(str(r.get("category") or "Diğer") for r in rows)
+    by_cat = Counter(str(r.get("category") or "Other") for r in rows)
     categories = [
         {
             "key": k,
@@ -1161,7 +1161,7 @@ def _build_analytics(rows: list[dict[str, Any]], *, keyword_limit: int = 15) -> 
 
     own_by_cat_map: dict[str, dict[str, int]] = defaultdict(lambda: {"own": 0, "sourced": 0, "total": 0})
     for r in rows:
-        cat = str(r.get("category") or "Diğer")
+        cat = str(r.get("category") or "Other")
         own_by_cat_map[cat]["total"] += 1
         if r.get("is_own"):
             own_by_cat_map[cat]["own"] += 1
@@ -1293,11 +1293,11 @@ def doviz_news_payload(
         date_min = analytics["summary"].get("date_min")
         date_max = analytics["summary"].get("date_max")
         range_label = (
-            f"{date_min} → {date_max}" if date_min and date_max else "Tüm veri"
+            f"{date_min} → {date_max}" if date_min and date_max else "All data"
         )
         period_meta = {
             "key": "all",
-            "label": "Tümü",
+            "label": "All",
             "start": date_min,
             "end": date_max,
             "cmp_start": None,
@@ -1310,7 +1310,7 @@ def doviz_news_payload(
             "previous_count": cmp_rows_n,
             "delta": current_for_cmp - cmp_rows_n,
             "delta_pct": rvp.get("delta_pct"),
-            "cmp_note": "Son 7 vs önceki 7",
+            "cmp_note": "Last 7 vs previous 7",
         }
     else:
         cmp_rows = _filter_by_date_range(
@@ -1343,8 +1343,8 @@ def doviz_news_payload(
         }
 
     tab_source = _filter_by_date_range(all_rows, period_info["start"], period_info["end"])
-    all_cats = Counter(str(r.get("category") or "Diğer") for r in tab_source)
-    category_tabs = [{"key": "all", "label": "Tümü", "count": len(tab_source)}] + [
+    all_cats = Counter(str(r.get("category") or "Other") for r in tab_source)
+    category_tabs = [{"key": "all", "label": "All", "count": len(tab_source)}] + [
         {"key": k, "label": _short_category_label(k), "count": n} for k, n in all_cats.most_common()
     ]
 

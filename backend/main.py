@@ -826,14 +826,14 @@ def admin_run_seo_audit_now():
         return {
             "status": "bridge_required",
             "message": (
-                "SEO denetim Mac köprü tarama ile çalışır — Railway HTTP işi kapalı. "
+                "SEO Audit runs via Mac bridge scan — Railway HTTP job is off. "
                 "POST http://127.0.0.1:18765/sync-seo-audit"
             ),
             "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",
         }
     try:
         _run_seo_audit_job()
-        return {"status": "ok", "message": "SEO audit job arka planda başlatıldı."}
+        return {"status": "ok", "message": "SEO audit job started in the background."}
     except Exception as exc:
         LOGGER.exception("admin run-seo-audit-now")
         return {"status": "error", "message": str(exc)}
@@ -4161,8 +4161,8 @@ def _run_external_deep_refresh_background(site_id: int, job_id: str) -> None:
                         job_id,
                         status="failed",
                         percent=100,
-                        title="Yenileme tamamlanamadı",
-                        detail="Veritabanı meşgul. Birkaç saniye sonra tekrar deneyin.",
+                        title="Refresh could not be completed",
+                        detail="Database busy. Try again in a few seconds.",
                         finished_at=datetime.utcnow(),
                     )
                     return
@@ -12687,7 +12687,7 @@ async def public_sites_create_site(request: Request, background_tasks: Backgroun
                 return JSONResponse(
                     {
                         "ok": False,
-                        "error": "Veritabanı meşgul olduğu için işlem kısa süreliğine tamamlanamadı. Lütfen tekrar deneyin.",
+                        "error": "The database is busy. Please try again.",
                     },
                     status_code=503,
                 )
@@ -12772,11 +12772,11 @@ def public_sites_delete_site(request: Request, site_id: int):
         return JSONResponse(
             {
                 "ok": False,
-                "error": "Silme işlemi sırasında veritabanı kilidi oluştu. Lütfen tekrar deneyin.",
+                "error": "Delete failed due to a database lock. Please try again.",
             },
             status_code=503,
         )
-    return JSONResponse({"ok": False, "error": "Silme işlemi tamamlanamadı."}, status_code=500)
+    return JSONResponse({"ok": False, "error": "Delete could not be completed."}, status_code=500)
 
 
 @app.post("/external/refresh/{site_id}")
@@ -13097,7 +13097,7 @@ def api_refresh_data_explorer(request: Request, domain: str):
         except OperationalError as exc:
             db.rollback()
             if _is_sqlite_lock_error(exc):
-                return JSONResponse({"error": "Veritabanı meşgul, lütfen tekrar deneyin."}, status_code=503)
+                return JSONResponse({"error": "The database is busy. Please try again."}, status_code=503)
             raise
         notify_result_map(
             trigger_source="manual",
@@ -13164,7 +13164,7 @@ def api_refresh_site_metrics(request: Request, domain: str):
         except OperationalError as exc:
             db.rollback()
             if _is_sqlite_lock_error(exc):
-                return JSONResponse({"error": "Veritabanı meşgul, lütfen tekrar deneyin."}, status_code=503)
+                return JSONResponse({"error": "The database is busy. Please try again."}, status_code=503)
             raise
         notify_result_map(
             trigger_source="manual",
@@ -13693,7 +13693,7 @@ def settings_denied_page(request: Request):
     if err == "mail":
         err_msg = "E-posta gönderilemedi. SMTP yapılandırmasını kontrol edin veya doğrudan yazın."
     elif err == "rate":
-        err_msg = "Kısa süre önce istek gönderildi. Lütfen bir saat sonra tekrar deneyin."
+        err_msg = "A request was sent recently. Please try again in an hour."
     html = render_settings_denied_html(
         member_email=member.email,
         member_name=member.display_name or "",
@@ -15054,7 +15054,7 @@ def ai_daily_brief_generate(request: Request, llm_provider: str = Form("gemini")
     if not outcome.ok:
         return PlainTextResponse(
             outcome.message_tr
-            or "AI yorumu üretilemedi. Lütfen birkaç saniye sonra tekrar deneyin.",
+            or "Could not generate the AI comment. Please try again in a few seconds.",
             status_code=500,
         )
     if request.headers.get("HX-Request") == "true":
@@ -15207,7 +15207,7 @@ def api_seo_audit_run(site_id: int):
 
     prog_now = get_seo_audit_progress(site_id)
     if prog_now.get("running"):
-        return {"status": "running", "message": "Tarama zaten devam ediyor"}
+        return {"status": "running", "message": "Scan already in progress"}
 
     with SessionLocal() as db:
         site = db.query(Site).filter(Site.id == site_id).first()
@@ -15218,8 +15218,8 @@ def api_seo_audit_run(site_id: int):
         return {
             "status": "bridge_required",
             "message": (
-                "SEO denetim Mac köprü tarama ile çalışır. "
-                "Tarayıcıdan POST http://127.0.0.1:18765/sync-seo-audit tetiklenmeli."
+                "SEO Audit runs via Mac bridge scan. "
+                "Trigger POST http://127.0.0.1:18765/sync-seo-audit from the browser."
             ),
             "bridge_url": "http://127.0.0.1:18765/sync-seo-audit",
             "site_id": site_id,
@@ -15250,11 +15250,11 @@ def api_seo_audit_run(site_id: int):
         except Exception:
             LOGGER.exception("SEO audit manual run hatası site_id=%s", site_id)
             prog["running"] = False
-            prog["current"] = "Hata oluştu"
+            prog["current"] = "An error occurred"
             set_seo_audit_progress(site_id, prog)
 
     threading.Thread(target=_run, daemon=True, name=f"seo-audit-{site_id}").start()
-    return {"status": "started", "message": "Tarama başladı"}
+    return {"status": "started", "message": "Scan started"}
 
 
 @app.get("/api/seo-audit/{site_id}/status")
@@ -15550,12 +15550,12 @@ def api_errors_refresh_progress():
     last = p.get("last_result") or {}
     found = int(last.get("failure_count") or 0)
     err = p.get("error") or ""
-    current = "Taranıyor…" if running else ("Tamamlandı" if not err else "Hata")
+    current = "Scanning…" if running else ("Done" if not err else "Error")
     steps = []
     if last:
         steps.append(
             {
-                "domain": "CSV tarama",
+                "domain": "CSV scan",
                 "days": 0,
                 "found": found,
                 "status": "ok" if not err else "error",
@@ -19744,11 +19744,11 @@ def search_console_manual_refresh(request: Request, site_id: int):
                 if _is_sqlite_lock_error(exc):
                     if wjson:
                         return JSONResponse(
-                            {"ok": False, "detail": "Veritabanı meşgul, lütfen tekrar deneyin."},
+                            {"ok": False, "detail": "The database is busy. Please try again."},
                             status_code=503,
                             headers=_SC_JSON_NO_CACHE_HEADERS,
                         )
-                    return HTMLResponse("Veritabanı meşgul, lütfen tekrar deneyin.", status_code=503)
+                    return HTMLResponse("The database is busy. Please try again.", status_code=503)
                 raise
             try:
                 notify_result_map(

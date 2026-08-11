@@ -32,7 +32,7 @@ def test_touch_records_login_and_pages():
     row = rows[0]
     assert row["email"] == "uye@nokta.com"
     assert row["is_open"] is True
-    assert row["logged_out_tr"] == "Açık"
+    assert row["logged_out_tr"] == "Open"
     assert [p["path"] for p in row["pages"]] == ["/android", "/notification"]
 
 
@@ -43,8 +43,8 @@ def test_close_visit_sets_logout_time():
     rows = pvl.recent_visits()
     assert rows[0]["is_open"] is False
     assert rows[0]["end_reason"] == "logout"
-    assert rows[0]["end_label"] == "Çıkış"
-    assert rows[0]["logged_out_tr"] != "Açık"
+    assert rows[0]["end_label"] == "Logout"
+    assert rows[0]["logged_out_tr"] != "Open"
 
 
 def test_idle_expire_uses_last_seen_as_exit():
@@ -58,7 +58,7 @@ def test_idle_expire_uses_last_seen_as_exit():
     rows = pvl.recent_visits()
     assert rows[0]["is_open"] is False
     assert rows[0]["end_reason"] == "idle"
-    assert rows[0]["end_label"] == "Hareketsizlik"
+    assert rows[0]["end_label"] == "Idle"
 
 
 def test_api_paths_are_not_logged_as_pages():
@@ -73,7 +73,7 @@ def test_settings_template_has_visit_log():
     from pathlib import Path
 
     text = (Path(__file__).resolve().parents[2] / "templates/settings.html").read_text(encoding="utf-8")
-    assert "Ziyaret günlüğü" in text
+    assert "Visit log" in text
     assert "visit_logs" in text
     assert "logged_in_tr" in text
     assert "logged_out_tr" in text

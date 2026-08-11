@@ -32,7 +32,7 @@ SUMMARY_LABELS = {
     "search_console_avg_position_28d": "Search Console ort. pozisyon 28G",
     "search_console_dropped_queries": "Düşen sorgu sayısı",
     "search_console_biggest_drop": "En büyük düşüş",
-    "source_pages": "Kaynak sayfa",
+    "source_pages": "Source pages",
     "audited_urls": "Taranan URL",
     "redirect_301_links": "301 yönlendirme",
     "redirect_302_links": "302 yönlendirme",
@@ -368,7 +368,7 @@ def _site_detail_section_rows(result: dict | None) -> list[str]:
         if result.get("error"):
             details.append(("Hata", str(result["error"])))
         if result.get("errors"):
-            details.append(("Hata Özeti", str(result["errors"])))
+            details.append(("Error summary", str(result["errors"])))
         if isinstance(result.get("summary"), dict):
             detail_rows = _summary_detail_rows(result["summary"])
             summary_cards = _result_summary_cards(result["summary"])
@@ -380,7 +380,7 @@ def _site_detail_section_rows(result: dict | None) -> list[str]:
         if result.get("state"):
             details.append(("Durum", str(result["state"])))
         elif result.get("source"):
-            details.append(("Kaynak", str(result["source"])))
+            details.append(("Source", str(result["source"])))
 
     rows: list[str] = []
     if summary_cards:
@@ -870,7 +870,7 @@ def _crawler_issue_rows(link_audit: dict) -> list[list[str]]:
 def _crawler_summary_cards(link_audit: dict) -> list[dict[str, str]]:
     return [
         {
-            "label": "Kaynak Sayfa",
+            "label": "Source pages",
             "value": _format_tr_number(link_audit.get("source_pages"), decimals=0),
             "caption": "İç linki çıkarılan başlangıç sayfaları",
             "tone": "blue",
@@ -888,7 +888,7 @@ def _crawler_summary_cards(link_audit: dict) -> list[dict[str, str]]:
             "tone": "amber",
         },
         {
-            "label": "Kırık / Zincir",
+            "label": "Broken / Redirect chain",
             "value": f'{_format_tr_number(link_audit.get("broken_links"), decimals=0)} / {_format_tr_number(link_audit.get("redirect_chains"), decimals=0)}',
             "caption": "Kritik teknik sorun sayısı",
             "tone": "rose" if int(link_audit.get("broken_links") or 0) > 0 or int(link_audit.get("redirect_chains") or 0) > 0 else "emerald",
@@ -900,8 +900,8 @@ def _crawler_site_report_sections(site: Site, link_audit: dict) -> list[str]:
     issue_rows = _crawler_issue_rows(link_audit)
     summary_rows = [
         ("Site", site.domain),
-        ("Kaynak seçimi", str(link_audit.get("source_strategy") or "URL listesi")),
-        ("Kaynak sayfa", _format_tr_number(link_audit.get("source_pages"), decimals=0)),
+        ("Source selection", str(link_audit.get("source_strategy") or "URL list")),
+        ("Source pages", _format_tr_number(link_audit.get("source_pages"), decimals=0)),
         ("Taranan URL", _format_tr_number(link_audit.get("audited_urls"), decimals=0)),
         ("Maks. hop", _format_tr_number(link_audit.get("max_hops"), decimals=0)),
     ]

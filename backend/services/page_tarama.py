@@ -16,23 +16,23 @@ JOBS: dict[str, dict[str, Any]] = {
     "firebase": {"id": "firebase", "label": "Firebase Console", "kind": "bridge", "path": "/sync-firebase"},
     "cwv": {"id": "cwv", "label": "Web Vitals (GSC)", "kind": "bridge", "path": "/sync-gsc-cwv"},
     "notification": {"id": "notification", "label": "Notification", "kind": "bridge", "path": "/sync"},
-    "news": {"id": "news", "label": "Haberler", "kind": "bridge", "path": "/sync-news?days=7"},
+    "news": {"id": "news", "label": "News", "kind": "bridge", "path": "/sync-news?days=7"},
     "virgul": {"id": "virgul", "label": "Virgül", "kind": "bridge", "path": "/sync-virgul"},
-    "market": {"id": "market", "label": "Piyasa", "kind": "bridge", "path": "/sync-market"},
+    "market": {"id": "market", "label": "Market", "kind": "bridge", "path": "/sync-market"},
     "links": {"id": "links", "label": "Backlinks (GSC)", "kind": "bridge", "path": "/sync-gsc-links"},
     "policy": {"id": "policy", "label": "Ad Manager Policy", "kind": "bridge", "path": "/sync-policy"},
     "noads": {"id": "noads", "label": "Sinemalar noAds", "kind": "bridge", "path": "/sync-noads"},
-    "seo": {"id": "seo", "label": "SEO denetim", "kind": "bridge", "path": "/sync-seo-audit"},
+    "seo": {"id": "seo", "label": "SEO Audit", "kind": "bridge", "path": "/sync-seo-audit"},
     "errors": {
         "id": "errors",
-        "label": "Hata / CSV tarama",
+        "label": "Errors / CSV scan",
         "kind": "poll",
         "startUrl": "/api/errors/refresh-all/start",
         "progressUrl": "/api/errors/refresh-all/progress",
     },
     "alerts": {
         "id": "alerts",
-        "label": "Uyarılar (Search Console)",
+        "label": "Alerts (Search Console)",
         "kind": "api",
         "url": "/alerts/refresh",
         "waitAfterMs": 45000,
@@ -121,12 +121,12 @@ def _prune_manual_locked(now: float) -> None:
 
 def _fmt_retry(sec: int) -> str:
     if sec <= 60:
-        return "1 dk"
+        return "1 min"
     mins = int(round(sec / 60.0))
     if mins < 60:
-        return f"{mins} dk"
+        return f"{mins} min"
     hours = max(1, int(round(mins / 60.0)))
-    return f"{hours} sa"
+    return f"{hours} h"
 
 
 def _quota_locked(now: float) -> dict[str, Any]:
@@ -139,11 +139,11 @@ def _quota_locked(now: float) -> dict[str, Any]:
         retry_after = int(max(1, round(oldest + MANUAL_WINDOW_SEC - now)))
     if remaining <= 0:
         message = (
-            f"Saatte en fazla {MANUAL_LIMIT} kez Sayfayı güncelle. "
-            f"{_fmt_retry(retry_after)} sonra tekrar."
+            f"At most {MANUAL_LIMIT} page updates per hour. "
+            f"Try again in {_fmt_retry(retry_after)}."
         )
     else:
-        message = f"Saatte {MANUAL_LIMIT} hak · {remaining} kaldı"
+        message = f"{MANUAL_LIMIT} per hour · {remaining} left"
     return {
         "limit": MANUAL_LIMIT,
         "used": used,
@@ -341,14 +341,14 @@ def claim_next() -> dict[str, Any] | None:
                     if age < CLAIM_STALE_SEC:
                         return None
                     job["status"] = "fail"
-                    job["detail"] = "Mac tarama zaman aşımı"
+                    job["detail"] = "Mac scan timed out"
         for run in sorted(_runs.values(), key=lambda r: float(r.get("started_at") or 0)):
             _expire_locked(run, now)
             for job in run["jobs"]:
                 if job.get("kind") == "bridge" and job.get("status") == "queued":
                     job["status"] = "claimed"
                     job["claimed_at"] = now
-                    job["detail"] = "Mac tarama başladı"
+                    job["detail"] = "Mac scan started"
                     return {
                         "run_id": run["id"],
                         "job_id": job["id"],
@@ -368,7 +368,7 @@ def record_result(run_id: str, job_id: str, *, ok: bool, message: str = "") -> b
             if job.get("id") != job_id:
                 continue
             job["status"] = "ok" if ok else "fail"
-            job["detail"] = (message or ("Tamam" if ok else "Hata"))[:180]
+            job["detail"] = (message or ("Done" if ok else "Error"))[:180]
             job["finished_at"] = now
             return True
         return False
@@ -408,7 +408,7 @@ def _expire_locked(run: dict[str, Any], now: float) -> None:
     for job in run["jobs"]:
         if job.get("kind") == "bridge" and job.get("status") == "queued":
             job["status"] = "fail"
-            job["detail"] = "Mac köprü yok — daemon çalışmıyor"
+            job["detail"] = "Mac bridge missing — daemon is not running"
 
 
 def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
@@ -428,15 +428,15 @@ def _public_run_locked(run: dict[str, Any], now: float) -> dict[str, Any]:
     msg = ""
     current = next((j for j in jobs if j.get("status") in ("running", "claimed")), None)
     if current:
-        msg = (current.get("label") or "") + " çalışıyor…"
+        msg = (current.get("label") or "") + " running…"
     elif running and age is None:
-        msg = "Mac köprü bekleniyor…"
+        msg = "Waiting for Mac bridge…"
     elif running and age is not None:
-        msg = "Mac kuyrukta · köprü bağlı"
+        msg = "Queued on Mac · bridge connected"
     elif failed:
-        msg = f"{failed} tarama hata verdi."
+        msg = f"{failed} scans failed."
     else:
-        msg = "Tüm taramalar bitti"
+        msg = "All scans finished"
         pct = 100
     return {
         "id": run["id"],

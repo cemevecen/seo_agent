@@ -234,16 +234,16 @@ def execute_seo_audit_for_site(
         "done": 0,
         "ok": 0,
         "error": 0,
-        "current": "Başlıyor…",
+        "current": "Starting…",
     }
     if bool(getattr(settings, "seo_audit_scrape_primary", True)):
         prog["running"] = False
-        prog["current"] = "Mac köprü tarama birincil — Railway HTTP tarama kapalı"
+        prog["current"] = "Mac bridge scan is primary — Railway HTTP scan is off"
         return {
             "status": "skipped",
             "message": (
-                "SEO denetim Mac köprü tarama ile çalışır: POST /sync-seo-audit kullanın "
-                "(Railway HTTP tarama kapalı)."
+                "SEO Audit runs via Mac bridge scan: use POST /sync-seo-audit "
+                "(Railway HTTP scan is off)."
             ),
             "ok": 0,
             "error": 0,
@@ -266,7 +266,7 @@ def execute_seo_audit_for_site(
     try:
         urls = _collect_audit_urls(site_id, site_domain, prog)
         if not urls:
-            prog["current"] = "GA4'ten URL çekilemedi"
+            prog["current"] = "Could not fetch URLs from GA4"
             finish_collector_run(
                 db,
                 run,
@@ -278,7 +278,7 @@ def execute_seo_audit_for_site(
             return {"status": "empty", "ok": 0, "error": 0, "total": 0, "deleted": 0}
 
         prog["total"] = len(urls)
-        prog["current"] = f"{len(urls)} URL bulundu, tarama başlıyor…"
+        prog["current"] = f"{len(urls)} URLs found, scan starting…"
         collected_at = datetime.utcnow()
 
         for url in urls:
@@ -313,7 +313,7 @@ def execute_seo_audit_for_site(
             )
             wdb.commit()
 
-        prog["current"] = f"Tamamlandı — {prog['ok']} URL başarılı, {prog['error']} hata"
+        prog["current"] = f"Done — {prog['ok']} URLs succeeded, {prog['error']} failed"
         finish_collector_run(
             db,
             run,
@@ -345,7 +345,7 @@ def execute_seo_audit_for_site(
         }
     except Exception as exc:
         logger.exception("SEO audit hatası site=%s: %s", site_domain, exc)
-        prog["current"] = "Hata oluştu"
+        prog["current"] = "An error occurred"
         finish_collector_run(
             db,
             run,

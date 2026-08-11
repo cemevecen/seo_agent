@@ -514,7 +514,7 @@ def _trigger_bg_refresh(pid: str, days: int, platform_filter: str, cache_key: st
 def _job_new(product: str) -> str:
     jid = str(uuid.uuid4())[:8]
     with _JOB_LOCK:
-        _JOBS[jid] = {"product": product, "pct": 0, "step": "Başlatılıyor…", "done": False, "error": None, "ts": time.time()}
+        _JOBS[jid] = {"product": product, "pct": 0, "step": "Starting…", "done": False, "error": None, "ts": time.time()}
         # 10'dan fazla iş varsa eskisini temizle
         if len(_JOBS) > 10:
             oldest = sorted(_JOBS.items(), key=lambda x: x[1]["ts"])
@@ -542,7 +542,7 @@ def _job_update(jid: str, pct: int, step: str) -> None:
 def _job_done(jid: str, error: str | None = None) -> None:
     with _JOB_LOCK:
         if jid in _JOBS:
-            _JOBS[jid].update({"pct": 100, "done": True, "error": error, "step": "Tamamlandı" if not error else "Hata"})
+            _JOBS[jid].update({"pct": 100, "done": True, "error": error, "step": "Done" if not error else "Error"})
 
 
 def get_job_state(product: str) -> dict | None:
@@ -2327,10 +2327,10 @@ def build_full_payload(
             "ok": False,
             "configured": False,
             "product": pid,
-            "message": "Bu ürün için BigQuery Crashlytics export yapılandırılmamış.",
+            "message": "BigQuery Crashlytics export is not configured for this product.",
         }
     if not any_platform_ready():
-        return {"ok": False, "configured": False, "message": "Service account tanımlı değil."}
+        return {"ok": False, "configured": False, "message": "Service account is not configured."}
 
     cache_key = f"{pid}:{days}:{platform_filter}"
 
@@ -2366,9 +2366,9 @@ def build_full_payload(
                     "ok": False,
                     "configured": bool(any_platform_ready()),
                     "product": pid,
-                    "message": "Bu ürün için BigQuery Crashlytics tablosu bulunamadı.",
+                    "message": "BigQuery Crashlytics table was not found for this product.",
                 }
-            return {"ok": False, "message": "Seçili platform için credential bulunamadı."}
+            return {"ok": False, "message": "No credentials for the selected platform."}
 
         if jid is None:
             jid = _active_job_id(pid)
@@ -2379,7 +2379,7 @@ def build_full_payload(
             if jid:
                 _job_update(jid, pct, msg)
 
-        _step(5, "BigQuery bağlantısı kuruluyor…")
+        _step(5, "Connecting to BigQuery…")
 
         summary_by_plat: dict[str, dict] = {}
         crash_free_by_plat: dict[str, Any] = {}
@@ -2437,14 +2437,14 @@ def build_full_payload(
                             out[f"{name}_err"] = str(exc)[:200]
             return out
 
-        _step(15, "Crash verileri sorgulanıyor…")
+        _step(15, "Querying crash data…")
         with ThreadPoolExecutor(max_workers=2) as pool:
             futs = {pool.submit(_fetch_platform, p, t): p for p, t in platforms}
             completed = 0
             for fut in as_completed(futs):
                 completed += 1
                 pct = 15 + int(completed / len(futs) * 65)
-                _step(pct, f"Platform verisi işleniyor… ({completed}/{len(futs)})")
+                _step(pct, f"Processing platform data… ({completed}/{len(futs)})")
                 try:
                     res = fut.result()
                     plat = res["platform"]
@@ -2493,7 +2493,7 @@ def build_full_payload(
                     deduped.append(e)
             errors = deduped
 
-        _step(85, "Sonuçlar birleştiriliyor…")
+        _step(85, "Merging results…")
 
         totals = {"fatal": 0, "anr": 0, "non_fatal": 0, "affected_users": 0}
         for s in summary_by_plat.values():
@@ -2702,7 +2702,7 @@ def build_full_payload(
         )
         if not has_access_error:
             _cache_set(cache_key, result)
-    _step(100, "Tamamlandı")
+    _step(100, "Done")
     if jid:
         _job_done(jid)
     return result

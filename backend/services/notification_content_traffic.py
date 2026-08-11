@@ -208,9 +208,9 @@ def _compute_day_phases(daily: list[dict[str, Any]], send_date: str | None) -> l
     if not send or not daily:
         return []
     phases = {
-        "send_day": {"key": "send_day", "label": "Gönderim günü", "sessions": 0.0, "views": 0.0},
-        "day_1_3": {"key": "day_1_3", "label": "Gün 1–3", "sessions": 0.0, "views": 0.0},
-        "day_4_plus": {"key": "day_4_plus", "label": "Gün 4+", "sessions": 0.0, "views": 0.0},
+        "send_day": {"key": "send_day", "label": "Send day", "sessions": 0.0, "views": 0.0},
+        "day_1_3": {"key": "day_1_3", "label": "Days 1–3", "sessions": 0.0, "views": 0.0},
+        "day_4_plus": {"key": "day_4_plus", "label": "Day 4+", "sessions": 0.0, "views": 0.0},
     }
     for row in daily:
         day = _parse_iso_day(str(row.get("date") or ""))

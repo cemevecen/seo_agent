@@ -550,7 +550,7 @@ def _is_turkish_origin(m: dict) -> bool:
 
 
 _ACTIVE_TV_STATUS_TR = frozenset({
-    "Devam Ediyor", "Planlandı", "Yapım Aşamasında", "Pilot",
+    "Returning Series", "Planned", "In Production", "Pilot",
 })
 
 
@@ -880,11 +880,11 @@ def fetch_turkish_productions(months_ahead: int = 6) -> list[dict[str, Any]]:
 # ── TV Dizileri ───────────────────────────────────────────────────────────────
 
 TV_STATUS_TR = {
-    "Returning Series":  "Devam Ediyor",
-    "Planned":           "Planlandı",
-    "In Production":     "Yapım Aşamasında",
-    "Ended":             "Bitti",
-    "Cancelled":         "İptal",
+    "Returning Series":  "Returning Series",
+    "Planned":           "Planned",
+    "In Production":     "In Production",
+    "Ended":             "Ended",
+    "Cancelled":         "Cancelled",
     "Pilot":             "Pilot",
 }
 

@@ -576,7 +576,7 @@ def _realtime_row_dimensions(row: Any, dim_headers: list[str]) -> dict[str, str]
 # Yüzdesel düşüş/artış eşikleri (ayarlar sayfasından override edilebilir)
 ALARM_RULES: dict[str, dict[str, Any]] = {
     "traffic_drop": {
-        "label": "Aktif kullanıcılar",
+        "label": "Active users",
         "metric": "activeUsers",
         "direction": "drop",
         "threshold_pct": 40,
@@ -586,7 +586,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "severity": "critical",
     },
     "traffic_spike": {
-        "label": "Aktif kullanıcılar",
+        "label": "Active users",
         "metric": "activeUsers",
         "direction": "spike",
         "threshold_pct": 40,
@@ -594,7 +594,7 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
         "severity": "warning",
     },
     "pageview_drop": {
-        "label": "Sayfa görüntülemeleri",
+        "label": "Page views",
         "metric": "screenPageViews",
         "direction": "drop",
         "threshold_pct": 40,
@@ -605,27 +605,27 @@ ALARM_RULES: dict[str, dict[str, Any]] = {
 
 PAGE_ALARM_RULES: dict[str, dict[str, Any]] = {
     "page_traffic_drop": {
-        "label": "Sayfa trafiği düşüşü",
+        "label": "Page traffic drop",
         "direction": "drop",
         "threshold_pct": 45,
         "min_users": 22,
         "severity": "warning",
     },
     "page_traffic_spike": {
-        "label": "Sayfa trafiği artışı",
+        "label": "Page traffic spike",
         "direction": "spike",
         "threshold_pct": 65,
         "min_users": 18,
         "severity": "warning",
     },
     "page_disappeared": {
-        "label": "Sayfa top listeden düştü",
+        "label": "Page dropped from top list",
         "direction": "disappeared",
         "min_prev_users": 20,
         "severity": "warning",
     },
     "page_new_entry": {
-        "label": "Yeni sayfa top listeye girdi",
+        "label": "New page entered top list",
         "direction": "new_entry",
         "min_users": 30,
         "severity": "info",
@@ -635,33 +635,33 @@ PAGE_ALARM_RULES: dict[str, dict[str, Any]] = {
 # Haberler (unifiedScreenName) — sayfa alarmlarından biraz daha sıkı eşikler (gürültü azaltma)
 NEWS_ALARM_RULES: dict[str, dict[str, Any]] = {
     "news_traffic_drop": {
-        "label": "Haber trafiği düşüşü",
+        "label": "News traffic drop",
         "direction": "drop",
         "threshold_pct": 40,
         "min_users": 20,
         "severity": "warning",
     },
     "news_traffic_spike": {
-        "label": "Haber trafiği artışı",
+        "label": "News traffic spike",
         "direction": "spike",
         "threshold_pct": 60,
         "min_users": 20,
         "severity": "warning",
     },
     "news_disappeared": {
-        "label": "Haber top listeden düştü",
+        "label": "News dropped from top list",
         "direction": "disappeared",
         "min_prev_users": 25,
         "severity": "warning",
     },
     "news_new_entry": {
-        "label": "Yeni haber başlığı top listeye girdi",
+        "label": "New news headline entered top list",
         "direction": "new_entry",
         "min_users": 40,
         "severity": "info",
     },
     "news_peak_drop": {
-        "label": "Haber zirveden düştü",
+        "label": "News dropped from peak",
         "direction": "peak_drop",
         "drop_pct": 55,       # zirveden en az %55 düşüş
         "min_peak_users": 30, # zirvede en az bu kadar kullanıcı olmalı
