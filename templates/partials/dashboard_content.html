@@ -2321,17 +2321,7 @@
   }
 
   function ensureHomeContainerRefreshButtons() {
-    document.querySelectorAll('[data-home-container]').forEach(function (sec) {
-      if (sec.querySelector(':scope > [data-home-container-refresh]')) return;
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'home-container-refresh';
-      btn.setAttribute('data-home-container-refresh', '');
-      btn.setAttribute('aria-label', 'Container verisini yenile');
-      btn.title = 'Yenile — en güncel veriyi çek';
-      btn.innerHTML = HOME_REFRESH_ICON;
-      sec.appendChild(btn);
-    });
+    /* Sayfa tarama «Sayfayı güncelle» tek yenileme; kart içi buton yok. */
   }
 
   function refreshHomeContainer(sec) {

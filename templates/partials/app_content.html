@@ -243,13 +243,6 @@
             <button type="button" data-app-period="730" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">2y</button>
             <button type="button" data-app-period="0" class="app-intel-period-btn rounded-lg px-3 py-1.5 text-xs font-semibold transition">tümü</button>
           </nav>
-          <button
-            id="app-intel-manual-refresh-btn"
-            type="button"
-            class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          >
-            Verileri yenile
-          </button>
         </div>
       </div>
     </div>
@@ -597,13 +590,6 @@
       <div class="min-w-0">
         <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 sm:text-lg">Firebase Crashlytics</h2>
         <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">/android + /ios · vitals · stability-free (BQ yalnızca iOS peek)</p>
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        {# Yenile butonu #}
-        <button id="crash-refresh-btn" type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100">
-          <span id="crash-refresh-icon">↺</span> Yenile
-        </button>
       </div>
     </div>
 
@@ -4251,9 +4237,9 @@
             }
             finishProgress();
             if (status) status.textContent = "";
-            flagIntelPanelsFailed("Henüz mağaza verisi yok. Yorumları çekmek için \"Verileri yenile\" butonuna tıklayın.");
+            flagIntelPanelsFailed("Henüz mağaza verisi yok. «Sayfayı güncelle» ile tarayın.");
             if (errEl) {
-              errEl.textContent = x.j.message || "Henüz mağaza verisi yok. Yorumları çekmek için \"Verileri yenile\" butonuna tıklayın.";
+              errEl.textContent = x.j.message || "Henüz mağaza verisi yok. «Sayfayı güncelle» ile tarayın.";
               errEl.className = "mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:border-amber-600 dark:bg-amber-950/60 dark:text-amber-100";
               errEl.classList.remove("hidden");
             }

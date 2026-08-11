@@ -33,6 +33,32 @@ def test_base_has_overlay_and_script():
     assert "pc-page-tarama-close" in text
 
 
+OLD_MANUAL_IDS = (
+    "pc-refresh",
+    "ia-refresh",
+    "nt-refresh-sheet",
+    "dn-refresh",
+    "mz-refresh-sheets",
+    "mz-refresh-sheets-side",
+    "crash-refresh-btn",
+    "app-intel-manual-refresh-btn",
+    "wv-run",
+    "refresh-alerts-button",
+    "run-btn",
+    "sf-refresh",
+    "err-refresh-btn",
+    "bl-refresh-btn",
+    "policy-noads-refresh-btn",
+)
+
+
+def test_old_manual_refresh_buttons_removed():
+    for rel in PAGES.values():
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        for bid in OLD_MANUAL_IDS:
+            assert f'id="{bid}"' not in text, f"{rel} still has #{bid}"
+
+
 def test_all_listed_pages_have_slot_and_key():
     for key, rel in PAGES.items():
         text = (ROOT / rel).read_text(encoding="utf-8")

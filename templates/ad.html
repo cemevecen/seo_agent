@@ -902,12 +902,6 @@
         {% endif %}
         <button
           type="button"
-          id="mz-refresh-sheets"
-          class="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
-          title="{% if ad_mode == 'virgul' %}Ofis Mac Virgül bridge ile 6 sid’i yeniler{% else %}Google Sheets reklam gelirlerini çekip grafikleri günceller{% endif %}"
-        >{% if ad_mode == 'virgul' %}Virgül’den güncelle{% else %}Verileri güncelle{% endif %}</button>
-        <button
-          type="button"
           id="mz-cancel-sheets-sync-top"
           class="hidden rounded-lg border border-rose-400 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-60 dark:border-rose-800 dark:bg-zinc-950 dark:text-rose-300"
         >İptal et</button>
@@ -976,11 +970,6 @@
       <div id="mz-sidebar-analytics" class="space-y-3">
       <div data-mz-sheets-only class="space-y-2">
       <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">Google Sheets</p>
-      <button
-        type="button"
-        id="mz-refresh-sheets-side"
-        class="w-full rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
-      >Verileri güncelle</button>
       <button
         type="button"
         id="mz-cancel-sheets-sync"

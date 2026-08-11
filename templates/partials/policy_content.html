@@ -26,7 +26,7 @@
           <b class="text-rose-600 dark:text-rose-300">{{ noads_summary.missing }}</b> kırmızı
           {% if noads_summary.scraped_at %} ({{ noads_summary.scraped_at[:16]|replace('T',' ') }} UTC){% endif %}
         {% else %}
-          · noAds eşleşmesi henüz yok — «noAds Yenile» ile tara
+          · noAds eşleşmesi henüz yok — «Sayfayı güncelle» ile tara
         {% endif %}
       </p>
     </div>
@@ -37,11 +37,6 @@
         class="inline-flex items-center rounded-lg border border-emerald-400 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
         Excel İndir
       </a>
-      <button type="button" id="policy-noads-refresh-btn" onclick="refreshNoAdsMatch()"
-        title="Sinemalar noAds listesini Mac bridge ile yeniden tara; yeşil/kırmızı güncellenir"
-        class="inline-flex items-center rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
-        noAds Yenile
-      </button>
       <button type="button" onclick="triggerTitleFetch(true)"
         class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
         Başlıkları Yenile

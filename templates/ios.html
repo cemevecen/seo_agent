@@ -1027,10 +1027,6 @@
                 class="inline-flex h-8 items-center rounded-lg border border-slate-300 bg-white px-2.5 text-[11px] font-bold text-slate-700 transition hover:border-sky-400 hover:bg-sky-50/60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-sky-600 dark:hover:bg-sky-950/20">
           Yorumlar
         </button>
-        <button id="ia-refresh" type="button"
-                class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-2.5 text-[11px] font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
-          Yenile
-        </button>
       </div>
     </div>
     <div class="mt-3 border-t border-slate-100 pt-3 dark:border-zinc-800">
@@ -3627,12 +3623,7 @@
       return null;
     }
     function refreshBtnHtml(busy) {
-      if (!busy && !arguments[1]) return "";
-      return (
-        '<button type="button" data-ia-sf-refresh class="ia-sf-refresh" ' +
-          (busy ? "disabled " : "") +
-          'aria-label="Crashlytics skorunu yenile">Yenile</button>'
-      );
+      return "";
     }
     function iaSfPeriodLabel(raw) {
       var p = String(raw || "").trim().toLowerCase();

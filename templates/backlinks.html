@@ -828,7 +828,6 @@
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Özet</h2>
           <div class="flex flex-wrap gap-2">
-            <button type="button" id="bl-refresh-btn" class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold dark:border-slate-600">Yenile</button>
             <a id="bl-disavow-link" href="#" class="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-bold text-rose-800 dark:border-rose-700 dark:text-rose-200">disavow.txt</a>
           </div>
         </div>
@@ -3758,14 +3757,17 @@
       throw err;
     }
   }
-  document.getElementById("bl-refresh-btn").addEventListener("click", function () {
-    loadDashboard({
-      loadingLabel: "Yenileniyor…",
-      loadingSub: "Sunucudan güncel veri alınıyor",
-    }).catch(function (e) {
-      showBanner(String(e.message || e));
+  var blRefreshBtn = document.getElementById("bl-refresh-btn");
+  if (blRefreshBtn) {
+    blRefreshBtn.addEventListener("click", function () {
+      loadDashboard({
+        loadingLabel: "Yenileniyor…",
+        loadingSub: "Sunucudan güncel veri alınıyor",
+      }).catch(function (e) {
+        showBanner(String(e.message || e));
+      });
     });
-  });
+  }
   wireBlReportTypeChips();
   wireBlSiteChips();
   wireBlSummaryCards();
