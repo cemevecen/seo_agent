@@ -639,13 +639,36 @@ def _parse_quote(aid: str, raw: str) -> float | None:
     return val if _in_range(aid, val) else None
 
 
+def _sapma_result(
+    asset_id: str,
+    doviz: float | None,
+    peer: float | None,
+    *,
+    n: int,
+) -> dict[str, Any]:
+    warn, alert = SAPMA_THRESHOLDS.get(asset_id, _SAPMA_DEFAULT)
+    empty = {"pct": None, "avg": None, "n": n, "warn": warn, "alert": alert, "band": ""}
+    if doviz is None or peer is None or peer == 0:
+        return empty
+    pct = (doviz - peer) / peer * 100.0
+    ap = abs(pct)
+    band = "ok" if ap < warn else ("warn" if ap < alert else "hot")
+    return {
+        "pct": round(pct, 4),
+        "avg": round(peer, 6),
+        "n": n,
+        "warn": warn,
+        "alert": alert,
+        "band": band,
+    }
+
+
 def compute_price_sapma(
     asset_id: str,
     cells: dict[str, Any],
     doviz_id: str = "doviz",
 ) -> dict[str, Any]:
     """Döviz kotasyonu vs diğer sitelerin ortalaması (yüzde sapma)."""
-    warn, alert = SAPMA_THRESHOLDS.get(asset_id, _SAPMA_DEFAULT)
     doviz = _parse_quote(asset_id, str((cells.get(doviz_id) or {}).get("value") or ""))
     peers: list[float] = []
     for sid, cell in (cells or {}).items():
@@ -654,23 +677,67 @@ def compute_price_sapma(
         parsed = _parse_quote(asset_id, str((cell or {}).get("value") or ""))
         if parsed is not None:
             peers.append(parsed)
-    empty = {"pct": None, "avg": None, "n": len(peers), "warn": warn, "alert": alert, "band": ""}
     if doviz is None or len(peers) < _SAPMA_MIN_PEERS:
-        return empty
+        return _sapma_result(asset_id, None, None, n=len(peers))
     avg = sum(peers) / len(peers)
-    if avg == 0:
-        return empty
-    pct = (doviz - avg) / avg * 100.0
-    ap = abs(pct)
-    band = "ok" if ap < warn else ("warn" if ap < alert else "hot")
-    return {
-        "pct": round(pct, 4),
-        "avg": round(avg, 6),
-        "n": len(peers),
-        "warn": warn,
-        "alert": alert,
-        "band": band,
-    }
+    return _sapma_result(asset_id, doviz, avg, n=len(peers))
+
+
+def compute_pair_sapma(
+    asset_id: str,
+    cells: dict[str, Any],
+    peer_id: str = "foreks",
+    doviz_id: str = "doviz",
+) -> dict[str, Any]:
+    """Döviz kotasyonu vs tek akran site (Foreks)."""
+    doviz = _parse_quote(asset_id, str((cells.get(doviz_id) or {}).get("value") or ""))
+    peer = _parse_quote(asset_id, str((cells.get(peer_id) or {}).get("value") or ""))
+    rec = _sapma_result(asset_id, doviz, peer, n=1 if peer is not None else 0)
+    rec["peer"] = peer_id
+    return rec
+
+
+def format_sapma_pct(pct: float) -> str:
+    sign = "+" if pct > 0 else ("−" if pct < 0 else "")
+    return f"{sign}{abs(pct):.2f}%".replace(".", ",")
+
+
+def collect_sapma_alerts(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Uyarı eşiğini (sarı) geçen ortalama / Foreks sapmaları."""
+    out: list[dict[str, Any]] = []
+    for row in matrix or []:
+        if not isinstance(row, dict):
+            continue
+        aid = str(row.get("id") or "")
+        label = str(row.get("label") or aid)
+        cells = row.get("cells") if isinstance(row.get("cells"), dict) else {}
+        if not aid:
+            continue
+        avg = compute_price_sapma(aid, cells)
+        foreks = compute_pair_sapma(aid, cells)
+        for kind, rec, kind_label in (
+            ("avg", avg, "Sapma"),
+            ("foreks", foreks, "Foreks sapma"),
+        ):
+            if rec.get("band") not in ("warn", "hot") or rec.get("pct") is None:
+                continue
+            pct = float(rec["pct"])
+            out.append(
+                {
+                    "asset_id": aid,
+                    "asset": label,
+                    "kind": kind,
+                    "kind_label": kind_label,
+                    "pct": pct,
+                    "pct_text": format_sapma_pct(pct),
+                    "band": rec["band"],
+                    "warn": rec["warn"],
+                    "alert": rec["alert"],
+                    "n": rec.get("n") or 0,
+                    "subject": f"Doviz - {kind_label} - {label} - {format_sapma_pct(pct)}",
+                }
+            )
+    return out
 
 
 def _numbers_on_line(line: str) -> list[tuple[str, float]]:
@@ -1384,6 +1451,7 @@ def job_competitors(page: Any) -> dict[str, Any]:
             cell = (values.get(asset["id"]) or {}).get(site["id"])
             row["cells"][site["id"]] = cell or {"value": "", "change": ""}
         row["sapma"] = compute_price_sapma(asset["id"], row["cells"])
+        row["foreks_sapma"] = compute_pair_sapma(asset["id"], row["cells"])
         matrix.append(row)
 
     filled = sum(1 for r in matrix for c in r["cells"].values() if c.get("value"))

@@ -381,8 +381,18 @@
     return bounds ? null : val;
   }
 
-  function computeSapma(aid, cells) {
+  function sapmaBand(aid, doviz, peer, n) {
     var thr = SAPMA_THRESHOLDS[aid] || [0.2, 0.5];
+    if (doviz == null || peer == null || !peer) {
+      return { pct: null, avg: null, n: n || 0, warn: thr[0], alert: thr[1], band: "" };
+    }
+    var pct = ((doviz - peer) / peer) * 100;
+    var ap = Math.abs(pct);
+    var band = ap < thr[0] ? "ok" : ap < thr[1] ? "warn" : "hot";
+    return { pct: pct, avg: peer, n: n || 1, warn: thr[0], alert: thr[1], band: band };
+  }
+
+  function computeSapma(aid, cells) {
     var doviz = parseQuote(aid, ((cells || {}).doviz || {}).value);
     var peers = [];
     Object.keys(cells || {}).forEach(function (sid) {
@@ -391,18 +401,19 @@
       if (n != null) peers.push(n);
     });
     if (doviz == null || peers.length < 2) {
-      return { pct: null, avg: null, n: peers.length, warn: thr[0], alert: thr[1], band: "" };
+      return sapmaBand(aid, null, null, peers.length);
     }
     var sum = 0;
     peers.forEach(function (p) {
       sum += p;
     });
-    var avg = sum / peers.length;
-    if (!avg) return { pct: null, avg: null, n: peers.length, warn: thr[0], alert: thr[1], band: "" };
-    var pct = ((doviz - avg) / avg) * 100;
-    var ap = Math.abs(pct);
-    var band = ap < thr[0] ? "ok" : ap < thr[1] ? "warn" : "hot";
-    return { pct: pct, avg: avg, n: peers.length, warn: thr[0], alert: thr[1], band: band };
+    return sapmaBand(aid, doviz, sum / peers.length, peers.length);
+  }
+
+  function computeForeksSapma(aid, cells) {
+    var doviz = parseQuote(aid, ((cells || {}).doviz || {}).value);
+    var peer = parseQuote(aid, ((cells || {}).foreks || {}).value);
+    return sapmaBand(aid, doviz, peer, peer == null ? 0 : 1);
   }
 
   function fmtSapmaPct(n) {
@@ -429,11 +440,13 @@
       });
       if (!inserted && c.id === "doviz") {
         out.push({ id: "sapma", label: "Sapma", synthetic: true });
+        out.push({ id: "foreks_sapma", label: "Foreks sapma", synthetic: true });
         inserted = true;
       }
     });
     if (!inserted && out.length) {
       out.splice(1, 0, { id: "sapma", label: "Sapma", synthetic: true });
+      out.splice(2, 0, { id: "foreks_sapma", label: "Foreks sapma", synthetic: true });
     }
     return out;
   }
@@ -475,10 +488,12 @@
     var headers = ["Varlık"].concat(cols.map(function (c) { return c.label; }));
     var rows = matrix.map(function (r) {
       var sapma = computeSapma(r.id, r.cells || {});
+      var foreksSapma = computeForeksSapma(r.id, r.cells || {});
       var cells = [{ text: r.label, cls: "pin" }];
       cols.forEach(function (c) {
-        if (c.id === "sapma") {
-          if (sapma.pct == null) {
+        if (c.id === "sapma" || c.id === "foreks_sapma") {
+          var rec = c.id === "foreks_sapma" ? foreksSapma : sapma;
+          if (rec.pct == null) {
             cells.push({
               html: '<span class="pml-miss">—</span>',
               sort: "",
@@ -487,24 +502,28 @@
             return;
           }
           var title =
-            "Döviz vs diğer " +
-            sapma.n +
-            " sitenin ortalaması · eşik ±" +
-            String(sapma.warn).replace(".", ",") +
-            "% (hacim)";
+            c.id === "foreks_sapma"
+              ? "Döviz vs Foreks · eşik ±" + String(rec.warn).replace(".", ",") + "% (hacim)"
+              : "Döviz vs diğer " +
+                rec.n +
+                " sitenin ortalaması · eşik ±" +
+                String(rec.warn).replace(".", ",") +
+                "% (hacim)";
+          var note =
+            c.id === "foreks_sapma"
+              ? "±" + String(rec.warn).replace(".", ",") + "%"
+              : "n=" + rec.n + " · ±" + String(rec.warn).replace(".", ",") + "%";
           cells.push({
             html:
               '<span title="' +
               esc(title) +
               '">' +
-              esc(fmtSapmaPct(sapma.pct)) +
-              '</span><div class="pml-note">n=' +
-              sapma.n +
-              " · ±" +
-              String(sapma.warn).replace(".", ",") +
-              "%</div>",
-            sort: sapma.pct,
-            cls: "pml-sapma pml-sapma-" + sapma.band,
+              esc(fmtSapmaPct(rec.pct)) +
+              '</span><div class="pml-note">' +
+              esc(note) +
+              "</div>",
+            sort: rec.pct,
+            cls: "pml-sapma pml-sapma-" + rec.band,
           });
           return;
         }
@@ -523,7 +542,7 @@
     var legend = document.createElement("p");
     legend.className = "pml-note";
     legend.textContent =
-      "Sapma = (Döviz − diğer sitelerin ortalaması) / ortalama. Eşik hacme göre: USD/EUR ±0,08%, gram/ons altın ±0,12%, BIST ±0,15%, Brent ±0,20%, Bitcoin ±0,25%, gümüş ±0,35%, çeyrek ±0,50%. Yeşil eşik içi, sarı uyarı, kırmızı sapma. Boş hücre o sitede yok / okunamadı.";
+      "Sapma = Döviz vs diğer sitelerin ortalaması. Foreks sapma = Döviz vs Foreks. Eşik hacme göre: USD/EUR ±0,08%, gram/ons altın ±0,12%, BIST ±0,15%, Brent ±0,20%, Bitcoin ±0,25%, gümüş ±0,35%, çeyrek ±0,50%. Yeşil eşik içi, sarı uyarı, kırmızı sapma. Sarı/kırmızı alarm maili: Doviz - Sapma - varlık - değer.";
     root.appendChild(legend);
     root.appendChild(sortableTable(headers, rows));
   }

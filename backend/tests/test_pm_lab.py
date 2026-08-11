@@ -416,7 +416,7 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=17" in html
+    assert "pm_lab.js?v=18" in html
     assert COMPETITORS_INTERVAL_MIN == 10
     assert "fiyat " in js
     assert "10 dk" in Path("templates/pm_lab.html").read_text(encoding="utf-8")
@@ -467,9 +467,52 @@ def test_competitor_sapma_vs_peer_average():
     assert hot["band"] == "hot"
     thin = {"doviz": {"value": "47,74"}, "tradingview": {"value": "47.73"}}
     assert mod.compute_price_sapma("usd", thin)["pct"] is None
+    fk = mod.compute_pair_sapma("usd", peers)
+    assert fk["pct"] is not None and fk["pct"] > 0
+    assert fk["band"] == "warn"
+    fk_ok = mod.compute_pair_sapma("usd", tight)
+    assert fk_ok["band"] == "ok"
+    missing_fk = dict(peers)
+    missing_fk["foreks"] = {"value": ""}
+    assert mod.compute_pair_sapma("usd", missing_fk)["pct"] is None
+    alerts = mod.collect_sapma_alerts([{"id": "usd", "label": "Dolar", "cells": peers}])
+    subjects = [a["subject"] for a in alerts]
+    assert any(s.startswith("Doviz - Sapma - Dolar - ") for s in subjects)
+    assert any(s.startswith("Doviz - Foreks sapma - Dolar - ") for s in subjects)
     js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
     html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
     assert 'label: "Sapma"' in js
+    assert 'label: "Foreks sapma"' in js
     assert "c.id === \"doviz\"" in js
     assert "pml-sapma-hot" in html
     assert "computeSapma" in js
+    assert "computeForeksSapma" in js
+
+
+def test_sapma_alert_mail_subject(monkeypatch):
+    from backend.services import pm_lab_sapma_alerts as alerts
+
+    sent: list[str] = []
+    monkeypatch.setattr(alerts.settings, "outbound_email_enabled", True)
+    monkeypatch.setattr(alerts, "operations_recipients", lambda: ["ops@nokta.com"])
+    monkeypatch.setattr(alerts, "send_email", lambda subject, html, recipients=None: sent.append(subject) or True)
+    monkeypatch.setattr(alerts, "_delivery_exists", lambda db, **kwargs: False)
+    monkeypatch.setattr(alerts, "_record_delivery", lambda db, **kwargs: None)
+    section = {
+        "matrix": [
+            {
+                "id": "usd",
+                "label": "Dolar",
+                "cells": {
+                    "doviz": {"value": "47,80"},
+                    "foreks": {"value": "47,7350"},
+                    "tradingview": {"value": "47.73"},
+                    "canlidoviz": {"value": "47.74"},
+                },
+            }
+        ]
+    }
+    out = alerts.notify_competitor_sapma(None, section)
+    assert out
+    assert all(s.startswith("Doviz - ") and "Dolar" in s for s in out)
+    assert not any("@" in s for s in out)

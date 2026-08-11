@@ -75,6 +75,14 @@ def pm_lab_ingest(
 ) -> dict[str, Any]:
     _check_ingest_token(authorization, x_notification_ingest_token)
     result = ingest_pm_lab_payload(db, body.model_dump())
+    incoming = body.sections if isinstance(body.sections, dict) else {}
+    if "competitors" in incoming:
+        try:
+            from backend.services.pm_lab_sapma_alerts import notify_competitor_sapma
+
+            notify_competitor_sapma(db, incoming.get("competitors") if isinstance(incoming.get("competitors"), dict) else {})
+        except Exception:
+            pass
     try:
         from backend.services.scrape_telemetry import record_scrape_ingest
 
