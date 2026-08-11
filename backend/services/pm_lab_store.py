@@ -29,7 +29,7 @@ SECTION_DEFS: list[dict[str, Any]] = [
         "id": "competitors",
         "no": 3,
         "title": "Rakip ana sayfa fiyatları",
-        "hint": "satır: varlık · sütun: site",
+        "hint": "satır: varlık · sütun: site · sapma: Döviz vs akran",
     },
     {
         "id": "sikayet",

@@ -81,6 +81,20 @@
   html.dark .pml-link{color:#e4e4e7}
   .pml-note{font-size:11px;color:#64748b;margin-bottom:.5rem;overflow-wrap:anywhere}
   html.dark .pml-note{color:#a1a1aa}
+  .pml-sapma{font-variant-numeric:tabular-nums;font-weight:750;white-space:nowrap}
+  .pml-sapma .pml-note{margin:0;font-weight:600}
+  .pml-sapma-ok{background:#ecfdf5 !important;color:#166534}
+  html.dark .pml-sapma-ok{background:#14241c !important;color:#86efac}
+  .pml-sapma-warn{background:#fffbeb !important;color:#92400e}
+  html.dark .pml-sapma-warn{background:#2a2414 !important;color:#fcd34d}
+  .pml-sapma-hot{background:#fef2f2 !important;color:#b91c1c}
+  html.dark .pml-sapma-hot{background:#3f1a1a !important;color:#fca5a5}
+  .pml-table tbody tr:hover td.pml-sapma-ok{background:#d1fae5 !important}
+  .pml-table tbody tr:hover td.pml-sapma-warn{background:#fef3c7 !important}
+  .pml-table tbody tr:hover td.pml-sapma-hot{background:#fecaca !important}
+  html.dark .pml-table tbody tr:hover td.pml-sapma-ok{background:#163024 !important}
+  html.dark .pml-table tbody tr:hover td.pml-sapma-warn{background:#3a3018 !important}
+  html.dark .pml-table tbody tr:hover td.pml-sapma-hot{background:#4a2222 !important}
   .pml-sum{min-width:0}
   @media (max-width: 639px) {
     .pml-tabs,.pml-subtabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.15rem;scrollbar-width:thin}
@@ -134,5 +148,5 @@
 </div>
 
 <script type="application/json" id="pml-boot">{{ boot_json | safe }}</script>
-<script src="/static/js/pm_lab.js?v=13"></script>
+<script src="/static/js/pm_lab.js?v=14"></script>
 {% endblock %}

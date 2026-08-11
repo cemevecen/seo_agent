@@ -588,6 +588,67 @@ def _value_candidates(raw: str, val: float) -> list[float]:
     return out
 
 
+# Hacim/likiditeye göre sapma eşiği (yüzde). Dar bant = yüksek hacimli kotasyon.
+# (uyarı, kırmızı) — |sapma| < uyarı yeşil, arası sarı, kırmızı eşiğin üstü.
+SAPMA_THRESHOLDS: dict[str, tuple[float, float]] = {
+    "usd": (0.08, 0.22),
+    "eur": (0.08, 0.22),
+    "gram_altin": (0.12, 0.35),
+    "ons_altin": (0.12, 0.35),
+    "bist100": (0.15, 0.40),
+    "brent": (0.20, 0.55),
+    "bitcoin": (0.25, 0.70),
+    "gram_gumus": (0.35, 0.90),
+    "ceyrek_altin": (0.50, 1.20),
+}
+_SAPMA_DEFAULT = (0.20, 0.50)
+_SAPMA_MIN_PEERS = 2
+
+
+def _parse_quote(aid: str, raw: str) -> float | None:
+    val = _to_float(raw)
+    if val is None:
+        return None
+    for cand in _value_candidates(raw, val):
+        if _in_range(aid, cand):
+            return cand
+    return val if _in_range(aid, val) else None
+
+
+def compute_price_sapma(
+    asset_id: str,
+    cells: dict[str, Any],
+    doviz_id: str = "doviz",
+) -> dict[str, Any]:
+    """Döviz kotasyonu vs diğer sitelerin ortalaması (yüzde sapma)."""
+    warn, alert = SAPMA_THRESHOLDS.get(asset_id, _SAPMA_DEFAULT)
+    doviz = _parse_quote(asset_id, str((cells.get(doviz_id) or {}).get("value") or ""))
+    peers: list[float] = []
+    for sid, cell in (cells or {}).items():
+        if sid == doviz_id:
+            continue
+        parsed = _parse_quote(asset_id, str((cell or {}).get("value") or ""))
+        if parsed is not None:
+            peers.append(parsed)
+    empty = {"pct": None, "avg": None, "n": len(peers), "warn": warn, "alert": alert, "band": ""}
+    if doviz is None or len(peers) < _SAPMA_MIN_PEERS:
+        return empty
+    avg = sum(peers) / len(peers)
+    if avg == 0:
+        return empty
+    pct = (doviz - avg) / avg * 100.0
+    ap = abs(pct)
+    band = "ok" if ap < warn else ("warn" if ap < alert else "hot")
+    return {
+        "pct": round(pct, 4),
+        "avg": round(avg, 6),
+        "n": len(peers),
+        "warn": warn,
+        "alert": alert,
+        "band": band,
+    }
+
+
 def _numbers_on_line(line: str) -> list[tuple[str, float]]:
     out: list[tuple[str, float]] = []
     for m in _NUM_RE.finditer(line):
@@ -1127,6 +1188,7 @@ def job_competitors(page: Any) -> dict[str, Any]:
         for site in SITES:
             cell = (values.get(asset["id"]) or {}).get(site["id"])
             row["cells"][site["id"]] = cell or {"value": "", "change": ""}
+        row["sapma"] = compute_price_sapma(asset["id"], row["cells"])
         matrix.append(row)
 
     filled = sum(1 for r in matrix for c in r["cells"].values() if c.get("value"))

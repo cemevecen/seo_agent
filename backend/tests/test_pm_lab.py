@@ -372,4 +372,49 @@ def test_pm_lab_doviz_rank_chip_labels():
     assert "bizim sıra" not in js
     assert "doviz.com: " in js
     assert "doviz.com sıra:" in js
-    assert "pm_lab.js?v=13" in html
+    assert "pm_lab.js?v=14" in html
+
+
+def test_competitor_sapma_vs_peer_average():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pm_lab_scrape", Path("scripts/pm_lab_scrape.py"))
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    assert mod.SAPMA_THRESHOLDS["usd"][0] < mod.SAPMA_THRESHOLDS["ceyrek_altin"][0]
+    assert mod.SAPMA_THRESHOLDS["bitcoin"][0] > mod.SAPMA_THRESHOLDS["gram_altin"][0]
+    peers = {
+        "doviz": {"value": "47,80"},
+        "tradingview": {"value": "47.73"},
+        "canlidoviz": {"value": "47.74"},
+        "foreks": {"value": "47,7350"},
+        "investing": {"value": "47.73"},
+        "bigpara": {"value": "47,7307"},
+        "uzmanpara": {"value": "47,73"},
+        "bloomberght": {"value": "47,74"},
+        "cnbce": {"value": "47,73"},
+        "cnnturk": {"value": "47,7427"},
+        "enuygun": {"value": "47,73"},
+    }
+    hit = mod.compute_price_sapma("usd", peers)
+    assert hit["n"] == 10
+    assert hit["pct"] is not None and hit["pct"] > 0
+    assert 0.10 < hit["pct"] < 0.20
+    assert hit["band"] == "warn"
+    tight = dict(peers)
+    tight["doviz"] = {"value": "47,74"}
+    ok = mod.compute_price_sapma("usd", tight)
+    assert ok["band"] == "ok"
+    hot_cells = dict(peers)
+    hot_cells["doviz"] = {"value": "48,20"}
+    hot = mod.compute_price_sapma("usd", hot_cells)
+    assert hot["band"] == "hot"
+    thin = {"doviz": {"value": "47,74"}, "tradingview": {"value": "47.73"}}
+    assert mod.compute_price_sapma("usd", thin)["pct"] is None
+    js = Path("static/js/pm_lab.js").read_text(encoding="utf-8")
+    html = Path("templates/pm_lab.html").read_text(encoding="utf-8")
+    assert 'label: "Sapma"' in js
+    assert "c.id === \"doviz\"" in js
+    assert "pml-sapma-hot" in html
+    assert "computeSapma" in js

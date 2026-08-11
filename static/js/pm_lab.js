@@ -329,8 +329,104 @@
     paint(0);
   }
 
+  var SAPMA_THRESHOLDS = {
+    usd: [0.08, 0.22],
+    eur: [0.08, 0.22],
+    gram_altin: [0.12, 0.35],
+    ons_altin: [0.12, 0.35],
+    bist100: [0.15, 0.40],
+    brent: [0.20, 0.55],
+    bitcoin: [0.25, 0.70],
+    gram_gumus: [0.35, 0.90],
+    ceyrek_altin: [0.50, 1.20],
+  };
+  var SAPMA_RANGES = {
+    usd: [25, 90],
+    eur: [30, 110],
+    bist100: [5000, 30000],
+    gram_altin: [4000, 9000],
+    gram_gumus: [80, 160],
+    ons_altin: [1500, 10000],
+    brent: [30, 250],
+    ceyrek_altin: [3000, 40000],
+    bitcoin: [25000, 150000],
+  };
+
+  function parseQuote(aid, raw) {
+    var s = String(raw || "").replace(/\$/g, "").replace(/\s/g, "").trim();
+    if (!s) return null;
+    var comma = s.lastIndexOf(",");
+    var dot = s.lastIndexOf(".");
+    var norm = s;
+    if (comma >= 0 && dot >= 0) {
+      norm = comma > dot ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+    } else if (comma >= 0) {
+      norm = s.replace(",", ".");
+    } else if ((s.match(/\./g) || []).length > 1) {
+      norm = s.replace(/\./g, "");
+    }
+    var val = parseFloat(norm);
+    if (!isFinite(val)) return null;
+    var cands = [val];
+    if (/^\d{1,2}\.\d{3}$/.test(s) && val < 500) {
+      var alt = parseFloat(s.replace(".", ""));
+      if (isFinite(alt) && alt !== val) cands.push(alt);
+    }
+    var bounds = SAPMA_RANGES[aid];
+    var i;
+    for (i = 0; i < cands.length; i++) {
+      if (!bounds || (cands[i] >= bounds[0] && cands[i] <= bounds[1])) return cands[i];
+    }
+    return bounds ? null : val;
+  }
+
+  function computeSapma(aid, cells) {
+    var thr = SAPMA_THRESHOLDS[aid] || [0.2, 0.5];
+    var doviz = parseQuote(aid, ((cells || {}).doviz || {}).value);
+    var peers = [];
+    Object.keys(cells || {}).forEach(function (sid) {
+      if (sid === "doviz") return;
+      var n = parseQuote(aid, (cells[sid] || {}).value);
+      if (n != null) peers.push(n);
+    });
+    if (doviz == null || peers.length < 2) {
+      return { pct: null, avg: null, n: peers.length, warn: thr[0], alert: thr[1], band: "" };
+    }
+    var sum = 0;
+    peers.forEach(function (p) {
+      sum += p;
+    });
+    var avg = sum / peers.length;
+    if (!avg) return { pct: null, avg: null, n: peers.length, warn: thr[0], alert: thr[1], band: "" };
+    var pct = ((doviz - avg) / avg) * 100;
+    var ap = Math.abs(pct);
+    var band = ap < thr[0] ? "ok" : ap < thr[1] ? "warn" : "hot";
+    return { pct: pct, avg: avg, n: peers.length, warn: thr[0], alert: thr[1], band: band };
+  }
+
+  function fmtSapmaPct(n) {
+    var sign = n > 0 ? "+" : n < 0 ? "−" : "";
+    return sign + Math.abs(n).toFixed(2).replace(".", ",") + "%";
+  }
+
+  function withSapmaColumn(cols) {
+    var out = [];
+    var inserted = false;
+    (cols || []).forEach(function (c) {
+      out.push(c);
+      if (!inserted && c.id === "doviz") {
+        out.push({ id: "sapma", label: "Sapma", synthetic: true });
+        inserted = true;
+      }
+    });
+    if (!inserted && out.length) {
+      out.splice(1, 0, { id: "sapma", label: "Sapma", synthetic: true });
+    }
+    return out;
+  }
+
   function renderCompetitors(root, data) {
-    var cols = data.columns || [];
+    var cols = withSapmaColumn(data.columns || []);
     var matrix = data.matrix || [];
     if (!matrix.length) {
       root.textContent = "Fiyat matrisi henüz yok.";
@@ -338,8 +434,40 @@
     }
     var headers = ["Varlık"].concat(cols.map(function (c) { return c.label; }));
     var rows = matrix.map(function (r) {
+      var sapma = computeSapma(r.id, r.cells || {});
       var cells = [{ text: r.label, cls: "pin" }];
       cols.forEach(function (c) {
+        if (c.id === "sapma") {
+          if (sapma.pct == null) {
+            cells.push({
+              html: '<span class="pml-miss">—</span>',
+              sort: "",
+              cls: "pml-sapma",
+            });
+            return;
+          }
+          var title =
+            "Döviz vs diğer " +
+            sapma.n +
+            " sitenin ortalaması · eşik ±" +
+            String(sapma.warn).replace(".", ",") +
+            "% (hacim)";
+          cells.push({
+            html:
+              '<span title="' +
+              esc(title) +
+              '">' +
+              esc(fmtSapmaPct(sapma.pct)) +
+              '</span><div class="pml-note">n=' +
+              sapma.n +
+              " · ±" +
+              String(sapma.warn).replace(".", ",") +
+              "%</div>",
+            sort: sapma.pct,
+            cls: "pml-sapma pml-sapma-" + sapma.band,
+          });
+          return;
+        }
         var cell = (r.cells || {})[c.id] || {};
         var v = cell.value || "";
         cells.push({
@@ -354,7 +482,8 @@
     });
     var legend = document.createElement("p");
     legend.className = "pml-note";
-    legend.textContent = "Satır = varlık, sütun = site. Boş hücre o sitede yok / okunamadı.";
+    legend.textContent =
+      "Sapma = (Döviz − diğer sitelerin ortalaması) / ortalama. Eşik hacme göre: USD/EUR ±0,08%, gram/ons altın ±0,12%, BIST ±0,15%, Brent ±0,20%, Bitcoin ±0,25%, gümüş ±0,35%, çeyrek ±0,50%. Yeşil eşik içi, sarı uyarı, kırmızı sapma. Boş hücre o sitede yok / okunamadı.";
     root.appendChild(legend);
     root.appendChild(sortableTable(headers, rows));
   }
